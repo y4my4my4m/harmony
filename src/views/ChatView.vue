@@ -1,6 +1,16 @@
 <template>
   <!-- The call's side chat shows this list while it is open -->
   <CallChatElsewhere v-if="callChatHere" />
+  <!-- A remote server closed to this instance: why it is silent, in place of its messages -->
+  <div v-else-if="closedServer" class="remote-server-closed" data-testid="remote-server-closed">
+    <EmptyState
+      icon="globe"
+      :title="t('federation.closedBanner.title', { name: closedServer.name })"
+      :description="t('federation.closedBanner.body')"
+      :action-label="t('server.leaveServer')"
+      @action="leaveServer(closedServer.id)"
+    />
+  </div>
   <!-- Chat Messages -->
   <UnifiedContentArea
     v-else
@@ -24,7 +34,11 @@ import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { takeJumpTarget } from '@/utils/messageJumpQuery'
+import { useI18n } from 'vue-i18n'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import { useLeaveServer } from '@/composables/useLeaveServer'
+import { checkRemoteServer, isRemoteServerClosed } from '@/utils/remoteServerStatus'
 import CallChatElsewhere from '@/components/voice/CallChatElsewhere.vue'
 import { useCallChat } from '@/components/voice/callChat'
 import { channelListLoading, loadOlderChannelMessages, loadOlderConversationMessages } from '@/composables/chatPaging'
@@ -77,6 +91,21 @@ const currentChannelName = computed(() => {
   if (props.isDM) return undefined
   return props.currentChannel?.name
 })
+
+const { t } = useI18n()
+const { leaveServer } = useLeaveServer()
+
+const routeServer = computed(() => {
+  if (props.isDM) return null
+  const serverId = route.params.serverId as string | undefined
+  if (!serverId) return null
+  return serverChannelStore.servers.find(s => s.id === serverId)
+    ?? (props.currentServer?.id === serverId ? props.currentServer : null)
+})
+const closedServer = computed(() => isRemoteServerClosed(routeServer.value?.id) ? routeServer.value : null)
+watch(() => [routeServer.value?.id, routeServer.value?.is_local_server], () => {
+  void checkRemoteServer(routeServer.value)
+}, { immediate: true })
 
 const callChat = useCallChat()
 const callChatHere = computed(() => props.isDM
@@ -340,6 +369,15 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 </script>
 
 <style scoped>
+.remote-server-closed {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .chat-view {
   height: 100%;
   display: flex;

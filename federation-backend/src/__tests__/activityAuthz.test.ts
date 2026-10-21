@@ -295,6 +295,153 @@ describe('Accept / Reject of a Follow', () => {
   })
 })
 
+describe('Reject of a Join', () => {
+  const GROUP = 'https://chat.example/servers/eaa74f77-149a-4a43-9a0e-2a51a2a0078f'
+  const JOIN = 'https://harmony.test/users/alice/activities/join-1'
+  const reject = (summary?: string) => ({
+    type: 'Reject',
+    actor: GROUP,
+    ...(summary ? { summary } : {}),
+    object: { type: 'Join', id: JOIN, actor: LOCAL_ALICE, object: GROUP },
+  })
+
+  beforeEach(() => {
+    tables.servers = [{ id: 'ref', name: 'Mastodon Canada', ap_id: GROUP, is_local_server: false }]
+    tables.user_servers = [{ id: 'm1', server_id: 'ref', user_id: 'alice-id', status: 'accepted', join_activity_id: JOIN }]
+    tables.notifications = []
+  })
+
+  it('removes the membership and tells the user why when it arrives after the join answered', async () => {
+    await P.processReject(reject('Federation is disabled on this server'))
+
+    expect(tables.user_servers).toHaveLength(0)
+    expect(tables.notifications).toHaveLength(1)
+    expect(tables.notifications[0]).toMatchObject({
+      user_id: 'alice-id',
+      type: 'server_join_rejected',
+      data: { server: { id: 'ref', name: 'Mastodon Canada', ap_id: GROUP }, reason: 'Federation is disabled on this server' },
+    })
+  })
+
+  it('leaves the telling to the join request that is still answering', async () => {
+    const { markJoinInFlight, clearJoinInFlight } = await import('../activitypub/joinsInFlight.js')
+    markJoinInFlight(JOIN)
+    try {
+      await P.processReject(reject('Federation is disabled on this server'))
+    } finally {
+      clearJoinInFlight(JOIN)
+    }
+    expect(tables.user_servers).toHaveLength(0)
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('says nothing when there was no membership to remove', async () => {
+    tables.user_servers = []
+    await P.processReject(reject())
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('leaves a membership made by a later Join: a stale or replayed Reject names another Join', async () => {
+    tables.user_servers[0].join_activity_id = 'https://harmony.test/users/alice/activities/join-2'
+    await P.processReject(reject('Federation is disabled on this server'))
+    expect(tables.user_servers).toHaveLength(1)
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('leaves an accepted membership that stored no Join id', async () => {
+    tables.user_servers[0].join_activity_id = null
+    await P.processReject(reject())
+    expect(tables.user_servers).toHaveLength(1)
+  })
+
+  it('removes a pending membership that stored no Join id', async () => {
+    tables.user_servers[0] = { id: 'm1', server_id: 'ref', user_id: 'alice-id', status: 'pending', join_activity_id: null }
+    await P.processReject(reject())
+    expect(tables.user_servers).toHaveLength(0)
+  })
+})
+
+describe('Remove of a member by a remote Group', () => {
+  const GROUP = 'https://chat.example/servers/eaa74f77-149a-4a43-9a0e-2a51a2a0078f'
+  const OTHER_GROUP = 'https://chat.example/servers/0a5c0f2b-6f5e-4f43-9d3a-6c1d1b7f0e11'
+  const remove = (extra: Record<string, unknown> = {}) => ({
+    type: 'Remove',
+    id: `${GROUP}/activities/removal-1`,
+    actor: GROUP,
+    object: LOCAL_ALICE,
+    target: `${GROUP}/members`,
+    published: '2026-10-21T12:00:00.000Z',
+    summary: 'This server stopped taking members from other instances',
+    'harmony:reason': 'federation_closed',
+    ...extra,
+  })
+
+  beforeEach(() => {
+    tables.servers = [
+      { id: 'ref', name: 'Mastodon Canada', ap_id: GROUP, is_local_server: false },
+      { id: 'other-ref', name: 'Other', ap_id: OTHER_GROUP, is_local_server: false },
+    ]
+    tables.user_servers = [
+      { id: 'm1', server_id: 'ref', user_id: 'alice-id', status: 'accepted', created_at: '2026-10-01T00:00:00.000Z' },
+      { id: 'm2', server_id: 'other-ref', user_id: 'alice-id', status: 'accepted', created_at: '2026-10-01T00:00:00.000Z' },
+    ]
+    tables.notifications = []
+  })
+
+  it('removes the membership when federation was turned off and says so without calling it a ban', async () => {
+    await P.processRemove(remove())
+
+    expect(tables.user_servers.map(r => r.id)).toEqual(['m2'])
+    expect(tables.notifications).toHaveLength(1)
+    expect(tables.notifications[0]).toMatchObject({
+      user_id: 'alice-id',
+      type: 'server_federation_closed',
+      data: { server: { id: 'ref', name: 'Mastodon Canada', ap_id: GROUP } },
+    })
+  })
+
+  it('names a kick or a ban, with the reason the server gave', async () => {
+    await P.processRemove(remove({ 'harmony:reason': 'ban', summary: 'spam' }))
+
+    expect(tables.user_servers.map(r => r.id)).toEqual(['m2'])
+    expect(tables.notifications[0]).toMatchObject({
+      type: 'server_member_removed',
+      data: { server: { id: 'ref' }, action: 'ban', reason: 'spam' },
+    })
+  })
+
+  it('does nothing for a Group other than the one whose members it names', async () => {
+    await P.processRemove(remove({ actor: OTHER_GROUP }))
+    expect(tables.user_servers).toHaveLength(2)
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('does nothing for a member of another instance', async () => {
+    await P.processRemove(remove({ object: BOB }))
+    expect(tables.user_servers).toHaveLength(2)
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('does nothing for an actor that is no server reference here', async () => {
+    const stray = 'https://evil.test/servers/x'
+    await P.processRemove(remove({ actor: stray, target: `${stray}/members` }))
+    expect(tables.user_servers).toHaveLength(2)
+  })
+
+  it('keeps a membership made after the Remove was published', async () => {
+    tables.user_servers[0].created_at = '2026-10-21T13:00:00.000Z'
+    await P.processRemove(remove())
+    expect(tables.user_servers).toHaveLength(2)
+    expect(tables.notifications).toHaveLength(0)
+  })
+
+  it('says nothing when there was no membership to remove', async () => {
+    tables.user_servers = tables.user_servers.filter(r => r.id !== 'm1')
+    await P.processRemove(remove())
+    expect(tables.notifications).toHaveLength(0)
+  })
+})
+
 describe('local actor URL fallback', () => {
   it('does not rewrite a local user\'s actor URLs from a case-variant URL', async () => {
     await P.processFollow({

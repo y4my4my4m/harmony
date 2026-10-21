@@ -22,6 +22,19 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
 }
 
+/**
+ * Opens an http(s) URL outside the app: the OS browser, or on Android and iOS the app that
+ * handles it. On the web, a new tab. For links opened from code: window.open in the native
+ * client loads the page in the app's own webview (Android) or does nothing (iOS).
+ */
+export function openLink(url: string): void {
+  if (isTauriRuntime()) {
+    void openExternalUrl(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 // The Tauri webview ignores <a target="_blank"> / window.open, so external links
 // do nothing. One delegated handler opens any unhandled http(s) anchor click in
 // the OS browser — covers every link without per-link wiring. Bubble phase +

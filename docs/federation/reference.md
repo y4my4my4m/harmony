@@ -192,7 +192,7 @@ Harmony does not send RFC 9421 signatures. Every outbound request, signed or not
 | Request | Signed by |
 |---|---|
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
-| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
+| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, `Remove` of a member, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
 | `Flag` | The instance actor |
 | `GET` on behalf of a member: a private server's Group, channels and members | That member |
@@ -310,6 +310,7 @@ Chat-server activities:
 | `Leave` | Account | Group id | An account leaves a remote server | Group inbox |
 | `Accept` / `Reject` | Group | The received `Join`; a `Reject` has a `summary` reason | Host answers a `Join` | Joining account |
 | `Reject` | Group | The received `Follow` | A `Follow` of the Group: a chat server is joined, not followed | Follower |
+| `Remove` | Group | The member's account, `target` `/servers/<uuid>/members`; `harmony:reason` `federation_closed`, `kick` or `ban`, a kick's or ban's reason as `summary`, `published` the time of the removal | Federation is turned off for the server, or a member from another instance is kicked or banned | The member's inbox |
 | `Create` / `Update` | Message author | Channel message `Note` | A message is sent or edited | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
 | `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
@@ -358,7 +359,7 @@ Shared and personal inboxes:
 | `Accept` | `Follow` (embedded or by id) | Follow accepted. Must come from the followed account. |
 | `Accept` | `QuoteRequest` | Quote approved; `result` must be on the responder's host. The quote is sent again as `Update` with `quoteAuthorization`. |
 | `Accept` | `Join` | Pending membership of a remote server accepted; the server is synced as the member |
-| `Reject` | `Follow`, `QuoteRequest`, `Join` | Follow removed, quote marked refused, pending membership removed |
+| `Reject` | `Follow`, `QuoteRequest`, `Join` | Follow removed, quote marked refused, membership removed. A `Join`'s `Reject` removes only the membership that `Join` made, by its id; a membership with no stored `Join` id goes only while pending. |
 | `Create` | `Note`, `Article`, `Page`, `Video` | A post (public, unlisted, followers-only). A direct `Note` becomes a direct message; with several local recipients or `harmony:conversationType: "group"`, a group conversation. A `Note` with `harmony:serverId` is a channel message. The object id must be on the actor's host. See [Inbound posts](#inbound-posts). |
 | `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them |
 | `Create` | `ChatThread` | A thread in a channel of a server this instance mirrors |
@@ -375,6 +376,7 @@ Shared and personal inboxes:
 | `Add` / `Remove` | Post, `target` a `featured` collection | Pin or unpin, by the post's author |
 | `Add` / `Remove` | Channel types, `target` a Group | Channel or category of a mirrored server added or removed |
 | `Remove` | Account, `target` a group conversation | Participant removed |
+| `Remove` | Local account, `target` the `members` of a mirrored server's `Group`, from that `Group` | Membership removed, unless it was made after the `Remove`'s `published`. The account is told why: federation off (`harmony:reason: federation_closed`), or a kick or ban with its `summary`. |
 | `Flag` | Local accounts and posts | A report owned by the sending domain, one per local account named. A Flag naming only posts is filed against their authors. At most 30 reports an hour per domain; a redelivered id is ignored. |
 | `Block` | Local account | Block recorded; follows in both directions removed |
 | `Move` | The actor, `target` the new account | Followers move (see [Account moves](#account-moves)) |
@@ -397,7 +399,7 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 | `Undo` | Of a `Join` (leave) or a reaction |
 | `harmony:VoiceChannelJoin`, `harmony:VoiceChannelLeave` | See [Voice](#voice) |
 
-With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays and voice moderation activities.
+With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. Turning federation off removes every member from another instance, each told by the Group's `Remove`; turning it on again brings nobody back. A kick or ban of a member from another instance is sent the same way. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays and voice moderation activities.
 
 ### Community relays
 

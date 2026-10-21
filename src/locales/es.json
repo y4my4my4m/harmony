@@ -716,7 +716,8 @@
       "disableConsequence1": "Bloqueará todas las nuevas solicitudes de unión de usuarios remotos",
       "disableConsequence2": "Dejará de entregar mensajes a y desde miembros remotos",
       "disableConsequence3": "Impedirá las reacciones y la participación por voz de usuarios remotos",
-      "disableConsequence4": "Mantendrá a los miembros federados actuales en la lista, sin poder interactuar",
+      "disableConsequence4": "Los eliminará de este servidor y le dirá a cada uno el motivo",
+      "disableConsequence5": "Los mantendrá fuera aunque vuelvas a activar la federación, hasta que se unan de nuevo con una invitación",
       "disableConfirm": "Desactivar la federación"
     }
   },
@@ -744,6 +745,8 @@
       "invalidName": "El nombre del canal solo puede contener letras, números y guiones",
       "limitReached": "Este servidor ha alcanzado el límite máximo de {max} canales",
       "createFailed": "No se pudo crear el canal. Por favor, inténtalo de nuevo.",
+      "createFailedReason": "No se pudo crear el canal: {reason}",
+      "createRefused": "No puedes crear canales en este servidor.",
       "deleteFailed": "No se pudo eliminar el canal."
     },
     "copyId": "Copiar ID del canal",
@@ -2569,6 +2572,8 @@
     },
     "postMenu": {
       "copyLink": "Copiar enlace",
+      "copyOriginalLink": "Copiar enlace original",
+      "openOriginal": "Abrir original",
       "edit": "Editar",
       "pin": "Fijar en el perfil",
       "unpin": "Desfijar del perfil",
@@ -3123,6 +3128,9 @@
     "openServer": "Abrir servidor",
     "alreadyJoined": "Ya eres miembro de este servidor.",
     "joinPending": "Solicitud para unirte enviada. Tendrás acceso cuando el servidor la acepte.",
+    "joinRefused": "{name} rechazó la unión.",
+    "joinRefusedReason": "{name} rechazó la unión: {reason}",
+    "federationOff": "Este servidor no acepta miembros de otras instancias: tiene la federación desactivada.",
     "federatedNotice": "Este es un servidor federado alojado en otra instancia de Harmony. Tus mensajes se enviarán a través de la red.",
     "joinByUrl": "Unirse por URL",
     "haveInviteLink": "¿Tienes un enlace de invitación? Pégalo aquí",
@@ -3132,7 +3140,29 @@
     "remoteServer": "Servidor remoto",
     "hosted": "Alojado en",
     "federatedUser": "Usuario federado",
-    "federatedBadge": "Federado"
+    "federatedBadge": "Federado",
+    "joinRejectedNotice": {
+      "title": "{name} rechazó tu solicitud para unirte",
+      "reason": "Motivo indicado: {reason}",
+      "noReason": "No se indicó ningún motivo.",
+      "short": "Unión rechazada"
+    },
+    "federationClosedNotice": {
+      "title": "{name} dejó de aceptar miembros de otras instancias, así que se te eliminó.",
+      "message": "Puedes volver a unirte si vuelve a abrirse.",
+      "short": "Servidor cerrado a otras instancias"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "Se te eliminó de {name}",
+      "banTitle": "Se te prohibió el acceso a {name}",
+      "reason": "Motivo indicado: {reason}",
+      "noReason": "No se indicó ningún motivo.",
+      "short": "Eliminado del servidor"
+    },
+    "closedBanner": {
+      "title": "{name} dejó de aceptar miembros de otras instancias",
+      "body": "Sus canales están cerrados a tu instancia, así que aquí no llega nada nuevo. No es un bloqueo: puedes volver a unirte si vuelve a abrirse."
+    }
   },
   "offline": {
     "banner": "Estás sin conexión. Algunas funciones pueden no estar disponibles."
@@ -3146,7 +3176,8 @@
     "unpinFailed": "No se pudo desfijar el mensaje. Inténtalo de nuevo.",
     "pinLimitReached": "Se alcanzó el límite de mensajes fijados. Desfija un mensaje para fijar otro.",
     "threadCreateFailed": "No se pudo iniciar el hilo. Inténtalo de nuevo.",
-    "threadReplyFailed": "No se pudo enviar la respuesta. Inténtalo de nuevo."
+    "threadReplyFailed": "No se pudo enviar la respuesta. Inténtalo de nuevo.",
+    "replyOutOfScope": "El mensaje al que respondes está en otro canal. Reintentar envía este sin la respuesta."
   },
   "invite": {
     "accepting": "Aceptando invitación...",
@@ -3203,7 +3234,10 @@
       "created": "Nuevo enlace de invitación creado",
       "createFailed": "No se pudo crear un enlace de invitación",
       "otherLinks": "Tus otros enlaces activos ({count})",
-      "showLink": "Mostrar este enlace"
+      "showLink": "Mostrar este enlace",
+      "federationOn": "Las personas de otras instancias de Harmony también pueden unirse: la federación está activada en este servidor.",
+      "federationOff": "Solo las cuentas de {instance} pueden unirse con este enlace: la federación está desactivada en este servidor.",
+      "federationOffInstance": "Solo las cuentas de {instance} pueden unirse con este enlace: la federación está desactivada en esta instancia."
     },
     "bannedFromServer": "Estás baneado de este servidor",
     "a11y": {

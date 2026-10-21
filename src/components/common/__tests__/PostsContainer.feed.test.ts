@@ -161,3 +161,82 @@ describe('PostsContainer feed', () => {
     expect(document.querySelector('[data-testid="feed-load-more"]')).toBeNull()
   })
 })
+
+describe('PostsContainer reading position', () => {
+  // Boxes from the rows' absolute offsets and the scroller's scrollTop; the scroller's top is 0.
+  // A scrollTop write fires scroll, as a browser does; happy-dom does not.
+  const rect = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect')
+  const scrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')
+  beforeEach(() => {
+    Object.defineProperty(Element.prototype, 'scrollTop', {
+      configurable: true,
+      get(this: Element & { _top?: number }) { return this._top ?? 0 },
+      set(this: Element & { _top?: number }, value: number) {
+        this._top = Math.max(0, value)
+        this.dispatchEvent(new Event('scroll'))
+      },
+    })
+    Element.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const scroller = document.querySelector<HTMLElement>('.posts-container')
+      const top = this.classList.contains('virtual-post-row')
+        ? parseFloat(this.style.top) - (scroller?.scrollTop ?? 0)
+        : 0
+      const height = sized(this)
+      return { top, bottom: top + height, height, left: 0, right: 600, width: 600, x: 0, y: top, toJSON: () => ({}) } as DOMRect
+    }
+  })
+  afterEach(() => {
+    if (rect) Object.defineProperty(Element.prototype, 'getBoundingClientRect', rect)
+    if (scrollTop) Object.defineProperty(Element.prototype, 'scrollTop', scrollTop)
+  })
+
+  async function scrollTo(scroller: HTMLElement, top: number) {
+    scroller.scrollTop = top
+    await settle()
+  }
+
+  it('reads the first post on screen and how far it is scrolled past', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(40), hasMore: false }, attachTo: document.body })
+    await settle()
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+    await scrollTo(scroller, 10 * ROW + 37)
+
+    expect((wrapper.vm as any).readScrollAnchor()).toEqual({ postId: 'p11', offset: 37, scrollTop: 10 * ROW + 37 })
+  })
+
+  it('scrolls back to the anchored post and offset', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(40), hasMore: false }, attachTo: document.body })
+    await settle()
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+
+    await (wrapper.vm as any).restoreScrollAnchor({ postId: 'p21', offset: 12, scrollTop: 0 })
+
+    expect(scroller.scrollTop).toBe(20 * ROW + 12)
+  })
+
+  it('follows the anchored post when posts were added above it', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(40), hasMore: false }, attachTo: document.body })
+    await settle()
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+    await scrollTo(scroller, 10 * ROW + 37)
+    const anchor = (wrapper.vm as any).readScrollAnchor()
+
+    await wrapper.setProps({ posts: [...posts(3, 100), ...posts(40)] })
+    await scrollTo(scroller, 0)
+    await (wrapper.vm as any).restoreScrollAnchor(anchor)
+
+    expect(scroller.scrollTop).toBe(13 * ROW + 37)
+  })
+
+  it('falls back to the saved scrollTop once the post is gone, and to the top without an anchor', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(40), hasMore: false }, attachTo: document.body })
+    await settle()
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+
+    await (wrapper.vm as any).restoreScrollAnchor({ postId: 'gone', offset: 12, scrollTop: 1234 })
+    expect(scroller.scrollTop).toBe(1234)
+
+    await (wrapper.vm as any).restoreScrollAnchor(null)
+    expect(scroller.scrollTop).toBe(0)
+  })
+})

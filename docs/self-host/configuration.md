@@ -351,7 +351,7 @@ process and names the variable.
 | `INSTANCE_NAME` | `Harmony` | Name in `/health` and `/instance-info`, and in NodeInfo when the database has none |
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
 | `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address |
-| `VERSION` | `1.6.7` | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
+| `VERSION` | the release (`1.8.10`) | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
 
 ### Queue and database
 

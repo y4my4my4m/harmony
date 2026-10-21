@@ -716,7 +716,8 @@
       "disableConsequence1": "阻止远程用户的所有新加入请求",
       "disableConsequence2": "停止与远程成员之间的消息投递",
       "disableConsequence3": "阻止远程用户的回应和语音参与",
-      "disableConsequence4": "现有联邦成员保留在成员列表中，但无法互动",
+      "disableConsequence4": "将他们从此服务器移除，并告知每个人原因",
+      "disableConsequence5": "即使重新启用联邦，他们也不会自动回来，需通过邀请重新加入",
       "disableConfirm": "停用联邦"
     }
   },
@@ -744,6 +745,8 @@
       "invalidName": "频道名称只能包含字母、数字和连字符",
       "limitReached": "此服务器已达到 {max} 个频道的上限",
       "createFailed": "创建频道失败。请重试。",
+      "createFailedReason": "无法创建频道：{reason}",
+      "createRefused": "你无法在此服务器中创建频道。",
       "deleteFailed": "无法删除频道。"
     },
     "copyId": "复制频道 ID",
@@ -2569,6 +2572,8 @@
     },
     "postMenu": {
       "copyLink": "复制链接",
+      "copyOriginalLink": "复制原始链接",
+      "openOriginal": "打开原文",
       "edit": "编辑",
       "pin": "置顶到个人资料",
       "unpin": "从个人资料取消置顶",
@@ -3123,6 +3128,9 @@
     "openServer": "打开服务器",
     "alreadyJoined": "您已经是此服务器的成员。",
     "joinPending": "加入请求已发送。服务器接受后您即可访问。",
+    "joinRefused": "{name} 拒绝了加入。",
+    "joinRefusedReason": "{name} 拒绝了加入：{reason}",
+    "federationOff": "此服务器不接受其他实例的成员：已关闭联邦。",
     "federatedNotice": "这是托管在另一个 Harmony 实例上的联邦服务器。您的消息将通过网络发送。",
     "joinByUrl": "通过 URL 加入",
     "haveInviteLink": "有邀请链接吗? 粘贴在此处",
@@ -3132,7 +3140,29 @@
     "remoteServer": "远程服务器",
     "hosted": "托管于",
     "federatedUser": "联邦用户",
-    "federatedBadge": "联邦"
+    "federatedBadge": "联邦",
+    "joinRejectedNotice": {
+      "title": "{name} 拒绝了你的加入请求",
+      "reason": "给出的原因：{reason}",
+      "noReason": "未给出原因。",
+      "short": "加入被拒绝"
+    },
+    "federationClosedNotice": {
+      "title": "{name} 已停止接受来自其他实例的成员，因此你已被移出。",
+      "message": "如果它重新开放，你可以再次加入。",
+      "short": "服务器已对其他实例关闭"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "你已被移出 {name}",
+      "banTitle": "你已被 {name} 封禁",
+      "reason": "给出的原因：{reason}",
+      "noReason": "未给出原因。",
+      "short": "已被移出服务器"
+    },
+    "closedBanner": {
+      "title": "{name} 已停止接受来自其他实例的成员",
+      "body": "它的频道已对你的实例关闭，这里不会再有新内容。这不是封禁：如果它重新开放，你可以再次加入。"
+    }
   },
   "offline": {
     "banner": "您处于离线状态。某些功能可能不可用。"
@@ -3146,7 +3176,8 @@
     "unpinFailed": "无法取消置顶消息。请重试。",
     "pinLimitReached": "已达到置顶上限。请先取消置顶一条消息。",
     "threadCreateFailed": "无法创建子区。请重试。",
-    "threadReplyFailed": "无法发送回复。请重试。"
+    "threadReplyFailed": "无法发送回复。请重试。",
+    "replyOutOfScope": "你回复的消息在另一个频道中。重试会不带回复地发送此消息。"
   },
   "invite": {
     "accepting": "正在接受邀请...",
@@ -3203,7 +3234,10 @@
       "created": "已创建新的邀请链接",
       "createFailed": "无法创建邀请链接",
       "otherLinks": "您的其他有效链接（{count}）",
-      "showLink": "显示此链接"
+      "showLink": "显示此链接",
+      "federationOn": "其他 Harmony 实例的用户也可以加入：此服务器已开启联邦。",
+      "federationOff": "只有 {instance} 上的账号可以通过此链接加入：此服务器已关闭联邦。",
+      "federationOffInstance": "只有 {instance} 上的账号可以通过此链接加入：此实例已关闭联邦。"
     },
     "bannedFromServer": "您已被此服务器封禁",
     "a11y": {

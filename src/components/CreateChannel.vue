@@ -152,6 +152,10 @@
           <span>{{ $t('channel.willBeAddedToCategory') }}</span>
         </div>
       </div>
+
+      <p v-if="formError" class="form-error" role="alert" data-testid="create-channel-error">
+        {{ formError }}
+      </p>
     </form>
 
     <template #footer>
@@ -273,6 +277,9 @@ const loadEncryptionPolicy = async () => {
   botCount.value = count || 0
 }
 const channelNameError = ref('')
+// Server refusals and the channel limit: about the request, not the name, so they sit under the
+// form and leave Create enabled for another try.
+const formError = ref('')
 const isCreating = ref(false)
 const currentChannelCount = ref(0)
 const isCheckingLimit = ref(false)
@@ -297,7 +304,7 @@ const checkChannelCount = async () => {
     
     // If already at limit, show error immediately
     if (currentChannelCount.value >= MAX_CHANNELS_PER_SERVER) {
-      channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+      formError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
     }
   } catch (error) {
     debug.error('Error checking channel count:', error)
@@ -314,6 +321,7 @@ watch(() => props.show, (newShow) => {
     loadRoles().catch(error => debug.error('Error loading roles:', error))
   } else {
     channelNameError.value = ''
+    formError.value = ''
     currentChannelCount.value = 0
   }
 }, { immediate: true })
@@ -382,13 +390,14 @@ const createChannel = async () => {
 
   // Check limit again before creating (in case it changed)
   if (isAtChannelLimit.value) {
-    channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+    formError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
     return
   }
 
   validateChannelName()
   if (channelNameError.value) return
 
+  formError.value = ''
   isCreating.value = true
   
   try {
@@ -399,7 +408,7 @@ const createChannel = async () => {
       .eq('server_id', props.serverId)
     
     if ((count || 0) >= MAX_CHANNELS_PER_SERVER) {
-      channelNameError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+      formError.value = t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
       return
     }
 
@@ -407,7 +416,8 @@ const createChannel = async () => {
       p_server_id: props.serverId,
       p_name: channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim(),
       p_type: channelType.value,
-      p_category: props.categoryId ?? null,
+      // p_category is a uuid: an empty string is refused (22P02), not read as no category.
+      p_category: props.categoryId || null,
       p_private: isPrivate.value,
       p_allowed_role_ids: isPrivate.value ? allowedRoleIds.value : [],
     })
@@ -435,16 +445,30 @@ const createChannel = async () => {
     closeForm()
   } catch (error) {
     debug.error('Error creating channel:', error)
-    channelNameError.value = t('channel.errors.createFailed')
+    formError.value = createFailureMessage(error)
   } finally {
     isCreating.value = false
   }
+}
+
+/** The refusal in words: the channel limit, a permission, else the server's own message. */
+function createFailureMessage(error: unknown): string {
+  const e = error as { code?: unknown; message?: unknown } | null
+  const message = typeof e?.message === 'string' ? e.message : ''
+  if (/Channel limit exceeded/i.test(message)) {
+    return t('channel.errors.limitReached', { max: MAX_CHANNELS_PER_SERVER })
+  }
+  if (e?.code === '42501' || /row-level security|permission denied/i.test(message)) {
+    return t('channel.errors.createRefused')
+  }
+  return message ? t('channel.errors.createFailedReason', { reason: message }) : t('channel.errors.createFailed')
 }
 
 const closeForm = () => {
   newChannelName.value = ''
   channelType.value = 0
   channelNameError.value = ''
+  formError.value = ''
   isPrivate.value = false
   allowedRoleIds.value = []
   encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
@@ -640,6 +664,13 @@ const closeForm = () => {
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 10%, transparent);
   border-radius: var(--radius-base);
+}
+
+.form-error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-danger);
+  line-height: 1.45;
 }
 
 .category-info {

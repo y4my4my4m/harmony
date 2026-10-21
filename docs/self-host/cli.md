@@ -146,6 +146,9 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | `database` | Postgres answers | FAIL; the other database checks are skipped | `harmony logs db` |
 | `migrations` | Every file in `db_schema/migrations/` is recorded in `supabase_migrations.schema_migrations` | FAIL when some are not applied; WARN when the database has migrations the checkout lacks (the code is older than the database) | `bash bootstrap.sh --migrations-only` (`harmony update` runs it); for the WARN, `harmony update` |
+| `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
+| `security-notices` | The new-sign-in and second-factor triggers exist on `auth.sessions` and `auth.mfa_factors` | FAIL when one is missing: no security notice for a new sign-in or a changed second factor | Run `db_schema/migrations/20261025100003_auth_triggers_converge.sql` as printed (safe to re-run; `harmony update` runs it once) |
+| `storage-policies` | The message media, soundboard, personal emoji and Drive policies on `storage.objects` and `storage.buckets`, the `message_media` and `soundboard` buckets and the Drive triggers on `storage.objects` exist | FAIL when one is missing: the uploads and reads that depend on it fail; a missing `storage_objects_session_aal` lets a session short of its second factor reach storage. FAIL when `storage.objects` or `storage.buckets` is missing | Run `db_schema/migrations/20261025100004_storage_converge.sql` as printed: it creates what is missing, replaces a superseded policy definition and keeps a bucket's configured limits. `harmony update` runs it once. With a table missing, `harmony logs storage` first |
 | `domain` | `instance_config.domain` equals `DOMAIN` in `.env` | FAIL when unset or still `localhost`; FAIL when the two differ, since handles and ActivityPub ids disagree | `bash bootstrap.sh`; for a difference, see [Domain mismatch](/self-host/troubleshooting#domain-mismatch) |
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
 | `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
@@ -154,12 +157,15 @@ certificates, Federation, Services, Security, Versions.
 ### DNS
 
 One line per name: the domain, `db.` the domain, and `live.` the domain with
-voice on. With internal TLS (a LAN install), each FAIL here is a WARN.
+voice on. With internal TLS (a LAN install or a Cloudflare Tunnel), each
+FAIL here is a WARN, except a tunnel record set to DNS only, and a name
+pointing at another public address passes as a proxy or tunnel in front of
+the server.
 
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `public IP` | The server's public IPv4 can be looked up | WARN when it cannot (not run with `--offline`) | `HARMONY_PUBLIC_IP=x.x.x.x harmony doctor` |
-| the name | Its A and AAAA records | FAIL with no record; FAIL when no A record holds the server's IPv4; WARN when an AAAA record differs from the server's IPv6; WARN when an AAAA record exists and the server has no public IPv6 (Let's Encrypt tries IPv6 first) | Create or correct the A record (DNS only, not proxied, while certificates are issued); correct or remove the AAAA record |
+| the name | Its A, AAAA and CNAME records | FAIL with no record; FAIL when no A record holds the server's IPv4; WARN when an AAAA record differs from the server's IPv6; WARN when an AAAA record exists and the server has no public IPv6 (Let's Encrypt tries IPv6 first); FAIL for a Cloudflare Tunnel record set to DNS only: a CNAME to `<tunnel id>.cfargotunnel.com`, which resolves to `fd10:aec2:5dae::` only (when nothing resolves here, Cloudflare's DNS-over-HTTPS resolver is asked for the CNAME, except with `--offline`); WARN when the name resolves only to private addresses. Loopback answers come from `/etc/hosts` (cloud-init writes `127.0.1.1 <fqdn>`) and are set aside: the public records are then read over DNS-over-HTTPS, or, with `--offline`, WARN | Create or correct the A record (DNS only, not proxied, while certificates are issued); correct or remove the AAAA record; set a tunnel record to Proxied ([Behind a Cloudflare Tunnel](/self-host/install#cloudflare-tunnel)); for `/etc/hosts`, `dig +short NAME` from another machine |
 
 ### TLS certificates
 
@@ -195,6 +201,7 @@ server's own port only.
 | `push` | always | `VAPID_PUBLIC_KEY` (87 characters), `VAPID_PRIVATE_KEY` (43) and `VAPID_SUBJECT` in `federation.env`, and the backend serving the public key at `/api/federation/push/vapid-key` | FAIL when missing: `bash configure.sh --non-interactive`, then `docker compose up -d`. FAIL when not served: `docker compose up -d federation-server`; `harmony logs federation-server` |
 | `email` | always | `SMTP_HOST` in `supabase/.env` is set and accepts a TCP connection on `SMTP_PORT` (default 587) | WARN with no SMTP server: `harmony config`. WARN when unreachable: check the host and port; many VPS providers block outgoing 25 and 587 until asked |
 | `auth` | always | `https://db.DOMAIN/auth/v1/health` answers 200 | FAIL: `harmony logs auth`; `harmony logs kong` |
+| `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
 | `livekit` | voice on | `livekit.yaml` exists and holds `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` of `federation.env`; `LIVEKIT_URL` and `LIVEKIT_PUBLIC_URL` are set; `/api/livekit/health` reports healthy | FAIL for a key mismatch: delete `self-host/livekit.yaml`, run `bash configure.sh --non-interactive`, `docker compose up -d`. Otherwise `harmony logs livekit` |
@@ -323,7 +330,7 @@ existing account becomes an admin.
 
 | Account state | Result |
 |---|---|
-| No account with that email | Created with the given or generated password; a generated one is printed once |
+| No account with that email | Created with the given or generated password; a generated one is shown once, as for `reset-password` |
 | Account and profile exist | Made an admin; the password stays as it is, even with `--password` |
 | Account exists, profile never created | Takes the given or generated password, gets its profile, made an admin |
 
@@ -339,9 +346,19 @@ harmony admin reset-password (--email E | --username U) [--password P]
 
 Sets a new password on any local account, found by email or username, and
 confirms that it signs in. Without either option it asks for the email
-(default: `ADMIN_EMAIL` in `.env`). Without `--password` it asks twice; an
-empty answer generates one and prints it. It fails with `no such account`
-when nothing matches.
+(default: `ADMIN_EMAIL` in `.env`). Without `--password` it asks twice, without
+echoing; an empty answer generates one. It fails with `no such account` when
+nothing matches.
+
+A generated password is never written to the command's output. In a terminal
+it is shown on the terminal's alternate screen, which keeps no scrollback,
+until you press Enter; Ctrl-C clears it too and stops the command. Without a
+terminal (a script, a pipe), or with `HARMONY_NONINTERACTIVE=1`, it goes to
+`self-host/.secret-<date>-<time>-<pid>` (`~/harmony-secret-XXXXXX` when
+`self-host/` is not writable), readable by your user only, and only that path
+is printed: delete the file once the password is stored. With neither, the
+command stops before the password changes. `--password` puts the password in
+your shell history; the prompt does not.
 
 ## harmony admin invite
 
@@ -494,6 +511,16 @@ Without `--migrations-only` it also creates or updates the
 `harmony_listener` role from `__LISTENER_PW` in `federation.env`, and on a
 new database (domain still `localhost`) writes the domain and instance name
 into `instance_config`.
+
+It needs the Realtime and Storage services of the Supabase stack running.
+Both build their schemas through their own migrations after Postgres starts:
+Realtime once its health check first passes, storage-api when it starts.
+Before the first file, `bootstrap.sh` waits up to 300 s, in total, for
+Realtime to report healthy (when it belongs to the database container's
+Compose project) and for `realtime.messages` (partitioned), `realtime.send`
+and the `storage.buckets` columns storage-api adds; past that it stops with
+`still missing after 300 s: …`. A database whose schemas are complete passes
+at once.
 
 | Environment variable | Effect |
 |---|---|

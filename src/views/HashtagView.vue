@@ -95,7 +95,8 @@ useFeedRealtime(feedKind, {
   onCreate: async (event) => {
     if (posts.value.some(p => p.id === event.id)) return
     const fullPost = await activityPubService.loadPostWithAuthor(event.id)
-    if (!fullPost) return
+    if (!fullPost || posts.value.some(p => p.id === fullPost.id)) return
+    // The list is ordered by tag time (post_hashtags.created_at), not post date: a new tagging is newest.
     posts.value = [fullPost as TimelinePost, ...posts.value]
   },
   onUpdate: (event) => {

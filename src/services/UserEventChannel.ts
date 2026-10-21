@@ -15,6 +15,7 @@
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isChannelRefusal } from '@/utils/realtimeRefusal'
 
 type UserEventType =
   | 'notification:new' | 'notification:update' | 'notification:bulk_read' | 'notification:deleted'
@@ -103,7 +104,7 @@ class UserEventChannel {
       .on('broadcast', { event: 'user_event' }, (payload) => {
         this.dispatch(payload.payload ?? payload)
       })
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         // removeChannel() closes a replaced channel later, sometimes after its
         // successor joined; its callbacks must not touch the live state.
         if (this.channel !== channel) return
@@ -121,6 +122,13 @@ class UserEventChannel {
             this.needsResync = false
             this.dispatch({ type: '_reconnected' })
           }
+        } else if (status === 'CHANNEL_ERROR' && isChannelRefusal(err)) {
+          // Refused: no retry succeeds until the read policy changes. realtime-js rejoins an
+          // errored channel on its own until it is removed. connect(), `online` and a returning
+          // tab open it again.
+          debug.warn('UserEventChannel refused:', err?.message)
+          this.needsResync = true
+          this.teardownChannel()
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           this.connected = false
           this.needsResync = true

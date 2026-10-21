@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { attachTapToCaret, isAndroidUserAgent, keyboardLikelyOpen, wordBounds } from '../tapToCaret'
+import { attachTapToCaret, isAndroidUserAgent, keyboardLikelyOpen } from '../tapToCaret'
 
 // A tap in a focused editor on Android moves the caret without Chromium's tap handling (and
-// its spelling menu); a tap in the caret's own word, a long press, a drag, or any tap with
-// the keyboard down runs natively. The menu itself was checked on an API 35 emulator with Gboard.
+// its spelling menu), a second single tap in the same word included; the second tap of a double
+// tap, a long press, a drag, or any tap with the keyboard down runs natively. The menu itself was
+// checked on API 33 and 35 emulators with Gboard.
 
 let editor: HTMLDivElement
 let text: Text
@@ -19,18 +20,27 @@ function touchEvent(type: 'touchstart' | 'touchend', x: number, y: number, timeS
   return event
 }
 
-/** A tap at character `offset`: caretRangeFromPoint answers that offset. */
-function tap(offset: number, opts: { moveBy?: number; holdMs?: number; node?: Node } = {}) {
+let clock = 0
+
+/**
+ * A tap at character `offset`: caretRangeFromPoint answers that offset. Taps are a second apart
+ * unless `after` (ms since the previous tap ended) says otherwise; `x` is where it lands.
+ */
+function tap(offset: number, opts: { moveBy?: number; holdMs?: number; node?: Node; after?: number; x?: number } = {}) {
   const node = opts.node ?? text
   document.caretRangeFromPoint = vi.fn(() => {
     const range = document.createRange()
     range.setStart(node, offset)
     return range
   })
-  editor.dispatchEvent(touchEvent('touchstart', 100, 100, 1000))
-  const end = touchEvent('touchend', 100 + (opts.moveBy ?? 0), 100, 1000 + (opts.holdMs ?? 80))
-  editor.dispatchEvent(end)
-  return end.defaultPrevented
+  const x = opts.x ?? 100
+  const start = clock + (opts.after ?? 1000)
+  const end = start + (opts.holdMs ?? 80)
+  clock = end
+  editor.dispatchEvent(touchEvent('touchstart', x, 100, start))
+  const touchend = touchEvent('touchend', x + (opts.moveBy ?? 0), 100, end)
+  editor.dispatchEvent(touchend)
+  return touchend.defaultPrevented
 }
 
 function caretAt(offset: number) {
@@ -63,14 +73,26 @@ describe('attachTapToCaret', () => {
     expect(sel.isCollapsed).toBe(true)
   })
 
-  it('lets a tap in the word the caret is in through: tapping a misspelling twice opens the menu', () => {
+  it('keeps a second single tap in the same word from Chromium too: it only moves the caret', () => {
     caretAt(24)
     expect(tap(14)).toBe(true)
-    expect(tap(12)).toBe(false)
-    // Its edges count as the word.
-    caretAt(13)
-    expect(tap(10)).toBe(false)
-    expect(tap(19)).toBe(false)
+    expect(tap(12)).toBe(true)
+    expect(getSelection()!.anchorOffset).toBe(12)
+  })
+
+  it('lets the second tap of a double tap through: double-tapping a misspelling opens the menu', () => {
+    caretAt(24)
+    expect(tap(14)).toBe(true)
+    expect(tap(14, { after: 200, x: 110 })).toBe(false)
+    // A third tap starts over.
+    expect(tap(14, { after: 200 })).toBe(true)
+  })
+
+  it('is no double tap when the second tap is late or elsewhere', () => {
+    caretAt(24)
+    expect(tap(14)).toBe(true)
+    expect(tap(14, { after: 600 })).toBe(true)
+    expect(tap(3, { after: 150, x: 300 })).toBe(true)
   })
 
   it('leaves long presses, drags and taps with the keyboard down to the platform', () => {
@@ -100,15 +122,6 @@ describe('attachTapToCaret', () => {
     caretAt(24)
     expect(tap(14)).toBe(false)
     detach = () => {}
-  })
-})
-
-describe('wordBounds', () => {
-  it('spans the run of non-space characters around an offset', () => {
-    expect(wordBounds('this is a misspeled word', 14)).toEqual({ start: 10, end: 19 })
-    expect(wordBounds('this is a misspeled word', 10)).toEqual({ start: 10, end: 19 })
-    expect(wordBounds('this is a misspeled word', 0)).toEqual({ start: 0, end: 4 })
-    expect(wordBounds('a  b', 2)).toEqual({ start: 2, end: 2 })
   })
 })
 

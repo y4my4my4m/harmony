@@ -61,6 +61,7 @@
           v-for="virtualRow in virtualRows"
           :key="posts[virtualRow.index]?.id ?? virtualRow.index"
           :data-index="virtualRow.index"
+          :data-post-id="posts[virtualRow.index]?.id"
           :ref="measureElement"
           class="virtual-post-row"
           :style="{
@@ -122,6 +123,7 @@ import MonyPost from '@/components/activitypub/MonyPost.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { TimelinePost } from '@/types'
+import type { FeedScrollAnchor } from '@/stores/useActivityPub'
 
 interface Props {
   posts: TimelinePost[]
@@ -445,7 +447,65 @@ const onFeedFocusOut = (event: FocusEvent) => {
   focusedPostId = null
 }
 
-defineExpose({ focusPost })
+/**
+ * Reading position from the rendered rows, not from `posts`: a parent switching
+ * feeds reads it after the new list arrives and before it renders.
+ */
+const readScrollAnchor = (): FeedScrollAnchor | null => {
+  const scroller = scrollContainer.value
+  if (!scroller) return null
+  const top = scroller.getBoundingClientRect().top
+  const rows = feedEl.value?.querySelectorAll<HTMLElement>('.virtual-post-row') ?? []
+  for (const row of Array.from(rows)) {
+    const box = row.getBoundingClientRect()
+    if (box.bottom > top) return { postId: row.dataset.postId ?? null, offset: top - box.top, scrollTop: scroller.scrollTop }
+  }
+  return { postId: null, offset: 0, scrollTop: scroller.scrollTop }
+}
+
+// Frames spent placing the anchor row; rows render and measure over the first few.
+const RESTORE_FRAMES = 30
+// A later restore supersedes a running one.
+let restoreRun = 0
+
+/**
+ * Scrolls back to a position from readScrollAnchor; null is the top. The anchor row is
+ * placed from the virtualizer's estimate, then from its rendered box, until it stays put
+ * for two frames.
+ */
+const restoreScrollAnchor = async (anchor: FeedScrollAnchor | null) => {
+  const run = ++restoreRun
+  const scroller = scrollContainer.value
+  if (!scroller) return
+  if (!anchor) {
+    scroller.scrollTop = 0
+    return
+  }
+  let still = 0
+  for (let frame = 0; frame < RESTORE_FRAMES && still < 2 && run === restoreRun; frame++) {
+    const index = anchor.postId ? props.posts.findIndex((p) => p.id === anchor.postId) : -1
+    if (index < 0) {
+      scroller.scrollTop = anchor.scrollTop
+      return
+    }
+    const row = feedEl.value?.querySelector<HTMLElement>(`.virtual-post-row[data-index="${index}"]`)
+    if (row) {
+      const drift = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + anchor.offset
+      if (Math.abs(drift) < 1) {
+        still++
+      } else {
+        still = 0
+        scroller.scrollTop += drift
+      }
+    } else {
+      still = 0
+      scroller.scrollTop = (rowVirtualizer.value.measurementsCache[index]?.start ?? 0) + anchor.offset
+    }
+    await nextFrame()
+  }
+}
+
+defineExpose({ focusPost, readScrollAnchor, restoreScrollAnchor })
 
 // Emit visible post ids whenever the virtualizer's rendered window changes.
 // Keyed-dedup on the joined id string prevents redundant emits while the

@@ -716,7 +716,8 @@
       "disableConsequence1": "Alle neuen Beitrittsanfragen von entfernten Personen blockieren",
       "disableConsequence2": "Keine Nachrichten mehr an und von entfernten Mitgliedern zustellen",
       "disableConsequence3": "Reaktionen und Sprachteilnahme entfernter Personen verhindern",
-      "disableConsequence4": "Bestehende föderierte Mitglieder in der Mitgliederliste belassen, ohne dass sie interagieren können",
+      "disableConsequence4": "Sie von diesem Server entfernen und jedem von ihnen den Grund nennen",
+      "disableConsequence5": "Sie auch nach erneutem Aktivieren der Föderation draußen lassen, bis sie über eine Einladung wieder beitreten",
       "disableConfirm": "Föderation deaktivieren"
     }
   },
@@ -744,6 +745,8 @@
       "invalidName": "Kanalname darf nur Buchstaben, Zahlen und Bindestriche enthalten",
       "limitReached": "Dieser Server hat das Maximum von {max} Kanälen erreicht",
       "createFailed": "Kanal konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
+      "createFailedReason": "Kanal konnte nicht erstellt werden: {reason}",
+      "createRefused": "Du kannst in diesem Server keine Kanäle erstellen.",
       "deleteFailed": "Der Kanal konnte nicht gelöscht werden."
     },
     "copyId": "Kanal-ID kopieren",
@@ -2569,6 +2572,8 @@
     },
     "postMenu": {
       "copyLink": "Link kopieren",
+      "copyOriginalLink": "Originallink kopieren",
+      "openOriginal": "Original öffnen",
       "edit": "Bearbeiten",
       "pin": "Im Profil anheften",
       "unpin": "Vom Profil lösen",
@@ -3123,6 +3128,9 @@
     "openServer": "Server öffnen",
     "alreadyJoined": "Du bist bereits Mitglied dieses Servers.",
     "joinPending": "Beitrittsanfrage gesendet. Du erhältst Zugang, sobald der Server sie annimmt.",
+    "joinRefused": "{name} hat den Beitritt abgelehnt.",
+    "joinRefusedReason": "{name} hat den Beitritt abgelehnt: {reason}",
+    "federationOff": "Dieser Server nimmt keine Mitglieder anderer Instanzen auf: Föderation ist für ihn aus.",
     "federatedNotice": "Dies ist ein föderierter Server, der auf einer anderen Harmony-Instanz gehostet wird. Ihre Nachrichten werden über das Netzwerk gesendet.",
     "joinByUrl": "Per URL beitreten",
     "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
@@ -3132,7 +3140,29 @@
     "remoteServer": "Remote-Server",
     "hosted": "Gehostet auf",
     "federatedUser": "Föderierter Benutzer",
-    "federatedBadge": "Föderiert"
+    "federatedBadge": "Föderiert",
+    "joinRejectedNotice": {
+      "title": "{name} hat deine Beitrittsanfrage abgelehnt",
+      "reason": "Angegebener Grund: {reason}",
+      "noReason": "Es wurde kein Grund angegeben.",
+      "short": "Beitritt abgelehnt"
+    },
+    "federationClosedNotice": {
+      "title": "{name} nimmt keine Mitglieder von anderen Instanzen mehr auf, daher wurdest du entfernt.",
+      "message": "Du kannst wieder beitreten, wenn er sich erneut öffnet.",
+      "short": "Server für andere Instanzen geschlossen"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "Du wurdest von {name} entfernt",
+      "banTitle": "Du wurdest von {name} gesperrt",
+      "reason": "Angegebener Grund: {reason}",
+      "noReason": "Es wurde kein Grund angegeben.",
+      "short": "Vom Server entfernt"
+    },
+    "closedBanner": {
+      "title": "{name} nimmt keine Mitglieder von anderen Instanzen mehr auf",
+      "body": "Seine Kanäle sind für deine Instanz geschlossen, hier kommt nichts Neues mehr an. Das ist keine Sperre: Du kannst wieder beitreten, wenn er sich erneut öffnet."
+    }
   },
   "offline": {
     "banner": "Sie sind offline. Einige Funktionen sind möglicherweise nicht verfügbar."
@@ -3146,7 +3176,8 @@
     "unpinFailed": "Die Nachricht konnte nicht gelöst werden. Versuche es erneut.",
     "pinLimitReached": "Limit für angeheftete Nachrichten erreicht. Löse eine Nachricht, um eine andere anzuheften.",
     "threadCreateFailed": "Der Thread konnte nicht gestartet werden. Versuche es erneut.",
-    "threadReplyFailed": "Die Antwort konnte nicht gesendet werden. Versuche es erneut."
+    "threadReplyFailed": "Die Antwort konnte nicht gesendet werden. Versuche es erneut.",
+    "replyOutOfScope": "Die Nachricht, auf die du antwortest, ist in einem anderen Kanal. Erneut senden schickt diese ohne die Antwort."
   },
   "invite": {
     "accepting": "Einladung wird angenommen...",
@@ -3203,7 +3234,10 @@
       "created": "Neuer Einladungslink erstellt",
       "createFailed": "Einladungslink konnte nicht erstellt werden",
       "otherLinks": "Deine anderen aktiven Links ({count})",
-      "showLink": "Diesen Link anzeigen"
+      "showLink": "Diesen Link anzeigen",
+      "federationOn": "Auch Personen auf anderen Harmony-Instanzen können beitreten: Föderation ist für diesen Server an.",
+      "federationOff": "Nur Konten auf {instance} können mit diesem Link beitreten: Föderation ist für diesen Server aus.",
+      "federationOffInstance": "Nur Konten auf {instance} können mit diesem Link beitreten: Föderation ist für diese Instanz aus."
     },
     "bannedFromServer": "Du bist von diesem Server gebannt",
     "a11y": {

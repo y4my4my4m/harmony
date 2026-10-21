@@ -61,7 +61,7 @@
         href="https://klipy.com"
         target="_blank"
         rel="noopener noreferrer nofollow"
-        @click.stop
+        @click.stop="openAttribution"
         title="Powered by KLIPY"
       >KLIPY</a>
     </div>
@@ -76,6 +76,8 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
 import { debug } from '@/utils/debug';
+import { isTauriRuntime } from '@/services/instanceConfig';
+import { openExternalUrl } from '@/services/tauriLinks';
 import {
   stripKlipyAttributionFragment,
   withGifMessageUrl,
@@ -97,6 +99,14 @@ defineEmits<{
 }>();
 
 const { isMobile } = useLayoutState();
+
+// click.stop keeps the document link handler (tauriLinks) from seeing the anchor; in the app the
+// attribution opens outside it as other links do.
+const openAttribution = (event: MouseEvent) => {
+  if (!isTauriRuntime()) return;
+  event.preventDefault();
+  void openExternalUrl('https://klipy.com');
+};
 const items = ref<GifResultItem[]>([]);
 const hoveredGif = ref<string | null>(null);
 const kind = computed(() => mediaTypeToKind(props.mediaType));

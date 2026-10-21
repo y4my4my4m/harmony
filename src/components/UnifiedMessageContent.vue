@@ -460,7 +460,7 @@
               :href="klipyWatermarkHref(part.url)"
               target="_blank"
               rel="noopener noreferrer nofollow"
-              @click.stop
+              @click.stop="openWatermark($event, klipyWatermarkHref(part.url))"
               title="via KLIPY"
             >
               <img
@@ -540,7 +540,7 @@
               :href="klipyWatermarkHref(part.url)"
               target="_blank"
               rel="noopener noreferrer nofollow"
-              @click.stop
+              @click.stop="openWatermark($event, klipyWatermarkHref(part.url))"
               title="via KLIPY"
             >
               <img
@@ -691,6 +691,8 @@ import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.v
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
+import { openExternalUrl } from '@/services/tauriLinks';
+import { isTauriRuntime } from '@/services/instanceConfig';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
@@ -855,6 +857,13 @@ export default defineComponent({
     const klipyWatermarkHref = (url: string) =>
       sanitizeUrl(parseKlipyItemPageUrl(url)) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
+    // The credit link keeps its click from the message (@click.stop), so the document's link
+    // handler never sees it: the native client opens it outside the app here.
+    const openWatermark = (event: MouseEvent, href: string) => {
+      if (!isTauriRuntime()) return;
+      event.preventDefault();
+      void openExternalUrl(href);
+    };
     // Stickers render small and inline, with no lightbox or zoom.
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
@@ -1636,6 +1645,7 @@ export default defineComponent({
       mediaPartFileName,
       isPrivateMediaPart,
       klipyWatermarkHref,
+      openWatermark,
       klipyWatermarkLogoUrl,
       isStickerMedia,
       isAiEmojiMedia,

@@ -60,6 +60,9 @@ import {
   compactPushData,
   isWithinQuietHours,
   notificationUrl,
+  joinRejectedNoticeText,
+  federationClosedNoticeText,
+  memberRemovedNoticeText,
   pushAllowedForType,
 } from '../services/pushPolicy.js';
 
@@ -129,6 +132,38 @@ describe('per-type push gates', () => {
     expect(pushAllowedForType('activitypub_follow', { activitypub_desktop_notifications: false })).toBe(false);
   });
 });
+
+describe('a join refused after it answered', () => {
+  it('names the server and the reason, and opens the chat home', () => {
+    expect(joinRejectedNoticeText({ server: { name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' }, reason: 'Federation is disabled on this server' }))
+      .toEqual({ title: 'Mastodon Canada refused your join request', body: 'Reason given: Federation is disabled on this server' })
+    expect(joinRejectedNoticeText({ server: { name: null, ap_id: 'https://chat.example/servers/x' }, reason: null }))
+      .toEqual({ title: 'chat.example refused your join request', body: 'No reason was given.' })
+    expect(notificationUrl('server_join_rejected', { server: { id: 'ref' } })).toBe('/chat')
+  })
+})
+
+describe('a server on another instance removed the user', () => {
+  const server = { name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' }
+
+  it('says federation was turned off, not that the user was banned, and opens the chat home', () => {
+    const notice = federationClosedNoticeText({ server })
+    expect(notice).toEqual({
+      title: 'Mastodon Canada stopped taking members from other instances, so you were removed',
+      body: 'You can rejoin if it opens again.',
+    })
+    expect(`${notice.title} ${notice.body}`).not.toMatch(/ban/i)
+    expect(notificationUrl('server_federation_closed', { server })).toBe('/chat')
+  })
+
+  it('names a kick or a ban and the reason given', () => {
+    expect(memberRemovedNoticeText({ server, action: 'kick', reason: null }))
+      .toEqual({ title: 'You were removed from Mastodon Canada', body: 'No reason was given.' })
+    expect(memberRemovedNoticeText({ server: { name: null, ap_id: server.ap_id }, action: 'ban', reason: 'spam' }))
+      .toEqual({ title: 'You were banned from chat.example', body: 'Reason given: spam' })
+    expect(notificationUrl('server_member_removed', { server })).toBe('/chat')
+  })
+})
 
 describe('notification deep links', () => {
   it('opens a DM at the message', () => {

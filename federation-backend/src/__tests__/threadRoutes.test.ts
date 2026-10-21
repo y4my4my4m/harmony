@@ -34,6 +34,10 @@ const PUB_RESTRICTED = uuid(0xc002)
 const PRIV_OPEN = uuid(0xc003)
 const PRIV_RESTRICTED = uuid(0xc004)
 const REMOTE_CHANNEL = uuid(0xc005)
+// Public, federation off, vip a member from when it was on.
+const CLOSED = uuid(0xa004)
+const CLOSED_OPEN = uuid(0xc006)
+const CLOSED_THREAD = uuid(0xe007)
 const UNKNOWN = uuid(0xffff)
 
 const THREAD_IN: Record<string, string> = {
@@ -58,10 +62,10 @@ const CALLERS: Caller[] = ['unsigned', 'badsig', 'stranger', 'instance', 'blocke
 const SERVER_OF: Record<string, string> = {
   [PUB_OPEN]: PUB, [PUB_RESTRICTED]: PUB, [PRIV_OPEN]: PRIV, [PRIV_RESTRICTED]: PRIV,
 }
-const EVERYONE: Record<string, string[]> = { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN] }
+const EVERYONE: Record<string, string[]> = { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN], [CLOSED]: [CLOSED_OPEN] }
 const MEMBERS: Record<string, { id: string; channels: Record<string, string[]> }> = {
   [ACTORS.nop]: { id: 'profile-nop', channels: { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN] } },
-  [ACTORS.vip]: { id: 'profile-vip', channels: { [PUB]: [PUB_OPEN, PUB_RESTRICTED], [PRIV]: [PRIV_OPEN, PRIV_RESTRICTED] } },
+  [ACTORS.vip]: { id: 'profile-vip', channels: { [PUB]: [PUB_OPEN, PUB_RESTRICTED], [PRIV]: [PRIV_OPEN, PRIV_RESTRICTED], [CLOSED]: [CLOSED_OPEN] } },
   [ACTORS.blocked]: { id: 'profile-blocked', channels: { [PUB]: [PUB_OPEN, PUB_RESTRICTED], [PRIV]: [PRIV_OPEN, PRIV_RESTRICTED] } },
 }
 
@@ -85,20 +89,23 @@ const threadRow = (id: string, channelId: string, extra: Record<string, unknown>
 
 const db: Record<string, any[]> = {
   servers: [
-    { id: PUB, public: true, is_local_server: true },
-    { id: PRIV, public: false, is_local_server: true },
+    { id: PUB, public: true, is_local_server: true, federation_enabled: true },
+    { id: PRIV, public: false, is_local_server: true, federation_enabled: true },
     { id: REMOTE, public: true, is_local_server: false },
+    { id: CLOSED, public: true, is_local_server: true, federation_enabled: false },
   ],
   channels: [
     { id: PUB_OPEN, server_id: PUB, name: 'pub-open', ap_id: null, is_remote: null },
     { id: PUB_RESTRICTED, server_id: PUB, name: 'pub-restricted', ap_id: null, is_remote: false },
     { id: PRIV_OPEN, server_id: PRIV, name: 'priv-open', ap_id: null, is_remote: false },
     { id: PRIV_RESTRICTED, server_id: PRIV, name: 'priv-restricted', ap_id: null, is_remote: false },
+    { id: CLOSED_OPEN, server_id: CLOSED, name: 'closed-open', ap_id: null, is_remote: false },
     { id: REMOTE_CHANNEL, server_id: REMOTE, name: 'mirror', ap_id: `https://host.test/servers/${REMOTE}/channels/${REMOTE_CHANNEL}`, is_remote: true },
   ],
   threads: [
     ...Object.entries(THREAD_IN).map(([channelId, id]) => threadRow(id, channelId)),
     threadRow(REMOTE_THREAD, REMOTE_CHANNEL, { ap_id: `https://host.test/threads/${REMOTE_THREAD}` }),
+    threadRow(CLOSED_THREAD, CLOSED_OPEN),
     threadRow(FOREIGN_THREAD, PUB_OPEN, { ap_id: `https://remote.test/threads/${FOREIGN_THREAD}`, created_by: 'profile-vip' }),
   ],
   messages: [
@@ -248,6 +255,13 @@ describe('GET /threads/:id', () => {
   it('answers an unknown id, a malformed one, a remote copy\'s thread and another instance\'s thread as hidden', async () => {
     for (const path of [`/threads/${UNKNOWN}`, '/threads/not-a-uuid', `/threads/${REMOTE_THREAD}`, `/threads/${FOREIGN_THREAD}`]) {
       expectHidden(await get(path, 'vip'))
+    }
+  })
+
+  it('hides the threads of a server with federation off, from a remote member too', async () => {
+    for (const caller of ['unsigned', 'vip'] as const) {
+      expectHidden(await get(`/threads/${CLOSED_THREAD}`, caller))
+      expectHidden(await get(`/channels/${CLOSED_OPEN}/threads`, caller))
     }
   })
 

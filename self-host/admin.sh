@@ -16,7 +16,7 @@
 # service role. An existing account becomes an admin and keeps its password;
 # one that never created its profile takes the given password.
 #
-# A missing password is generated and printed. Calls run inside the
+# A missing password is generated and shown once (reveal_secret, lib.sh). Calls run inside the
 # federation-server container (Kong on the compose network, keys from its
 # environment); nothing secret appears on a command line.
 #
@@ -241,6 +241,13 @@ node_call() {
 	printf -v "$__var" '%s' "$__res"
 }
 
+# secret_target: a generated password needs somewhere to be shown (reveal_secret, lib.sh) before
+# it is set; without one the command stops with the account unchanged.
+secret_target() {
+	secret_ready || die "nowhere to show a generated password: no terminal, and neither $SELF_HOST_DIR nor ${HOME:-\$HOME} is writable. Pass --password"
+	trap secret_discard EXIT
+}
+
 valid_email() { [[ "$1" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; }
 valid_username() { [[ "$1" =~ ^[a-z0-9_]{3,24}$ ]]; }
 
@@ -285,6 +292,7 @@ create() {
 	fi
 	if [[ -z "$password" ]]; then password="$(gen_password)"; generated=true; fi
 	[[ ${#password} -ge 8 ]] || die "the password needs at least 8 characters"
+	$generated && secret_target
 
 	info "Creating the admin account $username <$email>..."
 	local res
@@ -294,9 +302,7 @@ create() {
 	[[ "$(json_field "$res" created)" == true || "$(json_field "$res" passwordSet)" == true ]] && fresh=true
 	if $fresh; then
 		ok "Admin account ready: $username <$email>"
-		if $generated; then
-			printf '   Password: %s%s%s   (shown once; harmony admin reset-password sets a new one)\n' "$c_bold" "$password" "$c_reset"
-		fi
+		$generated && reveal_secret "Password for $email (harmony admin reset-password sets a new one)" "$password"
 	else
 		ok "Account $username <$email> exists; it is an admin (password unchanged)"
 	fi
@@ -332,10 +338,11 @@ reset_password() {
 	fi
 	if [[ -z "$password" ]]; then password="$(gen_password)"; generated=true; fi
 	[[ ${#password} -ge 8 ]] || die "the password needs at least 8 characters"
+	$generated && secret_target
 	local res
 	node_call res "$NODE_RESET" email "$email" username "$username" password "$password"
 	ok "Password changed for $(json_field "$res" email)"
-	$generated && printf '   Password: %s%s%s\n' "$c_bold" "$password" "$c_reset"
+	$generated && reveal_secret "New password for $(json_field "$res" email)" "$password"
 	return 0
 }
 

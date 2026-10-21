@@ -716,7 +716,8 @@
       "disableConsequence1": "Bloquer toutes les nouvelles demandes d’adhésion d’utilisateurs distants",
       "disableConsequence2": "Arrêter la distribution des messages vers et depuis les membres distants",
       "disableConsequence3": "Empêcher les réactions et la participation vocale des utilisateurs distants",
-      "disableConsequence4": "Garder les membres fédérés existants dans la liste, sans possibilité d’interagir",
+      "disableConsequence4": "Les retirer de ce serveur et indiquer à chacun pourquoi",
+      "disableConsequence5": "Les tenir à l’écart même si vous réactivez la fédération, jusqu’à ce qu’ils reviennent avec une invitation",
       "disableConfirm": "Désactiver la fédération"
     }
   },
@@ -744,6 +745,8 @@
       "invalidName": "Le nom du canal ne peut contenir que des lettres, chiffres et tirets",
       "limitReached": "Ce serveur a atteint la limite maximale de {max} canaux",
       "createFailed": "Échec de la création du canal. Veuillez réessayer.",
+      "createFailedReason": "Impossible de créer le salon : {reason}",
+      "createRefused": "Tu ne peux pas créer de salons sur ce serveur.",
       "deleteFailed": "Impossible de supprimer le salon."
     },
     "copyId": "Copier l'ID du canal",
@@ -2569,6 +2572,8 @@
     },
     "postMenu": {
       "copyLink": "Copier le lien",
+      "copyOriginalLink": "Copier le lien d'origine",
+      "openOriginal": "Ouvrir l'original",
       "edit": "Modifier",
       "pin": "Épingler sur le profil",
       "unpin": "Désépingler du profil",
@@ -3123,6 +3128,9 @@
     "openServer": "Ouvrir le serveur",
     "alreadyJoined": "Vous êtes déjà membre de ce serveur.",
     "joinPending": "Demande d'adhésion envoyée. Vous aurez accès dès que le serveur l'aura acceptée.",
+    "joinRefused": "{name} a refusé l'adhésion.",
+    "joinRefusedReason": "{name} a refusé l'adhésion : {reason}",
+    "federationOff": "Ce serveur n'accepte pas de membres d'autres instances : la fédération y est désactivée.",
     "federatedNotice": "Ceci est un serveur fédéré hébergé sur une autre instance Harmony. Vos messages seront envoyés à travers le réseau.",
     "joinByUrl": "Rejoindre par URL",
     "haveInviteLink": "Vous avez un lien d'invitation ? Collez-le ici",
@@ -3132,7 +3140,29 @@
     "remoteServer": "Serveur distant",
     "hosted": "Hébergé sur",
     "federatedUser": "Utilisateur fédéré",
-    "federatedBadge": "Fédéré"
+    "federatedBadge": "Fédéré",
+    "joinRejectedNotice": {
+      "title": "{name} a refusé ta demande d'adhésion",
+      "reason": "Raison donnée : {reason}",
+      "noReason": "Aucune raison n'a été donnée.",
+      "short": "Adhésion refusée"
+    },
+    "federationClosedNotice": {
+      "title": "{name} n'accepte plus de membres d'autres instances : ton adhésion a donc été retirée.",
+      "message": "Tu pourras le rejoindre à nouveau s'il rouvre.",
+      "short": "Serveur fermé aux autres instances"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "{name} a retiré ton compte du serveur",
+      "banTitle": "{name} a banni ton compte",
+      "reason": "Raison donnée : {reason}",
+      "noReason": "Aucune raison n'a été donnée.",
+      "short": "Retiré du serveur"
+    },
+    "closedBanner": {
+      "title": "{name} n'accepte plus de membres d'autres instances",
+      "body": "Ses salons sont fermés à ton instance : rien de nouveau n'arrive ici. Ce n'est pas un bannissement : tu pourras le rejoindre à nouveau s'il rouvre."
+    }
   },
   "offline": {
     "banner": "Vous êtes hors ligne. Certaines fonctionnalités peuvent être indisponibles."
@@ -3146,7 +3176,8 @@
     "unpinFailed": "Impossible de désépingler le message. Réessayez.",
     "pinLimitReached": "Limite d'épingles atteinte. Désépinglez un message pour en épingler un autre.",
     "threadCreateFailed": "Impossible de démarrer le fil. Réessayez.",
-    "threadReplyFailed": "Impossible d'envoyer la réponse. Réessayez."
+    "threadReplyFailed": "Impossible d'envoyer la réponse. Réessayez.",
+    "replyOutOfScope": "Le message auquel tu réponds est dans un autre salon. Réessayer envoie celui-ci sans la réponse."
   },
   "invite": {
     "accepting": "Acceptation de l'invitation...",
@@ -3203,7 +3234,10 @@
       "created": "Nouveau lien d'invitation créé",
       "createFailed": "Impossible de créer un lien d'invitation",
       "otherLinks": "Vos autres liens actifs ({count})",
-      "showLink": "Afficher ce lien"
+      "showLink": "Afficher ce lien",
+      "federationOn": "Les personnes d'autres instances Harmony peuvent aussi rejoindre : la fédération est activée pour ce serveur.",
+      "federationOff": "Seuls les comptes de {instance} peuvent rejoindre avec ce lien : la fédération est désactivée pour ce serveur.",
+      "federationOffInstance": "Seuls les comptes de {instance} peuvent rejoindre avec ce lien : la fédération est désactivée pour cette instance."
     },
     "bannedFromServer": "Vous êtes banni de ce serveur",
     "a11y": {

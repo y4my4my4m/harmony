@@ -127,6 +127,7 @@ import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
+import type { FeedScrollAnchor } from '@/stores/useActivityPub'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
 const router = useRouter()
@@ -200,6 +201,19 @@ onUnmounted(() => {
     timelineScrollEl.value = null
   }
 })
+
+/** Timeline reading position; null within SCROLLED_THRESHOLD of the top, which counts as the top. */
+function readScrollAnchor(): FeedScrollAnchor | null {
+  const el = timelineScrollEl.value
+  if (!el || el.scrollTop <= SCROLLED_THRESHOLD) return null
+  return timelineFeedRef.value?.readScrollAnchor() ?? null
+}
+
+async function restoreScrollAnchor(anchor: FeedScrollAnchor | null) {
+  await timelineFeedRef.value?.restoreScrollAnchor(anchor)
+}
+
+defineExpose({ readScrollAnchor, restoreScrollAnchor })
 
 interface Props {
   // Accept both `ViewMode` enum values and matching string literals so legacy
@@ -336,7 +350,8 @@ const specialFeedLabel = computed(() => {
   return undefined
 })
 
-// Feed switches reuse this instance; a new feed opens at its top.
+// Feed switches reuse this instance; the new feed renders from its top until
+// restoreScrollAnchor moves it to its reading position.
 watch(() => props.currentView, () => {
   const el = timelineScrollEl.value
   if (el) el.scrollTop = 0

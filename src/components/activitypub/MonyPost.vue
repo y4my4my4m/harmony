@@ -427,10 +427,30 @@
             :initial-focus="postMenuInitialFocus"
             @close="closeMenu"
           >
-            <button type="button" role="menuitem" class="social-menu-item" @click="copyLink">
+            <button type="button" role="menuitem" class="social-menu-item" data-testid="post-copy-link" @click="copyLink(links.here.url)">
               <Icon name="link" />
-              <span>{{ t('activitypub.postMenu.copyLink') }}</span>
+              <span class="social-menu-item-text">
+                <span>{{ t('activitypub.postMenu.copyLink') }}</span>
+                <span class="social-menu-item-hint">{{ links.here.host }}</span>
+              </span>
             </button>
+
+            <template v-if="links.original">
+              <button type="button" role="menuitem" class="social-menu-item" data-testid="post-copy-original-link" @click="copyLink(links.original.url)">
+                <Icon name="link" />
+                <span class="social-menu-item-text">
+                  <span>{{ t('activitypub.postMenu.copyOriginalLink') }}</span>
+                  <span class="social-menu-item-hint">{{ links.original.host }}</span>
+                </span>
+              </button>
+              <button type="button" role="menuitem" class="social-menu-item" data-testid="post-open-original" @click="openOriginal(links.original.url)">
+                <Icon name="external-link" />
+                <span class="social-menu-item-text">
+                  <span>{{ t('activitypub.postMenu.openOriginal') }}</span>
+                  <span class="social-menu-item-hint">{{ links.original.host }}</span>
+                </span>
+              </button>
+            </template>
 
             <button
               v-if="canEdit && !isPureReblog"
@@ -720,6 +740,8 @@ import { safeHref } from '@/utils/sanitize';
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
+import { boostLinkTarget, postLinks } from '@/utils/postLinks'
+import { openLink } from '@/services/tauriLinks'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -2048,9 +2070,16 @@ const showReplyTarget = async () => {
   }
 };
 
-const copyLink = async () => {
+// A pure boost links to the boosted post.
+const links = computed(() => postLinks(isPureReblog.value ? boostLinkTarget(props.post) : props.post, resolveHarmonyBaseUrl()));
+
+const openOriginal = (url: string) => {
+  openLink(url);
+  closeMenu();
+};
+
+const copyLink = async (url: string) => {
   try {
-    const url = props.post.url || `${resolveHarmonyBaseUrl()}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
     toast.success(t('activitypub.postMenu.linkCopied'));
   } catch (error) {

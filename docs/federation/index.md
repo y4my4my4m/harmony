@@ -70,7 +70,11 @@ Roles, permission overrides, the audit log, AutoMod rules, server bans and the i
 
 ### Turning federation off for a server
 
-Server owners control federation per server: **Server settings** → **Privacy settings** → **Enable federation**. The switch appears only when federation is enabled for the instance. With it off, the server rejects new `Join` requests from other instances, stops delivering to and accepting from remote members, and keeps existing remote members in the member list without letting them interact.
+Server owners control federation per server: **Server settings** → **Privacy settings** → **Enable federation**. The switch appears only when federation is enabled for the instance. With it off, the server rejects new `Join` requests from other instances and stops delivering to and accepting from remote members. Turning it off asks first, naming how many members from other instances it removes. Each of them is removed and told, in their inbox on their own instance, that the server stopped taking members from other instances; the server leaves their list. Turning federation back on brings nobody back: they rejoin with an invite.
+
+A member whose instance missed that notice (its host runs an older Harmony, or the delivery failed) still sees the server. Opening it shows why it is silent, with a **Leave server** button, in place of its messages.
+
+Kicking or banning a member from another instance tells their instance too; the member's inbox names the kick or ban and the reason given.
 
 ## Encryption
 

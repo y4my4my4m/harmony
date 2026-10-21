@@ -12,6 +12,9 @@
 BEGIN;
 SET LOCAL search_path = tests, public;
 SELECT plan(70);
+
+-- Remote instances read a server's media only with federation on (166_federation_off_closes_group.sql).
+UPDATE public.servers SET federation_enabled = true WHERE id = '55555555-0000-0000-0000-000000000005';
 -- Newer storage schemas refuse direct DELETE unless this is set, as storage-api does;
 -- RLS still applies.
 SELECT set_config('storage.allow_delete_query', 'true', true);

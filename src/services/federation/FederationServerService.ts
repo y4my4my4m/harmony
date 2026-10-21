@@ -25,6 +25,8 @@ export interface RemoteServer {
   inbox: string
   discoverable: boolean
   instance: string
+  /** False: the server refuses members from other instances. Null: it does not say (before 1.8.10). */
+  federationEnabled: boolean | null
 }
 
 export interface RemoteChannel {
@@ -56,6 +58,9 @@ export interface JoinServerResult {
   defaultChannelId?: string
   status?: 'pending' | 'accepted' | 'rejected'
   error?: string
+  /** The server answered the Join with a Reject; `reason` is its summary, when it gave one. */
+  rejected?: boolean
+  reason?: string | null
 }
 
 export interface LeaveServerResult {
@@ -69,6 +74,8 @@ export interface DiscoverServerResult {
   invite?: InviteInfo
   isInvite?: boolean
   error?: string
+  /** The server refuses members from other instances and shows nothing of itself. */
+  federationDisabled?: boolean
 }
 
 // Federation backend base path (proxied via nginx)
@@ -177,7 +184,8 @@ export class FederationServerService {
 
       const server: RemoteServer = {
         id: data.server.id,
-        name: data.server.name,
+        // A Group closed to other instances serves no name.
+        name: data.server.name || serverInstance,
         description: data.server.description || '',
         icon: data.server.icon,
         memberCount: data.server.memberCount || 0,
@@ -185,6 +193,7 @@ export class FederationServerService {
         inbox: data.server.inbox,
         discoverable: data.server.discoverable,
         instance: serverInstance,
+        federationEnabled: typeof data.server.federationEnabled === 'boolean' ? data.server.federationEnabled : null,
       }
 
       debug.log(`Found remote server: ${server.name} on ${server.instance}`)
@@ -239,6 +248,9 @@ export class FederationServerService {
         if (response.status === 404) {
           return { success: false, error: 'Invite not found or expired' }
         }
+        if (errorData.code === 'federation_disabled') {
+          return { success: false, federationDisabled: true, error: errorData.error || 'This server does not accept members from other instances' }
+        }
         return { success: false, error: errorData.error || `Failed to resolve invite (${response.status})` }
       }
 
@@ -258,6 +270,7 @@ export class FederationServerService {
         inbox: data.server.inbox || `https://${instance}/servers/${data.server.serverId}/inbox`,
         discoverable: false, // Private server accessed via invite
         instance,
+        federationEnabled: typeof data.server.federationEnabled === 'boolean' ? data.server.federationEnabled : null,
       }
 
       const invite: InviteInfo = {
@@ -328,6 +341,7 @@ export class FederationServerService {
         return {
           success: false,
           error: data.error || `Failed to join server (${response.status})`,
+          ...(data.code === 'join_rejected' ? { rejected: true, reason: data.reason ?? null } : {}),
         }
       }
 
@@ -440,6 +454,32 @@ export class FederationServerService {
         success: false,
         error: error.message || 'Failed to connect to federation backend',
       }
+    }
+  }
+
+  // REMOTE SERVER STATUS
+
+  /**
+   * Whether a remote server still takes members from this instance (federation-backend
+   * GET /servers/:id/status, its Group read as the caller). Null when there is no answer.
+   */
+  async serverStatus(serverId: string): Promise<{ federationClosed: boolean } | null> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return null
+
+      const response = await fetch(federationApi(`/servers/${serverId}/status`), {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+      if (!response.ok) return null
+      const data = await response.json()
+      return { federationClosed: data?.federationClosed === true }
+    } catch (error) {
+      debug.warn('Remote server status unavailable:', error)
+      return null
     }
   }
 

@@ -8,7 +8,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
 
 [package]
 name = "app"
-version = "1.6.7"
+version = "1.8.10"
 description = "Harmony desktop client"
 authors = ["Knowmad"]
 license = "AGPL-3.0"
@@ -65,9 +65,10 @@ sysinfo = "0.30"
 # non-grabbing global input observation for push-to-talk (X11/Windows/macOS; no Wayland)
 rdev = "0.5"
 
-# Same objc2 as wry's WKWebView bindings; see ios::fill_safe_area.
-[target.'cfg(target_os = "ios")'.dependencies]
+# Same objc2 and block2 as wry's WKWebView bindings.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 objc2 = "0.6"
+block2 = "0.6"
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

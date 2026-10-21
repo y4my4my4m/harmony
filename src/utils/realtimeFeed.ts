@@ -50,3 +50,28 @@ export function flushPendingPosts<T extends Identified>(posts: T[], pending: T[]
   }
   return head.length ? [...head, ...posts] : posts
 }
+
+interface Dated extends Identified {
+  created_at: string
+}
+
+/** Newest first by (created_at, id): the order the feed queries read. */
+export function newerFirst(a: Dated, b: Dated): number {
+  const byTime = Date.parse(b.created_at) - Date.parse(a.created_at)
+  if (byTime !== 0 && !Number.isNaN(byTime)) return byTime
+  return b.id < a.id ? -1 : b.id > a.id ? 1 : 0
+}
+
+/**
+ * Places a realtime post in a newest-first list at its date. An outbox backfill inserts an
+ * account's posts newest first, so each arrives older than the last. With `olderMayExist` (the
+ * list ends at a page boundary), a post older than the last listed one is left to the next page:
+ * listing it would move that page's cursor past the stored posts in between.
+ * Returns `posts` itself when the post is already listed or left out.
+ */
+export function placeByDate<T extends Dated>(posts: T[], post: T, olderMayExist: boolean): T[] {
+  if (posts.some(p => p.id === post.id)) return posts
+  const at = posts.findIndex(p => newerFirst(post, p) < 0)
+  if (at === -1) return olderMayExist ? posts : [...posts, post]
+  return [...posts.slice(0, at), post, ...posts.slice(at)]
+}

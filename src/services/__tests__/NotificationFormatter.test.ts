@@ -61,6 +61,43 @@ describe('NotificationFormatter', () => {
       expect(NotificationFormatter.getAvatarUrl(notif)).toBe('/default_avatar.webp')
     })
 
+    it("names the server that refused a join and its reason", () => {
+      const withReason = NotificationFormatter.formatNotification(makeNotification('server_join_rejected', {
+        data: { server: { id: 'ref', name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' }, reason: 'Federation is disabled on this server' },
+      }))
+      expect(withReason.title).toBe('Mastodon Canada refused your join request')
+      expect(withReason.message).toBe('Reason given: Federation is disabled on this server')
+
+      const unnamed = NotificationFormatter.formatNotification(makeNotification('server_join_rejected', {
+        data: { server: { id: 'ref', name: null, ap_id: 'https://chat.example/servers/x' }, reason: null },
+      }))
+      expect(unnamed.title).toBe('chat.example refused your join request')
+      expect(unnamed.message).toBe('No reason was given.')
+    })
+
+    it('says a server stopped taking members from other instances, without calling it a ban', () => {
+      const closed = NotificationFormatter.formatNotification(makeNotification('server_federation_closed', {
+        data: { server: { id: 'ref', name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' } },
+      }))
+      expect(closed.title).toBe('Mastodon Canada stopped taking members from other instances, so you were removed.')
+      expect(closed.message).toBe('You can rejoin if it opens again.')
+      expect(`${closed.title} ${closed.message}`).not.toMatch(/ban/i)
+    })
+
+    it('names a kick or a ban by a server on another instance, and its reason', () => {
+      const kick = NotificationFormatter.formatNotification(makeNotification('server_member_removed', {
+        data: { server: { id: 'ref', name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' }, action: 'kick', reason: null },
+      }))
+      expect(kick.title).toBe('You were removed from Mastodon Canada')
+      expect(kick.message).toBe('No reason was given.')
+
+      const ban = NotificationFormatter.formatNotification(makeNotification('server_member_removed', {
+        data: { server: { id: 'ref', name: null, ap_id: 'not a url' }, action: 'ban', reason: 'spam' },
+      }))
+      expect(ban.title).toBe('You were banned from ?')
+      expect(ban.message).toBe('Reason given: spam')
+    })
+
     it('names no moderator on a report update unless the moderator chose to', () => {
       const hidden = makeNotification('report_update', {
         data: { status: 'resolved', report_type: 'post', show_resolver: false, resolver_username: 'mod' },

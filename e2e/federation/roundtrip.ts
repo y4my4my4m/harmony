@@ -41,7 +41,8 @@
 // Remote follow, votes on remote polls, follows of Lemmy communities (FEP-1b12) and thread
 // contexts (FEP-7888) run against a community host of their own (cases/remoteInteractions.ts).
 // Activities whose actor is a Group (Join answers, channel Update, message
-// Delete) are signed with that Group's own key, each way (cases/groupActor.ts).
+// Delete) are signed with that Group's own key, each way (cases/groupActor.ts),
+// and so is its Remove of a member from another instance (cases/memberRemoval.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
@@ -95,6 +96,7 @@ import { caseThreadRoutes } from './cases/threadRoutes.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
+import { caseMemberRemoval } from './cases/memberRemoval.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -971,8 +973,9 @@ async function seedServers(db: SupabaseClient, peer: Peer) {
   // A bulk insert sends every key of every row: a key absent from a row is
   // NULL there, not the column default.
   await must('seed servers', db.from('servers').insert([
-    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false, is_local_server: true },
-    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true, is_local_server: true },
+    // Federation off closes a server to other instances (20261025100002).
+    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false, is_local_server: true, federation_enabled: true },
+    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true, is_local_server: true, federation_enabled: true },
     {
       id: REMOTE_REF,
       name: 'Peer private',
@@ -2594,6 +2597,10 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
+    })
+    await caseMemberRemoval({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, carol: CAROL, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF },
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

@@ -4,10 +4,12 @@
  * Chromium on Android (Chrome and the WebView) opens its spelling suggestion menu
  * (TextSuggestionHost) whenever a tap lands on a word marked misspelled, so going back to fix a
  * word opens a menu over it, and on some keyboards the menu takes the keyboard down with it.
- * A tap that would move the caret into another word has its default prevented, which keeps
- * Chromium from handling it as a tap, and the caret is placed at the touch point here; the
- * keyboard's own suggestion strip follows the caret. A tap on the word the caret is already in
- * runs natively: tapping a misspelled word twice opens the menu.
+ * A tap has its default prevented, which keeps Chromium from handling it as a tap, and the caret
+ * is placed at the touch point here; the keyboard's suggestion strip offers corrections for the
+ * word at the caret. The second tap of a double tap runs natively: double-tapping a misspelled
+ * word opens the menu. A second single tap in the same word only moves the caret again: on some
+ * phones the menu took the keyboard down with it even when opened on purpose (Gboard, 2026-10-21;
+ * not on API 33 or 35 emulators).
  *
  * Long presses, drags, multi-touch and taps on anything but text run natively, and so does
  * every tap while the keyboard is down, so the tap that brings the keyboard back still does.
@@ -15,6 +17,9 @@
 
 const TAP_SLOP_PX = 10;
 const TAP_MAX_MS = 500;
+// A second tap this soon after a handled one, this close to it, is a double tap.
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_PX = 24;
 // Measured on a Pixel 7 (API 35): the visual viewport is 76 CSS px short of the screen with the
 // keyboard down (system bars) and 388 px short with Gboard up.
 const KEYBOARD_GAP_PX = 200;
@@ -29,15 +34,6 @@ export function keyboardLikelyOpen(): boolean {
   return window.screen.availHeight - viewport > KEYBOARD_GAP_PX;
 }
 
-/** Offsets of the run of non-space characters around `offset` in `text`. */
-export function wordBounds(text: string, offset: number): { start: number; end: number } {
-  let start = offset;
-  let end = offset;
-  while (start > 0 && !/\s/.test(text[start - 1])) start--;
-  while (end < text.length && !/\s/.test(text[end])) end++;
-  return { start, end };
-}
-
 /** Attaches the tap handling to `editor`; returns the detach. */
 export function attachTapToCaret(
   editor: HTMLElement,
@@ -45,6 +41,7 @@ export function attachTapToCaret(
 ): () => void {
   const keyboardOpen = opts.keyboardOpen ?? keyboardLikelyOpen;
   let start: { x: number; y: number; at: number } | null = null;
+  let handled: { x: number; y: number; at: number } | null = null;
 
   const onTouchStart = (event: TouchEvent) => {
     const touch = event.touches.length === 1 ? event.touches[0] : null;
@@ -66,13 +63,14 @@ export function attachTapToCaret(
 
     const selection = window.getSelection();
     if (!selection) return;
-    if (selection.isCollapsed && selection.anchorNode === node) {
-      const current = wordBounds(node.textContent ?? '', selection.anchorOffset);
-      if (current.end > current.start && range.startOffset >= current.start && range.startOffset <= current.end) return;
-    }
+    const previous = handled;
+    handled = null;
+    if (previous && event.timeStamp - previous.at <= DOUBLE_TAP_MS
+      && Math.hypot(touch.clientX - previous.x, touch.clientY - previous.y) <= DOUBLE_TAP_PX) return;
 
     event.preventDefault();
     selection.collapse(node, range.startOffset);
+    handled = { x: touch.clientX, y: touch.clientY, at: event.timeStamp };
   };
 
   editor.addEventListener('touchstart', onTouchStart, { passive: true });

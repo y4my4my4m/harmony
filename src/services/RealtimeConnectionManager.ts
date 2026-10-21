@@ -12,6 +12,7 @@
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isChannelRefusal } from '@/utils/realtimeRefusal'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 // Types
@@ -667,19 +668,23 @@ class RealtimeConnectionManagerService {
     managedSub.channel = channel
   }
 
+  /** Removes the channel; the CLOSED that removeChannel() drives inline is a teardown close. */
+  private dropChannel(managedSub: ManagedSubscription): void {
+    if (!managedSub.channel) return
+    managedSub.tearingDown = true
+    try {
+      supabase.removeChannel(managedSub.channel)
+    } finally {
+      managedSub.tearingDown = false
+    }
+    managedSub.channel = null
+  }
+
   private reconnect(channelName: string): void {
     const managedSub = this.subscriptions.get(channelName)
     if (!managedSub) return
-    
-    if (managedSub.channel) {
-      managedSub.tearingDown = true
-      try {
-        supabase.removeChannel(managedSub.channel)
-      } finally {
-        managedSub.tearingDown = false
-      }
-      managedSub.channel = null
-    }
+
+    this.dropChannel(managedSub)
 
     switch (managedSub.configType) {
       case 'table':
@@ -747,6 +752,21 @@ class RealtimeConnectionManagerService {
         managedSub.lastErrorAt = new Date()
         managedSub.lastError = err?.message || 'Channel error'
         managedSub.pendingGapFill = true
+        if (isChannelRefusal(err)) {
+          // Refused: no retry succeeds until membership or policy changes. realtime-js rejoins an
+          // errored channel on its own until it is removed. forceReconnect (online, visibility)
+          // still tries again.
+          debug.warn(`RealtimeManager: ${channelName} refused:`, managedSub.lastError)
+          if (managedSub.retryTimeoutId) {
+            clearTimeout(managedSub.retryTimeoutId)
+            managedSub.retryTimeoutId = null
+          }
+          // The health check retries an errored subscription only at maxRetries.
+          managedSub.retryCount = 0
+          this.dropChannel(managedSub)
+          this.updateSubscriptionStatus(channelName, 'error')
+          break
+        }
         this.updateSubscriptionStatus(channelName, 'error')
         debug.error(`RealtimeManager: ${channelName} error:`, err)
         this.scheduleReconnect(channelName)

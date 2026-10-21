@@ -390,6 +390,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       draftsStore.saveDraft(oldKey, messageContent.value);
     }
     messageContent.value = newKey ? draftsStore.getDraft(newKey) : '';
+    // A reply names a message of its own channel or conversation; the server refuses it elsewhere.
+    replyToMessageId.value = '';
   }, { immediate: true });
 
   // Save draft on content change (debounced inside the store)
@@ -710,16 +712,18 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       // snapshots and clears the reply state up front; `restoreReplyTarget`
       // puts it back when the send did not go through - encryption declined or
       // required, missing context, transient error.
-      type ReplyTargetSnapshot = { id: string };
+      // The snapshot keeps its room: a send that fails after a channel switch restores nothing.
+      type ReplyTargetSnapshot = { id: string; key: string | null };
       const consumeReplyTarget = (): ReplyTargetSnapshot => {
         const snapshot: ReplyTargetSnapshot = {
           id: replyToMessageId.value,
+          key: draftKey.value,
         };
         handleDontReply();
         return snapshot;
       };
       const restoreReplyTarget = (snapshot: ReplyTargetSnapshot | null) => {
-        if (snapshot?.id && !replyToMessageId.value) {
+        if (snapshot?.id && !replyToMessageId.value && snapshot.key === draftKey.value) {
           replyToMessageId.value = snapshot.id;
         }
       };

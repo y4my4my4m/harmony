@@ -836,6 +836,7 @@ describe('Server inbox Remove(member)', () => {
       { user_id: 'carol-id', server_id: S, server_roles: { is_admin: false, permissions: '0', position: 5 } },
       { user_id: 'dave-id', server_id: S, server_roles: { is_admin: false, permissions: '0', position: 2 } },
     )
+    tables.server_membership_events = []
   })
   const member = (id: string) => tables.user_servers.find((r) => r.user_id === id)
 
@@ -849,9 +850,12 @@ describe('Server inbox Remove(member)', () => {
     expect(member('carol-id')).toBeDefined()
   })
 
-  it('kicks a member with a lower role', async () => {
+  it('kicks a member with a lower role, recorded as a kick so the member\'s instance is told', async () => {
     await kick(MALLORY, DAVE)
     expect(member('dave-id')).toBeUndefined()
+    expect(tables.server_membership_events).toEqual([
+      expect.objectContaining({ server_id: S, user_id: 'dave-id', event_type: 'kick', payload: expect.objectContaining({ kicked_by: 'mallory-id' }) }),
+    ])
   })
 
   it('a member without KICK_MEMBERS kicks nobody, but leaves on its own', async () => {
@@ -859,5 +863,6 @@ describe('Server inbox Remove(member)', () => {
     expect(member('dave-id')).toBeDefined()
     await kick(CAROL, CAROL)
     expect(member('carol-id')).toBeUndefined()
+    expect(tables.server_membership_events).toEqual([])
   })
 })

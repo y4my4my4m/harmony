@@ -24,3 +24,11 @@ describe('send failure: permission', () => {
     expect(permissionRefusalMessage(attach)).toBe('Missing permission: ATTACH_FILES')
   })
 })
+
+describe('send failure: reply out of scope', () => {
+  it('classifies a reply to a message of another channel or conversation', () => {
+    const error = { code: '23514', message: 'REPLY_OUT_OF_SCOPE: a reply names a message in the same channel or conversation' }
+    expect(classifySendFailure(error)).toBe('reply-out-of-scope')
+    expect(classifySendFailure({ code: '23514', message: 'other check' })).toBe('other')
+  })
+})

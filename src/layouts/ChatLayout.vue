@@ -453,8 +453,8 @@ onUnmounted(() => {
   dmStore.cleanup(false)
 })
 
-const handleCreateChannel = (categoryId: string) => {
-  currentCategoryId.value = categoryId
+const handleCreateChannel = (categoryId: string | null) => {
+  currentCategoryId.value = categoryId || undefined
   showCreateChannelForm.value = true
 }
 
@@ -528,6 +528,9 @@ watch(
     if (channelId === prevChannelId && conversationId === prevConversationId) return
     if (!channelId && !conversationId) return
     closeMobileSidebars()
+    // Search and an open thread belong to the channel or conversation left behind.
+    showSearchModal.value = false
+    if (showThreadView.value && selectedThread.value?.channel_id !== channelId) closeThreadView()
   }
 )
 

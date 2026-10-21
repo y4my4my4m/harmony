@@ -141,6 +141,16 @@ function newcomerTitleAction(data: Record<string, any>): string {
 }
 
 // Message templates - easy to replace for internationalization
+/** The server a federation notice names: its name, else its Group's host. */
+function noticeServerName(data: Record<string, any>): string {
+  if (data.server?.name) return data.server.name
+  try {
+    return data.server?.ap_id ? new URL(data.server.ap_id).host : '?'
+  } catch {
+    return '?'
+  }
+}
+
 const MESSAGE_TEMPLATES = {
   mention: {
     titleAction: mentionTitleAction,
@@ -417,6 +427,33 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => moveNoticeText(data).title,
     message: (data: any) => moveNoticeText(data).message,
     shortTitle: () => i18n.global.t('accountMigration.notice.short')
+  },
+
+  // A server on another instance refused a join after the join request had answered.
+  server_join_rejected: {
+    title: (data: any) => i18n.global.t('federation.joinRejectedNotice.title', { name: noticeServerName(data) }),
+    message: (data: any) => data.reason
+      ? i18n.global.t('federation.joinRejectedNotice.reason', { reason: data.reason })
+      : i18n.global.t('federation.joinRejectedNotice.noReason'),
+    shortTitle: () => i18n.global.t('federation.joinRejectedNotice.short')
+  },
+
+  // A server on another instance turned federation off and removed its members from here.
+  server_federation_closed: {
+    title: (data: any) => i18n.global.t('federation.federationClosedNotice.title', { name: noticeServerName(data) }),
+    message: () => i18n.global.t('federation.federationClosedNotice.message'),
+    shortTitle: () => i18n.global.t('federation.federationClosedNotice.short')
+  },
+
+  // A server on another instance kicked or banned the user.
+  server_member_removed: {
+    title: (data: any) => i18n.global.t(
+      data.action === 'ban' ? 'federation.memberRemovedNotice.banTitle' : 'federation.memberRemovedNotice.kickTitle',
+      { name: noticeServerName(data) }),
+    message: (data: any) => data.reason
+      ? i18n.global.t('federation.memberRemovedNotice.reason', { reason: data.reason })
+      : i18n.global.t('federation.memberRemovedNotice.noReason'),
+    shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
   },
 
   report_update: {

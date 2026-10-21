@@ -221,6 +221,84 @@ check_database() {
 		report OK migrations "$files applied, at the checkout's head"
 	fi
 
+	# Policy blocks guarded on realtime.messages skip when the chain runs before Realtime
+	# creates it, and the migration is still recorded. RLS with no SELECT policy refuses every
+	# private channel: presence, calls, user events.
+	# 20261025100001 creates only absent policies and is safe to run again; harmony update skips
+	# it once the ledger records it.
+	local rt_policies p absent_rt=() rt_fix rt_mig=""
+	rt_policies="$(db_sql -c "SELECT string_agg(polname, ',') FROM pg_policy WHERE polrelid = to_regclass('realtime.messages')" 2>/dev/null)"
+	for p in authenticated_users_can_receive authenticated_users_can_send realtime_messages_session_aal; do
+		[[ ",$rt_policies," == *",$p,"* ]] || absent_rt+=("$p")
+	done
+	for p in "$REPO_DIR"/db_schema/migrations/20261025100001_*.sql; do [[ -f "$p" ]] && rt_mig="$p"; done
+	if [[ -n "$rt_mig" ]]; then
+		rt_fix="in self-host/: docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/$(basename "$rt_mig")"
+	else
+		rt_fix="harmony update (migration 20261025100001 installs them)"
+	fi
+	if [[ "$(db_sql -c "SELECT to_regclass('realtime.messages') IS NULL" 2>/dev/null)" == t ]]; then
+		report FAIL realtime-policies "realtime.messages does not exist: Realtime never created its schema, and private channels (presence, calls, user events) fail" "harmony logs realtime; once it is healthy, $rt_fix"
+	elif [[ ${#absent_rt[@]} -gt 0 ]]; then
+		report FAIL realtime-policies "realtime.messages lacks ${absent_rt[*]}: private channels (presence, calls, user events) are refused" "$rt_fix"
+	else
+		report OK realtime-policies "receive, send and session AAL policies on realtime.messages"
+	fi
+
+	# The security-notice triggers on GoTrue's tables skip the same way when the chain runs before
+	# the auth service migrates: no notice of a new sign-in or a changed second factor.
+	# 20261025100003 creates only absent triggers and is safe to run again.
+	local auth_triggers t absent_auth=() auth_fix="harmony update (migration 20261025100003 installs them)" auth_mig=""
+	auth_triggers="$(db_sql -c "SELECT string_agg(tgname, ',') FROM pg_trigger WHERE tgrelid IN (to_regclass('auth.sessions'), to_regclass('auth.mfa_factors'))" 2>/dev/null)"
+	for t in harmony_session_created harmony_session_deleted harmony_mfa_factor_verified harmony_mfa_factor_deleted; do
+		[[ ",$auth_triggers," == *",$t,"* ]] || absent_auth+=("$t")
+	done
+	for p in "$REPO_DIR"/db_schema/migrations/20261025100003_*.sql; do [[ -f "$p" ]] && auth_mig="$p"; done
+	[[ -n "$auth_mig" ]] &&
+		auth_fix="in self-host/: docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/$(basename "$auth_mig")"
+	if [[ ${#absent_auth[@]} -gt 0 ]]; then
+		report FAIL security-notices "auth tables lack ${absent_auth[*]}: no notice of a new sign-in or a changed second factor" "$auth_fix"
+	else
+		report OK security-notices "sign-in and second-factor triggers on auth.sessions and auth.mfa_factors"
+	fi
+
+	# Storage blocks guarded on storage.objects or storage.buckets skip on a database without
+	# those tables, the session AAL block also where the applying role may not create policies on
+	# storage.objects, and the migration is still recorded. 20261025100004 creates only absent
+	# objects, replaces superseded policy definitions, and is safe to run again.
+	local st_have st_name absent_st=() st_list st_detail st_fix st_mig=""
+	st_fix="harmony update (migration 20261025100004 installs them)"
+	for p in "$REPO_DIR"/db_schema/migrations/20261025100004_*.sql; do [[ -f "$p" ]] && st_mig="$p"; done
+	[[ -n "$st_mig" ]] &&
+		st_fix="in self-host/: docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/$(basename "$st_mig")"
+	if [[ "$(db_sql -c "SELECT to_regclass('storage.objects') IS NULL OR to_regclass('storage.buckets') IS NULL" 2>/dev/null)" == t ]]; then
+		report FAIL storage-policies "storage.objects or storage.buckets does not exist: uploads fail" "harmony logs storage; once it is healthy, $st_fix"
+	else
+		st_have="$(db_sql -c "SELECT string_agg(name, '|') FROM (
+			SELECT polname AS name FROM pg_policy WHERE polrelid IN ('storage.objects'::regclass, 'storage.buckets'::regclass)
+			UNION ALL SELECT 'bucket ' || id FROM storage.buckets
+			UNION ALL SELECT 'trigger ' || tgname FROM pg_trigger WHERE tgrelid = 'storage.objects'::regclass) s" 2>/dev/null)"
+		for st_name in storage_objects_session_aal \
+			"Server owners can delete server banners" "Bot owners can upload bot avatars" \
+			"Public read access for soundboard" "Soundboard managers can upload sounds" "Soundboard managers can delete sounds" \
+			"Room members can read message media" "Room members can upload message media" \
+			"Uploaders and admins can delete message media" "Authenticated users can upload user_media" \
+			"Users can upload personal emojis" "Users can delete personal emojis" \
+			"Authenticated users read the message_media bucket" \
+			"bucket message_media" "bucket soundboard" "trigger drive_track_object" "trigger drive_forget_object"; do
+			[[ "|$st_have|" == *"|$st_name|"* ]] || absent_st+=("$st_name")
+		done
+		if [[ ${#absent_st[@]} -gt 0 ]]; then
+			st_list="$(printf '"%s", ' "${absent_st[@]}")"
+			st_detail="storage lacks ${st_list%, }: uploads and reads that depend on them fail"
+			[[ " ${absent_st[*]} " == *" storage_objects_session_aal "* ]] &&
+				st_detail+="; without storage_objects_session_aal a session short of its second factor reaches storage"
+			report FAIL storage-policies "$st_detail" "$st_fix"
+		else
+			report OK storage-policies "message media, soundboard, personal emoji and Drive policies, buckets and triggers on storage"
+		fi
+	fi
+
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
 	if [[ "$cfg_domain" == "$DOMAIN" ]]; then
@@ -266,20 +344,36 @@ check_dns() {
 	if [[ -z "$PUBLIC4" ]]; then
 		$OFFLINE || report WARN "public IP" "could not determine this server's public address" "HARMONY_PUBLIC_IP=x.x.x.x harmony doctor"
 	fi
+	local doh=doh create
+	$OFFLINE && doh=""
+	create="create: A NAME -> ${PUBLIC4:-<this server address>}"
+	$INTERNAL_TLS && create="create: A NAME -> this server's address, or behind a Cloudflare Tunnel a Proxied CNAME to <tunnel id>.cfargotunnel.com"
 	while read -r name; do
 		[[ -n "$name" ]] || continue
-		a4="$(resolve4 "$name" | tr '\n' ' ' | sed 's/ $//')"
-		a6="$(resolve6 "$name" | tr '\n' ' ' | sed 's/ $//')"
-		if [[ -z "$a4" && -z "$a6" ]]; then
-			report "$level" "$name" "no DNS record" "create: A $name -> ${PUBLIC4:-<this server address>}"
+		dns_addrs "$name" "$doh"
+		a4="$DNS4"; a6="$DNS6"
+		local addr public=false hosts=""
+		for addr in $a4 $a6; do is_private_addr "$addr" || public=true; done
+		[[ -n "$DNS_LOCAL" ]] && hosts=" (public DNS; /etc/hosts here: $DNS_LOCAL)"
+		if tunnel_dns_only "$name" "$doh"; then
+			# The tunnel serves only proxied names.
+			report FAIL "$name" "a Cloudflare Tunnel name set to DNS only: it resolves to fd10:aec2:5dae::, which nothing can reach" "Cloudflare, DNS: set the $name record to Proxied (orange cloud)"
+		elif [[ -z "$a4$a6" && -n "$DNS_LOCAL" ]]; then
+			report WARN "$name" "this server's /etc/hosts maps it to $DNS_LOCAL, which hides its public records" "run doctor without --offline, or from another machine: dig +short $name"
+		elif [[ -z "$a4$a6" ]]; then
+			report "$level" "$name" "no DNS record" "${create/NAME/$name}"
+		elif ! $public; then
+			report WARN "$name" "resolves only to private addresses (${a4:-$a6}): reachable on this network only, not by other instances or from outside" "point $name at a public address, or proxy it"
+		elif [[ -n "$PUBLIC4" && " $a4 " != *" $PUBLIC4 "* ]] && $INTERNAL_TLS; then
+			report OK "$name" "${a4:-$a6}, not this server ($PUBLIC4): served through a proxy or tunnel, which internal TLS allows$hosts"
 		elif [[ -n "$PUBLIC4" && " $a4 " != *" $PUBLIC4 "* ]]; then
-			report "$level" "$name" "points to ${a4:-$a6}, this server is $PUBLIC4" "set: A $name -> $PUBLIC4 (DNS only, not proxied, while certificates are issued)"
+			report "$level" "$name" "points to ${a4:-$a6}, this server is $PUBLIC4$hosts" "set: A $name -> $PUBLIC4 (DNS only, not proxied, while certificates are issued)"
 		elif [[ -n "$a6" && -n "$PUBLIC6" && " $a6 " != *" $PUBLIC6 "* ]]; then
 			report WARN "$name" "AAAA $a6, this server's IPv6 is $PUBLIC6" "set: AAAA $name -> $PUBLIC6, or remove the AAAA record"
 		elif [[ -n "$a6" && -z "$PUBLIC6" && -n "$PUBLIC4" ]]; then
 			report WARN "$name" "has AAAA $a6 but this server has no public IPv6: Let's Encrypt tries IPv6 first" "remove the AAAA record of $name"
 		else
-			report OK "$name" "${a4:-$a6}"
+			report OK "$name" "${a4:-$a6}$hosts"
 		fi
 	done < <(instance_names)
 }
@@ -343,6 +437,37 @@ probe() {
 	fi
 }
 
+# The browser's Realtime handshake through Caddy and Kong. 101 is the upgrade; Kong answers 401
+# for a wrong anon key and 503 when Realtime is down; 000 is no answer. Without it live updates,
+# presence, typing and calls fail (CHANNEL_ERROR / TIMED_OUT in the browser console).
+check_realtime_socket() {
+	local path code where anon
+	anon="$(env_get "$ENV_FILE" SUPABASE_ANON_KEY)"
+	path="/realtime/v1/websocket?apikey=$anon&vsn=1.0.0"
+	where="wss://$DB_DOMAIN/realtime/v1/websocket"
+	local -a upgrade=(--http1.1 --max-time 5 -H 'Connection: Upgrade' -H 'Upgrade: websocket'
+		-H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==')
+	code="$(fetch local "https://$DB_DOMAIN$path" "$TMP/realtime" "${upgrade[@]}")"
+	if [[ "$code" != 101 ]]; then
+		report FAIL realtime "$where: HTTP $code on this server; live updates, presence, typing and calls fail" \
+			"harmony logs realtime; harmony logs kong (503: Realtime is down; 401: SUPABASE_ANON_KEY differs from Kong's)"
+		return
+	fi
+	if ! $INTERNAL_TLS && [[ -n "$(resolve4 "$DB_DOMAIN")$(resolve6 "$DB_DOMAIN")" ]]; then
+		code="$(fetch public "https://$DB_DOMAIN$path" "$TMP/realtime" "${upgrade[@]}")"
+		if [[ "$code" == 000 ]]; then
+			report FAIL realtime "upgrades on this server but $where does not answer from here" \
+				"DNS of $DB_DOMAIN, the firewall (80/443) or NAT"
+			return
+		elif [[ "$code" != 101 ]]; then
+			report FAIL realtime "upgrades on this server but not at $where from here (HTTP $code)" \
+				"a proxy in front of Caddy must pass WebSocket upgrades (Cloudflare: Network, WebSockets on)"
+			return
+		fi
+	fi
+	report OK realtime "$where upgrades"
+}
+
 check_federation() {
 	section "Federation (the public URL)"
 	if [[ -n "${ADMIN_USER:-}" ]]; then
@@ -387,6 +512,8 @@ check_services() {
 	else
 		report FAIL auth "https://$DB_DOMAIN/auth/v1/health: HTTP $code" "harmony logs auth; harmony logs kong"
 	fi
+
+	check_realtime_socket
 
 	if $BOTS; then
 		probe bot-gateway "/bot-gateway/health" '"status" *: *"ok"' "harmony logs bot-gateway"

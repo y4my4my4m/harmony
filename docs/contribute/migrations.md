@@ -26,6 +26,8 @@ A file is named `<version>_<name>.sql`. The version is 14 digits, `YYYYMMDDNNNNN
 
 When a file fails, it is not recorded, the files after it are skipped, and the run stops. The database is left at the last migration that succeeded. After the loop, `bootstrap.sh` reloads PostgREST's schema cache.
 
+Before the first file, `bootstrap.sh` waits up to 300 s for the objects Realtime and storage-api create through their own migrations after Postgres starts: `realtime.messages` (partitioned), `realtime.send` and storage-api's `storage.buckets` columns. A block guarded on a missing object skips and its file is still recorded, so the chain does not start without them. Realtime runs its migrations when its health check first passes; when the database container belongs to a Compose project with a `realtime` service, the wait covers that health check too. `scripts/check-fresh-install.sh` runs on a bare Postgres container, where `scripts/test-db/supabase-compat.sql` supplies these objects.
+
 The ledger is the table the Supabase CLI uses, so the CLI can read and continue an instance installed this way:
 
 ```bash

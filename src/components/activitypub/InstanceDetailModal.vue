@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { openLink } from '@/services/tauriLinks';
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import DOMPurify from 'dompurify';
@@ -333,7 +334,7 @@ const viewPost = (post: TimelinePost) => {
 };
 
 const viewAllPosts = () => {
-  window.open(`https://${props.instance.domain}/public`, '_blank');
+  openLink(`https://${props.instance.domain}/public`);
 };
 
 const copyInstanceUrl = async () => {
@@ -347,7 +348,7 @@ const copyInstanceUrl = async () => {
 };
 
 const openInNewTab = () => {
-  window.open(`https://${props.instance.domain}`, '_blank');
+  openLink(`https://${props.instance.domain}`);
 };
 
 onMounted(() => {

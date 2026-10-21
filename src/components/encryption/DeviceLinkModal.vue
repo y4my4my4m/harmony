@@ -259,8 +259,30 @@ function stopSearching() {
   session = null
 }
 
+// The stored-key restore reads IndexedDB and the server; 10 s covers a slow phone on a cold start.
+const RESTORE_WAIT_MS = 10_000
+
+/** False when the dialog closed meanwhile or needs an unlock first. */
 async function precheck(): Promise<boolean> {
   const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+  if (!alive) return false
+  // Encryption starts on demand (an encrypted message, Settings > Privacy), so on a cold start
+  // nothing may have restored this device's stored keys yet, which read as locked.
+  if (!megolmMessageEncryptionService.isUnlocked()) {
+    if (!megolmMessageEncryptionService.isInitialized()) {
+      const { authContextService } = await import('@/services/AuthContextService')
+      if (!alive) return false
+      const user = await authContextService.getCurrentAuthUser().catch(() => null)
+      if (!alive) return false
+      // Not awaited: initialize() returns the in-flight restore, which can outlast RESTORE_WAIT_MS.
+      if (user) {
+        void megolmMessageEncryptionService.initialize(user.id)
+          .catch((err) => debug.warn('[DeviceLinkModal] encryption restore failed:', err))
+      }
+    }
+    await megolmMessageEncryptionService.whenInitSettled(RESTORE_WAIT_MS)
+    if (!alive) return false
+  }
   if (!megolmMessageEncryptionService.isUnlocked()) {
     needUnlockKey.value = 'encryption.linkDevice.needUnlockLocked'
     phase.value = 'need-unlock'
@@ -311,9 +333,12 @@ async function startShowing() {
     if (!ctx.isAuthenticated) throw new Error(t('encryption.linkDevice.signInAgain'))
     profileId = ctx.profileId
   }
+  // Closed meanwhile: no code is started and no polling outlives the dialog.
+  if (!alive) return
   qrUrl.value = ''
   session = await devicePairingService.startApproverCode(profileId)
   qrUrl.value = await renderQrDataUrl(session.text(), 280)
+  if (!alive) return
   phase.value = 'show'
   pollTimer = setInterval(() => void search(), 2000)
   offRequest = userEventChannel.on('device:approval_request', () => void search())

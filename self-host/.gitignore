@@ -1,5 +1,7 @@
 # Written by configure.sh - secrets, never commit.
 .env
+# Generated passwords from a run without a terminal (reveal_secret, lib.sh).
+.secret-*
 federation.env
 bot-gateway.env
 discord-bridge.env

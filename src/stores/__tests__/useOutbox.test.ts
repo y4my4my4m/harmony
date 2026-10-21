@@ -382,6 +382,27 @@ describe('outbox failure, retry and discard', () => {
     expect(outbox.rowsFor(CHANNEL_KEY)[0]).toMatchObject({ id, failed: true })
   })
 
+  it('names a reply to another channel and retries without it', async () => {
+    const outbox = useOutboxStore()
+    chatStore.sendMessage.mockRejectedValueOnce(Object.assign(
+      new Error('REPLY_OUT_OF_SCOPE: a reply names a message in the same channel or conversation'),
+      { code: '23514' },
+    ))
+    const id = outbox.enqueue({
+      target: channelTarget, authorId: PROFILE, uploaderId: UID, replyTo: 'message-in-another-channel',
+      textParts: [{ type: 'text', text: 'hello B' }], attachments: [],
+    })
+    await flushPromises()
+
+    expect(chatStore.sendMessage.mock.calls[0][4]).toBe('message-in-another-channel')
+    expect(toast.error).toHaveBeenCalledWith('chat.replyOutOfScope')
+    expect(outbox.rowsFor(CHANNEL_KEY)[0]).toMatchObject({ id, failed: true, reply_to: undefined })
+
+    outbox.retry(id)
+    await flushPromises()
+    expect(chatStore.sendMessage.mock.calls[1][4]).toBe('')
+  })
+
   it('discard aborts running uploads, deletes stored objects and revokes object URLs', async () => {
     const outbox = useOutboxStore()
     const id = outbox.enqueue({

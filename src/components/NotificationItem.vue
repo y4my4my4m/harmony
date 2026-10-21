@@ -242,6 +242,9 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   moderation_warning: { icon: 'shield', tone: 'system' },
   newcomer_message: { icon: 'user-plus', tone: 'follow' },
   security: { icon: 'shield-check', tone: 'system' },
+  server_join_rejected: { icon: 'ban', tone: 'system' },
+  server_federation_closed: { icon: 'globe', tone: 'system' },
+  server_member_removed: { icon: 'door-open', tone: 'system' },
   server_invite: { icon: 'server', tone: 'system' },
   voice_channel_activity: { icon: 'headphones', tone: 'system' },
 }

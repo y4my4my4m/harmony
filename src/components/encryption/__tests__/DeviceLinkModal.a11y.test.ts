@@ -8,10 +8,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { resetLayersForTests } from '@/utils/a11y/layers'
+import { userEventChannel } from '@/services/UserEventChannel'
+import { renderQrDataUrl } from '@/utils/qrCode'
+import { authContextService } from '@/services/AuthContextService'
 
 const { announcer, megolm, pairing } = vi.hoisted(() => ({
   announcer: { polite: vi.fn(), assertive: vi.fn() },
-  megolm: { isUnlocked: vi.fn(() => true), canExportPairingKeys: vi.fn(() => true) },
+  megolm: {
+    isUnlocked: vi.fn(() => true),
+    canExportPairingKeys: vi.fn(() => true),
+    isInitialized: vi.fn(() => true),
+    initialize: vi.fn(async (_authUserId: string) => {}),
+    whenInitSettled: vi.fn(async (_ms: number) => {}),
+  },
   pairing: { startApproverCode: vi.fn(), findAnswer: vi.fn(async () => null) },
 }))
 
@@ -27,7 +36,10 @@ vi.mock('@/services/UserEventChannel', () => ({ userEventChannel: { on: vi.fn(()
 vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({ megolmMessageEncryptionService: megolm }))
 vi.mock('@/services/encryption/DevicePairingService', () => ({ devicePairingService: pairing }))
 vi.mock('@/services/AuthContextService', () => ({
-  authContextService: { getCurrentContext: vi.fn(async () => ({ isAuthenticated: true, profileId: 'p1' })) },
+  authContextService: {
+    getCurrentContext: vi.fn(async () => ({ isAuthenticated: true, profileId: 'p1' })),
+    getCurrentAuthUser: vi.fn(async () => ({ id: 'auth-1' })),
+  },
 }))
 vi.mock('@/utils/qrCode', () => ({ renderQrDataUrl: vi.fn(async () => 'data:image/png;base64,') }))
 vi.mock('../QrScanner.vue', async () => {
@@ -46,8 +58,16 @@ beforeEach(() => {
   resetLayersForTests()
   announcer.polite.mockClear()
   announcer.assertive.mockClear()
+  megolm.isUnlocked.mockReset()
   megolm.isUnlocked.mockReturnValue(true)
+  megolm.isInitialized.mockReturnValue(true)
+  megolm.initialize.mockReset()
+  megolm.initialize.mockResolvedValue(undefined)
+  megolm.whenInitSettled.mockReset()
+  megolm.whenInitSettled.mockResolvedValue(undefined)
   pairing.startApproverCode.mockReset()
+  vi.mocked(userEventChannel.on).mockClear()
+  vi.mocked(authContextService.getCurrentContext).mockClear()
 })
 
 function mountModal(mode: 'scan' | 'show') {
@@ -75,6 +95,80 @@ describe('DeviceLinkModal phases', () => {
     mountModal('scan')
     await flushPromises()
     expect(announcer.polite).toHaveBeenCalledWith('encryption.linkDevice.needUnlockLocked')
+  })
+
+  // Cold start: nothing has restored this device's stored keys yet (Settings > Privacy did it).
+  it('restores the stored keys before calling the device locked', async () => {
+    let unlocked = false
+    megolm.isUnlocked.mockImplementation(() => unlocked)
+    megolm.isInitialized.mockReturnValue(false)
+    megolm.initialize.mockImplementation(async () => { unlocked = true })
+    mountModal('scan')
+    await flushPromises()
+    expect(megolm.initialize).toHaveBeenCalledWith('auth-1')
+    expect(document.querySelector('[data-testid="device-link-modal"]')?.getAttribute('data-phase')).toBe('scan')
+    expect(announcer.polite).not.toHaveBeenCalledWith('encryption.linkDevice.needUnlockLocked')
+  })
+
+  it('waits for a restore already running instead of starting another', async () => {
+    let unlocked = false
+    megolm.isUnlocked.mockImplementation(() => unlocked)
+    megolm.whenInitSettled.mockImplementation(async () => { unlocked = true })
+    mountModal('scan')
+    await flushPromises()
+    expect(megolm.initialize).not.toHaveBeenCalled()
+    expect(megolm.whenInitSettled).toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="device-link-modal"]')?.getAttribute('data-phase')).toBe('scan')
+  })
+
+  it('is locked when the restore finds no stored keys', async () => {
+    megolm.isUnlocked.mockReturnValue(false)
+    megolm.isInitialized.mockReturnValue(false)
+    mountModal('scan')
+    await flushPromises()
+    expect(megolm.initialize).toHaveBeenCalledWith('auth-1')
+    expect(announcer.polite).toHaveBeenCalledWith('encryption.linkDevice.needUnlockLocked')
+  })
+
+  it('waits for a restore that never settles no longer than whenInitSettled does', async () => {
+    megolm.isUnlocked.mockReturnValue(false)
+    megolm.isInitialized.mockReturnValue(false)
+    megolm.initialize.mockImplementation(() => new Promise<void>(() => {}))
+    mountModal('scan')
+    await flushPromises()
+    expect(megolm.initialize).toHaveBeenCalledWith('auth-1')
+    expect(megolm.whenInitSettled).toHaveBeenCalledWith(10_000)
+    expect(document.querySelector('[data-testid="device-link-modal"]')?.getAttribute('data-phase')).toBe('need-unlock')
+  })
+
+  it('starts no code when closed while the restore runs', async () => {
+    let unlocked = false
+    megolm.isUnlocked.mockImplementation(() => unlocked)
+    let settle!: () => void
+    megolm.whenInitSettled.mockImplementation(() => new Promise<void>((resolve) => { settle = resolve }))
+    pairing.startApproverCode.mockResolvedValue(SESSION)
+    const wrapper = mountModal('show')
+    await flushPromises()
+    wrapper.unmount()
+    unlocked = true
+    settle()
+    await flushPromises()
+    expect(authContextService.getCurrentContext).not.toHaveBeenCalled()
+    expect(pairing.startApproverCode).not.toHaveBeenCalled()
+    expect(userEventChannel.on).not.toHaveBeenCalled()
+  })
+
+  it('starts no polling when closed while the code renders', async () => {
+    let rendered!: (url: string) => void
+    vi.mocked(renderQrDataUrl).mockImplementationOnce(() => new Promise<string>((resolve) => { rendered = resolve }))
+    pairing.startApproverCode.mockResolvedValue(SESSION)
+    const wrapper = mountModal('show')
+    await flushPromises()
+    expect(pairing.startApproverCode).toHaveBeenCalled()
+    wrapper.unmount()
+    rendered('data:image/png;base64,')
+    await flushPromises()
+    expect(userEventChannel.on).not.toHaveBeenCalled()
   })
 
   it('announces a failure assertively and focuses Try again', async () => {

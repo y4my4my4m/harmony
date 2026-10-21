@@ -297,13 +297,11 @@ export const useAuthStore = defineStore('auth', {
           debug.error('ActivityPub initialize on session restore failed:', err);
         });
 
-        // Funding bar - loaded once at session restore, then refreshed in
-        // the background. Layouts read this store instead of refetching
+        // Funding bar - loaded at session restore; load() starts the background
+        // refresh while signed in. Layouts read this store instead of refetching
         // per-view.
         import('@/stores/useFunding').then(({ useFundingStore }) => {
-          const fundingStore = useFundingStore();
-          void fundingStore.load();
-          fundingStore.startAutoRefresh();
+          void useFundingStore().load();
         }).catch((err) => debug.warn('Funding store init failed:', err));
 
         // LAZY: encryption is not initialized on load. It initializes when
@@ -860,6 +858,13 @@ export const useAuthStore = defineStore('auth', {
         visualTheme.reset()
       } catch (error) {
         debug.error('Error resetting visual theme:', error)
+      }
+
+      try {
+        const { useFundingStore } = await import('@/stores/useFunding')
+        useFundingStore().clear()
+      } catch (error) {
+        debug.error('Error resetting funding store:', error)
       }
       
       try {

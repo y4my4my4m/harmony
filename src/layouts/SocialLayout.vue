@@ -185,6 +185,7 @@
       :initial-content-warning="activityPubStore.composerState.contentWarning"
       :initial-sensitive="activityPubStore.composerState.sensitive"
       :default-visibility="activityPubStore.composerState.visibility"
+      :keep-draft="composerType === 'post' && !activityPubStore.composerState.replyTo"
       @close="handleCloseComposer"
       @posted="handlePosted"
     />

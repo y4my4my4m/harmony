@@ -81,6 +81,8 @@ export function notificationUrl(type: string, data: Record<string, any> = {}): s
     const handle = profileHandle(data.target);
     if (handle) return `/social/profile/${handle}`;
   }
+  // The refused or removing server is gone from the list.
+  if (type === 'server_join_rejected' || type === 'server_federation_closed' || type === 'server_member_removed') return '/chat';
 
   const postId = data.post_id || data.post?.id;
   if (type.startsWith('activitypub_') && postId) return `/social/post/${postId}`;
@@ -288,6 +290,55 @@ export function securityNoticeText(data: Record<string, any> = {}): { title: str
     default:
       return { title: 'Account security', body: 'There was a change to your account security.' };
   }
+}
+
+/**
+ * Push text for a 'server_join_rejected' notification. data is written by
+ * ActivityProcessor.processReject for a Reject of a Join that arrives after the join answered:
+ * server { id, name, ap_id } and the Reject's summary as reason.
+ */
+export function joinRejectedNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
+  const name = noticeServerName(data);
+  return {
+    title: `${name} refused your join request`,
+    body: data.reason ? `Reason given: ${data.reason}` : 'No reason was given.',
+  };
+}
+
+/** The server a notice names: its name, else its Group's host. */
+function noticeServerName(data: Record<string, any>): string {
+  let host = '';
+  try {
+    host = data.server?.ap_id ? new URL(data.server.ap_id).host : '';
+  } catch {
+    host = '';
+  }
+  return data.server?.name || host || 'A server';
+}
+
+/**
+ * Push text for a 'server_federation_closed' notification. data is written by
+ * ActivityProcessor.processGroupMemberRemove: server { id, name, ap_id }. Worded so it does not
+ * read as a ban.
+ */
+export function federationClosedNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
+  const name = noticeServerName(data);
+  return {
+    title: `${name} stopped taking members from other instances, so you were removed`,
+    body: 'You can rejoin if it opens again.',
+  };
+}
+
+/**
+ * Push text for a 'server_member_removed' notification (ActivityProcessor.processGroupMemberRemove):
+ * server { id, name, ap_id }, action 'kick' | 'ban' | null, and the reason the server gave.
+ */
+export function memberRemovedNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
+  const name = noticeServerName(data);
+  return {
+    title: data.action === 'ban' ? `You were banned from ${name}` : `You were removed from ${name}`,
+    body: data.reason ? `Reason given: ${data.reason}` : 'No reason was given.',
+  };
 }
 
 /**

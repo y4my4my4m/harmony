@@ -1662,13 +1662,14 @@ async function processRemoveActivity(
   }
 
   const isSelfRemoval = !!removeActor && SignatureService.verifyActorMatch(removeActor, objectUrl);
+  let actorProfileId: string | null = null;
   if (!isSelfRemoval) {
     if (!(await actorIsServerModerator(supabase, serverId, server, removeActor, PERM_KICK_MEMBERS))) {
       logger.warn(`Rejecting Remove(member): ${removeActor} may not kick ${objectUrl} from server ${serverId}`);
       return;
     }
     const isHostActor = !!server.ap_id && SignatureService.verifyActorMatch(removeActor, server.ap_id);
-    const actorProfileId = isHostActor ? null : await resolveActorProfileId(supabase, removeActor);
+    actorProfileId = isHostActor ? null : await resolveActorProfileId(supabase, removeActor);
     const actorIsOwner = !!actorProfileId && actorProfileId === server.owner;
     if (!isHostActor && !actorIsOwner) {
       const actorPosition = await highestRolePosition(supabase, serverId, actorProfileId);
@@ -1680,11 +1681,27 @@ async function processRemoveActivity(
     }
   }
 
-  await supabase
+  const { data: removed } = await supabase
     .from('user_servers')
     .delete()
     .eq('server_id', serverId)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .select('id');
+
+  // The kick event tells a member from another instance through their instance
+  // (trigger_remote_member_removal, migration 20261025200001).
+  if (!isSelfRemoval && removed?.length) {
+    const { error: eventError } = await supabase.from('server_membership_events').insert({
+      server_id: serverId,
+      user_id: user.id,
+      event_type: 'kick',
+      payload: {
+        kicked_by: actorProfileId,
+        reason: typeof activity.summary === 'string' ? activity.summary.slice(0, 300) : '',
+      },
+    });
+    if (eventError) logger.warn(`Kick of ${user.username} on server ${serverId} not recorded: ${eventError.message}`);
+  }
 
   logger.info(`Kicked ${user.username} from server ${serverId}`);
 }

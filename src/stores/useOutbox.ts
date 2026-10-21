@@ -443,6 +443,9 @@ export const useOutboxStore = defineStore('outbox', () => {
       case 'permission':
         toast.error(permissionRefusalMessage(error))
         break
+      case 'reply-out-of-scope':
+        toast.error(t('chat.replyOutOfScope'))
+        break
       case 'rules': {
         const details = (error as { details?: { serverId?: string } })?.details
         void useServerWelcomeStore().handleRulesRejection(
@@ -529,6 +532,8 @@ export const useOutboxStore = defineStore('outbox', () => {
           job.status = 'sending'
           continue
         }
+        // The reply target is in another room; Retry sends the message without it.
+        if (classifySendFailure(error) === 'reply-out-of-scope') job.replyTo = undefined
         fail(job)
         notifySendFailure(error, job.target)
         return

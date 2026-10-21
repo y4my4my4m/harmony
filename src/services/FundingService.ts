@@ -272,6 +272,10 @@ export function primeBadgeCache(userId: string, badge: SupporterBadge | null): v
 class FundingService {
   async getFundingConfig(): Promise<FundingConfig | null> {
     try {
+      // Signed-in users read instance_funding (column grants, 20261006700001); anon is refused
+      // with 42501. A read before the session is attached, or after sign-out, is skipped.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return null
       const { data, error } = await supabase
         .from('instance_funding')
         .select(FUNDING_CONFIG_COLUMNS)

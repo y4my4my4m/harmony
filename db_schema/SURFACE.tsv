@@ -634,6 +634,7 @@ regenerate_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	
 register_recovery_key	p_user_id uuid, p_verification_code text, p_word_count integer	recovery_key_metadata	definer	public, pg_temp	authenticated+service_role	client
 remote_engagement_figure	p_post_id uuid, p_kind text, p_figure integer, p_fetched_at timestamp with time zone	integer	invoker	public, pg_temp	service_role	unreferenced
 remove_group_icon	conversation_uuid uuid, user_profile_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
+remove_members_from_other_instances	p_server_id uuid	integer	definer	public, pg_temp	service_role	unreferenced
 remove_message_from_index		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 remove_post_emoji_reaction	p_user_id uuid, p_post_id uuid, p_emoji_id uuid, p_custom_emoji_content text	boolean	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 remove_timeline_on_unfollow		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
@@ -758,6 +759,7 @@ trg_server_epoch_bump		trigger	definer	public, pg_temp	anon+authenticated+servic
 trigger_cleanup_dead_endpoint		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_create_default_server_structure		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_extract_post_hashtags		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+trigger_federation_closed_removals		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_block_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_category_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_channel_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
@@ -770,6 +772,7 @@ trigger_queue_dm_federation		trigger	definer	public, extensions, pg_temp	anon+au
 trigger_queue_follow_federation		trigger	definer	public, extensions, pg_temp	service_role	trigger
 trigger_queue_follow_response_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_interaction_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+trigger_queue_member_removal		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_message_reaction_delete_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_message_reaction_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_post_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
@@ -780,6 +783,7 @@ trigger_queue_server_update_federation		trigger	definer	public, pg_temp	anon+aut
 trigger_queue_thread_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_voice_channel_join_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_voice_channel_leave_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+trigger_remote_member_removal		trigger	definer	public, pg_temp	service_role	trigger
 unban_server_member	p_server_id uuid, p_user_id uuid	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 unpin_message	p_message_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 unread_change_payload	p_action text, p_id uuid, p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_unread_messages bigint, p_unread_mentions integer, p_last_read_message_id uuid, p_last_read_at timestamp with time zone	jsonb	invoker	public, pg_temp	service_role	unreferenced

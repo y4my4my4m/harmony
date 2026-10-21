@@ -51,7 +51,7 @@ import ModernInput from '@/components/common/ModernInput.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import { supabase } from '@/supabase'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { formatCategoryNameInput, finalizeCategoryName } from '@/utils/channelName'
+import { categoryNameProblem, formatCategoryNameInput, finalizeCategoryName } from '@/utils/channelName'
 
 // Max categories per server
 const MAX_CATEGORIES_PER_SERVER = 25
@@ -128,23 +128,12 @@ const hint = computed(() => {
 const validateCategoryName = (name: string): string => {
   const trimmed = name.trim()
   
-  if (!trimmed) {
-    return t('chatNav.create.categoryRequired')
+  switch (categoryNameProblem(trimmed)) {
+    case 'required': return t('chatNav.create.categoryRequired')
+    case 'tooShort': return t('chatNav.create.categoryTooShort')
+    case 'tooLong': return t('chatNav.create.categoryTooLong')
+    default: return ''
   }
-  
-  if (trimmed.length < 2) {
-    return t('chatNav.create.categoryTooShort')
-  }
-  
-  if (trimmed.length > 100) {
-    return t('chatNav.create.categoryTooLong')
-  }
-  
-  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-    return t('chatNav.create.categoryInvalid')
-  }
-  
-  return ''
 }
 
 const closeCategoryCreator = () => {

@@ -65,9 +65,10 @@ VALUES
   ('f3810000-0000-0000-0000-000000000007', 'rx',  'rx',  'remote.test', 'https://remote.test/users/rx',  'https://remote.test/inbox', false, true),
   ('f3810000-0000-0000-0000-000000000008', 'lm',  'lm',  'local.test',  'https://local.test/users/lm',   NULL,                        true,  false);
 
-INSERT INTO public.servers (id, name, owner, public) VALUES
-  ('f3820000-0000-0000-0000-000000000001', 'Private', '11111111-0000-0000-0000-000000000001', false),
-  ('f3820000-0000-0000-0000-000000000002', 'Public',  '11111111-0000-0000-0000-000000000001', true);
+-- Federated: a server with federation off reads as closed (166_federation_off_closes_group.sql).
+INSERT INTO public.servers (id, name, owner, public, federation_enabled) VALUES
+  ('f3820000-0000-0000-0000-000000000001', 'Private', '11111111-0000-0000-0000-000000000001', false, true),
+  ('f3820000-0000-0000-0000-000000000002', 'Public',  '11111111-0000-0000-0000-000000000001', true,  true);
 INSERT INTO public.servers (id, name, owner, public, is_local_server, ap_id) VALUES
   ('f3820000-0000-0000-0000-000000000003', 'Reference', '11111111-0000-0000-0000-000000000001', true, false,
    'https://remote.test/servers/f3820000-0000-0000-0000-000000000003');
