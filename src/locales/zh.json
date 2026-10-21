@@ -744,6 +744,8 @@
       "invalidName": "频道名称只能包含字母、数字和连字符",
       "limitReached": "此服务器已达到 {max} 个频道的上限",
       "createFailed": "创建频道失败。请重试。",
+      "createFailedReason": "无法创建频道：{reason}",
+      "createRefused": "你无法在此服务器中创建频道。",
       "deleteFailed": "无法删除频道。"
     },
     "copyId": "复制频道 ID",

@@ -74,6 +74,7 @@
                 class="form-input"
                 :placeholder="t('channel.edit.namePlaceholder')"
                 maxlength="100"
+                @input="onNameInput"
                 @keydown.enter="saveChanges"
                 ref="nameInput"
               />
@@ -305,6 +306,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer'
 import { useRovingTabindex } from '@/composables/useRovingTabindex'
 import { uid, focusProgrammatically } from '@/utils/a11y/focus'
 import { userDataService } from '@/services/userDataService'
+import { finalizeChannelName, formatChannelNameInput } from '@/utils/channelName'
 import {
   roleService,
   Permission,
@@ -429,8 +431,19 @@ const editedSlowmode = computed(() => SLOWMODE_STEPS[slowmodeIndex.value] ?? 0)
 const slowmodeLabel = computed(() => formatSlowmode(editedSlowmode.value, 'short'))
 const slowmodeSpoken = computed(() => formatSlowmode(editedSlowmode.value, 'long'))
 
+// A text channel's name follows the rule Create Channel applies (lowercase, '-' for spaces), as
+// it is typed; a voice channel's name is free. A name left untouched is saved as it is.
+const isTextChannel = computed(() => props.channel?.type === 0)
+const onNameInput = () => {
+  if (isTextChannel.value) editedName.value = formatChannelNameInput(editedName.value)
+}
+const nameToSave = computed(() => {
+  if (editedName.value.trim() === (props.channel?.name ?? '').trim()) return editedName.value.trim()
+  return isTextChannel.value ? finalizeChannelName(editedName.value) : editedName.value.trim()
+})
+
 const isValidName = computed(() => {
-  return editedName.value.trim().length > 0 && editedName.value.trim().length <= 100
+  return nameToSave.value.length > 0 && nameToSave.value.length <= 100
 })
 
 // General-tab values as loaded, for the unsaved-changes check.
@@ -484,7 +497,7 @@ const { titleId } = useDialog({
 const saveChanges = async () => {
   if (!props.channel || !isValidName.value || isLoading.value) return
   
-  const trimmedName = editedName.value.trim()
+  const trimmedName = nameToSave.value
   const trimmedDescription = editedDescription.value?.trim() || null
   const currentSlowmode = props.channel.slowmode_seconds ?? 0
   const slowmodeChanged = editedSlowmode.value !== currentSlowmode

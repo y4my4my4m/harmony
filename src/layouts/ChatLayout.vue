@@ -453,8 +453,8 @@ onUnmounted(() => {
   dmStore.cleanup(false)
 })
 
-const handleCreateChannel = (categoryId: string) => {
-  currentCategoryId.value = categoryId
+const handleCreateChannel = (categoryId: string | null) => {
+  currentCategoryId.value = categoryId || undefined
   showCreateChannelForm.value = true
 }
 

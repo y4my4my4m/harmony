@@ -53,6 +53,7 @@ import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import type { Category } from '@/types'
+import { categoryNameProblem, finalizeCategoryName } from '@/utils/channelName'
 
 interface Props {
   show: boolean
@@ -73,9 +74,8 @@ const editedName = ref('')
 const isLoading = ref(false)
 const nameInput = ref<HTMLInputElement>()
 
-const isValidName = computed(() => {
-  return editedName.value.trim().length > 0 && editedName.value.trim().length <= 100
-})
+// The rule Create Category applies: spaces and case kept, whitespace collapsed, 2-100 characters.
+const isValidName = computed(() => categoryNameProblem(finalizeCategoryName(editedName.value)) === null)
 
 const closeModal = () => {
   emit('close')
@@ -84,7 +84,7 @@ const closeModal = () => {
 const saveChanges = async () => {
   if (!props.category || !isValidName.value || isLoading.value) return
   
-  const trimmedName = editedName.value.trim()
+  const trimmedName = finalizeCategoryName(editedName.value)
   
   if (trimmedName === props.category.name) {
     closeModal()

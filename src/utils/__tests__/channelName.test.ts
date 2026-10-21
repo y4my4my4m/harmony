@@ -4,6 +4,7 @@ import {
   finalizeChannelName,
   formatCategoryNameInput,
   finalizeCategoryName,
+  categoryNameProblem,
 } from '@/utils/channelName'
 
 describe('channel names', () => {
@@ -31,9 +32,17 @@ describe('channel names', () => {
 })
 
 describe('category names', () => {
-  it('keeps letter case and turns spaces into hyphens', () => {
-    expect(formatCategoryNameInput('Voice Rooms ')).toBe('Voice-Rooms-')
-    expect(finalizeCategoryName('Voice Rooms ')).toBe('Voice-Rooms')
-    expect(formatCategoryNameInput('Dev_Stuff')).toBe('Dev_Stuff')
+  it('keeps spaces and letter case, collapsing runs of whitespace', () => {
+    expect(formatCategoryNameInput('Voice Rooms ')).toBe('Voice Rooms ')
+    expect(finalizeCategoryName('  Staff   Area\t')).toBe('Staff Area')
+    expect(formatCategoryNameInput(' Dev_Stuff-2')).toBe('Dev_Stuff-2')
+    expect(finalizeCategoryName('Équipe 日本')).toBe('Équipe 日本')
+  })
+
+  it('applies one length rule to creation and rename', () => {
+    expect(categoryNameProblem('')).toBe('required')
+    expect(categoryNameProblem('A')).toBe('tooShort')
+    expect(categoryNameProblem('Staff Area')).toBeNull()
+    expect(categoryNameProblem('x'.repeat(101))).toBe('tooLong')
   })
 })

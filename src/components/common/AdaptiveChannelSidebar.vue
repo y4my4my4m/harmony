@@ -11,7 +11,7 @@
           :currentChannelId="currentChannelId"
           :categories="categories"
           :categoryChannels="categoryChannels"
-          @createChannel="(c?: string) => $emit('create-channel', c ?? '')"
+          @createChannel="(c?: string) => $emit('create-channel', c ?? null)"
           @openThread="$emit('open-thread', $event)"
         />
       </div>
@@ -202,7 +202,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   // Chat mode events. ChannelSidebar routes to the channel itself; only the
   // DM list delegates selection upward.
-  'create-channel': [categoryId: string];
+  // Null: the channel goes in no category.
+  'create-channel': [categoryId: string | null];
   'conversation-selected': [conversationId: string];
   'open-thread': [thread: any];
   

@@ -744,6 +744,8 @@
       "invalidName": "Kanalname darf nur Buchstaben, Zahlen und Bindestriche enthalten",
       "limitReached": "Dieser Server hat das Maximum von {max} Kanälen erreicht",
       "createFailed": "Kanal konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
+      "createFailedReason": "Kanal konnte nicht erstellt werden: {reason}",
+      "createRefused": "Du kannst in diesem Server keine Kanäle erstellen.",
       "deleteFailed": "Der Kanal konnte nicht gelöscht werden."
     },
     "copyId": "Kanal-ID kopieren",

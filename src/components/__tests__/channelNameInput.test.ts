@@ -1,6 +1,6 @@
 /**
- * Typing into the new channel and new category forms: a space becomes '-' and
- * stays, '-' and '_' are kept, and the created name has no trailing '-'.
+ * Typing into the new channel form: a space becomes '-' and stays, '-' and '_' are kept, and
+ * the created name has no trailing '-'. A new category keeps its spaces and case.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -62,15 +62,15 @@ describe('new channel name', () => {
 })
 
 describe('new category name', () => {
-  it('keeps a typed space as a hyphen and emits the trimmed name', async () => {
+  it('keeps typed spaces and case and emits the trimmed name', async () => {
     const wrapper = mount(CategoryCreator, { global, attachTo: document.body })
     await flushPromises()
-    await type('Voice Rooms ')
-    expect(field().value).toBe('Voice-Rooms-')
+    await type('Voice  Rooms ')
+    expect(field().value).toBe('Voice Rooms ')
 
     form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
-    expect(wrapper.emitted('createCategory')?.[0]).toEqual(['Voice-Rooms'])
+    expect(wrapper.emitted('createCategory')?.[0]).toEqual(['Voice Rooms'])
     wrapper.unmount()
   })
 })

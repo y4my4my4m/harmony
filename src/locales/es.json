@@ -744,6 +744,8 @@
       "invalidName": "El nombre del canal solo puede contener letras, números y guiones",
       "limitReached": "Este servidor ha alcanzado el límite máximo de {max} canales",
       "createFailed": "No se pudo crear el canal. Por favor, inténtalo de nuevo.",
+      "createFailedReason": "No se pudo crear el canal: {reason}",
+      "createRefused": "No puedes crear canales en este servidor.",
       "deleteFailed": "No se pudo eliminar el canal."
     },
     "copyId": "Copiar ID del canal",

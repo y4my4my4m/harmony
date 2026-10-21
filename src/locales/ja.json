@@ -744,6 +744,8 @@
       "invalidName": "チャンネル名には文字、数字、ハイフンのみ使用できます",
       "limitReached": "このサーバーはチャンネルの上限 ({max}) に達しています",
       "createFailed": "チャンネルの作成に失敗しました。もう一度お試しください。",
+      "createFailedReason": "チャンネルを作成できませんでした：{reason}",
+      "createRefused": "このサーバーではチャンネルを作成できません。",
       "deleteFailed": "チャンネルを削除できませんでした。"
     },
     "copyId": "チャンネル ID をコピー",

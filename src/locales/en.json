@@ -744,6 +744,8 @@
       "invalidName": "Channel name can only contain letters, numbers, and hyphens",
       "limitReached": "This server has reached the maximum limit of {max} channels",
       "createFailed": "Failed to create channel. Please try again.",
+      "createFailedReason": "Couldn't create the channel: {reason}",
+      "createRefused": "You can't create channels in this server.",
       "deleteFailed": "Couldn't delete the channel."
     },
     "copyId": "Copy channel ID",

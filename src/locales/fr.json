@@ -744,6 +744,8 @@
       "invalidName": "Le nom du canal ne peut contenir que des lettres, chiffres et tirets",
       "limitReached": "Ce serveur a atteint la limite maximale de {max} canaux",
       "createFailed": "Échec de la création du canal. Veuillez réessayer.",
+      "createFailedReason": "Impossible de créer le salon : {reason}",
+      "createRefused": "Tu ne peux pas créer de salons sur ce serveur.",
       "deleteFailed": "Impossible de supprimer le salon."
     },
     "copyId": "Copier l'ID du canal",
