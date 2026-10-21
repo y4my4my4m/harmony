@@ -58,6 +58,24 @@ jobs:
             description: Harmony bot gateway (REST and WebSocket).
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The web footer names the release, as deploy-master.sh stamps prod: the tag on a tag
+      # push, else the latest v* tag reachable from the commit; without one, package.json's
+      # version stays.
+      - name: Stamp version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            ver="${GITHUB_REF_NAME#v}"
+          else
+            ver="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"
+          fi
+          if [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            node scripts/set-version.mjs "$ver"
+          else
+            echo "::notice::no release version for ${GITHUB_REF} ('${ver}'); package.json's is kept"
+          fi
 
       # Base images follow .nvmrc exactly; the Dockerfiles default to the major.
       - name: Node version
