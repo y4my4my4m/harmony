@@ -391,12 +391,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useToast } from 'vue-toastification';
 import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { useActivityPubStore, type ComposerDraft } from '@/stores/useActivityPub';
 import type { TimelinePost, Post, FederatedUser, ActivityPubPost, PostAuthor } from '@/types';
 
 import { useComposerActions } from '@/composables/useComposerActions';
@@ -443,6 +444,11 @@ interface Props {
   initialContent?: string;
   initialContentWarning?: string;
   initialSensitive?: boolean;
+  /**
+   * New post only: unsent contents outlive the composer in the store's
+   * composerDraft and fill it again when it opens without initialContent.
+   */
+  keepDraft?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -496,6 +502,35 @@ const showEmojiPicker = computed(() => showMediaPicker.value && mediaPickerIniti
 const showGiphyPicker = computed(() => showMediaPicker.value && mediaPickerInitialTab.value === 'gifs');
 const isDraft = ref(false);
 const mediaAttachments = ref<any[]>([]);
+
+const activityPubStore = useActivityPubStore();
+const draftKept = props.keepDraft && props.type === 'post';
+const restoredDraft = draftKept && !props.initialContent?.trim() ? activityPubStore.composerDraft : null;
+if (restoredDraft) {
+  content.value = restoredDraft.content;
+  contentWarning.value = restoredDraft.contentWarning;
+  showContentWarning.value = !!restoredDraft.contentWarning;
+  isSensitive.value = restoredDraft.sensitive;
+  visibility.value = restoredDraft.visibility;
+  mediaAttachments.value = [...restoredDraft.mediaAttachments];
+}
+
+/** Current contents as a draft; null when there is nothing to keep. */
+const currentDraft = (): ComposerDraft | null => {
+  const cw = showContentWarning.value ? contentWarning.value : '';
+  if (!content.value.trim() && !cw.trim() && mediaAttachments.value.length === 0) return null;
+  return {
+    content: content.value,
+    contentWarning: cw,
+    sensitive: isSensitive.value,
+    visibility: visibility.value,
+    mediaAttachments: [...mediaAttachments.value],
+  };
+};
+
+const saveDraft = () => {
+  if (draftKept) activityPubStore.keepComposerDraft(currentDraft());
+};
 
 // Instance `max_post_length`; the server enforces the same limit on body text.
 const characterLimit = computed(() => instanceSettings.settings.maxPostLength || 500);
@@ -874,6 +909,9 @@ const handleClose = () => {
       isDraft.value = false;
     }, 2000);
   }
+  // Kept while a post is in flight too: a failed post leaves it, a sent one clears it.
+  saveDraft();
+  if (draftKept && !isPosting.value && currentDraft()) polite(t('activitypub.draftSaved'), { key: 'composer-draft' });
   emit('close');
 };
 
@@ -939,6 +977,8 @@ const handleSubmit = async () => {
       );
     }
 
+    // A close while the post was in flight kept the draft; the sent post clears it.
+    if (draftKept) activityPubStore.keepComposerDraft(null);
     resetComposer();
     emit('posted', post);
     emit('close');
@@ -998,6 +1038,9 @@ onMounted(() => {
     }
   });
 });
+
+// Unmounting without handleClose (the layout leaves) keeps the draft as well.
+onBeforeUnmount(saveDraft);
 
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.mode === 'modal') {

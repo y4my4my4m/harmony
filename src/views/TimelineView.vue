@@ -18,6 +18,7 @@
     <!-- Timeline Content -->
     <div class="timeline-content">
       <UnifiedContentArea
+        ref="contentArea"
         mode="activitypub"
         :posts="posts"
         :is-loading-feed="isLoadingFeed"
@@ -46,12 +47,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { debug } from '@/utils/debug'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
-import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useActivityPubStore, type FeedScrollAnchor } from '@/stores/useActivityPub'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
@@ -98,7 +99,7 @@ const { blockedUsers, mutedUsers } = storeToRefs(activityPubStore)
 const { isMobile } = useLayoutState()
 
 type TimelineFeed = 'home' | 'public' | 'local'
-const feedKey = computed(() => props.currentView as TimelineFeed)
+const feedKey = computed(() => (props.currentView || 'home') as TimelineFeed)
 
 const isLoadingFeed = computed(() => activityPubStore.isFeedLoading(feedKey.value))
 const loadError = computed(() => activityPubStore.feedError(feedKey.value))
@@ -151,20 +152,7 @@ const hasMorePosts = computed(() => {
 
 const loadTimeline = async () => {
   try {
-    switch (props.currentView) {
-      case 'home':
-        await activityPubStore.loadHomeFeed()
-        break
-      case 'public':
-        await activityPubStore.loadPublicFeed()
-        break
-      case 'local':
-        await activityPubStore.loadLocalFeed()
-        break
-      default:
-        await activityPubStore.loadHomeFeed()
-        break
-    }
+    await activityPubStore.loadTimelinePage(feedKey.value)
   } catch (error) {
     debug.error('Failed to load timeline:', error)
   }
@@ -243,21 +231,7 @@ const handleLoadMorePosts = async () => {
     const currentPosts = posts.value
     const lastPost = currentPosts[currentPosts.length - 1]
     const cursor = lastPost?.created_at
-    
-    switch (props.currentView) {
-      case 'home':
-        await activityPubStore.loadHomeFeed(cursor)
-        break
-      case 'public':
-        await activityPubStore.loadPublicFeed(cursor)
-        break
-      case 'local':
-        await activityPubStore.loadLocalFeed(cursor)
-        break
-      default:
-        await activityPubStore.loadHomeFeed(cursor)
-        break
-    }
+    await activityPubStore.loadTimelinePage(feedKey.value, cursor)
     emit('loadMorePosts')
   } catch (error) {
     debug.error('Failed to load more posts:', error)
@@ -290,22 +264,34 @@ const handleOpenSearch = () => {
   emit('openSearch')
 }
 
-// Single source of truth for timeline loading - only watch currentView prop changes
+const contentArea = ref<InstanceType<typeof UnifiedContentArea> | null>(null)
+let mounted = false
+// Reading position of the feed shown at mount, restored once its rows exist.
+let mountAnchor: FeedScrollAnchor | null = null
+
+// Feed switches reuse this instance. The feed left keeps its posts and reading
+// position in the store; the feed shown gets its own back.
 watch(() => props.currentView, (newView, oldView) => {
   if (oldView && oldView !== newView) {
-    activityPubStore.setTimelineScrolled(oldView as TimelineFeed, false)
+    activityPubStore.leaveTimeline(oldView as TimelineFeed, contentArea.value?.readScrollAnchor() ?? null)
   }
-  if (newView && newView !== oldView) {
-    debug.log(`Timeline view changed from ${oldView} to ${newView}, loading content`)
-    loadTimeline()
+  if (!newView || newView === oldView) return
+  debug.log(`Timeline view changed from ${oldView} to ${newView}`)
+  const anchor = activityPubStore.enterTimeline(newView as TimelineFeed)
+  if (!mounted) {
+    mountAnchor = anchor
+    return
   }
-}, { immediate: true }) // Load on initial mount via currentView prop
+  void nextTick(() => contentArea.value?.restoreScrollAnchor(anchor))
+}, { immediate: true })
 
 onMounted(() => {
+  mounted = true
   // Mark the feed as on-screen so the app-scoped realtime handlers process
   // live post arrivals (prepend + sound). Off-view they no-op to avoid
   // wasteful fetches and notification sounds for posts the user isn't viewing.
   activityPubStore.enterFeedView()
+  void contentArea.value?.restoreScrollAnchor(mountAnchor)
 
   // Only load if currentView is not provided (legacy support)
   if (!props.currentView) {
@@ -314,8 +300,12 @@ onMounted(() => {
   }
 })
 
+// Rows are still rendered here; opening a post unmounts the timeline.
+onBeforeUnmount(() => {
+  activityPubStore.leaveTimeline(feedKey.value, contentArea.value?.readScrollAnchor() ?? null)
+})
+
 onUnmounted(() => {
-  activityPubStore.setTimelineScrolled(feedKey.value, false)
   activityPubStore.leaveFeedView()
 })
 </script>

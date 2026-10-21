@@ -71,6 +71,31 @@ export interface UserListMember {
 type FeedKind = 'home' | 'public' | 'local' | 'mentions';
 type TimelineKind = 'home' | 'public' | 'local';
 
+/**
+ * Reading position in a timeline: the first post whose bottom edge lies below the
+ * scroller's top edge, and how many px of that post lie above it. `scrollTop` is the
+ * fallback once the post is no longer listed.
+ */
+export interface FeedScrollAnchor {
+  postId: string | null;
+  offset: number;
+  scrollTop: number;
+}
+
+/** Unsent contents of the "New post" dialog. */
+export interface ComposerDraft {
+  content: string;
+  contentWarning: string;
+  sensitive: boolean;
+  visibility: Post['visibility'];
+  mediaAttachments: any[];
+}
+
+// A timeline shown again within this window keeps its loaded posts and fetches only
+// the posts above them; an older one reloads from the first page. Same age as the
+// home timeline cache (loadTimelineFromCache).
+const FEED_KEEP_MS = 30 * 60 * 1000;
+
 function loadErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   const message = (error as { message?: unknown } | null)?.message;
@@ -144,6 +169,18 @@ interface ActivityPubState {
   // tail; every other timeline takes them live.
   scrolledTimeline: TimelineKind | null;
   pendingPosts: Record<TimelineKind, TimelinePost[]>;
+  // pendingPosts[feed] holds a head page that does not reach the loaded list;
+  // showing it replaces the list rather than prepending to it.
+  pendingGap: Record<TimelineKind, boolean>;
+
+  // Reading position of a timeline that is off screen; null at its top. A held
+  // position queues realtime posts as a scrolled timeline does.
+  feedScroll: Record<TimelineKind, FeedScrollAnchor | null>;
+  // Date.now() of the last first-page fetch or head refresh; 0 before the first.
+  feedFetchedAt: Record<TimelineKind, number>;
+  headRefreshing: Record<TimelineKind, boolean>;
+
+  composerDraft: ComposerDraft | null;
 
   lastNotificationCheck: Date | null;
   unreadCount: number;
@@ -234,6 +271,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     feedViewActiveCount: 0,
     scrolledTimeline: null,
     pendingPosts: { home: [], public: [], local: [] },
+    pendingGap: { home: false, public: false, local: false },
+    feedScroll: { home: null, public: null, local: null },
+    feedFetchedAt: { home: 0, public: 0, local: 0 },
+    headRefreshing: { home: false, public: false, local: false },
+    composerDraft: null,
 
       lastNotificationCheck: null,
     unreadCount: 0,
@@ -605,6 +647,12 @@ export const useActivityPubStore = defineStore('activitypub', {
       resetFeed(this.localFeed);
       resetFeed(this.mentionsFeed);
       this.userFeeds.clear();
+      this.pendingPosts = { home: [], public: [], local: [] };
+      this.pendingGap = { home: false, public: false, local: false };
+      this.scrolledTimeline = null;
+      this.feedScroll = { home: null, public: null, local: null };
+      this.feedFetchedAt = { home: 0, public: 0, local: 0 };
+      this.composerDraft = null;
 
       this.bookmarks = [];
       this.hasMoreBookmarks = true;
@@ -642,7 +690,10 @@ export const useActivityPubStore = defineStore('activitypub', {
         feed.loading = false;
         feed.error = null;
         this.pendingPosts = { home: [], public: [], local: [] };
+        this.pendingGap = { home: false, public: false, local: false };
         this.scrolledTimeline = null;
+        this.feedScroll.home = null;
+        this.feedFetchedAt.home = 0;
         debug.log('Timeline cache and posts cleared');
       } catch (error) {
         debug.warn('Failed to clear timeline cache:', error);
@@ -930,14 +981,19 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
     },
 
+    /** The viewer is scrolled into the timeline, on screen or left there. */
+    _isTimelineHeld(feed: TimelineKind): boolean {
+      return this.scrolledTimeline === feed || this.feedScroll[feed] !== null;
+    },
+
     /**
-     * Routes one realtime post into a timeline: live when the viewer is at the
-     * top or on another view, queued when scrolled into it. The viewer's own
-     * posts always land in the list. Returns false for a duplicate.
+     * Routes one realtime post into a timeline: live when the viewer is at its
+     * top, queued when scrolled into it. The viewer's own posts always land in
+     * the list. Returns false for a duplicate.
      */
     _deliverRealtimePost(feed: TimelineKind, post: TimelinePost, isOwnPost: boolean): boolean {
       const target = this._timelineFeed(feed);
-      const scrolled = this.scrolledTimeline === feed;
+      const scrolled = this._isTimelineHeld(feed);
       const before = target.posts.length + this.pendingPosts[feed].length;
       const result = insertRealtimePost(
         target.posts,
@@ -971,8 +1027,106 @@ export const useActivityPubStore = defineStore('activitypub', {
       const pending = this.pendingPosts[feed];
       if (!pending || pending.length === 0) return;
       const target = this._timelineFeed(feed);
-      target.posts = flushPendingPosts(target.posts, pending);
+      if (this.pendingGap[feed]) {
+        // Listed posts older than the queue lie past the gap; newer ones are the
+        // viewer's own, placed live.
+        const oldest = pending[pending.length - 1].created_at;
+        target.posts = flushPendingPosts(target.posts.filter((p) => p.created_at >= oldest), pending);
+        target.has_more = true;
+        target.cursor = target.posts[target.posts.length - 1]?.created_at;
+        this.pendingGap[feed] = false;
+      } else {
+        target.posts = flushPendingPosts(target.posts, pending);
+      }
       this.pendingPosts[feed] = [];
+    },
+
+    /** First page of a timeline, replacing the loaded list, or the page before `before`. */
+    loadTimelinePage(feed: TimelineKind, before?: string) {
+      switch (feed) {
+        case 'home': return this.loadHomeFeed(before);
+        case 'local': return this.loadLocalFeed(before);
+        default: return this.loadPublicFeed(before);
+      }
+    },
+
+    /** Newest-first page of a timeline, 20 posts. */
+    async _fetchTimelinePage(feed: TimelineKind): Promise<{ posts: TimelinePost[]; fullPage: boolean }> {
+      if (feed === 'public') return activityPubService.getEnhancedPublicTimeline({ limit: 20 });
+      const profileId = await authContextService.getCurrentProfileId();
+      return activityPubService.getUserTimeline(profileId, feed, { limit: 20 });
+    },
+
+    /**
+     * Puts a timeline on screen. One fetched within FEED_KEEP_MS keeps its loaded
+     * posts and fetches only its head; any other loads its first page. Returns the
+     * reading position to restore, null for the top.
+     */
+    enterTimeline(feed: TimelineKind): FeedScrollAnchor | null {
+      const anchor = this.feedScroll[feed];
+      this.feedScroll[feed] = null;
+      const kept = this._timelineFeed(feed).posts.length > 0
+        && Date.now() - this.feedFetchedAt[feed] < FEED_KEEP_MS;
+      if (!kept) {
+        void this.loadTimelinePage(feed);
+        return null;
+      }
+      if (anchor) this.scrolledTimeline = feed;
+      else this.showPendingPosts(feed);
+      void this.refreshTimelineHead(feed);
+      return anchor;
+    },
+
+    /** Takes a timeline off screen at `anchor`; null leaves it at its top. */
+    leaveTimeline(feed: TimelineKind, anchor: FeedScrollAnchor | null) {
+      if (this.scrolledTimeline === feed) this.scrolledTimeline = null;
+      this.feedScroll[feed] = anchor;
+      if (!anchor) this.showPendingPosts(feed);
+    },
+
+    /**
+     * Fetches the newest page and places the posts above the loaded list: queued
+     * behind the pill while the viewer is scrolled into the timeline, in front of
+     * the list otherwise. A page that does not reach the loaded list replaces it:
+     * at once when the viewer is at the top, otherwise once the queue is shown.
+     */
+    async refreshTimelineHead(feed: TimelineKind) {
+      if (this.loadingFeeds[feed] || this.headRefreshing[feed]) return;
+      this.headRefreshing[feed] = true;
+      try {
+        const { posts, fullPage } = await this._fetchTimelinePage(feed);
+        // A first-page load started meanwhile replaces the list itself.
+        if (this.loadingFeeds[feed]) return;
+        this.feedFetchedAt[feed] = Date.now();
+        const target = this._timelineFeed(feed);
+        const listed = new Set([...target.posts, ...this.pendingPosts[feed]].map((p) => p.id));
+        const reached = posts.findIndex((p) => listed.has(p.id));
+        const head = reached === -1 ? posts : posts.slice(0, reached);
+        if (head.length === 0) return;
+        this.enrichFeedPosts(head);
+
+        if (this._isTimelineHeld(feed)) {
+          this.pendingPosts[feed] = flushPendingPosts(this.pendingPosts[feed], head);
+          if (reached === -1) this.pendingGap[feed] = true;
+        } else if (reached === -1) {
+          target.posts = posts;
+          target.has_more = fullPage;
+          target.cursor = posts[posts.length - 1]?.created_at;
+          this.pendingPosts[feed] = [];
+          this.pendingGap[feed] = false;
+        } else {
+          target.posts = [...head, ...target.posts];
+        }
+      } catch (error) {
+        debug.warn(`Head refresh of the ${feed} timeline failed:`, error);
+      } finally {
+        this.headRefreshing[feed] = false;
+      }
+    },
+
+    /** Keeps the "New post" dialog's unsent contents; null discards them. */
+    keepComposerDraft(draft: ComposerDraft | null) {
+      this.composerDraft = draft;
     },
 
     handleRealtimePostUpdate(post: any) {
@@ -1678,6 +1832,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         } else {
           this.homeFeed.posts = posts;
           this.pendingPosts.home = [];
+          this.pendingGap.home = false;
+          this.feedScroll.home = null;
+          this.feedFetchedAt.home = Date.now();
           this.unreadCount = 0;
           this.saveTimelineToCache();
         }
@@ -1736,6 +1893,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.homeFeed.posts = [...processedPosts, ...tail];
         if (tail.length === 0) this.homeFeed.has_more = fullPage;
         this.homeFeed.cursor = this.homeFeed.posts[this.homeFeed.posts.length - 1]?.created_at;
+        this.feedFetchedAt.home = Date.now();
         this.unreadCount = 0;
         this.saveTimelineToCache();
         debug.log('Background refresh complete');
@@ -1762,6 +1920,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         } else {
           this.publicFeed.posts = posts;
           this.pendingPosts.public = [];
+          this.pendingGap.public = false;
+          this.feedScroll.public = null;
+          this.feedFetchedAt.public = Date.now();
         }
 
         this.enrichFeedPosts(posts);
@@ -1800,6 +1961,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         } else {
           this.localFeed.posts = posts;
           this.pendingPosts.local = [];
+          this.pendingGap.local = false;
+          this.feedScroll.local = null;
+          this.feedFetchedAt.local = Date.now();
         }
 
         this.enrichFeedPosts(posts);
