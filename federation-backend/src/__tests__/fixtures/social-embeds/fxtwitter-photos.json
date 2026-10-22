@@ -1,0 +1,197 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/NASAArtemis/status/2110094787760078990",
+    "id": "2110094787760078990",
+    "text": "Artemis III progress! 🚀\n \nThe rocket boosters have been stacked. Teams are inspecting the solar arrays and testing the spacecraft. The crew is continuing training for their upcoming mission to test lunar landers in low Earth orbit.\n \nAll this and more has Artemis III on track for launch in 2027: https://go.nasa.gov/3W7jHeV",
+    "raw_text": {
+      "text": "Artemis III progress! 🚀\n \nThe rocket boosters have been stacked. Teams are inspecting the solar arrays and testing the spacecraft. The crew is continuing training for their upcoming mission to test lunar landers in low Earth orbit.\n \nAll this and more has Artemis III on track for launch in 2027: https://t.co/iAfuuY48xS",
+      "display_text_range": [
+        0,
+        321
+      ],
+      "facets": [
+        {
+          "type": "media",
+          "indices": [
+            277,
+            300
+          ],
+          "id": "2110094705887268864",
+          "display": "pic.x.com/RhuU3KTVSw",
+          "original": "https://t.co/RhuU3KTVSw",
+          "replacement": "https://x.com/NASAArtemis/status/2110094787760078990/photo/1"
+        },
+        {
+          "type": "media",
+          "indices": [
+            277,
+            300
+          ],
+          "id": "2110094709649453056",
+          "display": "pic.x.com/RhuU3KTVSw",
+          "original": "https://t.co/RhuU3KTVSw",
+          "replacement": "https://x.com/NASAArtemis/status/2110094787760078990/photo/1"
+        },
+        {
+          "type": "media",
+          "indices": [
+            277,
+            300
+          ],
+          "id": "2110094715424997376",
+          "display": "pic.x.com/RhuU3KTVSw",
+          "original": "https://t.co/RhuU3KTVSw",
+          "replacement": "https://x.com/NASAArtemis/status/2110094787760078990/photo/1"
+        },
+        {
+          "type": "media",
+          "indices": [
+            277,
+            300
+          ],
+          "id": "2110094772127866881",
+          "display": "pic.x.com/RhuU3KTVSw",
+          "original": "https://t.co/RhuU3KTVSw",
+          "replacement": "https://x.com/NASAArtemis/status/2110094787760078990/photo/1"
+        },
+        {
+          "type": "url",
+          "indices": [
+            297,
+            320
+          ],
+          "original": "https://t.co/iAfuuY48xS",
+          "replacement": "https://go.nasa.gov/3W7jHeV",
+          "display": "go.nasa.gov/3W7jHeV"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "NASAArtemis",
+      "url": "https://x.com/NASAArtemis",
+      "id": "632344577",
+      "followers": 1208192,
+      "following": 65,
+      "likes": 3726,
+      "media_count": 2452,
+      "name": "NASA Artemis",
+      "description": "We are going for all of humanity.",
+      "raw_description": {
+        "text": "We are going for all of humanity.",
+        "facets": []
+      },
+      "location": "The lunar South Pole region",
+      "banner_url": "https://pbs.twimg.com/profile_banners/632344577/1775576852",
+      "avatar_url": "https://pbs.twimg.com/profile_images/2042236624377921536/axp_8Jli_200x200.jpg",
+      "joined": "Tue Jul 10 21:51:25 +0000 2012",
+      "protected": false,
+      "website": {
+        "url": "https://www.nasa.gov/humans-in-space/artemis/",
+        "display_url": "nasa.gov/humans-in-spac…"
+      },
+      "verification": {
+        "verified": true,
+        "verified_at": null,
+        "type": "government"
+      },
+      "avatar_color": null
+    },
+    "replies": 61,
+    "retweets": 394,
+    "likes": 2739,
+    "bookmarks": 117,
+    "quotes": 21,
+    "created_at": "Tue Oct 13 19:46:15 +0000 2026",
+    "created_timestamp": 1791920775,
+    "possibly_sensitive": false,
+    "views": 257424,
+    "is_note_tweet": true,
+    "community_note": null,
+    "lang": "en",
+    "replying_to": null,
+    "replying_to_status": null,
+    "media": {
+      "all": [
+        {
+          "type": "photo",
+          "id": "2110094705887268864",
+          "url": "https://pbs.twimg.com/media/HUiP9IrX0AARv5Q.jpg?name=orig",
+          "width": 1280,
+          "height": 1920,
+          "altText": "Interior view of NASA’s Vehicle Assembly Building showing multiple levels of steel platforms, walkways, and support structures surrounding the Space Launch System core stage and solid rocket booster segments. Bright work lights illuminate the large white booster sections and dense network of pipes, beams, and scaffolding as teams prepare hardware for upcoming Artemis III operations. Credit: NASA/Cory S. Huston"
+        },
+        {
+          "type": "photo",
+          "id": "2110094709649453056",
+          "url": "https://pbs.twimg.com/media/HUiP9WsWMAAUlkf.jpg?name=orig",
+          "width": 1920,
+          "height": 1440,
+          "altText": "Technicians extend and inspect one of the solar array wing panels that will attach the Orion service module for Artemis III inside the Neil A. Armstrong Operations and Checkout Building high bay at NASA’s Kennedy Space Center in Florida on Tuesday, Aug. 18, 2026. Credit: NASA/Amanda Stevenson"
+        },
+        {
+          "type": "photo",
+          "id": "2110094715424997376",
+          "url": "https://pbs.twimg.com/media/HUiP9sNWAAAQVxh.jpg?name=orig",
+          "width": 7289,
+          "height": 4859,
+          "altText": "Four small white sample cups on a tray, each holding a different portion of prepared food. The foods vary in color and texture, including a green‑flecked mixture, a golden paste, a white grain-like sample, and a chunkier mixture with darker pieces. The Artemis III crew tasted various food items on Monday, Aug. 10, 2026, at NASA’s Space Food Systems Laboratory, to determine what they’ll eat on their mission in low Earth orbit. Credit: NASA/Helen Arase Vargas"
+        },
+        {
+          "type": "photo",
+          "id": "2110094772127866881",
+          "url": "https://pbs.twimg.com/media/HUiQA_cXIAEVbgo.jpg?name=orig",
+          "width": 7330,
+          "height": 5497,
+          "altText": "The Artemis III astronauts pose for a group photo on the front porch before conducting hoist training with U.S. Navy Helicopter Sea Combat Squadron (HSC) 23 and Explosive Ordnance Disposal Group (EODGRU) 1 in San Diego, California, Thursday, Sept. 24, 2026. Credit: US Navy/2nd Class August Clawson"
+        }
+      ],
+      "photos": [
+        {
+          "type": "photo",
+          "id": "2110094705887268864",
+          "url": "https://pbs.twimg.com/media/HUiP9IrX0AARv5Q.jpg?name=orig",
+          "width": 1280,
+          "height": 1920,
+          "altText": "Interior view of NASA’s Vehicle Assembly Building showing multiple levels of steel platforms, walkways, and support structures surrounding the Space Launch System core stage and solid rocket booster segments. Bright work lights illuminate the large white booster sections and dense network of pipes, beams, and scaffolding as teams prepare hardware for upcoming Artemis III operations. Credit: NASA/Cory S. Huston"
+        },
+        {
+          "type": "photo",
+          "id": "2110094709649453056",
+          "url": "https://pbs.twimg.com/media/HUiP9WsWMAAUlkf.jpg?name=orig",
+          "width": 1920,
+          "height": 1440,
+          "altText": "Technicians extend and inspect one of the solar array wing panels that will attach the Orion service module for Artemis III inside the Neil A. Armstrong Operations and Checkout Building high bay at NASA’s Kennedy Space Center in Florida on Tuesday, Aug. 18, 2026. Credit: NASA/Amanda Stevenson"
+        },
+        {
+          "type": "photo",
+          "id": "2110094715424997376",
+          "url": "https://pbs.twimg.com/media/HUiP9sNWAAAQVxh.jpg?name=orig",
+          "width": 7289,
+          "height": 4859,
+          "altText": "Four small white sample cups on a tray, each holding a different portion of prepared food. The foods vary in color and texture, including a green‑flecked mixture, a golden paste, a white grain-like sample, and a chunkier mixture with darker pieces. The Artemis III crew tasted various food items on Monday, Aug. 10, 2026, at NASA’s Space Food Systems Laboratory, to determine what they’ll eat on their mission in low Earth orbit. Credit: NASA/Helen Arase Vargas"
+        },
+        {
+          "type": "photo",
+          "id": "2110094772127866881",
+          "url": "https://pbs.twimg.com/media/HUiQA_cXIAEVbgo.jpg?name=orig",
+          "width": 7330,
+          "height": 5497,
+          "altText": "The Artemis III astronauts pose for a group photo on the front porch before conducting hoist training with U.S. Navy Helicopter Sea Combat Squadron (HSC) 23 and Explosive Ordnance Disposal Group (EODGRU) 1 in San Diego, California, Thursday, Sept. 24, 2026. Credit: US Navy/2nd Class August Clawson"
+        }
+      ],
+      "mosaic": {
+        "type": "mosaic_photo",
+        "formats": {
+          "jpeg": "https://mosaic.fxtwitter.com/jpeg/2110094787760078990/HUiP9IrX0AARv5Q/HUiP9WsWMAAUlkf/HUiP9sNWAAAQVxh/HUiQA_cXIAEVbgo",
+          "webp": "https://mosaic.fxtwitter.com/webp/2110094787760078990/HUiP9IrX0AARv5Q/HUiP9WsWMAAUlkf/HUiP9sNWAAAQVxh/HUiQA_cXIAEVbgo"
+        }
+      }
+    },
+    "twitter_card": "summary_large_image",
+    "color": null,
+    "provider": "twitter",
+    "reposted_by": null
+  }
+}

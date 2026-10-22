@@ -17,7 +17,7 @@ import compression from 'compression';
 import config from './config/index.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
-import { linkPreviewLimiter, pushLimiter, gifLimiter, mediaLimiter } from './middleware/rateLimit.js';
+import { linkPreviewLimiter, pushLimiter, gifLimiter, mediaLimiter, embedMediaLimiter } from './middleware/rateLimit.js';
 
 import healthRouter from './routes/health.js';
 import linkPreviewRouter from './routes/linkPreview.js';
@@ -30,6 +30,7 @@ import kofiWebhookRouter from './routes/webhooks/kofi.js';
 import stripeWebhookRouter from './routes/webhooks/stripe.js';
 import channelWebhookRouter from './routes/webhooks/channelWebhooks.js';
 import mediaRouter from './routes/media.js';
+import embedMediaRouter from './routes/embedMedia.js';
 import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
 
@@ -46,6 +47,7 @@ import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
+import driveLinkPageRouter from './routes/driveLinkPage.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
@@ -123,6 +125,8 @@ export function createApp(): Application {
   app.use('/api/federation/realtime', realtimeRouter);
   app.use('/media', mediaLimiter, mediaRouter);
   app.use('/api/federation/media', mediaLimiter, mediaRouter);
+  app.use('/embed-media', embedMediaLimiter, embedMediaRouter);
+  app.use('/api/federation/embed-media', embedMediaLimiter, embedMediaRouter);
   app.use('/drive', mediaLimiter, driveLinkRouter);
   app.use('/api/federation/drive', mediaLimiter, driveLinkRouter);
   app.use('/account', accountMigrationRouter);
@@ -146,6 +150,7 @@ export function createApp(): Application {
   app.use('/', instanceActorRouter);
   app.use('/', outboxRouter);
   app.use('/', invitePageRouter);
+  app.use('/', driveLinkPageRouter);
   // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
   // with groupRouter's /servers/:serverId (which would match serverId='discover')
   app.use('/', serverDiscoveryRouter);

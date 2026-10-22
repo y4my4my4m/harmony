@@ -1,5 +1,8 @@
 <template>
+  <!-- A post on X, Instagram or Bluesky: author, text, every photo and video, quoted post. -->
+  <SocialPostEmbed v-if="socialCard" :payload="payload" @load="emit('load')" />
   <article
+    v-else
     class="link-embed-card"
     :class="{
       'link-embed-card--has-image': (!!payload.image || !!payload.video?.url) && variant !== 'compact',
@@ -21,7 +24,7 @@
         preload="metadata"
         @loadedmetadata="handleImageLoad"
       ></video>
-      <VideoControls v-if="!nativeVideoControls" :label="payload.title || undefined" />
+      <VideoControls v-if="!nativeVideoControls" :label="payload.title || undefined" expandable @expand="openVideo" />
     </div>
     <div v-else-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
@@ -57,8 +60,10 @@
 import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload } from '@/types';
 import VideoControls from '@/components/common/VideoControls.vue';
+import { useLightbox } from '@/composables/useLightbox';
 import Icon from '@/components/common/Icon.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
+import SocialPostEmbed from './SocialPostEmbed.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -90,6 +95,10 @@ const emit = defineEmits<{
 // Starts loaded when no image will paint (no payload image, or the compact
 // variant), so the parent's load listener fires without waiting.
 const nativeVideoControls = useNativeVideoControls();
+const { open: openLightbox } = useLightbox();
+// The default variant of a post preview with its own media or post data.
+const socialCard = computed(() =>
+  props.variant === 'default' && (!!props.payload.social || (Array.isArray(props.payload.media) && props.payload.media.length > 0)));
 const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
 const imageFailed = ref(false);
 const iconFailed = ref(false);
@@ -127,7 +136,18 @@ const handleImageError = () => {
   handleImageLoad();
 };
 
+function openVideo(origin: HTMLVideoElement) {
+  const url = props.payload.video?.url;
+  if (!url) return;
+  openLightbox(
+    [{ url, type: 'video', poster: props.payload.image || undefined, name: props.payload.title || undefined }],
+    0,
+    { origin },
+  );
+}
+
 onMounted(() => {
+  if (socialCard.value) return;
   if ((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact') {
     emit('load');
   }

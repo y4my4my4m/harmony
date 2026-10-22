@@ -368,7 +368,10 @@ process and names the variable.
 |---|---|---|
 | `REQUIRE_VALID_SIGNATURES` | `true` | `false` accepts unsigned inbound activities. Refused with `NODE_ENV=production` |
 | `MEDIA_URL_SECRET` | derived from the service role key | HMAC key, at least 32 characters, of attachment URLs sent to other instances. Changing it invalidates URLs already delivered |
-| `MEDIA_PUBLIC_BASE_URL` | `https://INSTANCE_DOMAIN/api/federation` | Public prefix of the backend in those URLs |
+| `MEDIA_PUBLIC_BASE_URL` | `https://INSTANCE_DOMAIN/api/federation` | Public prefix of the backend in those URLs, and in the media URLs of X, Instagram and Bluesky link previews |
+| `INSTAGRAM_EMBED_MIRRORS` | `kkinstagram.com,uuinstagram.com,eeinstagram.com` | Instagram embed-fixer mirrors asked, in order, when instagram.com gives a link preview no media. Empty: none |
+| `EMBED_RELAY_ENABLED` | empty | X and Bluesky video of link previews the backend streams; the rest gets a redirect without Referer. Empty or `0`: nothing, no video bytes pass through the instance. Chromium and Firefox send X a Referer on later byte ranges of a redirected video and are refused, so there an X video shows its still and plays in X's own embedded post after a click. `1`: X video for every engine but WebKit, which then plays in place everywhere. `all`: X and Bluesky video for every engine |
+| `EMBED_RELAY_MAX_BYTES` | `209715200` (200 MiB) | Largest video that relay streams |
 | `INTERNAL_API_SECRET` | the service role key | Bearer secret of `POST /link-preview/enrich-message`, which the bot gateway calls. Must equal the gateway's |
 
 ### Push notifications

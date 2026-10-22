@@ -1,0 +1,296 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/elonmusk/status/2113011511429902609",
+    "id": "2113011511429902609",
+    "text": "Grok @Bot is like hiring a super smart and fun employee!",
+    "raw_text": {
+      "text": "Grok @Bot is like hiring a super smart and fun employee!",
+      "display_text_range": [
+        0,
+        56
+      ],
+      "facets": [
+        {
+          "type": "mention",
+          "indices": [
+            5,
+            9
+          ],
+          "original": "bot",
+          "id": "2085838061347217408"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "elonmusk",
+      "url": "https://x.com/elonmusk",
+      "id": "44196397",
+      "followers": 241519749,
+      "following": 1418,
+      "likes": 254610,
+      "media_count": 4745,
+      "name": "Elon Musk",
+      "description": "http://Terafab.AI",
+      "raw_description": {
+        "text": "https://t.co/ZdBx5WABYx",
+        "facets": [
+          {
+            "type": "url",
+            "indices": [
+              0,
+              23
+            ],
+            "original": "https://t.co/ZdBx5WABYx",
+            "replacement": "http://Terafab.AI",
+            "display": "Terafab.AI"
+          }
+        ]
+      },
+      "location": "",
+      "banner_url": "https://pbs.twimg.com/profile_banners/44196397/1774145451",
+      "avatar_url": "https://pbs.twimg.com/profile_images/2103567689515954176/aR-Kjpp4_200x200.jpg",
+      "joined": "Tue Jun 02 20:12:29 +0000 2009",
+      "protected": false,
+      "website": null,
+      "verification": {
+        "verified": true,
+        "verified_at": null,
+        "type": "individual"
+      },
+      "avatar_color": null
+    },
+    "replies": 1165,
+    "retweets": 852,
+    "likes": 7170,
+    "bookmarks": 660,
+    "quotes": 84,
+    "created_at": "Wed Oct 21 20:56:16 +0000 2026",
+    "created_timestamp": 1792616176,
+    "views": 1223755,
+    "is_note_tweet": false,
+    "community_note": null,
+    "lang": "en",
+    "replying_to": null,
+    "replying_to_status": null,
+    "quote": {
+      "url": "https://x.com/bot/status/2112992872857252082",
+      "id": "2112992872857252082",
+      "text": "Grok Bot can now build reports, memos, and dashboards.\n\nAsk Bot for a page, then edit it together or have Bot keep it up to date.",
+      "raw_text": {
+        "text": "Grok Bot can now build reports, memos, and dashboards.\n\nAsk Bot for a page, then edit it together or have Bot keep it up to date. https://t.co/ytFfqqOPgJ",
+        "display_text_range": [
+          0,
+          129
+        ],
+        "facets": [
+          {
+            "type": "media",
+            "indices": [
+              130,
+              153
+            ],
+            "id": "2112992722529226752",
+            "display": "pic.x.com/ytFfqqOPgJ",
+            "original": "https://t.co/ytFfqqOPgJ",
+            "replacement": "https://x.com/bot/status/2112992872857252082/video/1"
+          }
+        ]
+      },
+      "author": {
+        "screen_name": "bot",
+        "url": "https://x.com/bot",
+        "id": "2085838061347217408",
+        "followers": 441956,
+        "following": 4,
+        "likes": 2,
+        "media_count": 44,
+        "name": "Grok Bot",
+        "description": "AI teammates that you can give real work to.",
+        "raw_description": {
+          "text": "AI teammates that you can give real work to.",
+          "facets": []
+        },
+        "location": "",
+        "banner_url": "https://pbs.twimg.com/profile_banners/2085838061347217408/1788389469",
+        "avatar_url": "https://pbs.twimg.com/profile_images/2087219239275069440/KW6C403V_200x200.jpg",
+        "joined": "Fri Aug 07 21:21:52 +0000 2026",
+        "protected": false,
+        "website": {
+          "url": "http://x.ai/bot",
+          "display_url": "x.ai/bot"
+        },
+        "verification": {
+          "verified": true,
+          "verified_at": null,
+          "type": "organization"
+        },
+        "avatar_color": null
+      },
+      "replies": 1097,
+      "retweets": 536,
+      "likes": 7292,
+      "bookmarks": 2752,
+      "quotes": 306,
+      "created_at": "Wed Oct 21 19:42:13 +0000 2026",
+      "created_timestamp": 1792611733,
+      "possibly_sensitive": false,
+      "views": 1164578,
+      "is_note_tweet": false,
+      "community_note": null,
+      "lang": "en",
+      "replying_to": null,
+      "replying_to_status": null,
+      "media": {
+        "all": [
+          {
+            "id": "2112992722529226752",
+            "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+            "thumbnail_url": "https://pbs.twimg.com/amplify_video_thumb/2112992722529226752/img/3vCQwgTBFW-Svcnq.jpg",
+            "duration": 26.8,
+            "width": 1920,
+            "height": 1080,
+            "format": "video/mp4",
+            "type": "video",
+            "formats": [
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/pl/WE2UvC4cgt6tQnv0.m3u8?tag=29",
+                "container": "m3u8"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/480x270/1MSrvynYkJYuMG5w.mp4?tag=29",
+                "bitrate": 256000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/640x360/loGaxHX26UUi-q8i.mp4?tag=29",
+                "bitrate": 832000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1280x720/CM_-XWr2v-MKSHHL.mp4?tag=29",
+                "bitrate": 2176000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+                "bitrate": 10368000,
+                "container": "mp4",
+                "codec": "h264"
+              }
+            ],
+            "publisher": null,
+            "variants": [
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/pl/WE2UvC4cgt6tQnv0.m3u8?tag=29",
+                "bitrate": 0,
+                "content_type": "application/x-mpegURL"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/480x270/1MSrvynYkJYuMG5w.mp4?tag=29",
+                "bitrate": 256000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/640x360/loGaxHX26UUi-q8i.mp4?tag=29",
+                "bitrate": 832000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1280x720/CM_-XWr2v-MKSHHL.mp4?tag=29",
+                "bitrate": 2176000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+                "bitrate": 10368000,
+                "content_type": "video/mp4"
+              }
+            ]
+          }
+        ],
+        "videos": [
+          {
+            "id": "2112992722529226752",
+            "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+            "thumbnail_url": "https://pbs.twimg.com/amplify_video_thumb/2112992722529226752/img/3vCQwgTBFW-Svcnq.jpg",
+            "duration": 26.8,
+            "width": 1920,
+            "height": 1080,
+            "format": "video/mp4",
+            "type": "video",
+            "formats": [
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/pl/WE2UvC4cgt6tQnv0.m3u8?tag=29",
+                "container": "m3u8"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/480x270/1MSrvynYkJYuMG5w.mp4?tag=29",
+                "bitrate": 256000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/640x360/loGaxHX26UUi-q8i.mp4?tag=29",
+                "bitrate": 832000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1280x720/CM_-XWr2v-MKSHHL.mp4?tag=29",
+                "bitrate": 2176000,
+                "container": "mp4",
+                "codec": "h264"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+                "bitrate": 10368000,
+                "container": "mp4",
+                "codec": "h264"
+              }
+            ],
+            "publisher": null,
+            "variants": [
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/pl/WE2UvC4cgt6tQnv0.m3u8?tag=29",
+                "bitrate": 0,
+                "content_type": "application/x-mpegURL"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/480x270/1MSrvynYkJYuMG5w.mp4?tag=29",
+                "bitrate": 256000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/640x360/loGaxHX26UUi-q8i.mp4?tag=29",
+                "bitrate": 832000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1280x720/CM_-XWr2v-MKSHHL.mp4?tag=29",
+                "bitrate": 2176000,
+                "content_type": "video/mp4"
+              },
+              {
+                "url": "https://video.twimg.com/amplify_video/2112992722529226752/vid/avc1/1920x1080/Pj0Pze4xLpjvRJgG.mp4?tag=29",
+                "bitrate": 10368000,
+                "content_type": "video/mp4"
+              }
+            ]
+          }
+        ]
+      },
+      "twitter_card": "player",
+      "color": null,
+      "provider": "twitter",
+      "reposted_by": null
+    },
+    "color": null,
+    "provider": "twitter",
+    "reposted_by": null
+  }
+}

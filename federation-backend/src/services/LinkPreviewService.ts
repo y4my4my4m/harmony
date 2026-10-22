@@ -5,11 +5,16 @@ import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
+import { parseMetaTags, tagAttributes } from '../utils/htmlMeta.js';
 import { fetchKlipyMediaBySlug } from './KlipyService.js';
+import { fetchSocialPreview, socialPlatformOf, type EmbedMedia, type EmbedSocialPost } from './socialEmbeds.js';
 
 export type EmbedProvider =
   | 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
-  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal';
+  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal'
+  | 'x' | 'instagram' | 'bluesky';
+
+export type { EmbedMedia, EmbedSocialPost } from './socialEmbeds.js';
 
 /** Hosts of provider player pages a payload may name in `player`. */
 const PLAYER_HOSTS = new Set([
@@ -77,6 +82,11 @@ export interface EmbedPayload {
   canonicalUrl?: string;
   /** The provider's player page (twitter:player, og:video or oEmbed iframe), PLAYER_HOSTS only. */
   player?: { url: string; height?: number };
+  /** Every photo, video and GIF of a post (X, Instagram, Bluesky), in its order. `image` and
+      `video` hold the first, for clients that read only those. */
+  media?: EmbedMedia[];
+  /** The post of an X, Instagram or Bluesky link: author, text, date, quoted post. */
+  social?: EmbedSocialPost;
   fetchedAt: string;
   expiresAt: string;
   harmony?: {
@@ -108,6 +118,11 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   bandcamp: 6 * 60 * 60 * 1000,
   deezer: 6 * 60 * 60 * 1000,
   tidal: 6 * 60 * 60 * 1000,
+  x: 6 * 60 * 60 * 1000,
+  bluesky: 6 * 60 * 60 * 1000,
+  // Media URLs are the instance's stable /embed-media/instagram/... routes; the CDN URLs
+  // behind them are cached apart (socialEmbeds.resolveInstagramPost).
+  instagram: 30 * 60 * 1000,
   generic: 24 * 60 * 60 * 1000, // 24 hours
 };
 
@@ -123,30 +138,7 @@ const HTML_FETCH_TIMEOUT_MS = 15_000;
 /** A failed preview is retried after this long. */
 const FAILED_PREVIEW_TTL_MS = 5 * 60 * 1000;
 
-/**
- * Every <meta> tag's property, name or itemprop and its content, attributes in any order and
- * either quote style; the first occurrence of a key wins. Keys are lower-cased.
- */
-/** A tag's attributes by lower-case name, in any order and quote style. */
-function tagAttributes(raw: string): Record<string, string> {
-  const attrs: Record<string, string> = {};
-  for (const a of raw.matchAll(/([a-z:_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)) {
-    attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? '';
-  }
-  return attrs;
-}
-
-export function parseMetaTags(html: string): Map<string, string> {
-  const tags = new Map<string, string>();
-  const tagPattern = /<meta\b([^>]*)>/gi;
-  for (const tag of html.matchAll(tagPattern)) {
-    const attrs = tagAttributes(tag[1]);
-    const key = (attrs.property || attrs.name || attrs.itemprop || '').toLowerCase();
-    const content = attrs.content
-    if (key && content !== undefined && content !== '' && !tags.has(key)) tags.set(key, decodeHtmlEntities(content));
-  }
-  return tags;
-}
+export { parseMetaTags };
 
 /**
  * The page's icon: the first <link> whose rel lists `icon` (`icon`, `shortcut icon`,
@@ -313,12 +305,12 @@ class LinkPreviewService {
         .catch(() => this.fetchGenericPreview(normalizedUrl));
     } else if (provider === 'reddit') {
       payload = await this.fetchRedditPreview(normalizedUrl);
+    } else if (provider === 'x' || provider === 'instagram' || provider === 'bluesky') {
+      payload = await this.fetchPostPreview(normalizedUrl) ?? await this.fetchGenericPreview(normalizedUrl);
     } else {
       const klipyPayload = await this.fetchKlipyPreview(normalizedUrl);
-      // x.com serves scrapers a login wall; FxTwitter exposes the real tweet.
-      const twitterPayload = klipyPayload ? null : await this.fetchTwitterPreview(normalizedUrl);
-      const wikipediaPayload = klipyPayload || twitterPayload ? null : await this.fetchWikipediaPreview(normalizedUrl);
-      payload = klipyPayload ?? twitterPayload ?? wikipediaPayload ?? await this.fetchGenericPreview(normalizedUrl);
+      const wikipediaPayload = klipyPayload ? null : await this.fetchWikipediaPreview(normalizedUrl);
+      payload = klipyPayload ?? wikipediaPayload ?? await this.fetchGenericPreview(normalizedUrl);
     }
 
     payload.cacheKey = cacheKey;
@@ -401,6 +393,8 @@ class LinkPreviewService {
     if (host.endsWith('reddit.com')) {
       return 'reddit';
     }
+    const platform = socialPlatformOf(url);
+    if (platform) return platform;
     // Everything else goes through generic, which auto-discovers AP via
     // <link rel="alternate" type="application/activity+json"> in the HTML.
     return 'generic';
@@ -445,65 +439,29 @@ class LinkPreviewService {
   }
 
   /**
-   * x.com / twitter.com status URLs → FxTwitter API. Twitter serves scrapers
-   * a login wall, so the generic OG fetch yields a useless stub. Returns
-   * null for non-tweet URLs or API failures (falls through to generic).
+   * A post on X, Instagram or Bluesky with all its media (services/socialEmbeds.ts). Null when
+   * the platform has nothing for the link; the page is then read as any other.
    */
-  private async fetchTwitterPreview(url: string): Promise<EmbedPayload | null> {
-    let parsed: URL;
+  private async fetchPostPreview(url: string): Promise<EmbedPayload | null> {
+    let post;
     try {
-      parsed = new URL(url);
-    } catch {
-      return null;
-    }
-
-    const host = parsed.hostname.toLowerCase().replace(/^(www|mobile)\./, '');
-    // Includes the "embed fixer" mirrors; all share Twitter's
-    // /user/status/id path shape.
-    const TWEET_HOSTS = new Set([
-      'x.com', 'twitter.com',
-      'vxtwitter.com', 'fxtwitter.com', 'fixupx.com', 'fixvx.com',
-      'twittpr.com', 'girlcockx.com', 'nitter.net',
-    ]);
-    if (!TWEET_HOSTS.has(host)) return null;
-
-    const m = parsed.pathname.match(/^\/([A-Za-z0-9_]+|i)\/status(?:es)?\/(\d+)/);
-    if (!m) return null;
-
-    try {
-      const res = await fetch(`https://api.fxtwitter.com/${m[1]}/status/${m[2]}`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'HarmonyFederation/1.0 (link preview)' },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return null;
-      const data: any = await res.json();
-      const tweet = data?.tweet;
-      if (data?.code !== 200 || !tweet) return null;
-
-      const author = tweet.author || {};
-      const media = tweet.media || {};
-      const photo = Array.isArray(media.photos) && media.photos[0]?.url ? media.photos[0] : null;
-      const video = Array.isArray(media.videos) && media.videos[0]?.thumbnail_url ? media.videos[0] : null;
-
-      return {
-        cacheKey: '',
-        url,
-        normalizedUrl: url,
-        provider: 'generic',
-        title: author.name ? `${author.name} (@${author.screen_name})` : undefined,
-        description: typeof tweet.text === 'string' ? tweet.text.slice(0, 500) : undefined,
-        siteName: 'X (Twitter)',
-        image: photo?.url || video?.thumbnail_url || undefined,
-        width: photo?.width,
-        height: photo?.height,
-        icon: author.avatar_url,
-        fetchedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + TTL_BY_PROVIDER.generic).toISOString(),
-      };
+      post = await fetchSocialPreview(url);
     } catch (err) {
-      logger.debug(`FxTwitter lookup failed for ${url}:`, err);
+      logger.debug(`Post preview failed for ${url}: ${(err as Error).message}`);
       return null;
     }
+    if (!post) return null;
+    const { canonicalUrl, ...fields } = post;
+    return {
+      cacheKey: '',
+      url,
+      normalizedUrl: url,
+      provider: post.social.platform,
+      ...fields,
+      ...(canonicalUrl && canonicalUrl !== url ? { canonicalUrl } : {}),
+      fetchedAt: '',
+      expiresAt: '',
+    };
   }
 
   /**

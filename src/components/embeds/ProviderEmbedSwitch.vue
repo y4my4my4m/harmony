@@ -1,7 +1,15 @@
 <template>
+  <!-- A Drive file of this instance: its card, or a restricted card. -->
+  <DriveLinkCard
+    v-if="driveLink"
+    :link="driveLink"
+    :url="payload.url"
+    @embed-loaded="handleEmbedLoad"
+  />
+
   <!-- Server Invite Card - special handling without header/collapse -->
-  <ServerInviteCard 
-    v-if="isServerInvite && inviteCode"
+  <ServerInviteCard
+    v-else-if="isServerInvite && inviteCode"
     :invite-code="inviteCode"
     :invite-url="payload.url"
   />
@@ -51,7 +59,7 @@
       <div class="provider-embed__content">
         <template v-if="isHarmony">
           <div v-if="harmonyPost" class="provider-embed__post">
-            <MonyPost :post="harmonyPost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
+            <MonyPost :post="harmonyPost" :embedded="true" />
           </div>
           <div v-else class="provider-embed__skeleton">
             <span v-if="harmonyError">{{ harmonyError }}</span>
@@ -61,7 +69,7 @@
         <template v-else-if="isFediverse">
           <template v-if="payload.fediverse">
             <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-              <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
+              <MonyPost :post="fediversePost" :embedded="true" @refresh="handleEmbedLoad" />
               <div v-if="fediverseSourceUrl" class="fedi-source-link">
                 <span class="fedi-source-badge" :title="fediversePlatformLabel">
                   <Icon name="globe" :size="12" class="fedi-badge-icon" />
@@ -180,6 +188,8 @@ import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor, musicProviderLabel } from '@/utils/musicEmbeds';
 import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
+import DriveLinkCard from './DriveLinkCard.vue';
+import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
 const props = defineProps<{
@@ -189,7 +199,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'embed-loaded': [];
-  'open-lightbox': [url: string];
 }>();
 
 const collapsed = ref(isEmbedHidden(props.messageId, props.payload?.url));
@@ -205,6 +214,9 @@ const poppable = ref(false);
 
 const { t } = useI18n();
 const { registerVideo, notifyPlaybackStarted, canPopOut, popOut } = useFloatingVideo();
+
+// /drive/file/<id> and /d/<token> on this instance.
+const driveLink = computed(() => driveLinkFromUrl(props.payload.url));
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
@@ -260,6 +272,8 @@ const providerLabel = computed(() => {
       return 'Harmony Post';
     case 'harmony-invite':
       return 'Server Invite';
+    case 'harmony-drive':
+      return 'Drive File';
     case 'fediverse-post': {
       const platform = props.payload.fediverse?.platform;
       const labels: Record<string, string> = {
@@ -275,6 +289,12 @@ const providerLabel = computed(() => {
     }
     case 'youtube':
       return 'YouTube';
+    case 'x':
+      return 'X Post';
+    case 'instagram':
+      return 'Instagram Post';
+    case 'bluesky':
+      return 'Bluesky Post';
     default:
       return music.value ? musicProviderLabel(music.value.provider) : 'Link Preview';
   }

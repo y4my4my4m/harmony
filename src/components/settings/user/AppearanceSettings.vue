@@ -746,6 +746,37 @@
       </div>
     </div>
 
+    <div class="settings-section" data-testid="mirror-links-settings">
+      <h3 class="section-title">{{ $t('settings.appearance.mirrorLinks') }}</h3>
+      <p class="section-description">{{ $t('settings.appearance.mirrorLinksDesc') }}</p>
+
+      <div v-for="site in MIRROR_SITES" :key="site" class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-mirror-${site}`">
+            {{ $t('settings.appearance.mirrorLinkSite', { site: MIRROR_SITE_NAMES[site] }) }}
+          </h4>
+        </div>
+        <div class="setting-control mirror-link-control">
+          <select
+            :value="mirrors[site].host"
+            :disabled="!mirrors[site].enabled"
+            :aria-label="$t('settings.appearance.mirrorLinkHost', { site: MIRROR_SITE_NAMES[site] })"
+            class="form-select"
+            :data-testid="`mirror-host-${site}`"
+            @change="setMirror(site, { host: ($event.target as HTMLSelectElement).value })"
+          >
+            <option v-for="host in MIRROR_HOSTS[site]" :key="host" :value="host">{{ host }}</option>
+          </select>
+          <ToggleSwitch
+            :labelledby="`${a11yId}-mirror-${site}`"
+            :model-value="mirrors[site].enabled"
+            :data-testid="`mirror-toggle-${site}`"
+            @update:model-value="(v: boolean) => setMirror(site, { enabled: v })"
+          />
+        </div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.quickReact') }}</h3>
 
@@ -904,7 +935,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MessageAnnouncementSetting from '@/components/a11y/MessageAnnouncementSetting.vue'
 import { useToast } from 'vue-toastification'
@@ -919,6 +950,7 @@ import {
 import { useAppearanceDraft } from '@/composables/useAppearanceDraft'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useRouter } from 'vue-router'
+import { CLOSE_USER_SETTINGS } from '@/utils/settingsHistory'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import {
   generatePreviewColors,
@@ -939,6 +971,14 @@ import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
 import { uid, focusElement } from '@/utils/a11y/focus'
+import {
+  MIRROR_HOSTS,
+  MIRROR_SITES,
+  MIRROR_SITE_NAMES,
+  resolveMirrorPreferences,
+  type MirrorSite,
+  type MirrorSitePreference,
+} from '@/utils/mirrorLinks'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 
 // Ids pairing each switch with its visible label.
@@ -983,6 +1023,13 @@ const {
   reload: reloadTheme,
 } = useAppearanceDraft()
 
+// Post-link mirrors of sent content, per site, with the defaults filled in.
+const mirrors = computed(() => resolveMirrorPreferences(settings.value.linkMirrors))
+
+function setMirror(site: MirrorSite, patch: MirrorSitePreference) {
+  settings.value.linkMirrors = { ...(settings.value.linkMirrors ?? {}), [site]: { ...mirrors.value[site], ...patch } }
+}
+
 // Page settings stored outside the visual theme, staged the same way.
 interface LocalSettings {
   floatingVideoEnabled: boolean
@@ -1020,9 +1067,14 @@ function moveFocusOutOfSaveBar() {
 
 // Closes full-screen settings so colour edits are visible against the live
 // chat and sidebars. The live editor seeds from the stored theme.
-const openLiveEditor = () => {
+const closeUserSettings = inject(CLOSE_USER_SETTINGS, null)
+const openLiveEditor = async () => {
+  if (closeUserSettings) {
+    if (!(await closeUserSettings())) return
+  } else {
+    router.back()
+  }
   themeEditorPanel.open()
-  router.back()
 }
 
 // Quick-react emoji chooser popup
@@ -2259,6 +2311,12 @@ onBeforeUnmount(() => {
 
 .setting-control {
   flex-shrink: 0;
+}
+
+.mirror-link-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .font-size-slider {

@@ -9,6 +9,7 @@ import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
 import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
+import { mirrorLink, mirrorLinkPreferences } from '@/utils/mirrorLinks'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
@@ -706,8 +707,8 @@ function markdownCodeRanges(text: string): Array<[number, number]> {
 }
 
 /**
- * Splits text into url and emoji parts. URL tracking-parameter stripping
- * happens here so every caller (ActivityPub, DMs, chat) gets it.
+ * Splits text into url and emoji parts. URL tracking-parameter stripping and the post-link
+ * mirrors of utils/mirrorLinks happen here so every caller (ActivityPub, DMs, chat) gets them.
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -718,6 +719,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let match;
   
   const shouldStripTrackers = isUrlTrackingStrippingEnabled();
+  const mirrors = mirrorLinkPreferences();
   
   const codeRanges = markdownCodeRanges(text);
 
@@ -739,6 +741,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
     if (shouldStripTrackers) {
       url = stripTrackingParameters(url);
     }
+    url = mirrorLink(url, mirrors);
 
     parts.push({ type: 'url', url, preview });
     lastIndex = segmentEnd;

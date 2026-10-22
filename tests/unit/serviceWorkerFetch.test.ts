@@ -60,6 +60,14 @@ describe('service worker fetch routing', () => {
     }
   })
 
+  it('leaves link-preview media to the browser: ranges and redirects', () => {
+    const sw = loadWorker()
+    const relayed = `${ORIGIN}/api/federation/embed-media?u=${encodeURIComponent('https://video.twimg.com/tweet_video/G.mp4')}`
+    expect(sw.intercept(new Request(relayed, { headers: { Range: 'bytes=0-' } })).mock.calls).toHaveLength(0)
+    expect(sw.intercept(new Request(`${ORIGIN}/api/federation/embed-media/instagram/DcCH2ZygIiP/0`)).mock.calls).toHaveLength(0)
+    expect(sw.network).not.toHaveBeenCalled()
+  })
+
   it('still answers a GET to the API network-first', async () => {
     const sw = loadWorker()
     const respondWith = sw.intercept(new Request(`${ORIGIN}/api/federation/fetch-replies/status?post_ap_id=x`))

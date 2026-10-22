@@ -256,6 +256,19 @@ describe('safeFetch', () => {
     expect(resolve4Spy).toHaveBeenCalledTimes(2);
   });
 
+  it('returns a redirect unfollowed with followRedirects false, after checking the first hop', async () => {
+    fetchSpy.mockResolvedValueOnce(mockResponse({ status: 302, headers: { location: 'https://second.example/x' } }) as any);
+    const res = await safeFetch('https://first.example/a', { followRedirects: false });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('https://second.example/x');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(resolve4Spy).toHaveBeenCalledTimes(1);
+
+    resolve4Spy.mockResolvedValue(['10.0.0.5'] as any);
+    await expect(safeFetch('https://internal.example/a', { followRedirects: false })).rejects.toThrow(/blocked private IP/);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('strips a signature on a cross-origin hop', async () => {
     fetchSpy
       .mockResolvedValueOnce(mockResponse({ status: 302, headers: { location: 'https://second.example/x' } }) as any)

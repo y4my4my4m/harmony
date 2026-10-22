@@ -263,8 +263,55 @@ export interface UrlContent {
 }
 
 export type EmbedProvider =
-  | 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
-  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit';
+  | 'harmony-post' | 'harmony-invite' | 'harmony-drive' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
+  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit'
+  | 'x' | 'instagram' | 'bluesky';
+
+/** One photo, video or GIF of a post preview. Mirrors EmbedMedia in federation-backend/src/services/socialEmbeds.ts. */
+export interface EmbedMediaItem {
+  /** `gif`: a silent looping clip. */
+  type: 'image' | 'video' | 'gif';
+  url: string;
+  width?: number;
+  height?: number;
+  /** Still frame of a video or GIF. */
+  poster?: string;
+  /** Seconds. */
+  duration?: number;
+  alt?: string;
+  /** Container type when it is not MP4 (an HLS playlist). */
+  mime?: string;
+  /** HLS playlist of the same video, played where HLS is native (WebKit). */
+  hls?: string;
+}
+
+export interface EmbedSocialAuthor {
+  name?: string;
+  /** With the leading @. */
+  handle?: string;
+  avatar?: string;
+  url?: string;
+}
+
+export interface EmbedSocialQuote {
+  url: string;
+  author: EmbedSocialAuthor;
+  text?: string;
+  /** ISO 8601. */
+  publishedAt?: string;
+  media?: EmbedMediaItem[];
+}
+
+/** The post of an X, Instagram or Bluesky link. Its media is EmbedPayload.media. */
+export interface EmbedSocialPost {
+  platform: 'x' | 'instagram' | 'bluesky';
+  url: string;
+  author: EmbedSocialAuthor;
+  text?: string;
+  /** ISO 8601. */
+  publishedAt?: string;
+  quote?: EmbedSocialQuote;
+}
 
 export interface FediverseEmbedSummary {
   authorName: string;
@@ -329,6 +376,10 @@ export interface EmbedPayload {
   canonicalUrl?: string;
   /** The provider's player page, from the server's preview. */
   player?: { url: string; height?: number };
+  /** Every photo, video and GIF of a post, in order; `image` and `video` hold the first. */
+  media?: EmbedMediaItem[];
+  /** The post of an X, Instagram or Bluesky link. */
+  social?: EmbedSocialPost;
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;

@@ -564,6 +564,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Link-preview media: video byte ranges, and redirects whose lookup can outlast the
+  // 5 s API timeout below.
+  if (requestUrl.pathname.startsWith('/api/federation/embed-media')) {
+    return
+  }
+
   // Supabase storage objects are served directly.
   if (requestUrl.hostname.includes('supabase') || 
       requestUrl.hostname.includes('storage') ||
