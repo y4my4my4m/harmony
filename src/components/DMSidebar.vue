@@ -1,8 +1,8 @@
 <template>
-  <div class="dm-sidebar" data-testid="dm-sidebar">
+  <div ref="rootEl" class="dm-sidebar" data-testid="dm-sidebar">
     <!-- Header -->
-    <div class="dm-header">
-      <h2 class="dm-title">{{ $t('dm.directMessages') }}</h2>
+    <div class="dm-header" :class="{ 'is-untitled': !titled }">
+      <h2 v-if="titled" class="dm-title">{{ $t('dm.directMessages') }}</h2>
       <div class="header-actions">
         <button 
           ref="newDmButtonRef"
@@ -300,6 +300,7 @@ import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
+import { systemEventPreviewKey } from '@/utils/systemEvents'
 import { isUndecrypted } from '@/utils/channelEncryption'
 import { pollPreview } from '@/utils/messagePoll'
 import { useAnnouncer } from '@/composables/useAnnouncer'
@@ -308,9 +309,16 @@ import { focusElement, uid } from '@/utils/a11y/focus'
 const toast = useToast()
 const { t } = useI18n()
 
+withDefaults(defineProps<{
+  /** False where the page header around the list names it. */
+  titled?: boolean
+}>(), { titled: true })
+
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]
 }>()
+
+const rootEl = ref<HTMLElement | null>(null)
 
 const dmStore = useDMStore()
 const activityPubStore = useActivityPubStore()
@@ -530,8 +538,9 @@ const undoButton = (): HTMLButtonElement | null => {
   return Array.isArray(el) ? el[0] ?? null : el
 }
 
+// Within this list: on a phone a second one shows as the DM page.
 const conversationLink = (conversationId: string): HTMLElement | null =>
-  document.querySelector<HTMLElement>(`[data-conversation-id="${CSS.escape(conversationId)}"] .conversation-link`)
+  rootEl.value?.querySelector<HTMLElement>(`[data-conversation-id="${CSS.escape(conversationId)}"] .conversation-link`) ?? null
 
 const clearPendingDismiss = () => {
   if (undoTimer) clearTimeout(undoTimer)
@@ -637,6 +646,8 @@ const getLastMessagePreview = (conversation: DMConversation): string => {
 }
 
 const getMessagePreviewText = (message: Message): string => {
+  const systemKey = systemEventPreviewKey(message.metadata)
+  if (systemKey) return t(systemKey)
   if (isUndecrypted(message)) return t('channelEncryption.encryptedMessage')
   const content = message.content as MessagePart[]
   if (!Array.isArray(content)) return 'No messages yet'
@@ -750,6 +761,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.dm-header.is-untitled {
+  justify-content: flex-end;
 }
 
 .dm-title {

@@ -198,6 +198,7 @@
   import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
   import { sendToTarget, targetKey, targetOrderKey, type MessageTarget } from '@/stores/shared/sendToTarget';
   import { takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder';
+  import { discardStalledRow } from '@/stores/shared/stalledSends';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { mediaRoom } from '@/services/privateMedia';
@@ -827,6 +828,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           outbox.discard(message.id);
           return;
         }
+        // A stalled insert of this row that is stored later is deleted.
+        discardStalledRow(message.id);
         if (props.isDM) {
           dmStore.discardFailedDMMessage(message.id);
         } else {

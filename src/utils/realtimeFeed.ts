@@ -75,3 +75,22 @@ export function placeByDate<T extends Dated>(posts: T[], post: T, olderMayExist:
   if (at === -1) return olderMayExist ? posts : [...posts, post]
   return [...posts.slice(0, at), post, ...posts.slice(at)]
 }
+
+/**
+ * Posts `next` lists ahead of everything `previous` listed, when `next` is `previous` with posts
+ * placed at its head (and its tail possibly cut by the cap); 0 for any other change.
+ */
+export function addedAtHead<T extends Identified>(previous: readonly T[], next: readonly T[]): number {
+  if (previous.length === 0) return 0
+  const at = next.findIndex(p => p.id === previous[0].id)
+  if (at <= 0) return 0
+  const listed = new Set(previous.map(p => p.id))
+  for (let i = 0; i < at; i++) {
+    if (listed.has(next[i].id)) return 0
+  }
+  const kept = Math.min(previous.length, next.length - at)
+  for (let i = 1; i < kept; i++) {
+    if (next[at + i].id !== previous[i].id) return 0
+  }
+  return at
+}

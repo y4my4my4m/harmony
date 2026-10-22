@@ -78,6 +78,7 @@ describe('useDM message window', () => {
     const store = await jumpedStore()
     store.addMessageToCache(row(300))
     store.addMessageToCache(row(301, { user_id: 'me' }))
+    store.addMessageToCache(row(302, { user_id: null, is_system: true, metadata: { type: 'call_started', actor_id: 'me' } }))
     expect(seqs(store.currentDMMessages)).toEqual(seqs(rows(15, 65)))
     expect(store.unseenWhileDetached).toBe(1)
   })

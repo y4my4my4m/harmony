@@ -66,7 +66,7 @@
           class="virtual-post-row"
           :style="{
             position: 'absolute',
-            top: `${virtualRow.start}px`,
+            top: `${virtualRow.start - scrollMargin}px`,
             left: 0,
             width: '100%',
           }"
@@ -142,6 +142,11 @@ interface Props {
   skeletonCount?: number
   /** Accessible name of the feed ("Local timeline"). */
   feedLabel?: string
+  /**
+   * Scroller of the page around the feed, where the feed does not scroll itself (a profile).
+   * Rows are windowed against it.
+   */
+  scrollRoot?: HTMLElement | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -158,7 +163,8 @@ const props = withDefaults(defineProps<Props>(), {
   error: null,
   errorTitle: undefined,
   skeletonCount: 5,
-  feedLabel: undefined
+  feedLabel: undefined,
+  scrollRoot: null
 })
 
 const { t } = useI18n()
@@ -246,10 +252,40 @@ const estimatePostSize = (index: number): number => {
   return Math.max(estimate, 120)
 }
 
+/** The element that scrolls the feed: scrollRoot, else the container itself. */
+const scroller = (): HTMLElement | null => props.scrollRoot ?? scrollContainer.value
+
+// Offset of the feed list in scrollRoot's content, px; 0 when the container scrolls. Row
+// starts include it (virtual-core scrollMargin).
+const scrollMargin = ref(0)
+
+const measureScrollMargin = () => {
+  const root = props.scrollRoot
+  const feed = feedEl.value
+  const next = root && feed
+    ? Math.round(feed.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop)
+    : 0
+  if (next !== scrollMargin.value) scrollMargin.value = next
+}
+
+// Content above the feed (a profile header, a banner loading) moves the list in the scroller.
+watch(
+  () => [props.scrollRoot, feedEl.value] as const,
+  ([root, feed], _previous, onCleanup) => {
+    measureScrollMargin()
+    if (!root || !feed) return
+    const observer = new ResizeObserver(measureScrollMargin)
+    for (const child of Array.from(root.children)) observer.observe(child)
+    onCleanup(() => observer.disconnect())
+  },
+  { flush: 'post', immediate: true },
+)
+
 const rowVirtualizer = useVirtualizer<HTMLElement, Element>(
   computed(() => ({
     count: props.posts.length,
-    getScrollElement: () => scrollContainer.value,
+    getScrollElement: props.scrollRoot ? () => props.scrollRoot ?? null : () => scrollContainer.value,
+    scrollMargin: scrollMargin.value,
     estimateSize: estimatePostSize,
     // Measurements follow the post, not the index, across realtime prepends.
     getItemKey: (index: number) => props.posts[index]?.id ?? index,
@@ -345,12 +381,16 @@ watch(() => props.isLoading, (loading) => {
   failAttempt()
 })
 
+// The next page loads once the reader has scrolled the feed and its last row is in the
+// window; Load more asks for it at any time. A list whose end shows on open (a remote account
+// with few stored posts) waits for one or the other.
 watchEffect(() => {
   const items = virtualRows.value
   const lastItem = items[items.length - 1]
   if (!lastItem) return
 
   if (
+    (rowVirtualizer.value.scrollOffset ?? 0) > 0 &&
     lastItem.index >= props.posts.length - 1 &&
     props.hasMore &&
     !props.isLoading &&
@@ -383,7 +423,7 @@ const focusPost = async (index: number): Promise<boolean> => {
   if (!el) return false
   focusedPostId = props.posts[index]?.id ?? null
   el.focus({ preventScroll: true })
-  const box = scrollContainer.value?.getBoundingClientRect()
+  const box = scroller()?.getBoundingClientRect()
   const rect = el.getBoundingClientRect()
   if (box && (rect.top < box.top || rect.top > box.bottom - 48)) el.scrollIntoView({ block: 'start' })
   return document.activeElement === el
@@ -452,15 +492,15 @@ const onFeedFocusOut = (event: FocusEvent) => {
  * feeds reads it after the new list arrives and before it renders.
  */
 const readScrollAnchor = (): FeedScrollAnchor | null => {
-  const scroller = scrollContainer.value
-  if (!scroller) return null
-  const top = scroller.getBoundingClientRect().top
+  const el = scroller()
+  if (!el) return null
+  const top = el.getBoundingClientRect().top
   const rows = feedEl.value?.querySelectorAll<HTMLElement>('.virtual-post-row') ?? []
   for (const row of Array.from(rows)) {
     const box = row.getBoundingClientRect()
-    if (box.bottom > top) return { postId: row.dataset.postId ?? null, offset: top - box.top, scrollTop: scroller.scrollTop }
+    if (box.bottom > top) return { postId: row.dataset.postId ?? null, offset: top - box.top, scrollTop: el.scrollTop }
   }
-  return { postId: null, offset: 0, scrollTop: scroller.scrollTop }
+  return { postId: null, offset: 0, scrollTop: el.scrollTop }
 }
 
 // Frames spent placing the anchor row; rows render and measure over the first few.
@@ -475,31 +515,31 @@ let restoreRun = 0
  */
 const restoreScrollAnchor = async (anchor: FeedScrollAnchor | null) => {
   const run = ++restoreRun
-  const scroller = scrollContainer.value
-  if (!scroller) return
+  const el = scroller()
+  if (!el) return
   if (!anchor) {
-    scroller.scrollTop = 0
+    el.scrollTop = 0
     return
   }
   let still = 0
   for (let frame = 0; frame < RESTORE_FRAMES && still < 2 && run === restoreRun; frame++) {
     const index = anchor.postId ? props.posts.findIndex((p) => p.id === anchor.postId) : -1
     if (index < 0) {
-      scroller.scrollTop = anchor.scrollTop
+      el.scrollTop = anchor.scrollTop
       return
     }
     const row = feedEl.value?.querySelector<HTMLElement>(`.virtual-post-row[data-index="${index}"]`)
     if (row) {
-      const drift = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + anchor.offset
+      const drift = row.getBoundingClientRect().top - el.getBoundingClientRect().top + anchor.offset
       if (Math.abs(drift) < 1) {
         still++
       } else {
         still = 0
-        scroller.scrollTop += drift
+        el.scrollTop += drift
       }
     } else {
       still = 0
-      scroller.scrollTop = (rowVirtualizer.value.measurementsCache[index]?.start ?? 0) + anchor.offset
+      el.scrollTop = (rowVirtualizer.value.measurementsCache[index]?.start ?? 0) + anchor.offset
     }
     await nextFrame()
   }

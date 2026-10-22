@@ -16,6 +16,7 @@ import { realtimeConnectionManager, type ConnectionStatus } from '@/services/Rea
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
 import { insertMessageSorted, evictOldestCacheEntry, placeStoredRow, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 import { inSendOrder, sendKeyForChannel, takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder';
+import { findStalledRowMessage, insertWithDeadline, isSendUnresolved, resendRow, type StalledSendHandlers } from '@/stores/shared/stalledSends';
 import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
@@ -586,7 +587,7 @@ export const useChatStore = defineStore('chat', {
         } else if (acceptsLiveRow(this.messages, message, this.hasNewerMessages)) {
           this._insertMessageSorted(this.messages, message);
           debug.log('Real-time message added to current messages:', message.id);
-        } else if (message.user_id !== useProfileStore().profileId) {
+        } else if (!message.is_system && message.user_id !== useProfileStore().profileId) {
           this.unseenWhileDetached++;
         }
       } else {
@@ -814,18 +815,17 @@ export const useChatStore = defineStore('chat', {
       // The optimistic row shows at once; the insert waits for the channel's earlier ones.
       const orderKey = sendKeyForChannel(channelId);
       const turn = options?.turn ?? takeSendTurn(orderKey);
+      const stalledHandlers = this._stalledSendHandlers(tempId, userId, channelId, content);
+      const insert = () => insertWithDeadline(tempId, services.messages.sendChannelMessage(
+        serverId, channelId, content as any, replyTo || undefined, sendMetadata, serviceOptions
+      ), stalledHandlers);
+      // A re-send of a row whose insert stalled finds the message stored meanwhile.
+      const send = () => resendRow(tempId, () => services.messages.findSentMessage({ channelId }, userId, clientNonce), insert);
 
       try {
         debug.log('Sending message via MessageService:', { channelId, userId });
-        
-        const message = await turn.run(() => services.messages.sendChannelMessage(
-          serverId,
-          channelId, 
-          content as any, // MessagePart[]
-          replyTo || undefined,
-          sendMetadata,
-          serviceOptions
-        ));
+
+        const message = await turn.run(send);
 
         debug.log('Message saved to database:', message.id);
         debug.log('Message data from server:', message);
@@ -835,6 +835,13 @@ export const useChatStore = defineStore('chat', {
         return message;
       } catch (error: any) {
         debug.error('Error sending message via service:', error);
+
+        // No answer in time, or a failed lookup: the insert may be stored, so it is not sent
+        // again here. The row fails and offers Retry and Delete.
+        if (isSendUnresolved(error)) {
+          this._markMessageFailed(tempId);
+          return;
+        }
 
         // Encryption policy errors are not transient. A retry either fails the
         // same way or bypasses the fail-closed policy, so surface immediately
@@ -917,13 +924,12 @@ export const useChatStore = defineStore('chat', {
 
           try {
             // A retry queues behind the sends made since; it lands at its new created_at.
-            const retryResult = await inSendOrder(orderKey, () => services.messages.sendChannelMessage(
-              serverId, channelId, content as any, replyTo || undefined, sendMetadata, serviceOptions
-            ));
+            const retryResult = await inSendOrder(orderKey, send);
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;
           } catch (retryError) {
             debug.warn(`Retry attempt ${attempt} failed:`, retryError);
+            if (isSendUnresolved(retryError)) break;
           }
         }
 
@@ -946,7 +952,11 @@ export const useChatStore = defineStore('chat', {
       });
     },
 
-    _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {
+    /**
+     * `addIfAbsent`: a message whose row is held by neither copy is added as a stored row. A
+     * stalled outbox send lands so: the outbox removed the store's row when the send failed.
+     */
+    _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any, addIfAbsent = false) {
       seedNoReactions(message.id);
       // The live list and the cache are reconciled independently - realtime
       // `onInsert` may already have replaced the temp row in `messages`. Bail
@@ -955,7 +965,7 @@ export const useChatStore = defineStore('chat', {
       const tempIndex = this.messages.findIndex((m: any) => m.id === tempId);
       const cached = this.messageCache.get(channelId);
       const cacheIndex = cached ? cached.messages.findIndex((m: any) => m.id === tempId) : -1;
-      if (tempIndex === -1 && cacheIndex === -1) return;
+      if (tempIndex === -1 && cacheIndex === -1 && !addIfAbsent) return;
 
       const isOwnEncrypted = message.encrypted && message.user_id === userId;
       const realMessage = {
@@ -974,6 +984,11 @@ export const useChatStore = defineStore('chat', {
       };
 
       try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
+
+      if (tempIndex === -1 && cacheIndex === -1) {
+        this.addMessageToCache(realMessage as any);
+        return;
+      }
 
       // Placed by the server's created_at: the sender's list matches what everyone else reads.
       if (tempIndex !== -1) {
@@ -994,12 +1009,18 @@ export const useChatStore = defineStore('chat', {
       // The row's metadata carries its client_nonce; realtime reconciles by it. A copy:
       // CoreMessageService writes plaintext-override markers into the metadata it gets.
       const metadata = { ...this.messages[idx].metadata };
+      const clientNonce = typeof metadata.client_nonce === 'string' ? metadata.client_nonce : null;
       this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
 
       try {
-        const message = await inSendOrder(sendKeyForChannel(channelId), () => services.messages.sendChannelMessage(
-          serverId, channelId, content as any, replyTo || undefined, metadata
-        ));
+        // A row whose insert stalled may be stored already; it is looked up before sending again.
+        const message = await inSendOrder(sendKeyForChannel(channelId), async () =>
+          (clientNonce
+            ? await findStalledRowMessage(tempId, () => services.messages.findSentMessage({ channelId }, userId, clientNonce))
+            : null)
+          ?? insertWithDeadline(tempId, services.messages.sendChannelMessage(
+            serverId, channelId, content as any, replyTo || undefined, metadata
+          ), this._stalledSendHandlers(tempId, userId, channelId, content)));
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
       } catch (error) {
         debug.error('Retry failed:', error);
@@ -1010,6 +1031,16 @@ export const useChatStore = defineStore('chat', {
 
     discardFailedMessage(tempId: string) {
       this.removeMessageFromCache(tempId);
+    },
+
+    /** A message stored after its row's insert stalled becomes the row; one the row does not keep is deleted. */
+    _stalledSendHandlers(tempId: string, userId: string, channelId: string, content: any): StalledSendHandlers<Message> {
+      return {
+        landed: (message) => this._replaceTempWithReal(tempId, message, userId, channelId, content, true),
+        unwanted: (message) => {
+          this.deleteMessage(message.id).catch((error) => debug.warn('Deleting a second copy of a sent message failed:', error));
+        },
+      };
     },
 
     async addReaction(messageId: string, emojiId: string, userId: string, emojiData?: Emoji) {

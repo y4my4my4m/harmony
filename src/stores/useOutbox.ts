@@ -25,6 +25,7 @@ import {
 } from '@/services/messageMediaUpload'
 import { createTempMessageId, getRandomId } from '@/stores/shared/optimisticMessages'
 import { sendToTarget, targetKey, targetMediaRoom, type MessageTarget } from '@/stores/shared/sendToTarget'
+import { discardStalledRow, onStalledRowStored } from '@/stores/shared/stalledSends'
 import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -45,8 +46,10 @@ import { useAuthStore } from '@/stores/auth'
  * A failed upload or send leaves the row failed; retry re-uploads only the
  * attachments that did not complete, discard (also offered while uploading)
  * aborts uploads and deletes the objects already stored. A slowmode rejection is
- * waited out and re-sent. Jobs belong to the session that queued them: sign-out
- * resets the outbox, and a job whose uploader is no longer signed in is not sent.
+ * waited out and re-sent. An insert with no answer fails the row
+ * (stalledSends.ts); its message, stored later, completes the job. Jobs belong
+ * to the session that queued them: sign-out resets the outbox, and a job whose
+ * uploader is no longer signed in is not sent.
  */
 
 export interface OutboxAttachment {
@@ -600,6 +603,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       URL.revokeObjectURL(file.previewUrl)
     }
     removeStoreRow(job)
+    discardStalledRow(id)
     if (stored.length > 0) {
       supabase.storage.from(MESSAGE_MEDIA_BUCKET).remove(stored).then(
         ({ error }) => { if (error) debug.warn('Outbox: deleting discarded attachments failed', error) },
@@ -629,6 +633,12 @@ export const useOutboxStore = defineStore('outbox', () => {
     resetMessageMediaUploads()
     clearLocalMediaSources()
   }
+
+  // The store holds the stored message; the pending row goes.
+  onStalledRowStored((id) => {
+    const job = find(id)
+    if (job) complete(job)
+  })
 
   if (typeof window !== 'undefined') {
     // A non-empty returnValue prompts in browsers that predate preventDefault() on

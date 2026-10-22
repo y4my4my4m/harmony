@@ -119,15 +119,24 @@ export function scrollTopAfterResize(
  * false, so virtual-core applies none of its own: its correction is relative
  * to the offset cached at the last scroll event and would apply the delta a
  * second time.
+ *
+ * `growList` gives the list element its new height before the write. The list's
+ * height follows the virtualizer's total size only after the re-render the
+ * resize schedules; until then the browser clamps a scrollTop past the old end,
+ * and a view less than `delta` above the end keeps only part of the correction.
  */
 export function correctForItemResize(
   scroller: { scrollTop: number },
   listOffset: number,
   itemStart: number,
   delta: number,
+  growList?: () => void,
 ): false {
   const next = scrollTopAfterResize(scroller.scrollTop, listOffset, itemStart, delta)
-  if (next !== scroller.scrollTop) scroller.scrollTop = next
+  if (next !== scroller.scrollTop) {
+    growList?.()
+    scroller.scrollTop = next
+  }
   return false
 }
 

@@ -41,6 +41,7 @@ vi.mock('@/supabase', () => ({
 vi.mock('@/services/AuthContextService', () => ({
   authContextService: { getCurrentProfileId: async () => 'me' },
 }))
+vi.mock('@/components/DMSidebar.vue', () => ({ default: { name: 'DMSidebar', render: () => null } }))
 
 const conversation = vi.hoisted(() => ({
   id: CONV,

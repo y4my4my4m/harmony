@@ -141,3 +141,66 @@ describe('row resize above the viewport, real virtualizer', () => {
     expect(h.firstVisible()).toEqual(before)
   })
 })
+
+/**
+ * A browser scroller: scrollTop is clamped to the end of the list element, whose height is
+ * the total size of the last render, not of the resize being handled.
+ */
+function clampingHarness(grow: boolean) {
+  const list = { height: COUNT * ROW }
+  let top = 0
+  const scroller = {
+    get scrollTop() { return top },
+    set scrollTop(value: number) { top = Math.max(0, Math.min(value, list.height - VIEWPORT)) },
+  }
+  const el = {} as HTMLDivElement
+  const v = new Virtualizer<HTMLDivElement, Element>({
+    count: COUNT,
+    getScrollElement: () => el,
+    estimateSize: () => ROW,
+    getItemKey: (i) => `msg-${i}`,
+    overscan: 2,
+    observeElementRect: (_inst, cb) => {
+      cb({ width: 400, height: VIEWPORT })
+      return () => {}
+    },
+    observeElementOffset: (_inst, cb) => {
+      cb(scroller.scrollTop, false)
+      return () => {}
+    },
+    scrollToFn: (offset, { adjustments = 0 }) => { scroller.scrollTop = offset + adjustments },
+    onChange: () => {},
+  })
+  v.shouldAdjustScrollPositionOnItemSizeChange = (item, delta) =>
+    correctForItemResize(scroller, 0, item.start, delta, grow ? () => { list.height = v.getTotalSize() + delta } : undefined)
+  v._willUpdate()
+  return { v, scroller, list }
+}
+
+describe('row resize above a view near the end of the list', () => {
+  // 78 px above the end, less than the row grows by.
+  const nearEnd = COUNT * ROW - VIEWPORT - 78
+
+  it('the list takes its new height first, so the whole correction applies', () => {
+    const h = clampingHarness(true)
+    h.scroller.scrollTop = nearEnd
+    h.v.resizeItem(5, ROW + 150)
+    expect(h.scroller.scrollTop).toBe(nearEnd + 150)
+    expect(h.list.height).toBe(COUNT * ROW + 150)
+  })
+
+  it('without it the browser clamps the correction to the old end', () => {
+    const h = clampingHarness(false)
+    h.scroller.scrollTop = nearEnd
+    h.v.resizeItem(5, ROW + 150)
+    expect(h.scroller.scrollTop).toBe(nearEnd + 78)
+  })
+
+  it('leaves the list height alone when no correction is due', () => {
+    const h = clampingHarness(true)
+    h.scroller.scrollTop = nearEnd
+    h.v.resizeItem(COUNT - 2, ROW + 150)
+    expect(h.scroller.scrollTop).toBe(nearEnd)
+    expect(h.list.height).toBe(COUNT * ROW)
+  })
+})
