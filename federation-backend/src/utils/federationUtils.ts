@@ -100,6 +100,32 @@ export async function getChannelRecipientGroups(channelId: string): Promise<Remo
 }
 
 /**
+ * Remote instances to tell about a category: those whose members view a
+ * channel in it (public.federation_category_recipients). An empty category, or
+ * one of hidden channels, names itself to no instance; a lookup failure yields
+ * no groups.
+ */
+export async function getCategoryRecipientGroups(categoryId: string): Promise<RemoteMemberGroup[]> {
+  const supabase = getSupabaseClient();
+  const hostDomain = config.INSTANCE_DOMAIN.toLowerCase();
+
+  const { data, error } = await supabase.rpc('federation_category_recipients', { p_category_id: categoryId });
+  if (error) {
+    logger.error(`federation_category_recipients failed for category ${categoryId}: ${error.message}`);
+    return [];
+  }
+
+  return (data || [])
+    .filter((row: any) => row.instance && row.instance !== hostDomain)
+    .map((row: any) => ({
+      instance: row.instance,
+      member_ap_ids: row.member_ap_ids || [],
+      member_count: row.member_count || 0,
+      shared_inbox: row.shared_inbox || `https://${row.instance}/inbox`,
+    }));
+}
+
+/**
  * Get all unique remote instances the user shares servers with.
  * Returns deduplicated shared inbox URLs mapped by instance.
  */

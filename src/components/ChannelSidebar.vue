@@ -210,6 +210,8 @@
                 'collapsed': collapsedCategories.has(category.id),
                 'has-visible-channels': shouldShowCategoryContent(category)
               }"
+              :data-private="serverChannelStore.isPrivateCategory(category.id) ? 'true' : undefined"
+              :data-hidden-from-members="categoryHiddenForViewer(category.id) ? 'true' : undefined"
               :aria-expanded="!collapsedCategories.has(category.id)"
               :aria-controls="categoryListId(category.id)"
               data-roving-item
@@ -227,6 +229,11 @@
                 aria-hidden="true"
               />
               <span class="category-name">{{ category.name }}</span>
+              <span
+                v-if="categoryMarkKey(category.id)"
+                class="category-lock"
+                :title="t(categoryMarkKey(category.id)!)"
+              ><Icon name="eye-off" :size="12" aria-hidden="true" /><span class="sr-only">{{ t(categoryMarkKey(category.id)!) }}</span></span>
             </button>
           </h2>
 
@@ -496,7 +503,10 @@ import { statePersistence } from '@/services/StatePersistence';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
 import { isContextMenuKey, useMenuButton } from '@/composables/useMenu';
 import { useAnnouncer } from '@/composables/useAnnouncer';
+import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { focusElement, uid } from '@/utils/a11y/focus';
+import { visibleCategories } from '@/utils/categoryVisibility';
+import { channelPermissionsSynced, type CategoryPrivacy } from '@/services/categoryPermissions';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -777,14 +787,22 @@ const reorderableCategories = computed({
       ...category,
       channels: props.categoryChannels[category.id] || [],
     }));
-    // A category whose channels are all hidden from the viewer would still show its name.
-    // Managers keep every category: they reorder the full list and add channels to empty ones.
-    return canDragAndDrop.value ? categories : categories.filter(c => c.channels.length > 0);
+    return visibleCategories(categories, props.categoryChannels, canDragAndDrop.value);
   },
   set: (newCategories) => {
     serverChannelStore.updateCategoryOrder(newCategories);
   }
 });
+
+/** For a viewer who manages channels: members without Manage Channels do not see the category. */
+const categoryHiddenForViewer = (categoryId: string): boolean =>
+  canDragAndDrop.value && serverChannelStore.isCategoryHiddenFromMembers(categoryId);
+
+/** i18n key for the header's eye-off mark, or null for a category every member sees. */
+const categoryMarkKey = (categoryId: string): string | null => {
+  if (serverChannelStore.isPrivateCategory(categoryId)) return 'category.private.label';
+  return categoryHiddenForViewer(categoryId) ? 'category.hiddenFromMembers' : null;
+};
 
 const categoriesKey = computed(() => serverChannelStore.categories.map((c: any) => `${c.id}-${c.order}`).join(','));
 
@@ -853,6 +871,38 @@ const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: 
     await serverChannelStore.moveChannelToCategory(channelId, categoryId);
   } catch (error) {
     debug.error('Failed to move channel to category:', error);
+    return;
+  }
+  void offerPermissionSync(channelId, categoryId);
+};
+
+// A move writes no permission. A channel whose overrides differ from its new category's is
+// offered a sync; declining keeps its own.
+const { confirm } = useConfirmDialog();
+const offerPermissionSync = async (channelId: string, categoryId: string) => {
+  let synced: boolean | null;
+  try {
+    synced = await channelPermissionsSynced(channelId);
+  } catch (error) {
+    debug.warn('Sync state lookup failed:', error);
+    return;
+  }
+  if (synced !== false) return;
+  const channel = props.channels.find(c => c.id === channelId);
+  const category = storeCategories.value.find(c => c.id === categoryId);
+  if (!channel || !category) return;
+  const accepted = await confirm({
+    title: t('category.move.title'),
+    message: t('category.move.message', { channel: channel.name, category: category.name }),
+    confirmButtonText: t('category.move.sync'),
+  });
+  if (!accepted) return;
+  try {
+    await serverChannelStore.syncChannelPermissions(channelId);
+    toast.success(t('category.sync.done', { category: category.name }));
+  } catch (error) {
+    debug.error('Failed to sync channel permissions:', error);
+    toast.error(t('category.sync.failed'));
   }
 };
 
@@ -1099,11 +1149,12 @@ const openThread = (thread: ThreadWithDetails) => {
   });
 };
 
-const createCategory = async (categoryName: string) => {
+const createCategory = async (categoryName: string, privacy?: CategoryPrivacy) => {
   try {
-    await serverChannelStore.createCategory(categoryName, props.currentServer.id);
+    await serverChannelStore.createCategory(categoryName, props.currentServer.id, privacy);
   } catch (error) {
     debug.error('Failed to create category:', error);
+    if (privacy?.isPrivate) toast.error(t('category.errors.permissionsFailed'));
   } finally {
     isCategoryCreatorOpen.value = false;
   }
@@ -1968,7 +2019,8 @@ onUnmounted(() => {
   font-weight: 400;
 }
 
-.channel-lock {
+.channel-lock,
+.category-lock {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;

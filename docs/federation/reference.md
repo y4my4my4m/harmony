@@ -135,7 +135,7 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `manuallyApprovesFollowers` | `false` |
 | `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
-Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`). A category is listed when it holds a channel the caller may view, or no channel at all.
+Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`). A category is listed when it holds a channel the caller may view.
 
 `GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, and `replies`, the channel's message collection.
 
@@ -312,11 +312,12 @@ Chat-server activities:
 | `Reject` | Group | The received `Follow` | A `Follow` of the Group: a chat server is joined, not followed | Follower |
 | `Remove` | Group | The member's account, `target` `/servers/<uuid>/members`; `harmony:reason` `federation_closed`, `kick` or `ban`, a kick's or ban's reason as `summary`, `published` the time of the removal | Federation is turned off for the server, or a member from another instance is kicked or banned | The member's inbox |
 | `Create` / `Update` | Message author | Channel message `Note` | A message is sent or edited | Host: each instance with a member who can view the channel. Member: the Group inbox |
+| `Create` | Group | System notice `Note` | A member joins, leaves, is kicked or is banned | Each instance with a member who can view the channel |
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
 | `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
 | `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
-| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed | Member instances |
+| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
 | `Update` | Group | `Group` | The server's name, description, icon or banner changes | Member instances |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
@@ -515,6 +516,25 @@ https://<domain>/api/federation/media/<path>?to=<receiving domain>&sig=<HMAC>
 
 A link answers while that instance still receives the channel, with a redirect to a short-lived storage URL. Fetching it needs no signature.
 
+### System notice Note
+
+A join, leave, kick, ban, thread, or channel encryption notice has no author. The Group attributes it to itself and names the people in `harmony:system` by actor id:
+
+```json
+{
+  "type": "Note",
+  "id": "https://chat.example.com/messages/<message>",
+  "attributedTo": "https://chat.example.com/servers/<server>",
+  "content": "Bob joined the server",
+  "context": "https://chat.example.com/servers/<server>/channels/<channel>",
+  "harmony:system": { "type": "member_join", "subject": "https://other.example/users/bob" }
+}
+```
+
+`harmony:system.type` is one of `member_join`, `member_leave`, `member_kick`, `member_ban`, `thread_created`, `channel_encryption_enabled`, `channel_encryption_disabled`, `channel_voice_encryption_enabled` and `channel_voice_encryption_disabled`. `subject` is the member the notice is about, `actor` the member who acted; `actorName` names an actor without an actor id (a bot or a relayed Discord member); `reason` is a kick's or ban's reason; `thread` and `threadName` name a thread. `content` is English text for readers without the extension.
+
+The channel collection serves every notice. Join, leave, kick and ban notices are also delivered live as the Group's `Create`, with `harmony:serverId` and `harmony:channelName` on the `Note`. A receiver honours `harmony:system` only on a `Note` attributed to, or a `Create` sent by, the Group hosting the channel, never relayed; it stores the notice as a system row and resolves the actor ids to its own accounts. A `Note` from a host before 1.8.11 is attributed to the member and has no `harmony:system`.
+
 ### Direct message Note
 
 A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group.
@@ -657,6 +677,7 @@ Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, a
 | `harmony:threadId`, `harmony:parentMessageId` | Channel message `Note` | The thread's id and the thread's parent message id, for a message in a thread |
 | `harmony:encrypted` | Channel message and direct message `Note` | `true` for end-to-end encrypted content, which receivers cannot decrypt |
 | `harmony:voiceMessage` | Channel message `Note` | `{ duration, waveform }` of a voice message |
+| `harmony:system` | System notice `Note` | `{ type, subject, actor, actorName, reason, thread, threadName }`; see [System notice Note](#system-notice-note) |
 | `harmony:conversationType`, `harmony:conversationId` | Direct message `Note`, group conversation object | `"group"`; the sender's conversation UUID |
 | `harmony:updateType` | Group conversation `Update` | `name`, `icon` or `icon_removed` |
 | `ChatThread` (`harmony:ChatThread`) | Thread object | A thread; `autoArchiveDuration`, `messageCount`, `memberCount`, `lastMessageAt` map to `harmony:` terms |

@@ -60,7 +60,7 @@ A chat server lives on one instance, the one where it was created. That instance
 | Host | Member instances | Channel and category creation, changes and removal; server name, description, icon and banner |
 | Member's instance | Host | Voice channel join and leave; the host answers a join with a voice token for its own LiveKit |
 
-The host decides everything that involves permissions. A message from another instance is stored only when its author is an accepted, unbanned member with **Send Messages** in that channel, or **Send Messages in Threads** for a thread. Private channels and private servers are only sent to, and only served to, instances that have a member allowed to view them.
+The host decides everything that involves permissions. A message from another instance is stored only when its author is an accepted, unbanned member with **Send Messages** in that channel, or **Send Messages in Threads** for a thread. Private channels and private servers are only sent to, and only served to, instances that have a member allowed to view them. A category, its name included, reaches an instance with the first channel in it that instance's members can view.
 
 Attachments in channel messages travel as links that name the receiving instance. A link works for as long as that instance still receives the channel.
 

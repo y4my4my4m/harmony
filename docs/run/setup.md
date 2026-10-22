@@ -90,7 +90,7 @@ Categories group channels in the channel list. A server holds at most 25 categor
 - **Collapse**: click its name. Each member's collapsed categories are remembered for them.
 - **Delete**: right-click → **Delete category** and type its name to confirm. The channels inside stay and move to the top of the list, outside any category.
 
-Categories have no permissions of their own; set permissions on each channel.
+A category with no channel a member can view is hidden from that member. A category can be made private, and its channels follow its permissions: see [Private categories](/run/roles-permissions#private-categories).
 
 ## Invites
 

@@ -91,12 +91,14 @@ import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
 import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
+import { casePrivateCategories } from './cases/privateCategories.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
+import { caseSystemEvents } from './cases/systemEvents.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -231,6 +233,8 @@ class Peer {
   livekit: LiveKit | null = null
   // GET routes a case module serves; true when it answered.
   extraGet?: (req: http.IncomingMessage, res: http.ServerResponse) => boolean
+  // Items a case module adds to the private channel's collection page.
+  extraChannelItems: Record<string, unknown>[] = []
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -568,6 +572,7 @@ class Peer {
             context: this.channelUrl(REMOTE_CHANNEL),
             published: new Date().toISOString(),
           },
+          ...this.extraChannelItems,
         ],
       }),
     )
@@ -2570,6 +2575,10 @@ async function main() {
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
     })
+    await casePrivateCategories({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, get, signedGetHeaders, assert, eq,
+      ids: { remote: REMOTE, hostedServer: PRIV_SERVER },
+    })
     await caseGroupRelay({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
       ids: {
@@ -2597,6 +2606,14 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
+    })
+    await caseSystemEvents({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET), assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
     })
     await caseMemberRemoval({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,

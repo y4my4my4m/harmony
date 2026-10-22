@@ -86,6 +86,8 @@ vi.mock('@/stores/useServerChannel', async () => {
     pendingStructureCreate: null,
     pendingInviteOpen: false,
     isPrivateChannel: () => false,
+    isPrivateCategory: () => false,
+    isCategoryHiddenFromMembers: () => false,
     reorderChannelsInCategory: (...args: unknown[]) => s.reorder(...args),
     updateCategoryOrder: (...args: unknown[]) => s.categoryOrder(...args),
   })
