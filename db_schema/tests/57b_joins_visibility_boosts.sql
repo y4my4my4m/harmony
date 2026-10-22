@@ -45,17 +45,17 @@ INSERT INTO public.invites (code, server_id, created_by, max_uses, uses, used, e
   ('F5BREVOKED', '55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001', NULL, 0, true, NULL),
   ('F5BSPENT',   '55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001', 1, 1, true, NULL);
 
-INSERT INTO public.messages (id, channel_id, user_id, content, is_system, metadata) VALUES
+INSERT INTO public.messages (id, channel_id, content, is_system, metadata) VALUES
   ('f5b60000-0000-0000-0000-000000000001', '66666666-0000-0000-0000-000000000006',
-   '22222222-0000-0000-0000-000000000002', '[{"type":"text","text":"has joined the server"}]', true,
-   '{"type":"member_join"}'),
+   '[{"type":"text","text":"has joined the server"}]', true,
+   '{"type":"member_join","subject_id":"22222222-0000-0000-0000-000000000002"}'),
   ('f5b60000-0000-0000-0000-000000000002', '66666666-0000-0000-0000-000000000006',
-   '22222222-0000-0000-0000-000000000002', '[{"type":"text","text":"has joined the server"}]', true,
-   '{"type":"member_join"}');
-INSERT INTO public.messages (id, conversation_id, user_id, content, is_system, metadata) VALUES
+   '[{"type":"text","text":"has joined the server"}]', true,
+   '{"type":"member_join","subject_id":"22222222-0000-0000-0000-000000000002"}');
+INSERT INTO public.messages (id, conversation_id, content, is_system, metadata) VALUES
   ('f5b60000-0000-0000-0000-000000000003', '77777777-0000-0000-0000-000000000007',
-   '11111111-0000-0000-0000-000000000001', '[{"type":"text","text":"started a call"}]', true,
-   '{"type":"call_started","call_type":"voice"}');
+   '[{"type":"text","text":"started a call"}]', true,
+   '{"type":"call_started","call_type":"voice","actor_id":"11111111-0000-0000-0000-000000000001"}');
 
 -- Rows the current role reads; a table without a SELECT grant (production revokes some
 -- from anon) reads as none.
@@ -388,12 +388,14 @@ SELECT is((SELECT name FROM public.channel_categories WHERE id = 'f5b20000-0000-
 
 -- System rows -----------------------------------------------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok(
-    $q$UPDATE public.messages SET is_deleted = true WHERE id = 'f5b60000-0000-0000-0000-000000000001'$q$,
-    '42501', NULL, 'the subject of a notice cannot soft-delete it');
-SELECT throws_ok(
-    $q$DELETE FROM public.messages WHERE id = 'f5b60000-0000-0000-0000-000000000001'$q$,
-    '42501', NULL, 'the subject of a notice cannot delete it');
+SELECT is_empty(
+    $q$WITH u AS (UPDATE public.messages SET is_deleted = true
+                   WHERE id = 'f5b60000-0000-0000-0000-000000000001' RETURNING 1) SELECT * FROM u$q$,
+    'the subject of a notice cannot soft-delete it');
+SELECT is_empty(
+    $q$WITH d AS (DELETE FROM public.messages
+                   WHERE id = 'f5b60000-0000-0000-0000-000000000001' RETURNING 1) SELECT * FROM d$q$,
+    'the subject of a notice cannot delete it');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT lives_ok(
     $q$UPDATE public.messages SET is_deleted = true WHERE id = 'f5b60000-0000-0000-0000-000000000001'$q$,

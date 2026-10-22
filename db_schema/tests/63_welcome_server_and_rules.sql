@@ -81,9 +81,10 @@ INSERT INTO public.conversation_participants (conversation_id, user_id, joined_a
   ('63000000-0000-0000-0000-0000000000f1', '11111111-0000-0000-0000-000000000001', now());
 
 CREATE FUNCTION pg_temp.post_system_definer(p_user uuid) RETURNS void LANGUAGE sql SECURITY DEFINER AS $fn$
-  INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
-  VALUES ('66666666-0000-0000-0000-000000000006', p_user,
-          '[{"type":"text","text":"has joined the server"}]', true, '{"type":"member_join"}');
+  INSERT INTO public.messages (channel_id, content, is_system, metadata)
+  VALUES ('66666666-0000-0000-0000-000000000006',
+          '[{"type":"text","text":"has joined the server"}]', true,
+          jsonb_build_object('type', 'member_join', 'subject_id', p_user));
 $fn$;
 GRANT EXECUTE ON FUNCTION pg_temp.post_system_definer(uuid) TO authenticated;
 

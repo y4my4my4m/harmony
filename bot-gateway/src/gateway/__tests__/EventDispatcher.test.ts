@@ -167,6 +167,21 @@ describe('event fan-out follows channel visibility', () => {
     expect(sent.map((s) => [s.event.t, s.event.d.channel_id])).toEqual([['MESSAGE_UPDATE', GENERAL]])
   })
 
+  it('withholds MESSAGE_UPDATE of a message older than the install where history is denied', async () => {
+    db.rows('channel_permission_overrides').push({
+      id: 'ov-history', channel_id: GENERAL, target_type: 'role', role_id: EVERYONE_ROLE, user_id: null,
+      allow_permissions: 0, deny_permissions: 1 << 22,
+    })
+    db.rows('bot_server_permissions')[0].installed_at = '2026-10-05T00:00:00Z'
+    const d = dispatcher as any
+    await d.handleMessageUpdate({ new: message(GENERAL, 'old edit') })
+    await d.handleMessageUpdate({ new: { ...message(GENERAL, 'new edit'), created_at: '2026-10-06T00:00:00Z' } })
+
+    expect(sent.filter((x) => x.event.t === 'MESSAGE_UPDATE').map((x) => [x.event.d.id, x.botIds])).toEqual([
+      [`${GENERAL.slice(-2)}-new edit`, [OPEN_BOT]],
+    ])
+  })
+
   it('delivers a hidden channel to a bot whose allowed_channel_ids names it', async () => {
     db.rows('bot_server_permissions').push(
       installRow('00000000-0000-0000-0000-0000000000b3', { allowed_channel_ids: [GENERAL, MODS_ONLY] }),
@@ -256,6 +271,18 @@ describe('author.nickname', () => {
     expect(authorOf('MESSAGE_CREATE')).toMatchObject([
       { id: BRIDGE_BOT, bot: true, nickname: null },
       { id: '80351110224678912', discord_user: true, nickname: null },
+    ])
+    expect(nicknameQueries()).toBe(0)
+  })
+
+  it('is null for a system notice, which names its member in metadata', async () => {
+    const metadata = { type: 'member_join', subject_id: OWNER_ID }
+    await dispatcher.handleMessageCreate({
+      new: { ...message(GENERAL, 'has joined the server'), user_id: null, bot_id: null, is_system: true, metadata },
+    })
+
+    expect(sent.filter((s) => s.event.t === 'MESSAGE_CREATE').map((s) => s.event.d)).toEqual([
+      expect.objectContaining({ author: null, is_system: true, mention_everyone: false, metadata }),
     ])
     expect(nicknameQueries()).toBe(0)
   })

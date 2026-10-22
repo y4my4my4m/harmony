@@ -51,14 +51,16 @@ INSERT INTO public.messages (id, channel_id, user_id, content) VALUES
    '22222222-0000-0000-0000-000000000002', '[{"type":"text","text":"bob says hi"}]');
 
 CREATE FUNCTION pg_temp.post_system_invoker() RETURNS void LANGUAGE sql AS $fn$
-  INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
-  VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-          '[{"type":"text","text":"was banned from the server"}]', true, '{"type":"member_ban"}');
+  INSERT INTO public.messages (channel_id, content, is_system, metadata)
+  VALUES ('66666666-0000-0000-0000-000000000006',
+          '[{"type":"text","text":"was banned from the server"}]', true,
+          '{"type":"member_ban","subject_id":"11111111-0000-0000-0000-000000000001"}');
 $fn$;
 CREATE FUNCTION pg_temp.post_system_definer() RETURNS void LANGUAGE sql SECURITY DEFINER AS $fn$
-  INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
-  VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-          '[{"type":"text","text":"has joined the server"}]', true, '{"type":"member_join"}');
+  INSERT INTO public.messages (channel_id, content, is_system, metadata)
+  VALUES ('66666666-0000-0000-0000-000000000006',
+          '[{"type":"text","text":"has joined the server"}]', true,
+          '{"type":"member_join","subject_id":"11111111-0000-0000-0000-000000000001"}');
 $fn$;
 GRANT EXECUTE ON FUNCTION pg_temp.post_system_invoker() TO authenticated;
 GRANT EXECUTE ON FUNCTION pg_temp.post_system_definer() TO authenticated;
@@ -196,9 +198,9 @@ SELECT set_config('tests.thread_id',
 SELECT set_config('tests.thread_notice',
     public.post_thread_created_notice(current_setting('tests.thread_id')::uuid)::text, true);
 SELECT results_eq(
-    format($q$SELECT is_system, user_id, content, metadata->>'type', metadata->>'thread_name'
+    format($q$SELECT is_system, metadata->>'actor_id', content, metadata->>'type', metadata->>'thread_name'
                 FROM public.messages WHERE id = %L$q$, current_setting('tests.thread_notice')),
-    $q$VALUES (true, '11111111-0000-0000-0000-000000000001'::uuid,
+    $q$VALUES (true, '11111111-0000-0000-0000-000000000001'::text,
                '[{"type":"text","text":"started a thread"}]'::jsonb, 'thread_created'::text, 'Plans'::text)$q$,
     'the thread creator posts the thread notice with server-built content');
 SELECT is(public.post_thread_created_notice(current_setting('tests.thread_id')::uuid)::text,
@@ -283,7 +285,7 @@ SELECT lives_ok(
                                        '22222222-0000-0000-0000-000000000002', 'spam')$q$,
     'ban_server_member runs');
 SELECT ok(EXISTS (SELECT 1 FROM public.messages
-                   WHERE user_id = '22222222-0000-0000-0000-000000000002' AND is_system
+                   WHERE metadata->>'subject_id' = '22222222-0000-0000-0000-000000000002' AND is_system
                      AND metadata->>'type' = 'member_ban'),
           'ban_server_member still posts its notice');
 

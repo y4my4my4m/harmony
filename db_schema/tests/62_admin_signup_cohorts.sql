@@ -72,8 +72,11 @@ INSERT INTO public.conversation_participants (conversation_id, user_id) VALUES
 INSERT INTO public.bots (id, username, owner_id)
 VALUES ('62000000-0000-0000-0000-0000000000f1', 'cohort_bot', '62000000-0000-0000-0000-0000000000b1');
 
-INSERT INTO public.messages (id, channel_id, conversation_id, user_id, bot_id, is_system, content, created_at)
-SELECT v.id::uuid, v.ch::uuid, v.cv::uuid, v.uid::uuid, v.bot::uuid, v.sys, '[{"type":"text","text":"x"}]', ctx.t0 + v.off
+-- A system row has no author; it names the member in metadata.
+INSERT INTO public.messages (id, channel_id, conversation_id, user_id, bot_id, is_system, content, created_at, metadata)
+SELECT v.id::uuid, v.ch::uuid, v.cv::uuid, CASE WHEN v.sys THEN NULL ELSE v.uid::uuid END, v.bot::uuid, v.sys,
+       '[{"type":"text","text":"x"}]', ctx.t0 + v.off,
+       CASE WHEN v.sys THEN jsonb_build_object('type', 'member_join', 'subject_id', v.uid) ELSE '{}'::jsonb END
   FROM ctx, (VALUES
     ('62000000-0000-0000-0000-000000000101', '62000000-0000-0000-0000-0000000000d1', NULL, '62000000-0000-0000-0000-0000000000b1', NULL, false, interval '1 hour'),
     ('62000000-0000-0000-0000-000000000102', '62000000-0000-0000-0000-0000000000d1', NULL, '62000000-0000-0000-0000-0000000000b1', NULL, false, interval '10 days'),

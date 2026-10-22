@@ -54,7 +54,8 @@ SELECT is((SELECT count(*)::int FROM public.messages
               AND metadata->>'type' = 'thread_created'
               AND metadata->>'thread_id' IN (SELECT id::text FROM t136)), 2,
     'each new thread posts one "started a thread" notice');
-SELECT ok((SELECT parent_message_id IN (SELECT id FROM public.messages WHERE is_system AND bot_id = 'f1360000-0000-0000-0000-0000000000b1')
+SELECT ok((SELECT parent_message_id IN (SELECT id FROM public.messages
+                                    WHERE is_system AND metadata ->> 'actor_bot_id' = 'f1360000-0000-0000-0000-0000000000b1')
              FROM public.threads WHERE id = (SELECT id FROM t136 WHERE k = 'standalone')),
     'a standalone thread hangs off its bot notice');
 

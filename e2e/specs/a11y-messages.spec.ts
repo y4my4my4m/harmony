@@ -137,7 +137,7 @@ test('messages read in order with author and time; arrows move between them', as
   })
 
   await test.step('names, mentions and spoilers are buttons; a covered spoiler hides its text', async () => {
-    const joined = rows(page).filter({ hasText: 'has joined the server' }).filter({ hasText: owner.displayName }).first()
+    const joined = rows(page).filter({ hasText: `${owner.displayName} joined the server.` }).first()
     await expect(joined.getByRole('button', { name: owner.displayName })).toBeVisible()
     const mention = rowOf(page, 'can you review the plan')
     await expect(mention.getByRole('button', { name: new RegExp(owner.displayName) })).toBeVisible()

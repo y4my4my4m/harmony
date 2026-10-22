@@ -257,9 +257,14 @@ RETURNS void LANGUAGE plpgsql AS $fn$
 DECLARE
     v_id uuid;
 BEGIN
-    INSERT INTO public.messages (channel_id, conversation_id, user_id, content, is_system, thread_id, is_deleted)
-    VALUES (p_channel, p_conversation, (SELECT id FROM u58 WHERE name = p_name),
-            '[{"type":"text","text":"m58"}]', p_system, p_thread, p_deleted)
+    -- A system row has no author; it names the member in metadata.
+    INSERT INTO public.messages (channel_id, conversation_id, user_id, content, is_system, thread_id, is_deleted,
+                                 metadata)
+    VALUES (p_channel, p_conversation,
+            CASE WHEN p_system THEN NULL ELSE (SELECT id FROM u58 WHERE name = p_name) END,
+            '[{"type":"text","text":"m58"}]', p_system, p_thread, p_deleted,
+            CASE WHEN p_system THEN jsonb_build_object('actor_id', (SELECT id FROM u58 WHERE name = p_name))
+                 ELSE '{}'::jsonb END)
     RETURNING id INTO v_id;
     IF p_label IS NOT NULL THEN
         INSERT INTO m58 VALUES (p_label, v_id);

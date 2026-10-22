@@ -194,9 +194,10 @@ SELECT is(pg_temp.alerted(pg_temp.say('old61', 'finally posting')), '{}'::text[]
           'a member who joined 60 days ago is not a newcomer');
 SELECT ok(pg_temp.posted('old61'), 'that member''s first message is still recorded');
 
-INSERT INTO public.messages (channel_id, user_id, content, is_system, metadata)
-VALUES ('f6140000-0000-0000-0000-000000000001', pg_temp.uid('n02'),
-        '[{"type":"text","text":"has joined the server"}]', true, '{"type":"member_join"}');
+INSERT INTO public.messages (channel_id, content, is_system, metadata)
+VALUES ('f6140000-0000-0000-0000-000000000001',
+        '[{"type":"text","text":"has joined the server"}]', true,
+        jsonb_build_object('type', 'member_join', 'subject_id', pg_temp.uid('n02')));
 SELECT ok(NOT pg_temp.posted('n02')
           AND NOT EXISTS (SELECT 1 FROM public.notifications n
                            WHERE n.type = 'newcomer_message'

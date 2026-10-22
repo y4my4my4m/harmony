@@ -241,6 +241,79 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
     expect(res.body.messages.map((m: any) => m.id)).toEqual(['cached-1'])
   })
 
+  describe('system notices', () => {
+    const NOTICE = '66666666-6666-4666-8666-666666666666'
+    const groupNote = (system: unknown) => ({
+      type: 'Note',
+      id: `https://remote.test/messages/${NOTICE}`,
+      attributedTo: GROUP,
+      content: 'Dan joined the server',
+      published: '2026-01-02T00:00:00Z',
+      'harmony:system': system,
+    })
+    const ensureRemoteUser = async () =>
+      vi.mocked((await import('../activitypub/ActivityProcessor.js')).ActivityProcessor['ensureRemoteUser'])
+
+    beforeEach(async () => {
+      ;(await ensureRemoteUser()).mockImplementation(async (url: string) =>
+        url === 'https://harmony.test/users/dan'
+          ? { id: 'dan', username: 'dan', federated_id: url } as any
+          : { id: 'author-profile', username: 'author', federated_id: url } as any)
+    })
+
+    it('caches the Group\'s join notice as an authorless system row naming the local profile', async () => {
+      signedApFetch.mockResolvedValue(json({
+        type: 'OrderedCollectionPage',
+        orderedItems: [groupNote({ type: 'member_join', subject: 'https://harmony.test/users/dan' })],
+      }))
+      const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+
+      expect(res.status).toBe(200)
+      expect(res.body.messages).toEqual([expect.objectContaining({
+        id: NOTICE,
+        is_system: true,
+        author: null,
+        metadata: expect.objectContaining({ type: 'member_join', subject_id: 'dan' }),
+      })])
+      const upsert = writes.find(w => w.table === 'messages' && w.op === 'upsert')!
+      expect(upsert.rows).toMatchObject({
+        id: NOTICE,
+        channel_id: CHANNEL,
+        is_system: true,
+        content: [{ type: 'text', text: 'Dan joined the server' }],
+        metadata: { type: 'member_join', subject_id: 'dan', federated: true, ap_id: `https://remote.test/messages/${NOTICE}` },
+      })
+      expect(upsert.rows.user_id).toBeUndefined()
+      expect((await ensureRemoteUser()).mock.calls.map(c => c[0])).not.toContain(GROUP)
+    })
+
+    it('drops a malformed notice from the Group without resolving the Group as a member', async () => {
+      signedApFetch.mockResolvedValue(json({
+        type: 'OrderedCollectionPage',
+        orderedItems: [groupNote({ type: 'automod_alert' }), page.orderedItems[0]],
+      }))
+      const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+
+      expect(res.body.messages.map((m: any) => m.content)).toEqual(['<p>hello</p>'])
+      expect(writes.filter(w => w.op === 'upsert').map(w => w.rows.is_system)).toEqual([undefined])
+      expect((await ensureRemoteUser()).mock.calls.map(c => c[0])).not.toContain(GROUP)
+    })
+
+    it('keeps a member\'s Note carrying the marker an ordinary message', async () => {
+      signedApFetch.mockResolvedValue(json({
+        type: 'OrderedCollectionPage',
+        orderedItems: [{ ...page.orderedItems[0], 'harmony:system': { type: 'member_join', subject: 'https://harmony.test/users/dan' } }],
+      }))
+      const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+
+      expect(res.body.messages[0].is_system).toBeUndefined()
+      expect(res.body.messages[0].author).toMatchObject({ id: 'author-profile' })
+      const upsert = writes.find(w => w.op === 'upsert')!
+      expect(upsert.rows).toMatchObject({ user_id: 'author-profile' })
+      expect(upsert.rows.is_system).toBeUndefined()
+    })
+  })
+
   it('serves no cached rows to a pending member', async () => {
     signedApFetch.mockRejectedValue(new Error('connect ECONNREFUSED'))
     const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer pat')

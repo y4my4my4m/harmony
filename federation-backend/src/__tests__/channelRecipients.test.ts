@@ -26,6 +26,9 @@ const messageUpdates: any[] = []
 const LOCAL_SERVER = { id: SERVER, name: 'S', is_local_server: true, federation_enabled: true, owner: 'alice' }
 let serverRow: any = LOCAL_SERVER
 const ALICE_ROW = { id: 'alice', username: 'alice', federated_id: 'https://harmony.test/users/alice', is_local: true }
+// A system row in place of alice's message, when set.
+let systemRow: Record<string, unknown> | null = null
+const RM_PROFILE = { id: '00000000-0000-4000-8000-0000000000b2', username: 'rm', display_name: 'Rm', federated_id: 'https://remote.test/users/rm' }
 
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
@@ -34,11 +37,22 @@ vi.mock('../config/supabase.js', () => ({
       const q: any = {
         select: () => q,
         eq: () => q,
+        in: () => q,
         maybeSingle: () => Promise.resolve({
           data: table === 'messages' ? { user_id: 'alice' } : table === 'profiles' ? ALICE_ROW : null,
           error: null,
         }),
         single: () => {
+          if (table === 'messages' && systemRow) {
+            return Promise.resolve({
+              data: {
+                id: MESSAGE, channel_id: CHANNEL, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+                federation_status: 'queued', user_id: null, bot_id: null, author: null, is_system: true,
+                content: [{ type: 'text', text: 'has joined the server' }], ...systemRow,
+              },
+              error: null,
+            })
+          }
           if (table === 'messages') {
             return Promise.resolve({
               data: {
@@ -61,7 +75,7 @@ vi.mock('../config/supabase.js', () => ({
           return Promise.resolve({ data: null, error: null })
         },
         update: (row: any) => { if (table === 'messages') messageUpdates.push(row); return q },
-        then: (resolve: any) => resolve({ data: null, error: null }),
+        then: (resolve: any) => resolve({ data: table === 'profiles' ? [RM_PROFILE] : null, error: null }),
       }
       return q
     },
@@ -83,6 +97,7 @@ beforeEach(() => {
   messageUpdates.length = 0
   messageContent = [{ type: 'text', text: 'hi' }]
   serverRow = LOCAL_SERVER
+  systemRow = null
   recipients = {
     data: [
       { instance: 'remote.test', member_ap_ids: ['https://remote.test/users/rm'], member_count: 1, shared_inbox: 'https://remote.test/inbox' },
@@ -202,5 +217,50 @@ describe('channel attachments', () => {
       ])
     }
     expect(delivered[0]['harmony:rawContent'][1].url).not.toBe(delivered[1]['harmony:rawContent'][1].url)
+  })
+})
+
+describe('system notice fan-out', () => {
+  const run = () => handleChannelMessageFederation({
+    message_id: MESSAGE, channel_id: CHANNEL, server_id: SERVER, channel_name: 'general', author_id: null as any,
+  })
+
+  it('delivers a join as the Group\'s Create, signed by the Group', async () => {
+    systemRow = { metadata: { type: 'member_join', subject_id: RM_PROFILE.id } }
+    await run()
+
+    expect(enqueue.mock.calls.map(c => [c[1], c[2]])).toEqual([
+      ['https://remote.test/inbox', { serverId: SERVER }],
+      ['https://other.test/inbox', { serverId: SERVER }],
+    ])
+    const activity = enqueue.mock.calls[0][0] as any
+    expect(activity).toMatchObject({
+      type: 'Create',
+      actor: `https://harmony.test/servers/${SERVER}`,
+      to: ['https://remote.test/users/rm'],
+      object: {
+        id: `https://harmony.test/messages/${MESSAGE}`,
+        attributedTo: `https://harmony.test/servers/${SERVER}`,
+        content: '<p>Rm joined the server</p>',
+        'harmony:serverId': SERVER,
+        'harmony:system': { type: 'member_join', subject: 'https://remote.test/users/rm' },
+      },
+    })
+    expect(messageUpdates.map(u => u.federation_status)).toEqual(['completed'])
+  })
+
+  it('keeps a thread notice on this instance', async () => {
+    systemRow = { metadata: { type: 'thread_created', actor_id: RM_PROFILE.id, thread_id: CHANNEL } }
+    await run()
+    expect(enqueue).not.toHaveBeenCalled()
+    expect(messageUpdates.map(u => u.federation_status)).toEqual(['skipped'])
+  })
+
+  it('sends nothing for a server with federation off', async () => {
+    systemRow = { metadata: { type: 'member_leave', subject_id: RM_PROFILE.id } }
+    serverRow = { ...LOCAL_SERVER, federation_enabled: false }
+    await run()
+    expect(enqueue).not.toHaveBeenCalled()
+    expect(messageUpdates.map(u => u.federation_status)).toEqual(['skipped'])
   })
 })

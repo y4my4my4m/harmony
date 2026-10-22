@@ -40,7 +40,7 @@ RETURNS integer LANGUAGE sql AS $fn$
     FROM public.messages m
     JOIN public.channels c ON c.id = m.channel_id
    WHERE c.server_id = '55555555-0000-0000-0000-000000000005'
-     AND m.user_id = p_user
+     AND COALESCE(m.metadata ->> 'subject_id', m.metadata ->> 'actor_id') = p_user::text
      AND m.is_system
      AND m.metadata ->> 'type' = p_type
      AND (p_channel IS NULL OR m.channel_id = p_channel);

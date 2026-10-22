@@ -27,7 +27,8 @@ SELECT is(
     'thread_created', 'its parent is the started-a-thread notice');
 SELECT ok(
     (SELECT m.is_system AND m.channel_id = '66666666-0000-0000-0000-000000000006'
-            AND m.user_id = '22222222-0000-0000-0000-000000000002'
+            AND m.user_id IS NULL
+            AND m.metadata ->> 'actor_id' = '22222222-0000-0000-0000-000000000002'
             AND m.metadata ->> 'thread_id' = current_setting('t.thread')
             AND (m.metadata ->> 'standalone')::boolean
        FROM public.threads t JOIN public.messages m ON m.id = t.parent_message_id

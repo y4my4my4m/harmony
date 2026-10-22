@@ -764,9 +764,10 @@ describe('Standalone ChatThread Create', () => {
     expect(await handleThreadActivity(standaloneCreate(true), { serverId: S })).toEqual({ success: true })
     const notice = tables.messages.find((m) => m.metadata?.type === 'thread_created')
     expect(notice).toMatchObject({
-      channel_id: C, user_id: 'carol-id', is_system: true,
-      metadata: { type: 'thread_created', thread_id: T, thread_name: 'plans', standalone: true },
+      channel_id: C, is_system: true,
+      metadata: { type: 'thread_created', actor_id: 'carol-id', thread_id: T, thread_name: 'plans', standalone: true },
     })
+    expect(notice!.user_id).toBeUndefined()
     expect(tables.threads).toEqual([
       expect.objectContaining({ id: T, channel_id: C, parent_message_id: notice!.id, created_by: 'carol-id' }),
     ])

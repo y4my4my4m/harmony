@@ -140,11 +140,11 @@ SELECT is(public.set_channel_encryption('f1623000-0000-0000-0000-000000000001', 
           'false', 'a MANAGE_CHANNELS role holder turns channel voice off under a disabled message mode');
 SELECT tests.clear_authentication();
 
-SELECT is((SELECT user_id FROM public.messages
+SELECT is((SELECT metadata->>'actor_id' FROM public.messages
             WHERE channel_id = 'f1623000-0000-0000-0000-000000000001'
               AND is_system AND metadata->>'type' = 'channel_voice_encryption_disabled'),
-          'f1621000-0000-0000-0000-0000000000b2'::uuid,
-          'turning voice off posts a system message attributed to the role holder');
+          'f1621000-0000-0000-0000-0000000000b2',
+          'turning voice off posts a system message naming the role holder');
 
 -- Voice required ---------------------------------------------------------------------
 SELECT is((SELECT voice_encrypted FROM public.channel_encryption_settings
