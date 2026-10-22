@@ -1,6 +1,6 @@
 {
   "name": "harmony",
-  "version": "1.8.10",
+  "version": "1.8.11",
   "private": true,
   "license": "AGPL-3.0",
   "type": "module",

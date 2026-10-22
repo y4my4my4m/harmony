@@ -61,8 +61,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.8.10
-        CFBundleVersion: "1.8.10"
+        CFBundleShortVersionString: 1.8.11
+        CFBundleVersion: "1.8.11"
     entitlements:
       path: app_iOS/app_iOS.entitlements
     scheme:
