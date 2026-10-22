@@ -23,6 +23,8 @@ import config from '../config/index.js';
 export const MESSAGE_MEDIA_BUCKET = 'message_media';
 /** Lifetime of the storage URL the media route redirects to. */
 export const REDIRECT_TTL_SECONDS = 300;
+/** Image types the Drive link route renders as a thumbnail (thumb=1) for link previews. */
+export const LINK_THUMBNAIL_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 /** Audience of content served to unsigned readers of a public server. */
 export const PUBLIC_AUDIENCE = '*';
 

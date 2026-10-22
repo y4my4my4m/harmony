@@ -306,7 +306,7 @@ const isDMSelected = computed(() => {
 });
 
 const isTodaySelected = computed(() => route.name === 'Today');
-const isDriveSelected = computed(() => route.name === 'Drive');
+const isDriveSelected = computed(() => route.name === 'Drive' || route.name === 'DriveFile');
 
 const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);

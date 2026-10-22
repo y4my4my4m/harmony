@@ -10,11 +10,27 @@
 
     <div class="drive-details__scroll">
       <div class="drive-details__preview">
-        <img v-if="file.kind === 'image' && src" :src="src" :alt="name" class="drive-details__media" />
-        <div v-else-if="file.kind === 'video' && src" class="drive-details__video">
-          <video :src="src" class="drive-details__media" preload="metadata" playsinline :controls="nativeControls" />
-          <VideoControls v-if="!nativeControls" :label="name" />
-        </div>
+        <button
+          v-if="file.kind === 'image' && src"
+          type="button"
+          class="drive-details__open"
+          :aria-label="t('drive.card.view', { name })"
+          data-testid="drive-details-open-media"
+          @click="openLightbox"
+        >
+          <img :src="src" :alt="name" class="drive-details__media" draggable="false" />
+        </button>
+        <button
+          v-else-if="file.kind === 'video' && src"
+          type="button"
+          class="drive-details__open drive-details__video"
+          :aria-label="t('drive.card.play', { name })"
+          data-testid="drive-details-open-media"
+          @click="openLightbox"
+        >
+          <video :src="`${src}#t=0.5`" class="drive-details__media" preload="metadata" muted playsinline tabindex="-1" aria-hidden="true" />
+          <span class="drive-details__play" aria-hidden="true"><Icon name="play" :size="22" /></span>
+        </button>
         <audio v-else-if="file.kind === 'audio' && src" :src="src" controls preload="metadata" class="drive-details__audio" />
         <DriveFileThumb v-else :file="file" />
       </div>
@@ -98,6 +114,9 @@
       <button type="button" class="drive-btn drive-btn--secondary" @click="emit('download', file)">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
+      <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-details-copy-link" @click="copyLink(file.id)">
+        <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
+      </button>
       <template v-if="owned">
         <button v-if="file.state === 'trashed'" type="button" class="drive-btn drive-btn--secondary" @click="emit('restore', file)">
           <Icon name="undo" :size="15" />{{ t('drive.actions.restore') }}
@@ -110,6 +129,7 @@
         </button>
       </template>
     </footer>
+    <MediaLightbox v-if="lightbox.item.value" :visible="true" :imgs="[lightbox.item.value]" @hide="lightbox.close()" />
   </aside>
 </template>
 
@@ -117,9 +137,9 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
-import VideoControls from '@/components/common/VideoControls.vue'
+import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import { useT } from '@/composables/useT'
-import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference'
+import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
 import {
   driveFileDisplayName,
   getDriveFileUsage,
@@ -129,6 +149,7 @@ import {
 } from '@/services/drive/driveService'
 import DriveFileThumb from './DriveFileThumb.vue'
 import { daysUntil, driveMediaSource, driveThumbnail, formatBytes } from './driveFormat'
+import { useDriveLightbox } from './useDriveLightbox'
 
 const props = defineProps<{ file: DriveFile; owner: DriveOwner | null; ownId: string | null }>()
 
@@ -145,7 +166,8 @@ const emit = defineEmits<{
 
 const { t, locale } = useT()
 const router = useRouter()
-const nativeControls = useNativeVideoControls()
+const copyLink = useCopyDriveLink()
+const lightbox = useDriveLightbox()
 const usage = ref<DriveFileUsage | null>(null)
 const usageLoading = ref(false)
 const editing = ref(false)
@@ -185,6 +207,10 @@ watch(() => [props.file.id, props.file.updated_at], () => {
   editing.value = false
   void loadUsage()
 }, { immediate: true })
+
+function openLightbox(): void {
+  lightbox.open(props.file, name.value)
+}
 
 function startRename(): void {
   if (!owned.value) return
@@ -270,10 +296,39 @@ defineExpose({ startRename, reloadUsage: loadUsage })
   border-radius: var(--radius-md);
 }
 
-.drive-details__video {
-  position: relative;
+.drive-details__open {
+  display: block;
   width: 100%;
   height: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: zoom-in;
+}
+
+.drive-details__open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.drive-details__video {
+  position: relative;
+  cursor: pointer;
+}
+
+.drive-details__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgb(12 14 20 / 0.7);
+  border-radius: var(--radius-full);
+  color: #fff;
+  transform: translate(-50%, -50%);
 }
 
 .drive-details__media {

@@ -392,6 +392,13 @@ const router = createRouter({
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresStaff: true, titleKey: 'settings.administration' }
     },
+    // A Drive file's own address, for whoever may read it (drive_file_card).
+    {
+      path: '/drive/file/:fileId',
+      name: 'DriveFile',
+      component: () => import('@/views/DriveFileView.vue'),
+      meta: { requiresAuth: true, titleKey: 'drive.filePage.title' }
+    },
     {
       path: '/drive/:section?/:id?',
       name: 'Drive',

@@ -123,6 +123,16 @@ expect "$AP"   $SOCIAL_POST           "backend $POST"
 expect "$HTML" $SOCIAL_POST           'SPA'
 expect_ua 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)' $SOCIAL_POST "backend $POST"
 
+log "/d/<token>"
+DISCORD='Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
+DRIVE_LINK=/d/h5KAj-hPSm5hwCpMfeKM8aZl
+expect_ua "$DISCORD" $DRIVE_LINK      "backend $DRIVE_LINK"
+expect_ua "$DISCORD" "$DRIVE_LINK/"   "backend $DRIVE_LINK/"
+expect_ua 'http.rb/5.1.1 (Mastodon/4.3.0; +https://social.example/)' $DRIVE_LINK "backend $DRIVE_LINK"
+expect_ua 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0' $DRIVE_LINK 'SPA'
+expect_ua "$DISCORD" /d/short         'SPA'
+expect_ua "$DISCORD" /drive/file/00000000-0000-0000-0000-000000000001 'SPA'
+
 log "/social/profile/<name>"
 expect "$AP"   /social/profile/fx_alice 'backend /users/fx_alice'
 expect 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' /social/profile/fx_alice 'backend /users/fx_alice'

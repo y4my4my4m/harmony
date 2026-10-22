@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { apiUrl } from '@/services/instanceConfig'
 
 /**
  * Drive calls (migrations 20261015100001_drive_core.sql, 20261015100002_drive_api.sql).
@@ -117,6 +118,46 @@ export interface DriveLinkInfo {
   expires_at: string | null
   owner: { username: string; display_name: string | null; avatar_url: string | null; domain: string | null }
 }
+
+/** drive_file_card (20261026500001): a file the caller reads by id. */
+export interface DriveFileCardFile {
+  access: true
+  via: 'file'
+  id: string
+  bucket: DriveFile['bucket']
+  path: string
+  name: string | null
+  mime_type: string | null
+  kind: DriveFileKind
+  size_bytes: number
+  state: DriveFileState
+  gone_reason: DriveFile['gone_reason']
+  expires_at: string | null
+  created_at: string
+  own: boolean
+  owner: DriveOwner | null
+}
+
+/** drive_file_card: a file behind a live link token. No id and no object name. */
+export interface DriveFileCardLink {
+  access: true
+  via: 'link'
+  name: string
+  mime_type: string | null
+  kind: DriveFileKind
+  size_bytes: number
+  created_at: string
+  expires_at: string | null
+  owner: Omit<DriveOwner, 'id'> | null
+}
+
+/** No access, a missing file and a dead token answer alike. */
+export type DriveFileCard = DriveFileCardFile | DriveFileCardLink | { access: false }
+
+/** drive_share_gap: whether local accounts of a room cannot read the caller's file. */
+export type DriveShareGap =
+  | { scope: 'channel'; target: string; missing: boolean }
+  | { scope: 'user'; targets: string[]; missing: boolean }
 
 /** storage-api user_metadata of a Drive upload. */
 export interface DriveUploadMetadata {
@@ -305,6 +346,34 @@ export async function resolveDriveLink(token: string): Promise<DriveLinkInfo | n
   const { data, error } = await supabase.rpc('drive_link_resolve', { p_token: token })
   fail(error)
   return (data as DriveLinkInfo | null) ?? null
+}
+
+/** What a card or the file page shows of a file id or a link token, for the caller. */
+export async function getDriveFileCard(ref: { fileId: string } | { token: string }): Promise<DriveFileCard> {
+  const { data, error } = await supabase.rpc('drive_file_card', 'fileId' in ref
+    ? { p_file: ref.fileId, p_token: null }
+    : { p_file: null, p_token: ref.token })
+  fail(error)
+  return (data as DriveFileCard | null) ?? { access: false }
+}
+
+/** For the owner: who in a channel or conversation cannot read the file. Null otherwise. */
+export async function getDriveShareGap(
+  fileId: string,
+  room: { channelId: string } | { conversationId: string },
+): Promise<DriveShareGap | null> {
+  const { data, error } = await supabase.rpc('drive_share_gap', {
+    p_file: fileId,
+    p_channel: 'channelId' in room ? room.channelId : null,
+    p_conversation: 'conversationId' in room ? room.conversationId : null,
+  })
+  fail(error)
+  return (data as DriveShareGap | null) ?? null
+}
+
+/** Source of a link-shared file's bytes: the backend link route, a redirect to a signed URL. */
+export function driveLinkContentUrl(token: string, download = false): string {
+  return apiUrl(`/api/federation/drive/link/${encodeURIComponent(token)}${download ? '?download=1' : ''}`)
 }
 
 /** A URL that downloads the file under its Drive name. */

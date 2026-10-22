@@ -129,6 +129,16 @@
 		import federation_upstream
 	}
 
+	# Drive files shared by link: link-preview crawlers get the backend's OpenGraph card of the
+	# file, people the SPA. Crawler list as in the nginx map.
+	@driveLinkUnfurl {
+		path_regexp ^/d/[A-Za-z0-9_-]{16,64}/?$
+		header_regexp User-Agent (?i)(discordbot|slackbot|twitterbot|facebookexternalhit|facebot|telegrambot|whatsapp|linkedinbot|mastodon|pleroma|akkoma|misskey|summalybot|gotosocial|friendica|lemmy|cardyb|synapse|mattermost-bot|zulipurlpreview|discourse|embedly|iframely|redditbot|skypeuripreview|microsoftpreview|vkshare|viber|kakaotalk-scrap)
+	}
+	handle @driveLinkUnfurl {
+		import federation_upstream
+	}
+
 	# The SPA's post page, the URL people copy from the address bar: ActivityPub clients and
 	# link-preview crawlers get /posts/<id> from the backend, browsers the SPA. The header
 	# regexps capture nothing: a header_regexp in the same matcher fills {re.<matcher>.1}

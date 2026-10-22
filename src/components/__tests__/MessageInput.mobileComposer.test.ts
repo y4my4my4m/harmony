@@ -51,6 +51,7 @@ vi.mock('@/composables/useTypingIndicator', async () => {
   }
 })
 vi.mock('@/composables/useFrequentEmojis', () => ({ useFrequentEmojis: () => ({ recordEmojiUsage: vi.fn() }) }))
+vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserDisplayName: () => ({ value: 'Unknown User' }) }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: null }) }))
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => serverChannelStore }))
 vi.mock('@/stores/useInstanceSettings', () => ({

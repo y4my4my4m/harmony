@@ -1,5 +1,5 @@
 <template>
-  <div ref="composerRef" class="message-input" data-region="composer" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
+  <div ref="composerRef" class="message-input" data-region="composer" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid @paste="onComposerPaste">
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
@@ -17,6 +17,13 @@
       @toggle-spoiler="toggleFileSpoiler"
       @update-alt="setFileAltText"
       @toggle-temporary="toggleFileTemporary"
+    />
+    <DriveShareOffer
+      v-if="driveShareOffer.offer.value"
+      :text="driveShareOfferText"
+      :busy="driveShareOffer.busy.value"
+      @share="shareOfferedDriveFile"
+      @dismiss="driveShareOffer.dismiss()"
     />
     <DrivePickerModal
       v-if="showDrivePicker"
@@ -286,8 +293,11 @@ import EmojiUI from '@/components/EmojiUI.vue'
 import MessageReply from '@/components/MessageReply.vue';
 import FilePreview from '@/components/FilePreview.vue';
 import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
+import DriveShareOffer from '@/components/drive/DriveShareOffer.vue';
+import { useDriveShareOffer, type DriveShareRoom } from '@/composables/useDriveShareOffer';
 import { driveAvailable, setDriveTemporary, type DriveFile } from '@/services/drive/driveService';
 import { useDriveUsage } from '@/composables/useDriveUsage';
+import { useUserData } from '@/composables/useUserData';
 import { compatUrlFor } from '@/services/privateMedia';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -1238,6 +1248,41 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         driveEnabled.value = ok;
       });
     });
+
+    // A pasted /drive/file/<id> link of the caller's that members of the room cannot open.
+    const driveShareOffer = useDriveShareOffer((): DriveShareRoom | null => {
+      if (props.conversationId) return { conversationId: props.conversationId };
+      const channelId = props.threadChannelId || props.channelId;
+      return channelId ? { channelId } : null;
+    });
+    const { getUserDisplayName } = useUserData();
+    const driveShareOfferText = computed(() => {
+      const offer = driveShareOffer.offer.value;
+      if (!offer) return '';
+      if (offer.gap.scope === 'user') {
+        const { targets } = offer.gap;
+        const name = targets.length === 1 ? getUserDisplayName(targets[0]).value : '';
+        if (name && name !== 'Unknown User') return t('drive.offer.person', { name: `@${name}` });
+        return targets.length
+          ? t('drive.offer.people', { count: targets.length }, targets.length)
+          : t('drive.offer.conversation');
+      }
+      return props.channelName && !props.threadId
+        ? t('drive.offer.channel', { channel: `#${props.channelName}` })
+        : t('drive.offer.thisChannel');
+    });
+    const onComposerPaste = (event: ClipboardEvent) => {
+      const text = event.clipboardData?.getData('text/plain');
+      if (text && driveEnabled.value) void driveShareOffer.checkText(text);
+    };
+    const shareOfferedDriveFile = async () => {
+      try {
+        await driveShareOffer.share();
+        toast.success(t('drive.offer.shared'));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : String(error));
+      }
+    };
 
     const setFileAltText = (index: number, altText: string) => {
       const file = attachedFiles.value[index];

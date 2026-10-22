@@ -193,6 +193,9 @@
       <button type="button" role="menuitem" class="chat-menu-item" @click="fileMenu && download(fileMenu.entry.file); fileMenu = null">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
+      <button type="button" role="menuitem" class="chat-menu-item" data-testid="drive-menu-copy-link" @click="fileMenu && copyLink(fileMenu.entry.file.id); fileMenu = null">
+        <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
+      </button>
       <template v-if="fileMenu && fileMenu.entry.file.owner_id === ownId">
         <template v-if="fileMenu.entry.file.state !== 'trashed'">
           <button type="button" role="menuitem" class="chat-menu-item" @click="renameFromMenu">
@@ -339,6 +342,7 @@ import DriveNameDialog from '@/components/drive/DriveNameDialog.vue'
 import '@/components/drive/drive.css'
 import { useT } from '@/composables/useT'
 import { useDriveUsage } from '@/composables/useDriveUsage'
+import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
 import { useDriveStore, type DriveLocation } from '@/stores/drive'
 import { useProfileStore } from '@/stores/useProfile'
 import {
@@ -360,6 +364,7 @@ const toast = useToast()
 const drive = useDriveStore()
 const profileStore = useProfileStore()
 const { usage } = useDriveUsage()
+const copyLink = useCopyDriveLink()
 const titleId = useId()
 
 const fileInput = ref<HTMLInputElement | null>(null)

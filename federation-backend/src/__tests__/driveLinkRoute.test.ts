@@ -49,6 +49,21 @@ describe('drive link route', () => {
     expect(sign).toHaveBeenCalledWith('message_media', 'u/x.mp4', 300, { download: 'clip.mp4' })
   })
 
+  it('signs a render of a raster image with thumb=1', async () => {
+    rpc.mockResolvedValue({ data: [{ bucket: 'message_media', path: 'u/x.png', name: 'x.png', mime_type: 'image/png' }], error: null })
+    const res = await supertest(app).get(`/drive/link/${TOKEN}?thumb=1`)
+    expect(res.status).toBe(302)
+    expect(sign).toHaveBeenCalledWith('message_media', 'u/x.png', 300,
+      { transform: { width: 1200, height: 630, resize: 'contain', quality: 80 } })
+  })
+
+  it('answers 404 to thumb=1 for a file that is not a raster image', async () => {
+    rpc.mockResolvedValue({ data: [{ bucket: 'message_media', path: 'u/x.svg', name: 'x.svg', mime_type: 'image/svg+xml' }], error: null })
+    const res = await supertest(app).get(`/drive/link/${TOKEN}?thumb=1`)
+    expect(res.status).toBe(404)
+    expect(sign).not.toHaveBeenCalled()
+  })
+
   it('answers 404 for an expired, revoked or unknown link', async () => {
     rpc.mockResolvedValue({ data: [], error: null })
     const res = await supertest(app).get(`/drive/link/${TOKEN}`)

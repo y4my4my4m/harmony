@@ -10,6 +10,22 @@
     @update:model-value="(open) => !open && emit('close')"
   >
     <div class="drive-share" data-testid="drive-share-dialog">
+      <section class="drive-share__section" data-testid="drive-share-access-link">
+        <div class="drive-share__row">
+          <span class="drive-share__glyph"><Icon name="lock" :size="18" /></span>
+          <div class="drive-share__text">
+            <span :id="`${uid}-access`" class="drive-share__label">{{ t('drive.share.accessLinkTitle') }}</span>
+            <span class="drive-share__hint">{{ t('drive.share.accessLinkHint') }}</span>
+          </div>
+        </div>
+        <div class="drive-share__link">
+          <input class="drive-input" readonly :value="fileUrl" :aria-labelledby="`${uid}-access`" data-testid="drive-file-link-url" @focus="($event.target as HTMLInputElement).select()" />
+          <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-file-link-copy" @click="copyFileLink">
+            <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
+          </button>
+        </div>
+      </section>
+
       <section v-if="linkSharing" class="drive-share__section">
         <div class="drive-share__row">
           <span class="drive-share__glyph"><Icon name="link" :size="18" /></span>
@@ -20,7 +36,7 @@
           <ToggleSwitch :model-value="!!link" :labelledby="`${uid}-link`" :disabled="busy" data-testid="drive-link-toggle" @update:model-value="toggleLink" />
         </div>
         <div v-if="link" class="drive-share__link">
-          <input class="drive-input" readonly :value="linkUrl" :aria-label="t('drive.share.linkTitle')" data-testid="drive-link-url" @focus="($event.target as HTMLInputElement).select()" />
+          <input class="drive-input" readonly :value="linkUrl" :aria-label="t('drive.share.publicLinkLabel')" data-testid="drive-link-url" @focus="($event.target as HTMLInputElement).select()" />
           <button type="button" class="drive-btn drive-btn--primary" data-testid="drive-link-copy" @click="copyLink">
             <Icon :name="copied ? 'check' : 'copy'" :size="15" />{{ copied ? t('drive.share.copied') : t('drive.share.copy') }}
           </button>
@@ -104,6 +120,8 @@ import { useT } from '@/composables/useT'
 import { normalizeUserQuery, useUserSearch } from '@/composables/useUserSearch'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { apiUrl } from '@/services/instanceConfig'
+import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
+import { driveFileUrl } from '@/services/drive/driveLinks'
 import {
   createDriveLink,
   getDriveFileUsage,
@@ -146,6 +164,9 @@ const peopleStatus = computed(() => {
   return people.value.length ? '' : t('drive.share.noPeople')
 })
 const servers = computed(() => serverStore.servers.filter((s) => s.is_local_server !== false))
+const copyDriveLink = useCopyDriveLink()
+const fileUrl = computed(() => driveFileUrl(props.file.id))
+const copyFileLink = () => copyDriveLink(props.file.id)
 const linkUrl = computed(() => (link.value?.token
   ? new URL(apiUrl(`/d/${link.value.token}`), window.location.href).toString()
   : ''))

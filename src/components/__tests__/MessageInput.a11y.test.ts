@@ -45,6 +45,7 @@ vi.mock('@/composables/useTypingIndicator', async () => {
   return { useTypingIndicator: () => ({ typingUsers: vueRef([]), startTyping: vi.fn(), stopTyping: vi.fn() }) }
 })
 vi.mock('@/composables/useFrequentEmojis', () => ({ useFrequentEmojis: () => ({ recordEmojiUsage: vi.fn() }) }))
+vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserDisplayName: () => ({ value: 'Unknown User' }) }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'uid-1' } } }) }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ channels: [], currentServerId: null, currentChannelId: null }),

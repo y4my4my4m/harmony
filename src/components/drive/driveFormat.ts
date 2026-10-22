@@ -36,8 +36,11 @@ export function extensionLabel(file: Pick<DriveFile, 'name' | 'path'>): string {
   return /^[a-z0-9]{1,5}$/i.test(ext) ? ext.toUpperCase() : 'FILE'
 }
 
+/** Fields of a file that locate its bytes. */
+export type DriveFileSource = Pick<DriveFile, 'bucket' | 'path' | 'kind' | 'state'>
+
 /** Thumbnail or poster source of a file, when one can be shown; reactive for private objects. */
-export function driveThumbnail(file: DriveFile): string | undefined {
+export function driveThumbnail(file: DriveFileSource): string | undefined {
   if (file.kind !== 'image' || file.state === 'gone') return undefined
   if (file.bucket === 'user_media') {
     return publicImageUrl('user_media', file.path, { width: 480, height: 480, resize: 'cover', quality: 75 })
@@ -46,8 +49,19 @@ export function driveThumbnail(file: DriveFile): string | undefined {
 }
 
 /** Playable source of a video or audio file; reactive for private objects. */
-export function driveMediaSource(file: DriveFile): string | undefined {
+export function driveMediaSource(file: DriveFileSource): string | undefined {
   if (file.state === 'gone') return undefined
   if (file.bucket === 'user_media') return supabase.storage.from('user_media').getPublicUrl(file.path).data.publicUrl
   return mediaPartSource({ path: file.path })
+}
+
+/** An item of the app lightbox (MediaLightbox imgs) for an image or a video file. */
+export type DriveLightboxItem = { src: string; alt: string } | { src: string; type: 'video'; alt: string }
+
+/** The lightbox item of a file; null for other kinds, gone files and sources not signed yet. */
+export function driveLightboxItem(file: DriveFileSource, alt: string): DriveLightboxItem | null {
+  if (file.kind !== 'image' && file.kind !== 'video') return null
+  const src = driveMediaSource(file)
+  if (!src) return null
+  return file.kind === 'video' ? { src, type: 'video', alt } : { src, alt }
 }
