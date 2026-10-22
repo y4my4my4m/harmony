@@ -273,7 +273,7 @@ discord_bridges_retire_bot	definer	trigger	-	trigger	trigger public.discord_brid
 discord_bridges_touch	invoker	trigger	-	trigger	trigger public.discord_bridges BEFORE UPDATE (discord_bridges_touch)
 dismiss_server_automod_prompt	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 drive_block_hash	definer	void	service_role	client	called by admin_drive_remove_file, drive_record_hash
-drive_caller	definer	uuid	authenticated+service_role	client	called by drive_context_tree, drive_create_folder, drive_delete_files, +20
+drive_caller	definer	uuid	authenticated+service_role	client	called by drive_context_tree, drive_create_folder, drive_delete_files, +21
 drive_can_upload	definer	boolean	authenticated+service_role	policy	policy storage.objects INSERT on Authenticated users can upload user_media, storage.objects INSERT on Room members can upload message media
 drive_clean_name	invoker	text	authenticated+service_role	client, trigger	called by drive_name_from_message, drive_rename_file, drive_track_object
 drive_context_tree	definer	jsonb	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
@@ -295,9 +295,13 @@ drive_forget_object	definer	trigger	service_role	trigger	trigger storage.objects
 drive_hash_blocked	definer	boolean	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
 drive_hash_pending	definer	TABLE(id uuid, bucket text, path text, size_bytes bigint)	service_role	client	rpc in federation-backend/src/queue/handlers/driveHandler.ts
 drive_keep_files	definer	integer	authenticated+service_role	client	named in src/services/drive/driveService.ts
-drive_link_create	definer	jsonb	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
+drive_link_create	definer	jsonb	authenticated+service_role	http authenticated	nothing references it
+drive_link_public_file	definer	SETOF drive_files	service_role	client	called by drive_file_card, drive_link_resolve, drive_link_target
+drive_link_reset	definer	jsonb	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
 drive_link_resolve	definer	jsonb	anon+authenticated+service_role	client	rpc in federation-backend/src/services/driveLinkPage.ts, src/services/drive/driveService.ts
-drive_link_sharing_enabled	definer	boolean	service_role	client	called by drive_file_card, drive_link_create, drive_link_resolve, +2
+drive_link_set	definer	jsonb	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
+drive_link_sharing_enabled	definer	boolean	service_role	client	called by drive_link_public_file, drive_link_set, drive_link_state, +1
+drive_link_state	definer	jsonb	service_role	client	called by drive_file_card, drive_link_reset, drive_link_set
 drive_link_target	definer	TABLE(bucket text, path text, name text, mime_type text)	service_role	client	rpc in federation-backend/src/routes/driveLink.ts
 drive_list_files	definer	TABLE(file jsonb, owner jsonb, total_count bigint)	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
 drive_list_folders	definer	SETOF drive_folders	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
@@ -307,6 +311,7 @@ drive_move_folder	definer	drive_folders	authenticated+service_role	client	rpc in
 drive_name_from_message	definer	trigger	service_role	trigger	trigger public.messages AFTER INSERT/UPDATE (z_messages_drive_name)
 drive_object_owner	definer	uuid	service_role	client, trigger	called by drive_track_missing, drive_track_object
 drive_objects_to_delete	definer	TABLE(bucket text, path text)	service_role	client	rpc in federation-backend/src/queue/handlers/driveHandler.ts
+drive_owner_json	definer	jsonb	service_role	client	called by drive_file_card, drive_link_resolve
 drive_prune_gone	definer	integer	service_role	client	named in federation-backend/src/__tests__/driveHandler.test.ts, federation-backend/src/queue/handlers/driveHandler.ts
 drive_quota_bytes	definer	bigint	service_role	client, policy, trigger	called by admin_drive_usage, admin_set_drive_quota, drive_can_upload, +3
 drive_record_hash	definer	text	service_role	client	rpc in federation-backend/src/queue/handlers/driveHandler.ts

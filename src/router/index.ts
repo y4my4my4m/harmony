@@ -392,12 +392,12 @@ const router = createRouter({
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresStaff: true, titleKey: 'settings.administration' }
     },
-    // A Drive file's own address, for whoever may read it (drive_file_card).
+    // 1.8.11 address of a Drive file; a reader moves on to its /d/ address.
     {
       path: '/drive/file/:fileId',
       name: 'DriveFile',
       component: () => import('@/views/DriveFileView.vue'),
-      meta: { requiresAuth: true, titleKey: 'drive.filePage.title' }
+      meta: { requiresAuth: true, providesMain: true, titleKey: 'drive.filePage.title' }
     },
     {
       path: '/drive/:section?/:id?',
@@ -405,7 +405,8 @@ const router = createRouter({
       component: () => import('@/views/DriveView.vue'),
       meta: { requiresAuth: true, titleKey: 'drive.title' }
     },
-    // A Drive file shared by link; readable without an account.
+    // A Drive file's address: the file for a reader, the public page while anyone with the link
+    // may open it.
     {
       path: '/d/:token',
       name: 'DriveLink',
@@ -490,7 +491,7 @@ const router = createRouter({
 
 const PROFILE_EXEMPT_ROUTES = new Set([
   'NewProfile', 'Login', 'Register', 'Home', 'ResetPassword',
-  'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll', 'DriveLink'
+  'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll'
 ])
 
 router.beforeEach(async (to, from, next) => {

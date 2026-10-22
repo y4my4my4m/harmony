@@ -1,5 +1,6 @@
-<!-- Sharing of a Drive file: a link anyone can open, accounts of this instance, servers and
-     channels. Messages that send the file are not listed here: their rooms read it already. -->
+<!-- Sharing of a Drive file: its /d/ address and general access (restricted, or anyone with the
+     link), accounts of this instance, servers and channels. Messages that send the file are not
+     listed here: their rooms read it already. -->
 <template>
   <UnifiedModal
     :model-value="true"
@@ -10,46 +11,63 @@
     @update:model-value="(open) => !open && emit('close')"
   >
     <div class="drive-share" data-testid="drive-share-dialog">
-      <section class="drive-share__section" data-testid="drive-share-access-link">
-        <div class="drive-share__row">
-          <span class="drive-share__glyph"><Icon name="lock" :size="18" /></span>
-          <div class="drive-share__text">
-            <span :id="`${uid}-access`" class="drive-share__label">{{ t('drive.share.accessLinkTitle') }}</span>
-            <span class="drive-share__hint">{{ t('drive.share.accessLinkHint') }}</span>
-          </div>
-        </div>
+      <section class="drive-share__section" data-testid="drive-share-link">
+        <h3 class="drive-share__heading">{{ t('drive.share.linkHeading') }}</h3>
         <div class="drive-share__link">
-          <input class="drive-input" readonly :value="fileUrl" :aria-labelledby="`${uid}-access`" data-testid="drive-file-link-url" @focus="($event.target as HTMLInputElement).select()" />
-          <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-file-link-copy" @click="copyFileLink">
+          <input class="drive-input" readonly :value="linkUrl" :aria-label="t('drive.share.linkLabel')" data-testid="drive-link-url" @focus="($event.target as HTMLInputElement).select()" />
+          <button type="button" class="drive-btn drive-btn--primary" :disabled="!link" data-testid="drive-link-copy" @click="link && copyDriveLink(link.token)">
             <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
           </button>
         </div>
-      </section>
-
-      <section v-if="linkSharing" class="drive-share__section">
         <div class="drive-share__row">
-          <span class="drive-share__glyph"><Icon name="link" :size="18" /></span>
+          <span class="drive-share__glyph"><Icon :name="isPublic ? 'globe' : 'lock'" :size="18" /></span>
           <div class="drive-share__text">
-            <span :id="`${uid}-link`" class="drive-share__label">{{ t('drive.share.linkTitle') }}</span>
-            <span class="drive-share__hint">{{ link ? t('drive.share.linkOn') : t('drive.share.linkOff') }}</span>
+            <span :id="`${uid}-access`" class="drive-share__label">{{ t('drive.share.generalAccess') }}</span>
+            <span class="drive-share__hint" data-testid="drive-link-access-hint">{{ isPublic ? t('drive.share.linkOn') : t('drive.share.accessLinkHint') }}</span>
           </div>
-          <ToggleSwitch :model-value="!!link" :labelledby="`${uid}-link`" :disabled="busy" data-testid="drive-link-toggle" @update:model-value="toggleLink" />
+          <select
+            class="drive-select drive-share__access"
+            :value="isPublic ? 'anyone' : 'restricted'"
+            :disabled="busy || !link"
+            :aria-labelledby="`${uid}-access`"
+            data-testid="drive-link-access"
+            @change="setAccess(($event.target as HTMLSelectElement).value === 'anyone')"
+          >
+            <option value="restricted">{{ t('drive.share.accessRestricted') }}</option>
+            <option value="anyone" :disabled="!linkSharing && !isPublic">{{ t('drive.share.linkTitle') }}</option>
+          </select>
         </div>
-        <div v-if="link" class="drive-share__link">
-          <input class="drive-input" readonly :value="linkUrl" :aria-label="t('drive.share.publicLinkLabel')" data-testid="drive-link-url" @focus="($event.target as HTMLInputElement).select()" />
-          <button type="button" class="drive-btn drive-btn--primary" data-testid="drive-link-copy" @click="copyLink">
-            <Icon :name="copied ? 'check' : 'copy'" :size="15" />{{ copied ? t('drive.share.copied') : t('drive.share.copy') }}
+        <template v-if="isPublic">
+          <label class="drive-share__option">
+            <span>{{ t('drive.share.expires') }}</span>
+            <select class="drive-select" :value="expiryChoice" :disabled="busy" data-testid="drive-link-expiry" @change="setExpiry(($event.target as HTMLSelectElement).value)">
+              <option v-if="expiryUntil" value="current">{{ expiryUntil }}</option>
+              <option value="never">{{ t('drive.share.never') }}</option>
+              <option value="1">{{ t('drive.share.days', { count: 1 }, 1) }}</option>
+              <option value="7">{{ t('drive.share.days', { count: 7 }, 7) }}</option>
+              <option value="30">{{ t('drive.share.days', { count: 30 }, 30) }}</option>
+            </select>
+          </label>
+          <div class="drive-share__option">
+            <div class="drive-share__text">
+              <span :id="`${uid}-owner`">{{ t('drive.share.showOwner') }}</span>
+              <span :id="`${uid}-owner-hint`" class="drive-share__hint">{{ t('drive.share.showOwnerHint') }}</span>
+            </div>
+            <ToggleSwitch
+              :model-value="!!link?.show_owner"
+              :labelledby="`${uid}-owner`"
+              :describedby="`${uid}-owner-hint`"
+              :disabled="busy"
+              data-testid="drive-link-show-owner"
+              @update:model-value="setShowOwner"
+            />
+          </div>
+        </template>
+        <div class="drive-share__reset">
+          <button ref="resetButton" type="button" class="drive-btn drive-btn--secondary" :disabled="busy || !link" data-testid="drive-link-reset" @click="confirmingReset = true">
+            <Icon name="refresh-cw" :size="15" />{{ t('drive.share.resetLink') }}
           </button>
         </div>
-        <label v-if="link" class="drive-share__expiry">
-          <span>{{ t('drive.share.expires') }}</span>
-          <select class="drive-select" :value="expiryChoice" :disabled="busy" @change="setExpiry(($event.target as HTMLSelectElement).value)">
-            <option value="never">{{ t('drive.share.never') }}</option>
-            <option value="1">{{ t('drive.share.days', { count: 1 }, 1) }}</option>
-            <option value="7">{{ t('drive.share.days', { count: 7 }, 7) }}</option>
-            <option value="30">{{ t('drive.share.days', { count: 30 }, 30) }}</option>
-          </select>
-        </label>
       </section>
 
       <section class="drive-share__section">
@@ -105,48 +123,61 @@
       </section>
       <p v-if="error" class="drive-share__error" role="alert">{{ error }}</p>
     </div>
+    <DriveConfirmDialog
+      v-if="confirmingReset"
+      :title="t('drive.share.resetTitle')"
+      :message="t('drive.share.resetText')"
+      :confirm-label="t('drive.share.resetLink')"
+      danger
+      @confirm="resetLink"
+      @cancel="confirmingReset = false"
+    />
   </UnifiedModal>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useId, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
 import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import DriveConfirmDialog from './DriveConfirmDialog.vue'
 import { supabase } from '@/supabase'
 import { useT } from '@/composables/useT'
 import { normalizeUserQuery, useUserSearch } from '@/composables/useUserSearch'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { apiUrl } from '@/services/instanceConfig'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
-import { driveFileUrl } from '@/services/drive/driveLinks'
+import { driveTokenUrl } from '@/services/drive/driveLinks'
 import {
-  createDriveLink,
+  getDriveFileCard,
   getDriveFileUsage,
+  resetDriveLink,
+  setDriveLinkAccess,
   shareDriveFile,
   unshareDriveFile,
   type DriveFile,
+  type DriveLinkState,
   type DriveShare,
 } from '@/services/drive/driveService'
 
-const props = defineProps<{ file: DriveFile; name: string; linkSharing: boolean }>()
-const emit = defineEmits<{ close: []; changed: [] }>()
+const props = defineProps<{ file: Pick<DriveFile, 'id' | 'owner_id'>; name: string; linkSharing: boolean }>()
+const emit = defineEmits<{ close: []; changed: []; token: [token: string] }>()
 
-const { t } = useT()
+const { t, locale } = useT()
 const uid = useId()
 const serverStore = useServerChannelStore()
 const allShares = ref<DriveShare[]>([])
+const link = ref<DriveLinkState | null>(null)
 const busy = ref(false)
 const error = ref<string | null>(null)
-const copied = ref(false)
+const confirmingReset = ref(false)
 const serverId = ref('')
 const channelId = ref('')
 const channels = ref<Array<{ id: string; name: string }>>([])
 
-const link = computed(() => allShares.value.find((s) => s.scope === 'link') ?? null)
 const shares = computed(() => allShares.value.filter((s) => s.scope !== 'link'))
+const isPublic = computed(() => !!link.value?.public)
 const {
   query,
   results: people,
@@ -165,21 +196,27 @@ const peopleStatus = computed(() => {
 })
 const servers = computed(() => serverStore.servers.filter((s) => s.is_local_server !== false))
 const copyDriveLink = useCopyDriveLink()
-const fileUrl = computed(() => driveFileUrl(props.file.id))
-const copyFileLink = () => copyDriveLink(props.file.id)
-const linkUrl = computed(() => (link.value?.token
-  ? new URL(apiUrl(`/d/${link.value.token}`), window.location.href).toString()
-  : ''))
-const expiryChoice = computed(() => {
-  const exp = link.value?.expires_at
-  if (!exp) return 'never'
-  const days = Math.round((new Date(exp).getTime() - new Date(link.value!.created_at).getTime()) / 86_400_000)
-  return ['1', '7', '30'].includes(String(days)) ? String(days) : 'never'
+const linkUrl = computed(() => (link.value ? driveTokenUrl(link.value.token) : ''))
+// A set expiry stays selected as its date; the presets count from now.
+const expiryChoice = computed(() => (link.value?.link_expires_at ? 'current' : 'never'))
+const expiryUntil = computed(() => {
+  const exp = link.value?.link_expires_at
+  if (!exp) return ''
+  const date = new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(exp))
+  return t('drive.share.until', { date })
 })
+const resetButton = ref<HTMLButtonElement | null>(null)
 
 async function load(): Promise<void> {
   try {
-    allShares.value = (await getDriveFileUsage(props.file.id)).shares
+    const [usage, card] = await Promise.all([
+      getDriveFileUsage(props.file.id),
+      getDriveFileCard({ fileId: props.file.id }),
+    ])
+    allShares.value = usage.shares
+    if (card.access && card.via === 'file') {
+      link.value = { token: card.token, public: card.public, link_expires_at: card.link_expires_at, show_owner: card.show_owner }
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   }
@@ -204,12 +241,26 @@ function expiryDate(choice: string): string | null {
   return Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 86_400_000).toISOString() : null
 }
 
-const toggleLink = (on: boolean) => run(async () => {
-  if (on) await createDriveLink(props.file.id)
-  else if (link.value) await unshareDriveFile(link.value.id)
-})
+const setAccess = (on: boolean) => run(() => setDriveLinkAccess(props.file.id, { public: on }))
 
-const setExpiry = (choice: string) => run(() => createDriveLink(props.file.id, expiryDate(choice)))
+const setExpiry = (choice: string) => choice === 'current' ? undefined : run(() => setDriveLinkAccess(props.file.id, {
+  public: true, expiresAt: expiryDate(choice), showOwner: !!link.value?.show_owner,
+}))
+
+const setShowOwner = (on: boolean) => run(() => setDriveLinkAccess(props.file.id, {
+  public: true, expiresAt: link.value?.link_expires_at ?? null, showOwner: on,
+}))
+
+// The confirm dialog returns focus to Reset link while it is disabled (busy); focus goes back once enabled.
+const resetLink = async () => {
+  confirmingReset.value = false
+  await run(async () => {
+    const state = await resetDriveLink(props.file.id)
+    emit('token', state.token)
+  })
+  await nextTick()
+  resetButton.value?.focus()
+}
 
 const addShare = (scope: 'user' | 'server' | 'channel', target: string) => run(async () => {
   await shareDriveFile(props.file.id, scope, target)
@@ -217,16 +268,6 @@ const addShare = (scope: 'user' | 'server' | 'channel', target: string) => run(a
 })
 
 const removeShare = (id: string) => run(() => unshareDriveFile(id))
-
-async function copyLink(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(linkUrl.value)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 1800)
-  } catch {
-    /* clipboard refused; the field stays selectable */
-  }
-}
 
 watch(serverId, async (id) => {
   channelId.value = ''
@@ -302,13 +343,25 @@ onMounted(load)
   gap: var(--space-2);
 }
 
-.drive-share__expiry {
+.drive-share__access {
+  flex-shrink: 0;
+  width: auto;
+  max-width: 50%;
+}
+
+.drive-share__option {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding-left: calc(36px + var(--space-3));
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.drive-share__reset {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .drive-share__search {
@@ -439,6 +492,19 @@ onMounted(load)
 @media (max-width: 520px) {
   .drive-share__targets {
     grid-template-columns: 1fr;
+  }
+
+  .drive-share__row {
+    flex-wrap: wrap;
+  }
+
+  .drive-share__access {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .drive-share__option {
+    padding-left: 0;
   }
 }
 </style>

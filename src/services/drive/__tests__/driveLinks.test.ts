@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   driveFileIdsIn,
-  driveFileUrl,
   driveLinkFromPath,
   driveLinkFromUrl,
   driveLinkPath,
+  driveTokenUrl,
 } from '@/services/drive/driveLinks'
 
 // The app's own origin is an instance host (utils/internalLinks.ts); any other host is not.
@@ -49,9 +49,9 @@ describe('driveLinkFromUrl', () => {
   })
 })
 
-describe('driveFileUrl and driveLinkPath', () => {
+describe('driveTokenUrl and driveLinkPath', () => {
   it('builds the shareable address on the given origin', () => {
-    expect(driveFileUrl(ID, 'https://har.mony.lol/')).toBe(`https://har.mony.lol/drive/file/${ID}`)
+    expect(driveTokenUrl(TOKEN, 'https://har.mony.lol/')).toBe(`https://har.mony.lol/d/${TOKEN}`)
   })
 
   it('builds the in-app path of either kind', () => {

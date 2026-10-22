@@ -193,7 +193,7 @@
       <button type="button" role="menuitem" class="chat-menu-item" @click="fileMenu && download(fileMenu.entry.file); fileMenu = null">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
-      <button type="button" role="menuitem" class="chat-menu-item" data-testid="drive-menu-copy-link" @click="fileMenu && copyLink(fileMenu.entry.file.id); fileMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" data-testid="drive-menu-copy-link" @click="fileMenu && copyLink(fileMenu.entry.file.link_token); fileMenu = null">
         <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
       </button>
       <template v-if="fileMenu && fileMenu.entry.file.owner_id === ownId">
@@ -312,6 +312,7 @@
       :link-sharing="usage?.link_sharing !== false"
       @close="shareFile = null"
       @changed="detailsRef?.reloadUsage()"
+      @token="(token) => shareFile && drive.setLinkToken(shareFile.id, token)"
     />
     <DrivePreview
       v-if="previewId"

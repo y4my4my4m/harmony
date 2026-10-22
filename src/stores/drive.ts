@@ -216,6 +216,11 @@ export const useDriveStore = defineStore('drive', () => {
     return updated
   }
 
+  /** A file's new link token after Reset link. */
+  function setLinkToken(id: string, token: string): void {
+    entries.value = markRaw(entries.value.map((e) => (e.file.id === id ? { ...e, file: { ...e.file, link_token: token } } : e)))
+  }
+
   const moveFiles = (ids: string[], folderId: string | null) => mutate(() => moveDriveFiles(ids, folderId))
   const trashFiles = (ids: string[]) => mutate(() => trashDriveFiles(ids), { tree: true })
   const restoreFiles = (ids: string[]) => mutate(() => restoreDriveFiles(ids), { tree: true })
@@ -267,7 +272,7 @@ export const useDriveStore = defineStore('drive', () => {
     location, entries, files, total, loading, error, folders, tree, query, kind, sort, layout,
     selected, selectedFiles, uploads, childFolders, breadcrumbs, folderById,
     setLayout, loadFiles, loadFolders, loadTree, refreshAll, open, select, selectAll, clearSelection,
-    createFolder, renameFolder, moveFolder, deleteFolder, renameFile, moveFiles, trashFiles,
+    createFolder, renameFolder, moveFolder, deleteFolder, renameFile, setLinkToken, moveFiles, trashFiles,
     restoreFiles, deleteFiles, keepFiles, emptyTrash, uploadFiles, dismissUpload, reset,
   }
 })

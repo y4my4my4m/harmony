@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 
-// GET /d/:token, the link-preview page of a Drive file shared by link. public.drive_link_resolve
-// is emulated; its SQL is covered by db_schema/tests/144_drive_api.sql and 175_drive_file_links.sql.
+// GET /d/:token, the link-preview page of a Drive file's address. public.drive_link_resolve is
+// emulated; its SQL is covered by db_schema/tests/144_drive_api.sql, 175_drive_file_links.sql and
+// 179_drive_link_access.sql.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test', INSTANCE_NAME: 'Harmony' },
@@ -23,7 +24,12 @@ const TOKEN = 'h5KAj-hPSm5hwCpMfeKM8aZl'
 const IMAGE = {
   name: 'beach <trip>.png', mime_type: 'image/png', kind: 'image', size_bytes: 4096,
   created_at: '2026-10-20T00:00:00Z', expires_at: null,
-  owner: { username: 'alice', display_name: 'Alice Secret', avatar_url: null, domain: null },
+  owner: null,
+}
+// drive_link_resolve with the link's Show my name on.
+const SHOWN_OWNER = {
+  id: '11111111-0000-0000-0000-000000000001', username: 'alice', display_name: 'Alice Secret :wave:',
+  avatar_url: null, domain: null, emojis: [{ name: 'wave', url: 'https://cdn.test/wave.png' }],
 }
 
 const answers: Record<string, { data: unknown; error: unknown } | Error> = {}
@@ -72,10 +78,13 @@ describe('GET /d/:token', () => {
     expect(rpc.mock.calls).toEqual([['drive_link_resolve', { p_token: TOKEN }]])
   })
 
-  it('shows nothing the link page does not: no owner, no size', async () => {
+  it('names no owner, even with Show my name on, and no size', async () => {
+    answers[TOKEN] = { data: { ...IMAGE, owner: SHOWN_OWNER }, error: null }
     const res = await get(`/d/${TOKEN}`)
+    expect(res.status).toBe(200)
     expect(res.text).not.toContain('Alice Secret')
     expect(res.text).not.toContain('alice')
+    expect(res.text).not.toContain('wave')
     expect(res.text).not.toContain('4096')
     expect(res.text).not.toContain('4 KB')
   })
@@ -93,7 +102,7 @@ describe('GET /d/:token', () => {
     expect(pdf.text).not.toContain('thumb=1')
   })
 
-  it('answers an expired, revoked or unknown link with no OpenGraph tags', async () => {
+  it('answers a restricted, expired, reset or unknown token with no OpenGraph tags', async () => {
     delete answers[TOKEN]
     const res = await get(`/d/${TOKEN}`)
     expect(res.status).toBe(404)

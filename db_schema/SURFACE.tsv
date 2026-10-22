@@ -295,9 +295,13 @@ drive_forget_object		trigger	definer	public, pg_temp	service_role	trigger
 drive_hash_blocked	p_sha256 text	boolean	definer	public, pg_temp	authenticated+service_role	client
 drive_hash_pending	p_limit integer	TABLE(id uuid, bucket text, path text, size_bytes bigint)	definer	public, pg_temp	service_role	client
 drive_keep_files	p_files uuid[]	integer	definer	public, pg_temp	authenticated+service_role	client
-drive_link_create	p_file uuid, p_expires_at timestamp with time zone	jsonb	definer	public, pg_temp	authenticated+service_role	client
+drive_link_create	p_file uuid, p_expires_at timestamp with time zone	jsonb	definer	public, pg_temp	authenticated+service_role	unreferenced
+drive_link_public_file	p_token text	SETOF drive_files	definer	public, pg_temp	service_role	unreferenced
+drive_link_reset	p_file uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 drive_link_resolve	p_token text	jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
+drive_link_set	p_file uuid, p_public boolean, p_expires_at timestamp with time zone, p_show_owner boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 drive_link_sharing_enabled		boolean	definer	public, pg_temp	service_role	unreferenced
+drive_link_state	f drive_files	jsonb	definer	public, pg_temp	service_role	unreferenced
 drive_link_target	p_token text	TABLE(bucket text, path text, name text, mime_type text)	definer	public, pg_temp	service_role	client
 drive_list_files	p_view text, p_folder uuid, p_context uuid, p_query text, p_kind text, p_sort text, p_limit integer, p_offset integer	TABLE(file jsonb, owner jsonb, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
 drive_list_folders		SETOF drive_folders	definer	public, pg_temp	authenticated+service_role	client
@@ -307,6 +311,7 @@ drive_move_folder	p_folder uuid, p_parent uuid	drive_folders	definer	public, pg_
 drive_name_from_message		trigger	definer	public, pg_temp	service_role	trigger
 drive_object_owner	p_bucket text, p_name text, p_owner uuid	uuid	definer	public, pg_temp	service_role	unreferenced
 drive_objects_to_delete	p_limit integer	TABLE(bucket text, path text)	definer	public, pg_temp	service_role	client
+drive_owner_json	p_profile uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
 drive_prune_gone	p_limit integer	integer	definer	public, pg_temp	service_role	client
 drive_quota_bytes	p_profile uuid	bigint	definer	public, pg_temp	service_role	unreferenced
 drive_record_hash	p_bucket text, p_path text, p_sha256 text	text	definer	public, pg_temp	service_role	client

@@ -1,243 +1,97 @@
-<!-- /d/<token>: a Drive file shared by link, readable without an account. -->
+<!-- /d/<token>: a Drive file's address. A reader gets the file in the app; anyone else the public
+     page while the file's general access is "Anyone with the link"; a signed-out visitor of a
+     restricted file signs in and comes back here. -->
 <template>
-  <main class="drive-link" data-testid="drive-link-page">
-    <div class="drive-link__card">
-      <div v-if="state === 'loading'" class="drive-link__status">
-        <span class="drive-link__spinner" aria-hidden="true" />
-        <span class="sr-only">{{ t('common.loading') }}</span>
-      </div>
-      <div v-else-if="state === 'missing'" class="drive-link__status" data-testid="drive-link-missing">
-        <span class="drive-link__glyph"><Icon name="link" :size="28" /></span>
-        <h1>{{ t('drive.link.missingTitle') }}</h1>
-        <p>{{ t('drive.link.missingText') }}</p>
-      </div>
-      <template v-else-if="info">
-        <div class="drive-link__preview" :class="`drive-link__preview--${info.kind}`">
-          <img v-if="info.kind === 'image'" :src="rawUrl" :alt="info.name" class="drive-link__media" />
-          <div v-else-if="info.kind === 'video'" class="drive-link__video">
-            <video :src="rawUrl" class="drive-link__media" preload="metadata" playsinline :controls="nativeControls" />
-            <VideoControls v-if="!nativeControls" :label="info.name" />
-          </div>
-          <div v-else-if="info.kind === 'audio'" class="drive-link__audio">
-            <Icon name="music" :size="40" />
-            <audio :src="rawUrl" controls preload="metadata" />
-          </div>
-          <div v-else class="drive-link__file">
-            <Icon name="file" :size="44" />
-          </div>
-        </div>
-        <div class="drive-link__body">
-          <h1 class="drive-link__name" data-testid="drive-link-name">{{ info.name }}</h1>
-          <p class="drive-link__meta">
-            {{ formatBytes(info.size_bytes, locale.value) }}
-            <span aria-hidden="true">·</span>
-            {{ t('drive.link.sharedBy', { name: info.owner.display_name || info.owner.username }) }}
-          </p>
-          <p v-if="info.expires_at" class="drive-link__expiry">
-            <Icon name="clock" :size="13" />{{ t('drive.link.expires', { date: dateFormat.format(new Date(info.expires_at)) }) }}
-          </p>
-          <a :href="`${rawUrl}?download=1`" class="drive-link__download" data-testid="drive-link-download" rel="noopener">
-            <Icon name="download" :size="16" />{{ t('drive.actions.download') }}
-          </a>
-        </div>
-      </template>
-    </div>
-    <p class="drive-link__footer">{{ t('drive.link.footer', { instance: instance }) }}</p>
-  </main>
+  <DrivePublicPage v-if="publicInfo !== undefined" :token="token" :info="publicInfo" />
+  <DriveFilePage v-else :state="fileState" :card="card" @retry="load" @token="moveToToken" />
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import Icon from '@/components/common/Icon.vue'
-import VideoControls from '@/components/common/VideoControls.vue'
-import { useT } from '@/composables/useT'
-import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference'
-import { apiUrl, getInstanceDomain } from '@/services/instanceConfig'
-import { resolveDriveLink, type DriveLinkInfo } from '@/services/drive/driveService'
-import { formatBytes } from '@/components/drive/driveFormat'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import DriveFilePage from '@/components/drive/DriveFilePage.vue'
+import DrivePublicPage from '@/components/drive/DrivePublicPage.vue'
+import { useAuthStore } from '@/stores/auth'
+import { rememberPostAuthRedirect } from '@/utils/postAuthRedirect'
+import {
+  getDriveFileCard,
+  primeDriveFileCard,
+  resolveDriveLink,
+  takePrimedDriveFileCard,
+  type DriveFileCardFile,
+  type DriveLinkInfo,
+} from '@/services/drive/driveService'
 
-const { t, locale } = useT()
+const TOKEN = /^[A-Za-z0-9_-]{16,64}$/
+
 const route = useRoute()
-const nativeControls = useNativeVideoControls()
-const info = ref<DriveLinkInfo | null>(null)
-const state = ref<'loading' | 'ready' | 'missing'>('loading')
+const router = useRouter()
+const authStore = useAuthStore()
 
 const token = computed(() => String(route.params.token ?? ''))
-const rawUrl = computed(() => apiUrl(`/api/federation/drive/link/${encodeURIComponent(token.value)}`))
-const instance = computed(() => getInstanceDomain())
-const dateFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }))
+const card = ref<DriveFileCardFile | null>(null)
+const fileState = ref<'loading' | 'ready' | 'denied' | 'error'>('loading')
+/** The public page: undefined when not shown, null for a link that opens nothing. */
+const publicInfo = ref<DriveLinkInfo | null | undefined>(undefined)
+let loadSeq = 0
 
-onMounted(async () => {
-  try {
-    info.value = /^[A-Za-z0-9_-]{16,64}$/.test(token.value) ? await resolveDriveLink(token.value) : null
-  } catch {
-    info.value = null
+async function load(): Promise<void> {
+  const seq = ++loadSeq
+  const value = token.value
+  card.value = null
+  fileState.value = 'loading'
+  publicInfo.value = undefined
+  if (!TOKEN.test(value)) {
+    if (authStore.isLoggedIn) fileState.value = 'denied'
+    else publicInfo.value = null
+    return
   }
-  state.value = info.value ? 'ready' : 'missing'
-  if (info.value) document.title = `${info.value.name} · ${instance.value}`
-})
+
+  if (!authStore.isLoggedIn) {
+    let info: DriveLinkInfo | null
+    try {
+      info = await resolveDriveLink(value)
+    } catch {
+      info = null
+    }
+    if (seq !== loadSeq) return
+    if (info) {
+      publicInfo.value = info
+      return
+    }
+    rememberPostAuthRedirect(route.fullPath)
+    void router.replace({ name: 'Login', query: { redirect: route.fullPath } })
+    return
+  }
+
+  const primed = takePrimedDriveFileCard(value)
+  if (primed) {
+    card.value = primed
+    fileState.value = 'ready'
+    return
+  }
+  try {
+    const answer = await getDriveFileCard({ token: value })
+    if (seq !== loadSeq) return
+    if (answer.access && answer.via === 'file') {
+      card.value = answer
+      fileState.value = 'ready'
+    } else if (answer.access) {
+      const { name, mime_type, kind, size_bytes, created_at, expires_at, owner } = answer
+      publicInfo.value = { name, mime_type, kind, size_bytes, created_at, expires_at, owner }
+    } else {
+      fileState.value = 'denied'
+    }
+  } catch {
+    if (seq === loadSeq) fileState.value = 'error'
+  }
+}
+
+/** Reset link from the share dialog: the page moves to the new address. */
+function moveToToken(next: string): void {
+  if (card.value) primeDriveFileCard({ ...card.value, token: next })
+  void router.replace({ name: 'DriveLink', params: { token: next } })
+}
+
+watch([token, () => authStore.isLoggedIn], () => void load(), { immediate: true })
 </script>
-
-<style scoped>
-.drive-link {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  padding: var(--space-5) var(--space-4);
-  background:
-    radial-gradient(1200px 600px at 20% -10%, color-mix(in srgb, var(--harmony-primary) 22%, transparent), transparent 60%),
-    var(--background-tertiary, var(--background-primary));
-}
-
-.drive-link__card {
-  width: min(560px, 100%);
-  overflow: hidden;
-  background: var(--background-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.35);
-}
-
-.drive-link__preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-height: calc(60 * var(--app-vh));
-  min-height: 200px;
-  background: #0b0d12;
-}
-
-.drive-link__video {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-}
-
-.drive-link__media {
-  display: block;
-  width: 100%;
-  max-height: calc(60 * var(--app-vh));
-  object-fit: contain;
-}
-
-.drive-link__audio,
-.drive-link__file {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  color: rgb(255 255 255 / 0.8);
-}
-
-.drive-link__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-5);
-}
-
-.drive-link__name {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--text-primary);
-  word-break: break-word;
-}
-
-.drive-link__meta,
-.drive-link__expiry {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.drive-link__download {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  min-height: 40px;
-  background: var(--harmony-primary-fill, var(--harmony-primary));
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-on-primary, #fff);
-  text-decoration: none;
-}
-
-.drive-link__download:hover {
-  background: var(--harmony-primary-fill-hover, var(--harmony-primary-hover));
-}
-
-.drive-link__status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-8, 48px) var(--space-5);
-  text-align: center;
-}
-
-.drive-link__status h1 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--text-primary);
-}
-
-.drive-link__status p {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.drive-link__glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 60px;
-  margin-bottom: var(--space-2);
-  background: var(--background-secondary);
-  border-radius: 18px;
-  color: var(--text-muted);
-}
-
-.drive-link__spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--background-modifier-active);
-  border-top-color: var(--harmony-primary);
-  border-radius: 50%;
-  animation: drive-link-spin 0.8s linear infinite;
-}
-
-.drive-link__footer {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
-@keyframes drive-link-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .drive-link__spinner { animation-duration: 2s; }
-}
-</style>
