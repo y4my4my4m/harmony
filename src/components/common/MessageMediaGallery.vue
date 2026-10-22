@@ -38,14 +38,14 @@
           v-show="imageLoaded[loadKey(item)]"
           @load="onImageLoad(loadKey(item))"
           @error="onItemError(item, 'thumbnail')"
-          @click="!item.isSticker && $emit('open-lightbox', item.url)"
+          @click="!item.isSticker && $emit('open-lightbox', loadKey(item))"
         />
         <button
           v-if="!goneReason(item) && item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
           type="button"
           class="media-open"
           :aria-label="items.length > 1 ? t('messageA11y.image.openIndexed', { index: index + 1, total: items.length }) : t('messageA11y.image.open')"
-          @click.stop="$emit('open-lightbox', item.url)"
+          @click.stop="$emit('open-lightbox', loadKey(item))"
         ></button>
         <video
           v-else-if="!goneReason(item) && item.fileType === 'video'"
@@ -57,7 +57,12 @@
           @play="onVideoPlay"
           @error="onItemError(item)"
         />
-        <VideoControls v-if="!goneReason(item) && item.fileType === 'video' && !nativeVideoControls" :label="item.altText || undefined" />
+        <VideoControls
+          v-if="!goneReason(item) && item.fileType === 'video' && !nativeVideoControls"
+          :label="item.altText || undefined"
+          expandable
+          @expand="$emit('open-lightbox', loadKey(item), $event)"
+        />
         <button
           v-if="item.fileType === 'video' && floatingVideos.canPopOut(videoKey(item, index))"
           type="button"
@@ -188,7 +193,8 @@ const items = computed(() =>
 const layoutClass = computed(() => mediaGalleryLayoutClass(items.value.length));
 
 const emit = defineEmits<{
-  'open-lightbox': [url: string];
+  /** The item's load key (object name of a private item, else its URL); a video passes its player. */
+  'open-lightbox': [key: string, origin?: HTMLVideoElement];
   'image-loaded': [url: string];
   'remove-attachment': [url: string];
 }>();

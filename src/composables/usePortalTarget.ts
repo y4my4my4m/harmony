@@ -15,3 +15,8 @@ export function usePortalTarget(): ComputedRef<string | HTMLElement> {
   const target = inject(PORTAL_TARGET, null)
   return computed(() => target?.() ?? 'body')
 }
+
+/** The container provided above the caller, read live; null where none is (<body>). */
+export function usePortalContainer(): (() => HTMLElement | null) | null {
+  return inject(PORTAL_TARGET, null)
+}

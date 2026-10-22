@@ -13,6 +13,10 @@
   by moving the playing <video> in place of the host's own. Media events do not bubble; they
   are heard in the host's capture phase.
 
+  Fullscreen goes through utils/mediaFullscreen.ts and fills `fullscreenTarget` (default: the
+  host); its control shows only where the platform has fullscreen. `expandable` adds the
+  control that asks the parent to open the media viewer (`expand`, with the video).
+
   Per-frame state (progress, scrub position) is written to CSS variables and text nodes, not
   to reactive state; Vue re-renders only on play/pause, volume, rate, fullscreen and idle
   changes. The rAF loop runs only while the video plays.
@@ -30,6 +34,7 @@
       'hv--narrow': narrow,
       'hv--compact': compact,
       'hv--tiny': tiny,
+      'hv--large': large,
     }"
     role="group"
     :aria-label="label || t('videoPlayer.player')"
@@ -162,6 +167,19 @@
         </button>
 
         <button
+          v-if="expandable"
+          type="button"
+          class="hv-btn"
+          :aria-label="t('videoPlayer.expand')"
+          :title="t('videoPlayer.expand')"
+          data-testid="video-expand"
+          @click="expand"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" class="hv-stroke" /></svg>
+        </button>
+
+        <button
+          v-if="fullscreenSupported"
           type="button"
           class="hv-btn"
           :aria-label="fullscreen ? t('videoPlayer.exitFullscreen') : t('videoPlayer.fullscreen')"
@@ -179,19 +197,40 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useT } from '@/composables/useT'
+import {
+  NATIVE_VIDEO_FULLSCREEN_EVENTS,
+  canFullscreen,
+  exitFullscreen,
+  isFullscreen,
+  onFullscreenChange,
+  toggleFullscreen as toggleMediaFullscreen,
+} from '@/utils/mediaFullscreen'
 
-defineProps<{
+const props = defineProps<{
   /** Accessible name of the player, e.g. the file name. */
   label?: string
+  /** Touch-sized controls, as in fullscreen: the media viewer. */
+  large?: boolean
+  /** Shows the control that emits `expand`. */
+  expandable?: boolean
+  /** Element fullscreen fills; the host when absent. */
+  fullscreenTarget?: () => HTMLElement | null | undefined
+}>()
+
+const emit = defineEmits<{
+  /** Open the media viewer with this video. */
+  expand: [video: HTMLVideoElement]
 }>()
 
 const { t } = useT()
 
 // Host widths below which the dock drops controls: picture in picture under NARROW; speed,
-// total time and the volume slider under COMPACT; the current time under TINY.
+// total time and the volume slider under COMPACT; the current time under TINY. The large
+// dock's wider controls scale the widths by LARGE_SCALE.
 const NARROW_WIDTH = 380
 const COMPACT_WIDTH = 320
 const TINY_WIDTH = 220
+const LARGE_SCALE = 1.25
 const IDLE_MS = 2200
 const SEEK_STEP = 5
 const SEEK_JUMP = 10
@@ -217,6 +256,7 @@ const muted = ref(false)
 const volume = ref(1)
 const rate = ref(1)
 const fullscreen = ref(false)
+const fullscreenSupported = ref(false)
 const pipActive = ref(false)
 const idle = ref(false)
 const scrubbing = ref(false)
@@ -313,6 +353,7 @@ const adopt = (v: HTMLVideoElement) => {
   if (video.value === v) return
   video.value = v
   v.controls = false
+  fullscreenSupported.value = canFullscreen(v)
   syncFromVideo(v)
 }
 
@@ -374,6 +415,10 @@ const onMedia = (event: Event) => {
     case 'leavepictureinpicture':
       pipActive.value = false
       break
+    case 'webkitbeginfullscreen':
+    case 'webkitendfullscreen':
+      onFullscreenChanged()
+      break
   }
 }
 
@@ -381,6 +426,7 @@ const MEDIA_EVENTS = [
   'play', 'playing', 'pause', 'ended', 'waiting', 'canplay', 'loadedmetadata', 'durationchange',
   'progress', 'seeked', 'timeupdate', 'volumechange', 'ratechange',
   'enterpictureinpicture', 'leavepictureinpicture',
+  ...NATIVE_VIDEO_FULLSCREEN_EVENTS,
 ] as const
 
 // --- Idle chrome -----------------------------------------------------------------------
@@ -486,25 +532,23 @@ const togglePip = async () => {
   } catch { /* refused: not playing yet, or disabled */ }
 }
 
-type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void }
+const fullscreenElement = () => props.fullscreenTarget?.() ?? host.value
 const toggleFullscreen = async () => {
-  const el = host.value
-  const v = video.value as WebkitVideo | null
-  if (!el || !v) return
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-    } else if (typeof el.requestFullscreen === 'function') {
-      await el.requestFullscreen()
-    } else if (typeof v.webkitEnterFullscreen === 'function') {
-      // iOS Safari: only the video element itself goes fullscreen, with the system player.
-      v.webkitEnterFullscreen()
-    }
-  } catch { /* refused */ }
+  const el = fullscreenElement()
+  const v = video.value
+  if (!el || !v || !fullscreenSupported.value) return
+  await toggleMediaFullscreen(el, v)
 }
-const onFullscreenChange = () => {
-  fullscreen.value = !!host.value && document.fullscreenElement === host.value
+const onFullscreenChanged = () => {
+  fullscreen.value = isFullscreen(fullscreenElement(), video.value)
   wake()
+}
+
+const expand = () => {
+  const v = video.value
+  if (!v) return
+  if (fullscreen.value) void exitFullscreen(v)
+  emit('expand', v)
 }
 
 // --- Pointer: hit area, seek and volume sliders ----------------------------------------
@@ -683,6 +727,7 @@ const onKeydown = (event: KeyboardEvent) => {
 
 // --- Lifecycle -------------------------------------------------------------------------
 let resizeObserver: ResizeObserver | null = null
+let removeFullscreenListener: (() => void) | null = null
 
 onMounted(() => {
   const el = rootEl.value?.parentElement ?? null
@@ -690,7 +735,7 @@ onMounted(() => {
   if (!el) return
   el.classList.add('hv-host')
   for (const type of MEDIA_EVENTS) el.addEventListener(type, onMedia, true)
-  document.addEventListener('fullscreenchange', onFullscreenChange)
+  removeFullscreenListener = onFullscreenChange(onFullscreenChanged)
   const v = el.querySelector('video')
   if (v) {
     const saved = readSavedVolume()
@@ -703,9 +748,10 @@ onMounted(() => {
   }
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(([entry]) => {
-      narrow.value = entry.contentRect.width < NARROW_WIDTH
-      compact.value = entry.contentRect.width < COMPACT_WIDTH
-      tiny.value = entry.contentRect.width < TINY_WIDTH
+      const width = entry.contentRect.width / (props.large ? LARGE_SCALE : 1)
+      narrow.value = width < NARROW_WIDTH
+      compact.value = width < COMPACT_WIDTH
+      tiny.value = width < TINY_WIDTH
     })
     resizeObserver.observe(el)
   }
@@ -720,7 +766,8 @@ onBeforeUnmount(() => {
     for (const type of MEDIA_EVENTS) el.removeEventListener(type, onMedia, true)
     el.classList.remove('hv-host')
   }
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  removeFullscreenListener?.()
+  removeFullscreenListener = null
   resizeObserver?.disconnect()
 })
 
@@ -1242,39 +1289,88 @@ defineExpose({ togglePlay, seekTo })
   border-radius: 10px;
 }
 
-/* --- Fullscreen ----------------------------------------------------------------- */
+/* --- Fullscreen and the media viewer ------------------------------------------------ */
+.hv--large {
+  --hv-inset: 16px;
+}
+
 .hv--fullscreen {
   --hv-inset: 24px;
 }
 
-.hv--fullscreen .hv-dock {
+.hv--fullscreen .hv-dock,
+.hv--large .hv-dock {
   max-width: 960px;
   margin: 0 auto;
   gap: 8px;
 }
 
 .hv--fullscreen .hv-play,
-.hv--fullscreen .hv-pill {
+.hv--fullscreen .hv-pill,
+.hv--large .hv-play,
+.hv--large .hv-pill {
   height: 46px;
   border-radius: 14px;
 }
 
-.hv--fullscreen .hv-play {
+.hv--fullscreen .hv-play,
+.hv--large .hv-play {
   width: 46px;
 }
 
-.hv--fullscreen .hv-btn {
+.hv--fullscreen .hv-btn,
+.hv--large .hv-btn {
   width: 36px;
   height: 36px;
 }
 
-.hv--fullscreen .hv-btn svg {
+.hv--fullscreen .hv-btn svg,
+.hv--large .hv-btn svg {
   width: 22px;
   height: 22px;
 }
 
-.hv--fullscreen .hv-time {
+.hv--fullscreen .hv-time,
+.hv--large .hv-time {
   font-size: 13px;
+}
+
+/* Touch screens: 44px targets (WCAG 2.5.5) once the player has the room. */
+@media (pointer: coarse) {
+  .hv--fullscreen .hv-btn,
+  .hv--large .hv-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .hv--fullscreen .hv-play,
+  .hv--fullscreen .hv-pill,
+  .hv--large .hv-play,
+  .hv--large .hv-pill {
+    height: 50px;
+  }
+
+  .hv--fullscreen .hv-play,
+  .hv--large .hv-play {
+    width: 50px;
+  }
+
+  .hv--fullscreen .hv-seek,
+  .hv--large .hv-seek {
+    height: 44px;
+  }
+
+  .hv--fullscreen .hv-chip,
+  .hv--large .hv-chip {
+    height: 32px;
+    min-width: 44px;
+    line-height: 30px;
+  }
+
+  .hv--large.hv--compact .hv-pill,
+  .hv--fullscreen.hv--compact .hv-pill {
+    padding-left: 6px;
+  }
 }
 
 @media (hover: none) {

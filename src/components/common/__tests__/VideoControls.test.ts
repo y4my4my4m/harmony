@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import VideoControls from '../VideoControls.vue'
@@ -85,6 +85,50 @@ describe('VideoControls', () => {
     expect(seek(frame).getAttribute('aria-valuemax')).toBe('90')
     playButton(frame).click()
     expect(docked.paused).toBe(true)
+  })
+
+  it('shows the fullscreen control only where fullscreen exists', async () => {
+    const { frame } = await mountPlayer()
+    expect(frame.querySelector('[data-testid="video-fullscreen"]')).toBeNull()
+  })
+
+  it('fills the screen with its host, or the target it is given', async () => {
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true })
+    try {
+      const { frame } = await mountPlayer()
+      frame.requestFullscreen = vi.fn(async () => {}) as HTMLElement['requestFullscreen']
+      frame.querySelector<HTMLButtonElement>('[data-testid="video-fullscreen"]')!.click()
+      expect(frame.requestFullscreen).toHaveBeenCalled()
+
+      const stage = document.createElement('div')
+      stage.requestFullscreen = vi.fn(async () => {}) as HTMLElement['requestFullscreen']
+      const Targeted = defineComponent({
+        setup: () => () => h('div', { class: 'frame' }, [h('video', { src: 'clip.webm' }), h(VideoControls, { fullscreenTarget: () => stage })]),
+      })
+      const targeted = mount(Targeted, { attachTo: document.body })
+      stubMedia(targeted.element.querySelector('video')!)
+      await nextTick()
+      targeted.element.querySelector<HTMLButtonElement>('[data-testid="video-fullscreen"]')!.click()
+      expect(stage.requestFullscreen).toHaveBeenCalled()
+    } finally {
+      delete (document as unknown as Record<string, unknown>).fullscreenEnabled
+    }
+  })
+
+  it('asks for the media viewer with its video when expandable', async () => {
+    const { frame } = await mountPlayer()
+    expect(frame.querySelector('[data-testid="video-expand"]')).toBeNull()
+    const onExpand = vi.fn()
+    const Expandable = defineComponent({
+      setup: () => () => h('div', { class: 'frame' }, [h('video', { src: 'clip.webm' }), h(VideoControls, { expandable: true, onExpand })]),
+    })
+    const wrapper = mount(Expandable, { attachTo: document.body })
+    const video = stubMedia(wrapper.element.querySelector('video')!)
+    await nextTick()
+    const expand = wrapper.element.querySelector<HTMLButtonElement>('[data-testid="video-expand"]')!
+    expect(expand.getAttribute('aria-label')).toBe('videoPlayer.expand')
+    expand.click()
+    expect(onExpand).toHaveBeenCalledWith(video)
   })
 
   it('remembers the volume for the next player', async () => {

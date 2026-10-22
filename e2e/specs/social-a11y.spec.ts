@@ -498,7 +498,9 @@ test('sensitive media stays out of reach until revealed from the keyboard', asyn
       await expect(tile.getByRole('button')).toHaveCount(0)
       await tile.focus()
       await page.keyboard.press('Space')
-      await expect(page.locator('.vel-modal')).toBeVisible({ timeout: 10000 })
+      const viewer = page.getByRole('dialog', { name: /Media viewer/ })
+      await expect(viewer).toBeVisible({ timeout: 10000 })
+      await expect(viewer.getByRole('img', { name: description })).toBeVisible()
     })
   } finally {
     await deleteUser(admin, reader)
