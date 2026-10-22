@@ -294,6 +294,9 @@
             ></audio>
           </div>
 
+          <!-- A Drive link that is the whole message shows as its file alone. -->
+          <template v-else-if="part === soleDriveLink"></template>
+
           <!-- Regular URL links -->
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
                render as inert text (no <a>) so dangerous URLs can't execute on click. -->
@@ -715,6 +718,7 @@ import {
 } from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
+import { soleDriveLinkPart } from '@/utils/driveLinkContent';
 import { isWikimediaPage } from '@/utils/embedPreview';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -1174,6 +1178,9 @@ export default defineComponent({
       return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)(?:[?#].*)?$/i.test(url);
     };
 
+    // The url part of a Drive link that is the whole message: its text is not shown.
+    const soleDriveLink = computed(() => soleDriveLinkPart(displayContent.value));
+
     const formatFileSize = (bytes: number): string => {
       if (bytes === 0) return '0 Bytes';
       const k = 1024;
@@ -1631,6 +1638,7 @@ export default defineComponent({
 
     return {
       rootRef,
+      soleDriveLink,
       openMedia,
       chatMediaKey,
       nativeVideoControls,

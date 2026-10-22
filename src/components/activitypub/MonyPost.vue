@@ -157,7 +157,7 @@
             
             <div class="quoted-post-content">
               <MonyContent
-                :content="contentForMonyContent"
+                :content="quotedContentForMonyContent"
                 @user-mention-click="handleMentionClick"
                 @hashtag-click="handleHashtagClick"
                 @image-click="handleImageClick"
@@ -230,7 +230,7 @@
             :artwork="item.image || null"
           />
 
-          <DriveLinkCard
+          <DriveLinkAttachment
             v-for="item in driveEmbeds"
             :key="`drive-${item.url}`"
             :link="item.link"
@@ -773,8 +773,9 @@ import type { TimelinePost, DisplayNamePart } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
-import DriveLinkCard from '@/components/embeds/DriveLinkCard.vue';
-import { driveLinkFromUrl, type DriveLinkRef } from '@/services/drive/driveLinks';
+import DriveLinkAttachment from '@/components/embeds/DriveLinkAttachment.vue';
+import { driveLinkFromUrl, driveLinkPath, type DriveLinkRef } from '@/services/drive/driveLinks';
+import { driveLinkUrlsIn, withoutSoleDriveLink } from '@/utils/driveLinkContent';
 import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
@@ -1226,10 +1227,20 @@ const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbe
 const musicEmbeds = computed(() => postEmbeds.value
   .map((e: any) => ({ url: e.url as string, title: e.title as string | undefined, image: e.image as string | undefined, embed: musicFor(e) }))
   .filter((e): e is { url: string; title: string | undefined; image: string | undefined; embed: NonNullable<ReturnType<typeof musicFor>> } => !!e.embed));
-// Links to Drive files of this instance render their file card, by the reader's access.
-const driveEmbeds = computed(() => postEmbeds.value
-  .map((e) => ({ url: e.url, link: driveLinkFromUrl(e.url) }))
-  .filter((e): e is { url: string; link: DriveLinkRef } => !!e.link));
+// Links to Drive files of this instance, in the text or among the previews, render as
+// attachments by the reader's access, as in messages.
+const driveEmbeds = computed(() => {
+  const seen = new Set<string>();
+  return [...driveLinkUrlsIn(displayContent.value), ...postEmbeds.value.map((e) => e.url)]
+    .map((url) => ({ url, link: driveLinkFromUrl(url) }))
+    .filter((e): e is { url: string; link: DriveLinkRef } => {
+      if (!e.link) return false;
+      const key = driveLinkPath(e.link);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+});
 const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any) && !driveLinkFromUrl(e.url)));
 
 // When the post also has a media attachment, render link cards in the
@@ -1247,7 +1258,12 @@ const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
 );
 
 // Media shows once, in MonyMediaGallery (lightbox, sensitive blur); MonyContent gets the rest.
+// A Drive link that is the whole text shows as its file alone.
 const contentForMonyContent = computed(() =>
+  withoutSoleDriveLink(withoutGalleryMedia(displayContent.value, displayMediaAttachments.value))
+);
+// A quoted post renders no Drive files: its link stays as text.
+const quotedContentForMonyContent = computed(() =>
   withoutGalleryMedia(displayContent.value, displayMediaAttachments.value)
 );
 

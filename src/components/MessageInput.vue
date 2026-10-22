@@ -1249,7 +1249,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       });
     });
 
-    // A pasted /drive/file/<id> link of the caller's that members of the room cannot open.
+    // A pasted Drive link of the caller's file that members of the room cannot open.
     const driveShareOffer = useDriveShareOffer((): DriveShareRoom | null => {
       if (props.conversationId) return { conversationId: props.conversationId };
       const channelId = props.threadChannelId || props.channelId;

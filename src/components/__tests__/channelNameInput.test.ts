@@ -18,6 +18,16 @@ vi.mock('@/supabase', () => {
   return { supabase: { rpc, from: () => ({ select: () => head }) } }
 })
 vi.mock('@/services/ChannelEncryptionService', () => ({ setChannelEncryption: vi.fn() }))
+vi.mock('@/components/DisplayName.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'DisplayName',
+      props: { userId: String, fallback: String },
+      setup: (props) => () => h('span', props.fallback),
+    }),
+  }
+})
 vi.mock('@/services/RoleService', () => ({ roleService: { getServerRoles: vi.fn(async () => []) } }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ currentServerId: 's1', channels: [], privateChannels: {}, servers: [] }),

@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue'
-import { getDriveShareGap, shareDriveFile, type DriveShareGap } from '@/services/drive/driveService'
-import { driveFileIdsIn } from '@/services/drive/driveLinks'
+import { getDriveFileCard, getDriveShareGap, shareDriveFile, type DriveShareGap } from '@/services/drive/driveService'
+import type { DriveLinkRef } from '@/services/drive/driveLinks'
+import { driveLinksIn } from '@/utils/driveLinkContent'
 
 export type DriveShareRoom = { channelId: string } | { conversationId: string }
 
@@ -28,7 +29,19 @@ export function resetDriveShareOffers(): void {
 }
 
 /**
- * The composer's offer to share a pasted /drive/file/<id> link with the room, when the caller
+ * Id of the file a link names, for its owner. A /d/<token> link resolves through
+ * drive_file_card, which names the id only to a reader (via 'file'); a link that opens for
+ * anyone (`public`) leaves nobody without access.
+ */
+async function ownFileIdOf(link: DriveLinkRef): Promise<string | null> {
+  if (link.kind === 'file') return link.id
+  const card = await getDriveFileCard({ token: link.token })
+  if (!card.access || card.via !== 'file' || !card.own || card.public === true) return null
+  return card.id
+}
+
+/**
+ * The composer's offer to share a pasted Drive link with the room, when the caller
  * owns the file and local members of the room cannot read it (drive_share_gap). A channel takes
  * a channel share; a conversation takes a share with each participant who lacks access.
  * An offer belongs to the room it was checked for: leaving the room withdraws it and drops
@@ -43,7 +56,15 @@ export function useDriveShareOffer(room: () => DriveShareRoom | null) {
     const target = room()
     if (!target) return
     const seq = ++checkSeq
-    for (const fileId of driveFileIdsIn(text)) {
+    for (const link of driveLinksIn(text)) {
+      let fileId: string | null
+      try {
+        fileId = await ownFileIdOf(link)
+      } catch {
+        continue
+      }
+      if (seq !== checkSeq || roomKey(room()) !== roomKey(target)) return
+      if (!fileId) continue
       const key = offerKey(target, fileId)
       if (offered.has(key)) continue
       let gap: DriveShareGap | null
