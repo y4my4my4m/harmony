@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "Convertir les émoticônes que j'envoie",
       "convertSentEmoticonsDesc": "Remplace :) :D <3 et similaires par des emojis à l'envoi ou à la modification d'un message. Le code, les liens et les e-mails ne sont pas modifiés.",
+      "mirrorLinks": "Liens envoyés",
+      "mirrorLinksDesc": "Les liens vers des publications X, Instagram et Bluesky que vous envoyez sont remplacés par un miroir qui affiche leurs photos et vidéos dans les aperçus sur Discord et d'autres applis. Harmony affiche toujours la publication complète ; les personnes hors de Harmony voient le lien du miroir.",
+      "mirrorLinkSite": "Publications {site}",
+      "mirrorLinkHost": "Miroir pour les publications {site}",
       "renderEmoticonsAsEmoji": "Afficher les émoticônes des autres en emoji",
       "renderEmoticonsAsEmojiDesc": "Affiche :) :D <3 et similaires sous forme d'emojis dans les messages. Le texte d'origine est conservé.",
       "inviteBannerBg": "Bannière du serveur dans la fenêtre d'invitation",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "Impossible d’envoyer l’avatar",
       "bannerUpdated": "Bannière mise à jour",
       "bannerUploadFailed": "Impossible d’envoyer la bannière",
-      "profileLoadFailed": "Impossible de charger votre profil"
+      "profileLoadFailed": "Impossible de charger votre profil",
+      "privacyUpdated": "Paramètres de confidentialité mis à jour"
     },
     "unsaved": {
       "title": "Abandonner les modifications non enregistrées ?",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "Chaque champ du profil doit avoir un libellé et une valeur.",
       "addField": "Ajouter un champ",
       "description": "Gérez votre profil et les informations de votre compte.",
+      "unsavedChanges": "Vous avez des modifications de profil non enregistrées",
+      "changesReset": "Modifications du profil réinitialisées",
       "handleCopied": "Identifiant copié",
       "copyFailed": "Impossible de copier"
     }
@@ -2996,6 +3003,55 @@
       "saveFailed": "Impossible de mettre à jour les réglages des messages système."
     }
   },
+  "systemEvents": {
+    "someone": "Quelqu’un",
+    "memberJoin": "{subject} a rejoint le serveur.",
+    "memberLeave": "{subject} a quitté le serveur.",
+    "memberKick": "{actor} a expulsé {subject}.",
+    "memberKickNoActor": "{subject} a été expulsé du serveur.",
+    "memberBan": "{actor} a banni {subject}.",
+    "memberBanNoActor": "{subject} a été banni du serveur.",
+    "reason": "Raison : {reason}",
+    "threadCreated": "{actor} a lancé un fil : {thread}. Voir {allThreads}.",
+    "threadCreatedNoLink": "{actor} a lancé un fil.",
+    "threadFallbackName": "Fil",
+    "allThreads": "tous les fils",
+    "encryptionEnabled": "{actor} a activé le chiffrement de bout en bout pour ce canal.",
+    "encryptionDisabled": "{actor} a désactivé le chiffrement de bout en bout pour ce canal.",
+    "voiceEncryptionEnabled": "{actor} a activé le chiffrement de bout en bout pour la voix et la vidéo.",
+    "voiceEncryptionDisabled": "{actor} a désactivé le chiffrement de bout en bout pour la voix et la vidéo.",
+    "groupCreated": "{actor} a créé le groupe.",
+    "groupCreatedWith": "{actor} a créé le groupe avec {count} participant. | {actor} a créé le groupe avec {count} participants.",
+    "membersAdded": "{actor} a ajouté {members} au groupe.",
+    "listSeparator": ", ",
+    "callStarted": {
+      "voice": "{actor} a lancé un appel vocal.",
+      "video": "{actor} a lancé un appel vidéo."
+    },
+    "callEnded": {
+      "voice": "{actor} a lancé un appel vocal qui a duré {duration}.",
+      "video": "{actor} a lancé un appel vidéo qui a duré {duration}."
+    },
+    "callMissed": {
+      "voice": "Vous avez manqué un appel vocal de {actor}.",
+      "video": "Vous avez manqué un appel vidéo de {actor}."
+    },
+    "noAnswer": "Pas de réponse",
+    "duration": {
+      "seconds": "{s} s",
+      "minutes": "{m} min",
+      "minutesSeconds": "{m} min {s} s",
+      "hours": "{h} h",
+      "hoursMinutes": "{h} h {m} min"
+    },
+    "yesterdayAt": "Hier à",
+    "preview": {
+      "voiceCall": "Appel vocal",
+      "videoCall": "Appel vidéo",
+      "groupCreated": "Groupe créé",
+      "membersAdded": "Membres ajoutés"
+    }
+  },
   "time": {
     "now": "maintenant",
     "justNow": "à l'instant",
@@ -3105,7 +3161,46 @@
       "limitReached": "Ce serveur a atteint la limite maximale de {max} catégories",
       "createFailed": "Échec de la création de la catégorie. Veuillez réessayer.",
       "noServer": "Aucun serveur sélectionné",
-      "deleteFailed": "Impossible de supprimer la catégorie."
+      "deleteFailed": "Impossible de supprimer la catégorie.",
+      "permissionsFailed": "La catégorie a été créée, mais ses permissions n’ont pas pu être enregistrées."
+    },
+    "private": {
+      "label": "Catégorie privée",
+      "hint": "Seuls les rôles et membres choisis, le propriétaire et les administrateurs la voient, ainsi que les salons qui suivent ses permissions.",
+      "whoCanSee": "Qui peut la voir",
+      "members": "Membres",
+      "searchMembers": "Rechercher des membres",
+      "noMembers": "Aucun membre ne correspond.",
+      "noRoles": "Aucun rôle pour l’instant : choisissez des membres, sinon seuls le propriétaire et les administrateurs la verront.",
+      "removeMember": "Retirer {name}",
+      "channelFollows": "{category} est privée : ce salon reprend ses permissions."
+    },
+    "hiddenFromMembers": "Les membres ne voient pas cette catégorie",
+    "edit": {
+      "title": "Modifier la catégorie",
+      "name": "Nom de la catégorie",
+      "namePlaceholder": "Saisissez le nom de la catégorie",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "failed": "Impossible de mettre à jour la catégorie. Réessayez.",
+      "loadingPermissions": "Chargement des permissions…",
+      "permissionsFailed": "Impossible de charger les permissions de cette catégorie. Fermez et rouvrez pour réessayer.",
+      "permissionsSaved": "Permissions enregistrées. Aucun salon de la catégorie ne les suit ; synchronisez un salon depuis ses paramètres de permissions. | Permissions enregistrées et synchronisées avec {count} salon. | Permissions enregistrées et synchronisées avec {count} salons."
+    },
+    "sync": {
+      "synced": "Synchronisé avec {category}",
+      "notSynced": "Non synchronisé avec {category}",
+      "notSyncedHint": "Les permissions de ce salon diffèrent de celles de sa catégorie.",
+      "saveFirst": "Enregistrez ou annulez d’abord vos modifications.",
+      "syncNow": "Synchroniser",
+      "syncing": "Synchronisation…",
+      "done": "Permissions synchronisées avec {category}",
+      "failed": "Impossible de synchroniser les permissions."
+    },
+    "move": {
+      "title": "Synchroniser les permissions ?",
+      "message": "#{channel} est maintenant dans {category}, dont les permissions diffèrent de celles du salon. Le synchroniser avec la catégorie, ou garder ses propres permissions ?",
+      "sync": "Synchroniser les permissions"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "Désactiver le chiffrement vocal ?",
       "message": "Les appels de ce canal ne seront plus chiffrés de bout en bout, et le serveur média pourra accéder à l'audio et à la vidéo.",
       "confirm": "Désactiver le chiffrement vocal"
-    },
-    "system": {
-      "enabled": "a activé le chiffrement de bout en bout pour ce canal.",
-      "disabled": "a désactivé le chiffrement de bout en bout pour ce canal.",
-      "voiceEnabled": "a activé le chiffrement de bout en bout pour la voix et la vidéo.",
-      "voiceDisabled": "a désactivé le chiffrement de bout en bout pour la voix et la vidéo."
     },
     "create": {
       "label": "Chiffrement de bout en bout",
@@ -5922,7 +6011,13 @@
     "popOut": "Détacher",
     "open": "Ouvrir",
     "hide": "Masquer",
-    "show": "Afficher"
+    "show": "Afficher",
+    "showMore": "Afficher plus",
+    "showLess": "Afficher moins",
+    "quotedPost": "Publication citée",
+    "openMedia": "Ouvrir le média {index} sur {total}",
+    "playOnSite": "Lire sur {site}",
+    "playInX": "Lire dans le lecteur de X"
   },
   "threadCreate": {
     "button": "Nouveau fil",
@@ -6322,7 +6417,9 @@
       "resetZoom": "Réinitialiser le zoom et la rotation",
       "rotateLeft": "Pivoter à gauche",
       "rotateRight": "Pivoter à droite",
-      "videoUnsupported": "Cette vidéo ne peut pas être lue ici."
+      "videoUnsupported": "Cette vidéo ne peut pas être lue ici.",
+      "download": "Télécharger",
+      "audio": "Audio"
     },
     "pwa": {
       "installApp": "Installer l'application Harmony",
@@ -6433,7 +6530,8 @@
     "pip": "Image dans l'image",
     "exitPip": "Quitter l'image dans l'image",
     "fullscreen": "Plein écran",
-    "exitFullscreen": "Quitter le plein écran"
+    "exitFullscreen": "Quitter le plein écran",
+    "expand": "Ouvrir dans la visionneuse"
   },
   "activities": {
     "title": "Regarder ou écouter ensemble",
@@ -6537,7 +6635,8 @@
       "restore": "Restaurer",
       "deleteForever": "Supprimer définitivement",
       "deleteFolder": "Supprimer le dossier",
-      "emptyTrash": "Vider la corbeille"
+      "emptyTrash": "Vider la corbeille",
+      "copyLink": "Copier le lien"
     },
     "nav": {
       "myDrive": "Mon Drive",
@@ -6689,7 +6788,9 @@
       "moved": "{count} fichier déplacé | {count} fichiers déplacés",
       "kept": "{count} fichier conservé dans Drive | {count} fichiers conservés dans Drive",
       "keepPartial": "{kept} sur {total} conservés : le reste ne tient pas dans votre Drive",
-      "folderDeleted": "Dossier supprimé ; {count} fichier mis à la corbeille | Dossier supprimé ; {count} fichiers mis à la corbeille"
+      "folderDeleted": "Dossier supprimé ; {count} fichier mis à la corbeille | Dossier supprimé ; {count} fichiers mis à la corbeille",
+      "linkCopied": "Lien copié",
+      "linkCopyFailed": "Impossible de copier le lien"
     },
     "share": {
       "title": "Partager",
@@ -6721,12 +6822,16 @@
         "server": "Serveur",
         "channel": "Salon",
         "link": "Lien"
-      }
+      },
+      "accessLinkTitle": "Lien pour les personnes ayant accès",
+      "accessLinkHint": "S'ouvre uniquement pour les personnes qui voient déjà ce fichier.",
+      "publicLinkLabel": "Lien public, s'ouvre pour tout le monde"
     },
     "preview": {
       "previous": "Fichier précédent",
       "next": "Fichier suivant",
-      "none": "Aucun aperçu pour ce fichier."
+      "none": "Aucun aperçu pour ce fichier.",
+      "fullScreen": "Voir en plein écran"
     },
     "picker": {
       "title": "Choisir dans Drive",
@@ -6762,6 +6867,36 @@
       "sharedBy": "Partagé par {name}",
       "expires": "Expiration du lien : {date}",
       "footer": "Partagé depuis {instance}"
+    },
+    "card": {
+      "restrictedTitle": "Fichier restreint",
+      "restrictedText": "Vous n'avez pas accès à ce fichier.",
+      "gone": "Ce fichier n'est plus disponible.",
+      "view": "Voir {name}",
+      "play": "Lire {name}",
+      "open": "Ouvrir {name}",
+      "download": "Télécharger {name}"
+    },
+    "filePage": {
+      "title": "Fichier",
+      "noAccessTitle": "Vous n'avez pas accès à ce fichier",
+      "noAccessText": "Demandez à son propriétaire de le partager avec vous.",
+      "toDrive": "Aller au Drive",
+      "errorTitle": "Ce fichier n'a pas pu être chargé",
+      "retry": "Réessayer",
+      "yours": "Votre fichier",
+      "ownedBy": "Appartient à {name}",
+      "trashed": "Dans votre corbeille. Vous seul pouvez l’ouvrir."
+    },
+    "offer": {
+      "channel": "Les membres de {channel} ne peuvent pas ouvrir ce fichier. Le partager avec le salon ?",
+      "thisChannel": "Les membres de ce salon ne peuvent pas ouvrir ce fichier. Le partager avec le salon ?",
+      "conversation": "Les participants de cette conversation ne peuvent pas ouvrir ce fichier. Le partager avec eux ?",
+      "person": "{name} ne peut pas ouvrir ce fichier. Le partager ?",
+      "people": "{count} personne de cette conversation ne peut pas ouvrir ce fichier. Le partager avec elle ? | {count} personnes de cette conversation ne peuvent pas ouvrir ce fichier. Le partager avec elles ?",
+      "share": "Partager",
+      "sendAnyway": "Envoyer quand même",
+      "shared": "Fichier partagé"
     }
   },
   "support": {

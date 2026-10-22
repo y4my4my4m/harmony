@@ -920,7 +920,46 @@
       "limitReached": "This server has reached the maximum limit of {max} categories",
       "createFailed": "Failed to create category. Please try again.",
       "noServer": "No server selected",
-      "deleteFailed": "Couldn't delete the category."
+      "deleteFailed": "Couldn't delete the category.",
+      "permissionsFailed": "The category was created, but its permissions couldn't be saved."
+    },
+    "private": {
+      "label": "Private category",
+      "hint": "Only the roles and members you choose, the owner and administrators can see it and the channels that follow its permissions.",
+      "whoCanSee": "Who can see it",
+      "members": "Members",
+      "searchMembers": "Search members",
+      "noMembers": "No member matches.",
+      "noRoles": "No roles yet: choose members, or only the owner and administrators will see it.",
+      "removeMember": "Remove {name}",
+      "channelFollows": "{category} is private: this channel starts with its permissions."
+    },
+    "hiddenFromMembers": "Members can't see this category",
+    "edit": {
+      "title": "Edit category",
+      "name": "Category name",
+      "namePlaceholder": "Enter category name",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "failed": "Couldn't update the category. Try again.",
+      "loadingPermissions": "Loading permissions…",
+      "permissionsFailed": "Couldn't load this category's permissions. Close and reopen to try again.",
+      "permissionsSaved": "Permissions saved. No channel in it follows them; sync a channel from its permission settings. | Permissions saved and synced to {count} channel. | Permissions saved and synced to {count} channels."
+    },
+    "sync": {
+      "synced": "Synced with {category}",
+      "notSynced": "Not synced with {category}",
+      "notSyncedHint": "This channel's permissions differ from its category's.",
+      "saveFirst": "Save or reset your changes first.",
+      "syncNow": "Sync now",
+      "syncing": "Syncing…",
+      "done": "Permissions synced with {category}",
+      "failed": "Couldn't sync the permissions."
+    },
+    "move": {
+      "title": "Sync permissions?",
+      "message": "#{channel} is now in {category}, whose permissions differ from the channel's. Sync it with the category, or keep its own permissions?",
+      "sync": "Sync permissions"
     }
   },
   "message": {
@@ -1639,6 +1678,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. `> text` with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "Convert emoticons I send",
       "convertSentEmoticonsDesc": "Replace :) :D <3 and similar with emoji when you send or edit a message. Code, links and emails are left alone.",
+      "mirrorLinks": "Links you send",
+      "mirrorLinksDesc": "Links to X, Instagram and Bluesky posts in what you send are rewritten to a mirror that shows their photos and videos in previews on Discord and other apps. Harmony still shows the full post; people outside Harmony see the mirror link.",
+      "mirrorLinkSite": "{site} posts",
+      "mirrorLinkHost": "Mirror for {site} posts",
       "renderEmoticonsAsEmoji": "Show emoticons others send as emoji",
       "renderEmoticonsAsEmojiDesc": "Display :) :D <3 and similar in messages as emoji. The original text is kept.",
       "inviteBannerBg": "Server banner in invite dialog",
@@ -2226,7 +2269,8 @@
       "avatarUploadFailed": "Could not upload the avatar",
       "bannerUpdated": "Banner updated",
       "bannerUploadFailed": "Could not upload the banner",
-      "profileLoadFailed": "Could not load your profile"
+      "profileLoadFailed": "Could not load your profile",
+      "privacyUpdated": "Privacy settings updated"
     },
     "unsaved": {
       "title": "Discard unsaved changes?",
@@ -2258,6 +2302,8 @@
       "fieldIncomplete": "Each profile field needs both a label and a value.",
       "addField": "Add field",
       "description": "Manage your profile and account details.",
+      "unsavedChanges": "You have unsaved profile changes",
+      "changesReset": "Profile changes reset",
       "handleCopied": "Handle copied",
       "copyFailed": "Could not copy"
     }
@@ -3011,6 +3057,55 @@
       "saveFailed": "Couldn't update system message settings."
     }
   },
+  "systemEvents": {
+    "someone": "Someone",
+    "memberJoin": "{subject} joined the server.",
+    "memberLeave": "{subject} left the server.",
+    "memberKick": "{actor} kicked {subject}.",
+    "memberKickNoActor": "{subject} was kicked.",
+    "memberBan": "{actor} banned {subject}.",
+    "memberBanNoActor": "{subject} was banned.",
+    "reason": "Reason: {reason}",
+    "threadCreated": "{actor} started a thread: {thread}. See {allThreads}.",
+    "threadCreatedNoLink": "{actor} started a thread.",
+    "threadFallbackName": "Thread",
+    "allThreads": "all threads",
+    "encryptionEnabled": "{actor} turned on end-to-end encryption for this channel.",
+    "encryptionDisabled": "{actor} turned off end-to-end encryption for this channel.",
+    "voiceEncryptionEnabled": "{actor} turned on end-to-end encryption for voice and video.",
+    "voiceEncryptionDisabled": "{actor} turned off end-to-end encryption for voice and video.",
+    "groupCreated": "{actor} created the group.",
+    "groupCreatedWith": "{actor} created the group with {count} participant. | {actor} created the group with {count} participants.",
+    "membersAdded": "{actor} added {members} to the group.",
+    "listSeparator": ", ",
+    "callStarted": {
+      "voice": "{actor} started a voice call.",
+      "video": "{actor} started a video call."
+    },
+    "callEnded": {
+      "voice": "{actor} started a voice call that lasted {duration}.",
+      "video": "{actor} started a video call that lasted {duration}."
+    },
+    "callMissed": {
+      "voice": "You missed a voice call from {actor}.",
+      "video": "You missed a video call from {actor}."
+    },
+    "noAnswer": "No answer",
+    "duration": {
+      "seconds": "{s}s",
+      "minutes": "{m}m",
+      "minutesSeconds": "{m}m {s}s",
+      "hours": "{h}h",
+      "hoursMinutes": "{h}h {m}m"
+    },
+    "yesterdayAt": "Yesterday at",
+    "preview": {
+      "voiceCall": "Voice call",
+      "videoCall": "Video call",
+      "groupCreated": "Group created",
+      "membersAdded": "Members added"
+    }
+  },
   "time": {
     "now": "now",
     "justNow": "just now",
@@ -3739,12 +3834,6 @@
       "title": "Turn off voice encryption?",
       "message": "Calls in this channel will no longer be end-to-end encrypted, and the media server will be able to access audio and video.",
       "confirm": "Turn off voice encryption"
-    },
-    "system": {
-      "enabled": "turned on end-to-end encryption for this channel.",
-      "disabled": "turned off end-to-end encryption for this channel.",
-      "voiceEnabled": "turned on end-to-end encryption for voice and video.",
-      "voiceDisabled": "turned off end-to-end encryption for voice and video."
     },
     "create": {
       "label": "End-to-end encryption",
@@ -5918,7 +6007,13 @@
     "popOut": "Pop out",
     "open": "Open",
     "hide": "Hide",
-    "show": "Show"
+    "show": "Show",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "quotedPost": "Quoted post",
+    "openMedia": "Open media {index} of {total}",
+    "playOnSite": "Play on {site}",
+    "playInX": "Play in X's player"
   },
   "threadCreate": {
     "button": "New thread",
@@ -6318,7 +6413,9 @@
       "resetZoom": "Reset zoom and rotation",
       "rotateLeft": "Rotate left",
       "rotateRight": "Rotate right",
-      "videoUnsupported": "This video cannot be played here."
+      "videoUnsupported": "This video cannot be played here.",
+      "download": "Download",
+      "audio": "Audio"
     },
     "pwa": {
       "installApp": "Install Harmony app",
@@ -6429,7 +6526,8 @@
     "pip": "Picture in picture",
     "exitPip": "Exit picture in picture",
     "fullscreen": "Full screen",
-    "exitFullscreen": "Exit full screen"
+    "exitFullscreen": "Exit full screen",
+    "expand": "Open in viewer"
   },
   "share": {
     "title": "Share to Harmony",
@@ -6460,7 +6558,8 @@
       "restore": "Restore",
       "deleteForever": "Delete forever",
       "deleteFolder": "Delete folder",
-      "emptyTrash": "Empty trash"
+      "emptyTrash": "Empty trash",
+      "copyLink": "Copy link"
     },
     "nav": {
       "myDrive": "My Drive",
@@ -6612,7 +6711,9 @@
       "moved": "{count} file moved | {count} files moved",
       "kept": "{count} file kept in Drive | {count} files kept in Drive",
       "keepPartial": "{kept} of {total} kept: the rest does not fit in your Drive",
-      "folderDeleted": "Folder deleted; {count} file moved to the trash | Folder deleted; {count} files moved to the trash"
+      "folderDeleted": "Folder deleted; {count} file moved to the trash | Folder deleted; {count} files moved to the trash",
+      "linkCopied": "Link copied",
+      "linkCopyFailed": "Could not copy the link"
     },
     "share": {
       "title": "Share",
@@ -6644,12 +6745,16 @@
         "server": "Server",
         "channel": "Channel",
         "link": "Link"
-      }
+      },
+      "accessLinkTitle": "Link for people with access",
+      "accessLinkHint": "Opens only for people who can already see this file.",
+      "publicLinkLabel": "Public link, opens for anyone"
     },
     "preview": {
       "previous": "Previous file",
       "next": "Next file",
-      "none": "No preview for this file."
+      "none": "No preview for this file.",
+      "fullScreen": "View full screen"
     },
     "picker": {
       "title": "Choose from Drive",
@@ -6685,6 +6790,36 @@
       "sharedBy": "Shared by {name}",
       "expires": "Link expires {date}",
       "footer": "Shared from {instance}"
+    },
+    "card": {
+      "restrictedTitle": "Restricted file",
+      "restrictedText": "You don't have access to this file.",
+      "gone": "This file is no longer available.",
+      "view": "View {name}",
+      "play": "Play {name}",
+      "open": "Open {name}",
+      "download": "Download {name}"
+    },
+    "filePage": {
+      "title": "File",
+      "noAccessTitle": "You don't have access to this file",
+      "noAccessText": "Ask its owner to share it with you.",
+      "toDrive": "Go to Drive",
+      "errorTitle": "This file could not be loaded",
+      "retry": "Try again",
+      "yours": "Your file",
+      "ownedBy": "Owned by {name}",
+      "trashed": "In your trash. Only you can open it."
+    },
+    "offer": {
+      "channel": "People in {channel} can't open this file. Share it with the channel?",
+      "thisChannel": "People in this channel can't open this file. Share it with the channel?",
+      "conversation": "People in this conversation can't open this file. Share it with them?",
+      "person": "{name} can't open this file. Share it with them?",
+      "people": "{count} person in this conversation can't open this file. Share it with them? | {count} people in this conversation can't open this file. Share it with them?",
+      "share": "Share",
+      "sendAnyway": "Send anyway",
+      "shared": "File shared"
     }
   },
   "activities": {

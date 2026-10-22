@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "보내는 이모티콘을 이모지로 변환",
       "convertSentEmoticonsDesc": "메시지를 보내거나 수정할 때 :) :D <3 등을 이모지로 바꿉니다. 코드, 링크, 이메일 주소는 바뀌지 않습니다.",
+      "mirrorLinks": "보내는 링크",
+      "mirrorLinksDesc": "보내는 X, Instagram, Bluesky 게시물 링크를 Discord 등 다른 앱의 미리보기에서 사진과 동영상을 보여 주는 미러 링크로 바꿉니다. Harmony에서는 원래 게시물이 그대로 보입니다. Harmony 밖의 사람에게는 미러 링크가 보입니다.",
+      "mirrorLinkSite": "{site} 게시물",
+      "mirrorLinkHost": "{site} 게시물용 미러",
       "renderEmoticonsAsEmoji": "다른 사람의 이모티콘을 이모지로 표시",
       "renderEmoticonsAsEmojiDesc": "메시지의 :) :D <3 등을 이모지로 표시합니다. 원래 텍스트는 그대로 유지됩니다.",
       "inviteBannerBg": "초대 창의 서버 배너",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "아바타를 업로드하지 못했습니다",
       "bannerUpdated": "배너를 업데이트했습니다",
       "bannerUploadFailed": "배너를 업로드하지 못했습니다",
-      "profileLoadFailed": "프로필을 불러오지 못했습니다"
+      "profileLoadFailed": "프로필을 불러오지 못했습니다",
+      "privacyUpdated": "개인정보 설정을 업데이트했습니다"
     },
     "unsaved": {
       "title": "저장하지 않은 변경 사항을 버릴까요?",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "모든 프로필 항목에는 라벨과 값이 모두 필요합니다.",
       "addField": "항목 추가",
       "description": "프로필과 계정 정보를 관리합니다.",
+      "unsavedChanges": "저장하지 않은 프로필 변경사항이 있습니다",
+      "changesReset": "프로필 변경사항을 초기화했습니다",
       "handleCopied": "핸들을 복사했습니다",
       "copyFailed": "복사하지 못했습니다"
     }
@@ -2996,6 +3003,55 @@
       "saveFailed": "시스템 메시지 설정을 업데이트하지 못했습니다."
     }
   },
+  "systemEvents": {
+    "someone": "누군가",
+    "memberJoin": "{subject}님이 서버에 참여했습니다.",
+    "memberLeave": "{subject}님이 서버를 떠났습니다.",
+    "memberKick": "{actor}님이 {subject}님을 추방했습니다.",
+    "memberKickNoActor": "{subject}님이 추방되었습니다.",
+    "memberBan": "{actor}님이 {subject}님을 차단했습니다.",
+    "memberBanNoActor": "{subject}님이 차단되었습니다.",
+    "reason": "사유: {reason}",
+    "threadCreated": "{actor}님이 스레드를 시작했습니다: {thread}. {allThreads} 보기.",
+    "threadCreatedNoLink": "{actor}님이 스레드를 시작했습니다.",
+    "threadFallbackName": "스레드",
+    "allThreads": "모든 스레드",
+    "encryptionEnabled": "{actor}님이 이 채널의 종단 간 암호화를 켰습니다.",
+    "encryptionDisabled": "{actor}님이 이 채널의 종단 간 암호화를 껐습니다.",
+    "voiceEncryptionEnabled": "{actor}님이 음성 및 영상의 종단 간 암호화를 켰습니다.",
+    "voiceEncryptionDisabled": "{actor}님이 음성 및 영상의 종단 간 암호화를 껐습니다.",
+    "groupCreated": "{actor}님이 그룹을 만들었습니다.",
+    "groupCreatedWith": "{actor}님이 참여자 {count}명으로 그룹을 만들었습니다.",
+    "membersAdded": "{actor}님이 {members}님을 그룹에 추가했습니다.",
+    "listSeparator": ", ",
+    "callStarted": {
+      "voice": "{actor}님이 음성 통화를 시작했습니다.",
+      "video": "{actor}님이 영상 통화를 시작했습니다."
+    },
+    "callEnded": {
+      "voice": "{actor}님이 음성 통화를 시작했습니다. 통화 시간 {duration}.",
+      "video": "{actor}님이 영상 통화를 시작했습니다. 통화 시간 {duration}."
+    },
+    "callMissed": {
+      "voice": "{actor}님의 음성 통화를 받지 못했습니다.",
+      "video": "{actor}님의 영상 통화를 받지 못했습니다."
+    },
+    "noAnswer": "응답 없음",
+    "duration": {
+      "seconds": "{s}초",
+      "minutes": "{m}분",
+      "minutesSeconds": "{m}분 {s}초",
+      "hours": "{h}시간",
+      "hoursMinutes": "{h}시간 {m}분"
+    },
+    "yesterdayAt": "어제",
+    "preview": {
+      "voiceCall": "음성 통화",
+      "videoCall": "영상 통화",
+      "groupCreated": "그룹 생성됨",
+      "membersAdded": "멤버 추가됨"
+    }
+  },
   "time": {
     "now": "지금",
     "justNow": "방금",
@@ -3105,7 +3161,46 @@
       "limitReached": "이 서버는 최대 {max}개의 카테고리 한도에 도달했습니다",
       "createFailed": "카테고리 생성에 실패했습니다. 다시 시도해주세요.",
       "noServer": "선택된 서버가 없습니다",
-      "deleteFailed": "카테고리를 삭제할 수 없습니다."
+      "deleteFailed": "카테고리를 삭제할 수 없습니다.",
+      "permissionsFailed": "카테고리는 만들어졌지만 권한을 저장하지 못했어요."
+    },
+    "private": {
+      "label": "비공개 카테고리",
+      "hint": "선택한 역할과 멤버, 소유자와 관리자만 이 카테고리와 권한이 동기화된 채널을 볼 수 있어요.",
+      "whoCanSee": "볼 수 있는 사람",
+      "members": "멤버",
+      "searchMembers": "멤버 검색",
+      "noMembers": "일치하는 멤버가 없어요.",
+      "noRoles": "아직 역할이 없어요. 멤버를 고르지 않으면 소유자와 관리자만 볼 수 있어요.",
+      "removeMember": "{name} 제거",
+      "channelFollows": "{category}은(는) 비공개예요. 이 채널은 카테고리 권한을 그대로 받아요."
+    },
+    "hiddenFromMembers": "멤버에게는 이 카테고리가 보이지 않아요",
+    "edit": {
+      "title": "카테고리 편집",
+      "name": "카테고리 이름",
+      "namePlaceholder": "카테고리 이름 입력",
+      "save": "변경 사항 저장",
+      "saving": "저장 중…",
+      "failed": "카테고리를 업데이트하지 못했어요. 다시 시도해 주세요.",
+      "loadingPermissions": "권한 불러오는 중…",
+      "permissionsFailed": "이 카테고리의 권한을 불러오지 못했어요. 닫았다가 다시 열어 다시 시도해 주세요.",
+      "permissionsSaved": "권한을 저장했어요. 이 카테고리를 따르는 채널이 없어요. 채널 권한 설정에서 동기화할 수 있어요. | 권한을 저장하고 채널 {count}개에 동기화했어요. | 권한을 저장하고 채널 {count}개에 동기화했어요."
+    },
+    "sync": {
+      "synced": "{category}와(과) 동기화됨",
+      "notSynced": "{category}와(과) 동기화되지 않음",
+      "notSyncedHint": "이 채널의 권한이 카테고리 권한과 달라요.",
+      "saveFirst": "먼저 변경 사항을 저장하거나 되돌리세요.",
+      "syncNow": "지금 동기화",
+      "syncing": "동기화 중…",
+      "done": "권한을 {category}와(과) 동기화했어요",
+      "failed": "권한을 동기화하지 못했어요."
+    },
+    "move": {
+      "title": "권한을 동기화할까요?",
+      "message": "#{channel}이(가) {category}(으)로 이동했지만 권한이 카테고리와 달라요. 카테고리와 동기화할까요, 아니면 채널 자체 권한을 유지할까요?",
+      "sync": "권한 동기화"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "음성 암호화를 끌까요?",
       "message": "이 채널의 통화는 더 이상 종단 간 암호화되지 않으며, 미디어 서버가 오디오와 영상에 접근할 수 있게 됩니다.",
       "confirm": "음성 암호화 끄기"
-    },
-    "system": {
-      "enabled": "님이 이 채널의 종단 간 암호화를 켰습니다.",
-      "disabled": "님이 이 채널의 종단 간 암호화를 껐습니다.",
-      "voiceEnabled": "님이 음성 및 영상의 종단 간 암호화를 켰습니다.",
-      "voiceDisabled": "님이 음성 및 영상의 종단 간 암호화를 껐습니다."
     },
     "create": {
       "label": "종단 간 암호화",
@@ -5922,7 +6011,13 @@
     "popOut": "팝아웃",
     "open": "열기",
     "hide": "숨기기",
-    "show": "표시"
+    "show": "표시",
+    "showMore": "더 보기",
+    "showLess": "접기",
+    "quotedPost": "인용된 게시물",
+    "openMedia": "미디어 {index}/{total} 열기",
+    "playOnSite": "{site}에서 재생",
+    "playInX": "X 플레이어에서 재생"
   },
   "threadCreate": {
     "button": "새 스레드",
@@ -6322,7 +6417,9 @@
       "resetZoom": "확대/축소 및 회전 초기화",
       "rotateLeft": "왼쪽으로 회전",
       "rotateRight": "오른쪽으로 회전",
-      "videoUnsupported": "이 동영상은 여기에서 재생할 수 없습니다."
+      "videoUnsupported": "이 동영상은 여기에서 재생할 수 없습니다.",
+      "download": "다운로드",
+      "audio": "오디오"
     },
     "pwa": {
       "installApp": "Harmony 앱 설치",
@@ -6433,7 +6530,8 @@
     "pip": "PIP 모드",
     "exitPip": "PIP 모드 종료",
     "fullscreen": "전체 화면",
-    "exitFullscreen": "전체 화면 종료"
+    "exitFullscreen": "전체 화면 종료",
+    "expand": "뷰어에서 열기"
   },
   "activities": {
     "title": "함께 보기 또는 듣기",
@@ -6537,7 +6635,8 @@
       "restore": "복원",
       "deleteForever": "영구 삭제",
       "deleteFolder": "폴더 삭제",
-      "emptyTrash": "휴지통 비우기"
+      "emptyTrash": "휴지통 비우기",
+      "copyLink": "링크 복사"
     },
     "nav": {
       "myDrive": "내 Drive",
@@ -6689,7 +6788,9 @@
       "moved": "파일 {count}개를 이동했습니다 | 파일 {count}개를 이동했습니다",
       "kept": "파일 {count}개를 Drive에 보관했습니다 | 파일 {count}개를 Drive에 보관했습니다",
       "keepPartial": "{total}개 중 {kept}개 보관됨: 나머지는 Drive에 공간이 부족합니다",
-      "folderDeleted": "폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다 | 폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다"
+      "folderDeleted": "폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다 | 폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다",
+      "linkCopied": "링크를 복사했습니다",
+      "linkCopyFailed": "링크를 복사하지 못했습니다"
     },
     "share": {
       "title": "공유",
@@ -6721,12 +6822,16 @@
         "server": "서버",
         "channel": "채널",
         "link": "링크"
-      }
+      },
+      "accessLinkTitle": "접근 권한이 있는 사람용 링크",
+      "accessLinkHint": "이 파일을 이미 볼 수 있는 사람만 열 수 있습니다.",
+      "publicLinkLabel": "공개 링크, 누구나 열 수 있음"
     },
     "preview": {
       "previous": "이전 파일",
       "next": "다음 파일",
-      "none": "이 파일은 미리보기를 지원하지 않습니다."
+      "none": "이 파일은 미리보기를 지원하지 않습니다.",
+      "fullScreen": "전체 화면으로 보기"
     },
     "picker": {
       "title": "Drive에서 선택",
@@ -6762,6 +6867,36 @@
       "sharedBy": "{name}님이 공유함",
       "expires": "링크 만료: {date}",
       "footer": "{instance}에서 공유됨"
+    },
+    "card": {
+      "restrictedTitle": "제한된 파일",
+      "restrictedText": "이 파일에 접근할 수 없습니다.",
+      "gone": "이 파일은 더 이상 사용할 수 없습니다.",
+      "view": "{name} 보기",
+      "play": "{name} 재생",
+      "open": "{name} 열기",
+      "download": "{name} 다운로드"
+    },
+    "filePage": {
+      "title": "파일",
+      "noAccessTitle": "이 파일에 접근할 수 없습니다",
+      "noAccessText": "소유자에게 공유를 요청하세요.",
+      "toDrive": "드라이브로 이동",
+      "errorTitle": "이 파일을 불러오지 못했습니다",
+      "retry": "다시 시도",
+      "yours": "내 파일",
+      "ownedBy": "소유자: {name}",
+      "trashed": "휴지통에 있습니다. 나만 열 수 있습니다."
+    },
+    "offer": {
+      "channel": "{channel}의 사람들은 이 파일을 열 수 없습니다. 채널과 공유할까요?",
+      "thisChannel": "이 채널의 사람들은 이 파일을 열 수 없습니다. 채널과 공유할까요?",
+      "conversation": "이 대화의 참여자는 이 파일을 열 수 없습니다. 공유할까요?",
+      "person": "{name}님은 이 파일을 열 수 없습니다. 공유할까요?",
+      "people": "이 대화의 참여자 {count}명은 이 파일을 열 수 없습니다. 공유할까요?",
+      "share": "공유",
+      "sendAnyway": "그래도 보내기",
+      "shared": "파일을 공유했습니다"
     }
   },
   "support": {
