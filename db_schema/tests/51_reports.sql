@@ -185,13 +185,16 @@ SELECT throws_ok($q$SELECT * FROM public.get_reports_with_details()$q$, '42501',
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT is((SELECT count(*)::int FROM public.reports), 0, 'a stranger sees no reports');
 
+-- Server moderators read the queue through get_reports_with_details, which withholds the
+-- reporter; the table, whose reporter_id column clients may select, is staff-only
+-- (20261026700001).
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is((SELECT count(*)::int FROM public.reports), 2,
-          'the server owner sees the reports scoped to the server');
+SELECT is((SELECT count(*)::int FROM public.reports), 0,
+          'the server owner reads no report rows from the table');
 
 SELECT tests.authenticate_as('dddddddd-0000-0000-0000-000000000051');
-SELECT is((SELECT count(*)::int FROM public.reports), 2,
-          'a MANAGE_MESSAGES holder sees the reports scoped to the server');
+SELECT is((SELECT count(*)::int FROM public.reports), 0,
+          'a MANAGE_MESSAGES holder reads no report rows from the table');
 SELECT throws_ok($q$SELECT * FROM public.get_reports_with_details()$q$, '42501', NULL,
                  'a server moderator cannot list the instance queue');
 SELECT results_eq(

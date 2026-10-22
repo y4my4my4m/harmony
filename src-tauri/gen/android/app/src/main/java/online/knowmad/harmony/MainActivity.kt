@@ -21,6 +21,8 @@ class MainActivity : TauriActivity() {
     FullscreenVideo(window.decorView as ViewGroup) { active -> showFullscreen(active) }
   }
 
+  private val fullscreenOrientation by lazy { FullscreenOrientation(this) }
+
   private val leaveFullscreenOnBack = object : OnBackPressedCallback(false) {
     override fun handleOnBackPressed() {
       fullscreen.leave()
@@ -69,8 +71,10 @@ class MainActivity : TauriActivity() {
     if (active) {
       controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
       controller.hide(WindowInsetsCompat.Type.systemBars())
+      fullscreenOrientation.enter()
     } else {
       controller.show(WindowInsetsCompat.Type.systemBars())
+      fullscreenOrientation.exit()
     }
   }
 

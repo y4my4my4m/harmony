@@ -1,0 +1,244 @@
+{
+  "thread": {
+    "post": {
+      "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3m6zx562tss2c",
+      "cid": "bafyreihgq3upndrmnnvgcbs7uoawmqlfhoy6i2nvpx6rmjyryfx2cph324",
+      "author": {
+        "did": "did:plc:z72i7hdynmk6r22z27h6tvur",
+        "handle": "bsky.app",
+        "displayName": "Bluesky",
+        "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka",
+        "associated": {
+          "chat": {
+            "allowIncoming": "none"
+          },
+          "activitySubscription": {
+            "allowSubscriptions": "followers"
+          }
+        },
+        "labels": [],
+        "createdAt": "2023-04-12T04:53:57.057Z",
+        "verification": {
+          "verifications": [],
+          "verifiedStatus": "none",
+          "trustedVerifierStatus": "valid"
+        },
+        "status": {
+          "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.actor.status/self",
+          "cid": "bafyreihkojqw7p22odgjcbzjh5sh4vrntow24sd4nvntpqnddrd5pqma44",
+          "record": {
+            "$type": "app.bsky.actor.status",
+            "createdAt": "2026-10-20T16:00:37.680Z",
+            "durationMinutes": 60,
+            "embed": {
+              "$type": "app.bsky.embed.external",
+              "external": {
+                "$type": "app.bsky.embed.external#external",
+                "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+                "thumb": {
+                  "$type": "blob",
+                  "ref": {
+                    "$link": "bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+                  },
+                  "mimeType": "image/jpeg",
+                  "size": 195438
+                },
+                "title": "e.w. niedermeyer is live on Streamplace",
+                "uri": "https://stream.place/niedermeyer.online"
+              }
+            },
+            "status": "app.bsky.actor.status#live"
+          },
+          "status": "app.bsky.actor.status#live",
+          "embed": {
+            "external": {
+              "uri": "https://stream.place/niedermeyer.online",
+              "title": "e.w. niedermeyer is live on Streamplace",
+              "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+              "thumb": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+            },
+            "$type": "app.bsky.embed.external#view"
+          },
+          "labels": [],
+          "expiresAt": "2026-10-20T17:00:37.680Z",
+          "isActive": false
+        }
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "createdAt": "2025-12-02T22:04:06.239Z",
+        "embed": {
+          "$type": "app.bsky.embed.recordWithMedia",
+          "media": {
+            "$type": "app.bsky.embed.images",
+            "images": [
+              {
+                "alt": "Word cloud of most-used words: rolling, accounts, posts, custom, users, video, community, subscribe, starter, contributors, building independent",
+                "aspectRatio": {
+                  "height": 550,
+                  "width": 591
+                },
+                "image": {
+                  "$type": "blob",
+                  "ref": {
+                    "$link": "bafkreiem4tldjs4joxg423jjoi6im3a3pfyiltp3tsgwtwuo2gpjht5x4q"
+                  },
+                  "mimeType": "image/jpeg",
+                  "size": 102261
+                }
+              }
+            ]
+          },
+          "record": {
+            "$type": "app.bsky.embed.record",
+            "record": {
+              "cid": "bafyreidfuzoa24xk27ugm4cjfanieshoyntbhmrc3p7ykqevaedduraqta",
+              "uri": "at://did:plc:lcieujcfkv4jx7gehsvok3pr/app.bsky.feed.post/3m6mwoadjbp2d"
+            }
+          }
+        },
+        "facets": [
+          {
+            "features": [
+              {
+                "$type": "app.bsky.richtext.facet#link",
+                "uri": "https://bsky.app/profile/anisota.net/post/3m6mwoadjbp2d"
+              }
+            ],
+            "index": {
+              "byteEnd": 180,
+              "byteStart": 156
+            }
+          }
+        ],
+        "langs": [
+          "en"
+        ],
+        "text": "Our most-used words this year aren't a big surprise: 'community', 'building', and 'conversations'. Find out your own most-used words using Bluesky Harvest: bsky.app/profile/anis..."
+      },
+      "embed": {
+        "media": {
+          "images": [
+            {
+              "thumb": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreiem4tldjs4joxg423jjoi6im3a3pfyiltp3tsgwtwuo2gpjht5x4q",
+              "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreiem4tldjs4joxg423jjoi6im3a3pfyiltp3tsgwtwuo2gpjht5x4q",
+              "alt": "Word cloud of most-used words: rolling, accounts, posts, custom, users, video, community, subscribe, starter, contributors, building independent",
+              "aspectRatio": {
+                "height": 550,
+                "width": 591
+              }
+            }
+          ],
+          "$type": "app.bsky.embed.images#view"
+        },
+        "record": {
+          "record": {
+            "uri": "at://did:plc:lcieujcfkv4jx7gehsvok3pr/app.bsky.feed.post/3m6mwoadjbp2d",
+            "cid": "bafyreidfuzoa24xk27ugm4cjfanieshoyntbhmrc3p7ykqevaedduraqta",
+            "author": {
+              "did": "did:plc:lcieujcfkv4jx7gehsvok3pr",
+              "handle": "anisota.net",
+              "displayName": "Anisota",
+              "pronouns": "moth/moths",
+              "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:lcieujcfkv4jx7gehsvok3pr/bafkreib3up4axmlh2gm2bsg4ee3oifzhsghkwqnkjzse557tg442keyl4m",
+              "associated": {
+                "chat": {
+                  "allowIncoming": "all"
+                },
+                "activitySubscription": {
+                  "allowSubscriptions": "followers"
+                }
+              },
+              "labels": [],
+              "createdAt": "2025-06-25T02:07:42.632Z",
+              "verification": {
+                "verifications": [
+                  {
+                    "issuer": "did:plc:z72i7hdynmk6r22z27h6tvur",
+                    "issuerDisplayName": "Bluesky",
+                    "issuerHandle": "bsky.app",
+                    "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.graph.verification/3mcy2atud5m2p",
+                    "isValid": true,
+                    "createdAt": "2026-01-22T01:35:17.668Z"
+                  }
+                ],
+                "verifiedStatus": "valid",
+                "trustedVerifierStatus": "none"
+              }
+            },
+            "value": {
+              "$type": "app.bsky.feed.post",
+              "createdAt": "2025-11-27T17:51:07.740Z",
+              "embed": {
+                "$type": "app.bsky.embed.external",
+                "external": {
+                  "description": "A recap of your year on Bluesky. Discover patterns, connections, and insights from your journey in the ATmosphere.",
+                  "thumb": {
+                    "$type": "blob",
+                    "ref": {
+                      "$link": "bafkreib2if2mxzjmuxsz7ui6zdffdsw4h27gshmi54pyqbgb7l7mfgnxre"
+                    },
+                    "mimeType": "image/jpeg",
+                    "size": 682970
+                  },
+                  "title": "Anisota's Annual Bluesky Harvest 2025",
+                  "uri": "https://anisota.net/harvest"
+                }
+              },
+              "facets": [
+                {
+                  "$type": "app.bsky.richtext.facet",
+                  "features": [
+                    {
+                      "$type": "app.bsky.richtext.facet#link",
+                      "uri": "https://anisota.net/harvest"
+                    }
+                  ],
+                  "index": {
+                    "byteEnd": 59,
+                    "byteStart": 40
+                  }
+                }
+              ],
+              "langs": [
+                "en"
+              ],
+              "tags": [
+                "anisota"
+              ],
+              "text": "Hello moths, \n\nThe harvest has arrived: anisota.net/harvest\n\nIt's like Spotify Wrapped, but for Bluesky and the ATmosphere. 🌾\n\nSee your most-used words, discover who you interact with most, explore your posting patterns, and find all sorts of fun insights."
+            },
+            "labels": [],
+            "likeCount": 1439,
+            "replyCount": 82,
+            "repostCount": 416,
+            "quoteCount": 1597,
+            "indexedAt": "2025-11-27T17:51:09.430Z",
+            "embeds": [
+              {
+                "external": {
+                  "uri": "https://anisota.net/harvest",
+                  "title": "Anisota's Annual Bluesky Harvest 2025",
+                  "description": "A recap of your year on Bluesky. Discover patterns, connections, and insights from your journey in the ATmosphere.",
+                  "thumb": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:lcieujcfkv4jx7gehsvok3pr/bafkreib2if2mxzjmuxsz7ui6zdffdsw4h27gshmi54pyqbgb7l7mfgnxre"
+                },
+                "$type": "app.bsky.embed.external#view"
+              }
+            ],
+            "$type": "app.bsky.embed.record#viewRecord"
+          }
+        },
+        "$type": "app.bsky.embed.recordWithMedia#view"
+      },
+      "bookmarkCount": 217,
+      "replyCount": 132,
+      "repostCount": 350,
+      "likeCount": 2256,
+      "quoteCount": 165,
+      "indexedAt": "2025-12-02T22:04:08.035Z",
+      "labels": []
+    },
+    "threadContext": {},
+    "$type": "app.bsky.feed.defs#threadViewPost"
+  }
+}

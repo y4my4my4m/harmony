@@ -85,7 +85,7 @@ describe('Create Server from a template', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="create-server-name-input"]').setValue('Readers')
-    await wrapper.get('input[name="create-server-visibility"][type="radio"]').setValue(true)
+    await wrapper.get('input[name="create-server-visibility"][value="false"]').setValue(true)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 

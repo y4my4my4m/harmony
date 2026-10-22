@@ -8,6 +8,7 @@ import {
   type EveryoneLayer,
   type InstallRow,
   botCanReadChannel,
+  botReadsHistory,
   loadEveryoneLayer,
 } from '../auth/botPermissions.js'
 
@@ -497,9 +498,11 @@ export class EventDispatcher {
   /**
    * Bots that may read a channel: read_messages, the install's allowed_channel_ids, and
    * VIEW_CHANNEL as a holder of @everyone (botCanReadChannel). None when visibility cannot be
-   * established.
+   * established. With `createdAt`, only bots whose history of the channel reaches that message:
+   * READ_MESSAGE_HISTORY (botReadsHistory) or an install no later than it, as the REST
+   * history gate (BotRestAPI.historySince).
    */
-  private async resolveReaders(serverId: string, channelId: string): Promise<string[]> {
+  private async resolveReaders(serverId: string, channelId: string, createdAt?: string): Promise<string[]> {
     const botPermissions = await this.resolveBotPermissions(serverId)
     if (botPermissions.length === 0) return []
 
@@ -509,8 +512,14 @@ export class EventDispatcher {
       return []
     }
 
+    const at = createdAt === undefined ? NaN : Date.parse(createdAt)
     return botPermissions
       .filter(row => botCanReadChannel(row, layer, channelId))
+      .filter(row => {
+        if (createdAt === undefined || botReadsHistory(row, layer, channelId)) return true
+        const floor = typeof row.installed_at === 'string' ? Date.parse(row.installed_at) : NaN
+        return Number.isFinite(at) && Number.isFinite(floor) && at >= floor
+      })
       .map(row => row.bot_id)
   }
   
@@ -711,7 +720,7 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    const botIds = await this.resolveReaders(serverId, message.channel_id)
+    const botIds = await this.resolveReaders(serverId, message.channel_id, message.created_at)
     if (botIds.length === 0) return
     
     const formattedMessage = await this.formatMessage(message, serverId)

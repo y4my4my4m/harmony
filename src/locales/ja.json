@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "送信する顔文字を絵文字に変換",
       "convertSentEmoticonsDesc": "メッセージの送信・編集時に :) :D <3 などを絵文字に置き換えます。コード、リンク、メールアドレスは変換されません。",
+      "mirrorLinks": "送信するリンク",
+      "mirrorLinksDesc": "送信する X・Instagram・Bluesky の投稿リンクを、Discord などのアプリのプレビューで写真や動画を表示できるミラーに書き換えます。Harmony では元の投稿がそのまま表示されます。Harmony の外の人にはミラーのリンクが表示されます。",
+      "mirrorLinkSite": "{site} の投稿",
+      "mirrorLinkHost": "{site} の投稿のミラー",
       "renderEmoticonsAsEmoji": "他の人の顔文字を絵文字で表示",
       "renderEmoticonsAsEmojiDesc": "メッセージ内の :) :D <3 などを絵文字として表示します。元のテキストは変更されません。",
       "inviteBannerBg": "招待ダイアログのサーバーバナー",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "アバターをアップロードできませんでした",
       "bannerUpdated": "バナーを更新しました",
       "bannerUploadFailed": "バナーをアップロードできませんでした",
-      "profileLoadFailed": "プロフィールを読み込めませんでした"
+      "profileLoadFailed": "プロフィールを読み込めませんでした",
+      "privacyUpdated": "プライバシー設定を更新しました"
     },
     "unsaved": {
       "title": "保存していない変更を破棄しますか？",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "プロフィール項目にはラベルと値の両方が必要です。",
       "addField": "項目を追加",
       "description": "プロフィールとアカウントの詳細を管理します。",
+      "unsavedChanges": "保存されていないプロフィールの変更があります",
+      "changesReset": "プロフィールの変更をリセットしました",
       "handleCopied": "ハンドルをコピーしました",
       "copyFailed": "コピーできませんでした"
     }
@@ -2977,6 +2984,55 @@
       "saveFailed": "システムメッセージの設定を更新できませんでした。"
     }
   },
+  "systemEvents": {
+    "someone": "誰か",
+    "memberJoin": "{subject}がサーバーに参加しました。",
+    "memberLeave": "{subject}がサーバーから退出しました。",
+    "memberKick": "{actor}が{subject}をキックしました。",
+    "memberKickNoActor": "{subject}がキックされました。",
+    "memberBan": "{actor}が{subject}をBANしました。",
+    "memberBanNoActor": "{subject}がBANされました。",
+    "reason": "理由：{reason}",
+    "threadCreated": "{actor}がスレッドを開始しました：{thread}。{allThreads}を見る。",
+    "threadCreatedNoLink": "{actor}がスレッドを開始しました。",
+    "threadFallbackName": "スレッド",
+    "allThreads": "すべてのスレッド",
+    "encryptionEnabled": "{actor}がこのチャンネルのエンドツーエンド暗号化をオンにしました。",
+    "encryptionDisabled": "{actor}がこのチャンネルのエンドツーエンド暗号化をオフにしました。",
+    "voiceEncryptionEnabled": "{actor}が音声とビデオのエンドツーエンド暗号化をオンにしました。",
+    "voiceEncryptionDisabled": "{actor}が音声とビデオのエンドツーエンド暗号化をオフにしました。",
+    "groupCreated": "{actor}がグループを作成しました。",
+    "groupCreatedWith": "{actor}が{count}人の参加者でグループを作成しました。",
+    "membersAdded": "{actor}が{members}をグループに追加しました。",
+    "listSeparator": "、",
+    "callStarted": {
+      "voice": "{actor}が音声通話を開始しました。",
+      "video": "{actor}がビデオ通話を開始しました。"
+    },
+    "callEnded": {
+      "voice": "{actor}が音声通話を開始しました（通話時間 {duration}）。",
+      "video": "{actor}がビデオ通話を開始しました（通話時間 {duration}）。"
+    },
+    "callMissed": {
+      "voice": "{actor}からの音声通話に応答しませんでした。",
+      "video": "{actor}からのビデオ通話に応答しませんでした。"
+    },
+    "noAnswer": "応答なし",
+    "duration": {
+      "seconds": "{s}秒",
+      "minutes": "{m}分",
+      "minutesSeconds": "{m}分{s}秒",
+      "hours": "{h}時間",
+      "hoursMinutes": "{h}時間{m}分"
+    },
+    "yesterdayAt": "昨日",
+    "preview": {
+      "voiceCall": "音声通話",
+      "videoCall": "ビデオ通話",
+      "groupCreated": "グループを作成しました",
+      "membersAdded": "メンバーを追加しました"
+    }
+  },
   "time": {
     "now": "今",
     "justNow": "たった今",
@@ -3086,7 +3142,46 @@
       "limitReached": "このサーバーはカテゴリの上限 ({max}) に達しています",
       "createFailed": "カテゴリの作成に失敗しました。もう一度お試しください。",
       "noServer": "サーバーが選択されていません",
-      "deleteFailed": "カテゴリーを削除できませんでした。"
+      "deleteFailed": "カテゴリーを削除できませんでした。",
+      "permissionsFailed": "カテゴリは作成されましたが、権限を保存できませんでした。"
+    },
+    "private": {
+      "label": "プライベートカテゴリ",
+      "hint": "選んだロールとメンバー、オーナー、管理者だけが、このカテゴリと権限が同期されたチャンネルを見られます。",
+      "whoCanSee": "閲覧できる人",
+      "members": "メンバー",
+      "searchMembers": "メンバーを検索",
+      "noMembers": "一致するメンバーがいません。",
+      "noRoles": "まだロールがありません。メンバーを選ばない場合、オーナーと管理者だけが見られます。",
+      "removeMember": "{name} を外す",
+      "channelFollows": "{category} はプライベートです。このチャンネルはカテゴリの権限を引き継ぎます。"
+    },
+    "hiddenFromMembers": "メンバーにはこのカテゴリが表示されません",
+    "edit": {
+      "title": "カテゴリを編集",
+      "name": "カテゴリ名",
+      "namePlaceholder": "カテゴリ名を入力",
+      "save": "変更を保存",
+      "saving": "保存中…",
+      "failed": "カテゴリを更新できませんでした。もう一度お試しください。",
+      "loadingPermissions": "権限を読み込み中…",
+      "permissionsFailed": "このカテゴリの権限を読み込めませんでした。閉じてから開き直すと再試行できます。",
+      "permissionsSaved": "権限を保存しました。このカテゴリに同期されたチャンネルはありません。チャンネルの権限設定から同期できます。 | 権限を保存し、{count} 件のチャンネルに同期しました。 | 権限を保存し、{count} 件のチャンネルに同期しました。"
+    },
+    "sync": {
+      "synced": "{category} と同期済み",
+      "notSynced": "{category} と同期されていません",
+      "notSyncedHint": "このチャンネルの権限はカテゴリの権限と異なります。",
+      "saveFirst": "先に変更を保存するか、元に戻してください。",
+      "syncNow": "今すぐ同期",
+      "syncing": "同期中…",
+      "done": "権限を {category} と同期しました",
+      "failed": "権限を同期できませんでした。"
+    },
+    "move": {
+      "title": "権限を同期しますか？",
+      "message": "#{channel} は {category} に移動しましたが、権限がカテゴリと異なります。カテゴリと同期しますか、それともチャンネル独自の権限を保ちますか？",
+      "sync": "権限を同期"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "音声の暗号化をオフにしますか？",
       "message": "このチャンネルの通話はエンドツーエンドで暗号化されなくなり、メディアサーバーが音声とビデオにアクセスできるようになります。",
       "confirm": "音声の暗号化をオフにする"
-    },
-    "system": {
-      "enabled": "がこのチャンネルのエンドツーエンド暗号化をオンにしました。",
-      "disabled": "がこのチャンネルのエンドツーエンド暗号化をオフにしました。",
-      "voiceEnabled": "が音声とビデオのエンドツーエンド暗号化をオンにしました。",
-      "voiceDisabled": "が音声とビデオのエンドツーエンド暗号化をオフにしました。"
     },
     "create": {
       "label": "エンドツーエンド暗号化",
@@ -5922,7 +6011,13 @@
     "popOut": "ポップアウト",
     "open": "開く",
     "hide": "非表示",
-    "show": "表示"
+    "show": "表示",
+    "showMore": "もっと見る",
+    "showLess": "折りたたむ",
+    "quotedPost": "引用された投稿",
+    "openMedia": "メディア {index}/{total} を開く",
+    "playOnSite": "{site} で再生",
+    "playInX": "X のプレーヤーで再生"
   },
   "threadCreate": {
     "button": "新しいスレッド",
@@ -6322,7 +6417,9 @@
       "resetZoom": "ズームと回転をリセット",
       "rotateLeft": "左に回転",
       "rotateRight": "右に回転",
-      "videoUnsupported": "この動画はここでは再生できません。"
+      "videoUnsupported": "この動画はここでは再生できません。",
+      "download": "ダウンロード",
+      "audio": "オーディオ"
     },
     "pwa": {
       "installApp": "Harmony アプリをインストール",
@@ -6433,7 +6530,8 @@
     "pip": "ピクチャー・イン・ピクチャー",
     "exitPip": "ピクチャー・イン・ピクチャーを終了",
     "fullscreen": "全画面表示",
-    "exitFullscreen": "全画面表示を終了"
+    "exitFullscreen": "全画面表示を終了",
+    "expand": "ビューアーで開く"
   },
   "activities": {
     "title": "一緒に見る・聴く",
@@ -6537,7 +6635,8 @@
       "restore": "復元",
       "deleteForever": "完全に削除",
       "deleteFolder": "フォルダーを削除",
-      "emptyTrash": "ゴミ箱を空にする"
+      "emptyTrash": "ゴミ箱を空にする",
+      "copyLink": "リンクをコピー"
     },
     "nav": {
       "myDrive": "マイ Drive",
@@ -6689,7 +6788,9 @@
       "moved": "{count} 件のファイルを移動しました | {count} 件のファイルを移動しました",
       "kept": "{count} 件のファイルを Drive に保存しました | {count} 件のファイルを Drive に保存しました",
       "keepPartial": "{total} 件中 {kept} 件を保存しました。残りは Drive に入りません",
-      "folderDeleted": "フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました | フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました"
+      "folderDeleted": "フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました | フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました",
+      "linkCopied": "リンクをコピーしました",
+      "linkCopyFailed": "リンクをコピーできませんでした"
     },
     "share": {
       "title": "共有",
@@ -6721,12 +6822,16 @@
         "server": "サーバー",
         "channel": "チャンネル",
         "link": "リンク"
-      }
+      },
+      "accessLinkTitle": "アクセス権のある人向けのリンク",
+      "accessLinkHint": "このファイルをすでに見られる人だけが開けます。",
+      "publicLinkLabel": "公開リンク（誰でも開けます）"
     },
     "preview": {
       "previous": "前のファイル",
       "next": "次のファイル",
-      "none": "このファイルのプレビューはありません。"
+      "none": "このファイルのプレビューはありません。",
+      "fullScreen": "全画面で表示"
     },
     "picker": {
       "title": "Drive から選択",
@@ -6762,6 +6867,36 @@
       "sharedBy": "{name} が共有",
       "expires": "リンクの有効期限：{date}",
       "footer": "{instance} から共有"
+    },
+    "card": {
+      "restrictedTitle": "制限されたファイル",
+      "restrictedText": "このファイルへのアクセス権がありません。",
+      "gone": "このファイルは利用できなくなりました。",
+      "view": "{name} を表示",
+      "play": "{name} を再生",
+      "open": "{name} を開く",
+      "download": "{name} をダウンロード"
+    },
+    "filePage": {
+      "title": "ファイル",
+      "noAccessTitle": "このファイルへのアクセス権がありません",
+      "noAccessText": "所有者に共有を依頼してください。",
+      "toDrive": "ドライブへ",
+      "errorTitle": "このファイルを読み込めませんでした",
+      "retry": "再試行",
+      "yours": "あなたのファイル",
+      "ownedBy": "所有者: {name}",
+      "trashed": "ゴミ箱にあります。開けるのはあなただけです。"
+    },
+    "offer": {
+      "channel": "{channel} のメンバーはこのファイルを開けません。チャンネルと共有しますか？",
+      "thisChannel": "このチャンネルのメンバーはこのファイルを開けません。チャンネルと共有しますか？",
+      "conversation": "この会話の参加者はこのファイルを開けません。共有しますか？",
+      "person": "{name} はこのファイルを開けません。共有しますか？",
+      "people": "この会話の {count} 人はこのファイルを開けません。共有しますか？",
+      "share": "共有",
+      "sendAnyway": "このまま送信",
+      "shared": "ファイルを共有しました"
     }
   },
   "support": {

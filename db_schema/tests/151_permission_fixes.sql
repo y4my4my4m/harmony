@@ -166,8 +166,8 @@ UPDATE public.profiles SET is_moderator = false WHERE id = '33333333-0000-0000-0
 -- The report queue takes the same per-channel answer. --------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT throws_ok($q$SELECT public.moderate_report('f1514000-0000-0000-0000-000000000001', 'delete_message')$q$,
-                 '42501', 'Permission denied: MANAGE_MESSAGES required in the message''s channel',
-                 'a server moderator cannot delete a reported message where they are denied');
+                 '42501', 'Permission denied: moderator access required',
+                 'a server moderator denied MANAGE_MESSAGES in the message''s channel cannot act on its report');
 SELECT is(public.moderate_report('f1514000-0000-0000-0000-000000000002', 'delete_message')->>'status', 'resolved',
           'and deletes one where they are not');
 SELECT tests.clear_authentication();

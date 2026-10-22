@@ -1,0 +1,136 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/GIPHY/status/1955268195725570451",
+    "id": "1955268195725570451",
+    "text": "The Life of a Showgirl",
+    "raw_text": {
+      "text": "The Life of a Showgirl https://t.co/0EEKn4bmfG",
+      "display_text_range": [
+        0,
+        22
+      ],
+      "facets": [
+        {
+          "type": "media",
+          "indices": [
+            23,
+            46
+          ],
+          "id": "1955268189413138433",
+          "display": "pic.x.com/0EEKn4bmfG",
+          "original": "https://t.co/0EEKn4bmfG",
+          "replacement": "https://x.com/GIPHY/status/1955268195725570451/photo/1"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "GIPHY",
+      "url": "https://x.com/GIPHY",
+      "id": "1020383864",
+      "followers": 226525,
+      "following": 1067,
+      "likes": 35184,
+      "media_count": 12948,
+      "name": "GIPHY",
+      "description": "Be Animated.",
+      "raw_description": {
+        "text": "Be Animated.",
+        "facets": []
+      },
+      "location": "New York, NY",
+      "banner_url": "https://pbs.twimg.com/profile_banners/1020383864/1614878714",
+      "avatar_url": "https://pbs.twimg.com/profile_images/1356405232243269636/7wtRQyr2_200x200.jpg",
+      "joined": "Tue Dec 18 18:33:45 +0000 2012",
+      "protected": false,
+      "website": {
+        "url": "https://giphy.com",
+        "display_url": "giphy.com"
+      },
+      "verification": {
+        "verified": true,
+        "verified_at": null,
+        "type": "individual"
+      },
+      "avatar_color": null
+    },
+    "replies": 13,
+    "retweets": 31,
+    "likes": 116,
+    "bookmarks": 7,
+    "quotes": 1,
+    "created_at": "Tue Aug 12 14:00:39 +0000 2025",
+    "created_timestamp": 1755007239,
+    "possibly_sensitive": false,
+    "views": 12662,
+    "is_note_tweet": false,
+    "community_note": null,
+    "lang": "en",
+    "replying_to": null,
+    "replying_to_status": null,
+    "media": {
+      "all": [
+        {
+          "id": "1955268189413138433",
+          "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+          "thumbnail_url": "https://pbs.twimg.com/tweet_video_thumb/GyKCDw6XYAEGjvH.jpg",
+          "duration": 0,
+          "width": 384,
+          "height": 384,
+          "format": "video/mp4",
+          "type": "gif",
+          "formats": [
+            {
+              "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+              "bitrate": 0,
+              "container": "mp4",
+              "codec": "h264"
+            }
+          ],
+          "publisher": null,
+          "variants": [
+            {
+              "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+              "bitrate": 0,
+              "content_type": "video/mp4"
+            }
+          ]
+        }
+      ],
+      "videos": [
+        {
+          "id": "1955268189413138433",
+          "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+          "thumbnail_url": "https://pbs.twimg.com/tweet_video_thumb/GyKCDw6XYAEGjvH.jpg",
+          "duration": 0,
+          "width": 384,
+          "height": 384,
+          "format": "video/mp4",
+          "type": "gif",
+          "formats": [
+            {
+              "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+              "bitrate": 0,
+              "container": "mp4",
+              "codec": "h264"
+            }
+          ],
+          "publisher": null,
+          "variants": [
+            {
+              "url": "https://video.twimg.com/tweet_video/GyKCDw6XYAEGjvH.mp4",
+              "bitrate": 0,
+              "content_type": "video/mp4"
+            }
+          ]
+        }
+      ]
+    },
+    "source": "Twitter Web App",
+    "twitter_card": "player",
+    "color": null,
+    "provider": "twitter",
+    "reposted_by": null
+  }
+}

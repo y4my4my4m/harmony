@@ -22,7 +22,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.8.10'),
+  VERSION: z.string().default('1.8.11'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),
@@ -157,6 +157,18 @@ const envSchema = z.object({
   MEDIA_PUBLIC_BASE_URL: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     z.string().url().optional(),
+  ),
+  // Instagram embed-fixer mirrors asked, in order, when instagram.com gives a preview no media
+  // (services/socialEmbeds.ts). Comma-separated host names; unset: kkinstagram.com,
+  // uuinstagram.com, eeinstagram.com; empty: none.
+  INSTAGRAM_EMBED_MIRRORS: z.string().optional(),
+  // Which link-preview media the backend streams (routes/embedMedia.ts); the rest is a
+  // no-referrer redirect. Unset or 0: none; 1: X video for engines other than WebKit; all: all.
+  EMBED_RELAY_ENABLED: z.string().optional(),
+  // Largest file the embed media relay streams (routes/embedMedia.ts), in bytes.
+  EMBED_RELAY_MAX_BYTES: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? Number(v.trim()) : undefined),
+    z.number().int().positive().optional(),
   ),
 });
 

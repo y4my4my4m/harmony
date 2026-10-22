@@ -125,9 +125,10 @@ REST routes return this object. It is a subset of the gateway's [message event o
 | `timestamp` | ISO 8601 | Creation time. |
 | `edited_timestamp` | ISO 8601 | Time of the last content edit; equal to `timestamp` until the content is edited. |
 | `mentions` | string[] | As in the event object. |
+| `is_system` | boolean | `true` for a notice the server generates; see [System messages](/build/gateway#system-messages). |
 | `metadata` | object | |
 
-REST message objects have no `content_raw`, `is_system` or `mention_everyone`. `author` is the account that wrote the row: for a relayed Discord message it is the bridge bot, and for a webhook message the webhook's hidden bot.
+REST message objects have no `content_raw` or `mention_everyone`. `author` is the account that wrote the row: for a relayed Discord message it is the bridge bot, and for a webhook message the webhook's hidden bot.
 
 ### Message parts
 
@@ -345,7 +346,7 @@ A thread's messages carry the parent channel's `channel_id` and the thread's `th
 | `discord_thread_id` | string | Discord bridges: pair the new thread with this Discord thread. |
 | `discord_user` | object | With `discord_thread_id`: the Discord member who started the thread, `{ "id", "username", "display_name", "avatar_url" }`. The notice names them. |
 
-The server posts a system notice, "started a thread", authored by the bot, with `metadata.type` `thread_created`, `thread_id` and `thread_name`. A standalone thread hangs off that notice, which also carries `metadata.standalone: true`.
+The server posts a system notice with no author, `metadata.type` `thread_created`, `actor_bot_id` the bot, `thread_id` and `thread_name`. A standalone thread hangs off that notice, which also carries `metadata.standalone: true`.
 
 A message holds one thread: when `message_id` already has one, it is returned and no notice is posted. With `discord_thread_id`, the call is idempotent for the bot's bridge: a Discord thread already paired returns its thread.
 

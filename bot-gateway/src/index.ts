@@ -143,10 +143,23 @@ app.get('/status', async (req, res): Promise<void> => {
     res.status(401).json({ error: 'Authentication required' })
     return
   }
+  // Listed bots: public ones, the caller's own, every one for an instance admin.
+  const connected = gateway.getConnectedBots()
+  const [{ data: caller }, { data: botRows }] = await Promise.all([
+    supabase.from('profiles').select('is_admin').eq('id', callerProfileId).maybeSingle(),
+    connected.length > 0
+      ? supabase.from('bots').select('id, owner_id, is_public').in('id', connected.map(b => b.botId))
+      : Promise.resolve({ data: [] as Array<{ id: string; owner_id: string | null; is_public: boolean | null }> }),
+  ])
+  const listable = new Set(
+    ((botRows ?? []) as Array<{ id: string; owner_id: string | null; is_public: boolean | null }>)
+      .filter(b => caller?.is_admin === true || b.is_public === true || b.owner_id === callerProfileId)
+      .map(b => b.id),
+  )
   res.json({
     connected_bots: gateway.getConnectedBotCount(),
     total_connections: gateway.getTotalConnectionCount(),
-    bots: gateway.getConnectedBots().map(b => ({
+    bots: connected.filter(b => listable.has(b.botId)).map(b => ({
       id: b.botId,
       username: b.username,
       last_heartbeat: b.lastHeartbeat
@@ -154,9 +167,19 @@ app.get('/status', async (req, res): Promise<void> => {
   })
 })
 
+/** VIEW_CHANNEL of a profile in a channel (has_permission); false on a failed lookup. */
+async function canViewChannel(profileId: string, serverId: string, channelId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('has_permission', {
+    p_user_id: profileId,
+    p_server_id: serverId,
+    p_permission: 'VIEW_CHANNEL',
+    p_channel_id: channelId,
+  })
+  return !error && data === true
+}
+
 // Discord bridge users, consumed by the frontend for mention autosuggest.
-// Caller must be a member of the channel's server; otherwise Discord user
-// lists are enumerable by channel ID.
+// The caller must view the channel: the list is that channel's Discord members.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
   const callerProfileId = await getCallerProfileId(req)
   if (!callerProfileId) {
@@ -179,15 +202,8 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     return
   }
 
-  const { data: membership } = await supabase
-    .from('user_servers')
-    .select('user_id')
-    .eq('server_id', channel.server_id)
-    .eq('user_id', callerProfileId)
-    .eq('status', 'accepted')
-    .maybeSingle()
-
-  if (!membership) {
+  // has_permission is false for a non-member, so this also checks membership.
+  if (!(await canViewChannel(callerProfileId, channel.server_id, channelId))) {
     res.status(403).json({ error: 'Forbidden' })
     return
   }
@@ -229,7 +245,9 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
     .select('id')
     .eq('server_id', serverId)
 
-  const channelIds = (channels ?? []).map((c: { id: string }) => c.id)
+  const allIds = (channels ?? []).map((c: { id: string }) => c.id)
+  const viewable = await Promise.all(allIds.map((id) => canViewChannel(callerProfileId, serverId, id)))
+  const channelIds = allIds.filter((_id, i) => viewable[i])
   const bridgedUsers = gateway.getBridgedUsersForServer(channelIds)
   const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
 

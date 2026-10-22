@@ -36,7 +36,7 @@
       <div class="server-settings-actions" v-if="showGlobalSave">
         <button 
           class="btn btn-secondary" 
-          @click="back"
+          @click="requestClose"
           :disabled="loading"
         >
           {{ $t('common.cancel') }}
@@ -53,7 +53,7 @@
       <div v-else class="server-settings-actions">
         <button 
           class="btn btn-secondary" 
-          @click="back"
+          @click="requestClose"
           :disabled="loading"
         >
           {{ $t('server.back') }}
@@ -148,11 +148,14 @@
             :server-id="serverId"
           />
 
-          <!-- Roles Section -->
-          <RoleManagement
-            v-if="activeSection === 'roles'"
-            :server-id="serverId"
-          />
+          <!-- Roles Section: kept alive, so unsaved role edits survive a section switch. -->
+          <KeepAlive>
+            <RoleManagement
+              v-if="activeSection === 'roles'"
+              :server-id="serverId"
+              @dirty-change="rolesDirty = $event"
+            />
+          </KeepAlive>
 
           <!-- Bans Section -->
           <ServerBans
@@ -257,6 +260,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { useServerStore } from '@/stores/server'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/ProfileService'
@@ -266,6 +270,8 @@ import { diffServerSettings } from '@/utils/serverSettings'
 import { parseBridgeLinkReturn } from '@/utils/discordBridgeSetup'
 import { useDrawer } from '@/composables/useDrawer'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useOpenServer } from '@/composables/useOpenServer'
+import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 import { focusSectionHeading } from '@/utils/a11y/settingsFocus'
 
 // Components
@@ -305,6 +311,7 @@ const { isMobile } = useLayoutState()
 const router = useRouter()
 const route = useRoute()
 const serverStore = useServerStore()
+const serverChannelStore = useServerChannelStore()
 const emojiCacheStore = useEmojiCacheStore()
 const toast = useToast()
 const { serverSettingsPermissions } = useServerPermissions(() => props.serverId)
@@ -459,6 +466,10 @@ const hasChanges = computed(() => {
   return generalHasChanges.value || encryptionChanged
 })
 
+// Roles save through their own editor; their unsaved edits only hold the exit.
+const rolesDirty = ref(false)
+const hasUnsavedEdits = computed(() => hasChanges.value || rolesDirty.value)
+
 // Sections editing `server` or the encryption settings, which handleSave writes. Other
 // sections save through their own controls. Pending edits keep the bar on any section.
 const GLOBAL_SAVE_SECTIONS = new Set(['overview', 'privacy', 'emoji'])
@@ -591,7 +602,9 @@ const handleSave = async () => {
     }
 
     toast.success(t('server.serverUpdatedSuccess'))
-    back()
+    // Save stays in Settings; a Save button that went disabled took focus with it.
+    await nextTick()
+    if (document.activeElement === document.body) void focusSectionHeading(contentEl.value)
   } catch (error) {
     debug.error('Error updating server:', error)
     toast.error(t('server.failedToUpdateServer'))
@@ -600,33 +613,39 @@ const handleSave = async () => {
   }
 }
 
-const back = () => {
-  router.push({ name: 'Chat', params: { serverId: props.serverId } })
-}
+// The edited server's last-viewed (else default) channel.
+const openServer = useOpenServer()
+const back = () => openServer(props.serverId)
 
-let closePromptOpen = false
+// A server that drops out of the list (deleted, or left) takes its edits with it: its
+// settings leave without asking.
+const serverRemoved = ref(false)
+watch(
+  () => serverChannelStore.servers.some(s => s.id === props.serverId),
+  (listed, wasListed) => {
+    if (wasListed && !listed) serverRemoved.value = true
+  },
+)
+
+// Back, the Android back gesture and links ask as the close buttons do.
+const { confirmLeave } = useUnsavedLeaveGuard({
+  dirty: () => hasUnsavedEdits.value && !serverRemoved.value,
+  ask: () => confirm({
+    title: t('settings.unsaved.title'),
+    message: t('settings.unsaved.message'),
+    confirmButtonText: t('settings.unsaved.discard'),
+    dangerAction: true,
+  }),
+})
 
 /** Leaves settings; unsaved edits are discarded only after confirmation. */
 const requestClose = async () => {
-  if (!hasChanges.value) return back()
-  if (closePromptOpen) return
-  closePromptOpen = true
-  try {
-    const discard = await confirm({
-      title: t('settings.unsaved.title'),
-      message: t('settings.unsaved.message'),
-      confirmButtonText: t('settings.unsaved.discard'),
-      dangerAction: true,
-    })
-    if (discard) back()
-  } finally {
-    closePromptOpen = false
-  }
+  if (await confirmLeave()) await back()
 }
 
 // SSR-safe beforeunload handler
 const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-  if (hasChanges.value) {
+  if (hasUnsavedEdits.value) {
     e.preventDefault()
     e.returnValue = ''
   }
@@ -662,9 +681,9 @@ onUnmounted(() => {
 })
 
 // Watch for unsaved changes warning
-watch(hasChanges, (newValue) => {
+watch(hasUnsavedEdits, (newValue) => {
   if (typeof window !== 'undefined') {
-    if (newValue && permissions.value.canSaveChanges) {
+    if (newValue) {
       window.addEventListener('beforeunload', handleBeforeUnload)
     } else {
       window.removeEventListener('beforeunload', handleBeforeUnload)

@@ -25,6 +25,7 @@ import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
 import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
+import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
 import {
   authorizeChannelWrite,
   federatedUploadUrls,
@@ -3671,6 +3672,59 @@ export class ActivityProcessor {
   }
 
   /**
+   * System notice of a remote server's channel, sent by the Group hosting the channel
+   * (systemNotes.ts). Stored as an authorless system row naming local profiles.
+   */
+  private static async processSystemNotice(actorUrl: string, object: any, channelId: string): Promise<void> {
+    const sys = parseHarmonySystem(object[HARMONY_SYSTEM]);
+    if (!sys) {
+      logger.warn(`Malformed system notice ${object.id} from ${actorUrl}`);
+      return;
+    }
+    if (!(await this.groupHostsChannel(actorUrl, channelId))) {
+      logDenied('system notice', actorUrl, `not the Group hosting channel ${channelId}`);
+      return;
+    }
+    const messageId = typeof object.id === 'string' ? object.id.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1] : null;
+    if (!messageId) {
+      logger.warn(`System notice without a message id: ${object.id}`);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: existing } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('id', messageId)
+      .maybeSingle();
+    if (existing) return;
+
+    const profileIds = new Map<string, string>();
+    for (const url of systemActorUrls(sys)) {
+      const profile = await this.ensureRemoteUser(url);
+      if (profile?.id) profileIds.set(url, profile.id);
+    }
+
+    const { error } = await supabase.from('messages').insert({
+      id: messageId,
+      channel_id: channelId,
+      content: [{ type: 'text', text: noteContentText(object.content) || sys.type }],
+      is_system: true,
+      created_at: notAfterNow(object.published),
+      federation_status: 'completed',
+      metadata: {
+        ...systemMetadata(sys, (url) => profileIds.get(url)),
+        federated: true,
+        ap_id: object.id,
+        from_domain: new URL(actorUrl).hostname,
+      },
+    });
+    if (error && error.code !== '23505') {
+      logger.error(`Failed to store system notice ${object.id}:`, error);
+    }
+  }
+
+  /**
    * Harmony server channel message, distinct from a regular post.
    */
   private static async processChannelMessage(activity: any, object: any, relay?: { groupUrl: string }): Promise<void> {
@@ -3696,6 +3750,16 @@ export class ActivityProcessor {
 
     if (typeof serverId !== 'string') {
       logger.warn(`Channel message without a server id: ${object.id}`);
+      return;
+    }
+
+    // A system notice speaks for the server: only its Group sends one, never relayed.
+    if (object[HARMONY_SYSTEM] !== undefined) {
+      if (relay) {
+        logDenied('system notice', actorUrl, 'a relayed Note carries a system notice');
+        return;
+      }
+      await this.processSystemNotice(actorUrl, object, channelId);
       return;
     }
 

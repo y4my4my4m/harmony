@@ -1,21 +1,26 @@
 /**
- * GET /drive/link/<token>[?download=1]: a Drive file shared by link.
+ * GET /drive/link/<token>[?download=1 | ?thumb=1]: a Drive file shared by link.
  *
  * public.drive_link_target resolves a live link (unexpired, file in Drive, link sharing on)
  * to its object; the answer is a redirect to a storage URL signed for REDIRECT_TTL_SECONDS.
- * With download=1 storage sends the file as an attachment under its Drive name.
+ * With download=1 storage sends the file as an attachment under its Drive name. With thumb=1
+ * storage renders a raster image (LINK_THUMBNAIL_TYPES) at THUMBNAIL_TRANSFORM; any other
+ * file is a 404.
  */
 
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { makeUrlPublic } from '../utils/urlUtils.js';
-import { REDIRECT_TTL_SECONDS } from '../utils/privateMedia.js';
+import { LINK_THUMBNAIL_TYPES, REDIRECT_TTL_SECONDS } from '../utils/privateMedia.js';
 
 const router = Router();
 
 /** Link tokens: base64url of 18 random bytes. */
 const TOKEN = /^[A-Za-z0-9_-]{16,64}$/;
+
+/** thumb=1: a storage render of a raster image, the size OpenGraph cards draw (1200x630). */
+const THUMBNAIL_TRANSFORM = { width: 1200, height: 630, resize: 'contain' as const, quality: 80 };
 
 function deny(res: Response, status: number): void {
   res.set('Cache-Control', 'no-store');
@@ -44,10 +49,18 @@ router.get('/link/:token', async (req: Request, res: Response) => {
     return;
   }
 
+  const thumb = req.query.thumb === '1';
+  if (thumb && !LINK_THUMBNAIL_TYPES.has(target.mime_type ?? '')) {
+    deny(res, 404);
+    return;
+  }
   const download = req.query.download === '1' ? (target.name || 'file') : undefined;
+  const options = thumb
+    ? { transform: THUMBNAIL_TRANSFORM }
+    : download ? { download } : undefined;
   const { data: signed, error: signError } = await supabase.storage
     .from(target.bucket)
-    .createSignedUrl(target.path, REDIRECT_TTL_SECONDS, download ? { download } : undefined);
+    .createSignedUrl(target.path, REDIRECT_TTL_SECONDS, options);
   if (signError || !signed?.signedUrl) {
     deny(res, 404);
     return;

@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "Gesendete Emoticons umwandeln",
       "convertSentEmoticonsDesc": "Ersetzt :) :D <3 und Ähnliches beim Senden oder Bearbeiten einer Nachricht durch Emojis. Code, Links und E-Mail-Adressen bleiben unverändert.",
+      "mirrorLinks": "Gesendete Links",
+      "mirrorLinksDesc": "Links zu Beiträgen auf X, Instagram und Bluesky werden beim Senden auf einen Spiegel umgeschrieben, der ihre Fotos und Videos in Vorschauen auf Discord und in anderen Apps zeigt. Harmony zeigt weiterhin den ganzen Beitrag; Menschen außerhalb von Harmony sehen den Spiegel-Link.",
+      "mirrorLinkSite": "Beiträge auf {site}",
+      "mirrorLinkHost": "Spiegel für Beiträge auf {site}",
       "renderEmoticonsAsEmoji": "Emoticons anderer als Emoji anzeigen",
       "renderEmoticonsAsEmojiDesc": "Zeigt :) :D <3 und Ähnliches in Nachrichten als Emoji an. Der Originaltext bleibt erhalten.",
       "inviteBannerBg": "Serverbanner im Einladungsdialog",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "Avatar konnte nicht hochgeladen werden",
       "bannerUpdated": "Banner aktualisiert",
       "bannerUploadFailed": "Banner konnte nicht hochgeladen werden",
-      "profileLoadFailed": "Dein Profil konnte nicht geladen werden"
+      "profileLoadFailed": "Dein Profil konnte nicht geladen werden",
+      "privacyUpdated": "Datenschutzeinstellungen aktualisiert"
     },
     "unsaved": {
       "title": "Ungespeicherte Änderungen verwerfen?",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "Jedes Profilfeld braucht eine Bezeichnung und einen Wert.",
       "addField": "Feld hinzufügen",
       "description": "Verwalte dein Profil und deine Kontodaten.",
+      "unsavedChanges": "Du hast ungespeicherte Änderungen an deinem Profil",
+      "changesReset": "Profiländerungen zurückgesetzt",
       "handleCopied": "Handle kopiert",
       "copyFailed": "Kopieren fehlgeschlagen"
     }
@@ -2996,6 +3003,55 @@
       "saveFailed": "Einstellungen für Systemnachrichten konnten nicht aktualisiert werden."
     }
   },
+  "systemEvents": {
+    "someone": "Jemand",
+    "memberJoin": "{subject} ist dem Server beigetreten.",
+    "memberLeave": "{subject} hat den Server verlassen.",
+    "memberKick": "{actor} hat {subject} gekickt.",
+    "memberKickNoActor": "{subject} wurde gekickt.",
+    "memberBan": "{actor} hat {subject} gebannt.",
+    "memberBanNoActor": "{subject} wurde gebannt.",
+    "reason": "Grund: {reason}",
+    "threadCreated": "{actor} hat einen Thread gestartet: {thread}. Siehe {allThreads}.",
+    "threadCreatedNoLink": "{actor} hat einen Thread gestartet.",
+    "threadFallbackName": "Thread",
+    "allThreads": "alle Threads",
+    "encryptionEnabled": "{actor} hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal aktiviert.",
+    "encryptionDisabled": "{actor} hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal deaktiviert.",
+    "voiceEncryptionEnabled": "{actor} hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video aktiviert.",
+    "voiceEncryptionDisabled": "{actor} hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video deaktiviert.",
+    "groupCreated": "{actor} hat die Gruppe erstellt.",
+    "groupCreatedWith": "{actor} hat die Gruppe mit {count} Teilnehmer erstellt. | {actor} hat die Gruppe mit {count} Teilnehmern erstellt.",
+    "membersAdded": "{actor} hat {members} zur Gruppe hinzugefügt.",
+    "listSeparator": ", ",
+    "callStarted": {
+      "voice": "{actor} hat einen Sprachanruf gestartet.",
+      "video": "{actor} hat einen Videoanruf gestartet."
+    },
+    "callEnded": {
+      "voice": "{actor} hat einen Sprachanruf gestartet, der {duration} dauerte.",
+      "video": "{actor} hat einen Videoanruf gestartet, der {duration} dauerte."
+    },
+    "callMissed": {
+      "voice": "Du hast einen Sprachanruf von {actor} verpasst.",
+      "video": "Du hast einen Videoanruf von {actor} verpasst."
+    },
+    "noAnswer": "Keine Antwort",
+    "duration": {
+      "seconds": "{s} Sek.",
+      "minutes": "{m} Min.",
+      "minutesSeconds": "{m} Min. {s} Sek.",
+      "hours": "{h} Std.",
+      "hoursMinutes": "{h} Std. {m} Min."
+    },
+    "yesterdayAt": "Gestern um",
+    "preview": {
+      "voiceCall": "Sprachanruf",
+      "videoCall": "Videoanruf",
+      "groupCreated": "Gruppe erstellt",
+      "membersAdded": "Mitglieder hinzugefügt"
+    }
+  },
   "time": {
     "now": "jetzt",
     "justNow": "gerade eben",
@@ -3105,7 +3161,46 @@
       "limitReached": "Dieser Server hat das Maximum von {max} Kategorien erreicht",
       "createFailed": "Kategorie konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
       "noServer": "Kein Server ausgewählt",
-      "deleteFailed": "Die Kategorie konnte nicht gelöscht werden."
+      "deleteFailed": "Die Kategorie konnte nicht gelöscht werden.",
+      "permissionsFailed": "Die Kategorie wurde erstellt, ihre Berechtigungen konnten aber nicht gespeichert werden."
+    },
+    "private": {
+      "label": "Private Kategorie",
+      "hint": "Nur die gewählten Rollen und Mitglieder, der Besitzer und Administratoren sehen sie und die Kanäle, die ihren Berechtigungen folgen.",
+      "whoCanSee": "Wer sie sehen kann",
+      "members": "Mitglieder",
+      "searchMembers": "Mitglieder suchen",
+      "noMembers": "Kein Mitglied gefunden.",
+      "noRoles": "Noch keine Rollen: wähle Mitglieder, sonst sehen sie nur der Besitzer und Administratoren.",
+      "removeMember": "{name} entfernen",
+      "channelFollows": "{category} ist privat: dieser Kanal übernimmt ihre Berechtigungen."
+    },
+    "hiddenFromMembers": "Mitglieder sehen diese Kategorie nicht",
+    "edit": {
+      "title": "Kategorie bearbeiten",
+      "name": "Kategoriename",
+      "namePlaceholder": "Kategorienamen eingeben",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "failed": "Die Kategorie konnte nicht aktualisiert werden. Versuche es erneut.",
+      "loadingPermissions": "Berechtigungen werden geladen…",
+      "permissionsFailed": "Die Berechtigungen dieser Kategorie konnten nicht geladen werden. Schließe das Fenster und öffne es erneut, um es noch einmal zu versuchen.",
+      "permissionsSaved": "Berechtigungen gespeichert. Kein Kanal darin folgt ihnen; synchronisiere einen Kanal in seinen Berechtigungseinstellungen. | Berechtigungen gespeichert und mit {count} Kanal synchronisiert. | Berechtigungen gespeichert und mit {count} Kanälen synchronisiert."
+    },
+    "sync": {
+      "synced": "Mit {category} synchronisiert",
+      "notSynced": "Nicht mit {category} synchronisiert",
+      "notSyncedHint": "Die Berechtigungen dieses Kanals weichen von denen seiner Kategorie ab.",
+      "saveFirst": "Speichere oder verwirf zuerst deine Änderungen.",
+      "syncNow": "Jetzt synchronisieren",
+      "syncing": "Wird synchronisiert…",
+      "done": "Berechtigungen mit {category} synchronisiert",
+      "failed": "Die Berechtigungen konnten nicht synchronisiert werden."
+    },
+    "move": {
+      "title": "Berechtigungen synchronisieren?",
+      "message": "#{channel} liegt jetzt in {category}, deren Berechtigungen von denen des Kanals abweichen. Mit der Kategorie synchronisieren oder die eigenen Berechtigungen behalten?",
+      "sync": "Berechtigungen synchronisieren"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "Sprachverschlüsselung deaktivieren?",
       "message": "Anrufe in diesem Kanal sind dann nicht mehr Ende-zu-Ende-verschlüsselt, und der Medienserver kann auf Audio und Video zugreifen.",
       "confirm": "Sprachverschlüsselung deaktivieren"
-    },
-    "system": {
-      "enabled": "hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal aktiviert.",
-      "disabled": "hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal deaktiviert.",
-      "voiceEnabled": "hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video aktiviert.",
-      "voiceDisabled": "hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video deaktiviert."
     },
     "create": {
       "label": "Ende-zu-Ende-Verschlüsselung",
@@ -5922,7 +6011,13 @@
     "popOut": "Herauslösen",
     "open": "Öffnen",
     "hide": "Ausblenden",
-    "show": "Anzeigen"
+    "show": "Anzeigen",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "quotedPost": "Zitierter Beitrag",
+    "openMedia": "Medium {index} von {total} öffnen",
+    "playOnSite": "Auf {site} abspielen",
+    "playInX": "Im Player von X abspielen"
   },
   "threadCreate": {
     "button": "Neuer Thread",
@@ -6322,7 +6417,9 @@
       "resetZoom": "Zoom und Drehung zurücksetzen",
       "rotateLeft": "Nach links drehen",
       "rotateRight": "Nach rechts drehen",
-      "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden."
+      "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden.",
+      "download": "Herunterladen",
+      "audio": "Audio"
     },
     "pwa": {
       "installApp": "Harmony-App installieren",
@@ -6433,7 +6530,8 @@
     "pip": "Bild im Bild",
     "exitPip": "Bild im Bild beenden",
     "fullscreen": "Vollbild",
-    "exitFullscreen": "Vollbild beenden"
+    "exitFullscreen": "Vollbild beenden",
+    "expand": "Im Medienbetrachter öffnen"
   },
   "activities": {
     "title": "Gemeinsam schauen oder hören",
@@ -6537,7 +6635,8 @@
       "restore": "Wiederherstellen",
       "deleteForever": "Endgültig löschen",
       "deleteFolder": "Ordner löschen",
-      "emptyTrash": "Papierkorb leeren"
+      "emptyTrash": "Papierkorb leeren",
+      "copyLink": "Link kopieren"
     },
     "nav": {
       "myDrive": "Mein Drive",
@@ -6689,7 +6788,9 @@
       "moved": "{count} Datei verschoben | {count} Dateien verschoben",
       "kept": "{count} Datei im Drive behalten | {count} Dateien im Drive behalten",
       "keepPartial": "{kept} von {total} behalten: Für den Rest ist in deinem Drive kein Platz",
-      "folderDeleted": "Ordner gelöscht; {count} Datei in den Papierkorb verschoben | Ordner gelöscht; {count} Dateien in den Papierkorb verschoben"
+      "folderDeleted": "Ordner gelöscht; {count} Datei in den Papierkorb verschoben | Ordner gelöscht; {count} Dateien in den Papierkorb verschoben",
+      "linkCopied": "Link kopiert",
+      "linkCopyFailed": "Der Link konnte nicht kopiert werden"
     },
     "share": {
       "title": "Teilen",
@@ -6721,12 +6822,16 @@
         "server": "Server",
         "channel": "Kanal",
         "link": "Link"
-      }
+      },
+      "accessLinkTitle": "Link für Personen mit Zugriff",
+      "accessLinkHint": "Öffnet sich nur für Personen, die diese Datei bereits sehen können.",
+      "publicLinkLabel": "Öffentlicher Link, öffnet sich für alle"
     },
     "preview": {
       "previous": "Vorherige Datei",
       "next": "Nächste Datei",
-      "none": "Keine Vorschau für diese Datei."
+      "none": "Keine Vorschau für diese Datei.",
+      "fullScreen": "Im Vollbild ansehen"
     },
     "picker": {
       "title": "Aus Drive auswählen",
@@ -6762,6 +6867,36 @@
       "sharedBy": "Geteilt von {name}",
       "expires": "Link läuft ab: {date}",
       "footer": "Geteilt über {instance}"
+    },
+    "card": {
+      "restrictedTitle": "Eingeschränkte Datei",
+      "restrictedText": "Du hast keinen Zugriff auf diese Datei.",
+      "gone": "Diese Datei ist nicht mehr verfügbar.",
+      "view": "{name} ansehen",
+      "play": "{name} abspielen",
+      "open": "{name} öffnen",
+      "download": "{name} herunterladen"
+    },
+    "filePage": {
+      "title": "Datei",
+      "noAccessTitle": "Du hast keinen Zugriff auf diese Datei",
+      "noAccessText": "Bitte die Person, der sie gehört, sie mit dir zu teilen.",
+      "toDrive": "Zu Drive",
+      "errorTitle": "Diese Datei konnte nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "yours": "Deine Datei",
+      "ownedBy": "Gehört {name}",
+      "trashed": "In deinem Papierkorb. Nur du kannst sie öffnen."
+    },
+    "offer": {
+      "channel": "Personen in {channel} können diese Datei nicht öffnen. Mit dem Kanal teilen?",
+      "thisChannel": "Personen in diesem Kanal können diese Datei nicht öffnen. Mit dem Kanal teilen?",
+      "conversation": "Personen in dieser Unterhaltung können diese Datei nicht öffnen. Mit ihnen teilen?",
+      "person": "{name} kann diese Datei nicht öffnen. Mit ihnen teilen?",
+      "people": "{count} Person in dieser Unterhaltung kann diese Datei nicht öffnen. Mit ihr teilen? | {count} Personen in dieser Unterhaltung können diese Datei nicht öffnen. Mit ihnen teilen?",
+      "share": "Teilen",
+      "sendAnyway": "Trotzdem senden",
+      "shared": "Datei geteilt"
     }
   },
   "support": {

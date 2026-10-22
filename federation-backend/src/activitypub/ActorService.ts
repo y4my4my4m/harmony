@@ -22,6 +22,8 @@ import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from '.
 import { questionPollMetadata } from '../utils/polls.js';
 import { movedColumns } from './accountMigration.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
+import { isPublicVisibility } from './postAccess.js';
+import { bearerToken } from '../utils/sessionAssurance.js';
 import {
   collectionTotal, engagementColumns, fetchProfileCounts, misskeyNoteTotals, noteEngagementColumns,
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
@@ -545,6 +547,18 @@ router.post(
   })
 );
 
+/** Whether the request's `Bearer` session reads post `postId` under RLS. */
+async function bearerReadsPost(req: Request, postId: string): Promise<boolean> {
+  const token = bearerToken(req.headers.authorization);
+  if (!token) return false;
+  const { data, error } = await getSupabaseClientWithAuth(token)
+    .from('posts')
+    .select('id')
+    .eq('id', postId)
+    .maybeSingle();
+  return !error && !!data;
+}
+
 /**
  * Resolve a remote post by URL - imports it (and its author) via ActivityPub if not already local.
  * POST /resolve-post (proxied via /api/federation/resolve-post)
@@ -597,20 +611,26 @@ router.post(
       }
     } catch { /* invalid URL; only the original is used */ }
 
+    // Values are quoted: `,` `(` `)` in a URL would otherwise add clauses to the filter tree.
     const orFilter = [...urlVariants]
-      .flatMap(u => [`ap_id.eq.${u}`, `url.eq.${u}`])
+      .flatMap(u => [`ap_id.eq.${pgrstOrValue(u)}`, `url.eq.${pgrstOrValue(u)}`])
       .join(',');
 
     const { data: existing } = await supabase
       .from('posts')
-      .select('id, author_id')
+      .select('id, author_id, visibility')
       .or(orFilter)
       .eq('is_deleted', false)
       .limit(1)
       .maybeSingle();
 
     if (existing) {
-      return res.json({ success: true, post_id: existing.id });
+      // A followers-only or direct post is named only to a caller whose own session reads it
+      // (posts RLS); anyone else gets the answer of an unknown URL the remote refuses.
+      if (isPublicVisibility(existing.visibility) || await bearerReadsPost(req, existing.id)) {
+        return res.json({ success: true, post_id: existing.id });
+      }
+      return res.status(404).json({ error: 'Could not resolve remote post' });
     }
 
     logger.info(`Resolving remote post: ${url}`);
@@ -1693,16 +1713,22 @@ interface ReplyTarget {
   reblogs_count: number | null;
 }
 
-/** The row stored under `postApId`, as its ap_id or url. post_id from a client is not trusted to name it. */
+/**
+ * The public or unlisted row stored under `postApId`, as its ap_id or url. post_id from a client
+ * is not trusted to name it. Followers-only and direct posts read as absent: the routes answer
+ * unauthenticated callers.
+ */
 async function readReplyTarget(supabase: any, postApId: string): Promise<ReplyTarget | null> {
   const { data } = await supabase
     .from('posts')
-    .select('id, created_at, replies_fetched_at, replies_count, favorites_count, reblogs_count')
+    .select('id, created_at, replies_fetched_at, replies_count, favorites_count, reblogs_count, visibility')
     .or(`ap_id.eq.${pgrstOrValue(postApId)},url.eq.${pgrstOrValue(postApId)}`)
     .eq('is_deleted', false)
     .limit(1)
     .maybeSingle();
-  return data ?? null;
+  if (!data || !isPublicVisibility(data.visibility)) return null;
+  const { visibility: _visibility, ...target } = data;
+  return target;
 }
 
 function replyTargetCounts(target: ReplyTarget | null): Record<string, number | string | null> {

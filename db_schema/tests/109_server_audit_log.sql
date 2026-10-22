@@ -185,7 +185,7 @@ SELECT tests.clear_authentication();
 
 SELECT is(
     (SELECT target_name || ' ' || reason || ' ' || (details ->> 'messages_deleted') FROM pg_temp.alice_rows('member.kick')),
-    'dave109 spam 3', 'a kick is recorded with its reason and deleted message count');
+    'dave109 spam 2', 'a kick is recorded with its reason and deleted message count, his join notice not among them');
 SELECT is(
     (SELECT details ->> 'count' FROM pg_temp.alice_rows('message.delete')
       WHERE target_id = 'f1090000-0000-0000-0000-0000000000c2'

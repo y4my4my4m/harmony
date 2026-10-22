@@ -131,7 +131,7 @@
               'thread-continues': index < ancestors.length,
               'thread-continued': index > 0 && index <= ancestors.length
             }"
-            :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
+            :data-post-id="post.id"
           >
             <MonyPost
               :post="post"
@@ -288,7 +288,6 @@ const replyToPost = ref<TimelinePost | null>(null);
 const replyingToPostId = ref<string | null>(null);
 const editingPost = ref<TimelinePost | null>(null);
 const postContainer = ref<HTMLElement>();
-const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
 const showActionsMenu = ref(false);
 const moreBtnRef = ref<HTMLElement | null>(null);
@@ -428,13 +427,10 @@ const loadPostWithContext = async () => {
       postReactionsStore.fetchMultiplePostReactions(allPostIds);
     }
     
-    if (props.highlightReply) {
-      await nextTick();
-      scrollToPost(props.highlightReply);
-    } else if (props.timestamp) {
-      await nextTick();
-      scrollToTimestamp(props.timestamp);
-    }
+    // The thread renders once loading ends.
+    isLoading.value = false;
+    await nextTick();
+    placeThreadView();
     
     // Remote posts: crawl replies when due and walk the ancestor chain in the
     // background. Reactions are MonyPost's useRemotePostSync on mount.
@@ -849,17 +845,11 @@ const goBack = () => {
   }
 };
 
-const setPostRef = (postId: string, el: any) => {
-  if (el) {
-    const element = el instanceof HTMLElement ? el : el.$el;
-    if (element instanceof HTMLElement) {
-      postRefs.value[postId] = element;
-    }
-  }
-};
+const threadPostElement = (postId: string): HTMLElement | null =>
+  postContainer.value?.querySelector<HTMLElement>(`.thread-post[data-post-id="${CSS.escape(postId)}"]`) ?? null;
 
 const scrollToPost = (postId: string) => {
-  const element = postRefs.value[postId];
+  const element = threadPostElement(postId);
   if (element) {
     element.scrollIntoView({ 
       behavior: 'smooth', 
@@ -887,6 +877,23 @@ const scrollToTimestamp = (timestamp: number) => {
   
   if (targetPost) {
     scrollToPost(targetPost.id);
+  }
+};
+
+/**
+ * Puts the post the link names on screen: the highlighted reply, or the post nearest the
+ * timestamp, or else the opened post at the top of the view with its ancestors above it,
+ * scrolled past, as Mastodon opens a status in its thread.
+ */
+const placeThreadView = () => {
+  if (props.highlightReply) {
+    scrollToPost(props.highlightReply);
+  } else if (props.timestamp) {
+    scrollToTimestamp(props.timestamp);
+  } else if (ancestors.value.length > 0 && mainPost.value) {
+    const scroller = postContainer.value;
+    const main = threadPostElement(mainPost.value.id);
+    if (scroller && main) scroller.scrollTop += main.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
   }
 };
 

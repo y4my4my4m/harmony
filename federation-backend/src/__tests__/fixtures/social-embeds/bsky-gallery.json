@@ -1,0 +1,226 @@
+{
+  "thread": {
+    "post": {
+      "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mnslrkd6ok2g",
+      "cid": "bafyreigh4yjzzjiwjrlm4xe5yiu456ncqc6tfnf5ctup2sii7knhdineru",
+      "author": {
+        "did": "did:plc:z72i7hdynmk6r22z27h6tvur",
+        "handle": "bsky.app",
+        "displayName": "Bluesky",
+        "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka",
+        "associated": {
+          "chat": {
+            "allowIncoming": "none"
+          },
+          "activitySubscription": {
+            "allowSubscriptions": "followers"
+          }
+        },
+        "labels": [],
+        "createdAt": "2023-04-12T04:53:57.057Z",
+        "verification": {
+          "verifications": [],
+          "verifiedStatus": "none",
+          "trustedVerifierStatus": "valid"
+        },
+        "status": {
+          "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.actor.status/self",
+          "cid": "bafyreihkojqw7p22odgjcbzjh5sh4vrntow24sd4nvntpqnddrd5pqma44",
+          "record": {
+            "$type": "app.bsky.actor.status",
+            "createdAt": "2026-10-20T16:00:37.680Z",
+            "durationMinutes": 60,
+            "embed": {
+              "$type": "app.bsky.embed.external",
+              "external": {
+                "$type": "app.bsky.embed.external#external",
+                "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+                "thumb": {
+                  "$type": "blob",
+                  "ref": {
+                    "$link": "bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+                  },
+                  "mimeType": "image/jpeg",
+                  "size": 195438
+                },
+                "title": "e.w. niedermeyer is live on Streamplace",
+                "uri": "https://stream.place/niedermeyer.online"
+              }
+            },
+            "status": "app.bsky.actor.status#live"
+          },
+          "status": "app.bsky.actor.status#live",
+          "embed": {
+            "external": {
+              "uri": "https://stream.place/niedermeyer.online",
+              "title": "e.w. niedermeyer is live on Streamplace",
+              "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+              "thumb": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+            },
+            "$type": "app.bsky.embed.external#view"
+          },
+          "labels": [],
+          "expiresAt": "2026-10-20T17:00:37.680Z",
+          "isActive": false
+        }
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "createdAt": "2026-06-08T21:10:01.530Z",
+        "embed": {
+          "$type": "app.bsky.embed.gallery",
+          "items": [
+            {
+              "$type": "app.bsky.embed.gallery#image",
+              "alt": "We've increased the number of photos you can attach to a post from 4 to 10. That's why we're adding a carousel.",
+              "aspectRatio": {
+                "height": 1000,
+                "width": 1000
+              },
+              "image": {
+                "$type": "blob",
+                "ref": {
+                  "$link": "bafkreibmn42rzhlqwv2mkw3owiqy4nnnsvxjxpin2jfahze3ugwx3g5o7y"
+                },
+                "mimeType": "image/jpeg",
+                "size": 305203
+              }
+            },
+            {
+              "$type": "app.bsky.embed.gallery#image",
+              "alt": "The carousel only shows for posts with at least 5 photos.\nOld posts with photos will continue to show the regular grid layout.",
+              "aspectRatio": {
+                "height": 1000,
+                "width": 1000
+              },
+              "image": {
+                "$type": "blob",
+                "ref": {
+                  "$link": "bafkreigbqt7wvn2eekgtzut7kjwss6phxz5llyamplvm4iweyb6rp2nucy"
+                },
+                "mimeType": "image/jpeg",
+                "size": 315149
+              }
+            },
+            {
+              "$type": "app.bsky.embed.gallery#image",
+              "alt": "Each photo displays a numbered badge to make it super clear there are more photos to browse.",
+              "aspectRatio": {
+                "height": 1000,
+                "width": 1000
+              },
+              "image": {
+                "$type": "blob",
+                "ref": {
+                  "$link": "bafkreid3dxu5yyb3xpfbrq2grskp2ma32zszwg6u7pnwsjwd5dwi7ci4bi"
+                },
+                "mimeType": "image/jpeg",
+                "size": 288000
+              }
+            },
+            {
+              "$type": "app.bsky.embed.gallery#image",
+              "alt": "We've improved the gesture handling so you don't accidentally open the drawer menu or go back/forward in your browser while swiping.",
+              "aspectRatio": {
+                "height": 1000,
+                "width": 1000
+              },
+              "image": {
+                "$type": "blob",
+                "ref": {
+                  "$link": "bafkreibm5edsjc46wqjkp6jhldam2ot42tsmebmo6qybk7vvaf6sjgx32q"
+                },
+                "mimeType": "image/jpeg",
+                "size": 336142
+              }
+            },
+            {
+              "$type": "app.bsky.embed.gallery#image",
+              "alt": "We're always eager to hear your feedback. Let us know your thoughts about the new carousel!",
+              "aspectRatio": {
+                "height": 1000,
+                "width": 1000
+              },
+              "image": {
+                "$type": "blob",
+                "ref": {
+                  "$link": "bafkreib2gw2f2pliv5oxeq5pyb43xwlma6zizcfqokviwvym2i33vyhaxe"
+                },
+                "mimeType": "image/jpeg",
+                "size": 266597
+              }
+            }
+          ]
+        },
+        "langs": [
+          "en"
+        ],
+        "text": "v1.123 is live! You can now attach up to 10 photos in posts. \n\nWe listened to your feedback and redesigned the photo carousel. It only appears for posts with at least 5 photos. \n\nSwipe through to learn more."
+      },
+      "embed": {
+        "items": [
+          {
+            "thumbnail": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreibmn42rzhlqwv2mkw3owiqy4nnnsvxjxpin2jfahze3ugwx3g5o7y",
+            "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreibmn42rzhlqwv2mkw3owiqy4nnnsvxjxpin2jfahze3ugwx3g5o7y",
+            "alt": "We've increased the number of photos you can attach to a post from 4 to 10. That's why we're adding a carousel.",
+            "aspectRatio": {
+              "height": 1000,
+              "width": 1000
+            },
+            "$type": "app.bsky.embed.gallery#viewImage"
+          },
+          {
+            "thumbnail": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreigbqt7wvn2eekgtzut7kjwss6phxz5llyamplvm4iweyb6rp2nucy",
+            "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreigbqt7wvn2eekgtzut7kjwss6phxz5llyamplvm4iweyb6rp2nucy",
+            "alt": "The carousel only shows for posts with at least 5 photos.\nOld posts with photos will continue to show the regular grid layout.",
+            "aspectRatio": {
+              "height": 1000,
+              "width": 1000
+            },
+            "$type": "app.bsky.embed.gallery#viewImage"
+          },
+          {
+            "thumbnail": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreid3dxu5yyb3xpfbrq2grskp2ma32zszwg6u7pnwsjwd5dwi7ci4bi",
+            "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreid3dxu5yyb3xpfbrq2grskp2ma32zszwg6u7pnwsjwd5dwi7ci4bi",
+            "alt": "Each photo displays a numbered badge to make it super clear there are more photos to browse.",
+            "aspectRatio": {
+              "height": 1000,
+              "width": 1000
+            },
+            "$type": "app.bsky.embed.gallery#viewImage"
+          },
+          {
+            "thumbnail": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreibm5edsjc46wqjkp6jhldam2ot42tsmebmo6qybk7vvaf6sjgx32q",
+            "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreibm5edsjc46wqjkp6jhldam2ot42tsmebmo6qybk7vvaf6sjgx32q",
+            "alt": "We've improved the gesture handling so you don't accidentally open the drawer menu or go back/forward in your browser while swiping.",
+            "aspectRatio": {
+              "height": 1000,
+              "width": 1000
+            },
+            "$type": "app.bsky.embed.gallery#viewImage"
+          },
+          {
+            "thumbnail": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreib2gw2f2pliv5oxeq5pyb43xwlma6zizcfqokviwvym2i33vyhaxe",
+            "fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreib2gw2f2pliv5oxeq5pyb43xwlma6zizcfqokviwvym2i33vyhaxe",
+            "alt": "We're always eager to hear your feedback. Let us know your thoughts about the new carousel!",
+            "aspectRatio": {
+              "height": 1000,
+              "width": 1000
+            },
+            "$type": "app.bsky.embed.gallery#viewImage"
+          }
+        ],
+        "$type": "app.bsky.embed.gallery#view"
+      },
+      "bookmarkCount": 435,
+      "replyCount": 734,
+      "repostCount": 2186,
+      "likeCount": 10933,
+      "quoteCount": 1340,
+      "indexedAt": "2026-06-08T21:10:05.674Z",
+      "labels": []
+    },
+    "threadContext": {},
+    "$type": "app.bsky.feed.defs#threadViewPost"
+  }
+}

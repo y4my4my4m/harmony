@@ -257,7 +257,9 @@ const isPinned = computed(() => props.message?.is_pinned || false);
 const hasReactions = computed(() =>
   !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
 );
-const canPin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
+// A system notice is neither pinned nor reported: it has no author.
+const canPin = computed(() =>
+  !props.message?.is_system && (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
 const toast = useToast();
 
 // The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed). An author
@@ -285,7 +287,7 @@ const toggleEmbeds = async () => {
   }
 };
 const canReport = computed(() => {
-  if (!props.message) return false;
+  if (!props.message || props.message.is_system) return false;
   const authorId = props.message.user_id || (props.message as any).author_id;
   return authorId !== props.currentUserId;
 });

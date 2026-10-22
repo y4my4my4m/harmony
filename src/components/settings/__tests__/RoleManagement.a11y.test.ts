@@ -328,3 +328,147 @@ describe('RoleManagement editor', () => {
     expect(document.activeElement).toBe(w.find('.save-btn').element)
   })
 })
+
+describe('RoleManagement unsaved role edits', () => {
+  const nameInput = (w: W) => w.find('.role-editor input[type="text"]')
+
+  it('a renamed role keeps its edit and mark while another is selected (settings6)', async () => {
+    const w = await mountRoles()
+    await pill(w, 'Mods').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Moderators')
+    expect(w.emitted('dirty-change')?.at(-1)).toEqual([true])
+
+    await pill(w, 'Juniors').trigger('click')
+    await flushPromises()
+    expect((nameInput(w).element as HTMLInputElement).value).toBe('Juniors')
+    expect(pill(w, 'Mods').find('.role-pill-dot').exists()).toBe(true)
+    expect(pill(w, 'Juniors').find('.role-pill-dot').exists()).toBe(false)
+    expect(w.emitted('dirty-change')?.at(-1)).toEqual([true])
+
+    await pill(w, 'Mods').trigger('click')
+    await flushPromises()
+    expect((nameInput(w).element as HTMLInputElement).value).toBe('Moderators')
+  })
+
+  it('Reset drops the edit and reports nothing unsaved', async () => {
+    const w = await mountRoles()
+    await pill(w, 'Mods').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Moderators')
+    await w.find('.editor-footer .cancel-btn').trigger('click')
+    await flushPromises()
+    expect((nameInput(w).element as HTMLInputElement).value).toBe('Mods')
+    expect(pill(w, 'Mods').find('.role-pill-dot').exists()).toBe(false)
+    expect(w.emitted('dirty-change')?.at(-1)).toEqual([false])
+  })
+
+  it('Save stores the selected role and clears its mark; other drafts stay', async () => {
+    const w = await mountRoles()
+    await pill(w, 'Juniors').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Newcomers')
+    await pill(w, 'Mods').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Moderators')
+    roleServiceMock.updateRole.mockImplementation(async (id: string, patch: Record<string, unknown>) => ({
+      ...state.roles.find(r => r.id === id),
+      ...patch,
+    }))
+    await w.find('.editor-footer .save-btn').trigger('click')
+    await flushPromises()
+    expect(roleServiceMock.updateRole).toHaveBeenCalledWith('r-mod', expect.objectContaining({ name: 'Moderators' }))
+    expect(pill(w, 'Moderators').find('.role-pill-dot').exists()).toBe(false)
+    expect(pill(w, 'Juniors').find('.role-pill-dot').exists()).toBe(true)
+    expect(w.emitted('dirty-change')?.at(-1)).toEqual([true])
+  })
+})
+
+describe('RoleManagement reload and save races', () => {
+  const nameInput = (w: { find: W['find'] }) => w.find('.role-editor input[type="text"]')
+  const echoUpdate = () =>
+    roleServiceMock.updateRole.mockImplementation(async (id: string, patch: Record<string, unknown>) => ({
+      ...state.roles.find(r => r.id === id),
+      ...patch,
+    }))
+
+  /** RoleManagement under KeepAlive, as Server settings holds it; `toggle` leaves and returns. */
+  async function mountKept() {
+    const { defineComponent, h, KeepAlive, ref } = await import('vue')
+    const shown = ref(true)
+    const host = mount(defineComponent({
+      render: () => h(KeepAlive, null, { default: () => (shown.value ? h(RoleManagement, { serverId: 's1' }) : null) }),
+    }), { attachTo: document.body })
+    await flushPromises()
+    const toggle = async () => {
+      shown.value = false
+      await flushPromises()
+      shown.value = true
+      await flushPromises()
+    }
+    return { host, roles: () => host.findComponent(RoleManagement), toggle }
+  }
+
+  it('returning to Roles shows a change stored elsewhere, not an unsaved edit', async () => {
+    const { host, roles, toggle } = await mountKept()
+    await host.find('.role-pill[data-role-id="r-mod"]').trigger('click')
+    await flushPromises()
+
+    state.roles[1] = { ...state.roles[1], name: 'Moderators' }
+    await toggle()
+
+    expect((nameInput(host).element as HTMLInputElement).value).toBe('Moderators')
+    expect(host.find('.role-pill[data-role-id="r-mod"] .role-pill-dot').exists()).toBe(false)
+    expect(host.find('.save-btn').attributes('aria-disabled')).toBe('true')
+    expect(roles().emitted('dirty-change')?.at(-1)).toEqual([false])
+  })
+
+  it('an unsaved edit survives the reload; fields it leaves alone follow the stored role', async () => {
+    const { host, toggle } = await mountKept()
+    await host.find('.role-pill[data-role-id="r-jr"]').trigger('click')
+    await flushPromises()
+    await nameInput(host).setValue('Newcomers')
+    await host.find('.role-pill[data-role-id="r-mod"]').trigger('click')
+    await flushPromises()
+    await nameInput(host).setValue('Moderators')
+
+    state.roles[1] = { ...state.roles[1], color: '#E74C3C' }
+    state.roles[2] = { ...state.roles[2], mentionable: true }
+    await toggle()
+
+    expect((nameInput(host).element as HTMLInputElement).value).toBe('Moderators')
+    echoUpdate()
+    await host.find('.editor-footer .save-btn').trigger('click')
+    await flushPromises()
+    expect(roleServiceMock.updateRole).toHaveBeenLastCalledWith('r-mod', expect.objectContaining({ name: 'Moderators', color: '#E74C3C' }))
+
+    await host.find('.role-pill[data-role-id="r-jr"]').trigger('click')
+    await flushPromises()
+    expect((nameInput(host).element as HTMLInputElement).value).toBe('Newcomers')
+    await host.find('.editor-footer .save-btn').trigger('click')
+    await flushPromises()
+    expect(roleServiceMock.updateRole).toHaveBeenLastCalledWith('r-jr', expect.objectContaining({ name: 'Newcomers', mentionable: true }))
+  })
+
+  it('a role selected while a save is in flight keeps its selection and edit', async () => {
+    const w = await mountRoles()
+    await pill(w, 'Mods').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Moderators')
+    let finish: (role: unknown) => void = () => {}
+    roleServiceMock.updateRole.mockImplementation((id: string, patch: Record<string, unknown>) =>
+      new Promise((resolve) => { finish = () => resolve({ ...state.roles.find(r => r.id === id), ...patch }) }))
+    await w.find('.editor-footer .save-btn').trigger('click')
+
+    await pill(w, 'Juniors').trigger('click')
+    await flushPromises()
+    await nameInput(w).setValue('Newcomers')
+    finish(null)
+    await flushPromises()
+
+    expect(w.find('.role-pill[aria-current="true"]').attributes('data-role-id')).toBe('r-jr')
+    expect((nameInput(w).element as HTMLInputElement).value).toBe('Newcomers')
+    expect(pill(w, 'Moderators').find('.role-pill-dot').exists()).toBe(false)
+    expect(w.find('.role-pill[data-role-id="r-jr"] .role-pill-dot').exists()).toBe(true)
+  })
+})

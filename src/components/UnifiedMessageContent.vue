@@ -95,7 +95,7 @@
           :message-id="messageId"
           :image-loaded="imageLoadedState"
           :can-remove="canEditAttachments"
-          @open-lightbox="$emit('open-lightbox', $event)"
+          @open-lightbox="openMedia"
           @image-loaded="handleImageLoad"
           @remove-attachment="requestRemoveAttachment"
         />
@@ -237,7 +237,7 @@
                 :alt="t('messageA11y.image.noDescription')"
                 @load="handleImageLoad(part.url)"
                 @error="onAttachmentMediaError(part.url)"
-                @click="$emit('open-lightbox', part.url)"
+                @click="openMedia(chatMediaKey(part))"
                 v-show="imageLoadedState[part.url]"
                 draggable="false"
                 class="content-image"
@@ -246,7 +246,7 @@
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
-                @click.stop="$emit('open-lightbox', part.url)"
+                @click.stop="openMedia(chatMediaKey(part))"
               ></button>
             </div>
           </div>
@@ -266,7 +266,7 @@
                 @play="handleVideoPlay"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" />
+              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(chatMediaKey(part), $event)" />
               <button
                 v-if="floatingVideos.canPopOut(partIndex)"
                 type="button"
@@ -321,7 +321,7 @@
                 :src="embedMedia(part)!.url"
                 :alt="t('messageA11y.image.gif')"
                 @load="handleImageLoad(embedMedia(part)!.url)"
-                @click="$emit('open-lightbox', embedMedia(part)!.url)"
+                @click="openMedia(embedMedia(part)!.url)"
                 v-show="imageLoadedState[embedMedia(part)!.url]"
                 draggable="false"
                 class="content-image"
@@ -330,7 +330,7 @@
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
-                @click.stop="$emit('open-lightbox', embedMedia(part)!.url)"
+                @click.stop="openMedia(embedMedia(part)!.url)"
               ></button>
             </div>
           </div>
@@ -363,7 +363,7 @@
                 class="content-video"
                 preload="metadata"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" />
+              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(embedMedia(part)!.url, $event)" />
             </div>
           </div>
           <ProviderEmbedSwitch
@@ -372,7 +372,6 @@
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
             @embed-loaded="handleEmbedLoad"
-            @open-lightbox="$emit('open-lightbox', $event)"
           />
         </template>
         
@@ -383,7 +382,6 @@
             :message-id="messageId"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
             @embed-loaded="handleEmbedLoad"
-            @open-lightbox="$emit('open-lightbox', $event)"
           />
         </template>
         
@@ -416,7 +414,7 @@
               :aria-hidden="isHiddenSpoiler(part) ? 'true' : undefined"
               @load="handleImageLoad(mediaLoadKey(part))"
               @error="onAttachmentMediaError(part.url, part, 'thumbnail')"
-              @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
+              @click="!isStickerMedia(part.url) && openMedia(chatMediaKey(part))"
               v-show="imageLoadedState[mediaLoadKey(part)]"
               draggable="false"
               class="content-image"
@@ -427,7 +425,7 @@
               type="button"
               class="media-open"
               :aria-label="t('messageA11y.image.open')"
-              @click.stop="$emit('open-lightbox', part.url)"
+              @click.stop="openMedia(chatMediaKey(part))"
             ></button>
             <button
               v-if="isHiddenSpoiler(part)"
@@ -498,7 +496,12 @@
               @play="handleVideoPlay"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
-            <VideoControls v-if="!nativeVideoControls && !isHiddenSpoiler(part)" :label="part.altText || part.fileName || undefined" />
+            <VideoControls
+              v-if="!nativeVideoControls && !isHiddenSpoiler(part)"
+              :label="part.altText || part.fileName || undefined"
+              expandable
+              @expand="openMedia(chatMediaKey(part), $event)"
+            />
             <button
               v-if="isHiddenSpoiler(part)"
               type="button"
@@ -699,7 +702,9 @@ import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { useLightbox } from '@/composables/useLightbox';
+import { chatLightboxEntries, chatMediaKey, type ChatLightboxHelpers } from '@/utils/messageLightboxMedia';
 import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
 import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
@@ -709,6 +714,7 @@ import {
   requestAttachmentRefresh,
 } from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
+import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { isWikimediaPage } from '@/utils/embedPreview';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -827,9 +833,10 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
     const nativeVideoControls = useNativeVideoControls();
+    const { open: openLightbox } = useLightbox();
     const localEditableContent = ref(props.editableContent);
     // Attachments retained while editing. Seeded from the message's file parts
     // when edit mode opens, removable individually, merged back on save.
@@ -1207,6 +1214,16 @@ export default defineComponent({
             expiresAt: new Date(Date.now() + 86400000).toISOString(),
           };
         }
+        if (driveLinkFromUrl(part.url)) {
+          return {
+            cacheKey: `drive-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: 'harmony-drive',
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
         // A music link the server never previewed still gets its player.
         const music = part.type === 'url' ? musicEmbedFor(part.url) : null;
         if (music) {
@@ -1577,8 +1594,45 @@ export default defineComponent({
       }, 5000);
     };
 
+    // The message's media in the media viewer, opened at `key` (chatMediaKey, or an embed's
+    // media URL); a key outside the list opens as a lone image. `origin` is the inline player
+    // the viewer takes over.
+    const lightboxHelpers: ChatLightboxHelpers = {
+      source: (part) => mediaPartSource(part),
+      imageAlt: (part) => imageAltText(part),
+      videoAlt: (part) => (typeof part.altText === 'string' ? part.altText.trim() : ''),
+      excluded: (part) => {
+        const url = part.url || '';
+        return isStickerMedia(url) || isAiEmojiMedia(url) || !!mediaPartGone(part) || isHiddenSpoiler(part);
+      },
+      embedMedia: (part) => embedMedia(part),
+      get gifAlt() {
+        return t('messageA11y.image.gif');
+      },
+    };
+    const openMedia = async (key: string, origin?: HTMLMediaElement | null) => {
+      if (!key) return;
+      const privateParts = chatLightboxEntries(displayContent.value, lightboxHelpers)
+        .map((entry) => entry.part)
+        .filter((part) => isPrivateMediaPart(part));
+      if (privateParts.length) await ensureMediaPartSources(privateParts);
+      const entries = chatLightboxEntries(displayContent.value, lightboxHelpers);
+      const index = entries.findIndex((entry) => entry.key === key);
+      if (index < 0) {
+        openLightbox([{ url: key, type: 'image', alt: t('messageA11y.image.noDescription') }], 0);
+        return;
+      }
+      // One sound at a time: the message's other players pause; the viewer pauses `origin` itself.
+      rootRef.value?.querySelectorAll('video').forEach((video) => {
+        if (video !== origin && !video.muted) video.pause();
+      });
+      openLightbox(entries.map((entry) => entry.media), index, { origin: origin ?? null });
+    };
+
     return {
       rootRef,
+      openMedia,
+      chatMediaKey,
       nativeVideoControls,
       mediaPartGone,
       onTextKeydown,

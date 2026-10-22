@@ -376,10 +376,15 @@ export async function handleThreadActivity(
             .from('messages')
             .insert({
               channel_id: channelId,
-              user_id: creatorId,
               content: [{ type: 'text', text: 'started a thread' }],
               is_system: true,
-              metadata: { type: 'thread_created', thread_id: threadId, thread_name: threadObject.name, standalone: true },
+              metadata: {
+                type: 'thread_created',
+                actor_id: creatorId,
+                thread_id: threadId,
+                thread_name: threadObject.name,
+                standalone: true,
+              },
             })
             .select('id')
             .single();

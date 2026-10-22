@@ -1,0 +1,228 @@
+{
+  "code": 200,
+  "message": "OK",
+  "tweet": {
+    "url": "https://x.com/NASA/status/2112560723603632217",
+    "id": "2112560723603632217",
+    "text": "There's a lot of ground to cover when you're building a Moon Base. \n\nDuring the first phase of @NASAMoonBase development, robotic rovers will gather new details about the lunar South Pole region, while lunar terrain vehicles will extend the reach of each Artemis mission.",
+    "raw_text": {
+      "text": "There's a lot of ground to cover when you're building a Moon Base. \n\nDuring the first phase of @NASAMoonBase development, robotic rovers will gather new details about the lunar South Pole region, while lunar terrain vehicles will extend the reach of each Artemis mission. https://t.co/tal41Kyght",
+      "display_text_range": [
+        0,
+        271
+      ],
+      "facets": [
+        {
+          "type": "mention",
+          "indices": [
+            95,
+            108
+          ],
+          "original": "NASAMoonBase",
+          "id": "2031457713868386305"
+        },
+        {
+          "type": "media",
+          "indices": [
+            272,
+            295
+          ],
+          "id": "2112560648005484545",
+          "display": "pic.x.com/tal41Kyght",
+          "original": "https://t.co/tal41Kyght",
+          "replacement": "https://x.com/NASA/status/2112560723603632217/video/1"
+        }
+      ]
+    },
+    "author": {
+      "screen_name": "NASA",
+      "url": "https://x.com/NASA",
+      "id": "11348282",
+      "followers": 92312451,
+      "following": 115,
+      "likes": 17033,
+      "media_count": 28204,
+      "name": "NASA",
+      "description": "Making the seemingly impossible, possible. ✨",
+      "raw_description": {
+        "text": "Making the seemingly impossible, possible. ✨",
+        "facets": []
+      },
+      "location": "Pale Blue Dot",
+      "banner_url": "https://pbs.twimg.com/profile_banners/11348282/1788992290",
+      "avatar_url": "https://pbs.twimg.com/profile_images/1321163587679784960/0ZxKlEKB_200x200.jpg",
+      "joined": "Wed Dec 19 20:20:32 +0000 2007",
+      "protected": false,
+      "website": {
+        "url": "http://www.nasa.gov/",
+        "display_url": "nasa.gov"
+      },
+      "verification": {
+        "verified": true,
+        "verified_at": null,
+        "type": "government"
+      },
+      "avatar_color": null
+    },
+    "replies": 240,
+    "retweets": 534,
+    "likes": 3638,
+    "bookmarks": 191,
+    "quotes": 62,
+    "created_at": "Tue Oct 20 15:05:00 +0000 2026",
+    "created_timestamp": 1792508700,
+    "possibly_sensitive": false,
+    "views": 538127,
+    "is_note_tweet": false,
+    "community_note": null,
+    "lang": "en",
+    "replying_to": null,
+    "replying_to_status": null,
+    "media": {
+      "all": [
+        {
+          "id": "2112560648005484545",
+          "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+          "thumbnail_url": "https://pbs.twimg.com/media/HVFSyBvWAAE5Y1_.jpg",
+          "duration": 45.812,
+          "width": 405,
+          "height": 720,
+          "format": "video/mp4",
+          "type": "video",
+          "formats": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/pl/3swciYy4cEVNSi3F.m3u8?tag=16&v=909",
+              "container": "m3u8"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/320x568/NgN55ga-5ujfgzMM.mp4?tag=16",
+              "bitrate": 632000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/480x852/SbTlCasohl23iIn3.mp4?tag=16",
+              "bitrate": 950000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/720x1280/qnC_V3TZFNCfIUeO.mp4?tag=16",
+              "bitrate": 2176000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+              "bitrate": 10368000,
+              "container": "mp4",
+              "codec": "h264"
+            }
+          ],
+          "publisher": null,
+          "variants": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/pl/3swciYy4cEVNSi3F.m3u8?tag=16&v=909",
+              "bitrate": 0,
+              "content_type": "application/x-mpegURL"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/320x568/NgN55ga-5ujfgzMM.mp4?tag=16",
+              "bitrate": 632000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/480x852/SbTlCasohl23iIn3.mp4?tag=16",
+              "bitrate": 950000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/720x1280/qnC_V3TZFNCfIUeO.mp4?tag=16",
+              "bitrate": 2176000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+              "bitrate": 10368000,
+              "content_type": "video/mp4"
+            }
+          ]
+        }
+      ],
+      "videos": [
+        {
+          "id": "2112560648005484545",
+          "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+          "thumbnail_url": "https://pbs.twimg.com/media/HVFSyBvWAAE5Y1_.jpg",
+          "duration": 45.812,
+          "width": 405,
+          "height": 720,
+          "format": "video/mp4",
+          "type": "video",
+          "formats": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/pl/3swciYy4cEVNSi3F.m3u8?tag=16&v=909",
+              "container": "m3u8"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/320x568/NgN55ga-5ujfgzMM.mp4?tag=16",
+              "bitrate": 632000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/480x852/SbTlCasohl23iIn3.mp4?tag=16",
+              "bitrate": 950000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/720x1280/qnC_V3TZFNCfIUeO.mp4?tag=16",
+              "bitrate": 2176000,
+              "container": "mp4",
+              "codec": "h264"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+              "bitrate": 10368000,
+              "container": "mp4",
+              "codec": "h264"
+            }
+          ],
+          "publisher": null,
+          "variants": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/pl/3swciYy4cEVNSi3F.m3u8?tag=16&v=909",
+              "bitrate": 0,
+              "content_type": "application/x-mpegURL"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/320x568/NgN55ga-5ujfgzMM.mp4?tag=16",
+              "bitrate": 632000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/480x852/SbTlCasohl23iIn3.mp4?tag=16",
+              "bitrate": 950000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/720x1280/qnC_V3TZFNCfIUeO.mp4?tag=16",
+              "bitrate": 2176000,
+              "content_type": "video/mp4"
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2112560648005484545/vid/avc1/1080x1920/p22pg524_Km8ghQo.mp4?tag=16",
+              "bitrate": 10368000,
+              "content_type": "video/mp4"
+            }
+          ]
+        }
+      ]
+    },
+    "twitter_card": "player",
+    "color": null,
+    "provider": "twitter",
+    "reposted_by": null
+  }
+}

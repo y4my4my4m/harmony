@@ -1,12 +1,14 @@
 /**
  * PrivacySettings.vue "Require follow approval": read from profiles.manually_approves_followers
- * on mount, written on toggle, and restored when the write fails.
+ * on mount, written on toggle and confirmed, and restored when the write fails. Every
+ * switch applies on change; the section has no Save or Reset.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+const setStrip = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -17,7 +19,7 @@ vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({ loadBl
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerToggle: vi.fn() }) }))
 vi.mock('@/utils/urlTrackerStripper', () => ({
   isUrlTrackingStrippingEnabled: () => true,
-  setUrlTrackingStrippingEnabled: vi.fn(),
+  setUrlTrackingStrippingEnabled: setStrip,
 }))
 
 async function stub(name: string) {
@@ -96,6 +98,7 @@ describe('PrivacySettings follow approval', () => {
     expect(updates).toEqual([{ patch: { manually_approves_followers: true }, id: 'me' }])
     expect(stored.manually_approves_followers).toBe(true)
     expect(toggle(wrapper).attributes('aria-checked')).toBe('true')
+    expect(toast.success).toHaveBeenCalledWith('settings.toasts.privacyUpdated')
 
     await toggle(wrapper).trigger('click')
     await flushPromises()
@@ -113,5 +116,25 @@ describe('PrivacySettings follow approval', () => {
 
     expect(toggle(wrapper).attributes('aria-checked')).toBe('false')
     expect(toast.error).toHaveBeenCalledWith('activitypub.followApprovalFailed')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+})
+
+describe('PrivacySettings save model', () => {
+  it('has no Save or Reset button', async () => {
+    const wrapper = mountSettings()
+    await flushPromises()
+    const labels = wrapper.findAll('button').map((b) => b.text().trim())
+    expect(labels).not.toContain('Save changes')
+    expect(labels).not.toContain('Reset')
+  })
+
+  it('stores the tracking-parameter switch on change and confirms it', async () => {
+    const wrapper = mountSettings()
+    await flushPromises()
+    await wrapper.get('[data-testid="strip-url-trackers-toggle"]').trigger('click')
+    await flushPromises()
+    expect(setStrip).toHaveBeenCalledWith(false)
+    expect(toast.success).toHaveBeenCalledWith('settings.toasts.privacyUpdated')
   })
 })

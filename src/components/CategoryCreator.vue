@@ -21,6 +21,12 @@
         @update:model-value="categoryName = formatCategoryNameInput($event)"
         @enter="handleCreation"
       />
+      <CategoryPrivacyFields
+        v-if="serverChannelStore.currentServerId"
+        v-model="privacy"
+        class="category-privacy-fields"
+        :server-id="serverChannelStore.currentServerId"
+      />
     </form>
 
     <template #footer>
@@ -49,8 +55,10 @@ import { debug } from '@/utils/debug'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ModernInput from '@/components/common/ModernInput.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
+import CategoryPrivacyFields from '@/components/CategoryPrivacyFields.vue'
 import { supabase } from '@/supabase'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import type { CategoryPrivacy } from '@/services/categoryPermissions'
 import { categoryNameProblem, formatCategoryNameInput, finalizeCategoryName } from '@/utils/channelName'
 
 // Max categories per server
@@ -61,10 +69,11 @@ const serverChannelStore = useServerChannelStore()
 
 const emit = defineEmits<{
   showCategoryCreator: [show: boolean]
-  createCategory: [name: string]
+  createCategory: [name: string, privacy: CategoryPrivacy]
 }>()
 
 const categoryName = ref('')
+const privacy = ref<CategoryPrivacy>({ isPrivate: false, roleIds: [], userIds: [] })
 const errorMessage = ref('')
 const isCreating = ref(false)
 const currentCategoryCount = ref(0)
@@ -176,7 +185,7 @@ const handleCreation = async () => {
       return
     }
     
-    emit('createCategory', trimmedName)
+    emit('createCategory', trimmedName, privacy.value)
     closeCategoryCreator()
   } catch (error) {
     errorMessage.value = t('category.errors.createFailed')
@@ -203,6 +212,10 @@ nextTick(() => {
 <style scoped>
 .category-form {
   margin-bottom: 24px;
+}
+
+.category-privacy-fields {
+  margin-top: 16px;
 }
 
 .modal-actions {

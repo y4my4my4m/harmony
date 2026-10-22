@@ -18,6 +18,7 @@ import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js
 import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { withoutPollParts } from '../utils/polls.js';
+import { LIVE_SYSTEM_NOTE_TYPES, loadSystemPeople, systemNote } from '../activitypub/systemNotes.js';
 
 // TYPES
 
@@ -97,6 +98,11 @@ export async function handleChannelMessageFederation(
 
     if (!server) {
       logger.error(`Server ${server_id} not found`);
+      return;
+    }
+
+    if (message.is_system) {
+      await federateSystemNotice(message, server, channel_id, channel_name);
       return;
     }
 
@@ -211,6 +217,77 @@ export async function handleChannelMessageFederation(
   } catch (error) {
     logger.error('Error handling channel message federation:', error);
   }
+}
+
+/**
+ * A system notice of a local server goes to the instances of members who can view the
+ * channel as its Group's Create; it has no author to sign it.
+ */
+async function federateSystemNotice(
+  message: any,
+  server: any,
+  channelId: string,
+  channelName: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const finish = (status: 'completed' | 'skipped', federatedTo?: string[]) => supabase
+    .from('messages')
+    .update({
+      federation_status: status,
+      updated_at: message.updated_at || message.created_at,
+      ...(federatedTo
+        ? { metadata: { ...(message.metadata || {}), federated_at: new Date().toISOString(), federated_to: federatedTo } }
+        : {}),
+    })
+    .eq('id', message.id);
+
+  if (!LIVE_SYSTEM_NOTE_TYPES.has(message.metadata?.type)) {
+    await finish('skipped');
+    return;
+  }
+
+  if (!server.is_local_server || !server.federation_enabled) {
+    await finish('skipped');
+    return;
+  }
+
+  const groups = await getChannelRecipientGroups(channelId);
+  if (groups.length === 0) {
+    await finish('skipped');
+    return;
+  }
+
+  const serverId = server.id;
+  const hostDomain = config.INSTANCE_DOMAIN;
+  const serverUrl = `https://${hostDomain}/servers/${serverId}`;
+  const people = await loadSystemPeople(supabase, [message]);
+  const note = systemNote(message, { hostDomain, serverId, channelId, people, html: true });
+  if (!note) {
+    await finish('skipped');
+    return;
+  }
+  const activity = {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      { 'harmony': 'https://harmonyapp.dev/ns#' },
+    ],
+    id: `${serverUrl}/activities/${message.id}`,
+    type: 'Create',
+    actor: serverUrl,
+    published: message.created_at,
+    to: [`${serverUrl}/members`],
+    cc: [],
+    object: {
+      ...note,
+      'harmony:channelName': channelName,
+      'harmony:serverId': serverId,
+      'harmony:serverName': server.name,
+    },
+  };
+
+  await deliverToRemoteInstances(groups, () => activity, { serverId });
+  await finish('completed', groups.map(g => g.instance));
+  logger.info(`System notice ${message.id} (${message.metadata?.type}) federated to ${groups.length} instances`);
 }
 
 // UPDATE MESSAGE HANDLER

@@ -146,8 +146,10 @@ describe('PostsContainer feed', () => {
     const loadMore = document.querySelector<HTMLElement>('[data-testid="feed-load-more"]')!
     expect(document.activeElement).toBe(loadMore)
 
-    // The last row is in view, so a load has started already; the click joins it
-    // rather than sending a second request.
+    // The last row shows on open, but nothing was scrolled: the click starts the load, and
+    // a second click joins it rather than sending a second request.
+    expect(wrapper.emitted('load-more')).toBeUndefined()
+    loadMore.click()
     expect(wrapper.emitted('load-more')).toHaveLength(1)
     loadMore.click()
     expect(wrapper.emitted('load-more')).toHaveLength(1)
@@ -159,6 +161,35 @@ describe('PostsContainer feed', () => {
     expect(polite).toHaveBeenCalledWith('activitypub.feedA11y.postsLoaded:{"count":2}', { key: 'feed-loaded' })
     expect(document.activeElement).toBe(article(4))
     expect(document.querySelector('[data-testid="feed-load-more"]')).toBeNull()
+  })
+})
+
+describe('PostsContainer paging', () => {
+  it('a list whose end shows on open loads the next page once scrolled, not before', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(3), hasMore: true }, attachTo: document.body })
+    await settle()
+    expect(wrapper.emitted('load-more')).toBeUndefined()
+
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+    scroller.scrollTop = 20
+    scroller.dispatchEvent(new Event('scroll'))
+    await settle()
+    expect(wrapper.emitted('load-more')).toHaveLength(1)
+  })
+
+  it('a long list loads the next page only as its last row comes into the window', async () => {
+    const wrapper = mount(PostsContainer, { props: { posts: posts(40), hasMore: true }, attachTo: document.body })
+    await settle()
+    const scroller = wrapper.get('.posts-container').element as HTMLElement
+    scroller.scrollTop = 10 * ROW
+    scroller.dispatchEvent(new Event('scroll'))
+    await settle()
+    expect(wrapper.emitted('load-more')).toBeUndefined()
+
+    scroller.scrollTop = 32 * ROW
+    scroller.dispatchEvent(new Event('scroll'))
+    await settle()
+    expect(wrapper.emitted('load-more')).toHaveLength(1)
   })
 })
 

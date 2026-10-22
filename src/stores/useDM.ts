@@ -19,6 +19,7 @@ import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/st
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, placeStoredRow, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 import { inSendOrder, sendKeyForConversation, takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder'
+import { findStalledRowMessage, insertWithDeadline, isSendUnresolved, resendRow, type StalledSendHandlers } from '@/stores/shared/stalledSends'
 import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit'
 import { forgetConversationEncryption } from '@/services/conversationEncryption'
 import { isModerationRejectionCode } from '@/services/AutoModService'
@@ -279,7 +280,7 @@ export const useDMStore = defineStore('dm', () => {
     if (currentConversationId.value === message.conversation_id && !currentDMMessages.value.some(msg => msg.id === message.id)) {
       if (acceptsLiveRow(currentDMMessages.value, message, hasNewerMessages.value)) {
         insertMessageSorted(currentDMMessages.value, message)
-      } else if (message.user_id !== useProfileStore().profileId) {
+      } else if (!message.is_system && message.user_id !== useProfileStore().profileId) {
         unseenWhileDetached.value++
       }
     }
@@ -762,7 +763,7 @@ export const useDMStore = defineStore('dm', () => {
       const lastMessageScanLimit = Math.min(conversationIds.length * 5, 1000)
       const { data: lastMessages, error: messagesError } = await supabase
         .from('messages')
-        .select('conversation_id, content, encrypted, created_at, user_id')
+        .select('conversation_id, content, encrypted, created_at, user_id, is_system, metadata')
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: false })
         .limit(lastMessageScanLimit)
@@ -813,6 +814,8 @@ export const useDMStore = defineStore('dm', () => {
           last_message: lastMessage ? {
             id: '', // preview only; ID unused
             content: lastMessage.content,
+            is_system: lastMessage.is_system === true,
+            metadata: lastMessage.metadata || {},
             encrypted: lastMessage.encrypted === true,
             created_at: lastMessage.created_at,
             user_id: lastMessage.user_id,
@@ -2010,17 +2013,20 @@ export const useDMStore = defineStore('dm', () => {
     // The optimistic row shows at once; the insert waits for the conversation's earlier ones.
     const orderKey = sendKeyForConversation(conversationId)
     const turn = options?.turn ?? takeSendTurn(orderKey)
+    const insert = () => insertWithDeadline(tempId, services.messages.sendDMMessage(
+      conversationId,
+      content,
+      replyTo,
+      options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
+      sendMetadata
+    ), stalledSendHandlers(tempId, userId, conversationId, content))
+    // A re-send of a row whose insert stalled finds the message stored meanwhile.
+    const send = () => resendRow(tempId, () => services.messages.findSentMessage({ conversationId }, userId, clientNonce), insert)
 
     try {
       debug.log('Sending DM message via MessageService:', { conversationId, userId })
-      
-      const message = await turn.run(() => services.messages.sendDMMessage(
-        conversationId,
-        content,
-        replyTo,
-        options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
-        sendMetadata
-      ))
+
+      const message = await turn.run(send)
 
       debug.log('DM message saved to database:', message.id)
       debug.log('DM message data from server:', message)
@@ -2030,6 +2036,13 @@ export const useDMStore = defineStore('dm', () => {
       return true
     } catch (error: any) {
       debug.error('Failed to send DM message via service:', error)
+
+      // No answer in time, or a failed lookup: the insert may be stored, so it is not sent
+      // again here. The row fails and offers Retry and Delete.
+      if (isSendUnresolved(error)) {
+        _markDMMessageFailed(tempId)
+        return false
+      }
 
       // Encryption policy errors require user consent before retrying: no
       // auto-retry, no silent plaintext fallback. The optimistic message is
@@ -2085,17 +2098,12 @@ export const useDMStore = defineStore('dm', () => {
 
         try {
           // A retry queues behind the sends made since; it lands at its new created_at.
-          const retryResult = await inSendOrder(orderKey, () => services.messages.sendDMMessage(
-            conversationId,
-            content,
-            replyTo,
-            options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
-            sendMetadata
-          ))
+          const retryResult = await inSendOrder(orderKey, send)
           _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
           return true
         } catch (retryError) {
           debug.warn(`DM retry attempt ${attempt} failed:`, retryError)
+          if (isSendUnresolved(retryError)) break
         }
       }
 
@@ -2119,7 +2127,11 @@ export const useDMStore = defineStore('dm', () => {
     })
   }
 
-  const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {
+  /**
+   * `addIfAbsent`: a message whose row is held by neither copy is added as a stored row. A
+   * stalled outbox send lands so: the outbox removed the store's row when the send failed.
+   */
+  const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[], addIfAbsent = false) => {
     seedNoReactions(message.id)
     // The live list and the cache are reconciled independently - realtime may
     // already have replaced the temp row in `currentDMMessages`. Bail only when
@@ -2128,7 +2140,7 @@ export const useDMStore = defineStore('dm', () => {
     const tempIndex = currentDMMessages.value.findIndex(m => m.id === tempId)
     const cached = messageCache.value.get(conversationId)
     const cacheIndex = cached ? cached.messages.findIndex(m => m.id === tempId) : -1
-    if (tempIndex === -1 && cacheIndex === -1) return
+    if (tempIndex === -1 && cacheIndex === -1 && !addIfAbsent) return
 
     const isOwnEncrypted = message.encrypted && message.user_id === userId
     const realMessage: Message = {
@@ -2144,6 +2156,11 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     try { ensureMessageEmbeds(realMessage) } catch { /* embeds are best-effort */ }
+
+    if (tempIndex === -1 && cacheIndex === -1) {
+      addMessageToCache(realMessage)
+      return
+    }
 
     // Placed by the server's created_at: the sender's list matches what everyone else reads.
     if (tempIndex !== -1) {
@@ -2164,11 +2181,17 @@ export const useDMStore = defineStore('dm', () => {
     // The row's metadata carries its client_nonce; realtime reconciles by it. A copy:
     // CoreMessageService writes plaintext-override markers into the metadata it gets.
     const metadata = { ...currentDMMessages.value[idx].metadata }
+    const clientNonce = typeof metadata.client_nonce === 'string' ? metadata.client_nonce : null
     currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any
 
     try {
-      const message = await inSendOrder(sendKeyForConversation(conversationId),
-        () => services.messages.sendDMMessage(conversationId, content, replyTo, undefined, metadata))
+      // A row whose insert stalled may be stored already; it is looked up before sending again.
+      const message = await inSendOrder(sendKeyForConversation(conversationId), async () =>
+        (clientNonce
+          ? await findStalledRowMessage(tempId, () => services.messages.findSentMessage({ conversationId }, userId, clientNonce))
+          : null)
+        ?? insertWithDeadline(tempId, services.messages.sendDMMessage(conversationId, content, replyTo, undefined, metadata),
+          stalledSendHandlers(tempId, userId, conversationId, content)))
       _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
     } catch (error) {
       debug.error('DM retry failed:', error)
@@ -2179,6 +2202,14 @@ export const useDMStore = defineStore('dm', () => {
   const discardFailedDMMessage = (tempId: string) => {
     removeMessageFromCache(tempId);
   };
+
+  /** A message stored after its row's insert stalled becomes the row; one the row does not keep is deleted. */
+  const stalledSendHandlers = (tempId: string, userId: string, conversationId: string, content: MessagePart[]): StalledSendHandlers<Message> => ({
+    landed: (message) => _replaceDMTempWithReal(tempId, message, userId, conversationId, content, true),
+    unwanted: (message) => {
+      deleteMessage(message.id).catch((error) => debug.warn('Deleting a second copy of a sent message failed:', error))
+    },
+  })
 
   // DM -> channel leaves the conversation without calling
   // setCurrentConversation, so the trim there never runs for that transition.
@@ -2657,6 +2688,8 @@ export const useDMStore = defineStore('dm', () => {
         id: message.id,
         user_id: message.user_id,
         content: message.content,
+        is_system: message.is_system === true,
+        metadata: message.metadata || {},
         encrypted: message.encrypted === true,
         decrypted: message.decrypted === true,
         created_at: new Date(message.created_at),
@@ -2670,7 +2703,8 @@ export const useDMStore = defineStore('dm', () => {
       const currentUser = userDataService.getCurrentUser()
       const currentUserId = currentUser?.id
 
-      if (message.user_id !== currentUserId && currentConversationId.value !== message.conversation_id) {
+      // handle_new_dm_unread counts no system row.
+      if (!message.is_system && message.user_id !== currentUserId && currentConversationId.value !== message.conversation_id) {
         conversation.unread_count = (conversation.unread_count || 0) + 1
       }
       
@@ -2712,6 +2746,7 @@ export const useDMStore = defineStore('dm', () => {
         id: row.id,
         user_id: row.user_id,
         content: row.content,
+        is_system: row.is_system === true,
         encrypted: row.encrypted === true,
         decrypted: row.decrypted === true,
         created_at: row.created_at,

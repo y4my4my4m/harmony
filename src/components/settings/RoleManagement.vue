@@ -399,7 +399,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { supabase } from '@/supabase'
@@ -439,6 +439,10 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  /** Any role holds unsaved edits. */
+  'dirty-change': [dirty: boolean]
+}>()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
 const { t } = useI18n()
@@ -507,13 +511,23 @@ const allServerMembers = ref<any[]>([])
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Form state
-const editForm = ref({
+interface RoleForm {
+  name: string
+  color: string
+  hoist: boolean
+  mentionable: boolean
+  permissions: string[]
+}
+const editForm = ref<RoleForm>({
   name: '',
   color: '#99AAB5',
   hoist: false,
   mentionable: false,
-  permissions: [] as string[],
+  permissions: [],
 })
+// Unsaved edits of roles other than the selected one, by role id. Selecting a
+// role takes its draft back into the form; Save or Reset drops it.
+const roleDrafts = ref<Record<string, RoleForm>>({})
 
 // Tabs: automatic activation, focus and selection move together.
 type EditorTab = 'display' | 'permissions' | 'members'
@@ -622,25 +636,100 @@ const hasChanges = computed(() => {
   return isThisRoleDirty(selectedRole.value.id)
 })
 
-/**
- * Per-role dirty check, used by the editor footer ("Save Changes" enabled?)
- * and the role rail ("show unsaved dot?"). Compares against the canonical
- * role record in `roles.value`, not the in-form snapshot: a role can be
- * inspected without being selected, and the dot must clear after save/reset.
- */
-function isThisRoleDirty(roleId: string): boolean {
-  if (!selectedRole.value || selectedRole.value.id !== roleId) return false
-  const role = roles.value.find(r => r.id === roleId)
-  if (!role) return false
+const formOf = (role: ServerRole): RoleForm => ({
+  name: role.name,
+  color: role.color || '#99AAB5',
+  hoist: role.hoist || false,
+  mentionable: role.mentionable || false,
+  permissions: ensurePermissionsArray(role.permissions),
+})
+
+const copyForm = (form: RoleForm): RoleForm => ({ ...form, permissions: [...form.permissions] })
+
+function formDiffers(form: RoleForm, role: ServerRole): boolean {
   const currentPerms = ensurePermissionsArray(role.permissions)
   return (
-    editForm.value.name !== role.name ||
-    editForm.value.color !== (role.color || '#99AAB5') ||
-    editForm.value.hoist !== role.hoist ||
-    editForm.value.mentionable !== role.mentionable ||
-    JSON.stringify([...editForm.value.permissions].sort()) !==
+    form.name !== role.name ||
+    form.color !== (role.color || '#99AAB5') ||
+    form.hoist !== role.hoist ||
+    form.mentionable !== role.mentionable ||
+    JSON.stringify([...form.permissions].sort()) !==
       JSON.stringify([...currentPerms].sort())
   )
+}
+
+/**
+ * Per-role dirty check, used by the editor footer ("Save Changes" enabled?)
+ * and the role rail ("show unsaved dot?"). Compares the form (selected role)
+ * or the role's draft against the canonical record in `roles.value`, so the
+ * dot clears after save/reset.
+ */
+function isThisRoleDirty(roleId: string): boolean {
+  const role = roles.value.find(r => r.id === roleId)
+  if (!role) return false
+  if (selectedRole.value?.id === roleId) return formDiffers(editForm.value, role)
+  const draft = roleDrafts.value[roleId]
+  return !!draft && formDiffers(draft, role)
+}
+
+const anyRoleDirty = computed(() => roles.value.some(role => isThisRoleDirty(role.id)))
+watch(anyRoleDirty, (dirty) => emit('dirty-change', dirty), { immediate: true })
+
+/** Keeps the selected role's unsaved edits as its draft before the form moves on. */
+function stashSelectedDraft() {
+  const current = selectedRole.value
+  if (!current) return
+  const record = roles.value.find(r => r.id === current.id)
+  if (record && formDiffers(editForm.value, record)) {
+    roleDrafts.value = { ...roleDrafts.value, [current.id]: copyForm(editForm.value) }
+  } else {
+    dropDraft(current.id)
+  }
+}
+
+function dropDraft(roleId: string) {
+  if (!(roleId in roleDrafts.value)) return
+  const { [roleId]: _dropped, ...rest } = roleDrafts.value
+  roleDrafts.value = rest
+}
+
+/** `form` edited against `before`, moved onto `after`: each field it left unedited takes `after`'s. */
+function rebaseForm(form: RoleForm, before: ServerRole, after: ServerRole): RoleForm {
+  const was = formOf(before)
+  const now = formOf(after)
+  const permissionsEdited =
+    JSON.stringify([...form.permissions].sort()) !== JSON.stringify([...was.permissions].sort())
+  return {
+    name: form.name === was.name ? now.name : form.name,
+    color: form.color === was.color ? now.color : form.color,
+    hoist: form.hoist === was.hoist ? now.hoist : form.hoist,
+    mentionable: form.mentionable === was.mentionable ? now.mentionable : form.mentionable,
+    permissions: permissionsEdited ? [...form.permissions] : now.permissions,
+  }
+}
+
+/**
+ * After a reload, the form and the drafts follow roles changed elsewhere (another admin)
+ * in every field they leave unedited. A draft left equal to its role, or whose role is
+ * gone, is dropped.
+ */
+function rebaseEdits(previous: Map<string, ServerRole>) {
+  const fresh = new Map(roles.value.map(r => [r.id, r]))
+  const drafts: Record<string, RoleForm> = {}
+  for (const [id, draft] of Object.entries(roleDrafts.value)) {
+    const before = previous.get(id)
+    const after = fresh.get(id)
+    if (!before || !after) continue
+    const rebased = rebaseForm(draft, before, after)
+    if (formDiffers(rebased, after)) drafts[id] = rebased
+  }
+  roleDrafts.value = drafts
+  const selected = selectedRole.value
+  const after = selected ? fresh.get(selected.id) : undefined
+  if (selected && after) {
+    editForm.value = rebaseForm(editForm.value, previous.get(selected.id) ?? selected, after)
+    selectedRole.value = after
+  }
 }
 
 const filteredMembers = computed(() => {
@@ -658,7 +747,9 @@ const loadRoles = async () => {
   loading.value = true
   try {
     const data = await roleService.getServerRoles(props.serverId, true)
+    const previous = new Map(roles.value.map(r => [r.id, r]))
     roles.value = data.sort((a, b) => b.position - a.position)
+    rebaseEdits(previous)
     // Auto-select the highest-position role (or @everyone) so the editor
     // pane has content immediately. Don't override an existing selection
     // if the same role still exists (e.g. user just saved).
@@ -701,9 +792,12 @@ const createRole = async () => {
 }
 
 const selectRole = async (role: ServerRole) => {
+  stashSelectedDraft()
   selectedRole.value = role
   activeTab.value = 'display'
-  resetForm()
+  const draft = roleDrafts.value[role.id]
+  editForm.value = draft ? copyForm(draft) : formOf(role)
+  dropDraft(role.id)
   
   addMemberSearch.value = ''
   availableMembers.value = []
@@ -772,16 +866,10 @@ async function loadServerBridgedUsers(options: { force?: boolean } = {}) {
   }
 }
 
+/** The form shows the selected role as stored. */
 const resetForm = () => {
   if (!selectedRole.value) return
-  
-  editForm.value = {
-    name: selectedRole.value.name,
-    color: selectedRole.value.color || '#99AAB5',
-    hoist: selectedRole.value.hoist || false,
-    mentionable: selectedRole.value.mentionable || false,
-    permissions: ensurePermissionsArray(selectedRole.value.permissions),
-  }
+  editForm.value = formOf(selectedRole.value)
 }
 
 const hasPermission = (key: string) => {
@@ -804,11 +892,12 @@ const onResetClick = () => {
 }
 
 const saveRole = async () => {
-  if (!selectedRole.value || !hasChanges.value || saving.value) return
+  const role = selectedRole.value
+  if (!role || !hasChanges.value || saving.value) return
   
   saving.value = true
   try {
-    const updated = await roleService.updateRole(selectedRole.value.id, {
+    const updated = await roleService.updateRole(role.id, {
       name: editForm.value.name,
       color: editForm.value.color,
       hoist: editForm.value.hoist,
@@ -821,8 +910,15 @@ const saveRole = async () => {
       if (index >= 0) {
         roles.value[index] = updated
       }
-      selectedRole.value = updated
-      resetForm()
+      // The rail stays live during the save: another role may be selected by now, its
+      // form holding that role's edits.
+      if (selectedRole.value?.id === updated.id) {
+        selectedRole.value = updated
+        resetForm()
+      } else {
+        const draft = roleDrafts.value[updated.id]
+        if (draft && !formDiffers(draft, updated)) dropDraft(updated.id)
+      }
       polite(t('server.roleManagement.saved', { name: updated.name }))
     } else {
       toast.error(t('server.roleManagement.errors.save'))
@@ -1067,6 +1163,7 @@ const memberName = (member: { display_name?: string; username: string }): string
 // Watch for server changes
 watch(() => props.serverId, () => {
   selectedRole.value = null
+  roleDrafts.value = {}
   roles.value = []
   loadRoles()
   void loadMyStanding()
@@ -1105,6 +1202,14 @@ onMounted(() => {
   void loadMyStanding()
   loadServerOwner()
   void loadServerBridgedUsers()
+})
+
+// Kept alive across Server settings sections: a later visit reloads the roles and
+// keeps the drafts.
+let activatedBefore = false
+onActivated(() => {
+  if (activatedBefore) void loadRoles()
+  activatedBefore = true
 })
 </script>
 

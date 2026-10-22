@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "转换我发送的表情符号",
       "convertSentEmoticonsDesc": "发送或编辑消息时，将 :) :D <3 等替换为表情。代码、链接和电子邮件地址不受影响。",
+      "mirrorLinks": "发送的链接",
+      "mirrorLinksDesc": "你发送的 X、Instagram 和 Bluesky 帖子链接会改写为镜像链接，让 Discord 等应用的预览显示其中的照片和视频。Harmony 仍显示完整帖子；Harmony 之外的人看到的是镜像链接。",
+      "mirrorLinkSite": "{site} 帖子",
+      "mirrorLinkHost": "{site} 帖子的镜像",
       "renderEmoticonsAsEmoji": "将他人发送的表情符号显示为表情",
       "renderEmoticonsAsEmojiDesc": "在消息中将 :) :D <3 等显示为表情。原始文本保持不变。",
       "inviteBannerBg": "邀请对话框中的服务器横幅",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "无法上传头像",
       "bannerUpdated": "横幅已更新",
       "bannerUploadFailed": "无法上传横幅",
-      "profileLoadFailed": "无法加载个人资料"
+      "profileLoadFailed": "无法加载个人资料",
+      "privacyUpdated": "隐私设置已更新"
     },
     "unsaved": {
       "title": "放弃未保存的更改？",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "每个个人资料字段都需要标签和内容。",
       "addField": "添加字段",
       "description": "管理你的个人资料和账户信息。",
+      "unsavedChanges": "您有未保存的个人资料更改",
+      "changesReset": "已重置个人资料更改",
       "handleCopied": "已复制用户标识",
       "copyFailed": "无法复制"
     }
@@ -2996,6 +3003,55 @@
       "saveFailed": "无法更新系统消息设置。"
     }
   },
+  "systemEvents": {
+    "someone": "某人",
+    "memberJoin": "{subject} 加入了服务器。",
+    "memberLeave": "{subject} 离开了服务器。",
+    "memberKick": "{actor} 踢出了 {subject}。",
+    "memberKickNoActor": "{subject} 被踢出了服务器。",
+    "memberBan": "{actor} 封禁了 {subject}。",
+    "memberBanNoActor": "{subject} 被封禁了。",
+    "reason": "原因：{reason}",
+    "threadCreated": "{actor} 创建了子区：{thread}。查看{allThreads}。",
+    "threadCreatedNoLink": "{actor} 创建了子区。",
+    "threadFallbackName": "子区",
+    "allThreads": "所有子区",
+    "encryptionEnabled": "{actor} 为此频道开启了端到端加密。",
+    "encryptionDisabled": "{actor} 为此频道关闭了端到端加密。",
+    "voiceEncryptionEnabled": "{actor} 为语音和视频开启了端到端加密。",
+    "voiceEncryptionDisabled": "{actor} 为语音和视频关闭了端到端加密。",
+    "groupCreated": "{actor} 创建了群组。",
+    "groupCreatedWith": "{actor} 创建了有 {count} 位参与者的群组。",
+    "membersAdded": "{actor} 将 {members} 添加到了群组。",
+    "listSeparator": "、",
+    "callStarted": {
+      "voice": "{actor} 发起了语音通话。",
+      "video": "{actor} 发起了视频通话。"
+    },
+    "callEnded": {
+      "voice": "{actor} 发起了语音通话，时长 {duration}。",
+      "video": "{actor} 发起了视频通话，时长 {duration}。"
+    },
+    "callMissed": {
+      "voice": "你错过了来自 {actor} 的语音通话。",
+      "video": "你错过了来自 {actor} 的视频通话。"
+    },
+    "noAnswer": "无人接听",
+    "duration": {
+      "seconds": "{s} 秒",
+      "minutes": "{m} 分钟",
+      "minutesSeconds": "{m} 分 {s} 秒",
+      "hours": "{h} 小时",
+      "hoursMinutes": "{h} 小时 {m} 分钟"
+    },
+    "yesterdayAt": "昨天",
+    "preview": {
+      "voiceCall": "语音通话",
+      "videoCall": "视频通话",
+      "groupCreated": "已创建群组",
+      "membersAdded": "已添加成员"
+    }
+  },
   "time": {
     "now": "现在",
     "justNow": "刚刚",
@@ -3105,7 +3161,46 @@
       "limitReached": "此服务器已达到 {max} 个分类的上限",
       "createFailed": "创建分类失败。请重试。",
       "noServer": "未选择服务器",
-      "deleteFailed": "无法删除分类。"
+      "deleteFailed": "无法删除分类。",
+      "permissionsFailed": "分类已创建，但无法保存其权限。"
+    },
+    "private": {
+      "label": "私密分类",
+      "hint": "只有你选择的身份组和成员、所有者和管理员能看到它以及跟随其权限的频道。",
+      "whoCanSee": "谁可以查看",
+      "members": "成员",
+      "searchMembers": "搜索成员",
+      "noMembers": "没有匹配的成员。",
+      "noRoles": "还没有身份组：选择成员，否则只有所有者和管理员能看到。",
+      "removeMember": "移除 {name}",
+      "channelFollows": "{category} 是私密分类：此频道沿用它的权限。"
+    },
+    "hiddenFromMembers": "成员看不到此分类",
+    "edit": {
+      "title": "编辑分类",
+      "name": "分类名称",
+      "namePlaceholder": "输入分类名称",
+      "save": "保存更改",
+      "saving": "保存中…",
+      "failed": "无法更新分类，请重试。",
+      "loadingPermissions": "正在加载权限…",
+      "permissionsFailed": "无法加载此分类的权限。关闭后重新打开即可重试。",
+      "permissionsSaved": "权限已保存。分类中没有频道跟随这些权限；可在频道的权限设置中同步。 | 权限已保存并同步到 {count} 个频道。 | 权限已保存并同步到 {count} 个频道。"
+    },
+    "sync": {
+      "synced": "已与 {category} 同步",
+      "notSynced": "未与 {category} 同步",
+      "notSyncedHint": "此频道的权限与其分类的权限不同。",
+      "saveFirst": "请先保存或重置你的更改。",
+      "syncNow": "立即同步",
+      "syncing": "同步中…",
+      "done": "权限已与 {category} 同步",
+      "failed": "无法同步权限。"
+    },
+    "move": {
+      "title": "同步权限？",
+      "message": "#{channel} 现在位于 {category}，其权限与该频道不同。要与分类同步，还是保留频道自己的权限？",
+      "sync": "同步权限"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "关闭语音加密？",
       "message": "此频道中的通话将不再端到端加密，媒体服务器将能够访问音频和视频。",
       "confirm": "关闭语音加密"
-    },
-    "system": {
-      "enabled": "为此频道开启了端到端加密。",
-      "disabled": "为此频道关闭了端到端加密。",
-      "voiceEnabled": "为语音和视频开启了端到端加密。",
-      "voiceDisabled": "为语音和视频关闭了端到端加密。"
     },
     "create": {
       "label": "端到端加密",
@@ -5922,7 +6011,13 @@
     "popOut": "弹出",
     "open": "打开",
     "hide": "隐藏",
-    "show": "显示"
+    "show": "显示",
+    "showMore": "显示更多",
+    "showLess": "收起",
+    "quotedPost": "引用的帖子",
+    "openMedia": "打开媒体 {index}/{total}",
+    "playOnSite": "在 {site} 上播放",
+    "playInX": "在 X 播放器中播放"
   },
   "threadCreate": {
     "button": "新建话题",
@@ -6322,7 +6417,9 @@
       "resetZoom": "重置缩放和旋转",
       "rotateLeft": "向左旋转",
       "rotateRight": "向右旋转",
-      "videoUnsupported": "此视频无法在这里播放。"
+      "videoUnsupported": "此视频无法在这里播放。",
+      "download": "下载",
+      "audio": "音频"
     },
     "pwa": {
       "installApp": "安装 Harmony 应用",
@@ -6433,7 +6530,8 @@
     "pip": "画中画",
     "exitPip": "退出画中画",
     "fullscreen": "全屏",
-    "exitFullscreen": "退出全屏"
+    "exitFullscreen": "退出全屏",
+    "expand": "在查看器中打开"
   },
   "activities": {
     "title": "一起看或一起听",
@@ -6537,7 +6635,8 @@
       "restore": "恢复",
       "deleteForever": "永久删除",
       "deleteFolder": "删除文件夹",
-      "emptyTrash": "清空回收站"
+      "emptyTrash": "清空回收站",
+      "copyLink": "复制链接"
     },
     "nav": {
       "myDrive": "我的 Drive",
@@ -6689,7 +6788,9 @@
       "moved": "已移动 {count} 个文件 | 已移动 {count} 个文件",
       "kept": "已将 {count} 个文件保留在 Drive | 已将 {count} 个文件保留在 Drive",
       "keepPartial": "已保留 {kept} 个（共 {total} 个）：其余文件超出你的 Drive 空间",
-      "folderDeleted": "文件夹已删除；{count} 个文件已移至回收站 | 文件夹已删除；{count} 个文件已移至回收站"
+      "folderDeleted": "文件夹已删除；{count} 个文件已移至回收站 | 文件夹已删除；{count} 个文件已移至回收站",
+      "linkCopied": "链接已复制",
+      "linkCopyFailed": "无法复制链接"
     },
     "share": {
       "title": "分享",
@@ -6721,12 +6822,16 @@
         "server": "服务器",
         "channel": "频道",
         "link": "链接"
-      }
+      },
+      "accessLinkTitle": "有权访问者的链接",
+      "accessLinkHint": "只有已能查看此文件的人才能打开。",
+      "publicLinkLabel": "公开链接，任何人都能打开"
     },
     "preview": {
       "previous": "上一个文件",
       "next": "下一个文件",
-      "none": "此文件无法预览。"
+      "none": "此文件无法预览。",
+      "fullScreen": "全屏查看"
     },
     "picker": {
       "title": "从 Drive 选择",
@@ -6762,6 +6867,36 @@
       "sharedBy": "由 {name} 分享",
       "expires": "链接将于 {date} 过期",
       "footer": "分享自 {instance}"
+    },
+    "card": {
+      "restrictedTitle": "受限文件",
+      "restrictedText": "你无权访问此文件。",
+      "gone": "此文件已不可用。",
+      "view": "查看 {name}",
+      "play": "播放 {name}",
+      "open": "打开 {name}",
+      "download": "下载 {name}"
+    },
+    "filePage": {
+      "title": "文件",
+      "noAccessTitle": "你无权访问此文件",
+      "noAccessText": "请让文件所有者与你共享。",
+      "toDrive": "前往云盘",
+      "errorTitle": "无法加载此文件",
+      "retry": "重试",
+      "yours": "你的文件",
+      "ownedBy": "所有者：{name}",
+      "trashed": "在你的回收站中，只有你能打开。"
+    },
+    "offer": {
+      "channel": "{channel} 中的成员无法打开此文件。要与该频道共享吗？",
+      "thisChannel": "此频道中的成员无法打开此文件。要与该频道共享吗？",
+      "conversation": "此对话中的成员无法打开此文件。要与他们共享吗？",
+      "person": "{name} 无法打开此文件。要与对方共享吗？",
+      "people": "此对话中有 {count} 人无法打开此文件。要与他们共享吗？",
+      "share": "共享",
+      "sendAnyway": "仍然发送",
+      "shared": "文件已共享"
     }
   },
   "support": {

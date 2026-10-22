@@ -263,6 +263,11 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal
    * federation fetches stay on https.
    */
   allowPlainHttp?: boolean;
+  /**
+   * false returns a 3xx response as it is, Location unfollowed, for callers that check each
+   * hop against their own host list. Default true.
+   */
+  followRedirects?: boolean;
 }
 
 /**
@@ -337,6 +342,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
     signal: externalSignal,
     redirectHeaders,
     allowPlainHttp = false,
+    followRedirects = true,
     ...fetchInit
   } = options;
 
@@ -373,7 +379,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
       // Malformed redirect (3xx without Location): treat as terminal response,
       // but still enforce the body-size cap so a hostile peer can't stream
       // unbounded bytes through a 301/302 without Location.
-      if (!location) return withUrl(enforceBodySize(response, maxBodyBytes), currentUrl);
+      if (!location || !followRedirects) return withUrl(enforceBodySize(response, maxBodyBytes), currentUrl);
       // Drain the redirect response body so node doesn't leak the socket.
       try { await response.body?.cancel(); } catch { /* noop */ }
       const nextUrl = new URL(location, currentUrl).href;

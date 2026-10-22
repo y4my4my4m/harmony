@@ -26,6 +26,7 @@ import {
   isDefaultServerIcon,
 } from '../utils/urlUtils.js';
 import { federationUserAgent } from '../utils/userAgent.js';
+import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 
 const router = Router();
 
@@ -862,7 +863,7 @@ router.get(
       const { data: cachedMessages } = await supabase
         .from('messages')
         .select(`
-          id, content, created_at, updated_at, metadata,
+          id, content, created_at, updated_at, metadata, is_system,
           author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
         `)
         .eq('channel_id', channelId)
@@ -904,14 +905,28 @@ router.get(
       const data = await response.json();
       
       const items = data.orderedItems || data.items || [];
-      
+
+      // A Note attributed to the Group is a system notice (systemNotes.ts); the Group is not
+      // a member to resolve. A malformed one is dropped.
+      const groupUrl = String(server.ap_id).replace(/\/$/, '').toLowerCase();
+      const fromGroup = (note: any) =>
+        typeof note?.attributedTo === 'string' && note.attributedTo.replace(/\/$/, '').toLowerCase() === groupUrl;
+      const systemNoticeOf = (note: any): HarmonySystem | null =>
+        fromGroup(note) ? parseHarmonySystem(note[HARMONY_SYSTEM]) : null;
+
       // Deduplicate author URLs to avoid fetching the same user multiple times
       const uniqueAuthorUrls = new Set<string>();
       for (const item of items) {
         const activity = item.type === 'Create' ? item : { object: item };
         const note = activity.object;
         if (!note) continue;
-        
+
+        if (fromGroup(note)) {
+          const sys = systemNoticeOf(note);
+          for (const url of sys ? systemActorUrls(sys) : []) uniqueAuthorUrls.add(url);
+          continue;
+        }
+
         const authorUrl = note.attributedTo || activity.actor;
         if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
           uniqueAuthorUrls.add(authorUrl);
@@ -954,12 +969,55 @@ router.get(
       
       logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
+      // A system notice is cached as an authorless system row naming local profiles.
+      const systemNoticeItem = async (note: any, sys: HarmonySystem) => {
+        const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
+        const metadata = systemMetadata(
+          sys,
+          (url) => (authorMap.get(url) || authorMap.get(url.toLowerCase()))?.id ?? null,
+        );
+        const createdAt = note.published || new Date().toISOString();
+        if (messageUuid) {
+          try {
+            await supabase
+              .from('messages')
+              .upsert({
+                id: messageUuid,
+                channel_id: channelId,
+                content: [{ type: 'text', text: noteContentText(note.content) || sys.type }],
+                is_system: true,
+                created_at: createdAt,
+                updated_at: createdAt,
+                metadata: { ...metadata, ap_id: note.id, is_remote: true, federated: true },
+                federation_status: 'skipped',
+              }, { onConflict: 'id', ignoreDuplicates: true });
+          } catch (cacheError: any) {
+            logger.debug(`Could not cache system notice: ${cacheError.message}`);
+          }
+        }
+        return {
+          id: messageUuid || note.id,
+          content: note.content,
+          created_at: note.published,
+          updated_at: note.updated,
+          is_system: true,
+          metadata: { ...metadata, ap_id: note.id, is_bridge: false },
+          author: null,
+          reactions: [],
+        };
+      };
+
       // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
         const activity = item.type === 'Create' ? item : { object: item };
         const note = activity.object;
         
         if (!note) return null;
+
+        if (fromGroup(note)) {
+          const sys = systemNoticeOf(note);
+          return sys ? systemNoticeItem(note, sys) : null;
+        }
 
         const authorUrl = note.attributedTo || activity.actor;
         

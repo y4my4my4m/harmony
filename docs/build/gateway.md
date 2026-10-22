@@ -148,7 +148,7 @@ See [Identify](#identify).
 | `author` | object or `null` | The shown author; see [Authors](#authors). `null` when the author's account no longer exists. |
 | `content` | string | The message's `text` parts joined with single spaces, trimmed. Mentions, emoji, links and files are not included; read them from `content_raw`. |
 | `content_raw` | array | The stored message parts. See [Message parts](/build/rest#message-parts). |
-| `is_system` | boolean | `true` for messages the server generates, such as a "started a thread" notice. |
+| `is_system` | boolean | `true` for a notice the server generates, such as "Bob joined the server". See [System messages](#system-messages). |
 | `reply_to` | UUID or `null` | ID of the message this one replies to. |
 | `timestamp` | ISO 8601 | Creation time. |
 | `edited_timestamp` | ISO 8601 | Time of the last content edit. Equal to `timestamp` until the content is edited. |
@@ -197,6 +197,20 @@ In `content_raw`, a `file` part whose `path` names an attachment stored on the i
 | Relayed Discord user | Discord user ID | `false` | `discord_user: true`, `nickname: null`. Set by a Discord bridge; see [Writing a bridge](/build/bridges#relayed-authors). |
 
 `author.avatar` is an absolute URL. It is omitted when a member or bot has no avatar.
+
+#### System messages
+
+A system message has `is_system: true` and `author: null`: nobody wrote it. `metadata.type` says what happened and `metadata` names the people by profile UUID:
+
+| `metadata.type` | People |
+|---|---|
+| `member_join`, `member_leave` | `subject_id`: the member |
+| `member_kick`, `member_ban` | `subject_id`: the member; `actor_id`: the moderator; `reason` |
+| `thread_created` | `actor_id`, or `actor_bot_id` and `discord_user` for a thread a bridge relayed; `thread_id`, `thread_name` |
+| `channel_encryption_enabled`, `channel_encryption_disabled`, `channel_voice_encryption_enabled`, `channel_voice_encryption_disabled` | `actor_id` |
+| `automod_alert` | `automod` |
+
+`content` is English text for clients that do not know the type.
 
 ### MESSAGE_UPDATE
 

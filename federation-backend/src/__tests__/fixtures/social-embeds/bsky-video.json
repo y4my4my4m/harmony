@@ -1,0 +1,217 @@
+{
+  "thread": {
+    "post": {
+      "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mxyyerrxak2m",
+      "cid": "bafyreicvxpmlfzbdsv2hkn34nfxadl6oaih6otkyggl4voijihm74ztyn4",
+      "author": {
+        "did": "did:plc:z72i7hdynmk6r22z27h6tvur",
+        "handle": "bsky.app",
+        "displayName": "Bluesky",
+        "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreihwihm6kpd6zuwhhlro75p5qks5qtrcu55jp3gddbfjsieiv7wuka",
+        "associated": {
+          "chat": {
+            "allowIncoming": "none"
+          },
+          "activitySubscription": {
+            "allowSubscriptions": "followers"
+          }
+        },
+        "labels": [],
+        "createdAt": "2023-04-12T04:53:57.057Z",
+        "verification": {
+          "verifications": [],
+          "verifiedStatus": "none",
+          "trustedVerifierStatus": "valid"
+        },
+        "status": {
+          "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.actor.status/self",
+          "cid": "bafyreihkojqw7p22odgjcbzjh5sh4vrntow24sd4nvntpqnddrd5pqma44",
+          "record": {
+            "$type": "app.bsky.actor.status",
+            "createdAt": "2026-10-20T16:00:37.680Z",
+            "durationMinutes": 60,
+            "embed": {
+              "$type": "app.bsky.embed.external",
+              "external": {
+                "$type": "app.bsky.embed.external#external",
+                "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+                "thumb": {
+                  "$type": "blob",
+                  "ref": {
+                    "$link": "bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+                  },
+                  "mimeType": "image/jpeg",
+                  "size": 195438
+                },
+                "title": "e.w. niedermeyer is live on Streamplace",
+                "uri": "https://stream.place/niedermeyer.online"
+              }
+            },
+            "status": "app.bsky.actor.status#live"
+          },
+          "status": "app.bsky.actor.status#live",
+          "embed": {
+            "external": {
+              "uri": "https://stream.place/niedermeyer.online",
+              "title": "e.w. niedermeyer is live on Streamplace",
+              "description": "Elon Take The Wheel Livestream: Alex Gibney, Director of \"MUSK\"",
+              "thumb": "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:z72i7hdynmk6r22z27h6tvur/bafkreifbiu2m3dnnhmzq4dk6u4227p3xuq3zzqhhzvibhuojnz6unengny"
+            },
+            "$type": "app.bsky.embed.external#view"
+          },
+          "labels": [],
+          "expiresAt": "2026-10-20T17:00:37.680Z",
+          "isActive": false
+        }
+      },
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "createdAt": "2026-10-16T16:23:26.498Z",
+        "embed": {
+          "$type": "app.bsky.embed.video",
+          "alt": "A video showing the Bluesky interface as a user clicks through to see quotes on an individual posts. Two tabs at the top let them sort between a reverse chronological view (latest), and the quotes with the most engagement (top)",
+          "aspectRatio": {
+            "height": 1000,
+            "width": 1000
+          },
+          "presentation": "default",
+          "video": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreiat76ppqns6bcnxnt6etzlyoar4o75v6wrzwjbh342oxbsebyun5e"
+            },
+            "mimeType": "video/mp4",
+            "size": 3850070
+          }
+        },
+        "langs": [
+          "en"
+        ],
+        "text": "v1.135 is live!\n\nYou can now browse quote posts by Top in addition to Latest. And posts keep their thread numbering when quoted.\n\nThese changes are rolling out now. If you don’t see them yet, try refreshing your browser or visiting the app store to make sure you’ve updated to the latest version."
+      },
+      "embed": {
+        "cid": "bafkreiat76ppqns6bcnxnt6etzlyoar4o75v6wrzwjbh342oxbsebyun5e",
+        "playlist": "https://video.bsky.app/watch/did%3Aplc%3Az72i7hdynmk6r22z27h6tvur/bafkreiat76ppqns6bcnxnt6etzlyoar4o75v6wrzwjbh342oxbsebyun5e/playlist.m3u8",
+        "thumbnail": "https://video.bsky.app/watch/did%3Aplc%3Az72i7hdynmk6r22z27h6tvur/bafkreiat76ppqns6bcnxnt6etzlyoar4o75v6wrzwjbh342oxbsebyun5e/thumbnail.jpg",
+        "alt": "A video showing the Bluesky interface as a user clicks through to see quotes on an individual posts. Two tabs at the top let them sort between a reverse chronological view (latest), and the quotes with the most engagement (top)",
+        "aspectRatio": {
+          "height": 1000,
+          "width": 1000
+        },
+        "presentation": "default",
+        "$type": "app.bsky.embed.video#view"
+      },
+      "bookmarkCount": 75,
+      "replyCount": 180,
+      "repostCount": 207,
+      "likeCount": 1445,
+      "quoteCount": 80,
+      "indexedAt": "2026-10-16T16:23:28.157Z",
+      "labels": [],
+      "threadgate": {
+        "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.threadgate/3mxyyerrxak2m",
+        "cid": "bafyreidnnri6r5cajgtxgtvf3nicmxcw74bgttpa6x46bvyy6vbznggy7q",
+        "record": {
+          "$type": "app.bsky.feed.threadgate",
+          "createdAt": "2026-10-18T03:32:20.273Z",
+          "hiddenReplies": [
+            "at://did:plc:imuhefn4vd24qmvcxrkwl5ob/app.bsky.feed.post/3mxyyqlzcuc2d",
+            "at://did:plc:gan3ycbgo4qmh3mevps7ovfc/app.bsky.feed.post/3mxz3fvxdvc2s",
+            "at://did:plc:figrqlsxrcxcwutjx7pmi7w5/app.bsky.feed.post/3mxyziph55k2d",
+            "at://did:plc:amsuhynp265n75iuz2twarej/app.bsky.feed.post/3mxyzqpiybk2e",
+            "at://did:plc:awmaqn2lhcuk56lm7asadwnd/app.bsky.feed.post/3mxyzowpyps2n",
+            "at://did:plc:cwmyu3tbwvptudzvtezbqiob/app.bsky.feed.post/3mxz2yaqjtk2s",
+            "at://did:plc:2tpiak45i643xkqxqqtris2o/app.bsky.feed.post/3mxyzwxihi22d",
+            "at://did:plc:exfcrmq3luoh3fi4wgw5ext3/app.bsky.feed.post/3mxz2h5x4ts25",
+            "at://did:plc:3vqoyhrwco5ikwbsfjgcbmd6/app.bsky.feed.post/3mxz27wxask2o",
+            "at://did:plc:gcpbgx23atzlevo466h45x64/app.bsky.feed.post/3mxz3yfvidc25",
+            "at://did:plc:qpmfkes2behik44x357xz4qu/app.bsky.feed.post/3mxz5iwnezk2p",
+            "at://did:plc:5kwv6dyjjq2yiha44cszuykj/app.bsky.feed.post/3mxz7pskgw223",
+            "at://did:plc:p6c5amk65nl3fge7nls3ta2j/app.bsky.feed.post/3mxzcms3j7c2n",
+            "at://did:plc:mztzbwptgt4vgt2ngnp3s3th/app.bsky.feed.post/3mxzambgddk2s",
+            "at://did:plc:gqpefdrt7foldmcrlbssi2hf/app.bsky.feed.post/3mxz7idyskc2c",
+            "at://did:plc:d6fx2oo326aa22a6gccevrfd/app.bsky.feed.post/3mxz6n3bthk2m",
+            "at://did:plc:iaeqtyys2cus7rwefycl3rkq/app.bsky.feed.post/3mxzdyyyiiccu",
+            "at://did:plc:q6m2yobdtxbn5gqexvjmm47q/app.bsky.feed.post/3mxzdlheztk2i",
+            "at://did:plc:5bi27bzgzn4zemq7ramato2f/app.bsky.feed.post/3mxz2xv6b7c2y",
+            "at://did:plc:rom6a7y5ryj6h3yxaebekyzt/app.bsky.feed.post/3mxzh5zakns2a",
+            "at://did:plc:r3wwq2lepvvouk45zgu7g52k/app.bsky.feed.post/3mxyzhmjz422e",
+            "at://did:plc:pt7zlzaqtt3nakbiv27qyait/app.bsky.feed.post/3mxz44crxzk2s",
+            "at://did:plc:maz44zfqzrbky2wm5tbnlwib/app.bsky.feed.post/3mxzfi5cha22b",
+            "at://did:plc:dcjjpf4el2kwej2cu6up4omb/app.bsky.feed.post/3mxzdzfu3f227",
+            "at://did:plc:taldax7c5q3oenodh3qfgm2l/app.bsky.feed.post/3mxzhutmhzk24",
+            "at://did:plc:hbnolyoguqxokg3jwqfurzvh/app.bsky.feed.post/3mxzhmj4hjs2f",
+            "at://did:plc:wgqasxcbi2fee34zax6ygwhj/app.bsky.feed.post/3mxzd5va4ls27",
+            "at://did:plc:sa3qiun2ccmqqqlooxcsyxkq/app.bsky.feed.post/3mxyznhuzwc2g",
+            "at://did:plc:xbdmtsnan67eryyll75hzd5g/app.bsky.feed.post/3mxzmvvzr4k2x",
+            "at://did:plc:mpjzzkilltlajpe3r7zqr3q4/app.bsky.feed.post/3mxzxftgkuc2n",
+            "at://did:plc:h47xhrbc4m5yql5nkmr6u25x/app.bsky.feed.post/3mxzik2fzuk2m",
+            "at://did:plc:uy7bo33yywxttjnfnqeaxyv6/app.bsky.feed.post/3mxzlp2qk622v",
+            "at://did:plc:m6unhaus23gk6zkznt5hikam/app.bsky.feed.post/3mxzx24agl22r",
+            "at://did:plc:6jktt5xtq2bdekxmzpfrumnh/app.bsky.feed.post/3my2cc6caj22v",
+            "at://did:plc:ebypcnkoiqaivygm3b47ezji/app.bsky.feed.post/3mxzw2iara22u",
+            "at://did:plc:ohepcrjfpuqjfkjq4qeilc3p/app.bsky.feed.post/3mxzd5yvs7s23",
+            "at://did:plc:s2ggn5qybjtgsbsjhq3sodv3/app.bsky.feed.post/3mxzfeclf7k2z",
+            "at://did:plc:uetogo6f3xtrns6s4vrb73zc/app.bsky.feed.post/3my2wmwr4hk2l",
+            "at://did:plc:ao2vyokzaegtw37bh72kjk62/app.bsky.feed.post/3mxz4rmfwh22b"
+          ],
+          "post": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mxyyerrxak2m"
+        },
+        "lists": []
+      }
+    },
+    "threadContext": {},
+    "$type": "app.bsky.feed.defs#threadViewPost"
+  },
+  "threadgate": {
+    "uri": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.threadgate/3mxyyerrxak2m",
+    "cid": "bafyreidnnri6r5cajgtxgtvf3nicmxcw74bgttpa6x46bvyy6vbznggy7q",
+    "record": {
+      "$type": "app.bsky.feed.threadgate",
+      "createdAt": "2026-10-18T03:32:20.273Z",
+      "hiddenReplies": [
+        "at://did:plc:imuhefn4vd24qmvcxrkwl5ob/app.bsky.feed.post/3mxyyqlzcuc2d",
+        "at://did:plc:gan3ycbgo4qmh3mevps7ovfc/app.bsky.feed.post/3mxz3fvxdvc2s",
+        "at://did:plc:figrqlsxrcxcwutjx7pmi7w5/app.bsky.feed.post/3mxyziph55k2d",
+        "at://did:plc:amsuhynp265n75iuz2twarej/app.bsky.feed.post/3mxyzqpiybk2e",
+        "at://did:plc:awmaqn2lhcuk56lm7asadwnd/app.bsky.feed.post/3mxyzowpyps2n",
+        "at://did:plc:cwmyu3tbwvptudzvtezbqiob/app.bsky.feed.post/3mxz2yaqjtk2s",
+        "at://did:plc:2tpiak45i643xkqxqqtris2o/app.bsky.feed.post/3mxyzwxihi22d",
+        "at://did:plc:exfcrmq3luoh3fi4wgw5ext3/app.bsky.feed.post/3mxz2h5x4ts25",
+        "at://did:plc:3vqoyhrwco5ikwbsfjgcbmd6/app.bsky.feed.post/3mxz27wxask2o",
+        "at://did:plc:gcpbgx23atzlevo466h45x64/app.bsky.feed.post/3mxz3yfvidc25",
+        "at://did:plc:qpmfkes2behik44x357xz4qu/app.bsky.feed.post/3mxz5iwnezk2p",
+        "at://did:plc:5kwv6dyjjq2yiha44cszuykj/app.bsky.feed.post/3mxz7pskgw223",
+        "at://did:plc:p6c5amk65nl3fge7nls3ta2j/app.bsky.feed.post/3mxzcms3j7c2n",
+        "at://did:plc:mztzbwptgt4vgt2ngnp3s3th/app.bsky.feed.post/3mxzambgddk2s",
+        "at://did:plc:gqpefdrt7foldmcrlbssi2hf/app.bsky.feed.post/3mxz7idyskc2c",
+        "at://did:plc:d6fx2oo326aa22a6gccevrfd/app.bsky.feed.post/3mxz6n3bthk2m",
+        "at://did:plc:iaeqtyys2cus7rwefycl3rkq/app.bsky.feed.post/3mxzdyyyiiccu",
+        "at://did:plc:q6m2yobdtxbn5gqexvjmm47q/app.bsky.feed.post/3mxzdlheztk2i",
+        "at://did:plc:5bi27bzgzn4zemq7ramato2f/app.bsky.feed.post/3mxz2xv6b7c2y",
+        "at://did:plc:rom6a7y5ryj6h3yxaebekyzt/app.bsky.feed.post/3mxzh5zakns2a",
+        "at://did:plc:r3wwq2lepvvouk45zgu7g52k/app.bsky.feed.post/3mxyzhmjz422e",
+        "at://did:plc:pt7zlzaqtt3nakbiv27qyait/app.bsky.feed.post/3mxz44crxzk2s",
+        "at://did:plc:maz44zfqzrbky2wm5tbnlwib/app.bsky.feed.post/3mxzfi5cha22b",
+        "at://did:plc:dcjjpf4el2kwej2cu6up4omb/app.bsky.feed.post/3mxzdzfu3f227",
+        "at://did:plc:taldax7c5q3oenodh3qfgm2l/app.bsky.feed.post/3mxzhutmhzk24",
+        "at://did:plc:hbnolyoguqxokg3jwqfurzvh/app.bsky.feed.post/3mxzhmj4hjs2f",
+        "at://did:plc:wgqasxcbi2fee34zax6ygwhj/app.bsky.feed.post/3mxzd5va4ls27",
+        "at://did:plc:sa3qiun2ccmqqqlooxcsyxkq/app.bsky.feed.post/3mxyznhuzwc2g",
+        "at://did:plc:xbdmtsnan67eryyll75hzd5g/app.bsky.feed.post/3mxzmvvzr4k2x",
+        "at://did:plc:mpjzzkilltlajpe3r7zqr3q4/app.bsky.feed.post/3mxzxftgkuc2n",
+        "at://did:plc:h47xhrbc4m5yql5nkmr6u25x/app.bsky.feed.post/3mxzik2fzuk2m",
+        "at://did:plc:uy7bo33yywxttjnfnqeaxyv6/app.bsky.feed.post/3mxzlp2qk622v",
+        "at://did:plc:m6unhaus23gk6zkznt5hikam/app.bsky.feed.post/3mxzx24agl22r",
+        "at://did:plc:6jktt5xtq2bdekxmzpfrumnh/app.bsky.feed.post/3my2cc6caj22v",
+        "at://did:plc:ebypcnkoiqaivygm3b47ezji/app.bsky.feed.post/3mxzw2iara22u",
+        "at://did:plc:ohepcrjfpuqjfkjq4qeilc3p/app.bsky.feed.post/3mxzd5yvs7s23",
+        "at://did:plc:s2ggn5qybjtgsbsjhq3sodv3/app.bsky.feed.post/3mxzfeclf7k2z",
+        "at://did:plc:uetogo6f3xtrns6s4vrb73zc/app.bsky.feed.post/3my2wmwr4hk2l",
+        "at://did:plc:ao2vyokzaegtw37bh72kjk62/app.bsky.feed.post/3mxz4rmfwh22b"
+      ],
+      "post": "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mxyyerrxak2m"
+    },
+    "lists": []
+  }
+}

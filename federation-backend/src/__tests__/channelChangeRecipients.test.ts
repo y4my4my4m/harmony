@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Channel Add/Update reach instances of members who can view the channel; a
-// category, which carries no permissions, reaches every accepted member.
+// category reaches instances whose members view a channel in it. A channel in a
+// category carries an Update of that category ahead of its own activity.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test' },
@@ -20,6 +21,9 @@ const rpc = vi.fn(async (name: string) => {
   if (name === 'federation_channel_recipients') {
     return { data: [{ instance: 'viewer.test', member_ap_ids: ['https://viewer.test/users/v'], member_count: 1, shared_inbox: null }], error: null }
   }
+  if (name === 'federation_category_recipients') {
+    return { data: [{ instance: 'viewer.test', member_ap_ids: ['https://viewer.test/users/v'], member_count: 1, shared_inbox: null }], error: null }
+  }
   if (name === 'get_server_members_by_instance') {
     return {
       data: [
@@ -35,12 +39,16 @@ const rpc = vi.fn(async (name: string) => {
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
     rpc,
-    from: () => {
+    from: (table: string) => {
       const q: any = {
         select: () => q,
         eq: () => q,
         single: () => Promise.resolve({
           data: { id: 's1', owner: 'alice', federation_enabled: true, is_local_server: true },
+          error: null,
+        }),
+        maybeSingle: () => Promise.resolve({
+          data: table === 'channel_categories' ? { id: 'cat1', name: 'staff', order: 4 } : null,
           error: null,
         }),
       }
@@ -75,9 +83,26 @@ describe('channel structure fan-out', () => {
     ])
   })
 
-  it('a category reaches every accepted remote member', async () => {
+  it('a category reaches only instances whose members view a channel in it', async () => {
     await handleChannelCreated({ id: 'cat1', server_id: 's1', name: 'cat', type: 2 })
-    expect(rpc.mock.calls.map(c => c[0])).toEqual(['get_server_members_by_instance'])
-    expect(enqueue.mock.calls.map(c => c[1])).toEqual(['https://viewer.test/inbox', 'https://blind.test/inbox'])
+    expect(rpc.mock.calls.map(c => c[0])).toEqual(['federation_category_recipients'])
+    expect(enqueue.mock.calls.map(c => c[1])).toEqual(['https://viewer.test/inbox'])
+  })
+
+  it.each([
+    ['created', handleChannelCreated, 'Add'],
+    ['updated', (c: any) => handleChannelUpdated(c, c), 'Update'],
+  ])('a %s channel in a category sends the category first, to the same instances', async (_label, handler, type) => {
+    await handler({ id: 'c1', server_id: 's1', name: 'secret', type: 0, category: 'cat1' })
+    expect(enqueue.mock.calls.map(c => [(c[0] as any).type, (c[0] as any).object.type, c[1]])).toEqual([
+      ['Update', 'harmony:Category', 'https://viewer.test/inbox'],
+      [type, 'harmony:TextChannel', 'https://viewer.test/inbox'],
+    ])
+    expect((enqueue.mock.calls[0][0] as any).object).toMatchObject({
+      id: 'https://harmony.test/servers/s1/channels/cat1',
+      name: 'staff',
+      position: 4,
+    })
+    expect((enqueue.mock.calls[1][0] as any).object.category).toBe('https://harmony.test/servers/s1/channels/cat1')
   })
 })

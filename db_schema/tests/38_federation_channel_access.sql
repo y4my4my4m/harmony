@@ -31,7 +31,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(29);
+SELECT plan(31);
 
 CREATE OR REPLACE FUNCTION pg_temp.sig(p_name text) RETURNS text LANGUAGE sql STABLE AS $fn$
   SELECT pg_get_function_arguments(p.oid) || ' -> ' || pg_get_function_result(p.oid)
@@ -166,9 +166,11 @@ SELECT is((SELECT member_channel_ids FROM acc WHERE actor = 'none'), '{}'::uuid[
           'no member, no member channels');
 SELECT is((SELECT member_id FROM acc WHERE actor = 'rm'), 'f3810000-0000-0000-0000-000000000001'::uuid,
           'an accepted remote member resolves to its profile');
+-- remote.test also hosts rx, accepted and unable to view vip: its copy of the server would
+-- show vip to rx (20261026700002).
 SELECT is((SELECT member_channel_ids FROM acc WHERE actor = 'rm'),
-          ARRAY['f3830000-0000-0000-0000-000000000001', 'f3830000-0000-0000-0000-000000000003']::uuid[],
-          'rm sees general and vip (user override), not secret');
+          ARRAY['f3830000-0000-0000-0000-000000000001']::uuid[],
+          'rm sees general; vip (user override) is withheld while rx on remote.test cannot view it');
 SELECT is((SELECT member_id FROM acc WHERE actor = 'rs'), NULL, 'a remote actor with no membership is no member');
 SELECT is((SELECT member_id FROM acc WHERE actor = 'rp'), NULL, 'a pending membership is no member');
 SELECT is((SELECT member_id FROM acc WHERE actor = 'rb'), NULL, 'a server_bans row overrides an accepted status');
@@ -216,10 +218,19 @@ SELECT is((SELECT shared_inbox FROM public.federation_channel_recipients('f38300
           'no advertised shared inbox is NULL');
 SELECT is((SELECT count(*)::int FROM public.federation_channel_recipients('f3830000-0000-0000-0000-000000000002')), 0,
           'a channel no remote member can view has no recipients');
+SELECT is((SELECT count(*)::int FROM public.federation_channel_recipients('f3830000-0000-0000-0000-000000000003')), 0,
+  'priv.vip reaches no instance: rx on remote.test cannot view it');
+-- Once every accepted member there views vip, remote.test receives it; rx, suspended, is not addressed.
+INSERT INTO public.channel_permission_overrides (channel_id, target_type, role_id, user_id, allow_permissions, deny_permissions)
+VALUES ('f3830000-0000-0000-0000-000000000003', 'user', NULL, 'f3810000-0000-0000-0000-000000000007', 2, 0);
 SELECT set_eq(
   $$SELECT instance, member_ap_ids FROM public.federation_channel_recipients('f3830000-0000-0000-0000-000000000003')$$,
   $$VALUES ('remote.test', ARRAY['https://remote.test/users/rm'])$$,
-  'priv.vip reaches only the member its user override admits');
+  'priv.vip reaches remote.test once every member there views it, addressed to rm');
+SELECT ok('f3830000-0000-0000-0000-000000000003'::uuid = ANY (
+              (SELECT member_channel_ids FROM public.federation_group_access('f3820000-0000-0000-0000-000000000001',
+                                                                            'https://remote.test/users/rm'))::uuid[]),
+          'and rm reads vip');
 
 -- get_server_members_by_instance ------------------------------------------------------------
 SELECT ok(

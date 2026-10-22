@@ -70,7 +70,7 @@ describe('new category name', () => {
 
     form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
-    expect(wrapper.emitted('createCategory')?.[0]).toEqual(['Voice Rooms'])
+    expect(wrapper.emitted('createCategory')?.[0]).toEqual(['Voice Rooms', { isPrivate: false, roleIds: [], userIds: [] }])
     wrapper.unmount()
   })
 })

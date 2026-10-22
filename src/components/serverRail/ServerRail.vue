@@ -89,6 +89,7 @@ import { useLeaveServer } from '@/composables/useLeaveServer'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
+import { closeMobileDrawers } from '@/composables/useLayoutState'
 import { debug } from '@/utils/debug'
 import { stylePoint, styleRect } from '@/utils/appZoom'
 import type { Server, ServerFolder as ServerFolderType } from '@/types'
@@ -238,6 +239,8 @@ async function onServerAction(serverId: string, action: ServerMenuAction) {
       useServerNotificationSettingsStore().openModal(serverId)
       break
     case 'settings':
+      // An open phone drawer is modal: left open, it would leave the settings page inert.
+      closeMobileDrawers()
       router.push(`/server/${serverId}`)
       break
     case 'create-channel':

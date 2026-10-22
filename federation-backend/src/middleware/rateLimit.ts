@@ -314,6 +314,15 @@ export const mediaLimiter = createRateLimiter({
   message: 'Too many media requests, please slow down.',
 });
 
+// Media of X, Instagram and Bluesky previews: a playing video asks for ranges as it goes, a
+// channel of previews loads several files each.
+export const embedMediaLimiter = createRateLimiter({
+  name: 'embed-media',
+  windowMs: 60 * 1000,
+  maxRequests: 600,
+  message: 'Too many media requests, please slow down.',
+});
+
 // Account migration resolves remote accounts on every call; keyed by token so one
 // account's attempts do not spend another's budget behind a shared address.
 export const accountMigrationLimiter = createRateLimiter({
@@ -336,6 +345,13 @@ export const invitePageLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   maxRequests: 120,
   message: 'Too many invite preview requests, please try again later.',
+});
+
+export const driveLinkPageLimiter = createRateLimiter({
+  name: 'drive-link-page',
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  message: 'Too many link preview requests, please try again later.',
 });
 
 export const discoveryLimiter = createRateLimiter({

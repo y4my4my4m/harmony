@@ -45,6 +45,7 @@ vi.mock('@/services/privateMedia', async (importOriginal) => ({
 import { useOutboxStore, withPendingRows, type OutboxAttachment } from '@/stores/useOutbox'
 import { messageMediaUploadState, startMessageMediaUpload } from '@/services/messageMediaUpload'
 import { localMediaSource, resetMediaPartSources } from '@/services/privateMedia'
+import { SendStalledError, insertWithDeadline } from '@/stores/shared/stalledSends'
 
 const SERVER = '11111111-0000-4000-8000-000000000001'
 const CHANNEL = '66666666-0000-4000-8000-000000000006'
@@ -401,6 +402,47 @@ describe('outbox failure, retry and discard', () => {
     outbox.retry(id)
     await flushPromises()
     expect(chatStore.sendMessage.mock.calls[1][4]).toBe('')
+  })
+
+  it('a failed job whose stalled insert lands later is complete', async () => {
+    const outbox = useOutboxStore()
+    chatStore.sendMessage.mockResolvedValueOnce(undefined)
+    const id = outbox.enqueue({ target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [], attachments: [attachment('g.png')] })
+    await flushPromises()
+    xhrFor(filePaths(outbox.rowsFor(CHANNEL_KEY)[0])[0]).respond(200)
+    await flushPromises()
+    expect(outbox.rowsFor(CHANNEL_KEY)[0]).toMatchObject({ id, failed: true })
+
+    let land!: (message: { id: string }) => void
+    const handlers = { landed: vi.fn(), unwanted: vi.fn() }
+    const stalled = insertWithDeadline(id, new Promise<{ id: string }>((resolve) => { land = resolve }), handlers, 0)
+    await expect(stalled).rejects.toBeInstanceOf(SendStalledError)
+    land({ id: 'stored' })
+    await flushPromises()
+
+    expect(handlers.landed).toHaveBeenCalledWith({ id: 'stored' })
+    expect(outbox.jobs).toHaveLength(0)
+    expect(outbox.rowsFor(CHANNEL_KEY)).toEqual([])
+  })
+
+  it('a discarded job\'s stalled insert is unwanted when it lands', async () => {
+    const outbox = useOutboxStore()
+    chatStore.sendMessage.mockResolvedValueOnce(undefined)
+    const id = outbox.enqueue({ target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [], attachments: [attachment('h.png')] })
+    await flushPromises()
+    xhrFor(filePaths(outbox.rowsFor(CHANNEL_KEY)[0])[0]).respond(200)
+    await flushPromises()
+
+    let land!: (message: { id: string }) => void
+    const handlers = { landed: vi.fn(), unwanted: vi.fn() }
+    const stalled = insertWithDeadline(id, new Promise<{ id: string }>((resolve) => { land = resolve }), handlers, 0)
+    await expect(stalled).rejects.toBeInstanceOf(SendStalledError)
+    outbox.discard(id)
+    land({ id: 'stored' })
+    await flushPromises()
+
+    expect(handlers.unwanted).toHaveBeenCalledWith({ id: 'stored' })
+    expect(handlers.landed).not.toHaveBeenCalled()
   })
 
   it('discard aborts running uploads, deletes stored objects and revokes object URLs', async () => {

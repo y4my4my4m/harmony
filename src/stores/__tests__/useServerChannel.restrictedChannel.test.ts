@@ -14,6 +14,10 @@ const row = (over: Record<string, unknown> = {}) => ({
 function mockChannelFetch(result: { data: unknown; error?: unknown }) {
   const eq = vi.fn(() => ({ maybeSingle: async () => ({ data: result.data, error: result.error ?? null }) }))
   vi.mocked(supabase.from).mockImplementation(((table: string) => {
+    // A channel under an unlisted category reads the category back.
+    if (table === 'channel_categories') {
+      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }
+    }
     if (table !== 'channels') throw new Error(`unexpected table ${table}`)
     return { select: () => ({ eq }) }
   }) as any)

@@ -44,6 +44,22 @@ A link to a music service plays in that service's own player inside the message,
 
 Short share links play once the instance's link preview resolves them to the full address. Each player is the service's own page, loaded from its site when the message comes into view. To play music for everyone in a voice call, see [Watch or listen together](/use/voice-video#watch-or-listen-together).
 
+## Posts from X, Instagram and Bluesky
+
+A link to a post on X, Instagram or Bluesky shows the post: its author, text and date, every photo, its videos and GIFs playing in the message, and the post it quotes. Photos and videos open in the media viewer.
+
+An X video plays in the message in Safari and the Apple apps. In Chrome, Firefox, the Windows, Linux and Android apps, X serves its video files only to its own pages, so the video shows its still, a play button and its length; the play button loads X's own embedded post in its place, which plays the video from X. Nothing is loaded from X before that click. An instance can stream X video itself instead (`EMBED_RELAY_ENABLED`, see [Configuration](/self-host/configuration)).
+
+**User settings** → **Appearance** → **Links you send** rewrites such links in what you send to a mirror site, which shows the post's photos and videos in previews on Discord and other apps. Harmony still shows the whole post; people reading the link outside Harmony see the mirror's address. Each site has its own switch and a choice of mirrors:
+
+| Site | Default | Mirrors |
+|---|---|---|
+| X | On, fixupx.com | fixupx.com, vxtwitter.com, fxtwitter.com |
+| Instagram | Off | kkinstagram.com, eeinstagram.com |
+| Bluesky | Off | fxbsky.app, bskye.app |
+
+Only links to a post are rewritten, in messages, direct messages, threads and posts, also when you edit them. Links inside code, links to profiles and links already on a mirror are left alone. A rewritten link stays on that mirror for good, including after the mirror closes.
+
 ## Reply to a message
 
 1. Hover the message and select **Reply**, or right-click it and choose **Reply**. On a touch screen, press and hold the message to show its actions.

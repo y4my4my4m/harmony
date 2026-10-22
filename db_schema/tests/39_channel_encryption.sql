@@ -174,12 +174,12 @@ SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', 
 SELECT tests.clear_authentication();
 
 SELECT results_eq(
-    $q$SELECT user_id, content->0->>'text'
+    $q$SELECT metadata->>'actor_id', content->0->>'text'
          FROM public.messages
         WHERE channel_id = 'e3930000-0000-0000-0000-000000000001'
           AND is_system AND metadata->>'type' = 'channel_encryption_enabled'$q$,
-    $q$VALUES ('e3910000-0000-0000-0000-0000000000a1'::uuid, 'turned on end-to-end encryption'::text)$q$,
-    'turning encryption on posts one system message attributed to the owner');
+    $q$VALUES ('e3910000-0000-0000-0000-0000000000a1'::text, 'turned on end-to-end encryption'::text)$q$,
+    'turning encryption on posts one system message naming the owner');
 SELECT is((SELECT enabled_by FROM public.channel_encryption_settings
             WHERE channel_id = 'e3930000-0000-0000-0000-000000000001'),
           'e3910000-0000-0000-0000-0000000000a1'::uuid, 'enabled_by records the owner');
@@ -197,11 +197,11 @@ SELECT throws_ok(
     '42501', NULL, 'a channel override denying MANAGE_CHANNELS refuses the same role holder');
 SELECT tests.clear_authentication();
 
-SELECT is((SELECT user_id FROM public.messages
+SELECT is((SELECT metadata->>'actor_id' FROM public.messages
             WHERE channel_id = 'e3930000-0000-0000-0000-000000000001'
               AND is_system AND metadata->>'type' = 'channel_encryption_disabled'),
-          'e3910000-0000-0000-0000-0000000000a2'::uuid,
-          'turning encryption off posts a system message attributed to the role holder');
+          'e3910000-0000-0000-0000-0000000000a2',
+          'turning encryption off posts a system message naming the role holder');
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', true)->>'messages_encrypted',

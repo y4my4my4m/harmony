@@ -156,21 +156,21 @@
         <fieldset class="section privacy-fieldset" :disabled="isCreating">
           <legend class="section-label">{{ $t('server.privacySettings') }}</legend>
           <div class="privacy-options">
-            <label class="privacy-option" :class="{ active: !isPublic }">
-              <input v-model="isPublic" type="radio" name="create-server-visibility" :value="false" class="privacy-radio" />
-              <span class="option-icon"><Icon name="lock" :size="16" /></span>
-              <span class="option-content">
-                <span class="option-title">{{ $t('server.private') }}</span>
-                <span class="option-description">{{ $t('server.privateDesc') }}</span>
-              </span>
-            </label>
-
             <label class="privacy-option" :class="{ active: isPublic }">
               <input v-model="isPublic" type="radio" name="create-server-visibility" :value="true" class="privacy-radio" />
               <span class="option-icon"><Icon name="globe" :size="16" /></span>
               <span class="option-content">
                 <span class="option-title">{{ $t('server.public') }}</span>
                 <span class="option-description">{{ $t('server.publicDesc') }}</span>
+              </span>
+            </label>
+
+            <label class="privacy-option" :class="{ active: !isPublic }">
+              <input v-model="isPublic" type="radio" name="create-server-visibility" :value="false" class="privacy-radio" />
+              <span class="option-icon"><Icon name="lock" :size="16" /></span>
+              <span class="option-content">
+                <span class="option-title">{{ $t('server.private') }}</span>
+                <span class="option-description">{{ $t('server.privateDesc') }}</span>
               </span>
             </label>
           </div>
@@ -258,7 +258,7 @@ const openServer = useOpenServer();
 
 const serverName = ref('');
 const description = ref('');
-const isPublic = ref(false);
+const isPublic = ref(true);
 const category = ref<ServerCategory | null>(null);
 const iconFile = ref<File | null>(null);
 const iconPreview = ref<string | null>(null);
@@ -363,7 +363,7 @@ const handleTemplatePick = async (event: Event) => {
   if (!description.value.trim() && source?.description) {
     description.value = source.description.slice(0, DESCRIPTION_MAX);
   }
-  isPublic.value = source?.public === true;
+  isPublic.value = source?.public !== false;
   if (isServerCategory(source?.category)) {
     category.value = source.category;
   }

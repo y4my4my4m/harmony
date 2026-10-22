@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { insertRealtimePost, flushPendingPosts, placeByDate } from '@/utils/realtimeFeed'
+import { insertRealtimePost, flushPendingPosts, placeByDate, addedAtHead } from '@/utils/realtimeFeed'
 
 const p = (id: string) => ({ id })
 const ids = (list: Array<{ id: string }>) => list.map(x => x.id)
@@ -81,5 +81,26 @@ describe('placeByDate', () => {
   it('returns the same list for a post already listed', () => {
     const posts = [d('b', 20), d('a', 10)]
     expect(placeByDate(posts, d('a', 10), false)).toBe(posts)
+  })
+})
+
+describe('addedAtHead', () => {
+  const list = (...xs: string[]) => xs.map(p)
+
+  it('counts posts placed ahead of the listed ones', () => {
+    expect(addedAtHead(list('b', 'a'), list('c', 'b', 'a'))).toBe(1)
+    expect(addedAtHead(list('b', 'a'), list('e', 'd', 'b', 'a'))).toBe(2)
+  })
+
+  it('counts them when the cap cut the tail', () => {
+    expect(addedAtHead(list('c', 'b', 'a'), list('d', 'c', 'b'))).toBe(1)
+  })
+
+  it('is 0 for an append, a removal, a reorder or another list', () => {
+    expect(addedAtHead(list('b', 'a'), list('b', 'a', 'z'))).toBe(0)
+    expect(addedAtHead(list('c', 'b', 'a'), list('c', 'a'))).toBe(0)
+    expect(addedAtHead(list('b', 'a'), list('c', 'a', 'b'))).toBe(0)
+    expect(addedAtHead(list('b', 'a'), list('y', 'x'))).toBe(0)
+    expect(addedAtHead([], list('a'))).toBe(0)
   })
 })

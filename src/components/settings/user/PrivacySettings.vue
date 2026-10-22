@@ -59,7 +59,8 @@
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`"
-            v-model="settings.stripUrlTrackers"
+            v-model="stripUrlTrackers"
+            data-testid="strip-url-trackers-toggle"
             @change="onUrlStripChange"
           />
         </div>
@@ -135,29 +136,11 @@
       </div>
     </div>
 
-    <div class="settings-actions">
-      <button 
-        class="btn btn-primary" 
-        @click="saveSettings"
-        :disabled="loading || !hasChanges"
-      >
-        <span v-if="loading" class="loading-spinner"></span>
-        Save changes
-      </button>
-      <button 
-        class="btn btn-secondary" 
-        @click="resetSettings"
-        :disabled="loading || !hasChanges"
-      >
-        Reset
-      </button>
-    </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
@@ -187,21 +170,13 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Emits
-const emit = defineEmits<{
-  'update-privacy': [settings: any]
-}>()
-
 // Composables
 const toast = useToast()
 const { t } = useI18n()
 
-// Privacy State
-const settings = ref({
-  stripUrlTrackers: true,
-})
-
-const originalSettings = ref({ ...settings.value })
+// Every switch here applies as it is flipped and confirms with a toast, as
+// Notifications does; the section has no Save or Reset.
+const stripUrlTrackers = ref(true)
 const requireFollowApproval = ref(false)
 const followApprovalSaving = ref(false)
 const blockedUsers = ref<User[]>([])
@@ -210,34 +185,11 @@ const activityPubStore = useActivityPubStore()
 let blocksMutesLastFetchedAt = 0
 const CACHE_TTL_MS = 30000
 
-// Computed
-const hasChanges = computed(() => {
-  return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
-})
-
-// Methods
-// eslint-disable-next-line unused-imports/no-unused-vars
-const onSettingChange = () => {
-  // Empty: the template binds it to enable the save button via hasChanges.
-}
-
 // The URL-tracker flag lives in localStorage and is read by the message-send
-// pipeline (`unifiedContentProcessing.ts`) on every send. Applied on toggle
-// rather than on Save Changes so the next message reflects it.
+// pipeline (`unifiedContentProcessing.ts`) on every send.
 const onUrlStripChange = () => {
-  setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
-  originalSettings.value.stripUrlTrackers = settings.value.stripUrlTrackers
-}
-
-const saveSettings = () => {
-  setUrlTrackingStrippingEnabled(settings.value.stripUrlTrackers)
-  
-  emit('update-privacy', settings.value)
-  originalSettings.value = { ...settings.value }
-}
-
-const resetSettings = () => {
-  settings.value = { ...originalSettings.value }
+  setUrlTrackingStrippingEnabled(stripUrlTrackers.value)
+  toast.success(t('settings.toasts.privacyUpdated'))
 }
 
 // The profile can arrive after mount; the switch stays disabled until it does.
@@ -265,6 +217,7 @@ const onFollowApprovalChange = async (value: boolean) => {
       .update({ manually_approves_followers: value })
       .eq('id', profileId)
     if (error) throw error
+    toast.success(t('settings.toasts.privacyUpdated'))
   } catch (error: any) {
     debug.error('Failed to save follow approval:', error)
     requireFollowApproval.value = !value
@@ -319,7 +272,7 @@ const unmuteUser = async (userId: string) => {
 }
 
 onMounted(async () => {
-  settings.value.stripUrlTrackers = isUrlTrackingStrippingEnabled()
+  stripUrlTrackers.value = isUrlTrackingStrippingEnabled()
 
   const profileId = props.profile?.id
   if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {
@@ -371,12 +324,6 @@ onMounted(async () => {
 
     blocksMutesLastFetchedAt = Date.now()
   }
-
-  // No read for the DM-from-server-members / DM-from-follows toggles:
-  // `notification_preferences` has no columns for them and the controls are
-  // disabled placeholders.
-
-  originalSettings.value = { ...settings.value }
 })
 </script>
 
@@ -552,65 +499,6 @@ onMounted(async () => {
   background-color: var(--error-fill-hover);
 }
 
-.settings-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  border: none;
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background-color: var(--harmony-primary-fill);
-  color: var(--text-on-primary);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-fill-hover);
-}
-
-.btn-secondary {
-  background-color: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-hover);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: var(--background-quaternary);
-  color: var(--text-primary);
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid var(--text-on-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 @media (max-width: 768px) {
   .settings-section {
     padding: 16px;
@@ -637,12 +525,6 @@ onMounted(async () => {
   height: 20px;
   margin-right: 8px;
   vertical-align: middle;
-}
-
-@media (max-width: 768px) {
-  .btn {
-    width: 100%;
-  }
 }
 
 .export-card {

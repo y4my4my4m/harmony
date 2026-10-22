@@ -218,10 +218,12 @@ SELECT is_empty(
     $q$DELETE FROM storage.objects WHERE bucket_id = 'soundboard'
         AND name = '55555555-0000-0000-0000-000000000005/a1160000-0000-0000-0000-000000000002.ogg' RETURNING id$q$,
     'nor delete them');
-SELECT isnt_empty(
+-- The public bucket serves the bytes by URL without RLS; rows are listed to managers only
+-- (20261026700001).
+SELECT is_empty(
     $q$SELECT id FROM storage.objects WHERE bucket_id = 'soundboard'
         AND name = '55555555-0000-0000-0000-000000000005/a1160000-0000-0000-0000-000000000002.ogg'$q$,
-    'sound files are readable');
+    'a plain member lists no sound file rows');
 
 SELECT tests.clear_authentication();
 SELECT is((SELECT file_size_limit FROM storage.buckets WHERE id = 'soundboard'), 524288::bigint,

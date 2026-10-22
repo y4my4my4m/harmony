@@ -17,7 +17,7 @@
           </div>
         </button>
         <h1 class="mobile-title">{{ showSidebar ? $t('settings.userSettings') : currentSectionLabel }}</h1>
-        <button type="button" class="mobile-close-btn" @click="closeSettings" :aria-label="$t('settings.a11y.close')">
+        <button type="button" class="mobile-close-btn" @click="requestClose" :aria-label="$t('settings.a11y.close')">
           <CloseIcon aria-hidden="true" />
         </button>
       </div>
@@ -123,7 +123,7 @@
             :profile="profile"
             :loading="loading"
             :banner-uploading="bannerUploading"
-            @update-profile="handleProfileUpdate"
+            :save-profile="handleProfileUpdate"
             @upload-avatar="handleAvatarUpload"
             @upload-banner="handleBannerUpload"
           />
@@ -131,11 +131,10 @@
           <SecuritySettings v-if="activeSection === 'security'" />
 
           <!-- Privacy & Safety Section (includes encryption) -->
-          <PrivacySettings 
+          <PrivacySettings
             v-else-if="activeSection === 'privacy'"
             :profile="profile"
             :loading="loading"
-            @update-privacy="handlePrivacyUpdate"
           />
 
           <!-- My Bots -->
@@ -207,8 +206,8 @@
       <button 
         v-if="!isMobile"
         type="button"
-        class="settings-close" 
-        @click="closeSettings" 
+        class="settings-close"
+        @click="requestClose"
         :aria-label="$t('settings.a11y.close')"
       >
         <CloseIcon aria-hidden="true" />
@@ -219,7 +218,7 @@
 
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
-import { ref, onMounted, computed, watch, onUnmounted, nextTick, useId } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted, nextTick, useId, provide } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -250,7 +249,10 @@ import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSetti
 import SettingsBuildFooter from '@/components/settings/user/SettingsBuildFooter.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
 import { useDrawer } from '@/composables/useDrawer'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { accountDraftDirty, discardAccountDraft } from '@/composables/useAccountDraft'
 import { focusSectionHeading } from '@/utils/a11y/settingsFocus'
+import { CLOSE_USER_SETTINGS, leaveSettings, markedState, settingsEntryOf } from '@/utils/settingsHistory'
 
 // Icons
 import UserIcon from '@/components/icons/User.vue'
@@ -288,6 +290,18 @@ const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
 const { handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
+const { confirm } = useConfirmDialog()
+
+// The Settings history stack this view was entered on (utils/settingsHistory.ts). Every
+// entry the view shows records it, so a later visit to any of them finds the same base.
+const settingsEntry = settingsEntryOf(typeof window !== 'undefined' ? window.history.state : null)
+function markHistoryEntry() {
+  if (typeof window === 'undefined') return
+  const marked = markedState(window.history.state, settingsEntry)
+  if (marked) window.history.replaceState(marked, '')
+}
+markHistoryEntry()
+watch(() => route.fullPath, markHistoryEntry, { flush: 'post' })
 
 // Reactive state
 const loading = ref(false)
@@ -316,7 +330,8 @@ const overlayEl = ref<HTMLElement | null>(null)
 const contentEl = ref<HTMLElement | null>(null)
 
 // Mobile: the section list is an off-canvas drawer, inert while closed and
-// modal while open; the header with its toggle stays reachable.
+// modal while open; the header with its toggle stays reachable. At /settings the
+// list is the page itself and takes no Back entry of its own: Back leaves Settings.
 const { toggleAttrs: drawerToggleAttrs } = useDrawer({
   open: showSidebar,
   elements: () => [sidebarEl.value],
@@ -325,6 +340,12 @@ const { toggleAttrs: drawerToggleAttrs } = useDrawer({
   keep: () => [mobileNavEl.value, overlayEl.value],
   onClose: () => { showSidebar.value = false },
   ids: ['user-settings-sidebar'],
+  history: () => !!route.params.section,
+})
+
+// Back from a section to /settings on a phone shows the list again.
+watch(() => route.params.section, (section, previous) => {
+  if (!section && previous && isMobile.value) showSidebar.value = true
 })
 
 const currentSectionLabel = computed(() => {
@@ -427,20 +448,51 @@ const onSettingsTouchEnd = (event: TouchEvent) => {
 }
 
 const setActiveSection = async (sectionId: string) => {
+  // A phone's list at /settings is the Settings page: a section picked there is a new
+  // history entry, so Back returns to the list. Elsewhere the section replaces the entry.
+  const fromListPage = isMobile.value && !route.params.section
   activeSection.value = sectionId
   // Close sidebar on mobile after selection
   if (isMobile.value) {
     closeSidebar()
   }
-  settingsNav.replaceSection(sectionId as SettingsSection)
+  if (fromListPage) settingsNav.navigateToSection(sectionId as SettingsSection)
+  else settingsNav.replaceSection(sectionId as SettingsSection)
   // The pressed item stays behind (or offscreen on mobile); the new section's
   // heading takes focus and is read.
   await nextTick()
   focusSectionHeading(contentEl.value)
 }
 
-const closeSettings = () => {
-  router.back()
+let closePromptOpen = false
+
+/** Leaves Settings; unsaved My account edits are discarded only after confirmation. */
+async function requestClose(): Promise<boolean> {
+  if (accountDraftDirty.value) {
+    if (closePromptOpen) return false
+    closePromptOpen = true
+    try {
+      const discard = await confirm({
+        title: t('settings.unsaved.title'),
+        message: t('settings.unsaved.message'),
+        confirmButtonText: t('settings.unsaved.discard'),
+        dangerAction: true,
+      })
+      if (!discard) return false
+      discardAccountDraft()
+    } finally {
+      closePromptOpen = false
+    }
+  }
+  await leaveSettings(router, settingsEntry)
+  return true
+}
+provide(CLOSE_USER_SETTINGS, requestClose)
+
+const onBeforeUnload = (event: BeforeUnloadEvent) => {
+  if (!accountDraftDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
 }
 
 const handleLogout = async () => {
@@ -453,9 +505,10 @@ const handleLogout = async () => {
   }
 }
 
-const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
-  if (!authStore.session?.user) return
-  
+/** Resolves true once the profile is stored. */
+const handleProfileUpdate = async (updatedProfile: Partial<User>): Promise<boolean> => {
+  if (!authStore.session?.user) return false
+
   try {
     loading.value = true
     // Exclude username from updates - it cannot be changed until federation is fixed
@@ -478,9 +531,11 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     })
     
     toast.success(t('settings.toasts.profileUpdated'))
+    return true
   } catch (error) {
     debug.error('Error updating profile:', error)
     toast.error(t('settings.toasts.profileUpdateFailed'))
+    return false
   } finally {
     loading.value = false
   }
@@ -571,10 +626,6 @@ const isAdmin = computed(() => {
 
 const isStaff = computed(() => isAdmin.value || profile.value?.is_moderator === true)
 
-const handlePrivacyUpdate = async (privacySettings: any) => {
-  debug.log('Privacy settings updated:', privacySettings)
-}
-
 const handleAppearanceUpdate = async (appearanceSettings: any) => {
   debug.log('Appearance settings updated:', appearanceSettings)
 }
@@ -617,21 +668,14 @@ watch(() => props.section, (newSection) => {
   }
 }, { immediate: true })
 
-// Escape closes the settings view (matches mobile/desktop close-button
-// behavior). Bound to keydown so it fires regardless of which child input
-// currently has focus.
+// Escape closes the settings view, as the close button does, from any field;
+// unsaved My account edits ask first.
 const handleSettingsKeydown = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return
-  // If an input/textarea/contenteditable currently has focus AND it has
-  // unsubmitted text, the user probably wanted to clear the field, not
-  // close the entire settings view. Browsers handle that case for us in
-  // <select> dropdowns; for free-text fields we still close because the
-  // user can re-open the settings, but we make sure we're not stealing
-  // Escape from a modal that has it open on top of us.
   const target = event.target as HTMLElement | null
   // A dialog, menu or drawer above the view owns this Escape (utils/a11y/layers.ts).
   if (event.defaultPrevented || hasOpenLayer() || target?.closest('.modal-overlay')) return
-  closeSettings()
+  void requestClose()
 }
 
 // Lifecycle
@@ -645,6 +689,7 @@ onMounted(async () => {
     window.addEventListener('touchend', onSettingsTouchEnd, { passive: true })
 
     document.addEventListener('keydown', handleSettingsKeydown)
+    window.addEventListener('beforeunload', onBeforeUnload)
   }
 
   const routeSection = Array.isArray(route.params.section) ? route.params.section[0] : route.params.section
@@ -687,6 +732,7 @@ onUnmounted(() => {
     window.removeEventListener('touchmove', onSettingsTouchMove)
     window.removeEventListener('touchend', onSettingsTouchEnd)
     document.removeEventListener('keydown', handleSettingsKeydown)
+    window.removeEventListener('beforeunload', onBeforeUnload)
   }
 })
 </script>

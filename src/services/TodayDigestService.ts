@@ -199,7 +199,7 @@ class TodayDigestService {
   private async getChannelTranscript(channelId: string, limit = 30): Promise<string | null> {
     const { data: messages, error } = await supabase
       .from('messages')
-      .select('user_id, content, encrypted, created_at')
+      .select('user_id, content, encrypted, created_at, is_system')
       .eq('channel_id', channelId)
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
@@ -221,7 +221,7 @@ class TodayDigestService {
 
     const lines: string[] = []
     for (const msg of [...messages].reverse()) {
-      if ((msg as any).encrypted) continue
+      if ((msg as any).encrypted || (msg as any).is_system) continue
       const text = this.extractText((msg as any).content)
       if (!text) continue
       const name = nameById.get((msg as any).user_id) || 'Someone'

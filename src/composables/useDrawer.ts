@@ -47,6 +47,8 @@ export interface UseDrawerOptions {
   ids?: MaybeRefOrGetter<string[]>
   /** False: opening does not move focus (a drag gesture). Default true. */
   moveFocus?: MaybeRefOrGetter<boolean>
+  /** False: an open modal drawer takes no Back entry (utils/overlayHistory.ts). Read on open. Default true. */
+  history?: MaybeRefOrGetter<boolean>
 }
 
 function present<T>(list: Array<T | null | undefined>): T[] {
@@ -105,7 +107,12 @@ export function useDrawer(options: UseDrawerOptions) {
     modalEls = els
     const keep = present(options.keep?.() ?? [])
     modalCleanups.push(inertOthers([...els, ...keep]))
-    modalCleanups.push(pushLayer({ kind: 'drawer', element: () => els[0], onEscape: options.onClose }))
+    modalCleanups.push(pushLayer({
+      kind: 'drawer',
+      element: () => els[0],
+      onEscape: options.onClose,
+      history: toValue(options.history) !== false,
+    }))
     // The Escape stack checks focus against one element; a drawer of several
     // panels routes Escape from any of them.
     const onKeydown = (event: KeyboardEvent) => {

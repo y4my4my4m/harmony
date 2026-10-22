@@ -21,12 +21,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { newerCopy, savedAtOf, stampCopy, withoutStamp } from '@/utils/themeCopies'
 import { applyAppZoom } from '@/utils/appZoom'
 import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
 import { setVerboseAnnouncements } from '@/composables/useAnnouncer'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 import { setVideoPlayerPreference } from './useVideoPlayerPreference'
+import { setMirrorLinkPreferences } from '@/utils/mirrorLinks'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
 
@@ -309,6 +311,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
 // Global state (singleton pattern)
 const settings = ref<VisualThemeSettings>(createDefaultSettings(systemPreset()))
 watch(() => settings.value.videoPlayer, setVideoPlayerPreference, { immediate: true })
+watch(() => settings.value.linkMirrors, setMirrorLinkPreferences, { immediate: true, deep: true })
 
 const isInitialized = ref(false)
 const isSaving = ref(false)
@@ -326,6 +329,7 @@ let persistWatcherStarted = false
 let systemSchemeListenerAttached = false
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
+let pendingSave: VisualThemeSettings | null = null
 
 /**
  * Apply preset theme styles
@@ -857,13 +861,20 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
  * Debounced save to Supabase
  */
 function debouncedSaveToSupabase(settings: VisualThemeSettings) {
+  pendingSave = settings
   if (saveTimeout) {
     clearTimeout(saveTimeout)
   }
-  
-  saveTimeout = setTimeout(() => {
-    saveToSupabase(settings)
-  }, 1000)
+  saveTimeout = setTimeout(flushPendingSave, 1000)
+}
+
+/** Writes the pending profile copy now (explicit save, page hidden or closing). */
+function flushPendingSave() {
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saveTimeout = null
+  const pending = pendingSave
+  pendingSave = null
+  if (pending) void saveToSupabase(pending)
 }
 
 /** Deep copy through JSON; settings are JSON by construction (persisted as JSONB). */
@@ -995,27 +1006,35 @@ export function useVisualTheme() {
         followSystem = false
         const next = createDefaultSettings(systemPreset())
 
-        // localStorage first (sync, no flash), then the profile copy.
+        // localStorage first (sync, no flash), then the profile copy; newerCopy()
+        // picks which one stands (utils/themeCopies.ts).
         const localSettings = loadFromLocalStorage()
         if (localSettings) {
           migrateLegacyBlurSetting(localSettings)
           dropBuiltinSkinCss(localSettings)
-          Object.assign(next, localSettings)
+          Object.assign(next, withoutStamp(localSettings))
           settings.value = { ...next }
           applySettings(settings.value)
         }
 
         const supabaseSettings = await loadFromSupabase()
+        const newer = newerCopy(localSettings, supabaseSettings)
         let remoteSkinCssDropped = false
-        if (supabaseSettings) {
+        if (supabaseSettings && newer === 'remote') {
           migrateLegacyBlurSetting(supabaseSettings)
           remoteSkinCssDropped = dropBuiltinSkinCss(supabaseSettings)
-          Object.assign(next, supabaseSettings)
+          Object.assign(next, withoutStamp(supabaseSettings))
         }
         settings.value = next
         applySettings(settings.value)
-        if (supabaseSettings) saveToLocalStorage(settings.value)
-        if (remoteSkinCssDropped) debouncedSaveToSupabase(settings.value)
+        if (newer === 'remote') {
+          const stamped = stampCopy(cloneSettings(settings.value), savedAtOf(supabaseSettings))
+          saveToLocalStorage(stamped)
+          if (remoteSkinCssDropped) debouncedSaveToSupabase(stamped)
+        } else if (newer === 'local' && supabaseSettings) {
+          // The profile copy is older than this device's: it catches up.
+          debouncedSaveToSupabase(stampCopy(cloneSettings(settings.value), savedAtOf(localSettings)))
+        }
       }
 
       appliedFor = userId
@@ -1042,12 +1061,19 @@ export function useVisualTheme() {
         (newSettings) => {
           applySettings(newSettings)
           if (loadingStored || !appliedFor) return
-          saveToLocalStorage(newSettings)
-          debouncedSaveToSupabase(newSettings)
+          const stamped = stampCopy(cloneSettings(newSettings))
+          saveToLocalStorage(stamped)
+          debouncedSaveToSupabase(stamped)
         },
         { deep: true }
       )
     })
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', flushPendingSave)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flushPendingSave()
+      })
+    }
   }
 
   function attachSystemSchemeListener() {
@@ -1225,12 +1251,16 @@ export function useVisualTheme() {
     applySettings(draft)
   }
 
-  /** Stores and applies `next` as a whole, with the skin's audio side effect. */
+  /**
+   * Stores and applies `next` as a whole, with the skin's audio side effect. The profile
+   * copy is written at once, after the persist watcher has queued it.
+   */
   function commitSettings(next: VisualThemeSettings) {
     const prev = settings.value.activeSkinId ?? null
     settings.value = cloneSettings(next)
     syncSkinAudio(prev, settings.value.activeSkinId ?? null)
     applySettings(settings.value)
+    void nextTick(flushPendingSave)
   }
   
   /**

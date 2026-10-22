@@ -49,6 +49,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 import { useLeaveServer } from '@/composables/useLeaveServer';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
+import { closeMobileDrawers } from '@/composables/useLayoutState';
 
 interface Props {
   serverId?: string
@@ -110,10 +111,11 @@ const createCategory = () => {
   closeDropdown();
 };
 
+// An open phone drawer is modal: left open, it would leave the settings page inert.
 const goToServerSettings = () => {
-  // Navigate to server settings page
-  router.push(`/server/${props.serverId}`);
   closeDropdown();
+  closeMobileDrawers();
+  router.push(`/server/${props.serverId}`);
 };
 
 const generateInviteLink = () => {

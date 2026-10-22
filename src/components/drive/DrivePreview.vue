@@ -2,6 +2,7 @@
 <template>
   <Teleport to="body">
     <div
+      v-show="!lightbox.item.value"
       ref="root"
       class="drive-preview"
       role="dialog"
@@ -15,6 +16,17 @@
       <header class="drive-preview__bar">
         <span class="drive-preview__name">{{ name }}</span>
         <span class="drive-preview__count">{{ index + 1 }} / {{ files.length }}</span>
+        <button
+          v-if="(file.kind === 'image' || file.kind === 'video') && src"
+          type="button"
+          class="drive-preview__btn"
+          :aria-label="t('drive.preview.fullScreen')"
+          :title="t('drive.preview.fullScreen')"
+          data-testid="drive-preview-lightbox"
+          @click="openLightbox"
+        >
+          <Icon name="maximize" :size="18" />
+        </button>
         <button type="button" class="drive-preview__btn" :aria-label="t('drive.actions.download')" @click="emit('download', file)">
           <Icon name="download" :size="18" />
         </button>
@@ -29,9 +41,9 @@
       <div class="drive-preview__stage" @click.self="emit('close')">
         <Transition name="drive-preview-fade" mode="out-in">
           <div :key="file.id" class="drive-preview__content">
-            <img v-if="file.kind === 'image' && src" :src="src" :alt="name" class="drive-preview__image" />
+            <img v-if="file.kind === 'image' && src" :src="src" :alt="name" class="drive-preview__image" @click="openLightbox" />
             <div v-else-if="file.kind === 'video' && src" class="drive-preview__video">
-              <video :src="src" autoplay playsinline :controls="nativeControls" class="drive-preview__media" />
+              <video ref="videoEl" :src="src" autoplay playsinline :controls="nativeControls" class="drive-preview__media" />
               <VideoControls v-if="!nativeControls" :label="name" />
             </div>
             <div v-else-if="file.kind === 'audio' && src" class="drive-preview__audio">
@@ -53,17 +65,28 @@
         <Icon name="chevron-right" :size="26" />
       </button>
     </div>
+    <!-- MediaLightbox stacks below this dialog; the dialog hides while it is open. The
+         preview's video is the viewer's origin: it pauses and takes the position back. -->
+    <MediaLightbox
+      v-if="lightbox.item.value"
+      :visible="true"
+      :imgs="[lightbox.item.value]"
+      :origin="file.kind === 'video' ? videoEl : null"
+      @hide="closeLightbox"
+    />
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import VideoControls from '@/components/common/VideoControls.vue'
+import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import { useT } from '@/composables/useT'
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference'
 import { driveFileDisplayName, type DriveFile } from '@/services/drive/driveService'
 import { driveMediaSource } from './driveFormat'
+import { useDriveLightbox } from './useDriveLightbox'
 
 const props = defineProps<{ files: DriveFile[]; startId: string }>()
 const emit = defineEmits<{ close: []; download: [file: DriveFile] }>()
@@ -71,12 +94,24 @@ const emit = defineEmits<{ close: []; download: [file: DriveFile] }>()
 const { t } = useT()
 const nativeControls = useNativeVideoControls()
 const root = ref<HTMLElement | null>(null)
+const videoEl = ref<HTMLVideoElement | null>(null)
 const index = ref(Math.max(0, props.files.findIndex((f) => f.id === props.startId)))
 
 const file = computed(() => props.files[index.value])
 const name = computed(() => driveFileDisplayName(file.value, t('drive.file.unnamed')))
 const src = computed(() => driveMediaSource(file.value))
 const isPdf = computed(() => file.value.mime_type === 'application/pdf')
+
+const lightbox = useDriveLightbox()
+
+function openLightbox(): void {
+  lightbox.open(file.value, name.value)
+}
+
+function closeLightbox(): void {
+  lightbox.close()
+  void nextTick(() => root.value?.focus())
+}
 
 function step(delta: number): void {
   index.value = Math.min(props.files.length - 1, Math.max(0, index.value + delta))
@@ -188,6 +223,7 @@ onMounted(() => root.value?.focus())
   object-fit: contain;
   border-radius: var(--radius-sm);
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+  cursor: zoom-in;
 }
 
 .drive-preview__video {

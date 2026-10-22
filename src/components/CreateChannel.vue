@@ -149,7 +149,7 @@
           <svg class="info-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6C21 6.55228 20.5523 7 20 7H4C3.44772 7 3 6.55228 3 6V4Z"/>
           </svg>
-          <span>{{ $t('channel.willBeAddedToCategory') }}</span>
+          <span>{{ privateCategoryName ? $t('category.private.channelFollows', { category: privateCategoryName }) : $t('channel.willBeAddedToCategory') }}</span>
         </div>
       </div>
 
@@ -231,6 +231,12 @@ const isPrivate = ref(false)
 const allowedRoleIds = ref<string[]>([])
 const serverRoles = ref<ServerRole[]>([])
 const assignableRoles = computed(() => serverRoles.value.filter(r => !r.is_default))
+
+// A channel in a private category starts with the category's permissions (create_channel).
+const privateCategoryName = computed(() => {
+  if (!props.categoryId || !serverChannelStore.isPrivateCategory(props.categoryId)) return null
+  return serverChannelStore.categories.find(c => c.id === props.categoryId)?.name ?? null
+})
 const loadRoles = async () => {
   if (!props.serverId) return
   const roles = await roleService.getRolesForServer(props.serverId)
@@ -441,6 +447,8 @@ const createChannel = async () => {
     }
 
     if (isPrivate.value) serverChannelStore.privateChannels = { ...serverChannelStore.privateChannels, [data.id]: true }
+    // A channel in a category takes the category's permissions, which may hide it from @everyone.
+    else if (props.categoryId) void serverChannelStore._loadPrivateChannels([data.id])
     emit('channelCreated', data)
     closeForm()
   } catch (error) {

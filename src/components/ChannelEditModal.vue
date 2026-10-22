@@ -138,6 +138,13 @@
 
           <!-- Permissions tab -->
           <template v-else-if="activeTab === 'permissions'">
+            <ChannelPermissionSync
+              v-if="channel?.category"
+              :channel="channel"
+              :saved-state="initialPermState"
+              :dirty="permissionsDirty"
+              @synced="loadPermissions"
+            />
             <div v-if="!rolesLoading && everyoneRole" class="private-card">
               <div class="private-head">
                 <Icon name="eye-off" :size="18" class="private-icon" aria-hidden="true" />
@@ -298,6 +305,7 @@ import Icon from '@/components/common/Icon.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
 import ChannelWebhooksSection from '@/components/ChannelWebhooksSection.vue'
+import ChannelPermissionSync from '@/components/ChannelPermissionSync.vue'
 import ChannelPermissionTriState, { type TriState } from '@/components/ChannelPermissionTriState.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useDialog } from '@/composables/useDialog'
@@ -513,7 +521,8 @@ const saveChanges = async () => {
     await serverChannelStore.updateChannel({
       id: props.channel.id,
       name: trimmedName,
-      description: trimmedDescription ?? undefined,
+      // null clears the stored description.
+      description: trimmedDescription,
       ...(slowmodeChanged ? { slowmode_seconds: editedSlowmode.value } : {})
     })
     

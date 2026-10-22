@@ -922,7 +922,10 @@ class DMCallSignalingService {
       const msgIndex = messages.findIndex((m: any) => m.id === call.systemMessageId)
       // First finalizer wins, as in finalize_dm_call_message.
       if (msgIndex !== -1 && messages[msgIndex].metadata?.type !== 'call_ended') {
-        messages[msgIndex] = { ...messages[msgIndex], metadata: newMetadata }
+        messages[msgIndex] = {
+          ...messages[msgIndex],
+          metadata: { ...newMetadata, actor_id: messages[msgIndex].metadata?.actor_id },
+        }
         debug.log('Updated local message cache for call system message')
       }
     } catch {

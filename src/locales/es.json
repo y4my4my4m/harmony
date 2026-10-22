@@ -1602,6 +1602,10 @@
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
       "convertSentEmoticons": "Convertir los emoticonos que envío",
       "convertSentEmoticonsDesc": "Sustituye :) :D <3 y similares por emojis al enviar o editar un mensaje. El código, los enlaces y los correos no se modifican.",
+      "mirrorLinks": "Enlaces que envías",
+      "mirrorLinksDesc": "Los enlaces a publicaciones de X, Instagram y Bluesky que envías se cambian por un espejo que muestra sus fotos y vídeos en las vistas previas de Discord y otras apps. Harmony sigue mostrando la publicación completa; quien esté fuera de Harmony ve el enlace del espejo.",
+      "mirrorLinkSite": "Publicaciones de {site}",
+      "mirrorLinkHost": "Espejo para publicaciones de {site}",
       "renderEmoticonsAsEmoji": "Mostrar como emoji los emoticonos de otros",
       "renderEmoticonsAsEmojiDesc": "Muestra :) :D <3 y similares como emojis en los mensajes. El texto original se conserva.",
       "inviteBannerBg": "Banner del servidor en el diálogo de invitación",
@@ -2211,7 +2215,8 @@
       "avatarUploadFailed": "No se pudo subir el avatar",
       "bannerUpdated": "Banner actualizado",
       "bannerUploadFailed": "No se pudo subir el banner",
-      "profileLoadFailed": "No se pudo cargar tu perfil"
+      "profileLoadFailed": "No se pudo cargar tu perfil",
+      "privacyUpdated": "Ajustes de privacidad actualizados"
     },
     "unsaved": {
       "title": "¿Descartar los cambios sin guardar?",
@@ -2243,6 +2248,8 @@
       "fieldIncomplete": "Cada campo del perfil necesita una etiqueta y un valor.",
       "addField": "Añadir campo",
       "description": "Gestiona tu perfil y los datos de tu cuenta.",
+      "unsavedChanges": "Tienes cambios de perfil sin guardar",
+      "changesReset": "Cambios de perfil restablecidos",
       "handleCopied": "Identificador copiado",
       "copyFailed": "No se pudo copiar"
     }
@@ -2977,6 +2984,55 @@
       "saveFailed": "No se pudo actualizar la configuración de los mensajes del sistema."
     }
   },
+  "systemEvents": {
+    "someone": "Alguien",
+    "memberJoin": "{subject} se unió al servidor.",
+    "memberLeave": "{subject} salió del servidor.",
+    "memberKick": "{actor} expulsó a {subject}.",
+    "memberKickNoActor": "Se expulsó a {subject}.",
+    "memberBan": "{actor} baneó a {subject}.",
+    "memberBanNoActor": "Se baneó a {subject}.",
+    "reason": "Motivo: {reason}",
+    "threadCreated": "{actor} inició un hilo: {thread}. Ver {allThreads}.",
+    "threadCreatedNoLink": "{actor} inició un hilo.",
+    "threadFallbackName": "Hilo",
+    "allThreads": "todos los hilos",
+    "encryptionEnabled": "{actor} activó el cifrado de extremo a extremo en este canal.",
+    "encryptionDisabled": "{actor} desactivó el cifrado de extremo a extremo en este canal.",
+    "voiceEncryptionEnabled": "{actor} activó el cifrado de extremo a extremo para voz y video.",
+    "voiceEncryptionDisabled": "{actor} desactivó el cifrado de extremo a extremo para voz y video.",
+    "groupCreated": "{actor} creó el grupo.",
+    "groupCreatedWith": "{actor} creó el grupo con {count} participante. | {actor} creó el grupo con {count} participantes.",
+    "membersAdded": "{actor} añadió a {members} al grupo.",
+    "listSeparator": ", ",
+    "callStarted": {
+      "voice": "{actor} inició una llamada de voz.",
+      "video": "{actor} inició una videollamada."
+    },
+    "callEnded": {
+      "voice": "{actor} inició una llamada de voz que duró {duration}.",
+      "video": "{actor} inició una videollamada que duró {duration}."
+    },
+    "callMissed": {
+      "voice": "Tienes una llamada de voz perdida de {actor}.",
+      "video": "Tienes una videollamada perdida de {actor}."
+    },
+    "noAnswer": "Sin respuesta",
+    "duration": {
+      "seconds": "{s} s",
+      "minutes": "{m} min",
+      "minutesSeconds": "{m} min {s} s",
+      "hours": "{h} h",
+      "hoursMinutes": "{h} h {m} min"
+    },
+    "yesterdayAt": "Ayer a las",
+    "preview": {
+      "voiceCall": "Llamada de voz",
+      "videoCall": "Videollamada",
+      "groupCreated": "Grupo creado",
+      "membersAdded": "Miembros añadidos"
+    }
+  },
   "time": {
     "now": "ahora",
     "justNow": "justo ahora",
@@ -3086,7 +3142,46 @@
       "limitReached": "Este servidor ha alcanzado el límite máximo de {max} categorías",
       "createFailed": "No se pudo crear la categoría. Por favor, inténtalo de nuevo.",
       "noServer": "No hay servidor seleccionado",
-      "deleteFailed": "No se pudo eliminar la categoría."
+      "deleteFailed": "No se pudo eliminar la categoría.",
+      "permissionsFailed": "La categoría se creó, pero no se pudieron guardar sus permisos."
+    },
+    "private": {
+      "label": "Categoría privada",
+      "hint": "Solo los roles y miembros que elijas, el propietario y los administradores pueden verla, junto con los canales que siguen sus permisos.",
+      "whoCanSee": "Quién puede verla",
+      "members": "Miembros",
+      "searchMembers": "Buscar miembros",
+      "noMembers": "Ningún miembro coincide.",
+      "noRoles": "Aún no hay roles: elige miembros, o solo el propietario y los administradores la verán.",
+      "removeMember": "Quitar a {name}",
+      "channelFollows": "{category} es privada: este canal empieza con sus permisos."
+    },
+    "hiddenFromMembers": "Los miembros no ven esta categoría",
+    "edit": {
+      "title": "Editar categoría",
+      "name": "Nombre de la categoría",
+      "namePlaceholder": "Escribe el nombre de la categoría",
+      "save": "Guardar cambios",
+      "saving": "Guardando…",
+      "failed": "No se pudo actualizar la categoría. Inténtalo de nuevo.",
+      "loadingPermissions": "Cargando permisos…",
+      "permissionsFailed": "No se pudieron cargar los permisos de esta categoría. Cierra y vuelve a abrir para intentarlo de nuevo.",
+      "permissionsSaved": "Permisos guardados. Ningún canal de la categoría los sigue; sincroniza un canal desde sus ajustes de permisos. | Permisos guardados y sincronizados con {count} canal. | Permisos guardados y sincronizados con {count} canales."
+    },
+    "sync": {
+      "synced": "Sincronizado con {category}",
+      "notSynced": "No sincronizado con {category}",
+      "notSyncedHint": "Los permisos de este canal difieren de los de su categoría.",
+      "saveFirst": "Guarda o descarta tus cambios primero.",
+      "syncNow": "Sincronizar ahora",
+      "syncing": "Sincronizando…",
+      "done": "Permisos sincronizados con {category}",
+      "failed": "No se pudieron sincronizar los permisos."
+    },
+    "move": {
+      "title": "¿Sincronizar permisos?",
+      "message": "#{channel} está ahora en {category}, cuyos permisos difieren de los del canal. ¿Sincronizarlo con la categoría o conservar sus propios permisos?",
+      "sync": "Sincronizar permisos"
     }
   },
   "announcements": {
@@ -3739,12 +3834,6 @@
       "title": "¿Desactivar el cifrado de voz?",
       "message": "Las llamadas de este canal dejarán de estar cifradas de extremo a extremo, y el servidor multimedia podrá acceder al audio y al video.",
       "confirm": "Desactivar cifrado de voz"
-    },
-    "system": {
-      "enabled": "activó el cifrado de extremo a extremo en este canal.",
-      "disabled": "desactivó el cifrado de extremo a extremo en este canal.",
-      "voiceEnabled": "activó el cifrado de extremo a extremo para voz y video.",
-      "voiceDisabled": "desactivó el cifrado de extremo a extremo para voz y video."
     },
     "create": {
       "label": "Cifrado de extremo a extremo",
@@ -5922,7 +6011,13 @@
     "popOut": "Desacoplar",
     "open": "Abrir",
     "hide": "Ocultar",
-    "show": "Mostrar"
+    "show": "Mostrar",
+    "showMore": "Mostrar más",
+    "showLess": "Mostrar menos",
+    "quotedPost": "Publicación citada",
+    "openMedia": "Abrir el medio {index} de {total}",
+    "playOnSite": "Reproducir en {site}",
+    "playInX": "Reproducir en el reproductor de X"
   },
   "threadCreate": {
     "button": "Nuevo hilo",
@@ -6322,7 +6417,9 @@
       "resetZoom": "Restablecer zoom y rotación",
       "rotateLeft": "Girar a la izquierda",
       "rotateRight": "Girar a la derecha",
-      "videoUnsupported": "Este vídeo no se puede reproducir aquí."
+      "videoUnsupported": "Este vídeo no se puede reproducir aquí.",
+      "download": "Descargar",
+      "audio": "Audio"
     },
     "pwa": {
       "installApp": "Instalar la app de Harmony",
@@ -6433,7 +6530,8 @@
     "pip": "Imagen en imagen",
     "exitPip": "Salir de imagen en imagen",
     "fullscreen": "Pantalla completa",
-    "exitFullscreen": "Salir de pantalla completa"
+    "exitFullscreen": "Salir de pantalla completa",
+    "expand": "Abrir en el visor"
   },
   "activities": {
     "title": "Ver o escuchar juntos",
@@ -6537,7 +6635,8 @@
       "restore": "Restaurar",
       "deleteForever": "Eliminar para siempre",
       "deleteFolder": "Eliminar carpeta",
-      "emptyTrash": "Vaciar papelera"
+      "emptyTrash": "Vaciar papelera",
+      "copyLink": "Copiar enlace"
     },
     "nav": {
       "myDrive": "Mi Drive",
@@ -6689,7 +6788,9 @@
       "moved": "{count} archivo movido | {count} archivos movidos",
       "kept": "{count} archivo conservado en Drive | {count} archivos conservados en Drive",
       "keepPartial": "{kept} de {total} conservados: el resto no cabe en tu Drive",
-      "folderDeleted": "Carpeta eliminada; {count} archivo movido a la papelera | Carpeta eliminada; {count} archivos movidos a la papelera"
+      "folderDeleted": "Carpeta eliminada; {count} archivo movido a la papelera | Carpeta eliminada; {count} archivos movidos a la papelera",
+      "linkCopied": "Enlace copiado",
+      "linkCopyFailed": "No se pudo copiar el enlace"
     },
     "share": {
       "title": "Compartir",
@@ -6721,12 +6822,16 @@
         "server": "Servidor",
         "channel": "Canal",
         "link": "Enlace"
-      }
+      },
+      "accessLinkTitle": "Enlace para quienes tienen acceso",
+      "accessLinkHint": "Solo se abre para quienes ya pueden ver este archivo.",
+      "publicLinkLabel": "Enlace público, se abre para cualquiera"
     },
     "preview": {
       "previous": "Archivo anterior",
       "next": "Archivo siguiente",
-      "none": "No hay vista previa para este archivo."
+      "none": "No hay vista previa para este archivo.",
+      "fullScreen": "Ver a pantalla completa"
     },
     "picker": {
       "title": "Elegir de Drive",
@@ -6762,6 +6867,36 @@
       "sharedBy": "Compartido por {name}",
       "expires": "El enlace caduca {date}",
       "footer": "Compartido desde {instance}"
+    },
+    "card": {
+      "restrictedTitle": "Archivo restringido",
+      "restrictedText": "No tienes acceso a este archivo.",
+      "gone": "Este archivo ya no está disponible.",
+      "view": "Ver {name}",
+      "play": "Reproducir {name}",
+      "open": "Abrir {name}",
+      "download": "Descargar {name}"
+    },
+    "filePage": {
+      "title": "Archivo",
+      "noAccessTitle": "No tienes acceso a este archivo",
+      "noAccessText": "Pide a su propietario que lo comparta contigo.",
+      "toDrive": "Ir a Drive",
+      "errorTitle": "No se pudo cargar este archivo",
+      "retry": "Reintentar",
+      "yours": "Tu archivo",
+      "ownedBy": "Propiedad de {name}",
+      "trashed": "En tu papelera. Solo tú puedes abrirlo."
+    },
+    "offer": {
+      "channel": "Las personas de {channel} no pueden abrir este archivo. ¿Compartirlo con el canal?",
+      "thisChannel": "Las personas de este canal no pueden abrir este archivo. ¿Compartirlo con el canal?",
+      "conversation": "Las personas de esta conversación no pueden abrir este archivo. ¿Compartirlo con ellas?",
+      "person": "{name} no puede abrir este archivo. ¿Compartirlo?",
+      "people": "{count} persona de esta conversación no puede abrir este archivo. ¿Compartirlo con ella? | {count} personas de esta conversación no pueden abrir este archivo. ¿Compartirlo con ellas?",
+      "share": "Compartir",
+      "sendAnyway": "Enviar de todos modos",
+      "shared": "Archivo compartido"
     }
   },
   "support": {

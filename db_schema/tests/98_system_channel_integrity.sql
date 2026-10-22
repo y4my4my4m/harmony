@@ -59,7 +59,7 @@ SELECT lives_ok($$INSERT INTO public.user_servers (user_id, server_id, status)
 SELECT is((SELECT count(*)::int FROM public.messages
             WHERE channel_id = public.get_default_channel('55555555-0000-0000-0000-000000000005')
               AND metadata ->> 'type' = 'member_join'
-              AND user_id = '33333333-0000-0000-0000-000000000003'),
+              AND metadata ->> 'subject_id' = '33333333-0000-0000-0000-000000000003'),
           1, 'that join posts in the default channel');
 
 SELECT * FROM finish();

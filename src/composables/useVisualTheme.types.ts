@@ -5,6 +5,8 @@
  * circular dependency otherwise).
  */
 
+import type { MirrorLinkPreferences } from '@/utils/mirrorLinks'
+
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
   customThemeMode?: 'dark' | 'light'
@@ -43,6 +45,12 @@ export interface VisualThemeSettings {
    * sends or edits. Default: true (opt-out).
    */
   convertSentEmoticons?: boolean
+  /**
+   * Post links to X, Instagram and Bluesky in content this user sends, rewritten to an
+   * embed-fixer mirror per site (utils/mirrorLinks.ts). Absent sites take the defaults there:
+   * X on (fixupx.com), the others off.
+   */
+  linkMirrors?: MirrorLinkPreferences
   /**
    * Render text emoticons in received message text as emoji. Display only;
    * stored content is unchanged. Default: true (opt-out).

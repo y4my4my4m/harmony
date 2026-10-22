@@ -119,9 +119,22 @@ Editing overrides needs **Manage Roles** or **Manage Channels** on that channel,
 
 At the top of the **Permissions** tab, turn on **Private channel**: "Only the roles you choose, the owner and administrators can see it." Then tick the roles under **Who can see it**. This is a shortcut for the overrides it writes: **View Channel** set to **Deny** for `@everyone` and **Allow** for each ticked role. Members holding Administrator still see the channel. The same switch appears when you create a channel.
 
+### Private categories
+
+A category carries overrides of its own: a template for its channels. In **Create category** or **Edit category**, turn on **Private category** and tick the roles and members under **Who can see it**: **View Channel** is denied to `@everyone` and allowed to each of them.
+
+- Saving a category's permissions copies them to every channel in it that is synced with it. A channel is synced when its overrides are exactly the category's.
+- A channel created in a category starts with the category's overrides. **Private channel** at creation adds its own on top.
+- A channel whose overrides are changed on their own shows **Not synced with** the category in its **Permissions** tab; **Sync now** replaces its overrides with the category's.
+- Dragging a channel into another category changes no permission. When its overrides differ from the new category's, Harmony asks whether to sync them; **Cancel** keeps the channel's own.
+- Who can view or post in a channel is decided by the channel's own overrides; the category's template matters only through the copies.
+
+A category is shown only to members who can view a channel in it. Members with **Manage Channels** see every category; a category the other members cannot see carries an eye-off mark for them.
+
+Editing a category's permissions needs **Manage Roles** or **Manage Channels**, and each synced channel it rewrites needs what the channel editor needs there.
+
 ### What overrides do not cover
 
-- **Categories have no permissions.** Overrides exist on channels only, and a channel does not inherit anything from its category.
 - **Member overrides** (the third layer) are part of the permission model and can be written through the bot API, but the channel editor sets role overrides only.
 - **Server-wide permissions** (Manage Server, Manage Expressions, View Audit Log, Kick, Ban and Timeout Members, Create Invite) are not offered: an override of them changes nothing. Invites lead to the server, not to a channel.
 - Some menus follow the server-wide permission: a channel override granting **Manage Channel** lets the member edit that channel through the database, but the **Edit channel** menu entry only appears for members with **Manage Channels** server-wide.

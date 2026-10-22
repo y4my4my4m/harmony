@@ -17,7 +17,7 @@ import { fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
-import { getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { getCategoryRecipientGroups, getChannelRecipientGroups } from '../utils/federationUtils.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -689,13 +689,54 @@ async function handleUnblock(block: any): Promise<void> {
 
 /**
  * Instances to tell about a channel change. A channel reaches members who can
- * view it; a category (type 2, from channel_categories) has no permissions of
- * its own and reaches every accepted remote member.
+ * view it; a category (type 2, from channel_categories) reaches members who
+ * view a channel in it, so a category of hidden channels names itself to no one.
  */
 async function channelChangeRecipients(channel: any): Promise<any[]> {
   return channel.type === 2
-    ? getRemoteMemberGroups(channel.server_id)
+    ? getCategoryRecipientGroups(channel.id)
     : getChannelRecipientGroups(channel.id);
+}
+
+/**
+ * Update(harmony:Category) for a channel's category, sent ahead of the
+ * channel's own activity to the channel's recipients. A category reaches an
+ * instance with its first visible channel; the receiver creates it from an
+ * Update when absent (processHarmonyChannelUpdate), so the channel lands in it.
+ */
+async function enqueueChannelCategory(channel: any, serverUrl: string, groups: any[]): Promise<void> {
+  if (channel.type === 2 || !channel.category || groups.length === 0) return;
+  const supabase = getSupabaseClient();
+  const { data: category } = await supabase
+    .from('channel_categories')
+    .select('id, name, order')
+    .eq('id', channel.category)
+    .maybeSingle();
+  if (!category) return;
+
+  const activity = {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      { 'harmony': 'https://harmonyapp.dev/ns#' },
+    ],
+    id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+    type: 'Update',
+    actor: serverUrl,
+    object: {
+      type: 'harmony:Category',
+      id: `${serverUrl}/channels/${category.id}`,
+      name: category.name,
+      position: category.order || 0,
+      category: null,
+    },
+    published: new Date().toISOString(),
+  };
+
+  const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
+  for (const group of groups) {
+    const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+    await DeliveryQueue.enqueue(activity, inbox, { serverId: channel.server_id });
+  }
 }
 
 /** Sends Add to instances hosting remote members who can view the channel. */
@@ -721,6 +762,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     
     const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
     const channelUrl = `${serverUrl}/channels/${channel.id}`;
+    await enqueueChannelCategory(channel, serverUrl, remoteMemberGroups);
     
     const channelType = channel.type === 2 ? 'harmony:Category' : 
                         (channel.type === 1 ? 'harmony:VoiceChannel' : 'harmony:TextChannel');
@@ -781,6 +823,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     
     const serverUrl = `https://${hostDomain}/servers/${channel.server_id}`;
     const channelUrl = `${serverUrl}/channels/${channel.id}`;
+    await enqueueChannelCategory(channel, serverUrl, remoteMemberGroups);
     
     const activity = {
       '@context': [

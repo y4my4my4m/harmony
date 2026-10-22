@@ -856,3 +856,50 @@ describe('server inbox: Join of a private server', () => {
     expect(answer()).toEqual([['Reject', 'User is banned from this server']])
   })
 })
+
+describe('system notices from the Group', () => {
+  const GROUP = `https://remote.test/servers/${R}`
+  const join = (actor: string, channelId = CR, extra: Row = {}) =>
+    note(actor, R, channelId, {
+      content: '<p>hostu joined the server</p>',
+      'harmony:system': { type: 'member_join', subject: HOSTU },
+      ...extra,
+    })
+
+  it('stores the Group\'s join as an authorless system row naming the local profile', async () => {
+    const activity = join(GROUP)
+    await P.processCreate(activity)
+    expect(newMessages()).toEqual([expect.objectContaining({
+      id: activity.object.id.split('/').pop(),
+      channel_id: CR,
+      is_system: true,
+      content: [{ type: 'text', text: 'hostu joined the server' }],
+      metadata: expect.objectContaining({ type: 'member_join', subject_id: 'hostu', federated: true, ap_id: activity.object.id }),
+    })])
+    expect(newMessages()[0].user_id).toBeUndefined()
+  })
+
+  it('stores a redelivery once', async () => {
+    const activity = join(GROUP)
+    await P.processCreate(activity)
+    await P.processCreate(activity)
+    expect(newMessages()).toHaveLength(1)
+  })
+
+  it('drops the marker from a member, even one on the host', async () => {
+    await P.processCreate(join(HOSTU))
+    expect(newMessages()).toEqual([])
+  })
+
+  it('drops a notice for a channel the Group does not host', async () => {
+    await P.processCreate(note(GROUP, R, C1, { 'harmony:system': { type: 'member_join', subject: HOSTU } }))
+    expect(newMessages()).toEqual([])
+  })
+
+  it('drops a relayed notice and a malformed one', async () => {
+    const relayed = join(GROUP)
+    await P.processChannelMessage(relayed, relayed.object, { groupUrl: GROUP })
+    await P.processCreate(join(GROUP, CR, { 'harmony:system': { type: 'automod_alert' } }))
+    expect(newMessages()).toEqual([])
+  })
+})

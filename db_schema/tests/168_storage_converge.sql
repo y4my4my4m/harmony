@@ -38,7 +38,7 @@ SELECT ok((SELECT count(*) FROM storage_shape_want WHERE kind = 'policy'
             AND name IN ('storage.objects storage_objects_session_aal',
                          'storage.objects Server owners can delete server banners',
                          'storage.objects Bot owners can upload bot avatars',
-                         'storage.objects Public read access for soundboard',
+                         'storage.objects Writers read soundboard',
                          'storage.objects Soundboard managers can upload sounds',
                          'storage.objects Soundboard managers can delete sounds',
                          'storage.objects Room members can read message media',
@@ -65,7 +65,6 @@ SELECT bag_eq($$SELECT name FROM storage_shape_want WHERE kind <> 'policy'
 DROP POLICY storage_objects_session_aal ON storage.objects;
 DROP POLICY "Server owners can delete server banners" ON storage.objects;
 DROP POLICY "Bot owners can upload bot avatars" ON storage.objects;
-DROP POLICY "Public read access for soundboard" ON storage.objects;
 DROP POLICY "Soundboard managers can upload sounds" ON storage.objects;
 DROP POLICY "Soundboard managers can delete sounds" ON storage.objects;
 DROP POLICY "Room members can read message media" ON storage.objects;

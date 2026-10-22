@@ -55,12 +55,40 @@ describe('UnifiedMessageContent images', () => {
     expect(w.html()).not.toContain('alt="IMG_0042.png"')
   })
 
-  it('opens the lightbox from a keyboard button over the image', async () => {
+  it('opens the media viewer from a keyboard button over the image', async () => {
+    const { useLightbox, closeLightbox } = await import('@/composables/useLightbox')
     const w = await render([image({ altText: 'A red sunset' })])
     const open = w.get('button.media-open')
     expect(open.attributes('aria-label')).toBe('messageA11y.image.open')
     await open.trigger('click')
-    expect(w.emitted('open-lightbox')).toEqual([['https://example.test/a.png']])
+    await flushPromises()
+    const request = useLightbox().request.value
+    expect(request?.items).toEqual([{ url: 'https://example.test/a.png', type: 'image', alt: 'A red sunset', name: 'IMG_0042.png' }])
+    expect(request?.index).toBe(0)
+    closeLightbox()
+  })
+
+  it("opens the message's pictures and video as one list at the one clicked", async () => {
+    const { useLightbox, closeLightbox } = await import('@/composables/useLightbox')
+    const w = await render([
+      { type: 'text', text: 'first ' },
+      image({ url: 'https://example.test/b.png', fileName: 'b.png' }),
+      { type: 'text', text: ' then a clip ' },
+      { type: 'file', fileType: 'video', url: 'https://example.test/c.webm', fileName: 'c.webm', altText: 'A dog' },
+      { type: 'text', text: ' and ' },
+      image({ url: 'https://example.test/d.png', fileName: 'd.png' }),
+    ])
+    await w.findAll('button.media-open')[1].trigger('click')
+    await flushPromises()
+    const request = useLightbox().request.value
+    expect(request?.items.map((item) => [item.type, item.url])).toEqual([
+      ['image', 'https://example.test/b.png'],
+      ['video', 'https://example.test/c.webm'],
+      ['image', 'https://example.test/d.png'],
+    ])
+    expect(request?.items[1].alt).toBe('A dog')
+    expect(request?.index).toBe(2)
+    closeLightbox()
   })
 
   it('keeps a covered spoiler image out of the accessibility tree until revealed', async () => {

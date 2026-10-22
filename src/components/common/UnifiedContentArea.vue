@@ -129,6 +129,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
 import type { FeedScrollAnchor } from '@/stores/useActivityPub'
 import { ViewMode, ViewType } from '@/types/viewTypes'
+import { addedAtHead } from '@/utils/realtimeFeed'
 
 const router = useRouter()
 
@@ -349,6 +350,19 @@ const specialFeedLabel = computed(() => {
   if (type === 'mentions') return t('activitypub.mentions')
   return undefined
 })
+
+// Posts placed at the head of the timeline while it is scrolled (the viewer's own post or
+// reply, which lands in the list at once) keep the reader's place: the reading position is
+// read from the rows before they re-render and restored after.
+watch(
+  () => [props.currentView, props.posts] as const,
+  ([view, posts], [previousView, previous]) => {
+    if (view !== previousView || !posts || !previous || addedAtHead(previous, posts) === 0) return
+    const anchor = readScrollAnchor()
+    if (anchor) void nextTick(() => restoreScrollAnchor(anchor))
+  },
+  { flush: 'pre' },
+)
 
 // Feed switches reuse this instance; the new feed renders from its top until
 // restoreScrollAnchor moves it to its reading position.

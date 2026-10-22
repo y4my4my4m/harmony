@@ -113,6 +113,9 @@
 
   <!-- Mini player for video embeds scrolled out of view -->
   <FloatingVideoPlayer v-if="!isAuthRoute" />
+
+  <!-- Media viewer opened through openLightbox -->
+  <MediaLightboxHost />
 </template>
 
 <script setup lang="ts">
@@ -147,6 +150,7 @@ import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
+import MediaLightboxHost from '@/components/common/MediaLightboxHost.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'
 import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'

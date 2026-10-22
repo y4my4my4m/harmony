@@ -1019,10 +1019,12 @@ export class CoreMessageService {
 
       debug.log(`Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
 
+      // A system notice has no author; metadata names its people as local profiles.
       const messages = remoteMessages.map((msg: any) => ({
         id: msg.id,
         channel_id: channelId,
-        user_id: msg.author?.id,
+        user_id: msg.is_system ? null : msg.author?.id,
+        is_system: msg.is_system === true,
         content: this.parseRemoteContent(msg.content),
         created_at: msg.created_at,
         updated_at: msg.updated_at,

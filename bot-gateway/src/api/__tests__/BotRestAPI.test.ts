@@ -369,6 +369,36 @@ describe('AutoMod rejections', () => {
   })
 })
 
+describe('GET /channels/:id/messages system notices', () => {
+  const CHANNEL_ID = '00000000-0000-0000-0000-0000000000c1'
+
+  it('lists a join notice with no author and is_system set', async () => {
+    routeTables({
+      ...OPEN_CHANNEL_FIXTURES,
+      channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+      messages: {
+        data: [{
+          id: 'n1', channel_id: CHANNEL_ID, user_id: null, bot_id: null, user: null, bot: null, is_system: true,
+          content: [{ type: 'text', text: 'has joined the server' }],
+          metadata: { type: 'member_join', subject_id: '00000000-0000-0000-0000-0000000000a1' },
+          created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+        }],
+        error: null,
+      },
+    })
+    routeRpc({})
+    const res = await supertest(makeApp()).get(`/api/v1/channels/${CHANNEL_ID}/messages`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([expect.objectContaining({
+      id: 'n1',
+      author: null,
+      is_system: true,
+      metadata: { type: 'member_join', subject_id: '00000000-0000-0000-0000-0000000000a1' },
+    })])
+  })
+})
+
 /** routeTables, plus the payload of each insert into `table`. */
 function captureInserts(table: string, tables: Record<string, Result>): unknown[] {
   routeTables(tables)
@@ -619,6 +649,9 @@ describe('server routes', () => {
     it('reports channels.type in Discord numbering', async () => {
       routeTables({
         ...INSTALLED,
+        // @everyone views every channel; no override.
+        server_roles: { data: [{ id: 'everyone', server_id: SERVER_ID, permissions: 2 }], error: null },
+        channel_permission_overrides: { data: [], error: null },
         channels: {
           data: [
             { id: 'text', server_id: SERVER_ID, name: 'general', type: 0, order: 0, category: null },

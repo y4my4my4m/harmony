@@ -27,6 +27,10 @@ async function createServer(page: Page, name: string): Promise<void> {
     timeout: 15000,
   })
   await page.locator('[data-testid="create-server-name-input"]').fill(name)
+  // Public comes first and is the default.
+  const visibility = page.locator('input[name="create-server-visibility"]')
+  await expect(visibility.first()).toHaveAttribute('value', 'true')
+  await expect(visibility.first()).toBeChecked()
   await page.locator('[data-testid="create-server-btn"]').click()
   await expect(modal).toBeHidden({ timeout: 30000 })
 }
@@ -52,6 +56,8 @@ test('create a server, add a channel to it and open the channel', async ({ page 
     await expect(page.locator('.channel-sidebar .server-name')).toHaveText(serverName, {
       timeout: 30000,
     })
+    const { data: created } = await admin.from('servers').select('public').eq('name', serverName).single()
+    expect(created?.public).toBe(true)
     // The insert trigger stocks a new server with these two.
     await expect(page.locator('.channel-sidebar').getByText('general', { exact: true })).toBeVisible()
     await expect(

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# nginx -t on dev/nginx-harmony.template.conf, then the /invite/<code> routing: link-preview
-# crawlers reach the federation backend, browsers and search engines the SPA.
+# nginx -t on dev/nginx-harmony.template.conf, then the /invite/<code> and /d/<token> routing:
+# link-preview crawlers reach the federation backend, browsers and search engines the SPA.
 #
 # The template runs in a plain-HTTP nginx container: certificate directives dropped, the
 # backend upstream pointed at a stub server in the same nginx that answers with the URI it
@@ -81,6 +81,23 @@ expect "$DISCORD"  /invite/ab                'SPA'
 expect "$DISCORD"  /invite/ABCD1234/extra    'SPA'
 expect "$FIREFOX"  /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001'
 
+DRIVE_LINK=/d/h5KAj-hPSm5hwCpMfeKM8aZl
+log "/d/<token> routing"
+expect "$DISCORD"  $DRIVE_LINK               "backend $DRIVE_LINK"
+expect "$DISCORD"  "$DRIVE_LINK/"            "backend $DRIVE_LINK/"
+expect "$MASTODON" $DRIVE_LINK               "backend $DRIVE_LINK"
+expect "$IMESSAGE" $DRIVE_LINK               "backend $DRIVE_LINK"
+expect "$FIREFOX"  $DRIVE_LINK               'SPA'
+expect "$GOOGLE"   $DRIVE_LINK               'SPA'
+expect "$DISCORD"  /d/short                  'SPA'
+expect "$DISCORD"  $DRIVE_LINK/extra         'SPA'
+expect "$DISCORD"  /drive/file/00000000-0000-0000-0000-000000000001 'SPA'
+
+log "/api/federation/embed-media routing"
+expect "$FIREFOX" '/api/federation/embed-media?u=https%3A%2F%2Fvideo.twimg.com%2Fv.mp4' 'backend /embed-media?u=https%3A%2F%2Fvideo.twimg.com%2Fv.mp4'
+expect "$FIREFOX" /api/federation/embed-media/instagram/DcCH2ZygIiP/0/poster 'backend /embed-media/instagram/DcCH2ZygIiP/0/poster'
+expect "$FIREFOX" /api/federation/media/c/x 'backend /media/c/x'
+
 log "ActivityPub-only paths"
 STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002
 expect "$MASTODON" $STAMP "backend $STAMP"
@@ -143,6 +160,25 @@ for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Option
     FAILED=$((FAILED + 1))
   fi
 done
+headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" "http://127.0.0.1:8443$DRIVE_LINK" 2>&1 || true)"
+for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
+  if grep -qi "$h" <<<"$headers"; then
+    printf 'ok   SPA answer for /d/<token> carries %s\n' "$h"
+  else
+    err "SPA answer for $DRIVE_LINK lacks $h"
+    FAILED=$((FAILED + 1))
+  fi
+done
+
+# Embed media answers keep the backend's Referrer-Policy: no-referrer alone. A server-level
+# policy after it is the one browsers apply, and the redirect then sends X a Referer (403).
+headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" http://127.0.0.1:8443/api/federation/embed-media/instagram/DcCH2ZygIiP/0 2>&1 || true)"
+if grep -qi 'Referrer-Policy' <<<"$headers"; then
+  err "embed-media answer carries the server-level Referrer-Policy"
+  FAILED=$((FAILED + 1))
+else
+  printf 'ok   embed-media answer carries no server-level Referrer-Policy\n'
+fi
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /social/post/<id>, /social/profile/<name> and the ActivityPub-only paths"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name> and the ActivityPub-only paths"

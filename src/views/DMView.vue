@@ -54,8 +54,16 @@
     </div>
 
     <div class="dm-content">
+      <!-- On a phone the conversation list is the DM page: Back from a conversation lands
+           on it. A new conversation starts from its New DM button. -->
+      <DMSidebar
+        v-if="!currentConversation && isMobile"
+        :titled="false"
+        @conversation-selected="openConversation"
+      />
+
       <FollowersList
-        v-if="!currentConversation"
+        v-else-if="!currentConversation"
         @conversation-started="handleConversationStarted"
       />
 
@@ -115,6 +123,7 @@ import DMHeader from '@/components/dm/DMHeader.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import FollowersList from '@/components/dm/FollowersList.vue'
+import DMSidebar from '@/components/DMSidebar.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useDMStore } from '@/stores/useDM'
@@ -299,6 +308,10 @@ const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {
       debug.error('Failed to refresh conversation after adding users:', error)
     }
   }
+}
+
+const openConversation = (conversationId: string) => {
+  void router.push(`/dm/${conversationId}`)
 }
 
 const handleConversationStarted = async (conversationId: string) => {

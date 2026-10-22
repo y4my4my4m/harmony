@@ -4,7 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { announceActivityId, buildLocalNote, createPostActivity, createReblogActivity, loadReblogTarget } from '../listeners/FederationHandlers.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
-import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
+import { isPublicView, loadGroupAccess, loadHistoryCutoffs, readableChannelIds, verifiedSigner, withinHistory } from './groupAccess.js';
 import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
 import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.js';
 import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
@@ -897,6 +897,11 @@ router.get(
       const serverId = (message.channel as any)?.server_id;
       const access = serverId ? await loadGroupAccess(serverId, await verifiedSigner(req)) : null;
       if (!access || !readableChannelIds(access).has(message.channel_id)) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      const cutoffs = await loadHistoryCutoffs(serverId, access);
+      if (!cutoffs || !withinHistory(cutoffs, message.channel_id, message.created_at)) {
         res.status(404).json({ error: 'Not found' });
         return;
       }

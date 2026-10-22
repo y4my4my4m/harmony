@@ -200,227 +200,22 @@
             <button type="button" class="hide-btn" @click="revealedReportedIds.delete(item.message.id)">{{ t('messageA11y.row.hideAgain') }}</button>
           </div>
 
-          <!-- System Message (join/leave announcements, thread creation) -->
+          <!-- System message: an authorless event, rendered from metadata -->
           <div v-if="item.message.is_system" class="system-message">
             <div class="system-message-content">
               <AppTimestamp class="system-timestamp" :value="item.message.created_at">
                 <template v-for="(line, lineIndex) in systemTimestampLines(item.message.created_at)" :key="lineIndex"><br v-if="lineIndex > 0" />{{ line }}</template>
               </AppTimestamp>
               <div :id="`msg-body-${item.message.id}`" class="system-content">
-                <!-- Thread created system message -->
-                <template v-if="item.message.metadata?.type === 'thread_created'">
-                  <Icon name="thread" :size="16" class="system-icon" />
-                  <div class="system-text thread-created-text">
-                    <button
-                      v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)"
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    <!-- A bridged Discord person, a webhook or a bot: no Harmony profile to open. -->
-                    <span v-else class="system-user-name">{{ getAuthorDisplayName(item.message).value }}</span>
-                    started a thread: 
-                    <button
-                      type="button"
-                      class="system-thread-link"
-                      @click="handleOpenThread(item.message.metadata?.thread_id, item.message.metadata?.thread_name)"
-                    >{{ item.message.metadata?.thread_name || 'Thread' }}</button>. 
-                    See 
-                    <button
-                      type="button"
-                      class="system-threads-link"
-                      @click="emit('showAllThreads')"
-                    >all threads</button>.
-                  </div>
-                </template>
-                <!-- Call system message (started / ended) -->
-                <template v-else-if="item.message.metadata?.type === 'call_started' || item.message.metadata?.type === 'call_ended'">
-                  <div class="system-icon call-icon-container">
-                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started', missed: isMissedCall(item.message) }">
-                      <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" fill="currentColor"/>
-                    </svg>
-                  </div>
-                  <!-- Nobody answered: the callee reads it as missed, the caller as no answer (Discord). -->
-                  <div v-if="isMissedCall(item.message) && item.message.user_id !== profileStore.profile?.id" class="system-text call-system-text">
-                    You missed a {{ item.message.metadata?.call_type || 'voice' }} call from
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                  </div>
-                  <div v-else class="system-text call-system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    <template v-if="isMissedCall(item.message)">
-                      started a {{ item.message.metadata?.call_type || 'voice' }} call
-                      <span class="call-missed">No answer</span>
-                    </template>
-                    <template v-else-if="item.message.metadata?.type === 'call_ended'">
-                      started a {{ item.message.metadata?.call_type || 'voice' }} call that lasted
-                      <span class="call-duration">
-                        {{ formatCallDuration(item.message.metadata?.duration_seconds || 0) }}
-                      </span>
-                    </template>
-                    <template v-else>
-                      started a {{ item.message.metadata?.call_type || 'voice' }} call
-                      <CallJoinButton
-                        :message-id="item.message.id"
-                        :conversation-id="item.message.conversation_id || props.conversationId"
-                      />
-                    </template>
-                  </div>
-                </template>
-                <!-- Group created / users added system message (DM) -->
-                <template v-else-if="item.message.metadata?.type === 'group_created'">
-                  <Icon name="users" :size="16" class="system-icon" />
-                  <div class="system-text">
-                    <UnifiedMessageContent 
-                      :content="item.message.content"
-                      :message-id="item.message.id"
-                      :is-system="true"
-                      @show-user-profile="showUserProfile"
-                    />
-                  </div>
-                </template>
-                <!-- Member join system message -->
-                <template v-else-if="item.message.metadata?.type === 'member_join'">
-                  <Icon name="arrow-right" :size="16" class="system-icon join" />
-                  <div class="system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    has joined the server
-                  </div>
-                </template>
-                <!-- Member leave system message -->
-                <template v-else-if="item.message.metadata?.type === 'member_leave'">
-                  <Icon name="arrow-left" :size="16" class="system-icon leave" />
-                  <div class="system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    has left the server
-                  </div>
-                </template>
-                <!-- Member kick system message -->
-                <template v-else-if="item.message.metadata?.type === 'member_kick'">
-                  <Icon name="user-x" :size="16" class="system-icon leave" />
-                  <div class="system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    >{{ getUserDisplayName(item.message.user_id).value }}</button>
-                    was kicked<template v-if="item.message.metadata?.kicked_by"> by
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.metadata.kicked_by)"
-                      :style="{ color: resolveChatUserColor(item.message.metadata.kicked_by) }"
-                    ><DisplayName :userId="item.message.metadata.kicked_by" /></button></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
-                  </div>
-                </template>
-                <!-- Member ban system message -->
-                <template v-else-if="item.message.metadata?.type === 'member_ban'">
-                  <Icon name="gavel" :size="16" class="system-icon leave" />
-                  <div class="system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    was banned<template v-if="item.message.metadata?.banned_by"> by
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.metadata.banned_by)"
-                      :style="{ color: resolveChatUserColor(item.message.metadata.banned_by) }"
-                    ><DisplayName :userId="item.message.metadata.banned_by" /></button></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
-                  </div>
-                </template>
-                <!-- Channel encryption turned on or off -->
-                <template v-else-if="channelEncryptionEventKey(item.message.metadata?.type)">
-                  <Icon
-                    :name="String(item.message.metadata?.type).endsWith('_enabled') ? 'lock' : 'unlock'"
-                    :size="16"
-                    class="system-icon"
-                  />
-                  <div class="system-text">
-                    <button
-                      type="button"
-                      class="system-user-mention"
-                      @click="showUserProfile(item.message.user_id)"
-                      :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></button>
-                    {{ $t(channelEncryptionEventKey(item.message.metadata?.type)!) }}
-                  </div>
-                </template>
-                <!-- AutoMod alert. Only the database writes authorless rows; a
-                     client row always carries its author, so it cannot pose as one. -->
-                <template v-else-if="item.message.metadata?.type === 'automod_alert' && !item.message.user_id && !item.message.bot_id">
-                  <Icon name="shield" :size="16" class="system-icon automod-icon" />
-                  <div class="system-text automod-alert-text">
-                    <span class="automod-badge">{{ $t('automod.title') }}</span>
-                    <template v-if="item.message.metadata?.automod?.event_type === 'raid'">
-                      {{ $t('automod.alert.raid', {
-                        joins: item.message.metadata?.automod?.joins,
-                        seconds: item.message.metadata?.automod?.window_seconds,
-                      }) }}
-                    </template>
-                    <template v-else>
-                      {{ $t(item.message.metadata?.automod?.actions?.includes('block')
-                        ? (item.message.metadata?.automod?.event_type === 'edit' ? 'automod.alert.blockedEdit' : 'automod.alert.blocked')
-                        : 'automod.alert.flagged') }}
-                      <button
-                        v-if="item.message.metadata?.automod?.user_id"
-                        type="button"
-                        class="system-user-mention"
-                        @click="showUserProfile(item.message.metadata.automod.user_id)"
-                        :style="{ color: resolveChatUserColor(item.message.metadata.automod.user_id) }"
-                      ><DisplayName :userId="item.message.metadata.automod.user_id" /></button>
-                      <span
-                        v-else-if="item.message.metadata?.automod?.author_name"
-                        class="system-user-mention"
-                      >{{ item.message.metadata.automod.author_name }} · Discord</span>
-                      <span v-else class="system-user-mention">{{ $t('automod.alert.aBot') }}</span>
-                      <span class="automod-rule">{{ item.message.metadata?.automod?.rule_name }}</span>
-                      <span v-if="item.message.metadata?.automod?.actions?.includes('timeout')" class="automod-timeout">
-                        {{ $t('automod.alert.timedOut') }}
-                      </span>
-                      <div v-if="item.message.metadata?.automod?.excerpt" class="automod-alert-excerpt">
-                        {{ item.message.metadata.automod.excerpt }}
-                      </div>
-                    </template>
-                  </div>
-                </template>
-                <!-- Default system message -->
-                <template v-else>
-                  <Icon name="info" :size="16" class="system-icon" />
-                  <div class="system-text">
-                    <UnifiedMessageContent 
-                      :content="item.message.content"
-                      :message-id="item.message.id"
-                      :is-system="true"
-                      :embed-payloads="item.message.metadata?.embeds"
-                      @show-user-profile="showUserProfile"
-                    />
-                  </div>
-                </template>
+                <SystemEventBody
+                  :message="item.message"
+                  :conversation-id="item.message.conversation_id || props.conversationId"
+                  :user-color="resolveChatUserColor"
+                  :bot-name="botDisplayName"
+                  @show-user-profile="showUserProfile"
+                  @open-thread="handleOpenThread"
+                  @show-all-threads="emit('showAllThreads')"
+                />
               </div>
             </div>
             
@@ -532,7 +327,6 @@
               :can-edit-attachments="canEditAttachments(item.message)"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
-              @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
@@ -575,7 +369,6 @@
               :can-edit-attachments="canEditAttachments(item.message)"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
-              @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
@@ -676,18 +469,6 @@
       </button>
     </div>
   </div>
-  
-  <MediaLightbox
-    :visible="isLightboxOpen"
-    :imgs="activeLightboxImages"
-    :alts="activeLightboxAlts"
-    v-model:index="indexRef"
-    @hide="closeLightbox"
-  >
-    <template #actions="{ src }">
-      <LightboxDownloadButton :visible="true" :url="src" :teleport="false" />
-    </template>
-  </MediaLightbox>
 
   <!-- Modern User Profile Modal -->
   <UserProfileModal
@@ -812,7 +593,7 @@ import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, Rea
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
-import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
+import { mediaLoadKey } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -869,7 +650,7 @@ import {
   type ReactionUserResolvers,
 } from '@/utils/reactionUsers';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
-import CallJoinButton from '@/components/messages/CallJoinButton.vue';
+import SystemEventBody from '@/components/messages/SystemEventBody.vue';
 import {
   findBridgedUserInCache,
   resolveBridgedUserColor,
@@ -880,7 +661,6 @@ import {
 } from '@/services/bridgedChannelUsersService';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
-import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu';
 import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 import ReportModal from '@/components/moderation/ReportModal.vue';
@@ -891,7 +671,6 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
-import MediaLightbox from '@/components/common/MediaLightbox.vue';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
@@ -1513,7 +1292,6 @@ const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null>
 };
 
 // Helper functions for bot display
-// eslint-disable-next-line unused-imports/no-unused-vars
 const getBotDisplayName = (botId: string): ComputedRef<string> => {
   return computed(() => {
     if (!botDataCache.value.has(botId) && !fetchingBots.value.has(botId)) {
@@ -1524,6 +1302,8 @@ const getBotDisplayName = (botId: string): ComputedRef<string> => {
     return bot?.display_name || bot?.username || `Bot-${botId.slice(0, 8)}`;
   });
 };
+
+const botDisplayName = (botId: string): string => getBotDisplayName(botId).value;
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
@@ -1702,10 +1482,10 @@ const LONG_PRESS_DURATION = 500;
 /** On mobile: tap position for positioning message-actions above the finger (thumb reach ~48px) */
 const mobileActionTapPosition = ref<{ x: number; y: number } | null>(null);
 
-// An outbox row has no actions until it is sent: reply, react and delete need the
-// persisted message.
+// An unsent row (temp- id: an optimistic copy or an outbox row) has no actions: reply,
+// react and delete need the persisted message. A failed row offers Retry and Delete.
 const handleMessageMouseover = (messageId: string) => {
-  if (!isMobile.value && !outbox.has(messageId)) {
+  if (!isMobile.value && !isOptimisticId(messageId)) {
     hoveredMessageId.value = messageId;
   }
 };
@@ -1734,7 +1514,7 @@ const cancelMessageLongPress = () => {
 
 const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
   cancelMessageLongPress();
-  if (outbox.has(messageId) || isReactionTouch(event)) return;
+  if (isOptimisticId(messageId) || isReactionTouch(event)) return;
   const touch = event.touches[0];
   const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
   const tapStylePos = touch ? stylePoint(touch) : null;
@@ -1866,11 +1646,6 @@ const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
 const reportTargetMessagePreview = ref<string | undefined>();
 const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string; domain?: string | null; is_local?: boolean | null } | undefined>();
-
-const isLightboxOpen = ref(false);
-const indexRef = ref(0);
-const activeLightboxImages = ref<string[]>([]);
-const activeLightboxAlts = ref<string[]>([]);
 
 // --- STICK TO BOTTOM ---
 // Whether the view follows the end of the list; rules in utils/chatScroll.
@@ -2061,7 +1836,10 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   const list = virtualListRef.value;
   if (!el || !list || pinState.pinned) return false;
   const listOffset = styleRect(list).top - styleRect(el).top + el.scrollTop;
-  return correctForItemResize(el, listOffset, item.start, delta);
+  // The total size excludes this resize until virtual-core records it after this call.
+  return correctForItemResize(el, listOffset, item.start, delta, () => {
+    list.style.height = `${rowVirtualizer.value.getTotalSize() + delta}px`;
+  });
 };
 
 // --- VIRTUAL SCROLLING ---
@@ -2168,7 +1946,8 @@ const rowLabelledBy = (message: Message): string => {
 };
 
 const showsActionBar = (messageId: string): boolean =>
-  (hoveredMessageId.value === messageId || (!isMobile.value && focusMessageId.value === messageId))
+  !isOptimisticId(messageId)
+  && (hoveredMessageId.value === messageId || (!isMobile.value && focusMessageId.value === messageId))
   && editableMessageId.value !== messageId
   && !(isMobile.value && mobileActionTapPosition.value);
 
@@ -2432,42 +2211,6 @@ const remeasureItem = (messageId: string) => {
 };
 
 // --- COMPUTED PROPERTIES ---
-// Images of the loaded messages, keyed by part.url. Private parts resolve to
-// signed URLs when the lightbox opens.
-// Text alternative of a chat image: its description, else a statement that it
-// has none. The file name is never used.
-const imageAlt = (part: object): string => {
-  const alt = (part as { altText?: unknown }).altText;
-  return (typeof alt === 'string' && alt.trim()) || t('messageA11y.image.noDescription');
-};
-
-const lightboxImages = computed(() => {
-  const images: Array<{ url: string; path?: string; alt: string }> = [];
-  if (!props.messages || !Array.isArray(props.messages)) {
-    return images;
-  }
-  
-  props.messages.forEach(message => {
-    if (!message?.content || !Array.isArray(message.content)) {
-      return;
-    }
-    
-    message.content.forEach(part => {
-      if (!part || typeof part !== 'object') {
-        return;
-      }
-      
-      if (part.type === 'file' && part.fileType === 'image' && part.url) {
-        const alt = imageAlt(part);
-        images.push(isPrivateMediaPart(part) ? { url: part.url, path: part.path, alt } : { url: part.url, alt });
-      }
-      else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
-        images.push({ url: part.url, alt: imageAlt(part) });
-      }
-    });
-  });
-  return images;
-});
 
 const currentServerData = computed(() => {
   const serverId = serverChannelStore.currentServerId;
@@ -3519,36 +3262,8 @@ const systemTimestampLines = (timestamp: Date): string[] => {
   const date = new Date(timestamp);
   if (!isValid(date)) return [];
   if (isToday(date)) return [format(date, 'p')];
-  if (isYesterday(date)) return ['Yesterday at', format(date, 'p')];
+  if (isYesterday(date)) return [t('systemEvents.yesterdayAt'), format(date, 'p')];
   return [format(date, 'MMM d, yyyy'), format(date, 'p')];
-};
-
-// System message metadata.type written by set_channel_encryption().
-const CHANNEL_ENCRYPTION_EVENT_KEYS: Record<string, string> = {
-  channel_encryption_enabled: 'channelEncryption.system.enabled',
-  channel_encryption_disabled: 'channelEncryption.system.disabled',
-  channel_voice_encryption_enabled: 'channelEncryption.system.voiceEnabled',
-  channel_voice_encryption_disabled: 'channelEncryption.system.voiceDisabled',
-};
-
-const channelEncryptionEventKey = (type: unknown): string | null =>
-  typeof type === 'string' ? CHANNEL_ENCRYPTION_EVENT_KEYS[type] ?? null : null;
-
-const formatCallDuration = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
-};
-
-// An ended call nobody else joined. participants lists everyone who ever joined, caller included.
-const isMissedCall = (message: any): boolean => {
-  const meta = message?.metadata;
-  if (meta?.type !== 'call_ended') return false;
-  return !Array.isArray(meta.participants) || meta.participants.length < 2;
 };
 
 const formatDateSeparator = (timestamp: Date): string => {
@@ -4121,27 +3836,6 @@ const handleDecryptMessage = async (message: Message) => {
   }
 };
 
-const handleOpenLightbox = async (url: string) => {
-  const images = lightboxImages.value;
-  const index = images.findIndex((image) => image.url === url);
-  if (index !== -1) {
-    await ensureMediaPartSources(images);
-    indexRef.value = index;
-    activeLightboxImages.value = images.map((image) => mediaPartSource(image) ?? image.url);
-    activeLightboxAlts.value = images.map((image) => image.alt);
-  } else {
-    // Image from an embed not in the pre-computed list - show standalone
-    activeLightboxImages.value = [url];
-    activeLightboxAlts.value = [t('messageA11y.image.noDescription')];
-    indexRef.value = 0;
-  }
-  isLightboxOpen.value = true;
-};
-
-const closeLightbox = () => {
-  isLightboxOpen.value = false;
-};
-
 // Context menu handlers. `trigger` is where focus returns when the menu closes
 // from the keyboard: the More button, or the row.
 const contextMenuTrigger = ref<HTMLElement | null>(null);
@@ -4590,10 +4284,7 @@ defineExpose({ editLastOwnMessage });
   cursor: pointer;
 }
 
-.username:focus-visible,
-.system-user-mention:focus-visible,
-.system-thread-link:focus-visible,
-.system-threads-link:focus-visible {
+.username:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
   border-radius: 2px;
@@ -5049,152 +4740,6 @@ defineExpose({ editLastOwnMessage });
 }
 
 
-.system-icon {
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
-
-.system-icon.join {
-  color: var(--text-success);
-}
-
-.system-icon.leave {
-  color: var(--text-danger);
-}
-
-.system-text {
-  flex: 1;
-  color: var(--text-secondary);
-}
-
-.system-text :deep(.system-message-content) {
-  color: inherit !important;
-}
-
-/* AutoMod alert */
-.system-icon.automod-icon {
-  color: var(--warning, #f0b232);
-}
-
-.automod-badge {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-on-accent, #fff);
-  background: var(--harmony-primary);
-  vertical-align: 1px;
-}
-
-.automod-rule {
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.automod-timeout {
-  margin-left: 6px;
-  font-size: 0.75rem;
-  color: var(--text-danger);
-}
-
-.automod-alert-excerpt {
-  margin-top: 4px;
-  padding: 4px 8px;
-  border-left: 3px solid var(--warning, #f0b232);
-  border-radius: 2px;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Thread created system message */
-.thread-created-text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.system-user-mention,
-.system-thread-link,
-.system-threads-link {
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  text-align: inherit;
-}
-
-.system-user-mention {
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.system-user-name {
-  font-weight: 600;
-}
-
-.system-user-mention:hover {
-  text-decoration: underline;
-}
-
-.system-thread-link,
-.system-threads-link {
-  color: var(--text-link);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.system-thread-link:hover,
-.system-threads-link:hover {
-  text-decoration: underline;
-}
-
-/* Call system messages */
-.call-icon-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.call-system-icon {
-  color: var(--text-secondary);
-}
-
-.call-system-icon.active {
-  color: var(--text-success);
-}
-
-.call-system-icon.missed {
-  color: var(--text-danger);
-}
-
-.call-missed {
-  color: var(--text-danger);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.call-system-text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.call-duration {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
 
 .system-timestamp {
   font-size: 0.65rem;

@@ -24,6 +24,9 @@ export interface CreateDMMessageData {
 // Re-exported so callers need not import from the core layer.
 export type { SendOptions }
 
+/** How far back findSentMessage looks, ms, from the client clock; bounds the created_at range scanned. */
+const SENT_LOOKUP_WINDOW_MS = 24 * 60 * 60 * 1000
+
 export class MessageService {
   private static instance: MessageService
 
@@ -88,6 +91,24 @@ export class MessageService {
       debug.error('MessageService: Failed to send DM message:', error)
       throw error
     }
+  }
+
+  /**
+   * The message `userId` stored in `scope` with `clientNonce` in its metadata within the last
+   * SENT_LOOKUP_WINDOW_MS; null when there is none.
+   */
+  async findSentMessage(scope: MessageScope, userId: string, clientNonce: string): Promise<Message | null> {
+    const since = new Date(Date.now() - SENT_LOOKUP_WINDOW_MS).toISOString()
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('metadata->>client_nonce', clientNonce)
+      .gte('created_at', since)
+    query = 'channelId' in scope ? query.eq('channel_id', scope.channelId) : query.eq('conversation_id', scope.conversationId)
+    const { data, error } = await query.limit(1)
+    if (error) throw error
+    return (data?.[0] as Message | undefined) ?? null
   }
 
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {

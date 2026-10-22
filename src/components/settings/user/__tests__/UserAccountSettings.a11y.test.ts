@@ -54,6 +54,7 @@ vi.mock('@/services/FundingService', () => ({
 }))
 
 import UserAccountSettings from '../UserAccountSettings.vue'
+import { resetAccountDraft } from '@/composables/useAccountDraft'
 
 const PROFILE = {
   id: 'p1',
@@ -68,11 +69,12 @@ const PROFILE = {
 }
 
 let wrapper: VueWrapper
+const saveProfile = vi.fn(async () => true)
 
 function mountSettings(props: Record<string, unknown> = {}) {
   wrapper = mount(UserAccountSettings, {
     attachTo: document.body,
-    props: { profile: { ...PROFILE }, loading: false, bannerUploading: false, ...props } as never,
+    props: { profile: { ...PROFILE }, loading: false, bannerUploading: false, saveProfile, ...props } as never,
     global: {
       mocks: { $t: translate },
       stubs: {
@@ -98,6 +100,9 @@ function labelText(input: Element): string {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  // The draft outlives the form (composables/useAccountDraft.ts).
+  resetAccountDraft()
+  saveProfile.mockClear()
   polite.mockClear()
   toast.error.mockClear()
 })
@@ -195,7 +200,7 @@ describe('UserAccountSettings save errors', () => {
     await wrapper.find(`[id="${input.id}"]`).setValue('   ')
     await wrapper.get('.settings-actions .btn-primary').trigger('click')
 
-    expect(wrapper.emitted('update-profile')).toBeUndefined()
+    expect(saveProfile).not.toHaveBeenCalled()
     expect(input.getAttribute('aria-invalid')).toBe('true')
     const [errorId] = input.getAttribute('aria-describedby')!.split(' ')
     const error = document.getElementById(errorId)!
@@ -208,7 +213,7 @@ describe('UserAccountSettings save errors', () => {
     mountSettings({ profile: { ...PROFILE, profile_fields: [{ name: 'Website', value: '' }] } })
     await wrapper.get('textarea').setValue('Changed bio')
     await wrapper.get('.settings-actions .btn-primary').trigger('click')
-    expect(wrapper.emitted('update-profile')).toBeUndefined()
+    expect(saveProfile).not.toHaveBeenCalled()
 
     const [name, value] = wrapper.get('[data-testid="profile-field-row"]').findAll('input').map((w) => w.element)
     expect(name.getAttribute('aria-invalid')).toBeNull()
@@ -216,5 +221,75 @@ describe('UserAccountSettings save errors', () => {
     const error = document.getElementById(value.getAttribute('aria-describedby')!)!
     expect(error.getAttribute('role')).toBe('alert')
     expect(document.activeElement).toBe(value)
+  })
+})
+
+describe('UserAccountSettings unsaved changes', () => {
+  const bar = () => document.querySelector('[data-testid="account-save-bar"]')
+  const nameInput = () => Array.from(document.querySelectorAll('input')).find((i) => labelText(i) === 'auth.displayName')!
+
+  it('shows no save bar until something is edited, a missing bio included', async () => {
+    mountSettings({ profile: { ...PROFILE, bio: null } })
+    await flushPromises()
+    expect(bar()).toBeNull()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Edited')
+    expect(bar()?.getAttribute('role')).toBe('region')
+    expect(bar()?.getAttribute('aria-label')).toBe('settings.userAccount.unsavedChanges')
+    expect(polite).toHaveBeenCalledWith('settings.userAccount.unsavedChanges')
+  })
+
+  it('Save stores the edit, drops the bar and moves focus to the heading', async () => {
+    mountSettings()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Saved')
+    const save = wrapper.get('[data-testid="account-save-bar"] .btn-primary')
+    ;(save.element as HTMLElement).focus()
+    saveProfile.mockImplementationOnce(async (profile: Record<string, unknown>) => {
+      await wrapper.setProps({ profile: { ...PROFILE, ...profile } })
+      return true
+    })
+    await save.trigger('click')
+    await flushPromises()
+    expect(saveProfile).toHaveBeenCalledWith(expect.objectContaining({ display_name: 'Alice Saved' }))
+    expect(bar()).toBeNull()
+    expect(document.activeElement?.tagName).toBe('H2')
+  })
+
+  it('a failed save keeps the edit and the bar', async () => {
+    mountSettings()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Unsaved')
+    saveProfile.mockResolvedValueOnce(false)
+    await wrapper.get('[data-testid="account-save-bar"] .btn-primary').trigger('click')
+    await flushPromises()
+    expect(nameInput().value).toBe('Alice Unsaved')
+    expect(bar()).not.toBeNull()
+  })
+
+  it('Reset returns to the stored profile', async () => {
+    mountSettings()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Gone')
+    await wrapper.get('[data-testid="account-save-bar"] .btn-secondary').trigger('click')
+    await flushPromises()
+    expect(nameInput().value).toBe('Alice')
+    expect(bar()).toBeNull()
+  })
+
+  it('a new stored profile (an avatar upload) keeps unsaved text', async () => {
+    mountSettings()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Typing')
+    await wrapper.get('textarea').setValue('bio typed first')
+    await wrapper.setProps({ profile: { ...PROFILE, avatar_url: 'avatars/new.webp' } })
+    await flushPromises()
+    expect(nameInput().value).toBe('Alice Typing')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('bio typed first')
+  })
+
+  it('an edit outlives the form: remounted, it is still there', async () => {
+    mountSettings()
+    await wrapper.find(`[id="${nameInput().id}"]`).setValue('Alice Kept')
+    wrapper.unmount()
+    mountSettings()
+    await flushPromises()
+    expect(nameInput().value).toBe('Alice Kept')
+    expect(bar()).not.toBeNull()
   })
 })

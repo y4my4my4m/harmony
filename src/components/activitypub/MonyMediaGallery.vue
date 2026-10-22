@@ -92,7 +92,12 @@
           <source :src="media.url" :type="media.mime_type || 'video/mp4'">
           {{ t('a11y.lightbox.videoUnsupported') }}
         </video>
-        <VideoControls v-if="media.type !== 'gifv' && !nativeVideoControls" :label="mediaName(media)" />
+        <VideoControls
+          v-if="media.type !== 'gifv' && !nativeVideoControls"
+          :label="mediaName(media)"
+          expandable
+          @expand="openMedia(index, $event)"
+        />
       </template>
 
       <!-- Audio -->
@@ -153,25 +158,18 @@
       </div>
     </div>
   </div>
-
-  <MonyMediaLightbox
-    v-model:index="currentMediaIndex"
-    :visible="showModal"
-    :media="viewableMedia"
-    @hide="showModal = false"
-  />
 </template>
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
-import MonyMediaLightbox from './MonyMediaLightbox.vue';
+import { useLightbox, type LightboxMedia } from '@/composables/useLightbox';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
 import { uid } from '@/utils/a11y/focus';
@@ -187,6 +185,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n();
 const nativeVideoControls = useNativeVideoControls();
+const { open: openLightbox } = useLightbox();
 
 // State
 const galleryRef = ref<HTMLElement | null>(null);
@@ -216,15 +215,6 @@ function fileName(media: MediaAttachment): string {
   return media.filename || filenameFromUrl(media.url, media.type || 'media');
 }
 const showAltText = ref(false);
-const showModal = ref(false);
-const currentMediaIndex = ref(0);
-
-// Pause all gallery videos when lightbox opens to avoid double audio
-watch(showModal, (visible) => {
-  if (visible && galleryRef.value) {
-    galleryRef.value.querySelectorAll<HTMLVideoElement>('video').forEach((v) => v.pause());
-  }
-});
 
 // Computed
 const galleryClass = computed(() => {
@@ -303,16 +293,33 @@ function shouldOpenLightbox(media: MediaAttachment): boolean {
   return true;
 }
 
-const openMedia = (index: number) => {
+function toLightboxMedia(media: MediaAttachment): LightboxMedia {
+  const alt = mediaName(media);
+  if (!isVideoMedia(media)) return { url: media.url, type: 'image', alt, name: media.filename || undefined };
+  return {
+    url: media.url,
+    type: 'video',
+    alt,
+    poster: media.preview_url || undefined,
+    loop: media.type === 'gifv',
+    name: media.filename || undefined,
+  };
+}
+
+/** Opens the post's viewable media at `index` of the attachments; `origin` is a video played in place. */
+const openMedia = (index: number, origin?: HTMLVideoElement) => {
   const media = props.mediaAttachments[index];
-  if (!isViewableMedia(media)) return;
+  if (!media || !isViewableMedia(media)) return;
   let lightboxIndex = 0;
   for (let i = 0; i < index; i++) {
     const m = props.mediaAttachments[i];
     if (isViewableMedia(m)) lightboxIndex++;
   }
-  currentMediaIndex.value = lightboxIndex;
-  showModal.value = true;
+  // One sound at a time: the gallery's videos pause; the viewer pauses `origin` itself.
+  galleryRef.value?.querySelectorAll<HTMLVideoElement>('video').forEach((v) => {
+    if (v !== origin) v.pause();
+  });
+  openLightbox(viewableMedia.value.map(toLightboxMedia), lightboxIndex, { origin: origin ?? null });
 };
 </script>
 

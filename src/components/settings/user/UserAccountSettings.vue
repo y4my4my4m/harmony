@@ -1,7 +1,7 @@
 <template>
   <div class="user-account-settings">
     <div class="settings-header">
-      <h2 class="settings-title">{{ $t('settings.account') }}</h2>
+      <h2 ref="titleRef" class="settings-title" tabindex="-1">{{ $t('settings.account') }}</h2>
       <p class="settings-description">
         {{ t('settings.userAccount.description') }}
       </p>
@@ -107,7 +107,7 @@
         <div class="username-input-container">
           <input
             :id="`${uid}-username`"
-            v-model="localProfile.username"
+            :value="profile?.username || ''"
             type="text"
             class="form-input"
             :placeholder="t('auth.username')"
@@ -393,23 +393,36 @@
       </template>
     </div>
 
-    <div class="settings-actions">
-      <button 
-        class="btn btn-primary" 
-        @click="saveChanges"
-        :disabled="loading || !hasChanges"
+    <Transition name="savebar">
+      <div
+        v-if="hasChanges"
+        ref="saveBarRef"
+        class="settings-actions"
+        role="region"
+        :aria-label="t('settings.userAccount.unsavedChanges')"
+        data-testid="account-save-bar"
       >
-        <span v-if="loading" class="loading-spinner"></span>
-        {{ $t('common.save') }}
-      </button>
-      <button 
-        class="btn btn-secondary" 
-        @click="resetChanges"
-        :disabled="loading || !hasChanges"
-      >
-        {{ $t('common.reset') }}
-      </button>
-    </div>
+        <p class="settings-actions-text">{{ t('settings.userAccount.unsavedChanges') }}</p>
+        <!-- aria-disabled, not disabled: focus stays on the button while the save runs. -->
+        <button
+          type="button"
+          class="btn btn-secondary"
+          :aria-disabled="loading || undefined"
+          @click="resetChanges"
+        >
+          {{ $t('common.reset') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          :aria-disabled="loading || undefined"
+          @click="saveChanges"
+        >
+          <span v-if="loading" class="loading-spinner" aria-hidden="true"></span>
+          {{ $t('common.save') }}
+        </button>
+      </div>
+    </Transition>
 
   </div>
 </template>
@@ -454,19 +467,22 @@ import { imageSourceError } from '@/utils/uploadValidation'
 import { useImageCrop } from '@/composables/useImageCrop'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 import { DEFAULT_USER_COLOR } from '@/composables/useUserData'
+import { useAccountDraft, type AccountSnapshot, type EditableField } from '@/composables/useAccountDraft'
+import { focusElement } from '@/utils/a11y/focus'
 
 // Props
 interface Props {
   profile: User | null
   loading: boolean
   bannerUploading?: boolean
+  /** Stores the edited profile; resolves true once stored. */
+  saveProfile?: (profile: Partial<User>) => Promise<boolean>
 }
 
 const props = defineProps<Props>()
 
 // Emits
 const emit = defineEmits<{
-  'update-profile': [profile: Partial<User>]
   'upload-avatar': [file: File]
   'upload-banner': [file: File]
 }>()
@@ -480,8 +496,15 @@ const { t } = useI18n()
 const { polite } = useAnnouncer()
 const uid = `account-${useId()}`
 
-// State
-const localProfile = ref<Partial<User>>({})
+// State. The draft outlives this component (composables/useAccountDraft.ts).
+const {
+  values: localProfile,
+  fields: localProfileFields,
+  dirty: draftDirty,
+  sync: syncDraft,
+  discard: discardDraft,
+  adopt: adoptStored,
+} = useAccountDraft()
 const bannerKey = ref(0) // For forcing banner reload
 
 // Profile fields editor state
@@ -494,8 +517,6 @@ const PROFILE_FIELDS_MAX = 4
 const PROFILE_FIELD_NAME_MAX = 255
 const PROFILE_FIELD_VALUE_MAX = 255
 
-interface EditableField { name: string; value: string }
-const localProfileFields = ref<EditableField[]>([])
 const showColorPicker = ref(false)
 
 const URL_REGEX = /^https?:\/\/[^\s<>]+$/i
@@ -597,27 +618,26 @@ const displayNameAutoSuggest = useAutoSuggest(
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
 
-// Snapshot of the editable fields at the last sync from props. Dirty check
-// only; comparison is on the JSON-stringified form because the array is small
-// and no deep-equal dependency is pulled in for this one site.
-const initialProfileFieldsJson = ref('[]')
+// Username is not part of the draft; it is read-only.
+const hasChanges = computed(() => !!props.profile && draftDirty.value)
 
-const hasChanges = computed(() => {
-  if (!props.profile) return false
+const titleRef = ref<HTMLElement | null>(null)
+const saveBarRef = ref<HTMLElement | null>(null)
 
-  const baseChanged =
-    localProfile.value.display_name !== props.profile.display_name ||
-    localProfile.value.bio !== props.profile.bio ||
-    (localProfile.value.color || null) !== (props.profile.color || null)
-  if (baseChanged) return true
-
-  // Comparing the editable mirror against the sync-time snapshot makes both
-  // adding an empty row and clearing an existing field register as dirty, and
-  // leaves the button disabled when nothing changed.
-  return JSON.stringify(localProfileFields.value) !== initialProfileFieldsJson.value
-  // NOTE: username is excluded; it is not editable until federation username
-  // updates are implemented.
+watch(hasChanges, (dirty, wasDirty) => {
+  if (dirty && !wasDirty) polite(t('settings.userAccount.unsavedChanges'))
 })
+
+function focusIsInSaveBar(): boolean {
+  const active = document.activeElement
+  return !!saveBarRef.value && active instanceof Node && saveBarRef.value.contains(active)
+}
+
+// The save bar unmounts once the draft is clean; focus inside it would drop to
+// <body>, so it moves to the page heading first.
+function moveFocusOutOfSaveBar() {
+  if (focusIsInSaveBar()) focusElement(titleRef.value)
+}
 
 const emojiCacheStore = useEmojiCacheStore()
 
@@ -674,24 +694,27 @@ const bannerStyle = computed(() => ({
 }))
 
 // Methods
-const syncLocalProfile = () => {
-  if (props.profile) {
-    localProfile.value = {
-      display_name: props.profile.display_name || '',
-      username: props.profile.username || '',
-      bio: props.profile.bio || '',
+function snapshotOf(profile: User): AccountSnapshot {
+  // Stored HTML wrappers (e.g. `<a href="...">URL</a>`) are decoded back to the
+  // plain text the user typed.
+  const incoming = ((profile as any).profile_fields ?? []) as Array<{ name: string; value: string }>
+  return {
+    values: {
+      display_name: profile.display_name || '',
+      bio: profile.bio || '',
       // Empty is the theme's default name colour; the form must not invent one.
-      color: props.profile.color || ''
-    }
-    // Decode stored HTML wrappers (e.g. `<a href="...">URL</a>`) back to bare
-    // plain text so the user edits what was originally typed.
-    const incoming = ((props.profile as any).profile_fields ?? []) as Array<{ name: string; value: string }>
-    localProfileFields.value = incoming.map((f) => ({
+      color: profile.color || '',
+    },
+    fields: incoming.map((f) => ({
       name: f.name ?? '',
       value: decodeFieldValueForEditing(f.value ?? ''),
-    }))
-    initialProfileFieldsJson.value = JSON.stringify(localProfileFields.value)
+    })),
   }
+}
+
+// Fields the user has not edited follow the stored profile; edited ones keep the edit.
+const syncLocalProfile = () => {
+  if (props.profile?.id) syncDraft(props.profile.id, snapshotOf(props.profile))
 }
 
 const onProfileChange = () => {
@@ -795,8 +818,8 @@ const handleBannerFileSelect = async (event: Event) => {
 }
 
 const DISPLAY_NAME_EMOJI_REGEX = /:([a-zA-Z0-9_+-]+):/
-const saveChanges = () => {
-  if (!hasChanges.value) return
+const saveChanges = async () => {
+  if (!hasChanges.value || props.loading) return
 
   // Require a non-empty display name; a blank one renders as `Unknown User`
   // everywhere via the `getUserDisplayName` fallback, which is an
@@ -844,17 +867,30 @@ const saveChanges = () => {
     })
   }
 
-  emit('update-profile', {
+  if (!props.saveProfile) return
+  // The stored profile updates before the save resolves, and the clean draft unmounts
+  // the bar with focus in it.
+  const focusInBar = focusIsInSaveBar()
+  const saved = await props.saveProfile({
     ...localProfile.value,
     color: localProfile.value.color || null,
     profile_fields: cleanedFields,
   } as Partial<User>)
+  if (!saved || !props.profile) return
+  adoptStored(snapshotOf(props.profile))
+  if (focusInBar) {
+    await nextTick()
+    focusElement(titleRef.value)
+  }
 }
 
 const resetChanges = () => {
+  if (props.loading) return
   displayNameError.value = ''
   fieldErrorIndex.value = null
-  syncLocalProfile()
+  moveFocusOutOfSaveBar()
+  discardDraft()
+  polite(t('settings.userAccount.changesReset'))
 }
 
 const formatDate = (dateString?: string) => {
@@ -1265,11 +1301,58 @@ onMounted(async () => {
   font-size: var(--font-size-xs);
 }
 
+/* Unsaved-changes bar, pinned to the bottom of the settings scroller (as Appearance's). */
 .settings-actions {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 5;
   display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--background-floating);
+  box-shadow: var(--shadow-large);
+}
+
+.settings-actions-text {
+  flex: 1;
+  min-width: 160px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+  .settings-actions-text {
+    flex-basis: 100%;
+  }
+
+  .settings-actions .btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 40px;
+  }
+}
+
+.savebar-enter-active,
+.savebar-leave-active {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.savebar-enter-from,
+.savebar-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn {

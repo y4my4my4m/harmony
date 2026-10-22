@@ -11,9 +11,11 @@ import {
   botCanSeeChannel,
   botCanWriteChannel,
   botChannelMask,
+  botReadsHistory,
   grantableRoleBits,
   isAdminRole,
   loadEveryoneLayer,
+  loadEveryoneLayers,
   loadInstall,
   overrideGrants,
   parseMask,
@@ -681,7 +683,7 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message) {
+      if (!message || !(await this.withinHistory(botId, channelId, message.created_at))) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
@@ -761,6 +763,10 @@ export class BotRestAPI {
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
+      const since = await this.historySince(botId, channelId)
+      if (since === undefined) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
       
       let query = supabase
         .from('messages')
@@ -778,6 +784,9 @@ export class BotRestAPI {
       }
       if (after) {
         query = query.gt('created_at', after as string)
+      }
+      if (since !== null) {
+        query = query.gte('created_at', since)
       }
       
       const { data: messages, error } = await query
@@ -823,6 +832,9 @@ export class BotRestAPI {
       const canRead = await this.canReadChannel(botId, message.channel_id, channel.server_id)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))) {
+        return res.status(404).json({ error: 'Message not found' })
       }
       
       res.json(this.formatMessage(message))
@@ -1180,7 +1192,8 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      res.json(channels?.map(c => this.formatChannel(c)) || [])
+      const visible = await this.visibleChannels(botId, serverId, channels ?? [])
+      res.json(visible.map(c => this.formatChannel(c)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -1371,7 +1384,18 @@ export class BotRestAPI {
         .order('order')
 
       if (error) return res.status(500).json({ error: error.message })
-      res.json(data || [])
+      // As channel_categories RLS for members: a channel manager sees every category, anyone
+      // else those holding a channel they see.
+      if (await this.checkServerPermission(botId, serverId, 'manage_channels')) return res.json(data || [])
+      const { data: channels, error: channelsError } = await supabase
+        .from('channels')
+        .select('id, category')
+        .eq('server_id', serverId)
+      if (channelsError) return res.status(500).json({ error: channelsError.message })
+      const filed = ((channels ?? []) as Array<{ id: string; category: string | null }>).filter((c) => c.category)
+      const visible = await this.visibleChannels(botId, serverId, filed)
+      const shown = new Set(visible.map((c) => c.category))
+      res.json((data || []).filter((k: { id: string }) => shown.has(k.id)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -1992,6 +2016,42 @@ export class BotRestAPI {
   }
 
   /**
+   * Earliest created_at the bot reads in a channel: null with botReadsHistory, else the install
+   * time ('infinity' when the row has none). Undefined when a lookup fails.
+   */
+  private async historySince(botId: string, channelId: string, serverId?: string): Promise<string | null | undefined> {
+    const channelServerId = serverId ?? (await this.channelServerId(channelId))
+    if (!channelServerId) return undefined
+    const install = await loadInstall(botId, channelServerId)
+    const layer = install ? await loadEveryoneLayer(channelServerId, channelId) : null
+    if (!install || !layer) return undefined
+    if (botReadsHistory(install, layer, channelId)) return null
+    return typeof install.installed_at === 'string' ? install.installed_at : 'infinity'
+  }
+
+  /** A message dated `createdAt` is within the bot's history of the channel. */
+  private async withinHistory(botId: string, channelId: string, createdAt: string, serverId?: string): Promise<boolean> {
+    const since = await this.historySince(botId, channelId, serverId)
+    if (since === null) return true
+    if (since === undefined) return false
+    const at = Date.parse(createdAt)
+    const floor = Date.parse(since)
+    return Number.isFinite(at) && Number.isFinite(floor) && at >= floor
+  }
+
+  /** The channels among `channels` the bot sees (botCanSeeChannel); none on a failed lookup. */
+  private async visibleChannels<T extends { id: string }>(botId: string, serverId: string, channels: T[]): Promise<T[]> {
+    if (channels.length === 0) return []
+    const install = await loadInstall(botId, serverId)
+    if (!install) return []
+    const layers = await loadEveryoneLayers(channels.map((c) => ({ id: c.id, server_id: serverId })))
+    return channels.filter((c) => {
+      const layer = layers.get(c.id)
+      return layer !== undefined && botCanSeeChannel(install, layer, c.id)
+    })
+  }
+
+  /**
    * read_messages and botCanSeeChannel: allowed_channel_ids, which also grants a channel
    * @everyone cannot view, else VIEW_CHANNEL as a holder of @everyone. False on any failed lookup.
    */
@@ -2084,7 +2144,8 @@ export class BotRestAPI {
         .select('id, name')
         .eq('server_id', serverId)
         .in('id', channelIds)
-      for (const c of (data ?? []) as Array<{ id: string; name: string }>) channels.set(c.id, c.name)
+      const named = await this.visibleChannels(botId, serverId, (data ?? []) as Array<{ id: string; name: string }>)
+      for (const c of named) channels.set(c.id, c.name)
     }
 
     const label = (value: unknown, fallback: string) =>
@@ -2142,6 +2203,8 @@ export class BotRestAPI {
         bot: !!message.bot  // Flag to indicate if this is a bot message
       } : null,
       content: this.contentToText(message.content),
+      // A system notice has no author; metadata names the people it is about.
+      is_system: message.is_system === true,
       reply_to: message.reply_to ?? null,
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,

@@ -230,20 +230,32 @@
             :artwork="item.image || null"
           />
 
+          <DriveLinkCard
+            v-for="item in driveEmbeds"
+            :key="`drive-${item.url}`"
+            :link="item.link"
+            :url="item.url"
+          />
+
           <!-- Link preview cards. Variant is `thumbnail` (small horizontal
                card) when the post also has a media attachment, so we don't
                visually double the dominant image. Otherwise `default` (big
                hero card). -->
-          <a
-            v-for="embed in cardEmbeds"
-            :key="embed.url"
-            :href="safeHref(embed.url)"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="post-link-preview"
-          >
-            <LinkEmbedCard :payload="(embed as any)" :variant="cardEmbedVariant" />
-          </a>
+          <template v-for="embed in cardEmbeds" :key="embed.url">
+            <!-- A post of X, Instagram or Bluesky carries its own links and players. -->
+            <div v-if="cardEmbedVariant === 'default' && isSocialEmbed(embed)" class="post-link-preview">
+              <LinkEmbedCard :payload="(embed as any)" variant="default" />
+            </div>
+            <a
+              v-else
+              :href="safeHref(embed.url)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="post-link-preview"
+            >
+              <LinkEmbedCard :payload="(embed as any)" :variant="cardEmbedVariant" />
+            </a>
+          </template>
         </div>
       </div>
 
@@ -714,21 +726,6 @@
         </div>
       </div>
     </Teleport>
-    
-    <!-- Lightbox for images (only when not embedded in chat context) -->
-    <vue-easy-lightbox
-      v-if="!embedded"
-      teleport="body"
-      :visible="showLightbox"
-      :imgs="[currentLightboxImage]"
-      :index="0"
-      @hide="closeLightbox"
-    />
-    <LightboxDownloadButton
-      v-if="!embedded"
-      :visible="showLightbox"
-      :url="currentLightboxImage"
-    />
   </article>
 </template>
 
@@ -776,13 +773,14 @@ import type { TimelinePost, DisplayNamePart } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
+import DriveLinkCard from '@/components/embeds/DriveLinkCard.vue';
+import { driveLinkFromUrl, type DriveLinkRef } from '@/services/drive/driveLinks';
 import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
 import SocialMenu from './SocialMenu.vue';
-import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
@@ -795,7 +793,7 @@ import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { badgeFromMembership } from '@/services/FundingService';
 import { adminService } from '@/services/AdminService';
 import EmojiPopup from '@/components/EmojiPopup.vue';
-import VueEasyLightbox from 'vue-easy-lightbox';
+import { useLightbox } from '@/composables/useLightbox';
 import { useToast } from 'vue-toastification';
 import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -807,7 +805,8 @@ interface Props {
   post: TimelinePost;
   hideReplyContext?: boolean;
   isInThread?: boolean;
-  embedded?: boolean; // When true, delegates lightbox to parent via open-lightbox emit
+  /** Rendered inside a chat message's embed. */
+  embedded?: boolean;
   /** Show "Pinned" row (profile pinned section only; not home/local/public feeds) */
   showPinnedHeader?: boolean;
   /** Focused post in a thread: full timestamp and count summary. */
@@ -856,7 +855,6 @@ const emit = defineEmits<{
   'refresh': [postId: string];
   /** A refresh from the menu ended; the thread may hold new replies. */
   'replies-refreshed': [postId: string];
-  'open-lightbox': [url: string];
 }>();
 
 // Stores and composables
@@ -866,6 +864,7 @@ const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
 const toast = useToast();
 const postReactionsStore = usePostReactionsStore();
+const { open: openLightbox } = useLightbox();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostInteractions();
@@ -890,10 +889,6 @@ const isRefetchingContent = ref(false);
 const emojiTriggerRef = ref<HTMLElement>();
 const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
 const showEmojiPopup = ref(false);
-
-// Lightbox state
-const showLightbox = ref(false);
-const currentLightboxImage = ref<string>('');
 
 // Tooltip state for reaction tooltips
 const tooltip = ref({
@@ -1231,7 +1226,11 @@ const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbe
 const musicEmbeds = computed(() => postEmbeds.value
   .map((e: any) => ({ url: e.url as string, title: e.title as string | undefined, image: e.image as string | undefined, embed: musicFor(e) }))
   .filter((e): e is { url: string; title: string | undefined; image: string | undefined; embed: NonNullable<ReturnType<typeof musicFor>> } => !!e.embed));
-const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any)));
+// Links to Drive files of this instance render their file card, by the reader's access.
+const driveEmbeds = computed(() => postEmbeds.value
+  .map((e) => ({ url: e.url, link: driveLinkFromUrl(e.url) }))
+  .filter((e): e is { url: string; link: DriveLinkRef } => !!e.link));
+const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any) && !driveLinkFromUrl(e.url)));
 
 // When the post also has a media attachment, render link cards in the
 // `thumbnail` variant: a fixed-size horizontal card with a small image on
@@ -1240,6 +1239,9 @@ const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEm
 // site / title context without doubling the picture's footprint - same
 // pattern Mastodon and Misskey use. With no attachment present, fall back
 // to the full default card (image on top, full body).
+const isSocialEmbed = (embed: Record<string, unknown>): boolean =>
+  !!embed.social || (Array.isArray(embed.media) && embed.media.length > 0);
+
 const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
   (displayMediaAttachments.value as any[]).length > 0 ? 'thumbnail' : 'default'
 );
@@ -2368,16 +2370,7 @@ const handleHashtagClick = (tag: string) => {
 };
 
 const handleImageClick = (url: string) => {
-  if (props.embedded) {
-    emit('open-lightbox', url);
-    return;
-  }
-  currentLightboxImage.value = url;
-  showLightbox.value = true;
-};
-
-const closeLightbox = () => {
-  showLightbox.value = false;
+  openLightbox([{ url, type: 'image', alt: t('activitypub.mediaA11y.imageNoDescription') }], 0);
 };
 </script>
 
