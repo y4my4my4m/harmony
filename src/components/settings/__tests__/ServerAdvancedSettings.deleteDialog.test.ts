@@ -17,15 +17,30 @@ vi.mock('vue-i18n', async (importOriginal) => {
 const h = vi.hoisted(() => ({
   deleteServer: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
+  openServer: vi.fn(),
+  unsubscribeFromContext: vi.fn(async () => {}),
+  cleanup: vi.fn(),
+  servers: [] as Array<{ id: string }>,
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: h.push }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: h.push, replace: h.replace }) }))
 vi.mock('vue-toastification', () => ({ useToast: () => h.toast }))
 vi.mock('@/stores/server', () => ({ useServerStore: () => ({ deleteServer: h.deleteServer }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'owner' } } }) }))
 vi.mock('@/stores/useServerChannel', () => ({
-  useServerChannelStore: () => ({ fetchServersForUser: vi.fn(), servers: [] }),
+  useServerChannelStore: () => ({
+    get servers() { return h.servers },
+    _cleanupServerState: (id: string) => {
+      h.cleanup(id)
+      h.servers = h.servers.filter((s) => s.id !== id)
+    },
+  }),
+}))
+vi.mock('@/composables/useOpenServer', () => ({ useOpenServer: () => h.openServer }))
+vi.mock('@/composables/useUserData', () => ({
+  useUserData: () => ({ unsubscribeFromContext: h.unsubscribeFromContext }),
 }))
 
 enableAutoUnmount(afterEach)
@@ -69,6 +84,10 @@ beforeEach(() => {
   resetLayersForTests()
   h.deleteServer.mockReset()
   h.push.mockReset()
+  h.replace.mockReset()
+  h.openServer.mockReset()
+  h.cleanup.mockReset()
+  h.servers = []
 })
 
 describe('ServerAdvancedSettings delete-server dialog', () => {
@@ -179,6 +198,27 @@ describe('ServerAdvancedSettings delete-server dialog', () => {
     await flushPromises()
 
     expect(h.deleteServer).toHaveBeenCalledWith('srv-1', 'owner')
-    expect(h.push).toHaveBeenCalledWith('/dm')
+    expect(h.cleanup).toHaveBeenCalledWith('srv-1')
+    expect(h.replace).toHaveBeenCalledWith('/dm')
+    expect(h.push).not.toHaveBeenCalled()
+  })
+
+  it('drops the deleted server and replaces its settings with chat in a server that remains', async () => {
+    h.deleteServer.mockResolvedValue(true)
+    h.servers = [{ id: 'srv-1' }, { id: 'srv-2' }]
+    const wrapper = mountSettings()
+    await openDialog(wrapper)
+    const input = dialog()!.querySelector<HTMLInputElement>('input')!
+    input.value = SERVER_NAME
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+
+    press(input, 'Enter')
+    await flushPromises()
+
+    expect(h.unsubscribeFromContext).toHaveBeenCalledWith('srv-1')
+    expect(h.cleanup).toHaveBeenCalledWith('srv-1')
+    expect(h.openServer).toHaveBeenCalledWith('srv-2', null, { replace: true })
+    expect(h.push).not.toHaveBeenCalled()
   })
 })

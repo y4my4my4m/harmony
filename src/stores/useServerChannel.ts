@@ -13,6 +13,14 @@ import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { createServerFromTemplate as createServerFromTemplateRpc } from '@/services/serverTemplateService';
 import { updateServerNotificationSettings } from '@/services/notificationSettings';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
+import {
+  applyPrivacy,
+  getCategoryOverrides,
+  setCategoryPermissions,
+  syncChannelPermissions,
+  type CategoryPrivacy,
+} from '@/services/categoryPermissions';
+import { categoryHiddenFromMembers } from '@/utils/categoryVisibility';
 import { debug } from '@/utils/debug';
 import { pickServerSettings } from '@/utils/serverSettings';
 import type { ServerTemplate } from '@/utils/serverTemplate';
@@ -79,6 +87,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     categoryChannels: {} as Record<string, Channel[]>,
     /** Channels whose @everyone override denies VIEW_CHANNEL, keyed by channel id. */
     privateChannels: {} as Record<string, true>,
+    /** Categories whose template denies VIEW_CHANNEL to @everyone, keyed by category id. */
+    privateCategories: {} as Record<string, true>,
     currentServer: {} as Server,
     currentServerId: null as string | null,
     currentChannelId: null as string | null,
@@ -543,6 +553,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
       void this._loadPrivateChannels((channels || []).map((c: Channel) => c.id));
+      void this._loadPrivateCategories((categories || []).map((c: Category) => c.id));
     },
 
     /**
@@ -579,6 +590,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
       void this._loadPrivateChannels((channels || []).map((c: Channel) => c.id));
+      void this._loadPrivateCategories((categories || []).map((c: Category) => c.id));
     },
 
     /** Marks channels hidden from @everyone; the sidebar shows them as private. */
@@ -604,6 +616,61 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     isPrivateChannel(channelId: string): boolean {
       return this.privateChannels[channelId] === true;
+    },
+
+    /** Rereads which of the categories have a template denying VIEW_CHANNEL to @everyone. */
+    async _loadPrivateCategories(categoryIds: string[]): Promise<void> {
+      if (categoryIds.length === 0) return;
+      const { data, error } = await supabase
+        .from('channel_category_permission_overrides')
+        .select('category_id, deny_permissions, server_roles!inner(is_default)')
+        .in('category_id', categoryIds)
+        .eq('server_roles.is_default', true);
+      if (error) {
+        debug.warn('Private category lookup failed:', error.message);
+        return;
+      }
+      const next = { ...this.privateCategories };
+      for (const id of categoryIds) delete next[id];
+      // VIEW_CHANNEL is bit 1.
+      for (const row of data ?? []) {
+        if ((BigInt(row.deny_permissions ?? 0) & BigInt(2)) !== BigInt(0)) next[row.category_id] = true;
+      }
+      this.privateCategories = next;
+    },
+
+    isPrivateCategory(categoryId: string): boolean {
+      return this.privateCategories[categoryId] === true;
+    },
+
+    /** No channel of the category is open to @everyone: members without Manage Channels do not see it. */
+    isCategoryHiddenFromMembers(categoryId: string): boolean {
+      return categoryHiddenFromMembers(this.categoryChannels[categoryId], (id) => this.isPrivateChannel(id));
+    },
+
+    /**
+     * Writes the category's Private setting into its template. Channels synced with the
+     * category receive it; their private marks are reread.
+     */
+    async setCategoryPrivacy(categoryId: string, serverId: string, privacy: CategoryPrivacy): Promise<string[]> {
+      const { data: everyone, error } = await supabase
+        .from('server_roles')
+        .select('id')
+        .eq('server_id', serverId)
+        .eq('is_default', true)
+        .maybeSingle();
+      if (error) throw error;
+      if (!everyone?.id) throw new Error('Server has no @everyone role');
+      const current = await getCategoryOverrides(categoryId);
+      const synced = await setCategoryPermissions(categoryId, applyPrivacy(current, everyone.id, privacy));
+      await Promise.all([this._loadPrivateCategories([categoryId]), this._loadPrivateChannels(synced)]);
+      return synced;
+    },
+
+    /** Replaces a channel's overrides with its category's. */
+    async syncChannelPermissions(channelId: string): Promise<void> {
+      await syncChannelPermissions(channelId);
+      await this._loadPrivateChannels([channelId]);
     },
 
     /**
@@ -1002,7 +1069,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    async createCategory(name: string, serverId: string) {
+    /** Creates a category; a private one then receives its template. */
+    async createCategory(name: string, serverId: string, privacy?: CategoryPrivacy) {
+      const created = await this._createCategoryRow(name, serverId);
+      if (created && privacy?.isPrivate) {
+        await this.setCategoryPrivacy(created.id, serverId, privacy);
+      }
+      return created;
+    },
+
+    async _createCategoryRow(name: string, serverId: string) {
       try {
         debug.log('Creating category via service-like helper:', { name, serverId });
         
@@ -1609,7 +1685,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
     },
 
-    async updateChannel(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }): Promise<void> {
+    async updateChannel(channelData: { id: string; name?: string; description?: string | null; slowmode_seconds?: number }): Promise<void> {
       try {
         debug.log('Updating channel via service-like helper:', channelData.id);
         
@@ -1636,7 +1712,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     /**
      * Service-like helper: Update channel with enhanced error handling
      */
-    async _updateChannelHelper(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }) {
+    async _updateChannelHelper(channelData: { id: string; name?: string; description?: string | null; slowmode_seconds?: number }) {
       const updateData: any = {};
       if (channelData.name !== undefined) updateData.name = channelData.name;
       if (channelData.description !== undefined) updateData.description = channelData.description;
@@ -1681,7 +1757,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     /**
      * Fallback method for updating channel
      */
-    async _updateChannelFallback(channelData: { id: string; name?: string; description?: string; slowmode_seconds?: number }): Promise<void> {
+    async _updateChannelFallback(channelData: { id: string; name?: string; description?: string | null; slowmode_seconds?: number }): Promise<void> {
       const updateData: any = {};
       if (channelData.name !== undefined) updateData.name = channelData.name;
       if (channelData.description !== undefined) updateData.description = channelData.description;
@@ -1800,10 +1876,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
               this._handleChannelDelete(data);
               break;
             case 'category:insert':
-              this._handleCategoryInsert(data);
+              if (data.restricted) void this._reconcileRestrictedCategory(data);
+              else this._handleCategoryInsert(data);
               break;
             case 'category:update':
-              this._handleCategoryUpdate(data);
+              if (data.restricted) void this._reconcileRestrictedCategory(data);
+              else this._handleCategoryUpdate(data);
               break;
             case 'category:delete':
               this._handleCategoryDelete(data);
@@ -1841,6 +1919,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
             case 'permission_override:insert':
             case 'permission_override:update':
             case 'permission_override:delete':
+              window.dispatchEvent(new CustomEvent('server-structure:permission-change', { detail: data }));
+              this._scheduleVisibleChannelRefresh(serverId);
+              break;
+            case 'category_permission_override:insert':
+            case 'category_permission_override:update':
+            case 'category_permission_override:delete':
               window.dispatchEvent(new CustomEvent('server-structure:permission-change', { detail: data }));
               this._scheduleVisibleChannelRefresh(serverId);
               break;
@@ -1924,6 +2008,43 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     /**
+     * A category some member cannot see arrives without its row (broadcast_category_change
+     * sends ids only). channel_categories RLS decides whether this user sees it.
+     */
+    async _reconcileRestrictedCategory(payload: any): Promise<void> {
+      const id = payload.new?.id as string | undefined;
+      if (!id) return;
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        debug.error('Failed to refetch restricted category:', error);
+        return;
+      }
+
+      const existing = this.categories.find(c => c.id === id);
+      if (!data) {
+        // Channels still listed under it stay out of the orphan list.
+        if (existing) this.categories = this.categories.filter(c => c.id !== id);
+        return;
+      }
+      if (existing) this._handleCategoryUpdate({ new: data });
+      else this._handleCategoryInsert({ new: data });
+    },
+
+    /** A channel listed under a category this user has not loaded: the category is read back. */
+    _ensureCategoryListed(categoryId: string | null | undefined): void {
+      if (!categoryId || this.categories.some(c => c.id === categoryId)) return;
+      this._reconcileRestrictedCategory({ new: { id: categoryId } }).catch((error) => {
+        debug.warn('Category read-back failed:', error);
+      });
+    },
+
+    /**
      * Handle real-time channel INSERT
      */
     _handleChannelInsert(payload: any): void {
@@ -1939,6 +2060,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels.push(newChannel);
       
       if (newChannel.category) {
+        this._ensureCategoryListed(newChannel.category);
         if (!this.categoryChannels[newChannel.category]) {
           this.categoryChannels[newChannel.category] = [];
         }
@@ -1976,6 +2098,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
         
         if (updatedChannel.category) {
+          this._ensureCategoryListed(updatedChannel.category);
           if (!this.categoryChannels[updatedChannel.category]) {
             this.categoryChannels[updatedChannel.category] = [];
           }
@@ -2043,7 +2166,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.categories.push(newCategory);
       this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
       
-      this.categoryChannels[newCategory.id] = [];
+      // A channel read before its category is already listed under it.
+      this.categoryChannels[newCategory.id] ||= [];
     },
 
     /**

@@ -33,6 +33,8 @@ export interface LayerOptions {
   element: () => Element | null | undefined
   /** Called for Escape while topmost. */
   onEscape: () => void
+  /** False: the layer takes no Back entry (setLayerHistory). Default true. */
+  history?: boolean
 }
 
 interface Layer extends LayerOptions {
@@ -99,7 +101,7 @@ export function pushLayer(options: LayerOptions): () => void {
   }
   const layer: Layer = { ...options, id: nextId++ }
   layers.push(layer)
-  const releaseHistory = layerHistory?.({
+  const releaseHistory = options.history === false ? undefined : layerHistory?.({
     kind: layer.kind,
     close: () => layer.onEscape(),
     isOpen: () => layers.includes(layer),

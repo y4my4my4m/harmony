@@ -190,6 +190,8 @@ test('upload controls are in the tab order and open the file chooser', async ({ 
 test('channel permission overrides are Allow/Inherit/Deny radio groups changed with arrows', async ({ page }) => {
   test.setTimeout(180_000)
   await admin.from('channel_permission_overrides').delete().eq('channel_id', roomId)
+  // The Appearance test saves a custom palette for this user; the dialog is checked on the default theme.
+  await admin.from('profiles').update({ appearance_settings: null }).eq('id', owner.id)
   await signIn(page, owner)
   await openChannel(page, server.id, roomId)
 

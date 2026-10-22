@@ -16,6 +16,7 @@
 // history.go() is asynchronous: pushes and navigations wait for the popstates of pending
 // go() calls.
 
+import { nextTick } from 'vue'
 import type { Router, RouterHistory } from 'vue-router'
 import { setLayerHistory, type LayerKind } from '@/utils/a11y/layers'
 
@@ -76,6 +77,16 @@ function whenSettled(fn: () => void): void {
 
 function settled(): Promise<void> {
   return new Promise((resolve) => whenSettled(resolve))
+}
+
+/**
+ * Resolves once closed overlays' entries are gone: after Vue's pending flush (a dialog
+ * releases its layer in a post-flush watcher) and the popstates of the go() calls that drop
+ * them. A drop deferred behind another pop starts when that one settles, hence the loop.
+ */
+export async function overlayHistorySettled(): Promise<void> {
+  await nextTick()
+  while (pendingPops > 0) await settled()
 }
 
 /** Goes back `count` entries with router listeners paused. */

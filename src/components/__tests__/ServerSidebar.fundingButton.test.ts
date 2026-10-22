@@ -20,11 +20,12 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 
 const isMobileViewport = ref(false)
+// A getter: useLayoutState calls useViewport() while this module is still importing.
 vi.mock('@/composables/useViewport', () => ({
   useViewport: () => ({
     viewportWidth: ref(1440),
     viewportHeight: ref(900),
-    isMobileViewport,
+    get isMobileViewport() { return isMobileViewport },
     isTouchOnly: false,
     MOBILE_BREAKPOINT: 768,
   }),

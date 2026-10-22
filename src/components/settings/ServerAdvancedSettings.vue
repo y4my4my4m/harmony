@@ -178,6 +178,8 @@ import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useOpenServer } from '@/composables/useOpenServer'
+import { useUserData } from '@/composables/useUserData'
 
 interface ServerAdvancedPermissions {
   canDeleteServer: boolean
@@ -200,6 +202,8 @@ const toast = useToast()
 const serverStore = useServerStore()
 const authStore = useAuthStore()
 const serverChannelStore = useServerChannelStore()
+const openServer = useOpenServer()
+const { unsubscribeFromContext } = useUserData()
 
 // State
 const showDeleteModal = ref(false)
@@ -271,18 +275,18 @@ const confirmDeleteServer = async () => {
       toast.success(t('server.deleteServerDone'))
       deleting.value = false
       hideDeleteConfirmation()
-      
-      await serverChannelStore.fetchServersForUser(userId)
-      
-      const availableServers = serverChannelStore.servers
-      if (availableServers.length > 0) {
-        // Navigate to the first available server
-        const nextServer = availableServers[0]
-        router.push(`/server/${nextServer.id}`)
-      } else {
-        // No servers left, go to home/DMs
-        router.push('/dm')
-      }
+
+      // The store and the rail drop the server here, as on leaving it; no realtime
+      // event is waited for.
+      const deletedId = props.serverId
+      await unsubscribeFromContext(deletedId).catch((error) => debug.warn('Unsubscribe after delete failed:', error))
+      serverChannelStore._cleanupServerState(deletedId)
+
+      // Chat in a server that remains, else DMs. Replace: Back must not reopen the
+      // deleted server's settings.
+      const nextServer = serverChannelStore.servers[0]
+      if (nextServer) await openServer(nextServer.id, null, { replace: true })
+      else await router.replace('/dm')
     } else {
       throw new Error(t('server.deleteServerFailed'))
     }

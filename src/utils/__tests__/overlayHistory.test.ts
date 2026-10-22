@@ -19,7 +19,7 @@ interface Overlay {
   closeRequests: () => number
 }
 
-function open(kind: LayerKind, opts: { refuseClose?: boolean } = {}): Overlay {
+function open(kind: LayerKind, opts: { refuseClose?: boolean; history?: boolean } = {}): Overlay {
   let remove: (() => void) | null = null
   let requests = 0
   const close = () => {
@@ -33,6 +33,7 @@ function open(kind: LayerKind, opts: { refuseClose?: boolean } = {}): Overlay {
       requests++
       if (!opts.refuseClose) close()
     },
+    history: opts.history,
   })
   return { close, isOpen: () => remove !== null, closeRequests: () => requests }
 }
@@ -80,6 +81,18 @@ describe('overlay history', () => {
 
     await back()
     expect(path()).toBe('/b')
+  })
+
+  it('a layer opened with history: false takes no entry; Back leaves the page', async () => {
+    const before = window.history.length
+    const drawer = open('drawer', { history: false })
+    await settle()
+    expect(window.history.length).toBe(before)
+    expect(overlayKey()).toBeUndefined()
+
+    await back()
+    expect(path()).toBe('/b')
+    expect(drawer.isOpen()).toBe(true)
   })
 
   it('drops the entry of an overlay closed another way, so Back then leaves the page', async () => {

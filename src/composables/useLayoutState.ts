@@ -22,6 +22,14 @@ export function isMobileLayout(): boolean {
   return isMobile.value
 }
 
+/** Closes the mobile drawers and the profile overlay; a desktop layout keeps its columns. */
+export function closeMobileDrawers(): void {
+  if (!isMobile.value) return
+  leftSidebarOpen.value = false
+  rightSidebarOpen.value = false
+  mobileProfileOpen.value = false
+}
+
 // Mobile drag gesture state
 const isDragging = ref(false)
 const dragDirection = ref<'left' | 'right' | null>(null)
@@ -320,12 +328,7 @@ export function useLayoutState() {
     debug.log('toggleMobileProfile new state:', mobileProfileOpen.value)
   }
 
-  const closeMobileSidebars = () => {
-    if (!isMobile.value) return
-    leftSidebarOpen.value = false
-    rightSidebarOpen.value = false
-    mobileProfileOpen.value = false
-  }
+  const closeMobileSidebars = closeMobileDrawers
 
   const openLeftSidebar = () => {
     if (isMobile.value) {
