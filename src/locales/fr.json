@@ -6796,9 +6796,6 @@
       "title": "Partager",
       "linkTitle": "Toute personne ayant le lien",
       "linkOn": "Toute personne ayant le lien peut le voir et le télécharger.",
-      "linkOff": "Seulement les personnes ci-dessous et les endroits où vous l'avez envoyé.",
-      "copy": "Copier",
-      "copied": "Copié",
       "expires": "Expiration du lien",
       "never": "Jamais",
       "days": "Dans {count} jour | Dans {count} jours",
@@ -6823,9 +6820,17 @@
         "channel": "Salon",
         "link": "Lien"
       },
-      "accessLinkTitle": "Lien pour les personnes ayant accès",
       "accessLinkHint": "S'ouvre uniquement pour les personnes qui voient déjà ce fichier.",
-      "publicLinkLabel": "Lien public, s'ouvre pour tout le monde"
+      "linkHeading": "Lien",
+      "linkLabel": "Lien vers ce fichier",
+      "generalAccess": "Accès général",
+      "accessRestricted": "Restreint",
+      "showOwner": "Afficher mon nom sur la page du lien",
+      "showOwnerHint": "Les personnes qui ouvrent le lien voient votre nom et peuvent ouvrir votre profil.",
+      "resetLink": "Réinitialiser le lien",
+      "resetTitle": "Réinitialiser le lien ?",
+      "resetText": "Le lien actuel cesse de fonctionner pour tout le monde, y compris là où il a déjà été publié. Les personnes qui voient le fichier peuvent copier le nouveau lien.",
+      "until": "Jusqu'au {date}"
     },
     "preview": {
       "previous": "Fichier précédent",
@@ -6866,7 +6871,7 @@
       "missingText": "Il a expiré, ou son propriétaire a arrêté de partager le fichier.",
       "sharedBy": "Partagé par {name}",
       "expires": "Expiration du lien : {date}",
-      "footer": "Partagé depuis {instance}"
+      "poweredBy": "Propulsé par {harmony} sur {instance}"
     },
     "card": {
       "restrictedTitle": "Fichier restreint",
@@ -6874,7 +6879,6 @@
       "gone": "Ce fichier n'est plus disponible.",
       "view": "Voir {name}",
       "play": "Lire {name}",
-      "open": "Ouvrir {name}",
       "download": "Télécharger {name}"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "Réessayer",
       "yours": "Votre fichier",
       "ownedBy": "Appartient à {name}",
-      "trashed": "Dans votre corbeille. Vous seul pouvez l’ouvrir."
+      "trashed": "Dans votre corbeille. Vous seul pouvez l’ouvrir.",
+      "openInDrive": "Ouvrir dans le Drive"
     },
     "offer": {
       "channel": "Les membres de {channel} ne peuvent pas ouvrir ce fichier. Le partager avec le salon ?",
@@ -6897,6 +6902,10 @@
       "share": "Partager",
       "sendAnyway": "Envoyer quand même",
       "shared": "Fichier partagé"
+    },
+    "attachment": {
+      "openInDrive": "Ouvrir dans le Drive",
+      "openNamedInDrive": "Ouvrir {name} dans le Drive"
     }
   },
   "support": {

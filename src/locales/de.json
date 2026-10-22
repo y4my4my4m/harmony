@@ -6796,9 +6796,6 @@
       "title": "Teilen",
       "linkTitle": "Alle mit dem Link",
       "linkOn": "Alle mit dem Link können ansehen und herunterladen.",
-      "linkOff": "Nur die Personen unten und die Orte, an die du sie gesendet hast.",
-      "copy": "Kopieren",
-      "copied": "Kopiert",
       "expires": "Link läuft ab",
       "never": "Nie",
       "days": "In {count} Tag | In {count} Tagen",
@@ -6823,9 +6820,17 @@
         "channel": "Kanal",
         "link": "Link"
       },
-      "accessLinkTitle": "Link für Personen mit Zugriff",
       "accessLinkHint": "Öffnet sich nur für Personen, die diese Datei bereits sehen können.",
-      "publicLinkLabel": "Öffentlicher Link, öffnet sich für alle"
+      "linkHeading": "Link",
+      "linkLabel": "Link zu dieser Datei",
+      "generalAccess": "Allgemeiner Zugriff",
+      "accessRestricted": "Eingeschränkt",
+      "showOwner": "Meinen Namen auf der Linkseite zeigen",
+      "showOwnerHint": "Wer den Link öffnet, sieht deinen Namen und kann dein Profil öffnen.",
+      "resetLink": "Link zurücksetzen",
+      "resetTitle": "Link zurücksetzen?",
+      "resetText": "Der aktuelle Link funktioniert dann für niemanden mehr, auch dort nicht, wo er schon gepostet wurde. Wer die Datei sehen kann, kann den neuen Link kopieren.",
+      "until": "Bis {date}"
     },
     "preview": {
       "previous": "Vorherige Datei",
@@ -6866,7 +6871,7 @@
       "missingText": "Er ist abgelaufen, oder der Besitzer teilt die Datei nicht mehr.",
       "sharedBy": "Geteilt von {name}",
       "expires": "Link läuft ab: {date}",
-      "footer": "Geteilt über {instance}"
+      "poweredBy": "Betrieben mit {harmony} auf {instance}"
     },
     "card": {
       "restrictedTitle": "Eingeschränkte Datei",
@@ -6874,7 +6879,6 @@
       "gone": "Diese Datei ist nicht mehr verfügbar.",
       "view": "{name} ansehen",
       "play": "{name} abspielen",
-      "open": "{name} öffnen",
       "download": "{name} herunterladen"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "Erneut versuchen",
       "yours": "Deine Datei",
       "ownedBy": "Gehört {name}",
-      "trashed": "In deinem Papierkorb. Nur du kannst sie öffnen."
+      "trashed": "In deinem Papierkorb. Nur du kannst sie öffnen.",
+      "openInDrive": "In Drive öffnen"
     },
     "offer": {
       "channel": "Personen in {channel} können diese Datei nicht öffnen. Mit dem Kanal teilen?",
@@ -6897,6 +6902,10 @@
       "share": "Teilen",
       "sendAnyway": "Trotzdem senden",
       "shared": "Datei geteilt"
+    },
+    "attachment": {
+      "openInDrive": "In Drive öffnen",
+      "openNamedInDrive": "{name} in Drive öffnen"
     }
   },
   "support": {

@@ -6796,9 +6796,6 @@
       "title": "分享",
       "linkTitle": "任何拥有链接的人",
       "linkOn": "任何拥有链接的人都可以查看和下载。",
-      "linkOff": "仅限下方的人员和你发送过的地方。",
-      "copy": "复制",
-      "copied": "已复制",
       "expires": "链接过期时间",
       "never": "永不",
       "days": "{count} 天后 | {count} 天后",
@@ -6823,9 +6820,17 @@
         "channel": "频道",
         "link": "链接"
       },
-      "accessLinkTitle": "有权访问者的链接",
       "accessLinkHint": "只有已能查看此文件的人才能打开。",
-      "publicLinkLabel": "公开链接，任何人都能打开"
+      "linkHeading": "链接",
+      "linkLabel": "此文件的链接",
+      "generalAccess": "常规访问权限",
+      "accessRestricted": "受限",
+      "showOwner": "在链接页面上显示我的名字",
+      "showOwnerHint": "打开链接的人会看到你的名字，并可以打开你的个人资料。",
+      "resetLink": "重置链接",
+      "resetTitle": "要重置链接吗？",
+      "resetText": "当前链接将对所有人失效，包括已经发布过的地方。能查看此文件的人可以复制新链接。",
+      "until": "至 {date}"
     },
     "preview": {
       "previous": "上一个文件",
@@ -6866,7 +6871,7 @@
       "missingText": "链接已过期，或文件所有者已停止分享。",
       "sharedBy": "由 {name} 分享",
       "expires": "链接将于 {date} 过期",
-      "footer": "分享自 {instance}"
+      "poweredBy": "由 {instance} 上的 {harmony} 提供支持"
     },
     "card": {
       "restrictedTitle": "受限文件",
@@ -6874,7 +6879,6 @@
       "gone": "此文件已不可用。",
       "view": "查看 {name}",
       "play": "播放 {name}",
-      "open": "打开 {name}",
       "download": "下载 {name}"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "重试",
       "yours": "你的文件",
       "ownedBy": "所有者：{name}",
-      "trashed": "在你的回收站中，只有你能打开。"
+      "trashed": "在你的回收站中，只有你能打开。",
+      "openInDrive": "在云盘中打开"
     },
     "offer": {
       "channel": "{channel} 中的成员无法打开此文件。要与该频道共享吗？",
@@ -6897,6 +6902,10 @@
       "share": "共享",
       "sendAnyway": "仍然发送",
       "shared": "文件已共享"
+    },
+    "attachment": {
+      "openInDrive": "在云盘中打开",
+      "openNamedInDrive": "在云盘中打开 {name}"
     }
   },
   "support": {

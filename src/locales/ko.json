@@ -6796,9 +6796,6 @@
       "title": "공유",
       "linkTitle": "링크가 있는 모든 사용자",
       "linkOn": "링크가 있는 사람은 누구나 보고 다운로드할 수 있습니다.",
-      "linkOff": "아래 사용자와 파일을 보낸 곳에서만 볼 수 있습니다.",
-      "copy": "복사",
-      "copied": "복사됨",
       "expires": "링크 만료",
       "never": "만료 없음",
       "days": "{count}일 후 | {count}일 후",
@@ -6823,9 +6820,17 @@
         "channel": "채널",
         "link": "링크"
       },
-      "accessLinkTitle": "접근 권한이 있는 사람용 링크",
       "accessLinkHint": "이 파일을 이미 볼 수 있는 사람만 열 수 있습니다.",
-      "publicLinkLabel": "공개 링크, 누구나 열 수 있음"
+      "linkHeading": "링크",
+      "linkLabel": "이 파일의 링크",
+      "generalAccess": "일반 액세스",
+      "accessRestricted": "제한됨",
+      "showOwner": "링크 페이지에 내 이름 표시",
+      "showOwnerHint": "링크를 연 사람에게 내 이름이 표시되고 내 프로필을 열 수 있습니다.",
+      "resetLink": "링크 재설정",
+      "resetTitle": "링크를 재설정할까요?",
+      "resetText": "이미 게시된 곳을 포함해 현재 링크는 누구에게도 작동하지 않게 됩니다. 파일을 볼 수 있는 사람은 새 링크를 복사할 수 있습니다.",
+      "until": "{date}까지"
     },
     "preview": {
       "previous": "이전 파일",
@@ -6866,7 +6871,7 @@
       "missingText": "링크가 만료되었거나 소유자가 파일 공유를 중지했습니다.",
       "sharedBy": "{name}님이 공유함",
       "expires": "링크 만료: {date}",
-      "footer": "{instance}에서 공유됨"
+      "poweredBy": "{instance}의 {harmony} 기반"
     },
     "card": {
       "restrictedTitle": "제한된 파일",
@@ -6874,7 +6879,6 @@
       "gone": "이 파일은 더 이상 사용할 수 없습니다.",
       "view": "{name} 보기",
       "play": "{name} 재생",
-      "open": "{name} 열기",
       "download": "{name} 다운로드"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "다시 시도",
       "yours": "내 파일",
       "ownedBy": "소유자: {name}",
-      "trashed": "휴지통에 있습니다. 나만 열 수 있습니다."
+      "trashed": "휴지통에 있습니다. 나만 열 수 있습니다.",
+      "openInDrive": "드라이브에서 열기"
     },
     "offer": {
       "channel": "{channel}의 사람들은 이 파일을 열 수 없습니다. 채널과 공유할까요?",
@@ -6897,6 +6902,10 @@
       "share": "공유",
       "sendAnyway": "그래도 보내기",
       "shared": "파일을 공유했습니다"
+    },
+    "attachment": {
+      "openInDrive": "드라이브에서 열기",
+      "openNamedInDrive": "드라이브에서 {name} 열기"
     }
   },
   "support": {

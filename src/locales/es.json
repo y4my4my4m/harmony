@@ -6796,9 +6796,6 @@
       "title": "Compartir",
       "linkTitle": "Cualquiera con el enlace",
       "linkOn": "Cualquiera con el enlace puede verlo y descargarlo.",
-      "linkOff": "Solo las personas de abajo y los lugares donde lo enviaste.",
-      "copy": "Copiar",
-      "copied": "Copiado",
       "expires": "El enlace caduca",
       "never": "Nunca",
       "days": "En {count} día | En {count} días",
@@ -6823,9 +6820,17 @@
         "channel": "Canal",
         "link": "Enlace"
       },
-      "accessLinkTitle": "Enlace para quienes tienen acceso",
       "accessLinkHint": "Solo se abre para quienes ya pueden ver este archivo.",
-      "publicLinkLabel": "Enlace público, se abre para cualquiera"
+      "linkHeading": "Enlace",
+      "linkLabel": "Enlace a este archivo",
+      "generalAccess": "Acceso general",
+      "accessRestricted": "Restringido",
+      "showOwner": "Mostrar mi nombre en la página del enlace",
+      "showOwnerHint": "Quien abra el enlace verá tu nombre y podrá abrir tu perfil.",
+      "resetLink": "Restablecer enlace",
+      "resetTitle": "¿Restablecer el enlace?",
+      "resetText": "El enlace actual deja de funcionar para todos, también donde ya se publicó. Quienes pueden ver el archivo pueden copiar el enlace nuevo.",
+      "until": "Hasta el {date}"
     },
     "preview": {
       "previous": "Archivo anterior",
@@ -6866,7 +6871,7 @@
       "missingText": "Caducó o su propietario dejó de compartir el archivo.",
       "sharedBy": "Compartido por {name}",
       "expires": "El enlace caduca {date}",
-      "footer": "Compartido desde {instance}"
+      "poweredBy": "Con la tecnología de {harmony} en {instance}"
     },
     "card": {
       "restrictedTitle": "Archivo restringido",
@@ -6874,7 +6879,6 @@
       "gone": "Este archivo ya no está disponible.",
       "view": "Ver {name}",
       "play": "Reproducir {name}",
-      "open": "Abrir {name}",
       "download": "Descargar {name}"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "Reintentar",
       "yours": "Tu archivo",
       "ownedBy": "Propiedad de {name}",
-      "trashed": "En tu papelera. Solo tú puedes abrirlo."
+      "trashed": "En tu papelera. Solo tú puedes abrirlo.",
+      "openInDrive": "Abrir en Drive"
     },
     "offer": {
       "channel": "Las personas de {channel} no pueden abrir este archivo. ¿Compartirlo con el canal?",
@@ -6897,6 +6902,10 @@
       "share": "Compartir",
       "sendAnyway": "Enviar de todos modos",
       "shared": "Archivo compartido"
+    },
+    "attachment": {
+      "openInDrive": "Abrir en Drive",
+      "openNamedInDrive": "Abrir {name} en Drive"
     }
   },
   "support": {

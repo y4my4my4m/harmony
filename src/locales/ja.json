@@ -6796,9 +6796,6 @@
       "title": "共有",
       "linkTitle": "リンクを知っている全員",
       "linkOn": "リンクを知っている人は誰でも表示とダウンロードができます。",
-      "linkOff": "下のユーザーと送信先の場所のみ。",
-      "copy": "コピー",
-      "copied": "コピーしました",
       "expires": "リンクの有効期限",
       "never": "なし",
       "days": "{count} 日後 | {count} 日後",
@@ -6823,9 +6820,17 @@
         "channel": "チャンネル",
         "link": "リンク"
       },
-      "accessLinkTitle": "アクセス権のある人向けのリンク",
       "accessLinkHint": "このファイルをすでに見られる人だけが開けます。",
-      "publicLinkLabel": "公開リンク（誰でも開けます）"
+      "linkHeading": "リンク",
+      "linkLabel": "このファイルへのリンク",
+      "generalAccess": "一般的なアクセス",
+      "accessRestricted": "制限付き",
+      "showOwner": "リンクページに自分の名前を表示",
+      "showOwnerHint": "リンクを開いた人にあなたの名前が表示され、プロフィールを開けます。",
+      "resetLink": "リンクをリセット",
+      "resetTitle": "リンクをリセットしますか？",
+      "resetText": "現在のリンクは、すでに投稿された場所も含め、誰に対しても使えなくなります。ファイルを見られる人は新しいリンクをコピーできます。",
+      "until": "{date} まで"
     },
     "preview": {
       "previous": "前のファイル",
@@ -6866,7 +6871,7 @@
       "missingText": "期限が切れたか、所有者がファイルの共有を停止しました。",
       "sharedBy": "{name} が共有",
       "expires": "リンクの有効期限：{date}",
-      "footer": "{instance} から共有"
+      "poweredBy": "{instance} の {harmony} で提供"
     },
     "card": {
       "restrictedTitle": "制限されたファイル",
@@ -6874,7 +6879,6 @@
       "gone": "このファイルは利用できなくなりました。",
       "view": "{name} を表示",
       "play": "{name} を再生",
-      "open": "{name} を開く",
       "download": "{name} をダウンロード"
     },
     "filePage": {
@@ -6886,7 +6890,8 @@
       "retry": "再試行",
       "yours": "あなたのファイル",
       "ownedBy": "所有者: {name}",
-      "trashed": "ゴミ箱にあります。開けるのはあなただけです。"
+      "trashed": "ゴミ箱にあります。開けるのはあなただけです。",
+      "openInDrive": "ドライブで開く"
     },
     "offer": {
       "channel": "{channel} のメンバーはこのファイルを開けません。チャンネルと共有しますか？",
@@ -6897,6 +6902,10 @@
       "share": "共有",
       "sendAnyway": "このまま送信",
       "shared": "ファイルを共有しました"
+    },
+    "attachment": {
+      "openInDrive": "ドライブで開く",
+      "openNamedInDrive": "{name} をドライブで開く"
     }
   },
   "support": {

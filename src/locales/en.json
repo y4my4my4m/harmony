@@ -6719,9 +6719,6 @@
       "title": "Share",
       "linkTitle": "Anyone with the link",
       "linkOn": "Anyone with the link can view and download.",
-      "linkOff": "Only the people below and the places you sent it.",
-      "copy": "Copy",
-      "copied": "Copied",
       "expires": "Link expires",
       "never": "Never",
       "days": "In {count} day | In {count} days",
@@ -6746,9 +6743,17 @@
         "channel": "Channel",
         "link": "Link"
       },
-      "accessLinkTitle": "Link for people with access",
       "accessLinkHint": "Opens only for people who can already see this file.",
-      "publicLinkLabel": "Public link, opens for anyone"
+      "linkHeading": "Link",
+      "linkLabel": "Link to this file",
+      "generalAccess": "General access",
+      "accessRestricted": "Restricted",
+      "showOwner": "Show my name on the link page",
+      "showOwnerHint": "People who open the link see your name and can open your profile.",
+      "resetLink": "Reset link",
+      "resetTitle": "Reset the link?",
+      "resetText": "The current link stops working for everyone, including where it was already posted. People who can see the file can copy the new link.",
+      "until": "Until {date}"
     },
     "preview": {
       "previous": "Previous file",
@@ -6789,7 +6794,7 @@
       "missingText": "It expired, or its owner stopped sharing the file.",
       "sharedBy": "Shared by {name}",
       "expires": "Link expires {date}",
-      "footer": "Shared from {instance}"
+      "poweredBy": "Powered by {harmony} on {instance}"
     },
     "card": {
       "restrictedTitle": "Restricted file",
@@ -6797,7 +6802,6 @@
       "gone": "This file is no longer available.",
       "view": "View {name}",
       "play": "Play {name}",
-      "open": "Open {name}",
       "download": "Download {name}"
     },
     "filePage": {
@@ -6809,7 +6813,8 @@
       "retry": "Try again",
       "yours": "Your file",
       "ownedBy": "Owned by {name}",
-      "trashed": "In your trash. Only you can open it."
+      "trashed": "In your trash. Only you can open it.",
+      "openInDrive": "Open in Drive"
     },
     "offer": {
       "channel": "People in {channel} can't open this file. Share it with the channel?",
@@ -6820,6 +6825,10 @@
       "share": "Share",
       "sendAnyway": "Send anyway",
       "shared": "File shared"
+    },
+    "attachment": {
+      "openInDrive": "Open in Drive",
+      "openNamedInDrive": "Open {name} in Drive"
     }
   },
   "activities": {
