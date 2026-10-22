@@ -25,13 +25,16 @@ import { PUBLIC_AUDIENCE, federateContentParts } from '../utils/privateMedia.js'
 import { withoutPollParts } from '../utils/polls.js';
 import {
   canReadServer,
+  historyFilter,
   isPublicView,
   loadGroupAccess,
+  loadHistoryCutoffs,
   readableChannelIds,
   verifiedSigner,
   type GroupAccess,
 } from './groupAccess.js';
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
+import { loadSystemPeople, systemNote } from './systemNotes.js';
 
 const router = Router();
 
@@ -274,13 +277,11 @@ router.get(
     const allChannels = channelsData || [];
     const listedChannels = allChannels.filter(c => readable.has(c.id));
 
-    // A category is listed when it holds a listed channel or holds none at
-    // all; one holding only hidden channels would name what it hides.
+    // A category is listed when it holds a listed channel, as
+    // channel_categories RLS shows it to a local member: an empty or private
+    // category would name what it hides.
     const listedCategoryIds = new Set(listedChannels.map(c => c.category).filter(Boolean));
-    const occupiedCategoryIds = new Set(allChannels.map(c => c.category).filter(Boolean));
-    const listedCategories = (categories || []).filter(
-      cat => listedCategoryIds.has(cat.id) || !occupiedCategoryIds.has(cat.id),
-    );
+    const listedCategories = (categories || []).filter(cat => listedCategoryIds.has(cat.id));
 
     // Categories are exported as type 2 alongside channels.
     const channels = [
@@ -421,12 +422,23 @@ router.get(
 
     const shareable = isPublicView(access, [channelId]);
 
+    // Without READ_MESSAGE_HISTORY the reader gets messages from its membership on, as a local
+    // member does from its join.
+    const cutoffs = await loadHistoryCutoffs(serverId, access);
+    if (!cutoffs) {
+      notFound(res, 'Channel');
+      return;
+    }
+    const since = cutoffs.get(channelId);
+
     if (!page) {
-      const { count } = await supabase
+      let countQuery = supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('channel_id', channelId)
         .eq('is_deleted', false);
+      if (since !== undefined) countQuery = countQuery.gte('created_at', since);
+      const { count } = await countQuery;
 
       res.setHeader('Content-Type', 'application/activity+json');
       // 10s: live messages are pushed; this absorbs simultaneous backfills.
@@ -444,22 +456,31 @@ router.get(
     const limit = 50;
     const offset = (page - 1) * limit;
 
-    const { data: messages } = await supabase
+    let pageQuery = supabase
       .from('messages')
       .select(`
         *,
         author:profiles!messages_user_id_fkey(id, username, federated_id, display_name, avatar_url)
       `)
       .eq('channel_id', channelId)
-      .eq('is_deleted', false)
+      .eq('is_deleted', false);
+    if (since !== undefined) pageQuery = pageQuery.gte('created_at', since);
+    const { data: messages } = await pageQuery
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    const items = (messages || []).map((message) => {
+    // A system row of a type without a Note (an AutoMod alert) is left out of the page.
+    const rows = messages || [];
+    const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
+    const items = rows.flatMap((message: any) => {
+      if (message.is_system) {
+        const note = systemNote(message, { hostDomain, serverId, channelId, people });
+        return note ? [note] : [];
+      }
       const authorApId = message.author?.federated_id ||
         `https://${hostDomain}/users/${message.author?.username}`;
 
-      return {
+      return [{
         type: 'Note',
         id: `https://${hostDomain}/messages/${message.id}`,
         attributedTo: authorApId,
@@ -472,19 +493,19 @@ router.get(
         inReplyTo: message.reply_to
           ? `https://${hostDomain}/messages/${message.reply_to}`
           : undefined,
-      };
+      }];
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
     // 10s: live messages are pushed; pages serve backfill and sync.
     setCaching(res, shareable, 'public, max-age=10', false);
     res.json({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': ['https://www.w3.org/ns/activitystreams', { 'harmony': 'https://harmonyapp.dev/ns#' }],
       id: `${messagesUrl}?page=${page}`,
       type: 'OrderedCollectionPage',
       partOf: messagesUrl,
       orderedItems: items,
-      next: items.length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
+      next: rows.length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
       prev: page > 1 ? `${messagesUrl}?page=${page - 1}` : undefined,
     });
   })
@@ -594,14 +615,16 @@ router.get(
 
     const channelIds = [...readableChannelIds(access)];
     const shareable = isPublicView(access, channelIds);
+    const cutoffs = await loadHistoryCutoffs(serverId, access);
+    const inHistory = cutoffs ? historyFilter(channelIds, cutoffs) : null;
 
     if (!page) {
       let total = 0;
-      if (channelIds.length > 0) {
+      if (inHistory) {
         const { count } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
-          .in('channel_id', channelIds)
+          .or(inHistory)
           .eq('is_deleted', false);
         total = count || 0;
       }
@@ -623,7 +646,7 @@ router.get(
     const offset = (page - 1) * limit;
 
     let messages: any[] = [];
-    if (channelIds.length > 0) {
+    if (inHistory) {
       const { data } = await supabase
         .from('messages')
         .select(`
@@ -631,17 +654,37 @@ router.get(
           channel:channels!messages_channel_id_fkey(id, name),
           author:profiles!messages_user_id_fkey(id, username, federated_id, display_name)
         `)
-        .in('channel_id', channelIds)
+        .or(inHistory)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
       messages = data || [];
     }
 
-    const items = messages.map((message: any) => {
+    const people = await loadSystemPeople(supabase, messages.filter((m: any) => m.is_system));
+    const items = messages.flatMap((message: any) => {
+      const channelUrl = `${serverUrl}/channels/${message.channel?.id}`;
+      if (message.is_system) {
+        const note = systemNote(message, {
+          hostDomain, serverId, channelId: message.channel?.id, people, html: true,
+        });
+        if (!note) return [];
+        return [{
+          '@context': [
+            'https://www.w3.org/ns/activitystreams',
+            { 'harmony': 'https://harmonyapp.dev/ns#' },
+          ],
+          id: `${serverUrl}/activities/${message.id}`,
+          type: 'Create',
+          actor: serverUrl,
+          published: message.created_at,
+          to: [`${serverUrl}/members`],
+          cc: [],
+          object: { ...note, 'harmony:channelName': message.channel?.name, 'harmony:serverId': serverId },
+        }];
+      }
       const authorApId = message.author?.federated_id ||
         `https://${hostDomain}/users/${message.author?.username}`;
-      const channelUrl = `${serverUrl}/channels/${message.channel?.id}`;
 
       const contentHtml = Array.isArray(message.content)
         ? message.content.map((c: any) => {
@@ -651,7 +694,7 @@ router.get(
           }).join('')
         : '';
 
-      return {
+      return [{
         '@context': [
           'https://www.w3.org/ns/activitystreams',
           { 'harmony': 'https://harmonyapp.dev/ns#' },
@@ -677,7 +720,7 @@ router.get(
             ? `https://${hostDomain}/messages/${message.reply_to}`
             : undefined,
         },
-      };
+      }];
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -689,7 +732,7 @@ router.get(
       type: 'OrderedCollectionPage',
       partOf: outboxUrl,
       orderedItems: items,
-      next: items.length === limit ? `${outboxUrl}?page=${page + 1}` : undefined,
+      next: messages.length === limit ? `${outboxUrl}?page=${page + 1}` : undefined,
       prev: page > 1 ? `${outboxUrl}?page=${page - 1}` : undefined,
     });
   })

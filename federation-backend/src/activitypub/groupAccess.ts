@@ -12,6 +12,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { SignatureService } from './SignatureService.js';
+import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
 export interface GroupAccess {
   isPublic: boolean;
@@ -23,6 +24,8 @@ export interface GroupAccess {
   memberChannelIds: Set<string>;
   /** False: the server is closed to other instances, members from them included. */
   federationEnabled: boolean;
+  /** Verified signer the access was computed for; null for an anonymous reader. */
+  signer: string | null;
 }
 
 /**
@@ -105,6 +108,7 @@ export async function loadGroupAccess(serverId: string, actorUrl: string | null)
       everyoneChannelIds: new Set<string>(),
       memberChannelIds: new Set<string>(),
       federationEnabled: false,
+      signer: actorUrl,
     };
   }
 
@@ -114,7 +118,54 @@ export async function loadGroupAccess(serverId: string, actorUrl: string | null)
     everyoneChannelIds: new Set<string>(row.everyone_channel_ids ?? []),
     memberChannelIds: new Set<string>(row.member_channel_ids ?? []),
     federationEnabled: true,
+    signer: actorUrl,
   };
+}
+
+/**
+ * Earliest created_at served to this reader, per channel it holds without
+ * READ_MESSAGE_HISTORY (public.federation_history_cutoffs): a member from its membership on,
+ * anyone else nothing ('infinity'). A channel absent from the map is served whole. Null when
+ * the lookup fails; callers then serve no messages.
+ */
+export async function loadHistoryCutoffs(serverId: string, access: GroupAccess): Promise<Map<string, string> | null> {
+  const { data, error } = await getSupabaseClient().rpc('federation_history_cutoffs', {
+    p_server_id: serverId,
+    p_actor_ap_id: access.memberId ? access.signer : null,
+  });
+  if (error) {
+    logger.error(`federation_history_cutoffs failed for server ${serverId}: ${error.message}`);
+    return null;
+  }
+  const map = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  return new Map(Object.entries(map).filter((e): e is [string, string] => typeof e[1] === 'string'));
+}
+
+/** A message dated `createdAt` is within the reader's history of its channel. */
+export function withinHistory(cutoffs: Map<string, string>, channelId: string, createdAt: string): boolean {
+  const since = cutoffs.get(channelId);
+  if (since === undefined) return true;
+  const at = Date.parse(createdAt);
+  const floor = Date.parse(since);
+  return Number.isFinite(at) && Number.isFinite(floor) && at >= floor;
+}
+
+/**
+ * PostgREST `or` tree over messages of `channelIds` within the reader's history, or null when
+ * no channel has any. Values are quoted: timestamps carry `:` and `+`.
+ */
+export function historyFilter(channelIds: Iterable<string>, cutoffs: Map<string, string>): string | null {
+  const whole: string[] = [];
+  const clauses: string[] = [];
+  for (const id of channelIds) {
+    const since = cutoffs.get(id);
+    if (since === undefined) whole.push(pgrstOrValue(id));
+    else if (Number.isFinite(Date.parse(since))) {
+      clauses.push(`and(channel_id.eq.${pgrstOrValue(id)},created_at.gte.${pgrstOrValue(since)})`);
+    }
+  }
+  if (whole.length > 0) clauses.unshift(`channel_id.in.(${whole.join(',')})`);
+  return clauses.length > 0 ? clauses.join(',') : null;
 }
 
 /** The caller may read the server's collections at all. */

@@ -4,7 +4,6 @@
 --     storage_objects_session_aal                      RESTRICTIVE ALL  (20261005400001_account_security)
 --     "Server owners can delete server banners"        DELETE  (20261025100005_server_media_uuid_guard)
 --     "Bot owners can upload bot avatars"              INSERT  (20261006500001_server_media_delete_policies)
---     "Public read access for soundboard"              SELECT  (20261011300001_soundboard)
 --     "Soundboard managers can upload sounds"          INSERT  (20261011300001_soundboard)
 --     "Soundboard managers can delete sounds"          DELETE  (20261011300001_soundboard)
 --     "Room members can read message media"            SELECT  (20261015100001_drive_core)
@@ -18,6 +17,7 @@
 --   buckets message_media (20261006900001_private_user_media), soundboard (20261011300001_soundboard)
 --   triggers drive_track_object, drive_forget_object on storage.objects (20261015100001_drive_core)
 --   "Public read access for link preview images" absent (20261024100001_drop_link_preview_images)
+-- Soundboard reads are 20261026700001's "Writers read soundboard", outside this converge.
 --
 -- Those blocks skip when the storage tables are absent, and the account_security block also
 -- when the applying role may not create policies on storage.objects; the migration is recorded
@@ -78,11 +78,6 @@ BEGIN
                     AND (EXISTS (SELECT 1 FROM public.bots b
                                   WHERE (b.id)::text = (storage.foldername(objects.name))[2]
                                     AND b.owner_id = (SELECT public.get_current_profile_id())))))
-        $ddl$),
-        ('storage.objects', 'Public read access for soundboard', $ddl$
-            CREATE POLICY __POLICY__ ON storage.objects
-                AS PERMISSIVE FOR SELECT TO public
-                USING (bucket_id = 'soundboard')
         $ddl$),
         ('storage.objects', 'Soundboard managers can upload sounds', $ddl$
             CREATE POLICY __POLICY__ ON storage.objects

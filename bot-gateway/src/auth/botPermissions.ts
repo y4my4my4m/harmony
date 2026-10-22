@@ -167,6 +167,18 @@ export function botCanReadChannel(install: InstallRow, layer: EveryoneLayer, cha
   return install.read_messages === true && botCanSeeChannel(install, layer, channelId)
 }
 
+const READ_MESSAGE_HISTORY = permissionMask('READ_MESSAGE_HISTORY')
+
+/**
+ * The bot reads a channel's history from its start: the channel listed in allowed_channel_ids,
+ * or READ_MESSAGE_HISTORY in botChannelMask. Without it the bot reads from its install on, as a
+ * member without the bit reads from its join (current_user_history_cutoffs).
+ */
+export function botReadsHistory(install: InstallRow, layer: EveryoneLayer, channelId: string): boolean {
+  if (installGrantsChannel(install, channelId)) return true
+  return (botChannelMask(install, layer, channelId) & READ_MESSAGE_HISTORY) !== 0n
+}
+
 /** Install flags that gate channel writes, and the role-permission bit each needs in the channel. */
 export const CHANNEL_WRITE_BITS = {
   send_messages: permissionMask('SEND_MESSAGES'),

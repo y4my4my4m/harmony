@@ -90,9 +90,13 @@ async function loadPostFromDb(postId: string): Promise<TimelinePost | null> {
 async function importRemotePost(url: string): Promise<string | null> {
   try {
     const federationBase = await getFederationApiUrl()
+    // A followers-only or direct post already stored is named only to a session that reads it.
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`
     const response = await fetch(`${federationBase}/resolve-post`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ url }),
     })
     if (response.ok) {

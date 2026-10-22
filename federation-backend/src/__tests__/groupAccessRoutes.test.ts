@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 
@@ -111,7 +111,14 @@ const db: Record<string, any[]> = {
   server_actor_keys: [PUB, PRIV, CLOSED].map(id => ({ server_id: id, public_key: `PUBLIC-${id}`, private_key: `PRIVATE-${id}` })),
 }
 
+/** federation_history_cutoffs answers, by server then actor ('anon' for no member). */
+let HISTORY: Record<string, Record<string, Record<string, string>>> = {}
+
 const rpc = vi.fn(async (name: string, args: any) => {
+  if (name === 'federation_history_cutoffs') {
+    const reader = args.p_actor_ap_id ?? 'anon'
+    return { data: HISTORY[args.p_server_id]?.[reader] ?? {}, error: null }
+  }
   if (name !== 'federation_group_access') return { data: null, error: { message: 'unexpected rpc' } }
   const server = db.servers.find(s => s.id === args.p_server_id)
   if (!server) return { data: [], error: null }
@@ -127,6 +134,23 @@ const rpc = vi.fn(async (name: string, args: any) => {
   }
 })
 
+/** The two clause forms historyFilter writes: channel_id.in.(...) and and(channel_id.eq.X,created_at.gte.T). */
+function orTree(expr: string): (r: any) => boolean {
+  const unquote = (v: string) => v.replace(/^"|"$/g, '')
+  const tests: Array<(r: any) => boolean> = []
+  const inList = /^channel_id\.in\.\(([^)]*)\)/.exec(expr)
+  if (inList) {
+    const ids = inList[1].split(',').map(unquote)
+    tests.push(r => ids.includes(r.channel_id))
+  }
+  for (const m of expr.matchAll(/and\(channel_id\.eq\.("[^"]*"),created_at\.gte\.("[^"]*")\)/g)) {
+    const id = unquote(m[1])
+    const since = unquote(m[2])
+    tests.push(r => r.channel_id === id && r.created_at >= since)
+  }
+  return r => tests.some(f => f(r))
+}
+
 function query(table: string) {
   const filters: Array<(r: any) => boolean> = []
   let head = false
@@ -134,6 +158,9 @@ function query(table: string) {
   const q: any = {
     select: (_cols?: string, opts?: any) => { if (opts?.head) head = true; return q },
     eq: (col: string, val: unknown) => { filters.push(r => r[col] === val); return q },
+    // ISO timestamps of one format order as strings; 'infinity' sorts after every date.
+    gte: (col: string, val: string) => { filters.push(r => val !== 'infinity' && r[col] >= val); return q },
+    or: (expr: string) => { filters.push(orTree(expr)); return q },
     in: (col: string, vals: unknown[]) => { filters.push(r => vals.includes(r[col])); return q },
     // Only `.not(col, 'is', value)` is used: IS NOT, so NULL passes.
     not: (col: string, _op: 'is', val: unknown) => { filters.push(r => r[col] !== val); return q },
@@ -200,6 +227,7 @@ const isPublicChannel = (channelId: string) =>
 beforeEach(() => {
   verifySignature.mockClear()
   rpc.mockClear()
+  HISTORY = {}
 })
 
 describe('channel routes', () => {
@@ -296,7 +324,9 @@ describe('Group document', () => {
     expect(new Set(listed)).toEqual(readable(serverId, caller))
 
     const categories = res.body['harmony:channels'].filter((c: any) => c.channelType === 'category').map((c: any) => c.localId)
-    if (serverId === PUB) expect(categories).toEqual([CAT_EMPTY])
+    // A category is listed with a channel the caller reads in it: never the empty one.
+    expect(categories).not.toContain(CAT_EMPTY)
+    if (serverId === PUB) expect(categories).toEqual([])
     else expect(categories).toEqual(caller === 'vip' ? [CAT_SECRET] : [])
 
     const extra = [...readable(serverId, caller)].some(id => !EVERYONE[serverId].includes(id))
@@ -399,6 +429,112 @@ describe('a server with federation off', () => {
       const messages = await get(`/servers/${CLOSED}/channels/${CLOSED_OPEN}/messages?page=1`, caller)
       expect(doc.status).toBe(404)
       expect(messages.status).toBe(404)
+    }
+  })
+})
+
+describe('system notices', () => {
+  // A join and an AutoMod alert in PUB_OPEN; neither has an author.
+  const NOP_PROFILE = '00000000-0000-4000-8000-0000000000aa'
+  const JOIN = '00000000-0000-4000-8000-00000000e100'
+  const ALERT = '00000000-0000-4000-8000-00000000e101'
+  const notice = (id: string, metadata: Record<string, unknown>) => ({
+    id, channel_id: PUB_OPEN, is_deleted: false, is_system: true, user_id: null, bot_id: null,
+    content: [{ type: 'text', text: 'has joined the server' }], metadata,
+    created_at: '2026-01-02T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
+    author: null, channel: { id: PUB_OPEN, name: 'pub-open' },
+  })
+
+  beforeAll(() => {
+    db.profiles = [{ id: NOP_PROFILE, username: 'nop', display_name: 'Nop', federated_id: ACTORS.nop }]
+    db.messages.push(
+      notice(JOIN, { type: 'member_join', subject_id: NOP_PROFILE }),
+      notice(ALERT, { type: 'automod_alert', automod: { rule_name: 'r' } }),
+    )
+  })
+  afterAll(() => {
+    db.messages = db.messages.filter(m => m.id !== JOIN && m.id !== ALERT)
+    delete db.profiles
+  })
+
+  it('the channel collection serves a join as the Group\'s Note and leaves the alert out', async () => {
+    const res = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'unsigned')
+    expect(res.status).toBe(200)
+    const items = res.body.orderedItems
+    expect(items.find((n: any) => n.id.endsWith(JOIN))).toEqual({
+      type: 'Note',
+      id: `https://harmony.test/messages/${JOIN}`,
+      attributedTo: `https://harmony.test/servers/${PUB}`,
+      content: 'Nop joined the server',
+      context: `https://harmony.test/servers/${PUB}/channels/${PUB_OPEN}`,
+      published: '2026-01-02T00:00:00Z',
+      'harmony:system': { type: 'member_join', subject: ACTORS.nop },
+    })
+    expect(items.some((n: any) => n.id.endsWith(ALERT))).toBe(false)
+    expect(items.some((n: any) => String(n.attributedTo).endsWith('/undefined'))).toBe(false)
+  })
+
+  it('the server outbox wraps it in the Group\'s Create', async () => {
+    const res = await get(`/servers/${PUB}/outbox?page=1`, 'unsigned')
+    expect(res.status).toBe(200)
+    const create = res.body.orderedItems.find((a: any) => a.object.id.endsWith(JOIN))
+    expect(create).toMatchObject({
+      type: 'Create',
+      actor: `https://harmony.test/servers/${PUB}`,
+      object: {
+        attributedTo: `https://harmony.test/servers/${PUB}`,
+        content: '<p>Nop joined the server</p>',
+        'harmony:serverId': PUB,
+        'harmony:system': { type: 'member_join', subject: ACTORS.nop },
+      },
+    })
+    expect(res.body.orderedItems.some((a: any) => a.object.id.endsWith(ALERT))).toBe(false)
+  })
+})
+
+describe('READ_MESSAGE_HISTORY', () => {
+  // Every seeded message is dated 2026-01-01.
+  it('serves an anonymous reader no message of a channel @everyone holds without history', async () => {
+    HISTORY = { [PUB]: { anon: { [PUB_OPEN]: 'infinity' } } }
+    const page = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'unsigned')
+    expect(page.status).toBe(200)
+    expect(page.body.orderedItems).toEqual([])
+    const total = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages`, 'unsigned')
+    expect(total.body.totalItems).toBe(0)
+    const outbox = await get(`/servers/${PUB}/outbox?page=1`, 'unsigned')
+    expect(outbox.body.orderedItems).toEqual([])
+  })
+
+  it('serves a member messages from its membership on', async () => {
+    HISTORY = { [PRIV]: { [ACTORS.nop]: { [PRIV_OPEN]: '2026-02-01T00:00:00+00:00' } } }
+    const before = await get(`/servers/${PRIV}/channels/${PRIV_OPEN}/messages?page=1`, 'nop')
+    expect(before.body.orderedItems).toEqual([])
+    const outbox = await get(`/servers/${PRIV}/outbox?page=1`, 'nop')
+    expect(outbox.body.orderedItems).toEqual([])
+
+    HISTORY = { [PRIV]: { [ACTORS.nop]: { [PRIV_OPEN]: '2025-12-01T00:00:00+00:00' } } }
+    const after = await get(`/servers/${PRIV}/channels/${PRIV_OPEN}/messages?page=1`, 'nop')
+    expect(after.body.orderedItems).toHaveLength(1)
+  })
+
+  it('asks for the cutoffs of the member, and of nobody for an anonymous reader', async () => {
+    await get(`/servers/${PRIV}/channels/${PRIV_OPEN}/messages?page=1`, 'nop')
+    await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'stranger')
+    const asked = rpc.mock.calls.filter(c => c[0] === 'federation_history_cutoffs').map(c => (c[1] as any).p_actor_ap_id)
+    expect(asked).toEqual([ACTORS.nop, null])
+  })
+
+  it('serves no messages when the cutoffs cannot be read', async () => {
+    const normal = rpc.getMockImplementation()!
+    rpc.mockImplementation(async (name: string, args: any) =>
+      name === 'federation_history_cutoffs' ? { data: null, error: { message: 'down' } } : normal(name, args))
+    try {
+      const res = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'unsigned')
+      expect(res.status).toBe(404)
+      const outbox = await get(`/servers/${PUB}/outbox?page=1`, 'unsigned')
+      expect(outbox.body.orderedItems).toEqual([])
+    } finally {
+      rpc.mockImplementation(normal)
     }
   })
 })

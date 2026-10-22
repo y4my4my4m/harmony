@@ -119,6 +119,11 @@ export class FakeQuery implements PromiseLike<FakeResult> {
     return this
   }
 
+  gte(column: string, value: any): this {
+    this.filters.push((row) => row[column] >= value)
+    return this
+  }
+
   filter(): this {
     return this
   }

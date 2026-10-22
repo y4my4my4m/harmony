@@ -306,10 +306,12 @@ SELECT is((SELECT string_agg(room_id || '>' || recipient_user_id, ',') FROM publ
   '66666666-0000-0000-0000-000000000006>22222222-0000-0000-0000-000000000002',
   'only the member who can view the channel receives the key; banned and restricted rows are skipped');
 SELECT tests.authenticate_as('dddddddd-0000-0000-0000-000000000004');
-SELECT throws_ok($q$INSERT INTO public.megolm_session_shares (session_id, room_id, sender_user_id, recipient_user_id, encrypted_session_key)
+-- is_room_member answers a caller outside the room false about the recipient (20261026700001),
+-- so skip_share_outside_room drops the row before the policy sees it.
+SELECT is_empty($q$INSERT INTO public.megolm_session_shares (session_id, room_id, sender_user_id, recipient_user_id, encrypted_session_key)
                    VALUES ('s68b', '66666666-0000-0000-0000-000000000006', '44444444-0000-0000-0000-000000000004',
-                           '11111111-0000-0000-0000-000000000001', 'k')$q$,
-  '42501', NULL, 'a banned member cannot share into the room');
+                           '11111111-0000-0000-0000-000000000001', 'k') RETURNING id$q$,
+  'a banned member cannot share into the room');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT throws_ok($q$UPDATE public.megolm_session_shares SET recipient_user_id = '44444444-0000-0000-0000-000000000004'
                     WHERE session_id = 's68'$q$,

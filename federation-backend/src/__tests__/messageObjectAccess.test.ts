@@ -26,10 +26,15 @@ const MESSAGES: Record<string, any> = {
   [DM]: { channel_id: null, channel: null, conversation: { id: 'conv', type: 'direct' } },
 }
 
-const rpc = vi.fn(async (name: string, args: any) =>
-  name === 'federation_conversation_access'
-    ? { data: args.p_conversation_id === 'conv' && args.p_domain === signerHost, error: null }
-    : { data: null, error: { message: `unexpected ${name}` } })
+/** federation_history_cutoffs answer: channel id -> earliest created_at served. */
+let cutoffs: Record<string, string> = {}
+const rpc = vi.fn(async (name: string, args: any) => {
+  if (name === 'federation_conversation_access') {
+    return { data: args.p_conversation_id === 'conv' && args.p_domain === signerHost, error: null }
+  }
+  if (name === 'federation_history_cutoffs') return { data: cutoffs, error: null }
+  return { data: null, error: { message: `unexpected ${name}` } }
+})
 let signerHost = 'remote.test'
 
 vi.mock('../config/supabase.js', () => ({
@@ -64,6 +69,8 @@ vi.mock('../activitypub/groupAccess.js', async () => {
       memberId: actor ? 'rm' : null,
       everyoneChannelIds: new Set([serverId === 's-pub' ? 'c-pub' : 'c-priv']),
       memberChannelIds: new Set(actor ? ['c-priv', 'c-pub'] : []),
+      federationEnabled: true,
+      signer: actor,
     }),
   }
 })
@@ -81,6 +88,7 @@ beforeEach(() => {
   verifiedSigner.mockClear()
   rpc.mockClear()
   signerHost = 'remote.test'
+  cutoffs = {}
 })
 
 describe('GET /messages/:id', () => {
@@ -120,5 +128,14 @@ describe('GET /messages/:id', () => {
     signerHost = 'elsewhere.test'
     const res = await get(DM, true)
     expect(res.status).toBe(404)
+  })
+
+  it('is 404 for a channel message dated before the reader\'s history of that channel', async () => {
+    cutoffs = { 'c-pub': 'infinity' }
+    expect((await get(PUBLIC_CHANNEL_MSG)).status).toBe(404)
+    cutoffs = { 'c-priv': '2026-02-01T00:00:00+00:00' }
+    expect((await get(PRIVATE_CHANNEL_MSG, true)).status).toBe(404)
+    cutoffs = { 'c-priv': '2025-12-01T00:00:00+00:00' }
+    expect((await get(PRIVATE_CHANNEL_MSG, true)).status).toBe(200)
   })
 })

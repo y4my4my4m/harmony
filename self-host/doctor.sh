@@ -280,7 +280,7 @@ check_database() {
 			UNION ALL SELECT 'trigger ' || tgname FROM pg_trigger WHERE tgrelid = 'storage.objects'::regclass) s" 2>/dev/null)"
 		for st_name in storage_objects_session_aal \
 			"Server owners can delete server banners" "Bot owners can upload bot avatars" \
-			"Public read access for soundboard" "Soundboard managers can upload sounds" "Soundboard managers can delete sounds" \
+			"Soundboard managers can upload sounds" "Soundboard managers can delete sounds" \
 			"Room members can read message media" "Room members can upload message media" \
 			"Uploaders and admins can delete message media" "Authenticated users can upload user_media" \
 			"Users can upload personal emojis" "Users can delete personal emojis" \

@@ -18,7 +18,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(75);
+SELECT plan(76);
 
 -- Setup, as postgres, before any impersonation. ------------------------------
 INSERT INTO auth.users (id, instance_id, aud, role, email)
@@ -97,7 +97,9 @@ SELECT is((SELECT display_name FROM public.profiles WHERE id = '11111111-0000-00
           'Alice Renamed',
           'one user cannot rename another user''s profile');
 
-DELETE FROM public.profiles WHERE id = '11111111-0000-0000-0000-000000000001';
+-- Clients hold no DELETE on profiles (20261026700001): delete_my_account is the path.
+SELECT throws_ok($q$DELETE FROM public.profiles WHERE id = '11111111-0000-0000-0000-000000000001'$q$,
+                 '42501', NULL, 'a client cannot delete a profile row');
 SELECT isnt_empty(
     $q$SELECT id FROM public.profiles WHERE id = '11111111-0000-0000-0000-000000000001'$q$,
     'one user cannot delete another user''s profile');
