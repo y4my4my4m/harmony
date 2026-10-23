@@ -2,6 +2,7 @@ import config from '../../config/index.js';
 import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 import { getSupabaseClient } from '../../config/supabase.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
+import { HARMONY_NS } from '../harmonyContext.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -54,7 +55,7 @@ function mentionLabel(item: any): string {
 const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** Namespace of Harmony's own actor and object extensions (`harmony:*` keys). */
-export const HARMONY_NS = 'https://har.mony.lol/ns#';
+export { HARMONY_NS };
 
 /**
  * Note @context: Mastodon's status terms, FEP-044f quotes and quote authorizations, and

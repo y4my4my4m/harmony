@@ -85,12 +85,15 @@ export interface RequestContext {
 
 // VOICE/VIDEO ACTIVITY TYPES (Harmony Extensions)
 
+/** JSON-LD @context entries: context URLs and inline term maps. */
+export type ApContext = Array<string | Record<string, string>>;
+
 /**
  * Voice call invitation activity
  * Used for federated DM voice/video calls
  */
 export interface VoiceCallInvite {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceCallInvite';
   actor: string;
@@ -110,7 +113,7 @@ export interface VoiceCallInvite {
  * Voice call acceptance activity
  */
 export interface VoiceCallAccept {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceCallAccept';
   actor: string;
@@ -123,7 +126,7 @@ export interface VoiceCallAccept {
  * Voice call rejection activity
  */
 export interface VoiceCallReject {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceCallReject';
   actor: string;
@@ -136,7 +139,7 @@ export interface VoiceCallReject {
  * Voice call ended activity
  */
 export interface VoiceCallEnd {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceCallEnd';
   actor: string;
@@ -149,7 +152,7 @@ export interface VoiceCallEnd {
  * Voice channel join activity (for server voice channels)
  */
 export interface VoiceChannelJoin {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceChannelJoin';
   actor: string;
@@ -168,7 +171,7 @@ export interface VoiceChannelJoin {
  * Voice channel leave activity
  */
 export interface VoiceChannelLeave {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceChannelLeave';
   actor: string;
@@ -184,7 +187,7 @@ export interface VoiceChannelLeave {
  * Sent by the server owner's instance back to the joining user's instance
  */
 export interface VoiceChannelJoinAccept {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceChannelJoinAccept';
   actor: string; // Server AP ID
@@ -205,7 +208,7 @@ export interface VoiceChannelJoinAccept {
  * Sent when user doesn't have permission to join
  */
 export interface VoiceChannelJoinReject {
-  '@context': string[];
+  '@context': ApContext;
   id: string;
   type: 'harmony:VoiceChannelJoinReject';
   actor: string;

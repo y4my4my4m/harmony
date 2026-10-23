@@ -9,6 +9,7 @@ import {
   THREAD_STUB_STATUS,
   type ChannelWriteKind,
 } from './channelWriteAuthz.js';
+import { HARMONY_NS } from './harmonyContext.js';
 
 type ExistingThread = {
   id: string;
@@ -612,7 +613,7 @@ export function createThreadActivity(
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       {
-        harmony: 'https://harmonyapp.dev/ns#',
+        harmony: HARMONY_NS,
         ChatThread: 'harmony:ChatThread',
         autoArchiveDuration: 'harmony:autoArchiveDuration',
         messageCount: 'harmony:messageCount',

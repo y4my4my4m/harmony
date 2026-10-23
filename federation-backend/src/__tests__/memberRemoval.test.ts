@@ -68,7 +68,7 @@ beforeEach(() => {
 describe('memberRemoveActivity', () => {
   it('is the Group\'s Remove of the member from its members, fixed per removal', () => {
     expect(memberRemoveActivity(rows.federation_member_removals[0], MEMBER)).toEqual({
-      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://harmonyapp.dev/ns#' }],
+      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://mony.lol/ns#' }],
       id: `${GROUP}/activities/removal-r1`,
       type: 'Remove',
       actor: GROUP,

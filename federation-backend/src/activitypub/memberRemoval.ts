@@ -18,6 +18,7 @@
  * Member's instance: ActivityProcessor.processGroupMemberRemove.
  */
 import config from '../config/index.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
 export const REMOVAL_REASONS = ['federation_closed', 'kick', 'ban', 'suspended'] as const;
 export type RemovalReason = (typeof REMOVAL_REASONS)[number];
@@ -41,7 +42,7 @@ export function memberRemoveActivity(removal: MemberRemovalRow, memberUrl: strin
   const group = groupUrlOf(removal.server_id);
   const summary = removal.reason === 'federation_closed' ? FEDERATION_CLOSED_SUMMARY : removal.summary;
   return {
-    '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://harmonyapp.dev/ns#' }],
+    '@context': ['https://www.w3.org/ns/activitystreams', HARMONY_CONTEXT],
     id: `${group}/activities/removal-${removal.id}`,
     type: 'Remove',
     actor: group,

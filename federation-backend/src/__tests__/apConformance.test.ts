@@ -218,7 +218,7 @@ describe('Person actor', () => {
       value: 'schema:value',
       alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
       movedTo: { '@id': 'as:movedTo', '@type': '@id' },
-      harmony: 'https://har.mony.lol/ns#',
+      harmony: 'https://mony.lol/ns#',
     })
   })
 

@@ -20,6 +20,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { sameUrl } from '../utils/apOrigin.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
 import { threadToActivityPub } from './ThreadActivityHandler.js';
+import { HARMONY_NS } from './harmonyContext.js';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ const PRIVATE_CACHE = 'private, no-store';
 const CONTEXT = [
   'https://www.w3.org/ns/activitystreams',
   {
-    harmony: 'https://harmonyapp.dev/ns#',
+    harmony: HARMONY_NS,
     ChatThread: 'harmony:ChatThread',
     autoArchiveDuration: 'harmony:autoArchiveDuration',
     messageCount: 'harmony:messageCount',

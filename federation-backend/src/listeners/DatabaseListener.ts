@@ -18,6 +18,7 @@ import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { getCategoryRecipientGroups, getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -719,7 +720,7 @@ async function enqueueChannelCategory(channel: any, serverUrl: string, groups: a
   const activity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Update',
@@ -772,7 +773,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Add',
@@ -830,7 +831,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Update',
@@ -887,7 +888,7 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Remove',
@@ -929,7 +930,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Update',

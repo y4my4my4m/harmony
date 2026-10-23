@@ -83,7 +83,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 - **Harmony Bot API:** http://localhost:3001/api/v1
 - **WebSocket Gateway:** ws://localhost:3001/gateway
-- **Documentation:** https://docs.harmonyapp.dev
+- **Documentation:** https://mony.lol/docs
 
 ## Plugin Ideas
 

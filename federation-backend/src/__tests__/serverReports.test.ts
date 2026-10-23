@@ -160,7 +160,7 @@ describe('flag helpers for server reports', () => {
       comment: null,
       reason: 'not-a-reason',
     })).toEqual({
-      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://harmonyapp.dev/ns#' }],
+      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://mony.lol/ns#' }],
       id: `https://harmony.test/flags/${REPORT}/server`,
       type: 'Flag',
       actor: 'https://harmony.test/users/instance.actor',

@@ -90,7 +90,7 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
   "value": "schema:value",
   "alsoKnownAs": { "@id": "as:alsoKnownAs", "@type": "@id" },
   "movedTo": { "@id": "as:movedTo", "@type": "@id" },
-  "harmony": "https://har.mony.lol/ns#"
+  "harmony": "https://mony.lol/ns#"
 }
 ```
 
@@ -628,7 +628,7 @@ A member on another instance hears of moderation from the server's Group. The ho
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/activitystreams", "https://harmony.social/ns/voice"],
+  "@context": ["https://www.w3.org/ns/activitystreams", { "harmony": "https://mony.lol/ns#" }],
   "id": "https://chat.example.com/servers/<server>/voice-moderation/<uuid>",
   "type": "harmony:VoiceMemberMove",
   "actor": "https://chat.example.com/servers/<server>",
@@ -652,14 +652,9 @@ A receiver accepts them only from the Group of a server it mirrors (`servers.ap_
 
 ## Extension properties
 
-Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, and Harmony reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
+Harmony's extension properties and types share one namespace, `https://mony.lol/ns#`, bound to the prefix `harmony` in an inline `@context` entry of every document and activity that carries them. Harmony does not serve it as a JSON-LD document, and reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
 
-| Namespace | Used in |
-|---|---|
-| `https://har.mony.lol/ns#` (prefix `harmony`) | `Person` actors |
-| `https://harmonyapp.dev/ns#` (prefix `harmony`) | Group actors, channels, channel messages, threads, `Join`, server-originated activities |
-| `https://harmony.social/ns/voice` (a context URL) | Voice activities |
-| `https://harmony.social/ns/extensions` (a context URL) | Group conversation `Update` and `Remove` |
+Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person` actors and to `https://harmonyapp.dev/ns#` in Group actors, channels, channel messages, threads, `Join` and server-originated activities, and names the context URLs `https://harmony.social/ns/voice` (voice activities) and `https://harmony.social/ns/extensions` (group conversation `Update` and `Remove`). Harmony controls neither of the last two domains, never fetches those URLs, and its receivers read none of these namespaces.
 
 | Property or type | On | Value |
 |---|---|---|

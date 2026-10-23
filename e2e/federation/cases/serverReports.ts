@@ -24,7 +24,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { deliver, strictReceiverRefusal } from './groupActor.ts'
 
 const AS = 'https://www.w3.org/ns/activitystreams'
-const HARMONY = { harmony: 'https://harmonyapp.dev/ns#' }
+const HARMONY = { harmony: 'https://mony.lol/ns#' }
 
 interface Captured {
   method: string

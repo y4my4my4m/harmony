@@ -194,7 +194,7 @@ export async function caseHostStaff(ctx: HostStaffContext): Promise<void> {
   // The peer's staff suspend its server: the Group's Update carries harmony:suspended, and this
   // instance's copy shows it; lifting it clears it.
   const groupUpdate = (suspended: unknown) => JSON.stringify({
-    '@context': [AS, { harmony: 'https://harmonyapp.dev/ns#' }],
+    '@context': [AS, { harmony: 'https://mony.lol/ns#' }],
     id: `${peer.groupUrl}/activities/update-${crypto.randomUUID()}`,
     type: 'Update',
     actor: peer.groupUrl,

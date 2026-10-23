@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { formatEmojiForFederation, resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import config from '../config/index.js';
 import { getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 
 // TYPES
 
@@ -129,7 +130,7 @@ export async function handleChannelReactionFederation(
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
           'toot': 'http://joinmastodon.org/ns#',
           'Emoji': 'toot:Emoji',
           'misskey': 'https://misskey-hub.net/ns#',

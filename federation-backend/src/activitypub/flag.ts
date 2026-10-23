@@ -21,11 +21,11 @@
  */
 
 import crypto from 'crypto';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
 export const FLAG_COMMENT_MAX = 1000;
 export const FLAG_OBJECTS_MAX = 100;
 
-const HARMONY_CONTEXT = { harmony: 'https://harmonyapp.dev/ns#' };
 
 export interface FlagActivity {
   '@context': string;

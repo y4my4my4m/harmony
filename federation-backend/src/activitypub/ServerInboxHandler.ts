@@ -33,6 +33,7 @@ import {
   logDenied,
   THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -1871,7 +1872,7 @@ async function sendAcceptActivity(
   const acceptActivity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Accept',
@@ -1894,7 +1895,7 @@ async function sendRejectActivity(
   const rejectActivity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Reject',
