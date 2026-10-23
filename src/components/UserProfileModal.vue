@@ -1797,7 +1797,9 @@ onMounted(() => {
 .profile-info {
   flex: 1;
   min-width: 0;
-  padding-top: 8px;
+  /* Starts 6px under the banner (.profile-content's 24px top padding): name and handle sit
+     beside the part of the avatar below the banner. */
+  margin-top: -18px;
 }
 
 .name-section {
@@ -2443,6 +2445,11 @@ onMounted(() => {
     text-align: center;
     gap: 16px;
   }
+
+  /* Stacked under the avatar. */
+  .profile-info {
+    margin-top: 0;
+  }
   
   .activity-grid {
     grid-template-columns: 1fr;
@@ -2454,10 +2461,12 @@ onMounted(() => {
   
   .display-name {
     font-size: 20px;
+    justify-content: center;
   }
   
   .username {
     font-size: 14px;
+    justify-content: center;
   }
 }
 </style>

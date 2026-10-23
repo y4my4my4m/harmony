@@ -7,6 +7,7 @@
       :truncate="truncate"
     />
     <template v-else>{{ displayName }}</template>
+    <FederatedUserBadge v-if="profileUserId" :user-id="profileUserId" />
     <BridgeSourceBadge v-if="bridgeSource" :source="bridgeSource" />
   </span>
 </template>
@@ -14,6 +15,7 @@
 <script setup lang="ts">
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
 
 defineProps<{
   profileUserId: string
@@ -35,6 +37,11 @@ defineProps<{
 .message-author-label :deep(.bridge-source-badge),
 .message-author-label :deep(.bridged-source-icon) {
   flex-shrink: 0;
+}
+
+/* The label's gap spaces the globe; its own margin is for the message header. */
+.message-author-label :deep(.federated-user-badge) {
+  margin-left: 0;
 }
 
 .message-author-label.truncate {

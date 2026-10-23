@@ -272,6 +272,7 @@
             <div class="message-meta">
               <button type="button" class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
+                <FederatedUserBadge v-if="getHarmonyProfileUserId(item.message)" :user-id="getHarmonyProfileUserId(item.message)" />
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
@@ -600,7 +601,7 @@ import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
-import { getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { getHarmonyProfileUserId, getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
 import { remoteServerHost } from '@/utils/serverUtils';
 import { getInstanceDomain } from '@/services/instanceConfig';
@@ -662,6 +663,7 @@ import {
   type ReactionUserResolvers,
 } from '@/utils/reactionUsers';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue';
 import SystemEventBody from '@/components/messages/SystemEventBody.vue';
 import {
   findBridgedUserInCache,

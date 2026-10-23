@@ -65,6 +65,7 @@
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
       :encrypted-room="composerEncrypted"
+      :draft-key="draftKey"
       background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"

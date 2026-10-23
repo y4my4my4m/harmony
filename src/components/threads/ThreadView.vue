@@ -171,6 +171,7 @@
                 <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
                 <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                   <DisplayName :userId="displayParentMessage.user_id" />
+                  <FederatedUserBadge :user-id="displayParentMessage.user_id" />
                 </span>
                 <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
               </div>
@@ -245,6 +246,7 @@
             :thread-id="effectiveThreadIdForTyping"
             :thread-channel-id="threadChannelId"
             :media-room="threadMediaRoom"
+            :draft-key="threadDraftKey"
             @send-message="handleSendMessage"
             @send-voice-message="handleSendVoiceMessage"
             @update:reply-message-id="handleCancelReply"
@@ -299,6 +301,7 @@ import { useProfileStore } from '@/stores/useProfile'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'

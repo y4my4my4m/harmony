@@ -137,6 +137,7 @@
           <div class="message-header">
             <span class="username" :style="{ color: getColor(thread.parent_message.user_id).value }">
               <DisplayName :userId="thread.parent_message.user_id" />
+              <FederatedUserBadge :user-id="getHarmonyProfileUserId(thread.parent_message)" />
             </span>
             <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
           </div>
@@ -252,6 +253,8 @@ import { useProfileStore } from '@/stores/useProfile'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
+import { getHarmonyProfileUserId } from '@/utils/messageAuthor'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
