@@ -61,6 +61,9 @@ public/backgrounds/login/*.webp
 public/backgrounds/404/*.webp
 !public/backgrounds/404/1.webp
 !public/backgrounds/404/2.webp
+!public/backgrounds/404/3.webp
+!public/backgrounds/404/4.webp
+!public/backgrounds/404/5.webp
 public/backgrounds/offline/*.webp
 !public/backgrounds/offline/1.webp
 !public/backgrounds/offline/2.webp

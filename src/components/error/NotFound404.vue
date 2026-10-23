@@ -1,81 +1,52 @@
 <template>
-  <div class="not-found-404">
-    <div class="error-container">
-      <!-- 404 Image -->
-      <div v-if="selectedImage && !imageError" class="error-image">
-        <img 
-          :src="selectedImage" 
-          alt="404 - Page not found"
-          class="error-img"
-          @error="handleImageError"
-        />
+  <div class="not-found" data-testid="not-found">
+    <div class="not-found__inner">
+      <div v-if="image" class="not-found__art" aria-hidden="true" data-testid="not-found-art">
+        <img
+          v-show="!imageError"
+          ref="imageEl"
+          :src="image"
+          alt=""
+          width="720"
+          height="720"
+          fetchpriority="high"
+          decoding="async"
+          class="not-found__img"
+          :class="{ 'is-loaded': imageLoaded }"
+          data-testid="not-found-img"
+          @load="imageLoaded = true"
+          @error="onImageError"
+        >
       </div>
-      
-      <!-- Error Content -->
-      <div class="error-content">
-        <h1 class="error-title">404</h1>
-        <h2 class="error-subtitle">{{ computedTitle }}</h2>
-        <p class="error-description">
-          {{ computedDescription }}
-        </p>
-        
-        <!-- Navigation Actions -->
-        <div class="error-actions">
-          <button 
-            @click="goHome" 
-            class="primary-btn"
-          >
-            <Icon name="home" />
-            {{ computedHomeButtonText }}
-          </button>
-          
-          <button 
-            @click="goBack" 
-            class="secondary-btn"
-            v-if="canGoBack"
-          >
-            <Icon name="arrow-left" />
-            {{ t('notFound.goBack') }}
-          </button>
-        </div>
-        
-        <!-- Helpful Links for authenticated users -->
-        <div v-if="isAuthenticated" class="helpful-links">
-          <h3>{{ t('notFound.quickNavigation') }}</h3>
-          <div class="link-grid">
-            <router-link to="/chat" class="quick-link">
-              <Icon name="message-circle" />
-              {{ t('nav.chat') }}
-            </router-link>
-            <router-link to="/social/home" class="quick-link">
-              <Icon name="users" />
-              {{ t('nav.social') }}
-            </router-link>
-            <router-link to="/dm" class="quick-link">
-              <Icon name="mail" />
-              {{ t('nav.directMessages') }}
-            </router-link>
-            <router-link to="/social/mentions" class="quick-link">
-              <Icon name="at-sign" />
-              {{ t('nav.mentions') }}
-            </router-link>
-          </div>
-        </div>
 
-        <!-- Login prompt for unauthenticated users -->
-        <div v-else class="auth-prompt">
-          <h3>{{ t('notFound.joinHarmony') }}</h3>
-          <p>{{ t('notFound.signInPrompt') }}</p>
-          <div class="auth-actions">
-            <router-link to="/login" class="auth-btn primary">
-              <Icon name="log-in" />
-              {{ t('auth.signIn') }}
-            </router-link>
-            <router-link to="/register" class="auth-btn secondary">
-              <Icon name="user-plus" />
-              {{ t('auth.createAccountButton') }}
-            </router-link>
-          </div>
+      <div class="not-found__copy">
+        <p class="not-found__code">404</p>
+        <h1 class="not-found__title">{{ heading }}</h1>
+        <p class="not-found__text">{{ description }}</p>
+        <p v-if="missingPath" class="not-found__path" data-testid="not-found-path">
+          <span class="sr-only">{{ t('notFound.requestedAddress') }}</span>
+          <code :title="missingPath">{{ missingPath }}</code>
+        </p>
+
+        <div class="not-found__actions">
+          <RouterLink
+            :to="primary.to"
+            class="not-found__btn not-found__btn--primary"
+            data-testid="not-found-primary"
+          >
+            <Icon :name="primary.icon" :size="18" />
+            <span>{{ primary.label }}</span>
+          </RouterLink>
+          <button
+            v-if="canGoBack"
+            type="button"
+            class="not-found__btn not-found__btn--secondary"
+            data-testid="not-found-back"
+            @click="router.back()"
+          >
+            <Icon name="arrow-left" :size="18" />
+            <span>{{ t('notFound.goBack') }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -83,22 +54,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { debug } from '@/utils/debug'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
 import { randomNotFoundImage } from '@/utils/backgroundUtils'
 
 interface Props {
-  /** Override the default title */
   title?: string
-  /** Override the default description */
   description?: string
-  /** Override the home button text */
   homeButtonText?: string
-  /** Override the suggested home route */
   suggestedRoute?: string
 }
 
@@ -114,384 +81,306 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-// State
-const selectedImage = ref(randomNotFoundImage())
+const image = randomNotFoundImage()
+const imageEl = ref<HTMLImageElement | null>(null)
+const imageLoaded = ref(false)
 const imageError = ref(false)
 
-// Computed properties
 const isAuthenticated = computed(() => authStore.isLoggedIn)
 
-const canGoBack = computed(() => window.history.length > 1)
+// The catch-all redirects to /404 or /404-public; redirectedFrom keeps the address
+// that matched nothing. Path only: query and hash can carry tokens.
+const requestedPath = computed(() => route.redirectedFrom?.path ?? route.path)
 
-// Smart context awareness using existing utilities
-const notFoundContext = computed(() => {
-  // Fallback context - can be enhanced later with utilities if needed
-  return {
-    isAuthenticated: isAuthenticated.value,
-    suggestedRoute: isAuthenticated.value ? '/chat' : '/',
-    layoutType: isAuthenticated.value ? 'base' : 'auth'
+const missingPath = computed(() => {
+  const path = route.redirectedFrom?.path
+  if (!path) return ''
+  try {
+    return decodeURI(path)
+  } catch {
+    return path
   }
 })
 
-const computedTitle = computed(() => {
-  if (props.title) return props.title
-  return t('notFound.pageNotFound')
-})
+// vue-router's history state: `back` is the in-app entry before this one, null on a fresh load.
+const canGoBack = Boolean(router.options?.history?.state?.back)
 
-const computedDescription = computed(() => {
+const heading = computed(() => props.title || t('notFound.pageNotFound'))
+
+const description = computed(() => {
   if (props.description) return props.description
-  
-  // Context-aware description based on the route
-  if (route.path.startsWith('/social/')) {
-    return t('notFound.socialNotFound')
-  } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
-    return t('notFound.chatNotFound')
-  } else if (route.path.startsWith('/settings/')) {
-    return t('notFound.settingsNotFound')
-  }
-  
+  const path = requestedPath.value
+  if (path.startsWith('/social/')) return t('notFound.socialNotFound')
+  if (path.startsWith('/chat/') || path.startsWith('/dm/')) return t('notFound.chatNotFound')
+  if (path.startsWith('/settings/')) return t('notFound.settingsNotFound')
   return t('notFound.defaultNotFound')
 })
 
-const computedHomeButtonText = computed(() => {
-  if (props.homeButtonText) return props.homeButtonText
-  
-  if (isAuthenticated.value) {
-    // Context-aware button text
-    if (route.path.startsWith('/social/')) {
-      return t('notFound.backToSocial')
-    } else if (route.path.startsWith('/chat/') || route.path.startsWith('/dm/')) {
-      return t('notFound.backToChat')
+const primary = computed(() => {
+  if (props.suggestedRoute || props.homeButtonText) {
+    return {
+      to: props.suggestedRoute || (isAuthenticated.value ? '/chat' : '/login'),
+      label: props.homeButtonText || t('notFound.goHome'),
+      icon: 'home',
     }
-    return t('notFound.goHome')
   }
-  
-  return t('notFound.goHome')
+  if (!isAuthenticated.value) return { to: '/login', label: t('auth.signIn'), icon: 'log-in' }
+  const path = requestedPath.value
+  if (path.startsWith('/social/')) return { to: '/social/home', label: t('notFound.backToSocial'), icon: 'users' }
+  if (path.startsWith('/chat/') || path.startsWith('/dm/')) {
+    return { to: '/chat', label: t('notFound.backToChat'), icon: 'message-circle' }
+  }
+  return { to: '/chat', label: t('notFound.goHome'), icon: 'home' }
 })
 
-const defaultRoute = computed(() => {
-  if (props.suggestedRoute) {
-    return props.suggestedRoute
-  }
-  return notFoundContext.value.suggestedRoute || (isAuthenticated.value ? '/chat' : '/')
-})
-
-// Methods
-const handleImageError = () => {
-  debug.warn('Failed to load 404 image:', selectedImage.value)
+function onImageError() {
+  debug.warn('Failed to load 404 image:', image)
   imageError.value = true
 }
 
-const goHome = () => {
-  router.push(defaultRoute.value)
-}
-
-const goBack = () => {
-  if (canGoBack.value) {
-    router.go(-1)
-  } else {
-    goHome()
-  }
-}
+// A cached image can finish before the load listener is attached.
+onMounted(() => {
+  const el = imageEl.value
+  if (el?.complete && el.naturalWidth > 0) imageLoaded.value = true
+})
 </script>
 
 <style scoped>
-/* Auto margins centre the card without clipping its top when it outgrows
-   the viewport; align-items: center would. */
-.not-found-404 {
-  width: 100%;
-  min-height: 100%;
+/* Art side: at most 340px, 40% of the viewport height, the viewport width less the gutters. */
+.not-found {
+  --nf-art: min(340px, calc(40 * var(--app-dvh)), calc(100 * var(--app-vw) - 5rem));
+
+  box-sizing: border-box;
   display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
-  padding: 2rem;
+  padding: var(--space-6) var(--space-5);
   color: var(--text-primary);
 }
 
-.error-container {
+/* Auto margins centre without clipping the top when the content outgrows the box. */
+.not-found__inner {
   margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 60rem;
   text-align: center;
+}
+
+.not-found__art {
+  position: relative;
+  flex: none;
+  width: var(--nf-art);
+  aspect-ratio: 1;
+}
+
+.not-found__art::before {
+  content: '';
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--harmony-primary) 22%, transparent),
+    color-mix(in srgb, var(--harmony-primary) 9%, transparent) 70%,
+    transparent
+  );
+}
+
+.not-found__img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.not-found__img.is-loaded {
+  opacity: 1;
+  animation: not-found-float 7s ease-in-out 0.2s infinite;
+}
+
+@keyframes not-found-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.not-found__copy {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2rem;
-}
-
-.error-image {
+  gap: var(--space-3);
   width: 100%;
-  max-width: 400px;
-  margin-bottom: 1rem;
+  min-width: 0;
+  max-width: 28rem;
 }
 
-.error-img {
-  width: 100%;
-  height: auto;
-}
-
-.error-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.error-title {
-  font-size: 4rem;
-  font-weight: 700;
-  color: var(--text-primary);
+.not-found__code {
   margin: 0;
-}
-
-.error-subtitle {
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--harmony-primary) 16%, transparent);
   color: var(--text-primary);
-  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 
-.error-description {
+.not-found__title {
+  margin: 0;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.not-found__title:focus {
+  outline: none;
+}
+
+.not-found__text {
+  margin: 0;
+  max-width: 34ch;
   font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  margin: 0;
   line-height: 1.5;
-  max-width: 400px;
+  color: var(--text-secondary);
 }
 
-.error-actions {
+.not-found__path {
   display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-  justify-content: center;
+  max-width: 100%;
+  margin: 0;
 }
 
-.primary-btn,
-.secondary-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+.not-found__path code {
+  overflow: hidden;
+  max-width: 100%;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  text-decoration: none;
-  border: none;
-  font-size: 0.95rem;
-  min-width: 120px;
-  justify-content: center;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.primary-btn {
+.not-found__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 20rem;
+  margin-top: var(--space-3);
+}
+
+.not-found__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.not-found__btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.not-found__btn--primary {
   background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
-.primary-btn:hover {
+.not-found__btn--primary:hover {
   background: var(--harmony-primary-fill-hover);
 }
 
-.secondary-btn {
-  background: var(--background-secondary);
+.not-found__btn--secondary {
+  background: transparent;
+  border-color: var(--border-primary);
   color: var(--text-primary);
-  border: 1px solid var(--border-primary);
 }
 
-.secondary-btn:hover {
-  background: var(--background-tertiary);
-  border-color: var(--border-hover);
-}
-
-.helpful-links,
-.auth-prompt {
-  margin-top: 2rem;
-  padding: 2rem;
-  border-radius: var(--radius-lg);
-  width: 100%;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-primary);
-}
-
-.helpful-links h3,
-.auth-prompt h3 {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 1.5rem 0;
-  text-align: center;
-}
-
-.auth-prompt p {
-  color: var(--text-secondary);
-  margin: 0 0 1.5rem 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.link-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: center;
-  align-items: center;
-}
-
-.quick-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  background: var(--background-tertiary);
-  color: var(--text-primary);
-  text-decoration: none;
-  border-radius: var(--radius-md);
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  border: 1px solid var(--border-primary);
-  position: relative;
-  overflow: hidden;
-}
-
-.quick-link:hover {
+.not-found__btn--secondary:hover {
   background: var(--background-modifier-hover);
   border-color: var(--border-hover);
 }
 
-.auth-actions {
-  display: flex;
-  gap: 1.25rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.auth-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.9rem 2rem;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  text-decoration: none;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  font-size: var(--font-size-base);
-  min-width: 140px;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.auth-btn.primary {
-  background: var(--harmony-primary-fill);
-  color: var(--text-on-primary);
-  border: none;
-}
-
-.auth-btn.primary:hover {
-  background: var(--harmony-primary-fill-hover);
-}
-
-.auth-btn.secondary {
-  background: var(--background-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-primary);
-}
-
-.auth-btn.secondary:hover {
-  background: var(--background-secondary);
-  border-color: var(--border-hover);
-}
-
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-  .not-found-404 {
-    padding: 1rem;
-    min-height: calc(100 * var(--app-vh));
-  }
-  
-  .error-container {
-    gap: 1.5rem;
-  }
-  
-  .error-title {
-    font-size: 3rem;
-  }
-  
-  .error-subtitle {
-    font-size: var(--font-size-xl);
-  }
-  
-  .error-actions,
-  .auth-actions {
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-  
-  .primary-btn,
-  .secondary-btn,
-  .auth-btn {
-    width: 100%;
-    max-width: 250px;
-  }
-  
-  .link-grid {
-    gap: 0.75rem;
-    flex-direction: column;
-  }
-  
-  .helpful-links,
-  .auth-prompt {
-    padding: 1.5rem;
-    display: none;
+@media (min-width: 480px) {
+  .not-found__actions {
+    flex-direction: row;
+    justify-content: center;
+    width: auto;
+    max-width: none;
   }
 }
 
-@media (max-width: 480px) {
-  .error-image {
-    max-width: 280px;
+/* Side by side on wide screens and on short landscape phones. */
+@media (min-width: 900px) and (min-height: 480px), (min-width: 560px) and (max-height: 560px) and (orientation: landscape) {
+  .not-found {
+    --nf-art: min(420px, calc(58 * var(--app-dvh)));
   }
-  
-  .error-title {
+
+  .not-found__inner {
+    flex-direction: row;
+    justify-content: center;
+    gap: clamp(2rem, calc(5 * var(--app-vw)), 4.5rem);
+    text-align: left;
+  }
+
+  .not-found__copy {
+    flex: 0 1 28rem;
+    align-items: flex-start;
+  }
+
+  .not-found__title {
     font-size: 2.5rem;
   }
-  
-  .link-grid {
-    gap: 0.75rem;
-    flex-direction: column;
-  }
-  
-  .helpful-links,
-  .auth-prompt {
-    margin-top: 1.5rem;
-    padding: 1.25rem;
-  }
-  
-  .auth-actions {
-    gap: 0.75rem;
-  }
-  
-  .auth-btn {
-    padding: 0.8rem 1.5rem;
-    font-size: 0.95rem;
+
+  .not-found__actions {
+    justify-content: flex-start;
   }
 }
 
-/* Loading state for when image is loading */
-.error-img {
-  background: var(--background-secondary);
-}
-
-.error-img[src=""] {
-  opacity: 0.5;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .primary-btn,
-  .secondary-btn,
-  .quick-link,
-  .auth-btn {
+@media (prefers-contrast: more) {
+  .not-found__btn {
     border: 2px solid currentColor;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .not-found__img,
+  .not-found__img.is-loaded {
+    animation: none;
+    transition: none;
+  }
+}
+
+:root[data-reduce-motion="true"] .not-found__img {
+  animation: none;
+  transition: none;
 }
 </style>
