@@ -48,6 +48,7 @@ import instanceProbeRouter from './routes/instanceProbe.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
+import publicPagesRouter from './publicPages/routes.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
@@ -149,6 +150,9 @@ export function createApp(): Application {
   // look instance.actor up as an account.
   app.use('/', instanceActorRouter);
   app.use('/', outboxRouter);
+  // HTML of /@<name>, /@<name>/<post> and /posts/<id>; their ActivityPub requests pass on to
+  // outboxRouter above and actorRouter below.
+  app.use('/', publicPagesRouter);
   app.use('/', invitePageRouter);
   app.use('/', driveLinkPageRouter);
   // serverDiscoveryRouter before groupRouter: /servers/discover must not collide

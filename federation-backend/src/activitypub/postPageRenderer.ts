@@ -1,15 +1,29 @@
 /**
- * Renders a public HTML page for a post, including OG meta tags for link
- * previews on Mastodon, Discord, Slack, Twitter, and other platforms.
+ * The public page of a post and the post card the profile page lists: text with custom emoji,
+ * mentions and links, media with alt text and focal point, the content warning collapsed,
+ * poll results, the quoted post, counts. OpenGraph and Twitter tags give link previews.
  *
- * This is the page browsers and crawlers see at /posts/:id.
- * ActivityPub clients receive JSON instead (handled in OutboxHandler).
+ * Served at /@<username>/<post id> and as the HTML of /posts/<post id> (publicPages/routes.ts).
+ * ActivityPub clients receive JSON at both (OutboxHandler).
  */
 
 import config from '../config/index.js';
 import { stripTrackingParameters } from '../utils/urlTrackerStripper.js';
 import { escapeHtml, originalStorageUrl, resolveStorageUrl } from '../utils/html.js';
 import { plainDisplayName } from '../utils/plainDisplayName.js';
+import { storedFocalPoint } from '../utils/focalPoint.js';
+import {
+  absoluteUrl,
+  formatCount,
+  icon,
+  joinCard,
+  pageContext,
+  pageInstance,
+  renderShell,
+  timeHtml,
+  type PageContext,
+} from '../publicPages/layout.js';
+import { fillHtml, fillText } from '../publicPages/strings.js';
 
 function stripHtml(html: string): string {
   return String(html ?? '').replace(/<[^>]*>/g, '').trim();
@@ -48,6 +62,13 @@ function safeAttrUrl(url: string | null | undefined): string {
   return cleaned;
 }
 
+/** An http(s) URL for `src` / `href`; '' for anything else, relative paths included. */
+function safeHttpUrl(url: unknown): string {
+  if (typeof url !== 'string') return '';
+  const safe = safeAttrUrl(url);
+  return /^https?:\/\//i.test(safe) ? safe : '';
+}
+
 /**
  * Hex color sanity check used when rendering inline `style="color: ..."`
  * for role mentions. The role color is attacker-influenceable (federated
@@ -55,6 +76,10 @@ function safeAttrUrl(url: string | null | undefined): string {
  * to keep CSS injection (`red; background: url(x)`) out of the page.
  */
 const SAFE_HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+
+function isLocalDomain(domain: unknown): boolean {
+  return !domain || String(domain).toLowerCase() === String(config.INSTANCE_DOMAIN).toLowerCase();
+}
 
 function extractPlainText(content: any): string {
   if (typeof content === 'string') return stripHtml(content);
@@ -93,7 +118,17 @@ function extractPlainText(content: any): string {
     .trim();
 }
 
-function extractContentHtml(content: any): string {
+/** Profile URL of a mention: the public page of a local account, the guessed actor URL elsewhere. */
+function mentionHref(item: any): string {
+  const username = String(item.username || 'unknown');
+  if (item.isLocal === true || isLocalDomain(item.domain)) {
+    return `https://${config.INSTANCE_DOMAIN}/@${encodeURIComponent(username)}`;
+  }
+  return `https://${item.domain}/users/${username}`;
+}
+
+/** `galleryUrls`: file parts shown in the media grid, left out of the text. */
+function extractContentHtml(content: any, galleryUrls: Set<string> = new Set()): string {
   // Defensive: the DB constraint `posts_content_is_array` should make
   // this path unreachable, but if a string ever slipped through (e.g.
   // an early migration / federation import) we MUST escape it before
@@ -119,7 +154,7 @@ function extractContentHtml(content: any): string {
         // the URL string AND into the visible label.
         const domain = item.domain || config.INSTANCE_DOMAIN;
         const username = item.username || 'unknown';
-        const href = safeAttrUrl(`https://${domain}/users/${username}`);
+        const href = safeAttrUrl(mentionHref(item));
         const display = item.isLocal ? `@${username}` : `@${username}@${domain}`;
         return `<a href="${escapeHtml(href)}" class="mention">${escapeHtml(display)}</a>`;
       }
@@ -139,12 +174,8 @@ function extractContentHtml(content: any): string {
         }
         return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(label)}</a>`;
       }
-      // `url` and `embed` are the actual MessagePart shapes a Harmony
-      // composer emits when a user pastes a bare URL (the previous
-      // implementation only handled the `link` variant, which left
-      // URL-only posts rendering an empty `.content` div on the public
-      // post page). Strip tracking params for the visible href so the
-      // SSR page matches what the in-app renderer shows.
+      // `url` and `embed` are the MessagePart shapes a Harmony composer emits for a pasted URL.
+      // The visible href drops tracking parameters, as the in-app renderer does.
       if (item.type === 'url' || item.type === 'embed') {
         const rawUrl = typeof item.url === 'string' ? item.url : '';
         if (!rawUrl) return '';
@@ -167,7 +198,7 @@ function extractContentHtml(content: any): string {
         const resolved = resolveStorageUrl(rawUrl, 'emojis', 48);
         const safeUrl = safeAttrUrl(resolved);
         if (!safeUrl) return escapeHtml(`:${name}:`);
-        return `<img src="${escapeHtml(safeUrl)}" alt=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
+        return `<img src="${escapeHtml(safeUrl)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
       }
       if (item.type === 'role_mention') {
         const roleName = item.roleName ? String(item.roleName) : 'unknown';
@@ -180,11 +211,10 @@ function extractContentHtml(content: any): string {
         return `<span class="mention"${styleAttr}>@${escapeHtml(roleName)}</span>`;
       }
       if (item.type === 'file') {
-        // Image attachments are already surfaced via `<div class="media-grid">`
-        // below; rendering them again here would double the layout.
+        // Gallery media render in the media grid, not in the text.
         const mime = String(item.mimeType || item.fileType || '');
-        if (/^image/i.test(mime)) return '';
         const rawUrl = typeof item.url === 'string' ? item.url : '';
+        if (/^image/i.test(mime) || galleryUrls.has(rawUrl)) return '';
         const safeUrl = safeAttrUrl(rawUrl);
         const label = item.fileName ? String(item.fileName) : rawUrl;
         if (!safeUrl) {
@@ -198,40 +228,87 @@ function extractContentHtml(content: any): string {
     .join('');
 }
 
-interface ImageAttachment {
+export type GalleryKind = 'image' | 'gifv' | 'video' | 'audio' | 'file';
+
+export interface GalleryItem {
   url: string;
-  alt?: string;
-  width?: number;
-  height?: number;
-  mediaType?: string;
+  kind: GalleryKind;
+  alt: string;
+  width: number | null;
+  height: number | null;
+  /** CSS object-position of the focal point. */
+  position: string | null;
+  mime: string;
 }
 
-function extractImages(content: any): ImageAttachment[] {
-  if (!Array.isArray(content)) return [];
-  return content
-    .filter((item: any) => item.type === 'file' && /^image/i.test(item.mimeType || item.fileType || ''))
-    .map((item: any) => ({
-      url: item.url,
-      alt: item.altText || item.description || undefined,
-      width: item.width,
-      height: item.height,
-      mediaType: item.mimeType || undefined,
-    }));
+function mimeOf(m: any): string {
+  return String(m?.mediaType || m?.media_type || m?.mime_type || m?.mimeType || '').toLowerCase();
 }
 
-function formatDate(isoDate: string): string {
-  try {
-    const d = new Date(isoDate);
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+function positiveInt(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
+/**
+ * Kind of a media row: the declared type for composer and Mastodon rows, else by MIME type,
+ * then by file extension. Mirrors src/utils/postMedia.ts galleryType.
+ */
+function galleryKind(m: any, url: string): GalleryKind {
+  const declared = typeof m?.type === 'string' ? m.type.toLowerCase() : '';
+  if (declared === 'image' || declared === 'video' || declared === 'audio' || declared === 'gifv') return declared;
+  const fileType = typeof m?.fileType === 'string' ? m.fileType.toLowerCase() : '';
+  if (fileType === 'image' || fileType === 'video' || fileType === 'audio') return fileType;
+  const mime = mimeOf(m);
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  const path = url.split('?')[0].toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|avif)$/.test(path)) return 'image';
+  if (/\.(mp4|webm|ogv|mov|m4v)$/.test(path)) return 'video';
+  if (/\.(mp3|ogg|oga|opus|wav|flac|m4a)$/.test(path)) return 'audio';
+  return 'file';
+}
+
+/**
+ * Media of a post: `media_attachments` rows (composer, federated, Mastodon API), else the
+ * content's file parts. Mirrors src/utils/postMedia.ts galleryMedia. Unsafe URLs are dropped.
+ */
+export function galleryMedia(post: any): GalleryItem[] {
+  const attached = Array.isArray(post?.media_attachments) ? post.media_attachments : [];
+  const rows: any[] = attached.length > 0
+    ? attached
+    : (Array.isArray(post?.content) ? post.content : []).filter((p: any) => p?.type === 'file');
+  const items: GalleryItem[] = [];
+  for (const m of rows) {
+    const url = safeHttpUrl(m?.url || m?.remote_url || m?.href);
+    if (!url) continue;
+    const kind = galleryKind(m, url);
+    if (attached.length === 0 && kind === 'file') continue;
+    const focal = storedFocalPoint(m);
+    items.push({
+      url,
+      kind,
+      // Composer rows carry the file name in `name`; it is never alt text.
+      alt: firstText(m?.description, m?.altText, m?.alt),
+      width: positiveInt(m?.width ?? m?.meta?.width ?? m?.meta?.original?.width),
+      height: positiveInt(m?.height ?? m?.meta?.height ?? m?.meta?.original?.height),
+      position: focal ? `${round((focal[0] + 1) * 50)}% ${round((1 - focal[1]) * 50)}%` : null,
+      mime: mimeOf(m),
     });
-  } catch {
-    return isoDate;
   }
+  return items;
+}
+
+function firstText(...values: unknown[]): string {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+
+function round(n: number): number {
+  return Math.round(n * 10) / 10;
 }
 
 interface DisplayNameEmoji {
@@ -239,40 +316,43 @@ interface DisplayNameEmoji {
   url: string;
 }
 
-function renderDisplayNameHtml(displayName: string, emojis?: DisplayNameEmoji[]): string {
-  if (!displayName) return '';
-  if (!emojis || emojis.length === 0) return escapeHtml(displayName);
-
-  const emojiMap = new Map<string, string>();
-  for (const e of emojis) {
-    if (!e.name || !e.url) continue;
+function emojiMap(emojis?: DisplayNameEmoji[] | null): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const e of emojis ?? []) {
+    if (!e?.name || !e?.url) continue;
     const resolvedUrl = resolveStorageUrl(e.url, 'emojis', 48);
+    if (!safeAttrUrl(resolvedUrl)) continue;
     const cleanName = e.name.replace(/^:/, '').replace(/:$/, '');
-    emojiMap.set(cleanName, resolvedUrl);
-    const nameWithoutDomain = cleanName.replace(/@[^@]*$/, '');
-    emojiMap.set(nameWithoutDomain, resolvedUrl);
+    map.set(cleanName, resolvedUrl);
+    map.set(cleanName.replace(/@[^@]*$/, ''), resolvedUrl);
   }
-
-  let result = escapeHtml(displayName);
-  const emojiRegex = /\u200b?:([a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?):?\u200b?/g;
-
-  result = result.replace(emojiRegex, (match, name) => {
-    const cleanName = name.replace(/@[^@]*$/, '');
-    const url = emojiMap.get(name) || emojiMap.get(cleanName);
-    if (url) {
-      return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
-    }
-    return match;
-  });
-
-  return result;
+  return map;
 }
 
-function getDisplayNameEmojis(author: any): DisplayNameEmoji[] {
+/** Escaped HTML text with each known `:shortcode:` (and the U+200B spacers around it) an image. */
+export function emojifyHtml(escaped: string, emojis?: DisplayNameEmoji[] | null): string {
+  const map = emojiMap(emojis);
+  if (map.size === 0) return escaped;
+  return escaped.replace(/​?:([a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9._-]*)?):​?/g, (match, name: string) => {
+    const url = map.get(name) || map.get(name.replace(/@[^@]*$/, ''));
+    if (!url) return match;
+    return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
+  });
+}
+
+export function renderDisplayNameHtml(displayName: string, emojis?: DisplayNameEmoji[] | null): string {
+  if (!displayName) return '';
+  return emojifyHtml(escapeHtml(displayName), emojis);
+}
+
+export function displayNameEmojis(author: any): DisplayNameEmoji[] {
+  if (Array.isArray(author?.display_name_emojis) && author.display_name_emojis.length > 0) {
+    return author.display_name_emojis;
+  }
   try {
-    const meta = typeof author.federation_metadata === 'string'
+    const meta = typeof author?.federation_metadata === 'string'
       ? JSON.parse(author.federation_metadata)
-      : author.federation_metadata;
+      : author?.federation_metadata;
     if (meta?.display_name_emojis && Array.isArray(meta.display_name_emojis)) {
       return meta.display_name_emojis;
     }
@@ -280,306 +360,235 @@ function getDisplayNameEmojis(author: any): DisplayNameEmoji[] {
   return [];
 }
 
-function formatCount(n: number): string {
-  if (!n || n <= 0) return '0';
-  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-  return n.toString();
+export function isLocalAuthor(author: any): boolean {
+  return author?.is_local !== false;
 }
 
-export function renderPostPage(post: any, author: any): string {
+/** `@user@domain`, this instance's domain for a local account. */
+export function authorHandle(author: any): string {
+  const domain = isLocalAuthor(author) ? config.INSTANCE_DOMAIN : (author?.domain || config.INSTANCE_DOMAIN);
+  return `@${author?.username}@${domain}`;
+}
+
+/** The public page of a local account; the account's page on its server otherwise. */
+export function authorHref(author: any): string {
+  if (isLocalAuthor(author)) return `https://${config.INSTANCE_DOMAIN}/@${encodeURIComponent(author.username)}`;
+  return safeHttpUrl(author?.url) || safeHttpUrl(author?.federated_id) || `https://${author?.domain}/users/${author?.username}`;
+}
+
+/** The public page of a local post; the post's page on its server otherwise. */
+export function postPermalink(post: any, author: any): string {
+  if (isLocalAuthor(author) && post?.is_local !== false) {
+    return `https://${config.INSTANCE_DOMAIN}/@${encodeURIComponent(author.username)}/${post.id}`;
+  }
+  return safeHttpUrl(post?.url) || safeHttpUrl(post?.ap_id) || `https://${config.INSTANCE_DOMAIN}/posts/${post?.id}`;
+}
+
+function avatarSrc(author: any, size: number): string {
+  return absoluteUrl(resolveStorageUrl(author?.avatar_url, 'avatars', size)) || `https://${config.INSTANCE_DOMAIN}/default_avatar.webp`;
+}
+
+/** Original avatar for link-preview cards: a render can answer WebP, which some crawlers skip. */
+export function avatarOriginal(author: any): string {
+  return absoluteUrl(originalStorageUrl(author?.avatar_url, 'avatars')) || `https://${config.INSTANCE_DOMAIN}/default_avatar.webp`;
+}
+
+function mediaHtml(items: GalleryItem[]): string {
+  const shown = items.filter((m) => m.kind !== 'file');
+  if (shown.length === 0) return '';
+  const layout = shown.length > 4 ? 'many' : String(shown.length);
+  const cells = shown.map((m) => {
+    const alt = m.alt;
+    const altAttr = escapeHtml(alt);
+    const badge = alt ? `<span class="alt-badge" title="${altAttr}">ALT</span>` : '';
+    const ratio = shown.length === 1 && m.width && m.height
+      ? ` style="aspect-ratio: ${m.width} / ${m.height}"`
+      : '';
+    const position = m.position ? ` style="object-position: ${m.position}"` : '';
+    const src = escapeHtml(m.url);
+    if (m.kind === 'image') {
+      return `<a class="media-item" href="${src}" target="_blank" rel="noopener"${ratio}><img src="${src}" alt="${altAttr}" loading="lazy" decoding="async"${position}${m.width ? ` width="${m.width}"` : ''}${m.height ? ` height="${m.height}"` : ''}>${badge}</a>`;
+    }
+    if (m.kind === 'gifv') {
+      return `<div class="media-item"${ratio}><video src="${src}" aria-label="${altAttr}" autoplay muted loop playsinline preload="metadata"${position}></video>${badge}</div>`;
+    }
+    if (m.kind === 'video') {
+      return `<div class="media-item"${ratio}><video src="${src}" aria-label="${altAttr}" controls playsinline preload="metadata"${position}></video>${badge}</div>`;
+    }
+    return `<div class="media-item media-audio"><audio src="${src}" aria-label="${altAttr}" controls preload="none"></audio>${badge}</div>`;
+  });
+  const files = items.filter((m) => m.kind === 'file').map((m) =>
+    `<a class="media-file" href="${escapeHtml(m.url)}" rel="nofollow noopener" target="_blank">${icon('file')}${escapeHtml(m.alt || m.url.split('/').pop() || m.url)}</a>`);
+  return `<div class="media-grid media-${layout}${shown.length === 1 ? ' single' : ' multi'}">${cells.join('')}</div>${files.join('')}`;
+}
+
+function pollHtml(poll: any, ctx: PageContext): string {
+  if (!poll || !Array.isArray(poll.options)) return '';
+  const count = (v: unknown) => {
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  };
+  const options = poll.options
+    .map((o: any) => ({ name: String(o?.name ?? ''), votes: count(o?.votes) }))
+    .filter((o: { name: string }) => o.name);
+  if (options.length === 0) return '';
+  const sum = options.reduce((acc: number, o: { votes: number }) => acc + o.votes, 0);
+  const voters = count(poll.voters_count) || sum;
+  const denominator = poll.multiple ? voters : sum;
+  const top = Math.max(...options.map((o: { votes: number }) => o.votes));
+  const end = typeof poll.end_time === 'string' ? poll.end_time : null;
+  const ended = poll.closed === true || (end !== null && Date.parse(end) <= Date.now());
+  const rows = options.map((o: { name: string; votes: number }) => {
+    const percent = denominator > 0 ? Math.min(100, Math.round((o.votes / denominator) * 100)) : 0;
+    const lead = top > 0 && o.votes === top ? ' lead' : '';
+    return `<li class="poll-option${lead}"><span class="poll-bar" style="width: ${percent}%"></span><span class="poll-label">${escapeHtml(o.name)}</span><span class="poll-pct">${percent}%</span></li>`;
+  });
+  const state = ended
+    ? escapeHtml(ctx.t.pollClosed)
+    : end ? fillHtml(ctx.t.pollEnds, { date: timeHtml(end, ctx.locale, true) }) : '';
+  const people = escapeHtml(fillText(ctx.t.pollPeople, { count: formatCount(voters, ctx.locale) }));
+  return `<div class="poll"><ul>${rows.join('')}</ul><p class="poll-meta">${people}${state ? ` · ${state}` : ''}</p></div>`;
+}
+
+function quoteHtml(quote: any, ctx: PageContext): string {
+  if (!quote?.author) return '';
+  const author = quote.author;
+  const name = renderDisplayNameHtml(author.display_name || author.username, displayNameEmojis(author));
+  const text = quote.content_warning
+    ? `<span class="quote-cw">${escapeHtml(quote.content_warning)}</span>`
+    : escapeHtml(truncate(extractPlainText(quote.content), 320));
+  const image = quote.content_warning || quote.is_sensitive ? null : galleryMedia(quote).find((m) => m.kind === 'image');
+  return `<a class="quote" href="${escapeHtml(postPermalink(quote, author))}" data-testid="public-quote">
+  <span class="quote-head"><img class="avatar avatar-xs" src="${escapeHtml(avatarSrc(author, 48))}" alt="" loading="lazy"><span class="display-name">${name}</span><span class="handle">${escapeHtml(authorHandle(author))}</span></span>
+  ${text ? `<span class="quote-text">${text}</span>` : ''}
+  ${image ? `<img class="quote-image" src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" loading="lazy"${image.position ? ` style="object-position: ${image.position}"` : ''}>` : ''}
+  ${timeHtml(quote.created_at, ctx.locale)}
+</a>`;
+}
+
+function truncate(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length > max ? chars.slice(0, max - 1).join('') + '…' : text;
+}
+
+export interface PostCardOptions {
+  /** 'page': the post's own page (h1-level, full date); 'feed': a profile's list. */
+  level: 'page' | 'feed';
+  pinned?: boolean;
+}
+
+/** One post as an article. `post.author` names its author. */
+export function renderPostCard(post: any, ctx: PageContext, opts: PostCardOptions): string {
+  const author = post.author ?? {};
+  const media = galleryMedia(post);
+  const galleryUrls = new Set(media.map((m) => m.url));
+  const contentHtml = extractContentHtml(post.content, galleryUrls);
+  const permalink = postPermalink(post, author);
+  const nameHtml = renderDisplayNameHtml(author.display_name || author.username, displayNameEmojis(author));
+
+  const replyTo = post.reply_to?.author
+    ? `<p class="reply-to">${icon('reply')}${fillHtml(ctx.t.replyingTo, {
+      handle: `<a href="${escapeHtml(postPermalink(post.reply_to, post.reply_to.author))}">${escapeHtml(authorHandle(post.reply_to.author))}</a>`,
+    })}</p>`
+    : '';
+
+  const mediaBlock = media.length === 0
+    ? ''
+    : post.is_sensitive && !post.content_warning
+      ? `<details class="sensitive"><summary>${icon('eyeOff')}<span>${escapeHtml(ctx.t.sensitive)}</span><span class="toggle"><span class="more">${escapeHtml(ctx.t.showMore)}</span><span class="less">${escapeHtml(ctx.t.showLess)}</span></span></summary>${mediaHtml(media)}</details>`
+      : mediaHtml(media);
+  const body = `<div class="content"${post.language ? ` lang="${escapeHtml(String(post.language))}"` : ''}>${contentHtml}</div>${mediaBlock}${pollHtml(post.poll, ctx)}${quoteHtml(post.quote, ctx)}`;
+  const warned = post.content_warning
+    ? `<div class="content-warning">${escapeHtml(post.content_warning)}</div>
+<details class="cw-body"><summary><span class="toggle"><span class="more">${escapeHtml(ctx.t.showMore)}</span><span class="less">${escapeHtml(ctx.t.showLess)}</span></span></summary>${body}</details>`
+    : body;
+
+  const stat = (name: 'reply' | 'boost' | 'heart', label: string, n: unknown) =>
+    `<span class="stat" title="${escapeHtml(label)}">${icon(name, label)}<span class="stat-count">${formatCount(n, ctx.locale)}</span></span>`;
+  const flags: string[] = [];
+  if (post.visibility === 'unlisted') flags.push(`<span class="visibility-badge">${icon('eyeOff')}${escapeHtml(ctx.t.unlisted)}</span>`);
+  if (post.edited_at) flags.push(`<span class="edited" title="${escapeHtml(post.edited_at)}">${escapeHtml(ctx.t.edited)}</span>`);
+
+  return `<article class="card post post-${opts.level}" data-testid="public-post" data-post-id="${escapeHtml(String(post.id))}">
+  ${opts.pinned ? `<p class="pinned-label">${icon('pin')}${escapeHtml(ctx.t.pinned)}</p>` : ''}
+  <header class="post-head">
+    <a href="${escapeHtml(authorHref(author))}" class="author"><img src="${escapeHtml(avatarSrc(author, 96))}" alt="" class="avatar" loading="lazy"><span class="author-info"><span class="display-name">${nameHtml}</span><span class="handle"><!--email_off-->${escapeHtml(authorHandle(author))}<!--/email_off--></span></span></a>
+    <a class="post-time" href="${escapeHtml(permalink)}">${timeHtml(post.created_at, ctx.locale, opts.level === 'page')}</a>
+  </header>
+  ${replyTo}
+  ${warned}
+  <div class="stats-bar">${stat('reply', ctx.t.replies, post.replies_count)}${stat('boost', ctx.t.boosts, post.reblogs_count)}${stat('heart', ctx.t.favourites, post.favorites_count)}${flags.length ? `<span class="flags">${flags.join('')}</span>` : ''}</div>
+</article>`;
+}
+
+export interface PostPageOptions {
+  /** noindex regardless of the post: the pages are off, or this is not the canonical URL. */
+  noindex?: boolean;
+}
+
+/**
+ * The page of one post. `author` is the post's author; `ctx` defaults to English and this
+ * instance's configured name.
+ */
+export function renderPostPage(post: any, author: any, ctx?: PageContext, options: PostPageOptions = {}): string {
+  const context = ctx ?? pageContext('en', pageInstance(null), `/posts/${post.id}`);
+  const full = { ...post, author };
   const domain = config.INSTANCE_DOMAIN;
-  const instanceName = config.INSTANCE_NAME;
-  const postUrl = `https://${domain}/posts/${post.id}`;
-  const spaPostUrl = `https://${domain}/social/post/${post.id}`;
-  // A remote post's ActivityPub object and author live on its origin.
-  const remote = author.is_local === false;
-  const apObjectUrl = remote && typeof post.ap_id === 'string' && /^https?:\/\//.test(post.ap_id) ? post.ap_id : postUrl;
-  const authorUrl = remote
-    ? (typeof author.federated_id === 'string' && author.federated_id) || `https://${author.domain}/users/${author.username}`
-    : `https://${domain}/users/${author.username}`;
-  const oembedUrl = `https://${domain}/oembed?url=${encodeURIComponent(postUrl)}&format=json`;
+  const remote = !isLocalAuthor(author) || post.is_local === false;
+  const canonical = postPermalink(full, author);
+  const apObjectUrl = safeHttpUrl(post.ap_id) || `https://${domain}/posts/${post.id}`;
+  const oembedUrl = `https://${domain}/oembed?url=${encodeURIComponent(`https://${domain}/posts/${post.id}`)}&format=json`;
 
   const plainText = extractPlainText(post.content);
-  const contentHtml = extractContentHtml(post.content);
-  const images = extractImages(post.content);
-  const firstImage = images[0];
+  const media = galleryMedia(full);
+  const firstImage = post.content_warning || post.is_sensitive ? undefined : media.find((m) => m.kind === 'image');
 
-  const displayNameEmojis = getDisplayNameEmojis(author);
-  const displayNameHtml = renderDisplayNameHtml(author.display_name || author.username, displayNameEmojis);
-  // Raw text below; every interpolation into the page escapes once.
+  const nameHtml = renderDisplayNameHtml(author.display_name || author.username, displayNameEmojis(author));
   const displayNamePlain = plainDisplayName(author.display_name, author.username);
-  const handle = `@${author.username}@${domain}`;
+  const handle = authorHandle(author);
 
-  const ogDescription = plainText.length > 200
-    ? plainText.substring(0, 197) + '...'
-    : plainText || `Post by ${displayNamePlain}`;
-
-  const ogTitle = post.content_warning
+  const ogDescription = post.content_warning
     ? `CW: ${post.content_warning}`
-    : `${displayNamePlain}: "${ogDescription.substring(0, 80)}${ogDescription.length > 80 ? '...' : ''}"`;
+    : plainText.length > 200
+      ? plainText.substring(0, 197) + '...'
+      : plainText || fillText(context.t.postBy, { name: displayNamePlain });
+  const titleText = post.content_warning ? `CW: ${post.content_warning}` : ogDescription;
+  const title = `${displayNamePlain}: "${titleText.substring(0, 80)}${titleText.length > 80 ? '...' : ''}"`;
 
-  const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars', 96) || `https://${domain}/default-avatar.png`;
-  const ogAvatarUrl = originalStorageUrl(author.avatar_url, 'avatars') || `https://${domain}/default-avatar.png`;
+  const noindex = options.noindex === true || remote || post.visibility === 'unlisted' || author.discoverable === false;
+  const localAuthor = !remote;
+  const inApp = `/social/post/${post.id}`;
 
-  const favorites = post.favorites_count || 0;
-  const reblogs = post.reblogs_count || 0;
-  const replies = post.replies_count || 0;
-  const hasStats = favorites > 0 || reblogs > 0 || replies > 0;
+  const back = localAuthor
+    ? `<a class="back" href="${escapeHtml(authorHref(author))}">${icon('arrowLeft')}<span>${fillHtml(context.t.moreFrom, { name: nameHtml })}</span></a>`
+    : '';
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(ogTitle)} - ${escapeHtml(instanceName)}</title>
-
-  <!-- Open Graph -->
-  <meta property="og:type" content="article">
-  <meta property="og:site_name" content="${escapeHtml(instanceName)}">
-  <meta property="og:title" content="${escapeHtml(displayNamePlain)} (${escapeHtml(handle)})">
-  <meta property="og:description" content="${escapeHtml(ogDescription)}">
-  <meta property="og:url" content="${escapeHtml(postUrl)}">
-  ${firstImage ? `<meta property="og:image" content="${escapeHtml(firstImage.url)}">
-  ${firstImage.width ? `<meta property="og:image:width" content="${firstImage.width}">` : ''}
-  ${firstImage.height ? `<meta property="og:image:height" content="${firstImage.height}">` : ''}` : `<meta property="og:image" content="${escapeHtml(ogAvatarUrl)}">`}
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="${firstImage ? 'summary_large_image' : 'summary'}">
-  <meta name="twitter:title" content="${escapeHtml(displayNamePlain)} (${escapeHtml(handle)})">
-  <meta name="twitter:description" content="${escapeHtml(ogDescription)}">
-  ${firstImage ? `<meta name="twitter:image" content="${escapeHtml(firstImage.url)}">` : ''}
-
-  <!-- oEmbed discovery -->
-  <link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(ogTitle)}">
-
-  <!-- ActivityPub alternate -->
-  <link rel="alternate" type="application/activity+json" href="${escapeHtml(apObjectUrl)}">
-
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #121214;
-      color: #f2f3f5;
-      line-height: 1.5;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .container {
-      max-width: 600px;
-      width: 100%;
-      padding: 24px 16px;
-    }
-    .post-card {
-      background: #1a1a1e;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-    .author {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-      text-decoration: none;
-      color: inherit;
-    }
-    .author:hover .display-name { text-decoration: underline; }
-    .avatar {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      object-fit: cover;
-      background: #222327;
-    }
-    .author-info { flex: 1; min-width: 0; }
-    .display-name {
-      font-weight: 600;
-      font-size: 15px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: #f2f3f5;
-    }
-    .display-name .custom-emoji {
-      height: 1.2em;
-      width: auto;
-      vertical-align: -0.2em;
-      margin: 0 1px;
-    }
-    .handle {
-      color: #80848e;
-      font-size: 13px;
-    }
-    .content-warning {
-      background: rgba(240, 71, 71, 0.1);
-      border: 1px solid rgba(240, 71, 71, 0.2);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-      color: #f04747;
-      font-weight: 500;
-    }
-    .content {
-      font-size: 15px;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      color: #f2f3f5;
-    }
-    .content a {
-      color: #0EA5E9;
-      text-decoration: none;
-    }
-    .content a:hover { text-decoration: underline; }
-    .content .mention { color: #0EA5E9; }
-    .content .hashtag { color: #0EA5E9; }
-    .media-grid {
-      margin-top: 12px;
-      display: grid;
-      gap: 4px;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .media-grid.single { grid-template-columns: 1fr; }
-    .media-grid.multi { grid-template-columns: 1fr 1fr; }
-    .media-grid img {
-      width: 100%;
-      max-height: 400px;
-      object-fit: cover;
-      display: block;
-    }
-    .stats-bar {
-      display: flex;
-      gap: 20px;
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      color: #80848e;
-      font-size: 13px;
-    }
-    .stat {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .stat svg {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
-    .stat-count {
-      font-variant-numeric: tabular-nums;
-    }
-    .meta {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
-      color: #6d6f78;
-      font-size: 13px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .meta a { color: #6d6f78; text-decoration: none; }
-    .meta a:hover { color: #0EA5E9; }
-    .cta {
-      display: block;
-      text-align: center;
-      padding: 12px 24px;
-      background: #0EA5E9;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 14px;
-      transition: background 0.15s;
-    }
-    .cta:hover { background: #4752c4; }
-    .branding {
-      text-align: center;
-      padding: 24px 0;
-      color: #6d6f78;
-      font-size: 13px;
-    }
-    .branding a { color: #0EA5E9; text-decoration: none; }
-    .visibility-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #80848e;
-    }
-  </style>
-  <script>
-    (function() {
-      try {
-        var keys = Object.keys(localStorage);
-        for (var i = 0; i < keys.length; i++) {
-          if (keys[i].indexOf('sb-') === 0 && keys[i].indexOf('-auth-token') !== -1) {
-            var val = localStorage.getItem(keys[i]);
-            if (val) {
-              var parsed = JSON.parse(val);
-              if (parsed && parsed.access_token) {
-                window.location.replace("${escapeHtml(spaPostUrl)}");
-                return;
-              }
-            }
-          }
-        }
-      } catch(e) {}
-    })();
-  </script>
-</head>
-<body>
-  <div class="container">
-    <div class="post-card">
-      <a href="${escapeHtml(authorUrl)}" class="author">
-        <img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayNamePlain)}" class="avatar" loading="lazy">
-        <div class="author-info">
-          <div class="display-name">${displayNameHtml}</div>
-          <div class="handle">${escapeHtml(handle)}</div>
-        </div>
-      </a>
-
-      ${post.content_warning ? `<div class="content-warning">Content Warning: ${escapeHtml(post.content_warning)}</div>` : ''}
-
-      <div class="content">${contentHtml}</div>
-
-      ${images.length > 0 ? `
-      <div class="media-grid ${images.length === 1 ? 'single' : 'multi'}">
-        ${images.map(img => `<img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.alt || '')}" loading="lazy">`).join('\n        ')}
-      </div>` : ''}
-
-      ${hasStats ? `
-      <div class="stats-bar">
-        ${replies > 0 ? `<span class="stat"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="stat-count">${formatCount(replies)}</span></span>` : ''}
-        ${reblogs > 0 ? `<span class="stat"><svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span class="stat-count">${formatCount(reblogs)}</span></span>` : ''}
-        ${favorites > 0 ? `<span class="stat"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="stat-count">${formatCount(favorites)}</span></span>` : ''}
-      </div>` : ''}
-
-      <div class="meta">
-        <time datetime="${escapeHtml(post.created_at)}">${formatDate(post.created_at)}</time>
-        <span class="visibility-badge">${escapeHtml(post.visibility || 'public')}</span>
-      </div>
-    </div>
-
-    <a href="${escapeHtml(spaPostUrl)}" class="cta">View on ${escapeHtml(instanceName)}</a>
-
-    <div class="branding">
-      Powered by <a href="https://mony.lol">Harmony</a> &mdash;
-      a federated social platform
-    </div>
-  </div>
-</body>
-</html>`;
+  return renderShell({
+    ctx: context,
+    title: `${title} - ${context.instance.name}`,
+    description: ogDescription,
+    canonical,
+    noindex,
+    ogType: 'article',
+    ogTitle: `${displayNamePlain} (${handle})`,
+    ogImage: firstImage ? firstImage.url : avatarOriginal(author),
+    ogImageAlt: firstImage?.alt || null,
+    ogImageWidth: firstImage?.width ?? null,
+    ogImageHeight: firstImage?.height ?? null,
+    twitterCard: firstImage ? 'summary_large_image' : 'summary',
+    activityPubUrl: apObjectUrl,
+    extraHead: [
+      `<link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(title)}">`,
+      post.created_at ? `<meta property="article:published_time" content="${escapeHtml(post.created_at)}">` : '',
+    ].filter(Boolean).join('\n  '),
+    handOff: {
+      app: localAuthor ? `/@${encodeURIComponent(author.username)}/${post.id}` : inApp,
+      fallback: inApp,
+    },
+    body: `${back}
+${renderPostCard(full, context, { level: 'page' })}
+${joinCard(context, nameHtml)}`,
+  });
 }
 
 export function renderOEmbed(post: any, author: any): object {
@@ -587,19 +596,22 @@ export function renderOEmbed(post: any, author: any): object {
   const instanceName = config.INSTANCE_NAME;
   const plainText = extractPlainText(post.content);
   const displayName = plainDisplayName(author.display_name, author.username);
-  const handle = `@${author.username}@${domain}`;
+  const handle = authorHandle(author);
+  const authorUrl = authorHref(author);
 
   return {
     version: '1.0',
     type: 'rich',
     title: plainText.substring(0, 100) || `Post by ${displayName}`,
     author_name: `${displayName} (${handle})`,
-    author_url: `https://${domain}/users/${author.username}`,
+    author_url: authorUrl,
     provider_name: instanceName,
     provider_url: `https://${domain}`,
-    url: `https://${domain}/posts/${post.id}`,
-    html: `<blockquote><p>${escapeHtml(plainText)}</p>&mdash; ${escapeHtml(displayName)} (<a href="https://${domain}/users/${author.username}">${escapeHtml(handle)}</a>)</blockquote>`,
+    url: postPermalink(post, author),
+    html: `<blockquote><p>${escapeHtml(plainText)}</p>&mdash; ${escapeHtml(displayName)} (<a href="${escapeHtml(authorUrl)}">${escapeHtml(handle)}</a>)</blockquote>`,
     width: 600,
     height: null,
   };
 }
+
+export { extractPlainText };

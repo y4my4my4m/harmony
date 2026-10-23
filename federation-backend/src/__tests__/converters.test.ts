@@ -235,7 +235,7 @@ describe('toActivityPub converters', () => {
       )
       expect(note.likes).toEqual({ id: 'https://harmony.test/posts/p1/likes', type: 'Collection', totalItems: 3 })
       expect(note.shares).toEqual({ id: 'https://harmony.test/posts/p1/shares', type: 'Collection', totalItems: 0 })
-      expect(note.url).toBe('https://harmony.test/social/post/p1')
+      expect(note.url).toBe(`https://harmony.test/@${author.username}/p1`)
       expect(note.contentMap).toEqual({ en: '<p>hi</p>' })
       expect(note.sensitive).toBe(false)
       expect(postToNote({ id: 'p2', visibility: 'public', created_at: '', content: [] }, author).likes).toBe('https://harmony.test/posts/p2/likes')

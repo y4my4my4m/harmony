@@ -49,7 +49,11 @@ describe('post page og:image without a post image', () => {
     expect(ogImage(html)).toBe('https://remote.example/media/a.jpg');
   });
 
-  it('falls back to the default avatar', () => {
-    expect(ogImage(renderPostPage(post, author(null)))).toBe('https://harmony.test/default-avatar.png');
+  it('falls back to the default avatar the app serves', () => {
+    expect(ogImage(renderPostPage(post, author(null)))).toBe('https://harmony.test/default_avatar.webp');
+  });
+
+  it('makes the stored default avatar path absolute', () => {
+    expect(ogImage(renderPostPage(post, author('/default_avatar.webp')))).toBe('https://harmony.test/default_avatar.webp');
   });
 });

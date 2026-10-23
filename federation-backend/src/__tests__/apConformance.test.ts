@@ -199,8 +199,8 @@ describe('Person actor', () => {
     ],
   })
 
-  it('names its page in the web app as url', () => {
-    expect(actor.url).toBe('https://harmony.test/social/profile/alice')
+  it('names its public page as url', () => {
+    expect(actor.url).toBe('https://harmony.test/@alice')
     expect(actor.id).toBe('https://harmony.test/users/alice')
   })
 

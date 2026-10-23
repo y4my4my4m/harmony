@@ -366,7 +366,7 @@ class LinkPreviewService {
   private detectProvider(url: string): EmbedProvider {
     const urlObj = new URL(url);
     const host = urlObj.hostname.toLowerCase();
-    if (host === this.instanceDomain && /^\/posts\/[0-9a-fA-F-]{36}/.test(urlObj.pathname)) {
+    if (host === this.instanceDomain && /^\/(?:posts|@[A-Za-z0-9_]+)\/[0-9a-fA-F-]{36}/.test(urlObj.pathname)) {
       return 'harmony-post';
     }
     if (host.includes('youtube.com') || host === 'youtu.be') {
@@ -515,7 +515,8 @@ class LinkPreviewService {
   }
 
   private async buildHarmonyEmbed(url: string): Promise<EmbedPayload> {
-    const pathMatch = url.match(/\/posts\/([0-9a-fA-F-]{36})/);
+    // /posts/<id>, the Note's id, or /@<name>/<id>, its public page.
+    const pathMatch = new URL(url).pathname.match(/^\/(?:posts|@[A-Za-z0-9_]+)\/([0-9a-fA-F-]{36})/);
     if (!pathMatch) {
       throw new Error('Invalid Harmony post URL');
     }
@@ -555,7 +556,8 @@ class LinkPreviewService {
 
     const summary = this.extractTextSummary(data.content) || 'View post on Harmony';
     const mediaAttachments = Array.isArray(data.media_attachments) ? data.media_attachments : [];
-    const firstImage = mediaAttachments.find((attachment: any) => attachment?.type === 'image');
+    // Posts written in the app say 'Image', ingested ones 'image'.
+    const firstImage = mediaAttachments.find((attachment: any) => String(attachment?.type ?? '').toLowerCase() === 'image');
 
     return {
       cacheKey: '',

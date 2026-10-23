@@ -108,18 +108,18 @@ beforeEach(() => {
 
 describe('WebFinger', () => {
   const profileLink = {
-    rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: 'https://harmony.test/social/profile/alice',
+    rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: 'https://harmony.test/@alice',
   }
 
   it('lists the profile page among the aliases and links of an account', async () => {
     const res = await finger('acct:alice@harmony.test')
     expect(res.status).toBe(200)
     expect(res.body.subject).toBe('acct:alice@harmony.test')
-    expect(res.body.aliases).toEqual(['https://harmony.test/users/alice', 'https://harmony.test/social/profile/alice'])
+    expect(res.body.aliases).toEqual(['https://harmony.test/users/alice', 'https://harmony.test/@alice'])
     expect(res.body.links).toContainEqual(profileLink)
   })
 
-  it.each(['https://harmony.test/users/alice', 'https://harmony.test/social/profile/alice', 'https://harmony.test/users/alice/'])(
+  it.each(['https://harmony.test/users/alice', 'https://harmony.test/social/profile/alice', 'https://harmony.test/@alice', 'https://harmony.test/users/alice/'])(
     'resolves the account by its URL %s', async (resource) => {
       const res = await finger(resource)
       expect(res.status).toBe(200)

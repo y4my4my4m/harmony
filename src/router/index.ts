@@ -2,10 +2,30 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { rememberPostAuthRedirect, consumePostAuthRedirect } from '@/utils/postAuthRedirect';
+import { claimPublicPageHop } from '@/utils/appSessionCookie';
+import { isTauriRuntime } from '@/services/instanceConfig';
 import {
-  ViewType, 
-  CurrentView 
+  ViewType,
+  CurrentView
 } from '@/types/viewTypes';
+import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
+
+/**
+ * /@<name> and /@<name>/<post id> in the app: the in-app profile or post. Signed out, the
+ * page reloads once for the backend's public page; the proxy served the app on a cookie this
+ * session no longer backs, and main.ts has cleared it.
+ */
+export function publicPageEntry(to: RouteLocationNormalized): RouteLocationRaw | false {
+  const username = String(to.params.username ?? '');
+  const postId = typeof to.params.postId === 'string' && to.params.postId ? to.params.postId : null;
+  if (!useAuthStore().isLoggedIn && !isTauriRuntime() && claimPublicPageHop(to.fullPath)) {
+    window.location.replace(to.fullPath);
+    return false;
+  }
+  return postId
+    ? { name: 'PostDetail', params: { postId }, replace: true }
+    : { name: 'UserProfile', params: { handle: username }, replace: true };
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -347,6 +367,15 @@ const router = createRouter({
         return `/social/profile/${username}`;
       },
       meta: { requiresAuth: false }
+    },
+    // Public profile and post pages (federation-backend src/publicPages/). The proxy serves the
+    // app here to a browser holding the app's cookie: the in-app profile or post.
+    {
+      path: '/@:username/:postId?',
+      name: 'PublicPage',
+      component: { render: () => null },
+      meta: { requiresAuth: false },
+      beforeEnter: (to) => publicPageEntry(to)
     },
     // Legacy route redirects
     {

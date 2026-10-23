@@ -1,10 +1,10 @@
 // ActivityPub conformance, what this instance publishes and sends:
 //
-//   - the Person actor: url is the web app's profile page, the context defines every
+//   - the Person actor: url is the public profile page /@<name>, the context defines every
 //     extension term, indexable follows discoverable, field values are inline HTML with
 //     rel="me" links and no stored markup;
-//   - WebFinger by acct:, by the actor id and by the profile page, the profile page among
-//     the aliases; a public chat server by its Group URL;
+//   - WebFinger by acct:, by the actor id, by the profile page and by the web app's page,
+//     the profile page among the aliases; a public chat server by its Group URL;
 //   - the profile Update a field change federates reaches a follower with the same actor,
 //     under the instance's User-Agent;
 //   - each follows row is its own Follow id, the Undo names it, a re-follow is a new id;
@@ -93,7 +93,7 @@ export async function caseApConformance(ctx: ApConformanceContext): Promise<void
   const backend = (p: string) => import(pathToFileURL(path.join(ctx.backendRoot, 'src', p)).href)
   const base = `https://${instanceDomain}`
   const aliceUrl = `${base}/users/fx_alice`
-  const profilePage = `${base}/social/profile/fx_alice`
+  const profilePage = `${base}/@fx_alice`
   const ap = (p: string) => ctx.get(`${localUrl}${p}`, { Accept: 'application/activity+json' })
   const finger = (resource: string) => ctx.get(`${localUrl}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`, { Accept: 'application/jrd+json' })
   const bodyOf = (c: Captured) => JSON.parse(c.raw.toString('utf-8'))
@@ -113,7 +113,7 @@ export async function caseApConformance(ctx: ApConformanceContext): Promise<void
       await db.from('profiles').update({ profile_fields: fields, federation_discoverable: true }).eq('id', ids.alice)
       const res = await ap('/users/fx_alice')
       eq(res.status, 200, 'the actor is served')
-      eq(res.json?.url, profilePage, 'its url is the web app\'s profile page')
+      eq(res.json?.url, profilePage, 'its url is the public profile page')
       eq(res.json?.id, aliceUrl, 'its id stays the actor URL')
       const terms = res.json?.['@context']?.[2] ?? {}
       eq(JSON.stringify([terms.toot, terms.discoverable, terms.indexable, terms.Emoji, terms.manuallyApprovesFollowers, terms.PropertyValue, terms.value]),
@@ -128,7 +128,7 @@ export async function caseApConformance(ctx: ApConformanceContext): Promise<void
 
     console.log('\nActivityPub conformance -> WebFinger by handle and by URL')
     {
-      for (const resource of [`acct:fx_alice@${instanceDomain}`, aliceUrl, profilePage]) {
+      for (const resource of [`acct:fx_alice@${instanceDomain}`, aliceUrl, profilePage, `${base}/social/profile/fx_alice`]) {
         const res = await finger(resource)
         eq(res.status, 200, `${resource} resolves`)
         eq(res.json?.subject, `acct:fx_alice@${instanceDomain}`, `${resource} names the account`)

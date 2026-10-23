@@ -103,9 +103,9 @@ export function quotePolicy(visibility: string, authorUrl: string): { canQuote: 
   return { canQuote: { automaticApproval: [allowed] } };
 }
 
-/** Human page of a local post. */
-export function postPageUrl(postId: string): string {
-  return `https://${config.INSTANCE_DOMAIN}/social/post/${postId}`;
+/** Public page of a local post (publicPages/routes.ts), its Note's `url`. */
+export function postPageUrl(postId: string, username: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/@${username}/${postId}`;
 }
 
 /**
@@ -171,7 +171,7 @@ export function postToNote(
     type: 'Note',
     attributedTo: authorUrl,
     published: post.created_at,
-    url: post.id ? postPageUrl(post.id) : postUrl,
+    url: post.id && author.username ? postPageUrl(post.id, author.username) : postUrl,
     content,
     to: toAddresses,
     cc: ccAddresses,
@@ -282,9 +282,9 @@ export const ACTOR_CONTEXT = {
   ...ACCOUNT_MIGRATION_CONTEXT,
 };
 
-/** The account's page in the web app, its actor `url` and WebFinger profile page. */
+/** The account's public page (publicPages/routes.ts), its actor `url` and WebFinger profile page. */
 export function profilePageUrl(username: string): string {
-  return `https://${config.INSTANCE_DOMAIN}/social/profile/${username}`;
+  return `https://${config.INSTANCE_DOMAIN}/@${username}`;
 }
 
 /**

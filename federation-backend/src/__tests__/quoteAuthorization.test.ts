@@ -207,6 +207,7 @@ describe('localPostIdFromUri', () => {
   it('reads AP ids and post pages on this host only', () => {
     expect(Q.localPostIdFromUri(`https://harmony.test/posts/${POST}`)).toBe(POST)
     expect(Q.localPostIdFromUri(`https://harmony.test/social/post/${POST}`)).toBe(POST)
+    expect(Q.localPostIdFromUri(`https://harmony.test/@alice/${POST}`)).toBe(POST)
     expect(Q.localPostIdFromUri(`https://other.test/posts/${POST}`)).toBeNull()
     expect(Q.localPostIdFromUri('not a url')).toBeNull()
   })

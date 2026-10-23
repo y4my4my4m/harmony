@@ -160,7 +160,7 @@
 		import federation_upstream
 	}
 
-	# The SPA's profile page, an account's `url` and WebFinger profile page: ActivityPub
+	# The SPA's profile page; remote servers may hold it as an account's `url`. ActivityPub
 	# clients get the actor from /users/<name>, browsers the SPA.
 	@socialProfileAp {
 		path_regexp socialProfileAp ^/social/profile/([A-Za-z0-9_]+)/?$
@@ -171,14 +171,36 @@
 		import federation_upstream
 	}
 
+	# Public profile and post pages, /@<name> and /@<name>/<post id>: an account's and a Note's
+	# `url`. A browser that is not an ActivityPub client and holds the cookie harmony_app=1, which
+	# the app sets while signed in, gets the SPA, not shared-cacheable; ActivityPub clients and
+	# everyone else the backend: the actor, the Note or the page. nginx: map $public_page_app.
+	@publicPageApp {
+		path_regexp ^/@[^/]+(/[^/]+)?/?$
+		expression {http.request.cookie.harmony_app} == "1"
+		not header_regexp Accept (?i)application/(?:activity|ld)\+json
+	}
+	handle @publicPageApp {
+		header {
+			+Vary "Accept, Cookie"
+			Cache-Control "private, no-cache"
+			defer
+		}
+		reverse_proxy web:80
+	}
+	@publicPage path_regexp ^/@[^/]+(/[^/]+)?/?$
+	handle @publicPage {
+		import federation_upstream
+	}
+
 	# Create and Announce activities at the ids deliveries and outboxes carry.
 	@fedActivities path_regexp ^/(users/[^/]+/)?activities/[0-9a-f-]+$
 	handle @fedActivities {
 		import federation_upstream
 	}
 
-	# Actor profile: ActivityPub clients get the actor, browsers the in-app
-	# profile. nginx tests Accept with ~* (case-insensitive).
+	# Actor profile: ActivityPub clients get the actor, browsers the public page
+	# /@<name>. nginx tests Accept with ~* (case-insensitive).
 	@fedActor {
 		path_regexp ^/users/[^/]+$
 		header_regexp Accept (?i)application/(activity\+json|ld\+json|json)
@@ -192,7 +214,7 @@
 	}
 	handle @humanActor {
 		# `*`: a first argument starting with / would parse as a path matcher.
-		redir * /social/profile/{re.humanActor.1} 302
+		redir * /@{re.humanActor.1} 302
 	}
 
 	# Prefix locations without a trailing slash in nginx: /health matches

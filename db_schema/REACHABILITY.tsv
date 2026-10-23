@@ -633,6 +633,11 @@ profile_web_handle	invoker	text	anon+authenticated+service_role	trigger	called b
 promote_first_user_to_admin	definer	trigger	anon+authenticated+service_role	trigger	trigger public.profiles BEFORE INSERT (promote_first_user_to_admin_trigger)
 protect_profile_deleted_at	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE UPDATE (protect_profile_deleted_at_trigger)
 public_instance_config_keys	invoker	text[]	anon+authenticated+service_role	policy	policy public.instance_config SELECT on Public can read instance settings
+public_page_account	invoker	jsonb	service_role	client	called by public_page_post, public_profile_page
+public_page_instance	invoker	jsonb	service_role	client	called by public_post_page, public_profile_page
+public_page_post	invoker	jsonb	service_role	client	called by public_post_page, public_profile_page
+public_post_page	definer	jsonb	service_role	client	named in federation-backend/src/__tests__/publicPagesRoutes.test.ts, federation-backend/src/publicPages/routes.ts
+public_profile_page	definer	jsonb	service_role	client	named in federation-backend/src/__tests__/publicPagesActivityPub.test.ts, federation-backend/src/__tests__/publicPagesRoutes.test.ts, federation-backend/src/publicPages/routes.ts
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
 queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +40

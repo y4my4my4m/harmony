@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Routing of self-host/Caddyfile: ActivityPub-only paths reach the federation backend, the rest
-# the SPA.
+# the SPA. /@<name> and /@<name>/<post id>: the SPA with the cookie harmony_app=1, the backend
+# otherwise.
+#
+# db.<domain>: public storage reads (GET, HEAD) go to media-cache with the render Accept
+# pinned, everything else to Kong.
 #
 # Caddy runs the Caddyfile as self-host/docker-compose.yml runs it (caddy:2-alpine, internal
 # TLS). One stub nginx on the same network answers as federation-server, web, bot-gateway and
@@ -138,6 +142,51 @@ expect "$AP"   /social/profile/fx_alice 'backend /users/fx_alice'
 expect 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' /social/profile/fx_alice 'backend /users/fx_alice'
 expect "$HTML" /social/profile/fx_alice 'SPA'
 expect "$AP"   /social/profile/fx_alice@remote.example 'SPA'
+
+# expect_with <path> <first line of the body> [header...]
+expect_with() {
+  local path="$1" want="$2" got='' args=()
+  shift 2
+  for h in "$@"; do args+=(--header "$h"); done
+  for _ in $(seq 1 20); do
+    got="$(docker exec "$PREFIX" wget -q -O - --no-check-certificate "${args[@]}" \
+      "https://$DOMAIN$path" 2>/dev/null | head -1)" && [ -n "$got" ] && break
+    sleep 0.5
+  done
+  if [ "$got" = "$want" ]; then
+    printf 'ok   %-28.28s %s -> %s\n' "${*:-no header}" "$path" "$got"
+  else
+    err "$* $path: expected '$want', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+log "/@<name> and /@<name>/<post id>"
+APP_COOKIE='Cookie: theme=dark; harmony_app=1'
+PAGE_POST=/@fx_alice/00000000-0000-0000-0000-000000000001
+for p in /@fx_alice /@fx_alice/ '/@fx_alice?before=00000000-0000-0000-0000-000000000001' $PAGE_POST /@fx_alice@remote.example; do
+  expect_with "$p" "backend $p" "Accept: $HTML"
+  expect_with "$p" 'SPA' "Accept: $HTML" "$APP_COOKIE"
+  expect_with "$p" "backend $p" "Accept: $AP"
+  expect_with "$p" "backend $p" "Accept: $AP" "$APP_COOKIE"
+done
+expect_with /@fx_alice 'backend /@fx_alice' "Accept: $HTML" 'Cookie: harmony_app=0'
+expect_with /@fx_alice/a/b 'SPA' "Accept: $HTML"
+expect_with $POST "backend $POST" "Accept: $HTML" "$APP_COOKIE"
+# A browser at an actor id goes to its public page.
+expect_with /users/fx_alice 'backend /@fx_alice' "Accept: $HTML"
+expect_with /users/fx_alice 'SPA' "Accept: $HTML" "$APP_COOKIE"
+expect_with /users/fx_alice 'backend /users/fx_alice' "Accept: $AP"
+headers="$(docker exec "$PREFIX" wget -q -S -O /dev/null --no-check-certificate --header "$APP_COOKIE" \
+  "https://$DOMAIN/@fx_alice" 2>&1 || true)"
+for h in 'Vary: Accept, Cookie' 'Cache-Control: private, no-cache'; do
+  if grep -qi "$h" <<<"$headers"; then
+    printf 'ok   SPA answer for /@<name> carries %s\n' "$h"
+  else
+    err "SPA answer for /@fx_alice lacks $h"
+    FAILED=$((FAILED + 1))
+  fi
+done
 
 log "everything else"
 expect "$HTML" /                      'SPA'

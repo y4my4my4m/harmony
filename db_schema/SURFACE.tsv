@@ -633,6 +633,11 @@ profile_web_handle	p_username text, p_domain text, p_is_local boolean	text	invok
 promote_first_user_to_admin		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 protect_profile_deleted_at		trigger	invoker	pg_catalog, public, pg_temp	service_role	trigger
 public_instance_config_keys		text[]	invoker	public, pg_temp	anon+authenticated+service_role	policy
+public_page_account	p_profile_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
+public_page_instance		jsonb	invoker	public, pg_temp	service_role	unreferenced
+public_page_post	p_post_id uuid, p_depth integer	jsonb	invoker	public, pg_temp	service_role	unreferenced
+public_post_page	p_post_id uuid	jsonb	definer	public, pg_temp	service_role	client
+public_profile_page	p_username text, p_before uuid, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
 purge_processed_ap_activities		integer	definer	public, pg_temp	service_role	unreferenced
 purge_stale_invites		integer	definer	public, pg_temp	service_role	unreferenced
 queue_federation_job	p_job_name text, p_job_data jsonb, p_priority integer, p_retry_limit integer, p_expire_in_seconds integer	uuid	definer	public, pg_temp	service_role	unreferenced

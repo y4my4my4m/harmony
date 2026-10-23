@@ -193,14 +193,16 @@ case-sensitively.
 | `/users/NAME/inbox`, `/outbox`, `/followers`, `/following`, `/featured` | federation server | |
 | `/users/NAME/quote_authorizations/ID` | federation server | FEP-044f quote approvals |
 | `/users/NAME/activities/UUID`, `/activities/UUID` | federation server | A post's `Create`, a boost's `Announce` |
-| `/users/NAME` with `Accept` naming `application/activity+json`, `application/ld+json` or `application/json` | federation server | Any other request: 302 to `/social/profile/NAME` |
+| `/users/NAME` with `Accept` naming `application/activity+json`, `application/ld+json` or `application/json` | federation server | Any other request: 302 to `/@NAME` |
 | `/servers/...` | federation server | Servers as ActivityPub Groups |
-| `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or an HTML page with OpenGraph tags |
+| `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or the post's public page |
 | `/messages/UUID` | federation server | Chat and direct message `Note`s; 406 without an ActivityPub `Accept` |
 | `/threads/UUID`, `/threads/UUID/members`, `/channels/UUID/threads` | federation server | Chat threads as `ChatThread`s; 406 without an ActivityPub `Accept` |
 | `/invite/CODE` from a link-preview crawler | federation server | Decided by `User-Agent`; everyone else gets the web app |
 | `/social/post/UUID` with an ActivityPub `Accept`, or from a link-preview crawler | federation server, rewritten to `/posts/UUID` | Everyone else gets the web app |
-| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | An account's `url`; everyone else gets the web app |
+| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | Everyone else gets the web app |
+| `/@NAME`, `/@NAME/ID` with the cookie `harmony_app=1` and no ActivityPub `Accept` | web app | The app sets the cookie while signed in |
+| `/@NAME`, `/@NAME/ID`, any other request | federation server, path unchanged | An account's and a post's `url`: the actor and the `Note` for ActivityPub, the public page for everyone else |
 | `/health...`, `/link-preview...` | federation server | Prefixes without a trailing slash |
 | `/api/livekit/...` | federation server, path unchanged | |
 | `/api/federation/...` | federation server, prefix stripped | `/api/federation/push/vapid-key` reaches `/push/vapid-key` |
