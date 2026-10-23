@@ -323,15 +323,35 @@
             <span :title="t('activitypub.editedTitle')">{{ t('activitypub.edited') }}</span>
           </template>
         </div>
+        <!-- Boosts and favourites open the list of accounts; the name keeps the visible text first. -->
         <div v-if="detailStats.length > 0" class="detail-stats">
           <template v-for="(stat, index) in detailStats" :key="stat.key">
             <span v-if="index > 0" class="detail-stats-separator" aria-hidden="true">·</span>
-            <span class="detail-stat">
+            <button
+              v-if="stat.list"
+              type="button"
+              class="detail-stat detail-stat-button"
+              aria-haspopup="dialog"
+              :data-testid="`post-${stat.key}-stat`"
+              :aria-label="t('activitypub.interactionsList.statLabel', { stat: `${formatCount(stat.count)} ${t(stat.label, stat.count)}` })"
+              @click="interactionsTab = stat.list"
+            >
+              <span><strong>{{ formatCount(stat.count) }}</strong> {{ t(stat.label, stat.count) }}</span>
+            </button>
+            <span v-else class="detail-stat">
               <strong>{{ formatCount(stat.count) }}</strong>
               {{ t(stat.label, stat.count) }}
             </span>
           </template>
         </div>
+        <PostInteractionsDialog
+          v-if="interactionsTab"
+          :post-id="originalPostId"
+          :initial-tab="interactionsTab"
+          :favorites-count="displayInteractionCounts.favorites_count"
+          :boosts-count="displayInteractionCounts.reblogs_count"
+          @close="interactionsTab = null"
+        />
       </template>
 
       <!-- Action Buttons. Toggle names stay fixed; aria-pressed carries the state and
@@ -830,6 +850,8 @@ import { galleryMedia, withoutGalleryMedia } from '@/utils/postMedia';
 import RemotePollCard from '@/components/polls/RemotePollCard.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
+import PostInteractionsDialog from './PostInteractionsDialog.vue';
+import type { ListedInteraction } from '@/services/postInteractionAccounts';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { badgeFromMembership } from '@/services/FundingService';
 import { adminService } from '@/services/AdminService';
@@ -1609,15 +1631,18 @@ const displayInteractionCounts = computed(() => {
 });
 
 // Focused-post counts: replies, then boosts and favourites as Mastodon orders them.
-// Zero counts are left out.
+// Zero counts are left out. `list` names the accounts list a stat opens.
 const detailStats = computed(() => {
   const counts = displayInteractionCounts.value;
-  return [
+  const stats: Array<{ key: string; count: number; label: string; list?: ListedInteraction }> = [
     { key: 'replies', count: counts.replies_count, label: 'activitypub.repliesLabel' },
-    { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel' },
-    { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel' },
-  ].filter((stat) => stat.count > 0);
+    { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel', list: 'reblog' },
+    { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel', list: 'favorite' },
+  ];
+  return stats.filter((stat) => stat.count > 0);
 });
+
+const interactionsTab = ref<ListedInteraction | null>(null);
 
 // Action glyph sizes in px. Ink measured at 18px with a 1.5px stroke: message-circle is a
 // closed 16.6px bubble with a 230px² convex hull, repeat-2 an open 16.5x10.5px pair of
@@ -2829,6 +2854,7 @@ a.reply-line-target:focus-visible,
 .detail-stats {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
   padding: var(--space-3) 0;
@@ -2841,6 +2867,30 @@ a.reply-line-target:focus-visible,
 .detail-stats strong {
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
+}
+
+.detail-stat-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.detail-stat-button:hover {
+  text-decoration: underline;
+}
+
+.detail-stat-button:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: 2px;
 }
 
 .detail-stats-separator {
