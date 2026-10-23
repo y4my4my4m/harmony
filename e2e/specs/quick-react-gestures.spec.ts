@@ -62,8 +62,16 @@ async function emptySpot(page: Page): Promise<{ x: number; y: number }> {
   return { x: box.x + box.width * 0.75, y: box.y + box.height - 8 }
 }
 
+async function storedReactions(): Promise<number> {
+  const { count, error } = await admin.from('reactions').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
+  if (error) throw new Error(`reactions: ${error.message}`)
+  return count ?? 0
+}
+
 async function clearReactions() {
-  await admin.from('reactions').delete().eq('user_id', user.id)
+  const { error } = await admin.from('reactions').delete().eq('user_id', user.id)
+  if (error) throw new Error(`clear reactions: ${error.message}`)
+  await expect.poll(storedReactions).toBe(0)
 }
 
 test.describe('with a mouse', () => {
@@ -81,6 +89,8 @@ test.describe('with a mouse', () => {
     const again = await emptySpot(page)
     await page.mouse.dblclick(again.x, again.y)
     await expect(reactions(page)).toHaveCount(1, { timeout: 15000 })
+    // The chip shows before the write lands; the next test's cleanup must find the row.
+    await expect.poll(storedReactions, { timeout: 15000 }).toBe(1)
   })
 })
 
