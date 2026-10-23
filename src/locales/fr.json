@@ -2761,7 +2761,13 @@
       "reactionsFetched": "{count} réaction récupérée | {count} réactions récupérées",
       "reactionsFetchFailed": "Impossible de récupérer les réactions",
       "loadFailed": "Impossible de charger la publication",
-      "replyPosted": "Réponse publiée"
+      "replyPosted": "Réponse publiée",
+      "inConversation": "{count} publication dans cette conversation | {count} publications dans cette conversation",
+      "fullConversation": "Voir toute la conversation"
+    },
+    "quoteA11y": {
+      "openPost": "Publication citée de {name}, {time}",
+      "openPostNoAuthor": "Publication citée, {time}"
     }
   },
   "moderation": {
@@ -2854,6 +2860,24 @@
         "day": "Dernières 24 heures",
         "week": "7 derniers jours"
       }
+    },
+    "reportDialog": {
+      "goesTo": "Envoyé à l'équipe de {instance}.",
+      "alsoToServer": "Envoyer aussi aux modérateurs de {server} sur {host}",
+      "alsoToServerHint": "Ils voient ce que vous avez signalé et votre note, mais pas votre identité.",
+      "goesToServer": "Envoyé à l'équipe de {instance} et aux modérateurs de {server}."
+    },
+    "serverReport": {
+      "sent": "Aussi envoyé aux modérateurs de {server} sur {host}",
+      "pending": "Envoi en cours aux modérateurs de {server} sur {host}",
+      "failed": "Impossible de joindre les modérateurs de {server} sur {host}",
+      "outcome": {
+        "resolved": "Mesures prises",
+        "dismissed": "Rejeté"
+      },
+      "moderators": "Modérateurs de {server}",
+      "outcomeBy": "Modérateurs de {server} : {outcome}",
+      "reviewedTitle": "Les modérateurs de {server} ont examiné ton signalement"
     }
   },
   "files": {
@@ -3252,7 +3276,10 @@
       "banTitle": "{name} a banni ton compte",
       "reason": "Raison donnée : {reason}",
       "noReason": "Aucune raison n'a été donnée.",
-      "short": "Retiré du serveur"
+      "short": "Retiré du serveur",
+      "staffKickTitle": "L'équipe de {instance} a retiré ton compte de {name}.",
+      "staffBanTitle": "L'équipe de {instance} a banni ton compte de {name}.",
+      "suspended": "Ton compte est suspendu sur {instance}."
     },
     "closedBanner": {
       "title": "{name} n'accepte plus de membres d'autres instances",
@@ -4343,7 +4370,9 @@
       "bot_add": "{actor} a ajouté le bot {target}",
       "bot_update": "{actor} a modifié les permissions du bot {target}",
       "bot_remove": "{actor} a retiré le bot {target}",
-      "unknown": "{actor} : {action}"
+      "unknown": "{actor} : {action}",
+      "server_suspend": "{actor} a suspendu le serveur",
+      "server_unsuspend": "{actor} a levé la suspension du serveur"
     },
     "fields": {
       "name": "Nom",
@@ -5020,7 +5049,15 @@
       "limitReasonPrompt": "Raison de la limitation de {domain} :",
       "limitApplied": "{domain} limité",
       "limitLifted": "Limitation de {domain} levée",
-      "limitFailed": "Échec de la modification de la limitation du domaine"
+      "limitFailed": "Échec de la modification de la limitation du domaine",
+      "ignoreReports": "Ignorer les signalements de ce domaine",
+      "acceptReports": "Accepter de nouveau les signalements de ce domaine",
+      "reportsIgnored": "Signalements ignorés",
+      "ignoreReportsConfirmTitle": "Ignorer les signalements de {domain} ?",
+      "ignoreReportsConfirmBody": "Les signalements envoyés depuis {domain} seront désormais écartés. Les signalements déjà reçus restent dans la file, et rien ne change pour {domain}.",
+      "reportsIgnoredToast": "Les signalements de {domain} sont ignorés",
+      "reportsAcceptedToast": "Les signalements de {domain} sont de nouveau acceptés",
+      "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
     },
     "instance": {
       "maxPostReactions": "Réactions max. par personne sur une publication",
@@ -5032,6 +5069,30 @@
       "configKeys": {
         "maxPostReactionsPerUser": "Réactions max. par personne sur une publication",
         "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur"
+      },
+      "staff": {
+        "someServer": "un serveur",
+        "someone": "quelqu'un",
+        "reason": "Motif : {reason}",
+        "memberRemoved": "A retiré {person} de {server}",
+        "memberBanned": "A banni {person} de {server}",
+        "messageRemovedBy": "A retiré un message de {person} dans {server}",
+        "messageRemoved": "A retiré un message dans {server}",
+        "serverSuspended": "A suspendu {server}",
+        "serverUnsuspended": "A levé la suspension de {server}",
+        "serverDeleted": "A supprimé {server}",
+        "serverDeletedOwned": "A supprimé {server}, appartenant à {person}",
+        "serverBlocked": "A bloqué {server} sur {instance}",
+        "peopleLeft": "{count} personne de {instance} l'a quitté | {count} personnes de {instance} l'ont quitté",
+        "serverUnblocked": "A de nouveau autorisé {server} sur {instance}",
+        "mediaHidden": "A masqué les médias de {server} sur {instance}",
+        "mediaShown": "A de nouveau affiché les médias de {server} sur {instance}",
+        "removedHere": "A retiré {person} de {server} sur {instance}",
+        "removedHereKeptOut": "A retiré {person} de {server} sur {instance} et l'a tenu à l'écart",
+        "keptOutHere": "A tenu {person} à l'écart de {server} sur {instance}",
+        "keepoutLifted": "A permis à {person} de rejoindre de nouveau {server} depuis {instance}",
+        "reportsRejected": "A ignoré les signalements de {domain}",
+        "reportsAccepted": "A de nouveau accepté les signalements de {domain}"
       }
     },
     "antiSpam": {
@@ -6941,5 +7002,213 @@
     "openProfile": "Ouvrir le profil",
     "home": "Aller à l'accueil",
     "followFailed": "L'abonnement n'a pas été enregistré."
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "Hébergé sur {host}",
+      "body": "Son propriétaire et ses modérateurs le gèrent là-bas. Les réglages ici ne changent que ce que vous voyez.",
+      "unknownHost": "une autre instance",
+      "bodyHost": "Son propriétaire et ses modérateurs le gèrent là-bas."
+    },
+    "owner": {
+      "label": "Propriétaire",
+      "unknown": "Inconnu"
+    },
+    "hide": {
+      "action": "Masquer sur {instance}",
+      "confirm": "Masquer ce message pour tout le monde sur {instance} ? Il reste sur {host} et pour tous les autres.",
+      "button": "Masquer"
+    }
+  },
+  "hostStaff": {
+    "tab": "Serveurs",
+    "title": "Serveurs hébergés ici",
+    "intro": "Confiance et sécurité pour les serveurs de {instance}. Tu agis en tant qu'équipe de {instance}, pas en tant que modération d'un serveur, et chaque action est inscrite au journal d'audit du serveur, que voient son propriétaire et sa modération.",
+    "staffBadge": "Équipe de {instance}",
+    "search": "Rechercher par nom, propriétaire ou ID",
+    "filterAll": "Tous",
+    "filterSuspended": "Suspendus",
+    "empty": "Aucun serveur n'est encore hébergé ici.",
+    "emptySearch": "Aucun serveur ne correspond.",
+    "loadError": "Le chargement a échoué.",
+    "owner": "Propriétaire",
+    "noOwner": "aucun",
+    "members": "{count} membre | {count} membres",
+    "remoteMembers": "{count} d'autres instances",
+    "suspendedBadge": "Suspendu",
+    "suspendedBy": "Suspendu par {name}",
+    "suspendedReason": "Raison : {reason}",
+    "suspendedBanner": "L'équipe de {instance} a suspendu ce serveur.",
+    "open": "Ouvrir",
+    "back": "Tous les serveurs",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "loadMore": "Charger plus",
+    "tabs": {
+      "members": "Membres",
+      "messages": "Messages"
+    },
+    "membersSearch": "Rechercher des membres",
+    "ownerBadge": "Propriétaire",
+    "instanceStaffBadge": "Équipe de l'instance",
+    "pending": "En attente",
+    "noMembers": "Aucun membre ne correspond.",
+    "viewMessages": "Messages",
+    "channel": "Salon",
+    "allChannels": "Tous les salons",
+    "byAuthor": "De {name}",
+    "clearAuthor": "Afficher les messages de tout le monde",
+    "noMessages": "Aucun message.",
+    "encrypted": "Chiffré de bout en bout : le contenu ne peut pas être affiché.",
+    "actions": {
+      "removeMember": "Retirer le membre",
+      "banMember": "Bannir le membre",
+      "removeMessage": "Retirer le message",
+      "suspendServer": "Suspendre le serveur",
+      "unsuspendServer": "Lever la suspension",
+      "deleteServer": "Supprimer le serveur"
+    },
+    "confirm": {
+      "asStaff": "Tu agis en tant qu'équipe de {instance}, pas en tant que modération de {server}.",
+      "recorded": "Inscrit au journal d'audit de {server} comme action de l'équipe de {instance}.",
+      "recordedInstance": "Inscrit au journal de modération de {instance}. Le journal d'audit du serveur est supprimé avec lui.",
+      "reason": "Raison (facultatif)",
+      "reasonHintAudit": "Le propriétaire et la modération de {server} la voient dans le journal d'audit.",
+      "reasonHintBanner": "Les membres la voient dans le bandeau.",
+      "reasonHintLog": "Conservée dans le journal de modération de {instance}.",
+      "removeMember": {
+        "title": "Retirer {name} de {server} en tant qu'équipe de {instance} ?",
+        "leaves": "{name} quitte {server}. Ce compte peut revenir.",
+        "remote": "Son instance, {domain}, est informée que l'équipe de {instance} l'a retiré."
+      },
+      "banMember": {
+        "title": "Bannir {name} de {server} en tant qu'équipe de {instance} ?",
+        "leaves": "{name} quitte {server} et ne peut pas revenir tant que la modération du serveur ne lève pas le bannissement.",
+        "remote": "Son instance, {domain}, est informée que l'équipe de {instance} l'a banni."
+      },
+      "removeMessage": {
+        "title": "Retirer ce message de {server} en tant qu'équipe de {instance} ?",
+        "everyone": "Il est retiré pour tout le monde, sur {instance} et sur les autres instances."
+      },
+      "suspend": {
+        "title": "Suspendre {server} en tant qu'équipe de {instance} ?",
+        "frozen": "Personne ne peut y publier de nouveaux messages ni le rejoindre tant que la suspension n'est pas levée.",
+        "banner": "Ses membres peuvent toujours le lire et voient ce bandeau : « {banner} »"
+      },
+      "unsuspend": {
+        "title": "Lever la suspension de {server} ?",
+        "open": "Les membres peuvent de nouveau publier et rejoindre."
+      },
+      "delete": {
+        "title": "Supprimer {server} en tant qu'équipe de {instance} ?",
+        "gone": "Le serveur, ses salons et tous ses messages sont supprimés pour tout le monde. C'est irréversible.",
+        "members": "Son {count} membre en perd l'accès. | Ses {count} membres en perdent l'accès.",
+        "remote": "Les membres d'autres instances ne sont pas prévenus ; le serveur cesse de se mettre à jour chez eux.",
+        "typeName": "Saisis le nom du serveur pour confirmer"
+      }
+    },
+    "done": {
+      "removeMember": "{name} a été retiré de {server}.",
+      "banMember": "{name} a été banni de {server}.",
+      "removeMessage": "Le message a été retiré.",
+      "suspend": "{server} est suspendu.",
+      "unsuspend": "{server} n'est plus suspendu.",
+      "delete": "{server} a été supprimé."
+    },
+    "failed": "Cela n'a pas fonctionné : {error}",
+    "auditActor": "{actor} (équipe de {instance})",
+    "systemActor": "(équipe de {instance})",
+    "audit": {
+      "cause": "Pourquoi",
+      "accountSuspended": "Compte suspendu sur {instance}",
+      "domainSuspended": "{domain} suspendu sur {instance}"
+    },
+    "rowAction": "{action} : {target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "Sur {instance}",
+      "intro": "Ces outils n'agissent que sur {instance} : ce que les gens d'ici voient, et s'ils peuvent participer. {server} et ses membres sur d'autres instances ne sont pas concernés.",
+      "staffOnly": "Seule l'équipe de {instance} peut utiliser ces outils.",
+      "loadFailed": "Impossible de charger l'état de ce serveur sur {instance}.",
+      "notHostedElsewhere": "Ces outils concernent les serveurs hébergés sur d'autres instances.",
+      "hostedOn": "Hébergé sur {host}",
+      "localMembers": "Aucun membre de {instance} | {count} membre de {instance} | {count} membres de {instance}",
+      "thisServer": "Ce serveur"
+    },
+    "block": {
+      "heading": "Ouvert sur {instance}",
+      "openDescription": "Les gens de {instance} peuvent le voir et le rejoindre.",
+      "blockedStatus": "Bloqué sur {instance}",
+      "blockedDescription": "Les gens de {instance} ne peuvent ni le voir ni le rejoindre. Rien n'a changé pour lui sur les autres instances.",
+      "setAt": "Depuis le {date}",
+      "action": "Bloquer {server} sur {instance}",
+      "unblock": "Autoriser de nouveau {server} sur {instance}",
+      "unblocked": "{server} est de nouveau autorisé sur {instance}. Personne n'a été réintégré.",
+      "confirm": "Bloquer",
+      "done": "{server} est bloqué sur {instance}.",
+      "failed": "Impossible de modifier le blocage.",
+      "reasonLabel": "Raison (visible seulement par l'équipe de {instance})",
+      "consequenceSee": "Les gens de {instance} ne peuvent plus le voir ni le rejoindre.",
+      "consequenceMembers": "Personne de {instance} n'en est membre. | Le {count} membre de {instance} le quitte et apprend pourquoi. | Les {count} membres de {instance} le quittent et apprennent pourquoi.",
+      "consequenceElsewhere": "Rien ne change pour {server} ni pour personne sur d'autres instances.",
+      "consequenceWaiting": "{count} personne de {instance} en attente d'adhésion est refusée et apprend pourquoi. | {count} personnes de {instance} en attente d'adhésion sont refusées et apprennent pourquoi.",
+      "consequenceYou": "Vous en faites partie : vous quittez aussi {server}."
+    },
+    "media": {
+      "toggle": "Masquer les médias de {server} sur {instance}",
+      "hint": "Les images, vidéos et fichiers qui en viennent apparaissent masqués pour tout le monde sur {instance}.",
+      "failed": "Impossible de modifier le masquage des médias.",
+      "hiddenNotice": "Pièce jointe masquée sur {instance} | {count} pièces jointes masquées sur {instance}"
+    },
+    "people": {
+      "heading": "Personnes de {instance}",
+      "empty": "Personne de {instance} n'est dans {server}.",
+      "pending": "Demande d'adhésion en attente",
+      "keptOut": "Tenu à l’écart",
+      "lift": "Réadmettre",
+      "liftLabel": "Permettre à {name} de rejoindre de nouveau {server} depuis {instance}",
+      "lifted": "{name} peut de nouveau rejoindre {server}.",
+      "liftFailed": "Impossible de réadmettre {name}.",
+      "remove": "Retirer",
+      "removeLabel": "Retirer {name} de {server} sur {instance}"
+    },
+    "remove": {
+      "action": "Retirer de {server} sur {instance}",
+      "confirmText": "{name} quitte {server}. Cela n'affecte que {instance} : les modérateurs du serveur ne sont pas prévenus, et {name} n'y est pas banni.",
+      "keepOut": "Tenir à l’écart (impossible de revenir depuis {instance})",
+      "reasonLabel": "Raison (montrée à {name})",
+      "confirm": "Retirer",
+      "done": "{name} a quitté {server} sur {instance}.",
+      "notMember": "{name} n'était plus membre.",
+      "failed": "Impossible de retirer {name}."
+    },
+    "notice": {
+      "removedTitle": "L'équipe de {instance} t'a retiré de {server}.",
+      "blockedTitle": "L'équipe de {instance} a bloqué {server} sur {instance} ; tu l'as quitté.",
+      "blockedMessage": "Rien n'a changé pour {server} sur les autres instances."
+    },
+    "join": {
+      "blocked": "L'équipe de {instance} a bloqué ce serveur sur {instance}.",
+      "keptOut": "L'équipe de {instance} t'a retiré de ce serveur ; tu ne peux pas le rejoindre de nouveau depuis {instance}."
+    },
+    "dashboard": {
+      "title": "Serveurs d'autres instances",
+      "description": "Serveurs de discussion hébergés ailleurs que des gens de {instance} ont rejoints. En bloquer un ou masquer ses médias n'affecte que {instance}.",
+      "refresh": "Actualiser",
+      "search": "Rechercher des serveurs",
+      "filter": "Afficher",
+      "filterAll": "Tous les serveurs",
+      "manage": "Gérer",
+      "manageLabel": "Gérer {server} sur {instance}",
+      "empty": "Personne sur {instance} n'a rejoint de serveur hébergé ailleurs.",
+      "noMatch": "Aucun serveur ne correspond.",
+      "loadFailed": "Impossible de charger les serveurs d'autres instances."
+    },
+    "state": {
+      "blocked": "Bloqué",
+      "mediaHidden": "Médias masqués",
+      "keptOut": "{count} tenu à l’écart | {count} tenus à l’écart"
+    }
   }
 }

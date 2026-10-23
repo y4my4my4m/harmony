@@ -2761,7 +2761,13 @@
       "reactionsFetched": "{count} 件のリアクションを取得しました",
       "reactionsFetchFailed": "リアクションを取得できませんでした",
       "loadFailed": "投稿を読み込めませんでした",
-      "replyPosted": "返信を投稿しました"
+      "replyPosted": "返信を投稿しました",
+      "inConversation": "この会話の投稿 {count} 件",
+      "fullConversation": "会話全体を表示"
+    },
+    "quoteA11y": {
+      "openPost": "{name} の引用された投稿、{time}",
+      "openPostNoAuthor": "引用された投稿、{time}"
     }
   },
   "moderation": {
@@ -2854,6 +2860,24 @@
         "day": "過去 24 時間",
         "week": "過去 7 日間"
       }
+    },
+    "reportDialog": {
+      "goesTo": "{instance} の運営チームに届きます。",
+      "alsoToServer": "{host} の {server} のモデレーターにも送信する",
+      "alsoToServerHint": "報告した内容とメモは見えますが、あなたが誰かは見えません。",
+      "goesToServer": "{instance} の運営チームと {server} のモデレーターに届きます。"
+    },
+    "serverReport": {
+      "sent": "{host} の {server} のモデレーターにも送信済み",
+      "pending": "{host} の {server} のモデレーターに送信中",
+      "failed": "{host} の {server} のモデレーターに届けられませんでした",
+      "outcome": {
+        "resolved": "措置済み",
+        "dismissed": "却下"
+      },
+      "moderators": "{server} のモデレーター",
+      "outcomeBy": "{server} のモデレーター：{outcome}",
+      "reviewedTitle": "{server} のモデレーターがあなたの通報を確認しました"
     }
   },
   "files": {
@@ -3252,7 +3276,10 @@
       "banTitle": "{name} からBANされました",
       "reason": "理由：{reason}",
       "noReason": "理由は示されていません。",
-      "short": "サーバーから削除"
+      "short": "サーバーから削除",
+      "staffKickTitle": "{instance} のスタッフにより {name} から削除されました。",
+      "staffBanTitle": "{instance} のスタッフにより {name} からBANされました。",
+      "suspended": "あなたのアカウントは {instance} で停止されています。"
     },
     "closedBanner": {
       "title": "{name} は他のインスタンスからのメンバー受け入れを停止しました",
@@ -4343,7 +4370,9 @@
       "bot_add": "{actor}がBOT{target}を追加しました",
       "bot_update": "{actor}がBOT{target}の権限を変更しました",
       "bot_remove": "{actor}がBOT{target}を削除しました",
-      "unknown": "{actor}: {action}"
+      "unknown": "{actor}: {action}",
+      "server_suspend": "{actor}がサーバーを停止しました",
+      "server_unsuspend": "{actor}がサーバーの停止を解除しました"
     },
     "fields": {
       "name": "名前",
@@ -5020,7 +5049,15 @@
       "limitReasonPrompt": "{domain} を制限する理由：",
       "limitApplied": "{domain} を制限しました",
       "limitLifted": "{domain} の制限を解除しました",
-      "limitFailed": "ドメインの制限を変更できませんでした"
+      "limitFailed": "ドメインの制限を変更できませんでした",
+      "ignoreReports": "このドメインからの報告を無視する",
+      "acceptReports": "このドメインからの報告を再び受け付ける",
+      "reportsIgnored": "報告を無視中",
+      "ignoreReportsConfirmTitle": "{domain} からの報告を無視しますか？",
+      "ignoreReportsConfirmBody": "今後 {domain} から送られる報告は破棄されます。受信済みの報告はキューに残り、{domain} 側では何も変わりません。",
+      "reportsIgnoredToast": "{domain} からの報告を無視します",
+      "reportsAcceptedToast": "{domain} からの報告を再び受け付けます",
+      "reportsFailed": "このドメインからの報告の扱いを変更できませんでした"
     },
     "instance": {
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
@@ -5032,6 +5069,30 @@
       "configKeys": {
         "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数",
         "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数"
+      },
+      "staff": {
+        "someServer": "あるサーバー",
+        "someone": "誰か",
+        "reason": "理由：{reason}",
+        "memberRemoved": "{person} を {server} から削除",
+        "memberBanned": "{person} を {server} からBAN",
+        "messageRemovedBy": "{server} で {person} のメッセージを削除",
+        "messageRemoved": "{server} でメッセージを削除",
+        "serverSuspended": "{server} を停止",
+        "serverUnsuspended": "{server} の停止を解除",
+        "serverDeleted": "{server} を削除",
+        "serverDeletedOwned": "{person} が所有する {server} を削除",
+        "serverBlocked": "{instance} で {server} をブロック",
+        "peopleLeft": "{instance} の {count} 人が退出 | {instance} の {count} 人が退出",
+        "serverUnblocked": "{instance} で {server} を再び許可",
+        "mediaHidden": "{instance} で {server} のメディアを非表示",
+        "mediaShown": "{instance} で {server} のメディアを再表示",
+        "removedHere": "{instance} で {person} を {server} から削除",
+        "removedHereKeptOut": "{instance} で {person} を {server} から削除し、参加不可に",
+        "keptOutHere": "{instance} で {person} を {server} に参加不可に",
+        "keepoutLifted": "{person} が {instance} から {server} に再参加できるように",
+        "reportsRejected": "{domain} からの報告を無視",
+        "reportsAccepted": "{domain} からの報告を再び受け付け"
       }
     },
     "antiSpam": {
@@ -6941,5 +7002,213 @@
     "openProfile": "プロフィールを開く",
     "home": "ホームへ",
     "followFailed": "フォローを保存できませんでした。"
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "{host} でホストされています",
+      "body": "所有者とモデレーターはそちらで管理しています。ここでの設定は、あなたに見えるものだけを変えます。",
+      "unknownHost": "別のインスタンス",
+      "bodyHost": "所有者とモデレーターはそちらで管理しています。"
+    },
+    "owner": {
+      "label": "所有者",
+      "unknown": "不明"
+    },
+    "hide": {
+      "action": "{instance} で非表示",
+      "confirm": "{instance} の全員に対してこのメッセージを非表示にしますか？{host} と他のすべての人には残ります。",
+      "button": "非表示"
+    }
+  },
+  "hostStaff": {
+    "tab": "サーバー",
+    "title": "このインスタンスでホストしているサーバー",
+    "intro": "{instance} 上のサーバーの信頼と安全。ここでの操作はサーバーのモデレーターとしてではなく {instance} のスタッフとして行われ、サーバーの監査ログに記録されてオーナーとモデレーターが確認できます。",
+    "staffBadge": "{instance} のスタッフ",
+    "search": "名前、オーナー、IDで検索",
+    "filterAll": "すべて",
+    "filterSuspended": "停止中",
+    "empty": "このインスタンスにはまだサーバーがありません。",
+    "emptySearch": "一致するサーバーはありません。",
+    "loadError": "読み込めませんでした。",
+    "owner": "オーナー",
+    "noOwner": "なし",
+    "members": "メンバー {count} 人",
+    "remoteMembers": "他のインスタンスから {count} 人",
+    "suspendedBadge": "停止中",
+    "suspendedBy": "{name} が停止",
+    "suspendedReason": "理由: {reason}",
+    "suspendedBanner": "{instance} のスタッフがこのサーバーを停止しました。",
+    "open": "開く",
+    "back": "すべてのサーバー",
+    "previous": "前へ",
+    "next": "次へ",
+    "loadMore": "さらに読み込む",
+    "tabs": {
+      "members": "メンバー",
+      "messages": "メッセージ"
+    },
+    "membersSearch": "メンバーを検索",
+    "ownerBadge": "オーナー",
+    "instanceStaffBadge": "インスタンスのスタッフ",
+    "pending": "保留中",
+    "noMembers": "一致するメンバーはいません。",
+    "viewMessages": "メッセージ",
+    "channel": "チャンネル",
+    "allChannels": "すべてのチャンネル",
+    "byAuthor": "{name} の投稿",
+    "clearAuthor": "全員のメッセージを表示",
+    "noMessages": "メッセージはありません。",
+    "encrypted": "エンドツーエンド暗号化: 内容は表示できません。",
+    "actions": {
+      "removeMember": "メンバーを削除",
+      "banMember": "メンバーをBAN",
+      "removeMessage": "メッセージを削除",
+      "suspendServer": "サーバーを停止",
+      "unsuspendServer": "停止を解除",
+      "deleteServer": "サーバーを削除"
+    },
+    "confirm": {
+      "asStaff": "{server} のモデレーターとしてではなく、{instance} のスタッフとして操作します。",
+      "recorded": "{instance} のスタッフの操作として {server} の監査ログに記録されます。",
+      "recordedInstance": "{instance} のモデレーションログに記録されます。サーバー自体の監査ログはサーバーとともに削除されます。",
+      "reason": "理由（任意）",
+      "reasonHintAudit": "{server} のオーナーとモデレーターが監査ログで確認できます。",
+      "reasonHintBanner": "メンバーはバナーで確認できます。",
+      "reasonHintLog": "{instance} のモデレーションログに残ります。",
+      "removeMember": {
+        "title": "{instance} のスタッフとして {name} を {server} から削除しますか？",
+        "leaves": "{name} は {server} から外れます。再び参加できます。",
+        "remote": "所属インスタンス {domain} に、{instance} のスタッフが削除したことが伝えられます。"
+      },
+      "banMember": {
+        "title": "{instance} のスタッフとして {name} を {server} からBANしますか？",
+        "leaves": "{name} は {server} から外れ、サーバーのモデレーターがBANを解除するまで参加できません。",
+        "remote": "所属インスタンス {domain} に、{instance} のスタッフがBANしたことが伝えられます。"
+      },
+      "removeMessage": {
+        "title": "{instance} のスタッフとしてこのメッセージを {server} から削除しますか？",
+        "everyone": "{instance} と他のインスタンスのすべての人から削除されます。"
+      },
+      "suspend": {
+        "title": "{instance} のスタッフとして {server} を停止しますか？",
+        "frozen": "停止が解除されるまで、新しいメッセージの投稿や参加はできません。",
+        "banner": "メンバーは引き続き閲覧でき、次のバナーが表示されます:「{banner}」"
+      },
+      "unsuspend": {
+        "title": "{server} の停止を解除しますか？",
+        "open": "メンバーは再び投稿・参加できるようになります。"
+      },
+      "delete": {
+        "title": "{instance} のスタッフとして {server} を削除しますか？",
+        "gone": "サーバー、そのチャンネル、すべてのメッセージが全員に対して削除されます。元に戻せません。",
+        "members": "メンバー {count} 人がアクセスできなくなります。",
+        "remote": "他のインスタンスのメンバーには通知されず、そのサーバーは更新されなくなります。",
+        "typeName": "確認のためサーバー名を入力してください"
+      }
+    },
+    "done": {
+      "removeMember": "{name} を {server} から削除しました。",
+      "banMember": "{name} を {server} からBANしました。",
+      "removeMessage": "メッセージを削除しました。",
+      "suspend": "{server} を停止しました。",
+      "unsuspend": "{server} の停止を解除しました。",
+      "delete": "{server} を削除しました。"
+    },
+    "failed": "うまくいきませんでした: {error}",
+    "auditActor": "{actor}（{instance} のスタッフ）",
+    "systemActor": "（{instance} のスタッフ）",
+    "audit": {
+      "cause": "理由",
+      "accountSuspended": "{instance} でアカウントが停止されています",
+      "domainSuspended": "{instance} で {domain} が停止されています"
+    },
+    "rowAction": "{action}：{target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "{instance} での管理",
+      "intro": "これらのツールは {instance} にのみ影響します。ここの人が何を見られるか、参加できるかどうかです。{server} と、他のインスタンスにいるそのメンバーには影響しません。",
+      "staffOnly": "これらのツールを使えるのは {instance} のスタッフだけです。",
+      "loadFailed": "{instance} でのこのサーバーの状態を読み込めませんでした。",
+      "notHostedElsewhere": "これらのツールは他のインスタンスでホストされているサーバー向けです。",
+      "hostedOn": "{host} でホスト",
+      "localMembers": "{instance} のメンバーはいません | {instance} のメンバー {count} 人 | {instance} のメンバー {count} 人",
+      "thisServer": "このサーバー"
+    },
+    "block": {
+      "heading": "{instance} で公開中",
+      "openDescription": "{instance} の人はこのサーバーを表示して参加できます。",
+      "blockedStatus": "{instance} でブロック中",
+      "blockedDescription": "{instance} の人はこのサーバーを表示も参加もできません。他のインスタンスでは何も変わっていません。",
+      "setAt": "{date} から",
+      "action": "{instance} で {server} をブロック",
+      "unblock": "{instance} で {server} を再び許可",
+      "unblocked": "{instance} で {server} が再び許可されました。誰も自動では戻りません。",
+      "confirm": "ブロック",
+      "done": "{instance} で {server} をブロックしました。",
+      "failed": "ブロックを変更できませんでした。",
+      "reasonLabel": "理由（{instance} のスタッフのみ表示）",
+      "consequenceSee": "{instance} の人はこのサーバーを表示も参加もできなくなります。",
+      "consequenceMembers": "{instance} のメンバーはいません。 | {instance} のメンバー {count} 人がサーバーから退出し、理由が通知されます。 | {instance} のメンバー {count} 人がサーバーから退出し、理由が通知されます。",
+      "consequenceElsewhere": "{server} と、他のインスタンスの人には何も変わりません。",
+      "consequenceWaiting": "参加を待っている {instance} の {count} 人は参加できなくなり、理由が通知されます。 | 参加を待っている {instance} の {count} 人は参加できなくなり、理由が通知されます。",
+      "consequenceYou": "あなたも含まれます：あなたも {server} から退出します。"
+    },
+    "media": {
+      "toggle": "{instance} で {server} のメディアを非表示",
+      "hint": "このサーバーの画像、動画、ファイルは {instance} の全員に非表示で表示されます。",
+      "failed": "メディアの非表示を変更できませんでした。",
+      "hiddenNotice": "{instance} で添付ファイルを非表示 | {instance} で添付ファイル {count} 件を非表示"
+    },
+    "people": {
+      "heading": "{instance} の人",
+      "empty": "{server} には {instance} の人がいません。",
+      "pending": "参加リクエスト保留中",
+      "keptOut": "参加不可",
+      "lift": "参加を許可",
+      "liftLabel": "{name} が {instance} から {server} に再参加できるようにする",
+      "lifted": "{name} は {server} に再参加できます。",
+      "liftFailed": "{name} の参加を許可できませんでした。",
+      "remove": "削除",
+      "removeLabel": "{instance} で {name} を {server} から削除"
+    },
+    "remove": {
+      "action": "{instance} で {server} から削除",
+      "confirmText": "{name} は {server} から退出します。これは {instance} にのみ影響します。サーバーのモデレーターには通知されず、{name} がそこで BAN されることもありません。",
+      "keepOut": "参加不可にする（{instance} から再参加できません）",
+      "reasonLabel": "理由（{name} に表示）",
+      "confirm": "削除",
+      "done": "{name} は {instance} で {server} から退出しました。",
+      "notMember": "{name} はすでにメンバーではありませんでした。",
+      "failed": "{name} を削除できませんでした。"
+    },
+    "notice": {
+      "removedTitle": "{instance} のスタッフによって {server} から削除されました。",
+      "blockedTitle": "{instance} のスタッフが {instance} で {server} をブロックしたため、退出しました。",
+      "blockedMessage": "他のインスタンスでは {server} について何も変わっていません。"
+    },
+    "join": {
+      "blocked": "{instance} のスタッフが {instance} でこのサーバーをブロックしています。",
+      "keptOut": "{instance} のスタッフによってこのサーバーから削除されたため、{instance} からは再参加できません。"
+    },
+    "dashboard": {
+      "title": "他のインスタンスのサーバー",
+      "description": "{instance} の人が参加している、他の場所でホストされたチャットサーバーです。ブロックやメディアの非表示は {instance} にのみ影響します。",
+      "refresh": "更新",
+      "search": "サーバーを検索",
+      "filter": "表示",
+      "filterAll": "すべてのサーバー",
+      "manage": "管理",
+      "manageLabel": "{instance} で {server} を管理",
+      "empty": "{instance} には、他の場所でホストされたサーバーに参加している人がいません。",
+      "noMatch": "一致するサーバーはありません。",
+      "loadFailed": "他のインスタンスのサーバーを読み込めませんでした。"
+    },
+    "state": {
+      "blocked": "ブロック中",
+      "mediaHidden": "メディア非表示",
+      "keptOut": "参加不可 {count} 人 | 参加不可 {count} 人"
+    }
   }
 }

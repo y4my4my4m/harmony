@@ -2761,7 +2761,13 @@
       "reactionsFetched": "반응 {count}개를 가져왔습니다",
       "reactionsFetchFailed": "반응을 가져오지 못했습니다",
       "loadFailed": "게시물을 불러오지 못했습니다",
-      "replyPosted": "답글을 게시했습니다"
+      "replyPosted": "답글을 게시했습니다",
+      "inConversation": "이 대화의 게시물 {count}개",
+      "fullConversation": "전체 대화 보기"
+    },
+    "quoteA11y": {
+      "openPost": "{name}님의 인용된 게시물, {time}",
+      "openPostNoAuthor": "인용된 게시물, {time}"
     }
   },
   "moderation": {
@@ -2854,6 +2860,24 @@
         "day": "최근 24시간",
         "week": "최근 7일"
       }
+    },
+    "reportDialog": {
+      "goesTo": "{instance} 운영진에게 전달됩니다.",
+      "alsoToServer": "{host}의 {server} 모더레이터에게도 보내기",
+      "alsoToServerHint": "신고한 내용과 메모는 볼 수 있지만, 내가 누구인지는 알 수 없습니다.",
+      "goesToServer": "{instance} 운영진과 {server} 모더레이터에게 전달됩니다."
+    },
+    "serverReport": {
+      "sent": "{host}의 {server} 모더레이터에게도 보냄",
+      "pending": "{host}의 {server} 모더레이터에게 보내는 중",
+      "failed": "{host}의 {server} 모더레이터에게 전달하지 못했습니다",
+      "outcome": {
+        "resolved": "조치함",
+        "dismissed": "기각됨"
+      },
+      "moderators": "{server} 모더레이터",
+      "outcomeBy": "{server} 모더레이터: {outcome}",
+      "reviewedTitle": "{server} 모더레이터가 신고를 검토했습니다"
     }
   },
   "files": {
@@ -3252,7 +3276,10 @@
       "banTitle": "{name}에서 차단되었습니다",
       "reason": "사유: {reason}",
       "noReason": "사유가 제공되지 않았습니다.",
-      "short": "서버에서 제거됨"
+      "short": "서버에서 제거됨",
+      "staffKickTitle": "{instance} 스태프가 회원님을 {name}에서 제거했습니다.",
+      "staffBanTitle": "{instance} 스태프가 회원님을 {name}에서 차단했습니다.",
+      "suspended": "회원님의 계정은 {instance}에서 정지되었습니다."
     },
     "closedBanner": {
       "title": "{name}이(가) 다른 인스턴스의 멤버를 더 이상 받지 않습니다",
@@ -4343,7 +4370,9 @@
       "bot_add": "{actor}님이 봇 {target}을(를) 추가했습니다",
       "bot_update": "{actor}님이 봇 {target}의 권한을 변경했습니다",
       "bot_remove": "{actor}님이 봇 {target}을(를) 제거했습니다",
-      "unknown": "{actor}: {action}"
+      "unknown": "{actor}: {action}",
+      "server_suspend": "{actor}님이 서버를 정지했습니다",
+      "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다"
     },
     "fields": {
       "name": "이름",
@@ -5020,7 +5049,15 @@
       "limitReasonPrompt": "{domain} 제한 사유:",
       "limitApplied": "{domain}을(를) 제한했습니다",
       "limitLifted": "{domain}의 제한을 해제했습니다",
-      "limitFailed": "도메인 제한을 변경하지 못했습니다"
+      "limitFailed": "도메인 제한을 변경하지 못했습니다",
+      "ignoreReports": "이 도메인의 신고 무시",
+      "acceptReports": "이 도메인의 신고 다시 받기",
+      "reportsIgnored": "신고 무시 중",
+      "ignoreReportsConfirmTitle": "{domain}의 신고를 무시할까요?",
+      "ignoreReportsConfirmBody": "앞으로 {domain}에서 보낸 신고는 버려집니다. 이미 받은 신고는 대기열에 남아 있으며, {domain} 쪽에는 아무것도 바뀌지 않습니다.",
+      "reportsIgnoredToast": "{domain}의 신고를 무시합니다",
+      "reportsAcceptedToast": "{domain}의 신고를 다시 받습니다",
+      "reportsFailed": "이 도메인의 신고 처리 방식을 바꾸지 못했습니다"
     },
     "instance": {
       "maxPostReactions": "게시물당 1인 최대 반응 수",
@@ -5032,6 +5069,30 @@
       "configKeys": {
         "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수",
         "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수"
+      },
+      "staff": {
+        "someServer": "어떤 서버",
+        "someone": "누군가",
+        "reason": "사유: {reason}",
+        "memberRemoved": "{person}님을 {server}에서 제거함",
+        "memberBanned": "{person}님을 {server}에서 차단함",
+        "messageRemovedBy": "{server}에서 {person}님의 메시지를 제거함",
+        "messageRemoved": "{server}에서 메시지를 제거함",
+        "serverSuspended": "{server}를 정지함",
+        "serverUnsuspended": "{server}의 정지를 해제함",
+        "serverDeleted": "{server}를 삭제함",
+        "serverDeletedOwned": "{person}님 소유의 {server}를 삭제함",
+        "serverBlocked": "{instance}에서 {server}를 차단함",
+        "peopleLeft": "{instance} 사람 {count}명이 나감 | {instance} 사람 {count}명이 나감",
+        "serverUnblocked": "{instance}에서 {server}를 다시 허용함",
+        "mediaHidden": "{instance}에서 {server}의 미디어를 숨김",
+        "mediaShown": "{instance}에서 {server}의 미디어를 다시 표시함",
+        "removedHere": "{instance}에서 {person}님을 {server}에서 제거함",
+        "removedHereKeptOut": "{instance}에서 {person}님을 {server}에서 제거하고 참여를 막음",
+        "keptOutHere": "{instance}에서 {person}님의 {server} 참여를 막음",
+        "keepoutLifted": "{person}님이 {instance}에서 {server}에 다시 참여하도록 허용함",
+        "reportsRejected": "{domain}의 신고를 무시함",
+        "reportsAccepted": "{domain}의 신고를 다시 받음"
       }
     },
     "antiSpam": {
@@ -6941,5 +7002,213 @@
     "openProfile": "프로필 열기",
     "home": "홈으로",
     "followFailed": "팔로우를 저장하지 못했습니다."
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "{host}에서 호스팅됨",
+      "body": "소유자와 모더레이터가 그곳에서 관리합니다. 여기의 설정은 내게 보이는 것만 바꿉니다.",
+      "unknownHost": "다른 인스턴스",
+      "bodyHost": "소유자와 모더레이터가 그곳에서 관리합니다."
+    },
+    "owner": {
+      "label": "소유자",
+      "unknown": "알 수 없음"
+    },
+    "hide": {
+      "action": "{instance}에서 숨기기",
+      "confirm": "{instance}의 모든 사람에게 이 메시지를 숨길까요? {host}와 다른 모든 사람에게는 그대로 남습니다.",
+      "button": "숨기기"
+    }
+  },
+  "hostStaff": {
+    "tab": "서버",
+    "title": "이 인스턴스에서 호스팅하는 서버",
+    "intro": "{instance}에 있는 서버의 신뢰 및 안전 관리입니다. 서버 모더레이터가 아닌 {instance} 스태프로서 조치하며, 모든 조치는 서버 감사 로그에 기록되어 서버 소유자와 모더레이터가 볼 수 있습니다.",
+    "staffBadge": "{instance} 스태프",
+    "search": "이름, 소유자 또는 ID로 검색",
+    "filterAll": "전체",
+    "filterSuspended": "정지됨",
+    "empty": "아직 이 인스턴스에서 호스팅하는 서버가 없습니다.",
+    "emptySearch": "일치하는 서버가 없습니다.",
+    "loadError": "불러오지 못했습니다.",
+    "owner": "소유자",
+    "noOwner": "없음",
+    "members": "멤버 {count}명",
+    "remoteMembers": "다른 인스턴스 {count}명",
+    "suspendedBadge": "정지됨",
+    "suspendedBy": "{name}님이 정지함",
+    "suspendedReason": "사유: {reason}",
+    "suspendedBanner": "{instance} 스태프가 이 서버를 정지했습니다.",
+    "open": "열기",
+    "back": "모든 서버",
+    "previous": "이전",
+    "next": "다음",
+    "loadMore": "더 불러오기",
+    "tabs": {
+      "members": "멤버",
+      "messages": "메시지"
+    },
+    "membersSearch": "멤버 검색",
+    "ownerBadge": "소유자",
+    "instanceStaffBadge": "인스턴스 스태프",
+    "pending": "대기 중",
+    "noMembers": "일치하는 멤버가 없습니다.",
+    "viewMessages": "메시지",
+    "channel": "채널",
+    "allChannels": "모든 채널",
+    "byAuthor": "{name}님의 메시지",
+    "clearAuthor": "모든 사람의 메시지 보기",
+    "noMessages": "메시지가 없습니다.",
+    "encrypted": "종단간 암호화됨: 내용을 표시할 수 없습니다.",
+    "actions": {
+      "removeMember": "멤버 제거",
+      "banMember": "멤버 차단",
+      "removeMessage": "메시지 제거",
+      "suspendServer": "서버 정지",
+      "unsuspendServer": "정지 해제",
+      "deleteServer": "서버 삭제"
+    },
+    "confirm": {
+      "asStaff": "{server}의 모더레이터가 아닌 {instance} 스태프로서 조치합니다.",
+      "recorded": "{instance} 스태프의 조치로 {server} 감사 로그에 기록됩니다.",
+      "recordedInstance": "{instance} 모더레이션 로그에 기록됩니다. 서버 자체의 감사 로그는 서버와 함께 삭제됩니다.",
+      "reason": "사유 (선택)",
+      "reasonHintAudit": "{server}의 소유자와 모더레이터가 감사 로그에서 볼 수 있습니다.",
+      "reasonHintBanner": "멤버는 배너에서 볼 수 있습니다.",
+      "reasonHintLog": "{instance} 모더레이션 로그에 남습니다.",
+      "removeMember": {
+        "title": "{instance} 스태프로서 {name}님을 {server}에서 제거할까요?",
+        "leaves": "{name}님은 {server}에서 나가게 됩니다. 다시 참가할 수 있습니다.",
+        "remote": "소속 인스턴스 {domain}에 {instance} 스태프가 제거했다고 알립니다."
+      },
+      "banMember": {
+        "title": "{instance} 스태프로서 {name}님을 {server}에서 차단할까요?",
+        "leaves": "{name}님은 {server}에서 나가게 되며, 서버 모더레이터가 차단을 해제할 때까지 다시 참가할 수 없습니다.",
+        "remote": "소속 인스턴스 {domain}에 {instance} 스태프가 차단했다고 알립니다."
+      },
+      "removeMessage": {
+        "title": "{instance} 스태프로서 이 메시지를 {server}에서 제거할까요?",
+        "everyone": "{instance}와 다른 인스턴스의 모든 사람에게서 제거됩니다."
+      },
+      "suspend": {
+        "title": "{instance} 스태프로서 {server}를 정지할까요?",
+        "frozen": "정지가 해제될 때까지 아무도 새 메시지를 올리거나 참가할 수 없습니다.",
+        "banner": "멤버는 계속 읽을 수 있으며 다음 배너를 보게 됩니다: “{banner}”"
+      },
+      "unsuspend": {
+        "title": "{server}의 정지를 해제할까요?",
+        "open": "멤버가 다시 메시지를 올리고 참가할 수 있습니다."
+      },
+      "delete": {
+        "title": "{instance} 스태프로서 {server}를 삭제할까요?",
+        "gone": "서버와 채널, 모든 메시지가 모두에게서 삭제됩니다. 되돌릴 수 없습니다.",
+        "members": "멤버 {count}명이 접근할 수 없게 됩니다.",
+        "remote": "다른 인스턴스의 멤버에게는 알리지 않으며, 그들에게 서버가 더 이상 업데이트되지 않습니다.",
+        "typeName": "확인하려면 서버 이름을 입력하세요"
+      }
+    },
+    "done": {
+      "removeMember": "{name}님을 {server}에서 제거했습니다.",
+      "banMember": "{name}님을 {server}에서 차단했습니다.",
+      "removeMessage": "메시지를 제거했습니다.",
+      "suspend": "{server}를 정지했습니다.",
+      "unsuspend": "{server}의 정지를 해제했습니다.",
+      "delete": "{server}를 삭제했습니다."
+    },
+    "failed": "실패했습니다: {error}",
+    "auditActor": "{actor} ({instance} 스태프)",
+    "systemActor": "({instance} 스태프)",
+    "audit": {
+      "cause": "사유",
+      "accountSuspended": "{instance}에서 계정 정지됨",
+      "domainSuspended": "{instance}에서 {domain} 정지됨"
+    },
+    "rowAction": "{action}: {target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "{instance}에서",
+      "intro": "이 도구는 {instance}에만 영향을 줍니다. 여기 사람들이 무엇을 볼 수 있는지, 참여할 수 있는지입니다. {server}와 다른 인스턴스에 있는 멤버에게는 영향이 없습니다.",
+      "staffOnly": "{instance} 스태프만 이 도구를 사용할 수 있습니다.",
+      "loadFailed": "{instance}에서 이 서버의 상태를 불러오지 못했습니다.",
+      "notHostedElsewhere": "이 도구는 다른 인스턴스에서 호스팅되는 서버용입니다.",
+      "hostedOn": "{host}에서 호스팅",
+      "localMembers": "{instance} 멤버 없음 | {instance} 멤버 {count}명 | {instance} 멤버 {count}명",
+      "thisServer": "이 서버"
+    },
+    "block": {
+      "heading": "{instance}에서 열림",
+      "openDescription": "{instance} 사람들은 이 서버를 보고 참여할 수 있습니다.",
+      "blockedStatus": "{instance}에서 차단됨",
+      "blockedDescription": "{instance} 사람들은 이 서버를 보거나 참여할 수 없습니다. 다른 인스턴스에서는 아무것도 바뀌지 않았습니다.",
+      "setAt": "{date}부터",
+      "action": "{instance}에서 {server} 차단",
+      "unblock": "{instance}에서 {server} 다시 허용",
+      "unblocked": "{instance}에서 {server}가 다시 허용되었습니다. 아무도 다시 추가되지 않았습니다.",
+      "confirm": "차단",
+      "done": "{instance}에서 {server}를 차단했습니다.",
+      "failed": "차단을 변경하지 못했습니다.",
+      "reasonLabel": "사유 ({instance} 스태프만 볼 수 있음)",
+      "consequenceSee": "{instance} 사람들은 더 이상 이 서버를 보거나 참여할 수 없습니다.",
+      "consequenceMembers": "{instance}의 멤버가 없습니다. | {instance} 멤버 {count}명이 서버에서 나가고 이유를 안내받습니다. | {instance} 멤버 {count}명이 서버에서 나가고 이유를 안내받습니다.",
+      "consequenceElsewhere": "{server}와 다른 인스턴스의 누구에게도 바뀌는 것은 없습니다.",
+      "consequenceWaiting": "참여를 기다리는 {instance} 사람 {count}명은 거절되고 이유를 안내받습니다. | 참여를 기다리는 {instance} 사람 {count}명은 거절되고 이유를 안내받습니다.",
+      "consequenceYou": "나도 포함됩니다: 나도 {server}에서 나갑니다."
+    },
+    "media": {
+      "toggle": "{instance}에서 {server}의 미디어 숨기기",
+      "hint": "이 서버의 사진, 동영상, 파일은 {instance}의 모든 사람에게 숨겨진 상태로 표시됩니다.",
+      "failed": "미디어 숨기기를 변경하지 못했습니다.",
+      "hiddenNotice": "{instance}에서 첨부 파일이 숨겨짐 | {instance}에서 첨부 파일 {count}개가 숨겨짐"
+    },
+    "people": {
+      "heading": "{instance} 사람들",
+      "empty": "{server}에 {instance} 사람이 없습니다.",
+      "pending": "참여 요청 대기 중",
+      "keptOut": "참여 차단됨",
+      "lift": "다시 허용",
+      "liftLabel": "{name}이(가) {instance}에서 {server}에 다시 참여하도록 허용",
+      "lifted": "{name}은(는) {server}에 다시 참여할 수 있습니다.",
+      "liftFailed": "{name}을(를) 다시 허용하지 못했습니다.",
+      "remove": "제거",
+      "removeLabel": "{instance}에서 {name}을(를) {server}에서 제거"
+    },
+    "remove": {
+      "action": "{instance}에서 {server}에서 제거",
+      "confirmText": "{name}은(는) {server}에서 나갑니다. 이는 {instance}에만 영향을 줍니다. 서버의 모더레이터에게는 알리지 않으며, {name}이(가) 그곳에서 차단되지도 않습니다.",
+      "keepOut": "참여 차단 ({instance}에서 다시 참여할 수 없음)",
+      "reasonLabel": "사유 ({name}에게 표시됨)",
+      "confirm": "제거",
+      "done": "{name}이(가) {instance}에서 {server}를 나갔습니다.",
+      "notMember": "{name}은(는) 이미 멤버가 아니었습니다.",
+      "failed": "{name}을(를) 제거하지 못했습니다."
+    },
+    "notice": {
+      "removedTitle": "{instance} 스태프가 당신을 {server}에서 제거했습니다.",
+      "blockedTitle": "{instance} 스태프가 {instance}에서 {server}를 차단하여 서버에서 나갔습니다.",
+      "blockedMessage": "다른 인스턴스에서는 {server}에 대해 아무것도 바뀌지 않았습니다."
+    },
+    "join": {
+      "blocked": "{instance} 스태프가 {instance}에서 이 서버를 차단했습니다.",
+      "keptOut": "{instance} 스태프가 당신을 이 서버에서 제거했습니다. {instance}에서는 다시 참여할 수 없습니다."
+    },
+    "dashboard": {
+      "title": "다른 인스턴스의 서버",
+      "description": "{instance} 사람들이 참여한, 다른 곳에서 호스팅되는 채팅 서버입니다. 차단하거나 미디어를 숨겨도 {instance}에만 영향을 줍니다.",
+      "refresh": "새로고침",
+      "search": "서버 검색",
+      "filter": "표시",
+      "filterAll": "모든 서버",
+      "manage": "관리",
+      "manageLabel": "{instance}에서 {server} 관리",
+      "empty": "{instance}에서 다른 곳에 호스팅된 서버에 참여한 사람이 없습니다.",
+      "noMatch": "일치하는 서버가 없습니다.",
+      "loadFailed": "다른 인스턴스의 서버를 불러오지 못했습니다."
+    },
+    "state": {
+      "blocked": "차단됨",
+      "mediaHidden": "미디어 숨김",
+      "keptOut": "참여 차단 {count}명 | 참여 차단 {count}명"
+    }
   }
 }

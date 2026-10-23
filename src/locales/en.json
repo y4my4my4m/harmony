@@ -2815,7 +2815,13 @@
       "reactionsFetched": "Fetched {count} reaction | Fetched {count} reactions",
       "reactionsFetchFailed": "Failed to fetch reactions",
       "loadFailed": "Failed to load post",
-      "replyPosted": "Reply posted"
+      "replyPosted": "Reply posted",
+      "inConversation": "{count} post in this conversation | {count} posts in this conversation",
+      "fullConversation": "View full conversation"
+    },
+    "quoteA11y": {
+      "openPost": "Quoted post by {name}, {time}",
+      "openPostNoAuthor": "Quoted post, {time}"
     }
   },
   "moderation": {
@@ -2908,6 +2914,24 @@
         "day": "Last 24 hours",
         "week": "Last 7 days"
       }
+    },
+    "reportDialog": {
+      "goesTo": "Goes to {instance} staff.",
+      "alsoToServer": "Also send to {server}'s moderators on {host}",
+      "alsoToServerHint": "They see what you reported and your note, not who you are.",
+      "goesToServer": "Goes to {instance} staff and {server}'s moderators."
+    },
+    "serverReport": {
+      "sent": "Also sent to {server}'s moderators on {host}",
+      "pending": "Being sent to {server}'s moderators on {host}",
+      "failed": "Could not reach {server}'s moderators on {host}",
+      "outcome": {
+        "resolved": "Action taken",
+        "dismissed": "Dismissed"
+      },
+      "moderators": "{server}'s moderators",
+      "outcomeBy": "{server}'s moderators: {outcome}",
+      "reviewedTitle": "{server}'s moderators reviewed your report"
     }
   },
   "files": {
@@ -3243,7 +3267,10 @@
       "banTitle": "You were banned from {name}",
       "reason": "Reason given: {reason}",
       "noReason": "No reason was given.",
-      "short": "Removed from server"
+      "short": "Removed from server",
+      "staffKickTitle": "You were removed from {name} by {instance} staff.",
+      "staffBanTitle": "You were banned from {name} by {instance} staff.",
+      "suspended": "Your account is suspended on {instance}."
     },
     "closedBanner": {
       "title": "{name} stopped taking members from other instances",
@@ -4343,7 +4370,9 @@
       "bot_add": "{actor} added the bot {target}",
       "bot_update": "{actor} changed the permissions of the bot {target}",
       "bot_remove": "{actor} removed the bot {target}",
-      "unknown": "{actor}: {action}"
+      "unknown": "{actor}: {action}",
+      "server_suspend": "{actor} suspended the server",
+      "server_unsuspend": "{actor} lifted the server's suspension"
     },
     "fields": {
       "name": "Name",
@@ -5016,7 +5045,15 @@
       "limitReasonPrompt": "Reason for limiting {domain}:",
       "limitApplied": "{domain} limited",
       "limitLifted": "Limit on {domain} lifted",
-      "limitFailed": "Failed to change the domain limit"
+      "limitFailed": "Failed to change the domain limit",
+      "ignoreReports": "Ignore reports from this domain",
+      "acceptReports": "Accept reports from this domain again",
+      "reportsIgnored": "Reports ignored",
+      "ignoreReportsConfirmTitle": "Ignore reports from {domain}?",
+      "ignoreReportsConfirmBody": "Reports sent from {domain} are dropped from now on. Reports already received stay in the queue, and nothing changes for {domain} itself.",
+      "reportsIgnoredToast": "Reports from {domain} are ignored",
+      "reportsAcceptedToast": "Reports from {domain} are accepted again",
+      "reportsFailed": "Could not change how reports from this domain are handled"
     },
     "instance": {
       "maxPostReactions": "Max reactions per person on a post",
@@ -5028,6 +5065,30 @@
       "configKeys": {
         "maxPostReactionsPerUser": "Max reactions per person on a post",
         "maxPersonalEmojisPerUser": "Personal emojis per user"
+      },
+      "staff": {
+        "someServer": "a server",
+        "someone": "someone",
+        "reason": "Reason: {reason}",
+        "memberRemoved": "Removed {person} from {server}",
+        "memberBanned": "Banned {person} from {server}",
+        "messageRemovedBy": "Removed a message by {person} in {server}",
+        "messageRemoved": "Removed a message in {server}",
+        "serverSuspended": "Suspended {server}",
+        "serverUnsuspended": "Lifted the suspension of {server}",
+        "serverDeleted": "Deleted {server}",
+        "serverDeletedOwned": "Deleted {server}, owned by {person}",
+        "serverBlocked": "Blocked {server} on {instance}",
+        "peopleLeft": "{count} person from {instance} left it | {count} people from {instance} left it",
+        "serverUnblocked": "Allowed {server} on {instance} again",
+        "mediaHidden": "Hid media from {server} on {instance}",
+        "mediaShown": "Showed media from {server} on {instance} again",
+        "removedHere": "Removed {person} from {server} on {instance}",
+        "removedHereKeptOut": "Removed {person} from {server} on {instance} and kept them out",
+        "keptOutHere": "Kept {person} out of {server} on {instance}",
+        "keepoutLifted": "Let {person} rejoin {server} from {instance}",
+        "reportsRejected": "Ignored reports from {domain}",
+        "reportsAccepted": "Accepted reports from {domain} again"
       }
     },
     "antiSpam": {
@@ -6937,5 +6998,213 @@
     "openProfile": "Open profile",
     "home": "Go to home",
     "followFailed": "The follow was not saved."
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "Hosted on {host}",
+      "body": "Its owner and moderators manage it there. Settings here only change what you see.",
+      "unknownHost": "another instance",
+      "bodyHost": "Its owner and moderators manage it there."
+    },
+    "owner": {
+      "label": "Owner",
+      "unknown": "Unknown"
+    },
+    "hide": {
+      "action": "Hide on {instance}",
+      "confirm": "Hide this message for everyone on {instance}? It stays on {host} and for everyone else.",
+      "button": "Hide"
+    }
+  },
+  "hostStaff": {
+    "tab": "Servers",
+    "title": "Servers hosted here",
+    "intro": "Trust & Safety for servers on {instance}. You act as {instance} staff, not as a server moderator, and each action is recorded in the server's audit log for its owner and moderators to see.",
+    "staffBadge": "{instance} staff",
+    "search": "Search by name, owner or ID",
+    "filterAll": "All",
+    "filterSuspended": "Suspended",
+    "empty": "No servers are hosted here yet.",
+    "emptySearch": "No servers match.",
+    "loadError": "This could not be loaded.",
+    "owner": "Owner",
+    "noOwner": "none",
+    "members": "{count} member | {count} members",
+    "remoteMembers": "{count} from other instances",
+    "suspendedBadge": "Suspended",
+    "suspendedBy": "Suspended by {name}",
+    "suspendedReason": "Reason: {reason}",
+    "suspendedBanner": "{instance} staff suspended this server.",
+    "open": "Open",
+    "back": "All servers",
+    "previous": "Previous",
+    "next": "Next",
+    "loadMore": "Load more",
+    "tabs": {
+      "members": "Members",
+      "messages": "Messages"
+    },
+    "membersSearch": "Search members",
+    "ownerBadge": "Owner",
+    "instanceStaffBadge": "Instance staff",
+    "pending": "Pending",
+    "noMembers": "No members match.",
+    "viewMessages": "Messages",
+    "channel": "Channel",
+    "allChannels": "All channels",
+    "byAuthor": "By {name}",
+    "clearAuthor": "Show everyone's messages",
+    "noMessages": "No messages.",
+    "encrypted": "End-to-end encrypted: the content cannot be shown.",
+    "actions": {
+      "removeMember": "Remove member",
+      "banMember": "Ban member",
+      "removeMessage": "Remove message",
+      "suspendServer": "Suspend server",
+      "unsuspendServer": "Lift suspension",
+      "deleteServer": "Delete server"
+    },
+    "confirm": {
+      "asStaff": "You act as {instance} staff, not as a moderator of {server}.",
+      "recorded": "Recorded in {server}'s audit log as an action of {instance} staff.",
+      "recordedInstance": "Recorded in the {instance} moderation log. The server's own audit log is deleted with it.",
+      "reason": "Reason (optional)",
+      "reasonHintAudit": "{server}'s owner and moderators see it in the audit log.",
+      "reasonHintBanner": "Members see it in the banner.",
+      "reasonHintLog": "Kept in the {instance} moderation log.",
+      "removeMember": {
+        "title": "Remove {name} from {server} as {instance} staff?",
+        "leaves": "{name} leaves {server}. They can join again.",
+        "remote": "Their instance, {domain}, is told that {instance} staff removed them."
+      },
+      "banMember": {
+        "title": "Ban {name} from {server} as {instance} staff?",
+        "leaves": "{name} leaves {server} and cannot join again until the server's moderators lift the ban.",
+        "remote": "Their instance, {domain}, is told that {instance} staff banned them."
+      },
+      "removeMessage": {
+        "title": "Remove this message from {server} as {instance} staff?",
+        "everyone": "It is removed for everyone, on {instance} and on other instances."
+      },
+      "suspend": {
+        "title": "Suspend {server} as {instance} staff?",
+        "frozen": "Nobody can post new messages in it or join it until the suspension is lifted.",
+        "banner": "Its members can still read it, with this banner: “{banner}”"
+      },
+      "unsuspend": {
+        "title": "Lift the suspension of {server}?",
+        "open": "Members can post and join again."
+      },
+      "delete": {
+        "title": "Delete {server} as {instance} staff?",
+        "gone": "The server, its channels and all of its messages are deleted for everyone. This cannot be undone.",
+        "members": "Its {count} member loses access to it. | Its {count} members lose access to it.",
+        "remote": "Members on other instances are not told; the server stops updating for them.",
+        "typeName": "Type the server's name to confirm"
+      }
+    },
+    "done": {
+      "removeMember": "{name} was removed from {server}.",
+      "banMember": "{name} was banned from {server}.",
+      "removeMessage": "The message was removed.",
+      "suspend": "{server} is suspended.",
+      "unsuspend": "{server} is no longer suspended.",
+      "delete": "{server} was deleted."
+    },
+    "failed": "This did not work: {error}",
+    "auditActor": "{actor} ({instance} staff)",
+    "systemActor": "({instance} staff)",
+    "audit": {
+      "cause": "Why",
+      "accountSuspended": "Account suspended on {instance}",
+      "domainSuspended": "{domain} suspended on {instance}"
+    },
+    "rowAction": "{action}: {target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "On {instance}",
+      "intro": "These tools only affect {instance}: what people here see, and whether they can take part. {server} and its members on other instances are not affected.",
+      "staffOnly": "Only {instance} staff can use these tools.",
+      "loadFailed": "Couldn't load this server's state on {instance}.",
+      "notHostedElsewhere": "These tools are for servers hosted on other instances.",
+      "hostedOn": "Hosted on {host}",
+      "localMembers": "No members from {instance} | {count} member from {instance} | {count} members from {instance}",
+      "thisServer": "This server"
+    },
+    "block": {
+      "heading": "Open on {instance}",
+      "openDescription": "People on {instance} can see and join it.",
+      "blockedStatus": "Blocked on {instance}",
+      "blockedDescription": "People on {instance} can't see or join it. Nothing changed for it on other instances.",
+      "setAt": "Since {date}",
+      "action": "Block {server} on {instance}",
+      "unblock": "Allow {server} on {instance} again",
+      "unblocked": "{server} is allowed on {instance} again. Nobody was added back.",
+      "confirm": "Block",
+      "done": "{server} is blocked on {instance}.",
+      "failed": "Couldn't change the block.",
+      "reasonLabel": "Reason (only {instance} staff see it)",
+      "consequenceSee": "People on {instance} can no longer see or join it.",
+      "consequenceMembers": "No one from {instance} is a member of it. | The {count} member from {instance} leaves it and is told why. | The {count} members from {instance} leave it and are told why.",
+      "consequenceElsewhere": "Nothing changes for {server} or for anyone on other instances.",
+      "consequenceWaiting": "{count} person from {instance} waiting to join is turned away and told why. | {count} people from {instance} waiting to join are turned away and told why.",
+      "consequenceYou": "This includes you: you leave {server} too."
+    },
+    "media": {
+      "toggle": "Hide media from {server} on {instance}",
+      "hint": "Pictures, videos and files from it show as hidden for everyone on {instance}.",
+      "failed": "Couldn't change media hiding.",
+      "hiddenNotice": "Attachment hidden on {instance} | {count} attachments hidden on {instance}"
+    },
+    "people": {
+      "heading": "People from {instance}",
+      "empty": "No one from {instance} is in {server}.",
+      "pending": "Join request pending",
+      "keptOut": "Kept out",
+      "lift": "Let back in",
+      "liftLabel": "Let {name} rejoin {server} from {instance}",
+      "lifted": "{name} can rejoin {server}.",
+      "liftFailed": "Couldn't let {name} back in.",
+      "remove": "Remove",
+      "removeLabel": "Remove {name} from {server} on {instance}"
+    },
+    "remove": {
+      "action": "Remove from {server} on {instance}",
+      "confirmText": "{name} leaves {server}. This only affects {instance}: the server's moderators are not told, and {name} is not banned there.",
+      "keepOut": "Keep them out (they can't rejoin from {instance})",
+      "reasonLabel": "Reason (shown to {name})",
+      "confirm": "Remove",
+      "done": "{name} left {server} on {instance}.",
+      "notMember": "{name} was no longer a member.",
+      "failed": "Couldn't remove {name}."
+    },
+    "notice": {
+      "removedTitle": "You were removed from {server} by {instance} staff.",
+      "blockedTitle": "{instance} staff blocked {server} on {instance}; you left it.",
+      "blockedMessage": "Nothing changed for {server} on other instances."
+    },
+    "join": {
+      "blocked": "{instance} staff blocked this server on {instance}.",
+      "keptOut": "{instance} staff removed you from this server; you can't rejoin it from {instance}."
+    },
+    "dashboard": {
+      "title": "Servers from other instances",
+      "description": "Chat servers hosted elsewhere that people on {instance} have joined. Blocking one or hiding its media only affects {instance}.",
+      "refresh": "Refresh",
+      "search": "Search servers",
+      "filter": "Show",
+      "filterAll": "All servers",
+      "manage": "Manage",
+      "manageLabel": "Manage {server} on {instance}",
+      "empty": "No one on {instance} has joined a server hosted elsewhere.",
+      "noMatch": "No servers match.",
+      "loadFailed": "Couldn't load servers from other instances."
+    },
+    "state": {
+      "blocked": "Blocked",
+      "mediaHidden": "Media hidden",
+      "keptOut": "{count} kept out | {count} kept out"
+    }
   }
 }
