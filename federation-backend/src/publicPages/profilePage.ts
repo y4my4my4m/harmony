@@ -43,7 +43,7 @@ export interface ProfilePageOptions {
 const SAFE_HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 
 function bioPlainText(bio: string): string {
-  return bio.replace(/​/g, '').replace(/\s+/g, ' ').trim();
+  return bio.replace(/\u200B/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function safeHttp(url: unknown): string {

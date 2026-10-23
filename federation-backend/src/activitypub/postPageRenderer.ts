@@ -333,7 +333,7 @@ function emojiMap(emojis?: DisplayNameEmoji[] | null): Map<string, string> {
 export function emojifyHtml(escaped: string, emojis?: DisplayNameEmoji[] | null): string {
   const map = emojiMap(emojis);
   if (map.size === 0) return escaped;
-  return escaped.replace(/​?:([a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9._-]*)?):​?/g, (match, name: string) => {
+  return escaped.replace(/\u200B?:([a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9._-]*)?):\u200B?/g, (match, name: string) => {
     const url = map.get(name) || map.get(name.replace(/@[^@]*$/, ''));
     if (!url) return match;
     return `<img src="${escapeHtml(url)}" alt=":${escapeHtml(name)}:" title=":${escapeHtml(name)}:" class="custom-emoji" draggable="false">`;
