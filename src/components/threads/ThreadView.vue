@@ -171,6 +171,7 @@
                 <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
                 <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                   <DisplayName :userId="displayParentMessage.user_id" />
+                  <FederatedUserBadge :user-id="displayParentMessage.user_id" />
                 </span>
                 <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
               </div>
@@ -178,6 +179,7 @@
                 <UnifiedMessageContent
                   :content="displayParentMessage.content"
                   :message-id="displayParentMessage.id"
+                  :media-hidden="mediaHidden"
                 />
               </div>
             </div>
@@ -244,6 +246,7 @@
             :thread-id="effectiveThreadIdForTyping"
             :thread-channel-id="threadChannelId"
             :media-room="threadMediaRoom"
+            :draft-key="threadDraftKey"
             @send-message="handleSendMessage"
             @send-voice-message="handleSendVoiceMessage"
             @update:reply-message-id="handleCancelReply"
@@ -298,6 +301,7 @@ import { useProfileStore } from '@/stores/useProfile'
 import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
@@ -310,6 +314,7 @@ import { useDraftsStore } from '@/stores/drafts'
 import { useThemeStore } from '@/stores/useTheme'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { buildChatParseOptions } from '@/utils/chatParseOptions'
@@ -385,6 +390,7 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const serverChannelStore = useServerChannelStore()
 const { canManageChannels } = useServerPermissions()
+const mediaHidden = useServerMediaHidden(() => serverChannelStore.currentServerId)
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)
@@ -1283,7 +1289,9 @@ const handleSendGif = async (gif: Gif) => {
 
 const handleSendEmojiToInput = (emoji: Emoji) => {
   closeMediaPicker()
-  messageText.value += getEmojiShortcodeForInsert(emoji)
+  // At the composer's caret, which then sits after the emoji.
+  const shortcode = getEmojiShortcodeForInsert(emoji)
+  if (!messageInputRef.value?.insertAtCaret(shortcode)) messageText.value += shortcode
 }
 
 const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {

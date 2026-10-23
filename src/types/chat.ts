@@ -37,6 +37,10 @@ export interface Server {
   muted?: boolean;
   /** user_servers.muted_until; null with `muted` mutes until unmuted. */
   muted_until?: string | null;
+  /** Set by instance staff of the host: no new messages or members (staff_set_server_suspended). */
+  suspended_at?: string | null;
+  /** Shown to members in the suspension banner. */
+  suspended_reason?: string | null;
 }
 
 export interface ServerFolder {

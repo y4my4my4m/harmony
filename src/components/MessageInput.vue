@@ -58,10 +58,19 @@
         </svg>
       </button>
     </div>
+    <!-- A server suspended by instance staff takes no new messages
+         (a_messages_server_suspension_guard). -->
+    <div v-if="suspension" class="message-readonly-banner server-suspended-banner" role="status" data-testid="server-suspended-banner">
+      <Icon name="shield" :size="18" />
+      <span>
+        <strong>{{ t('hostStaff.suspendedBanner', { instance: suspension.instance }) }}</strong>
+        <span v-if="suspension.reason" class="server-suspended-reason">{{ t('hostStaff.suspendedReason', { reason: suspension.reason }) }}</span>
+      </span>
+    </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
          SEND_MESSAGES_IN_THREADS on a thread's channel.
          Backend RLS and triggers enforce it; this is UX, not security. -->
-    <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
+    <div v-else-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
         <path d="M12 1a4.5 4.5 0 0 0-4.5 4.5V9H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1.5V5.5A4.5 4.5 0 0 0 12 1zm-2.5 4.5a2.5 2.5 0 0 1 5 0V9h-5V5.5z"/>
       </svg>
@@ -279,7 +288,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, toRaw } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, reactive, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug'
@@ -320,10 +329,22 @@ import {
 } from '@/utils/messageContentUtils';
 import { mediaRoom as roomOf, messageMediaPath, uploadMessageMedia } from '@/services/privateMedia';
 import { forgetMessageMediaUpload, prepareMessageMediaUploads, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
+import {
+  addDraftAttachments,
+  discardDraftAttachments,
+  draftAttachments,
+  draftAttachmentShown,
+  holdsDraftAttachment,
+  localDraftKey,
+  openDraftAttachments,
+  releaseAttachment,
+  setDraftAttachments,
+} from '@/stores/draftAttachments';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { serverSuspension } from '@/utils/serverSuspension';
 import { roleService, Permission } from '@/services/RoleService';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
@@ -356,6 +377,11 @@ interface Props {
   allowPolls?: boolean;
   /** Messages of this room are encrypted: uploads carry no file name to Drive. */
   encryptedRoom?: boolean;
+  /**
+   * Draft of this context (drafts.ts makeKey). Its attachments stay with the draft when the
+   * composer unmounts or shows another draft. Without a key they go with the composer.
+   */
+  draftKey?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -427,7 +453,13 @@ const {
   initialFocus: attachInitialFocus,
 } = useMenuButton(showUploadMenu);
 const { polite, assertive, announce } = useAnnouncer();
-const attachedFiles = ref<FilePreviewData[]>([]);
+const ownDraftKey = localDraftKey();
+const attachmentKey = computed(() => props.draftKey || ownDraftKey);
+// The list is read-only; changes go through the setter.
+const attachedFiles = computed<FilePreviewData[]>({
+  get: () => draftAttachments(attachmentKey.value),
+  set: (files) => setDraftAttachments(attachmentKey.value, files),
+});
 const isDragging = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
@@ -537,6 +569,16 @@ watch(
   () => { void refreshSendPermission(); },
   { immediate: true },
 );
+
+// Suspension of the server this channel belongs to; servers come from the member's list.
+const suspension = computed<{ instance: string; reason: string | null } | null>(() => {
+  if (props.conversationId) return null
+  const serverId = props.serverId ?? serverChannelStore.currentServerId
+  if (!serverId) return null
+  const server = serverChannelStore.servers?.find(s => s.id === serverId)
+    ?? (serverChannelStore.currentServer?.id === serverId ? serverChannelStore.currentServer : null)
+  return serverSuspension(server, instanceSettingsStore.settings.domain)
+})
 
 const readOnlyPlaceholder = computed(() => {
   if (isResolvingPermissions.value) return 'Checking permissions...';
@@ -710,7 +752,9 @@ const getCurrentText = () => richEditorRef.value?.getPlainText?.() ?? props.mode
 const updateText = (newText: string, cursorPosition?: number) => {
   debug.log('MessageInput updateText called:', { newText, cursorPosition });
   
-  if (cursorPosition !== undefined && richEditorRef.value) {
+  if (cursorPosition !== undefined && richEditorRef.value?.replaceText) {
+    richEditorRef.value.replaceText(newText, cursorPosition);
+  } else if (cursorPosition !== undefined && richEditorRef.value) {
     // Skip flag must be set before the update is emitted.
     debug.log('Setting skipNextWatch to true');
     richEditorRef.value.skipNextWatch = true;
@@ -924,9 +968,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
 
       if (!props.backgroundSend && hasUnfinishedUploads()) {
-        if (!holdingSend.value) {
-          holdingSend.value = true;
-          attachedFiles.value.filter(file => file.uploadStatus === 'pending').forEach(startBackgroundUpload);
+        if (holdingSend.value !== attachmentKey.value) {
+          holdingSend.value = attachmentKey.value;
+          attachedFiles.value.filter(file => file.uploadStatus === 'pending').forEach(file => startBackgroundUpload(file));
           toast.info(t('message.upload.sendWhenDone'));
         }
         return;
@@ -961,15 +1005,15 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
     };
 
-    // Enter pressed while uploads run, without backgroundSend; sends once they finish.
-    const holdingSend = ref(false);
+    // Draft of an Enter pressed while uploads run, without backgroundSend; it sends once they finish.
+    const holdingSend = ref<string | null>(null);
 
     const hasUnfinishedUploads = () =>
       attachedFiles.value.some(file => file.uploadStatus === 'uploading' || file.uploadStatus === 'pending');
 
     watch(() => attachedFiles.value.map(file => file.uploadStatus), () => {
-      if (!holdingSend.value || hasUnfinishedUploads()) return;
-      holdingSend.value = false;
+      if (holdingSend.value !== attachmentKey.value || hasUnfinishedUploads()) return;
+      holdingSend.value = null;
       if (attachedFiles.value.length === 0 && !props.modelValue?.trim()) return;
       send();
     });
@@ -1071,24 +1115,17 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       return fileData;
     };
 
-    // The file stays in the composer while it is attached; after a backgroundSend
-    // hand-off the upload belongs to the parent and the composer stops tracking it.
-    const isAttached = (fileData: FilePreviewData) =>
-      attachedFiles.value.some(file => toRaw(file) === toRaw(fileData));
-
-    const refreshUploads = () => {
-      attachedFiles.value = [...attachedFiles.value];
-      emit('upload-status-changed', hasActiveUploads());
-    };
-
-    const startBackgroundUpload = (fileData: FilePreviewData) => {
+    // An upload outlives the composer that started it: it reports to its draft wherever that
+    // is shown. After a backgroundSend hand-off it belongs to the parent and the draft no
+    // longer holds the file.
+    const startBackgroundUpload = (attachment: FilePreviewData, room: string | null = uploadRoom.value) => {
       const uploaderId = authStore.session?.user?.id;
       if (!uploaderId) return;
-      const room = uploadRoom.value;
+      // Writes through the proxy reach every composer showing the draft.
+      const fileData = reactive(attachment);
       if (!room) {
         fileData.uploadStatus = 'error';
         fileData.uploadError = 'Attachments need a channel or conversation';
-        refreshUploads();
         return;
       }
 
@@ -1101,14 +1138,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           name: props.encryptedRoom ? undefined : fileData.name,
           ephemeral: sentTemporary,
           onProgress: (fraction) => {
-            if (!isAttached(fileData)) return;
+            if (!holdsDraftAttachment(fileData)) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
             fileData.uploadProgress = fraction * 100;
             const after = Math.floor(fileData.uploadProgress / 25);
-            if (after > before && after < 4) {
+            if (after > before && after < 4 && draftAttachmentShown(fileData)) {
               announce(t('messageA11y.upload.progress', { name: fileData.name, percent: after * 25 }), { verbose: true, key: `upload-${fileData.name}` });
             }
-            refreshUploads();
           },
         },
       ));
@@ -1127,23 +1163,22 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           // The toggle moved while the bytes were on their way.
           else if (!!fileData.temporary !== sentTemporary) void applyTemporary(fileData);
           void refreshDriveUsage(true);
-          if (isAttached(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
+          if (draftAttachmentShown(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
           if (error instanceof UploadAbortedError) return;
           fileData.uploadStatus = 'error';
           fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
           fileData.uploadProgress = 0;
-          if (isAttached(fileData)) assertive(t('message.upload.failedToast', { name: fileData.name, reason: fileData.uploadError }));
+          if (draftAttachmentShown(fileData)) assertive(t('message.upload.failedToast', { name: fileData.name, reason: fileData.uploadError }));
         },
-      ).finally(() => {
-        if (isAttached(fileData)) refreshUploads();
-      });
+      );
     };
 
     const hasActiveUploads = () => {
       return attachedFiles.value.some(file => file.uploadStatus === 'uploading');
     };
+    watch(hasActiveUploads, (uploading) => emit('upload-status-changed', uploading), { immediate: true });
 
     const handlePasteFiles = (event: ClipboardEvent) => {
       const items = event.clipboardData?.items;
@@ -1165,19 +1200,21 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const maxMediaAttachments = computed(() => instanceSettings.settings.maxMediaAttachmentsPerPost ?? 20);
 
     const handleFilesSelected = async (files: File[]) => {
+      // Draft and room at attach time; the view can change during the await.
+      const key = attachmentKey.value;
+      const room = uploadRoom.value;
       const limit = maxMediaAttachments.value;
       const capacity = Math.max(0, limit - attachedFiles.value.length);
       if (capacity <= 0) return;
       const filesToAdd = Array.from(files).slice(0, capacity);
       const newFiles = await Promise.all(filesToAdd.map(createFilePreview));
 
-      attachedFiles.value.push(...newFiles);
+      addDraftAttachments(key, newFiles);
       void refreshDriveUsage();
-      emit('files-attached', attachedFiles.value);
       if (newFiles.length > 0) polite(t('messageA11y.upload.attached', { count: newFiles.length }, newFiles.length));
       
       newFiles.forEach((fileData) => {
-        startBackgroundUpload(fileData);
+        startBackgroundUpload(fileData, room);
       });
       
       closeUploadMenu();
@@ -1192,7 +1229,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const { usage: driveUsage, full: driveFull, refresh: refreshDriveUsage } = useDriveUsage();
     const showDrivePicker = ref(false);
 
-    const applyTemporary = async (fileData: FilePreviewData) => {
+    const applyTemporary = async (attachment: FilePreviewData) => {
+      const fileData = reactive(attachment);
       if (!fileData.uploadedPath) return;
       try {
         await setDriveTemporary([fileData.uploadedPath], !!fileData.temporary);
@@ -1217,6 +1255,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const attachFromDrive = async (files: DriveFile[]) => {
       showDrivePicker.value = false;
+      const key = attachmentKey.value;
       const capacity = Math.max(0, maxMediaAttachments.value - attachedFiles.value.length);
       const picked = files.filter((f) => f.bucket === 'message_media').slice(0, capacity);
       const entries = await Promise.all(picked.map(async (f): Promise<FilePreviewData> => {
@@ -1237,8 +1276,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         };
       }));
       if (entries.length === 0) return;
-      attachedFiles.value.push(...entries);
-      emit('files-attached', attachedFiles.value);
+      addDraftAttachments(key, entries);
       polite(t('messageA11y.upload.attached', { count: entries.length }, entries.length));
     };
 
@@ -1249,7 +1287,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       });
     });
 
-    // A pasted /drive/file/<id> link of the caller's that members of the room cannot open.
+    // A pasted Drive link of the caller's file that members of the room cannot open.
     const driveShareOffer = useDriveShareOffer((): DriveShareRoom | null => {
       if (props.conversationId) return { conversationId: props.conversationId };
       const channelId = props.threadChannelId || props.channelId;
@@ -1293,16 +1331,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const removeFile = (index: number) => {
       const removedFile = attachedFiles.value[index];
-
-      if (removedFile.preview && !removedFile.fromDrive) {
-        URL.revokeObjectURL(removedFile.preview);
-      }
-      removedFile.upload?.abort();
-      forgetMessageMediaUpload(removedFile.upload?.path);
-
-      attachedFiles.value.splice(index, 1);
-      emit('files-attached', attachedFiles.value);
-      emit('upload-status-changed', hasActiveUploads());
+      if (!removedFile) return;
+      attachedFiles.value = attachedFiles.value.filter((_, i) => i !== index);
+      releaseAttachment(removedFile);
       polite(t('messageA11y.upload.removed', { name: removedFile.name }));
     };
 
@@ -1347,17 +1378,19 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
     });
 
+    // Drafts with a key keep their attachments for the next composer that shows them.
+    let closeShownDraft: (() => void) | null = null;
+    watch(attachmentKey, (key) => {
+      closeShownDraft?.();
+      closeShownDraft = openDraftAttachments(key);
+      // A send held for uploads belongs to the draft it was pressed in.
+      holdingSend.value = null;
+    }, { immediate: true });
+
     onUnmounted(() => {
       document.removeEventListener('external-file-drop', handleExternalFileDrop as EventListener);
-
-      // Attachments still in the composer are discarded with it.
-      attachedFiles.value.forEach(file => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview);
-        }
-        file.upload?.abort();
-        forgetMessageMediaUpload(file.upload?.path);
-      });
+      closeShownDraft?.();
+      discardDraftAttachments(ownDraftKey);
     });
 
     watch(() => props.replyMessageId, (newId) => {
@@ -1414,7 +1447,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     /**
      * Puts back attachments a backgroundSend parent handed over and could not queue.
-     * Their previews and running uploads return to the composer's care.
+     * Their previews and running uploads return to the shown draft.
      */
     const restoreAttachments = (files: FilePreviewData[]) => {
       attachedFiles.value = [...files.map(file => toRaw(file)), ...attachedFiles.value];
@@ -1426,13 +1459,21 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       richEditorRef.value?.focus?.();
     };
 
+    /** Inserts `text` at the editor's caret, or its last caret while focus was elsewhere. */
+    const insertAtCaret = (text: string): boolean => {
+      if (!richEditorRef.value?.insertAtCaret) return false;
+      richEditorRef.value.insertAtCaret(text);
+      return true;
+    };
+
     defineExpose({
       composerRef,
       gifTriggerRef,
       emojiTriggerRef,
       flashRejection,
       restoreAttachments,
-      focusEditor
+      focusEditor,
+      insertAtCaret
     });
 
 
@@ -1498,6 +1539,20 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .message-readonly-banner svg {
     flex-shrink: 0;
     color: var(--text-tertiary, var(--text-secondary));
+  }
+
+  .server-suspended-banner {
+    border-color: color-mix(in srgb, var(--warning, #f0b232) 55%, var(--border-color));
+    color: var(--text-primary);
+  }
+
+  .server-suspended-banner svg {
+    color: var(--warning, #f0b232);
+  }
+
+  .server-suspended-reason {
+    margin-left: 6px;
+    color: var(--text-secondary);
   }
 
   .command-param-bar {

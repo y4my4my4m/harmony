@@ -123,7 +123,7 @@ export async function caseSystemEvents(ctx: SystemEventsContext): Promise<void> 
   // Hosted by the peer: live.
   const inbox = `${localUrl}/inbox`
   const liveCreate = (id: string, actor: string) => JSON.stringify({
-    '@context': [AS, { harmony: 'https://harmonyapp.dev/ns#' }],
+    '@context': [AS, { harmony: 'https://mony.lol/ns#' }],
     id: `${peer.groupUrl}/activities/${id}`,
     type: 'Create',
     actor,

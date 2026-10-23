@@ -108,6 +108,11 @@ describe('voiceMemberActivity', () => {
     expect(String(a.id).startsWith(`${GROUP}/voice-moderation/`)).toBe(true)
   })
 
+  it('binds the harmony prefix inline: the only context URL is ActivityStreams', () => {
+    const a = voiceMemberActivity({ kind: 'state', server_id: S, user_id: RITA, muted: true, deafened: false }, RITA_ACTOR)
+    expect(a['@context']).toEqual(['https://www.w3.org/ns/activitystreams', { harmony: 'https://mony.lol/ns#' }])
+  })
+
   it('a disconnect carries its reason; an unknown one reads as disconnected', () => {
     const revoked = voiceMemberActivity({ kind: 'disconnect', server_id: S, user_id: RITA, from_channel_id: FROM, reason: 'revoked' }, RITA_ACTOR)
     expect(revoked).toMatchObject({ type: VOICE_MEMBER_TYPES.Disconnect, 'harmony:reason': 'revoked' })

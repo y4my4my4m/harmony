@@ -26,11 +26,11 @@ function sendPage(res: Response, status: number, html: string): void {
 }
 
 /**
- * Link-preview page of a Drive file shared by link.
+ * Link-preview page of a Drive file's address.
  * GET /d/:token
  *
- * Live link: 200 with the file's name, type and, for a raster image, a thumbnail. Expired,
- * revoked, unknown or malformed: 404 with no OpenGraph tags. Lookup failure: 503.
+ * Public file: 200 with the file's name, type and, for a raster image, a thumbnail. Restricted,
+ * expired, reset, unknown or malformed: 404 with no OpenGraph tags. Lookup failure: 503.
  * No redirect to the SPA: a person sending a crawler User-Agent would loop.
  */
 router.get(

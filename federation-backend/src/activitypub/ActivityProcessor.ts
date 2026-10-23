@@ -16,12 +16,13 @@ import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
 import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, sameUrl, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
 import { isJoinInFlight } from './joinsInFlight.js';
-import { membershipOutlivesRemove, removalReason } from './memberRemoval.js';
+import { membershipOutlivesRemove, removalReason, removedByStaff } from './memberRemoval.js';
+import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { storedPostVisibility } from './postAccess.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
-import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
+import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
 import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
@@ -290,6 +291,9 @@ export class ActivityProcessor {
         break;
       case 'Flag':
         await this.processFlag(activity);
+        break;
+      case 'Resolve':
+        await this.processReportResolve(activity);
         break;
       case 'Block':
         await this.processBlock(activity);
@@ -1561,6 +1565,8 @@ export class ActivityProcessor {
       if (object.icon?.url) {
         updateData.icon = object.icon.url;
       }
+      const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+      Object.assign(updateData, ServerDiscoveryService.groupSuspension(object) ?? {});
       
       const { error: updateError } = await supabase
         .from('servers')
@@ -3070,12 +3076,14 @@ export class ActivityProcessor {
     const reason = removalReason(activity);
     const serverRef = { id: server.id, name: server.name ?? null, ap_id: groupUrl };
     const summary = typeof activity.summary === 'string' ? activity.summary.trim().slice(0, 300) : '';
+    // staff: the host whose instance staff removed the member.
+    const staff = removedByStaff(activity) ? urlHost(groupUrl) : null;
     const { error: notifyError } = await supabase.from('notifications').insert(reason === 'federation_closed'
       ? { user_id: member.id, type: 'server_federation_closed', data: { server: serverRef } }
       : {
           user_id: member.id,
           type: 'server_member_removed',
-          data: { server: serverRef, action: reason, reason: summary || null },
+          data: { server: serverRef, action: reason, reason: summary || null, ...(staff ? { staff } : {}) },
         });
     if (notifyError) logger.error('Remove(member): failed to notify the user:', notifyError);
     logger.info(`Removed ${member.id} from server ${server.id} by its Group (${reason ?? 'no reason'})`);
@@ -3187,6 +3195,8 @@ export class ActivityProcessor {
         if (data) postAuthors.set(data.id, data.author_id);
         continue;
       }
+      // A message is reported to its server's Group inbox (processServerFlag).
+      if (ref?.kind === 'message') continue;
       if (!sameOrigin(uri, `https://${config.INSTANCE_DOMAIN}/`)) continue;
 
       // Local URIs in another form: stored actor or post ids.
@@ -3236,6 +3246,32 @@ export class ActivityProcessor {
       }
       logger.info(`Flag ${activity.id} from ${sourceDomain} on ${accountId}: ${data?.status ?? 'unknown'}`);
     }
+  }
+
+  /**
+   * Resolve: a server's Group settled the report this instance sent to its inbox
+   * (flag.ts buildResolveActivity). The object is the server Flag, by id or embedded;
+   * apply_server_report_resolution checks the actor is the Group of the reported
+   * message's server.
+   */
+  static async processReportResolve(activity: any): Promise<void> {
+    const actorUrl = normalizeActor(activity.actor);
+    const flagId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+    const reportId = serverFlagReportId(flagId, `https://${config.INSTANCE_DOMAIN}`);
+    const outcome = resolveOutcome(activity);
+    if (!actorUrl || !reportId || !outcome) {
+      logger.info(`Resolve ${activity.id} from ${actorUrl} names no report of this instance; ignored`);
+      return;
+    }
+    const { data, error } = await getSupabaseClient().rpc('apply_server_report_resolution', {
+      p_report_id: reportId,
+      p_group: actorUrl,
+      p_outcome: outcome,
+    });
+    if (error) {
+      throw new Error(`Resolve ${activity.id}: report ${reportId} not updated: ${error.message}`);
+    }
+    logger.info(`Resolve ${activity.id} from ${actorUrl} on report ${reportId} (${outcome}): ${data?.status ?? 'unknown'}`);
   }
 
   /**
@@ -3759,6 +3795,10 @@ export class ActivityProcessor {
         logDenied('system notice', actorUrl, 'a relayed Note carries a system notice');
         return;
       }
+      if (await isServerBlockedHere(supabase, serverId)) {
+        logDenied('system notice', actorUrl, `server ${serverId} is blocked on this instance`);
+        return;
+      }
       await this.processSystemNotice(actorUrl, object, channelId);
       return;
     }
@@ -4045,6 +4085,10 @@ export class ActivityProcessor {
     const refusal = relayRefusal(server, announce, config.INSTANCE_DOMAIN);
     if (refusal) {
       logDenied('Group relay', group, refusal);
+      return;
+    }
+    if (await isServerBlockedHere(getSupabaseClient(), server.id)) {
+      logDenied('Group relay', group, 'the server is blocked on this instance');
       return;
     }
 

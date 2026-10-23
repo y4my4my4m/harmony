@@ -82,7 +82,8 @@ export function notificationUrl(type: string, data: Record<string, any> = {}): s
     if (handle) return `/social/profile/${handle}`;
   }
   // The refused or removing server is gone from the list.
-  if (type === 'server_join_rejected' || type === 'server_federation_closed' || type === 'server_member_removed') return '/chat';
+  if (type === 'server_join_rejected' || type === 'server_federation_closed' || type === 'server_member_removed'
+    || type === 'server_instance_removed') return '/chat';
 
   const postId = data.post_id || data.post?.id;
   if (type.startsWith('activitypub_') && postId) return `/social/post/${postId}`;
@@ -331,12 +332,36 @@ export function federationClosedNoticeText(data: Record<string, any> = {}): { ti
 
 /**
  * Push text for a 'server_member_removed' notification (ActivityProcessor.processGroupMemberRemove):
- * server { id, name, ap_id }, action 'kick' | 'ban' | null, and the reason the server gave.
+ * server { id, name, ap_id }, action 'kick' | 'ban' | 'suspended' | null, the reason the server
+ * gave, and `staff`: the host whose instance staff acted (harmony:staff), as the in-app notice
+ * names them (NotificationFormatter server_member_removed).
  */
 export function memberRemovedNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
   const name = noticeServerName(data);
+  const staff = typeof data.staff === 'string' && data.staff ? data.staff : null;
+  const by = staff ? ` by ${staff} staff` : '';
+  const title = data.action === 'ban' ? `You were banned from ${name}${by}` : `You were removed from ${name}${by}`;
+  if (data.action === 'suspended') {
+    return { title, body: staff ? `Your account is suspended on ${staff}.` : 'Your account is suspended there.' };
+  }
+  return { title, body: data.reason ? `Reason given: ${data.reason}` : 'No reason was given.' };
+}
+
+/**
+ * Push text for a 'server_instance_removed' notification (migration 20261027300001): this
+ * instance's staff removed the user from a server hosted elsewhere (action 'remove', with the
+ * reason given) or blocked it (action 'block'). `instance` is this instance's domain.
+ */
+export function instanceRemovedNoticeText(data: Record<string, any> = {}, instance: string): { title: string; body: string } {
+  const name = noticeServerName(data);
+  if (data.action === 'block') {
+    return {
+      title: `${instance} staff blocked ${name} on ${instance}; you left it.`,
+      body: `Nothing changed for ${name} on other instances.`,
+    };
+  }
   return {
-    title: data.action === 'ban' ? `You were banned from ${name}` : `You were removed from ${name}`,
+    title: `You were removed from ${name} by ${instance} staff.`,
     body: data.reason ? `Reason given: ${data.reason}` : 'No reason was given.',
   };
 }

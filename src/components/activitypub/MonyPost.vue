@@ -64,15 +64,22 @@
         </div>
       </div>
 
-      <!-- Reply line: parent author and a thread link, never the parent body -->
+      <!-- Reply line: one line naming the parent's author, never the parent body. It opens the
+           parent post; the handle truncates and the title carries it whole. -->
       <div v-if="showReplyLine" class="reply-line">
         <Icon name="reply" :size="14" class="reply-line-icon" />
-        <span>{{ t('activitypub.replyingTo') }}</span>
-        <RouterLink :to="profileRoute(displayReplyContext.author)" class="reply-author-link">
-          {{ formatHandle(displayReplyContext.author) }}
-        </RouterLink>
-        <span aria-hidden="true">·</span>
-        <button type="button" class="text-link" @click.stop="showReplyTarget">
+        <RouterLink
+          v-if="replyParentRoute"
+          :to="replyParentRoute"
+          class="reply-line-target"
+          data-testid="post-reply-line"
+          :title="replyLineText"
+        >{{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span></RouterLink>
+        <span v-else class="reply-line-target" :title="replyLineText">
+          {{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span>
+        </span>
+        <span class="reply-line-sep" aria-hidden="true">·</span>
+        <button type="button" class="text-link reply-line-thread" @click.stop="showReplyTarget">
           {{ t('activitypub.viewThread') }}
         </button>
       </div>
@@ -141,23 +148,55 @@
             <Icon name="external-link" :size="14" />
             {{ t('activitypub.viewQuotedPost') }}
           </a>
-          <div v-else-if="props.post.reblog" class="quoted-post">
-            <div v-if="quotedAuthor" class="quoted-post-header">
-              <Avatar
-                :src="quotedAuthor.avatar_url"
-                alt=""
-                size="sm"
-              />
-              <div class="quoted-author-info">
-                <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
-                <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
-                <AppTimestamp class="quoted-post-time" :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
-              </div>
+          <!-- A click on the card opens the quoted post; its links, mentions, hashtags and media
+               keep their own clicks. Keyboard and assistive technology reach the post through the
+               time link, the author through the name link: no link wraps another. -->
+          <div
+            v-else-if="props.post.reblog"
+            class="quoted-post"
+            :class="{ 'is-openable': quotedPostOpenable }"
+            data-testid="quoted-post"
+            @click="onQuotedPostClick"
+          >
+            <div class="quoted-post-header">
+              <RouterLink v-if="quotedAuthor" :to="profileRoute(quotedAuthor)" class="quoted-author-link" data-testid="quoted-author">
+                <Avatar
+                  :src="quotedAuthor.avatar_url"
+                  alt=""
+                  size="sm"
+                />
+                <span class="quoted-author-info">
+                  <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
+                  <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
+                </span>
+              </RouterLink>
+              <RouterLink
+                v-if="quotedPostRoute"
+                :to="quotedPostRoute"
+                class="quoted-post-time"
+                data-testid="quoted-post-link"
+                :aria-label="quotedPostLabel"
+              >
+                <AppTimestamp :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
+              </RouterLink>
+              <a
+                v-else-if="quotedPostUrl"
+                :href="safeHref(quotedPostUrl)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="quoted-post-time"
+                data-testid="quoted-post-link"
+                :aria-label="quotedPostLabel"
+                @click="onQuotedPostUrlClick"
+              >
+                <AppTimestamp :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
+              </a>
+              <AppTimestamp v-else class="quoted-post-time" :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
             </div>
             
             <div class="quoted-post-content">
               <MonyContent
-                :content="contentForMonyContent"
+                :content="quotedContentForMonyContent"
                 @user-mention-click="handleMentionClick"
                 @hashtag-click="handleHashtagClick"
                 @image-click="handleImageClick"
@@ -230,7 +269,7 @@
             :artwork="item.image || null"
           />
 
-          <DriveLinkCard
+          <DriveLinkAttachment
             v-for="item in driveEmbeds"
             :key="`drive-${item.url}`"
             :link="item.link"
@@ -284,15 +323,35 @@
             <span :title="t('activitypub.editedTitle')">{{ t('activitypub.edited') }}</span>
           </template>
         </div>
+        <!-- Boosts and favourites open the list of accounts; the name keeps the visible text first. -->
         <div v-if="detailStats.length > 0" class="detail-stats">
           <template v-for="(stat, index) in detailStats" :key="stat.key">
             <span v-if="index > 0" class="detail-stats-separator" aria-hidden="true">·</span>
-            <span class="detail-stat">
+            <button
+              v-if="stat.list"
+              type="button"
+              class="detail-stat detail-stat-button"
+              aria-haspopup="dialog"
+              :data-testid="`post-${stat.key}-stat`"
+              :aria-label="t('activitypub.interactionsList.statLabel', { stat: `${formatCount(stat.count)} ${t(stat.label, stat.count)}` })"
+              @click="interactionsTab = stat.list"
+            >
+              <span><strong>{{ formatCount(stat.count) }}</strong> {{ t(stat.label, stat.count) }}</span>
+            </button>
+            <span v-else class="detail-stat">
               <strong>{{ formatCount(stat.count) }}</strong>
               {{ t(stat.label, stat.count) }}
             </span>
           </template>
         </div>
+        <PostInteractionsDialog
+          v-if="interactionsTab"
+          :post-id="originalPostId"
+          :initial-tab="interactionsTab"
+          :favorites-count="displayInteractionCounts.favorites_count"
+          :boosts-count="displayInteractionCounts.reblogs_count"
+          @close="interactionsTab = null"
+        />
       </template>
 
       <!-- Action Buttons. Toggle names stay fixed; aria-pressed carries the state and
@@ -758,6 +817,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { styleRect } from '@/utils/appZoom';
 import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
+import { cardClickIgnored } from '@/utils/cardClick';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
 import {
@@ -773,8 +833,9 @@ import type { TimelinePost, DisplayNamePart } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
-import DriveLinkCard from '@/components/embeds/DriveLinkCard.vue';
-import { driveLinkFromUrl, type DriveLinkRef } from '@/services/drive/driveLinks';
+import DriveLinkAttachment from '@/components/embeds/DriveLinkAttachment.vue';
+import { driveLinkFromUrl, driveLinkPath, type DriveLinkRef } from '@/services/drive/driveLinks';
+import { driveLinkUrlsIn, withoutSoleDriveLink } from '@/utils/driveLinkContent';
 import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
@@ -789,6 +850,8 @@ import { galleryMedia, withoutGalleryMedia } from '@/utils/postMedia';
 import RemotePollCard from '@/components/polls/RemotePollCard.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
+import PostInteractionsDialog from './PostInteractionsDialog.vue';
+import type { ListedInteraction } from '@/services/postInteractionAccounts';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { badgeFromMembership } from '@/services/FundingService';
 import { adminService } from '@/services/AdminService';
@@ -1107,6 +1170,58 @@ const quotedCreatedAt = computed(() => {
   return props.post.reblog?.created_at || props.post.created_at;
 });
 
+// Local id of the quoted post: the snapshot's id, as stored by the database or the federation
+// backend, else metadata.reblog_of.
+const quotedPostId = computed<string | null>(() => {
+  const id = props.post.reblog?.id || props.post.metadata?.reblog_of;
+  return typeof id === 'string' && id ? id : null;
+});
+
+const quotedPostRoute = computed(() =>
+  quotedPostId.value ? { name: 'PostDetail', params: { postId: quotedPostId.value } } : null
+);
+
+// The quoted post's address, for a snapshot that names no local id.
+const quotedPostUrl = computed(() => (quotedPostId.value ? null : quoteTargetUrl(props.post)));
+
+const quotedPostOpenable = computed(() => !!(quotedPostRoute.value || quotedPostUrl.value));
+
+const quotedPostLabel = computed(() => {
+  const time = formatSpokenRelativeTime(quotedCreatedAt.value, { locale: currentLocale() });
+  const author = quotedAuthor.value;
+  if (!author) return t('activitypub.quoteA11y.openPostNoAuthor', { time });
+  return t('activitypub.quoteA11y.openPost', { name: plainDisplayName(author.display_name, author.username || ''), time });
+});
+
+/**
+ * Opens the quoted post on this instance: by its local id, else resolved from its address the
+ * way other post links resolve (PostResolverService imports it once), else at its address.
+ */
+const openQuotedPost = async () => {
+  if (quotedPostRoute.value) {
+    await router.push(quotedPostRoute.value);
+    return;
+  }
+  const url = quotedPostUrl.value;
+  if (!url) return;
+  const { postResolverService } = await import('@/services/PostResolverService');
+  const resolved = await postResolverService.resolveByApUrl(url).catch(() => null);
+  if (resolved?.id) await router.push({ name: 'PostDetail', params: { postId: resolved.id } });
+  else openLink(url);
+};
+
+const onQuotedPostClick = (event: MouseEvent) => {
+  if (!quotedPostOpenable.value || cardClickIgnored(event)) return;
+  void openQuotedPost();
+};
+
+// A plain click resolves the address here; a modified click keeps the link's own behaviour.
+const onQuotedPostUrlClick = (event: MouseEvent) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  void openQuotedPost();
+};
+
 const authorSupporterBadge = computed(() => {
   const membership = displayAuthor.value?.supporter_membership;
   if (membership === undefined) return undefined;
@@ -1226,10 +1341,20 @@ const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbe
 const musicEmbeds = computed(() => postEmbeds.value
   .map((e: any) => ({ url: e.url as string, title: e.title as string | undefined, image: e.image as string | undefined, embed: musicFor(e) }))
   .filter((e): e is { url: string; title: string | undefined; image: string | undefined; embed: NonNullable<ReturnType<typeof musicFor>> } => !!e.embed));
-// Links to Drive files of this instance render their file card, by the reader's access.
-const driveEmbeds = computed(() => postEmbeds.value
-  .map((e) => ({ url: e.url, link: driveLinkFromUrl(e.url) }))
-  .filter((e): e is { url: string; link: DriveLinkRef } => !!e.link));
+// Links to Drive files of this instance, in the text or among the previews, render as
+// attachments by the reader's access, as in messages.
+const driveEmbeds = computed(() => {
+  const seen = new Set<string>();
+  return [...driveLinkUrlsIn(displayContent.value), ...postEmbeds.value.map((e) => e.url)]
+    .map((url) => ({ url, link: driveLinkFromUrl(url) }))
+    .filter((e): e is { url: string; link: DriveLinkRef } => {
+      if (!e.link) return false;
+      const key = driveLinkPath(e.link);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+});
 const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any) && !driveLinkFromUrl(e.url)));
 
 // When the post also has a media attachment, render link cards in the
@@ -1247,7 +1372,12 @@ const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
 );
 
 // Media shows once, in MonyMediaGallery (lightbox, sensitive blur); MonyContent gets the rest.
+// A Drive link that is the whole text shows as its file alone.
 const contentForMonyContent = computed(() =>
+  withoutSoleDriveLink(withoutGalleryMedia(displayContent.value, displayMediaAttachments.value))
+);
+// A quoted post renders no Drive files: its link stays as text.
+const quotedContentForMonyContent = computed(() =>
   withoutGalleryMedia(displayContent.value, displayMediaAttachments.value)
 );
 
@@ -1286,6 +1416,13 @@ const displayReplyContext = computed(() => {
 
 const showReplyLine = computed(() => {
   return !!displayReplyContext.value?.author && !props.hideReplyContext && !props.isInThread;
+});
+
+const replyHandle = computed(() => formatHandle(displayReplyContext.value?.author));
+const replyLineText = computed(() => `${t('activitypub.replyingTo')} ${replyHandle.value}`);
+const replyParentRoute = computed(() => {
+  const id = displayReplyContext.value?.id;
+  return id ? { name: 'PostDetail', params: { postId: id } } : null;
 });
 
 const loadReplyContext = async () => {
@@ -1494,15 +1631,18 @@ const displayInteractionCounts = computed(() => {
 });
 
 // Focused-post counts: replies, then boosts and favourites as Mastodon orders them.
-// Zero counts are left out.
+// Zero counts are left out. `list` names the accounts list a stat opens.
 const detailStats = computed(() => {
   const counts = displayInteractionCounts.value;
-  return [
+  const stats: Array<{ key: string; count: number; label: string; list?: ListedInteraction }> = [
     { key: 'replies', count: counts.replies_count, label: 'activitypub.repliesLabel' },
-    { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel' },
-    { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel' },
-  ].filter((stat) => stat.count > 0);
+    { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel', list: 'reblog' },
+    { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel', list: 'favorite' },
+  ];
+  return stats.filter((stat) => stat.count > 0);
 });
+
+const interactionsTab = ref<ListedInteraction | null>(null);
 
 // Action glyph sizes in px. Ink measured at 18px with a 1.5px stroke: message-circle is a
 // closed 16.6px bubble with a 230px² convex hull, repeat-2 an open 16.5x10.5px pair of
@@ -2545,31 +2685,51 @@ const handleImageClick = (url: string) => {
   cursor: default;
 }
 
-/* Reply line */
+/* Reply line: one line at most the post's width; the handle gives way first. */
 .reply-line {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
   margin-bottom: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }
 
-.reply-line-icon {
+.reply-line-icon,
+.reply-line-sep,
+.reply-line-thread {
   flex-shrink: 0;
 }
 
-.reply-author-link {
-  color: var(--text-link);
+.reply-line-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
   text-decoration: none;
-  overflow-wrap: anywhere;
 }
 
-.reply-author-link:hover,
+.reply-line-handle {
+  color: var(--text-link);
+}
+
+a.reply-line-target:hover,
 .text-link:hover {
   text-decoration: underline;
+}
+
+a.reply-line-target:focus-visible,
+.reply-line-thread:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.reply-line-thread {
+  white-space: nowrap;
 }
 
 .text-link {
@@ -2694,6 +2854,7 @@ const handleImageClick = (url: string) => {
 .detail-stats {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
   padding: var(--space-3) 0;
@@ -2706,6 +2867,30 @@ const handleImageClick = (url: string) => {
 .detail-stats strong {
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
+}
+
+.detail-stat-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.detail-stat-button:hover {
+  text-decoration: underline;
+}
+
+.detail-stat-button:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: 2px;
 }
 
 .detail-stats-separator {
@@ -2916,12 +3101,32 @@ const handleImageClick = (url: string) => {
   padding: var(--space-3);
 }
 
+.quoted-post.is-openable {
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.quoted-post.is-openable:hover {
+  border-color: var(--border-hover);
+  background: var(--background-modifier-hover);
+}
+
 .quoted-post-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.quoted-author-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .quoted-author-info {
@@ -2929,14 +3134,20 @@ const handleImageClick = (url: string) => {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  font-size: var(--font-size-sm);
   white-space: nowrap;
   overflow: hidden;
 }
 
 .quoted-author-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+}
+
+.quoted-author-link:hover .quoted-author-name {
+  text-decoration: underline;
 }
 
 .quoted-author-handle {
@@ -2946,7 +3157,21 @@ const handleImageClick = (url: string) => {
 }
 
 .quoted-post-time {
+  flex-shrink: 0;
   color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.quoted-post-time:hover {
+  text-decoration: underline;
+}
+
+.quoted-author-link:focus-visible,
+a.quoted-post-time:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .quoted-post-content {

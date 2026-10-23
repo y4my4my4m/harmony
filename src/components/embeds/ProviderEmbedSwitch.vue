@@ -1,6 +1,6 @@
 <template>
-  <!-- A Drive file of this instance: its card, or a restricted card. -->
-  <DriveLinkCard
+  <!-- A Drive file of this instance, drawn as an attachment; a restricted line without access. -->
+  <DriveLinkAttachment
     v-if="driveLink"
     :link="driveLink"
     :url="payload.url"
@@ -188,7 +188,7 @@ import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor, musicProviderLabel } from '@/utils/musicEmbeds';
 import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
-import DriveLinkCard from './DriveLinkCard.vue';
+import DriveLinkAttachment from './DriveLinkAttachment.vue';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { runtimeConfig } from '@/services/runtimeConfig';
 

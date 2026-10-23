@@ -39,7 +39,17 @@ const READERS: Record<string, string[]> = {
 }
 
 const filters: Array<{ table: string; column: string; values: unknown }> = []
+/** get_post_emoji_reactions rows by post id. */
+const REACTIONS: Record<string, any[]> = {
+  'p-public': [
+    { emoji_id: null, emoji_name: null, emoji_url: null, custom_emoji_content: '🔥', reaction_count: 2 },
+    { emoji_id: 'e1', emoji_name: 'blobcat', emoji_url: 'https://harmony.test/emojis/blobcat.png', custom_emoji_content: null, reaction_count: 1 },
+    { emoji_id: null, emoji_name: null, emoji_url: 'https://misskey.test/emoji/neko.webp', custom_emoji_content: ':neko@misskey.test:', reaction_count: 4 },
+    { emoji_id: null, emoji_name: null, emoji_url: null, custom_emoji_content: '❤️', reaction_count: 3 },
+  ],
+}
 const rpc = vi.fn(async (name: string, args: any) => {
+  if (name === 'get_post_emoji_reactions') return { data: REACTIONS[args.p_post_id] ?? [], error: null }
   if (name !== 'federation_post_access') return { data: null, error: { message: `unexpected ${name}` } }
   const post = POSTS[args.p_post_id]
   if (!post) return { data: false, error: null }
@@ -131,6 +141,17 @@ describe('GET /posts/:id as ActivityPub', () => {
       POSTS[postId].visibility === 'public' || POSTS[postId].visibility === 'unlisted'
         ? 'public, max-age=300'
         : 'private, no-store')
+  })
+
+  it('carries its reaction counts, image emojis by Emoji tag and hearts left to the likes', async () => {
+    const res = await ap('/posts/p-public')
+    expect(res.body['harmony:reactions']).toEqual([
+      { content: '🔥', count: 2 },
+      { content: ':blobcat:', count: 1, tag: { type: 'Emoji', name: ':blobcat:', icon: { type: 'Image', url: 'https://harmony.test/emojis/blobcat.png' } } },
+      { content: ':neko@misskey.test:', count: 4, tag: { type: 'Emoji', name: ':neko@misskey.test:', icon: { type: 'Image', url: 'https://misskey.test/emoji/neko.webp' } } },
+    ])
+    expect(res.body['@context'][1].harmony).toBe('https://mony.lol/ns#')
+    expect((await ap('/posts/p-unlisted')).body['harmony:reactions']).toEqual([])
   })
 
   it('answers a non-public post exactly as an unknown id', async () => {

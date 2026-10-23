@@ -7,8 +7,8 @@
       </p>
     </div>
 
-    <!-- Permission Notice for Read-Only Users -->
-    <div v-if="!permissions.canUpload && !permissions.canDelete" class="permission-notice">
+    <!-- Permission Notice for Read-Only Users; a copy's emojis are its host's, and the banner says so. -->
+    <div v-if="!permissions.canUpload && !permissions.canDelete && !isCopy" class="permission-notice" data-testid="emoji-view-only">
       <div class="notice-content">
         <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
           <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
@@ -87,6 +87,8 @@ interface Props {
   ownerId: string
   loading: boolean
   permissions: EmojiPermissions
+  /** A copy of a server hosted on another instance. */
+  isCopy?: boolean
 }
 
 interface Emits {
@@ -97,7 +99,7 @@ interface Emits {
   (e: 'emojis-bulk-deleted', emojiIds: string[]): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { isCopy: false })
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()

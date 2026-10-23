@@ -33,6 +33,7 @@
         :message-id="mention.message.id"
         :encrypted="mention.message.encrypted"
         :decrypted="mention.message.decrypted"
+        :media-hidden="mediaHidden"
       />
     </div>
   </li>
@@ -46,6 +47,7 @@ import Icon from '@/components/common/Icon.vue'
 import MessageAuthorLabel from '@/components/messages/MessageAuthorLabel.vue'
 import TodayPreview from '@/components/today/TodayPreview.vue'
 import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPresentation'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { formatFullDateTime, formatShortRelativeTime } from '@/utils/shortRelativeTime'
 import { mentionRoute, type TodayMention } from '@/utils/todaySummary'
 
@@ -56,6 +58,8 @@ const { t, locale } = useI18n()
 const message = computed(() => props.mention.message)
 const { profileUserId, displayName, avatarUrl, usernameColor, bridgeSource } =
   useMessageAuthorPresentation(message, { serverId: () => props.mention.server?.id })
+
+const mediaHidden = useServerMediaHidden(() => props.mention.server?.id)
 
 const DEFAULT_AVATAR = '/default_avatar.webp'
 const UNRESOLVED = new Set(['Unknown User', 'Deleted User'])

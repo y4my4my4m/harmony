@@ -163,6 +163,13 @@ describe('a server on another instance removed the user', () => {
       .toEqual({ title: 'You were banned from chat.example', body: 'Reason given: spam' })
     expect(notificationUrl('server_member_removed', { server })).toBe('/chat')
   })
+
+  it('names the host\'s staff, and a suspension there', () => {
+    expect(memberRemovedNoticeText({ server, action: 'kick', reason: 'raid', staff: 'chat.example' }))
+      .toEqual({ title: 'You were removed from Mastodon Canada by chat.example staff', body: 'Reason given: raid' })
+    expect(memberRemovedNoticeText({ server, action: 'suspended', reason: null, staff: 'chat.example' }))
+      .toEqual({ title: 'You were removed from Mastodon Canada by chat.example staff', body: 'Your account is suspended on chat.example.' })
+  })
 })
 
 describe('notification deep links', () => {

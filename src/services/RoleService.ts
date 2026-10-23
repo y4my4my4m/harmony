@@ -299,6 +299,7 @@ const ASSIGNMENTS_TTL_MS = 30_000
 
 class RoleService {
   private roleCache = new Map<string, ServerRole[]>() // serverId -> roles
+  private rolesChangedListeners = new Set<(serverId: string) => void>()
   private userRolesCache = new Map<string, ServerRole[]>() // `${userId}-${serverId}` -> roles (FIXED: store full roles, not just IDs)
   private permissionCache = new Map<string, Record<Permission, boolean>>() // `${userId}-${serverId}-${channelId?}` -> permissions
   
@@ -442,6 +443,7 @@ class RoleService {
 
       // Invalidate cache
       this.roleCache.delete(serverId)
+      this.notifyRolesChanged(serverId)
 
       return {
         ...data,
@@ -480,6 +482,7 @@ class RoleService {
       // Invalidate caches
       this.roleCache.delete(role.server_id)
       this.permissionCache.clear()
+      this.notifyRolesChanged(role.server_id)
 
       return role
     } catch (error) {
@@ -515,6 +518,7 @@ class RoleService {
       // Invalidate caches
       this.roleCache.delete(role.server_id)
       this.permissionCache.clear()
+      this.notifyRolesChanged(role.server_id)
 
       return true
     } catch (error) {
@@ -545,6 +549,7 @@ class RoleService {
       // Invalidate cache
       this.roleCache.delete(serverId)
       this.permissionCache.clear()
+      this.notifyRolesChanged(serverId)
 
       return true
     } catch (error) {
@@ -704,6 +709,7 @@ class RoleService {
       this.userRolesCache.delete(`${userId}-${serverId}`)
       this.assignmentsCache.delete(serverId)
       this.permissionCache.clear()
+      this.notifyRolesChanged(serverId)
 
       return true
     } catch (error: any) {
@@ -769,6 +775,7 @@ class RoleService {
         this.userRolesCache.delete(`${userId}-${data.server_id}`)
         this.assignmentsCache.delete(data.server_id)
         this.permissionCache.clear()
+        this.notifyRolesChanged(data.server_id)
       }
 
       return true
@@ -1067,6 +1074,22 @@ class RoleService {
     this.userRolesCache.clear()
     this.permissionCache.clear()
     this.assignmentsCache.clear()
+  }
+
+  /** `listener` runs after a write through this service changes a server's roles or assignments. */
+  onRolesChanged(listener: (serverId: string) => void): () => void {
+    this.rolesChangedListeners.add(listener)
+    return () => this.rolesChangedListeners.delete(listener)
+  }
+
+  private notifyRolesChanged(serverId: string): void {
+    for (const listener of this.rolesChangedListeners) {
+      try {
+        listener(serverId)
+      } catch (error) {
+        debug.error('Roles change listener failed:', error)
+      }
+    }
   }
 
   /**

@@ -2,8 +2,8 @@
  * Activities accepted on server inboxes:
  * Join/Leave (membership), Accept/Reject (membership responses),
  * Create/Update/Delete (channel messages and structure),
- * Like/EmojiReaction (reactions), Add/Remove (channels, moderation), Undo.
- * A Follow of the Group is answered with Reject.
+ * Like/EmojiReaction (reactions), Add/Remove (channels, moderation), Undo,
+ * Flag (reports about the server's messages). A Follow of the Group is answered with Reject.
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
@@ -19,7 +19,9 @@ import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { relayedActivity, relayToChannelReaders, type RelayServer } from './groupRelay.js';
+import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { isVoiceMemberActivity, processVoiceMemberActivity } from './voiceModerationFederation.js';
+import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import {
   authorizeChannelWrite,
   federatedUploadUrls,
@@ -31,6 +33,7 @@ import {
   logDenied,
   THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -224,6 +227,10 @@ export async function processServerInboxActivity(
       logDenied(what, opts.verifiedSigner ?? 'an unsigned sender', `the signer is not the Group of server ${serverId}`);
       return;
     }
+    if (await isServerBlockedHere(supabase, serverId)) {
+      logDenied(what, opts.verifiedSigner, `server ${serverId} is blocked on this instance`);
+      return;
+    }
     if (voiceMember) {
       await processVoiceMemberActivity(server, activity);
       return;
@@ -350,6 +357,12 @@ export async function processServerInboxActivity(
       await processUndoActivity(serverId, server, activity);
       break;
 
+    // A report reaches the server's moderators whether or not it takes members from other
+    // instances now: the message was federated while it did.
+    case 'Flag':
+      await processServerFlag(serverId, activity, opts.verifiedSigner ?? null);
+      break;
+
     default:
       if (activity.type?.startsWith('harmony:Voice')) {
         if (!server.federation_enabled) {
@@ -362,6 +375,81 @@ export async function processServerInboxActivity(
         logger.info(`Unhandled server activity type: ${activity.type}`);
       }
   }
+}
+
+/**
+ * Flag at a local server's Group inbox: a report from another instance about a message of
+ * this server (flag.ts buildServerFlagActivity). The first object that is a message in a
+ * channel of the server, by /messages/<uuid> of this instance or by its stored ap_id, files
+ * one report scoped to the server (create_federated_server_report). A Flag naming no message
+ * of the server is handled as at the shared inbox (ActivityProcessor.processFlag).
+ */
+export async function processServerFlag(serverId: string, activity: any, verifiedSigner: string | null): Promise<void> {
+  const supabase = getSupabaseClient();
+  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  // As at the shared inbox: a Flag files moderation work in its signer's name, so it is
+  // refused unsigned whatever REQUIRE_VALID_SIGNATURES says.
+  if (typeof actorUrl !== 'string' || !verifiedSigner || !SignatureService.verifyActorMatch(actorUrl, verifiedSigner)) {
+    logDenied('Flag', actorUrl ?? 'an unnamed actor', 'it is not signed by its actor');
+    return;
+  }
+  let sourceDomain: string;
+  try {
+    sourceDomain = new URL(actorUrl).hostname.toLowerCase();
+  } catch {
+    logger.warn(`Flag on server ${serverId} with an unparseable actor ignored`);
+    return;
+  }
+  if (typeof activity.id !== 'string' || !activity.id) {
+    logger.warn(`Flag on server ${serverId} from ${actorUrl} without an id ignored`);
+    return;
+  }
+
+  const uris = flagObjectUris(activity.object);
+  let messageId: string | null = null;
+  for (const uri of uris) {
+    messageId = await findFlaggedMessage(supabase, serverId, uri);
+    if (messageId) break;
+  }
+  if (!messageId) {
+    await ActivityProcessor.processFlag(activity);
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('create_federated_server_report', {
+    p_ap_id: activity.id,
+    p_actor: actorUrl,
+    p_source_domain: sourceDomain,
+    p_server_id: serverId,
+    p_message_id: messageId,
+    p_comment: flagComment(activity.content),
+    p_reason: typeof activity['harmony:reason'] === 'string' ? activity['harmony:reason'] : null,
+    p_object_uris: uris,
+  });
+  if (error) {
+    throw new Error(`Flag ${activity.id}: report not stored: ${error.message}`);
+  }
+  logger.info(`Flag ${activity.id} from ${sourceDomain} on server ${serverId}, message ${messageId}: ${data?.status ?? 'unknown'}`);
+}
+
+/** The message of `serverId` a Flag object names, or null. */
+async function findFlaggedMessage(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  serverId: string,
+  uri: string,
+): Promise<string | null> {
+  const ref = parseLocalObjectUri(uri, config.INSTANCE_DOMAIN);
+  if (ref?.kind === 'message') {
+    const { data } = await supabase
+      .from('messages')
+      .select('id, channel_id')
+      .eq('id', ref.id)
+      .maybeSingle();
+    const inServer = data ? await inServerChannel(supabase, serverId, data) : null;
+    if (inServer) return inServer.id;
+  }
+  const byApId = await findServerMessageByApId(supabase, serverId, uri);
+  return byApId?.id ?? null;
 }
 
 /**
@@ -511,6 +599,14 @@ async function processJoinServer(
     .eq('server_id', serverId)
     .eq('user_id', user.id)
     .maybeSingle();
+
+  // A suspended server takes no new members (a_user_servers_suspension_guard); a member's
+  // repeated Join keeps the membership.
+  if (server.suspended_at && existing?.status !== 'accepted') {
+    logger.warn(`Rejecting join from ${actorUrl}: server ${serverId} is suspended`);
+    await sendRejectActivity(serverId, activity, user.inbox_url, 'This server is suspended by instance staff');
+    return;
+  }
 
   // A member who moved to this actor brings the membership along: no invite, the same
   // nickname and roles. A ban of the old account holds for the new one.
@@ -1776,7 +1872,7 @@ async function sendAcceptActivity(
   const acceptActivity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Accept',
@@ -1799,7 +1895,7 @@ async function sendRejectActivity(
   const rejectActivity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Reject',

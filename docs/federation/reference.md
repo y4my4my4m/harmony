@@ -14,7 +14,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 `GET /.well-known/webfinger?resource=<resource>`, answered as `application/jrd+json`.
 
-- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>` or its profile page `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
+- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>`, its profile page `https://<domain>/@<name>` or its page in the web app `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
 - An `acct:` name can match a local account and a local chat server at once. The answer then carries one `rel="self"` link per actor, each tagged with its type in `properties["https://www.w3.org/ns/activitystreams#type"]` (`Person` or `Group`). A URL names one actor. Only public, federation-enabled servers resolve, by their slug or Group URL.
 - An account's `aliases` are its actor id and its profile page, and it gets a `http://webfinger.net/rel/profile-page` link to the page. A chat server has no page of its own and gets neither.
 - An account also gets the OStatus remote-follow link, `rel` `http://ostatus.org/schema/1.0/subscribe` with `template` `https://<domain>/authorize_interaction?uri={uri}`. Software that sends a user of this instance to act on an account or a post fills `{uri}` with the account's or the post's URI. The page also takes `acct:user@domain`, `@user@domain` and Lemmy's `!community@domain`. It resolves the URI (a stored row first, else WebFinger for a handle, the post or the actor fetched for a URL), shows the account with **Follow** or the post with **Open post**, and asks a signed-out visitor to sign in first. Chat servers and the instance actor get no such link.
@@ -23,7 +23,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 ```json
 {
   "subject": "acct:alice@chat.example.com",
-  "aliases": ["https://chat.example.com/users/alice", "https://chat.example.com/social/profile/alice"],
+  "aliases": ["https://chat.example.com/users/alice", "https://chat.example.com/@alice"],
   "links": [
     {
       "rel": "self",
@@ -34,7 +34,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
     {
       "rel": "http://webfinger.net/rel/profile-page",
       "type": "text/html",
-      "href": "https://chat.example.com/social/profile/alice"
+      "href": "https://chat.example.com/@alice"
     },
     {
       "rel": "http://ostatus.org/schema/1.0/subscribe",
@@ -90,7 +90,7 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
   "value": "schema:value",
   "alsoKnownAs": { "@id": "as:alsoKnownAs", "@type": "@id" },
   "movedTo": { "@id": "as:movedTo", "@type": "@id" },
-  "harmony": "https://har.mony.lol/ns#"
+  "harmony": "https://mony.lol/ns#"
 }
 ```
 
@@ -98,7 +98,7 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
 |---|---|
 | `preferredUsername`, `name` | Username; display name, or the username without one |
 | `summary` | Bio as HTML: escaped text, linked `http(s)` URLs, `<p>` paragraphs and `<br>` line breaks |
-| `url` | `https://<domain>/social/profile/<username>`, the account's page. Requested with an ActivityPub `Accept`, that URL answers the actor document. |
+| `url` | `https://<domain>/@<username>`, the account's public page. Requested with an ActivityPub `Accept`, that URL answers the actor document. |
 | `inbox`, `outbox`, `followers`, `following`, `featured` | `/users/<username>/inbox`, `/outbox`, `/followers`, `/following`, `/featured` |
 | `endpoints.sharedInbox` | `https://<domain>/inbox` |
 | `published` | Account creation time |
@@ -457,7 +457,7 @@ With a focal point on an attachment, the context also maps `focalPoint` to `toot
 | Property | Value |
 |---|---|
 | `id` | `https://<domain>/posts/<uuid>` |
-| `url` | `https://<domain>/social/post/<uuid>`, the post's page |
+| `url` | `https://<domain>/@<username>/<uuid>`, the post's public page. Requested with an ActivityPub `Accept`, that URL answers the `Note`. |
 | `attributedTo` | Author's actor id |
 | `content` | HTML: `<p>` paragraphs, `<br>` line breaks, mentions as Mastodon h-cards (`<span class="h-card"><a class="u-url mention">`), hashtags linked to `/social/hashtag/<name>`, custom emoji as `:shortcode:`, links with `rel="nofollow noopener noreferrer"` |
 | `contentMap` | `{ "<language>": content }` when the post has a language |
@@ -628,7 +628,7 @@ A member on another instance hears of moderation from the server's Group. The ho
 
 ```json
 {
-  "@context": ["https://www.w3.org/ns/activitystreams", "https://harmony.social/ns/voice"],
+  "@context": ["https://www.w3.org/ns/activitystreams", { "harmony": "https://mony.lol/ns#" }],
   "id": "https://chat.example.com/servers/<server>/voice-moderation/<uuid>",
   "type": "harmony:VoiceMemberMove",
   "actor": "https://chat.example.com/servers/<server>",
@@ -652,14 +652,9 @@ A receiver accepts them only from the Group of a server it mirrors (`servers.ap_
 
 ## Extension properties
 
-Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, and Harmony reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
+Harmony's extension properties and types share one namespace, `https://mony.lol/ns#`, bound to the prefix `harmony` in an inline `@context` entry of every document and activity that carries them. Harmony does not serve it as a JSON-LD document, and reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
 
-| Namespace | Used in |
-|---|---|
-| `https://har.mony.lol/ns#` (prefix `harmony`) | `Person` actors |
-| `https://harmonyapp.dev/ns#` (prefix `harmony`) | Group actors, channels, channel messages, threads, `Join`, server-originated activities |
-| `https://harmony.social/ns/voice` (a context URL) | Voice activities |
-| `https://harmony.social/ns/extensions` (a context URL) | Group conversation `Update` and `Remove` |
+Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person` actors and to `https://harmonyapp.dev/ns#` in Group actors, channels, channel messages, threads, `Join` and server-originated activities, and names the context URLs `https://harmony.social/ns/voice` (voice activities) and `https://harmony.social/ns/extensions` (group conversation `Update` and `Remove`). Harmony controls neither of the last two domains, never fetches those URLs, and its receivers read none of these namespaces.
 
 | Property or type | On | Value |
 |---|---|---|

@@ -4,6 +4,9 @@
  * Proxies instance discovery requests server-side to avoid browser CORS issues.
  * The frontend cannot directly fetch nodeinfo/mastodon-api/webfinger from remote
  * fediverse instances because those servers don't set CORS headers for our origin.
+ *
+ * A NodeInfo answer is stored on the instance's existing federated_instances row
+ * (record_instance_nodeinfo, no row created): the route is unauthenticated.
  */
 
 import { Router, Request, Response } from 'express';
@@ -12,6 +15,7 @@ import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js'
 import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
+import { nodeinfoFacts, recordInstanceNodeinfo, type NodeinfoFacts } from '../activitypub/instanceSoftware.js';
 
 const router = Router();
 
@@ -37,7 +41,7 @@ function resolveUrl(domain: string, url: string | null | undefined): string | un
   return `https://${domain}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
-async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null> {
+async function probeNodeinfo(domain: string): Promise<{ result: InstanceProbeResult; facts: NodeinfoFacts | null } | null> {
   try {
     const wellKnownResponse = await safeFetch(`https://${domain}/.well-known/nodeinfo`, {
       headers: { Accept: 'application/json' },
@@ -65,7 +69,7 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
 
     const nodeinfo = await nodeinfoResponse.json();
 
-    return {
+    const result: InstanceProbeResult = {
       domain,
       software: nodeinfo.software?.name || 'unknown',
       version: nodeinfo.software?.version,
@@ -77,6 +81,7 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
       icon_url: nodeinfo.metadata?.icon || nodeinfo.metadata?.iconUrl || undefined,
       banner_url: nodeinfo.metadata?.banner || nodeinfo.metadata?.bannerUrl || undefined,
     };
+    return { result, facts: nodeinfoFacts(nodeinfo) };
   } catch {
     return null;
   }
@@ -232,11 +237,15 @@ router.get(
 
     logger.info(`Probing instance: ${cleanDomain}`);
 
-    const [nodeinfoResult, mastodonResult, actorResult] = await Promise.all([
+    const [nodeinfoProbe, mastodonResult, actorResult] = await Promise.all([
       probeNodeinfo(cleanDomain),
       probeMastodonAPI(cleanDomain),
       probeActivityPubActor(cleanDomain),
     ]);
+    const nodeinfoResult = nodeinfoProbe?.result ?? null;
+    if (nodeinfoProbe?.facts) {
+      await recordInstanceNodeinfo(cleanDomain, nodeinfoProbe.facts, false);
+    }
 
     const isMisskey = nodeinfoResult?.software?.toLowerCase()?.match(
       /misskey|calckey|firefish|sharkey|foundkey|iceshrimp/

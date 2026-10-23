@@ -9,6 +9,7 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
+import { HARMONY_CONTEXT } from '../../activitypub/harmonyContext.js';
 
 export async function handleGroupUpdateJob(data: {
   conversation_id: string;
@@ -86,7 +87,7 @@ export async function handleGroupUpdateJob(data: {
   const activity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      'https://harmony.social/ns/extensions',
+      HARMONY_CONTEXT,
     ],
     type: 'Update',
     id: `${conversationUrl}/updates/${Date.now()}`,

@@ -141,6 +141,7 @@ import EncryptionActionHost from '@/components/encryption/EncryptionActionHost.v
 import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useAuthStore } from '@/stores/auth'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
@@ -208,10 +209,12 @@ const route = useRoute()
 const voiceStore = useUnifiedVoiceChannelStore()
 const inVoiceCall = computed(() => voiceStore.isConnected)
 
-// Auth route detection
+// Auth route detection. A Drive address opens in the app for a signed-in member.
+const authStore = useAuthStore()
 const isAuthRoute = computed(() => {
   const authRoutes = ['/login', '/register', '/reset-password', '/new-profile', '/404-public', '/logout']
-  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic' || route.name === 'DriveLink'
+  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic'
+    || (route.name === 'DriveLink' && !authStore.isLoggedIn)
 })
 
 // Global modal state

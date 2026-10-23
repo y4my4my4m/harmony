@@ -143,7 +143,7 @@ SELECT is((SELECT status FROM public.federated_voice_calls WHERE id = '67100000-
 SELECT is((SELECT status FROM public.user_servers
             WHERE user_id = '67000000-0000-0000-0000-0000000000a1'
               AND server_id = '55555555-0000-0000-0000-000000000005'),
-  'accepted', 'suspension keeps server memberships');
+  NULL, 'suspension ends the membership of a server hosted here (20261027250001)');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -33,6 +33,7 @@ import {
   joinRejectedNoticeText,
   federationClosedNoticeText,
   memberRemovedNoticeText,
+  instanceRemovedNoticeText,
 } from './pushPolicy.js';
 
 /** Web Push titles and bodies are plain text (utils/plainDisplayName.ts). */
@@ -1149,6 +1150,13 @@ class PushNotificationServiceClass {
 
       case 'server_member_removed': {
         const notice = memberRemovedNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'server_instance_removed': {
+        const notice = instanceRemovedNoticeText(data, config.INSTANCE_DOMAIN);
         title = notice.title;
         message = notice.body;
         break;

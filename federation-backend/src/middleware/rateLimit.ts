@@ -354,6 +354,14 @@ export const driveLinkPageLimiter = createRateLimiter({
   message: 'Too many link preview requests, please try again later.',
 });
 
+/** Public profile and post pages (publicPages/routes.ts), per client address. */
+export const publicPageLimiter = createRateLimiter({
+  name: 'public-page',
+  windowMs: 60 * 1000,
+  maxRequests: 180,
+  message: 'Too many page requests, please try again later.',
+});
+
 export const discoveryLimiter = createRateLimiter({
   name: 'discovery',
   windowMs: 60 * 1000,

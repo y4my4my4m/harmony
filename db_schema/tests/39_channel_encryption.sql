@@ -13,7 +13,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(71);
+SELECT plan(72);
 
 CREATE OR REPLACE FUNCTION pg_temp.sig(p_name text) RETURNS text LANGUAGE sql STABLE AS $fn$
   SELECT pg_get_function_arguments(p.oid) || ' -> ' || pg_get_function_result(p.oid)
@@ -204,8 +204,12 @@ SELECT is((SELECT metadata->>'actor_id' FROM public.messages
           'turning encryption off posts a system message naming the role holder');
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_ok(
+    $q$SELECT public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', true)$q$,
+    '42501', NULL, 'an instance admin outside the server does not change its encryption');
+SELECT tests.authenticate_as('e3900000-0000-0000-0000-0000000000a1');
 SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', true)->>'messages_encrypted',
-          'true', 'an instance admin outside the server turns encryption on');
+          'true', 'the owner turns encryption on');
 SELECT tests.clear_authentication();
 
 -- Floor --------------------------------------------------------------------------------

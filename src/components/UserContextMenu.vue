@@ -146,6 +146,20 @@
         </button>
       </template>
 
+      <!-- This instance's staff, on a server hosted elsewhere: a member from here leaves it. -->
+      <template v-if="canRemoveHere">
+        <div class="menu-divider" role="separator"></div>
+        <button
+          type="button"
+          class="menu-item destructive"
+          role="menuitem"
+          data-testid="user-menu-instance-remove"
+          @click="emitAction('instance-remove')"
+        >
+          <span class="menu-item-label wrap">{{ t('instanceServer.remove.action', { server: currentServerName, instance }) }}</span>
+        </button>
+      </template>
+
       <div class="menu-divider" role="separator"></div>
 
       <!-- Copy User ID -->
@@ -189,6 +203,9 @@ import { styleRect, styleViewport } from '@/utils/appZoom';
 import type { User } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import { usePortalTarget } from '@/composables/usePortalTarget';
+import { useProfileStore } from '@/stores/useProfile';
+import { getInstanceDomain } from '@/services/instanceConfig';
+import { isInstanceStaff, staffMayActOn } from '@/utils/instanceStaff';
 
 const portalTarget = usePortalTarget();
 
@@ -212,6 +229,7 @@ type UserContextAction =
   | 'toggle-block'
   | 'kick'
   | 'ban'
+  | 'instance-remove'
   | 'copy-id';
 
 const emit = defineEmits<{
@@ -296,6 +314,18 @@ const canEditOwnProfile = computed(() => {
   return isSelf.value && isInServerContext.value;
 });
 
+const profileStore = useProfileStore();
+const instance = getInstanceDomain();
+const currentServerName = computed(() => serverChannelStore.currentServer?.name ?? '');
+
+// Instance staff remove a member from this instance on a copy (instance_remove_member).
+const canRemoveHere = computed(() => {
+  const target = props.user as (User & { is_admin?: boolean; is_moderator?: boolean }) | null;
+  if (!target || isSelf.value || !isLocalUser.value || !isInServerContext.value) return false;
+  if (serverChannelStore.currentServer?.is_local_server !== false) return false;
+  return staffMayActOn(profileStore.profile, isInstanceStaff(target));
+});
+
 const hasAnyMidSectionItem = computed(() => {
   return canMention.value || canMessage.value || canCall.value || canEditOwnProfile.value;
   // Profile sits above the divider and does not gate it.
@@ -309,6 +339,8 @@ async function loadModerationPermissions() {
   if (!isInServerContext.value || !props.user) return;
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) return;
+  // Kicks, bans and invites of a copy are the host's.
+  if (serverChannelStore.currentServer?.is_local_server === false) return;
 
   try {
     const profileId = await authContextService.getCurrentProfileId();
@@ -475,6 +507,10 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.menu-item-label.wrap {
+  white-space: normal;
 }
 
 .menu-item-subtitle {

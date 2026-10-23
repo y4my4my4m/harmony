@@ -114,7 +114,7 @@
       <button type="button" class="drive-btn drive-btn--secondary" @click="emit('download', file)">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
-      <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-details-copy-link" @click="copyLink(file.id)">
+      <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-details-copy-link" @click="copyLink(file.link_token)">
         <Icon name="link" :size="15" />{{ t('drive.actions.copyLink') }}
       </button>
       <template v-if="owned">
@@ -150,6 +150,7 @@ import {
 import DriveFileThumb from './DriveFileThumb.vue'
 import { daysUntil, driveMediaSource, driveThumbnail, formatBytes } from './driveFormat'
 import { useDriveLightbox } from './useDriveLightbox'
+import { driveShareSummary } from '@/utils/driveShareSummary'
 
 const props = defineProps<{ file: DriveFile; owner: DriveOwner | null; ownId: string | null }>()
 
@@ -181,13 +182,11 @@ const src = computed(() => (props.file.kind === 'image'
   : driveMediaSource(props.file)))
 
 const shareSummary = computed(() => {
-  const shares = usage.value?.shares ?? []
-  if (shares.length === 0) return t('drive.share.private')
-  const link = shares.some((s) => s.scope === 'link')
-  const others = shares.filter((s) => s.scope !== 'link').length
-  if (link && others) return t('drive.share.summaryBoth', { count: others }, others)
-  if (link) return t('drive.share.summaryLink')
-  return t('drive.share.summaryPeople', { count: others }, others)
+  const summary = driveShareSummary(usage.value?.shares ?? [])
+  if (summary.kind === 'both') return t('drive.share.summaryBoth', { count: summary.others }, summary.others)
+  if (summary.kind === 'link') return t('drive.share.summaryLink')
+  if (summary.kind === 'people') return t('drive.share.summaryPeople', { count: summary.others }, summary.others)
+  return t('drive.share.private')
 })
 
 async function loadUsage(): Promise<void> {

@@ -66,6 +66,7 @@ describe('ReportService', () => {
       p_comment: null,
       p_forward: false,
       p_evidence_text: null,
+      p_forward_to_server: false,
     })
   })
 })

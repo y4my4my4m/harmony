@@ -70,7 +70,15 @@
           <span v-if="report.assigned_username" class="report-source">@{{ report.assigned_username }}</span>
           <time class="report-time">{{ formatDate(report.created_at) }}</time>
         </div>
-        <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
+        <div class="report-status-group">
+          <div class="report-status-badge" :class="report.status">{{ report.status }}</div>
+          <!-- The server's moderators settle their copy only; the status beside it is this instance's. -->
+          <span
+            v-if="serverResolutionLabel(report.server_forward)"
+            class="report-server-outcome"
+            data-testid="report-server-resolution"
+          >{{ serverResolutionLabel(report.server_forward) }}</span>
+        </div>
       </div>
 
       <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
@@ -145,6 +153,9 @@
         </div>
         <p v-if="report.resolver_username && !isOpenReport(report.status)" class="report-resolver">
           {{ t('admin.reports.statusBy', { status: report.status, username: report.resolver_username }) }}
+        </p>
+        <p v-if="serverForwardLabel(report.server_forward)" class="report-resolver" data-testid="report-server-forward">
+          {{ serverForwardLabel(report.server_forward) }}
         </p>
 
         <div class="report-actions-panel">
@@ -234,6 +245,8 @@ import {
   reportActionsFor,
   reportCategoryLabel,
   reportSourceLabel,
+  serverForwardLabel,
+  serverResolutionLabel,
   snapshotEvidence,
   type ReportAction,
 } from '@/utils/reportModeration'
@@ -923,6 +936,22 @@ onMounted(async () => {
 
 
 
+
+.report-status-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.report-server-outcome {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
+  color: var(--text-link);
+}
 
 .report-status-badge {
   font-size: 10px;

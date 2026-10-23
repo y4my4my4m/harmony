@@ -65,12 +65,47 @@ function recordInstanceSoftware(args: any): string | null {
   return software;
 }
 
+/**
+ * record_instance_nodeinfo as 20261027700001 defines it: an admin software stands and gets
+ * the version only of the same software; counts given and >= 0 replace the stored ones;
+ * software_checked_at stamps every attempt, nodeinfo_read_at an answer.
+ */
+function recordInstanceNodeinfo(args: any): string | null {
+  const domain = String(args.p_domain).toLowerCase();
+  const software = args.p_software ? String(args.p_software).toLowerCase() : null;
+  const rows = (tables.federated_instances ??= []);
+  let row = rows.find((r) => r.domain === domain);
+  if (!row) {
+    if (!args.p_create) return null;
+    row = { domain, software: null, version: null, user_count: 0, status_count: 0, metadata: {} };
+    rows.push(row);
+  }
+  const meta = row.metadata ?? {};
+  const raw = row.software ? String(row.software).toLowerCase() : null;
+  const stored = raw && raw !== 'unknown' ? raw : null;
+  const admin = !!stored && !meta.software_source;
+  const effective = admin ? stored : (software ?? stored);
+  const now = new Date().toISOString();
+  if (software && !admin) row.software = software;
+  if (software && software === effective) row.version = args.p_version;
+  if (typeof args.p_user_count === 'number' && args.p_user_count >= 0) row.user_count = args.p_user_count;
+  if (typeof args.p_status_count === 'number' && args.p_status_count >= 0) row.status_count = args.p_status_count;
+  row.metadata = {
+    ...meta,
+    software_checked_at: now,
+    ...(software && { nodeinfo_read_at: now }),
+    ...(software && !admin && { software_source: 'nodeinfo' }),
+  };
+  return effective;
+}
+
 /** In-memory double for the PostgREST chains postEngagement and instanceSoftware use. */
 function fakeSupabase() {
   return {
     rpc(fn: string, args: any) {
       rpcCalls.push({ fn, args });
       if (fn === 'record_instance_software') return Promise.resolve({ data: recordInstanceSoftware(args), error: null });
+      if (fn === 'record_instance_nodeinfo') return Promise.resolve({ data: recordInstanceNodeinfo(args), error: null });
       return Promise.resolve({ data: null, error: { message: `no rpc ${fn}` } });
     },
     from(table: string) {
@@ -442,11 +477,14 @@ describe('federate-reaction job', () => {
     expect(tables.post_interactions[0].federation_status).toBe('skipped');
   });
 
-  const nodeinfo = (name: string, version = '1.0') => {
+  const nodeinfo = (name: string, version = '1.0', usage?: unknown) => {
     safeFetch.mockReset()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ links: [{ rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0', href: 'https://x.test/nodeinfo/2.0' }] }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ software: { name, version } }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ software: { name, version }, ...(usage !== undefined && { usage }) }) });
   };
+  const HOUR = 3600_000;
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const instance = (domain: string) => tables.federated_instances.find((r) => r.domain === domain);
 
   it('reads NodeInfo once for a host federated_instances does not name, and records it', async () => {
     tables.federated_instances.push({ domain: 'gts.test', software: null, metadata: {} });
@@ -460,25 +498,79 @@ describe('federate-reaction job', () => {
     });
   });
 
-  it('uses an admin-set software as is, without NodeInfo', async () => {
-    tables.federated_instances.push({ domain: 'admin.test', software: 'Pleroma', metadata: {} });
+  it('stores the version, users.total and localPosts of a NodeInfo answer', async () => {
+    tables.federated_instances.push({ domain: 'mony.test', software: 'harmony', version: '1.8.9', user_count: 0, status_count: 0, metadata: { software_source: 'nodeinfo', software_checked_at: ago(25 * HOUR) } });
+    nodeinfo('harmony', '1.8.10', { users: { total: 2, activeMonth: 2 }, localPosts: 2 });
 
-    expect(await instanceSoftware('admin.test')).toBe('pleroma');
-    expect(safeFetch).not.toHaveBeenCalled();
+    expect(await instanceSoftware('mony.test')).toBe('harmony');
+    expect(rpcCalls).toEqual([{ fn: 'record_instance_nodeinfo', args: {
+      p_domain: 'mony.test', p_software: 'harmony', p_version: '1.8.10', p_user_count: 2, p_status_count: 2, p_create: true,
+    } }]);
+    expect(instance('mony.test')).toMatchObject({ version: '1.8.10', user_count: 2, status_count: 2 });
   });
 
-  it('reads NodeInfo again once its answer is a week old, and not before', async () => {
-    const day = 24 * 3600_000;
+  it('shares one NodeInfo read between concurrent lookups of a host', async () => {
+    tables.federated_instances.push({ domain: 'busy.test', software: 'harmony', metadata: { software_source: 'nodeinfo' } });
+    nodeinfo('harmony', '1.8.11', { users: { total: 4 }, localPosts: 5 });
+
+    expect(await Promise.all([instanceSoftware('busy.test'), instanceSoftware('BUSY.test'), instanceSoftware('busy.test')]))
+      .toEqual(['harmony', 'harmony', 'harmony']);
+    expect(safeFetch).toHaveBeenCalledTimes(2);
+    expect(rpcCalls).toHaveLength(1);
+  });
+
+  it('passes absent or malformed usage as null, which keeps the stored counts', async () => {
+    tables.federated_instances.push({ domain: 'shy.test', software: 'mastodon', user_count: 7, status_count: 9, metadata: { software_source: 'nodeinfo' } });
+    nodeinfo('mastodon', '4.3.0', { users: { total: -1 }, localPosts: '12' });
+
+    expect(await instanceSoftware('shy.test')).toBe('mastodon');
+    expect(rpcCalls[0].args).toMatchObject({ p_user_count: null, p_status_count: null });
+    expect(instance('shy.test')).toMatchObject({ version: '4.3.0', user_count: 7, status_count: 9 });
+  });
+
+  it('reads NodeInfo for an admin-set software too, whose answer stays the admin\'s', async () => {
     tables.federated_instances.push(
-      { domain: 'fresh.test', software: 'misskey', metadata: { software_source: 'nodeinfo', software_checked_at: new Date(Date.now() - day).toISOString() } },
-      { domain: 'old.test', software: 'misskey', metadata: { software_source: 'nodeinfo', software_checked_at: new Date(Date.now() - 8 * day).toISOString() } },
+      { domain: 'spacify.test', software: 'harmony', version: '1.7.4', user_count: 2, status_count: 37, metadata: { last_refresh: ago(300 * HOUR) } },
+      { domain: 'admin.test', software: 'Pleroma', version: '2.6', metadata: {} },
+    );
+    nodeinfo('harmony', '1.8.11', { users: { total: 3 }, localPosts: 40 });
+    expect(await instanceSoftware('spacify.test')).toBe('harmony');
+    expect(instance('spacify.test')).toMatchObject({ version: '1.8.11', user_count: 3, status_count: 40 });
+    expect(instance('spacify.test')?.metadata.software_source).toBeUndefined();
+
+    nodeinfo('akkoma', '3.13', { users: { total: 5 }, localPosts: 6 });
+    expect(await instanceSoftware('admin.test')).toBe('pleroma');
+    expect(instance('admin.test')).toMatchObject({ software: 'Pleroma', version: '2.6', user_count: 5, status_count: 6 });
+  });
+
+  it('reads NodeInfo again once its answer is a day old, and not before', async () => {
+    tables.federated_instances.push(
+      { domain: 'fresh.test', software: 'misskey', metadata: { software_source: 'nodeinfo', software_checked_at: ago(23 * HOUR) } },
+      { domain: 'pinned.test', software: 'misskey', metadata: { software_checked_at: ago(23 * HOUR), nodeinfo_read_at: ago(23 * HOUR) } },
+      { domain: 'old.test', software: 'misskey', metadata: { software_source: 'nodeinfo', software_checked_at: ago(25 * HOUR) } },
     );
     expect(await instanceSoftware('fresh.test')).toBe('misskey');
+    expect(await instanceSoftware('pinned.test')).toBe('misskey');
     expect(safeFetch).not.toHaveBeenCalled();
 
     nodeinfo('sharkey');
     expect(await instanceSoftware('old.test')).toBe('sharkey');
-    expect(tables.federated_instances.find((r) => r.domain === 'old.test')?.software).toBe('sharkey');
+    expect(instance('old.test')?.software).toBe('sharkey');
+  });
+
+  it('retries an unanswered read after six hours, without moving the last answer', async () => {
+    tables.federated_instances.push(
+      { domain: 'flaky.test', software: 'mastodon', metadata: { software_source: 'nodeinfo', software_checked_at: ago(5 * HOUR), nodeinfo_read_at: ago(48 * HOUR) } },
+      { domain: 'down.test', software: 'mastodon', metadata: { software_source: 'nodeinfo', software_checked_at: ago(7 * HOUR), nodeinfo_read_at: ago(48 * HOUR) } },
+    );
+    expect(await instanceSoftware('flaky.test')).toBe('mastodon');
+    expect(safeFetch).not.toHaveBeenCalled();
+
+    expect(await instanceSoftware('down.test')).toBe('mastodon');
+    expect(safeFetch).toHaveBeenCalledTimes(1);
+    const meta = instance('down.test')?.metadata;
+    expect(Date.now() - Date.parse(meta.software_checked_at)).toBeLessThan(HOUR);
+    expect(Date.now() - Date.parse(meta.nodeinfo_read_at)).toBeGreaterThan(47 * HOUR);
   });
 
   it('falls back to cached actor documents when NodeInfo cannot be read, and records the answer', async () => {
@@ -491,7 +583,7 @@ describe('federate-reaction job', () => {
     expect(tables.federated_instances.find((r) => r.domain === 'quiet.test')).toMatchObject({
       software: 'misskey', metadata: { software_source: 'document' },
     });
-    expect(rpcCalls.map((c) => c.args.p_source)).toEqual(['nodeinfo', 'document']);
+    expect(rpcCalls.map((c) => c.fn)).toEqual(['record_instance_nodeinfo', 'record_instance_software']);
 
     forgetInstanceSoftware();
     rpcCalls.length = 0;

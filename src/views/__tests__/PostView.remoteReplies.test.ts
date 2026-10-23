@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { shallowMount, flushPromises } from '@vue/test-utils'
+import { shallowMount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 
 const POST_AP_ID = 'https://mastodon.test/users/strypey/statuses/1'
 
@@ -71,7 +71,7 @@ const crawl = (extra: Record<string, unknown> = {}) => ({
 
 const mountView = () => shallowMount(PostView, {
   props: { postId: 'post-1' },
-  global: { stubs: { RemoteRepliesStatus: false } },
+  global: { stubs: { RemoteRepliesStatus: false, RouterLink: RouterLinkStub } },
 })
 
 const statusRow = (wrapper: ReturnType<typeof mountView>) => wrapper.find('.remote-replies-status')

@@ -220,6 +220,7 @@
                 <span v-if="instance.is_trusted" class="badge trusted">Trusted</span>
                 <span v-if="instance.is_blocked" class="badge blocked">Blocked</span>
                 <span v-if="instance.limited_at" class="badge limited" :title="$t('admin.federation.limitedTitle')">{{ $t('admin.federation.limited') }}</span>
+                <span v-if="instance.reject_reports" class="badge limited" data-testid="instance-reports-ignored">{{ $t('admin.federation.reportsIgnored') }}</span>
                 <span v-if="isInstanceInactive(instance)" class="badge inactive">Inactive</span>
               </div>
             </div>
@@ -280,6 +281,16 @@
               :title="$t('admin.federation.liftLimitAction')"
             >
               <Icon name="volume-2" :size="14" />
+            </button>
+            <button
+              @click="toggleInstanceReports(instance.domain, !instance.reject_reports)"
+              class="action-btn-sm"
+              :class="{ trusted: instance.reject_reports }"
+              :title="instance.reject_reports ? $t('admin.federation.acceptReports') : $t('admin.federation.ignoreReports')"
+              :aria-label="instance.reject_reports ? $t('admin.federation.acceptReports') : $t('admin.federation.ignoreReports')"
+              data-testid="instance-reports-toggle"
+            >
+              <Icon name="flag" :size="14" />
             </button>
             <button 
               v-if="!instance.is_blocked"
@@ -743,6 +754,25 @@ const toggleInstanceLimit = async (domain: string, limit: boolean) => {
   } catch (error) {
     debug.error('Failed to change domain limit:', error)
     toast.error(t('admin.federation.limitFailed'))
+  }
+}
+
+const toggleInstanceReports = async (domain: string, ignore: boolean) => {
+  if (ignore) {
+    const ok = await confirm({
+      title: t('admin.federation.ignoreReportsConfirmTitle', { domain }),
+      message: t('admin.federation.ignoreReportsConfirmBody', { domain }),
+      confirmButtonText: t('admin.federation.ignoreReports'),
+    })
+    if (!ok) return
+  }
+  try {
+    await adminService.setDomainRejectReports(domain, ignore)
+    toast.success(ignore ? t('admin.federation.reportsIgnoredToast', { domain }) : t('admin.federation.reportsAcceptedToast', { domain }))
+    await loadFederatedInstances()
+  } catch (error) {
+    debug.error('Failed to change how the domain\'s reports are handled:', error)
+    toast.error(t('admin.federation.reportsFailed'))
   }
 }
 

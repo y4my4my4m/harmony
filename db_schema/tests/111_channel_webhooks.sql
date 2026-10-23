@@ -258,10 +258,10 @@ SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_
 SELECT lives_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_temp.h(pg_temp.tok('ci2')), 'new')$q$,
                 'the new token posts');
 
--- Instance admins ----------------------------------------------------------------------------
+-- Instance admins (20261027500001: staff act through the staff_* RPCs) ------------------------
 SELECT tests.authenticate_as('f1110000-0000-0000-0000-0000000000a2');
-SELECT is(jsonb_array_length(public.list_server_webhooks('55555555-0000-0000-0000-000000000005')), 1,
-          'an instance admin lists the server''s webhooks without membership');
+SELECT is(jsonb_array_length(public.list_server_webhooks('55555555-0000-0000-0000-000000000005')), 0,
+          'an instance admin outside the server lists none of its webhooks');
 SELECT tests.clear_authentication();
 
 -- MANAGE_WEBHOOKS for @everyone does not reach non-members ------------------------------------
@@ -289,7 +289,7 @@ SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT throws_ok($q$SELECT public.create_channel_webhook('f1113000-0000-0000-0000-000000000002', 'Leaky')$q$,
                  '42501', NULL, 'an encrypted channel takes no webhook');
 SELECT throws_ok($q$SELECT public.create_channel_webhook('f1113000-0000-0000-0000-000000000020', 'Far')$q$,
-                 '22023', NULL, 'a remote server''s channel takes no webhook');
+                 '42501', NULL, 'a remote server''s channel takes no webhook');
 SELECT tests.clear_authentication();
 
 -- A channel encrypted after the webhook was created.

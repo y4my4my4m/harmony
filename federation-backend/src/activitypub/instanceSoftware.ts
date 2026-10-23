@@ -3,12 +3,14 @@
  * reactions sent to it. See postEngagement.ts for what each family receives.
  *
  * federated_instances.software is shared by every process. A value without
- * metadata.software_source is an admin's and is used as is. Otherwise NodeInfo
- * (/.well-known/nodeinfo, schema 2.0 or 2.1, software.name) is read again once
- * NODEINFO_TTL_MS has passed since an answer, or NODEINFO_RETRY_MS since a failed attempt or
- * over a document's answer. Without a NodeInfo answer the software comes from actor and
+ * metadata.software_source is an admin's and is the answer as is. A lookup reads NodeInfo
+ * (/.well-known/nodeinfo, schema 2.0 or 2.1) once NODEINFO_TTL_MS has passed since its last
+ * answer (metadata.nodeinfo_read_at) and NODEINFO_RETRY_MS since the last attempt
+ * (metadata.software_checked_at), admin-set rows included. Each read stores software.name,
+ * software.version, usage.users.total and usage.localPosts through
+ * record_instance_nodeinfo. Without a NodeInfo answer the software comes from actor and
  * object documents (detectSoftwareFromDocument): those this process fetches, reported
- * through noteDocumentSoftware, and ap_actor_cache rows for the host. Writes go through
+ * through noteDocumentSoftware, and ap_actor_cache rows for the host, written through
  * record_instance_software. Each process caches an answer for CACHE_TTL_MS.
  */
 
@@ -37,7 +39,7 @@ export function engagementFamily(software: string | null | undefined): Engagemen
 }
 
 const CACHE_TTL_MS = 3600_000;
-const NODEINFO_TTL_MS = 7 * 24 * 3600_000;
+const NODEINFO_TTL_MS = 24 * 3600_000;
 const NODEINFO_RETRY_MS = 6 * 3600_000;
 const NODEINFO_TIMEOUT_MS = 5_000;
 const CACHED_ACTORS_READ = 5;
@@ -117,23 +119,78 @@ function hostnameOf(host: string): string {
   }
 }
 
-async function recordSoftware(
-  host: string,
-  software: string | null,
-  version: string | null,
-  source: 'nodeinfo' | 'document',
-): Promise<string | null | undefined> {
+async function recordSoftware(host: string, software: string): Promise<string | null | undefined> {
   const { data, error } = await getSupabaseClient().rpc('record_instance_software', {
     p_domain: host,
     p_software: software,
-    p_version: version,
-    p_source: source,
+    p_version: null,
+    p_source: 'document',
   });
   if (error) {
-    logger.debug(`record_instance_software(${host}, ${source}) failed: ${error.message}`);
+    logger.debug(`record_instance_software(${host}, document) failed: ${error.message}`);
     return undefined;
   }
   return typeof data === 'string' && data ? data : null;
+}
+
+/** What a NodeInfo 2.x document says of its instance. */
+export interface NodeinfoFacts {
+  /** software.name, lowercased. */
+  software: string;
+  version: string | null;
+  /** usage.users.total; null when absent. */
+  users: number | null;
+  /** usage.localPosts; null when absent. */
+  posts: number | null;
+}
+
+const INT_MAX = 2_147_483_647;
+
+function usageCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.min(Math.floor(value), INT_MAX)
+    : null;
+}
+
+/** Facts of a NodeInfo document, or null when it names no software (1..64 characters). */
+export function nodeinfoFacts(doc: any): NodeinfoFacts | null {
+  const name = typeof doc?.software?.name === 'string' ? doc.software.name.trim().toLowerCase() : '';
+  if (!name || name.length > 64) return null;
+  const version = typeof doc.software.version === 'string' ? doc.software.version : null;
+  return { software: name, version, users: usageCount(doc.usage?.users?.total), posts: usageCount(doc.usage?.localPosts) };
+}
+
+/**
+ * Stores one NodeInfo read of `host` through record_instance_nodeinfo; null `facts` is an
+ * unanswered attempt. `create` adds a missing federated_instances row; without it a host
+ * with no row is left alone. Returns the software in effect (null when unknown or without
+ * a row), or undefined when the write failed.
+ */
+export async function recordInstanceNodeinfo(
+  host: string,
+  facts: NodeinfoFacts | null,
+  create: boolean,
+): Promise<string | null | undefined> {
+  const key = host.toLowerCase();
+  let data: unknown;
+  try {
+    const answer = await getSupabaseClient().rpc('record_instance_nodeinfo', {
+      p_domain: key,
+      p_software: facts?.software ?? null,
+      p_version: facts?.version ?? null,
+      p_user_count: facts?.users ?? null,
+      p_status_count: facts?.posts ?? null,
+      p_create: create,
+    });
+    if (answer.error) throw new Error(answer.error.message);
+    data = answer.data;
+  } catch (err) {
+    logger.debug(`record_instance_nodeinfo(${key}) failed: ${(err as Error)?.message ?? err}`);
+    return undefined;
+  }
+  const software = typeof data === 'string' && data ? data : null;
+  if (software) cache.set(key, { software, expires: Date.now() + CACHE_TTL_MS });
+  return software;
 }
 
 /**
@@ -155,14 +212,14 @@ export function noteDocumentSoftware(url: string, doc: unknown): void {
   if (seen && seen.software === software && seen.expires > now) return;
   reported.set(key, { software, expires: now + CACHE_TTL_MS });
 
-  recordSoftware(key, software, null, 'document')
+  recordSoftware(key, software)
     .then((stored) => {
       if (stored !== undefined) cache.set(key, { software: stored, expires: Date.now() + CACHE_TTL_MS });
     })
     .catch((err) => logger.debug(`Recording the software of ${key} failed: ${(err as Error)?.message ?? err}`));
 }
 
-async function fetchNodeinfoSoftware(host: string): Promise<{ name: string; version?: string } | null> {
+async function fetchNodeinfo(host: string): Promise<NodeinfoFacts | null> {
   try {
     const wellKnown = await safeFetch(`https://${host}/.well-known/nodeinfo`, {
       headers: { Accept: 'application/json' },
@@ -182,9 +239,7 @@ async function fetchNodeinfoSoftware(host: string): Promise<{ name: string; vers
       timeoutMs: NODEINFO_TIMEOUT_MS,
     });
     if (!nodeinfo.ok) return null;
-    const software = (await nodeinfo.json())?.software;
-    if (typeof software?.name !== 'string' || !software.name.trim()) return null;
-    return { name: software.name.trim().toLowerCase(), version: typeof software.version === 'string' ? software.version : undefined };
+    return nodeinfoFacts(await nodeinfo.json());
   } catch (err) {
     logger.debug(`NodeInfo lookup failed for ${host}: ${(err as Error)?.message ?? err}`);
     return null;
@@ -206,6 +261,17 @@ async function softwareFromCachedActors(host: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * True when NodeInfo is to be read: NODEINFO_TTL_MS after its last answer and
+ * NODEINFO_RETRY_MS after the last attempt. A row written before nodeinfo_read_at existed
+ * counts its last attempt as answered when NodeInfo named its software.
+ */
+function nodeinfoDue(meta: Record<string, any>, answeredBefore: boolean, now: number): boolean {
+  const checkedAt = Date.parse(meta.software_checked_at ?? '') || 0;
+  const readAt = Date.parse(meta.nodeinfo_read_at ?? '') || (answeredBefore ? checkedAt : 0);
+  return now - readAt > NODEINFO_TTL_MS && now - checkedAt > NODEINFO_RETRY_MS;
+}
+
 async function lookupSoftware(host: string): Promise<string | null> {
   const supabase = getSupabaseClient();
   const { data: row } = await supabase
@@ -218,24 +284,21 @@ async function lookupSoftware(host: string): Promise<string | null> {
   const raw = typeof row?.software === 'string' ? row.software.trim().toLowerCase() : '';
   const stored = raw && raw !== 'unknown' ? raw : null;
   const source = typeof meta.software_source === 'string' ? meta.software_source : null;
-  if (stored && !source) return stored;
-
-  const checkedAt = Date.parse(meta.software_checked_at ?? '') || 0;
-  const age = Date.now() - checkedAt;
-  const due = source === 'nodeinfo' && stored ? age > NODEINFO_TTL_MS : age > NODEINFO_RETRY_MS;
+  const adminSet = !!stored && !source;
 
   let current = stored;
-  if (due) {
-    const fetched = await fetchNodeinfoSoftware(host);
-    const recorded = await recordSoftware(host, fetched?.name ?? null, fetched?.version ?? null, 'nodeinfo');
-    current = recorded === undefined ? (fetched?.name ?? stored) : recorded;
-    if (fetched) return current;
+  if (nodeinfoDue(meta, source === 'nodeinfo' && !!stored, Date.now())) {
+    const facts = await fetchNodeinfo(host);
+    const recorded = await recordInstanceNodeinfo(host, facts, true);
+    if (recorded !== undefined) current = recorded;
+    else if (facts && !adminSet) current = facts.software;
+    if (facts) return current;
   }
-  if (current && source === 'nodeinfo') return current;
+  if (adminSet || (current && source === 'nodeinfo')) return current;
 
   const detected = await softwareFromCachedActors(host);
   if (detected && detected !== current) {
-    const recorded = await recordSoftware(host, detected, null, 'document');
+    const recorded = await recordSoftware(host, detected);
     return recorded === undefined ? detected : recorded;
   }
   return current;

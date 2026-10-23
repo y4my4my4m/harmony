@@ -10,7 +10,7 @@
     </span>
     <template v-else>
       <div v-if="preview.parts.length > 0" class="today-preview-text">
-        <UnifiedMessageContent :content="preview.parts" :message-id="messageId" />
+        <UnifiedMessageContent :content="preview.parts" :message-id="messageId" :media-hidden="mediaHidden" />
       </div>
       <span v-if="preview.attachments > 0 || extraAttachments > 0" class="today-preview-note">
         <Icon name="file" :size="12" aria-hidden="true" />
@@ -41,12 +41,15 @@ const props = withDefaults(defineProps<{
   /** Attachments stored outside `content`, as posts store media. */
   extraAttachments?: number
   lines?: number
+  /** The server's media is hidden on this instance (utils/hiddenMedia.ts). */
+  mediaHidden?: boolean
 }>(), {
   encrypted: false,
   decrypted: false,
   contentWarning: null,
   extraAttachments: 0,
   lines: 2,
+  mediaHidden: false,
 })
 
 const { t } = useI18n()

@@ -1,9 +1,9 @@
 /**
  * Quick-React Settings Composable
  *
- * Stores the user's "double-tap / double-click a message to quick-react"
- * preference: whether it's enabled and which emoji to apply. Persisted in
- * per-user scoped localStorage (client-only, not synced to the server).
+ * Quick react: a double-click (mouse) or a double-tap (touch) on a message reacts with one
+ * emoji. Each gesture has its own switch; the emoji is shared. Stored in per-user scoped
+ * localStorage of this device, not on the account.
  */
 
 import { ref, watch } from 'vue'
@@ -21,21 +21,28 @@ export interface QuickReactEmoji {
   content?: string
 }
 
-const ENABLED_KEY = 'quick-react-enabled'
+const DOUBLE_CLICK_KEY = 'quick-react-double-click'
+const DOUBLE_TAP_KEY = 'quick-react-double-tap'
+/** One switch for both gestures before 1.8.12; seeds either switch not yet stored. */
+const LEGACY_ENABLED_KEY = 'quick-react-enabled'
 const EMOJI_KEY = 'quick-react-emoji'
 
 const DEFAULT_EMOJI: QuickReactEmoji = { id: '👍', name: 'thumbs up', content: '👍' }
 
 // Shared module-level state across all callers.
-const enabled = ref<boolean>(true)
+const doubleClick = ref<boolean>(true)
+const doubleTap = ref<boolean>(true)
 const emoji = ref<QuickReactEmoji>({ ...DEFAULT_EMOJI })
 let isInitialized = false
 
 function loadSettings(): void {
   if (isInitialized) return
   try {
-    const storedEnabled = userStorage.getItem(ENABLED_KEY)
-    if (storedEnabled !== null) enabled.value = storedEnabled === 'true'
+    const legacy = userStorage.getItem(LEGACY_ENABLED_KEY)
+    const storedClick = userStorage.getItem(DOUBLE_CLICK_KEY) ?? legacy
+    const storedTap = userStorage.getItem(DOUBLE_TAP_KEY) ?? legacy
+    if (storedClick !== null) doubleClick.value = storedClick === 'true'
+    if (storedTap !== null) doubleTap.value = storedTap === 'true'
 
     const storedEmoji = userStorage.getItem(EMOJI_KEY)
     if (storedEmoji) {
@@ -58,14 +65,15 @@ function loadSettings(): void {
 
 function persist(): void {
   try {
-    userStorage.setItem(ENABLED_KEY, enabled.value.toString())
+    userStorage.setItem(DOUBLE_CLICK_KEY, doubleClick.value.toString())
+    userStorage.setItem(DOUBLE_TAP_KEY, doubleTap.value.toString())
     userStorage.setItem(EMOJI_KEY, JSON.stringify(emoji.value))
   } catch (error) {
     debug.error('Failed to save quick-react settings:', error)
   }
 }
 
-watch(enabled, persist)
+watch([doubleClick, doubleTap], persist)
 watch(emoji, persist, { deep: true })
 
 export function useQuickReactSettings() {
@@ -80,14 +88,10 @@ export function useQuickReactSettings() {
     }
   }
 
-  function setEnabled(value: boolean): void {
-    enabled.value = value
-  }
-
   return {
-    enabled,
+    doubleClick,
+    doubleTap,
     emoji,
     setEmoji,
-    setEnabled,
   }
 }

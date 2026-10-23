@@ -179,11 +179,11 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     return load.work
   }
 
+  // Owner authority exists on a server hosted here only: a copy's owner is the host's.
   const isServerOwner = (serverId: string, profileId?: string): boolean => {
     if (!profileId) return false
     const server = serverChannelStore.servers.find(s => s.id === serverId)
-    const isOwner = server?.owner === profileId
-    return isOwner
+    return !!server && server.is_local_server !== false && server.owner === profileId
   }
 
   const isCurrentUserServerOwner = computed(() => {
@@ -199,7 +199,7 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     }
     
     const server = serverChannelStore.servers.find(s => s.id === currentServer.value?.id)
-    const isOwner = server?.owner === currentProfileId.value
+    const isOwner = !!server && server.is_local_server !== false && server.owner === currentProfileId.value
     
     debug.log('Owner check:', { 
       profileId: currentProfileId.value, 
@@ -341,29 +341,32 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_WEBHOOKS)
   )
 
-  const canPerformDestructiveActions = computed(() => 
-    isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER)
+  const canPerformDestructiveActions = computed(() =>
+    isLocalServer.value && (isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER))
   )
 
-  // Message moderation permissions
+  // Message moderation is the host's on a copy.
   const canManageMessages = computed(() =>
-    hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
   )
 
   const canPinMessages = computed(() =>
-    hasCurrentUserPermission(Permission.PIN_MESSAGES) || hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
+    isLocalServer.value
+      && (hasCurrentUserPermission(Permission.PIN_MESSAGES) || hasCurrentUserPermission(Permission.MANAGE_MESSAGES))
   )
 
   // Harmony threads are public; CREATE_PRIVATE_THREADS starts none, as create_thread.
   const canCreateThreads = computed(() => hasCurrentUserPermission(Permission.CREATE_PUBLIC_THREADS))
 
+  // Kicks, bans and timeouts are the host's on a copy (kick_server_member refuses one).
   const canModerateMembers = computed(() =>
-    hasCurrentUserPermission(Permission.KICK_MEMBERS) || 
-    hasCurrentUserPermission(Permission.BAN_MEMBERS) ||
-    hasCurrentUserPermission(Permission.TIMEOUT_MEMBERS)
+    isLocalServer.value && (
+      hasCurrentUserPermission(Permission.KICK_MEMBERS) ||
+      hasCurrentUserPermission(Permission.BAN_MEMBERS) ||
+      hasCurrentUserPermission(Permission.TIMEOUT_MEMBERS))
   )
 
-  const canBanMembers = computed(() => hasCurrentUserPermission(Permission.BAN_MEMBERS))
+  const canBanMembers = computed(() => isLocalServer.value && hasCurrentUserPermission(Permission.BAN_MEMBERS))
 
   // server_audit_log covers local servers only.
   const canViewAuditLog = computed(() =>

@@ -47,7 +47,8 @@ const STREAMING_OTHER_PATTERNS = {
   italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
   underline: /__((?:(?!__).)+?)__/g,
   strikethrough: /~~((?:(?!~~).)+?)~~/g,
-  emoji: emojiPattern('[a-zA-Z0-9_+-]+')
+  // `~N` names the Nth custom emoji of a shared name (emojiShortcodeResolver).
+  emoji: emojiPattern('[a-zA-Z0-9_+-]+(?:~\\d+)?')
 } as const;
 
 export function parseMarkdownToNodes(text: string): MarkdownNode[] {

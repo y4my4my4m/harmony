@@ -4,6 +4,7 @@ import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils';
+import { isDefaultShortcode } from '@/services/unifiedEmojiService';
 import {
   getAllCachedServerEmojis,
   setCachedServerEmojis,
@@ -550,7 +551,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const emojis: ResolvedEmoji[] = [];
         
         for (const entry of cache.emojis.values()) {
-          const count = nameCount[entry.emoji.name] || 0;
+          // The bare name of a default emoji is the default's: its custom emoji start at ~1
+          // (emojiShortcodeResolver.customEmojiIndex).
+          const count = nameCount[entry.emoji.name] ?? (isDefaultShortcode(entry.emoji.name) ? 1 : 0);
           nameCount[entry.emoji.name] = count + 1;
 
           emojis.push({

@@ -71,7 +71,8 @@ vi.mock('@/composables/useHapticSettings', () => ({
 }))
 vi.mock('@/composables/useQuickReactSettings', () => ({
   useQuickReactSettings: () => ({
-    enabled: computed(() => shared.quickReactEnabled),
+    doubleClick: computed(() => shared.quickReactEnabled),
+    doubleTap: computed(() => shared.quickReactEnabled),
     emoji: ref({ id: 'thumbs', name: 'thumbs', url: '', content: '👍' }),
   }),
 }))

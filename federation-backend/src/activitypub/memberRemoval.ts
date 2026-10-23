@@ -1,21 +1,26 @@
 /**
- * A server's removal of a member from another instance: turning federation off, a kick, a ban.
+ * A server's removal of a member from another instance: turning federation off, a kick, a ban,
+ * the account's suspension on the host.
  *
- * Host: public.federation_member_removals holds one row per removed remote member (migration
- * 20261025200001). Job 'federate-member-removal' sends the member's inbox, signed with the
- * Group's key,
+ * Host: public.federation_member_removals holds one row per removed remote member (migrations
+ * 20261025200001, 20261027250001). Job 'federate-member-removal' sends the member's inbox,
+ * signed with the Group's key,
  *
  *   Remove { id: <group>/activities/removal-<row id>, actor: <group>, object: <member>,
  *            target: <group>/members, published: <row created_at>, summary?,
- *            harmony:reason: 'federation_closed' | 'kick' | 'ban' }
+ *            harmony:reason: 'federation_closed' | 'kick' | 'ban' | 'suspended',
+ *            harmony:staff?: true }
+ *
+ * harmony:staff: the host's instance staff removed the member, not the server's moderators.
  *
  * The id is fixed per row, so a resend is deduplicated by the receiver's activity store.
  *
  * Member's instance: ActivityProcessor.processGroupMemberRemove.
  */
 import config from '../config/index.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
-export const REMOVAL_REASONS = ['federation_closed', 'kick', 'ban'] as const;
+export const REMOVAL_REASONS = ['federation_closed', 'kick', 'ban', 'suspended'] as const;
 export type RemovalReason = (typeof REMOVAL_REASONS)[number];
 
 export const FEDERATION_CLOSED_SUMMARY = 'This server stopped taking members from other instances';
@@ -26,6 +31,7 @@ export interface MemberRemovalRow {
   reason: RemovalReason;
   summary: string | null;
   created_at: string;
+  staff?: boolean | null;
 }
 
 export function groupUrlOf(serverId: string): string {
@@ -36,7 +42,7 @@ export function memberRemoveActivity(removal: MemberRemovalRow, memberUrl: strin
   const group = groupUrlOf(removal.server_id);
   const summary = removal.reason === 'federation_closed' ? FEDERATION_CLOSED_SUMMARY : removal.summary;
   return {
-    '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://harmonyapp.dev/ns#' }],
+    '@context': ['https://www.w3.org/ns/activitystreams', HARMONY_CONTEXT],
     id: `${group}/activities/removal-${removal.id}`,
     type: 'Remove',
     actor: group,
@@ -46,7 +52,13 @@ export function memberRemoveActivity(removal: MemberRemovalRow, memberUrl: strin
     published: new Date(removal.created_at).toISOString(),
     ...(summary ? { summary } : {}),
     'harmony:reason': removal.reason,
+    ...(removal.staff ? { 'harmony:staff': true } : {}),
   };
+}
+
+/** True when the Remove says the host's instance staff removed the member. */
+export function removedByStaff(activity: any): boolean {
+  return activity?.['harmony:staff'] === true;
 }
 
 /** The reason a Remove names; null for a Remove from software that names none. */

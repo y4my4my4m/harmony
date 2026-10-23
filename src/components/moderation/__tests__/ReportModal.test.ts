@@ -104,6 +104,73 @@ describe('ReportModal', () => {
     }))
   })
 
+  it('says the report goes to this instance\'s staff', () => {
+    const wrapper = mountModal({ reportType: 'user', targetUserId: 'u5', targetUser: { username: 'x' } })
+    expect(wrapper.find('#report-modal-title').text()).toBe('Report')
+    expect(wrapper.find('[data-testid="report-destination"]').text()).toBe('Goes to harmony.test staff.')
+  })
+
+  it('also sends a message in a server hosted elsewhere to its moderators, checked by default', async () => {
+    const wrapper = mountModal({
+      reportType: 'message',
+      targetUserId: 'u6',
+      targetMessageId: 'm6',
+      targetUser: { username: 'troll', domain: 'third.test', is_local: false },
+      targetServer: { name: 'Elsewhere', is_local_server: false, federation_domain: 'host.test' },
+    })
+    expect(wrapper.find('[data-testid="report-destination"]').text()).toBe('Goes to harmony.test staff.')
+    const server = wrapper.find('[data-testid="report-forward-server"]')
+    expect(server.text()).toContain('Also send to Elsewhere\'s moderators on host.test')
+    expect(server.text()).toContain('They see what you reported and your note, not who you are.')
+    expect((server.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.findAll('.forward-option')).toHaveLength(2)
+
+    await submit(wrapper)
+
+    expect(rpc).toHaveBeenCalledWith('create_report', expect.objectContaining({
+      p_reported_message_id: 'm6',
+      p_forward_to_server: true,
+      p_forward: false,
+    }))
+  })
+
+  it('keeps the report here when the reporter unchecks the server\'s moderators', async () => {
+    const wrapper = mountModal({
+      reportType: 'message',
+      targetUserId: 'u7',
+      targetMessageId: 'm7',
+      targetUser: { username: 'troll', domain: 'host.test', is_local: false },
+      targetServer: { name: 'Elsewhere', is_local_server: false, federation_domain: 'host.test' },
+    })
+    // The author's instance hosts the server: the server's copy reaches it, no second one is offered.
+    expect(wrapper.findAll('.forward-option')).toHaveLength(1)
+    await wrapper.find('[data-testid="report-forward-server"] input').setValue(false)
+
+    await submit(wrapper)
+
+    expect(rpc).toHaveBeenCalledWith('create_report', expect.objectContaining({
+      p_forward_to_server: false,
+      p_forward: false,
+    }))
+  })
+
+  it('names the server\'s moderators for a message in a server hosted here, with no option', async () => {
+    const wrapper = mountModal({
+      reportType: 'message',
+      targetUserId: 'u8',
+      targetMessageId: 'm8',
+      targetUser: { username: 'neighbour', is_local: true },
+      targetServer: { name: 'Home', is_local_server: true },
+    })
+    expect(wrapper.find('[data-testid="report-destination"]').text())
+      .toBe('Goes to harmony.test staff and Home\'s moderators.')
+    expect(wrapper.find('[data-testid="report-forward-server"]').exists()).toBe(false)
+
+    await submit(wrapper)
+
+    expect(rpc).toHaveBeenCalledWith('create_report', expect.objectContaining({ p_forward_to_server: false }))
+  })
+
   it('shows why a report was refused', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: 'PT429', message: 'Report rate limit exceeded' } } as never)
     const wrapper = mountModal({ reportType: 'user', targetUserId: 'u4', targetUser: { username: 'x' } })

@@ -18,6 +18,7 @@ import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { getCategoryRecipientGroups, getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -364,7 +365,9 @@ export async function startDatabaseListener(): Promise<void> {
              payload.old.description !== payload.new.description ||
              payload.old.icon !== payload.new.icon ||
              payload.old.banner !== payload.new.banner ||
-             payload.old.public !== payload.new.public)) {
+             payload.old.public !== payload.new.public ||
+             payload.old.suspended_at !== payload.new.suspended_at ||
+             payload.old.suspended_reason !== payload.new.suspended_reason)) {
           logger.info('Server updated:', {
             id: payload.new.id,
             name: payload.new.name,
@@ -717,7 +720,7 @@ async function enqueueChannelCategory(channel: any, serverUrl: string, groups: a
   const activity = {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
-      { 'harmony': 'https://harmonyapp.dev/ns#' },
+      HARMONY_CONTEXT,
     ],
     id: `${serverUrl}/activities/${crypto.randomUUID()}`,
     type: 'Update',
@@ -770,7 +773,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Add',
@@ -828,7 +831,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Update',
@@ -885,7 +888,7 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Remove',
@@ -927,7 +930,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const activity = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
-        { 'harmony': 'https://harmonyapp.dev/ns#' },
+        HARMONY_CONTEXT,
       ],
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Update',
@@ -941,6 +944,10 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         image: bannerUrl ? { type: 'Image', url: bannerUrl } : null,
         discoverable: server.public === true,
         'harmony:ChatServer': true,
+        'harmony:acceptsReports': true,
+        'harmony:suspended': server.suspended_at
+          ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
+          : null,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),

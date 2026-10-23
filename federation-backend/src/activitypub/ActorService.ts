@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor, NOTE_CONTEXT } from './converters/toActivityPub.js';
@@ -29,6 +29,7 @@ import {
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
 } from './remoteCounts.js';
 import { federationUserAgent } from '../utils/userAgent.js';
+import { remoteReactionsFromNote, storeRemoteReactions } from './postReactionCounts.js';
 
 const router = Router();
 
@@ -1418,6 +1419,10 @@ async function _fetchRemotePostReactionsImpl(
     }
 
     const post = await postResponse.json();
+    // A Harmony Note carries its reaction counts (postReactionCounts.ts); its likes collection
+    // lists favourites only.
+    const noteReactions = remoteReactionsFromNote(post);
+    if (noteReactions && postId) await storeRemoteReactions(supabase, postId, noteReactions);
     const totals = noteEngagementTotals(post);
     const storeTotals = async () => {
       const columns = engagementColumns(totals);
@@ -2160,111 +2165,132 @@ router.post(
 );
 
 /**
+ * The ActivityPub actor of local account `username`: 410 with a Tombstone for a deleted
+ * account, 404 for an unknown one.
+ */
+async function serveLocalActor(res: Response, username: string): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', username)
+    .eq('is_local', true)
+    .single();
+
+  // A deleted account answers 410 under its old handle and under its tombstone name.
+  let deleted: { actor_uri: string; deleted_at: string | null } | null = null;
+  if (profile?.deleted_at) {
+    deleted = (await deletedActorByProfile(profile.id).catch(() => null)) ?? {
+      actor_uri: `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`,
+      deleted_at: profile.deleted_at,
+    };
+  } else if (!profile) {
+    deleted = await deletedActorByUsername(username);
+  }
+  if (deleted) {
+    res.status(410);
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.json(actorTombstone(deleted.actor_uri, deleted.deleted_at));
+    return;
+  }
+
+  if (error || !profile) {
+    res.status(404).json({
+      error: 'User not found',
+    });
+    return;
+  }
+
+  // Incoming activity lookups key on federated_id; backfill it for local users.
+  const expectedFederatedId = `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`;
+  if (!profile.federated_id || profile.federated_id !== expectedFederatedId) {
+    await supabase
+      .from('profiles')
+      .update({
+        federated_id: expectedFederatedId,
+        inbox_url: `${expectedFederatedId}/inbox`,
+        outbox_url: `${expectedFederatedId}/outbox`,
+        followers_url: `${expectedFederatedId}/followers`,
+        following_url: `${expectedFederatedId}/following`,
+        shared_inbox_url: `https://${config.INSTANCE_DOMAIN}/inbox`,
+      })
+      .eq('id', profile.id);
+    profile.federated_id = expectedFederatedId;
+  }
+
+  // Keys are generated here when /generate-keys never ran for this profile.
+  if (!profile.public_key) {
+    logger.info(`Actor ${username} missing keys, generating on-the-fly...`);
+    
+    try {
+      const { SignatureService } = await import('./SignatureService.js');
+      const keys = await SignatureService.generateKeyPair();
+
+      // Private key is stored first and deleted again if the public key write fails.
+      const { error: privateKeyError } = await supabase
+        .from('user_private_keys')
+        .upsert({
+          user_id: profile.id,
+          private_key: keys.privateKey,
+        });
+
+      if (!privateKeyError) {
+        const { error: publicKeyError } = await supabase
+          .from('profiles')
+          .update({ public_key: keys.publicKey })
+          .eq('id', profile.id);
+
+        if (!publicKeyError) {
+          profile.public_key = keys.publicKey;
+          logger.info(`Generated keys on-the-fly for ${username}`);
+        } else {
+          await supabase
+            .from('user_private_keys')
+            .delete()
+            .eq('user_id', profile.id);
+          logger.error(`Failed to store public key for ${username}:`, publicKeyError);
+        }
+      } else {
+        logger.error(`Failed to store private key for ${username}:`, privateKeyError);
+      }
+    } catch (genError) {
+      logger.error(`Failed to generate keys for ${username}:`, genError);
+      // Non-fatal: the Actor response omits publicKey.
+    }
+  }
+
+  // Shortcodes resolve to Emoji tags so remote instances can render them.
+  await resolveLocalProfileEmojis(profile, supabase);
+
+  const actor = profileToActor(profile);
+
+  res.setHeader('Content-Type', 'application/activity+json');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json(actor);
+}
+
+/**
  * GET /users/:username - ActivityPub Actor object.
  */
 router.get(
   '/users/:username',
-  asyncHandler(async (req: Request, res: Response) => {
-    const { username } = req.params;
-    const supabase = getSupabaseClient();
+  asyncHandler(async (req: Request, res: Response) => serveLocalActor(res, req.params.username))
+);
 
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', username)
-      .eq('is_local', true)
-      .single();
-
-    // A deleted account answers 410 under its old handle and under its tombstone name.
-    let deleted: { actor_uri: string; deleted_at: string | null } | null = null;
-    if (profile?.deleted_at) {
-      deleted = (await deletedActorByProfile(profile.id).catch(() => null)) ?? {
-        actor_uri: `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`,
-        deleted_at: profile.deleted_at,
-      };
-    } else if (!profile) {
-      deleted = await deletedActorByUsername(username);
-    }
-    if (deleted) {
-      res.status(410);
-      res.setHeader('Content-Type', 'application/activity+json');
-      res.json(actorTombstone(deleted.actor_uri, deleted.deleted_at));
+/**
+ * GET /@:username - the account's page; ActivityPub clients get the actor, as Mastodon's
+ * /@<name> answers them. Browsers pass on to publicPages/routes.ts.
+ */
+router.get(
+  '/@:username',
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!/application\/(activity|ld)\+json/i.test(req.headers.accept || '')) return next();
+    if (!/^[A-Za-z0-9_]+$/.test(req.params.username)) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
-
-    if (error || !profile) {
-      res.status(404).json({
-        error: 'User not found',
-      });
-      return;
-    }
-
-    // Incoming activity lookups key on federated_id; backfill it for local users.
-    const expectedFederatedId = `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`;
-    if (!profile.federated_id || profile.federated_id !== expectedFederatedId) {
-      await supabase
-        .from('profiles')
-        .update({
-          federated_id: expectedFederatedId,
-          inbox_url: `${expectedFederatedId}/inbox`,
-          outbox_url: `${expectedFederatedId}/outbox`,
-          followers_url: `${expectedFederatedId}/followers`,
-          following_url: `${expectedFederatedId}/following`,
-          shared_inbox_url: `https://${config.INSTANCE_DOMAIN}/inbox`,
-        })
-        .eq('id', profile.id);
-      profile.federated_id = expectedFederatedId;
-    }
-
-    // Keys are generated here when /generate-keys never ran for this profile.
-    if (!profile.public_key) {
-      logger.info(`Actor ${username} missing keys, generating on-the-fly...`);
-      
-      try {
-        const { SignatureService } = await import('./SignatureService.js');
-        const keys = await SignatureService.generateKeyPair();
-
-        // Private key is stored first and deleted again if the public key write fails.
-        const { error: privateKeyError } = await supabase
-          .from('user_private_keys')
-          .upsert({
-            user_id: profile.id,
-            private_key: keys.privateKey,
-          });
-
-        if (!privateKeyError) {
-          const { error: publicKeyError } = await supabase
-            .from('profiles')
-            .update({ public_key: keys.publicKey })
-            .eq('id', profile.id);
-
-          if (!publicKeyError) {
-            profile.public_key = keys.publicKey;
-            logger.info(`Generated keys on-the-fly for ${username}`);
-          } else {
-            await supabase
-              .from('user_private_keys')
-              .delete()
-              .eq('user_id', profile.id);
-            logger.error(`Failed to store public key for ${username}:`, publicKeyError);
-          }
-        } else {
-          logger.error(`Failed to store private key for ${username}:`, privateKeyError);
-        }
-      } catch (genError) {
-        logger.error(`Failed to generate keys for ${username}:`, genError);
-        // Non-fatal: the Actor response omits publicKey.
-      }
-    }
-
-    // Shortcodes resolve to Emoji tags so remote instances can render them.
-    await resolveLocalProfileEmojis(profile, supabase);
-
-    const actor = profileToActor(profile);
-
-    res.setHeader('Content-Type', 'application/activity+json');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json(actor);
+    await serveLocalActor(res, req.params.username);
   })
 );
 

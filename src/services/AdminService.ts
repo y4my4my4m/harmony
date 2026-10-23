@@ -4,6 +4,7 @@ import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
 export interface SystemStats {
   total_users: number;
@@ -79,6 +80,10 @@ export interface AdminActivity {
   target_username?: string;
   details: string;
   metadata?: any;
+  /** Server named by id only in the details (utils/staffActivity). */
+  server_name?: string;
+  /** Handle of a removed message's author (utils/staffActivity). */
+  author_handle?: string;
   ip_address?: string;
   user_agent?: string;
   created_at: string;
@@ -117,6 +122,8 @@ export interface FederatedInstance {
   is_trusted: boolean;
   /** Set while the domain is limited (its accounts silenced). */
   limited_at?: string | null;
+  /** Flags from the domain are ignored (Mastodon reject_reports). */
+  reject_reports?: boolean;
   last_seen_at: string;
   user_count: number;
   status_count: number;
@@ -580,10 +587,35 @@ class AdminService {
         }
       }
 
+      await this.resolveStaffActivityNames(entries);
+
       return entries;
     } catch (error) {
       debug.error('Failed to get recent activity:', error);
       return [];
+    }
+  }
+
+  // A server unreadable to the viewer or a bot author stays unnamed; the line names neither.
+  private async resolveStaffActivityNames(entries: AdminActivity[]): Promise<void> {
+    const unique = (ids: Array<string | null>) => [...new Set(ids.filter((id): id is string => !!id))];
+    const serverIds = unique(entries.map((e) => staffActivityServerId({ action_type: e.action_type, details: e.metadata })));
+    const authorIds = unique(entries.map((e) => staffActivityAuthorId({ action_type: e.action_type, details: e.metadata })));
+    if (serverIds.length === 0 && authorIds.length === 0) return;
+
+    const [servers, authors] = await Promise.all([
+      serverIds.length ? supabase.from('servers').select('id, name').in('id', serverIds) : null,
+      authorIds.length ? supabase.from('profiles').select('id, username, domain, is_local').in('id', authorIds) : null,
+    ]);
+    const serverName = new Map(((servers?.data ?? []) as Array<{ id: string; name: string }>).map((s) => [s.id, s.name]));
+    const authorHandle = new Map(((authors?.data ?? []) as Array<{ id: string; username: string; domain: string | null; is_local: boolean | null }>)
+      .map((p) => [p.id, p.is_local === false && p.domain ? `@${p.username}@${p.domain}` : `@${p.username}`]));
+
+    for (const entry of entries) {
+      const serverId = staffActivityServerId({ action_type: entry.action_type, details: entry.metadata });
+      const authorId = staffActivityAuthorId({ action_type: entry.action_type, details: entry.metadata });
+      if (serverId && serverName.has(serverId)) entry.server_name = serverName.get(serverId);
+      if (authorId && authorHandle.has(authorId)) entry.author_handle = authorHandle.get(authorId);
     }
   }
 
@@ -750,6 +782,18 @@ class AdminService {
     }
   }
 
+  /** Ignore or accept a domain's reports through set_domain_reject_reports (instance admins, audited). */
+  async setDomainRejectReports(domain: string, reject: boolean): Promise<void> {
+    const { error } = await supabase.rpc('set_domain_reject_reports', {
+      p_domain: domain,
+      p_reject: reject,
+    });
+    if (error) {
+      debug.error('set_domain_reject_reports failed:', error);
+      throw new Error(error.message || 'Failed to change how the domain\'s reports are handled');
+    }
+  }
+
   async getBlockedInstances(): Promise<BlockedInstance[]> {
     try {
       const { data, error } = await supabase
@@ -837,6 +881,7 @@ class AdminService {
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
+      let publicProfilePages = true
       const enableOutbound = true
       const enableInbound = true
 
@@ -844,7 +889,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -959,6 +1004,10 @@ class AdminService {
                 case 'allow_custom_emojis_in_display_names':
                   allowCustomEmojisInDisplayNames = value === true || value === 'true'
                   break
+                case 'public_profile_pages':
+                  // On unless false, as public_page_instance() reads it.
+                  publicProfilePages = !(value === false || value === 'false')
+                  break
                 case 'max_post_reactions_per_user': {
                   const n = typeof value === 'number' ? value : parseInt(String(value), 10)
                   if (!Number.isNaN(n)) {
@@ -1014,6 +1063,7 @@ class AdminService {
           customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
           maxPostReactionsPerUser,
+          publicProfilePages,
           enableOutbound,
           enableInbound
         },

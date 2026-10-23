@@ -7,8 +7,8 @@
       </p>
     </div>
 
-    <!-- Permission Warning for Read-Only Users -->
-    <div v-if="!permissions.canEditBasicInfo" class="permission-notice">
+    <!-- Permission Warning for Read-Only Users; a copy's banner says who manages it. -->
+    <div v-if="!permissions.canEditBasicInfo && !isCopy" class="permission-notice">
       <div class="notice-content">
         <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
           <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
@@ -82,7 +82,22 @@
         </button>
       </div>
 
-      <div class="form-group">
+      <div v-if="isCopy" class="form-group" data-testid="server-copy-owner">
+        <span class="form-label">{{ $t('serverCopy.owner.label') }}</span>
+        <div class="owner-info">
+          <div class="owner-badge">
+            <svg class="crown-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#faa61a" d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zM12 13l-3-3l-2 2l5 5l5-5l-2-2l-3 3z"/>
+            </svg>
+            <template v-if="copyOwner">
+              <span class="owner-name">{{ copyOwner.displayName }}</span>
+              <span v-if="copyOwner.handle" class="owner-handle">{{ copyOwner.handle }}</span>
+            </template>
+            <span v-else class="owner-name">{{ $t('serverCopy.owner.unknown') }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-else class="form-group">
         <span class="form-label">{{ $t('server.serverOwner') }}</span>
         <div class="owner-info">
           <div class="owner-badge">
@@ -260,6 +275,9 @@ interface Props {
   selectedFile: File | null
   selectedBannerFile?: File | null
   ownerName: string
+  /** A copy of a server hosted on another instance: the owner row names the host owner. */
+  isCopy?: boolean
+  copyOwner?: { displayName: string; handle: string | null } | null
   loading: boolean
   permissions: ServerPermissions
 }
@@ -272,7 +290,7 @@ interface Emits {
   (e: 'edit-rules'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { isCopy: false, copyOwner: null })
 const emit = defineEmits<Emits>()
 
 const fileInput = ref<HTMLInputElement>()
@@ -587,6 +605,13 @@ const updateServerDescription = (event: Event) => {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.owner-handle {
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .crown-icon {

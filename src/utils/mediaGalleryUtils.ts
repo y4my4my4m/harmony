@@ -1,4 +1,5 @@
 import type { MessagePart } from '@/types';
+import type { MediaHiddenPart } from '@/utils/hiddenMedia';
 import { extractHttpUrls, isPureGluedUrlBlob } from '@/utils/urlSplitting';
 
 const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)(\?|$)/i;
@@ -6,8 +7,8 @@ const VIDEO_EXT = /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i;
 
 export type MediaGalleryPart = { type: 'media_gallery'; parts: MessagePart[] };
 
-/** A display-content entry: either a raw message part or a grouped media gallery. */
-export type DisplayPart = MessagePart | MediaGalleryPart;
+/** A display-content entry: a raw message part, a grouped media gallery, or hidden media. */
+export type DisplayPart = MessagePart | MediaGalleryPart | MediaHiddenPart;
 
 export function isImageMediaUrl(url: string): boolean {
   return !!url && IMAGE_EXT.test(url);

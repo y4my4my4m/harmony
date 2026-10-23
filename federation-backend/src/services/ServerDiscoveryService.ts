@@ -19,6 +19,7 @@ import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
+import { isGroupBlockedHere, isServerBlockedHere, joinRefusalHere, serverBlockedRefusal } from '../activitypub/instanceServerBlocks.js';
 import {
   getFullAvatarUrl,
   getFullServerBannerUrl,
@@ -27,8 +28,12 @@ import {
 } from '../utils/urlUtils.js';
 import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
+import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 
 const router = Router();
+
+/** Pages of a remote members collection one sync reads; a Harmony host serves 500 members a page. */
+const MEMBER_SYNC_MAX_PAGES = 40;
 
 // API ROUTES
 
@@ -58,6 +63,10 @@ router.get(
 
     if (!serverData) {
       return res.status(404).json({ error: 'Server not found' });
+    }
+
+    if (typeof serverData.id === 'string' && await isGroupBlockedHere(getSupabaseClient(), serverData.id)) {
+      return res.status(403).json(serverBlockedRefusal());
     }
 
     // A Group of this instance joins locally whatever its federation setting; its stub may name
@@ -198,6 +207,10 @@ router.post(
         return res.status(422).json({
           error: 'Could not verify this as a genuine federated server',
         });
+      }
+
+      if (await isGroupBlockedHere(getSupabaseClient(), actorId as string)) {
+        return res.status(403).json(serverBlockedRefusal());
       }
 
       // Convert relative URLs to absolute URLs using the remote instance
@@ -473,7 +486,13 @@ router.post(
     }
 
     if (!localServer) {
-      localServer = await ServerDiscoveryService.createLocalServerReference(remoteServer, userId);
+      localServer = await ServerDiscoveryService.createLocalServerReference(remoteServer);
+    }
+
+    // A server hosted elsewhere that this instance blocked, or keeps this account out of.
+    if (localServer?.is_local_server === false) {
+      const refusal = await joinRefusalHere(supabase, localServer.id, userId);
+      if (refusal) return res.status(403).json(refusal);
     }
 
     const { data: existingMembership } = await supabase
@@ -712,22 +731,10 @@ router.post(
       .eq('server_id', serverId)
       .eq('user_id', userId);
 
-    // If remote server, send Leave activity
-    if (!server.is_local_server && server.federation_inbox_url) {
-      const leaveActivity = ServerDiscoveryService.createLeaveActivity(
-        user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
-        server.ap_id
-      );
-
-      try {
-        await ServerDiscoveryService.sendLeaveRequest(
-          server.federation_inbox_url,
-          leaveActivity,
-          userId
-        );
-      } catch (error) {
-        logger.warn('Failed to send leave activity (membership removed locally):', error);
-      }
+    try {
+      await ServerDiscoveryService.sendMemberLeave(server, user);
+    } catch (error) {
+      logger.warn('Failed to send leave activity (membership removed locally):', error);
     }
 
     return res.json({
@@ -747,6 +754,10 @@ router.get(
   discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { serverId } = req.params;
+
+    if (await isServerBlockedHere(getSupabaseClient(), serverId)) {
+      return res.status(403).json(serverBlockedRefusal());
+    }
 
     const requesterId = await localProfileIdFromBearer(req.headers.authorization);
     const asUserId = requesterId && await ServerDiscoveryService.isAcceptedMember(serverId, requesterId)
@@ -969,6 +980,9 @@ router.get(
       
       logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
+      // Rows this read inserted or completed.
+      let changed = 0;
+
       // A system notice is cached as an authorless system row naming local profiles.
       const systemNoticeItem = async (note: any, sys: HarmonySystem) => {
         const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
@@ -979,7 +993,7 @@ router.get(
         const createdAt = note.published || new Date().toISOString();
         if (messageUuid) {
           try {
-            await supabase
+            const { data: inserted } = await supabase
               .from('messages')
               .upsert({
                 id: messageUuid,
@@ -990,7 +1004,10 @@ router.get(
                 updated_at: createdAt,
                 metadata: { ...metadata, ap_id: note.id, is_remote: true, federated: true },
                 federation_status: 'skipped',
-              }, { onConflict: 'id', ignoreDuplicates: true });
+              }, { onConflict: 'id', ignoreDuplicates: true })
+              .select('id')
+              .maybeSingle();
+            if (inserted) changed++;
           } catch (cacheError: any) {
             logger.debug(`Could not cache system notice: ${cacheError.message}`);
           }
@@ -1055,6 +1072,9 @@ router.get(
           }
         }
 
+        // Ciphertext from the host: shown as encrypted here, never as text.
+        const isEncrypted = note['harmony:encrypted'] === true;
+
         let messageUuid: string | undefined;
         const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
         if (uuidMatch) {
@@ -1063,12 +1083,12 @@ router.get(
 
         // Cache message locally for reactions and offline access (only if we have a valid author ID)
         let cachedMsgId: string | null = null;
-        
+        let cachedContent: any[] | null = null;
+
         if (author?.id && !author.is_bridge) {
           const messageTimestamp = note.published || new Date().toISOString();
 
           // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
-          let cachedContent: any[];
           if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
             cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
           } else if (note.content) {
@@ -1084,6 +1104,7 @@ router.get(
             created_at: messageTimestamp,
             updated_at: note.updated || messageTimestamp,
             metadata: { ap_id: note.id, is_remote: true, federated: true },
+            encrypted: isEncrypted,
             // This gets set by the trigger anyway when 'federated' key is present
             federation_status: 'skipped',
           };
@@ -1103,7 +1124,31 @@ router.get(
               .select('id')
               .maybeSingle();
             
+            // ignoreDuplicates: a row comes back only when this upsert inserted it.
             cachedMsgId = cachedMsg?.id;
+            if (cachedMsgId) changed++;
+            // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
+            // host's page carried text only.
+            if (isEncrypted && messageUuid) {
+              const { data: flagged } = await supabase
+                .from('messages')
+                .update({ encrypted: true })
+                .eq('id', messageUuid)
+                .eq('channel_id', channelId)
+                .eq('encrypted', false)
+                .select('id');
+              changed += flagged?.length ?? 0;
+            }
+            if (messageUuid && cachedContent.some((part: any) => part?.type === 'file')) {
+              const { data: filled } = await supabase
+                .from('messages')
+                .update({ content: cachedContent })
+                .eq('id', messageUuid)
+                .eq('channel_id', channelId)
+                .not('content', 'cs', JSON.stringify([{ type: 'file' }]))
+                .select('id');
+              changed += filled?.length ?? 0;
+            }
           } catch (cacheError: any) {
             logger.debug(`Could not cache message: ${cacheError.message}`);
           }
@@ -1127,7 +1172,8 @@ router.get(
 
         return {
           id: cachedMsgId || messageUuid || note.id,
-          content: note.content,
+          // The cached parts carry files, mentions and emoji; the HTML carries text only.
+          content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
           created_at: note.published,
           updated_at: note.updated,
           metadata: { 
@@ -1136,13 +1182,15 @@ router.get(
             customEmojis: customEmojis.length > 0 ? customEmojis : undefined,
           },
           author,
+          encrypted: isEncrypted,
           reactions, // Include reactions with emoji URLs
         };
       }));
 
-      return res.json({ 
-        messages: messages.filter(Boolean), 
-        source: 'remote' 
+      return res.json({
+        messages: messages.filter(Boolean),
+        source: 'remote',
+        changed,
       });
     } catch (error: any) {
       logger.error('Error fetching remote messages:', error);
@@ -1289,11 +1337,42 @@ export class ServerDiscoveryService {
   }
 
   /**
+   * Profile of the Group's owner (its attributedTo), stored as a remote profile. Null when the
+   * Group names none, or names an actor on another host or on this instance; undefined when the
+   * actor cannot be fetched now, so a sync keeps the owner it has. A copy's owner is the host's:
+   * no local profile ever owns one.
+   */
+  static async resolveGroupOwner(remoteServer: any): Promise<string | null | undefined> {
+    const owner = typeof remoteServer?.attributedTo === 'string'
+      ? remoteServer.attributedTo
+      : remoteServer?.attributedTo?.id;
+    if (typeof owner !== 'string' || !sameOrigin(owner, remoteServer?.id)) return null;
+    if (urlHost(owner) === config.INSTANCE_DOMAIN.toLowerCase()) return null;
+    try {
+      const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+      const profile = await ActivityProcessor['ensureRemoteUser'](owner);
+      return profile?.id ?? null;
+    } catch (error) {
+      logger.warn(`Owner ${owner} of Group ${remoteServer.id} could not be stored:`, error);
+      return undefined;
+    }
+  }
+
+  /** suspended_at / suspended_reason of a copy from the Group's harmony:suspended (null: none). */
+  static groupSuspension(remoteServer: any): { suspended_at: string | null; suspended_reason: string | null } | null {
+    if (!remoteServer || !('harmony:suspended' in remoteServer)) return null;
+    const s = remoteServer['harmony:suspended'];
+    if (!s || typeof s !== 'object') return { suspended_at: null, suspended_reason: null };
+    const at = typeof s.at === 'string' && !Number.isNaN(Date.parse(s.at)) ? s.at : new Date().toISOString();
+    const reason = typeof s.reason === 'string' ? s.reason.slice(0, 1000) : null;
+    return { suspended_at: at, suspended_reason: reason };
+  }
+
+  /**
    * Create local reference to remote server
    * @param remoteServer - The remote server ActivityPub Group object
-   * @param ownerUserId - Local user ID to set as the reference owner (required by NOT NULL constraint)
    */
-  static async createLocalServerReference(remoteServer: any, ownerUserId?: string): Promise<any> {
+  static async createLocalServerReference(remoteServer: any): Promise<any> {
     const supabase = getSupabaseClient();
 
     try {
@@ -1311,34 +1390,6 @@ export class ServerDiscoveryService {
       if (existing) {
         logger.info(`Server reference already exists: ${remoteServer.name}`);
         return existing;
-      }
-
-      // Remote server references should always be owned by the instance admin
-      // to prevent cascade-deletion if the joining user leaves or is deleted.
-      const { data: admin } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_local', true)
-        .eq('is_admin', true)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (admin) {
-        ownerUserId = admin.id;
-      } else if (!ownerUserId) {
-        // No admin found (shouldn't happen) - fall back to the joining user
-        const { data: anyUser } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('is_local', true)
-          .limit(1)
-          .maybeSingle();
-        ownerUserId = anyUser?.id;
-      }
-
-      if (!ownerUserId) {
-        throw new Error('No local user found to set as remote server reference owner');
       }
 
       // Extract server UUID from AP ID if possible
@@ -1374,7 +1425,8 @@ export class ServerDiscoveryService {
         description: remoteServer.summary || '',
         icon: remoteServer.icon?.url ?? null,
         banner: remoteServer.image?.url || null,
-        owner: ownerUserId,
+        owner: (await ServerDiscoveryService.resolveGroupOwner(remoteServer)) ?? null,
+        ...(ServerDiscoveryService.groupSuspension(remoteServer) ?? {}),
         federation_enabled: true,
         federation_domain: hostDomain,
         ap_id: remoteServer.id,
@@ -1387,6 +1439,7 @@ export class ServerDiscoveryService {
           members: remoteServer.members,
           followers: remoteServer.followers,
           attributedTo: remoteServer.attributedTo,
+          accepts_reports: remoteServer['harmony:acceptsReports'] === true,
           fetched_at: new Date().toISOString(),
         },
       };
@@ -1529,7 +1582,7 @@ export class ServerDiscoveryService {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
         },
       ],
       id: `${actorId}/activities/${crypto.randomUUID()}`,
@@ -1555,7 +1608,7 @@ export class ServerDiscoveryService {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
         },
       ],
       id: `${actorId}/activities/${crypto.randomUUID()}`,
@@ -1599,6 +1652,23 @@ export class ServerDiscoveryService {
     if (!match) return null;
     const summary = match.activity_data?.summary;
     return { reason: typeof summary === 'string' && summary.trim() ? summary.trim().slice(0, 300) : null };
+  }
+
+  /**
+   * The member's Leave of a remote server, signed as the member, to the Group's inbox. False when
+   * the server is local or has no inbox.
+   */
+  static async sendMemberLeave(
+    server: { ap_id: string | null; federation_inbox_url: string | null; is_local_server: boolean | null },
+    member: { id: string; username: string; federated_id: string | null },
+  ): Promise<boolean> {
+    if (server.is_local_server !== false || !server.federation_inbox_url || !server.ap_id) return false;
+    const leaveActivity = ServerDiscoveryService.createLeaveActivity(
+      member.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${member.username}`,
+      server.ap_id
+    );
+    await ServerDiscoveryService.sendLeaveRequest(server.federation_inbox_url, leaveActivity, member.id);
+    return true;
   }
 
   /**
@@ -1706,11 +1776,18 @@ export class ServerDiscoveryService {
           icon: remoteServer.icon?.url ?? null,
           banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
+          ...await (async () => {
+            const owner = await this.resolveGroupOwner(remoteServer);
+            return owner === undefined ? {} : { owner };
+          })(),
+          ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {
             ...server.federation_metadata,
             outbox: remoteServer.outbox,
             members: remoteServer.members,
             followers: remoteServer.followers,
+            attributedTo: remoteServer.attributedTo,
+            accepts_reports: remoteServer['harmony:acceptsReports'] === true,
             synced_at: new Date().toISOString(),
           },
         })
@@ -1814,9 +1891,10 @@ export class ServerDiscoveryService {
 
   /**
    * Sync remote server members
-   * Fetches the members collection and creates local profiles for remote users.
-   * With `signAs`, the collection must sit on the server's host and the GET
-   * is signed as that local user.
+   * Fetches the members collection, every page up to MEMBER_SYNC_MAX_PAGES, and creates local
+   * profiles for remote users. A page's `next` must sit on the collection's origin. With
+   * `signAs`, the collection must sit on the server's host and each GET is signed as that
+   * local user.
    */
   static async syncRemoteServerMembers(
     serverId: string,
@@ -1838,28 +1916,32 @@ export class ServerDiscoveryService {
         'Accept': 'application/activity+json, application/json',
         'User-Agent': federationUserAgent(),
       };
-      const response = await SignatureService.signedApFetch(membersUrl + '?page=1', {
-        headers,
-        timeoutMs: 10000,
-        ...(opts.signAs ? { signAs: opts.signAs } : {}),
-      });
-
-      if (!response.ok) {
-        logger.warn(`Failed to fetch members collection: ${response.status}`);
-        return;
+      const members: unknown[] = [];
+      let pageUrl: string | null = membersUrl + '?page=1';
+      for (let pages = 0; pageUrl && pages < MEMBER_SYNC_MAX_PAGES; pages++) {
+        const response = await SignatureService.signedApFetch(pageUrl, {
+          headers,
+          timeoutMs: 10000,
+          ...(opts.signAs ? { signAs: opts.signAs } : {}),
+        });
+        if (!response.ok) {
+          logger.warn(`Failed to fetch members collection page ${pageUrl}: ${response.status}`);
+          break;
+        }
+        const membersPage = await response.json();
+        if (Array.isArray(membersPage.orderedItems)) members.push(...membersPage.orderedItems);
+        const next = typeof membersPage.next === 'string' ? membersPage.next : null;
+        pageUrl = next && sameOrigin(next, membersUrl) ? next : null;
       }
-
-      const membersPage = await response.json();
-      const members = membersPage.orderedItems || [];
 
       logger.info(`Found ${members.length} remote members`);
 
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
 
-      for (const member of members) {
+      for (const member of members as any[]) {
         try {
           // Member can be a URL string or an object with id
-          const memberUrl = typeof member === 'string' ? member : (member.id || member.actor);
+          const memberUrl = typeof member === 'string' ? member : (member?.id || member?.actor);
           
           if (!memberUrl || typeof memberUrl !== 'string') {
             continue;

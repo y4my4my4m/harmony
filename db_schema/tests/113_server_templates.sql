@@ -120,8 +120,8 @@ SELECT lives_ok($$SELECT public.export_server_template('f1131000-0000-0000-0000-
                 'a MANAGE_SERVER holder exports');
 
 SELECT tests.authenticate_as('f1130000-0000-0000-0000-0000000000a2');
-SELECT lives_ok($$SELECT public.export_server_template('f1131000-0000-0000-0000-000000000001')$$,
-                'an instance admin exports');
+SELECT throws_ok($$SELECT public.export_server_template('f1131000-0000-0000-0000-000000000001')$$,
+                 '42501', NULL, 'an instance admin outside the server does not export it');
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT ok(set_config('t113.tpl', public.export_server_template('f1131000-0000-0000-0000-000000000001')::text, true)

@@ -93,6 +93,20 @@
       </template>
     </ViewHeader>
 
+    <!-- A reply's page holds its own branch of the conversation; the top post's page holds
+         every reply, with this one highlighted. Outside the scroller, so it stays in view. -->
+    <div v-if="conversationRoute && !isLoading" class="conversation-bar" data-testid="post-view-conversation-bar">
+      <div class="conversation-bar-inner">
+        <Icon name="message-circle" :size="16" class="conversation-bar-icon" />
+        <span class="conversation-bar-text">
+          {{ t('activitypub.threadA11y.inConversation', { count: conversationSize }, conversationSize) }}
+        </span>
+        <RouterLink :to="conversationRoute" class="conversation-bar-link" data-testid="post-view-full-conversation">
+          {{ t('activitypub.threadA11y.fullConversation') }}
+        </RouterLink>
+      </div>
+    </div>
+
     <div class="post-content" ref="postContainer">
       <div v-if="isLoading" class="loading-state" role="status">
         <LoadingSpinner :size="32" />
@@ -150,6 +164,7 @@
               @delete="handleDelete"
               @edit="handleEdit"
               @user-click="handleUserClick"
+              @hashtag-click="handleHashtagClick"
             />
           </div>
           <RemoteRepliesStatus
@@ -251,6 +266,10 @@ const toast = useToast();
 // Set from props.postId, the route param, or remote handle resolution.
 const resolvedPostId = ref<string | null>(null);
 
+// SocialLayout passes its own unset postId to the RouterView, which overrides the route's
+// prop; the route param is the fallback, as in UserProfileView.currentHandle.
+const requestedPostId = computed(() => props.postId || (route.params.postId as string | undefined) || null);
+
 const isViewingRemotePost = computed(() => {
   if (!mainPost.value) return false;
   return !mainPost.value.is_local && !!mainPost.value.ap_id;
@@ -302,6 +321,25 @@ const ancestors = computed(() => postWithContext.value?.ancestors || []);
 const descendants = computed(() => postWithContext.value?.descendants || []);
 const threadInfo = computed(() => postWithContext.value?.threadInfo);
 const highlightedPostId = computed(() => props.highlightReply || postWithContext.value?.highlightedPost);
+
+/**
+ * The page of the conversation's top post, highlighting the opened post, when the opened
+ * post is a reply and that page shows more: posts this page leaves out, or replies a remote
+ * top post's origin may list. The top post is the earliest ancestor shown, or the root when
+ * the ancestors stop at maxThreadDepth (depth 0..p_max_depth: maxThreadDepth + 1 rows).
+ */
+const conversationRoute = computed(() => {
+  const main = mainPost.value;
+  const top = ancestors.value[0];
+  if (!main || !top) return null;
+  const info = threadInfo.value;
+  if ((info?.totalPosts ?? 0) <= allPostsInOrder.value.length && top.is_local !== false) return null;
+  const capped = ancestors.value.length > maxThreadDepth.value;
+  const postId = capped && info?.rootPostId ? info.rootPostId : top.id;
+  return { name: 'PostDetail', params: { postId }, query: { highlight: main.id } };
+});
+
+const conversationSize = computed(() => Math.max(threadInfo.value?.totalPosts ?? 0, allPostsInOrder.value.length));
 
 const headerSubtitle = computed(() => {
   const parts: string[] = [];
@@ -367,15 +405,21 @@ const resolveRemotePost = async (handle: string, noteId: string): Promise<string
   return post?.id || null;
 };
 
+// Each load takes a number; a load that is no longer the latest drops its result.
+let loadSeq = 0;
+
 const loadPostWithContext = async () => {
+  const seq = ++loadSeq;
+  const superseded = () => seq !== loadSeq;
   try {
     isLoading.value = true;
     error.value = null;
     
-    let postId = props.postId || route.params.postId as string;
+    let postId = requestedPostId.value;
 
     if (!postId && props.remoteHandle && props.remoteNoteId) {
       const resolved = await resolveRemotePost(props.remoteHandle, props.remoteNoteId);
+      if (superseded()) return;
       if (!resolved) {
         throw new Error(`Post not found on this instance. It may not have been federated here yet.`);
       }
@@ -395,6 +439,7 @@ const loadPostWithContext = async () => {
       maxDepth: maxThreadDepth.value,
       includeInteractions: true
     });
+    if (superseded()) return;
 
     // A reblog (Announce) wrapper has no replies and is not itself a reply, so
     // the thread query walks the wrong tree. Re-query against the original
@@ -411,6 +456,7 @@ const loadPostWithContext = async () => {
           maxDepth: maxThreadDepth.value,
           includeInteractions: true,
         });
+        if (superseded()) return;
       }
     }
 
@@ -430,6 +476,7 @@ const loadPostWithContext = async () => {
     // The thread renders once loading ends.
     isLoading.value = false;
     await nextTick();
+    if (superseded()) return;
     placeThreadView();
     
     // Remote posts: crawl replies when due and walk the ancestor chain in the
@@ -459,11 +506,12 @@ const loadPostWithContext = async () => {
     }
     
   } catch (err) {
+    if (superseded()) return;
     debug.error('Failed to load post with context:', err);
     error.value = err instanceof Error ? err.message : t('activitypub.threadA11y.loadFailed');
     toast.error(t('activitypub.threadA11y.loadFailed'));
   } finally {
-    isLoading.value = false;
+    if (!superseded()) isLoading.value = false;
   }
 };
 
@@ -665,9 +713,11 @@ const handleInlineReplyCreated = (newReply: TimelinePost, _parentId: string) => 
     debug.log('Inline reply appended to thread:', newReply.id);
   }
 
-  // Reconcile with the server so counts and threading are accurate.
+  // Reconcile with the server so counts and threading are accurate. The thread stays on
+  // screen and in place meanwhile.
+  const token = resolvedPostId.value;
   setTimeout(() => {
-    loadPostWithContext().catch(err => {
+    reloadThread(token).catch(err => {
       debug.warn('Background refresh failed:', err);
     });
   }, 1000);
@@ -695,8 +745,9 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
   
   toast.success(t('activitypub.threadA11y.replyPosted'));
   
+  const token = resolvedPostId.value;
   setTimeout(() => {
-    loadPostWithContext().catch(err => {
+    reloadThread(token).catch(err => {
       debug.warn('Background refresh failed:', err);
     });
   }, 1000);
@@ -765,6 +816,10 @@ const handleUserClick = (user: any) => {
       ? `@${user.username}@${user.domain}`
       : `@${user.username || user.id}`)
   router.push({ name: 'UserProfile', params: { handle } })
+};
+
+const handleHashtagClick = (tag: string) => {
+  router.push({ name: 'HashtagView', params: { tag } });
 };
 
 const getPostUrl = (): string => {
@@ -897,10 +952,12 @@ const placeThreadView = () => {
   }
 };
 
-watch(() => props.postId, loadPostWithContext);
-watch(() => props.remoteNoteId, loadPostWithContext);
-watch(() => props.contextType, loadPostWithContext);
-watch(() => props.highlightReply, loadPostWithContext);
+// The view is reused across /social/post/:postId; a link to another post reloads it. One
+// watcher, so a navigation that changes the post and the highlight loads once.
+watch(
+  [requestedPostId, () => props.remoteHandle, () => props.remoteNoteId, () => props.contextType, () => props.highlightReply],
+  loadPostWithContext,
+);
 
 onMounted(loadPostWithContext);
 </script>
@@ -943,6 +1000,60 @@ onMounted(loadPostWithContext);
   position: relative;
 }
 
+/* Same gutter as .post-content, so the bar's column lines up with the thread's. */
+.conversation-bar {
+  flex-shrink: 0;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+}
+
+.conversation-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 600px;
+  min-height: 40px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+}
+
+.conversation-bar-icon {
+  flex-shrink: 0;
+}
+
+.conversation-bar-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-bar-link {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 40px;
+  color: var(--text-link);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.conversation-bar-link:hover {
+  text-decoration: underline;
+}
+
+.conversation-bar-link:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
 /* Stable gutter, like the feed scroller: the post column sits on the timeline's axis
    whether or not the thread overflows. */
 .post-content {
@@ -961,7 +1072,8 @@ onMounted(loadPostWithContext);
 }
 
 @media (min-width: 769px) {
-  .post-container {
+  .post-container,
+  .conversation-bar-inner {
     border-left: 1px solid var(--border-color);
     border-right: 1px solid var(--border-color);
   }
@@ -1053,6 +1165,10 @@ onMounted(loadPostWithContext);
 }
 
 @media (max-width: 768px) {
+  .conversation-bar-inner {
+    padding: 0 var(--space-3);
+  }
+
   .thread-post.thread-continues::after,
   .thread-post.thread-continued::before {
     left: calc(var(--space-3) + 24px - 1px);

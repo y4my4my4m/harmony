@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # nginx -t on dev/nginx-harmony.template.conf, then the /invite/<code> and /d/<token> routing:
 # link-preview crawlers reach the federation backend, browsers and search engines the SPA.
+# /@<name> and /@<name>/<post id>: the SPA with the cookie harmony_app=1, the backend otherwise.
 #
 # The template runs in a plain-HTTP nginx container: certificate directives dropped, the
 # backend upstream pointed at a stub server in the same nginx that answers with the URI it
@@ -80,6 +81,11 @@ expect "$GOOGLE"   /invite/ABCD1234          'SPA'
 expect "$DISCORD"  /invite/ab                'SPA'
 expect "$DISCORD"  /invite/ABCD1234/extra    'SPA'
 expect "$FIREFOX"  /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001'
+# Private media and embed media named like static files still reach the backend.
+for f in a.png b.jpg c.gif d.svg e.webp; do
+  expect "$MASTODON" "/api/federation/media/c/00000000-0000-0000-0000-000000000001/$f?to=x&sig=y" "backend /media/c/00000000-0000-0000-0000-000000000001/$f?to=x&sig=y"
+done
+expect "$FIREFOX"  '/api/federation/embed-media/x/a.jpg' 'backend /embed-media/x/a.jpg'
 
 DRIVE_LINK=/d/h5KAj-hPSm5hwCpMfeKM8aZl
 log "/d/<token> routing"
@@ -150,6 +156,58 @@ expect_accept 'application/ld+json'  $PROFILE 'backend /users/fx_alice'
 expect_accept 'text/html,*/*;q=0.8'  $PROFILE 'SPA'
 expect_accept "$AP_MASTODON"         /social/profile/fx_alice@remote.example 'SPA'
 
+# expect_with <path> <first line of the body> [header...]
+expect_with() {
+  local path="$1" want="$2" got args=()
+  shift 2
+  for h in "$@"; do args+=(--header "$h"); done
+  got="$(docker exec "$CONTAINER" wget -q -O - -U "$FIREFOX" "${args[@]}" "http://127.0.0.1:8443$path" 2>/dev/null | head -1)" || true
+  if [ "$got" = "$want" ]; then
+    printf 'ok   %-40.40s %s -> %s\n' "${*:-no header}" "$path" "$got"
+  else
+    err "$* $path: expected '$want', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+APP_COOKIE='Cookie: theme=dark; harmony_app=1'
+PAGE_POST=/@fx_alice/00000000-0000-0000-0000-000000000001
+log "/@<name> and /@<name>/<post id> routing"
+for p in /@fx_alice /@fx_alice/ '/@fx_alice?before=00000000-0000-0000-0000-000000000001' $PAGE_POST /@fx_alice@remote.example; do
+  expect_with "$p" "backend $p"
+  expect_with "$p" 'SPA' "$APP_COOKIE"
+  expect_with "$p" "backend $p" 'Accept: application/activity+json'
+  expect_with "$p" "backend $p" "Accept: $AP_MASTODON" "$APP_COOKIE"
+done
+expect_with /@fx_alice 'backend /@fx_alice' 'Cookie: harmony_app=0'
+expect_with /@fx_alice 'backend /@fx_alice' 'Cookie: not_harmony_app=1'
+expect "$DISCORD" /@fx_alice 'backend /@fx_alice'
+expect_with /@fx_alice/a/b 'SPA'
+expect_with /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001' "$APP_COOKIE"
+# A browser at an actor id goes to its public page.
+expect_with /users/fx_alice 'backend /@fx_alice'
+expect_with /users/fx_alice 'SPA' "$APP_COOKIE"
+expect_with /users/fx_alice 'backend /users/fx_alice' 'Accept: application/activity+json'
+
+# The SPA answer for /@<name> is not shared-cacheable and keeps the server-level headers; the
+# backend's keeps its own Cache-Control alone.
+headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" --header "$APP_COOKIE" http://127.0.0.1:8443/@fx_alice 2>&1 || true)"
+for h in 'Vary: Accept, Cookie' 'Cache-Control: private, no-cache' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
+  if grep -qi "$h" <<<"$headers"; then
+    printf 'ok   SPA answer for /@<name> carries %s\n' "$h"
+  else
+    err "SPA answer for /@fx_alice lacks $h"
+    FAILED=$((FAILED + 1))
+  fi
+done
+headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" http://127.0.0.1:8443/posts/00000000-0000-0000-0000-000000000001 2>&1 || true)"
+if grep -qi 'Cache-Control' <<<"$headers"; then
+  err "/posts/<id> answer carries a Cache-Control the backend did not send"
+  FAILED=$((FAILED + 1))
+else
+  printf 'ok   /posts/<id> answer carries no Cache-Control of its own\n'
+fi
+
 # The SPA answer varies by User-Agent and keeps the server-level headers.
 headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" http://127.0.0.1:8443/invite/ABCD1234 2>&1 || true)"
 for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
@@ -181,4 +239,4 @@ else
 fi
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name> and the ActivityPub-only paths"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name>, /@<name> and the ActivityPub-only paths"

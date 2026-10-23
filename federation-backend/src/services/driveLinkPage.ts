@@ -1,10 +1,11 @@
 /**
- * Link-preview page of a Drive file shared by link, /d/:token. Link-preview crawlers reach it
+ * Link-preview page of a Drive file's address, /d/:token. Link-preview crawlers reach it
  * through the reverse proxy's User-Agent map; people get the SPA at the same URL.
  *
- * It shows what the link shows anyone: the file's name and type, and for a raster image a
- * thumbnail through the link route. public.drive_link_resolve answers a live link (unexpired,
- * file in Drive, link sharing on); anything else gets a page with no file metadata.
+ * It shows what the public page shows anyone: the file's name and type, and for a raster image
+ * a thumbnail through the link route; never the owner. public.drive_link_resolve answers only
+ * while the file's general access is "Anyone with the link" (live link share, file in Drive,
+ * link sharing on); a restricted, expired or unknown token gets a page with no file metadata.
  */
 
 import config from '../config/index.js';
@@ -14,7 +15,7 @@ import { logger } from '../utils/logger.js';
 import { LINK_THUMBNAIL_TYPES } from '../utils/privateMedia.js';
 import { THEME_COLOR, truncate } from './invitePageRenderer.js';
 
-/** drive_link_create tokens: base64url of 18 random bytes. Same bounds as routes/driveLink.ts. */
+/** drive_files.link_token: base64url of 18 random bytes. Same bounds as routes/driveLink.ts. */
 export const DRIVE_LINK_TOKEN = /^[A-Za-z0-9_-]{16,64}$/;
 
 
@@ -175,8 +176,8 @@ export function renderDriveLinkPage(preview: DriveLinkPreview): string {
 }
 
 /**
- * Expired, revoked, unknown or malformed link and link sharing off ('invalid'), or a failed
- * lookup ('unavailable'): no OpenGraph tags at all, so an unfurler shows the bare URL.
+ * Restricted, expired, reset, unknown or malformed token and link sharing off ('invalid'), or a
+ * failed lookup ('unavailable'): no OpenGraph tags at all, so an unfurler shows the bare URL.
  */
 export function renderDriveLinkUnavailablePage(reason: 'invalid' | 'unavailable'): string {
   const [heading, text] = reason === 'invalid'

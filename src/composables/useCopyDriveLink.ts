@@ -1,14 +1,14 @@
 import { useToast } from 'vue-toastification'
 import { useT } from '@/composables/useT'
-import { driveFileUrl } from '@/services/drive/driveLinks'
+import { driveTokenUrl } from '@/services/drive/driveLinks'
 
-/** Copies a file's /drive/file/<id> address and says so. False when the clipboard refused. */
-export function useCopyDriveLink(): (fileId: string) => Promise<boolean> {
+/** Copies a file's /d/<token> address and says so. False when the clipboard refused. */
+export function useCopyDriveLink(): (token: string) => Promise<boolean> {
   const toast = useToast()
   const { t } = useT()
-  return async (fileId: string) => {
+  return async (token: string) => {
     try {
-      await navigator.clipboard.writeText(driveFileUrl(fileId))
+      await navigator.clipboard.writeText(driveTokenUrl(token))
       toast.success(t('drive.toast.linkCopied'))
       return true
     } catch {

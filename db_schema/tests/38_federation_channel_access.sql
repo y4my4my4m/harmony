@@ -63,7 +63,7 @@ VALUES
   ('f3810000-0000-0000-0000-000000000005', 'rb',  'rb',  'remote.test', 'https://remote.test/users/rb',  'https://remote.test/inbox', false, false),
   ('f3810000-0000-0000-0000-000000000006', 'rbs', 'rbs', 'remote.test', 'https://remote.test/users/rbs', 'https://remote.test/inbox', false, false),
   ('f3810000-0000-0000-0000-000000000007', 'rx',  'rx',  'remote.test', 'https://remote.test/users/rx',  'https://remote.test/inbox', false, true),
-  ('f3810000-0000-0000-0000-000000000008', 'lm',  'lm',  'local.test',  'https://local.test/users/lm',   NULL,                        true,  false);
+  ('f3810000-0000-0000-0000-000000000008', 'lmx', 'lm',  'local.test',  'https://local.test/users/lmx',  NULL,                        true,  false);
 
 -- Federated: a server with federation off reads as closed (166_federation_off_closes_group.sql).
 INSERT INTO public.servers (id, name, owner, public, federation_enabled) VALUES
@@ -127,7 +127,7 @@ SELECT a.actor, g.*
                ('rb',   'https://remote.test/users/rb'),
                ('rbs',  'https://remote.test/users/rbs'),
                ('rx',   'https://remote.test/users/rx'),
-               ('lm',   'https://local.test/users/lm')) a(actor, ap_id)
+               ('lm',   'https://local.test/users/lmx')) a(actor, ap_id)
   CROSS JOIN LATERAL public.federation_group_access('f3820000-0000-0000-0000-000000000001', a.ap_id) g;
 
 -- Contracts -----------------------------------------------------------------------------

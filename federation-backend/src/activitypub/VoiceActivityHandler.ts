@@ -22,6 +22,7 @@ import { remoteServerHosts, type ChannelWriteServer } from './channelWriteAuthz.
 import { copyOfGroup, processVoiceMemberActivity, VOICE_MEMBER_TYPES } from './voiceModerationFederation.js';
 import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 import type { 
   VoiceCallInvite, 
   VoiceCallAccept, 
@@ -36,8 +37,7 @@ import type {
 
 // CONSTANTS
 
-// Harmony ActivityPub context extension for voice
-export const HARMONY_VOICE_CONTEXT = 'https://harmony.social/ns/voice';
+export const HARMONY_VOICE_CONTEXT = HARMONY_CONTEXT;
 
 // Voice activity type prefixes
 export const HARMONY_VOICE_TYPES = {

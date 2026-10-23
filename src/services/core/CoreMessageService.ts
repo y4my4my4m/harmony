@@ -64,6 +64,8 @@ export interface SendOptions {
 
 export class CoreMessageService {
   private static instance: CoreMessageService
+  /** Remote channels whose newest page the host was asked for this session. */
+  private remoteRefreshed = new Set<string>()
   
   static getInstance(): CoreMessageService {
     if (!this.instance) {
@@ -962,9 +964,9 @@ export class CoreMessageService {
   ): Promise<Message[]> {
     const { limit = 50, before } = options
 
-    // Local DB first: AP federation inserts structured content that preserves
-    // custom emojis. The remote API re-parses HTML and loses that structure.
-    // Remote fetch happens only when the local DB has nothing.
+    // Local DB first: rows cached by delivery and by earlier reads of the host.
+    // The host is read here only when the cache has nothing; otherwise
+    // refreshRemoteChannel asks it once per session.
     const localMessages = await this.loadCachedRemoteMessages(channelId, options)
     if (localMessages.length > 0) {
       debug.log(`Using ${localMessages.length} locally-synced messages for remote channel (AP federation)`)
@@ -982,39 +984,9 @@ export class CoreMessageService {
     }
 
     try {
-      const params = new URLSearchParams()
-      params.append('limit', String(limit))
-      if (before) params.append('before', before)
-
-      // The federation backend proxies to the remote instance, so latency is
-      // unbounded; 10s cap keeps a dead remote from hanging the channel.
-      // AbortSignal.any is absent from the TS lib in use, hence the cast and
-      // feature test.
-      const timeoutSignal = AbortSignal.timeout(10000)
-      const abortSignalAny: ((signals: AbortSignal[]) => AbortSignal) | undefined = (AbortSignal as any).any
-      const signal = options.signal && abortSignalAny
-        ? abortSignalAny([options.signal, timeoutSignal])
-        : timeoutSignal
-
-      // The backend signs the remote fetch as the requesting member; it
-      // answers 401 without a session.
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) return []
-
-      const response = await fetch(apiUrl(`/api/federation/channels/${channelId}/messages?${params}`), {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        signal,
-      })
-
-      if (!response.ok) {
-        debug.warn(`Failed to fetch remote messages: ${response.status}`)
-        return []
-      }
-
-      const data = await response.json()
+      const data = await this.fetchRemoteChannelPage(channelId, { limit, before, signal: options.signal })
+      if (!data) return []
+      if (!before) this.remoteRefreshed.add(channelId)
       const remoteMessages = data.messages || []
 
       debug.log(`Fetched ${remoteMessages.length} messages from remote channel (source: ${data.source})`)
@@ -1074,6 +1046,67 @@ export class CoreMessageService {
     } catch (error) {
       debug.error('Failed to fetch remote channel messages:', error)
       return []
+    }
+  }
+
+  /**
+   * The host's newest page of a remote channel through the federation backend, which caches
+   * its rows here. Null without a session or on failure.
+   */
+  private async fetchRemoteChannelPage(
+    channelId: string,
+    options: { limit?: number; before?: string; signal?: AbortSignal } = {}
+  ): Promise<{ messages?: any[]; source?: string; changed?: number } | null> {
+    const params = new URLSearchParams()
+    params.append('limit', String(options.limit ?? 50))
+    if (options.before) params.append('before', options.before)
+
+    // The federation backend proxies to the remote instance, so latency is
+    // unbounded; 10s cap keeps a dead remote from hanging the channel.
+    // AbortSignal.any is absent from the TS lib in use, hence the cast and
+    // feature test.
+    const timeoutSignal = AbortSignal.timeout(10000)
+    const abortSignalAny: ((signals: AbortSignal[]) => AbortSignal) | undefined = (AbortSignal as any).any
+    const signal = options.signal && abortSignalAny
+      ? abortSignalAny([options.signal, timeoutSignal])
+      : timeoutSignal
+
+    // The backend signs the remote fetch as the requesting member; it
+    // answers 401 without a session.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return null
+
+    const response = await fetch(apiUrl(`/api/federation/channels/${channelId}/messages?${params}`), {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      signal,
+    })
+    if (!response.ok) {
+      debug.warn(`Failed to fetch remote messages: ${response.status}`)
+      return null
+    }
+    return await response.json()
+  }
+
+  /**
+   * Asks the host for a remote channel's newest page once per session, after the cached rows
+   * are shown. The backend inserts rows the cache lacks and completes rows cached without
+   * their files (hosts before 1.8.12 served text only). True when any row changed.
+   */
+  async refreshRemoteChannel(channelId: string): Promise<boolean> {
+    if (this.remoteRefreshed.has(channelId)) return false
+    this.remoteRefreshed.add(channelId)
+    try {
+      const data = await this.fetchRemoteChannelPage(channelId)
+      // No answer from the host: the next open asks again.
+      if (data?.source !== 'remote') this.remoteRefreshed.delete(channelId)
+      return data?.source === 'remote' && (data.changed ?? 0) > 0
+    } catch (error) {
+      debug.warn('Remote channel refresh failed:', error)
+      this.remoteRefreshed.delete(channelId)
+      return false
     }
   }
 

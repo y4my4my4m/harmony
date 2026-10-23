@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 
 const drive = vi.hoisted(() => ({
   driveAvailable: vi.fn(async () => true),
+  getDriveFileCard: vi.fn(),
   getDriveShareGap: vi.fn(),
   shareDriveFile: vi.fn(async () => ({})),
   setDriveTemporary: vi.fn(),
@@ -120,9 +121,9 @@ const mountInput = async (props: Record<string, unknown>) => {
 
 type Wrapper = Awaited<ReturnType<typeof mountInput>>
 
-const paste = async (wrapper: Wrapper) => {
+const paste = async (wrapper: Wrapper, text = link()) => {
   const event = new Event('paste', { bubbles: true }) as Event & { clipboardData: unknown }
-  event.clipboardData = { getData: () => link() }
+  event.clipboardData = { getData: () => text }
   wrapper.find('[data-testid="message-input"]').element.dispatchEvent(event)
   await flushPromises()
 }
@@ -134,6 +135,7 @@ const offerText = (wrapper: Wrapper) => wrapper.find('[data-testid="drive-share-
 beforeEach(() => {
   resetDriveShareOffers()
   drive.getDriveShareGap.mockReset()
+  drive.getDriveFileCard.mockReset()
   drive.shareDriveFile.mockClear()
   for (const key of Object.keys(names)) delete names[key]
 })
@@ -173,5 +175,19 @@ describe('MessageInput Drive share offer', () => {
     await wrapper.find('[data-testid="drive-share-offer-share"]').trigger('click')
     await flushPromises()
     expect(drive.shareDriveFile.mock.calls).toEqual([[FILE, 'user', 'bob'], [FILE, 'user', 'carol']])
+  })
+
+  it('offers a pasted /d/ link of a file of the caller to the channel', async () => {
+    const token = 'h5KAj-hPSm5hwCpMfeKM8aZl'
+    drive.getDriveFileCard.mockResolvedValueOnce({ access: true, via: 'file', id: FILE, own: true })
+    drive.getDriveShareGap.mockResolvedValueOnce({ scope: 'channel', target: 'general', missing: true })
+    const wrapper = await mountInput({ channelId: 'general', channelName: 'general' })
+    await paste(wrapper, `${window.location.protocol}//${window.location.host}/d/${token}`)
+    expect(drive.getDriveFileCard).toHaveBeenCalledWith({ token })
+    expect(offerText(wrapper)).toBe('drive.offer.channel {"channel":"#general"}')
+
+    await wrapper.find('[data-testid="drive-share-offer-share"]').trigger('click')
+    await flushPromises()
+    expect(drive.shareDriveFile.mock.calls).toEqual([[FILE, 'channel', 'general']])
   })
 })

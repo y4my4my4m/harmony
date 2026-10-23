@@ -1,7 +1,7 @@
 import config from '../../config/index.js';
-import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
-import { getSupabaseClient } from '../../config/supabase.js';
+import { getFullAvatarUrl, getFullBannerUrl, getFullEmojiUrl } from '../../utils/urlUtils.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
+import { HARMONY_NS } from '../harmonyContext.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -54,7 +54,7 @@ function mentionLabel(item: any): string {
 const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** Namespace of Harmony's own actor and object extensions (`harmony:*` keys). */
-export const HARMONY_NS = 'https://har.mony.lol/ns#';
+export { HARMONY_NS };
 
 /**
  * Note @context: Mastodon's status terms, FEP-044f quotes and quote authorizations, and
@@ -102,9 +102,9 @@ export function quotePolicy(visibility: string, authorUrl: string): { canQuote: 
   return { canQuote: { automaticApproval: [allowed] } };
 }
 
-/** Human page of a local post. */
-export function postPageUrl(postId: string): string {
-  return `https://${config.INSTANCE_DOMAIN}/social/post/${postId}`;
+/** Public page of a local post (publicPages/routes.ts), its Note's `url`. */
+export function postPageUrl(postId: string, username: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/@${username}/${postId}`;
 }
 
 /**
@@ -170,7 +170,7 @@ export function postToNote(
     type: 'Note',
     attributedTo: authorUrl,
     published: post.created_at,
-    url: post.id ? postPageUrl(post.id) : postUrl,
+    url: post.id && author.username ? postPageUrl(post.id, author.username) : postUrl,
     content,
     to: toAddresses,
     cc: ccAddresses,
@@ -281,9 +281,9 @@ export const ACTOR_CONTEXT = {
   ...ACCOUNT_MIGRATION_CONTEXT,
 };
 
-/** The account's page in the web app, its actor `url` and WebFinger profile page. */
+/** The account's public page (publicPages/routes.ts), its actor `url` and WebFinger profile page. */
 export function profilePageUrl(username: string): string {
-  return `https://${config.INSTANCE_DOMAIN}/social/profile/${username}`;
+  return `https://${config.INSTANCE_DOMAIN}/@${username}`;
 }
 
 /**
@@ -434,17 +434,10 @@ export function profileToActor(profile: any): any {
 
   // Harmony extension: custom status (Discord-style status)
   if (customStatusData) {
-    // Ensure emoji_url is absolute for federation
+    // A storage path becomes the public URL: getPublicUrl alone names SUPABASE_URL's host,
+    // the internal http://supabase-kong:8000 on self-host.
     if (customStatusData.emoji_url && typeof customStatusData.emoji_url === 'string') {
-      // If it's already absolute, keep it; otherwise convert to absolute
-      if (!customStatusData.emoji_url.startsWith('http://') && !customStatusData.emoji_url.startsWith('https://')) {
-        // Relative path - convert to full Supabase URL
-        const supabase = getSupabaseClient();
-        const { data } = supabase.storage
-          .from('emojis')
-          .getPublicUrl(customStatusData.emoji_url);
-        customStatusData.emoji_url = data.publicUrl;
-      }
+      customStatusData.emoji_url = getFullEmojiUrl(customStatusData.emoji_url) ?? customStatusData.emoji_url;
     }
     actor['harmony:customStatus'] = customStatusData;
   }

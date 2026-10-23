@@ -65,6 +65,7 @@
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
       :encrypted-room="composerEncrypted"
+      :draft-key="draftKey"
       background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
@@ -345,7 +346,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     }
     if (command === 'kick' || command === 'ban') {
       if (props.isDM || !serverChannelStore.currentServerId) return;
-      
+      // A copy's members are moderated on its home instance.
+      if (serverChannelStore.currentServer?.is_local_server === false) return;
+
       const requiredPerm = command === 'kick' ? Permission.KICK_MEMBERS : Permission.BAN_MEMBERS;
       if (!isCurrentUserServerOwner.value && !hasCurrentUserPermission(requiredPerm)) return;
       
@@ -1272,10 +1275,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji);
           }
         } else {
-          messageContent.value += getEmojiShortcodeForInsert(emoji);
-          debug.log("Emoji added in Parent:", messageContent.value);
-          // Typing continues where the emoji went, not on the picker's button.
-          void nextTick(() => messageInputRef.value?.focusEditor());
+          // At the composer's caret, which then sits after the emoji; typing continues there.
+          const shortcode = getEmojiShortcodeForInsert(emoji);
+          if (!messageInputRef.value?.insertAtCaret(shortcode)) {
+            messageContent.value += shortcode;
+            void nextTick(() => messageInputRef.value?.focusEditor());
+          }
 
           if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(

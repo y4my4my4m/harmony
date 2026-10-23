@@ -33,7 +33,7 @@ export const QUOTE_ACTIVITY_CONTEXT = [
   },
 ];
 
-/** Id of a local post named by its AP id (`/posts/<uuid>`) or page (`/social/post/<uuid>`). */
+/** Id of a local post named by its AP id (`/posts/<uuid>`) or a page (`/@<name>/<uuid>`, `/social/post/<uuid>`). */
 export function localPostIdFromUri(uri: unknown): string | null {
   if (typeof uri !== 'string') return null;
   let url: URL;
@@ -43,7 +43,7 @@ export function localPostIdFromUri(uri: unknown): string | null {
     return null;
   }
   if (url.host.toLowerCase() !== String(config.INSTANCE_DOMAIN).toLowerCase()) return null;
-  const m = url.pathname.match(/^\/(?:posts|social\/post)\/([0-9a-f-]{36})\/?$/i);
+  const m = url.pathname.match(/^\/(?:posts|social\/post|@[A-Za-z0-9_]+)\/([0-9a-f-]{36})\/?$/i);
   return m && UUID_RE.test(m[1]) ? m[1].toLowerCase() : null;
 }
 

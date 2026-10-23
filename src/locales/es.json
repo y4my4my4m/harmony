@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "Banner del servidor en el diálogo de invitación",
       "inviteBannerBgDesc": "Muestra un banner del servidor desenfocado y oscurecido detrás del diálogo de invitación cuando el servidor tiene uno.",
       "quickReact": "Reacción rápida",
-      "quickReactEnable": "Doble toque para reaccionar rápido",
-      "quickReactEnableDesc": "Toca dos veces (móvil) o haz doble clic (escritorio) en un mensaje para reaccionar al instante con el emoji que elijas.",
       "quickReactEmoji": "Emoji de reacción rápida",
-      "quickReactEmojiDesc": "El emoji que se aplica cuando tocas dos veces un mensaje.",
+      "quickReactEmojiDesc": "El emoji con el que reacciona un doble clic o un doble toque.",
       "changesReset": "Cambios de apariencia restablecidos",
       "saved": "Apariencia guardada",
       "editLivePreview": "Editar en vista previa en vivo",
@@ -1679,6 +1677,21 @@
         "imported": "Tema importado",
         "invalidFile": "Archivo de tema no válido",
         "themeSaved": "«{name}» guardado"
+      },
+      "quickReactHelp": "Se guarda en este dispositivo. Cada uno de tus dispositivos tiene su propia configuración.",
+      "quickReactDoubleClick": "Doble clic para reaccionar",
+      "quickReactDoubleClickDesc": "Con ratón o trackpad: haz doble clic en un espacio vacío de un mensaje para reaccionar con tu emoji de reacción rápida.",
+      "quickReactDoubleTap": "Doble toque para reaccionar",
+      "quickReactDoubleTapDesc": "En una pantalla táctil: toca dos veces un mensaje para reaccionar con tu emoji de reacción rápida.",
+      "sync": {
+        "title": "Sincronizar la apariencia entre dispositivos",
+        "onDesc": "El tema, los colores, la skin, la fuente, el tamaño de fuente, el zoom, el modo compacto y el contraste son iguales en todos los dispositivos con la sincronización activada.",
+        "offDesc": "Este dispositivo conserva su propio tema, colores, skin, fuente, tamaño de fuente, zoom, modo compacto y contraste. Tus otros dispositivos no cambian.",
+        "adoptLegend": "¿Qué apariencia debe usar la sincronización?",
+        "adoptAccount": "La de tus otros dispositivos",
+        "adoptAccountDesc": "Este dispositivo pasa a usarla.",
+        "adoptDevice": "La de este dispositivo",
+        "adoptDeviceDesc": "Tus otros dispositivos con la sincronización activada la usarán la próxima vez que abran Harmony."
       }
     },
     "voice": {
@@ -2761,7 +2774,24 @@
       "reactionsFetched": "Se obtuvo {count} reacción | Se obtuvieron {count} reacciones",
       "reactionsFetchFailed": "No se pudieron obtener las reacciones",
       "loadFailed": "No se pudo cargar la publicación",
-      "replyPosted": "Respuesta publicada"
+      "replyPosted": "Respuesta publicada",
+      "inConversation": "{count} publicación en esta conversación | {count} publicaciones en esta conversación",
+      "fullConversation": "Ver la conversación completa"
+    },
+    "quoteA11y": {
+      "openPost": "Publicación citada de {name}, {time}",
+      "openPostNoAuthor": "Publicación citada, {time}"
+    },
+    "interactionsList": {
+      "title": "Favoritos e impulsos",
+      "favorites": "Favoritos",
+      "boosts": "Impulsos",
+      "statLabel": "{stat}, ver quién",
+      "emptyFavorites": "Nadie ha marcado esta publicación como favorita todavía.",
+      "emptyBoosts": "Nadie ha impulsado esta publicación todavía.",
+      "moreElsewhere": "{count} cuenta más en otro servidor no aparece aquí. | {count} cuentas más en otros servidores no aparecen aquí.",
+      "onlyElsewhere": "{count} cuenta en otro servidor no aparece aquí. | {count} cuentas en otros servidores no aparecen aquí.",
+      "loadFailed": "No se pudo cargar esta lista."
     }
   },
   "moderation": {
@@ -2854,6 +2884,24 @@
         "day": "Últimas 24 horas",
         "week": "Últimos 7 días"
       }
+    },
+    "reportDialog": {
+      "goesTo": "Va al equipo de {instance}.",
+      "alsoToServer": "Enviar también a los moderadores de {server} en {host}",
+      "alsoToServerHint": "Ven lo que reportaste y tu nota, no quién eres.",
+      "goesToServer": "Va al equipo de {instance} y a los moderadores de {server}."
+    },
+    "serverReport": {
+      "sent": "También enviado a los moderadores de {server} en {host}",
+      "pending": "Enviándose a los moderadores de {server} en {host}",
+      "failed": "No se pudo contactar con los moderadores de {server} en {host}",
+      "outcome": {
+        "resolved": "Se tomaron medidas",
+        "dismissed": "Descartado"
+      },
+      "moderators": "Moderadores de {server}",
+      "outcomeBy": "Moderadores de {server}: {outcome}",
+      "reviewedTitle": "Los moderadores de {server} revisaron tu denuncia"
     }
   },
   "files": {
@@ -3252,7 +3300,10 @@
       "banTitle": "Se te prohibió el acceso a {name}",
       "reason": "Motivo indicado: {reason}",
       "noReason": "No se indicó ningún motivo.",
-      "short": "Eliminado del servidor"
+      "short": "Eliminado del servidor",
+      "staffKickTitle": "El equipo de {instance} te eliminó de {name}.",
+      "staffBanTitle": "El equipo de {instance} te vetó en {name}.",
+      "suspended": "Tu cuenta está suspendida en {instance}."
     },
     "closedBanner": {
       "title": "{name} dejó de aceptar miembros de otras instancias",
@@ -3362,15 +3413,13 @@
     "pageNotFound": "Página no encontrada",
     "goBack": "Volver",
     "goHome": "Ir al inicio",
-    "quickNavigation": "Navegación rápida:",
-    "joinHarmony": "Unirse a Harmony",
-    "signInPrompt": "Inicia sesión para acceder a todas las funciones y conectar con la comunidad.",
     "backToSocial": "Volver a Social",
     "backToChat": "Volver al chat",
     "socialNotFound": "Este contenido social no existe o ha sido eliminado.",
     "chatNotFound": "Este chat o conversación no existe o no tienes acceso a él.",
     "settingsNotFound": "Esta página de configuración no existe.",
-    "defaultNotFound": "La página que buscas no existe o ha sido movida."
+    "defaultNotFound": "La página que buscas no existe o ha sido movida.",
+    "requestedAddress": "Dirección solicitada"
   },
   "onboarding": {
     "title": "Configura tu perfil",
@@ -4343,7 +4392,9 @@
       "bot_add": "{actor} añadió el bot {target}",
       "bot_update": "{actor} cambió los permisos del bot {target}",
       "bot_remove": "{actor} quitó el bot {target}",
-      "unknown": "{actor}: {action}"
+      "unknown": "{actor}: {action}",
+      "server_suspend": "{actor} suspendió el servidor",
+      "server_unsuspend": "{actor} levantó la suspensión del servidor"
     },
     "fields": {
       "name": "Nombre",
@@ -5020,18 +5071,52 @@
       "limitReasonPrompt": "Motivo para limitar {domain}:",
       "limitApplied": "{domain} limitado",
       "limitLifted": "Se levantó el límite de {domain}",
-      "limitFailed": "No se pudo cambiar el límite del dominio"
+      "limitFailed": "No se pudo cambiar el límite del dominio",
+      "ignoreReports": "Ignorar los reportes de este dominio",
+      "acceptReports": "Volver a aceptar los reportes de este dominio",
+      "reportsIgnored": "Reportes ignorados",
+      "ignoreReportsConfirmTitle": "¿Ignorar los reportes de {domain}?",
+      "ignoreReportsConfirmBody": "Los reportes enviados desde {domain} se descartarán a partir de ahora. Los reportes ya recibidos siguen en la cola, y nada cambia para {domain}.",
+      "reportsIgnoredToast": "Se ignoran los reportes de {domain}",
+      "reportsAcceptedToast": "Se vuelven a aceptar los reportes de {domain}",
+      "reportsFailed": "No se pudo cambiar cómo se tratan los reportes de este dominio"
     },
     "instance": {
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
       "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otros servidores que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",
-      "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan."
+      "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan.",
+      "publicProfilePages": "Mostrar perfiles y publicaciones públicas a visitantes sin sesión iniciada",
+      "publicProfilePagesHint": "Si está desactivado, los visitantes van a iniciar sesión. Las vistas previas de enlaces y la federación no cambian."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Máximo de reacciones por persona en una publicación",
         "maxPersonalEmojisPerUser": "Emojis personales por usuario"
+      },
+      "staff": {
+        "someServer": "un servidor",
+        "someone": "alguien",
+        "reason": "Motivo: {reason}",
+        "memberRemoved": "Eliminó a {person} de {server}",
+        "memberBanned": "Vetó a {person} en {server}",
+        "messageRemovedBy": "Eliminó un mensaje de {person} en {server}",
+        "messageRemoved": "Eliminó un mensaje en {server}",
+        "serverSuspended": "Suspendió {server}",
+        "serverUnsuspended": "Levantó la suspensión de {server}",
+        "serverDeleted": "Eliminó {server}",
+        "serverDeletedOwned": "Eliminó {server}, propiedad de {person}",
+        "serverBlocked": "Bloqueó {server} en {instance}",
+        "peopleLeft": "{count} persona de {instance} lo abandonó | {count} personas de {instance} lo abandonaron",
+        "serverUnblocked": "Volvió a permitir {server} en {instance}",
+        "mediaHidden": "Ocultó el contenido multimedia de {server} en {instance}",
+        "mediaShown": "Volvió a mostrar el contenido multimedia de {server} en {instance}",
+        "removedHere": "Eliminó a {person} de {server} en {instance}",
+        "removedHereKeptOut": "Eliminó a {person} de {server} en {instance} y lo mantuvo fuera",
+        "keptOutHere": "Mantuvo a {person} fuera de {server} en {instance}",
+        "keepoutLifted": "Permitió que {person} vuelva a unirse a {server} desde {instance}",
+        "reportsRejected": "Ignoró los informes de {domain}",
+        "reportsAccepted": "Volvió a aceptar los informes de {domain}"
       }
     },
     "antiSpam": {
@@ -6796,9 +6881,6 @@
       "title": "Compartir",
       "linkTitle": "Cualquiera con el enlace",
       "linkOn": "Cualquiera con el enlace puede verlo y descargarlo.",
-      "linkOff": "Solo las personas de abajo y los lugares donde lo enviaste.",
-      "copy": "Copiar",
-      "copied": "Copiado",
       "expires": "El enlace caduca",
       "never": "Nunca",
       "days": "En {count} día | En {count} días",
@@ -6823,9 +6905,17 @@
         "channel": "Canal",
         "link": "Enlace"
       },
-      "accessLinkTitle": "Enlace para quienes tienen acceso",
       "accessLinkHint": "Solo se abre para quienes ya pueden ver este archivo.",
-      "publicLinkLabel": "Enlace público, se abre para cualquiera"
+      "linkHeading": "Enlace",
+      "linkLabel": "Enlace a este archivo",
+      "generalAccess": "Acceso general",
+      "accessRestricted": "Restringido",
+      "showOwner": "Mostrar mi nombre en la página del enlace",
+      "showOwnerHint": "Quien abra el enlace verá tu nombre y podrá abrir tu perfil.",
+      "resetLink": "Restablecer enlace",
+      "resetTitle": "¿Restablecer el enlace?",
+      "resetText": "El enlace actual deja de funcionar para todos, también donde ya se publicó. Quienes pueden ver el archivo pueden copiar el enlace nuevo.",
+      "until": "Hasta el {date}"
     },
     "preview": {
       "previous": "Archivo anterior",
@@ -6866,7 +6956,7 @@
       "missingText": "Caducó o su propietario dejó de compartir el archivo.",
       "sharedBy": "Compartido por {name}",
       "expires": "El enlace caduca {date}",
-      "footer": "Compartido desde {instance}"
+      "poweredBy": "Con la tecnología de {harmony} en {instance}"
     },
     "card": {
       "restrictedTitle": "Archivo restringido",
@@ -6874,7 +6964,6 @@
       "gone": "Este archivo ya no está disponible.",
       "view": "Ver {name}",
       "play": "Reproducir {name}",
-      "open": "Abrir {name}",
       "download": "Descargar {name}"
     },
     "filePage": {
@@ -6886,7 +6975,8 @@
       "retry": "Reintentar",
       "yours": "Tu archivo",
       "ownedBy": "Propiedad de {name}",
-      "trashed": "En tu papelera. Solo tú puedes abrirlo."
+      "trashed": "En tu papelera. Solo tú puedes abrirlo.",
+      "openInDrive": "Abrir en Drive"
     },
     "offer": {
       "channel": "Las personas de {channel} no pueden abrir este archivo. ¿Compartirlo con el canal?",
@@ -6897,6 +6987,10 @@
       "share": "Compartir",
       "sendAnyway": "Enviar de todos modos",
       "shared": "Archivo compartido"
+    },
+    "attachment": {
+      "openInDrive": "Abrir en Drive",
+      "openNamedInDrive": "Abrir {name} en Drive"
     }
   },
   "support": {
@@ -6932,5 +7026,213 @@
     "openProfile": "Abrir perfil",
     "home": "Ir al inicio",
     "followFailed": "No se guardó el seguimiento."
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "Alojado en {host}",
+      "body": "Su propietario y sus moderadores lo gestionan allí. Los ajustes de aquí solo cambian lo que ves.",
+      "unknownHost": "otra instancia",
+      "bodyHost": "Su propietario y sus moderadores lo gestionan allí."
+    },
+    "owner": {
+      "label": "Propietario",
+      "unknown": "Desconocido"
+    },
+    "hide": {
+      "action": "Ocultar en {instance}",
+      "confirm": "¿Ocultar este mensaje para todos en {instance}? Seguirá en {host} y para todos los demás.",
+      "button": "Ocultar"
+    }
+  },
+  "hostStaff": {
+    "tab": "Servidores",
+    "title": "Servidores alojados aquí",
+    "intro": "Confianza y seguridad para los servidores de {instance}. Actúas como el equipo de {instance}, no como moderador de un servidor, y cada acción queda registrada en el registro de auditoría del servidor, que ven su propietario y sus moderadores.",
+    "staffBadge": "Equipo de {instance}",
+    "search": "Buscar por nombre, propietario o ID",
+    "filterAll": "Todos",
+    "filterSuspended": "Suspendidos",
+    "empty": "Aún no hay servidores alojados aquí.",
+    "emptySearch": "Ningún servidor coincide.",
+    "loadError": "No se pudo cargar.",
+    "owner": "Propietario",
+    "noOwner": "ninguno",
+    "members": "{count} miembro | {count} miembros",
+    "remoteMembers": "{count} de otras instancias",
+    "suspendedBadge": "Suspendido",
+    "suspendedBy": "Suspendido por {name}",
+    "suspendedReason": "Motivo: {reason}",
+    "suspendedBanner": "El equipo de {instance} suspendió este servidor.",
+    "open": "Abrir",
+    "back": "Todos los servidores",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "loadMore": "Cargar más",
+    "tabs": {
+      "members": "Miembros",
+      "messages": "Mensajes"
+    },
+    "membersSearch": "Buscar miembros",
+    "ownerBadge": "Propietario",
+    "instanceStaffBadge": "Equipo de la instancia",
+    "pending": "Pendiente",
+    "noMembers": "Ningún miembro coincide.",
+    "viewMessages": "Mensajes",
+    "channel": "Canal",
+    "allChannels": "Todos los canales",
+    "byAuthor": "De {name}",
+    "clearAuthor": "Mostrar los mensajes de todos",
+    "noMessages": "No hay mensajes.",
+    "encrypted": "Cifrado de extremo a extremo: el contenido no se puede mostrar.",
+    "actions": {
+      "removeMember": "Eliminar miembro",
+      "banMember": "Vetar miembro",
+      "removeMessage": "Eliminar mensaje",
+      "suspendServer": "Suspender servidor",
+      "unsuspendServer": "Levantar suspensión",
+      "deleteServer": "Eliminar servidor"
+    },
+    "confirm": {
+      "asStaff": "Actúas como el equipo de {instance}, no como moderador de {server}.",
+      "recorded": "Queda en el registro de auditoría de {server} como acción del equipo de {instance}.",
+      "recordedInstance": "Queda en el registro de moderación de {instance}. El registro de auditoría del servidor se elimina con él.",
+      "reason": "Motivo (opcional)",
+      "reasonHintAudit": "El propietario y los moderadores de {server} lo ven en el registro de auditoría.",
+      "reasonHintBanner": "Los miembros lo ven en el aviso.",
+      "reasonHintLog": "Se guarda en el registro de moderación de {instance}.",
+      "removeMember": {
+        "title": "¿Eliminar a {name} de {server} como equipo de {instance}?",
+        "leaves": "{name} sale de {server}. Puede volver a unirse.",
+        "remote": "Su instancia, {domain}, recibe el aviso de que el equipo de {instance} lo eliminó."
+      },
+      "banMember": {
+        "title": "¿Vetar a {name} en {server} como equipo de {instance}?",
+        "leaves": "{name} sale de {server} y no puede volver a unirse hasta que los moderadores del servidor levanten el veto.",
+        "remote": "Su instancia, {domain}, recibe el aviso de que el equipo de {instance} lo vetó."
+      },
+      "removeMessage": {
+        "title": "¿Eliminar este mensaje de {server} como equipo de {instance}?",
+        "everyone": "Se elimina para todos, en {instance} y en otras instancias."
+      },
+      "suspend": {
+        "title": "¿Suspender {server} como equipo de {instance}?",
+        "frozen": "Nadie puede publicar mensajes nuevos ni unirse hasta que se levante la suspensión.",
+        "banner": "Sus miembros pueden seguir leyendo y ven este aviso: «{banner}»"
+      },
+      "unsuspend": {
+        "title": "¿Levantar la suspensión de {server}?",
+        "open": "Los miembros pueden volver a publicar y unirse."
+      },
+      "delete": {
+        "title": "¿Eliminar {server} como equipo de {instance}?",
+        "gone": "El servidor, sus canales y todos sus mensajes se eliminan para todos. No se puede deshacer.",
+        "members": "Su {count} miembro pierde el acceso. | Sus {count} miembros pierden el acceso.",
+        "remote": "Los miembros de otras instancias no reciben aviso; el servidor deja de actualizarse para ellos.",
+        "typeName": "Escribe el nombre del servidor para confirmar"
+      }
+    },
+    "done": {
+      "removeMember": "{name} fue eliminado de {server}.",
+      "banMember": "{name} fue vetado en {server}.",
+      "removeMessage": "El mensaje se eliminó.",
+      "suspend": "{server} está suspendido.",
+      "unsuspend": "{server} ya no está suspendido.",
+      "delete": "{server} se eliminó."
+    },
+    "failed": "No funcionó: {error}",
+    "auditActor": "{actor} (equipo de {instance})",
+    "systemActor": "(equipo de {instance})",
+    "audit": {
+      "cause": "Por qué",
+      "accountSuspended": "Cuenta suspendida en {instance}",
+      "domainSuspended": "{domain} suspendido en {instance}"
+    },
+    "rowAction": "{action}: {target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "En {instance}",
+      "intro": "Estas herramientas solo afectan a {instance}: lo que ve la gente de aquí y si puede participar. {server} y sus miembros en otras instancias no se ven afectados.",
+      "staffOnly": "Solo el equipo de {instance} puede usar estas herramientas.",
+      "loadFailed": "No se pudo cargar el estado de este servidor en {instance}.",
+      "notHostedElsewhere": "Estas herramientas son para servidores alojados en otras instancias.",
+      "hostedOn": "Alojado en {host}",
+      "localMembers": "Ningún miembro de {instance} | {count} miembro de {instance} | {count} miembros de {instance}",
+      "thisServer": "Este servidor"
+    },
+    "block": {
+      "heading": "Abierto en {instance}",
+      "openDescription": "La gente de {instance} puede verlo y unirse.",
+      "blockedStatus": "Bloqueado en {instance}",
+      "blockedDescription": "La gente de {instance} no puede verlo ni unirse. No ha cambiado nada para él en otras instancias.",
+      "setAt": "Desde {date}",
+      "action": "Bloquear {server} en {instance}",
+      "unblock": "Volver a permitir {server} en {instance}",
+      "unblocked": "{server} vuelve a estar permitido en {instance}. No se ha vuelto a añadir a nadie.",
+      "confirm": "Bloquear",
+      "done": "{server} está bloqueado en {instance}.",
+      "failed": "No se pudo cambiar el bloqueo.",
+      "reasonLabel": "Motivo (solo lo ve el equipo de {instance})",
+      "consequenceSee": "La gente de {instance} ya no puede verlo ni unirse.",
+      "consequenceMembers": "Nadie de {instance} es miembro. | El {count} miembro de {instance} lo abandona y se le dice por qué. | Los {count} miembros de {instance} lo abandonan y se les dice por qué.",
+      "consequenceElsewhere": "No cambia nada para {server} ni para nadie en otras instancias.",
+      "consequenceWaiting": "{count} persona de {instance} que espera unirse es rechazada y se le dice por qué. | {count} personas de {instance} que esperan unirse son rechazadas y se les dice por qué.",
+      "consequenceYou": "Esto te incluye: tú también abandonas {server}."
+    },
+    "media": {
+      "toggle": "Ocultar el contenido multimedia de {server} en {instance}",
+      "hint": "Las imágenes, vídeos y archivos de allí aparecen ocultos para todos en {instance}.",
+      "failed": "No se pudo cambiar la ocultación del contenido multimedia.",
+      "hiddenNotice": "Adjunto oculto en {instance} | {count} adjuntos ocultos en {instance}"
+    },
+    "people": {
+      "heading": "Gente de {instance}",
+      "empty": "Nadie de {instance} está en {server}.",
+      "pending": "Solicitud de unión pendiente",
+      "keptOut": "Excluido",
+      "lift": "Volver a admitir",
+      "liftLabel": "Permitir que {name} vuelva a unirse a {server} desde {instance}",
+      "lifted": "{name} puede volver a unirse a {server}.",
+      "liftFailed": "No se pudo volver a admitir a {name}.",
+      "remove": "Eliminar",
+      "removeLabel": "Eliminar a {name} de {server} en {instance}"
+    },
+    "remove": {
+      "action": "Eliminar de {server} en {instance}",
+      "confirmText": "{name} abandona {server}. Esto solo afecta a {instance}: no se avisa a los moderadores del servidor y {name} no queda vetado allí.",
+      "keepOut": "Mantenerlo fuera (no podrá volver a unirse desde {instance})",
+      "reasonLabel": "Motivo (se le mostrará a {name})",
+      "confirm": "Eliminar",
+      "done": "{name} ha abandonado {server} en {instance}.",
+      "notMember": "{name} ya no era miembro.",
+      "failed": "No se pudo eliminar a {name}."
+    },
+    "notice": {
+      "removedTitle": "El equipo de {instance} te ha eliminado de {server}.",
+      "blockedTitle": "El equipo de {instance} ha bloqueado {server} en {instance}; lo has abandonado.",
+      "blockedMessage": "No ha cambiado nada para {server} en otras instancias."
+    },
+    "join": {
+      "blocked": "El equipo de {instance} ha bloqueado este servidor en {instance}.",
+      "keptOut": "El equipo de {instance} te ha eliminado de este servidor; no puedes volver a unirte desde {instance}."
+    },
+    "dashboard": {
+      "title": "Servidores de otras instancias",
+      "description": "Servidores de chat alojados en otro lugar a los que se ha unido gente de {instance}. Bloquear uno u ocultar su contenido multimedia solo afecta a {instance}.",
+      "refresh": "Actualizar",
+      "search": "Buscar servidores",
+      "filter": "Mostrar",
+      "filterAll": "Todos los servidores",
+      "manage": "Gestionar",
+      "manageLabel": "Gestionar {server} en {instance}",
+      "empty": "Nadie de {instance} se ha unido a un servidor alojado en otro lugar.",
+      "noMatch": "Ningún servidor coincide.",
+      "loadFailed": "No se pudieron cargar los servidores de otras instancias."
+    },
+    "state": {
+      "blocked": "Bloqueado",
+      "mediaHidden": "Multimedia oculto",
+      "keptOut": "{count} excluido | {count} excluidos"
+    }
   }
 }

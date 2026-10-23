@@ -966,7 +966,16 @@ const handleFocus = (event: FocusEvent) => {
   emit('focus', event);
 };
 
+// Plain-text caret offset when the editor last lost focus: an insert made while focus is
+// elsewhere (the emoji picker) lands there.
+let blurCaret: number | null = null;
+
 const handleBlur = (event: FocusEvent) => {
+  const selection = editorSelection();
+  blurCaret = editorRef.value && selection?.rangeCount
+    && editorRef.value.contains(selection.getRangeAt(0).startContainer)
+    ? getCursorPosition()
+    : null;
   isFocused.value = false;
   keyboardFocused.value = false;
   emit('blur', event);
@@ -1021,6 +1030,44 @@ const handleCut = (event: ClipboardEvent) => {
   if (!selected || !writeTokenTextToClipboard(event, selected.text)) return;
   const full = getPlainText();
   applyEditorTextChange(full.slice(0, selected.start) + full.slice(selected.end), selected.start, selected.start);
+};
+
+/**
+ * Replaces the text, focuses the editor and puts the caret `text.length - caret` characters
+ * before the end of the rendered text: rendering shortens what precedes the caret (a local
+ * mention `@user@host` shows as `@user`), never what follows it. The caret is placed in a
+ * microtask, before the next keystroke is handled.
+ */
+const replaceText = (text: string, caret: number) => {
+  if (!editorRef.value) return;
+  const suffix = Math.max(0, text.length - caret);
+  skipNextWatch.value = true;
+  emit('update:modelValue', text);
+  editorRef.value.focus();
+  renderContent(text, true);
+  nextTick(() => {
+    const rendered = getPlainText();
+    const at = Math.max(0, rendered.length - suffix);
+    setSelectionOffsets(at, at);
+    blurCaret = at;
+    undoRedo.pushState(rendered, at);
+    autoExpand();
+  });
+};
+
+/**
+ * Inserts `text` where the caret was when the editor last had focus (at the end when it never
+ * had one), focuses the editor and puts the caret after the insert.
+ */
+const insertAtCaret = (text: string) => {
+  if (!editorRef.value) return;
+  const full = getPlainText();
+  const focused = editorRef.value.contains(editorDocument().activeElement);
+  const at = Math.min(Math.max(focused ? getCursorPosition() : blurCaret ?? full.length, 0), full.length);
+  const caret = at + text.length;
+  blurCaret = caret;
+  editorRef.value.focus();
+  applyEditorTextChange(full.slice(0, at) + text + full.slice(at), caret, caret);
 };
 
 const insertTextAtCursor = (text: string) => {
@@ -1109,6 +1156,8 @@ defineExpose({
   focus,
   clear,
   insertTextAtCursor,
+  insertAtCaret,
+  replaceText,
   getCursorPosition,
   setCursorPosition,
   getPlainText,

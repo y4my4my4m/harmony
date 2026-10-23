@@ -30,6 +30,7 @@ function mockDiscovery(rows: object[]): { selects: string[] } {
       select: (columns: string) => { seen.selects.push(columns); return chain },
       eq: () => chain,
       neq: () => chain,
+      is: () => chain,
       or: () => chain,
       order: () => chain,
       limit: async () => ({ data: rows.map(r => ({ ...r })), error: null }),

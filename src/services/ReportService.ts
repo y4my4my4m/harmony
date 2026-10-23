@@ -34,6 +34,26 @@ export interface Report {
   resolved_at: string | null
   forward: boolean
   forwarded_at: string | null
+  forward_to_server: boolean
+  server_resolution: ServerResolution | null
+  server_resolved_at: string | null
+}
+
+/** How a server's moderators settled a report sent to them: action taken, or dismissed. */
+export type ServerResolution = 'resolved' | 'dismissed'
+
+/**
+ * A report also sent to the moderators of a server hosted on another instance
+ * (get_reports_with_details.server_forward).
+ */
+export interface ServerForward {
+  server_id: string | null
+  server_name: string | null
+  host: string | null
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'skipped' | null
+  forwarded_at: string | null
+  resolution: ServerResolution | null
+  resolved_at: string | null
 }
 
 /** One row of get_reports_with_details. Reporter fields are null for server moderators. */
@@ -81,6 +101,7 @@ export interface ReportWithDetails {
   forward: boolean
   forwarded_at: string | null
   federation_status: string | null
+  server_forward: ServerForward | null
   assigned_to: string | null
   assigned_username: string | null
   resolved_at: string | null
@@ -101,6 +122,8 @@ export interface CreateReportParams {
   comment?: string
   /** Forward to the reported account's instance; ignored for a local account. */
   forward?: boolean
+  /** Also send to the moderators of the server hosting the message; ignored for a server hosted here. */
+  forward_to_server?: boolean
   /** Plaintext the reporter saw; kept only for an encrypted message. */
   evidence_text?: string
 }
@@ -129,6 +152,8 @@ class ReportService {
       p_comment: params.comment?.trim() || null,
       p_forward: params.forward === true,
       p_evidence_text: params.evidence_text ?? null,
+      // Only what the dialog showed and the reporter left checked: create_report reads NULL as true.
+      p_forward_to_server: params.forward_to_server === true,
     })
     if (error || typeof data !== 'string') {
       debug.error('Failed to create report:', error)
@@ -145,7 +170,7 @@ class ReportService {
 
       const { data, error } = await supabase
         .from('reports')
-        .select('id, created_at, updated_at, reporter_id, reported_user_id, reported_post_id, reported_message_id, reported_server_id, reason, category, comment, report_type, status, resolved_at, forward, forwarded_at')
+        .select('id, created_at, updated_at, reporter_id, reported_user_id, reported_post_id, reported_message_id, reported_server_id, reason, category, comment, report_type, status, resolved_at, forward, forwarded_at, forward_to_server, server_resolution, server_resolved_at')
         .eq('reporter_id', reporterProfileId)
         .order('created_at', { ascending: false })
 

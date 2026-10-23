@@ -388,6 +388,7 @@ export const useChatStore = defineStore('chat', {
           });
 
           debug.log(`Initial load: Cached ${merged.length} messages for channel`);
+          void this._refreshRemoteChannel(channelId);
         } else {
           debug.log(`Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
           this.messages = [...olderMessages, ...this.messages];
@@ -434,7 +435,30 @@ export const useChatStore = defineStore('chat', {
       // active subscription, so messages sent while another channel was
       // open never reached this cache. Show cache instantly, then catch up.
       void this.revalidateRecentMessages(channelId);
+      void this._refreshRemoteChannel(channelId);
       return true;
+    },
+
+    /**
+     * A remote channel's cached rows against the host's newest page, once per session
+     * (CoreMessageService.refreshRemoteChannel). When rows were added or completed, the newest
+     * page is read again: its rows replace their loaded copies and those inside the loaded
+     * span join the list, older pages and scroll kept. The channel's cache entry is dropped.
+     */
+    async _refreshRemoteChannel(channelId: string): Promise<void> {
+      if (this._knownIsRemote(channelId) !== true) return;
+      if (!(await services.messages.refreshRemoteChannel(channelId))) return;
+      this.messageCache.delete(channelId);
+      if (this.currentChannelId !== channelId) return;
+      const { messages: rows } = await services.messages.loadChannelMessages(channelId, { limit: 50, isRemote: true });
+      if (this.currentChannelId !== channelId || !rows?.length) return;
+      try { ensureMessageEmbeds(rows); } catch (e) { debug.warn('Failed to prepare embeds for refreshed rows:', e); }
+      const oldest = this.messages[0] ? new Date(this.messages[0].created_at).getTime() : -Infinity;
+      for (const row of rows) {
+        const at = this.messages.findIndex((m: Message) => m.id === row.id);
+        if (at !== -1) this.messages.splice(at, 1, row);
+        else if (!this.hasNewerMessages && new Date(row.created_at).getTime() >= oldest) this._insertMessageSorted(this.messages, row);
+      }
     },
 
     /**

@@ -13,6 +13,7 @@ import { debug } from '@/utils/debug'
 import { securityNoticeText } from '@/utils/securityNotice'
 import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
+import { getInstanceDomain } from '@/services/instanceConfig'
 
 export interface NotificationMessage {
   title: string
@@ -445,19 +446,51 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('federation.federationClosedNotice.short')
   },
 
-  // A server on another instance kicked or banned the user.
+  // A server on another instance kicked or banned the user; data.staff names the host when its
+  // instance staff did, data.action 'suspended' when they suspended the account.
   server_member_removed: {
+    title: (data: any) => {
+      const staff = typeof data.staff === 'string' && data.staff ? data.staff : null
+      const ban = data.action === 'ban'
+      if (staff) {
+        return i18n.global.t(
+          ban ? 'federation.memberRemovedNotice.staffBanTitle' : 'federation.memberRemovedNotice.staffKickTitle',
+          { name: noticeServerName(data), instance: staff })
+      }
+      return i18n.global.t(
+        ban ? 'federation.memberRemovedNotice.banTitle' : 'federation.memberRemovedNotice.kickTitle',
+        { name: noticeServerName(data) })
+    },
+    message: (data: any) => {
+      if (data.action === 'suspended' && typeof data.staff === 'string' && data.staff) {
+        return i18n.global.t('federation.memberRemovedNotice.suspended', { instance: data.staff })
+      }
+      return data.reason
+        ? i18n.global.t('federation.memberRemovedNotice.reason', { reason: data.reason })
+        : i18n.global.t('federation.memberRemovedNotice.noReason')
+    },
+    shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
+  },
+
+  // This instance's staff removed the user from a server hosted elsewhere, or blocked it here.
+  server_instance_removed: {
     title: (data: any) => i18n.global.t(
-      data.action === 'ban' ? 'federation.memberRemovedNotice.banTitle' : 'federation.memberRemovedNotice.kickTitle',
-      { name: noticeServerName(data) }),
-    message: (data: any) => data.reason
-      ? i18n.global.t('federation.memberRemovedNotice.reason', { reason: data.reason })
-      : i18n.global.t('federation.memberRemovedNotice.noReason'),
+      data.action === 'block' ? 'instanceServer.notice.blockedTitle' : 'instanceServer.notice.removedTitle',
+      { server: noticeServerName(data), instance: getInstanceDomain() }),
+    message: (data: any) => data.action === 'block'
+      ? i18n.global.t('instanceServer.notice.blockedMessage', { server: noticeServerName(data) })
+      : data.reason
+        ? i18n.global.t('federation.memberRemovedNotice.reason', { reason: data.reason })
+        : i18n.global.t('federation.memberRemovedNotice.noReason'),
     shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
   },
 
   report_update: {
     title: (data: any) => {
+      // apply_server_report_resolution: the outcome of the server's moderators; local staff still decide.
+      if (typeof data.resolved_by_server === 'string') {
+        return i18n.global.t('moderation.serverReport.reviewedTitle', { server: data.resolved_by_server })
+      }
       const status = data.status || 'updated'
       switch (status) {
         case 'investigating': return 'Your report is being reviewed'
@@ -467,6 +500,12 @@ const MESSAGE_TEMPLATES = {
       }
     },
     message: (data: any) => {
+      if (typeof data.resolved_by_server === 'string' && (data.status === 'resolved' || data.status === 'dismissed')) {
+        return i18n.global.t('moderation.serverReport.outcomeBy', {
+          server: data.resolved_by_server,
+          outcome: i18n.global.t(`moderation.serverReport.outcome.${data.status}`),
+        })
+      }
       const type = data.report_type || 'content'
       const status = data.status || 'updated'
       const note = data.resolution_note
@@ -700,6 +739,9 @@ export class NotificationFormatter {
 
     // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in
     if (notification.type === 'report_update') {
+      if (typeof data.resolved_by_server === 'string') {
+        return i18n.global.t('moderation.serverReport.moderators', { server: data.resolved_by_server })
+      }
       if (data.show_resolver && (data.resolver_display_name || data.resolver_username)) {
         return data.resolver_display_name || data.resolver_username || 'Admin/Moderator'
       }

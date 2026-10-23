@@ -24,6 +24,7 @@ import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
+import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
 
 export { clearBridgedUsersCache };
@@ -260,7 +261,7 @@ export function useAutoSuggest(
     const limit = finalConfig.maxSuggestions;
     type Ranked = { item: SuggestionItem; tier: number; len: number; kind: number; order: number };
     const ranked: Ranked[] = [];
-    const seenNames = new Set<string>();
+    const customNames = new Set<string>();
 
     const customEntries = customEmojiIndex(emojiCacheStore.resolvedEmojis, serverChannelStore.currentServerId ?? null);
     const offered = externalRestricted.value
@@ -268,7 +269,7 @@ export function useAutoSuggest(
       : customEntries;
     for (const hit of searchCustomIndex(offered, query, limit)) {
       const { emoji, serverName, name, order } = hit.item;
-      seenNames.add(name);
+      customNames.add(name);
       ranked.push({
         item: {
           id: emoji.id,
@@ -317,9 +318,10 @@ export function useAutoSuggest(
     // Unified pack: twemoji or native, per pack selection.
     if (unifiedLoaded.value && query.length >= 2) {
       for (const hit of searchEmojiHits(query, limit)) {
+        // Listed before a custom emoji of the same name, which is `name~1` in text: the bare
+        // `:name:` is the default's (emojiShortcodeResolver.customEmojiIndex).
         const emoji = hit.item.emoji;
-        // Server emoji of the same shortcode takes precedence.
-        if (hit.item.names.some(n => seenNames.has(n))) continue;
+        const sharesCustomName = hit.item.names.some(n => customNames.has(n));
 
         const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
         const shown = hit.tier <= 1 ? hit.matched : hit.item.label;
@@ -342,7 +344,7 @@ export function useAutoSuggest(
           },
           tier: hit.tier,
           len: hit.matched.length,
-          kind: 1,
+          kind: sharesCustomName ? -1 : 1,
           order: hit.item.order,
         });
       }
@@ -997,12 +999,15 @@ export function useAutoSuggest(
       if (state.value.triggerType === 'channel') {
         insertText = `#${suggestion.name} `;
       } else if (state.value.triggerType === 'emoji') {
-        // Unified emojis insert the unicode character; custom server emojis keep :shortcode:.
-        const discord = discordEmojiRefFromPicked(suggestion.emoji);
+        // Unified emojis insert the unicode character; custom emojis their shortcode, with ~N
+        // naming the Nth emoji of a shared name, as the emoji picker inserts them.
         if (suggestion.emoji?.source === 'unified' && (suggestion.native || suggestion.emoji?.native)) {
           insertText = (suggestion.native || suggestion.emoji.native) + ' ';
-        } else if (discord) {
-          insertText = `:${discordEmojiToken(discord)}: `;
+        } else if (suggestion.emoji) {
+          insertText = getEmojiShortcodeForInsert({
+            ...suggestion.emoji,
+            display_name: suggestion.display_name ?? suggestion.emoji.display_name,
+          }) + ' ';
         } else {
           insertText = `:${suggestion.name}: `;
         }

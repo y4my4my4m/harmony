@@ -98,12 +98,56 @@ describe('NotificationFormatter', () => {
       expect(ban.message).toBe('Reason given: spam')
     })
 
+    it('names the host whose instance staff removed the user, and a suspension there', () => {
+      const server = { id: 'ref', name: 'Lobby', ap_id: 'https://chat.example/servers/x' }
+      const kick = NotificationFormatter.formatNotification(makeNotification('server_member_removed', {
+        data: { server, action: 'kick', reason: 'raid', staff: 'chat.example' },
+      }))
+      expect(kick.title).toBe('You were removed from Lobby by chat.example staff.')
+      expect(kick.message).toBe('Reason given: raid')
+
+      const ban = NotificationFormatter.formatNotification(makeNotification('server_member_removed', {
+        data: { server, action: 'ban', reason: null, staff: 'chat.example' },
+      }))
+      expect(ban.title).toBe('You were banned from Lobby by chat.example staff.')
+
+      const suspended = NotificationFormatter.formatNotification(makeNotification('server_member_removed', {
+        data: { server, action: 'suspended', reason: null, staff: 'chat.example' },
+      }))
+      expect(suspended.title).toBe('You were removed from Lobby by chat.example staff.')
+      expect(suspended.message).toBe('Your account is suspended on chat.example.')
+    })
+
+    it('names this instance\'s staff for a removal from a server hosted elsewhere, and a block', () => {
+      const server = { id: 'ref', name: 'Mastodon Canada', ap_id: 'https://chat.example/servers/x' }
+      const removed = NotificationFormatter.formatNotification(makeNotification('server_instance_removed', {
+        data: { server, action: 'remove', reason: 'spam' },
+      }))
+      expect(removed.title).toBe('You were removed from Mastodon Canada by harmony.test staff.')
+      expect(removed.message).toBe('Reason given: spam')
+
+      const blocked = NotificationFormatter.formatNotification(makeNotification('server_instance_removed', {
+        data: { server, action: 'block', reason: null },
+      }))
+      expect(blocked.title).toBe('harmony.test staff blocked Mastodon Canada on harmony.test; you left it.')
+      expect(blocked.message).toBe('Nothing changed for Mastodon Canada on other instances.')
+    })
+
     it('names no moderator on a report update unless the moderator chose to', () => {
       const hidden = makeNotification('report_update', {
         data: { status: 'resolved', report_type: 'post', show_resolver: false, resolver_username: 'mod' },
       })
       expect(NotificationFormatter.formatNotification(hidden).title).toBe('Your report has been resolved')
       expect(NotificationFormatter.getAvatarUrl(hidden)).toBe('/default_avatar.webp')
+    })
+
+    it('names the server\'s moderators who settled a report sent to them', () => {
+      const notif = makeNotification('report_update', {
+        data: { status: 'dismissed', report_type: 'message', resolved_by_server: 'Elsewhere', show_resolver: false },
+      })
+      expect(NotificationFormatter.formatNotification(notif).title).toBe('Elsewhere\'s moderators reviewed your report')
+      expect(NotificationFormatter.formatNotification(notif).message).toBe('Elsewhere\'s moderators: Dismissed')
+      expect(NotificationFormatter.getUsername(notif)).toBe('Elsewhere\'s moderators')
     })
 
     it('previews an encrypted mention generically, never its stored content', () => {

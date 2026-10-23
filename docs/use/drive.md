@@ -135,10 +135,14 @@ You can share files you sent in chats or uploaded to Drive. Files of fediverse p
 
 1. Select the file and select **Share** in **Details**, or choose **Share** from its menu.
 2. In **Share**, set any of:
-   - **Anyone with the link**: turn it on to create a link, and **Copy** it. **Link expires** is **Never**, **In 1 day**, **In 7 days** or **In 30 days**.
+   - **Link**: the file's address, `https://chat.example.com/d/` followed by a code, and **Copy link**. **Copy link** in the file's menu and in **Details** copies the same address.
+   - **General access**: **Restricted** opens the link only for people who can already open the file, after they sign in. **Anyone with the link** opens it for everyone, without an account; it adds **Link expires** (**Never**, **In 1 day**, **In 7 days** or **In 30 days**) and **Show my name on the link page**, off at first.
+   - **Reset link**: gives the file a new address. The old one stops working for everyone, also where it was already posted.
    - **People and places**: type in **Add people on this instance** and pick an account, or choose a server under **Choose a server**, then **Whole server** or one of its text channels, and select **Share**. Only servers hosted on your instance are offered.
 3. Remove a share with the cross beside it.
 
 A share with a server reaches its members; a share with a channel reaches everyone who can see the channel. The people it reaches find the file under **Shared with me**.
 
-The link opens a page on your instance, `https://chat.example.com/d/` followed by a code, that needs no account. It shows the file's name and size, who shared it, the expiry, a preview of images, video and audio, and **Download**. Changing the expiry, or turning the link off and on again, creates a new link; the old one stops working. A link also stops working when it expires, when the file goes to the trash or is deleted, and while the instance has link sharing turned off. When link sharing is off, **Share** has no **Anyone with the link** section.
+Someone who can open the file sees it in Harmony at its link. While **General access** is **Anyone with the link**, everyone else sees a page that needs no account: the file's name and size, the expiry, a preview of images, video and audio, **Download**, and "Powered by Harmony on" your instance. Your name, with a link to your profile, shows only while **Show my name on the link page** is on. Link previews in other apps show the file's name and type only while the file is public.
+
+The address stays the same until you select **Reset link**. Setting **General access** back to **Restricted**, or the expiry passing, closes the public page; people who can open the file still can. The public page also closes while the file is in the trash or deleted, and while the instance has link sharing turned off, when **Anyone with the link** cannot be chosen. Links of the form `https://chat.example.com/drive/file/` followed by a code, from earlier versions, open the file's current address.

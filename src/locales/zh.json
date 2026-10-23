@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "邀请对话框中的服务器横幅",
       "inviteBannerBgDesc": "服务器有横幅时，在邀请对话框背后显示模糊、变暗的服务器横幅。",
       "quickReact": "快速反应",
-      "quickReactEnable": "双击快速反应",
-      "quickReactEnableDesc": "双击（移动端轻点两下，桌面端双击）消息，即可用您选择的表情立即添加反应。",
       "quickReactEmoji": "快速反应表情",
-      "quickReactEmojiDesc": "双击消息时使用的表情。",
+      "quickReactEmojiDesc": "双击或轻点两下时添加的表情。",
       "changesReset": "已重置外观更改",
       "saved": "外观已保存",
       "editLivePreview": "在实时预览中编辑",
@@ -1679,6 +1677,21 @@
         "imported": "主题已导入",
         "invalidFile": "无效的主题文件",
         "themeSaved": "已保存“{name}”"
+      },
+      "quickReactHelp": "保存在此设备上。每台设备各自设置。",
+      "quickReactDoubleClick": "双击回应",
+      "quickReactDoubleClickDesc": "使用鼠标或触控板：双击消息的空白处，用快速回应表情回应。",
+      "quickReactDoubleTap": "轻点两下回应",
+      "quickReactDoubleTapDesc": "在触摸屏上：轻点两下消息，用快速回应表情回应。",
+      "sync": {
+        "title": "在设备间同步外观",
+        "onDesc": "主题、颜色、皮肤、字体、字体大小、缩放、紧凑模式和对比度在所有开启同步的设备上相同。",
+        "offDesc": "此设备保留自己的主题、颜色、皮肤、字体、字体大小、缩放、紧凑模式和对比度。你的其他设备不受影响。",
+        "adoptLegend": "同步使用哪种外观？",
+        "adoptAccount": "其他设备的外观",
+        "adoptAccountDesc": "此设备切换为该外观。",
+        "adoptDevice": "此设备的外观",
+        "adoptDeviceDesc": "开启同步的其他设备下次打开 Harmony 时切换为此外观。"
       }
     },
     "voice": {
@@ -2761,7 +2774,24 @@
       "reactionsFetched": "已获取 {count} 个反应",
       "reactionsFetchFailed": "无法获取反应",
       "loadFailed": "无法加载帖子",
-      "replyPosted": "回复已发布"
+      "replyPosted": "回复已发布",
+      "inConversation": "此对话共 {count} 条帖子",
+      "fullConversation": "查看完整对话"
+    },
+    "quoteA11y": {
+      "openPost": "{name} 被引用的帖子，{time}",
+      "openPostNoAuthor": "被引用的帖子，{time}"
+    },
+    "interactionsList": {
+      "title": "收藏和转发",
+      "favorites": "收藏",
+      "boosts": "转发",
+      "statLabel": "{stat}，查看是谁",
+      "emptyFavorites": "还没有人收藏这条帖子。",
+      "emptyBoosts": "还没有人转发这条帖子。",
+      "moreElsewhere": "另有 {count} 个其他服务器上的账号未在此列出。",
+      "onlyElsewhere": "其他服务器上的 {count} 个账号未在此列出。",
+      "loadFailed": "无法加载此列表。"
     }
   },
   "moderation": {
@@ -2854,6 +2884,24 @@
         "day": "最近 24 小时",
         "week": "最近 7 天"
       }
+    },
+    "reportDialog": {
+      "goesTo": "将发送给 {instance} 的管理团队。",
+      "alsoToServer": "同时发送给 {host} 上 {server} 的版主",
+      "alsoToServerHint": "他们能看到您举报的内容和备注，但看不到您是谁。",
+      "goesToServer": "将发送给 {instance} 的管理团队和 {server} 的版主。"
+    },
+    "serverReport": {
+      "sent": "已同时发送给 {host} 上 {server} 的版主",
+      "pending": "正在发送给 {host} 上 {server} 的版主",
+      "failed": "无法送达 {host} 上 {server} 的版主",
+      "outcome": {
+        "resolved": "已采取措施",
+        "dismissed": "已驳回"
+      },
+      "moderators": "{server} 的版主",
+      "outcomeBy": "{server} 的版主：{outcome}",
+      "reviewedTitle": "{server} 的管理员已审核你的举报"
     }
   },
   "files": {
@@ -3252,7 +3300,10 @@
       "banTitle": "你已被 {name} 封禁",
       "reason": "给出的原因：{reason}",
       "noReason": "未给出原因。",
-      "short": "已被移出服务器"
+      "short": "已被移出服务器",
+      "staffKickTitle": "{instance} 工作人员已将你移出 {name}。",
+      "staffBanTitle": "{instance} 工作人员已在 {name} 封禁你。",
+      "suspended": "你的账户在 {instance} 已被停用。"
     },
     "closedBanner": {
       "title": "{name} 已停止接受来自其他实例的成员",
@@ -3362,15 +3413,13 @@
     "pageNotFound": "页面未找到",
     "goBack": "返回",
     "goHome": "回到首页",
-    "quickNavigation": "快速导航:",
-    "joinHarmony": "加入 Harmony",
-    "signInPrompt": "登录以访问所有功能并与社区建立联系。",
     "backToSocial": "返回社交",
     "backToChat": "返回聊天",
     "socialNotFound": "此社交内容不存在或已被删除。",
     "chatNotFound": "此聊天或对话不存在,或您没有访问权限。",
     "settingsNotFound": "此设置页面不存在。",
-    "defaultNotFound": "您查找的页面不存在或已被移动。"
+    "defaultNotFound": "您查找的页面不存在或已被移动。",
+    "requestedAddress": "请求的地址"
   },
   "onboarding": {
     "title": "设置您的个人资料",
@@ -4343,7 +4392,9 @@
       "bot_add": "{actor} 添加了机器人 {target}",
       "bot_update": "{actor} 修改了机器人 {target} 的权限",
       "bot_remove": "{actor} 移除了机器人 {target}",
-      "unknown": "{actor}：{action}"
+      "unknown": "{actor}：{action}",
+      "server_suspend": "{actor} 停用了服务器",
+      "server_unsuspend": "{actor} 解除了服务器的停用"
     },
     "fields": {
       "name": "名称",
@@ -5020,18 +5071,52 @@
       "limitReasonPrompt": "限制 {domain} 的原因：",
       "limitApplied": "已限制 {domain}",
       "limitLifted": "已解除对 {domain} 的限制",
-      "limitFailed": "无法更改域名限制"
+      "limitFailed": "无法更改域名限制",
+      "ignoreReports": "忽略来自此域名的举报",
+      "acceptReports": "重新接受来自此域名的举报",
+      "reportsIgnored": "已忽略举报",
+      "ignoreReportsConfirmTitle": "忽略来自 {domain} 的举报？",
+      "ignoreReportsConfirmBody": "今后从 {domain} 发来的举报将被丢弃。已收到的举报仍留在队列中，{domain} 本身不受任何影响。",
+      "reportsIgnoredToast": "已忽略来自 {domain} 的举报",
+      "reportsAcceptedToast": "已重新接受来自 {domain} 的举报",
+      "reportsFailed": "无法更改此域名举报的处理方式"
     },
     "instance": {
       "maxPostReactions": "每人对一条帖子的最大反应数",
       "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
-      "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。"
+      "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
+      "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
+      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。"
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "每人对一条帖子的最大反应数",
         "maxPersonalEmojisPerUser": "每位用户的个人表情数"
+      },
+      "staff": {
+        "someServer": "某个服务器",
+        "someone": "某人",
+        "reason": "原因：{reason}",
+        "memberRemoved": "已将 {person} 移出 {server}",
+        "memberBanned": "已在 {server} 封禁 {person}",
+        "messageRemovedBy": "已移除 {person} 在 {server} 的一条消息",
+        "messageRemoved": "已移除 {server} 中的一条消息",
+        "serverSuspended": "已停用 {server}",
+        "serverUnsuspended": "已解除 {server} 的停用",
+        "serverDeleted": "已删除 {server}",
+        "serverDeletedOwned": "已删除 {person} 所有的 {server}",
+        "serverBlocked": "已在 {instance} 上屏蔽 {server}",
+        "peopleLeft": "来自 {instance} 的 {count} 人已离开 | 来自 {instance} 的 {count} 人已离开",
+        "serverUnblocked": "已在 {instance} 上重新允许 {server}",
+        "mediaHidden": "已在 {instance} 上隐藏来自 {server} 的媒体",
+        "mediaShown": "已在 {instance} 上重新显示来自 {server} 的媒体",
+        "removedHere": "已在 {instance} 上将 {person} 移出 {server}",
+        "removedHereKeptOut": "已在 {instance} 上将 {person} 移出 {server} 并禁止其加入",
+        "keptOutHere": "已在 {instance} 上禁止 {person} 加入 {server}",
+        "keepoutLifted": "已允许 {person} 从 {instance} 重新加入 {server}",
+        "reportsRejected": "已忽略来自 {domain} 的举报",
+        "reportsAccepted": "已重新接受来自 {domain} 的举报"
       }
     },
     "antiSpam": {
@@ -6796,9 +6881,6 @@
       "title": "分享",
       "linkTitle": "任何拥有链接的人",
       "linkOn": "任何拥有链接的人都可以查看和下载。",
-      "linkOff": "仅限下方的人员和你发送过的地方。",
-      "copy": "复制",
-      "copied": "已复制",
       "expires": "链接过期时间",
       "never": "永不",
       "days": "{count} 天后 | {count} 天后",
@@ -6823,9 +6905,17 @@
         "channel": "频道",
         "link": "链接"
       },
-      "accessLinkTitle": "有权访问者的链接",
       "accessLinkHint": "只有已能查看此文件的人才能打开。",
-      "publicLinkLabel": "公开链接，任何人都能打开"
+      "linkHeading": "链接",
+      "linkLabel": "此文件的链接",
+      "generalAccess": "常规访问权限",
+      "accessRestricted": "受限",
+      "showOwner": "在链接页面上显示我的名字",
+      "showOwnerHint": "打开链接的人会看到你的名字，并可以打开你的个人资料。",
+      "resetLink": "重置链接",
+      "resetTitle": "要重置链接吗？",
+      "resetText": "当前链接将对所有人失效，包括已经发布过的地方。能查看此文件的人可以复制新链接。",
+      "until": "至 {date}"
     },
     "preview": {
       "previous": "上一个文件",
@@ -6866,7 +6956,7 @@
       "missingText": "链接已过期，或文件所有者已停止分享。",
       "sharedBy": "由 {name} 分享",
       "expires": "链接将于 {date} 过期",
-      "footer": "分享自 {instance}"
+      "poweredBy": "由 {instance} 上的 {harmony} 提供支持"
     },
     "card": {
       "restrictedTitle": "受限文件",
@@ -6874,7 +6964,6 @@
       "gone": "此文件已不可用。",
       "view": "查看 {name}",
       "play": "播放 {name}",
-      "open": "打开 {name}",
       "download": "下载 {name}"
     },
     "filePage": {
@@ -6886,7 +6975,8 @@
       "retry": "重试",
       "yours": "你的文件",
       "ownedBy": "所有者：{name}",
-      "trashed": "在你的回收站中，只有你能打开。"
+      "trashed": "在你的回收站中，只有你能打开。",
+      "openInDrive": "在云盘中打开"
     },
     "offer": {
       "channel": "{channel} 中的成员无法打开此文件。要与该频道共享吗？",
@@ -6897,6 +6987,10 @@
       "share": "共享",
       "sendAnyway": "仍然发送",
       "shared": "文件已共享"
+    },
+    "attachment": {
+      "openInDrive": "在云盘中打开",
+      "openNamedInDrive": "在云盘中打开 {name}"
     }
   },
   "support": {
@@ -6932,5 +7026,213 @@
     "openProfile": "打开个人资料",
     "home": "前往主页",
     "followFailed": "关注未保存。"
+  },
+  "serverCopy": {
+    "banner": {
+      "title": "托管于 {host}",
+      "body": "其所有者和版主在那里管理它。这里的设置只改变你看到的内容。",
+      "unknownHost": "另一个实例",
+      "bodyHost": "其所有者和版主在那里管理它。"
+    },
+    "owner": {
+      "label": "所有者",
+      "unknown": "未知"
+    },
+    "hide": {
+      "action": "在 {instance} 上隐藏",
+      "confirm": "要对 {instance} 上的所有人隐藏这条消息吗？它仍保留在 {host} 上，其他人也仍能看到。",
+      "button": "隐藏"
+    }
+  },
+  "hostStaff": {
+    "tab": "服务器",
+    "title": "本实例托管的服务器",
+    "intro": "{instance} 上服务器的信任与安全。你以 {instance} 工作人员的身份操作，而不是服务器管理员；每项操作都会记入服务器的审计日志，服务器所有者和管理员都能看到。",
+    "staffBadge": "{instance} 工作人员",
+    "search": "按名称、所有者或 ID 搜索",
+    "filterAll": "全部",
+    "filterSuspended": "已停用",
+    "empty": "本实例尚未托管任何服务器。",
+    "emptySearch": "没有匹配的服务器。",
+    "loadError": "无法加载。",
+    "owner": "所有者",
+    "noOwner": "无",
+    "members": "{count} 位成员",
+    "remoteMembers": "{count} 位来自其他实例",
+    "suspendedBadge": "已停用",
+    "suspendedBy": "由 {name} 停用",
+    "suspendedReason": "原因：{reason}",
+    "suspendedBanner": "{instance} 工作人员已停用此服务器。",
+    "open": "打开",
+    "back": "所有服务器",
+    "previous": "上一页",
+    "next": "下一页",
+    "loadMore": "加载更多",
+    "tabs": {
+      "members": "成员",
+      "messages": "消息"
+    },
+    "membersSearch": "搜索成员",
+    "ownerBadge": "所有者",
+    "instanceStaffBadge": "实例工作人员",
+    "pending": "待处理",
+    "noMembers": "没有匹配的成员。",
+    "viewMessages": "消息",
+    "channel": "频道",
+    "allChannels": "所有频道",
+    "byAuthor": "{name} 的消息",
+    "clearAuthor": "显示所有人的消息",
+    "noMessages": "没有消息。",
+    "encrypted": "端到端加密：无法显示内容。",
+    "actions": {
+      "removeMember": "移除成员",
+      "banMember": "封禁成员",
+      "removeMessage": "移除消息",
+      "suspendServer": "停用服务器",
+      "unsuspendServer": "解除停用",
+      "deleteServer": "删除服务器"
+    },
+    "confirm": {
+      "asStaff": "你以 {instance} 工作人员的身份操作，而不是 {server} 的管理员。",
+      "recorded": "将作为 {instance} 工作人员的操作记入 {server} 的审计日志。",
+      "recordedInstance": "记入 {instance} 的管理日志。服务器自身的审计日志会随服务器一起删除。",
+      "reason": "原因（可选）",
+      "reasonHintAudit": "{server} 的所有者和管理员会在审计日志中看到。",
+      "reasonHintBanner": "成员会在横幅中看到。",
+      "reasonHintLog": "保存在 {instance} 的管理日志中。",
+      "removeMember": {
+        "title": "以 {instance} 工作人员身份将 {name} 移出 {server}？",
+        "leaves": "{name} 将离开 {server}，之后仍可重新加入。",
+        "remote": "其所在实例 {domain} 会收到通知：{instance} 工作人员移除了此成员。"
+      },
+      "banMember": {
+        "title": "以 {instance} 工作人员身份在 {server} 封禁 {name}？",
+        "leaves": "{name} 将离开 {server}，在服务器管理员解除封禁前无法重新加入。",
+        "remote": "其所在实例 {domain} 会收到通知：{instance} 工作人员封禁了此成员。"
+      },
+      "removeMessage": {
+        "title": "以 {instance} 工作人员身份从 {server} 移除这条消息？",
+        "everyone": "所有人都将看不到它，包括 {instance} 和其他实例上的人。"
+      },
+      "suspend": {
+        "title": "以 {instance} 工作人员身份停用 {server}？",
+        "frozen": "在解除停用之前，任何人都无法在其中发送新消息或加入。",
+        "banner": "成员仍可阅读，并会看到这条横幅：“{banner}”"
+      },
+      "unsuspend": {
+        "title": "解除 {server} 的停用？",
+        "open": "成员可以重新发消息和加入。"
+      },
+      "delete": {
+        "title": "以 {instance} 工作人员身份删除 {server}？",
+        "gone": "服务器、其频道和所有消息都将对所有人删除。此操作无法撤销。",
+        "members": "{count} 位成员将无法再访问它。",
+        "remote": "其他实例上的成员不会收到通知；他们那里的服务器将不再更新。",
+        "typeName": "输入服务器名称以确认"
+      }
+    },
+    "done": {
+      "removeMember": "已将 {name} 移出 {server}。",
+      "banMember": "已在 {server} 封禁 {name}。",
+      "removeMessage": "消息已移除。",
+      "suspend": "{server} 已停用。",
+      "unsuspend": "{server} 已解除停用。",
+      "delete": "{server} 已删除。"
+    },
+    "failed": "操作失败：{error}",
+    "auditActor": "{actor}（{instance} 工作人员）",
+    "systemActor": "（{instance} 工作人员）",
+    "audit": {
+      "cause": "原因",
+      "accountSuspended": "账户在 {instance} 被停用",
+      "domainSuspended": "{domain} 在 {instance} 被停用"
+    },
+    "rowAction": "{action}：{target}"
+  },
+  "instanceServer": {
+    "panel": {
+      "title": "在 {instance} 上",
+      "intro": "这些工具只影响 {instance}：这里的人能看到什么，以及能否参与。{server} 及其在其他实例上的成员不受影响。",
+      "staffOnly": "只有 {instance} 的管理团队可以使用这些工具。",
+      "loadFailed": "无法加载此服务器在 {instance} 上的状态。",
+      "notHostedElsewhere": "这些工具用于托管在其他实例上的服务器。",
+      "hostedOn": "托管于 {host}",
+      "localMembers": "没有来自 {instance} 的成员 | {count} 名来自 {instance} 的成员 | {count} 名来自 {instance} 的成员",
+      "thisServer": "此服务器"
+    },
+    "block": {
+      "heading": "在 {instance} 上开放",
+      "openDescription": "{instance} 上的人可以看到并加入它。",
+      "blockedStatus": "已在 {instance} 上屏蔽",
+      "blockedDescription": "{instance} 上的人无法看到或加入它。它在其他实例上没有任何变化。",
+      "setAt": "自 {date} 起",
+      "action": "在 {instance} 上屏蔽 {server}",
+      "unblock": "在 {instance} 上重新允许 {server}",
+      "unblocked": "{server} 已在 {instance} 上重新允许。没有人被重新加入。",
+      "confirm": "屏蔽",
+      "done": "{server} 已在 {instance} 上屏蔽。",
+      "failed": "无法更改屏蔽。",
+      "reasonLabel": "原因（仅 {instance} 管理团队可见）",
+      "consequenceSee": "{instance} 上的人将无法再看到或加入它。",
+      "consequenceMembers": "没有来自 {instance} 的成员。 | 来自 {instance} 的 {count} 名成员将离开它，并会被告知原因。 | 来自 {instance} 的 {count} 名成员将离开它，并会被告知原因。",
+      "consequenceElsewhere": "{server} 以及其他实例上的任何人都不会有变化。",
+      "consequenceWaiting": "来自 {instance} 的 {count} 名等待加入的人将被拒绝，并会被告知原因。 | 来自 {instance} 的 {count} 名等待加入的人将被拒绝，并会被告知原因。",
+      "consequenceYou": "这也包括你：你也将离开 {server}。"
+    },
+    "media": {
+      "toggle": "在 {instance} 上隐藏来自 {server} 的媒体",
+      "hint": "来自它的图片、视频和文件对 {instance} 上的所有人显示为已隐藏。",
+      "failed": "无法更改媒体隐藏。",
+      "hiddenNotice": "附件已在 {instance} 上隐藏 | {count} 个附件已在 {instance} 上隐藏"
+    },
+    "people": {
+      "heading": "来自 {instance} 的人",
+      "empty": "{server} 中没有来自 {instance} 的人。",
+      "pending": "加入请求待处理",
+      "keptOut": "已禁止加入",
+      "lift": "允许重新加入",
+      "liftLabel": "允许 {name} 从 {instance} 重新加入 {server}",
+      "lifted": "{name} 可以重新加入 {server}。",
+      "liftFailed": "无法允许 {name} 重新加入。",
+      "remove": "移除",
+      "removeLabel": "在 {instance} 上将 {name} 移出 {server}"
+    },
+    "remove": {
+      "action": "在 {instance} 上移出 {server}",
+      "confirmText": "{name} 将离开 {server}。这只影响 {instance}：不会通知该服务器的版主，{name} 也不会在那里被封禁。",
+      "keepOut": "禁止加入（无法从 {instance} 重新加入）",
+      "reasonLabel": "原因（会显示给 {name}）",
+      "confirm": "移除",
+      "done": "{name} 已在 {instance} 上离开 {server}。",
+      "notMember": "{name} 已经不是成员了。",
+      "failed": "无法移除 {name}。"
+    },
+    "notice": {
+      "removedTitle": "{instance} 管理团队已将你移出 {server}。",
+      "blockedTitle": "{instance} 管理团队在 {instance} 上屏蔽了 {server}；你已离开它。",
+      "blockedMessage": "{server} 在其他实例上没有任何变化。"
+    },
+    "join": {
+      "blocked": "{instance} 管理团队已在 {instance} 上屏蔽此服务器。",
+      "keptOut": "{instance} 管理团队已将你移出此服务器；你无法从 {instance} 重新加入。"
+    },
+    "dashboard": {
+      "title": "来自其他实例的服务器",
+      "description": "{instance} 上的人加入的、托管在其他地方的聊天服务器。屏蔽服务器或隐藏其媒体只影响 {instance}。",
+      "refresh": "刷新",
+      "search": "搜索服务器",
+      "filter": "显示",
+      "filterAll": "所有服务器",
+      "manage": "管理",
+      "manageLabel": "在 {instance} 上管理 {server}",
+      "empty": "{instance} 上还没有人加入托管在其他地方的服务器。",
+      "noMatch": "没有匹配的服务器。",
+      "loadFailed": "无法加载来自其他实例的服务器。"
+    },
+    "state": {
+      "blocked": "已屏蔽",
+      "mediaHidden": "媒体已隐藏",
+      "keptOut": "{count} 人已禁止加入 | {count} 人已禁止加入"
+    }
   }
 }

@@ -34,6 +34,8 @@ import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
 import { adminService, type AdminActivity } from '@/services/AdminService'
+import { getInstanceDomain } from '@/services/instanceConfig'
+import { staffActivityMessage } from '@/utils/staffActivity'
 
 const i18n = useI18n()
 
@@ -61,6 +63,14 @@ const loadRecentActivity = async () => {
       type: event.action_type,
       message: event.details,
       targetUsername: event.target_username,
+      staffLine: staffActivityMessage({
+        action_type: event.action_type,
+        target_id: event.target_id,
+        target_username: event.target_username,
+        details: event.metadata,
+        server_name: event.server_name,
+        author_handle: event.author_handle,
+      }, getInstanceDomain(), i18n.t as unknown as (key: string, ...args: unknown[]) => string),
       timestamp: new Date(event.created_at),
       source: `Admin: ${event.admin_username}`,
       admin_id: event.admin_id
@@ -79,6 +89,8 @@ const formatTime = (date: Date) => {
 const getActivityCategory = (type: string): string => {
   if (!type) return 'other'
   const t = type.toLowerCase()
+  // Staff actions on chat servers (utils/staffActivity).
+  if (t.startsWith('server_') || t.startsWith('instance_server_')) return 'moderation'
   if (t.startsWith('instance_') || t.includes('federation') || t.includes('add_instance')) return 'federation'
   if (t.startsWith('user_') || t.includes('moderate') || t.includes('report') || t.includes('suspend')) return 'moderation'
   if (t.includes('security') || t.includes('login') || t.includes('config')) return 'security'
@@ -113,7 +125,8 @@ const formatConfigValue = (v: unknown): string => {
   return String(v)
 }
 
-const formatActivityMessage = (event: { type: string; message: string | object; targetUsername?: string }) => {
+const formatActivityMessage = (event: { type: string; message: string | object; targetUsername?: string; staffLine?: string | null }) => {
+  if (event.staffLine) return event.staffLine
   const raw = event.message
   const targetUser = event.targetUsername
   if (raw == null || raw === '') {

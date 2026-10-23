@@ -14,6 +14,11 @@
 // Flag that becomes a report owned by the peer's domain, and a forwarded local
 // report reaches the peer as a Flag signed by the local instance actor, which
 // the peer checks against the actor document the local instance publishes.
+// A report about a message in a server goes to the server's Group inbox and
+// the Group's Resolve comes back, each way (cases/serverReports.ts).
+// A member this instance's staff remove from a server hosted elsewhere, or who leaves it when
+// staff block it, sends the Group their own Leave, and a blocked server's relays are dropped
+// (cases/instanceServerTools.ts).
 //
 // Two paths carry the defects this harness exists to catch:
 //   - public.federated_voice_calls, whose column set an inbound
@@ -99,6 +104,10 @@ import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
 import { caseSystemEvents } from './cases/systemEvents.ts'
+import { caseCopyAuthority } from './cases/copyAuthority.ts'
+import { caseServerReports } from './cases/serverReports.ts'
+import { caseHostStaff } from './cases/hostStaff.ts'
+import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -156,6 +165,8 @@ const DM_MESSAGE = 'fed00000-0000-0000-0000-000000000064'
 // A local post the peer reacts to, and a peer note fx_bob reacts to.
 const REACTED_POST = 'fed00000-0000-0000-0000-000000000070'
 const PEER_NOTE_POST = 'fed00000-0000-0000-0000-000000000071'
+const COUNTED_POST = 'fed00000-0000-0000-0000-000000000072'
+const CACHED_POST = 'fed00000-0000-0000-0000-000000000073'
 
 // REPORTING
 
@@ -269,6 +280,10 @@ class Peer {
   }
   get remoteNoteUrl() {
     return `${this.base}/messages/fed00000-0000-0000-0000-0000000000f1`
+  }
+  /** Capability URL of the remote note's image, issued to this instance. */
+  get remoteMediaUrl() {
+    return `${this.base}/media/c/${REMOTE_CHANNEL}/peer.png?to=${INSTANCE_DOMAIN}&sig=peer`
   }
 
   async start(host: string): Promise<void> {
@@ -538,10 +553,13 @@ class Peer {
         name: 'Peer private',
         inbox: `${this.groupUrl}/inbox`,
         discoverable: false,
+        // A 1.8.12 host: Flags naming its messages reach the server's moderators.
+        'harmony:acceptsReports': true,
         publicKey: { id: `${this.groupUrl}#main-key`, owner: this.groupUrl, publicKeyPem: this.groupKey.publicKey },
       }
       if (member) {
         group.members = `${this.groupUrl}/members`
+        group.attributedTo = this.actorUrl
         group['harmony:channels'] = [
           { id: this.channelUrl(REMOTE_CHANNEL), localId: REMOTE_CHANNEL, name: 'peer-general', type: 'harmony:TextChannel', channelType: 'text', order: 0 },
           { id: this.channelUrl(REMOTE_CHANNEL_NEW), localId: REMOTE_CHANNEL_NEW, name: 'peer-added', type: 'harmony:TextChannel', channelType: 'text', order: 1 },
@@ -571,6 +589,11 @@ class Peer {
             content: 'peer private message',
             context: this.channelUrl(REMOTE_CHANNEL),
             published: new Date().toISOString(),
+            attachment: [{ type: 'Document', mediaType: 'image/png', url: this.remoteMediaUrl, name: 'peer.png' }],
+            'harmony:rawContent': [
+              { type: 'text', text: 'peer private message' },
+              { type: 'file', fileType: 'image', url: this.remoteMediaUrl, fileName: 'peer.png' },
+            ],
           },
           ...this.extraChannelItems,
         ],
@@ -1019,9 +1042,15 @@ async function seedServers(db: SupabaseClient, peer: Peer) {
   ]))
 
   await must('seed channel messages', db.from('messages').insert([
-    { channel_id: PRIV_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'private general message' }] },
+    { channel_id: PRIV_GENERAL, user_id: ALICE, content: [
+      { type: 'text', text: 'private general message' },
+      { type: 'file', fileType: 'image', path: `c/${PRIV_GENERAL}/meme.png`, fileName: 'meme.png', mimeType: 'image/png' },
+    ] },
     { channel_id: PRIV_SECRET, user_id: ALICE, content: [{ type: 'text', text: 'private secret message' }] },
-    { channel_id: PUB_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'public general message' }] },
+    { channel_id: PUB_GENERAL, user_id: ALICE, content: [
+      { type: 'text', text: 'public general message' },
+      { type: 'file', fileType: 'image', path: `c/${PUB_GENERAL}/meme.png`, fileName: 'meme.png', mimeType: 'image/png' },
+    ] },
   ]))
 }
 
@@ -1427,6 +1456,25 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   assert(items(member).includes('private general message'), 'the member gets the channel messages', member.body)
   eq(member.headers['cache-control'], 'private, no-store', 'the private page is not cacheable')
 
+  // A message's files reach a copy through its history page as through delivery: the
+  // attachment and the raw parts carry a capability URL issued to the reader's instance.
+  const peerHost = new URL(peer.base).host
+  const withFile = (member.json?.orderedItems ?? []).find((n: any) => String(n.content ?? '').includes('private general message'))
+  const fileUrl = (n: any) => String(n?.attachment?.[0]?.url ?? '')
+  const rawFile = (n: any) => (n?.['harmony:rawContent'] ?? []).find((p: any) => p?.type === 'file')
+  const memberUrl = new URL(fileUrl(withFile) || 'http://invalid/')
+  assert(
+    memberUrl.pathname.endsWith(`/media/c/${PRIV_GENERAL}/meme.png`) && memberUrl.searchParams.get('to') === peerHost
+      && !!memberUrl.searchParams.get('sig'),
+    'the history page attaches the file by a URL issued to the member\'s instance',
+    JSON.stringify(withFile?.attachment ?? null),
+  )
+  assert(
+    rawFile(withFile)?.url === fileUrl(withFile) && rawFile(withFile)?.path === undefined,
+    'the raw parts carry the same URL and no storage path',
+    JSON.stringify(withFile?.['harmony:rawContent'] ?? null),
+  )
+
   const secret = await asMember(page(PRIV_SERVER, PRIV_SECRET))
   eq(secret.status, 404, 'a member without VIEW_CHANNEL on the channel gets 404')
 
@@ -1472,6 +1520,15 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   const pub = await get(page(PUB_SERVER, PUB_GENERAL))
   eq(pub.status, 200, 'a public server\'s public channel still reads unsigned')
   assert(items(pub).includes('public general message'), 'the public page carries its messages', pub.body)
+  const pubNote = (pub.json?.orderedItems ?? []).find((n: any) => String(n.content ?? '').includes('public general message'))
+  const pubUrl = new URL(fileUrl(pubNote) || 'http://invalid/')
+  assert(
+    pubUrl.pathname.endsWith(`/media/c/${PUB_GENERAL}/meme.png`) && pubUrl.searchParams.get('to') === '*',
+    'an unsigned reader gets the public URL of the file',
+    JSON.stringify(pubNote?.attachment ?? null),
+  )
+  // A member's signed read of a public page names its own instance: shared caches key on it.
+  eq(String(pub.headers.vary ?? '').toLowerCase().includes('signature'), true, 'the public page varies on the signature')
   assert(
     String(pub.headers['cache-control']).startsWith('public'),
     'the public page stays cacheable',
@@ -1479,7 +1536,7 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   )
 }
 
-async function caseProxyReadsAsMember(peer: Peer, localUrl: string, jwtSecret: string) {
+async function caseProxyReadsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
   console.log('\nremote private channel -> the proxy signs as the requesting member')
 
   const proxyUrl = `${localUrl}/channels/${REMOTE_CHANNEL}/messages`
@@ -1503,11 +1560,33 @@ async function caseProxyReadsAsMember(peer: Peer, localUrl: string, jwtSecret: s
     'the host\'s message reaches the member',
     bob.body,
   )
+  const peerMessage = (bob.json?.messages ?? []).find((m: any) => JSON.stringify(m.content).includes('peer private message'))
+  assert(
+    Array.isArray(peerMessage?.content)
+      && peerMessage.content.some((p: any) => p?.type === 'file' && p.url === peer.remoteMediaUrl),
+    'the member gets the message as parts, its file included',
+    JSON.stringify(peerMessage ?? null),
+  )
+  assert((bob.json?.changed ?? 0) >= 1, 'the proxy reports the row it cached', String(bob.json?.changed))
 
   const reqs = peer.groupGetRequests.slice(before)
   eq(reqs.length, 1, 'the host saw one request, signed from the start with no unsigned attempt')
   const params = reqs[0]?.headers.signature ? parseSignatureHeader(reqs[0].headers.signature) : {}
   eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/fx_bob#main-key`, 'the request carries the member\'s own key')
+
+  const noteId = peer.remoteNoteUrl.split('/').pop()!
+  const cachedContent = async () => (await db.from('messages').select('content').eq('id', noteId).maybeSingle()).data?.content
+  const hasFile = (content: any) => Array.isArray(content)
+    && content.some((p: any) => p?.type === 'file' && p.url === peer.remoteMediaUrl && p.path === undefined)
+  assert(hasFile(await cachedContent()), 'the cached row holds the file by its URL', JSON.stringify(await cachedContent()))
+
+  // A row cached from a host that served text only gains its files on the next read.
+  await must('strip the cached file', db.from('messages')
+    .update({ content: [{ type: 'text', text: 'peer private message' }] }).eq('id', noteId).select('id'))
+  const refill = await get(proxyUrl, as(BOB_AUTH))
+  eq(refill.json?.changed, 1, 'the read reports the completed row')
+  assert(hasFile(await cachedContent()), 'the row cached without its file holds it again', JSON.stringify(await cachedContent()))
+  eq((await get(proxyUrl, as(BOB_AUTH))).json?.changed, 0, 'a read that changes nothing reports nothing')
 }
 
 async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
@@ -2319,6 +2398,94 @@ async function caseInboundReactions(db: SupabaseClient, peer: Peer, localUrl: st
     await must('restore the limit', db.from('instance_config')
       .upsert({ config_key: 'max_post_reactions_per_user', config_value: 10 }, { onConflict: 'config_key' }))
   }
+
+  const note = await get(`${localUrl}/posts/${REACTED_POST}`, { Accept: 'application/activity+json' })
+  eq(JSON.stringify(note.json?.['harmony:reactions'] ?? null), JSON.stringify([{ content: '🎉', count: 1 }, { content: '👀', count: 1 }]),
+    'the Note carries its reaction counts')
+}
+
+async function caseDocumentCache(db: SupabaseClient, localUrl: string) {
+  console.log('\npublic documents -> served once per window, fresh after their post or profile changes')
+
+  const handler = (p: string) => import(pathToFileURL(path.join(BACKEND_ROOT, 'src', p)).href)
+  await must('seed cached post', db.from('posts').insert({
+    id: CACHED_POST,
+    author_id: ALICE,
+    content: [{ type: 'text', text: 'before the edit' }],
+    visibility: 'public',
+    is_local: true,
+  }))
+  const note = () => get(`${localUrl}/posts/${CACHED_POST}`, { Accept: 'application/activity+json' })
+  const actor = () => get(`${localUrl}/users/fx_alice`, { Accept: 'application/activity+json' })
+
+  const first = await note()
+  eq(first.headers['x-harmony-cache'], 'miss', 'the first fetch of a Note builds it')
+  const second = await note()
+  eq(second.headers['x-harmony-cache'], 'hit', 'the next fetch is served from the cache')
+  eq(second.body, first.body, 'with the same document')
+  const concurrent = await Promise.all(Array.from({ length: 10 }, () => note()))
+  assert(concurrent.every((r) => r.status === 200 && r.headers['x-harmony-cache'] === 'hit'),
+    'ten concurrent fetches are all hits', JSON.stringify(concurrent.map((r) => r.headers['x-harmony-cache'])))
+
+  await must('edit the post', db.from('posts').update({ content: [{ type: 'text', text: 'after the edit' }] }).eq('id', CACHED_POST))
+  const { handlePostJob } = await handler('queue/handlers/postHandler.ts')
+  await handlePostJob({ type: 'update', post_id: CACHED_POST, author_id: ALICE })
+  const edited = await note()
+  eq(edited.headers['x-harmony-cache'], 'miss', 'the post\'s update job drops its Note')
+  assert(String(edited.json?.content ?? '').includes('after the edit'), 'the next fetch carries the edit', edited.json?.content)
+
+  await actor()
+  eq((await actor()).headers['x-harmony-cache'], 'hit', 'the actor is served from the cache')
+  const { handleProfileJob } = await handler('queue/handlers/profileHandler.ts')
+  await handleProfileJob({ type: 'update', profile_id: ALICE, username: 'fx_alice' })
+  eq((await actor()).headers['x-harmony-cache'], 'miss', 'the profile\'s update job drops the actor')
+
+  const html = await get(`${localUrl}/posts/${CACHED_POST}`, { Accept: 'text/html' })
+  eq(html.headers['x-harmony-cache'], undefined, 'the HTML page is never cached here')
+}
+
+async function caseRemoteReactionCounts(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\nremote Harmony post -> its Note\'s reaction counts become its chips here')
+
+  const noteUrl = `${peer.base}/posts/counted`
+  const blob = `${peer.base}/emoji/blob.png`
+  await must('seed counted post', db.from('posts').insert({
+    id: COUNTED_POST,
+    author_id: REMOTE,
+    content: [{ type: 'text', text: 'counted' }],
+    visibility: 'public',
+    is_local: false,
+    ap_id: noteUrl,
+    metadata: { remote_reactions: { '🍑': { count: 7, reactors: [] } } },
+  }))
+  const previous = peer.extraGet
+  peer.extraGet = (req, res) => {
+    if (req.url !== '/posts/counted') return previous?.(req, res) ?? false
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(JSON.stringify({
+      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://mony.lol/ns#' }],
+      id: noteUrl, type: 'Note', attributedTo: peer.actorUrl, content: '<p>counted</p>',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      likes: { id: `${noteUrl}/likes`, type: 'Collection', totalItems: 5 },
+      'harmony:reactions': [
+        { content: '🔥', count: 3 },
+        { content: ':blob:', count: 2, tag: { type: 'Emoji', name: ':blob:', icon: { type: 'Image', url: blob } } },
+        { content: '❤️', count: 5 },
+      ],
+    }))
+    return true
+  }
+  try {
+    const res = await postJson(`${localUrl}/fetch-reactions`, {}, { post_ap_id: noteUrl, post_id: COUNTED_POST })
+    // jsonb orders object keys by length: compare entry by entry.
+    const chips = (r: any) => Object.entries(r ?? {}).map(([k, v]: [string, any]) => `${k}=${v?.count}@${v?.url ?? '-'}`).sort().join(' ')
+    const expected = `:blob:=2@${blob} 🔥=3@-`
+    eq(chips(res.json?.remote_reactions), expected, 'the counts come back as chips, the heart left to favourites')
+    const { data: row } = await db.from('posts').select('metadata').eq('id', COUNTED_POST).single()
+    eq(chips(row?.metadata?.remote_reactions), expected, 'and replace the stored ones')
+  } finally {
+    peer.extraGet = previous
+  }
 }
 
 async function caseOutboundReactions(db: SupabaseClient, peer: Peer, backend: Backend) {
@@ -2508,6 +2675,8 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseOutboundReactions(db, peer, backend)
+    await caseRemoteReactionCounts(db, peer, localUrl)
+    await caseDocumentCache(db, localUrl)
     await runOutboundFederationCases({
       db, peer, localUrl, env, backendRoot: BACKEND_ROOT, instanceDomain: INSTANCE_DOMAIN,
       alice: { id: ALICE, auth: ALICE_AUTH }, remote: REMOTE, userToken,
@@ -2517,7 +2686,7 @@ async function main() {
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
-    await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
+    await caseProxyReadsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await seedVoice(db, peer)
     await caseHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
@@ -2618,6 +2787,48 @@ async function main() {
     await caseMemberRemoval({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, carol: CAROL, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF },
+    })
+    await caseServerReports({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseCopyAuthority({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, get, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH,
+        remote: REMOTE, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    // Last: suspending the peer's account removes it from servers hosted here.
+    await caseHostStaff({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      ids: {
+        alice: ALICE, carol: CAROL, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF,
+      },
+    })
+    await caseInstanceServerTools({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders,
+      verifySignature: backend.verifySignature, assert, eq,
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, carol: CAROL, remote: REMOTE,
+        remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

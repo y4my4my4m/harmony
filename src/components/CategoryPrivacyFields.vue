@@ -33,7 +33,7 @@
       <label :for="`${uidBase}-search`" class="privacy-hint">{{ t('category.private.members') }}</label>
       <ul v-if="selectedMembers.length > 0" class="privacy-chips" :aria-label="t('category.private.members')">
         <li v-for="member in selectedMembers" :key="member.id" class="privacy-chip">
-          <span>{{ member.display_name || member.username }}</span>
+          <DisplayName :user-id="member.id" :fallback="member.display_name || member.username" />
           <button
             type="button"
             class="privacy-chip-remove"
@@ -61,7 +61,7 @@
               :checked="modelValue.userIds.includes(member.id)"
               @change="toggleUser(member.id, ($event.target as HTMLInputElement).checked)"
             />
-            <span>{{ member.display_name || member.username }}</span>
+            <DisplayName :user-id="member.id" :fallback="member.display_name || member.username" />
             <span class="privacy-handle">@{{ member.username }}</span>
           </label>
         </li>
@@ -76,6 +76,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { uid } from '@/utils/a11y/focus'

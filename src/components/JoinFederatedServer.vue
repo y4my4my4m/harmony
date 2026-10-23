@@ -204,6 +204,8 @@ import {
   type RemoteServer,
   type InviteInfo,
 } from '@/services/federation'
+import type { RefusedHere } from '@/services/federation/FederationServerService'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
@@ -305,6 +307,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
 })
 
+function refusedHereText(code: RefusedHere): string {
+  const instance = getInstanceDomain()
+  return code === 'kept_out_here'
+    ? t('instanceServer.join.keptOut', { instance })
+    : t('instanceServer.join.blocked', { instance })
+}
+
 async function discoverServer() {
   const input = serverUrl.value.trim()
   if (!input || isLoading.value) return
@@ -337,6 +346,8 @@ async function discoverServer() {
     } else {
       error.value = result.federationDisabled
         ? t('federation.federationOff')
+        : result.refusedHere
+        ? refusedHereText(result.refusedHere)
         : result.error || 'Could not find server'
     }
   } catch (err: any) {
@@ -366,6 +377,8 @@ async function joinServer() {
         ? (result.reason
           ? t('federation.joinRefusedReason', { name: remote.name, reason: result.reason })
           : t('federation.joinRefused', { name: remote.name }))
+        : result.refusedHere
+        ? refusedHereText(result.refusedHere)
         : result.error || 'Failed to join server'
       return
     }

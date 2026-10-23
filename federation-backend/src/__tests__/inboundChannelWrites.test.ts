@@ -287,6 +287,15 @@ describe('authorizeChannelWrite', () => {
     tables.server_member_timeouts = [{ server_id: S1, user_id: author.id, until: new Date(Date.now() - 60_000).toISOString() }]
     expect((await authorizeChannelWrite(sb, { actorUrl: EVE, serverId: S1, channelId: C1, kind: 'message' })).ok).toBe(true)
   })
+
+  it('refuses new messages and threads in a server suspended by instance staff', async () => {
+    tables.servers!.find((s) => s.id === S1)!.suspended_at = '2026-10-23T00:00:00.000Z'
+    for (const kind of ['message', 'thread_message', 'thread_create'] as const) {
+      expect(await authorizeChannelWrite(sb, { actorUrl: EVE, serverId: S1, channelId: C1, kind }))
+        .toEqual({ ok: false, reason: 'server suspended' })
+    }
+    expect((await authorizeChannelWrite(sb, { actorUrl: EVE, serverId: S1, channelId: C1, kind: 'edit' })).ok).toBe(true)
+  })
 })
 
 describe('shared inbox: channel messages', () => {
@@ -845,6 +854,20 @@ describe('server inbox: Join of a private server', () => {
     inviteRefusals.GOOD = null
     await join(EVE, 'GOOD')
     expect(rpcCalls.some((c) => c.fn === 'consume_invite')).toBe(false)
+    expect(answer()).toEqual([['Accept', undefined]])
+  })
+
+  it('rejects a join of a suspended server, and keeps an accepted member', async () => {
+    inviteRefusals.GOOD = null
+    tables.servers!.find((s) => s.id === S1)!.suspended_at = '2026-10-23T00:00:00.000Z'
+    await join(OUT, 'GOOD')
+    expect(membership('out')).toBeUndefined()
+    expect(rpcCalls.some((c) => c.fn === 'consume_invite')).toBe(false)
+    expect(answer()).toEqual([['Reject', 'This server is suspended by instance staff']])
+
+    vi.mocked(DeliveryQueue.sendToInbox).mockClear()
+    await join(EVE)
+    expect(membership('eve')?.status).toBe('accepted')
     expect(answer()).toEqual([['Accept', undefined]])
   })
 

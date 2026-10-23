@@ -40,6 +40,8 @@ INSERT INTO public.messages (channel_id, user_id, content) VALUES
    '[{"type":"file","fileType":"image","url":"","path":"c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/room.png"}]');
 INSERT INTO public.drive_shares (file_id, scope, target_id)
 VALUES (tests.id175('shared.txt'), 'user', '22222222-0000-0000-0000-000000000002');
+UPDATE public.drive_files SET link_token = 'live-token-0123456789abcdef' WHERE id = tests.id175('linked.pdf');
+UPDATE public.drive_files SET link_token = 'dead-token-0123456789abcdef' WHERE id = tests.id175('private.txt');
 INSERT INTO public.drive_shares (file_id, scope, token, expires_at) VALUES
   (tests.id175('linked.pdf'), 'link', 'live-token-0123456789abcdef', NULL),
   (tests.id175('private.txt'), 'link', 'dead-token-0123456789abcdef', now() - interval '1 minute');

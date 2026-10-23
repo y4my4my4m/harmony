@@ -34,7 +34,10 @@
       'hv--narrow': narrow,
       'hv--compact': compact,
       'hv--tiny': tiny,
+      'hv--micro': micro,
+      'hv--nano': nano,
       'hv--large': large,
+      'hv--expandable': expandable,
     }"
     role="group"
     :aria-label="label || t('videoPlayer.player')"
@@ -133,6 +136,7 @@
             role="slider"
             tabindex="0"
             :aria-label="t('videoPlayer.volume')"
+            :aria-orientation="compact ? 'vertical' : 'horizontal'"
             aria-valuemin="0"
             aria-valuemax="100"
             :aria-valuenow="muted ? 0 : Math.round(volume * 100)"
@@ -181,7 +185,7 @@
         <button
           v-if="fullscreenSupported"
           type="button"
-          class="hv-btn"
+          class="hv-btn hv-btn--fullscreen"
           :aria-label="fullscreen ? t('videoPlayer.exitFullscreen') : t('videoPlayer.fullscreen')"
           data-testid="video-fullscreen"
           @click="toggleFullscreen"
@@ -224,12 +228,16 @@ const emit = defineEmits<{
 
 const { t } = useT()
 
-// Host widths below which the dock drops controls: picture in picture under NARROW; speed,
-// total time and the volume slider under COMPACT; the current time under TINY. The large
-// dock's wider controls scale the widths by LARGE_SCALE.
+// Host widths below which the dock drops controls: picture in picture under NARROW; speed and
+// total time under COMPACT, where the volume slider stands above the mute button; the current
+// time under TINY; the play key (a click on the video plays) under MICRO; fullscreen beside
+// expand under NANO. Each width is the narrowest dock of the tier above, expand and fullscreen
+// included. The large dock's wider controls scale the widths by LARGE_SCALE.
 const NARROW_WIDTH = 380
 const COMPACT_WIDTH = 320
-const TINY_WIDTH = 220
+const TINY_WIDTH = 260
+const MICRO_WIDTH = 190
+const NANO_WIDTH = 150
 const LARGE_SCALE = 1.25
 const IDLE_MS = 2200
 const SEEK_STEP = 5
@@ -263,6 +271,8 @@ const scrubbing = ref(false)
 const narrow = ref(false)
 const compact = ref(false)
 const tiny = ref(false)
+const micro = ref(false)
+const nano = ref(false)
 
 const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled === true
 const rateText = computed(() => String(rate.value))
@@ -639,13 +649,20 @@ const onSeekHover = (event: PointerEvent) => {
 }
 const onSeekLeave = () => { if (!scrubbing.value) hideTip() }
 
+/** Volume at the pointer: along the track, bottom to top while the slider stands. */
+const volumeAt = (el: HTMLElement, e: PointerEvent): number => {
+  if (!compact.value) return ratioAt(el, e.clientX)
+  const box = (el.querySelector('.hv-track') ?? el).getBoundingClientRect()
+  return box.height > 0 ? Math.min(1, Math.max(0, (box.bottom - e.clientY) / box.height)) : 0
+}
+
 const onVolumeDown = (event: PointerEvent) => {
   const el = volumeEl.value
   if (!el || event.button !== 0) return
   event.preventDefault()
   el.setPointerCapture(event.pointerId)
   el.focus({ preventScroll: true })
-  const move = (e: PointerEvent) => setVolume(ratioAt(el, e.clientX))
+  const move = (e: PointerEvent) => setVolume(volumeAt(el, e))
   const up = (e: PointerEvent) => {
     el.removeEventListener('pointermove', move)
     el.removeEventListener('pointerup', up)
@@ -752,6 +769,8 @@ onMounted(() => {
       narrow.value = width < NARROW_WIDTH
       compact.value = width < COMPACT_WIDTH
       tiny.value = width < TINY_WIDTH
+      micro.value = width < MICRO_WIDTH
+      nano.value = width < NANO_WIDTH
     })
     resizeObserver.observe(el)
   }
@@ -1250,6 +1269,7 @@ defineExpose({ togglePlay, seekTo })
 }
 
 .hv--compact .hv-seek {
+  min-width: 40px;
   margin: 0 6px;
 }
 
@@ -1287,6 +1307,109 @@ defineExpose({ togglePlay, seekTo })
 .hv--tiny .hv-pill {
   height: 32px;
   border-radius: 10px;
+}
+
+.hv--tiny .hv-seek {
+  min-width: 32px;
+  margin: 0 4px;
+}
+
+.hv--micro .hv-play,
+.hv--nano.hv--expandable .hv-btn--fullscreen {
+  display: none;
+}
+
+.hv--micro .hv-seek {
+  min-width: 24px;
+}
+
+/* Compact hosts with a pointer: on hover or focus the mute button grows upward into a capsule
+   holding the volume slider, the button at its foot. */
+@media (hover: hover) {
+  .hv--compact .hv-volume {
+    position: relative;
+  }
+
+  .hv--compact .hv-volume::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    border-radius: 14px;
+    background: linear-gradient(rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.1)), var(--hv-glass);
+    opacity: 0;
+    pointer-events: none;
+    transition: height 220ms var(--hv-ease), opacity 120ms ease, box-shadow 220ms ease;
+  }
+
+  .hv--compact .hv-volume:hover::before,
+  .hv--compact .hv-volume:focus-within::before {
+    height: calc(100% + 84px);
+    opacity: 1;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  }
+
+  .hv--compact .hv-volume .hv-btn {
+    position: relative;
+    z-index: 1;
+    border-radius: 14px;
+  }
+
+  .hv--compact .hv-volume:hover .hv-btn,
+  .hv--compact .hv-volume:focus-within .hv-btn {
+    background: transparent;
+  }
+
+  .hv--compact .hv-volume-slider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    z-index: 1;
+    display: flex;
+    width: auto;
+    height: 84px;
+    margin: 0;
+    padding: 14px 0 6px;
+    box-sizing: border-box;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    overflow: visible;
+    transition: opacity 120ms ease, visibility 0s linear 220ms;
+  }
+
+  .hv--compact .hv-volume:hover .hv-volume-slider,
+  .hv--compact .hv-volume:focus-within .hv-volume-slider {
+    width: auto;
+    margin: 0;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 160ms ease 80ms, visibility 0s;
+  }
+
+  .hv--compact .hv-volume-slider .hv-track {
+    width: 4px;
+    height: 100%;
+  }
+
+  .hv--compact .hv-fill--volume {
+    transform-origin: center bottom;
+    transform: scaleY(var(--v));
+  }
+
+  .hv--compact .hv-thumb-rail--volume {
+    inset: 14px 0 6px;
+    transform: translateY(calc((1 - var(--v)) * 100%));
+  }
+
+  .hv--compact .hv-volume-slider .hv-thumb {
+    top: -6px;
+    left: 50%;
+    margin: 0 0 0 -6px;
+  }
 }
 
 /* --- Fullscreen and the media viewer ------------------------------------------------ */

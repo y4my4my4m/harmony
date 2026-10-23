@@ -3,7 +3,7 @@ import './assets/design-system.css'
 import './assets/shared.css'
 import './assets/embed-previews.css'
 import './assets/themes.css' // Theme system CSS
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
@@ -15,6 +15,7 @@ import { isTauriRuntime } from '@/services/instanceConfig'
 import { getBuildInfo, getNativeVersion } from '@/utils/buildInfo'
 import { reloadIfStaleBundle, withoutStaleParam } from '@/utils/staleBundle'
 import { reactionCacheManager } from '@/utils/reactionCacheManager'
+import { setAppSessionCookie } from '@/utils/appSessionCookie'
 
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
@@ -144,6 +145,11 @@ async function initializeApp() {
   let mounted = false
   const mountApp = () => {
     if (mounted) return
+    // The reverse proxy serves the app on /@ paths to a browser with this cookie.
+    if (!isTauriRuntime()) {
+      const authStore = useAuthStore()
+      watch(() => authStore.isLoggedIn, (signedIn) => setAppSessionCookie(signedIn), { immediate: true })
+    }
     installOverlayHistory(router, isMobileLayout)
     app.use(router).mount('#app')
     mounted = true

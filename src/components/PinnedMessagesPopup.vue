@@ -88,6 +88,7 @@
                     :content="message.content"
                     :message-id="message.id"
                     :embed-payloads="message.metadata?.embeds"
+                    :media-hidden="mediaHidden"
                   />
                 </div>
                 <div v-if="message.metadata?.pinner" class="pinned-by">
@@ -109,6 +110,7 @@ import { useI18n } from 'vue-i18n'
 import { useDialog } from '@/composables/useDialog'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { usePinActions } from '@/composables/usePinActions'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
@@ -135,9 +137,10 @@ const emit = defineEmits<{
   'jump-to-message': [messageId: string]
 }>()
 
-const { canPinMessages: canPinServerWide } = useServerPermissions()
+const { isLocalServer } = useServerPermissions()
 // Channel-resolved, as unpin_message decides it.
 const serverChannelStore = useServerChannelStore()
+const mediaHidden = useServerMediaHidden(() => (props.conversationId ? null : serverChannelStore.currentServerId))
 const { canPinMessages: canPinInChannel } = useChannelMessagePermissions(
   () => serverChannelStore.currentServerId,
   () => (props.conversationId ? null : props.channelId),
@@ -171,7 +174,9 @@ const loadFailed = ref(false)
 // Spinner only before the first fetch; later opens render the cached list.
 const loading = computed(() => cachedMessages.value === null && !loadFailed.value)
 const pinnedCount = computed(() => pinnedMessages.value.length)
-const canUnpin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value))
+// Any participant unpins in a conversation (unpin_message); a copy's pins are the host's.
+const canUnpin = computed(() =>
+  !!props.conversationId || (isLocalServer.value && canPinInChannel.value))
 
 const loadPinnedMessages = async () => {
   if (!scope.value) return

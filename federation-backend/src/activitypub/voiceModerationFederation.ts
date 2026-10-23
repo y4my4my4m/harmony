@@ -29,11 +29,12 @@ import { sameUrl, urlHost } from '../utils/apOrigin.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { instanceSoftware } from './instanceSoftware.js';
 import { logDenied } from './channelWriteAuthz.js';
+import { HARMONY_CONTEXT } from './harmonyContext.js';
 
 type Supabase = ReturnType<typeof getSupabaseClient>;
 
 const AS_CONTEXT = 'https://www.w3.org/ns/activitystreams';
-const HARMONY_VOICE_CONTEXT = 'https://harmony.social/ns/voice';
+const HARMONY_VOICE_CONTEXT = HARMONY_CONTEXT;
 
 export const VOICE_MEMBER_TYPES = {
   Move: 'harmony:VoiceMemberMove',

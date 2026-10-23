@@ -2,7 +2,8 @@ import { supabase } from '@/supabase'
 import { apiUrl } from '@/services/instanceConfig'
 
 /**
- * Drive calls (migrations 20261015100001_drive_core.sql, 20261015100002_drive_api.sql).
+ * Drive calls (migrations 20261015100001_drive_core.sql, 20261015100002_drive_api.sql,
+ * 20261026500001_drive_file_links.sql, 20261027100001_drive_link_access.sql).
  *
  * Files are rows of drive_files; their bytes are message_media or user_media objects. Every
  * upload of the account to those buckets is a Drive file; the upload's storage metadata names
@@ -34,6 +35,8 @@ export interface DriveFile {
   trashed_at: string | null
   created_at: string
   updated_at: string
+  /** The file's /d/ address token (driveTokenUrl). */
+  link_token: string
 }
 
 export interface DriveOwner {
@@ -42,6 +45,27 @@ export interface DriveOwner {
   display_name: string | null
   avatar_url: string | null
   domain: string | null
+}
+
+/** A custom emoji of an owner's display name, by shortcode name (name or name~N). */
+export interface DriveOwnerEmoji {
+  name: string
+  url: string
+}
+
+/** drive_owner_json: an owner as a file card or the public page shows it. */
+export interface DriveCardOwner extends DriveOwner {
+  emojis: DriveOwnerEmoji[]
+}
+
+/** drive_link_state: a file's address and its general access. */
+export interface DriveLinkState {
+  token: string
+  /** "Anyone with the link": a live link share. False when restricted or expired. */
+  public: boolean
+  /** Expiry of the link share, also once passed; null without one. */
+  link_expires_at: string | null
+  show_owner: boolean
 }
 
 export interface DriveListEntry {
@@ -109,6 +133,7 @@ export interface DriveFileUsage {
   shares: DriveShare[]
 }
 
+/** drive_link_resolve: a public link. The owner only while Show my name is on. */
 export interface DriveLinkInfo {
   name: string
   mime_type: string | null
@@ -116,11 +141,11 @@ export interface DriveLinkInfo {
   size_bytes: number
   created_at: string
   expires_at: string | null
-  owner: { username: string; display_name: string | null; avatar_url: string | null; domain: string | null }
+  owner: DriveCardOwner | null
 }
 
-/** drive_file_card (20261026500001): a file the caller reads by id. */
-export interface DriveFileCardFile {
+/** drive_file_card: a file the caller reads, by id or by token. */
+export interface DriveFileCardFile extends DriveLinkState {
   access: true
   via: 'file'
   id: string
@@ -135,20 +160,21 @@ export interface DriveFileCardFile {
   expires_at: string | null
   created_at: string
   own: boolean
-  owner: DriveOwner | null
+  owner: DriveCardOwner | null
 }
 
-/** drive_file_card: a file behind a live link token. No id and no object name. */
+/** drive_file_card: a public file the caller does not read, by token. No id and no object name. */
 export interface DriveFileCardLink {
   access: true
   via: 'link'
+  token: string
   name: string
   mime_type: string | null
   kind: DriveFileKind
   size_bytes: number
   created_at: string
   expires_at: string | null
-  owner: Omit<DriveOwner, 'id'> | null
+  owner: DriveCardOwner | null
 }
 
 /** No access, a missing file and a dead token answer alike. */
@@ -336,16 +362,49 @@ export async function unshareDriveFile(shareId: string): Promise<void> {
   fail(error)
 }
 
-export async function createDriveLink(fileId: string, expiresAt: string | null = null): Promise<DriveShare> {
-  const { data, error } = await supabase.rpc('drive_link_create', { p_file: fileId, p_expires_at: expiresAt })
+/** Owner: general access of a file. Restricted removes the link share; the token stays. */
+export async function setDriveLinkAccess(
+  fileId: string,
+  access: { public: boolean; expiresAt?: string | null; showOwner?: boolean },
+): Promise<DriveLinkState> {
+  const { data, error } = await supabase.rpc('drive_link_set', {
+    p_file: fileId,
+    p_public: access.public,
+    p_expires_at: access.expiresAt ?? null,
+    p_show_owner: access.showOwner ?? false,
+  })
   fail(error)
-  return data as DriveShare
+  return data as DriveLinkState
+}
+
+/** Owner: a new token for the file. The old address stops working for everyone. */
+export async function resetDriveLink(fileId: string): Promise<DriveLinkState> {
+  const { data, error } = await supabase.rpc('drive_link_reset', { p_file: fileId })
+  fail(error)
+  return data as DriveLinkState
 }
 
 export async function resolveDriveLink(token: string): Promise<DriveLinkInfo | null> {
   const { data, error } = await supabase.rpc('drive_link_resolve', { p_token: token })
   fail(error)
-  return (data as DriveLinkInfo | null) ?? null
+  const info = (data as DriveLinkInfo | null) ?? null
+  // A hidden owner arrives as an object of nulls (1.8.11 pages read owner.display_name unguarded).
+  if (info?.owner && !info.owner.username) info.owner = null
+  return info
+}
+
+const primedCards = new Map<string, DriveFileCardFile>()
+
+/** Hands a card just read by id to the /d/ page its token opens, sparing a second lookup. */
+export function primeDriveFileCard(card: DriveFileCardFile): void {
+  primedCards.set(card.token, card)
+}
+
+/** The card primeDriveFileCard left for this token, once. */
+export function takePrimedDriveFileCard(token: string): DriveFileCardFile | null {
+  const card = primedCards.get(token) ?? null
+  primedCards.delete(token)
+  return card
 }
 
 /** What a card or the file page shows of a file id or a link token, for the caller. */

@@ -99,6 +99,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   server_join_rejected: 'server_update',
   server_federation_closed: 'server_update',
   server_member_removed: 'server_update',
+  server_instance_removed: 'server_update',
   report_update: 'server_update',
   moderation_warning: 'server_update',
   newcomer_message: 'server_update',
@@ -207,8 +208,9 @@ function setRead(n: Notification, isRead: boolean): void {
 }
 
 const DM_TYPES = new Set(['dm', 'chat_message'])
-// A server on another instance refused a join or removed the user: it leaves the list.
-const SERVER_GONE_TYPES = new Set(['server_join_rejected', 'server_federation_closed', 'server_member_removed'])
+// A server on another instance refused a join or removed the user, or this instance's staff
+// removed the user from it: it leaves the list.
+const SERVER_GONE_TYPES = new Set(['server_join_rejected', 'server_federation_closed', 'server_member_removed', 'server_instance_removed'])
 
 type DismissCriteria = {
   notificationIds?: string[]

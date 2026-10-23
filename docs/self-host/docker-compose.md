@@ -47,8 +47,16 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 ### How the stack is assembled
 
 - `docker-compose.yml` defines Caddy, the web app, the federation server
-  and worker, Redis, and the optional LiveKit (`voice`), bot gateway
-  (`bots`) and Discord bridge host (`discord`) services.
+  and worker, Redis, the media cache, and the optional LiveKit (`voice`), bot
+  gateway (`bots`) and Discord bridge host (`discord`) services.
+- The media cache (`media-cache`, nginx with `media-cache.conf`) sits between
+  Caddy and Kong for public storage reads: `GET` and `HEAD` of
+  `/storage/v1/object/public/*` and `/storage/v1/render/image/public/*` on the
+  `db.` host, the private `message_media` bucket aside. A post boosted to
+  thousands of servers has each of them download the author's avatar and the
+  post's media within minutes; the cache fetches each file from storage once and
+  keeps it 10 minutes, so a file deleted in moderation stops being served within
+  that time. `harmony doctor` reports whether reads go through it.
 - Its `include:` pulls in `supabase/docker-compose.yml`, the upstream
   Supabase `docker/` directory at the pinned commit, with
   `supabase-overrides.yml` merged over it and `supabase/.env` for
@@ -193,14 +201,16 @@ case-sensitively.
 | `/users/NAME/inbox`, `/outbox`, `/followers`, `/following`, `/featured` | federation server | |
 | `/users/NAME/quote_authorizations/ID` | federation server | FEP-044f quote approvals |
 | `/users/NAME/activities/UUID`, `/activities/UUID` | federation server | A post's `Create`, a boost's `Announce` |
-| `/users/NAME` with `Accept` naming `application/activity+json`, `application/ld+json` or `application/json` | federation server | Any other request: 302 to `/social/profile/NAME` |
+| `/users/NAME` with `Accept` naming `application/activity+json`, `application/ld+json` or `application/json` | federation server | Any other request: 302 to `/@NAME` |
 | `/servers/...` | federation server | Servers as ActivityPub Groups |
-| `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or an HTML page with OpenGraph tags |
+| `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or the post's public page |
 | `/messages/UUID` | federation server | Chat and direct message `Note`s; 406 without an ActivityPub `Accept` |
 | `/threads/UUID`, `/threads/UUID/members`, `/channels/UUID/threads` | federation server | Chat threads as `ChatThread`s; 406 without an ActivityPub `Accept` |
 | `/invite/CODE` from a link-preview crawler | federation server | Decided by `User-Agent`; everyone else gets the web app |
 | `/social/post/UUID` with an ActivityPub `Accept`, or from a link-preview crawler | federation server, rewritten to `/posts/UUID` | Everyone else gets the web app |
-| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | An account's `url`; everyone else gets the web app |
+| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | Everyone else gets the web app |
+| `/@NAME`, `/@NAME/ID` with the cookie `harmony_app=1` and no ActivityPub `Accept` | web app | The app sets the cookie while signed in |
+| `/@NAME`, `/@NAME/ID`, any other request | federation server, path unchanged | An account's and a post's `url`: the actor and the `Note` for ActivityPub, the public page for everyone else |
 | `/health...`, `/link-preview...` | federation server | Prefixes without a trailing slash |
 | `/api/livekit/...` | federation server, path unchanged | |
 | `/api/federation/...` | federation server, prefix stripped | `/api/federation/push/vapid-key` reaches `/push/vapid-key` |
@@ -248,6 +258,13 @@ location /api/federation/ {
   proxy_set_header Accept "image/webp,*/*;q=0.8";
   ```
 
+- Cache public storage reads unless a CDN already does: a boosted post has
+  every receiving server download the author's avatar and the post's media at
+  once, and each uncached avatar is resized again. `self-host/media-cache.conf`
+  is the nginx configuration the self-host stack runs for this (`proxy_cache`
+  with a lock, 10 minutes, `no-store` and `private` answers never kept); its
+  `proxy_cache*` directives and the `map` go into the public object and render
+  locations, `message_media` excluded.
 - Keep Kong (8000) and GoTrue (9999) unreachable from outside: either port
   bypasses the logout rule. Postgres never faces the internet.
 

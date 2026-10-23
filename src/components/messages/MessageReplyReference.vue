@@ -126,6 +126,8 @@ const {
 
 .reply-preview {
   display: block;
+  /* With the row's 4px gap: wider than the 3px between a name and its globe. */
+  margin-left: 4px;
   color: var(--text-secondary);
   font-size: 0.875rem;
   overflow: hidden;

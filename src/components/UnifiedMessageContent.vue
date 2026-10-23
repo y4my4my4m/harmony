@@ -99,6 +99,14 @@
           @image-loaded="handleImageLoad"
           @remove-attachment="requestRemoveAttachment"
         />
+        <p
+          v-if="part && typeof part === 'object' && part.type === 'media_hidden'"
+          class="media-hidden-notice"
+          data-testid="media-hidden"
+        >
+          <Icon name="eye-off" :size="16" aria-hidden="true" />
+          <span>{{ t('instanceServer.media.hiddenNotice', { instance: instanceDomain }, (part as any).count) }}</span>
+        </p>
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
@@ -293,6 +301,9 @@
               @error="onAttachmentMediaError(part.url)"
             ></audio>
           </div>
+
+          <!-- A Drive link that is the whole message shows as its file alone. -->
+          <template v-else-if="part === soleDriveLink"></template>
 
           <!-- Regular URL links -->
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
@@ -695,7 +706,8 @@ import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
 import { openExternalUrl } from '@/services/tauriLinks';
-import { isTauriRuntime } from '@/services/instanceConfig';
+import { getInstanceDomain, isTauriRuntime } from '@/services/instanceConfig';
+import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
@@ -715,6 +727,7 @@ import {
 } from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
+import { soleDriveLinkPart } from '@/utils/driveLinkContent';
 import { isWikimediaPage } from '@/utils/embedPreview';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
@@ -829,6 +842,11 @@ export default defineComponent({
       default: null
     },
     canEditAttachments: {
+      type: Boolean,
+      default: false,
+    },
+    /** The server's media is hidden on this instance (utils/hiddenMedia.ts). */
+    mediaHidden: {
       type: Boolean,
       default: false,
     },
@@ -1158,6 +1176,8 @@ export default defineComponent({
         ? undecryptedDisplayParts(props.content)
         : pollPartOf(props.content)
         ? props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll')
+        : props.mediaHidden
+        ? withMediaHidden(props.content)
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
               embedsSuppressed.value
@@ -1168,11 +1188,15 @@ export default defineComponent({
             ),
           ),
     );
+    const instanceDomain = getInstanceDomain();
 
     const isAudioUrl = (url: string): boolean => {
       if (!url) return false;
       return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)(?:[?#].*)?$/i.test(url);
     };
+
+    // The url part of a Drive link that is the whole message: its text is not shown.
+    const soleDriveLink = computed(() => soleDriveLinkPart(displayContent.value));
 
     const formatFileSize = (bytes: number): string => {
       if (bytes === 0) return '0 Bytes';
@@ -1631,6 +1655,8 @@ export default defineComponent({
 
     return {
       rootRef,
+      instanceDomain,
+      soleDriveLink,
       openMedia,
       chatMediaKey,
       nativeVideoControls,
@@ -2184,6 +2210,19 @@ a.channel-mention {
   100% {
     background-position: -100% 0;
   }
+}
+
+.media-hidden-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 400px;
+  margin: 4px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background-color: var(--background-tertiary);
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 /* File attachments */

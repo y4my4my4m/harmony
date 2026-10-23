@@ -4,17 +4,27 @@ import { roleService, type ServerRole } from '@/services/RoleService'
 import { debug } from '@/utils/debug'
 
 // Batched server_roles + user_roles fetch; sync getters keyed by (serverId, userId).
+// A loaded server reloads after role writes through RoleService and after realtime role
+// broadcasts (server-structure:role-change / user-role-change), REFRESH_DEBOUNCE_MS apart.
+const REFRESH_DEBOUNCE_MS = 250
+
 export const useServerRolesStore = defineStore('serverRoles', () => {
   const rolesByServer = ref(new Map<string, ServerRole[]>())
   const userRolesByServer = ref(new Map<string, Map<string, ServerRole[]>>())
   const inflight = new Map<string, Promise<void>>()
+  const refreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const _tick = ref(0)
 
   async function ensureServerLoaded(serverId: string, options?: { force?: boolean }): Promise<void> {
     if (!serverId) return
     if (!options?.force && rolesByServer.value.has(serverId)) return
     const existing = inflight.get(serverId)
-    if (existing) return existing
+    if (existing) {
+      if (!options?.force) return existing
+      // A load started before the change settles with the old rows.
+      await existing.catch(() => {})
+      if (inflight.get(serverId)) return inflight.get(serverId)
+    }
 
     const work = (async () => {
       try {
@@ -67,6 +77,31 @@ export const useServerRolesStore = defineStore('serverRoles', () => {
     return getHighestColoredRole(serverId, userId)?.color || null
   }
 
+  /** Reloads `serverId` once a burst of changes settles; servers never loaded stay unloaded. */
+  function scheduleRefresh(serverId: string, { clearService = false } = {}): void {
+    if (!serverId || !rolesByServer.value.has(serverId)) return
+    const pending = refreshTimers.get(serverId)
+    if (pending) clearTimeout(pending)
+    refreshTimers.set(serverId, setTimeout(() => {
+      refreshTimers.delete(serverId)
+      if (clearService) roleService.clearServerCache(serverId)
+      void ensureServerLoaded(serverId, { force: true })
+    }, REFRESH_DEBOUNCE_MS))
+  }
+
+  roleService.onRolesChanged((serverId) => scheduleRefresh(serverId))
+
+  // Changes made elsewhere: RoleService's own caches (assignments live 30 s) are stale too.
+  if (typeof window !== 'undefined') {
+    const onBroadcast = (event: Event) => {
+      const detail = (event as CustomEvent).detail
+      const serverId = detail?.new?.server_id ?? detail?.old?.server_id
+      if (serverId) scheduleRefresh(serverId, { clearService: true })
+    }
+    window.addEventListener('server-structure:role-change', onBroadcast)
+    window.addEventListener('server-structure:user-role-change', onBroadcast)
+  }
+
   function invalidate(serverId: string): void {
     rolesByServer.value.delete(serverId)
     userRolesByServer.value.delete(serverId)
@@ -74,6 +109,8 @@ export const useServerRolesStore = defineStore('serverRoles', () => {
   }
 
   function $dispose(): void {
+    for (const timer of refreshTimers.values()) clearTimeout(timer)
+    refreshTimers.clear()
     rolesByServer.value.clear()
     userRolesByServer.value.clear()
     inflight.clear()

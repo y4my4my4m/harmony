@@ -320,15 +320,19 @@
                   {{ t('common.cancel') }}
                 </button>
 
+                <!-- Sending keeps the label in place under a spinner, so the button keeps its
+                     size in every language; the busy text is announced. -->
                 <button
                   type="button"
                   class="post-button"
+                  :class="{ 'is-busy': isPosting }"
                   data-testid="compose-submit"
                   :disabled="!canSubmit || isPosting"
+                  :aria-busy="isPosting ? 'true' : undefined"
                   @click="handleSubmit"
                 >
-                  <Icon v-if="isPosting" name="spinner" class="spinning" />
-                  <span>{{ submitButtonText }}</span>
+                  <span class="post-button-label">{{ submitButtonText }}</span>
+                  <Icon v-if="isPosting" name="spinner" :size="16" class="post-button-spinner spinning" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -614,7 +618,9 @@ const currentVisibility = computed(() =>
 
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
-  if (cursorPosition !== undefined && richEditorRef.value) {
+  if (cursorPosition !== undefined && richEditorRef.value?.replaceText) {
+    richEditorRef.value.replaceText(newText, cursorPosition);
+  } else if (cursorPosition !== undefined && richEditorRef.value) {
     debug.log('Composer updateText:', { newText, cursorPosition });
     richEditorRef.value.skipNextWatch = true;
 
@@ -700,16 +706,17 @@ const headerTitle = computed(() => {
 });
 
 const submitButtonText = computed(() => {
-  if (isPosting.value) {
-    if (props.type === 'reply') return t('activitypub.replying');
-    if (props.type === 'quote') return t('activitypub.quoting');
-    if (props.type === 'edit') return t('activitypub.saving');
-    return t('activitypub.posting');
-  }
   if (props.type === 'reply') return t('activitypub.reply');
   if (props.type === 'quote') return t('activitypub.quote');
   if (props.type === 'edit') return t('activitypub.save');
   return t('activitypub.post');
+});
+
+const submitBusyText = computed(() => {
+  if (props.type === 'reply') return t('activitypub.replying');
+  if (props.type === 'quote') return t('activitypub.quoting');
+  if (props.type === 'edit') return t('activitypub.saving');
+  return t('activitypub.posting');
 });
 
 const wrapperComponent = computed(() => {
@@ -937,6 +944,7 @@ const handleSubmit = async () => {
   if (!canSubmit.value || isPosting.value) return;
 
   isPosting.value = true;
+  polite(submitBusyText.value, { key: 'composer-submit' });
 
   try {
     let post;
@@ -1544,9 +1552,12 @@ watch(() => props.replyToPost, (replyPost) => {
 }
 
 .post-button {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  white-space: nowrap;
   padding: 0.5rem 1.25rem;
   background-color: var(--harmony-primary-fill);
   border: none;
@@ -1564,6 +1575,22 @@ watch(() => props.replyToPost, (replyPost) => {
 .post-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Busy: full colour, label kept for its width and its accessible name, spinner over it. */
+.post-button.is-busy:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.post-button.is-busy .post-button-label {
+  opacity: 0;
+}
+
+.post-button-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
 }
 
 .spinning {

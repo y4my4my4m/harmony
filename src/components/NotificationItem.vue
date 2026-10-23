@@ -245,6 +245,7 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   server_join_rejected: { icon: 'ban', tone: 'system' },
   server_federation_closed: { icon: 'globe', tone: 'system' },
   server_member_removed: { icon: 'door-open', tone: 'system' },
+  server_instance_removed: { icon: 'shield', tone: 'system' },
   server_invite: { icon: 'server', tone: 'system' },
   voice_channel_activity: { icon: 'headphones', tone: 'system' },
 }

@@ -6,6 +6,9 @@ import {
   reportActionsFor,
   reportErrorMessage,
   reportSourceLabel,
+  serverForwardLabel,
+  serverHostedElsewhere,
+  serverResolutionLabel,
   snapshotEvidence,
   type ActionableReport,
 } from '@/utils/reportModeration'
@@ -47,6 +50,41 @@ describe('remoteDomainOf', () => {
     expect(remoteDomainOf({ domain: 'harmony.test' }, 'harmony.test')).toBeNull()
     expect(remoteDomainOf({ is_local: false, domain: null }, 'harmony.test')).toBeNull()
     expect(remoteDomainOf(undefined, 'harmony.test')).toBeNull()
+  })
+})
+
+describe('serverHostedElsewhere', () => {
+  it('names a server hosted on another instance, by its name and host', () => {
+    expect(serverHostedElsewhere({ name: 'Elsewhere', is_local_server: false, federation_domain: 'Host.Test' }, 'harmony.test'))
+      .toEqual({ name: 'Elsewhere', host: 'host.test' })
+    expect(serverHostedElsewhere({ name: ' ', is_local_server: false, federation_domain: 'host.test' }, 'harmony.test'))
+      .toEqual({ name: 'host.test', host: 'host.test' })
+  })
+
+  it('is null for a server hosted here or of unknown host', () => {
+    expect(serverHostedElsewhere({ name: 'Home', is_local_server: true }, 'harmony.test')).toBeNull()
+    expect(serverHostedElsewhere({ name: 'Home' }, 'harmony.test')).toBeNull()
+    expect(serverHostedElsewhere({ name: 'X', is_local_server: false, federation_domain: null }, 'harmony.test')).toBeNull()
+    expect(serverHostedElsewhere({ name: 'X', is_local_server: false, federation_domain: 'harmony.test' }, 'harmony.test')).toBeNull()
+    expect(serverHostedElsewhere(null, 'harmony.test')).toBeNull()
+  })
+})
+
+describe('server forward labels', () => {
+  const sent = { server_name: 'Elsewhere', host: 'host.test', status: 'completed' }
+
+  it('say where a report sent to a server\'s moderators stands', () => {
+    expect(serverForwardLabel(sent)).toBe('Also sent to Elsewhere\'s moderators on host.test')
+    expect(serverForwardLabel({ ...sent, status: 'queued' })).toBe('Being sent to Elsewhere\'s moderators on host.test')
+    expect(serverForwardLabel({ ...sent, status: 'failed' })).toBe('Could not reach Elsewhere\'s moderators on host.test')
+    expect(serverForwardLabel({ ...sent, status: 'skipped' })).toBeNull()
+    expect(serverForwardLabel(null)).toBeNull()
+  })
+
+  it('name the server\'s moderators and their outcome once settled, not as the report\'s resolution', () => {
+    expect(serverResolutionLabel({ ...sent, resolution: 'resolved' })).toBe('Elsewhere\'s moderators: Action taken')
+    expect(serverResolutionLabel({ ...sent, resolution: 'dismissed' })).toBe('Elsewhere\'s moderators: Dismissed')
+    expect(serverResolutionLabel(sent)).toBeNull()
   })
 })
 

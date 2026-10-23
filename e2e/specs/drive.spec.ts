@@ -1,8 +1,8 @@
 // Journey: a member keeps files in Drive. Uploads land in My Drive with their names; a
 // folder takes a file by Move and opens from the list; search finds a file by part of its
-// name; Move to trash and Restore round-trip through the Trash view. A link share opens
-// /d/<token> for a reader with no account, who sees the name and the image itself through
-// the backend's link route.
+// name; Move to trash and Restore round-trip through the Trash view. General access set to
+// Anyone with the link opens the file's /d/<token> for a reader with no account, who sees the
+// name and the image itself through the backend's link route.
 //
 // The link page fetches its bytes from /api/federation/drive/link/<token>, a 302 to a signed
 // storage URL; the backend from ./backend.ts answers it.
@@ -113,14 +113,16 @@ test('upload, file away, search, trash and share a link', async ({ page, browser
   })
 
   let link = ''
-  await test.step('a link share gives a /d/ address', async () => {
+  await test.step('Anyone with the link opens the /d/ address to everyone', async () => {
     await page.getByTestId('drive-folder').filter({ hasText: FOLDER }).dblclick()
     await file(page, IMAGE).click()
     await page.getByTestId('drive-share-open').click()
     const dialog = page.getByTestId('drive-share-dialog')
-    await dialog.getByTestId('drive-link-toggle').click()
     await expect(dialog.getByTestId('drive-link-url')).toHaveValue(/\/d\/[A-Za-z0-9_-]+$/)
     link = await dialog.getByTestId('drive-link-url').inputValue()
+    await dialog.getByTestId('drive-link-access').selectOption('anyone')
+    await expect(dialog.getByTestId('drive-link-show-owner')).toBeVisible()
+    await expect(dialog.getByTestId('drive-link-url')).toHaveValue(link)
   })
 
   await test.step('a reader with no account sees the file behind the link', async () => {

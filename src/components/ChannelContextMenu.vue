@@ -103,7 +103,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emit = defineEmits<Emits>()
 
-const { canManageChannels, canManageWebhooks, hasCurrentUserPermission, Permission } = useServerPermissions()
+const { canManageChannels, canManageWebhooks, hasCurrentUserPermission, isLocalServer, Permission } = useServerPermissions()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -113,7 +113,9 @@ const canManageChannel = computed(() => canManageChannels.value && !!props.chann
 const canEditChannel = computed(() =>
   !!props.channel && (canManageChannels.value || (canManageWebhooks.value && props.channel.type === 0)))
 
-const canInvite = computed(() => hasCurrentUserPermission(Permission.CREATE_INVITE) && props.channel?.type === 0)
+// A copy's invites are the host's.
+const canInvite = computed(() =>
+  isLocalServer.value && hasCurrentUserPermission(Permission.CREATE_INVITE) && props.channel?.type === 0)
 
 const inviteUsers = () => {
   emit('invite-users')

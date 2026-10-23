@@ -465,14 +465,14 @@ const roleMembers = ref<RoleMemberRow[]>([])
 const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
 const profileStore = useProfileStore()
-// The owner and instance admins manage every role. A MANAGE_ROLES holder manages roles ranked
+// The owner manages every role (caller_outranks_all). A MANAGE_ROLES holder manages roles ranked
 // below their highest role and grants only permissions they hold; the database enforces both.
 const myPermissions = ref<Partial<Record<string, boolean>>>({})
 const myRank = ref(0)
 const outranksAll = computed(() => {
   const profile = profileStore.profile
   if (!profile) return false
-  return profile.id === serverOwnerId.value || profile.is_admin === true
+  return profile.id === serverOwnerId.value
 })
 const canEditRoles = computed(() => outranksAll.value || myPermissions.value.MANAGE_ROLES === true)
 const canManageRole = (role: ServerRole): boolean =>
@@ -1173,12 +1173,13 @@ const loadServerOwner = async () => {
   try {
     const { data, error } = await supabase
       .from('servers')
-      .select('owner')
+      .select('owner, is_local_server')
       .eq('id', props.serverId)
       .single()
     
+    // A copy's owner is the host's and outranks nothing here.
     if (!error && data) {
-      serverOwnerId.value = data.owner
+      serverOwnerId.value = data.is_local_server === false ? null : data.owner
     }
   } catch (error) {
     console.error('Failed to load server owner:', error)

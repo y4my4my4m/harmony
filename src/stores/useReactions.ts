@@ -94,6 +94,8 @@ function resolveEmojiForGroup(emojiId: string, providedEmojiData?: Emoji): Emoji
     url: providedEmojiData?.url || (resolved.display.type === 'svg' ? resolved.display.content : ''),
     native: resolved.unicode,
     unicode: resolved.unicode,
+    // A default emoji; its url is the pack's image, not a custom upload.
+    is_native: true,
     server_id: '',
     uploader: '',
     usage_count: 0,

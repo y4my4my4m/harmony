@@ -262,6 +262,19 @@
           When off, emojis won't display in names and users can't add them.
         </span>
       </div>
+      <div class="setting-group">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            v-model="config.federation.publicProfilePages"
+            aria-describedby="public-profile-pages-hint"
+            data-testid="public-profile-pages-toggle"
+          />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">{{ $t('admin.instance.publicProfilePages') }}</span>
+        </label>
+        <span id="public-profile-pages-hint" class="setting-hint">{{ $t('admin.instance.publicProfilePagesHint') }}</span>
+      </div>
       <div class="setting-row">
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.enableOutbound" />
@@ -723,6 +736,7 @@ const config = ref({
     customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
     maxPostReactionsPerUser: 10,
+    publicProfilePages: true,
     enableOutbound: true,
     enableInbound: true
   },
@@ -848,6 +862,7 @@ const saveConfig = async () => {
         Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
       ),
       allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+      public_profile_pages: config.value.federation.publicProfilePages,
       max_post_reactions_per_user: Math.min(
         100,
         Math.max(1, Math.round(Number(config.value.federation.maxPostReactionsPerUser) || 10))

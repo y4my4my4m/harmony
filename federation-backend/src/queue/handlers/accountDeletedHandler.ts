@@ -16,6 +16,7 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { buildActorDelete, deletedActorByProfile } from '../../activitypub/deletedActors.js';
 import { logger } from '../../utils/logger.js';
+import { accountDocumentPaths, invalidateDocuments } from '../../middleware/documentCache.js';
 
 export interface AccountDeletedJobData {
   profile_id: string;
@@ -27,6 +28,8 @@ export const PROFILE_MEDIA_BUCKETS = ['avatars', 'banners'] as const;
 export async function handleAccountDeletedJob(data: AccountDeletedJobData): Promise<void> {
   const supabase = getSupabaseClient();
   const tombstone = await deletedActorByProfile(data.profile_id);
+  const username = tombstone ? /\/users\/([^/?#]+)$/.exec(tombstone.actor_uri)?.[1] : null;
+  if (username) await invalidateDocuments(accountDocumentPaths(decodeURIComponent(username)));
 
   if (tombstone && !tombstone.delivered_at) {
     if (tombstone.private_key && tombstone.inboxes.length > 0) {

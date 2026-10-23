@@ -24,7 +24,7 @@ type Resource =
 
 /**
  * `acct:<name>@<domain>`, or a URL on this domain naming an account (its actor id
- * `/users/<name>` or its page `/social/profile/<name>`) or a chat server
+ * `/users/<name>`, its page `/@<name>` or the app's `/social/profile/<name>`) or a chat server
  * (`/servers/<uuid>`), as Mastodon's WebfingerController accepts an account's URI or URL.
  * `invalid` for a malformed resource, `elsewhere` for another domain or path.
  */
@@ -44,7 +44,7 @@ function parseResource(resource: string): Resource | 'invalid' | 'elsewhere' {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return 'invalid';
   if (url.host.toLowerCase() !== config.INSTANCE_DOMAIN.toLowerCase()) return 'elsewhere';
   const path = url.pathname.replace(/\/+$/, '');
-  const account = path.match(/^\/(?:users|social\/profile)\/([^/]+)$/);
+  const account = path.match(/^\/(?:users\/|social\/profile\/|@)([^/@]+)$/);
   if (account) return { kind: 'account', name: account[1] };
   const server = path.match(/^\/servers\/([0-9a-f-]{36})$/i);
   if (server) return { kind: 'server', id: server[1].toLowerCase() };

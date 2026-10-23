@@ -47,7 +47,7 @@ describe('stored activity types', () => {
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))
       .find((sql) => sql.includes('ADD CONSTRAINT ap_activities_valid_type'))!
     const check = latest.slice(latest.indexOf('ADD CONSTRAINT ap_activities_valid_type'))
-    const list = check.slice(check.indexOf('('), check.indexOf('));'))
+    const list = check.slice(check.indexOf('('), check.indexOf('))'))
     const types = [...list.matchAll(/'([^']+)'/g)].map((m) => m[1])
     expect([...STORED_ACTIVITY_TYPES].sort()).toEqual([...types, 'EmojiReact'].sort())
   })
@@ -199,8 +199,8 @@ describe('Person actor', () => {
     ],
   })
 
-  it('names its page in the web app as url', () => {
-    expect(actor.url).toBe('https://harmony.test/social/profile/alice')
+  it('names its public page as url', () => {
+    expect(actor.url).toBe('https://harmony.test/@alice')
     expect(actor.id).toBe('https://harmony.test/users/alice')
   })
 
@@ -218,7 +218,7 @@ describe('Person actor', () => {
       value: 'schema:value',
       alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
       movedTo: { '@id': 'as:movedTo', '@type': '@id' },
-      harmony: 'https://har.mony.lol/ns#',
+      harmony: 'https://mony.lol/ns#',
     })
   })
 

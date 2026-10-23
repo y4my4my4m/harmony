@@ -41,6 +41,12 @@ export function useComposerActions(options: ComposerActionsOptions) {
       return;
     }
 
+    // The picker holds focus: the editor inserts at its caret from before, then sits after it.
+    if (richEditor.insertAtCaret) {
+      richEditor.insertAtCaret(emojiText);
+      return;
+    }
+
     const cursorPos = richEditor.getCursorPosition?.() ?? options.content.value.length;
     const before = options.content.value.substring(0, cursorPos);
     const after = options.content.value.substring(cursorPos);

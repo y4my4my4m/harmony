@@ -28,6 +28,9 @@ interface InstanceSettings {
   // Registration
   openRegistration: boolean
   approvalRequired: boolean
+
+  /** instance_config public_profile_pages: /@<name> pages show to visitors without a session. */
+  publicProfilePages: boolean
   
   // Federation settings (affects UI visibility)
   federationEnabled: boolean
@@ -88,6 +91,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   privacyUrl: runtimeConfig.privacyUrl || '',
   openRegistration: true,
   approvalRequired: false,
+  publicProfilePages: true,
   federationEnabled: true,
   federationInboundEnabled: true,
   federationOutboundEnabled: true,
@@ -255,6 +259,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             break
           case 'approval_required':
             this.settings.approvalRequired = value === true || value === 'true'
+            break
+          case 'public_profile_pages':
+            this.settings.publicProfilePages = !(value === false || value === 'false')
             break
           case 'enable_inbound_federation':
             this.settings.federationInboundEnabled = value === true || value === 'true'

@@ -474,6 +474,31 @@ describe('system notices', () => {
     expect(items.some((n: any) => String(n.attributedTo).endsWith('/undefined'))).toBe(false)
   })
 
+  it('serves a message\'s files in the channel collection as live delivery does: capability URLs for the reader', async () => {
+    const res = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'unsigned')
+    const note = res.body.orderedItems.find((n: any) => n.id.endsWith('00000000-0000-4000-8000-00000000e000'))
+    const file = note['harmony:rawContent'].find((p: any) => p.type === 'file')
+    expect(file.path).toBeUndefined()
+    expect(file.url).toMatch(/\/media\/c\/.+\?to=\*&sig=/)
+    expect(note.attachment).toHaveLength(1)
+    expect(note.attachment[0].url).toBe(file.url)
+    expect(res.headers.vary).toContain('Signature')
+  })
+
+  it('marks an encrypted message\'s Note as ciphertext, and no other', async () => {
+    const plain = db.messages.find(m => m.channel_id === PUB_OPEN && !m.is_system)!
+    const ENC = '00000000-0000-4000-8000-0000000e0e01'
+    db.messages.push({ ...plain, id: ENC, encrypted: true, content: [{ type: 'text', text: 'Q2lwaGVydGV4dA==' }] })
+    try {
+      const res = await get(`/servers/${PUB}/channels/${PUB_OPEN}/messages?page=1`, 'unsigned')
+      const items = res.body.orderedItems
+      expect(items.find((n: any) => n.id.endsWith(ENC))?.['harmony:encrypted']).toBe(true)
+      expect(items.find((n: any) => n.id.endsWith(plain.id))).not.toHaveProperty('harmony:encrypted')
+    } finally {
+      db.messages = db.messages.filter(m => m.id !== ENC)
+    }
+  })
+
   it('the server outbox wraps it in the Group\'s Create', async () => {
     const res = await get(`/servers/${PUB}/outbox?page=1`, 'unsigned')
     expect(res.status).toBe(200)

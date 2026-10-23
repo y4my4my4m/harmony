@@ -513,6 +513,15 @@ check_services() {
 		report FAIL auth "https://$DB_DOMAIN/auth/v1/health: HTTP $code" "harmony logs auth; harmony logs kong"
 	fi
 
+	# The cache answers every public storage read with X-Cache-Status, a miss included.
+	fetch local "https://$DB_DOMAIN/storage/v1/object/public/avatars/doctor-probe" "$TMP/media" -D "$TMP/media.h" >/dev/null
+	if grep -qi '^x-cache-status:' "$TMP/media.h" 2>/dev/null; then
+		report OK media-cache "public storage reads go through the media cache"
+	else
+		report WARN media-cache "public storage reads bypass the media cache: every server a post reaches downloads its media from storage" \
+			"docker compose up -d media-cache; docker compose restart caddy; harmony logs media-cache"
+	fi
+
 	check_realtime_socket
 
 	if $BOTS; then

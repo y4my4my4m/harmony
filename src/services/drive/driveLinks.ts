@@ -3,14 +3,16 @@ import { toInternalPath } from '@/utils/internalLinks'
 
 /**
  * Addresses of Drive files on this instance:
- *   /drive/file/<file id>   in the app; opens for whoever may read the file (drive_file_card)
- *   /d/<token>              a link share; opens for anyone holding the token
+ *   /d/<token>              the file's address (drive_files.link_token); opens for whoever reads
+ *                           the file, and for anyone while its general access is "Anyone with
+ *                           the link"
+ *   /drive/file/<file id>   1.8.11 address; a reader is sent on to the file's /d/ address
  */
 
 export type DriveLinkRef = { kind: 'file'; id: string } | { kind: 'token'; token: string }
 
 const FILE_PATH = /^\/drive\/file\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i
-/** drive_link_create tokens: base64url of 18 random bytes; the backend route accepts 16 to 64. */
+/** drive_files.link_token: base64url of 18 random bytes; the backend route accepts 16 to 64. */
 const TOKEN_PATH = /^\/d\/([A-Za-z0-9_-]{16,64})\/?$/
 
 /** The Drive link a path names, or null. Query and fragment are ignored. */
@@ -34,9 +36,9 @@ export function driveLinkPath(ref: DriveLinkRef): string {
   return ref.kind === 'file' ? `/drive/file/${ref.id}` : `/d/${ref.token}`
 }
 
-/** Shareable address of a file, on the instance's public origin. */
-export function driveFileUrl(fileId: string, base: string = resolveHarmonyBaseUrl()): string {
-  return `${base.replace(/\/+$/, '')}/drive/file/${fileId}`
+/** Shareable address of a file from its link token, on the instance's public origin. */
+export function driveTokenUrl(token: string, base: string = resolveHarmonyBaseUrl()): string {
+  return `${base.replace(/\/+$/, '')}/d/${token}`
 }
 
 /** Ids of this instance's /drive/file/ links in pasted text, in order, without repeats. */

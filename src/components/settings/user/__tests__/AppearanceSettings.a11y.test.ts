@@ -3,7 +3,8 @@
  * one native radio group named "Theme", saved themes keep their delete button
  * outside the radio's label, the zoom buttons are named and the zoom value is
  * announced, disclosure headers expose aria-expanded, and the unsaved-changes
- * bar announces itself, then hands focus to the page heading on Save.
+ * bar announces itself, then hands focus to the page heading on Save. Turning
+ * appearance sync on asks which look stands and applies the choice on Save.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -12,7 +13,8 @@ import { ref } from 'vue'
 import en from '@/locales/en.json'
 import AppearanceSettings from '../AppearanceSettings.vue'
 
-const { polite, toast, current, savedThemes } = vi.hoisted(() => ({
+const { polite, toast, current, savedThemes, sync } = vi.hoisted(() => ({
+  sync: { synced: { value: true }, set: null as null | ((on: boolean, adopt?: string) => Promise<void>) },
   polite: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   current: { value: null as Record<string, unknown> | null },
@@ -57,6 +59,8 @@ vi.mock('@/composables/useVisualTheme', () => {
       },
       reapplySettings: vi.fn(),
       initialize: vi.fn(async () => {}),
+      appearanceSynced: sync.synced,
+      setAppearanceSynced: (on: boolean, adopt?: string) => sync.set!(on, adopt),
       getSavedCustomThemes: () => savedThemes,
       getThemableVariables: () => [],
       deleteSavedTheme: vi.fn(),
@@ -90,7 +94,8 @@ vi.mock('@/services/emojiPackService', () => ({
 }))
 vi.mock('@/composables/useQuickReactSettings', () => ({
   useQuickReactSettings: () => ({
-    enabled: ref(false),
+    doubleClick: ref(false),
+    doubleTap: ref(false),
     emoji: ref({ id: '👍', name: 'thumbsup', content: '👍' }),
     setEmoji: vi.fn(),
   }),
@@ -130,6 +135,8 @@ function accessibleName(el: Element): string {
 }
 
 beforeEach(() => {
+  sync.synced.value = true
+  sync.set = vi.fn(async (on: boolean) => { sync.synced.value = on })
   current.value = baseSettings()
   savedThemes.length = 0
   polite.mockClear()
@@ -276,5 +283,38 @@ describe('AppearanceSettings controls', () => {
     expect(polite).toHaveBeenCalledWith('Appearance changes reset')
     expect(document.activeElement).toBe(w.get('h2.settings-title').element)
     expect(w.get('[data-testid="zoom-value"]').text()).toBe('100%')
+  })
+})
+
+describe('AppearanceSettings appearance sync', () => {
+  it('asks which look stands only while sync is turned on, and applies it on Save', async () => {
+    sync.synced.value = false
+    const w = await mountPage()
+    expect(w.find('[data-testid="appearance-sync-adopt"]').exists()).toBe(false)
+
+    w.getComponent('[data-testid="appearance-sync-toggle"]').vm.$emit('update:modelValue', true)
+    await flushPromises()
+    const adopt = w.get('[data-testid="appearance-sync-adopt"]')
+    expect(adopt.element.tagName).toBe('FIELDSET')
+    const radios = adopt.findAll('input[type="radio"]')
+    expect(radios.map((r) => (r.element as HTMLInputElement).checked)).toEqual([true, false])
+    await radios[1].setValue(true)
+
+    const save = w.get('[data-testid="appearance-save-bar"]').findAll('button').find((b) => b.text() === 'Save changes')!
+    await save.trigger('click')
+    await flushPromises()
+    expect(sync.set).toHaveBeenCalledWith(true, 'device')
+    expect(w.find('[data-testid="appearance-sync-adopt"]').exists()).toBe(false)
+  })
+
+  it('turning sync off asks nothing', async () => {
+    const w = await mountPage()
+    w.getComponent('[data-testid="appearance-sync-toggle"]').vm.$emit('update:modelValue', false)
+    await flushPromises()
+    expect(w.find('[data-testid="appearance-sync-adopt"]').exists()).toBe(false)
+    const save = w.get('[data-testid="appearance-save-bar"]').findAll('button').find((b) => b.text() === 'Save changes')!
+    await save.trigger('click')
+    await flushPromises()
+    expect(sync.set).toHaveBeenCalledWith(false, 'account')
   })
 })

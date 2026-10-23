@@ -48,11 +48,14 @@ const resolved = computed(() => {
   }
 })
 
-/** Clean `:shortcode:` label, falling back to the raw name only if unresolved. */
+/** Text between colons only: a shortcode, else a textual name, else no label. */
+const SHORTCODE_TEXT = /^[\p{L}\p{N}_+~-]+$/u
 const label = computed(() => {
-  if (isCustom.value) return `:${props.emoji?.name}:`
-  const shortcode = resolved.value?.shortcode
-  return shortcode ? `:${shortcode}:` : ''
+  const candidates = isCustom.value
+    ? [props.emoji?.name]
+    : [resolved.value?.shortcode, props.emoji?.name]
+  const text = candidates.find((value): value is string => !!value && SHORTCODE_TEXT.test(value))
+  return text ? `:${text}:` : ''
 })
 </script>
 

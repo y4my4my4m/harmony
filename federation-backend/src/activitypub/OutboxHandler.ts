@@ -1,8 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { announceActivityId, buildLocalNote, createPostActivity, createReblogActivity, loadReblogTarget } from '../listeners/FederationHandlers.js';
-import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
+import { renderOEmbed } from './postPageRenderer.js';
+import { postReactionCounts, withReactionCounts } from './postReactionCounts.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, loadHistoryCutoffs, readableChannelIds, verifiedSigner, withinHistory } from './groupAccess.js';
 import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
@@ -254,96 +255,86 @@ router.get(
 );
 
 /**
- * Serve a single post.
- *
- * Content negotiation:
- *  - Accept: application/activity+json → ActivityPub Note (JSON)
- *  - Anything else (browsers, crawlers) → HTML page with OG meta tags
+ * A post as ActivityPub, at its id /posts/:postId and at its page /@:username/:postId.
+ * Browsers and crawlers pass on (next()) to publicPages/routes.ts, which renders the page.
  *
  * Public and unlisted posts are served to anyone. A followers-only or direct post is served
- * as ActivityPub to a signer that may read it (postAccess.ts), never as HTML; anyone else
- * gets the 404 an unknown id gets.
+ * to a signer that may read it (postAccess.ts); anyone else gets the 404 an unknown id gets.
+ * At /@:username/:postId the post must be a local one of that account.
  */
+async function servePostObject(req: Request, res: Response, postId: string, username: string | null): Promise<unknown> {
+  const supabase = getSupabaseClient();
+
+  const { data: post, error } = await supabase
+    .from('posts')
+    .select(`
+      *,
+      author:profiles!posts_author_id_fkey (
+        id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata, federated_id
+      )
+    `)
+    .eq('id', postId)
+    .maybeSingle();
+
+  if (error || !post || !post.author) {
+    return res.status(404).json({ error: 'Post not found' });
+  }
+  if (username !== null && (post.author.is_local === false || post.author.username !== username)) {
+    return res.status(404).json({ error: 'Post not found' });
+  }
+
+  // A deleted public post answers 410 Gone, as Mastodon's does: remotes drop their copy.
+  // A deleted non-public post reads as absent, like any it was never served to.
+  if (post.is_deleted) {
+    const wasPublic = post.visibility === 'public' || post.visibility === 'unlisted';
+    if (!wasPublic || post.author.is_local === false) return res.status(404).json({ error: 'Post not found' });
+    res.setHeader('Content-Type', 'application/activity+json');
+    return res.status(410).json(postTombstone(post));
+  }
+
+  if (!(await canReadPost(req, post))) {
+    return res.status(404).json({ error: 'Post not found' });
+  }
+
+  // One URL answers HTML and ActivityPub.
+  res.setHeader('Vary', 'Accept');
+
+  // A remote post is its origin's object; serving it here would forge its author.
+  if (post.author.is_local === false) {
+    if (typeof post.ap_id === 'string' && /^https?:\/\//.test(post.ap_id) && !post.ap_id.startsWith(`https://${config.INSTANCE_DOMAIN}/`)) {
+      return res.redirect(302, post.ap_id);
+    }
+    return res.status(404).json({ error: 'Post not found' });
+  }
+  const [built, reactionCounts] = await Promise.all([buildLocalNote(post, post.author), postReactionCounts(post.id)]);
+  const note = withReactionCounts(built, reactionCounts);
+
+  res.setHeader('Content-Type', 'application/activity+json');
+  res.setHeader('Cache-Control', post.visibility === 'public' || post.visibility === 'unlisted'
+    ? 'public, max-age=300'
+    : PRIVATE_CACHE);
+  return res.json(note);
+}
+
+function wantsActivityPub(req: Request): boolean {
+  const accept = req.headers.accept || '';
+  return accept.includes('application/activity+json') || accept.includes('application/ld+json');
+}
+
 router.get(
   '/posts/:postId',
-  asyncHandler(async (req: Request, res: Response) => {
-    const { postId } = req.params;
-    const accept = req.headers.accept || '';
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!wantsActivityPub(req)) return next();
+    return servePostObject(req, res, req.params.postId, null);
+  })
+);
 
-    const wantsActivityPub =
-      accept.includes('application/activity+json') ||
-      accept.includes('application/ld+json');
-
-    const supabase = getSupabaseClient();
-
-    const { data: post, error } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata, federated_id
-        )
-      `)
-      .eq('id', postId)
-      .maybeSingle();
-
-    if (error || !post || !post.author) {
-      if (wantsActivityPub) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
-      return res.status(404).send(render404Page());
-    }
-
-    // A deleted public post answers 410 Gone, as Mastodon's does: remotes drop their copy.
-    // A deleted non-public post reads as absent, like any it was never served to.
-    if (post.is_deleted) {
-      const wasPublic = post.visibility === 'public' || post.visibility === 'unlisted';
-      if (wantsActivityPub) {
-        if (!wasPublic || post.author.is_local === false) return res.status(404).json({ error: 'Post not found' });
-        res.setHeader('Content-Type', 'application/activity+json');
-        return res.status(410).json(postTombstone(post));
-      }
-      return res.status(404).send(render404Page());
-    }
-
-    if (!wantsActivityPub && post.visibility !== 'public' && post.visibility !== 'unlisted') {
-      return res.status(404).send(render404Page());
-    }
-
-    if (wantsActivityPub && !(await canReadPost(req, post))) {
-      return res.status(404).json({ error: 'Post not found' });
-    }
-
-    // One URL answers HTML and ActivityPub.
-    res.setHeader('Vary', 'Accept');
-
-    if (wantsActivityPub) {
-      // A remote post is its origin's object; serving it here would forge its author.
-      if (post.author.is_local === false) {
-        if (typeof post.ap_id === 'string' && /^https?:\/\//.test(post.ap_id) && !post.ap_id.startsWith(`https://${config.INSTANCE_DOMAIN}/`)) {
-          return res.redirect(302, post.ap_id);
-        }
-        return res.status(404).json({ error: 'Post not found' });
-      }
-      const note = await buildLocalNote(post, post.author);
-
-      res.setHeader('Content-Type', 'application/activity+json');
-      res.setHeader('Cache-Control', post.visibility === 'public' || post.visibility === 'unlisted'
-        ? 'public, max-age=300'
-        : PRIVATE_CACHE);
-      return res.json(note);
-    }
-
-    // HTML response for browsers and crawlers
-    const html = renderPostPage(post, post.author);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    // Override helmet's strict CSP for this page: allow inline script (auth
-    // redirect) and images from any HTTPS source (avatars, emojis, media
-    // from federated instances)
-    res.setHeader('Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' https:;");
-    return res.send(html);
+router.get(
+  '/@:username/:postId',
+  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (!wantsActivityPub(req)) return next();
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.postId)) return res.status(404).json({ error: 'Post not found' });
+    return servePostObject(req, res, req.params.postId, req.params.username);
   })
 );
 
@@ -405,42 +396,6 @@ router.get(
     return res.json(oembed);
   })
 );
-
-function render404Page(): string {
-  const domain = config.INSTANCE_DOMAIN;
-  const instanceName = config.INSTANCE_NAME;
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Post not found - ${instanceName}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0d1117; color: #e6edf3;
-      display: flex; justify-content: center; align-items: center;
-      min-height: 100vh; margin: 0;
-    }
-    .msg { text-align: center; }
-    .msg h1 { font-size: 48px; margin-bottom: 8px; color: #8b949e; }
-    .msg p { color: #8b949e; margin-bottom: 24px; }
-    .msg a {
-      color: #58a6ff; text-decoration: none;
-      padding: 10px 20px; border: 1px solid #30363d; border-radius: 8px;
-    }
-    .msg a:hover { background: #161b22; }
-  </style>
-</head>
-<body>
-  <div class="msg">
-    <h1>404</h1>
-    <p>This post doesn't exist or is not publicly visible.</p>
-    <a href="https://${domain}">Go to ${instanceName}</a>
-  </div>
-</body>
-</html>`;
-}
 
 /**
  * Likes collection for a post: one Like per person holding a favourite, emoji reactions
