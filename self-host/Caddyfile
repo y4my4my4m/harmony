@@ -314,7 +314,20 @@
 	@publicRender path /storage/v1/render/image/public/*
 	request_header @publicRender Accept "image/webp,*/*;q=0.8"
 
-	reverse_proxy supabase-kong:8000
+	# Public storage reads through the disk cache (media-cache.conf): a boosted post's
+	# media is fetched by every server that receives it. message_media is a private bucket.
+	@publicMedia {
+		method GET HEAD
+		path /storage/v1/object/public/* /storage/v1/render/image/public/*
+		not path /storage/v1/object/public/message_media/* /storage/v1/render/image/public/message_media/*
+	}
+	handle @publicMedia {
+		reverse_proxy media-cache:8080
+	}
+
+	handle {
+		reverse_proxy supabase-kong:8000
+	}
 }
 
 import voice-{$ENABLE_VOICE:false}

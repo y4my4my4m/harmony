@@ -111,6 +111,10 @@ main() {
 		info "Caddyfile changed; restarting Caddy..."
 		compose restart caddy
 	fi
+	if ! git -C "$REPO_DIR" diff --quiet "$prev" "$now" -- self-host/media-cache.conf; then
+		info "media-cache.conf changed; restarting the media cache..."
+		compose restart media-cache
+	fi
 	compose ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
 	STEP=done

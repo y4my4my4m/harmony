@@ -47,8 +47,16 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 ### How the stack is assembled
 
 - `docker-compose.yml` defines Caddy, the web app, the federation server
-  and worker, Redis, and the optional LiveKit (`voice`), bot gateway
-  (`bots`) and Discord bridge host (`discord`) services.
+  and worker, Redis, the media cache, and the optional LiveKit (`voice`), bot
+  gateway (`bots`) and Discord bridge host (`discord`) services.
+- The media cache (`media-cache`, nginx with `media-cache.conf`) sits between
+  Caddy and Kong for public storage reads: `GET` and `HEAD` of
+  `/storage/v1/object/public/*` and `/storage/v1/render/image/public/*` on the
+  `db.` host, the private `message_media` bucket aside. A post boosted to
+  thousands of servers has each of them download the author's avatar and the
+  post's media within minutes; the cache fetches each file from storage once and
+  keeps it 10 minutes, so a file deleted in moderation stops being served within
+  that time. `harmony doctor` reports whether reads go through it.
 - Its `include:` pulls in `supabase/docker-compose.yml`, the upstream
   Supabase `docker/` directory at the pinned commit, with
   `supabase-overrides.yml` merged over it and `supabase/.env` for
@@ -250,6 +258,13 @@ location /api/federation/ {
   proxy_set_header Accept "image/webp,*/*;q=0.8";
   ```
 
+- Cache public storage reads unless a CDN already does: a boosted post has
+  every receiving server download the author's avatar and the post's media at
+  once, and each uncached avatar is resized again. `self-host/media-cache.conf`
+  is the nginx configuration the self-host stack runs for this (`proxy_cache`
+  with a lock, 10 minutes, `no-store` and `private` answers never kept); its
+  `proxy_cache*` directives and the `map` go into the public object and render
+  locations, `message_media` excluded.
 - Keep Kong (8000) and GoTrue (9999) unreachable from outside: either port
   bypasses the logout rule. Postgres never faces the internet.
 

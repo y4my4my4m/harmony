@@ -165,6 +165,8 @@ const DM_MESSAGE = 'fed00000-0000-0000-0000-000000000064'
 // A local post the peer reacts to, and a peer note fx_bob reacts to.
 const REACTED_POST = 'fed00000-0000-0000-0000-000000000070'
 const PEER_NOTE_POST = 'fed00000-0000-0000-0000-000000000071'
+const COUNTED_POST = 'fed00000-0000-0000-0000-000000000072'
+const CACHED_POST = 'fed00000-0000-0000-0000-000000000073'
 
 // REPORTING
 
@@ -2396,6 +2398,94 @@ async function caseInboundReactions(db: SupabaseClient, peer: Peer, localUrl: st
     await must('restore the limit', db.from('instance_config')
       .upsert({ config_key: 'max_post_reactions_per_user', config_value: 10 }, { onConflict: 'config_key' }))
   }
+
+  const note = await get(`${localUrl}/posts/${REACTED_POST}`, { Accept: 'application/activity+json' })
+  eq(JSON.stringify(note.json?.['harmony:reactions'] ?? null), JSON.stringify([{ content: '🎉', count: 1 }, { content: '👀', count: 1 }]),
+    'the Note carries its reaction counts')
+}
+
+async function caseDocumentCache(db: SupabaseClient, localUrl: string) {
+  console.log('\npublic documents -> served once per window, fresh after their post or profile changes')
+
+  const handler = (p: string) => import(pathToFileURL(path.join(BACKEND_ROOT, 'src', p)).href)
+  await must('seed cached post', db.from('posts').insert({
+    id: CACHED_POST,
+    author_id: ALICE,
+    content: [{ type: 'text', text: 'before the edit' }],
+    visibility: 'public',
+    is_local: true,
+  }))
+  const note = () => get(`${localUrl}/posts/${CACHED_POST}`, { Accept: 'application/activity+json' })
+  const actor = () => get(`${localUrl}/users/fx_alice`, { Accept: 'application/activity+json' })
+
+  const first = await note()
+  eq(first.headers['x-harmony-cache'], 'miss', 'the first fetch of a Note builds it')
+  const second = await note()
+  eq(second.headers['x-harmony-cache'], 'hit', 'the next fetch is served from the cache')
+  eq(second.body, first.body, 'with the same document')
+  const concurrent = await Promise.all(Array.from({ length: 10 }, () => note()))
+  assert(concurrent.every((r) => r.status === 200 && r.headers['x-harmony-cache'] === 'hit'),
+    'ten concurrent fetches are all hits', JSON.stringify(concurrent.map((r) => r.headers['x-harmony-cache'])))
+
+  await must('edit the post', db.from('posts').update({ content: [{ type: 'text', text: 'after the edit' }] }).eq('id', CACHED_POST))
+  const { handlePostJob } = await handler('queue/handlers/postHandler.ts')
+  await handlePostJob({ type: 'update', post_id: CACHED_POST, author_id: ALICE })
+  const edited = await note()
+  eq(edited.headers['x-harmony-cache'], 'miss', 'the post\'s update job drops its Note')
+  assert(String(edited.json?.content ?? '').includes('after the edit'), 'the next fetch carries the edit', edited.json?.content)
+
+  await actor()
+  eq((await actor()).headers['x-harmony-cache'], 'hit', 'the actor is served from the cache')
+  const { handleProfileJob } = await handler('queue/handlers/profileHandler.ts')
+  await handleProfileJob({ type: 'update', profile_id: ALICE, username: 'fx_alice' })
+  eq((await actor()).headers['x-harmony-cache'], 'miss', 'the profile\'s update job drops the actor')
+
+  const html = await get(`${localUrl}/posts/${CACHED_POST}`, { Accept: 'text/html' })
+  eq(html.headers['x-harmony-cache'], undefined, 'the HTML page is never cached here')
+}
+
+async function caseRemoteReactionCounts(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\nremote Harmony post -> its Note\'s reaction counts become its chips here')
+
+  const noteUrl = `${peer.base}/posts/counted`
+  const blob = `${peer.base}/emoji/blob.png`
+  await must('seed counted post', db.from('posts').insert({
+    id: COUNTED_POST,
+    author_id: REMOTE,
+    content: [{ type: 'text', text: 'counted' }],
+    visibility: 'public',
+    is_local: false,
+    ap_id: noteUrl,
+    metadata: { remote_reactions: { '🍑': { count: 7, reactors: [] } } },
+  }))
+  const previous = peer.extraGet
+  peer.extraGet = (req, res) => {
+    if (req.url !== '/posts/counted') return previous?.(req, res) ?? false
+    res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+    res.end(JSON.stringify({
+      '@context': ['https://www.w3.org/ns/activitystreams', { harmony: 'https://mony.lol/ns#' }],
+      id: noteUrl, type: 'Note', attributedTo: peer.actorUrl, content: '<p>counted</p>',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      likes: { id: `${noteUrl}/likes`, type: 'Collection', totalItems: 5 },
+      'harmony:reactions': [
+        { content: '🔥', count: 3 },
+        { content: ':blob:', count: 2, tag: { type: 'Emoji', name: ':blob:', icon: { type: 'Image', url: blob } } },
+        { content: '❤️', count: 5 },
+      ],
+    }))
+    return true
+  }
+  try {
+    const res = await postJson(`${localUrl}/fetch-reactions`, {}, { post_ap_id: noteUrl, post_id: COUNTED_POST })
+    // jsonb orders object keys by length: compare entry by entry.
+    const chips = (r: any) => Object.entries(r ?? {}).map(([k, v]: [string, any]) => `${k}=${v?.count}@${v?.url ?? '-'}`).sort().join(' ')
+    const expected = `:blob:=2@${blob} 🔥=3@-`
+    eq(chips(res.json?.remote_reactions), expected, 'the counts come back as chips, the heart left to favourites')
+    const { data: row } = await db.from('posts').select('metadata').eq('id', COUNTED_POST).single()
+    eq(chips(row?.metadata?.remote_reactions), expected, 'and replace the stored ones')
+  } finally {
+    peer.extraGet = previous
+  }
 }
 
 async function caseOutboundReactions(db: SupabaseClient, peer: Peer, backend: Backend) {
@@ -2585,6 +2675,8 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseOutboundReactions(db, peer, backend)
+    await caseRemoteReactionCounts(db, peer, localUrl)
+    await caseDocumentCache(db, localUrl)
     await runOutboundFederationCases({
       db, peer, localUrl, env, backendRoot: BACKEND_ROOT, instanceDomain: INSTANCE_DOMAIN,
       alice: { id: ALICE, auth: ALICE_AUTH }, remote: REMOTE, userToken,

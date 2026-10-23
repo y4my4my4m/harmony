@@ -170,6 +170,9 @@ const envSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() ? Number(v.trim()) : undefined),
     z.number().int().positive().optional(),
   ),
+  // Longest a public ActivityPub or WebFinger document is served from memory
+  // (middleware/documentCache.ts), in milliseconds. 0 turns the cache off.
+  DOCUMENT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(30000),
 });
 
 const parseEnv = () => {

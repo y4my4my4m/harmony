@@ -63,6 +63,7 @@ services:
     depends_on:
       - web
       - federation-server
+      - media-cache
     networks:
       default:
       # The public domain resolves to Caddy on this network, so a service on it
@@ -93,6 +94,22 @@ services:
       TERMS_URL: ${TERMS_URL:-}
       PRIVACY_URL: ${PRIVACY_URL:-}
       STATUS_URL: ${STATUS_URL:-}
+    networks:
+      - default
+
+  # ---------------------------------------------------------------------------
+  # Cache of public storage reads (avatars, banners, emoji, post media) between
+  # Caddy and Kong. A post boosted to thousands of servers has each of them
+  # download the same files at once; this serves them from disk, one upstream
+  # fetch per file (media-cache.conf).
+  # ---------------------------------------------------------------------------
+  media-cache:
+    image: nginx:1.31-alpine
+    container_name: harmony-media-cache
+    restart: unless-stopped
+    volumes:
+      - ./media-cache.conf:/etc/nginx/conf.d/default.conf:ro
+      - media-cache-data:/var/cache/nginx/media
     networks:
       - default
 
@@ -236,6 +253,7 @@ volumes:
   caddy-data:
   caddy-config:
   redis-data:
+  media-cache-data:
   discord-bridge-data:
 
 networks:

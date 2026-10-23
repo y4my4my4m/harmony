@@ -31,6 +31,7 @@ import {
 } from '../../activitypub/mentionRecipients.js';
 import { isBoostPost } from '../../utils/boostPost.js';
 import config from '../../config/index.js';
+import { invalidateDocuments, postDocumentPaths } from '../../middleware/documentCache.js';
 import { logger } from '../../utils/logger.js';
 import type { FederationJobData } from '../BullMQManager.js';
 
@@ -69,6 +70,7 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
     }
 
     await updateFederationStatus(post_id, 'posts', 'processing');
+    await invalidateDocuments(postDocumentPaths(post.id, author.is_local ? author.username : null));
 
     // A boost federates as Announce of the original and is retracted by
     // Undo(Announce); it is never a Note of its own.

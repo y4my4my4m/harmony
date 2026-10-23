@@ -10,6 +10,7 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { profileToActor } from '../../activitypub/converters/toActivityPub.js';
 import { resolveLocalProfileEmojis } from '../../activitypub/emojiResolver.js';
 import { logger } from '../../utils/logger.js';
+import { accountDocumentPaths, invalidateDocuments } from '../../middleware/documentCache.js';
 import config from '../../config/index.js';
 import { getServerCoMemberInstances } from '../../utils/federationUtils.js';
 import type { FederationJobData } from '../BullMQManager.js';
@@ -31,6 +32,7 @@ export async function handleProfileJob(data: FederationJobData): Promise<void> {
       logger.debug('Profile not found, not local or deleted, skipping');
       return;
     }
+    await invalidateDocuments(accountDocumentPaths(profile.username));
 
     const domain = config.INSTANCE_DOMAIN;
     const actorUrl = `https://${domain}/users/${profile.username}`;

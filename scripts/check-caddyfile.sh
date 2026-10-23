@@ -7,8 +7,9 @@
 # pinned, everything else to Kong.
 #
 # Caddy runs the Caddyfile as self-host/docker-compose.yml runs it (caddy:2-alpine, internal
-# TLS). One stub nginx on the same network answers as federation-server, web, bot-gateway and
-# supabase-kong: the backend with the URI it was sent, the web container with SPA.
+# TLS). One stub nginx on the same network answers as federation-server, web, bot-gateway,
+# supabase-kong and media-cache: the backend with the URI it was sent, the web container with
+# SPA, Kong and the cache with their name, the method, the URI and the Accept they got.
 set -euo pipefail
 
 IMAGE="${CADDY_IMAGE:-caddy:2-alpine}"
@@ -44,13 +45,29 @@ server {
         return 200 "SPA\n";
     }
 }
+server {
+    listen 8000;
+    location / {
+        default_type text/plain;
+        return 200 "kong $request_method $request_uri\n";
+    }
+}
+server {
+    listen 8080;
+    location / {
+        default_type text/plain;
+        return 200 "media-cache $request_method $request_uri $http_accept\n";
+    }
+}
 EOF
 
 docker network create "$PREFIX-net" >/dev/null
 docker run -d --name "$PREFIX-stub" --network "$PREFIX-net" \
   --network-alias federation-server --network-alias web \
+  --network-alias supabase-kong --network-alias media-cache \
   -v "$WORK/stub.conf:/etc/nginx/conf.d/default.conf:ro" "$STUB_IMAGE" >/dev/null
 docker run -d --name "$PREFIX" --network "$PREFIX-net" --add-host "$DOMAIN:127.0.0.1" \
+  --add-host "db.$DOMAIN:127.0.0.1" \
   -e DOMAIN="$DOMAIN" -e DB_DOMAIN="db.$DOMAIN" -e LIVEKIT_DOMAIN="live.$DOMAIN" \
   -e CADDY_TLS=internal -e ENABLE_VOICE=false \
   -v "$ROOT/self-host/Caddyfile:/etc/caddy/Caddyfile:ro" "$IMAGE" >/dev/null
@@ -196,6 +213,36 @@ expect "$HTML" /threads               'SPA'
 expect "$HTML" /channels/00000000-0000-0000-0000-000000000005 'SPA'
 expect "$HTML" $THREAD/messages       'SPA'
 expect "$HTML" /activities            'SPA'
+
+log "db.<domain>: public storage reads through media-cache"
+# expect_db <wget args...> -- <path> <first line of the body>
+expect_db() {
+  local args=() got=''
+  while [ "$1" != -- ]; do args+=("$1"); shift; done
+  shift
+  for _ in $(seq 1 20); do
+    got="$(docker exec "$PREFIX" wget -q -O - --no-check-certificate "${args[@]}" \
+      "https://db.$DOMAIN$1" 2>/dev/null | head -1)" && [ -n "$got" ] && break
+    sleep 0.5
+  done
+  if [ "$got" = "$2" ]; then
+    printf 'ok   %-28.28s %s -> %s\n' "${args[*]:-GET}" "$1" "$got"
+  else
+    err "db ${args[*]} $1: expected '$2', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+OBJ=/storage/v1/object/public/avatars/u/avatar-1.webp
+RENDER='/storage/v1/render/image/public/avatars/u/avatar-1.webp?width=256&height=256'
+expect_db --header 'Accept: */*' -- $OBJ "media-cache GET $OBJ */*"
+expect_db --header 'Accept: image/avif,*/*' -- "$RENDER" "media-cache GET $RENDER image/webp,*/*;q=0.8"
+expect_db -- /storage/v1/object/sign/avatars/u/a.webp "kong GET /storage/v1/object/sign/avatars/u/a.webp"
+expect_db -- /storage/v1/object/authenticated/user_media/u/a.png "kong GET /storage/v1/object/authenticated/user_media/u/a.png"
+expect_db -- /storage/v1/render/image/sign/avatars/u/a.webp "kong GET /storage/v1/render/image/sign/avatars/u/a.webp"
+expect_db -- '/rest/v1/profiles?select=id' 'kong GET /rest/v1/profiles?select=id'
+expect_db --post-data x -- $OBJ "kong POST $OBJ"
+expect_db -- /storage/v1/object/public/message_media/c/a.png "kong GET /storage/v1/object/public/message_media/c/a.png"
+expect_db -- /storage/v1/render/image/public/message_media/c/a.png "kong GET /storage/v1/render/image/public/message_media/c/a.png"
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
 log "self-host/Caddyfile routes the ActivityPub-only paths to the federation backend"

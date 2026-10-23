@@ -49,6 +49,7 @@ import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
+import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
@@ -141,6 +142,9 @@ export function createApp(): Application {
   app.use('/webhooks', stripeWebhookRouter);
   app.use('/api/webhooks', stripeWebhookRouter);
 
+  // Public ActivityPub and WebFinger documents of a boosted post, served once per window.
+  app.use(documentCache());
+
   // Rate limiting is applied per-route inside each router (not at the mount level)
   // to prevent cascade bleeding - mounting `app.use('/', limiter, routerA)` causes
   // the limiter to count requests that don't match routerA but fall through to routerB.
@@ -174,6 +178,9 @@ export async function startServer(): Promise<void> {
   // Connect Redis before starting the server so cache/rate-limit/presence
   // are available from the first request.
   await redis.connect();
+  await subscribeDocumentInvalidation().catch((error) => {
+    logger.warn(`Document cache invalidation not subscribed: ${(error as Error).message}`);
+  });
 
   const app = createApp();
   const PORT = config.PORT;
