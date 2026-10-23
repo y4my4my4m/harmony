@@ -61,8 +61,8 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 10. **Admin instance discovery.**
     Currently uses `fediverse.observer`. Optional: add `instances.social`, `fediverse.info`, or a unified list view.
 
-11. **Sender Keys for group encryption.**
-    Megolm shares one session per member on join. Sender Keys (Signal style) is the standard answer for group chat at scale.
+11. **Group encryption: forward secrecy and membership changes.**
+    Each sender has its own session key, with a distinct key per message, rotated every 100 messages or 7 days. Its gaps are no forward secrecy within a session, no post-compromise security, key distribution over static ECDH, and a re-share to every member on each membership change. See *Interoperable end-to-end encryption* under v2.0.
 
 ## Community features
 
@@ -74,6 +74,20 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 
 14. **Followable announcement channels.**
     A channel other servers (and fediverse accounts) can follow; its posts are relayed into the follower's chosen channel. The channel is an ActivityPub actor with an outbox, so Mastodon users can follow it directly.
+
+15. **Outgoing webhooks.**
+    Events (messages, members, reactions, moderation) sent as HTTP POSTs to a URL that a server's managers or a bot owner register, as an alternative to the bot gateway's WebSocket. Delivery runs in a separate worker through the job queue, with retries and backoff, endpoints disabled after repeated failures, and a delivery log. Each delivery is signed with HMAC-SHA256 over a timestamp and the body using a per-webhook secret (shown once, rotatable), carries an id for de-duplication, goes over HTTPS only without following redirects, and is refused for private, loopback and metadata addresses resolved at connect time. A payload holds only what its owner may read: no end-to-end encrypted or direct-message content. Channel webhooks that post into a channel already exist; the unused `bot_webhooks` table is replaced. Planned for 1.9.0.
+
+## v2.0 (under discussion)
+
+Scoped for discussion; nothing here is committed. Each item names the public specification it depends on and the condition for shipping.
+
+- **Interoperable end-to-end encryption (MLS).** Messaging Layer Security (RFC 9420) for direct and group conversations, following the W3C Social Web CG draft [Messaging Layer Security in ActivityPub](https://swicg.github.io/activitypub-e2ee/), including conversations with people on other instances and other fediverse software. The protocol is chosen per conversation, advertised through the actor's `keyPackages`, and never downgraded silently. The current scheme stays for existing rooms and channels. Ships behind a flag until the draft stabilises and interoperability with another implementation is shown. Before that, the open encryption items in `BUGS.md` are fixed.
+- **Bluesky through Bridgy Fed.** A per-account setting, off by default, that opts public posts into [Bridgy Fed](https://fed.brid.gy/docs). Chat, direct messages and non-public posts are never bridged.
+- **Bridges beyond Discord.** Bridge v2 relayed authors generalised beyond Discord, and a per-member opt-out in bridged servers. Then a Matrix bridge (application service) in relay mode.
+- **Account portability.** Import and export of follows, blocks and mutes in Mastodon's CSV formats, and of posts as ActivityStreams. Later, copying posts between servers with [LOLA](https://swicg.github.io/activitypub-data-portability/lola) (W3C Social Web CG draft), which requires Harmony to act as an OAuth authorization server.
+- **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 12), a public feedback forum on a Harmony server that anyone on a federating instance can join.
+- **Signed objects, then portable identity.** Ed25519 keys under `assertionMethod` (FEP-521a) and integrity proofs (FEP-8b32) on activities a Group relays. Portable objects with DID-based ids and several gateways ([FEP-ef61](https://codeberg.org/fediverse/fep/src/branch/main/fep/ef61/fep-ef61.md)) remain research, aimed at chat servers that outlive their host instance.
 
 ## Public-release follow-ups
 
