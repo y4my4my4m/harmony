@@ -479,6 +479,7 @@ guard_follow_client_write		trigger	definer	public, pg_temp	service_role	trigger
 guard_integration_bot_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_integration_install_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_invite_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_local_username		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_media_paths		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_poll_parts		trigger	invoker	public, pg_temp	service_role	trigger
@@ -642,6 +643,7 @@ queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigg
 recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 record_ai_emoji_generation		trigger	definer	public, pg_temp	service_role	trigger
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
+record_instance_nodeinfo	p_domain text, p_software text, p_version text, p_user_count bigint, p_status_count bigint, p_create boolean	text	definer	public, pg_temp	service_role	client
 record_instance_software	p_domain text, p_software text, p_version text, p_source text	text	definer	public, pg_temp	service_role	client
 record_metric	p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
 record_push_failure	p_subscription_id uuid, p_reason text	void	definer	public, extensions, pg_temp	service_role	client
