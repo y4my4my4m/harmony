@@ -14,6 +14,11 @@
 // Flag that becomes a report owned by the peer's domain, and a forwarded local
 // report reaches the peer as a Flag signed by the local instance actor, which
 // the peer checks against the actor document the local instance publishes.
+// A report about a message in a server goes to the server's Group inbox and
+// the Group's Resolve comes back, each way (cases/serverReports.ts).
+// A member this instance's staff remove from a server hosted elsewhere, or who leaves it when
+// staff block it, sends the Group their own Leave, and a blocked server's relays are dropped
+// (cases/instanceServerTools.ts).
 //
 // Two paths carry the defects this harness exists to catch:
 //   - public.federated_voice_calls, whose column set an inbound
@@ -99,6 +104,10 @@ import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
 import { caseSystemEvents } from './cases/systemEvents.ts'
+import { caseCopyAuthority } from './cases/copyAuthority.ts'
+import { caseServerReports } from './cases/serverReports.ts'
+import { caseHostStaff } from './cases/hostStaff.ts'
+import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -538,10 +547,13 @@ class Peer {
         name: 'Peer private',
         inbox: `${this.groupUrl}/inbox`,
         discoverable: false,
+        // A 1.8.12 host: Flags naming its messages reach the server's moderators.
+        'harmony:acceptsReports': true,
         publicKey: { id: `${this.groupUrl}#main-key`, owner: this.groupUrl, publicKeyPem: this.groupKey.publicKey },
       }
       if (member) {
         group.members = `${this.groupUrl}/members`
+        group.attributedTo = this.actorUrl
         group['harmony:channels'] = [
           { id: this.channelUrl(REMOTE_CHANNEL), localId: REMOTE_CHANNEL, name: 'peer-general', type: 'harmony:TextChannel', channelType: 'text', order: 0 },
           { id: this.channelUrl(REMOTE_CHANNEL_NEW), localId: REMOTE_CHANNEL_NEW, name: 'peer-added', type: 'harmony:TextChannel', channelType: 'text', order: 1 },
@@ -2618,6 +2630,48 @@ async function main() {
     await caseMemberRemoval({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, carol: CAROL, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF },
+    })
+    await caseServerReports({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseCopyAuthority({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, get, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH,
+        remote: REMOTE, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    // Last: suspending the peer's account removes it from servers hosted here.
+    await caseHostStaff({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      ids: {
+        alice: ALICE, carol: CAROL, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF,
+      },
+    })
+    await caseInstanceServerTools({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders,
+      verifySignature: backend.verifySignature, assert, eq,
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, carol: CAROL, remote: REMOTE,
+        remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

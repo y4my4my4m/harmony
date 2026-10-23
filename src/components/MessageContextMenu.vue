@@ -143,9 +143,10 @@
     <template v-if="canDelete || canReport">
       <div class="context-menu-divider" role="separator"></div>
 
-      <button v-if="canDelete" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" @click="deleteMessage">
-        <DeleteIcon />
-        <span>{{ t('message.deleteMessage') }}</span>
+      <button v-if="canDelete" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" data-testid="context-menu-delete" @click="deleteMessage">
+        <Icon v-if="hidesOnInstance" name="eye-off" size="sm" />
+        <DeleteIcon v-else />
+        <span>{{ hidesOnInstance ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage') }}</span>
       </button>
 
       <button v-if="canReport" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" @click="reportMessage">
@@ -183,6 +184,7 @@ import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { resolveMediaPartUrl } from '@/services/privateMedia';
 import { getMessageShareUrl } from '@/utils/messageShareUrl';
+import { getInstanceDomain } from '@/services/instanceConfig';
 import type { Message } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
@@ -213,12 +215,15 @@ interface Props {
       permission logic. */
   canEdit?: boolean;
   canDelete?: boolean;
+  /** Another member's message in a copy: Delete hides it on this instance only. */
+  hidesOnInstance?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideThreadActions: false,
   canEdit: false,
   canDelete: false,
+  hidesOnInstance: false,
   trigger: null,
 });
 
@@ -243,7 +248,8 @@ const emit = defineEmits<{
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
-const { canPinMessages: canPinServerWide } = useServerPermissions();
+const { isLocalServer } = useServerPermissions();
+const instanceDomain = getInstanceDomain();
 // Channel-resolved, as pin_message and set_message_embeds_suppressed decide it.
 const { canPinMessages: canPinInChannel, canManageMessages, canCreateThreads, canEmbedLinks } = useChannelMessagePermissions(
   () => props.serverId,
@@ -257,9 +263,11 @@ const isPinned = computed(() => props.message?.is_pinned || false);
 const hasReactions = computed(() =>
   !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
 );
-// A system notice is neither pinned nor reported: it has no author.
+// A system notice is neither pinned nor reported: it has no author. Any participant pins in a
+// conversation (pin_message); a copy's pins are the host's.
 const canPin = computed(() =>
-  !props.message?.is_system && (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
+  !props.message?.is_system
+  && (!!props.conversationId || (isLocalServer.value && canPinInChannel.value)));
 const toast = useToast();
 
 // The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed). An author
@@ -272,7 +280,7 @@ const canToggleEmbeds = computed(() => {
   if (authorId && authorId === props.currentUserId) {
     return !isEmbedsSuppressed.value || !props.channelId || !!props.conversationId || canEmbedLinks.value !== false;
   }
-  return !!props.channelId && !props.conversationId && canManageMessages.value;
+  return !!props.channelId && !props.conversationId && isLocalServer.value && canManageMessages.value;
 });
 
 const toggleEmbeds = async () => {

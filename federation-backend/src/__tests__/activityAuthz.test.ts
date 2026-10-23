@@ -410,6 +410,20 @@ describe('Remove of a member by a remote Group', () => {
     })
   })
 
+  it('names the host whose instance staff removed the member', async () => {
+    await P.processRemove(remove({ 'harmony:reason': 'suspended', 'harmony:staff': true, summary: undefined }))
+
+    expect(tables.notifications[0]).toMatchObject({
+      type: 'server_member_removed',
+      data: { server: { id: 'ref' }, action: 'suspended', reason: null, staff: 'chat.example' },
+    })
+  })
+
+  it('does not take a staff claim that is not true', async () => {
+    await P.processRemove(remove({ 'harmony:reason': 'kick', 'harmony:staff': 'yes', summary: 'spam' }))
+    expect(tables.notifications[0].data).not.toHaveProperty('staff')
+  })
+
   it('does nothing for a Group other than the one whose members it names', async () => {
     await P.processRemove(remove({ actor: OTHER_GROUP }))
     expect(tables.user_servers).toHaveLength(2)

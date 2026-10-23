@@ -95,6 +95,11 @@ function serverToGroup(
     'harmony:memberCount': memberCount,
     // False: a Join from another instance is refused.
     'harmony:federationEnabled': server.federation_enabled === true,
+    // Flags naming a message of the server reach its moderators (1.8.12); older hosts drop them.
+    'harmony:acceptsReports': true,
+    'harmony:suspended': server.suspended_at
+      ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
+      : null,
     
     // Icon - omit default so remote instances use their own fallback
     icon: (() => {
@@ -167,6 +172,7 @@ function serverToJoinStub(server: any, hostDomain: string, publicKeyPem: string 
     ...(server.federation_enabled === true ? { name: server.name } : {}),
     inbox: `${serverUrl}/inbox`,
     'harmony:federationEnabled': server.federation_enabled === true,
+    'harmony:acceptsReports': true,
     discoverable: false,
     manuallyApprovesFollowers: true,
     publicKey: publicKeyPem ? serverActorPublicKey(server.id, publicKeyPem) : undefined,

@@ -28,7 +28,7 @@ export async function handleMemberRemovalJob(data: FederationJobData): Promise<v
 
   const { data: removal } = await supabase
     .from('federation_member_removals')
-    .select('id, server_id, profile_id, reason, summary, created_at, delivered_at')
+    .select('id, server_id, profile_id, reason, summary, staff, created_at, delivered_at')
     .eq('id', removalId)
     .maybeSingle();
   if (!removal || removal.delivered_at) return;

@@ -61,6 +61,13 @@ describe('serialize', () => {
       })
   })
 
+  it('a removal by instance staff says so, on the wire and in the text', () => {
+    const metadata = { type: 'member_kick', subject_id: REMOTE, actor_id: ALICE, reason: 'raid', staff: true }
+    expect(toHarmonySystem(metadata, people, 'host.test')).toMatchObject({ type: 'member_kick', staff: true })
+    expect(systemNoteText(metadata, people, 'host.test')).toBe('rem was kicked by Alice <3 (host.test staff): raid')
+    expect(toHarmonySystem({ ...metadata, staff: 'yes' }, people, 'host.test')).not.toHaveProperty('staff')
+  })
+
   it('a bridge thread notice names its Discord member or bot by name, and the thread by id', () => {
     expect(toHarmonySystem({
       type: 'thread_created', actor_bot_id: BOT, discord_user: { id: '1', username: 'finn', display_name: 'Finn' },
@@ -113,6 +120,12 @@ describe('parse', () => {
       type: 'member_kick', subject_id: 'local-rem', actor_id: 'local-alice', reason: 'spam',
       thread_id: THREAD, thread_name: 'x',
     })
+  })
+
+  it('keeps the staff marker only as true', () => {
+    expect(systemMetadata(parseHarmonySystem({ type: 'member_ban', staff: true })!, () => null))
+      .toEqual({ type: 'member_ban', staff: true })
+    expect(parseHarmonySystem({ type: 'member_ban', staff: 'true' })).toEqual({ type: 'member_ban' })
   })
 
   it('an actor it cannot resolve falls back to actorName; an unresolved subject is left out', () => {

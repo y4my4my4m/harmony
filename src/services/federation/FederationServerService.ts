@@ -52,6 +52,15 @@ export interface InviteInfo {
   }
 }
 
+/** This instance refuses: its staff blocked the server, or keep this account out of it. */
+export type RefusedHere = 'server_blocked_here' | 'kept_out_here'
+
+const REFUSED_HERE = new Set<string>(['server_blocked_here', 'kept_out_here'])
+
+function refusedHere(code: unknown): { refusedHere: RefusedHere } | Record<string, never> {
+  return typeof code === 'string' && REFUSED_HERE.has(code) ? { refusedHere: code as RefusedHere } : {}
+}
+
 export interface JoinServerResult {
   success: boolean
   serverId?: string
@@ -61,6 +70,7 @@ export interface JoinServerResult {
   /** The server answered the Join with a Reject; `reason` is its summary, when it gave one. */
   rejected?: boolean
   reason?: string | null
+  refusedHere?: RefusedHere
 }
 
 export interface LeaveServerResult {
@@ -76,6 +86,7 @@ export interface DiscoverServerResult {
   error?: string
   /** The server refuses members from other instances and shows nothing of itself. */
   federationDisabled?: boolean
+  refusedHere?: RefusedHere
 }
 
 // Federation backend base path (proxied via nginx)
@@ -168,6 +179,7 @@ export class FederationServerService {
         return {
           success: false,
           error: errorData.error || `Server not found (${response.status})`,
+          ...refusedHere(errorData.code),
         }
       }
 
@@ -250,6 +262,9 @@ export class FederationServerService {
         }
         if (errorData.code === 'federation_disabled') {
           return { success: false, federationDisabled: true, error: errorData.error || 'This server does not accept members from other instances' }
+        }
+        if (REFUSED_HERE.has(errorData.code)) {
+          return { success: false, error: errorData.error, ...refusedHere(errorData.code) }
         }
         return { success: false, error: errorData.error || `Failed to resolve invite (${response.status})` }
       }
@@ -342,6 +357,7 @@ export class FederationServerService {
           success: false,
           error: data.error || `Failed to join server (${response.status})`,
           ...(data.code === 'join_rejected' ? { rejected: true, reason: data.reason ?? null } : {}),
+          ...refusedHere(data.code),
         }
       }
 

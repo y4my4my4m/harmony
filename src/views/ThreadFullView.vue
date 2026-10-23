@@ -144,6 +144,7 @@
             <UnifiedMessageContent
               :content="thread.parent_message.content"
               :message-id="thread.parent_message.id"
+              :media-hidden="mediaHidden"
             />
           </div>
         </div>
@@ -262,6 +263,7 @@ import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { buildChatParseOptions } from '@/utils/chatParseOptions'
@@ -302,6 +304,7 @@ const reactionsStore = useReactionsStore()
 const threadsStore = useThreadsStore()
 const pinsStore = usePinsStore()
 const { canManageChannels } = useServerPermissions()
+const mediaHidden = useServerMediaHidden(() => props.serverId)
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 const toast = useToast()
 const { t } = useI18n()

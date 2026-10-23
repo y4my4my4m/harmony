@@ -43,6 +43,7 @@
           @click="emit('showUserProfile', actor.id)"
         ><DisplayName :user-id="actor.id" /></button>
         <span v-else class="system-user-name">{{ actor.name }}</span>
+        <span v-if="staffInstance" class="system-staff" data-testid="system-staff">{{ ' ' + t('hostStaff.systemActor', { instance: staffInstance }) }}</span>
       </template>
       <template #members>
         <template v-for="(memberId, index) in members" :key="memberId">
@@ -129,7 +130,8 @@
 // the row's author (migration 20261026100001_system_events).
 //
 //   member_join, member_leave        subject_id
-//   member_kick, member_ban          subject_id, actor_id, reason
+//   member_kick, member_ban          subject_id, actor_id, reason, staff (the actor is instance
+//                                    staff of the server's host, 20261027250001)
 //   thread_created                   actor_id | actor_bot_id (+ discord_user) | actor_name,
 //                                    thread_id, thread_name
 //   group_created                    actor_id, event 'created' (participant_count) | 'members_added' (user_ids)
@@ -142,6 +144,8 @@ import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import CallJoinButton from '@/components/messages/CallJoinButton.vue'
 import { useProfileStore } from '@/stores/useProfile'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useT } from '@/composables/useT'
 import type { Message } from '@/types/chat'
 
@@ -201,6 +205,15 @@ const actor = computed<Person>(() => {
 
 const members = computed<string[]>(() =>
   Array.isArray(meta.value.user_ids) ? meta.value.user_ids.filter((id: unknown) => profileIdOf(id)) : [])
+
+// Staff of the instance hosting the server: this one, or a copy's host. Stores are read only
+// for a staff notice.
+const staffInstance = computed<string>(() => {
+  if (meta.value.staff !== true || (type.value !== 'member_kick' && type.value !== 'member_ban')) return ''
+  const server = useServerChannelStore().currentServer
+  if (server && server.is_local_server === false && server.federation_domain) return server.federation_domain
+  return useInstanceSettingsStore().settings.domain
+})
 
 const participantCount = computed(() => Number(meta.value.participant_count) || 0)
 const reason = computed(() =>
@@ -293,6 +306,10 @@ const sentence = computed<{ key: string; plural?: number } | null>(() => {
 
 .system-reason {
   margin-left: 6px;
+  color: var(--text-muted);
+}
+
+.system-staff {
   color: var(--text-muted);
 }
 

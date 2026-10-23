@@ -367,13 +367,13 @@ async function handleInbox(
   // 4. activity.actor must match the signing key's owner.
 
   const signature = req.headers.signature as string;
-  // Flag creates moderation work attributed to the signer's domain, Move rewrites
-  // local follows, a Group relay vouches for another actor's activity and a voice
-  // member activity moves a local client, so each is refused unsigned or unverified
-  // whatever REQUIRE_VALID_SIGNATURES says.
+  // Flag creates moderation work attributed to the signer's domain, Resolve settles a
+  // report in the Group's name, Move rewrites local follows, a Group relay vouches for
+  // another actor's activity and a voice member activity moves a local client, so each
+  // is refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
   const isFlag = activity.type === 'Flag';
-  const signerRequired = isFlag || activity.type === 'Move' || relayedActivity(activity) !== null
-    || isVoiceMemberActivity(activity);
+  const signerRequired = isFlag || activity.type === 'Resolve' || activity.type === 'Move'
+    || relayedActivity(activity) !== null || isVoiceMemberActivity(activity);
   let signatureVerified = false;
   let verifiedSigner: string | null = null;
   // Signer of a Create, Update, Announce or Delete whose actor is another account.

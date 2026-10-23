@@ -8,13 +8,16 @@
  *
  * Every write requires:
  *   - an author profile that is not suspended;
+ *   - for a new message or thread, a server not suspended by this instance's staff
+ *     (servers.suspended_at, migration 20261027250001);
  *   - the channel belongs to the server named by the activity or the route;
  *   - an accepted user_servers row and no server_bans row;
  *   - on a local server, VIEW_CHANNEL and the kind's permission through
  *     has_permission, and ATTACH_FILES for a message or edit carrying new
  *     uploads (federatedUploadUrls);
  *   - on a remote server's local copy, a signer on the server's host, or a relay
- *     by the server's Group (`relayedBy`, groupRelay.ts) for an actor elsewhere.
+ *     by the server's Group (`relayedBy`, groupRelay.ts) for an actor elsewhere,
+ *     and no block of the copy on this instance (instanceServerBlocks.ts).
  *     The host enforces permissions; the copy's roles and overrides are
  *     incomplete, so has_permission is not consulted there.
  */
@@ -22,6 +25,7 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { sameUrl } from '../utils/apOrigin.js';
+import { isServerBlockedHere } from './instanceServerBlocks.js';
 
 type Supabase = ReturnType<typeof getSupabaseClient>;
 
@@ -104,7 +108,11 @@ export interface ChannelWriteServer {
   ap_id: string | null;
   host_domain: string | null;
   federation_domain: string | null;
+  suspended_at?: string | null;
 }
+
+/** Kinds that add a message; a suspended server refuses them, as its messages insert guard. */
+const NEW_MESSAGE_KINDS: ReadonlySet<ChannelWriteKind> = new Set(['message', 'thread_message', 'thread_create']);
 
 export type ChannelWriteDecision =
   | { ok: true; userId: string; server: ChannelWriteServer }
@@ -176,10 +184,14 @@ export async function authorizeChannelWrite(
 
   const { data: server } = await supabase
     .from('servers')
-    .select('id, is_local_server, ap_id, host_domain, federation_domain')
+    .select('id, is_local_server, ap_id, host_domain, federation_domain, suspended_at')
     .eq('id', serverId)
     .maybeSingle();
   if (!server) return { ok: false, reason: 'unknown server' };
+  if (server.suspended_at && NEW_MESSAGE_KINDS.has(kind)) return { ok: false, reason: 'server suspended' };
+  if (server.is_local_server === false && await isServerBlockedHere(supabase, serverId)) {
+    return { ok: false, reason: 'server is blocked on this instance' };
+  }
 
   const { data: channel } = await supabase
     .from('channels')

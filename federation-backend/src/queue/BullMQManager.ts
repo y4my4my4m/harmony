@@ -30,6 +30,7 @@ import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handlePollVoteJob } from './handlers/pollVoteHandler.js';
 import { handleMemberRemovalJob } from './handlers/memberRemovalHandler.js';
+import { handleInstanceLeaveJob } from './handlers/instanceLeaveHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
@@ -57,6 +58,7 @@ export type JobType =
   | 'federate-report'
   | 'federate-poll-vote'
   | 'federate-member-removal'
+  | 'federate-instance-leave'
   | 'federate-profile'
   | 'federate-thread'
   | 'federate-voice-join'
@@ -102,6 +104,7 @@ const JOB_TYPES: JobType[] = [
   'federate-report',
   'federate-poll-vote',
   'federate-member-removal',
+  'federate-instance-leave',
   'federate-profile',
   'federate-thread',
   'federate-voice-join',
@@ -227,6 +230,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-report', handleReportJob);
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
     this.handlerMap.set('federate-member-removal', handleMemberRemovalJob);
+    this.handlerMap.set('federate-instance-leave', handleInstanceLeaveJob);
     this.handlerMap.set('federate-profile', handleProfileJob);
     this.handlerMap.set('federate-thread', handleThreadJob);
     this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
@@ -460,6 +464,46 @@ class BullMQManagerService {
       .limit(50);
     for (const row of undeliveredRemovals ?? []) {
       await this.addJob('federate-member-removal', { type: 'delete', removal_id: row.id });
+    }
+
+    // Leaves of local members removed by instance staff whose notify was lost or whose job gave
+    // up; same five-minute margin.
+    const { data: undeliveredLeaves } = await supabase
+      .from('instance_server_leaves')
+      .select('id')
+      .is('delivered_at', null)
+      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(50);
+    for (const row of undeliveredLeaves ?? []) {
+      await this.addJob('federate-instance-leave', { type: 'delete', leave_id: row.id });
+    }
+
+    // Reports for a server's moderators whose notify was lost, and settled reports of a Group
+    // whose Resolve was not sent; same five-minute margin, a week back at most.
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+    const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const { data: queuedServerReports } = await supabase
+      .from('reports')
+      .select('id')
+      .eq('server_forward_status', 'queued')
+      .lt('created_at', fiveMinutesAgo)
+      .gt('created_at', weekAgo)
+      .limit(50);
+    for (const row of queuedServerReports ?? []) {
+      await this.addJob('federate-report', { type: 'create', target: 'server', report_id: row.id });
+    }
+    const { data: settledGroupReports } = await supabase
+      .from('reports')
+      .select('id, resolved_at, metadata')
+      .eq('source', 'federation')
+      .eq('metadata->>flag_target', 'group')
+      .in('status', ['resolved', 'dismissed'])
+      .lt('resolved_at', fiveMinutesAgo)
+      .gt('resolved_at', weekAgo)
+      .limit(100);
+    for (const row of settledGroupReports ?? []) {
+      if ((row.metadata as { resolution_sent_for?: unknown } | null)?.resolution_sent_for === row.resolved_at) continue;
+      await this.addJob('federate-report', { type: 'update', target: 'resolution', report_id: row.id });
     }
 
     // Sweep posts

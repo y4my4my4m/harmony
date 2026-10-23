@@ -1,7 +1,8 @@
 /**
  * A remote server that refuses members from other instances: the dialog says so before a Join
  * (discovery's federationEnabled false) and, when the Join is answered with a Reject, names the
- * server and the Reject's reason instead of opening a server the user never joined.
+ * server and the Reject's reason instead of opening a server the user never joined. A server
+ * this instance blocked, or keeps the account out of, is refused here and said so.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
@@ -120,6 +121,26 @@ describe('JoinFederatedServer and a server that refuses remote members', () => {
       .toContain('federation.joinRefusedReason name=Mastodon Canada reason=Federation is disabled on this server')
     expect(openServer).not.toHaveBeenCalled()
     expect(wrapper.emitted('joined')).toBeUndefined()
+  })
+
+  it('says this instance blocked the server when discovery is refused here', async () => {
+    discoverServer.mockResolvedValue({ success: false, refusedHere: 'server_blocked_here', error: 'blocked' })
+    const wrapper = mount(JoinFederatedServer, {
+      props: { initialUrl: SERVER.id },
+      global: { stubs: { Icon: true, DisplayName: true }, mocks: { $t: t } },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('instanceServer.join.blocked instance=harmony.test')
+  })
+
+  it('says this instance keeps the account out when the join is refused here, and opens nothing', async () => {
+    const wrapper = await discovered(null)
+    joinServer.mockResolvedValue({ success: false, refusedHere: 'kept_out_here', error: 'kept out' })
+    await wrapper.get('[data-testid="join-federated-submit"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('instanceServer.join.keptOut instance=harmony.test')
+    expect(openServer).not.toHaveBeenCalled()
   })
 
   it('names the server when the Reject gives no reason', async () => {

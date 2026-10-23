@@ -10,6 +10,7 @@ import { invalidateServerMemberCache } from '@/services/usersService'
 import { getBucketLimits, imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { pickServerSettings } from '@/utils/serverSettings'
+import { suspendedServerNotice } from '@/utils/serverSuspensionNotice'
 
 export const useServerStore = defineStore('server', {
   actions: {
@@ -154,6 +155,10 @@ export const useServerStore = defineStore('server', {
           }
           if ((error.message || '').includes('SERVER_NOT_PUBLIC')) {
             toast.error(i18n.global.t('server.joinRequiresInvite'));
+            return false;
+          }
+          if ((error.message || '').includes('SERVER_SUSPENDED')) {
+            toast.error(suspendedServerNotice());
             return false;
           }
           throw error;

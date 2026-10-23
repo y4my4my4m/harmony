@@ -22,7 +22,7 @@ const KNOWN_ACTIONS = new Set([
   'member.voice_mute', 'member.voice_unmute', 'member.voice_deafen', 'member.voice_undeafen',
   'member.voice_move', 'member.voice_disconnect',
   'message.delete',
-  'server.update', 'settings.update',
+  'server.update', 'server.suspend', 'server.unsuspend', 'settings.update',
   'invite.create', 'invite.delete',
   'emoji.create', 'emoji.update', 'emoji.delete',
   'sound.create', 'sound.update', 'sound.delete',
@@ -89,6 +89,11 @@ export function permissionNames(mask: unknown): string[] {
     .map(([permission]) => permissionLabel(permission))
 }
 
+/** Instance whose staff took the action: details.staff (20261027250001), this instance. */
+export interface AuditContext {
+  instance?: string
+}
+
 export function auditActorName(entry: ServerAuditEntry, t: AuditTranslate): string {
   if (entry.actor_id) return entry.actor_display_name || entry.actor_username || t('serverAuditLog.unknownUser')
   if (entry.actor_bot_id) return entry.actor_bot_name || t('serverAuditLog.unknownBot')
@@ -115,10 +120,17 @@ export function describeAuditEntry(
   entry: ServerAuditEntry,
   t: AuditTranslate,
   formatDate: (iso: string) => string,
+  context: AuditContext = {},
 ): AuditSegment[] {
   const details = entry.details ?? {}
+  const actorName = auditActorName(entry, t)
   const values: Record<string, AuditSegment> = {
-    actor: { text: auditActorName(entry, t), role: 'actor' },
+    actor: {
+      text: details.staff === true && context.instance
+        ? t('hostStaff.auditActor', { actor: actorName, instance: context.instance })
+        : actorName,
+      role: 'actor',
+    },
     target: { text: auditTargetName(entry, t), role: 'target' },
     subject: {
       text: details.role_name ?? details.user_name ?? t('serverAuditLog.unknownTarget'),
@@ -178,6 +190,7 @@ export function auditChangeLines(
   entry: ServerAuditEntry,
   t: AuditTranslate,
   formatDate: (iso: string) => string,
+  context: AuditContext = {},
 ): AuditChangeLine[] {
   const lines: AuditChangeLine[] = []
   const creates = entry.action.endsWith('.create') || entry.action.endsWith('.delete') || entry.action === 'bot.add'
@@ -228,6 +241,17 @@ export function auditChangeLines(
       field: t('serverAuditLog.fields.messages_deleted'),
       from: null,
       to: String(details.messages_deleted),
+    })
+  }
+  // A member of another instance removed because staff suspended the account or its domain.
+  if (details.cause === 'account_suspended' || details.cause === 'domain_suspended') {
+    const instance = context.instance ?? ''
+    lines.push({
+      field: t('hostStaff.audit.cause'),
+      from: null,
+      to: details.cause === 'account_suspended'
+        ? t('hostStaff.audit.accountSuspended', { instance })
+        : t('hostStaff.audit.domainSuspended', { domain: String(details.domain ?? ''), instance }),
     })
   }
   return lines

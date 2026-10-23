@@ -16,6 +16,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }))
 vi.mock('@/components/common/Avatar.vue', () => ({ default: { template: '<span class="avatar-stub" />' } }))
+vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { domain: 'here.test' } }) }))
 vi.mock('@/services/ServerAuditLogService', () => ({
   AUDIT_PAGE_SIZE: 2,
   getServerAuditLog: api.getServerAuditLog,

@@ -26,9 +26,12 @@ export function useLeaveServer() {
   const { unsubscribeFromContext } = useUserData()
   const { confirm } = useConfirmDialog()
 
-  /** `owner` holds the auth user id; owners cannot leave. */
-  const isOwner = (server: Pick<Server, 'owner'> | null | undefined): boolean =>
-    !!server && server.owner === authStore.session?.user?.id
+  /**
+   * `owner` holds the auth user id; the owner of a server hosted here cannot leave it. A copy's
+   * owner is the host's, so every member may leave a copy.
+   */
+  const isOwner = (server: Pick<Server, 'owner' | 'is_local_server'> | null | undefined): boolean =>
+    !!server && server.is_local_server !== false && server.owner === authStore.session?.user?.id
 
   /** Resolves true once the server is left; false when cancelled or failed. */
   async function leaveServer(serverId: string): Promise<boolean> {

@@ -558,8 +558,9 @@ const canInvite = ref(false)
 // Server invite picker state
 const showServerPicker = ref(false)
 
+// Servers hosted here: an invite to a copy is refused by redeem_invite.
 const availableServers = computed(() => {
-  return serverChannelStore.servers || []
+  return (serverChannelStore.servers || []).filter(s => s.is_local_server !== false)
 })
 
 const currentDomain = runtimeConfig.domain as string
@@ -1335,6 +1336,13 @@ async function loadModerationPermissions() {
   }
   const serverId = serverChannelStore.currentServerId
   if (!serverId) return
+  // Kicks, bans and invites of a copy are the host's.
+  if (serverChannelStore.currentServer?.is_local_server === false) {
+    canKick.value = false
+    canBan.value = false
+    canInvite.value = false
+    return
+  }
 
   try {
     const { authContextService } = await import('@/services/AuthContextService')

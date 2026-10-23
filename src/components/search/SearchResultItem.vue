@@ -36,6 +36,7 @@
         :decrypted="message.decrypted || false"
         :unrecoverable="message.decryption_unrecoverable || false"
         :sender-verified="message.sender_verified"
+        :media-hidden="mediaHidden"
       />
     </div>
   </article>
@@ -50,6 +51,7 @@ import SupporterBadge from '@/components/common/SupporterBadge.vue'
 import MessageAuthorLabel from '@/components/messages/MessageAuthorLabel.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPresentation'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { formatFullDateTime } from '@/utils/shortRelativeTime'
 import type { Message } from '@/types'
 
@@ -66,6 +68,8 @@ const { t, locale } = useI18n()
 
 const { profileUserId, displayName, avatarUrl, usernameColor, bridgeSource, isBridged } =
   useMessageAuthorPresentation(toRef(props, 'message'), { serverId: () => props.serverId })
+
+const mediaHidden = useServerMediaHidden(() => (props.message.conversation_id ? null : props.serverId))
 
 const isoTime = computed(() => new Date(props.message.created_at).toISOString())
 const fullTime = computed(() => formatFullDateTime(props.message.created_at, locale.value))

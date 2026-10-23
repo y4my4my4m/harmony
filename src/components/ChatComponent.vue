@@ -345,7 +345,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     }
     if (command === 'kick' || command === 'ban') {
       if (props.isDM || !serverChannelStore.currentServerId) return;
-      
+      // A copy's members are moderated on its home instance.
+      if (serverChannelStore.currentServer?.is_local_server === false) return;
+
       const requiredPerm = command === 'kick' ? Permission.KICK_MEMBERS : Permission.BAN_MEMBERS;
       if (!isCurrentUserServerOwner.value && !hasCurrentUserPermission(requiredPerm)) return;
       

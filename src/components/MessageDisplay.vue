@@ -228,7 +228,7 @@
               :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
             >
               <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
-              <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
+              <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
               <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
             </div>
             
@@ -325,6 +325,7 @@
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               :can-edit-attachments="canEditAttachments(item.message)"
+              :media-hidden="serverMediaHidden"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
               @update:message="saveEdit"
@@ -367,6 +368,7 @@
               :sender-verified="item.message?.sender_verified"
               :can-decrypt="canDecryptMessages"
               :can-edit-attachments="canEditAttachments(item.message)"
+              :media-hidden="serverMediaHidden"
               @image-loaded="handleImageLoaded"
               @embed-loaded="handleEmbedLoaded(item.message.id)"
               @update:message="saveEdit"
@@ -407,7 +409,7 @@
           <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" :title="t('message.reply')" @click="replyTo(item.message)"><ReplyIcon/></button>
           <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadCreate" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
-          <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
+          <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
         </div>
         
@@ -522,6 +524,8 @@
     :is-shift-held="isShiftHeld"
     :can-edit="canEditMessage(hoveredMessageItem.message)"
     :can-delete="canDeleteMessage(hoveredMessageItem.message)"
+    :delete-label="deleteActionLabel(hoveredMessageItem.message)"
+    :hides-on-instance="isInstanceHide(hoveredMessageItem.message)"
     @react="openEmojiReactor"
     @reply="replyTo"
     @thread="createThread"
@@ -544,6 +548,7 @@
     :hide-thread-actions="props.hideThreadActions"
     :can-edit="contextMenuMessage ? canEditMessage(contextMenuMessage) : false"
     :can-delete="contextMenuMessage ? canDeleteMessage(contextMenuMessage) : false"
+    :hides-on-instance="contextMenuMessage ? isInstanceHide(contextMenuMessage) : false"
     @close="closeContextMenu"
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
@@ -563,17 +568,21 @@
     :target-message-id="reportTargetMessageId"
     :target-message-preview="reportTargetMessagePreview"
     :target-user="reportTargetUser"
+    :target-server="reportTargetServer"
     @close="showReportModal = false"
     @hide="handleHideReportedContent"
   />
 
   <!-- Delete Message Confirmation Modal -->
+  <!-- A hide in a copy names its scope: this instance only, never the host. -->
   <ConfirmationModal
     :show="showDeleteConfirmModal"
-    :title="t('message.deleteMessage')"
-    :message="deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
-    :secondary-message="deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
-    :confirm-button-text="deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
+    :title="deleteConfirmConfig.hide ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage')"
+    :message="deleteConfirmConfig.hide
+      ? t('serverCopy.hide.confirm', { instance: instanceDomain, host: copyHost })
+      : deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
+    :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
+    :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button') : deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -593,6 +602,8 @@ import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, Rea
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
+import { remoteServerHost } from '@/utils/serverUtils';
+import { getInstanceDomain } from '@/services/instanceConfig';
 import { mediaLoadKey } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -616,6 +627,7 @@ import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
@@ -1116,6 +1128,8 @@ const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
 const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
 // create_thread needs CREATE_PUBLIC_THREADS in the channel.
 const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
+// Pictures, videos and files of a server hosted elsewhere whose media this instance hides.
+const serverMediaHidden = useServerMediaHidden(() => (props.conversationId ? null : serverChannelStore.currentServerId));
 const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
 // A conversation has no roles, @everyone or @here; its messages are not highlighted.
 const mentionsMe = (message: Message): boolean =>
@@ -1617,7 +1631,7 @@ const selectedBot = ref<(Partial<ServerBot> & { id: string }) | null>(null);
 const showInviteModal = ref(false);
 
 const showDeleteConfirmModal = ref(false);
-const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; focusAfter?: string | null }>({
+const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; focusAfter?: string | null; hide?: boolean }>({
   messageId: '',
   hasThread: false,
   threadName: '',
@@ -1646,6 +1660,7 @@ const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
 const reportTargetMessagePreview = ref<string | undefined>();
 const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string; domain?: string | null; is_local?: boolean | null } | undefined>();
+const reportTargetServer = ref<{ name?: string | null; is_local_server?: boolean | null; federation_domain?: string | null } | null>(null);
 
 // --- STICK TO BOTTOM ---
 // Whether the view follows the end of the list; rules in utils/chatScroll.
@@ -3294,6 +3309,20 @@ const canEditMessage = (message: Message) => {
 
 const canEditAttachments = (message: Message) => canEditMessage(message);
 
+const isInstanceStaff = computed(() => profileStore.profile?.is_admin === true || profileStore.profile?.is_moderator === true);
+const instanceDomain = getInstanceDomain();
+const copyHost = computed(() =>
+  remoteServerHost(serverChannelStore.currentServer) || t('serverCopy.banner.unknownHost'));
+
+/** Another member's message in a copy: removing it hides it on this instance only. */
+const isInstanceHide = (message: Message | null | undefined): boolean =>
+  !!message && !props.conversationId
+  && serverChannelStore.currentServer?.is_local_server === false
+  && message.user_id !== profileStore.profile?.id;
+
+const deleteActionLabel = (message: Message): string =>
+  isInstanceHide(message) ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage');
+
 const canDeleteMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
 
@@ -3301,9 +3330,11 @@ const canDeleteMessage = (message: Message) => {
   const messageUserId = message.user_id;
   const isOwnMessage = messageUserId === currentProfileId;
 
-  // On non-local (federated mirror) servers, only allow deleting own messages
+  // In a copy the author deletes their own message; instance staff hide others' on this instance
+  // only (messages_update_authorized). System rows are the host's.
   if (serverChannelStore.currentServer?.is_local_server === false) {
-    return isOwnMessage;
+    if (isOwnMessage) return true;
+    return !message.is_system && isInstanceStaff.value;
   }
 
   // System rows are removed by MANAGE_MESSAGES holders only; in a conversation the
@@ -3492,6 +3523,7 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
   }
   const thread = getThreadForMessage(messageId);
   const focusAfter = neighborRowKey(messageId);
+  const hide = isInstanceHide(props.messages.find((m) => m.id === messageId));
   
   if (thread) {
     deleteConfirmConfig.value = {
@@ -3499,6 +3531,7 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
       hasThread: true,
       threadName: thread.name || 'this thread',
       focusAfter,
+      hide,
     };
     showDeleteConfirmModal.value = true;
   } else if (bypassConfirm) {
@@ -3513,6 +3546,7 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
       hasThread: false,
       threadName: '',
       focusAfter,
+      hide,
     };
     showDeleteConfirmModal.value = true;
   }
@@ -3645,6 +3679,10 @@ const handleReportMessage = (message: Message) => {
     domain: profile?.value?.domain ?? null,
     is_local: profile?.value?.is_local ?? null,
   };
+  const server = props.conversationId ? null : serverChannelStore.currentServer;
+  reportTargetServer.value = server?.id
+    ? { name: server.name, is_local_server: server.is_local_server ?? null, federation_domain: server.federation_domain ?? null }
+    : null;
 
   showReportModal.value = true;
 };

@@ -353,7 +353,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
             federation_enabled,
             is_local_server,
             federation_domain,
-            federation_inbox_url
+            federation_inbox_url,
+            suspended_at,
+            suspended_reason
           )
         `)
         .eq('user_id', userId)
@@ -396,7 +398,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
             federation_enabled,
             is_local_server,
             federation_domain,
-            federation_inbox_url
+            federation_inbox_url,
+            suspended_at,
+            suspended_reason
           )
         `)
         .eq('user_id', userId)

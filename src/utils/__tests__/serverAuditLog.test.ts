@@ -15,6 +15,12 @@ const TEMPLATES: Record<string, string> = {
   'serverAuditLog.actions.member_voice_mute': '{actor} server-muted {target}',
   'serverAuditLog.actions.member_voice_disconnect': '{actor} disconnected {target} from voice',
   'serverAuditLog.actions.unknown': '{actor}: {action}',
+  'serverAuditLog.actions.member_kick': '{actor} kicked {target}',
+  'serverAuditLog.actions.server_suspend': '{actor} suspended the server',
+  'hostStaff.auditActor': '{actor} ({instance} staff)',
+  'hostStaff.audit.cause': 'Why',
+  'hostStaff.audit.accountSuspended': 'Account suspended on {instance}',
+  'hostStaff.audit.domainSuspended': '{domain} suspended on {instance}',
   'serverAuditLog.value.seconds': '{n} s',
 }
 
@@ -202,5 +208,35 @@ describe('auditChangeLines', () => {
 
     const kick = auditChangeLines(entry({ action: 'member.kick', target_type: 'user', details: { messages_deleted: 4 } }), t, date)
     expect(kick).toEqual([{ field: 'serverAuditLog.fields.messages_deleted', from: null, to: '4' }])
+  })
+})
+
+describe('instance staff', () => {
+  const sentence = (e: ServerAuditEntry, instance?: string) =>
+    describeAuditEntry(e, t, date, { instance }).map(s => s.text).join('')
+
+  it('names the actor as staff of this instance', () => {
+    const kick = entry({ action: 'member.kick', target_type: 'user', target_name: 'bob', details: { staff: true } })
+    expect(sentence(kick, 'here.test')).toBe('Alice (here.test staff) kicked bob')
+    expect(describeAuditEntry(kick, t, date, { instance: 'here.test' })[0]).toEqual({
+      text: 'Alice (here.test staff)', role: 'actor',
+    })
+    expect(sentence(entry({ action: 'member.kick', target_type: 'user', target_name: 'bob', details: { staff: 'yes' } }), 'here.test'))
+      .toBe('Alice kicked bob')
+  })
+
+  it('reads a suspension of the server', () => {
+    expect(sentence(entry({ action: 'server.suspend', target_type: 'server', details: { staff: true } }), 'here.test'))
+      .toBe('Alice (here.test staff) suspended the server')
+  })
+
+  it('says why a member of another instance was removed', () => {
+    const removal = (cause: string) => entry({
+      action: 'member.kick', target_type: 'user', details: { staff: true, cause, domain: 'remote.test' },
+    })
+    expect(auditChangeLines(removal('account_suspended'), t, date, { instance: 'here.test' }))
+      .toEqual([{ field: 'Why', from: null, to: 'Account suspended on here.test' }])
+    expect(auditChangeLines(removal('domain_suspended'), t, date, { instance: 'here.test' }))
+      .toEqual([{ field: 'Why', from: null, to: 'remote.test suspended on here.test' }])
   })
 })

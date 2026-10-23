@@ -10,7 +10,7 @@
         tabindex="-1"
       >
         <div class="modal-header">
-          <h2 id="report-modal-title">Report {{ reportTypeLabel }}</h2>
+          <h2 id="report-modal-title">{{ t('moderation.report') }}</h2>
           <button @click="$emit('close')" class="close-btn">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -19,6 +19,12 @@
         </div>
 
         <div class="modal-body">
+          <p class="report-destination" data-testid="report-destination">
+            {{ serverHereName
+              ? t('moderation.reportDialog.goesToServer', { instance: instanceDomain, server: serverHereName })
+              : t('moderation.reportDialog.goesTo', { instance: instanceDomain }) }}
+          </p>
+
           <!-- Target info -->
           <div v-if="targetUser" class="target-info">
             <Avatar :src="targetUser.avatar_url" :alt="targetUser.username" size="sm" class="target-avatar" />
@@ -79,11 +85,20 @@
             <span class="char-count">{{ comment.length }}/1000</span>
           </div>
 
+          <!-- Also to the moderators of the server hosting the message -->
+          <label v-if="serverElsewhere" class="forward-option" data-testid="report-forward-server">
+            <input type="checkbox" v-model="forwardToServer" />
+            <span>
+              {{ t('moderation.reportDialog.alsoToServer', { server: serverElsewhere.name, host: serverElsewhere.host }) }}
+              <span class="forward-hint">{{ t('moderation.reportDialog.alsoToServerHint') }}</span>
+            </span>
+          </label>
+
           <!-- Forward to the remote instance -->
-          <label v-if="remoteDomain" class="forward-option">
+          <label v-if="accountForwardDomain" class="forward-option">
             <input type="checkbox" v-model="forward" />
             <span>
-              {{ t('moderation.reportForward.label', { domain: remoteDomain }) }}
+              {{ t('moderation.reportForward.label', { domain: accountForwardDomain }) }}
               <span class="forward-hint">{{ t('moderation.reportForward.hint') }}</span>
             </span>
           </label>
@@ -126,7 +141,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
-import { remoteDomainOf } from '@/utils/reportModeration'
+import { remoteDomainOf, serverHostedElsewhere } from '@/utils/reportModeration'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -150,6 +165,12 @@ interface Props {
     domain?: string | null
     is_local?: boolean | null
   }
+  /** Server of a reported channel message. */
+  targetServer?: {
+    name?: string | null
+    is_local_server?: boolean | null
+    federation_domain?: string | null
+  } | null
 }
 
 const props = defineProps<Props>()
@@ -163,23 +184,32 @@ const emit = defineEmits<{
 const selectedReason = ref<ReportReason | ''>('')
 const comment = ref('')
 const forward = ref(false)
+const forwardToServer = ref(true)
 const isSubmitting = ref(false)
 const submitted = ref(false)
 const errorMessage = ref('')
 const reportReasons = REPORT_REASONS
 
-const remoteDomain = computed(() =>
-  remoteDomainOf(props.targetUser, runtimeConfig.domain as string))
+const instanceDomain = computed(() => runtimeConfig.domain as string)
 
-const reportTypeLabel = computed(() => {
-  switch (props.reportType) {
-    case 'user': return 'User'
-    case 'post': return 'Post'
-    case 'message': return 'Message'
-    case 'server': return 'Server'
-    default: return 'Content'
-  }
+const remoteDomain = computed(() =>
+  remoteDomainOf(props.targetUser, instanceDomain.value))
+
+// A message in a server hosted here also reaches its moderators (create_report scope_server_id).
+const serverHereName = computed(() => {
+  const server = props.targetServer
+  if (props.reportType !== 'message' || !server || server.is_local_server === false) return null
+  return server.name?.trim() || null
 })
+
+const serverElsewhere = computed(() =>
+  props.reportType === 'message'
+    ? serverHostedElsewhere(props.targetServer, instanceDomain.value)
+    : null)
+
+// The server's host reads the report through its Group; a second copy to the same instance is not sent.
+const accountForwardDomain = computed(() =>
+  remoteDomain.value && remoteDomain.value !== serverElsewhere.value?.host ? remoteDomain.value : null)
 
 const submitReport = async () => {
   if (!selectedReason.value || isSubmitting.value) return
@@ -195,7 +225,8 @@ const submitReport = async () => {
       report_type: props.reportType,
       reason: selectedReason.value,
       comment: comment.value || undefined,
-      forward: !!remoteDomain.value && forward.value,
+      forward: !!accountForwardDomain.value && forward.value,
+      forward_to_server: !!serverElsewhere.value && forwardToServer.value,
       // The server stores this only when the message is encrypted.
       evidence_text: props.reportType === 'message' ? props.targetMessagePreview : undefined,
     })
@@ -301,6 +332,12 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
+}
+
+.report-destination {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .target-info {

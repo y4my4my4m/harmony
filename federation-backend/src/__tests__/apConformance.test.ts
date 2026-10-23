@@ -47,7 +47,7 @@ describe('stored activity types', () => {
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))
       .find((sql) => sql.includes('ADD CONSTRAINT ap_activities_valid_type'))!
     const check = latest.slice(latest.indexOf('ADD CONSTRAINT ap_activities_valid_type'))
-    const list = check.slice(check.indexOf('('), check.indexOf('));'))
+    const list = check.slice(check.indexOf('('), check.indexOf('))'))
     const types = [...list.matchAll(/'([^']+)'/g)].map((m) => m[1])
     expect([...STORED_ACTIVITY_TYPES].sort()).toEqual([...types, 'EmojiReact'].sort())
   })

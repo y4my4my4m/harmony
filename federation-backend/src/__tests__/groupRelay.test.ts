@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Receiver: an Announce from the Group of a remote server copied here, on the copy's inbox
 // or the shared inbox, applies the inner activity when the Group signed it, the inner actor
 // is a member (the copy's row, or the Group's members collection) and the target is in
-// that server.
+// that server. A copy blocked on this instance takes nothing.
 
 vi.mock('../config/index.js', () => ({
   default: {
@@ -523,6 +523,38 @@ describe('receiver: an edit sent by the host directly', () => {
       object: { type: 'Note', id: `https://b.test/messages/${MB}`, attributedTo: BEE, content: '<p>direct</p>', 'harmony:serverId': R },
     })
     expect(tables.messages!.find((m) => m.id === MB)!.content).toEqual([{ type: 'text', text: 'bee wrote' }])
+  })
+})
+
+describe('receiver: a server blocked on this instance', () => {
+  beforeEach(() => {
+    tables.instance_server_blocks = [{ server_id: R, blocked: true, media_hidden: false }]
+  })
+
+  it('drops its relays on the copy\'s inbox and on the shared inbox', async () => {
+    await atCopy(R, announce(GROUP, create(BEE, 30)))
+    await ActivityProcessor.processIncomingActivity(announce(GROUP, create(BEE, 31)))
+    await atCopy(R, announce(GROUP, { id: 'del30', type: 'Delete', actor: BEE, object: `https://host.test/messages/${MA}` }))
+    expect([stored(30), stored(31)]).toEqual([undefined, undefined])
+    expect(tables.messages!.find((m) => m.id === MA)!.is_deleted).toBeUndefined()
+  })
+
+  it('refuses what its host sends directly', async () => {
+    await ActivityProcessor.processIncomingActivity({
+      id: 'h30', type: 'Update', actor: HOSTU,
+      object: { type: 'Note', id: `https://host.test/messages/${MA}`, attributedTo: HOSTU, content: '<p>host edit</p>', 'harmony:serverId': R },
+    })
+    expect(tables.messages!.find((m) => m.id === MA)!.content).toEqual([{ type: 'text', text: 'host wrote' }])
+    expect(await authorizeChannelWrite(fakeSupabase() as any, { actorUrl: HOSTU, serverId: R, channelId: CR, kind: 'message' }))
+      .toEqual({ ok: false, reason: 'server is blocked on this instance' })
+  })
+
+  it('leaves other copies alone, and takes relays again once allowed', async () => {
+    await atCopy(R2, announce(GROUP2, create(BEE, 32, { context: `${GROUP2}/channels/${CR2}`, 'harmony:serverId': R2 })))
+    expect(stored(32)?.channel_id).toBe(CR2)
+    tables.instance_server_blocks![0].blocked = false
+    await atCopy(R, announce(GROUP, create(BEE, 33)))
+    expect(stored(33)?.user_id).toBe('bee')
   })
 })
 

@@ -75,6 +75,60 @@ export function remoteDomainOf(target: ReportTargetAccount | null | undefined, l
   return domain
 }
 
+export interface ReportTargetServer {
+  name?: string | null
+  is_local_server?: boolean | null
+  federation_domain?: string | null
+}
+
+/**
+ * Name and host of a server hosted on another instance, or null for one hosted here or of
+ * unknown host. A report about a message in it can also go to its moderators.
+ */
+export function serverHostedElsewhere(
+  server: ReportTargetServer | null | undefined,
+  localDomain: string,
+): { name: string; host: string } | null {
+  if (!server || server.is_local_server !== false) return null
+  const host = server.federation_domain?.trim().toLowerCase() || null
+  if (!host || host === localDomain.toLowerCase()) return null
+  return { name: server.name?.trim() || host, host }
+}
+
+/** get_reports_with_details.server_forward, as the queue reads it. */
+export interface ServerForwardView {
+  server_name?: string | null
+  host?: string | null
+  status?: string | null
+  resolution?: string | null
+}
+
+/** Where a report sent to a server's moderators stands; null when nothing was sent. */
+export function serverForwardLabel(forward: ServerForwardView | null | undefined): string | null {
+  if (!forward) return null
+  const named = { server: forward.server_name || forward.host || '', host: forward.host || '' }
+  switch (forward.status) {
+    case 'completed': return t('moderation.serverReport.sent', named)
+    case 'queued':
+    case 'processing': return t('moderation.serverReport.pending', named)
+    case 'failed': return t('moderation.serverReport.failed', named)
+    default: return null
+  }
+}
+
+/**
+ * "{server}'s moderators: Action taken" once the server settled its copy; else null. Their outcome
+ * is information beside the report's own status, which this instance's staff set.
+ */
+export function serverResolutionLabel(forward: ServerForwardView | null | undefined): string | null {
+  if (!forward || (forward.resolution !== 'resolved' && forward.resolution !== 'dismissed')) return null
+  const server = forward.server_name || forward.host || ''
+  return t('moderation.serverReport.outcomeBy', {
+    server,
+    outcome: t(`moderation.serverReport.outcome.${forward.resolution}`),
+  })
+}
+
 export type ReportAction =
   | 'investigate'
   | 'resolve'

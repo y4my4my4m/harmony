@@ -507,6 +507,37 @@ describe('POST /servers/join, refused', () => {
     expect(writes.some(w => w.table === 'user_servers' && w.op === 'delete')).toBe(false)
   })
 
+  it('refuses a server this instance blocked, sending and recording nothing', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
+    db.instance_server_blocks = [{ server_id: REF, blocked: true }]
+    vi.mocked(DeliveryQueue.sendToInbox).mockClear()
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan' })
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ code: 'server_blocked_here', error: 'This server is blocked on harmony.test' })
+    expect(DeliveryQueue.sendToInbox).not.toHaveBeenCalled()
+    expect(writes.filter(w => w.table === 'user_servers')).toEqual([])
+  })
+
+  it('refuses an account this instance keeps out of the server, and only that one', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
+    db.instance_server_blocks = [{ server_id: REF, blocked: false, media_hidden: true }]
+    db.instance_server_keepouts = [{ server_id: REF, profile_id: 'dan' }]
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan' })
+
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('kept_out_here')
+    expect(writes.filter(w => w.table === 'user_servers')).toEqual([])
+  })
+
   it("ignores another Join's Reject", async () => {
     signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
     db.ap_activities = [{
@@ -520,6 +551,45 @@ describe('POST /servers/join, refused', () => {
       .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
 
     expect(res.status).toBe(200)
+  })
+})
+
+describe('POST /servers/leave', () => {
+  it('removes the membership and sends the member\'s Leave to the Group\'s inbox', async () => {
+    db.servers.find(r => r.id === REF)!.federation_inbox_url = `${GROUP}/inbox`
+    db.user_servers.push({ server_id: REF, user_id: 'dan', status: 'accepted', created_at: '2026-01-06' })
+    vi.mocked(DeliveryQueue.sendToInbox).mockClear()
+
+    const res = await supertest(app())
+      .post('/servers/leave')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverId: REF, userId: 'dan' })
+
+    expect(res.status).toBe(200)
+    expect(db.user_servers.some(r => r.server_id === REF && r.user_id === 'dan')).toBe(false)
+    const [inbox, activity, signer] = vi.mocked(DeliveryQueue.sendToInbox).mock.calls[0] as any[]
+    expect(inbox).toBe(`${GROUP}/inbox`)
+    expect(activity).toMatchObject({ type: 'Leave', actor: 'https://harmony.test/users/dan', object: GROUP })
+    expect(signer).toBe('dan')
+  })
+})
+
+describe('a server blocked on this instance', () => {
+  beforeEach(() => {
+    db.instance_server_blocks = [{ server_id: REF, blocked: true }]
+  })
+
+  it('is not discovered', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Blocked' }))
+    const res = await supertest(app()).get('/servers/discover').query({ url: GROUP })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('server_blocked_here')
+  })
+
+  it('is not synced', async () => {
+    const res = await supertest(app()).get(`/servers/${REF}/sync`).set('Authorization', 'Bearer bob')
+    expect(res.status).toBe(403)
+    expect(signedApFetch).not.toHaveBeenCalled()
   })
 })
 

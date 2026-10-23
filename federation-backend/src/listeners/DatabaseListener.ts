@@ -364,7 +364,9 @@ export async function startDatabaseListener(): Promise<void> {
              payload.old.description !== payload.new.description ||
              payload.old.icon !== payload.new.icon ||
              payload.old.banner !== payload.new.banner ||
-             payload.old.public !== payload.new.public)) {
+             payload.old.public !== payload.new.public ||
+             payload.old.suspended_at !== payload.new.suspended_at ||
+             payload.old.suspended_reason !== payload.new.suspended_reason)) {
           logger.info('Server updated:', {
             id: payload.new.id,
             name: payload.new.name,
@@ -941,6 +943,10 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         image: bannerUrl ? { type: 'Image', url: bannerUrl } : null,
         discoverable: server.public === true,
         'harmony:ChatServer': true,
+        'harmony:acceptsReports': true,
+        'harmony:suspended': server.suspended_at
+          ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
+          : null,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),

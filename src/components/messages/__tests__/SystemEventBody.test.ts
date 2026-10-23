@@ -23,6 +23,9 @@ const THREAD = '00000000-0000-4000-8000-0000000000f1'
 const NAMES: Record<string, string> = { [ME]: 'Me', [BOB]: 'Bob', [CAROL]: 'Carol' }
 
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: ME } }) }))
+const currentServer = vi.hoisted(() => ({ value: {} as Record<string, unknown> }))
+vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ currentServer: currentServer.value }) }))
+vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { domain: 'here.test' } }) }))
 vi.mock('@/components/DisplayName.vue', () => ({
   default: defineComponent({ props: { userId: String }, setup: (p) => () => h('span', NAMES[p.userId!] ?? '?') }),
 }))
@@ -70,6 +73,18 @@ describe('SystemEventBody', () => {
     expect(text(render({ type: 'member_kick', subject_id: BOB, actor_id: CAROL, reason: 'spam' })))
       .toBe('Carol kicked Bob. | Reason: spam')
     expect(text(render({ type: 'member_ban', subject_id: BOB, reason: '' }))).toBe('Bob was banned.')
+  })
+
+  it('names instance staff of the host as such', () => {
+    currentServer.value = { id: 's1', is_local_server: true }
+    expect(text(render({ type: 'member_kick', subject_id: BOB, actor_id: CAROL, reason: 'raid', staff: true })))
+      .toBe('Carol (here.test staff) kicked Bob. | Reason: raid')
+    currentServer.value = { id: 's2', is_local_server: false, federation_domain: 'host.test' }
+    expect(text(render({ type: 'member_ban', subject_id: BOB, actor_id: CAROL, staff: true })))
+      .toBe('Carol (host.test staff) banned Bob.')
+    expect(text(render({ type: 'member_ban', subject_id: BOB, actor_id: CAROL, staff: 'true' })))
+      .toBe('Carol banned Bob.')
+    currentServer.value = {}
   })
 
   it('names a missing person "Someone"', () => {

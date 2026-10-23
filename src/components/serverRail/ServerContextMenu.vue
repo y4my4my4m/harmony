@@ -3,7 +3,7 @@
     <button type="button" role="menuitem" class="rail-menu-item" data-action="mark-read" :disabled="!hasUnread" @click="act({ type: 'mark-read' })">
       {{ t('serverRail.menu.markRead') }}
     </button>
-    <button type="button" role="menuitem" class="rail-menu-item" data-action="invite" @click="act({ type: 'invite' })">
+    <button v-if="server.is_local_server !== false" type="button" role="menuitem" class="rail-menu-item" data-action="invite" @click="act({ type: 'invite' })">
       {{ t('serverRail.menu.invite') }}
     </button>
 

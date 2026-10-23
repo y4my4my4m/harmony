@@ -178,6 +178,7 @@
                 <UnifiedMessageContent
                   :content="displayParentMessage.content"
                   :message-id="displayParentMessage.id"
+                  :media-hidden="mediaHidden"
                 />
               </div>
             </div>
@@ -310,6 +311,7 @@ import { useDraftsStore } from '@/stores/drafts'
 import { useThemeStore } from '@/stores/useTheme'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { buildChatParseOptions } from '@/utils/chatParseOptions'
@@ -385,6 +387,7 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const serverChannelStore = useServerChannelStore()
 const { canManageChannels } = useServerPermissions()
+const mediaHidden = useServerMediaHidden(() => serverChannelStore.currentServerId)
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
 
 const canManageThread = computed(() => canManageChannels.value)

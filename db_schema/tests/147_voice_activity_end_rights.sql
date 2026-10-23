@@ -1,5 +1,5 @@
 -- Ending and replacing voice activities from 20261016100001_voice_activity_end_rights.sql:
--- the host, an instance moderator, a member with MOVE_MEMBERS (the owner included), or anyone
+-- the host, a member with MOVE_MEMBERS (the owner included), or anyone
 -- once the host has left the call. Playback stays with the activity's controls setting.
 --
 --   alice    owns server_1; in the call
@@ -43,13 +43,17 @@ SELECT ok(NOT ((public.voice_activity_control('f1470000-0000-0000-0000-000000000
 SELECT throws_ok($q$SELECT public.voice_activity_may_end(NULL::public.voice_activities, NULL::uuid)$q$,
   '42501', NULL, 'the rule itself is not callable by clients');
 
--- Instance moderator. ---------------------------------------------------------------------
+-- Instance moderator (20261027500001: instance staff act through the staff_* RPCs). ----------
 SELECT tests.clear_authentication();
 UPDATE public.profiles SET is_moderator = true WHERE id = '33333333-0000-0000-0000-000000000003';
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT ok(public.voice_activity_stop('f1470000-0000-0000-0000-000000000001'), 'an instance moderator ends it');
+SELECT throws_ok($q$SELECT public.voice_activity_stop('f1470000-0000-0000-0000-000000000001')$q$,
+  '42501', 'Only the host or a moderator ends this activity', 'an instance moderator without Move Members does not end it');
 SELECT tests.clear_authentication();
 UPDATE public.profiles SET is_moderator = false WHERE id = '33333333-0000-0000-0000-000000000003';
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT public.voice_activity_stop('f1470000-0000-0000-0000-000000000001');
+SELECT tests.clear_authentication();
 
 -- MOVE_MEMBERS. ---------------------------------------------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');

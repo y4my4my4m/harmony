@@ -5,13 +5,15 @@
  * and actor_bot_id (migration 20261026100001_system_events). Its Note is attributedTo the
  * server's Group and carries `harmony:system`, with actor ids in place of profile ids:
  *
- *   harmony:system   { type, subject?, actor?, actorName?, reason?, thread?, threadName? }
+ *   harmony:system   { type, subject?, actor?, actorName?, reason?, thread?, threadName?, staff? }
  *     type           metadata.type, one of SYSTEM_NOTE_TYPES
  *     subject, actor actor ids of the member the notice is about and of the member who
  *                    acted; http or https, as fromActivityPub reads ids (ssrfProtection
  *                    refuses plain http fetches in production)
  *     actorName      display name of an actor with no actor id: a bot or a Discord member
  *     thread         <host>/threads/<uuid>; thread ids are kept across instances
+ *     staff          true: the actor acted as the host's instance staff (metadata.staff,
+ *                    migration 20261027250001), not as a moderator of the server
  *
  * A member instance stores the Note as a system row, the actor ids mapped back to its own
  * profiles. Only the Group hosting the channel speaks for it: the channel collection the
@@ -55,6 +57,7 @@ export interface HarmonySystem {
   reason?: string;
   thread?: string;
   threadName?: string;
+  staff?: true;
 }
 
 export interface SystemProfile {
@@ -174,6 +177,7 @@ export function toHarmonySystem(
   const thread = uuidOf(meta.thread_id);
   if (thread) sys.thread = `https://${hostDomain}/threads/${thread}`;
   if (typeof meta.thread_name === 'string' && meta.thread_name) sys.threadName = meta.thread_name.slice(0, MAX_NAME);
+  if (meta.staff === true) sys.staff = true;
   return sys;
 }
 
@@ -181,12 +185,17 @@ export function toHarmonySystem(
  * English text of a notice, the Note's content for readers without `harmony:system`.
  * Names are the profiles' current ones.
  */
-export function systemNoteText(metadata: Record<string, any> | null | undefined, people: SystemPeople): string {
+export function systemNoteText(
+  metadata: Record<string, any> | null | undefined,
+  people: SystemPeople,
+  hostDomain?: string,
+): string {
   const meta = metadata || {};
   const subject = uuidOf(meta.subject_id);
   const actor = uuidOf(meta.actor_id);
   const subjectName = (subject && nameOf(people.profiles.get(subject))) || 'Someone';
-  const actorName = (actor && nameOf(people.profiles.get(actor))) || actorNameOf(meta, people) || 'Someone';
+  const staff = meta.staff === true && hostDomain ? ` (${hostDomain} staff)` : '';
+  const actorName = ((actor && nameOf(people.profiles.get(actor))) || actorNameOf(meta, people) || 'Someone') + staff;
   const reason = typeof meta.reason === 'string' && meta.reason ? `: ${meta.reason.slice(0, MAX_REASON)}` : '';
   const threadName = typeof meta.thread_name === 'string' && meta.thread_name ? meta.thread_name : 'a thread';
 
@@ -231,7 +240,7 @@ export function systemNote(
   const sys = toHarmonySystem(row.metadata, options.people, options.hostDomain);
   if (!sys) return null;
   const serverUrl = `https://${options.hostDomain}/servers/${options.serverId}`;
-  const text = systemNoteText(row.metadata, options.people);
+  const text = systemNoteText(row.metadata, options.people, options.hostDomain);
   return {
     type: 'Note',
     id: `https://${options.hostDomain}/messages/${row.id}`,
@@ -277,6 +286,7 @@ export function parseHarmonySystem(value: unknown): HarmonySystem | null {
   if (reason) sys.reason = reason;
   if (thread) sys.thread = thread;
   if (threadName) sys.threadName = threadName;
+  if (v.staff === true) sys.staff = true;
   return sys;
 }
 
@@ -304,6 +314,7 @@ export function systemMetadata(
   const threadId = sys.thread?.match(/\/threads\/([0-9a-f-]{36})$/i)?.[1];
   if (threadId && UUID.test(threadId)) meta.thread_id = threadId.toLowerCase();
   if (sys.threadName) meta.thread_name = sys.threadName;
+  if (sys.staff) meta.staff = true;
   return meta;
 }
 

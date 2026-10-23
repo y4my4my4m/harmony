@@ -8,7 +8,7 @@
     >
       <template v-if="message.is_system">
         <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" aria-haspopup="dialog" @click="emit('react', message, $event)"><ReactionIcon/></button>
-        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><DeleteIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="deleteLabel || t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><Icon v-if="hidesOnInstance" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
         <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" aria-haspopup="menu" @click="emit('context-menu', message, $event)"><MoreIcon/></button>
       </template>
       <template v-else>
@@ -16,7 +16,7 @@
         <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" @click="emit('reply', message)"><ReplyIcon/></button>
         <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" :aria-label="t('messageA11y.actions.thread')" @click="emit('thread', message)"><ThreadIcon/></button>
         <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEdit" :aria-label="t('message.editMessage')" @click="emit('edit', message)"><EditIcon/></button>
-        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><DeleteIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="deleteLabel || t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><Icon v-if="hidesOnInstance" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
         <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" aria-haspopup="menu" @click="emit('context-menu', message, $event)"><MoreIcon/></button>
       </template>
     </div>
@@ -31,6 +31,7 @@ import ThreadIcon from '@/components/icons/Thread.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
+import Icon from '@/components/common/Icon.vue';
 import { useT } from '@/composables/useT';
 import { usePortalTarget } from '@/composables/usePortalTarget';
 
@@ -43,11 +44,17 @@ interface Props {
   isShiftHeld?: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  /** Name of the delete action; "Hide on {instance}" for another member's message in a copy. */
+  deleteLabel?: string;
+  /** The delete hides the message on this instance only: the eye-off icon replaces the bin. */
+  hidesOnInstance?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   hideThreadActions: false,
   isShiftHeld: false,
+  deleteLabel: undefined,
+  hidesOnInstance: false,
 });
 
 const { t } = useT();

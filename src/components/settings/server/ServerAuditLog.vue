@@ -103,6 +103,7 @@ import {
   type AuditTranslate,
 } from '@/utils/serverAuditLog'
 import { AUDIT_PAGE_SIZE, getServerAuditLog, type ServerAuditEntry } from '@/services/ServerAuditLogService'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 
 const props = defineProps<{ serverId: string }>()
 
@@ -141,13 +142,17 @@ function formatFull(iso: string): string {
   return formatFullDateTime(iso, locale.value)
 }
 
+// Audit rows exist on the host only, so staff are this instance's.
+const instanceSettings = useInstanceSettingsStore()
+const auditContext = computed(() => ({ instance: instanceSettings.settings.domain }))
+
 const rows = computed(() =>
   entries.value.map(entry => ({
     entry,
     avatar: entry.actor_id ? entry.actor_avatar_url : entry.actor_bot_id ? entry.actor_bot_avatar_url : null,
     icon: KIND_ICONS[entry.action.split('.')[0]] ?? 'activity',
-    segments: describeAuditEntry(entry, t, formatFull),
-    changes: auditChangeLines(entry, t, formatFull),
+    segments: describeAuditEntry(entry, t, formatFull, auditContext.value),
+    changes: auditChangeLines(entry, t, formatFull, auditContext.value),
   })),
 )
 

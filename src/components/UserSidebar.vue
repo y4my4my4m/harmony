@@ -341,6 +341,17 @@
       @close="showKickBanModal = false"
       @done="handleKickBanDone"
     />
+
+    <!-- This instance's staff removing a member from here, on a server hosted elsewhere. -->
+    <InstanceRemoveMemberModal
+      v-if="instanceRemoveMember && serverChannelStore.currentServerId"
+      :show="true"
+      :server-id="serverChannelStore.currentServerId"
+      :server-name="serverChannelStore.currentServer?.name || ''"
+      :user="instanceRemoveMember"
+      @close="instanceRemoveMember = null"
+      @done="instanceRemoveMember = null"
+    />
   </div>
 </template>
 
@@ -359,6 +370,7 @@ import UserProfileModal from '@/components/UserProfileModal.vue';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
+import InstanceRemoveMemberModal from '@/components/moderation/InstanceRemoveMemberModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -621,6 +633,9 @@ async function handleContextAction(action: string, user: User) {
     case 'ban':
       openKickBanModal(user, 'ban');
       break;
+    case 'instance-remove':
+      openInstanceRemove(user);
+      break;
     case 'copy-id':
       await copyUserId(user);
       break;
@@ -755,9 +770,10 @@ async function toggleBlockUser(user: User) {
   }
 }
 
-function openKickBanModal(user: User, mode: 'kick' | 'ban') {
+/** Member row for KickBanModal and InstanceRemoveMemberModal; snake_case fields as they expect. */
+function memberRow(user: User) {
   const u = user as User & { displayName?: string; avatarUrl?: string };
-  kickBanMember.value = {
+  return {
     id: user.id,
     username: user.username || getUserProfile(user.id).value?.username || '',
     display_name:
@@ -768,8 +784,18 @@ function openKickBanModal(user: User, mode: 'kick' | 'ban') {
       || '',
     avatar_url: getUserAvatarUrl(user.id).value || u.avatar_url || u.avatarUrl || null,
   };
+}
+
+function openKickBanModal(user: User, mode: 'kick' | 'ban') {
+  kickBanMember.value = memberRow(user);
   kickBanMode.value = mode;
   showKickBanModal.value = true;
+}
+
+const instanceRemoveMember = ref<ReturnType<typeof memberRow> | null>(null);
+
+function openInstanceRemove(user: User) {
+  instanceRemoveMember.value = memberRow(user);
 }
 
 function handleKickBanDone() {

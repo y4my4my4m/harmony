@@ -58,10 +58,19 @@
         </svg>
       </button>
     </div>
+    <!-- A server suspended by instance staff takes no new messages
+         (a_messages_server_suspension_guard). -->
+    <div v-if="suspension" class="message-readonly-banner server-suspended-banner" role="status" data-testid="server-suspended-banner">
+      <Icon name="shield" :size="18" />
+      <span>
+        <strong>{{ t('hostStaff.suspendedBanner', { instance: suspension.instance }) }}</strong>
+        <span v-if="suspension.reason" class="server-suspended-reason">{{ t('hostStaff.suspendedReason', { reason: suspension.reason }) }}</span>
+      </span>
+    </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
          SEND_MESSAGES_IN_THREADS on a thread's channel.
          Backend RLS and triggers enforce it; this is UX, not security. -->
-    <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
+    <div v-else-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
         <path d="M12 1a4.5 4.5 0 0 0-4.5 4.5V9H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V11a2 2 0 0 0-2-2h-1.5V5.5A4.5 4.5 0 0 0 12 1zm-2.5 4.5a2.5 2.5 0 0 1 5 0V9h-5V5.5z"/>
       </svg>
@@ -324,6 +333,7 @@ import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { serverSuspension } from '@/utils/serverSuspension';
 import { roleService, Permission } from '@/services/RoleService';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
@@ -537,6 +547,16 @@ watch(
   () => { void refreshSendPermission(); },
   { immediate: true },
 );
+
+// Suspension of the server this channel belongs to; servers come from the member's list.
+const suspension = computed<{ instance: string; reason: string | null } | null>(() => {
+  if (props.conversationId) return null
+  const serverId = props.serverId ?? serverChannelStore.currentServerId
+  if (!serverId) return null
+  const server = serverChannelStore.servers?.find(s => s.id === serverId)
+    ?? (serverChannelStore.currentServer?.id === serverId ? serverChannelStore.currentServer : null)
+  return serverSuspension(server, instanceSettingsStore.settings.domain)
+})
 
 const readOnlyPlaceholder = computed(() => {
   if (isResolvingPermissions.value) return 'Checking permissions...';
@@ -1498,6 +1518,20 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   .message-readonly-banner svg {
     flex-shrink: 0;
     color: var(--text-tertiary, var(--text-secondary));
+  }
+
+  .server-suspended-banner {
+    border-color: color-mix(in srgb, var(--warning, #f0b232) 55%, var(--border-color));
+    color: var(--text-primary);
+  }
+
+  .server-suspended-banner svg {
+    color: var(--warning, #f0b232);
+  }
+
+  .server-suspended-reason {
+    margin-left: 6px;
+    color: var(--text-secondary);
   }
 
   .command-param-bar {

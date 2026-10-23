@@ -131,6 +131,7 @@
 
     <div v-else-if="activeAdminTab === 'federation'" class="admin-grid single">
       <FederationManagement />
+      <RemoteServersAdmin />
     </div>
 
     <div v-else-if="activeAdminTab === 'users'" class="admin-grid single">
@@ -143,6 +144,10 @@
 
     <div v-else-if="activeAdminTab === 'reports'" class="admin-grid single">
       <ReportsModeration />
+    </div>
+
+    <div v-else-if="activeAdminTab === 'servers'" class="admin-grid single">
+      <HostedServersAdmin />
     </div>
 
     <div v-else-if="activeAdminTab === 'antispam'" class="admin-grid single">
@@ -210,9 +215,11 @@ const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/Emoj
 const InstanceEmojiAdmin = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiAdmin.vue'))
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
+const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
+const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
 const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
@@ -235,6 +242,7 @@ const adminTabs = [
   { key: 'users', label: 'Users', icon: 'users' },
   { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
+  { key: 'servers', label: t('hostStaff.tab'), icon: 'server' },
   { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
@@ -247,8 +255,9 @@ type AdminTabKey = typeof adminTabs[number]['key']
 
 const profileStore = useProfileStore()
 const isAdmin = computed(() => profileStore.profile?.is_admin === true)
-// Instance moderators: reports, account actions, the anti-spam queue, federation read-only.
-const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'antispam']
+// Instance moderators: reports, account actions, servers hosted here, the anti-spam queue,
+// federation read-only.
+const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam']
 const visibleTabs = computed(() =>
   isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
 

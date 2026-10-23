@@ -109,6 +109,13 @@
             </button>
           </div>
 
+          <!-- A copy is managed on its host; a member leaves it from here. -->
+          <ServerCopyBanner v-if="isCopy" :server="copyServer" :instance-tools="activeSection === 'instance'">
+            <button type="button" class="btn btn-secondary btn-sm" data-testid="server-copy-leave" @click="leaveCopy">
+              {{ $t('server.leaveServer') }}
+            </button>
+          </ServerCopyBanner>
+
           <AutoModOptInBanner
             v-if="permissions.canEditBasicInfo && activeSection !== 'automod'"
             :server-id="serverId"
@@ -124,6 +131,8 @@
             v-model:selectedFile="selectedFile"
             :selected-banner-file="selectedBannerFile"
             :owner-name="ownerName"
+            :is-copy="isCopy"
+            :copy-owner="copyOwner"
             :loading="loading"
             :permissions="permissions"
             @file-change="handleFileChange"
@@ -181,6 +190,11 @@
             @status-change="automodStatus = $event"
           />
 
+          <InstanceServerPanel
+            v-if="activeSection === 'instance' && isCopy && isInstanceStaff"
+            :server-id="serverId"
+          />
+
           <!-- Emoji Management Section -->
           <ServerEmojiManagement
             v-if="activeSection === 'emoji'"
@@ -190,6 +204,7 @@
             :owner-id="server.owner"
             :loading="loading"
             :permissions="emojiPermissions"
+            :is-copy="isCopy"
             @emoji-uploaded="handleEmojiUploaded"
             @emoji-deleted="handleEmojiDeleted"
             @emojis-bulk-deleted="handleEmojisBulkDeleted"
@@ -276,6 +291,9 @@ import { focusSectionHeading } from '@/utils/a11y/settingsFocus'
 
 // Components
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
+import InstanceServerPanel from '@/components/settings/server/InstanceServerPanel.vue'
+import { getInstanceDomain } from '@/services/instanceConfig'
+import { useProfileStore } from '@/stores/useProfile'
 import ServerEmojiManagement from '@/components/settings/ServerEmojiManagement.vue'
 import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.vue'
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
@@ -292,6 +310,9 @@ import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSet
 import ServerAuditLog from '@/components/settings/server/ServerAuditLog.vue'
 import ServerSoundboardManagement from '@/components/settings/server/ServerSoundboardManagement.vue'
 import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
+import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue'
+import { useLeaveServer } from '@/composables/useLeaveServer'
+import { formatUserHandle } from '@/utils/reactionUsers'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
@@ -319,6 +340,8 @@ const { serverSettingsPermissions } = useServerPermissions(() => props.serverId)
 // Reactive state
 const loading = ref(false)
 const ownerName = ref('')
+// The host owner of a copy, as its profile here names them; null while unknown.
+const copyOwner = ref<{ displayName: string; handle: string | null } | null>(null)
 const selectedFile = ref<File | null>(null)
 const selectedBannerFile = ref<File | null>(null)
 const emojis = ref<Emoji[]>([])
@@ -370,6 +393,17 @@ const currentSectionLabel = computed(() => {
 // Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
 
+// A copy of a server hosted on another instance. The rail's row is known before the server loads.
+const listedServer = computed(() => serverChannelStore.servers.find(s => s.id === props.serverId) ?? null)
+const copyServer = computed(() => (server.value.id ? server.value : listedServer.value))
+const isCopy = computed(() => copyServer.value?.is_local_server === false)
+
+const profileStore = useProfileStore()
+const isInstanceStaff = computed(() => profileStore.profile?.is_admin === true || profileStore.profile?.is_moderator === true)
+
+const { leaveServer } = useLeaveServer()
+const leaveCopy = () => { void leaveServer(props.serverId) }
+
 const automodStatus = ref<AutoModState['status'] | null>(null)
 
 const loadAutoModStatus = async () => {
@@ -392,6 +426,15 @@ const emojiPermissions = computed(() => ({
 // Available sections based on permissions
 const availableSections = computed(() => {
   const p = permissions.value
+  // A copy offers what describes this instance's view of it: the overview and its emojis.
+  if (isCopy.value) {
+    return [
+      { id: 'overview', label: t('server.overview') },
+      { id: 'emoji', label: t('server.emoji') },
+      // This instance's tools for a server hosted elsewhere: instance staff only.
+      ...(isInstanceStaff.value ? [{ id: 'instance', label: t('instanceServer.panel.title', { instance: getInstanceDomain() }) }] : []),
+    ]
+  }
   return [
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
@@ -510,9 +553,15 @@ const fetchServer = async () => {
     if (data) {
       server.value = { ...data }
       originalServer.value = { ...data }
-      
-      const owner = await getProfileWithAvatarUrl(server.value.owner)
+
+      const owner = server.value.owner ? await getProfileWithAvatarUrl(server.value.owner) : null
       ownerName.value = owner?.username ?? 'Unknown User'
+      copyOwner.value = owner
+        ? {
+            displayName: owner.display_name || owner.username,
+            handle: formatUserHandle({ username: owner.username, domain: owner.domain, isLocal: owner.is_local }),
+          }
+        : null
     }
   } catch (error) {
     debug.error('Error fetching server:', error)

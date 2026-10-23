@@ -13,7 +13,7 @@ vi.mock('@/composables/useFrequentEmojis', () => ({
   useFrequentEmojis: () => ({ topEmojisForContextMenu: ref([]), hasFrequentEmojis: ref(false), recordEmojiUsage: vi.fn() }),
 }))
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerReaction: vi.fn() }) }))
-vi.mock('@/composables/useServerPermissions', () => ({ useServerPermissions: () => ({ canPinMessages: ref(false) }) }))
+vi.mock('@/composables/useServerPermissions', () => ({ useServerPermissions: () => ({ canPinMessages: ref(false), isLocalServer: ref(true) }) }))
 vi.mock('@/composables/useChannelMessagePermissions', () => ({
   useChannelMessagePermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(false), canCreateThreads: ref(true) }),
 }))

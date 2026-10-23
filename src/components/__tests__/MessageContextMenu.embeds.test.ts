@@ -16,7 +16,7 @@ vi.mock('@/composables/useFrequentEmojis', () => ({
 }))
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerReaction: vi.fn() }) }))
 vi.mock('@/composables/useServerPermissions', () => ({
-  useServerPermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(false) }),
+  useServerPermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(false), isLocalServer: ref(true) }),
 }))
 vi.mock('@/composables/useChannelMessagePermissions', () => ({
   useChannelMessagePermissions: () => ({

@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n';
+import { suspendedServerNotice } from '@/utils/serverSuspensionNotice';
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -112,6 +113,7 @@ const INVITE_ERRORS: Array<[string, () => string]> = [
   ['INVITE_EXPIRED', () => 'This invite has expired'],
   ['INVITE_NOT_FOUND', () => 'Invalid invite code'],
   ['BANNED_FROM_SERVER', () => i18n.global.t('invite.bannedFromServer')],
+  ['SERVER_SUSPENDED', () => suspendedServerNotice()],
 ];
 
 /**

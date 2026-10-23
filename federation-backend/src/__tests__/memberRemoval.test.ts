@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // federate-member-removal: a member from another instance removed from a local server (federation
-// turned off, a kick, a ban) is sent the Group's Remove at their inbox, signed with the Group's
-// key, and the removal is marked delivered. A member back in the server since is sent nothing.
+// turned off, a kick, a ban, the account suspended here) is sent the Group's Remove at their inbox,
+// signed with the Group's key, and the removal is marked delivered. A member back in the server
+// since is sent nothing. A removal by this instance's staff says so (harmony:staff).
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test' },
@@ -46,7 +47,7 @@ vi.mock('../config/supabase.js', () => ({
 }))
 
 const { handleMemberRemovalJob } = await import('../queue/handlers/memberRemovalHandler.js')
-const { memberRemoveActivity, membershipOutlivesRemove, removalReason } = await import('../activitypub/memberRemoval.js')
+const { memberRemoveActivity, membershipOutlivesRemove, removalReason, removedByStaff } = await import('../activitypub/memberRemoval.js')
 
 const SERVER = 'f1680000-0000-0000-0000-0000000000a1'
 const GROUP = `https://harmony.test/servers/${SERVER}`
@@ -89,8 +90,21 @@ describe('memberRemoveActivity', () => {
 
   it('reads only the reasons it sends', () => {
     expect(removalReason({ 'harmony:reason': 'kick' })).toBe('kick')
+    expect(removalReason({ 'harmony:reason': 'suspended' })).toBe('suspended')
     expect(removalReason({ 'harmony:reason': 'mute' })).toBeNull()
     expect(removalReason({})).toBeNull()
+  })
+
+  it('marks a removal by instance staff, and only that one', () => {
+    const staff = memberRemoveActivity({ ...rows.federation_member_removals[0], reason: 'suspended', staff: true }, MEMBER)
+    expect(staff).toMatchObject({ 'harmony:reason': 'suspended', 'harmony:staff': true })
+    expect(staff).not.toHaveProperty('summary')
+    expect(removedByStaff(staff)).toBe(true)
+
+    const moderator = memberRemoveActivity({ ...rows.federation_member_removals[0], reason: 'kick', staff: false }, MEMBER)
+    expect(moderator).not.toHaveProperty('harmony:staff')
+    expect(removedByStaff(moderator)).toBe(false)
+    expect(removedByStaff({ 'harmony:staff': 'true' })).toBe(false)
   })
 
   it('counts a membership as newer only when both times are known', () => {
@@ -110,6 +124,12 @@ describe('handleMemberRemovalJob', () => {
     expect(sent[0].signer).toEqual({ serverId: SERVER })
     expect(sent[0].activity).toMatchObject({ type: 'Remove', actor: GROUP, object: MEMBER, target: `${GROUP}/members` })
     expect(rows.federation_member_removals[0].delivered_at).toEqual(expect.any(String))
+  })
+
+  it('sends a staff removal as staff', async () => {
+    Object.assign(rows.federation_member_removals[0], { reason: 'suspended', staff: true })
+    await handleMemberRemovalJob({ type: 'delete', removal_id: 'r1' })
+    expect(sent[0].activity).toMatchObject({ 'harmony:reason': 'suspended', 'harmony:staff': true })
   })
 
   it('sends nothing again once delivered', async () => {

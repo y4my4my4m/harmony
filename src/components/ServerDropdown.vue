@@ -1,5 +1,6 @@
 <template>
   <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
+    <ServerCopyBanner :server="serverChannelStore.currentServer" compact />
     <ul :id="menuId" ref="menuEl" role="menu" :aria-label="label || undefined">
       <li v-if="canViewServerSettings" role="none">
         <button type="button" role="menuitem" class="dropdown-item" @click="goToServerSettings">
@@ -16,7 +17,8 @@
           {{ $t('channel.create') }}
         </button>
       </li>
-      <li role="none">
+      <!-- A copy's invites are the host's: redeem_invite refuses a copy. -->
+      <li v-if="!isCopy" role="none">
         <button type="button" role="menuitem" class="dropdown-item" @click="generateInviteLink">
           {{ $t('server.inviteLink') }}
         </button>
@@ -50,6 +52,7 @@ import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 import { useLeaveServer } from '@/composables/useLeaveServer';
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
 import { closeMobileDrawers } from '@/composables/useLayoutState';
+import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue';
 
 interface Props {
   serverId?: string
@@ -86,6 +89,7 @@ const canCreateCategories = computed(() => channelPermissions.value.canCreateCat
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
 const isOwner = computed(() => isServerOwner(serverChannelStore.currentServer));
+const isCopy = computed(() => serverChannelStore.currentServer?.is_local_server === false);
 
 const createChannel = () => {
   emit('createChannel', undefined);

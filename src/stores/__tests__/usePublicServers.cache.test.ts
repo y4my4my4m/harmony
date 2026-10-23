@@ -36,6 +36,7 @@ function queueResponses(...responses: Array<{ data: Row[] | null; error: unknown
       select: () => chain,
       eq: () => chain,
       neq: () => chain,
+      is: () => chain,
       order: () => chain,
       limit: async () => {
         const next = responses[Math.min(calls++, responses.length - 1)]

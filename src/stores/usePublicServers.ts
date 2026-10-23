@@ -55,13 +55,15 @@ const PUBLIC_SERVER_COLUMNS = `
   category
 `
 
-// Discovery lists local public servers only; remote reference rows are excluded.
+// Discovery lists local public servers only; remote reference rows and servers suspended by
+// instance staff are excluded.
 function publicServersQuery() {
   return supabase
     .from('servers')
     .select(PUBLIC_SERVER_COLUMNS)
     .eq('public', true)
     .neq('is_local_server', false)
+    .is('suspended_at', null)
 }
 
 async function withStats(rows: PublicServerWithStats[]): Promise<PublicServerWithStats[]> {
