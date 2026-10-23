@@ -81,6 +81,11 @@ expect "$GOOGLE"   /invite/ABCD1234          'SPA'
 expect "$DISCORD"  /invite/ab                'SPA'
 expect "$DISCORD"  /invite/ABCD1234/extra    'SPA'
 expect "$FIREFOX"  /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001'
+# Private media and embed media named like static files still reach the backend.
+for f in a.png b.jpg c.gif d.svg e.webp; do
+  expect "$MASTODON" "/api/federation/media/c/00000000-0000-0000-0000-000000000001/$f?to=x&sig=y" "backend /media/c/00000000-0000-0000-0000-000000000001/$f?to=x&sig=y"
+done
+expect "$FIREFOX"  '/api/federation/embed-media/x/a.jpg' 'backend /embed-media/x/a.jpg'
 
 DRIVE_LINK=/d/h5KAj-hPSm5hwCpMfeKM8aZl
 log "/d/<token> routing"
