@@ -28,8 +28,12 @@ import {
 } from '../utils/urlUtils.js';
 import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
+import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 
 const router = Router();
+
+/** Pages of a remote members collection one sync reads; a Harmony host serves 500 members a page. */
+const MEMBER_SYNC_MAX_PAGES = 40;
 
 // API ROUTES
 
@@ -976,6 +980,9 @@ router.get(
       
       logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
+      // Rows this read inserted or completed; the app reloads the channel when nonzero.
+      let changed = 0;
+
       // A system notice is cached as an authorless system row naming local profiles.
       const systemNoticeItem = async (note: any, sys: HarmonySystem) => {
         const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
@@ -986,7 +993,7 @@ router.get(
         const createdAt = note.published || new Date().toISOString();
         if (messageUuid) {
           try {
-            await supabase
+            const { data: inserted } = await supabase
               .from('messages')
               .upsert({
                 id: messageUuid,
@@ -997,7 +1004,10 @@ router.get(
                 updated_at: createdAt,
                 metadata: { ...metadata, ap_id: note.id, is_remote: true, federated: true },
                 federation_status: 'skipped',
-              }, { onConflict: 'id', ignoreDuplicates: true });
+              }, { onConflict: 'id', ignoreDuplicates: true })
+              .select('id')
+              .maybeSingle();
+            if (inserted) changed++;
           } catch (cacheError: any) {
             logger.debug(`Could not cache system notice: ${cacheError.message}`);
           }
@@ -1062,6 +1072,9 @@ router.get(
           }
         }
 
+        // Ciphertext from the host: shown as encrypted here, never as text.
+        const isEncrypted = note['harmony:encrypted'] === true;
+
         let messageUuid: string | undefined;
         const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
         if (uuidMatch) {
@@ -1070,12 +1083,12 @@ router.get(
 
         // Cache message locally for reactions and offline access (only if we have a valid author ID)
         let cachedMsgId: string | null = null;
-        
+        let cachedContent: any[] | null = null;
+
         if (author?.id && !author.is_bridge) {
           const messageTimestamp = note.published || new Date().toISOString();
 
           // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
-          let cachedContent: any[];
           if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
             cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
           } else if (note.content) {
@@ -1091,6 +1104,7 @@ router.get(
             created_at: messageTimestamp,
             updated_at: note.updated || messageTimestamp,
             metadata: { ap_id: note.id, is_remote: true, federated: true },
+            encrypted: isEncrypted,
             // This gets set by the trigger anyway when 'federated' key is present
             federation_status: 'skipped',
           };
@@ -1110,7 +1124,31 @@ router.get(
               .select('id')
               .maybeSingle();
             
+            // ignoreDuplicates: a row comes back only when this upsert inserted it.
             cachedMsgId = cachedMsg?.id;
+            if (cachedMsgId) changed++;
+            // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
+            // host's page carried text only.
+            if (isEncrypted && messageUuid) {
+              const { data: flagged } = await supabase
+                .from('messages')
+                .update({ encrypted: true })
+                .eq('id', messageUuid)
+                .eq('channel_id', channelId)
+                .eq('encrypted', false)
+                .select('id');
+              changed += flagged?.length ?? 0;
+            }
+            if (messageUuid && cachedContent.some((part: any) => part?.type === 'file')) {
+              const { data: filled } = await supabase
+                .from('messages')
+                .update({ content: cachedContent })
+                .eq('id', messageUuid)
+                .eq('channel_id', channelId)
+                .not('content', 'cs', JSON.stringify([{ type: 'file' }]))
+                .select('id');
+              changed += filled?.length ?? 0;
+            }
           } catch (cacheError: any) {
             logger.debug(`Could not cache message: ${cacheError.message}`);
           }
@@ -1134,7 +1172,8 @@ router.get(
 
         return {
           id: cachedMsgId || messageUuid || note.id,
-          content: note.content,
+          // The cached parts carry files, mentions and emoji; the HTML carries text only.
+          content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
           created_at: note.published,
           updated_at: note.updated,
           metadata: { 
@@ -1143,13 +1182,15 @@ router.get(
             customEmojis: customEmojis.length > 0 ? customEmojis : undefined,
           },
           author,
+          encrypted: isEncrypted,
           reactions, // Include reactions with emoji URLs
         };
       }));
 
-      return res.json({ 
-        messages: messages.filter(Boolean), 
-        source: 'remote' 
+      return res.json({
+        messages: messages.filter(Boolean),
+        source: 'remote',
+        changed,
       });
     } catch (error: any) {
       logger.error('Error fetching remote messages:', error);
@@ -1541,7 +1582,7 @@ export class ServerDiscoveryService {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
         },
       ],
       id: `${actorId}/activities/${crypto.randomUUID()}`,
@@ -1567,7 +1608,7 @@ export class ServerDiscoveryService {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
         },
       ],
       id: `${actorId}/activities/${crypto.randomUUID()}`,
@@ -1850,9 +1891,10 @@ export class ServerDiscoveryService {
 
   /**
    * Sync remote server members
-   * Fetches the members collection and creates local profiles for remote users.
-   * With `signAs`, the collection must sit on the server's host and the GET
-   * is signed as that local user.
+   * Fetches the members collection, every page up to MEMBER_SYNC_MAX_PAGES, and creates local
+   * profiles for remote users. A page's `next` must sit on the collection's origin. With
+   * `signAs`, the collection must sit on the server's host and each GET is signed as that
+   * local user.
    */
   static async syncRemoteServerMembers(
     serverId: string,
@@ -1874,28 +1916,32 @@ export class ServerDiscoveryService {
         'Accept': 'application/activity+json, application/json',
         'User-Agent': federationUserAgent(),
       };
-      const response = await SignatureService.signedApFetch(membersUrl + '?page=1', {
-        headers,
-        timeoutMs: 10000,
-        ...(opts.signAs ? { signAs: opts.signAs } : {}),
-      });
-
-      if (!response.ok) {
-        logger.warn(`Failed to fetch members collection: ${response.status}`);
-        return;
+      const members: unknown[] = [];
+      let pageUrl: string | null = membersUrl + '?page=1';
+      for (let pages = 0; pageUrl && pages < MEMBER_SYNC_MAX_PAGES; pages++) {
+        const response = await SignatureService.signedApFetch(pageUrl, {
+          headers,
+          timeoutMs: 10000,
+          ...(opts.signAs ? { signAs: opts.signAs } : {}),
+        });
+        if (!response.ok) {
+          logger.warn(`Failed to fetch members collection page ${pageUrl}: ${response.status}`);
+          break;
+        }
+        const membersPage = await response.json();
+        if (Array.isArray(membersPage.orderedItems)) members.push(...membersPage.orderedItems);
+        const next = typeof membersPage.next === 'string' ? membersPage.next : null;
+        pageUrl = next && sameOrigin(next, membersUrl) ? next : null;
       }
-
-      const membersPage = await response.json();
-      const members = membersPage.orderedItems || [];
 
       logger.info(`Found ${members.length} remote members`);
 
       const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
 
-      for (const member of members) {
+      for (const member of members as any[]) {
         try {
           // Member can be a URL string or an object with id
-          const memberUrl = typeof member === 'string' ? member : (member.id || member.actor);
+          const memberUrl = typeof member === 'string' ? member : (member?.id || member?.actor);
           
           if (!memberUrl || typeof memberUrl !== 'string') {
             continue;

@@ -11,7 +11,11 @@
  *   - for a new message or thread, a server not suspended by this instance's staff
  *     (servers.suspended_at, migration 20261027250001);
  *   - the channel belongs to the server named by the activity or the route;
- *   - an accepted user_servers row and no server_bans row;
+ *   - an accepted user_servers row and no server_bans row. On a remote server's local copy,
+ *     a write signed by an account on the server's host whose row the copy lacks is checked
+ *     against the Group's members collection, as a relay is (groupRelay.ts
+ *     relayedMemberStanding), and the membership recorded when listed: a copy's member
+ *     list is a partial mirror;
  *   - on a local server, VIEW_CHANNEL and the kind's permission through
  *     has_permission, and ATTACH_FILES for a message or edit carrying new
  *     uploads (federatedUploadUrls);
@@ -26,6 +30,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { sameUrl } from '../utils/apOrigin.js';
 import { isServerBlockedHere } from './instanceServerBlocks.js';
+import type { RelayServer } from './groupRelay.js';
 
 type Supabase = ReturnType<typeof getSupabaseClient>;
 
@@ -184,7 +189,7 @@ export async function authorizeChannelWrite(
 
   const { data: server } = await supabase
     .from('servers')
-    .select('id, is_local_server, ap_id, host_domain, federation_domain, suspended_at')
+    .select('id, is_local_server, ap_id, host_domain, federation_domain, suspended_at, federation_metadata')
     .eq('id', serverId)
     .maybeSingle();
   if (!server) return { ok: false, reason: 'unknown server' };
@@ -221,13 +226,22 @@ export async function authorizeChannelWrite(
     }
   }
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from('user_servers')
     .select('status')
     .eq('server_id', serverId)
     .eq('user_id', author.id)
     .maybeSingle();
-  if (membership?.status !== 'accepted') return { ok: false, reason: 'not an accepted member' };
+  if (membershipError) return { ok: false, reason: 'membership lookup failed' };
+  if (membership?.status !== 'accepted') {
+    // Only a write the host signed; a relay's standing is settled before it gets here.
+    if (isLocal || membership || target.relayedBy !== undefined) {
+      return { ok: false, reason: 'not an accepted member' };
+    }
+    const { relayedMemberStanding } = await import('./groupRelay.js');
+    const standing = await relayedMemberStanding(supabase, server as RelayServer, author.id, actorUrl);
+    if (standing !== 'member') return { ok: false, reason: standing === 'banned' ? 'banned' : 'not an accepted member' };
+  }
 
   const { data: ban, error: banError } = await supabase
     .from('server_bans')

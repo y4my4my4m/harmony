@@ -21,8 +21,7 @@ import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
-import { PUBLIC_AUDIENCE, federateContentParts } from '../utils/privateMedia.js';
-import { withoutPollParts } from '../utils/polls.js';
+import { PUBLIC_AUDIENCE } from '../utils/privateMedia.js';
 import {
   canReadServer,
   historyFilter,
@@ -35,6 +34,8 @@ import {
 } from './groupAccess.js';
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote } from './systemNotes.js';
+import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
+import { channelMessageActivity } from './channelMessageActivity.js';
 
 const router = Router();
 
@@ -63,7 +64,7 @@ function serverToGroup(
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
       {
-        'harmony': 'https://harmonyapp.dev/ns#',
+        harmony: HARMONY_NS,
         'ChatServer': 'harmony:ChatServer',
         'TextChannel': 'harmony:TextChannel',
         'VoiceChannel': 'harmony:VoiceChannel',
@@ -160,7 +161,7 @@ function serverToJoinStub(server: any, hostDomain: string, publicKeyPem: string 
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
       {
-        'harmony': 'https://harmonyapp.dev/ns#',
+        harmony: HARMONY_NS,
         'ChatServer': 'harmony:ChatServer',
         'federationEnabled': 'harmony:federationEnabled',
       },
@@ -211,6 +212,12 @@ function setCaching(res: Response, shareable: boolean, publicValue: string, vari
   }
   res.setHeader('Cache-Control', publicValue);
   if (variesBySigner) res.setHeader('Vary', 'Signature');
+}
+
+/** The server's id and name, as a message's Note names them. */
+async function serverNameRow(supabase: ReturnType<typeof getSupabaseClient>, serverId: string): Promise<{ id: string; name: string | null }> {
+  const { data } = await supabase.from('servers').select('id, name').eq('id', serverId).maybeSingle();
+  return { id: serverId, name: data?.name ?? null };
 }
 
 async function accessFor(req: Request): Promise<GroupAccess | null> {
@@ -370,7 +377,7 @@ router.get(
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         {
-          'harmony': 'https://harmonyapp.dev/ns#',
+          harmony: HARMONY_NS,
           'TextChannel': 'harmony:TextChannel',
           'VoiceChannel': 'harmony:VoiceChannel',
         },
@@ -407,15 +414,20 @@ router.get(
     const hostDomain = config.INSTANCE_DOMAIN;
     const messagesUrl = `https://${hostDomain}/servers/${serverId}/channels/${channelId}/messages`;
 
-    const access = await accessFor(req);
+    const signer = await verifiedSigner(req);
+    const access = await loadGroupAccess(serverId, signer);
     if (!access || !readableChannelIds(access).has(channelId)) {
       notFound(res, 'Channel');
       return;
     }
+    // File URLs name the member's instance; anyone else reads public channels only.
+    const mediaAudience = access.memberId && signer
+      ? new URL(signer).host.toLowerCase()
+      : PUBLIC_AUDIENCE;
 
     const { data: channel } = await supabase
       .from('channels')
-      .select('id')
+      .select('id, name')
       .eq('id', channelId)
       .eq('server_id', serverId)
       .not('is_remote', 'is', true)
@@ -478,35 +490,22 @@ router.get(
     // A system row of a type without a Note (an AutoMod alert) is left out of the page.
     const rows = messages || [];
     const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
+    const server = await serverNameRow(supabase, serverId);
     const items = rows.flatMap((message: any) => {
       if (message.is_system) {
         const note = systemNote(message, { hostDomain, serverId, channelId, people });
         return note ? [note] : [];
       }
-      const authorApId = message.author?.federated_id ||
-        `https://${hostDomain}/users/${message.author?.username}`;
-
-      return [{
-        type: 'Note',
-        id: `https://${hostDomain}/messages/${message.id}`,
-        attributedTo: authorApId,
-        content: Array.isArray(message.content)
-          ? message.content.map((c: any) => c.text || c.content || '').join('')
-          : JSON.stringify(message.content),
-        context: `https://${hostDomain}/servers/${serverId}/channels/${channelId}`,
-        published: message.created_at,
-        updated: message.updated_at !== message.created_at ? message.updated_at : undefined,
-        inReplyTo: message.reply_to
-          ? `https://${hostDomain}/messages/${message.reply_to}`
-          : undefined,
-      }];
+      if (!message.author?.username) return [];
+      // The Note live delivery sends: attachments, emoji, threads, encryption.
+      return [channelMessageActivity(message, server, channelId, channel.name, 'Create', mediaAudience).object];
     });
 
     res.setHeader('Content-Type', 'application/activity+json');
-    // 10s: live messages are pushed; pages serve backfill and sync.
-    setCaching(res, shareable, 'public, max-age=10', false);
+    // 10s: live messages are pushed; pages serve backfill and sync. File URLs vary by signer.
+    setCaching(res, shareable, 'public, max-age=10', true);
     res.json({
-      '@context': ['https://www.w3.org/ns/activitystreams', { 'harmony': 'https://harmonyapp.dev/ns#' }],
+      '@context': ['https://www.w3.org/ns/activitystreams', HARMONY_CONTEXT],
       id: `${messagesUrl}?page=${page}`,
       type: 'OrderedCollectionPage',
       partOf: messagesUrl,
@@ -516,6 +515,9 @@ router.get(
     });
   })
 );
+
+/** Members per page of a Group's members collection. */
+export const MEMBERS_PAGE_SIZE = 500;
 
 /**
  * GET /servers/:serverId/members - Member collection
@@ -555,8 +557,9 @@ router.get(
       return;
     }
 
-    // Paginated member list
-    const limit = 50;
+    // Paginated member list. Harmony before 1.8.12 reads page 1 only, once, when one of its
+    // users joins: one page holds every member of most servers.
+    const limit = MEMBERS_PAGE_SIZE;
     const offset = (page - 1) * limit;
 
     const { data: memberships } = await supabase
@@ -667,9 +670,9 @@ router.get(
       messages = data || [];
     }
 
+    const server = await serverNameRow(supabase, serverId);
     const people = await loadSystemPeople(supabase, messages.filter((m: any) => m.is_system));
     const items = messages.flatMap((message: any) => {
-      const channelUrl = `${serverUrl}/channels/${message.channel?.id}`;
       if (message.is_system) {
         const note = systemNote(message, {
           hostDomain, serverId, channelId: message.channel?.id, people, html: true,
@@ -678,7 +681,7 @@ router.get(
         return [{
           '@context': [
             'https://www.w3.org/ns/activitystreams',
-            { 'harmony': 'https://harmonyapp.dev/ns#' },
+            HARMONY_CONTEXT,
           ],
           id: `${serverUrl}/activities/${message.id}`,
           type: 'Create',
@@ -689,44 +692,9 @@ router.get(
           object: { ...note, 'harmony:channelName': message.channel?.name, 'harmony:serverId': serverId },
         }];
       }
-      const authorApId = message.author?.federated_id ||
-        `https://${hostDomain}/users/${message.author?.username}`;
-
-      const contentHtml = Array.isArray(message.content)
-        ? message.content.map((c: any) => {
-            if (c.type === 'text') return `<p>${c.text || ''}</p>`;
-            if (c.type === 'mention') return `<span class="mention">@${c.username}</span>`;
-            return '';
-          }).join('')
-        : '';
-
-      return [{
-        '@context': [
-          'https://www.w3.org/ns/activitystreams',
-          { 'harmony': 'https://harmonyapp.dev/ns#' },
-        ],
-        id: `${serverUrl}/activities/${message.id}`,
-        type: 'Create',
-        actor: authorApId,
-        published: message.created_at,
-        to: [`${serverUrl}/members`],
-        cc: [],
-        object: {
-          type: 'Note',
-          id: `https://${hostDomain}/messages/${message.id}`,
-          attributedTo: authorApId,
-          content: contentHtml,
-          'harmony:rawContent': federateContentParts(withoutPollParts(message.content), mediaAudience),
-          context: channelUrl,
-          'harmony:channelName': message.channel?.name,
-          'harmony:serverId': serverId,
-          published: message.created_at,
-          updated: message.updated_at !== message.created_at ? message.updated_at : undefined,
-          inReplyTo: message.reply_to
-            ? `https://${hostDomain}/messages/${message.reply_to}`
-            : undefined,
-        },
-      }];
+      if (!message.author?.username) return [];
+      // The Create live delivery sends: attachments, emoji, threads, encryption.
+      return [channelMessageActivity(message, server, message.channel?.id, message.channel?.name, 'Create', mediaAudience)];
     });
 
     res.setHeader('Content-Type', 'application/activity+json');

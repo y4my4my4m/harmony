@@ -91,11 +91,14 @@ function query(table: string) {
   const eqs: Record<string, unknown> = {}
   let op: 'select' | 'update' | 'delete' = 'select'
   let updateRows: any
+  let returning = false
   const rows = () => (db[table] || []).filter(r => filters.every(f => f(r)))
   const settle = () => {
     if (op === 'update') {
       writes.push({ table, op: 'update', rows: updateRows, filters: { ...eqs } })
-      return { data: null, error: null }
+      const hit = rows()
+      for (const r of hit) Object.assign(r, updateRows)
+      return { data: returning ? hit.map(r => ({ id: r.id })) : null, error: null }
     }
     if (op === 'delete') {
       writes.push({ table, op: 'delete', rows: null, filters: { ...eqs } })
@@ -106,9 +109,19 @@ function query(table: string) {
     return { data: rows(), error: null }
   }
   const q: any = {
-    select: () => q,
+    select: () => { if (op === 'update') returning = true; return q },
     eq: (col: string, val: unknown) => { eqs[col] = val; filters.push(r => r[col] === val); return q },
     in: (col: string, vals: unknown[]) => { filters.push(r => vals.includes(r[col])); return q },
+    not: (col: string, operator: string, value: unknown) => {
+      eqs[`not.${col}.${operator}`] = value
+      // cs on a jsonb array of objects: some element holds every key of each wanted object.
+      if (operator === 'cs') {
+        const wanted = JSON.parse(String(value)) as Array<Record<string, unknown>>
+        filters.push(r => !wanted.every(w => (r[col] ?? []).some((part: any) =>
+          Object.entries(w).every(([k, v]) => part?.[k] === v))))
+      }
+      return q
+    },
     // Fixture rows are stored in created_at order.
     order: () => q,
     limit: () => q,
@@ -122,9 +135,12 @@ function query(table: string) {
       ;(db[table] ??= []).push(...(Array.isArray(r) ? r : [r]))
       return Promise.resolve({ error: null })
     },
+    // onConflict id, ignoreDuplicates: a row comes back only when inserted.
     upsert: (r: any) => {
       writes.push({ table, op: 'upsert', rows: r })
-      const u: any = { select: () => u, maybeSingle: () => Promise.resolve({ data: { id: r.id ?? 'cached' }, error: null }) }
+      const held = r.id !== undefined && (db[table] || []).some(row => row.id === r.id)
+      if (!held) (db[table] ??= []).push({ ...r })
+      const u: any = { select: () => u, maybeSingle: () => Promise.resolve({ data: held ? null : { id: r.id ?? 'cached' }, error: null }) }
       return u
     },
     then: (resolve: any, reject: any) => Promise.resolve(settle()).then(resolve, reject),
@@ -199,6 +215,92 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
     expect(url).toBe(`${GROUP}/channels/${CHANNEL}/messages?page=1`)
     expect(opts?.signAs).toBe('bob')
     expect(safeFetch).not.toHaveBeenCalled()
+  })
+
+  it('caches a Note the host marks encrypted as an encrypted row, and flags one cached before', async () => {
+    const ID = '66666666-6666-4666-8666-666666666666'
+    signedApFetch.mockResolvedValue(json({
+      type: 'OrderedCollectionPage',
+      orderedItems: [{
+        type: 'Note',
+        id: `https://remote.test/messages/${ID}`,
+        attributedTo: 'https://remote.test/users/dora',
+        content: 'fEBp9GBlxXjPksV6f8hVMr99DMNFf1s7voAuhybA',
+        published: '2026-01-01T00:00:00Z',
+        'harmony:encrypted': true,
+      }],
+    }))
+    writes.length = 0
+    const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+
+    expect(res.status).toBe(200)
+    expect(res.body.messages[0].encrypted).toBe(true)
+    const cached = writes.find((w) => w.table === 'messages' && w.op === 'upsert')
+    expect(cached?.rows).toMatchObject({ id: ID, encrypted: true })
+    const flagged = writes.find((w) => w.table === 'messages' && w.op === 'update')
+    expect(flagged).toMatchObject({ rows: { encrypted: true }, filters: { id: ID, channel_id: CHANNEL, encrypted: false } })
+  })
+
+  it('fills in the files of a row cached without them', async () => {
+    const ID = '77777777-7777-4777-8777-777777777777'
+    signedApFetch.mockResolvedValue(json({
+      type: 'OrderedCollectionPage',
+      orderedItems: [{
+        type: 'Note',
+        id: `https://remote.test/messages/${ID}`,
+        attributedTo: 'https://remote.test/users/dora',
+        content: '<p>look</p>',
+        published: '2026-01-01T00:00:00Z',
+        'harmony:rawContent': [
+          { type: 'text', text: 'look' },
+          { type: 'file', fileType: 'image', url: 'https://remote.test/media/c/x/a.png?to=harmony.test&sig=s', fileName: 'a.png' },
+        ],
+      }],
+    }))
+    writes.length = 0
+    await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    const filled = writes.find((w) => w.table === 'messages' && w.op === 'update')
+    expect(filled?.rows.content).toEqual([
+      { type: 'text', text: 'look' },
+      { type: 'file', fileType: 'image', url: 'https://remote.test/media/c/x/a.png?to=harmony.test&sig=s', fileName: 'a.png' },
+    ])
+    expect(filled?.filters).toMatchObject({ id: ID, channel_id: CHANNEL, 'not.content.cs': JSON.stringify([{ type: 'file' }]) })
+  })
+
+  it('counts the rows it inserts or completes, and returns the cached parts', async () => {
+    const HELD = '77777777-7777-4777-8777-777777777777'
+    const NEW = '88888888-8888-4888-8888-888888888888'
+    const file = { type: 'file', fileType: 'image', url: 'https://remote.test/media/c/x/a.png?to=harmony.test&sig=s', fileName: 'a.png' }
+    db.messages.push({ id: HELD, channel_id: CHANNEL, content: [{ type: 'text', text: 'look' }], created_at: '2026-01-01' })
+    const note = (id: string, parts: any[]) => ({
+      type: 'Note',
+      id: `https://remote.test/messages/${id}`,
+      attributedTo: 'https://remote.test/users/dora',
+      content: '<p>look</p>',
+      published: '2026-01-01T00:00:00Z',
+      'harmony:rawContent': parts,
+    })
+    // A Response body reads once: a fresh one per fetch.
+    signedApFetch.mockImplementation(async () => json({
+      type: 'OrderedCollectionPage',
+      orderedItems: [note(HELD, [{ type: 'text', text: 'look' }, file]), note(NEW, [file])],
+    }))
+
+    const first = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    expect(first.body.changed).toBe(2)
+    expect(first.body.messages.map((m: any) => m.content)).toEqual([[{ type: 'text', text: 'look' }, file], [file]])
+
+    const again = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    expect(again.body.source).toBe('remote')
+    expect(again.body.changed).toBe(0)
+  })
+
+  it('caches a plain Note as a plain row and flags nothing', async () => {
+    signedApFetch.mockResolvedValue(json(page))
+    writes.length = 0
+    await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    expect(writes.find((w) => w.table === 'messages' && w.op === 'upsert')?.rows).toMatchObject({ encrypted: false })
+    expect(writes.some((w) => w.table === 'messages' && w.op === 'update')).toBe(false)
   })
 
   it('signs as a pending member: the host holds the membership', async () => {
@@ -294,7 +396,7 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
       }))
       const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
 
-      expect(res.body.messages.map((m: any) => m.content)).toEqual(['<p>hello</p>'])
+      expect(res.body.messages.map((m: any) => m.content)).toEqual([[{ type: 'text', text: 'hello' }]])
       expect(writes.filter(w => w.op === 'upsert').map(w => w.rows.is_system)).toEqual([undefined])
       expect((await ensureRemoteUser()).mock.calls.map(c => c[0])).not.toContain(GROUP)
     })
@@ -388,6 +490,15 @@ describe('signer selection for background reads', () => {
     await ServerDiscoveryService.syncRemoteServerMembers(REF, `${GROUP}/members`, { signAs: 'bob', serverApId: GROUP })
     expect(signedApFetch.mock.calls[0][0]).toBe(`${GROUP}/members?page=1`)
     expect(signedApFetch.mock.calls[0][1]?.signAs).toBe('bob')
+  })
+
+  it('reads every page of the members collection, never a next page on another origin', async () => {
+    signedApFetch
+      .mockResolvedValueOnce(json({ orderedItems: [], next: `${GROUP}/members?page=2` }))
+      .mockResolvedValueOnce(json({ orderedItems: [], next: 'https://evil.test/members?page=3' }))
+    await ServerDiscoveryService.syncRemoteServerMembers(REF, `${GROUP}/members`, { signAs: 'bob', serverApId: GROUP })
+    expect(signedApFetch.mock.calls.map((c) => c[0])).toEqual([`${GROUP}/members?page=1`, `${GROUP}/members?page=2`])
+    expect(signedApFetch.mock.calls[1][1]?.signAs).toBe('bob')
   })
 })
 

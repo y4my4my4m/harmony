@@ -430,6 +430,26 @@ describe('receiver: a relay on the copy\'s inbox', () => {
     expect(memberFetches).toHaveLength(1)
   })
 
+  it('takes a host account\'s own Create the copy lacks once the Group lists it, and records the membership', async () => {
+    const HOSTNEW = 'https://host.test/users/hostnew'
+    tables.profiles!.push(profile('hostnew', HOSTNEW))
+    memberPages[`${GROUP}/members?page=1`] = [HOSTU, HOSTNEW]
+    // The host delivers its own accounts' writes to the shared inbox, signed by the author.
+    await (ActivityProcessor as any).processCreate(create(HOSTNEW, 20))
+    expect(stored(20)?.user_id).toBe('hostnew')
+    expect(membership('hostnew')?.status).toBe('accepted')
+    expect(memberFetches).toEqual([{ url: `${GROUP}/members?page=1`, signAs: 'bob' }])
+  })
+
+  it('refuses a host account\'s own Create the Group does not list', async () => {
+    const HOSTGONE = 'https://host.test/users/hostgone'
+    tables.profiles!.push(profile('hostgone', HOSTGONE))
+    memberPages[`${GROUP}/members?page=1`] = [HOSTU]
+    await (ActivityProcessor as any).processCreate(create(HOSTGONE, 21))
+    expect(stored(21)).toBeUndefined()
+    expect(membership('hostgone')).toBeUndefined()
+  })
+
   it('refuses a member banned on the copy without asking the Group', async () => {
     memberPages[`${GROUP}/members?page=1`] = [BANNED]
     await atCopy(R, announce(GROUP, create(BANNED, 5)))

@@ -203,6 +203,11 @@ export class MessageService {
     }
   }
 
+  /** See CoreMessageService.refreshRemoteChannel. */
+  refreshRemoteChannel(channelId: string): Promise<boolean> {
+    return coreMessageService.refreshRemoteChannel(channelId)
+  }
+
   async loadChannelMessages(
     channelId: string,
     options: {

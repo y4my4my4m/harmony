@@ -279,6 +279,10 @@ class Peer {
   get remoteNoteUrl() {
     return `${this.base}/messages/fed00000-0000-0000-0000-0000000000f1`
   }
+  /** Capability URL of the remote note's image, issued to this instance. */
+  get remoteMediaUrl() {
+    return `${this.base}/media/c/${REMOTE_CHANNEL}/peer.png?to=${INSTANCE_DOMAIN}&sig=peer`
+  }
 
   async start(host: string): Promise<void> {
     this.server = http.createServer((req, res) => {
@@ -583,6 +587,11 @@ class Peer {
             content: 'peer private message',
             context: this.channelUrl(REMOTE_CHANNEL),
             published: new Date().toISOString(),
+            attachment: [{ type: 'Document', mediaType: 'image/png', url: this.remoteMediaUrl, name: 'peer.png' }],
+            'harmony:rawContent': [
+              { type: 'text', text: 'peer private message' },
+              { type: 'file', fileType: 'image', url: this.remoteMediaUrl, fileName: 'peer.png' },
+            ],
           },
           ...this.extraChannelItems,
         ],
@@ -1031,9 +1040,15 @@ async function seedServers(db: SupabaseClient, peer: Peer) {
   ]))
 
   await must('seed channel messages', db.from('messages').insert([
-    { channel_id: PRIV_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'private general message' }] },
+    { channel_id: PRIV_GENERAL, user_id: ALICE, content: [
+      { type: 'text', text: 'private general message' },
+      { type: 'file', fileType: 'image', path: `c/${PRIV_GENERAL}/meme.png`, fileName: 'meme.png', mimeType: 'image/png' },
+    ] },
     { channel_id: PRIV_SECRET, user_id: ALICE, content: [{ type: 'text', text: 'private secret message' }] },
-    { channel_id: PUB_GENERAL, user_id: ALICE, content: [{ type: 'text', text: 'public general message' }] },
+    { channel_id: PUB_GENERAL, user_id: ALICE, content: [
+      { type: 'text', text: 'public general message' },
+      { type: 'file', fileType: 'image', path: `c/${PUB_GENERAL}/meme.png`, fileName: 'meme.png', mimeType: 'image/png' },
+    ] },
   ]))
 }
 
@@ -1439,6 +1454,25 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   assert(items(member).includes('private general message'), 'the member gets the channel messages', member.body)
   eq(member.headers['cache-control'], 'private, no-store', 'the private page is not cacheable')
 
+  // A message's files reach a copy through its history page as through delivery: the
+  // attachment and the raw parts carry a capability URL issued to the reader's instance.
+  const peerHost = new URL(peer.base).host
+  const withFile = (member.json?.orderedItems ?? []).find((n: any) => String(n.content ?? '').includes('private general message'))
+  const fileUrl = (n: any) => String(n?.attachment?.[0]?.url ?? '')
+  const rawFile = (n: any) => (n?.['harmony:rawContent'] ?? []).find((p: any) => p?.type === 'file')
+  const memberUrl = new URL(fileUrl(withFile) || 'http://invalid/')
+  assert(
+    memberUrl.pathname.endsWith(`/media/c/${PRIV_GENERAL}/meme.png`) && memberUrl.searchParams.get('to') === peerHost
+      && !!memberUrl.searchParams.get('sig'),
+    'the history page attaches the file by a URL issued to the member\'s instance',
+    JSON.stringify(withFile?.attachment ?? null),
+  )
+  assert(
+    rawFile(withFile)?.url === fileUrl(withFile) && rawFile(withFile)?.path === undefined,
+    'the raw parts carry the same URL and no storage path',
+    JSON.stringify(withFile?.['harmony:rawContent'] ?? null),
+  )
+
   const secret = await asMember(page(PRIV_SERVER, PRIV_SECRET))
   eq(secret.status, 404, 'a member without VIEW_CHANNEL on the channel gets 404')
 
@@ -1484,6 +1518,15 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   const pub = await get(page(PUB_SERVER, PUB_GENERAL))
   eq(pub.status, 200, 'a public server\'s public channel still reads unsigned')
   assert(items(pub).includes('public general message'), 'the public page carries its messages', pub.body)
+  const pubNote = (pub.json?.orderedItems ?? []).find((n: any) => String(n.content ?? '').includes('public general message'))
+  const pubUrl = new URL(fileUrl(pubNote) || 'http://invalid/')
+  assert(
+    pubUrl.pathname.endsWith(`/media/c/${PUB_GENERAL}/meme.png`) && pubUrl.searchParams.get('to') === '*',
+    'an unsigned reader gets the public URL of the file',
+    JSON.stringify(pubNote?.attachment ?? null),
+  )
+  // A member's signed read of a public page names its own instance: shared caches key on it.
+  eq(String(pub.headers.vary ?? '').toLowerCase().includes('signature'), true, 'the public page varies on the signature')
   assert(
     String(pub.headers['cache-control']).startsWith('public'),
     'the public page stays cacheable',
@@ -1491,7 +1534,7 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   )
 }
 
-async function caseProxyReadsAsMember(peer: Peer, localUrl: string, jwtSecret: string) {
+async function caseProxyReadsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
   console.log('\nremote private channel -> the proxy signs as the requesting member')
 
   const proxyUrl = `${localUrl}/channels/${REMOTE_CHANNEL}/messages`
@@ -1515,11 +1558,33 @@ async function caseProxyReadsAsMember(peer: Peer, localUrl: string, jwtSecret: s
     'the host\'s message reaches the member',
     bob.body,
   )
+  const peerMessage = (bob.json?.messages ?? []).find((m: any) => JSON.stringify(m.content).includes('peer private message'))
+  assert(
+    Array.isArray(peerMessage?.content)
+      && peerMessage.content.some((p: any) => p?.type === 'file' && p.url === peer.remoteMediaUrl),
+    'the member gets the message as parts, its file included',
+    JSON.stringify(peerMessage ?? null),
+  )
+  assert((bob.json?.changed ?? 0) >= 1, 'the proxy reports the row it cached', String(bob.json?.changed))
 
   const reqs = peer.groupGetRequests.slice(before)
   eq(reqs.length, 1, 'the host saw one request, signed from the start with no unsigned attempt')
   const params = reqs[0]?.headers.signature ? parseSignatureHeader(reqs[0].headers.signature) : {}
   eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/fx_bob#main-key`, 'the request carries the member\'s own key')
+
+  const noteId = peer.remoteNoteUrl.split('/').pop()!
+  const cachedContent = async () => (await db.from('messages').select('content').eq('id', noteId).maybeSingle()).data?.content
+  const hasFile = (content: any) => Array.isArray(content)
+    && content.some((p: any) => p?.type === 'file' && p.url === peer.remoteMediaUrl && p.path === undefined)
+  assert(hasFile(await cachedContent()), 'the cached row holds the file by its URL', JSON.stringify(await cachedContent()))
+
+  // A row cached from a host that served text only gains its files on the next read.
+  await must('strip the cached file', db.from('messages')
+    .update({ content: [{ type: 'text', text: 'peer private message' }] }).eq('id', noteId).select('id'))
+  const refill = await get(proxyUrl, as(BOB_AUTH))
+  eq(refill.json?.changed, 1, 'the read reports the completed row')
+  assert(hasFile(await cachedContent()), 'the row cached without its file holds it again', JSON.stringify(await cachedContent()))
+  eq((await get(proxyUrl, as(BOB_AUTH))).json?.changed, 0, 'a read that changes nothing reports nothing')
 }
 
 async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
@@ -2529,7 +2594,7 @@ async function main() {
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
-    await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
+    await caseProxyReadsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await seedVoice(db, peer)
     await caseHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)

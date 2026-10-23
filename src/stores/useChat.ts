@@ -388,6 +388,7 @@ export const useChatStore = defineStore('chat', {
           });
 
           debug.log(`Initial load: Cached ${merged.length} messages for channel`);
+          void this._refreshRemoteChannel(channelId);
         } else {
           debug.log(`Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
           this.messages = [...olderMessages, ...this.messages];
@@ -434,7 +435,23 @@ export const useChatStore = defineStore('chat', {
       // active subscription, so messages sent while another channel was
       // open never reached this cache. Show cache instantly, then catch up.
       void this.revalidateRecentMessages(channelId);
+      void this._refreshRemoteChannel(channelId);
       return true;
+    },
+
+    /**
+     * A remote channel's cached rows against the host's newest page, once per session
+     * (CoreMessageService.refreshRemoteChannel). Rows it added or completed replace the list
+     * while it shows the present, else drop the channel's cache entry.
+     */
+    async _refreshRemoteChannel(channelId: string): Promise<void> {
+      if (this._knownIsRemote(channelId) !== true) return;
+      if (!(await services.messages.refreshRemoteChannel(channelId))) return;
+      if (this.currentChannelId === channelId && !this.hasNewerMessages) {
+        await this.reloadNewestPage(channelId);
+      } else {
+        this.messageCache.delete(channelId);
+      }
     },
 
     /**
