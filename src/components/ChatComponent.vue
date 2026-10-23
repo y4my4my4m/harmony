@@ -1274,10 +1274,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             await chatStore.addReaction(selectedMessageId.value, emoji.id, currentUserId.value, emoji);
           }
         } else {
-          messageContent.value += getEmojiShortcodeForInsert(emoji);
-          debug.log("Emoji added in Parent:", messageContent.value);
-          // Typing continues where the emoji went, not on the picker's button.
-          void nextTick(() => messageInputRef.value?.focusEditor());
+          // At the composer's caret, which then sits after the emoji; typing continues there.
+          const shortcode = getEmojiShortcodeForInsert(emoji);
+          if (!messageInputRef.value?.insertAtCaret(shortcode)) {
+            messageContent.value += shortcode;
+            void nextTick(() => messageInputRef.value?.focusEditor());
+          }
 
           if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(

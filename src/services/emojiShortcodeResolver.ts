@@ -5,7 +5,7 @@
 
 import { supabase } from '@/supabase'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
-import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded, isDefaultShortcode } from '@/services/unifiedEmojiService'
 import { debug } from '@/utils/debug'
 import { discordEmojiObject, discordEmojiRefFromPicked, discordEmojiToken, parseDiscordEmojiToken } from '@/utils/discordEmoji'
 import type { Emoji } from '@/types'
@@ -113,9 +113,22 @@ export function listCachedEmojisInDisambiguationOrder(baseName: string): Emoji[]
   return result
 }
 
-function pickFromOrderedList(emojis: Emoji[], disambiguator: number | null): Emoji | null {
+/**
+ * Index into a name's custom emoji, in disambiguation order, that a token names; null when
+ * it names the default emoji. A name a default emoji answers to leaves the bare `:name:` to
+ * it, and its custom emoji are `name~1`, `name~2`, ...; any other name is its first custom
+ * emoji, and `name~1` the second.
+ */
+export function customEmojiIndex(parsed: Pick<ParsedEmojiShortcode, 'baseName' | 'disambiguator'>): number | null {
+  const index = (parsed.disambiguator ?? 0) - (isDefaultShortcode(parsed.baseName) ? 1 : 0)
+  return index >= 0 ? index : null
+}
+
+/** The custom emoji `parsed` names among `emojis`; the first one past the end of the list. */
+export function pickCustomEmoji<T>(emojis: T[], parsed: Pick<ParsedEmojiShortcode, 'baseName' | 'disambiguator'>): T | null {
   if (emojis.length === 0) return null
-  const index = disambiguator ?? 0
+  const index = customEmojiIndex(parsed)
+  if (index === null) return null
   return emojis[index] ?? emojis[0] ?? null
 }
 
@@ -149,11 +162,11 @@ export function findCustomEmojiInCache(
   const ordered = listCachedEmojisInDisambiguationOrder(parsed.baseName)
   if (options?.serverId) {
     const onServer = ordered.filter(e => e.server_id === options.serverId)
-    const picked = pickFromOrderedList(onServer.length > 0 ? onServer : ordered, parsed.disambiguator)
+    const picked = pickCustomEmoji(onServer.length > 0 ? onServer : ordered, parsed)
     if (picked?.url) return picked
   }
 
-  const picked = pickFromOrderedList(ordered, parsed.disambiguator)
+  const picked = pickCustomEmoji(ordered, parsed)
   return picked?.url ? picked : null
 }
 
@@ -215,8 +228,7 @@ async function fetchEmojiFromDb(parsed: ParsedEmojiShortcode): Promise<Emoji | n
   if (error) throw error
   if (!data?.length) return null
 
-  const index = parsed.disambiguator ?? 0
-  const row = data[index] ?? data[0]
+  const row = pickCustomEmoji(data, parsed)
   return row?.url ? (row as Emoji) : null
 }
 

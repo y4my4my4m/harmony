@@ -22,9 +22,11 @@ import type { Ref } from 'vue'
 
 // Module mocks must be declared before the SUT import.
 
+const emojiCache = vi.hoisted(() => ({ resolvedEmojis: {} as Record<string, unknown> }))
+
 vi.mock('@/stores/useEmojiCache', () => ({
   useEmojiCacheStore: () => ({
-    resolvedEmojis: {},
+    get resolvedEmojis() { return emojiCache.resolvedEmojis },
     isInitialized: true,
     serverCaches: new Map(),
   }),
@@ -136,6 +138,7 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     isLoaded.value = true
+    emojiCache.resolvedEmojis = {}
   })
 
   const setup = () => {
@@ -269,4 +272,39 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
     const thumbsUpFresh = freshSuggestions.find((s: any) => s.name === 'thumbs_up')
     expect(thumbsUpFresh).toBeDefined()
   })
+
+  it('lists the default emoji before a custom emoji of its name; the default inserts its character', async () => {
+    emojiCache.resolvedEmojis = {
+      s1: {
+        server_name: 'Lounge',
+        emojis: [{ id: 'c0ffee00-0000-4000-8000-000000000001', name: 'thumbs_up', display_name: 'thumbs_up~1', url: 'https://x.test/up.png', server_id: 's1' }],
+      },
+    }
+    const { auto, text } = setup()
+    text.value = ':thumbs_up'
+    auto.handleInput(':thumbs_up', 10)
+    await nextTick()
+
+    const both = auto.suggestions.value.filter((s: any) => s.name === 'thumbs_up')
+    expect(both.map((s: any) => s.server_name)).toEqual(['Emojis', 'Lounge'])
+
+    auto.selectSuggestion(both[0] as any)
+    expect(text.value).toBe('👍 ')
+  })
+
+  it('inserts the custom emoji of a default emoji\'s name as name~1', async () => {
+    emojiCache.resolvedEmojis = {
+      s1: {
+        server_name: 'Lounge',
+        emojis: [{ id: 'c0ffee00-0000-4000-8000-000000000001', name: 'thumbs_up', display_name: 'thumbs_up~1', url: 'https://x.test/up.png', server_id: 's1' }],
+      },
+    }
+    const { auto, text } = setup()
+    text.value = ':thumbs_up'
+    auto.handleInput(':thumbs_up', 10)
+    await nextTick()
+    auto.selectSuggestion(auto.suggestions.value.find((s: any) => s.server_name === 'Lounge') as any)
+    expect(text.value).toBe(':thumbs_up~1: ')
+  })
 })
+

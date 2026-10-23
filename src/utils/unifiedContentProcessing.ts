@@ -24,6 +24,7 @@ import {
   getDbCachedEmoji,
   findCustomEmojiByToken,
   listCachedEmojisInDisambiguationOrder,
+  pickCustomEmoji,
 } from '@/services/emojiShortcodeResolver'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import {
@@ -247,6 +248,11 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   
   if (uniqueEmojiIds.size === 0 && uniqueEmojiTokens.size === 0) return emojiDataMap;
 
+  // Which names a default emoji answers to decides what `:name:` and `:name~N:` mean.
+  if (uniqueEmojiTokens.size > 0 && !unifiedEmojiLoaded.value) {
+    await loadEmojiData().catch(() => {});
+  }
+
   // Phase 1: in-memory emoji cache. Works offline.
   try {
     const emojiCacheStore = useEmojiCacheStore();
@@ -263,9 +269,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
           emojiDataMap[token] = fromCache;
         } else {
           const parsed = parseEmojiShortcodeToken(token);
-          const ordered = listCachedEmojisInDisambiguationOrder(parsed.baseName);
-          const index = parsed.disambiguator ?? 0;
-          const picked = ordered[index] ?? ordered[0];
+          const picked = pickCustomEmoji(listCachedEmojisInDisambiguationOrder(parsed.baseName), parsed);
           if (picked) emojiDataMap[token] = picked;
         }
       }
@@ -311,8 +315,7 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
           const parsed = parseEmojiShortcodeToken(token);
           const rows = byBaseName.get(parsed.baseName);
           if (!rows?.length) continue;
-          const index = parsed.disambiguator ?? 0;
-          const picked = rows[index] ?? rows[0];
+          const picked = pickCustomEmoji(rows, parsed);
           if (picked) emojiDataMap[token] = picked;
         }
       }

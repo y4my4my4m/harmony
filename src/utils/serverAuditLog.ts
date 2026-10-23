@@ -56,6 +56,8 @@ export type AuditSegmentRole = 'actor' | 'target' | 'subject'
 export interface AuditSegment {
   text: string
   role?: AuditSegmentRole
+  /** A person's profile id: the run is their display name, custom emoji included; `text` is the fallback. */
+  userId?: string
 }
 
 export interface AuditChangeLine {
@@ -112,6 +114,19 @@ export function auditTargetName(entry: ServerAuditEntry, t: AuditTranslate): str
 // U+2063 INVISIBLE SEPARATOR brackets each placeholder name in the translated sentence.
 const TOKEN = '\u2063'
 
+/** `sentence` as runs, each `TOKEN<name>TOKEN` placeholder replaced by the runs of `values[name]`. */
+function splitPlaceholders(sentence: string, values: Record<string, AuditSegment[]>): AuditSegment[] {
+  const segments: AuditSegment[] = []
+  sentence.split(new RegExp(`${TOKEN}(\\w+)${TOKEN}`)).forEach((part, index) => {
+    if (index % 2 === 1) {
+      segments.push(...(values[part] ?? [{ text: part }]))
+    } else if (part) {
+      segments.push({ text: part })
+    }
+  })
+  return segments
+}
+
 /**
  * The entry's sentence as text runs; names are runs with a role so they can be styled.
  * Placeholders are substituted after translation, so word order follows the locale.
@@ -123,20 +138,25 @@ export function describeAuditEntry(
   context: AuditContext = {},
 ): AuditSegment[] {
   const details = entry.details ?? {}
-  const actorName = auditActorName(entry, t)
-  const values: Record<string, AuditSegment> = {
-    actor: {
-      text: details.staff === true && context.instance
-        ? t('hostStaff.auditActor', { actor: actorName, instance: context.instance })
-        : actorName,
-      role: 'actor',
-    },
-    target: { text: auditTargetName(entry, t), role: 'target' },
-    subject: {
-      text: details.role_name ?? details.user_name ?? t('serverAuditLog.unknownTarget'),
-      role: 'subject',
-    },
-    channel: { text: details.channel_name ? `#${details.channel_name}` : t('serverAuditLog.unknownTarget'), role: 'subject' },
+  const actor: AuditSegment = { text: auditActorName(entry, t), role: 'actor' }
+  if (entry.actor_id) actor.userId = entry.actor_id
+  const target: AuditSegment = { text: auditTargetName(entry, t), role: 'target' }
+  if (entry.target_type === 'user' && entry.target_id) target.userId = entry.target_id
+  const subject: AuditSegment = {
+    text: details.role_name ?? details.user_name ?? t('serverAuditLog.unknownTarget'),
+    role: 'subject',
+  }
+  if (!details.role_name && typeof details.user_id === 'string') subject.userId = details.user_id
+  const values: Record<string, AuditSegment[]> = {
+    actor: details.staff === true && context.instance
+      ? splitPlaceholders(
+        t('hostStaff.auditActor', { actor: `${TOKEN}name${TOKEN}`, instance: context.instance }),
+        { name: [actor] },
+      ).map(run => ({ ...run, role: 'actor' as const }))
+      : [actor],
+    target: [target],
+    subject: [subject],
+    channel: [{ text: details.channel_name ? `#${details.channel_name}` : t('serverAuditLog.unknownTarget'), role: 'subject' }],
   }
   const count = Number(details.count ?? 1) || 1
   const named: Record<string, unknown> = {
@@ -149,17 +169,7 @@ export function describeAuditEntry(
   const key = KNOWN_ACTIONS.has(entry.action)
     ? `serverAuditLog.actions.${entry.action.replace('.', '_')}`
     : 'serverAuditLog.actions.unknown'
-  const sentence = t(key, named, count)
-
-  const segments: AuditSegment[] = []
-  sentence.split(new RegExp(`${TOKEN}(\\w+)${TOKEN}`)).forEach((part, index) => {
-    if (index % 2 === 1) {
-      segments.push(values[part] ?? { text: part })
-    } else if (part) {
-      segments.push({ text: part })
-    }
-  })
-  return segments
+  return splitPlaceholders(t(key, named, count), values)
 }
 
 function fieldLabel(field: string, t: AuditTranslate): string {

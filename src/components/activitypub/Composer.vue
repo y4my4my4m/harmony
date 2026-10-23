@@ -618,7 +618,9 @@ const currentVisibility = computed(() =>
 
 const getCurrentText = () => content.value || '';
 const updateText = (newText: string, cursorPosition?: number) => {
-  if (cursorPosition !== undefined && richEditorRef.value) {
+  if (cursorPosition !== undefined && richEditorRef.value?.replaceText) {
+    richEditorRef.value.replaceText(newText, cursorPosition);
+  } else if (cursorPosition !== undefined && richEditorRef.value) {
     debug.log('Composer updateText:', { newText, cursorPosition });
     richEditorRef.value.skipNextWatch = true;
 

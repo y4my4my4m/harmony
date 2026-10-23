@@ -1,6 +1,7 @@
 /**
  * ServerAuditLog.vue: lists get_server_audit_log pages newest first, pages on created_at,
- * and reloads from the top when a filter changes.
+ * and reloads from the top when a filter changes. People are named through DisplayName (custom
+ * emoji in their names); the actor filter lists plain names.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -13,9 +14,18 @@ const { api } = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({
+    t: (key: string, named?: Record<string, unknown>) =>
+      key === 'serverAuditLog.actions.member_kick' ? `${named?.actor} kicked ${named?.target}` : key,
+  }),
 }))
 vi.mock('@/components/common/Avatar.vue', () => ({ default: { template: '<span class="avatar-stub" />' } }))
+vi.mock('@/components/DisplayName.vue', () => ({
+  default: {
+    props: ['userId', 'fallback'],
+    template: '<span class="display-name-stub" :data-user-id="userId">{{ fallback }}</span>',
+  },
+}))
 vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { domain: 'here.test' } }) }))
 vi.mock('@/services/ServerAuditLogService', () => ({
   AUDIT_PAGE_SIZE: 2,
@@ -128,5 +138,20 @@ describe('ServerAuditLog', () => {
 
     expect(wrapper.text()).toContain('serverAuditLog.loadError')
     expect(wrapper.findAll('[data-test="audit-entry"]')).toHaveLength(0)
+  })
+
+  it('names people through DisplayName, and lists plain names in the actor filter', async () => {
+    api.getServerAuditLog.mockResolvedValueOnce([
+      entry('e1', '2026-10-10T10:00:00Z', { actor_display_name: ':fire: Alice:fire:' }),
+    ])
+    const wrapper = mountLog()
+    await flushPromises()
+
+    const names = wrapper.findAll('.audit-entry .display-name-stub')
+    expect(names.map(n => n.attributes('data-user-id'))).toEqual(['u-alice', 'u-bob'])
+    expect(names[0].classes()).toContain('audit-actor')
+    expect(names[1].classes()).toContain('audit-target')
+    const options = wrapper.findAll('[data-test="actor-filter"] option').map(o => o.text())
+    expect(options).toContain('Alice')
   })
 })

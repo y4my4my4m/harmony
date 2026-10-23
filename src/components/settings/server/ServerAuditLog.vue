@@ -47,11 +47,15 @@
         </div>
         <div class="audit-body">
           <p class="audit-line">
-            <span
-              v-for="(segment, i) in row.segments"
-              :key="i"
-              :class="segment.role ? `audit-${segment.role}` : undefined"
-            >{{ segment.text }}</span>
+            <template v-for="(segment, i) in row.segments" :key="i">
+              <DisplayName
+                v-if="segment.userId"
+                :user-id="segment.userId"
+                :fallback="segment.text"
+                :class="segment.role ? `audit-${segment.role}` : undefined"
+              />
+              <span v-else :class="segment.role ? `audit-${segment.role}` : undefined">{{ segment.text }}</span>
+            </template>
             <span v-if="row.entry.source === 'bot'" class="audit-badge">{{ t('serverAuditLog.botBadge') }}</span>
           </p>
           <ul v-if="row.changes.length" class="audit-changes">
@@ -90,10 +94,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
+import { plainDisplayName } from '@/utils/plainDisplayName'
 import { formatFullDateTime, formatShortRelativeTime } from '@/utils/shortRelativeTime'
 import {
   AUDIT_KINDS,
@@ -167,7 +173,8 @@ function rememberActors(page: ServerAuditEntry[]) {
   const next = new Map(actors.value)
   for (const entry of page) {
     if (entry.actor_id && !next.has(entry.actor_id)) {
-      next.set(entry.actor_id, auditActorName(entry, t))
+      // An <option> holds text only: custom emoji shortcodes are dropped.
+      next.set(entry.actor_id, plainDisplayName(auditActorName(entry, t), entry.actor_username ?? ''))
       added = true
     }
   }

@@ -120,6 +120,14 @@ describe('markdownParser', () => {
       expect(boldToken!.raw).toBe('**bold**')
     })
 
+    it('reads a disambiguated shortcode as one emoji, and ~~ as strikethrough', () => {
+      const tokens = parseMarkdownWithMarkers('a :pog~1: b')
+      expect(tokens.filter(t => t.type === 'emoji').map(t => t.content)).toEqual(['pog~1'])
+      const struck = parseMarkdownWithMarkers(':a~~b~~c:')
+      expect(struck.some(t => t.type === 'emoji')).toBe(false)
+      expect(struck.find(t => t.type === 'strikethrough')?.content).toBe('b')
+    })
+
     it('parses inline code', () => {
       const tokens = parseMarkdownWithMarkers('`code`')
       const codeToken = tokens.find(t => t.type === 'code')

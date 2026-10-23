@@ -866,7 +866,9 @@ const handleSendGif = async (gif: Gif) => {
 
 const handleSendEmojiToInput = (emoji: Emoji) => {
   closeMediaPicker()
-  messageText.value += getEmojiShortcodeForInsert(emoji)
+  // At the composer's caret, which then sits after the emoji.
+  const shortcode = getEmojiShortcodeForInsert(emoji)
+  if (!messageInputRef.value?.insertAtCaret(shortcode)) messageText.value += shortcode
 }
 
 const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {

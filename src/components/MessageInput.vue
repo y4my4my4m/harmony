@@ -730,7 +730,9 @@ const getCurrentText = () => richEditorRef.value?.getPlainText?.() ?? props.mode
 const updateText = (newText: string, cursorPosition?: number) => {
   debug.log('MessageInput updateText called:', { newText, cursorPosition });
   
-  if (cursorPosition !== undefined && richEditorRef.value) {
+  if (cursorPosition !== undefined && richEditorRef.value?.replaceText) {
+    richEditorRef.value.replaceText(newText, cursorPosition);
+  } else if (cursorPosition !== undefined && richEditorRef.value) {
     // Skip flag must be set before the update is emitted.
     debug.log('Setting skipNextWatch to true');
     richEditorRef.value.skipNextWatch = true;
@@ -1446,13 +1448,21 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       richEditorRef.value?.focus?.();
     };
 
+    /** Inserts `text` at the editor's caret, or its last caret while focus was elsewhere. */
+    const insertAtCaret = (text: string): boolean => {
+      if (!richEditorRef.value?.insertAtCaret) return false;
+      richEditorRef.value.insertAtCaret(text);
+      return true;
+    };
+
     defineExpose({
       composerRef,
       gifTriggerRef,
       emojiTriggerRef,
       flashRejection,
       restoreAttachments,
-      focusEditor
+      focusEditor,
+      insertAtCaret
     });
 
 

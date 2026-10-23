@@ -118,7 +118,7 @@ describe('describeAuditEntry', () => {
   it('marks the actor and the target and keeps the surrounding text', () => {
     const segments = describeAuditEntry(entry({ action: 'channel.delete' }), t, date)
     expect(segments).toEqual([
-      { text: 'Alice', role: 'actor' },
+      { text: 'Alice', role: 'actor', userId: 'u-alice' },
       { text: ' deleted channel ' },
       { text: '#general', role: 'target' },
     ])
@@ -218,9 +218,10 @@ describe('instance staff', () => {
   it('names the actor as staff of this instance', () => {
     const kick = entry({ action: 'member.kick', target_type: 'user', target_name: 'bob', details: { staff: true } })
     expect(sentence(kick, 'here.test')).toBe('Alice (here.test staff) kicked bob')
-    expect(describeAuditEntry(kick, t, date, { instance: 'here.test' })[0]).toEqual({
-      text: 'Alice (here.test staff)', role: 'actor',
-    })
+    expect(describeAuditEntry(kick, t, date, { instance: 'here.test' }).slice(0, 2)).toEqual([
+      { text: 'Alice', role: 'actor', userId: 'u-alice' },
+      { text: ' (here.test staff)', role: 'actor' },
+    ])
     expect(sentence(entry({ action: 'member.kick', target_type: 'user', target_name: 'bob', details: { staff: 'yes' } }), 'here.test'))
       .toBe('Alice kicked bob')
   })

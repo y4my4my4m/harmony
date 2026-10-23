@@ -120,6 +120,19 @@ const twemojiFileMap = shallowRef<Record<string, boolean> | null>(null)
 // standalone shortcodes rather than picker-only keyword matches.
 const EMOJI_DATA_CACHE_VERSION = '4'
 
+/**
+ * Shortcode lookups now exist: display names and the custom emoji's `name~N` labels, which
+ * depend on which names are default emoji, are resolved again.
+ */
+function lookupsReady(): void {
+  import('@/services/userDataService').then(({ userDataService }) => {
+    userDataService.reResolveAllDisplayNames()
+  }).catch(() => { /* userDataService not ready yet */ })
+  import('@/stores/useEmojiCache').then(({ useEmojiCacheStore }) => {
+    useEmojiCacheStore().rebuildResolvedEmojis()
+  }).catch(() => { /* no active Pinia yet */ })
+}
+
 /** Loads emoji data from IndexedDB, falling back to a network fetch. */
 async function loadEmojiData(): Promise<void> {
   if (isLoaded.value || isLoading.value) return
@@ -152,6 +165,7 @@ async function loadEmojiData(): Promise<void> {
 
     if (loadedFromCache && twemojiFileMap.value) {
       isLoaded.value = true
+      lookupsReady()
       return
     }
 
@@ -182,11 +196,7 @@ async function loadEmojiData(): Promise<void> {
     }
     
     isLoaded.value = true
-
-    // Shortcode lookups now exist; re-resolve emojis in cached display names.
-    import('@/services/userDataService').then(({ userDataService }) => {
-      userDataService.reResolveAllDisplayNames()
-    }).catch(() => { /* userDataService not ready yet */ })
+    lookupsReady()
   } catch (error) {
     debug.error('Failed to load emoji data:', error)
   } finally {
@@ -232,10 +242,19 @@ function shortcodeToUnicode(shortcode: string): string | null {
          null
 }
 
+/** A default emoji answers to `name` (shortcode or alias, as shortcodeToUnicode reads it). */
+function isDefaultShortcode(name: string): boolean {
+  return shortcodeToUnicode(name) !== null
+}
+
 /** "😀" -> "grinning_face". */
+/** U+FE0F VARIATION SELECTOR-16: present or absent in the same emoji from different sources. */
+const VS16 = /\uFE0F/g
+
 function unicodeToShortcode(unicode: string): string | null {
   if (!lookups.value) return null
-  return lookups.value.unicodeToShortcode[unicode] || null
+  const map = lookups.value.unicodeToShortcode
+  return map[unicode] || map[unicode.replace(VS16, '')] || map[`${unicode.replace(VS16, '')}\uFE0F`] || null
 }
 
 /** "😀" -> "1f600" (hex, dash-joined for sequences). */
@@ -579,6 +598,7 @@ export {
   loadEmojiData,
   setEmojiPack,
   shortcodeToUnicode,
+  isDefaultShortcode,
   unicodeToShortcode,
   unicodeToCodepoint,
   shortcodeToCodepoint,

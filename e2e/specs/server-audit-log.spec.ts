@@ -4,6 +4,8 @@
 //
 // Every change is made as the owner's session: service_role writes are logged
 // as System, so seeding them would not show the owner as the actor.
+// A display name with a custom emoji shows the emoji in the log, and plain text in the
+// actor filter.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
@@ -26,17 +28,32 @@ const admin = adminClient()
 let owner: SpecUser
 let member: SpecUser
 let server: SeededServer
+let emojiOwner: SpecUser
+let emojiServer: SeededServer
+let emojiName: string
 
 test.beforeAll(async () => {
   owner = await createUser(admin, 'auda')
   member = await createUser(admin, 'audb')
   server = await seedServer(admin, owner, `Audit ${owner.username}`)
   await addMember(admin, member, server.id)
+
+  emojiOwner = await createUser(admin, 'aude')
+  emojiServer = await seedServer(admin, emojiOwner, `Audit emoji ${emojiOwner.username}`)
+  emojiName = `audfire${emojiOwner.username.slice(-6)}`
+  const { error: emojiError } = await admin.from('emojis')
+    .insert({ name: emojiName, url: 'https://emoji.e2e.test/fire.png', scope: 'instance' })
+  if (emojiError) throw new Error(`emoji: ${emojiError.message}`)
+  const { error: nameError } = await admin.from('profiles')
+    .update({ display_name: `:${emojiName}: ${emojiOwner.displayName}:${emojiName}:` }).eq('id', emojiOwner.id)
+  if (nameError) throw new Error(`display name: ${nameError.message}`)
 })
 
 test.afterAll(async () => {
   await deleteUser(admin, owner)
   await deleteUser(admin, member)
+  await admin.from('emojis').delete().eq('name', emojiName)
+  await deleteUser(admin, emojiOwner)
 })
 
 const navItem = (page: Page, label: string) =>
@@ -146,3 +163,29 @@ test('a plain member cannot open the audit log', async ({ page }) => {
 async function settingsLoaded(page: Page): Promise<void> {
   await expect(page.locator('.server-settings-sidebar')).toBeVisible({ timeout: 30000 })
 }
+
+test('a display name with a custom emoji shows the emoji in the log', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.route('https://emoji.e2e.test/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }))
+  await signIn(page, emojiOwner)
+  await page.goto(`/server/${emojiServer.id}?section=roles`)
+  await settingsLoaded(page)
+  const createdRole = page.waitForResponse(
+    (r) => r.url().includes('/rest/v1/server_roles') && r.request().method() === 'POST',
+  )
+  await page.locator('.create-role-btn').click()
+  expect((await createdRole).ok()).toBe(true)
+
+  await navItem(page, 'Audit log').click()
+  const row = page.locator('[data-test="audit-entry"]').filter({ hasText: 'created role New Role' })
+  await expect(row).toHaveCount(1, { timeout: 30000 })
+  const actor = row.locator('.audit-line .audit-actor')
+  await expect(actor.locator(`img[alt=":${emojiName}:"]`)).toHaveCount(2)
+  await expect(actor).toContainText(emojiOwner.displayName)
+  await expect(row.locator('.audit-line')).not.toContainText(`:${emojiName}:`)
+
+  const option = page.locator('[data-test="actor-filter"] option').filter({ hasText: emojiOwner.displayName })
+  await expect(option).toHaveText(emojiOwner.displayName)
+})
