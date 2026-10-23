@@ -29,6 +29,7 @@ import {
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
 } from './remoteCounts.js';
 import { federationUserAgent } from '../utils/userAgent.js';
+import { remoteReactionsFromNote, storeRemoteReactions } from './postReactionCounts.js';
 
 const router = Router();
 
@@ -1418,6 +1419,10 @@ async function _fetchRemotePostReactionsImpl(
     }
 
     const post = await postResponse.json();
+    // A Harmony Note carries its reaction counts (postReactionCounts.ts); its likes collection
+    // lists favourites only.
+    const noteReactions = remoteReactionsFromNote(post);
+    if (noteReactions && postId) await storeRemoteReactions(supabase, postId, noteReactions);
     const totals = noteEngagementTotals(post);
     const storeTotals = async () => {
       const columns = engagementColumns(totals);

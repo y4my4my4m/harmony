@@ -430,6 +430,42 @@ describe('POST /fetch-reactions', () => {
     expect(tables.posts[0]).toMatchObject({ remote_favorites_count: 764, remote_reblogs_count: 82 })
     expect(requested).toEqual([POST])
   })
+
+  it('stores the reaction counts a Harmony Note carries as the post\'s reaction chips', async () => {
+    docs[POST] = {
+      ...mastodonStatus,
+      'harmony:reactions': [
+        { content: '🔥', count: 2 },
+        { content: ':blobcat:', count: 3, tag: { type: 'Emoji', name: ':blobcat:', icon: { type: 'Image', url: 'https://mastodon.test/emoji/blobcat.png' } } },
+        { content: '❤️', count: 9 },
+        { content: ':noimage:', count: 1 },
+        { content: '🍑', count: 0 },
+        { content: '<b>', count: '4' },
+      ],
+    }
+    tables.posts[0].metadata = { remote_reactions: { '👀': { count: 5, reactors: [] } }, keep: true }
+
+    const res = await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'post-1' })
+
+    const expected = {
+      '🔥': { count: 2, reactors: [] },
+      ':blobcat:': { count: 3, url: 'https://mastodon.test/emoji/blobcat.png', reactors: [] },
+    }
+    expect(res.status).toBe(200)
+    expect(res.body.remote_reactions).toEqual(expected)
+    expect(tables.posts[0].metadata).toMatchObject({ remote_reactions: expected, keep: true })
+    expect(tables.posts[0].metadata.remote_reactions_fetched_at).toBe(FRESH)
+  })
+
+  it('drops older counts when the Harmony Note carries none', async () => {
+    docs[POST] = { ...mastodonStatus, 'harmony:reactions': [] }
+    tables.posts[0].metadata = { remote_reactions: { '👀': { count: 5, reactors: [] } } }
+
+    const res = await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'post-1' })
+
+    expect(res.body.remote_reactions).toEqual({})
+    expect(tables.posts[0].metadata.remote_reactions).toEqual({})
+  })
 })
 
 describe('ingest', () => {
