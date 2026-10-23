@@ -1687,10 +1687,8 @@
       "inviteBannerBg": "Server banner in invite dialog",
       "inviteBannerBgDesc": "Show a blurred, darkened server banner behind the invite dialog when the server has one.",
       "quickReact": "Quick react",
-      "quickReactEnable": "Double-tap to quick react",
-      "quickReactEnableDesc": "Double-tap (mobile) or double-click (desktop) a message to instantly react with your chosen emoji.",
       "quickReactEmoji": "Quick react emoji",
-      "quickReactEmojiDesc": "The emoji applied when you double-tap a message.",
+      "quickReactEmojiDesc": "The emoji a double-click or double-tap reacts with.",
       "highContrast": "High contrast",
       "highContrastDesc": "Increase contrast for better visibility.",
       "reduceMotion": "Reduce motion",
@@ -1765,6 +1763,21 @@
         "imported": "Theme imported",
         "invalidFile": "Invalid theme file",
         "themeSaved": "“{name}” saved"
+      },
+      "quickReactHelp": "Saved on this device. Each of your devices keeps its own.",
+      "quickReactDoubleClick": "Double-click to react",
+      "quickReactDoubleClickDesc": "With a mouse or trackpad: double-click empty space in a message to react with your quick react emoji.",
+      "quickReactDoubleTap": "Double-tap to react",
+      "quickReactDoubleTapDesc": "On a touch screen: double-tap a message to react with your quick react emoji.",
+      "sync": {
+        "title": "Sync appearance across devices",
+        "onDesc": "Theme, colours, skin, font, font size, zoom, compact mode and contrast are the same on every device where sync is on.",
+        "offDesc": "This device keeps its own theme, colours, skin, font, font size, zoom, compact mode and contrast. Your other devices are not affected.",
+        "adoptLegend": "Which appearance should sync use?",
+        "adoptAccount": "The one from your other devices",
+        "adoptAccountDesc": "This device switches to it.",
+        "adoptDevice": "This device's",
+        "adoptDeviceDesc": "Your other devices with sync on switch to it the next time they open Harmony."
       }
     },
     "audio": {
@@ -2822,6 +2835,17 @@
     "quoteA11y": {
       "openPost": "Quoted post by {name}, {time}",
       "openPostNoAuthor": "Quoted post, {time}"
+    },
+    "interactionsList": {
+      "title": "Favorites and boosts",
+      "favorites": "Favorites",
+      "boosts": "Boosts",
+      "statLabel": "{stat}, show who",
+      "emptyFavorites": "No one has favorited this post yet.",
+      "emptyBoosts": "No one has boosted this post yet.",
+      "moreElsewhere": "{count} more on another server isn't listed here. | {count} more on other servers aren't listed here.",
+      "onlyElsewhere": "{count} account on another server isn't listed here. | {count} accounts on other servers aren't listed here.",
+      "loadFailed": "Couldn't load this list."
     }
   },
   "moderation": {
@@ -3389,15 +3413,13 @@
     "pageNotFound": "Page not found",
     "goBack": "Go back",
     "goHome": "Go home",
-    "quickNavigation": "Quick navigation",
-    "joinHarmony": "Join Harmony",
-    "signInPrompt": "Sign in to access all features and connect with the community.",
     "backToSocial": "Back to social",
     "backToChat": "Back to chat",
     "socialNotFound": "This social content doesn't exist or has been removed.",
     "chatNotFound": "This chat or conversation doesn't exist or you don't have access to it.",
     "settingsNotFound": "This settings page doesn't exist.",
-    "defaultNotFound": "The page you're looking for doesn't exist or has been moved."
+    "defaultNotFound": "The page you're looking for doesn't exist or has been moved.",
+    "requestedAddress": "Requested address"
   },
   "onboarding": {
     "title": "Set up your profile",
@@ -5059,7 +5081,9 @@
       "maxPostReactions": "Max reactions per person on a post",
       "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.",
       "maxPersonalEmojis": "Personal emojis per user",
-      "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay."
+      "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay.",
+      "publicProfilePages": "Show profiles and public posts to visitors who aren't signed in",
+      "publicProfilePagesHint": "When off, visitors are sent to sign in. Link previews and federation are unaffected."
     },
     "activityLog": {
       "configKeys": {

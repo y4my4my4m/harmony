@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "초대 창의 서버 배너",
       "inviteBannerBgDesc": "서버에 배너가 있으면 초대 창 뒤에 흐리고 어둡게 처리한 배너를 표시합니다.",
       "quickReact": "빠른 반응",
-      "quickReactEnable": "두 번 탭하여 빠른 반응",
-      "quickReactEnableDesc": "메시지를 두 번 탭(모바일)하거나 더블클릭(데스크톱)하면 선택한 이모지로 바로 반응합니다.",
       "quickReactEmoji": "빠른 반응 이모지",
-      "quickReactEmojiDesc": "메시지를 두 번 탭할 때 적용되는 이모지입니다.",
+      "quickReactEmojiDesc": "더블클릭이나 두 번 탭으로 남기는 이모지입니다.",
       "changesReset": "모양 변경사항을 초기화했습니다",
       "saved": "모양을 저장했습니다",
       "editLivePreview": "실시간 미리보기에서 편집",
@@ -1679,6 +1677,21 @@
         "imported": "테마를 가져왔습니다",
         "invalidFile": "잘못된 테마 파일입니다",
         "themeSaved": "“{name}” 저장됨"
+      },
+      "quickReactHelp": "이 기기에 저장됩니다. 기기마다 따로 설정할 수 있습니다.",
+      "quickReactDoubleClick": "더블클릭으로 반응",
+      "quickReactDoubleClickDesc": "마우스나 트랙패드로 메시지의 빈 곳을 더블클릭하면 빠른 반응 이모지로 반응합니다.",
+      "quickReactDoubleTap": "두 번 탭하여 반응",
+      "quickReactDoubleTapDesc": "터치스크린에서 메시지를 두 번 탭하면 빠른 반응 이모지로 반응합니다.",
+      "sync": {
+        "title": "기기 간 모양 동기화",
+        "onDesc": "테마, 색상, 스킨, 글꼴, 글꼴 크기, 확대/축소, 컴팩트 모드, 대비가 동기화를 켠 모든 기기에서 같습니다.",
+        "offDesc": "이 기기는 자체 테마, 색상, 스킨, 글꼴, 글꼴 크기, 확대/축소, 컴팩트 모드, 대비를 유지합니다. 다른 기기에는 영향이 없습니다.",
+        "adoptLegend": "어떤 모양으로 동기화할까요?",
+        "adoptAccount": "다른 기기의 모양",
+        "adoptAccountDesc": "이 기기가 그 모양으로 바뀝니다.",
+        "adoptDevice": "이 기기의 모양",
+        "adoptDeviceDesc": "동기화를 켠 다른 기기는 다음에 Harmony를 열 때 이 모양으로 바뀝니다."
       }
     },
     "voice": {
@@ -2768,6 +2781,17 @@
     "quoteA11y": {
       "openPost": "{name}님의 인용된 게시물, {time}",
       "openPostNoAuthor": "인용된 게시물, {time}"
+    },
+    "interactionsList": {
+      "title": "좋아요와 부스트",
+      "favorites": "좋아요",
+      "boosts": "부스트",
+      "statLabel": "{stat}, 누가 했는지 보기",
+      "emptyFavorites": "아직 아무도 이 게시물에 좋아요를 누르지 않았습니다.",
+      "emptyBoosts": "아직 아무도 이 게시물을 부스트하지 않았습니다.",
+      "moreElsewhere": "다른 서버의 계정 {count}개가 더 있지만 여기에는 표시되지 않습니다.",
+      "onlyElsewhere": "다른 서버의 계정 {count}개는 여기에 표시되지 않습니다.",
+      "loadFailed": "이 목록을 불러오지 못했습니다."
     }
   },
   "moderation": {
@@ -3389,15 +3413,13 @@
     "pageNotFound": "페이지를 찾을 수 없습니다",
     "goBack": "뒤로 가기",
     "goHome": "홈으로",
-    "quickNavigation": "빠른 탐색:",
-    "joinHarmony": "Harmony 가입",
-    "signInPrompt": "모든 기능에 액세스하고 커뮤니티와 연결하려면 로그인하세요.",
     "backToSocial": "소셜로 돌아가기",
     "backToChat": "채팅으로 돌아가기",
     "socialNotFound": "이 소셜 콘텐츠가 존재하지 않거나 삭제되었습니다.",
     "chatNotFound": "이 채팅 또는 대화가 존재하지 않거나 액세스 권한이 없습니다.",
     "settingsNotFound": "이 설정 페이지는 존재하지 않습니다.",
-    "defaultNotFound": "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
+    "defaultNotFound": "찾으시는 페이지가 존재하지 않거나 이동되었습니다.",
+    "requestedAddress": "요청한 주소"
   },
   "onboarding": {
     "title": "프로필 설정",
@@ -5063,7 +5085,9 @@
       "maxPostReactions": "게시물당 1인 최대 반응 수",
       "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
       "maxPersonalEmojis": "사용자당 개인 이모지 수",
-      "maxPersonalEmojisHint": "각 사용자가 설정 > 내 이모지에 보관할 수 있는 이모지 수로, 업로드한 이모지와 AI로 생성한 이모지를 합한 값입니다(0-1000). 기본값: 50. 0이면 개인 이모지가 꺼집니다. 한도를 낮춰도 이미 초과한 이모지는 유지됩니다."
+      "maxPersonalEmojisHint": "각 사용자가 설정 > 내 이모지에 보관할 수 있는 이모지 수로, 업로드한 이모지와 AI로 생성한 이모지를 합한 값입니다(0-1000). 기본값: 50. 0이면 개인 이모지가 꺼집니다. 한도를 낮춰도 이미 초과한 이모지는 유지됩니다.",
+      "publicProfilePages": "로그인하지 않은 방문자에게 프로필과 공개 게시물 표시",
+      "publicProfilePagesHint": "끄면 방문자는 로그인 화면으로 이동합니다. 링크 미리보기와 연합에는 영향이 없습니다."
     },
     "activityLog": {
       "configKeys": {

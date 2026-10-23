@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "邀请对话框中的服务器横幅",
       "inviteBannerBgDesc": "服务器有横幅时，在邀请对话框背后显示模糊、变暗的服务器横幅。",
       "quickReact": "快速反应",
-      "quickReactEnable": "双击快速反应",
-      "quickReactEnableDesc": "双击（移动端轻点两下，桌面端双击）消息，即可用您选择的表情立即添加反应。",
       "quickReactEmoji": "快速反应表情",
-      "quickReactEmojiDesc": "双击消息时使用的表情。",
+      "quickReactEmojiDesc": "双击或轻点两下时添加的表情。",
       "changesReset": "已重置外观更改",
       "saved": "外观已保存",
       "editLivePreview": "在实时预览中编辑",
@@ -1679,6 +1677,21 @@
         "imported": "主题已导入",
         "invalidFile": "无效的主题文件",
         "themeSaved": "已保存“{name}”"
+      },
+      "quickReactHelp": "保存在此设备上。每台设备各自设置。",
+      "quickReactDoubleClick": "双击回应",
+      "quickReactDoubleClickDesc": "使用鼠标或触控板：双击消息的空白处，用快速回应表情回应。",
+      "quickReactDoubleTap": "轻点两下回应",
+      "quickReactDoubleTapDesc": "在触摸屏上：轻点两下消息，用快速回应表情回应。",
+      "sync": {
+        "title": "在设备间同步外观",
+        "onDesc": "主题、颜色、皮肤、字体、字体大小、缩放、紧凑模式和对比度在所有开启同步的设备上相同。",
+        "offDesc": "此设备保留自己的主题、颜色、皮肤、字体、字体大小、缩放、紧凑模式和对比度。你的其他设备不受影响。",
+        "adoptLegend": "同步使用哪种外观？",
+        "adoptAccount": "其他设备的外观",
+        "adoptAccountDesc": "此设备切换为该外观。",
+        "adoptDevice": "此设备的外观",
+        "adoptDeviceDesc": "开启同步的其他设备下次打开 Harmony 时切换为此外观。"
       }
     },
     "voice": {
@@ -2768,6 +2781,17 @@
     "quoteA11y": {
       "openPost": "{name} 被引用的帖子，{time}",
       "openPostNoAuthor": "被引用的帖子，{time}"
+    },
+    "interactionsList": {
+      "title": "收藏和转发",
+      "favorites": "收藏",
+      "boosts": "转发",
+      "statLabel": "{stat}，查看是谁",
+      "emptyFavorites": "还没有人收藏这条帖子。",
+      "emptyBoosts": "还没有人转发这条帖子。",
+      "moreElsewhere": "另有 {count} 个其他服务器上的账号未在此列出。",
+      "onlyElsewhere": "其他服务器上的 {count} 个账号未在此列出。",
+      "loadFailed": "无法加载此列表。"
     }
   },
   "moderation": {
@@ -3389,15 +3413,13 @@
     "pageNotFound": "页面未找到",
     "goBack": "返回",
     "goHome": "回到首页",
-    "quickNavigation": "快速导航:",
-    "joinHarmony": "加入 Harmony",
-    "signInPrompt": "登录以访问所有功能并与社区建立联系。",
     "backToSocial": "返回社交",
     "backToChat": "返回聊天",
     "socialNotFound": "此社交内容不存在或已被删除。",
     "chatNotFound": "此聊天或对话不存在,或您没有访问权限。",
     "settingsNotFound": "此设置页面不存在。",
-    "defaultNotFound": "您查找的页面不存在或已被移动。"
+    "defaultNotFound": "您查找的页面不存在或已被移动。",
+    "requestedAddress": "请求的地址"
   },
   "onboarding": {
     "title": "设置您的个人资料",
@@ -5063,7 +5085,9 @@
       "maxPostReactions": "每人对一条帖子的最大反应数",
       "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
-      "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。"
+      "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
+      "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
+      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。"
     },
     "activityLog": {
       "configKeys": {

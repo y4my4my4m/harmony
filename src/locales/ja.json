@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "招待ダイアログのサーバーバナー",
       "inviteBannerBgDesc": "サーバーにバナーがある場合、招待ダイアログの背後にぼかして暗くしたバナーを表示します。",
       "quickReact": "クイックリアクション",
-      "quickReactEnable": "ダブルタップでクイックリアクション",
-      "quickReactEnableDesc": "メッセージをダブルタップ（モバイル）またはダブルクリック（デスクトップ）すると、選択した絵文字ですぐにリアクションします。",
       "quickReactEmoji": "クイックリアクションの絵文字",
-      "quickReactEmojiDesc": "メッセージをダブルタップしたときに付ける絵文字です。",
+      "quickReactEmojiDesc": "ダブルクリックやダブルタップで付ける絵文字です。",
       "changesReset": "外観の変更をリセットしました",
       "saved": "外観を保存しました",
       "editLivePreview": "ライブプレビューで編集",
@@ -1679,6 +1677,21 @@
         "imported": "テーマをインポートしました",
         "invalidFile": "無効なテーマファイルです",
         "themeSaved": "「{name}」を保存しました"
+      },
+      "quickReactHelp": "この端末に保存されます。端末ごとに設定できます。",
+      "quickReactDoubleClick": "ダブルクリックでリアクション",
+      "quickReactDoubleClickDesc": "マウスやトラックパッドで、メッセージの空いている所をダブルクリックすると、クイックリアクションの絵文字でリアクションします。",
+      "quickReactDoubleTap": "ダブルタップでリアクション",
+      "quickReactDoubleTapDesc": "タッチ画面で、メッセージをダブルタップすると、クイックリアクションの絵文字でリアクションします。",
+      "sync": {
+        "title": "外観を端末間で同期",
+        "onDesc": "テーマ、色、スキン、フォント、フォントサイズ、ズーム、コンパクトモード、コントラストが、同期をオンにしたすべての端末で同じになります。",
+        "offDesc": "この端末は独自のテーマ、色、スキン、フォント、フォントサイズ、ズーム、コンパクトモード、コントラストを使います。他の端末には影響しません。",
+        "adoptLegend": "どちらの外観で同期しますか？",
+        "adoptAccount": "他の端末の外観",
+        "adoptAccountDesc": "この端末がその外観に切り替わります。",
+        "adoptDevice": "この端末の外観",
+        "adoptDeviceDesc": "同期をオンにした他の端末は、次に Harmony を開いたときにこの外観に切り替わります。"
       }
     },
     "voice": {
@@ -2768,6 +2781,17 @@
     "quoteA11y": {
       "openPost": "{name} の引用された投稿、{time}",
       "openPostNoAuthor": "引用された投稿、{time}"
+    },
+    "interactionsList": {
+      "title": "お気に入りとブースト",
+      "favorites": "お気に入り",
+      "boosts": "ブースト",
+      "statLabel": "{stat}、ユーザーを表示",
+      "emptyFavorites": "まだ誰もこの投稿をお気に入りに登録していません。",
+      "emptyBoosts": "まだ誰もこの投稿をブーストしていません。",
+      "moreElsewhere": "ほかのサーバーのアカウントがさらに {count} 件ありますが、ここには表示されていません。",
+      "onlyElsewhere": "ほかのサーバーのアカウント {count} 件はここには表示されていません。",
+      "loadFailed": "このリストを読み込めませんでした。"
     }
   },
   "moderation": {
@@ -3389,15 +3413,13 @@
     "pageNotFound": "ページが見つかりません",
     "goBack": "戻る",
     "goHome": "ホームへ",
-    "quickNavigation": "クイックナビゲーション:",
-    "joinHarmony": "Harmony に参加",
-    "signInPrompt": "すべての機能にアクセスし、コミュニティとつながるにはサインインしてください。",
     "backToSocial": "ソーシャルに戻る",
     "backToChat": "チャットに戻る",
     "socialNotFound": "このソーシャルコンテンツは存在しないか、削除されました。",
     "chatNotFound": "このチャットまたは会話は存在しないか、アクセス権限がありません。",
     "settingsNotFound": "この設定ページは存在しません。",
-    "defaultNotFound": "お探しのページは存在しないか、移動されました。"
+    "defaultNotFound": "お探しのページは存在しないか、移動されました。",
+    "requestedAddress": "リクエストされたアドレス"
   },
   "onboarding": {
     "title": "プロフィールを設定",
@@ -5063,7 +5085,9 @@
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
       "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のサーバーから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
-      "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。"
+      "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。",
+      "publicProfilePages": "ログインしていない訪問者にプロフィールと公開投稿を表示する",
+      "publicProfilePagesHint": "オフにすると、訪問者はログイン画面に送られます。リンクプレビューと連合には影響しません。"
     },
     "activityLog": {
       "configKeys": {

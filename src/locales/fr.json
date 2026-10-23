@@ -1611,10 +1611,8 @@
       "inviteBannerBg": "Bannière du serveur dans la fenêtre d'invitation",
       "inviteBannerBgDesc": "Afficher une bannière du serveur floutée et assombrie derrière la fenêtre d'invitation lorsque le serveur en possède une.",
       "quickReact": "Réaction rapide",
-      "quickReactEnable": "Toucher deux fois pour réagir rapidement",
-      "quickReactEnableDesc": "Touchez deux fois (mobile) ou double-cliquez (ordinateur) sur un message pour réagir instantanément avec l'émoji choisi.",
       "quickReactEmoji": "Émoji de réaction rapide",
-      "quickReactEmojiDesc": "L'émoji appliqué lorsque vous touchez deux fois un message.",
+      "quickReactEmojiDesc": "L'emoji ajouté par un double-clic ou un double appui.",
       "changesReset": "Modifications d'apparence réinitialisées",
       "saved": "Apparence enregistrée",
       "editLivePreview": "Modifier en aperçu direct",
@@ -1679,6 +1677,21 @@
         "imported": "Thème importé",
         "invalidFile": "Fichier de thème invalide",
         "themeSaved": "« {name} » enregistré"
+      },
+      "quickReactHelp": "Enregistré sur cet appareil. Chacun de vos appareils garde ses propres réglages.",
+      "quickReactDoubleClick": "Double-clic pour réagir",
+      "quickReactDoubleClickDesc": "Avec une souris ou un pavé tactile : double-cliquez sur un espace vide d'un message pour réagir avec votre emoji de réaction rapide.",
+      "quickReactDoubleTap": "Double appui pour réagir",
+      "quickReactDoubleTapDesc": "Sur un écran tactile : appuyez deux fois sur un message pour réagir avec votre emoji de réaction rapide.",
+      "sync": {
+        "title": "Synchroniser l'apparence entre les appareils",
+        "onDesc": "Le thème, les couleurs, le skin, la police, la taille de police, le zoom, le mode compact et le contraste sont les mêmes sur chaque appareil où la synchronisation est activée.",
+        "offDesc": "Cet appareil garde son propre thème, ses couleurs, son skin, sa police, sa taille de police, son zoom, son mode compact et son contraste. Vos autres appareils ne changent pas.",
+        "adoptLegend": "Quelle apparence synchroniser ?",
+        "adoptAccount": "Celle de vos autres appareils",
+        "adoptAccountDesc": "Cet appareil l'adopte.",
+        "adoptDevice": "Celle de cet appareil",
+        "adoptDeviceDesc": "Vos autres appareils synchronisés l'adoptent à la prochaine ouverture de Harmony."
       }
     },
     "voice": {
@@ -2768,6 +2781,17 @@
     "quoteA11y": {
       "openPost": "Publication citée de {name}, {time}",
       "openPostNoAuthor": "Publication citée, {time}"
+    },
+    "interactionsList": {
+      "title": "Favoris et boosts",
+      "favorites": "Favoris",
+      "boosts": "Boosts",
+      "statLabel": "{stat}, voir qui",
+      "emptyFavorites": "Personne n'a encore mis cette publication en favori.",
+      "emptyBoosts": "Personne n'a encore boosté cette publication.",
+      "moreElsewhere": "{count} autre compte sur un autre serveur n'est pas listé ici. | {count} autres comptes sur d'autres serveurs ne sont pas listés ici.",
+      "onlyElsewhere": "{count} compte sur un autre serveur n'est pas listé ici. | {count} comptes sur d'autres serveurs ne sont pas listés ici.",
+      "loadFailed": "Impossible de charger cette liste."
     }
   },
   "moderation": {
@@ -3389,15 +3413,13 @@
     "pageNotFound": "Page non trouvée",
     "goBack": "Retour",
     "goHome": "Aller à l'accueil",
-    "quickNavigation": "Navigation rapide :",
-    "joinHarmony": "Rejoindre Harmony",
-    "signInPrompt": "Connectez-vous pour accéder à toutes les fonctionnalités et vous connecter avec la communauté.",
     "backToSocial": "Retour à Social",
     "backToChat": "Retour au chat",
     "socialNotFound": "Ce contenu social n'existe pas ou a été supprimé.",
     "chatNotFound": "Ce chat ou cette conversation n'existe pas ou vous n'y avez pas accès.",
     "settingsNotFound": "Cette page de paramètres n'existe pas.",
-    "defaultNotFound": "La page que vous recherchez n'existe pas ou a été déplacée."
+    "defaultNotFound": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "requestedAddress": "Adresse demandée"
   },
   "onboarding": {
     "title": "Configurez votre profil",
@@ -5063,7 +5085,9 @@
       "maxPostReactions": "Réactions max. par personne sur une publication",
       "maxPostReactionsHint": "Nombre d'émojis différents avec lesquels une personne peut réagir à une publication (1-100). Par défaut : 10. Les réactions provenant d'autres serveurs au-delà de la limite sont ignorées. Les messages de chat contiennent au plus 20 émojis différents.",
       "maxPersonalEmojis": "Emojis personnels par utilisateur",
-      "maxPersonalEmojisHint": "Emojis que chaque personne peut garder dans Paramètres > Mes emojis, importés et générés par IA confondus (0-1000). Par défaut : 50. 0 désactive les emojis personnels. Les emojis déjà au-delà d'une limite abaissée sont conservés."
+      "maxPersonalEmojisHint": "Emojis que chaque personne peut garder dans Paramètres > Mes emojis, importés et générés par IA confondus (0-1000). Par défaut : 50. 0 désactive les emojis personnels. Les emojis déjà au-delà d'une limite abaissée sont conservés.",
+      "publicProfilePages": "Montrer les profils et les publications publiques aux visiteurs non connectés",
+      "publicProfilePagesHint": "Désactivé, les visiteurs sont envoyés vers la connexion. Les aperçus de liens et la fédération ne changent pas."
     },
     "activityLog": {
       "configKeys": {
