@@ -56,6 +56,22 @@ interface Entry {
 const store = new Map<string, Entry>();
 const inflight = new Map<string, Promise<Entry | null>>();
 let storedBytes = 0;
+/** Invalidation counter, and the value it had when each path was last invalidated. */
+let invalidationSeq = 0;
+const invalidatedAt = new Map<string, number>();
+const MAX_INVALIDATED_PATHS = 1000;
+
+function covers(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+/** Whether a path was invalidated after `seq`: a build started then holds older data. */
+function invalidatedSince(path: string, seq: number): boolean {
+  for (const [prefix, at] of invalidatedAt) {
+    if (at > seq && covers(path, prefix)) return true;
+  }
+  return false;
+}
 let subscribed = false;
 
 function acceptClass(req: Request): string | null {
@@ -97,10 +113,15 @@ function remember(key: string, entry: Entry): void {
   while (store.size > MAX_ENTRIES || storedBytes > MAX_TOTAL_BYTES) forget(store.keys().next().value as string);
 }
 
-function replay(res: Response, entry: Entry, how: 'hit' | 'shared'): void {
+function replay(req: Request, res: Response, entry: Entry, how: 'hit' | 'shared'): void {
   res.status(entry.status);
   for (const [name, value] of entry.headers) res.setHeader(name, value);
   res.setHeader('X-Harmony-Cache', how);
+  // req.fresh compares If-None-Match and If-Modified-Since with the ETag and Last-Modified set above.
+  if (entry.status === 200 && req.fresh) {
+    res.status(304).end();
+    return;
+  }
   res.end(entry.body);
 }
 
@@ -139,22 +160,23 @@ export function documentCache() {
     const cached = store.get(key);
     if (cached && cached.expires > Date.now()) {
       remember(key, cached);
-      return replay(res, cached, 'hit');
+      return replay(req, res, cached, 'hit');
     }
     if (cached) forget(key);
 
     const pending = inflight.get(key);
     if (pending) {
-      pending.then((entry) => (entry ? replay(res, entry, 'shared') : next()), () => next());
+      pending.then((entry) => (entry ? replay(req, res, entry, 'shared') : next()), () => next());
       return;
     }
 
     let resolve!: (entry: Entry | null) => void;
     inflight.set(key, new Promise<Entry | null>((r) => { resolve = r; }));
+    const startedAt = invalidationSeq;
     res.setHeader('X-Harmony-Cache', 'miss');
     capture(res, (body) => {
       inflight.delete(key);
-      const ttl = body ? storable(res, body) : 0;
+      const ttl = body && !invalidatedSince(req.path, startedAt) ? storable(res, body) : 0;
       if (!body || ttl <= 0) return resolve(null);
       const headers = Object.entries(res.getHeaders())
         .filter(([name, value]) => value !== undefined && !DROPPED_HEADERS.has(name) && !/^x?-?ratelimit/i.test(name))
@@ -169,9 +191,15 @@ export function documentCache() {
 
 /** Drops the entries of each path, and of every path below it (`/users/a` takes `/users/a/featured`). */
 function invalidateLocal(paths: string[]): number {
+  invalidationSeq++;
+  for (const p of paths) {
+    invalidatedAt.delete(p);
+    invalidatedAt.set(p, invalidationSeq);
+  }
+  while (invalidatedAt.size > MAX_INVALIDATED_PATHS) invalidatedAt.delete(invalidatedAt.keys().next().value as string);
   let dropped = 0;
   for (const [key, entry] of store) {
-    if (paths.some((p) => entry.path === p || entry.path.startsWith(`${p}/`))) {
+    if (paths.some((p) => covers(entry.path, p))) {
       forget(key);
       dropped++;
     }
@@ -229,5 +257,6 @@ export function documentCacheSize(): { entries: number; bytes: number } {
 export function clearDocumentCache(): void {
   store.clear();
   inflight.clear();
+  invalidatedAt.clear();
   storedBytes = 0;
 }

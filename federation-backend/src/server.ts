@@ -154,8 +154,8 @@ export function createApp(): Application {
   // look instance.actor up as an account.
   app.use('/', instanceActorRouter);
   app.use('/', outboxRouter);
-  // HTML of /@<name>, /@<name>/<post> and /posts/<id>; their ActivityPub requests pass on to
-  // outboxRouter above and actorRouter below.
+  // HTML of /@<name>, /@<name>/<post> and /posts/<id>. outboxRouter above answers ActivityPub
+  // for the post paths first; actorRouter below answers it for /@<name>.
   app.use('/', publicPagesRouter);
   app.use('/', invitePageRouter);
   app.use('/', driveLinkPageRouter);

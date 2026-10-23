@@ -52,6 +52,18 @@ describe('CoreMessageService.refreshRemoteChannel', () => {
     expect(await service().refreshRemoteChannel('r6')).toBe(false)
   })
 
+  it('asks again on the next open when the host did not answer', async () => {
+    fetchMock
+      .mockResolvedValueOnce(answer({ error: 'Bad gateway' }, 502))
+      .mockResolvedValueOnce(answer({ source: 'cache', messages: [] }))
+      .mockResolvedValueOnce(answer({ source: 'remote', changed: 2, messages: [] }))
+    expect(await service().refreshRemoteChannel('r8')).toBe(false)
+    expect(await service().refreshRemoteChannel('r8')).toBe(false)
+    expect(await service().refreshRemoteChannel('r8')).toBe(true)
+    expect(await service().refreshRemoteChannel('r8')).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('asks nothing without a session', async () => {
     getSession.mockResolvedValueOnce({ data: { session: null } })
     expect(await service().refreshRemoteChannel('r7')).toBe(false)

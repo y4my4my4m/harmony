@@ -980,7 +980,7 @@ router.get(
       
       logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
 
-      // Rows this read inserted or completed; the app reloads the channel when nonzero.
+      // Rows this read inserted or completed.
       let changed = 0;
 
       // A system notice is cached as an authorless system row naming local profiles.

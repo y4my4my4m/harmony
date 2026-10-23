@@ -148,7 +148,7 @@ describe('GET /posts/:id as ActivityPub', () => {
     expect(res.body['harmony:reactions']).toEqual([
       { content: '🔥', count: 2 },
       { content: ':blobcat:', count: 1, tag: { type: 'Emoji', name: ':blobcat:', icon: { type: 'Image', url: 'https://harmony.test/emojis/blobcat.png' } } },
-      { content: ':neko:', count: 4, tag: { type: 'Emoji', name: ':neko:', icon: { type: 'Image', url: 'https://misskey.test/emoji/neko.webp' } } },
+      { content: ':neko@misskey.test:', count: 4, tag: { type: 'Emoji', name: ':neko@misskey.test:', icon: { type: 'Image', url: 'https://misskey.test/emoji/neko.webp' } } },
     ])
     expect(res.body['@context'][1].harmony).toBe('https://mony.lol/ns#')
     expect((await ap('/posts/p-unlisted')).body['harmony:reactions']).toEqual([])

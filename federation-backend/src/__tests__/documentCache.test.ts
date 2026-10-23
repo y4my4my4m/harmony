@@ -219,6 +219,31 @@ describe('documentCache', () => {
     expect(builds['/users/alice/outbox']).toBe(41)
   })
 
+  it('does not keep a build that started before its path was invalidated', async () => {
+    let open!: () => void
+    gate = new Promise((r) => { open = r })
+    const server = app()
+    const pending = supertest(server).get('/users/alice').set('Accept', AP).then((r) => r)
+    await new Promise((r) => setTimeout(r, 30))
+    await invalidateDocuments(['/users/alice'])
+    open()
+    expect((await pending).status).toBe(200)
+    gate = null
+    const next = await supertest(server).get('/users/alice').set('Accept', AP)
+    expect(next.headers['x-harmony-cache']).toBe('miss')
+    expect(builds['/users/alice']).toBe(2)
+  })
+
+  it('answers 304 to a hit whose ETag the client holds', async () => {
+    const server = app()
+    const first = await supertest(server).get('/users/alice').set('Accept', AP)
+    expect(first.headers.etag).toBeTruthy()
+    const again = await supertest(server).get('/users/alice').set('Accept', AP).set('If-None-Match', first.headers.etag)
+    expect(again.status).toBe(304)
+    expect(again.headers['x-harmony-cache']).toBe('hit')
+    expect(builds['/users/alice']).toBe(1)
+  })
+
   it('names the documents of a post and of an account', () => {
     expect(postDocumentPaths(POST, 'alice')).toEqual([`/posts/${POST}`, '/@alice', '/users/alice'])
     expect(postDocumentPaths(POST, null)).toEqual([`/posts/${POST}`])

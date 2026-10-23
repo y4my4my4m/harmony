@@ -1100,9 +1100,12 @@ export class CoreMessageService {
     this.remoteRefreshed.add(channelId)
     try {
       const data = await this.fetchRemoteChannelPage(channelId)
+      // No answer from the host: the next open asks again.
+      if (data?.source !== 'remote') this.remoteRefreshed.delete(channelId)
       return data?.source === 'remote' && (data.changed ?? 0) > 0
     } catch (error) {
       debug.warn('Remote channel refresh failed:', error)
+      this.remoteRefreshed.delete(channelId)
       return false
     }
   }

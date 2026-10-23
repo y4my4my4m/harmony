@@ -7,9 +7,10 @@
  *       "tag": { "type": "Emoji", "name": ":blobcat:", "icon": { "type": "Image", "url": "https://…" } } }
  *   ]
  *
- * One entry per emoji, in first-reaction order. content is the unicode emoji or `:name:`; an
- * image emoji names its image in an Emoji tag, as an EmojiReact does (FEP-c0e0). Hearts are
- * favourites, counted by the likes collection, and absent.
+ * One entry per emoji, in first-reaction order. content is the unicode emoji, `:name:` for an
+ * emoji of this instance or `:name@domain:` for one of another; an image emoji names its image
+ * in an Emoji tag, as an EmojiReact does (FEP-c0e0). Hearts are favourites, counted by the
+ * likes collection, and absent.
  *
  * Mastodon, Pleroma and GoToSocial publish no reaction totals; Misskey's live in its API
  * (notes/reactions). The reader stores entries as posts.metadata.remote_reactions, keyed as
@@ -41,9 +42,9 @@ export interface RemoteReactionEntry {
   reactors: never[];
 }
 
-/** `:name@domain:` → `:name:`. */
-function bareShortcode(name: string): string {
-  return `:${name.replace(/^:+|:+$/g, '').replace(/@[^@:]*$/, '')}:`;
+/** `name`, `:name:` or `:name@domain:` as a shortcode, its domain kept. */
+function shortcode(name: string): string {
+  return `:${name.replace(/^:+|:+$/g, '')}:`;
 }
 
 function httpUrl(value: unknown): string | null {
@@ -73,8 +74,8 @@ export async function postReactionCounts(postId: string): Promise<ReactionCount[
     const url = row.emoji_url ? httpUrl(getFullEmojiUrl(row.emoji_url) ?? row.emoji_url) : null;
     const name = row.emoji_name || row.custom_emoji_content;
     if (url && name) {
-      const shortcode = bareShortcode(String(name));
-      out.push({ content: shortcode, count, tag: { type: 'Emoji', name: shortcode, icon: { type: 'Image', url } } });
+      const code = shortcode(String(name));
+      out.push({ content: code, count, tag: { type: 'Emoji', name: code, icon: { type: 'Image', url } } });
     } else if (typeof row.custom_emoji_content === 'string' && row.custom_emoji_content) {
       if (isHeartReaction(row.custom_emoji_content)) continue;
       out.push({ content: row.custom_emoji_content, count });
@@ -96,8 +97,9 @@ export function withReactionCounts<T extends Record<string, any>>(note: T, count
 }
 
 /**
- * A fetched Note's counts as remote_reactions; null when the Note carries none, so other
- * sources (the likes collection) apply. Malformed entries are skipped.
+ * A fetched Note's counts as remote_reactions, keyed by content; null when the Note carries
+ * none, so other sources (the likes collection) apply. Malformed entries are skipped and
+ * entries of one key add up.
  */
 export function remoteReactionsFromNote(note: unknown): Record<string, RemoteReactionEntry> | null {
   const entries = (note as Record<string, unknown> | null)?.[REACTIONS_PROPERTY];
@@ -111,10 +113,11 @@ export function remoteReactionsFromNote(note: unknown): Record<string, RemoteRea
     const icon = tag && tag.type === 'Emoji' ? httpUrl(tag.icon?.url) : null;
     if (/^:[^:\s]+:$/.test(content)) {
       if (!icon) continue;
-      out[bareShortcode(content)] = { count, url: icon, reactors: [] };
+      const held = out[content];
+      out[content] = { count: Math.min((held?.count ?? 0) + count, MAX_COUNT), url: held?.url ?? icon, reactors: [] };
     } else {
       if (isHeartReaction(content)) continue;
-      out[content] = { count, reactors: [] };
+      out[content] = { count: Math.min((out[content]?.count ?? 0) + count, MAX_COUNT), reactors: [] };
     }
   }
   return out;

@@ -18,15 +18,31 @@ describe('remoteReactionsFromNote', () => {
     expect(remoteReactionsFromNote(null)).toBeNull()
   })
 
-  it('keys unicode by the emoji and image emojis by the bare shortcode', () => {
+  it('keys unicode by the emoji and image emojis by shortcode and origin', () => {
     expect(remoteReactionsFromNote({
       'harmony:reactions': [
         { content: '🔥', count: 2 },
-        { content: ':blob@remote.test:', count: 1, tag: emoji(':blob:', 'https://remote.test/e/blob.png') },
+        { content: ':blob:', count: 3, tag: emoji(':blob:', 'https://host.test/e/blob.png') },
+        { content: ':blob@remote.test:', count: 1, tag: emoji(':blob@remote.test:', 'https://remote.test/e/blob.png') },
       ],
     })).toEqual({
       '🔥': { count: 2, reactors: [] },
-      ':blob:': { count: 1, url: 'https://remote.test/e/blob.png', reactors: [] },
+      ':blob:': { count: 3, url: 'https://host.test/e/blob.png', reactors: [] },
+      ':blob@remote.test:': { count: 1, url: 'https://remote.test/e/blob.png', reactors: [] },
+    })
+  })
+
+  it('adds up entries of one key', () => {
+    expect(remoteReactionsFromNote({
+      'harmony:reactions': [
+        { content: ':blob:', count: 3, tag: emoji(':blob:', 'https://host.test/e/a.png') },
+        { content: ':blob:', count: 2, tag: emoji(':blob:', 'https://host.test/e/b.png') },
+        { content: '🔥', count: 1 },
+        { content: '🔥', count: 1 },
+      ],
+    })).toEqual({
+      ':blob:': { count: 5, url: 'https://host.test/e/a.png', reactors: [] },
+      '🔥': { count: 2, reactors: [] },
     })
   })
 
