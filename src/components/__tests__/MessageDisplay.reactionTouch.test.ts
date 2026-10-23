@@ -1,6 +1,8 @@
 /**
  * Touches on a reaction pill belong to the pill: a long-press or double tap
  * there neither opens the message's action bar nor sends a quick reaction.
+ * Double tap and double-click each react only under their own switch; the
+ * dblclick a browser sends after a double tap is not a double-click.
  * The message long-press tolerates finger jitter and cancels on a drag or a
  * touchcancel. The pill's open-reactions and the context menu's View reactions
  * open the one reactions list.
@@ -14,6 +16,8 @@ import type { Message } from '@/types'
 const shared = vi.hoisted(() => ({
   outbox: { has: (_id: string) => false, discard: (_id: string) => {} },
   quickReactEnabled: true,
+  doubleClick: true,
+  doubleTap: true,
 }))
 
 /** A store double: named fields as given, any other member an async no-op. */
@@ -69,7 +73,8 @@ vi.mock('@/composables/useHapticSettings', () => ({
 }))
 vi.mock('@/composables/useQuickReactSettings', () => ({
   useQuickReactSettings: () => ({
-    enabled: computed(() => shared.quickReactEnabled),
+    doubleClick: computed(() => shared.doubleClick),
+    doubleTap: computed(() => shared.doubleTap),
     emoji: ref({ id: 'thumbs', name: 'thumbs', url: '', content: '👍' }),
   }),
 }))
@@ -149,6 +154,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   shared.outbox = { has: () => false, discard: vi.fn() }
   shared.quickReactEnabled = true
+  shared.doubleClick = true
+  shared.doubleTap = true
 })
 
 afterEach(() => {
@@ -182,6 +189,42 @@ describe('MessageDisplay touches on reaction pills', () => {
     vi.advanceTimersByTime(600)
     await flushPromises()
     expect(wrapper.find('.message-actions').exists()).toBe(true)
+  })
+})
+
+describe('MessageDisplay quick react switches', () => {
+  const doubleClick = async (el: ReturnType<ReturnType<typeof mountDisplay>['get']>) => {
+    await el.trigger('mousedown', { button: 0, detail: 1, clientX: 40, clientY: 10 })
+    await el.trigger('dblclick', { button: 0, clientX: 40, clientY: 10 })
+  }
+
+  it('reacts on a double tap only while double tap is on', async () => {
+    shared.doubleTap = false
+    const wrapper = mountDisplay()
+    await flushPromises()
+    const body = wrapper.get('.message-item')
+    await body.trigger('touchend')
+    await body.trigger('touchend')
+    expect(wrapper.emitted('sendReaction')).toBeUndefined()
+
+    await doubleClick(body)
+    expect(wrapper.emitted('sendReaction')).toBeUndefined()
+    vi.advanceTimersByTime(1000)
+  })
+
+  it('reacts on a double-click only while double-click is on', async () => {
+    shared.doubleClick = false
+    const off = mountDisplay()
+    await flushPromises()
+    await doubleClick(off.get('.message-item'))
+    expect(off.emitted('sendReaction')).toBeUndefined()
+
+    shared.doubleClick = true
+    shared.doubleTap = false
+    const on = mountDisplay()
+    await flushPromises()
+    await doubleClick(on.get('.message-item'))
+    expect(on.emitted('sendReaction')?.[0]?.[0]).toBe('msg-1')
   })
 })
 

@@ -11,6 +11,46 @@
       </button>
     </div>
 
+    <div class="settings-section" data-testid="appearance-sync">
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-sync`">{{ $t('settings.appearance.sync.title') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-sync-desc`">
+            {{ local.appearanceSync ? $t('settings.appearance.sync.onDesc') : $t('settings.appearance.sync.offDesc') }}
+          </p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :labelledby="`${a11yId}-sync`"
+            :describedby="`${a11yId}-sync-desc`"
+            v-model="local.appearanceSync"
+            data-testid="appearance-sync-toggle"
+          />
+        </div>
+      </div>
+      <fieldset
+        v-if="local.appearanceSync && !savedLocal.appearanceSync"
+        class="sync-adopt"
+        data-testid="appearance-sync-adopt"
+      >
+        <legend class="setting-label">{{ $t('settings.appearance.sync.adoptLegend') }}</legend>
+        <label class="sync-adopt-option">
+          <input type="radio" :name="`${a11yId}-sync-adopt`" value="account" v-model="local.appearanceAdopt" />
+          <span>
+            <span class="sync-adopt-label">{{ $t('settings.appearance.sync.adoptAccount') }}</span>
+            <span class="setting-description">{{ $t('settings.appearance.sync.adoptAccountDesc') }}</span>
+          </span>
+        </label>
+        <label class="sync-adopt-option">
+          <input type="radio" :name="`${a11yId}-sync-adopt`" value="device" v-model="local.appearanceAdopt" />
+          <span>
+            <span class="sync-adopt-label">{{ $t('settings.appearance.sync.adoptDevice') }}</span>
+            <span class="setting-description">{{ $t('settings.appearance.sync.adoptDeviceDesc') }}</span>
+          </span>
+        </label>
+      </fieldset>
+    </div>
+
     <div class="settings-section">
       <h3 :id="`${a11yId}-theme`" class="section-title">{{ $t('settings.appearance.theme') }}</h3>
 
@@ -780,17 +820,39 @@
     <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.quickReact') }}</h3>
 
+      <p class="section-help">{{ $t('settings.appearance.quickReactHelp') }}</p>
+
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t11`">{{ $t('settings.appearance.quickReactEnable') }}</h4>
-          <p class="setting-description" :id="`${a11yId}-t11-desc`">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t11`">{{ $t('settings.appearance.quickReactDoubleClick') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t11-desc`">{{ $t('settings.appearance.quickReactDoubleClickDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch :labelledby="`${a11yId}-t11`" :describedby="`${a11yId}-t11-desc`" v-model="local.quickReactEnabled" />
+          <ToggleSwitch
+            :labelledby="`${a11yId}-t11`"
+            :describedby="`${a11yId}-t11-desc`"
+            v-model="local.quickReactDoubleClick"
+            data-testid="quick-react-double-click"
+          />
         </div>
       </div>
 
-      <div v-if="local.quickReactEnabled" class="setting-item">
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-t11b`">{{ $t('settings.appearance.quickReactDoubleTap') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t11b-desc`">{{ $t('settings.appearance.quickReactDoubleTapDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :labelledby="`${a11yId}-t11b`"
+            :describedby="`${a11yId}-t11b-desc`"
+            v-model="local.quickReactDoubleTap"
+            data-testid="quick-react-double-tap"
+          />
+        </div>
+      </div>
+
+      <div v-if="local.quickReactDoubleClick || local.quickReactDoubleTap" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.quickReactEmoji') }}</h4>
           <p class="setting-description">{{ $t('settings.appearance.quickReactEmojiDesc') }}</p>
@@ -1034,18 +1096,30 @@ function setMirror(site: MirrorSite, patch: MirrorSitePreference) {
 interface LocalSettings {
   floatingVideoEnabled: boolean
   emojiPack: string
-  quickReactEnabled: boolean
+  quickReactDoubleClick: boolean
+  quickReactDoubleTap: boolean
   quickReactEmoji: QuickReactEmoji
+  appearanceSync: boolean
+  /** Which look stands when sync turns on. */
+  appearanceAdopt: 'account' | 'device'
 }
 const readLocal = (): LocalSettings => ({
   floatingVideoEnabled: floatingVideoEnabled.value,
   emojiPack: currentPackId.value,
-  quickReactEnabled: quickReact.enabled.value,
+  quickReactDoubleClick: quickReact.doubleClick.value,
+  quickReactDoubleTap: quickReact.doubleTap.value,
   quickReactEmoji: { ...quickReact.emoji.value },
+  appearanceSync: visualTheme.appearanceSynced.value,
+  appearanceAdopt: 'account',
 })
 const local = ref<LocalSettings>(readLocal())
 const savedLocal = ref<LocalSettings>(readLocal())
 const localDirty = computed(() => JSON.stringify(local.value) !== JSON.stringify(savedLocal.value))
+
+// The choice applies only while sync is being turned on.
+watch(() => local.value.appearanceSync, (on) => {
+  if (!on || savedLocal.value.appearanceSync) local.value.appearanceAdopt = 'account'
+})
 
 const hasChanges = computed(() => themeDirty.value || localDirty.value)
 
@@ -1427,13 +1501,18 @@ const adjustZoom = (delta: number) => {
   polite(t('settings.appearance.zoomValue', { value: next }), { key: 'appearance-zoom', dedupeMs: 0 })
 }
 
-const saveSettings = () => {
+const saveSettings = async () => {
   moveFocusOutOfSaveBar()
   saveTheme()
   setFloatingVideoEnabled(local.value.floatingVideoEnabled)
   setCurrentPack(local.value.emojiPack)
-  quickReact.enabled.value = local.value.quickReactEnabled
+  quickReact.doubleClick.value = local.value.quickReactDoubleClick
+  quickReact.doubleTap.value = local.value.quickReactDoubleTap
   quickReact.setEmoji(local.value.quickReactEmoji)
+  if (local.value.appearanceSync !== savedLocal.value.appearanceSync) {
+    await visualTheme.setAppearanceSynced(local.value.appearanceSync, local.value.appearanceAdopt)
+    reloadTheme()
+  }
   savedLocal.value = readLocal()
   local.value = readLocal()
   emit('update-appearance', { ...settings.value, ...local.value })
@@ -2311,6 +2390,45 @@ onBeforeUnmount(() => {
 
 .setting-control {
   flex-shrink: 0;
+}
+
+/* Shown under the sync switch while it is being turned on. */
+.sync-adopt {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--background-quaternary);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-adopt legend {
+  padding: 0 4px;
+}
+
+.sync-adopt-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.sync-adopt-option input {
+  flex: none;
+  margin: 2px 0 0;
+  accent-color: var(--harmony-primary);
+}
+
+.sync-adopt-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sync-adopt-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
 }
 
 .mirror-link-control {

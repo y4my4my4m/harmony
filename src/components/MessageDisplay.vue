@@ -1546,14 +1546,21 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
 const DOUBLE_TAP_WINDOW = 300;
 const lastTap = ref<{ id: string; time: number } | null>(null);
 
+// Event.timeStamp of the last touchend on a message. Mobile browsers follow a double tap
+// with a compatibility dblclick, which is not a double-click.
+let lastTouchEndAt = -Infinity;
+const TOUCH_DBLCLICK_MS = 1000;
+
 const handleMessageTouchEnd = (messageId: string, event: TouchEvent) => {
   cancelMessageLongPress();
+  lastTouchEndAt = event.timeStamp;
   if (isReactionTouch(event)) {
     lastTap.value = null;
     return;
   }
   // Skip double-tap if the long-press action bar is already showing.
   if (hoveredMessageId.value === messageId && mobileActionTapPosition.value) return;
+  if (!quickReact.doubleTap.value) return;
 
   const now = Date.now();
   if (lastTap.value && lastTap.value.id === messageId && now - lastTap.value.time < DOUBLE_TAP_WINDOW) {
@@ -1589,7 +1596,8 @@ const handleMessageMouseDown = (event: MouseEvent) => {
 const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
   const firstDown = quickReactFirstDown;
   quickReactFirstDown = null;
-  if (!quickReact.enabled.value) return;
+  if (!quickReact.doubleClick.value) return;
+  if (event.timeStamp - lastTouchEndAt < TOUCH_DBLCLICK_MS) return;
   if (!isQuickReactDoubleClick(event, firstDown, isPointOverText(event.clientX, event.clientY))) return;
   // Hit-testing beside a line of text selects its nearest word.
   window.getSelection?.()?.removeAllRanges();
@@ -1597,7 +1605,6 @@ const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
 };
 
 const triggerQuickReact = (messageId: string) => {
-  if (!quickReact.enabled.value) return;
   // An unsent row (temp- id: optimistic copy or outbox row) has no message to react to.
   if (isOptimisticId(messageId)) return;
   const e = quickReact.emoji.value;

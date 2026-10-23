@@ -22,6 +22,7 @@ import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { newerCopy, savedAtOf, stampCopy, withoutStamp } from '@/utils/themeCopies'
+import { APPEARANCE_SYNC_KEY, DEVICE_ONLY, accountCopyFor, pickLook } from '@/utils/appearanceScope'
 import { applyAppZoom } from '@/utils/appZoom'
 import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
@@ -330,6 +331,13 @@ let systemSchemeListenerAttached = false
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 let pendingSave: VisualThemeSettings | null = null
+
+// False while this device keeps its own look (utils/appearanceScope.ts).
+const appearanceSynced = ref(true)
+
+function readAppearanceSynced(): boolean {
+  return userStorage.getItem(APPEARANCE_SYNC_KEY) !== DEVICE_ONLY
+}
 
 /**
  * Apply preset theme styles
@@ -805,11 +813,20 @@ async function saveToSupabase(settings: VisualThemeSettings) {
   
   try {
     isSaving.value = true
+
+    // A device with its own look writes its other settings under the account's current look,
+    // read just before; unread, the account copy is left as it is.
+    let payload: Partial<VisualThemeSettings> = settings
+    if (!appearanceSynced.value) {
+      const account = await fetchAccountCopy()
+      if (!account.ok) return
+      payload = accountCopyFor(settings, account.copy)
+    }
     
     const { error } = await supabase
       .from('profiles')
       .update({
-        appearance_settings: settings,
+        appearance_settings: payload,
         updated_at: new Date().toISOString(),
       })
       .eq('auth_user_id', userId)
@@ -822,6 +839,22 @@ async function saveToSupabase(settings: VisualThemeSettings) {
   } finally {
     isSaving.value = false
   }
+}
+
+/** The account copy as stored now, past the profile store's cache; ok false on a failed read. */
+async function fetchAccountCopy(): Promise<{ ok: boolean; copy: Partial<VisualThemeSettings> | null }> {
+  const userId = useAuthStore().session?.user?.id
+  if (!userId) return { ok: false, copy: null }
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('appearance_settings')
+    .eq('auth_user_id', userId)
+    .maybeSingle()
+  if (error) {
+    debug.error('Failed to read the account appearance:', error)
+    return { ok: false, copy: null }
+  }
+  return { ok: true, copy: (data?.appearance_settings as Partial<VisualThemeSettings> | null) ?? null }
 }
 
 /**
@@ -1004,6 +1037,7 @@ export function useVisualTheme() {
         applySettings(settings.value)
       } else {
         followSystem = false
+        appearanceSynced.value = readAppearanceSynced()
         const next = createDefaultSettings(systemPreset())
 
         // localStorage first (sync, no flash), then the profile copy; newerCopy()
@@ -1024,6 +1058,8 @@ export function useVisualTheme() {
           migrateLegacyBlurSetting(supabaseSettings)
           remoteSkinCssDropped = dropBuiltinSkinCss(supabaseSettings)
           Object.assign(next, withoutStamp(supabaseSettings))
+          // This device's look stands over the account's.
+          if (!appearanceSynced.value && localSettings) Object.assign(next, pickLook(localSettings))
         }
         settings.value = next
         applySettings(settings.value)
@@ -1423,6 +1459,38 @@ export function useVisualTheme() {
   function resetToDefaults() {
     settings.value = createDefaultSettings(systemPreset())
   }
+
+  /**
+   * Sync this device's look with the account, or keep it here (utils/appearanceScope.ts).
+   * Turning sync on, `adopt` decides which look stands: the account's replaces this device's,
+   * or this device's is written to the account, where other devices load it at their next
+   * start. Turning it off changes nothing on screen.
+   */
+  async function setAppearanceSynced(on: boolean, adopt: 'account' | 'device' = 'account'): Promise<void> {
+    if (on === appearanceSynced.value) return
+    if (!on) {
+      userStorage.setItem(APPEARANCE_SYNC_KEY, DEVICE_ONLY)
+      appearanceSynced.value = false
+      return
+    }
+    userStorage.removeItem(APPEARANCE_SYNC_KEY)
+    if (adopt === 'device') {
+      appearanceSynced.value = true
+      if (saveTimeout) clearTimeout(saveTimeout)
+      saveTimeout = null
+      pendingSave = null
+      const stamped = stampCopy(cloneSettings(settings.value))
+      saveToLocalStorage(stamped)
+      await saveToSupabase(stamped)
+      return
+    }
+    const account = await fetchAccountCopy()
+    appearanceSynced.value = true
+    if (!account.copy) return
+    migrateLegacyBlurSetting(account.copy)
+    dropBuiltinSkinCss(account.copy)
+    commitSettings({ ...cloneSettings(settings.value), ...pickLook(account.copy) })
+  }
   
   /**
    * Update custom primary color
@@ -1563,6 +1631,7 @@ export function useVisualTheme() {
     // State
     settings: computed(() => settings.value),
     isInitialized: computed(() => isInitialized.value),
+    appearanceSynced: computed(() => appearanceSynced.value),
     isSaving: computed(() => isSaving.value),
     
     // Methods
@@ -1594,6 +1663,7 @@ export function useVisualTheme() {
     updateSettings,
     reapplySettings,
     resetToDefaults,
+    setAppearanceSynced,
     reset,
     currentSettings,
     setCssOverride,
