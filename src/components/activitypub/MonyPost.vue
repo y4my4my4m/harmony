@@ -64,15 +64,22 @@
         </div>
       </div>
 
-      <!-- Reply line: parent author and a thread link, never the parent body -->
+      <!-- Reply line: one line naming the parent's author, never the parent body. It opens the
+           parent post; the handle truncates and the title carries it whole. -->
       <div v-if="showReplyLine" class="reply-line">
         <Icon name="reply" :size="14" class="reply-line-icon" />
-        <span>{{ t('activitypub.replyingTo') }}</span>
-        <RouterLink :to="profileRoute(displayReplyContext.author)" class="reply-author-link">
-          {{ formatHandle(displayReplyContext.author) }}
-        </RouterLink>
-        <span aria-hidden="true">·</span>
-        <button type="button" class="text-link" @click.stop="showReplyTarget">
+        <RouterLink
+          v-if="replyParentRoute"
+          :to="replyParentRoute"
+          class="reply-line-target"
+          data-testid="post-reply-line"
+          :title="replyLineText"
+        >{{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span></RouterLink>
+        <span v-else class="reply-line-target" :title="replyLineText">
+          {{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span>
+        </span>
+        <span class="reply-line-sep" aria-hidden="true">·</span>
+        <button type="button" class="text-link reply-line-thread" @click.stop="showReplyTarget">
           {{ t('activitypub.viewThread') }}
         </button>
       </div>
@@ -141,18 +148,50 @@
             <Icon name="external-link" :size="14" />
             {{ t('activitypub.viewQuotedPost') }}
           </a>
-          <div v-else-if="props.post.reblog" class="quoted-post">
-            <div v-if="quotedAuthor" class="quoted-post-header">
-              <Avatar
-                :src="quotedAuthor.avatar_url"
-                alt=""
-                size="sm"
-              />
-              <div class="quoted-author-info">
-                <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
-                <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
-                <AppTimestamp class="quoted-post-time" :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
-              </div>
+          <!-- A click on the card opens the quoted post; its links, mentions, hashtags and media
+               keep their own clicks. Keyboard and assistive technology reach the post through the
+               time link, the author through the name link: no link wraps another. -->
+          <div
+            v-else-if="props.post.reblog"
+            class="quoted-post"
+            :class="{ 'is-openable': quotedPostOpenable }"
+            data-testid="quoted-post"
+            @click="onQuotedPostClick"
+          >
+            <div class="quoted-post-header">
+              <RouterLink v-if="quotedAuthor" :to="profileRoute(quotedAuthor)" class="quoted-author-link" data-testid="quoted-author">
+                <Avatar
+                  :src="quotedAuthor.avatar_url"
+                  alt=""
+                  size="sm"
+                />
+                <span class="quoted-author-info">
+                  <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
+                  <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
+                </span>
+              </RouterLink>
+              <RouterLink
+                v-if="quotedPostRoute"
+                :to="quotedPostRoute"
+                class="quoted-post-time"
+                data-testid="quoted-post-link"
+                :aria-label="quotedPostLabel"
+              >
+                <AppTimestamp :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
+              </RouterLink>
+              <a
+                v-else-if="quotedPostUrl"
+                :href="safeHref(quotedPostUrl)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="quoted-post-time"
+                data-testid="quoted-post-link"
+                :aria-label="quotedPostLabel"
+                @click="onQuotedPostUrlClick"
+              >
+                <AppTimestamp :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
+              </a>
+              <AppTimestamp v-else class="quoted-post-time" :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
             </div>
             
             <div class="quoted-post-content">
@@ -758,6 +797,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { styleRect } from '@/utils/appZoom';
 import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
+import { cardClickIgnored } from '@/utils/cardClick';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
 import {
@@ -1108,6 +1148,58 @@ const quotedCreatedAt = computed(() => {
   return props.post.reblog?.created_at || props.post.created_at;
 });
 
+// Local id of the quoted post: the snapshot's id, as stored by the database or the federation
+// backend, else metadata.reblog_of.
+const quotedPostId = computed<string | null>(() => {
+  const id = props.post.reblog?.id || props.post.metadata?.reblog_of;
+  return typeof id === 'string' && id ? id : null;
+});
+
+const quotedPostRoute = computed(() =>
+  quotedPostId.value ? { name: 'PostDetail', params: { postId: quotedPostId.value } } : null
+);
+
+// The quoted post's address, for a snapshot that names no local id.
+const quotedPostUrl = computed(() => (quotedPostId.value ? null : quoteTargetUrl(props.post)));
+
+const quotedPostOpenable = computed(() => !!(quotedPostRoute.value || quotedPostUrl.value));
+
+const quotedPostLabel = computed(() => {
+  const time = formatSpokenRelativeTime(quotedCreatedAt.value, { locale: currentLocale() });
+  const author = quotedAuthor.value;
+  if (!author) return t('activitypub.quoteA11y.openPostNoAuthor', { time });
+  return t('activitypub.quoteA11y.openPost', { name: plainDisplayName(author.display_name, author.username || ''), time });
+});
+
+/**
+ * Opens the quoted post on this instance: by its local id, else resolved from its address the
+ * way other post links resolve (PostResolverService imports it once), else at its address.
+ */
+const openQuotedPost = async () => {
+  if (quotedPostRoute.value) {
+    await router.push(quotedPostRoute.value);
+    return;
+  }
+  const url = quotedPostUrl.value;
+  if (!url) return;
+  const { postResolverService } = await import('@/services/PostResolverService');
+  const resolved = await postResolverService.resolveByApUrl(url).catch(() => null);
+  if (resolved?.id) await router.push({ name: 'PostDetail', params: { postId: resolved.id } });
+  else openLink(url);
+};
+
+const onQuotedPostClick = (event: MouseEvent) => {
+  if (!quotedPostOpenable.value || cardClickIgnored(event)) return;
+  void openQuotedPost();
+};
+
+// A plain click resolves the address here; a modified click keeps the link's own behaviour.
+const onQuotedPostUrlClick = (event: MouseEvent) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  void openQuotedPost();
+};
+
 const authorSupporterBadge = computed(() => {
   const membership = displayAuthor.value?.supporter_membership;
   if (membership === undefined) return undefined;
@@ -1302,6 +1394,13 @@ const displayReplyContext = computed(() => {
 
 const showReplyLine = computed(() => {
   return !!displayReplyContext.value?.author && !props.hideReplyContext && !props.isInThread;
+});
+
+const replyHandle = computed(() => formatHandle(displayReplyContext.value?.author));
+const replyLineText = computed(() => `${t('activitypub.replyingTo')} ${replyHandle.value}`);
+const replyParentRoute = computed(() => {
+  const id = displayReplyContext.value?.id;
+  return id ? { name: 'PostDetail', params: { postId: id } } : null;
 });
 
 const loadReplyContext = async () => {
@@ -2561,31 +2660,51 @@ const handleImageClick = (url: string) => {
   cursor: default;
 }
 
-/* Reply line */
+/* Reply line: one line at most the post's width; the handle gives way first. */
 .reply-line {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
   margin-bottom: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }
 
-.reply-line-icon {
+.reply-line-icon,
+.reply-line-sep,
+.reply-line-thread {
   flex-shrink: 0;
 }
 
-.reply-author-link {
-  color: var(--text-link);
+.reply-line-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
   text-decoration: none;
-  overflow-wrap: anywhere;
 }
 
-.reply-author-link:hover,
+.reply-line-handle {
+  color: var(--text-link);
+}
+
+a.reply-line-target:hover,
 .text-link:hover {
   text-decoration: underline;
+}
+
+a.reply-line-target:focus-visible,
+.reply-line-thread:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.reply-line-thread {
+  white-space: nowrap;
 }
 
 .text-link {
@@ -2932,12 +3051,32 @@ const handleImageClick = (url: string) => {
   padding: var(--space-3);
 }
 
+.quoted-post.is-openable {
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.quoted-post.is-openable:hover {
+  border-color: var(--border-hover);
+  background: var(--background-modifier-hover);
+}
+
 .quoted-post-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.quoted-author-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .quoted-author-info {
@@ -2945,14 +3084,20 @@ const handleImageClick = (url: string) => {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  font-size: var(--font-size-sm);
   white-space: nowrap;
   overflow: hidden;
 }
 
 .quoted-author-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+}
+
+.quoted-author-link:hover .quoted-author-name {
+  text-decoration: underline;
 }
 
 .quoted-author-handle {
@@ -2962,7 +3107,21 @@ const handleImageClick = (url: string) => {
 }
 
 .quoted-post-time {
+  flex-shrink: 0;
   color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.quoted-post-time:hover {
+  text-decoration: underline;
+}
+
+.quoted-author-link:focus-visible,
+a.quoted-post-time:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .quoted-post-content {
