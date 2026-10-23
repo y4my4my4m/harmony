@@ -24,6 +24,7 @@ vi.mock('../config/supabase.js', () => ({
 vi.mock('../utils/urlUtils.js', () => ({
   getFullAvatarUrl: vi.fn((url: string | null) => url || null),
   getFullBannerUrl: vi.fn((url: string | null) => url || null),
+  getFullEmojiUrl: vi.fn((url: string | null) => url || null),
 }))
 vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

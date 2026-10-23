@@ -1,6 +1,5 @@
 import config from '../../config/index.js';
-import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
-import { getSupabaseClient } from '../../config/supabase.js';
+import { getFullAvatarUrl, getFullBannerUrl, getFullEmojiUrl } from '../../utils/urlUtils.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
 import { HARMONY_NS } from '../harmonyContext.js';
 
@@ -435,17 +434,10 @@ export function profileToActor(profile: any): any {
 
   // Harmony extension: custom status (Discord-style status)
   if (customStatusData) {
-    // Ensure emoji_url is absolute for federation
+    // A storage path becomes the public URL: getPublicUrl alone names SUPABASE_URL's host,
+    // the internal http://supabase-kong:8000 on self-host.
     if (customStatusData.emoji_url && typeof customStatusData.emoji_url === 'string') {
-      // If it's already absolute, keep it; otherwise convert to absolute
-      if (!customStatusData.emoji_url.startsWith('http://') && !customStatusData.emoji_url.startsWith('https://')) {
-        // Relative path - convert to full Supabase URL
-        const supabase = getSupabaseClient();
-        const { data } = supabase.storage
-          .from('emojis')
-          .getPublicUrl(customStatusData.emoji_url);
-        customStatusData.emoji_url = data.publicUrl;
-      }
+      customStatusData.emoji_url = getFullEmojiUrl(customStatusData.emoji_url) ?? customStatusData.emoji_url;
     }
     actor['harmony:customStatus'] = customStatusData;
   }
