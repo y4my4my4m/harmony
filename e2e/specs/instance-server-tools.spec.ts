@@ -52,7 +52,7 @@ async function openManage(page: Page) {
   const row = list.getByTestId('remote-server-row').filter({ hasText: copy.name })
   await row.getByRole('button', { name: `Manage ${copy.name} on ${INSTANCE}` }).click()
   const panel = page.getByTestId('instance-server-panel')
-  await expect(panel.getByRole('heading', { name: `On ${INSTANCE}` })).toBeVisible({ timeout: 15000 })
+  await expect(panel.getByRole('heading', { name: `On ${INSTANCE}`, exact: true })).toBeVisible({ timeout: 15000 })
   return { list, row, panel }
 }
 
