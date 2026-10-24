@@ -157,6 +157,13 @@ function isBlockedIPv6(ip: string): boolean {
   // IPv4-mapped IPv6 (::ffff:1.2.3.4) - check the embedded v4
   const mapped = lower.match(/^::ffff:([0-9.]+)$/);
   if (mapped && isBlockedIPv4(mapped[1])) return true;
+  // The same in hex (::ffff:7f00:1), the form the WHATWG URL parser writes.
+  const mappedHex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (mappedHex) {
+    const hi = parseInt(mappedHex[1], 16);
+    const lo = parseInt(mappedHex[2], 16);
+    if (isBlockedIPv4(`${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`)) return true;
+  }
   // 6to4 (2002::/16): the first two hextets after `2002:` encode the
   // tunnelled IPv4. If that v4 is private/loopback/link-local, this address
   // routes (via 6to4 gateways on legacy hosts) to an internal target. Decode
@@ -178,6 +185,11 @@ function isBlockedIPv6(ip: string): boolean {
   // as private; block defensively (second nibble c/d/e/f).
   if (lower.startsWith('fec') || lower.startsWith('fed') || lower.startsWith('fee') || lower.startsWith('fef')) return true;
   return false;
+}
+
+/** A private, loopback, link-local or otherwise internal IPv4 or IPv6 address. */
+export function isBlockedAddress(ip: string): boolean {
+  return ip.includes(':') ? isBlockedIPv6(ip) : isBlockedIPv4(ip);
 }
 
 /**

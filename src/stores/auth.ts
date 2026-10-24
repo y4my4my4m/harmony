@@ -530,13 +530,13 @@ export const useAuthStore = defineStore('auth', {
         }
       };
 
+      // No unload listener: Chrome refuses it (Permissions-Policy unload) and it blocks the
+      // back/forward cache elsewhere; pagehide fires in every case unload would.
       window.addEventListener('beforeunload', handleBeforeUnload);
-      window.addEventListener('unload', handleBeforeUnload);
       window.addEventListener('pagehide', handleBeforeUnload);
 
       (window as any).__harmonyOfflineHandlers = {
         beforeunload: handleBeforeUnload,
-        unload: handleBeforeUnload,
         pagehide: handleBeforeUnload
       };
     },
@@ -545,7 +545,6 @@ export const useAuthStore = defineStore('auth', {
       const handlers = (window as any).__harmonyOfflineHandlers;
       if (handlers) {
         window.removeEventListener('beforeunload', handlers.beforeunload);
-        window.removeEventListener('unload', handlers.unload);
         window.removeEventListener('pagehide', handlers.pagehide);
         delete (window as any).__harmonyOfflineHandlers;
       }

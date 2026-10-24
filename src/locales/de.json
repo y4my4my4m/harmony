@@ -719,7 +719,8 @@
       "disableConsequence4": "Sie von diesem Server entfernen und jedem von ihnen den Grund nennen",
       "disableConsequence5": "Sie auch nach erneutem Aktivieren der Föderation draußen lassen, bis sie über eine Einladung wieder beitreten",
       "disableConfirm": "Föderation deaktivieren"
-    }
+    },
+    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein."
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -3823,7 +3824,8 @@
       "invalidAvatar": "Der Avatar muss eine https://-URL sein.",
       "permission": "Dafür brauchst du die Berechtigung „Webhooks verwalten“.",
       "saveFailed": "Webhook konnte nicht gespeichert werden"
-    }
+    },
+    "disabledHere": "Webhooks sind auf dieser Instanz ausgeschaltet."
   },
   "floatingVideo": {
     "region": "Videoplayer",
@@ -3863,7 +3865,15 @@
       "turnedOff": "Verschlüsselung deaktiviert",
       "voiceTurnedOn": "Sprachverschlüsselung aktiviert",
       "voiceTurnedOff": "Sprachverschlüsselung deaktiviert",
-      "saveFailed": "Verschlüsselung konnte nicht geändert werden. Versuche es erneut."
+      "saveFailed": "Verschlüsselung konnte nicht geändert werden. Versuche es erneut.",
+      "historyLabel": "Neue Mitglieder können frühere Nachrichten lesen",
+      "historyAll": "Alle Nachrichten",
+      "historyPinned": "Nur angeheftete Nachrichten",
+      "historyNone": "Keine",
+      "historyAllHint": "Später beitretende Mitglieder können Nachrichten von vor ihrem Beitritt lesen, sobald ein Mitglied, das sie lesen kann, Harmony öffnet.",
+      "historyPinnedHint": "Später beitretende Mitglieder können angeheftete Nachrichten von vor ihrem Beitritt lesen, sonst nichts von davor.",
+      "historyNoneHint": "Später beitretende Mitglieder lesen nur Nachrichten, die nach ihrem Beitritt gesendet wurden.",
+      "historySaved": "Einstellung zum Nachrichtenverlauf gespeichert"
     },
     "integrations": {
       "bots": "{count} Bot auf diesem Server kann verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten. | {count} Bots auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",
@@ -5087,7 +5097,15 @@
       "maxPersonalEmojis": "Persönliche Emojis pro Person",
       "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten.",
       "publicProfilePages": "Profile und öffentliche Beiträge Besuchern ohne Anmeldung zeigen",
-      "publicProfilePagesHint": "Ausgeschaltet werden Besucher zur Anmeldung geschickt. Linkvorschauen und Föderation bleiben unverändert."
+      "publicProfilePagesHint": "Ausgeschaltet werden Besucher zur Anmeldung geschickt. Linkvorschauen und Föderation bleiben unverändert.",
+      "federationOutbound": "An andere Instanzen senden",
+      "federationOutboundHint": "Aus: An andere Instanzen wird nichts zugestellt.",
+      "federationInbound": "Von anderen Instanzen empfangen",
+      "federationInboundHint": "Aus: Zustellungen und signierte Anfragen anderer Instanzen werden abgelehnt. Profile und Server bleiben lesbar.",
+      "federationClosedWarning": "Sind beide aus, wird die Föderation geschlossen: Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und Mitglieder hier verlassen Server, die anderswo gehostet werden.",
+      "federationCloseConfirmTitle": "Föderation schließen?",
+      "federationCloseConfirmMessage": "Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und jedes Mitglied hier verlässt Server, die anderswo gehostet werden. Wird ein Schalter wieder eingeschaltet, öffnen die Server wieder; Entfernte kehren nicht zurück.",
+      "federationCloseConfirm": "Föderation schließen"
     },
     "activityLog": {
       "configKeys": {
@@ -6565,6 +6583,9 @@
       "1w": "Diese Woche"
     }
   },
+  "instanceVersion": {
+    "older": "Deine Instanz läuft mit Harmony {version}. Einige Funktionen dieser App brauchen dort eine neuere Version."
+  },
   "instancePicker": {
     "title": "Willkommen bei Harmony",
     "hint": "Harmony ist föderiert: Jede Person kann eine Instanz betreiben. Gib die Domain der Instanz ein, mit der du dich verbinden möchtest.",
@@ -7210,7 +7231,9 @@
     "notice": {
       "removedTitle": "Das Team von {instance} hat dich aus {server} entfernt.",
       "blockedTitle": "Das Team von {instance} hat {server} auf {instance} blockiert; du hast ihn verlassen.",
-      "blockedMessage": "Für {server} hat sich auf anderen Instanzen nichts geändert."
+      "blockedMessage": "Für {server} hat sich auf anderen Instanzen nichts geändert.",
+      "federationOffTitle": "{instance} föderiert nicht mehr; du hast {server} verlassen.",
+      "federationOffMessage": "{server} besteht auf anderen Instanzen weiter. Du kannst wieder beitreten, sobald {instance} wieder föderiert."
     },
     "join": {
       "blocked": "Das Team von {instance} hat diesen Server auf {instance} blockiert.",
@@ -7234,5 +7257,172 @@
       "mediaHidden": "Medien ausgeblendet",
       "keptOut": "{count} ferngehalten | {count} ferngehalten"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "Ausgehende Webhooks",
+    "heading": "Ausgehende Webhooks",
+    "introBot": "Sende die Ereignisse dieses Bots per HTTPS-POST an eine URL, statt oder neben seiner Gateway-Verbindung. Jede Anfrage wird mit dem Geheimnis des Webhooks signiert (Standard Webhooks).",
+    "introServer": "Sende die Ereignisse dieses Servers per HTTPS-POST an eine URL. Ein Webhook erhält die Ereignisse der Kanäle, die seine Erstellerin oder sein Ersteller sehen kann. Jede Anfrage wird mit dem Geheimnis des Webhooks signiert (Standard Webhooks).",
+    "create": "Neuer Webhook",
+    "createSubmit": "Webhook erstellen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "done": "Fertig",
+    "nameLabel": "Name",
+    "urlLabel": "URL",
+    "urlHint": "Nur HTTPS. Weiterleitungen werden nicht gefolgt.",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "Nachrichten",
+      "reactions": "Reaktionen",
+      "members": "Mitglieder",
+      "moderation": "Moderation"
+    },
+    "events": {
+      "MESSAGE_CREATE": "Nachricht gesendet",
+      "MESSAGE_UPDATE": "Nachricht bearbeitet",
+      "MESSAGE_DELETE": "Nachricht gelöscht",
+      "MESSAGE_REACTION_ADD": "Reaktion hinzugefügt",
+      "MESSAGE_REACTION_REMOVE": "Reaktion entfernt",
+      "SERVER_MEMBER_ADD": "Mitglied beigetreten",
+      "SERVER_MEMBER_REMOVE": "Mitglied gegangen",
+      "SERVER_MEMBER_KICK": "Mitglied gekickt",
+      "SERVER_BAN_ADD": "Mitglied gebannt",
+      "SERVER_BAN_REMOVE": "Bann aufgehoben"
+    },
+    "copyOnce": "Kopiere das Signaturgeheimnis von {name} jetzt; es wird nicht noch einmal angezeigt.",
+    "secretHint": "Prüfe damit den Header webhook-signature jeder Anfrage, wie Standard Webhooks es beschreibt.",
+    "copySecret": "Geheimnis kopieren",
+    "copied": "Kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "loading": "Wird geladen …",
+    "loadFailed": "Die Webhooks konnten nicht geladen werden.",
+    "empty": "Noch keine ausgehenden Webhooks.",
+    "limitReached": "Höchstens {count} Webhooks.",
+    "eventCount": "Ereignisse: {count}",
+    "secretEndsWith": "Geheimnis endet auf {hint}",
+    "state": {
+      "off": "Aus",
+      "disabledFailing": "Nach drei Tagen fehlgeschlagener Zustellungen ausgeschaltet. Letzte Antwort: {error}",
+      "failing": "Schlägt seit {date} fehl. Letzte Antwort: {error}",
+      "delivered": "Zuletzt zugestellt {date}",
+      "never": "Noch nichts zugestellt",
+      "unverified": "Wartet auf eine 2xx-Antwort auf das Testereignis, bevor Ereignisse gesendet werden",
+      "unverifiedFailing": "Nicht bestätigt: Das Testereignis erhielt {error}. Repariere den Endpunkt und sende ein Testereignis.",
+      "paused": "Pausiert nach 10 fehlgeschlagenen Versuchen in Folge; alle 5 Minuten prüft ein Testereignis. Letzte Antwort: {error}",
+      "staff": "Vom Team dieser Instanz ausgeschaltet"
+    },
+    "active": "An",
+    "activeFor": "{name} an",
+    "sendTest": "Testereignis senden",
+    "testQueued": "Testereignis eingereiht",
+    "deliveries": "Zustellungen",
+    "deliveriesOf": "Zustellungen von {name}",
+    "noDeliveries": "Keine Zustellungen in den letzten sieben Tagen.",
+    "logEvent": "Ereignis",
+    "logStatus": "Status",
+    "logAnswer": "Antwort",
+    "logTime": "Zeit",
+    "status": {
+      "pending": "Ausstehend ({attempts} Versuche)",
+      "delivered": "Zugestellt",
+      "failed": "Fehlgeschlagen nach {attempts} Versuchen"
+    },
+    "edit": "Bearbeiten",
+    "editFor": "{name} bearbeiten",
+    "rotate": "Geheimnis erneuern",
+    "rotateFor": "Geheimnis von {name} erneuern",
+    "delete": "Löschen",
+    "deleteFor": "{name} löschen",
+    "created": "Webhook erstellt",
+    "updated": "Webhook gespeichert",
+    "rotated": "Neues Geheimnis erstellt",
+    "deleted": "Webhook gelöscht",
+    "confirmRotate": {
+      "title": "Geheimnis erneuern?",
+      "message": "{name} signiert ab jetzt mit einem neuen Geheimnis. Trage es in deinem Empfänger ein.",
+      "confirm": "Erneuern"
+    },
+    "confirmDelete": {
+      "title": "Webhook löschen?",
+      "message": "{name} und sein Zustellprotokoll werden gelöscht.",
+      "confirm": "Löschen"
+    },
+    "errors": {
+      "forbidden": "Du kannst diese Webhooks nicht verwalten.",
+      "notFound": "Diesen Webhook gibt es nicht mehr.",
+      "invalidName": "Gib dem Webhook einen Namen mit 1 bis 80 Zeichen.",
+      "invalidUrl": "Verwende eine https-URL mit höchstens 2048 Zeichen.",
+      "invalidEvents": "Wähle mindestens ein Ereignis.",
+      "limit": "Es gibt bereits fünf Webhooks.",
+      "unavailable": "Ausgehende Webhooks brauchen Supabase Vault, das dieser Instanz fehlt.",
+      "saveFailed": "Der Webhook konnte nicht gespeichert werden.",
+      "staffDisabled": "Das Team dieser Instanz hat diesen Webhook ausgeschaltet.",
+      "disabled": "Diese Instanz erlaubt dir keine ausgehenden Webhooks.",
+      "blockedDomain": "Diese Instanz sendet nicht an diese Domain.",
+      "limitUser": "Du hast das Limit dieser Instanz für ausgehende Webhooks erreicht.",
+      "tooSoon": "Warte ein paar Sekunden, bevor du ein weiteres Testereignis sendest.",
+      "urlTooSoon": "Gerade wurde ein Testereignis gesendet. Warte ein paar Sekunden und speichere dann die neue URL."
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} wurde ausgeschaltet",
+      "disabledMessage": "Seine Zustellungen sind drei Tage lang fehlgeschlagen. Letzte Antwort: {error}",
+      "short": "Webhook ausgeschaltet"
+    },
+    "unavailableOff": "Ausgehende Webhooks sind auf dieser Instanz ausgeschaltet.",
+    "unavailableStaff": "Auf dieser Instanz erstellen nur ihre Admins und Moderatoren ausgehende Webhooks.",
+    "dropped": "{count} Ereignisse übersprungen ({reason}), zuletzt {date}",
+    "dropReason": {
+      "rate_limited": "über dem Limit",
+      "paused": "während der Pause"
+    }
+  },
+  "adminWebhooks": {
+    "tab": "Webhooks",
+    "settingsTitle": "Webhook-Einstellungen",
+    "settingsIntro": "Limits für jeden ausgehenden Webhook dieser Instanz und Schalter für ausgehende und eingehende Webhooks.",
+    "settingsReadOnly": "Nur Instanz-Admins ändern diese Einstellungen.",
+    "outgoingMode": "Wer ausgehende Webhooks erstellen darf",
+    "modeEveryone": "Bot-Besitzer und Webhook-Verwalter von Servern",
+    "modeStaff": "Nur das Instanz-Team",
+    "modeOff": "Niemand (ausgehende Webhooks aus)",
+    "incomingEnabled": "Eingehende Webhooks (Posten in Kanäle)",
+    "ratePerMinute": "Ereignisse pro Webhook und Minute",
+    "hostRatePerMinute": "Anfragen pro Ziel und Minute",
+    "perUser": "Ausgehende Webhooks pro Person",
+    "blockedDomains": "Gesperrte Ziele",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "Eine Domain pro Zeile; ihre Subdomains sind mitgesperrt.",
+    "save": "Speichern",
+    "saved": "Webhook-Einstellungen gespeichert",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "loading": "Wird geladen …",
+    "loadFailed": "Laden fehlgeschlagen",
+    "listTitle": "Ausgehende Webhooks",
+    "listIntro": "Jeder ausgehende Webhook dieser Instanz, die aktivsten zuerst. Ein hier ausgeschalteter Webhook bleibt aus; sein Besitzer kann ihn nicht wieder einschalten.",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine ausgehenden Webhooks.",
+    "colWebhook": "Webhook",
+    "colOwner": "Besitzer",
+    "colDestination": "Ziel",
+    "colState": "Status",
+    "colDeliveries": "Letzte 24 Stunden",
+    "colActions": "Aktionen",
+    "ownerBot": "Bot {name}",
+    "ownerServer": "Server {name}",
+    "deliveries24h": "{count} gesendet, {failed} fehlgeschlagen",
+    "stateActive": "Aktiv",
+    "stateUnverified": "Nicht bestätigt",
+    "statePaused": "Pausiert",
+    "stateFailing": "Schlägt fehl",
+    "stateOff": "Aus (Besitzer)",
+    "stateStaff": "Aus (Team)",
+    "stateFailingOff": "Aus nach Fehlern",
+    "turnOff": "Ausschalten",
+    "turnOn": "Einschalten",
+    "delete": "Löschen",
+    "deleteFor": "{name} löschen",
+    "confirmDeleteTitle": "Diesen Webhook löschen?",
+    "confirmDeleteMessage": "{name} ({host}) und sein Zustellprotokoll werden gelöscht. Sein Besitzer wird nicht benachrichtigt."
   }
 }

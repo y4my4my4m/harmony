@@ -275,18 +275,40 @@
         </label>
         <span id="public-profile-pages-hint" class="setting-hint">{{ $t('admin.instance.publicProfilePagesHint') }}</span>
       </div>
-      <div class="setting-row">
+      <div class="setting-group">
         <label class="toggle-label">
-          <input type="checkbox" v-model="config.federation.enableOutbound" />
+          <input
+            type="checkbox"
+            v-model="config.federation.enableOutbound"
+            :disabled="!switchesLoaded"
+            aria-describedby="federation-outbound-hint"
+            data-testid="federation-outbound-toggle"
+          />
           <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable outbound federation</span>
+          <span class="toggle-text">{{ $t('admin.instance.federationOutbound') }}</span>
         </label>
-        <label class="toggle-label">
-          <input type="checkbox" v-model="config.federation.enableInbound" />
-          <span class="toggle-slider"></span>
-          <span class="toggle-text">Enable inbound federation</span>
-        </label>
+        <span id="federation-outbound-hint" class="setting-hint">{{ $t('admin.instance.federationOutboundHint') }}</span>
       </div>
+      <div class="setting-group">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            v-model="config.federation.enableInbound"
+            :disabled="!switchesLoaded"
+            aria-describedby="federation-inbound-hint"
+            data-testid="federation-inbound-toggle"
+          />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">{{ $t('admin.instance.federationInbound') }}</span>
+        </label>
+        <span id="federation-inbound-hint" class="setting-hint">{{ $t('admin.instance.federationInboundHint') }}</span>
+      </div>
+      <p
+        v-if="!config.federation.enableInbound && !config.federation.enableOutbound"
+        class="setting-hint federation-closed-warning"
+        role="note"
+        data-testid="federation-closed-warning"
+      >{{ $t('admin.instance.federationClosedWarning') }}</p>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
@@ -645,7 +667,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
@@ -663,6 +687,12 @@ import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/uti
 
 const authStore = useAuthStore()
 const toast = useToast()
+const { t } = useI18n()
+const { confirm } = useConfirmDialog()
+// The switches as last loaded or saved: turning both off from here closes federation.
+const savedFederation = ref({ inbound: true, outbound: true })
+// The switches were read; unread, they are neither shown as editable nor saved.
+const switchesLoaded = ref(false)
 
 const loadingStates = ref({ trendingRefresh: false })
 
@@ -762,6 +792,8 @@ const loadInstanceConfig = async () => {
       }
       if (cfg.federation) {
         config.value.federation = { ...config.value.federation, ...cfg.federation }
+        savedFederation.value = { inbound: cfg.federation.enableInbound, outbound: cfg.federation.enableOutbound }
+        switchesLoaded.value = cfg.federation.federationSwitchesLoaded === true
       }
       if (cfg.webrtc) {
         config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
@@ -827,17 +859,31 @@ const saveConfig = async () => {
 
   try {
     const userId = authStore.session.user.id
+    const { enableInbound, enableOutbound } = config.value.federation
+    const closing = switchesLoaded.value && !enableInbound && !enableOutbound
+      && (savedFederation.value.inbound || savedFederation.value.outbound)
+    if (closing && !(await confirm({
+      title: t('admin.instance.federationCloseConfirmTitle'),
+      message: t('admin.instance.federationCloseConfirmMessage'),
+      confirmButtonText: t('admin.instance.federationCloseConfirm'),
+      dangerAction: true,
+    }))) return
     
-    const fedSuccess = await adminService.updateFederationSettings({
-      userId,
-      inboundEnabled: config.value.federation.enableInbound,
-      outboundEnabled: config.value.federation.enableOutbound,
-      federationEnabled: config.value.federation.enableInbound || config.value.federation.enableOutbound
-    })
-
-    if (!fedSuccess) {
-      toast.error('Failed to save federation settings')
-      return
+    // Only switches that were read and changed are written.
+    const switchesChanged = switchesLoaded.value
+      && (enableInbound !== savedFederation.value.inbound || enableOutbound !== savedFederation.value.outbound)
+    if (switchesChanged) {
+      const fedSuccess = await adminService.updateFederationSettings({
+        userId,
+        inboundEnabled: enableInbound,
+        outboundEnabled: enableOutbound,
+        federationEnabled: enableInbound || enableOutbound
+      })
+      if (!fedSuccess) {
+        toast.error('Failed to save federation settings')
+        return
+      }
+      savedFederation.value = { inbound: enableInbound, outbound: enableOutbound }
     }
 
     await adminService.setInstanceConfigs({
@@ -1164,6 +1210,10 @@ onMounted(() => {
 
 .setting-control-row .setting-hint {
   margin-bottom: 0;
+}
+
+.federation-closed-warning {
+  color: var(--warning);
 }
 
 

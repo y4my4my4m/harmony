@@ -167,12 +167,16 @@ Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
 **Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
-**Content**, **Emojis**, **Config**, **Funding**, **Drive** and **Tools**.
-The instance name, description, rules, icon and legal links are under
-**Config** → **Branding**.
+**Webhooks**, **Content**, **Emojis**, **Config**, **Funding**, **Drive**
+and **Tools**. The instance name, description, rules, icon and legal links
+are under **Config** → **Branding**. **Webhooks** sets who may create
+[outgoing webhooks](/build/outgoing-webhooks), their rates, the cap per
+person and blocked destinations, turns incoming webhooks off, and lists every
+outgoing webhook with its destination and last day's deliveries.
 
 Instance moderators see the same entry as **Instance moderation**, with the
-**Federation**, **Users**, **Reports** and **Anti-spam** tabs.
+**Federation**, **Users**, **Reports**, **Anti-spam** and **Webhooks** tabs;
+on **Webhooks** they can turn a webhook off but not change the settings.
 
 ## Add more admins
 

@@ -60,7 +60,8 @@ test.beforeAll(async () => {
   staff = await createUser(admin, 'ist')
   member = await createUser(admin, 'ism')
   home = await seedServer(admin, member, `Home ${member.username}`)
-  const promoted = await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
+  // A shortcode in the name: the people list draws the emoji, as names elsewhere do.
+  const promoted = await admin.from('profiles').update({ is_admin: true, display_name: `${staff.displayName} :fire:` }).eq('id', staff.id)
   if (promoted.error) throw new Error(promoted.error.message)
   await remoteProfile(hostOwner, 'Host owner')
   await remoteProfile(author, 'Remote author')
@@ -112,6 +113,14 @@ test('staff hide a remote server\'s media on this instance; a member sees it hid
       `These tools only affect ${INSTANCE}: what people here see, and whether they can take part. `
       + `${copy.name} and its members on other instances are not affected.`)
     await expect(panel).toContainText(`Hosted on ${host}`)
+  })
+
+  await test.step('names in the people list draw their emoji', async () => {
+    const self = panel.getByTestId('instance-person').filter({ hasText: staff.displayName })
+    await expect(self).toBeVisible()
+    await expect(self.locator('.person-name')).not.toContainText(':fire:')
+    await expect.poll(async () => (await self.locator('.person-name img.display-name-emoji').count())
+      + ((await self.locator('.person-name').textContent())?.includes('\u{1F525}') ? 1 : 0)).toBeGreaterThan(0)
   })
 
   await test.step('Hide media switches on and is stored', async () => {

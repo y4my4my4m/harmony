@@ -1,6 +1,6 @@
 ---
 title: Webhooks
-description: Create, edit, regenerate and delete channel webhooks on a Harmony server, and what webhook posts look like.
+description: Create, edit, regenerate and delete channel webhooks on a Harmony server, what webhook posts look like, and outgoing webhooks that send the server's events to a URL.
 ---
 
 # Webhooks
@@ -69,3 +69,14 @@ Select **Delete** beside the webhook and confirm. "… stops working. Messages i
 - Members delete a webhook's posts as they delete any message, with **Manage Messages**.
 
 The instance limits how fast a webhook can post (per webhook and per channel). The numbers are in [Webhooks API](/build/webhooks).
+
+## Send the server's events to a URL
+
+An outgoing webhook works the other way: Harmony sends the server's events to a URL you run, as signed HTTPS requests. Members with **Manage Webhooks** open **Server settings** → **Outgoing webhooks**:
+
+1. Select **New webhook**, name it, give its `https://` URL and tick the events it receives: messages, reactions, members joining and leaving, kicks and bans.
+2. Select **Create webhook** and copy the signing secret now. It is shown only once; **Rotate secret** creates a new one.
+3. Harmony sends a test event (`PING`) right away. The webhook receives events once your endpoint answers it with a 2xx; until then it reads "Waiting for a 2xx answer to the test event".
+4. **Send test event** sends another `PING`; **Deliveries** lists the latest deliveries and the answer each got.
+
+A webhook receives events of the channels its creator can view, never direct messages or end-to-end encrypted messages. The switch beside it turns it off and on. After 10 failed attempts in a row it pauses and is probed every 5 minutes; after three days of failed deliveries it turns itself off and its creator is notified. A webhook the instance's staff turned off says so and stays off. A bot's owner has the same panel for the bot's events in **User settings** → **Bots**. The request format and how to check the signature are in [Outgoing webhooks](/build/outgoing-webhooks).

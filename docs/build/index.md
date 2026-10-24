@@ -73,5 +73,6 @@ curl https://<instance>/bot-gateway/health
 | [Gateway](/build/gateway) | Reference | Connection, opcodes, identify, heartbeat, close codes, event delivery, every event payload |
 | [REST API](/build/rest) | Reference | Every route, request and response bodies, errors, pagination |
 | [Webhooks API](/build/webhooks) | Reference | Executing a channel webhook, GitHub deliveries, limits and errors |
+| [Outgoing webhooks](/build/outgoing-webhooks) | Reference | A bot's or a server's events by HTTPS POST: request format, signatures, retries, limits |
 | [Permissions and rate limits](/build/permissions-rate-limits) | Reference | How a bot's permissions are computed, what each route needs, rate limits |
 | [Writing a bridge](/build/bridges) | Explanation and reference | Bridge v2 API, relayed authors, message, thread and emoji mapping |

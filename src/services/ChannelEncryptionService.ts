@@ -1,4 +1,7 @@
-/** Reads and writes per-channel encryption through effective_channel_encryption / set_channel_encryption. */
+/**
+ * Reads and writes per-channel encryption through effective_channel_encryption,
+ * set_channel_encryption and set_channel_history_visibility.
+ */
 import { supabase } from '@/supabase'
 import {
   parseEffectiveChannelEncryption,
@@ -109,20 +112,36 @@ export function forgetServerChannelEncryption(serverId?: string | null): void {
   effectiveReads.clear()
 }
 
-/** Omitted fields are left unchanged. Returns the effective state after the change. */
+/**
+ * Omitted fields are left unchanged. Returns the effective state after the change. History
+ * visibility goes through set_channel_history_visibility: set_channel_encryption takes only
+ * the values before 20261028200001.
+ */
 export async function setChannelEncryption(
   channelId: string,
   change: ChannelEncryptionChange,
 ): Promise<EffectiveChannelEncryption | null> {
   effectiveReads.delete(channelId)
   effectiveByChannel.delete(channelId)
-  const { data, error } = await supabase.rpc('set_channel_encryption', {
-    p_channel_id: channelId,
-    p_messages_encrypted: change.messagesEncrypted ?? null,
-    p_voice_encrypted: change.voiceEncrypted ?? null,
-    p_history_visibility: change.historyVisibility ?? null,
-  })
-  if (error) throw error
+  let data: unknown = null
+  if (change.messagesEncrypted !== undefined || change.voiceEncrypted !== undefined || !change.historyVisibility) {
+    const result = await supabase.rpc('set_channel_encryption', {
+      p_channel_id: channelId,
+      p_messages_encrypted: change.messagesEncrypted ?? null,
+      p_voice_encrypted: change.voiceEncrypted ?? null,
+      p_history_visibility: null,
+    })
+    if (result.error) throw result.error
+    data = result.data
+  }
+  if (change.historyVisibility) {
+    const result = await supabase.rpc('set_channel_history_visibility', {
+      p_channel_id: channelId,
+      p_history_visibility: change.historyVisibility,
+    })
+    if (result.error) throw result.error
+    data = result.data
+  }
   const state = parseEffectiveChannelEncryption(data)
   // A read that overlapped the change may hold the state before it.
   effectiveReads.delete(channelId)

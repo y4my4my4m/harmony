@@ -8,7 +8,8 @@ object PushInbox {
 
   /**
    * A "read" message cancels; a notification is shown unless the app is visible, in which
-   * case the webview has already shown it in-app.
+   * case the webview has already shown it in-app. A test push is shown either way: it is sent
+   * from the visible app and has nothing in-app to show it.
    */
   fun handle(context: Context, data: Map<String, String?>, sentAt: Long, fetchImages: Boolean): Outcome {
     Dismissal.fromMap(data)?.let {
@@ -17,7 +18,7 @@ object PushInbox {
     }
     if (data["kind"] != "notification") return Outcome.IGNORED
     val payload = PushPayload.fromMap(data, sentAt) ?: return Outcome.IGNORED
-    if (PushState.foreground) return Outcome.SUPPRESSED
+    if (PushState.foreground && payload.type != "test") return Outcome.SUPPRESSED
     Notifier.show(context, payload, fetchImages)
     return Outcome.SHOWN
   }

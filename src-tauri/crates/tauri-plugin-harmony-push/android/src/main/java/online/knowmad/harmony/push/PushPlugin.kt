@@ -28,7 +28,7 @@ import java.util.concurrent.Executors
 private const val NOTIFICATIONS = "notifications"
 
 /**
- * Webview side of Android push: transport status, FCM token, UnifiedPush registration,
+ * Webview side of Android push: transport status, FCM token, push relay keys, UnifiedPush registration,
  * notifications shown by the running app, cancellation, and the target of a tapped
  * notification.
  *
@@ -90,6 +90,7 @@ class PushPlugin(private val activity: Activity) : Plugin(activity) {
     work.execute {
       val result = JSObject()
       result.put("fcm", FcmSupport.state(activity))
+      result.put("fcmProject", FcmSupport.projectId(activity))
       result.put("permission", permission())
       result.put("unifiedPush", unifiedPushStatus())
       invoke.resolve(result)
@@ -141,6 +142,32 @@ class PushPlugin(private val activity: Activity) : Plugin(activity) {
         invoke.resolve(JSObject().apply { put("token", token) })
       } else {
         invoke.reject(error ?: "token unavailable")
+      }
+    }
+  }
+
+  /**
+   * FCM token and this device's Web Push keys for a push relay subscription (FcmRelay); the
+   * webview builds the endpoint from the relay's address and the token.
+   */
+  @Command
+  fun getRelayRegistration(invoke: Invoke) {
+    FcmSupport.token(activity) { token, error ->
+      if (token == null) {
+        invoke.reject(error ?: "token unavailable")
+        return@token
+      }
+      work.execute {
+        try {
+          val keys = FcmRelay.keys(activity)
+          invoke.resolve(JSObject().apply {
+            put("token", token)
+            put("p256dh", keys.p256dh)
+            put("auth", keys.auth)
+          })
+        } catch (e: Exception) {
+          invoke.reject(e.message ?: "keys unavailable")
+        }
       }
     }
   }

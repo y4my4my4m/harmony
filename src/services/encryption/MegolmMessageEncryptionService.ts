@@ -234,15 +234,6 @@ export class MegolmMessageEncryptionService {
           }
         } catch { /* ignore */ }
 
-        // Offline catch-up sweeps run in the BACKGROUND. Awaiting them puts
-        // their per-row work on the critical path of initialize(), which
-        // processMessageDecryption awaits, stalling the first message load
-        // (measured: ~170 stale fulfilled key-request rows = ~30s cold
-        // load). Late-arriving keys fire keyReceivedCallbacks /
-        // megolm-key-received, which re-decrypt anything already painted.
-        void megolmKeyBackupService.processPendingRequestsToMe().catch(() => {})
-        void megolmKeyBackupService.processMyFulfilledRequests().catch(() => {})
-
         // Parity with initializeWithRecoveryKey: sweep shares delivered while
         // this device was offline so first render doesn't fall into the
         // per-message slow path.
@@ -252,6 +243,17 @@ export class MegolmMessageEncryptionService {
             debug.log(`Claimed ${claimedCount} pending session shares on auto-unlock`)
           }
         } catch { /* ignore */ }
+
+        // Offline catch-up sweeps run in the BACKGROUND. Awaiting them puts
+        // their per-row work on the critical path of initialize(), which
+        // processMessageDecryption awaits, stalling the first message load
+        // (measured: ~170 stale fulfilled key-request rows = ~30s cold
+        // load). Late-arriving keys fire keyReceivedCallbacks /
+        // megolm-key-received, which re-decrypt anything already painted.
+        // After the claim: a session this device holds only through a share
+        // claimed at this unlock can be relayed.
+        void megolmKeyBackupService.processPendingRequestsToMe().catch(() => {})
+        void megolmKeyBackupService.processMyFulfilledRequests().catch(() => {})
 
         debug.log('Auto-unlocked encryption from IndexedDB keys')
 
@@ -1019,7 +1021,9 @@ export class MegolmMessageEncryptionService {
   async encryptMessage(
     content: MessagePart[],
     roomId: string,
-    recipientIds: string[]
+    recipientIds: string[],
+    // Set on the second pass after a session the server would not share.
+    rotated = false,
   ): Promise<MegolmEncryptedMessageData> {
     if (!this.currentUserId) {
       throw new Error('Not initialized')
@@ -1107,10 +1111,19 @@ export class MegolmMessageEncryptionService {
       // Block on session sharing so recipients have the key when the message
       // arrives. Partial failure is tolerated; the share helper logs
       // per-recipient errors.
+      let withheld: string[] = []
       try {
-        await this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
+        withheld = await this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
       } catch (err) {
         debug.warn('Foreground session sharing failed (continuing):', err)
+      }
+      // The session began before some member joined and the room withholds
+      // earlier history from them: this message goes out under a new session,
+      // which they receive.
+      if (withheld.length > 0 && !rotated) {
+        debug.log(`Session ${encryptedMessage.sessionId.substring(0, 8)}... withheld from ${withheld.length} member(s); rotating`)
+        await megolmService.retireOutboundSession(roomId, encryptedMessage.sessionId)
+        return this.encryptMessage(content, roomId, recipientIds, true)
       }
     } else {
       // Steady state: background-share as a backstop for a changed recipient
@@ -1208,6 +1221,9 @@ export class MegolmMessageEncryptionService {
    */
   async decryptMessage(
     message: {
+      // Message row id and pin state: a missing key is requested for this message.
+      id?: string
+      is_pinned?: boolean
       content: MessagePart[]
       channel_id?: string // For channel messages
       conversation_id?: string // For DMs
@@ -1476,6 +1492,8 @@ export class MegolmMessageEncryptionService {
   /** Fast path when the session key is already in memory. */
   private async decryptMegolmMessage(
     message: {
+      id?: string
+      is_pinned?: boolean
       content: MessagePart[]
       encryption_metadata?: {
         session_id?: string
@@ -1521,6 +1539,9 @@ export class MegolmMessageEncryptionService {
       if (errMsg.includes('No inbound session') || errMsg.includes('No outbound session')) {
         debug.log(`ℹMissing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
 
+        const relayed = await this.decryptWithRelayedKey(roomId, senderId, encryptedMessage, additionalData, message.id)
+        if (relayed !== null) return JSON.parse(relayed) as MessagePart[]
+
         // Recovery is deduped PER SESSION: a page decrypt runs messages in
         // parallel, so without dedup K undecryptable messages of one session
         // each run their own claim RPC + share re-fetch + key request,
@@ -1538,15 +1559,77 @@ export class MegolmMessageEncryptionService {
           }
         }
 
-        // No shares available - request the key from the sender.
-        // (createKeyRequest dedups per session, so parallel failures here
-        // produce ONE request row.)
+        // No shares available - request the key from the sender and the
+        // members holding it. (createKeyRequest dedups per session, so
+        // parallel failures here produce ONE request row.)
         debug.log(`Requesting session key from sender ${senderId.substring(0, 8)}...`)
-        megolmKeyBackupService.createKeyRequest(roomId, sessionId, senderId)
-          .catch(err => debug.warn('Key request failed:', err))
+        megolmKeyBackupService.createKeyRequest(roomId, sessionId, senderId, {
+          id: message.id,
+          pinned: message.is_pinned === true,
+        }).catch(err => debug.warn('Key request failed:', err))
         throw new Error('Session key not available - key request sent to sender')
       }
       throw error
+    }
+  }
+
+  // In-flight verifications of held keys, keyed by roomId:senderId:sessionId
+  // (session keys) or with #messageId (single message keys): a page decrypt
+  // runs the session's messages in parallel, and one ciphertext settles a
+  // session key for all of them.
+  private relayVerifications = new Map<string, Promise<boolean>>()
+
+  /**
+   * Decrypt with a held key: a session key relayed by a member other than its
+   * sender, or the key of this message alone. A key is imported only when it
+   * decrypts this ciphertext, whose signature the caller has verified; a key
+   * that does not is refused. Null when no held key applies.
+   */
+  private async decryptWithRelayedKey(
+    roomId: string,
+    senderId: string,
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array,
+    messageId?: string,
+  ): Promise<string | null> {
+    const sessionId = encryptedMessage.sessionId
+    const candidates = megolmKeyBackupService.relayedKeysFor(roomId, senderId, sessionId)
+      .filter(k => k.scope === 'session' || (!!messageId && k.messageId === messageId))
+    const sessionScoped = candidates.some(k => k.scope === 'session')
+    const key = sessionScoped ? `${roomId}:${senderId}:${sessionId}` : `${roomId}:${senderId}:${sessionId}#${messageId}`
+    let verification = this.relayVerifications.get(key)
+    if (!verification) {
+      if (candidates.length === 0) return null
+      verification = (async (): Promise<boolean> => {
+        for (const candidate of candidates) {
+          try {
+            if (candidate.scope === 'session') {
+              await megolmService.decryptWithSessionKey(candidate.sessionKey, encryptedMessage, additionalData)
+            } else {
+              await megolmService.decryptWithMessageKey(candidate.sessionKey, encryptedMessage, additionalData)
+            }
+          } catch {
+            await megolmKeyBackupService.settleRelayedKey(candidate, false)
+            continue
+          }
+          if (candidate.scope === 'session') {
+            await megolmService.importInboundSession(roomId, senderId, sessionId, candidate.sessionKey, 0)
+          } else {
+            await megolmService.importMessageKey(roomId, senderId, sessionId, encryptedMessage.messageIndex, candidate.sessionKey)
+          }
+          await megolmKeyBackupService.settleRelayedKey(candidate, true)
+          debug.log(`Imported a held ${candidate.scope} key of session ${sessionId.substring(0, 8)}... after it decrypted a signed message`)
+          return true
+        }
+        return false
+      })().finally(() => this.relayVerifications.delete(key))
+      this.relayVerifications.set(key, verification)
+    }
+    if (!(await verification)) return null
+    try {
+      return await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)
+    } catch {
+      return null
     }
   }
 
@@ -1696,30 +1779,34 @@ export class MegolmMessageEncryptionService {
    * keys are fetched in one query and the wraps run in parallel. Recipients
    * outside the room (banned, pending, or without VIEW_CHANNEL) get no wrap;
    * the server would skip their rows.
+   *
+   * Returns the room members whose rows the server skipped: the session began
+   * before they joined and the room's history setting withholds it
+   * (skip_share_hidden_history). Empty when the member list is unavailable.
    */
   private async ensureSessionShared(
     roomId: string,
     sessionId: string,
     recipientIds: string[]
-  ): Promise<void> {
-    if (!this.currentUserId) return
+  ): Promise<string[]> {
+    if (!this.currentUserId) return []
 
     let usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds, sessionId)
 
     if (usersNeedingSession.length === 0) {
-      return // All users already have the session
+      return [] // All users already have the session
     }
 
     const roomMembers = await this.getRoomMemberIds(roomId)
     if (roomMembers) {
       usersNeedingSession = usersNeedingSession.filter(id => roomMembers.has(id))
-      if (usersNeedingSession.length === 0) return
+      if (usersNeedingSession.length === 0) return []
     }
 
     const sessionData = megolmService.getSessionKeyForSharing(roomId, sessionId)
     if (!sessionData || sessionData.sessionId !== sessionId) {
       debug.error('Refusing to share mismatched session key')
-      return
+      return []
     }
 
     // BATCH: Fetch ALL public keys in ONE query
@@ -1731,7 +1818,7 @@ export class MegolmMessageEncryptionService {
 
     if (keyError) {
       debug.error('Error fetching public keys:', keyError)
-      return
+      return []
     }
 
     const keyMap = new Map<string, string>()
@@ -1748,7 +1835,7 @@ export class MegolmMessageEncryptionService {
       if (usersWithoutKeys > 0) {
         debug.log(`ℹ${usersWithoutKeys} users haven't set up encryption yet`)
       }
-      return
+      return []
     }
 
     debug.log(`Sharing session with ${usersWithKeys} users...`)
@@ -1794,25 +1881,31 @@ export class MegolmMessageEncryptionService {
 
     if (rows.length === 0) {
       debug.error('No session shares could be encrypted')
-      return
+      return []
     }
 
     // BATCH: all shares in ONE upsert. Per-recipient requests would cost one
     // round-trip each (1000 recipients -> 1000 round-trips).
-    const { error: shareError } = await supabase
+    const { data: stored, error: shareError } = await supabase
       .from('megolm_session_shares')
       .upsert(rows, { onConflict: 'room_id,session_id,recipient_user_id' })
+      .select('recipient_user_id')
 
     if (shareError) {
       debug.error('Failed to store session shares (batch):', shareError)
-      return
+      return []
     }
 
     // Only mark as shared once the write succeeded, so a failed batch is retried.
+    const storedIds = new Set((stored ?? []).map((r: { recipient_user_id: string }) => r.recipient_user_id))
     for (const { recipient_user_id } of rows) {
-      megolmService.markSessionSharedWith(roomId, recipient_user_id, sessionId)
+      if (storedIds.has(recipient_user_id)) {
+        megolmService.markSessionSharedWith(roomId, recipient_user_id, sessionId)
+      }
     }
-    debug.log(`Session shared with ${rows.length}/${usersWithKeys} users`)
+    debug.log(`Session shared with ${storedIds.size}/${usersWithKeys} users`)
+    if (!roomMembers) return []
+    return rows.map(r => r.recipient_user_id).filter(id => !storedIds.has(id))
   }
 
   /**
@@ -1831,13 +1924,13 @@ export class MegolmMessageEncryptionService {
    * private, recipient identity public) -> AES-GCM with AAD binding
    * (room, session, sender, recipient), so the server never sees the key and
    * the row cannot be replayed into another context. Callers MUST have
-   * already authorized the recipient (signature + server-side room
-   * membership - see isKeyRequestAuthorized); this method does not re-check.
+   * already authorized the recipient (request signature, and server-side room
+   * membership in fulfill_megolm_key_request); this method does not re-check.
    *
-   * Best-effort: for a relay (not the original sender), RLS allows INSERT of
-   * a new share but not overwrite of the original sender's row - the upsert
-   * fails and false is returned; the realtime fulfillment already delivered
-   * the key.
+   * Only the session's sender calls this: a share row names its wrapper as
+   * sender, and skip_share_from_other_sender drops a row for a session shared
+   * by someone else. Best-effort: on failure false is returned; the
+   * fulfillment already delivered the key.
    */
   async repairSessionShareForUser(
     roomId: string,

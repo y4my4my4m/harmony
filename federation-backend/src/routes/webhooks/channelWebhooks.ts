@@ -90,6 +90,9 @@ function detail(message: string): string {
 export function rpcFailure(error: { message?: string }): WebhookError {
   const message = error.message ?? '';
   if (message.startsWith('WEBHOOK_UNAUTHORIZED')) return UNAUTHORIZED;
+  if (message.startsWith('WEBHOOK_DISABLED')) {
+    return { status: 403, body: { message: 'Webhooks are turned off on this instance', code: 'WEBHOOKS_DISABLED' } };
+  }
   if (message.startsWith('WEBHOOK_CHANNEL_ENCRYPTED')) {
     return { status: 403, body: { message: 'This channel is end-to-end encrypted; webhooks cannot post to it', code: 'CHANNEL_ENCRYPTED' } };
   }

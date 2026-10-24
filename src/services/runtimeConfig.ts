@@ -5,6 +5,8 @@
 //
 // The top-level await below holds back every module that imports this one
 // until /config.json has resolved, so module-scope reads see the final values.
+// A build with VITE_RUNTIME_CONFIG=off never requests the file: its VITE_* are
+// final, and the page does not wait a round trip, or the fetch timeout, to boot.
 
 import { debug } from '@/utils/debug'
 
@@ -117,14 +119,16 @@ export async function fetchRuntimeConfig(
 }
 
 /**
- * Web pages only. Native clients pick their instance at runtime
- * (instanceConfig.ts) and unit tests run on the build env.
+ * Web pages of builds without VITE_RUNTIME_CONFIG=off. Native clients pick their
+ * instance at runtime (instanceConfig.ts) and unit tests run on the build env.
  */
 export function shouldFetchRuntimeConfig(
   mode: string = import.meta.env.MODE,
-  scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>
+  scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+  setting: string | undefined = import.meta.env.VITE_RUNTIME_CONFIG
 ): boolean {
   if (mode === 'test') return false
+  if ((setting || '').trim().toLowerCase() === 'off') return false
   if (typeof scope.window === 'undefined') return false
   // Same test as instanceConfig.isTauriRuntime; importing it closes an import cycle.
   return typeof scope.__TAURI_INTERNALS__ === 'undefined' && typeof scope.__TAURI__ === 'undefined'
@@ -135,9 +139,44 @@ export function setRuntimeConfig(config: RuntimeConfig): void {
   runtime = { ...config }
 }
 
+/** localStorage key of the native client's chosen instance (instanceConfig.ts). */
+export const STORED_INSTANCE_KEY = 'harmony.instance'
+
+let nativeDomainCache: { raw: string | null; domain: string | undefined } | null = null
+
+/**
+ * The native client's instance domain: the stored instance's /instance-info domain, else its
+ * origin's host. Undefined on web pages. Read here, not through instanceConfig.ts, which
+ * imports this module.
+ */
+export function nativeInstanceDomain(
+  scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>
+): string | undefined {
+  if (typeof scope.__TAURI_INTERNALS__ === 'undefined' && typeof scope.__TAURI__ === 'undefined') return undefined
+  let raw: string | null = null
+  try {
+    raw = (scope.localStorage as Storage | undefined)?.getItem(STORED_INSTANCE_KEY) ?? null
+  } catch {
+    return undefined
+  }
+  if (nativeDomainCache && nativeDomainCache.raw === raw) return nativeDomainCache.domain
+  let domain: string | undefined
+  try {
+    const stored = raw ? JSON.parse(raw) : null
+    if (typeof stored?.domain === 'string' && stored.domain.trim()) domain = stored.domain.trim()
+    else if (typeof stored?.origin === 'string') domain = new URL(stored.origin).host || undefined
+  } catch {
+    domain = undefined
+  }
+  nativeDomainCache = { raw, domain }
+  return domain
+}
+
 /**
  * Instance values: /config.json first, then the VITE_* inlined at build time.
- * Every read resolves at access time.
+ * Every read resolves at access time. In the native client, domain and
+ * instanceDomain come from the stored instance before the build values, which
+ * name no instance there.
  */
 export const runtimeConfig = {
   get supabaseUrl(): string | undefined {
@@ -147,10 +186,10 @@ export const runtimeConfig = {
     return runtime.supabaseAnonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
   },
   get domain(): string | undefined {
-    return runtime.domain || import.meta.env.VITE_DOMAIN
+    return runtime.domain || nativeInstanceDomain() || import.meta.env.VITE_DOMAIN
   },
   get instanceDomain(): string | undefined {
-    return runtime.instanceDomain || import.meta.env.VITE_INSTANCE_DOMAIN
+    return runtime.instanceDomain || nativeInstanceDomain() || import.meta.env.VITE_INSTANCE_DOMAIN
   },
   get instanceName(): string | undefined {
     return runtime.instanceName || import.meta.env.VITE_INSTANCE_NAME

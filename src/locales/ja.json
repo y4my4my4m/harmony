@@ -719,7 +719,8 @@
       "disableConsequence4": "このサーバーから削除し、それぞれに理由を通知します",
       "disableConsequence5": "連合を再び有効にしても戻りません。招待から再参加する必要があります",
       "disableConfirm": "連合を無効にする"
-    }
+    },
+    "federationInstanceOff": "このインスタンスでは連合がオフです。再開できるのは管理者です。"
   },
   "channel": {
     "create": "チャンネルを作成",
@@ -3823,7 +3824,8 @@
       "invalidAvatar": "アバターは https:// の URL にしてください。",
       "permission": "「Webhook の管理」権限が必要です。",
       "saveFailed": "Webhook を保存できませんでした"
-    }
+    },
+    "disabledHere": "このインスタンスではWebhookがオフです。"
   },
   "floatingVideo": {
     "region": "動画プレーヤー",
@@ -3863,7 +3865,15 @@
       "turnedOff": "暗号化をオフにしました",
       "voiceTurnedOn": "音声の暗号化をオンにしました",
       "voiceTurnedOff": "音声の暗号化をオフにしました",
-      "saveFailed": "暗号化を変更できませんでした。もう一度お試しください。"
+      "saveFailed": "暗号化を変更できませんでした。もう一度お試しください。",
+      "historyLabel": "新しいメンバーが以前のメッセージを読めるようにする",
+      "historyAll": "すべてのメッセージ",
+      "historyPinned": "ピン留めしたメッセージのみ",
+      "historyNone": "なし",
+      "historyAllHint": "後から参加したメンバーは、読めるメンバーが Harmony を開くと、参加前に送信されたメッセージを読めます。",
+      "historyPinnedHint": "後から参加したメンバーは、参加前に送信されたピン留めメッセージだけを読めます。",
+      "historyNoneHint": "後から参加したメンバーは、参加後に送信されたメッセージだけを読めます。",
+      "historySaved": "メッセージ履歴の設定を保存しました"
     },
     "integrations": {
       "bots": "このサーバーの {count} 個のボットは、暗号化されたメッセージを読んだりこのチャンネルに投稿したりできません。",
@@ -5087,7 +5097,15 @@
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
       "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。",
       "publicProfilePages": "ログインしていない訪問者にプロフィールと公開投稿を表示する",
-      "publicProfilePagesHint": "オフにすると、訪問者はログイン画面に送られます。リンクプレビューと連合には影響しません。"
+      "publicProfilePagesHint": "オフにすると、訪問者はログイン画面に送られます。リンクプレビューと連合には影響しません。",
+      "federationOutbound": "他のインスタンスへ送信",
+      "federationOutboundHint": "オフ：他のインスタンスには何も配信されません。",
+      "federationInbound": "他のインスタンスから受信",
+      "federationInboundHint": "オフ：他のインスタンスからの配信と署名付きリクエストを拒否します。プロフィールとサーバーは引き続き閲覧できます。",
+      "federationClosedWarning": "両方オフにすると連合を閉じます：このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスのメンバーは他所でホストされているサーバーから退出します。",
+      "federationCloseConfirmTitle": "連合を閉じますか？",
+      "federationCloseConfirmMessage": "このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスの全メンバーが他所でホストされているサーバーから退出します。スイッチを再びオンにするとサーバーは再開しますが、外されたメンバーは戻りません。",
+      "federationCloseConfirm": "連合を閉じる"
     },
     "activityLog": {
       "configKeys": {
@@ -6565,6 +6583,9 @@
       "1w": "今週"
     }
   },
+  "instanceVersion": {
+    "older": "このインスタンスは Harmony {version} で動いています。このアプリの一部の機能には、より新しいバージョンが必要です。"
+  },
   "instancePicker": {
     "title": "Harmony へようこそ",
     "hint": "Harmony は連合型です。誰でもインスタンスを運営できます。接続するインスタンスのドメインを入力してください。",
@@ -7210,7 +7231,9 @@
     "notice": {
       "removedTitle": "{instance} のスタッフによって {server} から削除されました。",
       "blockedTitle": "{instance} のスタッフが {instance} で {server} をブロックしたため、退出しました。",
-      "blockedMessage": "他のインスタンスでは {server} について何も変わっていません。"
+      "blockedMessage": "他のインスタンスでは {server} について何も変わっていません。",
+      "federationOffTitle": "{instance} が連合を停止したため、{server} から退出しました。",
+      "federationOffMessage": "{server} は他のインスタンスで続いています。{instance} が連合を再開すれば再び参加できます。"
     },
     "join": {
       "blocked": "{instance} のスタッフが {instance} でこのサーバーをブロックしています。",
@@ -7234,5 +7257,172 @@
       "mediaHidden": "メディア非表示",
       "keptOut": "参加不可 {count} 人 | 参加不可 {count} 人"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "送信Webhook",
+    "heading": "送信Webhook",
+    "introBot": "このボットのイベントをHTTPS POSTでURLへ送ります。ゲートウェイ接続の代わりにも併用にも使えます。各リクエストはWebhookのシークレットで署名されます（Standard Webhooks）。",
+    "introServer": "このサーバーのイベントをHTTPS POSTでURLへ送ります。Webhookは作成者が閲覧できるチャンネルのイベントを受け取ります。各リクエストはWebhookのシークレットで署名されます（Standard Webhooks）。",
+    "create": "新しいWebhook",
+    "createSubmit": "Webhookを作成",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "done": "完了",
+    "nameLabel": "名前",
+    "urlLabel": "URL",
+    "urlHint": "HTTPSのみ。リダイレクトは追いません。",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "メッセージ",
+      "reactions": "リアクション",
+      "members": "メンバー",
+      "moderation": "モデレーション"
+    },
+    "events": {
+      "MESSAGE_CREATE": "メッセージ送信",
+      "MESSAGE_UPDATE": "メッセージ編集",
+      "MESSAGE_DELETE": "メッセージ削除",
+      "MESSAGE_REACTION_ADD": "リアクション追加",
+      "MESSAGE_REACTION_REMOVE": "リアクション削除",
+      "SERVER_MEMBER_ADD": "メンバー参加",
+      "SERVER_MEMBER_REMOVE": "メンバー退出",
+      "SERVER_MEMBER_KICK": "メンバーのキック",
+      "SERVER_BAN_ADD": "メンバーのBAN",
+      "SERVER_BAN_REMOVE": "BAN解除"
+    },
+    "copyOnce": "{name} の署名シークレットを今コピーしてください。再表示されません。",
+    "secretHint": "Standard Webhooksの手順で、各リクエストのwebhook-signatureヘッダーをこれで検証してください。",
+    "copySecret": "シークレットをコピー",
+    "copied": "コピーしました",
+    "copyFailed": "コピーできませんでした",
+    "loading": "読み込み中…",
+    "loadFailed": "Webhookを読み込めませんでした。",
+    "empty": "送信Webhookはまだありません。",
+    "limitReached": "最大{count}件です。",
+    "eventCount": "イベント: {count}",
+    "secretEndsWith": "シークレットの末尾: {hint}",
+    "state": {
+      "off": "オフ",
+      "disabledFailing": "配信失敗が3日続いたためオフになりました。最後の応答: {error}",
+      "failing": "{date} から失敗中。最後の応答: {error}",
+      "delivered": "最終配信 {date}",
+      "never": "まだ配信されていません",
+      "unverified": "イベント送信の前に、テストイベントへの2xx応答を待っています",
+      "unverifiedFailing": "未確認：テストイベントの応答は {error} でした。エンドポイントを直してからテストイベントを送ってください。",
+      "paused": "10回連続で失敗したため一時停止中。5分ごとにテストイベントで確認します。最後の応答: {error}",
+      "staff": "このインスタンスのスタッフがオフにしました"
+    },
+    "active": "オン",
+    "activeFor": "{name} をオン",
+    "sendTest": "テストイベントを送信",
+    "testQueued": "テストイベントを送信待ちにしました",
+    "deliveries": "配信",
+    "deliveriesOf": "{name} の配信",
+    "noDeliveries": "直近7日間の配信はありません。",
+    "logEvent": "イベント",
+    "logStatus": "状態",
+    "logAnswer": "応答",
+    "logTime": "時刻",
+    "status": {
+      "pending": "保留中（{attempts}回試行）",
+      "delivered": "配信済み",
+      "failed": "{attempts}回試行後に失敗"
+    },
+    "edit": "編集",
+    "editFor": "{name} を編集",
+    "rotate": "シークレットを更新",
+    "rotateFor": "{name} のシークレットを更新",
+    "delete": "削除",
+    "deleteFor": "{name} を削除",
+    "created": "Webhookを作成しました",
+    "updated": "Webhookを保存しました",
+    "rotated": "新しいシークレットを作成しました",
+    "deleted": "Webhookを削除しました",
+    "confirmRotate": {
+      "title": "シークレットを更新しますか？",
+      "message": "{name} は今後新しいシークレットで署名します。受信側を更新してください。",
+      "confirm": "更新"
+    },
+    "confirmDelete": {
+      "title": "Webhookを削除しますか？",
+      "message": "{name} とその配信ログを削除します。",
+      "confirm": "削除"
+    },
+    "errors": {
+      "forbidden": "これらのWebhookを管理する権限がありません。",
+      "notFound": "このWebhookは存在しません。",
+      "invalidName": "1〜80文字の名前を付けてください。",
+      "invalidUrl": "2048文字以内のhttps URLを使ってください。",
+      "invalidEvents": "イベントを1つ以上選んでください。",
+      "limit": "Webhookはすでに5件あります。",
+      "unavailable": "送信WebhookにはSupabase Vaultが必要ですが、このインスタンスにはありません。",
+      "saveFailed": "Webhookを保存できませんでした。",
+      "staffDisabled": "このインスタンスのスタッフがこのWebhookをオフにしました。",
+      "disabled": "このインスタンスでは送信Webhookを作成できません。",
+      "blockedDomain": "このインスタンスはそのドメインへ送信しません。",
+      "limitUser": "このインスタンスの送信Webhookの上限に達しました。",
+      "tooSoon": "次のテストイベントまで数秒お待ちください。",
+      "urlTooSoon": "テストイベントを送信したばかりです。数秒待ってから新しいURLを保存してください。"
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} はオフになりました",
+      "disabledMessage": "配信の失敗が3日続きました。最後の応答: {error}",
+      "short": "Webhookがオフになりました"
+    },
+    "unavailableOff": "このインスタンスでは送信Webhookがオフです。",
+    "unavailableStaff": "このインスタンスでは、送信Webhookを作成できるのはスタッフのみです。",
+    "dropped": "{count}件のイベントをスキップ（{reason}）、最終 {date}",
+    "dropReason": {
+      "rate_limited": "上限超過",
+      "paused": "一時停止中"
+    }
+  },
+  "adminWebhooks": {
+    "tab": "Webhook",
+    "settingsTitle": "Webhook設定",
+    "settingsIntro": "このインスタンスのすべての送信Webhookの上限と、送信・受信Webhookのスイッチ。",
+    "settingsReadOnly": "この設定を変更できるのはインスタンス管理者のみです。",
+    "outgoingMode": "送信Webhookを作成できる人",
+    "modeEveryone": "ボットの所有者とサーバーのWebhook管理者",
+    "modeStaff": "インスタンスのスタッフのみ",
+    "modeOff": "誰も作成できない（送信Webhookオフ）",
+    "incomingEnabled": "受信Webhook（チャンネルへの投稿）",
+    "ratePerMinute": "Webhookごと・1分あたりのイベント数",
+    "hostRatePerMinute": "送信先ごと・1分あたりのリクエスト数",
+    "perUser": "1人あたりの送信Webhook数",
+    "blockedDomains": "ブロックする送信先",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "1行に1ドメイン。サブドメインもブロックされます。",
+    "save": "保存",
+    "saved": "Webhook設定を保存しました",
+    "saveFailed": "保存できませんでした",
+    "loading": "読み込み中…",
+    "loadFailed": "読み込めませんでした",
+    "listTitle": "送信Webhook",
+    "listIntro": "このインスタンスのすべての送信Webhook（多い順）。ここでオフにしたWebhookは所有者がオンに戻せません。",
+    "refresh": "更新",
+    "empty": "送信Webhookはまだありません。",
+    "colWebhook": "Webhook",
+    "colOwner": "所有者",
+    "colDestination": "送信先",
+    "colState": "状態",
+    "colDeliveries": "直近24時間",
+    "colActions": "操作",
+    "ownerBot": "ボット {name}",
+    "ownerServer": "サーバー {name}",
+    "deliveries24h": "送信 {count}件、失敗 {failed}件",
+    "stateActive": "有効",
+    "stateUnverified": "未確認",
+    "statePaused": "一時停止",
+    "stateFailing": "失敗中",
+    "stateOff": "オフ（所有者）",
+    "stateStaff": "オフ（スタッフ）",
+    "stateFailingOff": "失敗によりオフ",
+    "turnOff": "オフにする",
+    "turnOn": "オンにする",
+    "delete": "削除",
+    "deleteFor": "{name} を削除",
+    "confirmDeleteTitle": "このWebhookを削除しますか？",
+    "confirmDeleteMessage": "{name}（{host}）とその配信ログを削除します。所有者には通知されません。"
   }
 }

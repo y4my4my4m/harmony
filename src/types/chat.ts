@@ -500,6 +500,14 @@ export interface MessageWebhookAuthor {
   avatar_url: string | null;
 }
 
+/** metadata.remote_author: a bot, webhook or bridged person a federated server's host names. */
+export interface MessageRemoteAuthor {
+  kind: 'bot' | 'webhook' | 'bridge';
+  id: string;
+  name: string;
+  avatar_url: string | null;
+}
+
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent | PollContent;
 
 export interface Reaction {
@@ -600,6 +608,7 @@ export interface Message {
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;
     webhook?: MessageWebhookAuthor;
+    remote_author?: MessageRemoteAuthor;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
   failed?: boolean; // local state: true when message failed to send after retries

@@ -8,8 +8,11 @@
  * device requires the recovery phrase.
  *
  * Key requests: a client that cannot decrypt a message inserts a request row;
- * the sender receives it over realtime, fulfills it if it holds the session
- * key, and the requester imports the fulfilled key from a realtime event.
+ * the sender, and members holding the session when the requester accepts
+ * relayed keys, receive it over realtime or on their next unlock and answer
+ * with the session key wrapped to the requester. The requester imports the
+ * sender's key at once and a relayed key once it decrypts a ciphertext of the
+ * session.
  */
 
 import { supabase } from '@/supabase'
@@ -28,7 +31,7 @@ import { debug } from '@/utils/debug'
 export interface KeyRequest {
   id: string
   requester_user_id: string
-  sender_user_id: string
+  sender_user_id: string | null
   room_id: string
   session_id: string
   status: 'pending' | 'fulfilled' | 'expired' | 'cancelled'
@@ -39,7 +42,48 @@ export interface KeyRequest {
   // verified by the fulfiller before handing over the session key.
   request_signature?: string
   request_signing_fingerprint?: string
+  // Any member of the room holding the session may answer, not only the sender.
+  accepts_relay?: boolean
+  // Wrapper of encrypted_key; absent or null means sender_user_id.
+  fulfilled_by_user_id?: string | null
+  // The message the requester could not read; its index is read from the
+  // message row by the server.
+  message_id?: string | null
+  message_index?: number | null
+  // What may be (pending) or was (fulfilled) handed over: the session key, or
+  // the key of message_id alone. Absent from servers before 20261028200001.
+  key_scope?: KeyScope | null
 }
+
+export type KeyScope = 'session' | 'message'
+
+/**
+ * A key received for a request, held until a ciphertext verifies it: a session
+ * key from a member other than its sender, or the key of one message.
+ */
+export interface RelayedKey {
+  requestId: string
+  roomId: string
+  senderUserId: string
+  sessionId: string
+  // The session key, or the key of messageId alone.
+  sessionKey: string
+  scope: KeyScope
+  messageId: string | null
+}
+
+/** Context of the message whose decryption raised a key request. */
+export interface KeyRequestMessage {
+  id?: string
+  pinned?: boolean
+}
+
+type FulfilledOutcome = 'imported' | 'relayed' | 'failed'
+
+// PostgREST: function absent from the schema cache (server before the migration).
+const MISSING_FUNCTION = 'PGRST202'
+// PostgREST: column absent from the schema cache.
+const MISSING_COLUMN = 'PGRST204'
 
 export type KeyReceivedCallback = (roomId: string, sessionId: string) => void
 
@@ -73,10 +117,16 @@ export class MegolmKeyBackupService {
 
   private keyReceivedCallbacks: Set<KeyReceivedCallback> = new Set()
 
-  // sessionId → { requestId, createdAt }. Entries expire (KEY_REQUEST_RETRY_MS)
+  // sessionId, or sessionId#messageId for a pinned message → { requestId,
+  // createdAt }. Entries expire (KEY_REQUEST_RETRY_MS)
   // so an unanswered/failed request can be re-issued without a full reload.
   private pendingRequests: Map<string, { requestId: string; createdAt: number }> = new Map()
   private readonly KEY_REQUEST_RETRY_MS = 2 * 60_000
+  // Relayed keys refused per session: how many, and when the last one was.
+  private refusals: Map<string, { count: number; at: number }> = new Map()
+
+  // `${roomId}:${senderUserId}:${sessionId}` → relayed keys awaiting a ciphertext.
+  private relayedKeys = new Map<string, RelayedKey[]>()
 
   private constructor() {}
 
@@ -127,52 +177,37 @@ export class MegolmKeyBackupService {
     debug.log('Encryption key request handlers registered via user:{id} broadcast')
   }
 
-  /** Auto-fulfills an incoming key request when the session key is held locally. */
-  private async handleIncomingKeyRequest(request: KeyRequest): Promise<void> {
+  /**
+   * Answers a key request when this device holds the key the server allows
+   * for it. Returns whether this answer fulfilled it.
+   */
+  private async handleIncomingKeyRequest(request: KeyRequest): Promise<boolean> {
     debug.log(`Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
 
-    if (!megolmService.isInitialized()) {
+    if (!megolmService.isInitialized() || !this.userId) {
       debug.log('Megolm not initialized, cannot fulfill request')
-      return
+      return false
     }
 
     try {
-      // Session key sources, in priority order:
-      //   1. getSessionKeyForSharing: the local outbound session for this room,
-      //      or a local inbound copy of a prior outbound. The original sender
-      //      holds the key in `outbound`, never `inbound`, so an inbound-only
-      //      lookup cannot answer a request for a locally sent message.
-      //   2. findInboundSessionBySessionId: any inbound session held from
-      //      another sender (group-room key relay).
-      // Both return the base session key; the ratchet derives every index, so
-      // first_known_index 0 decrypts the whole session.
-      const sharable = megolmService.getSessionKeyForSharing(request.room_id, request.session_id)
-      const inbound = sharable
-        ? null
-        : megolmService.findInboundSessionBySessionId(request.room_id, request.session_id)
-      const sessionKey = sharable?.sessionKey ?? inbound?.sessionKey
-
-      if (!sessionKey) {
-        debug.log(`ℹDon't have session ${request.session_id.substring(0, 8)}...`)
-        return
+      const answer = await this.keyToAnswer(request)
+      if (!answer) {
+        debug.log(`ℹNo key to hand over for session ${request.session_id.substring(0, 8)}...`)
+        return false
       }
 
-      // Authorization gate. Holding the key is not sufficient:
-      //   1. The request must be signed by the requester's published signing
-      //      key, proving it came from the claimed requester and not a DB
-      //      writer forging one for an attacker device.
-      //   2. The requester must be a current member of the room
-      //      (server-authoritative); removed members replaying an old request
-      //      are rejected here.
-      const authorized = await this.isKeyRequestAuthorized(request)
-      if (!authorized) {
+      // Holding the key is not sufficient. The request must be signed by the
+      // requester's published signing key, proving it came from the claimed
+      // requester and not a DB writer forging one for an attacker device.
+      // Room membership and history visibility are server-authoritative:
+      // fulfill_megolm_key_request refuses a removed member's old request and
+      // a key the room's history setting withholds.
+      if (!(await this.isRequestSignatureValid(request))) {
         debug.warn(
           `🚫 Refusing key request ${request.id.substring(0, 8)} from ${request.requester_user_id.substring(0, 8)} - failed authorization`,
         )
-        return
+        return false
       }
-
-      debug.log(`Found session and request authorized, fulfilling...`)
 
       const { data: requesterKey } = await supabase
         .from('user_key_pairs')
@@ -183,36 +218,29 @@ export class MegolmKeyBackupService {
 
       if (!requesterKey?.identity_public_key) {
         debug.log(`Requester has no public key, cannot fulfill`)
-        return
+        return false
       }
 
       const encryptedKey = await this.encryptSessionKeyForUser(
-        sessionKey,
+        answer.key,
         requesterKey.identity_public_key
       )
 
-      const { error } = await supabase
-        .from('megolm_key_requests')
-        .update({
-          status: 'fulfilled',
-          encrypted_key: encryptedKey,
-          fulfilled_at: new Date().toISOString()
-        })
-        .eq('id', request.id)
+      if (!(await this.fulfillRequest(request, encryptedKey, answer.scope))) return false
 
-      if (error) {
-        debug.error('Failed to fulfill request:', error)
-        return
-      }
+      debug.log(`Fulfilled key request ${request.id.substring(0, 8)}... (${answer.scope})`)
 
-      debug.log(`Fulfilled key request ${request.id.substring(0, 8)}...`)
+      // A share row carries a session key and names its wrapper as sender; the
+      // recipient files the session under that id. Only the session's sender
+      // writes one, and only for a session key.
+      if (answer.scope !== 'session' || request.sender_user_id !== this.userId
+        || request.requester_user_id === this.userId) return true
 
       // Durable repair of the offline path. The fulfillment above reaches only
       // the requesting device. Writing a fresh megolm_session_shares row sealed
       // to the requester's current identity key lets their other devices and
       // future claims recover this session from the DB with no sender online.
-      // Authorization (signature + server-side room membership) passed above.
-      // Best-effort: the realtime fulfillment stands regardless.
+      // Best-effort: the fulfillment stands regardless.
       // Dynamic import: MegolmMessageEncryptionService imports this service
       // statically, so the reverse edge must be lazy to avoid a cycle.
       try {
@@ -221,30 +249,143 @@ export class MegolmKeyBackupService {
           request.room_id,
           request.session_id,
           request.requester_user_id,
-          sessionKey,
+          answer.key,
         )
       } catch (repairErr) {
         debug.warn('Session-share repair after fulfillment failed (non-fatal):', repairErr)
       }
+      return true
     } catch (error) {
       debug.error('Error handling key request:', error)
+      return false
     }
   }
 
+  /** Requests from servers before 20261028200001 carry no key_scope. */
+  private isLegacyRequest(request: KeyRequest): boolean {
+    return !('key_scope' in request)
+  }
+
   /**
-   * Decide whether a key request may be fulfilled.
-   *
-   * Two independent checks, both required:
-   *   1. Signature: the request carries a valid signature from the requester's
-   *      published signing key over (room_id, session_id, requester_user_id).
-   *      Unsigned requests are rejected (no honest current client sends them).
-   *   2. Membership: the requester is a current member of the room per the
-   *      server (is_room_member RPC). Membership is server-authoritative; this
-   *      is where a removed member, or one who was never in the room, is denied
-   *      old keys.
+   * The session key this device holds for a request: its own session when
+   * addressed as the sender; otherwise, when the requester accepts relayed
+   * keys, an inbound copy filed under the request's sender. Both are the base
+   * session key; the ratchet derives every index.
    */
-  private async isKeyRequestAuthorized(request: KeyRequest): Promise<boolean> {
-    // (1) Signature check.
+  private heldSessionKey(request: KeyRequest): string | null {
+    if (request.sender_user_id === this.userId) {
+      return megolmService.getSessionKeyForSharing(request.room_id, request.session_id)?.sessionKey || null
+    }
+    if (!request.accepts_relay || !request.sender_user_id || this.isLegacyRequest(request)) return null
+    return megolmService.getInboundSession(request.room_id, request.sender_user_id, request.session_id)?.sessionKey || null
+  }
+
+  /** Whether this device could answer, before any network check. */
+  private holdsKeyFor(request: KeyRequest): boolean {
+    if (this.isLegacyRequest(request)) return this.heldSessionKey(request) !== null
+    if (request.key_scope === 'session') return this.heldSessionKey(request) !== null
+    if (request.key_scope !== 'message' || request.message_index == null || !request.sender_user_id) return false
+    return this.heldSessionKey(request) !== null
+      || !!megolmService.getMessageKey(request.room_id, request.sender_user_id, request.session_id, request.message_index)
+  }
+
+  /**
+   * What this device hands over, within the scope the server allows
+   * (request.key_scope; on servers before 20261028200001 the sender alone
+   * answers, with the session key):
+   *   session  the held session key.
+   *   message  the key of request.message_id alone, derived from the held
+   *            session key or held as a single message key, once the message
+   *            row shows it pinned, in this session, from this sender, at
+   *            request.message_index.
+   */
+  private async keyToAnswer(request: KeyRequest): Promise<{ scope: KeyScope; key: string } | null> {
+    if (!this.holdsKeyFor(request)) return null
+    const sessionKey = this.heldSessionKey(request)
+    if (this.isLegacyRequest(request) || request.key_scope === 'session') {
+      return sessionKey ? { scope: 'session', key: sessionKey } : null
+    }
+
+    const index = await this.pinnedMessageIndex(request)
+    if (index === null || !request.sender_user_id) return null
+    const key = sessionKey
+      ? await megolmService.deriveMessageKey(sessionKey, index)
+      : megolmService.getMessageKey(request.room_id, request.sender_user_id, request.session_id, index)
+    return key ? { scope: 'message', key } : null
+  }
+
+  private async pinnedMessageIndex(request: KeyRequest): Promise<number | null> {
+    if (!request.message_id || request.message_index == null) return null
+    const { data, error } = await supabase
+      .from('messages')
+      .select('user_id, channel_id, conversation_id, is_pinned, is_deleted, encryption_metadata')
+      .eq('id', request.message_id)
+      .maybeSingle()
+    if (error || !data) return null
+    const meta = (data.encryption_metadata ?? {}) as { session_id?: string; message_index?: number | string }
+    const index = Number(meta.message_index)
+    const room = data.channel_id || data.conversation_id
+    if (
+      data.is_pinned !== true
+      || data.is_deleted === true
+      || data.user_id !== request.sender_user_id
+      || room !== request.room_id
+      || meta.session_id !== request.session_id
+      || !Number.isInteger(index)
+      || index !== request.message_index
+    ) {
+      debug.warn(`Key request ${request.id.substring(0, 8)} names a message that is not this session's pinned message`)
+      return null
+    }
+    return index
+  }
+
+  /**
+   * Answers through fulfill_megolm_key_request: the first answer wins and
+   * names this user as the wrapper. Servers before 20261028100001 lack it;
+   * there the sender alone answers with the session key, by a direct update,
+   * once the requester passes is_room_member.
+   */
+  private async fulfillRequest(request: KeyRequest, encryptedKey: string, scope: KeyScope): Promise<boolean> {
+    const { data, error } = await supabase.rpc('fulfill_megolm_key_request', {
+      p_request_id: request.id,
+      p_encrypted_key: encryptedKey,
+      p_key_scope: scope,
+    })
+    if (!error) {
+      if (data !== true) debug.log(`Key request ${request.id.substring(0, 8)} was already answered`)
+      return data === true
+    }
+    if (error.code !== MISSING_FUNCTION) {
+      debug.warn(`Key request ${request.id.substring(0, 8)} not fulfilled:`, error.message)
+      return false
+    }
+    if (scope !== 'session' || request.sender_user_id !== this.userId || !(await this.isRequesterInRoom(request))) {
+      return false
+    }
+
+    const { error: updateError } = await supabase
+      .from('megolm_key_requests')
+      .update({
+        status: 'fulfilled',
+        encrypted_key: encryptedKey,
+        fulfilled_at: new Date().toISOString()
+      })
+      .eq('id', request.id)
+
+    if (updateError) {
+      debug.error('Failed to fulfill request:', updateError)
+      return false
+    }
+    return true
+  }
+
+  /**
+   * The request carries a valid signature from the requester's published
+   * signing key over (room_id, session_id, requester_user_id). Unsigned
+   * requests are rejected (no honest current client sends them).
+   */
+  private async isRequestSignatureValid(request: KeyRequest): Promise<boolean> {
     if (!request.request_signature) {
       debug.warn('Key request has no signature - rejecting')
       return false
@@ -266,12 +407,15 @@ export class MegolmKeyBackupService {
         debug.warn('Key request signature invalid - rejecting')
         return false
       }
+      return true
     } catch (err) {
       debug.warn('Key request signature verification threw - rejecting:', err)
       return false
     }
+  }
 
-    // (2) Membership check (server-authoritative).
+  /** The requester is a current member of the room per the server. */
+  private async isRequesterInRoom(request: KeyRequest): Promise<boolean> {
     try {
       const { data: isMember, error } = await supabase.rpc('is_room_member', {
         p_room_id: request.room_id,
@@ -285,12 +429,11 @@ export class MegolmKeyBackupService {
         debug.warn('Requester is not a current member of the room - rejecting')
         return false
       }
+      return true
     } catch (err) {
       debug.warn('Membership check threw - rejecting:', err)
       return false
     }
-
-    return true
   }
 
   // Requester signing keys, TTL-cached. Without it a batch of key requests from
@@ -391,57 +534,89 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Import a key for a locally issued request that was fulfilled.
+   * Take in the key of a locally issued request that was fulfilled.
    *
-   * Returns true only when the key was imported and the row flipped to
-   * 'received'. The offline sweep uses this to quarantine rows that fail
-   * permanently (sealed to a previous identity key) rather than retry them on
-   * every unlock.
+   *   'imported'  the sender's key, imported; or a relayed key for a session
+   *               already held. The row flips to 'received'.
+   *   'relayed'   a key from another member, held until a ciphertext of the
+   *               session verifies it (see settleRelayedKey). The row stays
+   *               'fulfilled'.
+   *   'failed'    the key does not unwrap. The offline sweep quarantines such
+   *               rows (sealed to a previous identity key) rather than retry
+   *               them on every unlock.
    *
-   * `prefetchedSenderKey` lets the batch sweep pass the fulfiller's public key
+   * `prefetchedWrapperKey` lets the batch sweep pass the wrapper's public key
    * in - one query for all rows instead of one per row.
    */
   private async handleFulfilledRequest(
     request: KeyRequest,
-    prefetchedSenderKey?: string | null,
+    prefetchedWrapperKey?: string | null,
     // The offline sweep batches status updates itself and passes true to skip
     // the per-row flip below; one PATCH per row costs ~14s of serial requests
     // on a large backlog.
     deferStatusFlip = false,
-  ): Promise<boolean> {
+  ): Promise<FulfilledOutcome> {
     debug.log(`Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
 
-    if (!request.encrypted_key) {
-      debug.log('Fulfilled request has no encrypted key')
-      return false
+    const senderUserId = request.sender_user_id
+    const wrapperUserId = request.fulfilled_by_user_id || senderUserId
+    if (!request.encrypted_key || !senderUserId || !wrapperUserId) {
+      debug.log('Fulfilled request has no encrypted key or sender')
+      return 'failed'
     }
+    const scope: KeyScope = request.key_scope === 'message' ? 'message' : 'session'
+    // A key from anyone but the sender, and the key of a single message, wait
+    // for a ciphertext to verify them.
+    const held = wrapperUserId !== senderUserId || scope === 'message'
 
     try {
-      // Fulfiller's public key, for ECDH decryption.
-      let senderPublicKey = prefetchedSenderKey ?? null
-      if (senderPublicKey === null && prefetchedSenderKey === undefined) {
-        const { data: senderKey } = await supabase
-          .from('user_key_pairs')
-          .select('identity_public_key')
-          .eq('user_id', request.sender_user_id)
-          .eq('is_active', true)
-          .maybeSingle()
-        senderPublicKey = senderKey?.identity_public_key ?? null
+      if (held && megolmService.hasInboundSession(request.room_id, senderUserId, request.session_id)) {
+        await this.markReceived(request.id, deferStatusFlip)
+        return 'imported'
       }
 
-      if (!senderPublicKey) {
-        debug.warn(`No public key for sender ${request.sender_user_id.substring(0, 8)}, cannot decrypt`)
-        return false
+      // Wrapper's public key, for ECDH decryption.
+      let wrapperPublicKey = prefetchedWrapperKey ?? null
+      if (wrapperPublicKey === null && prefetchedWrapperKey === undefined) {
+        const { data: wrapperKey } = await supabase
+          .from('user_key_pairs')
+          .select('identity_public_key')
+          .eq('user_id', wrapperUserId)
+          .eq('is_active', true)
+          .maybeSingle()
+        wrapperPublicKey = wrapperKey?.identity_public_key ?? null
+      }
+
+      if (!wrapperPublicKey) {
+        debug.warn(`No public key for ${wrapperUserId.substring(0, 8)}, cannot decrypt`)
+        return 'failed'
       }
 
       const sessionKey = await this.decryptSessionKeyFromSender(
         request.encrypted_key,
-        senderPublicKey
+        wrapperPublicKey
       )
+
+      this.forgetPendingRequest(request.id, scope === 'session' ? request.session_id : null)
+
+      if (held) {
+        this.holdRelayedKey({
+          requestId: request.id,
+          roomId: request.room_id,
+          senderUserId,
+          sessionId: request.session_id,
+          sessionKey,
+          scope,
+          messageId: request.message_id ?? null,
+        })
+        debug.log(`Holding a ${scope} key of session ${request.session_id.substring(0, 8)}... from ${wrapperUserId.substring(0, 8)} until a ciphertext verifies it`)
+        this.notifyKeyReceived(request.room_id, request.session_id)
+        return 'relayed'
+      }
 
       await megolmService.importInboundSession(
         request.room_id,
-        request.sender_user_id,
+        senderUserId,
         request.session_id,
         sessionKey,
         0 // firstKnownIndex
@@ -449,39 +624,124 @@ export class MegolmKeyBackupService {
 
       debug.log(`Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
 
-      this.pendingRequests.delete(request.session_id)
-
       // Mark the request consumed. The fulfilled key arrives on an ephemeral
       // realtime broadcast; a client offline when it fires recovers the row via
       // processMyFulfilledRequests() on the next unlock. The flip to 'received'
       // stops that catch-up from re-importing the same key. Best-effort: a
       // failed update costs one redundant future import.
-      if (!deferStatusFlip && request.id && this.userId) {
-        await supabase
-          .from('megolm_key_requests')
-          .update({ status: 'received' })
-          .eq('id', request.id)
-          .eq('requester_user_id', this.userId)
-          .then(() => {}, () => {})
-      }
+      await this.markReceived(request.id, deferStatusFlip)
 
-      for (const callback of this.keyReceivedCallbacks) {
-        try {
-          callback(request.room_id, request.session_id)
-        } catch (e) {
-          debug.error('Error in key received callback:', e)
-        }
-      }
+      this.notifyKeyReceived(request.room_id, request.session_id)
 
       this.triggerAutoBackup().catch(() => {})
-      return true
+      return 'imported'
     } catch (error) {
       debug.error('Error importing fulfilled key:', error)
       // Re-arm the dedup so a follow-up decrypt attempt issues a fresh request
       // instead of blocking behind this failed import.
-      this.pendingRequests.delete(request.session_id)
-      return false
+      this.forgetPendingRequest(request.id, scope === 'session' ? request.session_id : null)
+      return 'failed'
     }
+  }
+
+  /** Drops the dedup entries of a request, and the session's entry when given. */
+  private forgetPendingRequest(requestId: string | undefined, sessionId: string | null): void {
+    for (const [key, entry] of this.pendingRequests) {
+      if (entry.requestId === requestId) this.pendingRequests.delete(key)
+    }
+    if (sessionId) this.pendingRequests.delete(sessionId)
+  }
+
+  private async markReceived(requestId: string, deferStatusFlip: boolean): Promise<void> {
+    if (deferStatusFlip || !requestId || !this.userId) return
+    await supabase
+      .from('megolm_key_requests')
+      .update({ status: 'received' })
+      .eq('id', requestId)
+      .eq('requester_user_id', this.userId)
+      .then(() => {}, () => {})
+  }
+
+  private notifyKeyReceived(roomId: string, sessionId: string): void {
+    for (const callback of this.keyReceivedCallbacks) {
+      try {
+        callback(roomId, sessionId)
+      } catch (e) {
+        debug.error('Error in key received callback:', e)
+      }
+    }
+  }
+
+  private relayedKeyId(roomId: string, senderUserId: string, sessionId: string): string {
+    return `${roomId}:${senderUserId}:${sessionId}`
+  }
+
+  private holdRelayedKey(key: RelayedKey): void {
+    const id = this.relayedKeyId(key.roomId, key.senderUserId, key.sessionId)
+    const held = (this.relayedKeys.get(id) ?? []).filter(k => k.requestId !== key.requestId)
+    this.relayedKeys.set(id, [...held, key])
+  }
+
+  /** Held keys for one session awaiting verification, oldest first. */
+  relayedKeysFor(roomId: string, senderUserId: string, sessionId: string): RelayedKey[] {
+    return [...(this.relayedKeys.get(this.relayedKeyId(roomId, senderUserId, sessionId)) ?? [])]
+  }
+
+  /**
+   * Settle a held key once the decrypt path has tried it on a signed
+   * ciphertext: of its session, or of its message for a single message key.
+   * Accepted (the caller imported it): its request is consumed and this
+   * user's other pending requests for the session (session key) or the
+   * message (message key) are cancelled. Refused: its request expires, so the
+   * sweep stops offering it, and the next decrypt miss asks again.
+   */
+  async settleRelayedKey(key: RelayedKey, accepted: boolean): Promise<void> {
+    const id = this.relayedKeyId(key.roomId, key.senderUserId, key.sessionId)
+    const rest = (this.relayedKeys.get(id) ?? []).filter(k =>
+      k.requestId !== key.requestId
+      && !(accepted && (key.scope === 'session' || k.messageId === key.messageId)))
+    if (rest.length === 0) this.relayedKeys.delete(id)
+    else this.relayedKeys.set(id, rest)
+    if (!this.userId) return
+
+    if (!accepted) {
+      debug.warn(`Held ${key.scope} key for session ${key.sessionId.substring(0, 8)} does not decrypt it - refused`)
+      // The first refusal lets the next miss ask again at once, for another holder's key. A
+      // further refusal within KEY_REQUEST_RETRY_MS re-arms the dedup slots, so the next request
+      // waits that long: a member answering wrongly every time does not drive a request loop. A
+      // pinned message's request is keyed by the message whatever its answer's scope.
+      const now = Date.now()
+      const prior = this.refusals.get(key.sessionId)
+      const count = prior && now - prior.at < this.KEY_REQUEST_RETRY_MS ? prior.count + 1 : 1
+      this.refusals.set(key.sessionId, { count, at: now })
+      if (count > 1) {
+        const rearmed = { requestId: key.requestId, createdAt: now }
+        this.pendingRequests.set(key.sessionId, rearmed)
+        if (key.messageId) this.pendingRequests.set(`${key.sessionId}#${key.messageId}`, rearmed)
+      }
+      await supabase
+        .from('megolm_key_requests')
+        .update({ status: 'expired' })
+        .eq('id', key.requestId)
+        .eq('requester_user_id', this.userId)
+        .then(() => {}, () => {})
+      return
+    }
+
+    this.refusals.delete(key.sessionId)
+    await this.markReceived(key.requestId, false)
+    let others = supabase
+      .from('megolm_key_requests')
+      .update({ status: 'cancelled' })
+      .eq('requester_user_id', this.userId)
+      .eq('room_id', key.roomId)
+      .eq('session_id', key.sessionId)
+      .eq('status', 'pending')
+    if (key.scope === 'message' && key.messageId) others = others.eq('message_id', key.messageId)
+    await others.then(() => {}, () => {})
+    this.forgetPendingRequest(key.requestId, key.scope === 'session' ? key.sessionId : null)
+    this.notifyKeyReceived(key.roomId, key.sessionId)
+    this.triggerAutoBackup().catch(() => {})
   }
 
   // ECDH Key Exchange Helpers
@@ -584,6 +844,8 @@ export class MegolmKeyBackupService {
     this.broadcastUnsubs = []
     this.keyReceivedCallbacks.clear()
     this.pendingRequests.clear()
+    this.refusals.clear()
+    this.relayedKeys.clear()
   }
 
   // BACKUP OPERATIONS
@@ -621,9 +883,17 @@ export class MegolmKeyBackupService {
             for (const s of prior.sessions.outbound || []) {
               if (!haveOutbound.has(`${s.roomId}:${s.sessionId}`)) sessions.outbound.push(s)
             }
-            const haveInbound = new Set(sessions.inbound.map(s => `${s.roomId}:${s.sessionId}`))
+            // A session key outranks message keys alone: a copy holding only a pinned message's
+            // key does not replace the backup's full one.
+            const inboundAt = new Map(sessions.inbound.map((s, i) => [`${s.roomId}:${s.sessionId}`, i]))
             for (const s of prior.sessions.inbound || []) {
-              if (!haveInbound.has(`${s.roomId}:${s.sessionId}`)) sessions.inbound.push(s)
+              const at = inboundAt.get(`${s.roomId}:${s.sessionId}`)
+              if (at === undefined) {
+                sessions.inbound.push(s)
+              } else if (!sessions.inbound[at].sessionKey && s.sessionKey) {
+                const messageKeys = { ...s.messageKeys, ...sessions.inbound[at].messageKeys }
+                sessions.inbound[at] = Object.keys(messageKeys).length > 0 ? { ...s, messageKeys } : s
+              }
             }
           }
         } catch {
@@ -814,27 +1084,40 @@ export class MegolmKeyBackupService {
   // CROSS-DEVICE KEY SHARING (with Realtime)
 
   /**
-   * Request a session key from the sender. The sender receives the row over
-   * realtime and auto-fulfills if it holds the key.
+   * Request a session key from the sender and the members holding it. They
+   * receive the row over realtime or on their next unlock and answer if they
+   * hold the key the room's history setting allows.
+   *
+   * A pinned message gets a request of its own: a room showing newcomers only
+   * pinned messages answers with that message's key alone, and a request named
+   * after an unpinned neighbour gets no answer there.
    *
    * @param roomId room / channel / conversation id
    * @param sessionId Megolm session id needed
    * @param senderUserId user who sent the original message and holds the key
+   * @param message the message that could not be decrypted
    */
-  async createKeyRequest(roomId: string, sessionId: string, senderUserId?: string): Promise<string> {
+  async createKeyRequest(
+    roomId: string,
+    sessionId: string,
+    senderUserId?: string,
+    message: KeyRequestMessage = {},
+  ): Promise<string> {
     if (!this.userId) {
       throw new Error('Not initialized')
     }
 
+    const dedupKey = message.pinned && message.id ? `${sessionId}#${message.id}` : sessionId
+
     // Dedup with expiry: an unanswered request (sender offline, failed
     // fulfillment, failed import) must not block re-requests forever.
-    const existing = this.pendingRequests.get(sessionId)
+    const existing = this.pendingRequests.get(dedupKey)
     if (existing) {
       if (Date.now() - existing.createdAt < this.KEY_REQUEST_RETRY_MS) {
         debug.log(`ℹAlready have pending request for session ${sessionId.substring(0, 8)}...`)
         return existing.requestId
       }
-      this.pendingRequests.delete(sessionId)
+      this.pendingRequests.delete(dedupKey)
     }
 
     const requestId = crypto.randomUUID()
@@ -843,7 +1126,7 @@ export class MegolmKeyBackupService {
     // failures for the same session - one page holds many messages of one
     // session - otherwise race past the check above and each insert a request
     // row. Rolled back on insert failure below.
-    this.pendingRequests.set(sessionId, { requestId, createdAt: Date.now() })
+    this.pendingRequests.set(dedupKey, { requestId, createdAt: Date.now() })
 
     // Sign the request so the fulfiller can verify its origin before wrapping
     // the session key. Best-effort: with no signing key the request goes out
@@ -867,26 +1150,34 @@ export class MegolmKeyBackupService {
       debug.warn('Failed to sign key request (sending unsigned):', err)
     }
 
-    const { error } = await supabase
+    const row = {
+      id: requestId,
+      user_id: this.userId, // Legacy field for backwards compatibility
+      requester_user_id: this.userId,
+      sender_user_id: senderUserId || null, // Who we're requesting the key from
+      room_id: roomId,
+      session_id: sessionId,
+      status: 'pending',
+      request_signature: requestSignature || null,
+      request_signing_fingerprint: signingFingerprint || null,
+      created_at: new Date().toISOString()
+    }
+    // A relayed key is imported only after it decrypts a ciphertext of the
+    // session (settleRelayedKey), so any member holding it may answer.
+    // Servers before 20261028100001 lack the columns; there the sender alone
+    // answers.
+    let { error } = await supabase
       .from('megolm_key_requests')
-      .insert({
-        id: requestId,
-        user_id: this.userId, // Legacy field for backwards compatibility
-        requester_user_id: this.userId,
-        sender_user_id: senderUserId || null, // Who we're requesting the key from
-        room_id: roomId,
-        session_id: sessionId,
-        status: 'pending',
-        request_signature: requestSignature || null,
-        request_signing_fingerprint: signingFingerprint || null,
-        created_at: new Date().toISOString()
-      })
+      .insert({ ...row, accepts_relay: true, message_id: message.id ?? null })
+    if (error?.code === MISSING_COLUMN) {
+      ({ error } = await supabase.from('megolm_key_requests').insert(row))
+    }
 
     if (error) {
       // Roll back the synchronous dedup reservation so a retry can re-issue.
-      const reserved = this.pendingRequests.get(sessionId)
+      const reserved = this.pendingRequests.get(dedupKey)
       if (reserved?.requestId === requestId) {
-        this.pendingRequests.delete(sessionId)
+        this.pendingRequests.delete(dedupKey)
       }
       throw new Error(`Failed to create key request: ${error.message}`)
     }
@@ -934,17 +1225,33 @@ export class MegolmKeyBackupService {
   }
 
   /**
-   * Fulfill pending requests addressed to this user where the key is held.
-   * Called on initialization to catch up on requests raised while offline.
+   * Pending requests this user may answer: get_relayable_key_requests (those
+   * addressed to them, and relay-accepting ones in rooms they share with the
+   * requester), or those addressed to them on servers without it.
+   */
+  private async getRequestsToAnswer(): Promise<KeyRequest[]> {
+    if (!this.userId) return []
+    const { data, error } = await supabase.rpc('get_relayable_key_requests', { p_limit: 200 })
+    if (!error) return (data || []) as KeyRequest[]
+    if (error.code !== MISSING_FUNCTION) {
+      debug.error('Failed to fetch requests to answer:', error)
+      return []
+    }
+    return this.getRequestsToMe()
+  }
+
+  /**
+   * Fulfill pending requests this user may answer where the key is held.
+   * Called on unlock to catch up on requests raised while offline.
    */
   async processPendingRequestsToMe(): Promise<number> {
-    const requests = await this.getRequestsToMe()
+    const requests = (await this.getRequestsToAnswer())
+      .filter(request => this.holdsKeyFor(request))
     let fulfilledCount = 0
 
     for (const request of requests) {
       try {
-        await this.handleIncomingKeyRequest(request)
-        fulfilledCount++
+        if (await this.handleIncomingKeyRequest(request)) fulfilledCount++
       } catch (error) {
         debug.warn(`Failed to process request ${request.id}:`, error)
       }
@@ -966,7 +1273,8 @@ export class MegolmKeyBackupService {
    * leaving a `status='fulfilled'` row with a populated `encrypted_key` that
    * nothing consumes. This sweeps and imports those rows on unlock;
    * handleFulfilledRequest then flips each to 'received' so later unlocks skip
-   * them.
+   * them. A relayed row stays 'fulfilled' until a decrypt settles its key.
+   * Returns the keys imported or held.
    */
   async processMyFulfilledRequests(): Promise<number> {
     if (!this.userId) return 0
@@ -982,35 +1290,39 @@ export class MegolmKeyBackupService {
       return 0
     }
 
-    // Batch-fetch every fulfiller's public key in one query. Per-row fetching
+    // Batch-fetch every wrapper's public key in one query. Per-row fetching
     // inside handleFulfilledRequest costs one identical user_key_pairs query
     // per stale row from the same fulfiller - 170 observed on one unlock.
-    const senderIds = [...new Set(data.map(r => r.sender_user_id).filter(Boolean))]
-    const senderKeyMap = new Map<string, string>()
-    if (senderIds.length > 0) {
+    const wrapperOf = (r: KeyRequest) => r.fulfilled_by_user_id || r.sender_user_id
+    const wrapperIds = [...new Set((data as KeyRequest[]).map(wrapperOf).filter((id): id is string => !!id))]
+    const wrapperKeyMap = new Map<string, string>()
+    if (wrapperIds.length > 0) {
       const { data: keys, error: keysError } = await supabase
         .from('user_key_pairs')
         .select('user_id, identity_public_key')
-        .in('user_id', senderIds)
+        .in('user_id', wrapperIds)
         .eq('is_active', true)
       if (keysError) {
         debug.warn('Batch fulfiller-key fetch failed, aborting sweep (will retry next unlock):', keysError)
         return 0
       }
       for (const k of keys || []) {
-        if (k.identity_public_key) senderKeyMap.set(k.user_id, k.identity_public_key)
+        if (k.identity_public_key) wrapperKeyMap.set(k.user_id, k.identity_public_key)
       }
     }
 
     const importedIds: string[] = []
     const failedIds: string[] = []
-    for (const request of data) {
-      const ok = await this.handleFulfilledRequest(
-        request as unknown as KeyRequest,
-        senderKeyMap.get(request.sender_user_id) ?? null,
+    let relayedCount = 0
+    for (const request of data as KeyRequest[]) {
+      const wrapper = wrapperOf(request)
+      const outcome = await this.handleFulfilledRequest(
+        request,
+        (wrapper && wrapperKeyMap.get(wrapper)) ?? null,
         true, // defer status flips - batched below
       )
-      if (ok) importedIds.push(request.id)
+      if (outcome === 'imported') importedIds.push(request.id)
+      else if (outcome === 'relayed') relayedCount++
       else failedIds.push(request.id)
     }
 
@@ -1046,7 +1358,7 @@ export class MegolmKeyBackupService {
       debug.log(`Imported ${importedIds.length} fulfilled key requests (offline catch-up)`)
     }
 
-    return importedIds.length
+    return importedIds.length + relayedCount
   }
 
   async cancelKeyRequest(requestId: string): Promise<void> {

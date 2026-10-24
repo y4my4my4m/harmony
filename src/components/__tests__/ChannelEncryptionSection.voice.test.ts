@@ -37,7 +37,7 @@ function state(over: Partial<EffectiveChannelEncryption> = {}): EffectiveChannel
   return {
     channelId: 'v1', serverId: 's1', serverMode: 'disabled', voiceMode: 'disabled',
     messagesEncrypted: false, voiceEncrypted: false, messagesLocked: true, voiceLocked: false,
-    historyVisibility: 'joined', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
+    historyVisibility: 'all', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
     ...over,
   }
 }
@@ -107,5 +107,54 @@ describe('ChannelEncryptionSection voice row', () => {
     fetchEffective.mockResolvedValue(state())
     const wrapper = await mountSection(0)
     expect(wrapper.find('[data-testid="channel-voice-encryption"]').exists()).toBe(false)
+  })
+})
+
+describe('ChannelEncryptionSection history row', () => {
+  const encrypted = (over: Partial<EffectiveChannelEncryption> = {}) =>
+    state({ serverMode: 'optional', messagesLocked: false, messagesEncrypted: true, ...over })
+
+  it('offers all, pinned only and none for an encrypted channel', async () => {
+    fetchEffective.mockResolvedValue(encrypted())
+    setEncryption.mockResolvedValue(encrypted({ historyVisibility: 'pinned' }))
+    const wrapper = await mountSection(0)
+
+    const select = wrapper.get('[data-testid="channel-history-visibility"]')
+    expect(select.findAll('option').map((o) => o.attributes('value'))).toEqual(['all', 'pinned', 'none'])
+    expect((select.element as HTMLSelectElement).value).toBe('all')
+    expect(wrapper.text()).toContain('New members can read earlier messages')
+
+    await select.setValue('pinned')
+    await flushPromises()
+    expect(setEncryption).toHaveBeenCalledWith('v1', { historyVisibility: 'pinned' })
+    expect(wrapper.text()).toContain('can read pinned messages sent before they joined')
+  })
+
+  it('puts the select back when the server refuses the change', async () => {
+    fetchEffective.mockResolvedValue(encrypted())
+    setEncryption.mockRejectedValue(Object.assign(new Error('Could not find the function'), { code: 'PGRST202' }))
+    const wrapper = await mountSection(0)
+    const select = wrapper.get('[data-testid="channel-history-visibility"]')
+
+    await select.setValue('none')
+    await flushPromises()
+    expect((select.element as HTMLSelectElement).value).toBe('all')
+  })
+
+  it('has no history row while messages are not encrypted', async () => {
+    fetchEffective.mockResolvedValue(state())
+    const wrapper = await mountSection(0)
+    expect(wrapper.find('[data-testid="channel-history-visibility"]').exists()).toBe(false)
+  })
+
+  it('is read-only for a member who cannot manage the channel', async () => {
+    fetchEffective.mockResolvedValue(encrypted({ historyVisibility: 'none' }))
+    const wrapper = mount(ChannelEncryptionSection, {
+      props: { channel: { id: 'v1', name: 'general', type: 0 } as any, canManage: false },
+    })
+    await flushPromises()
+    const select = wrapper.get('[data-testid="channel-history-visibility"]')
+    expect(select.attributes('disabled')).toBeDefined()
+    expect((select.element as HTMLSelectElement).value).toBe('none')
   })
 })

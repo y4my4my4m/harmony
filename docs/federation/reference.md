@@ -535,6 +535,25 @@ A join, leave, kick, ban, thread, or channel encryption notice has no author. Th
 
 The channel collection serves every notice. Join, leave, kick and ban notices are also delivered live as the Group's `Create`, with `harmony:serverId` and `harmony:channelName` on the `Note`. A receiver honours `harmony:system` only on a `Note` attributed to, or a `Create` sent by, the Group hosting the channel, never relayed; it stores the notice as a system row and resolves the actor ids to its own accounts. A `Note` from a host before 1.8.11 is attributed to the member and has no `harmony:system`.
 
+### Bot, webhook and bridged message Note
+
+A message no member wrote (a bot's, a channel webhook's, or a Discord member's the bridge relays) has no actor of its own. The Group attributes it to itself and names the author in `harmony:author`:
+
+```json
+{
+  "type": "Note",
+  "id": "https://chat.example.com/messages/<message>",
+  "attributedTo": "https://chat.example.com/servers/<server>",
+  "content": "<p>Deploy finished</p>",
+  "context": "https://chat.example.com/servers/<server>/channels/<channel>",
+  "harmony:author": { "kind": "webhook", "id": "<webhook>", "name": "Deployer", "icon": "https://chat.example.com/avatars/deployer.png" }
+}
+```
+
+`kind` is `bot`, `webhook` or `bridge`. `id` is the bot's or webhook's UUID on the host, or `discord:<user id>` for a bridged member. `name` is at most 100 characters; `icon` is an `https` URL of at most 2048 characters, left out when the author has none; a bridged member adds `source: "discord"`.
+
+The channel collection serves these Notes, and the Group delivers each live as its `Create`, an edit as its `Update` and a removal as its `Delete`, with `harmony:serverId` and `harmony:channelName` on the `Note`. A receiver honours `harmony:author` only on a `Note` attributed to, or a `Create` or `Update` sent by, the Group hosting the channel, never relayed. It stores the message with no account as its author and shows it under `name` and `icon`; it drops `icon` unless it is `https`, and a message naming a thread it lacks. A host before 1.9.0 does not send these messages.
+
 ### Direct message Note
 
 A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group.
@@ -673,6 +692,7 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:encrypted` | Channel message and direct message `Note` | `true` for end-to-end encrypted content, which receivers cannot decrypt |
 | `harmony:voiceMessage` | Channel message `Note` | `{ duration, waveform }` of a voice message |
 | `harmony:system` | System notice `Note` | `{ type, subject, actor, actorName, reason, thread, threadName }`; see [System notice Note](#system-notice-note) |
+| `harmony:author` | Bot, webhook and bridged message `Note` | `{ kind, id, name, icon, source }`; see [Bot, webhook and bridged message Note](#bot-webhook-and-bridged-message-note) |
 | `harmony:conversationType`, `harmony:conversationId` | Direct message `Note`, group conversation object | `"group"`; the sender's conversation UUID |
 | `harmony:updateType` | Group conversation `Update` | `name`, `icon` or `icon_removed` |
 | `ChatThread` (`harmony:ChatThread`) | Thread object | A thread; `autoArchiveDuration`, `messageCount`, `memberCount`, `lastMessageAt` map to `harmony:` terms |

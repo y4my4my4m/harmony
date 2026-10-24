@@ -286,7 +286,8 @@ non-empty key in `/config.json` wins.
   not a rebuild.
 - **Static build**: the `VITE_*` values in `.env` at build time apply. A
   `config.json` next to `index.html`, served as `application/json`, overrides
-  them.
+  them. `VITE_RUNTIME_CONFIG=off` skips the request: the page starts without
+  waiting a round trip for a file the instance does not serve.
 - **Desktop and Android apps** read neither: they fetch the chosen
   instance's `GET /api/federation/instance-info`.
 
@@ -383,6 +384,7 @@ process and names the variable.
 | `FCM_SERVICE_ACCOUNT_JSON` | unset | Firebase service account JSON, raw or base64, for the Android app over FCM |
 | `FCM_SERVICE_ACCOUNT_FILE` | unset | Path to that JSON file. `FCM_SERVICE_ACCOUNT_JSON` wins when both are set |
 | `PUSH_ALLOW_PRIVATE_ENDPOINTS` | `false` | `true` accepts push endpoints on private, loopback or link-local addresses |
+| `OUTGOING_WEBHOOKS_ALLOW_LOOPBACK` | `false` | For tests only: `true` sends [outgoing webhook](/build/outgoing-webhooks) deliveries to `http://localhost` and loopback addresses |
 
 See [Push notifications](/self-host/push).
 

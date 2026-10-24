@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { hasCapability } from '@/services/instanceCapabilities'
 import {
   resolveChannelEncryption,
   type ChannelEncryptionRow,
@@ -63,7 +64,10 @@ export const useChannelEncryptionStore = defineStore('channelEncryption', {
         channelIds.length > 0
           ? supabase
               .from('channel_encryption_settings')
-              .select('channel_id, messages_encrypted, voice_encrypted, history_visibility, enabled_at, enabled_by')
+              // history_visibility is read where the instance enforces it (key relay, 1.9.0).
+              .select(hasCapability('encrypted-history')
+                ? 'channel_id, messages_encrypted, voice_encrypted, history_visibility, enabled_at, enabled_by'
+                : 'channel_id, messages_encrypted, voice_encrypted, enabled_at, enabled_by')
               .in('channel_id', channelIds)
           : Promise.resolve({ data: [] as ChannelEncryptionRow[], error: null }),
       ])

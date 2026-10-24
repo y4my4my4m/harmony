@@ -4,6 +4,7 @@ const COMMANDS: &[&str] = &[
   "request_permission",
   "open_settings",
   "get_fcm_token",
+  "get_relay_registration",
   "show",
   "cancel",
   "take_launch_target",

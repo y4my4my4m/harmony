@@ -2,6 +2,8 @@
 # nginx -t on dev/nginx-harmony.template.conf, then the /invite/<code> and /d/<token> routing:
 # link-preview crawlers reach the federation backend, browsers and search engines the SPA.
 # /@<name> and /@<name>/<post id>: the SPA with the cookie harmony_app=1, the backend otherwise.
+# Cache lifetimes: every SPA answer no-cache, hashed /assets/ files immutable, other static files
+# a day, a missing static file or /config.json a 404 rather than index.html.
 #
 # The template runs in a plain-HTTP nginx container: certificate directives dropped, the
 # backend upstream pointed at a stub server in the same nginx that answers with the URI it
@@ -21,6 +23,13 @@ trap cleanup EXIT
 
 mkdir -p "$WORK/conf" "$WORK/dist"
 echo SPA > "$WORK/dist/index.html"
+mkdir -p "$WORK/dist/assets/sounds" "$WORK/dist/favicon" "$WORK/dist/backgrounds"
+echo chunk > "$WORK/dist/assets/index-AbCd_-12.js"
+echo sheet > "$WORK/dist/assets/emoji_sheet.webp"
+echo ping > "$WORK/dist/assets/sounds/ping.mp3"
+echo icon > "$WORK/dist/favicon/icon.png"
+echo bg > "$WORK/dist/backgrounds/a.webp"
+echo sw > "$WORK/dist/service-worker.js"
 sed -e 's/listen 443 ssl;/listen 8443;/' -e '/http2 on;/d' -e '/ssl_/d' \
     -e 's/listen 80;/listen 8080;/' -e 's/server_name YOUR_DOMAIN;/server_name _;/' \
     -e 's|/path/to/harmony/dist|/srv/dist|' \
@@ -238,5 +247,46 @@ else
   printf 'ok   embed-media answer carries no server-level Referrer-Policy\n'
 fi
 
+# expect_headers <path> <text>...: each text in the response head; one prefixed with ! absent.
+expect_headers() {
+  local path="$1" head h
+  shift
+  head="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" "http://127.0.0.1:8443$path" 2>&1 || true)"
+  for h in "$@"; do
+    if [ "${h#!}" != "$h" ]; then
+      if grep -qiF -- "${h#!}" <<<"$head"; then
+        err "$path: carries '${h#!}'"
+        FAILED=$((FAILED + 1))
+      else
+        printf 'ok   %-40.40s without %s\n' "$path" "${h#!}"
+      fi
+    elif grep -qiF -- "$h" <<<"$head"; then
+      printf 'ok   %-40.40s %s\n' "$path" "$h"
+    else
+      err "$path: lacks '$h'"
+      FAILED=$((FAILED + 1))
+    fi
+  done
+}
+
+log "cache lifetimes"
+# The document revalidates on every load wherever it is served, keeping the server-level headers.
+for p in / /index.html /chat/00000000-0000-0000-0000-000000000001 /invite/ABCD1234 $DRIVE_LINK $POST $PROFILE; do
+  expect_headers "$p" 'Cache-Control: no-cache' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff' '!max-age' '!Expires'
+done
+expect_headers /assets/index-AbCd_-12.js 'Cache-Control: public, max-age=31536000, immutable' 'X-Content-Type-Options: nosniff'
+for p in /assets/emoji_sheet.webp /assets/sounds/ping.mp3 /favicon/icon.png /backgrounds/a.webp; do
+  expect_headers "$p" 'Cache-Control: max-age=86400' '!immutable'
+done
+expect_headers /service-worker.js 'Cache-Control: no-cache, no-store, must-revalidate' '!immutable'
+# A missing chunk, sound, emoji, icon or /config.json is a 404, not index.html.
+for p in /assets/Gone-AbCd1234.js /assets/sounds/gone.mp3 /assets/emojis/gone.json /favicon/gone.png /config.json; do
+  expect_headers "$p" '404 Not Found' '!Cache-Control'
+done
+# Proxied answers keep the backend's caching alone.
+for p in /api/federation/media/c/x/a.png /@fx_alice /posts/00000000-0000-0000-0000-000000000001; do
+  expect_headers "$p" '200 OK' '!Cache-Control' '!Expires'
+done
+
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name>, /@<name> and the ActivityPub-only paths"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name>, /@<name> and the ActivityPub-only paths, and sets cache lifetimes"

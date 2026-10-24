@@ -57,6 +57,9 @@ env:
   VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY != '' && secrets.TEST_SUPABASE_ANON_KEY || 'placeholder-key' }}
   # Instance picker prefill (repository variable); unset leaves the field empty.
   VITE_DEFAULT_INSTANCE_URL: ${{ vars.DEFAULT_INSTANCE_URL }}
+  # Push relay for this build's FCM on instances without its Firebase project
+  # (repository variable, an https origin); unset: no relay.
+  VITE_PUSH_RELAY_ORIGIN: ${{ vars.PUSH_RELAY_ORIGIN }}
 
 jobs:
   # Windows/macOS use the system webview (WebView2 / WKWebView); the CEF

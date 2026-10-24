@@ -50,6 +50,28 @@
         />
       </div>
 
+      <div v-if="state.messagesEncrypted && hasHistorySetting" class="encryption-row">
+        <div class="encryption-row-text">
+          <label :for="historyId" class="encryption-row-label">
+            <Icon name="clock" :size="14" />
+            {{ t('channelEncryption.settings.historyLabel') }}
+          </label>
+          <span class="encryption-hint">{{ historyHint }}</span>
+        </div>
+        <select
+          :id="historyId"
+          class="encryption-select"
+          :value="state.historyVisibility"
+          :disabled="!canChangeHistory"
+          data-testid="channel-history-visibility"
+          @change="changeHistory($event.target as HTMLSelectElement)"
+        >
+          <option value="all">{{ t('channelEncryption.settings.historyAll') }}</option>
+          <option value="pinned">{{ t('channelEncryption.settings.historyPinned') }}</option>
+          <option value="none">{{ t('channelEncryption.settings.historyNone') }}</option>
+        </select>
+      </div>
+
       <div v-if="integrationWarning" class="encryption-warning" role="note">
         <Icon name="alert-triangle" :size="14" />
         <span>{{ integrationWarning }}</span>
@@ -65,9 +87,14 @@ import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
-import { fetchEffectiveChannelEncryption, setChannelEncryption } from '@/services/ChannelEncryptionService'
+import {
+  fetchEffectiveChannelEncryption,
+  setChannelEncryption,
+  type ChannelEncryptionChange,
+} from '@/services/ChannelEncryptionService'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
-import type { EffectiveChannelEncryption } from '@/utils/channelEncryption'
+import { normalizeHistoryVisibility, type EffectiveChannelEncryption } from '@/utils/channelEncryption'
+import { hasCapability } from '@/services/instanceCapabilities'
 import type { Channel } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -83,6 +110,7 @@ const { confirm } = useConfirmDialog()
 const channelEncryptionStore = useChannelEncryptionStore()
 
 const headingId = `channel-encryption-${Math.random().toString(36).slice(2, 8)}`
+const historyId = `${headingId}-history`
 const state = ref<EffectiveChannelEncryption | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -93,6 +121,17 @@ const canToggleMessages = computed(() =>
   props.canManage && !saving.value && !!state.value && !state.value.messagesLocked)
 const canToggleVoice = computed(() =>
   props.canManage && !saving.value && !!state.value && !state.value.voiceLocked)
+const canChangeHistory = computed(() => props.canManage && !saving.value && !!state.value)
+// The native app on an instance before 1.9.0: no history setting to change.
+const hasHistorySetting = computed(() => hasCapability('encrypted-history'))
+
+const historyHint = computed(() => {
+  switch (state.value?.historyVisibility) {
+    case 'pinned': return t('channelEncryption.settings.historyPinnedHint')
+    case 'none': return t('channelEncryption.settings.historyNoneHint')
+    default: return t('channelEncryption.settings.historyAllHint')
+  }
+})
 
 const messagesHint = computed(() => {
   const s = state.value
@@ -138,7 +177,7 @@ async function load() {
   }
 }
 
-async function apply(change: { messagesEncrypted?: boolean; voiceEncrypted?: boolean }, successKey: string) {
+async function apply(change: ChannelEncryptionChange, successKey: string) {
   saving.value = true
   try {
     const next = await setChannelEncryption(props.channel.id, change)
@@ -199,6 +238,17 @@ async function toggleVoice(enable: boolean) {
   )
 }
 
+async function changeHistory(select: HTMLSelectElement) {
+  const s = state.value
+  if (!s || !canChangeHistory.value) return
+  const next = normalizeHistoryVisibility(select.value)
+  if (next !== s.historyVisibility) {
+    await apply({ historyVisibility: next }, 'channelEncryption.settings.historySaved')
+  }
+  // A refused change leaves the stored value.
+  if (state.value) select.value = state.value.historyVisibility
+}
+
 watch(() => props.channel.id, () => { void load() }, { immediate: true })
 </script>
 
@@ -244,6 +294,21 @@ watch(() => props.channel.id, () => { void load() }, { immediate: true })
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.encryption-select {
+  flex-shrink: 0;
+  max-width: 50%;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--background-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+}
+
+.encryption-select:disabled {
+  opacity: 0.6;
 }
 
 .encryption-hint {

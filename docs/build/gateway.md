@@ -113,10 +113,11 @@ To recover messages missed while disconnected, read the channels you care about 
 - **Own events.** A bot receives events for its own messages and reactions. Compare `author.id` or `bot_id` with `bot.id` from `READY` to skip them.
 - **Every connection.** Each open connection of the bot receives each event.
 - **Encrypted channels.** End-to-end encrypted messages produce no `MESSAGE_CREATE` or `MESSAGE_UPDATE`.
-- **Timing.** The gateway reads the database on a schedule: new messages every second (up to 50 per read), edits and deletes every 2 seconds, reactions every 2 seconds (up to 100 new reactions per read).
+- **Timing.** The gateway reads the database on a schedule: new messages every second (up to 50 per read), edits and deletes every 2 seconds, reactions every 2 seconds (up to 100 new reactions per read), member and moderation events every 2 seconds.
 - **Permission changes.** The gateway caches each server's installations and rechecks them every 10 seconds; a removed bot or changed permission or channel list affects delivery within about 10 seconds. Whether @everyone can view a channel is cached for 10 seconds.
 - **Author details.** Usernames, display names and avatars are cached for 10 minutes and nicknames for 60 seconds, so a change can take that long to show in events.
-- **No server ID.** Payloads carry `channel_id` and no server ID. [`GET /servers/{server.id}/channels`](/build/rest#list-channels) maps channels to servers.
+- **No server ID.** Message and reaction payloads carry `channel_id` and no server ID. [`GET /servers/{server.id}/channels`](/build/rest#list-channels) maps channels to servers. [Member events](#member-events) carry `server_id`.
+- **Without a connection.** An [outgoing webhook](/build/outgoing-webhooks) receives the same events by HTTPS POST, connected or not.
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 
 ## Events
@@ -129,6 +130,11 @@ To recover messages missed while disconnected, read the channels you care about 
 | [`MESSAGE_DELETE`](#message-delete) | A message is deleted. | Readers of the channel |
 | [`MESSAGE_REACTION_ADD`](#message-reaction-add) | A reaction is added to a message. | Readers of the channel |
 | [`MESSAGE_REACTION_REMOVE`](#message-reaction-remove) | A reaction is removed. | Readers of the channel |
+| [`SERVER_MEMBER_ADD`](#member-events) | Someone becomes a member of the server. | Bots installed with `read_messages` |
+| [`SERVER_MEMBER_REMOVE`](#member-events) | A member leaves, is kicked or banned. | Bots installed with `read_messages` |
+| [`SERVER_MEMBER_KICK`](#member-events) | A member is kicked. | Bots installed with `read_messages` |
+| [`SERVER_BAN_ADD`](#member-events) | A member is banned. | Bots installed with `read_messages` |
+| [`SERVER_BAN_REMOVE`](#member-events) | A ban is lifted. | Bots installed with `read_messages` |
 | [`REFRESH_ATTACHMENTS`](#refresh-attachments) | A member asks for expired Discord attachment links of a bridged message to be renewed. | The bot that wrote the message |
 | [`BRIDGE_CONFIG_UPDATE`](#bridge-config-update) | A Discord bridge's configuration changes. | The bridge's bot |
 
@@ -267,6 +273,19 @@ A message removed from the database by other means, such as deleting its channel
 Same shape and values as the `MESSAGE_REACTION_ADD` of the removed reaction, as the gateway saw it when it was added. Match on `reaction_id`.
 
 The gateway detects removals by checking a window of the 200 reactions it saw most recently, across the instance, every 2 seconds. Removing a reaction outside that window sends no event.
+
+### Member events
+
+`SERVER_MEMBER_ADD`, `SERVER_MEMBER_REMOVE`, `SERVER_MEMBER_KICK`, `SERVER_BAN_ADD` and `SERVER_BAN_REMOVE` share one payload:
+
+```json
+{
+  "server_id": "55555555-0000-0000-0000-000000000005",
+  "user": { "id": "22222222-0000-0000-0000-000000000002", "username": "bob", "display_name": "Bob", "avatar_url": null }
+}
+```
+
+A kick or a ban also ends the membership, so it is followed by `SERVER_MEMBER_REMOVE`. The moderator and the reason are not included. A member event of a user whose account is gone has `username`, `display_name` and `avatar_url` null.
 
 ### REFRESH_ATTACHMENTS
 

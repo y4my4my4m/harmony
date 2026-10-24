@@ -34,6 +34,9 @@ let dbClock = T0
 const at = (ms: number) => new Date(ms).toISOString().replace('Z', '+00:00')
 let feedCalls: Array<{ p_after_at: string | null; p_after_id: string | null; p_limit: number }>
 let feedFailure: { message: string } | null
+// outgoing_webhook_routes and enqueue_outgoing_webhook_event (migration 20261028600001).
+let routes: Array<{ bot_id: string | null; server_id: string | null; events: string[] }>
+let enqueued: Array<{ p_event: string; p_server_id: string; p_channel_id: string | null; p_bot_ids: string[]; p_payload: any }>
 
 // channel_message_changes over db.rows('messages'), as migration 20261009000001 defines it.
 function channelMessageChanges(args: { p_after_at: string | null; p_after_id: string | null; p_limit: number }) {
@@ -113,8 +116,15 @@ beforeEach(() => {
   feedCalls = []
   feedFailure = null
   mocks.rpc.mockReset()
+  routes = []
+  enqueued = []
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
     if (fn === 'channel_message_changes') return channelMessageChanges(args)
+    if (fn === 'outgoing_webhook_routes') return { data: routes, error: null }
+    if (fn === 'enqueue_outgoing_webhook_event') {
+      enqueued.push(args)
+      return { data: 1, error: null }
+    }
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
 
@@ -896,5 +906,147 @@ describe('mention_everyone', () => {
     expect(await flag([CREW])).toBe(false)
     expect(await flag([{ type: 'text', text: '@here' }])).toBe(false)
     expect(asked).toEqual([['has_permission', expect.anything()]])
+  })
+})
+
+describe('outgoing webhooks', () => {
+  const OTHER_BOT = '00000000-0000-0000-0000-0000000000b9'
+
+  it('queues nothing, and asks nothing, without a webhook taking the event', async () => {
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'hello') })
+    expect(enqueued).toEqual([])
+  })
+
+  it('hands a reading bot\'s webhook the event as its connection gets it, with the server id', async () => {
+    routes = [{ bot_id: OPEN_BOT, server_id: null, events: ['MESSAGE_CREATE'] }, { bot_id: OTHER_BOT, server_id: null, events: ['MESSAGE_CREATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'hello') })
+    expect(enqueued).toHaveLength(1)
+    expect(enqueued[0]).toMatchObject({ p_event: 'MESSAGE_CREATE', p_server_id: SERVER_ID, p_channel_id: GENERAL, p_bot_ids: [OPEN_BOT] })
+    expect(enqueued[0].p_payload).toEqual({ ...sent[0].event.d, server_id: SERVER_ID })
+  })
+
+  it('withholds a bot\'s webhook from a channel its bot cannot read', async () => {
+    routes = [{ bot_id: OPEN_BOT, server_id: null, events: ['MESSAGE_CREATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: message(MODS_ONLY, 'private') })
+    expect(enqueued).toEqual([])
+  })
+
+  it('hands a server\'s webhook events no bot reads, the database checking its creator', async () => {
+    db.tables.bot_server_permissions = []
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE', 'MESSAGE_DELETE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: message(MODS_ONLY, 'private') })
+    expect(sent).toEqual([])
+    expect(enqueued).toHaveLength(1)
+    expect(enqueued[0]).toMatchObject({ p_event: 'MESSAGE_CREATE', p_channel_id: MODS_ONLY, p_bot_ids: [] })
+  })
+
+  it('never queues an encrypted message', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'secret'), encrypted: true } })
+    expect(enqueued).toEqual([])
+  })
+
+  it('keeps the last routes when they cannot be read', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'outgoing_webhook_routes') return { data: null, error: { message: 'down' } }
+      if (fn === 'enqueue_outgoing_webhook_event') { enqueued.push(args); return { data: 1, error: null } }
+      throw new Error(`test called unmocked rpc: ${fn}`)
+    })
+    await (dispatcher as any).webhooks.refresh()
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'hello') })
+    expect(enqueued).toHaveLength(1)
+  })
+})
+
+describe('member and moderation events', () => {
+  const MALLORY = '00000000-0000-0000-0000-0000000000a9'
+
+  beforeEach(() => {
+    db.tables.server_member_changes = [{ id: 7, server_id: SERVER_ID, user_id: OWNER_ID, change: 'join', created_at: at(T0) }]
+    db.tables.server_membership_events = []
+    db.tables.profiles.push({ id: MALLORY, username: 'mallory', display_name: 'Mallory', avatar_url: null })
+  })
+
+  it('sends joins and leaves after the start position, in order, to the server\'s bots and webhooks', async () => {
+    await (dispatcher as any).initializeMemberFeed()
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['SERVER_MEMBER_REMOVE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    db.tables.server_member_changes.push(
+      { id: 8, server_id: SERVER_ID, user_id: MALLORY, change: 'join', created_at: at(T0 + 1) },
+      { id: 9, server_id: SERVER_ID, user_id: MALLORY, change: 'leave', created_at: at(T0 + 2) },
+    )
+    await (dispatcher as any).pollMemberChanges()
+    expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD', 'SERVER_MEMBER_REMOVE'])
+    expect(sent[0].botIds.sort()).toEqual([OPEN_BOT, SCOPED_BOT].sort())
+    expect(sent[0].event.d).toEqual({ server_id: SERVER_ID, user: { id: MALLORY, username: 'mallory', display_name: 'Mallory', avatar_url: null } })
+    expect(enqueued.map((e) => e.p_event)).toEqual(['SERVER_MEMBER_REMOVE'])
+    await (dispatcher as any).pollMemberChanges()
+    expect(sent).toHaveLength(2)
+  })
+
+  it('sends a join committed after a later one', async () => {
+    await (dispatcher as any).initializeMemberFeed()
+    db.tables.server_member_changes.push({ id: 9, server_id: SERVER_ID, user_id: MALLORY, change: 'join', created_at: at(T0 + 2) })
+    await (dispatcher as any).pollMemberChanges()
+    db.tables.server_member_changes.push({ id: 8, server_id: SERVER_ID, user_id: OWNER_ID, change: 'leave', created_at: at(T0 + 1) })
+    await (dispatcher as any).pollMemberChanges()
+    await (dispatcher as any).pollMemberChanges()
+    expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD', 'SERVER_MEMBER_REMOVE'])
+  })
+
+  it('sends a change inside the re-read window once, however long it stays there', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      await (dispatcher as any).initializeMemberFeed()
+      db.tables.server_member_changes.push({ id: 8, server_id: SERVER_ID, user_id: MALLORY, change: 'join', created_at: at(T0 + 1) })
+      await (dispatcher as any).pollMemberChanges()
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await (dispatcher as any).pollMemberChanges()
+      expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends a kick inside the re-read window once, however long it stays there', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      db.tables.server_membership_events.push(
+        { id: 'k9', server_id: SERVER_ID, user_id: MALLORY, event_type: 'kick', created_at: new Date().toISOString() })
+      await (dispatcher as any).pollModerationEvents()
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await (dispatcher as any).pollModerationEvents()
+      expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_KICK'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reads past a full page of moderation events of one timestamp instead of stalling on it', async () => {
+    const recent = new Date().toISOString()
+    for (let i = 0; i < 205; i++) {
+      db.tables.server_membership_events.push({ id: `e${String(i).padStart(3, '0')}`, server_id: SERVER_ID, user_id: MALLORY, event_type: 'ban', created_at: recent })
+    }
+    await (dispatcher as any).pollModerationEvents()
+    expect(sent.filter((s) => s.event.t === 'SERVER_BAN_ADD')).toHaveLength(205)
+  })
+
+  it('sends a kick, a ban and an unban once each', async () => {
+    const recent = new Date().toISOString()
+    db.tables.server_membership_events.push(
+      { id: 'k1', server_id: SERVER_ID, user_id: MALLORY, event_type: 'kick', created_at: recent },
+      { id: 'b1', server_id: SERVER_ID, user_id: MALLORY, event_type: 'ban', created_at: recent },
+      { id: 'u1', server_id: SERVER_ID, user_id: MALLORY, event_type: 'unban', created_at: recent },
+    )
+    await (dispatcher as any).pollModerationEvents()
+    await (dispatcher as any).pollModerationEvents()
+    expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_KICK', 'SERVER_BAN_ADD', 'SERVER_BAN_REMOVE'])
   })
 })

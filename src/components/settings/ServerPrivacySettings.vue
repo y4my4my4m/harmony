@@ -20,14 +20,22 @@
       </div>
     </div>
 
-    <!-- Federation Settings (only show if instance-level federation is enabled) -->
-    <div class="settings-card" v-if="permissions.canChangePrivacySettings && instanceFederationEnabled">
+    <!-- Federation. While the instance's federation is off (both switches), it does not turn on. -->
+    <div class="settings-card" v-if="permissions.canChangePrivacySettings">
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
             <label class="form-label" :for="`${uid}-federation`">{{ $t('server.federationEnabled') }}</label>
             <div :id="`${uid}-federation-hint`" class="form-hint">
               {{ $t('server.federationEnabledDesc') }}
+            </div>
+            <div
+              v-if="!instanceFederationEnabled"
+              :id="`${uid}-federation-instance-off`"
+              class="form-hint"
+              data-testid="server-federation-instance-off"
+            >
+              {{ $t('server.federationInstanceOff') }}
             </div>
           </div>
           <div class="setting-control">
@@ -37,10 +45,11 @@
                 ref="federationToggle"
                 type="checkbox"
                 role="switch"
-                :aria-describedby="`${uid}-federation-hint`"
+                :aria-describedby="instanceFederationEnabled ? `${uid}-federation-hint` : `${uid}-federation-hint ${uid}-federation-instance-off`"
                 :checked="federationEnabled"
                 @change="handleFederationToggle"
-                :disabled="loading"
+                :disabled="loading || (!instanceFederationEnabled && !federationEnabled)"
+                data-testid="server-federation-toggle"
               />
               <span class="toggle-slider" aria-hidden="true"></span>
             </label>
@@ -238,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, useId } from 'vue'
+import { ref, computed, onMounted, watch, useId } from 'vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue'
 import type { ServerCategory } from '@/utils/serverDiscovery'
@@ -249,7 +258,7 @@ import { useDialog } from '@/composables/useDialog'
 useI18n();
 const uid = `privacy-${useId()}`
 const instanceSettings = useInstanceSettingsStore()
-const instanceFederationEnabled = instanceSettings.isFederationEnabled
+const instanceFederationEnabled = computed(() => instanceSettings.isFederationEnabled)
 
 interface ServerPermissions {
   canChangePrivacySettings: boolean

@@ -29,6 +29,7 @@ vi.mock('@/composables/useConfirmDialog', () => ({
   useConfirmDialog: () => ({ confirm: confirmMock }),
 }))
 
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: () => true }))
 vi.mock('@/services/AuthContextService', () => ({
   authContextService: { getCurrentProfileId: vi.fn().mockResolvedValue('profile-1') },
 }))

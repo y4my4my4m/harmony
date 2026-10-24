@@ -34,6 +34,7 @@ export interface PageStrings {
   replies: string;
   boosts: string;
   favourites: string;
+  reactions: string;
   pollPeople: string;
   pollClosed: string;
   pollEnds: string;
@@ -72,6 +73,7 @@ const en: PageStrings = {
   replies: 'Replies',
   boosts: 'Boosts',
   favourites: 'Favourites',
+  reactions: 'Reactions',
   pollPeople: '{count} people',
   pollClosed: 'Closed',
   pollEnds: 'Ends {date}',
@@ -110,6 +112,7 @@ const de: PageStrings = {
   replies: 'Antworten',
   boosts: 'Geteilt',
   favourites: 'Favoriten',
+  reactions: 'Reaktionen',
   pollPeople: '{count} Personen',
   pollClosed: 'Beendet',
   pollEnds: 'Endet am {date}',
@@ -148,6 +151,7 @@ const es: PageStrings = {
   replies: 'Respuestas',
   boosts: 'Impulsos',
   favourites: 'Favoritos',
+  reactions: 'Reacciones',
   pollPeople: '{count} personas',
   pollClosed: 'Cerrada',
   pollEnds: 'Termina el {date}',
@@ -186,6 +190,7 @@ const fr: PageStrings = {
   replies: 'Réponses',
   boosts: 'Partages',
   favourites: 'Favoris',
+  reactions: 'Réactions',
   pollPeople: '{count} personnes',
   pollClosed: 'Terminé',
   pollEnds: 'Se termine le {date}',
@@ -224,6 +229,7 @@ const ja: PageStrings = {
   replies: '返信',
   boosts: 'ブースト',
   favourites: 'お気に入り',
+  reactions: 'リアクション',
   pollPeople: '{count}人',
   pollClosed: '終了',
   pollEnds: '{date}に終了',
@@ -262,6 +268,7 @@ const ko: PageStrings = {
   replies: '답글',
   boosts: '부스트',
   favourites: '좋아요',
+  reactions: '반응',
   pollPeople: '{count}명',
   pollClosed: '종료됨',
   pollEnds: '{date}에 종료',
@@ -300,6 +307,7 @@ const zh: PageStrings = {
   replies: '回复',
   boosts: '转发',
   favourites: '喜欢',
+  reactions: '表情回应',
   pollPeople: '{count} 人',
   pollClosed: '已结束',
   pollEnds: '{date} 结束',

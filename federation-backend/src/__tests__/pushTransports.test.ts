@@ -307,8 +307,8 @@ describe('app payload', () => {
   it('splits dismissals into messages that fit', () => {
     const ids = Array.from({ length: 170 }, (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`);
     const messages = dismissalMessages([...ids, ids[0]]);
-    expect(messages.map((m) => m.ids.split(',').length)).toEqual([80, 80, 10]);
-    expect(messages.every((m) => m.kind === 'read' && Buffer.byteLength(JSON.stringify(m)) < 3100)).toBe(true);
+    expect(messages.map((m) => m.ids.split(',').length)).toEqual([75, 75, 20]);
+    expect(messages.every((m) => m.kind === 'read' && Buffer.byteLength(JSON.stringify(m)) <= APP_PAYLOAD_MAX_BYTES)).toBe(true);
     expect(dismissalMessages(null)).toEqual([{ kind: 'read', all: '1' }]);
     expect(dismissalMessages([])).toEqual([]);
   });
@@ -418,10 +418,10 @@ describe('delivery by transport', () => {
     expect(result).toEqual({ sent: 4, failed: 0 });
     expect(webPushSend.mock.calls.map(([sub]) => (sub as any).endpoint)).toEqual([up.endpoint, up.endpoint]);
     expect(webPushSend.mock.calls[0][2]).toMatchObject({ urgency: 'normal' });
-    expect(JSON.parse(webPushSend.mock.calls[0][1] as string)).toEqual({ kind: 'read', ids: ids.slice(0, 80).join(',') });
+    expect(JSON.parse(webPushSend.mock.calls[0][1] as string)).toEqual({ kind: 'read', ids: ids.slice(0, 75).join(',') });
     const fcmBodies = log.slice(1).map((c) => JSON.parse(String(c.init.body)).message);
     expect(fcmBodies.map((m) => m.android.priority)).toEqual(['NORMAL', 'NORMAL']);
-    expect(fcmBodies[1].data).toEqual({ kind: 'read', ids: 'id-80' });
+    expect(fcmBodies[1].data).toEqual({ kind: 'read', ids: ids.slice(75).join(',') });
     expect(rpc).not.toHaveBeenCalledWith('record_push_success', expect.anything());
   });
 
@@ -469,7 +469,7 @@ describe('push routes', () => {
   it('reports each transport', async () => {
     PushNotificationService.setFcmSender(new FcmSender({ account: ACCOUNT }));
     const res = await supertest(app).get('/push/status');
-    expect(res.body).toEqual({ available: true, configured: true, fcm: true, unifiedpush: true });
+    expect(res.body).toEqual({ available: true, configured: true, fcm: true, fcmProject: 'harmony-test', relay: false, unifiedpush: true });
   });
 
   it('registers an FCM token for the bearer', async () => {

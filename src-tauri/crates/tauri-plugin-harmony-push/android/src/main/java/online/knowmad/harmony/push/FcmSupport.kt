@@ -30,6 +30,13 @@ object FcmSupport {
     return if (gms == ConnectionResult.SUCCESS) AVAILABLE else NO_PLAY_SERVICES
   }
 
+  /** Firebase project of this build (google-services.json); null without one. */
+  fun projectId(context: Context): String? = try {
+    FirebaseApp.getApps(context).firstOrNull()?.options?.projectId
+  } catch (e: Throwable) {
+    null
+  }
+
   /**
    * Fetches the registration token. Auto-init is off in the manifest, so this is the first
    * contact with FCM; enabling it here keeps the token refreshed from then on.

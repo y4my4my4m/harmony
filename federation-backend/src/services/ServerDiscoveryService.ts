@@ -17,6 +17,7 @@ import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { clearJoinInFlight, markJoinInFlight } from '../activitypub/joinsInFlight.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
+import { resolveThreadInChannel } from '../activitypub/channelWriteAuthz.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { isGroupBlockedHere, isServerBlockedHere, joinRefusalHere, serverBlockedRefusal } from '../activitypub/instanceServerBlocks.js';
@@ -29,8 +30,58 @@ import {
 import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
+import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
+import { federationSwitches } from './FederationSwitches.js';
 
 const router = Router();
+
+const ownHost = config.INSTANCE_DOMAIN.toLowerCase();
+
+/**
+ * The row this instance holds for one of its members' messages, as a host's channel page names
+ * it: by this instance's id (hosts from 1.9.0 serve the id a message arrived under), else the
+ * member's row in that channel with no ap_id and a created_at within 2 s of `published` (an
+ * earlier host names it by its own row, the timestamp cut to milliseconds or clamped to its
+ * clock). The host's id is kept as metadata.host_ap_id, which reply references resolve
+ * (resolveMessageInChannel). Null when there is none.
+ */
+async function ownMessageRow(
+  supabase: any,
+  channelId: string,
+  authorId: string,
+  note: any,
+  messageUuid: string | undefined,
+): Promise<string | null> {
+  if (urlHost(note.id) === ownHost) {
+    if (!messageUuid) return null;
+    const { data } = await supabase.from('messages').select('id')
+      .eq('id', messageUuid).eq('channel_id', channelId).maybeSingle();
+    return data?.id ?? null;
+  }
+  if (typeof note.id !== 'string') return null;
+  const { data: linked } = await supabase.from('messages').select('id')
+    .eq('channel_id', channelId).eq('metadata->>host_ap_id', note.id).limit(1).maybeSingle();
+  if (linked) return linked.id;
+
+  const published = Date.parse(note.published);
+  if (Number.isNaN(published)) return null;
+  const { data: candidates } = await supabase.from('messages').select('id, created_at, metadata')
+    .eq('channel_id', channelId)
+    .eq('user_id', authorId)
+    .is('metadata->>ap_id', null)
+    .is('metadata->>host_ap_id', null)
+    .gte('created_at', new Date(published - 2000).toISOString())
+    .lte('created_at', new Date(published + 2000).toISOString())
+    .limit(20);
+  const best = ((candidates ?? []) as Array<{ id: string; created_at: string; metadata: any }>)
+    .sort((a, b) => Math.abs(Date.parse(a.created_at) - published) - Math.abs(Date.parse(b.created_at) - published))[0];
+  if (!best) return null;
+  await supabase.from('messages')
+    .update({ metadata: { ...(best.metadata ?? {}), host_ap_id: note.id } })
+    .eq('id', best.id)
+    .is('metadata->>host_ap_id', null);
+  return best.id;
+}
 
 /** Pages of a remote members collection one sync reads; a Harmony host serves 500 members a page. */
 const MEMBER_SYNC_MAX_PAGES = 40;
@@ -443,6 +494,12 @@ router.post(
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Outbound federation off: a Join to a Group elsewhere would never leave, and the membership
+    // would stay pending. A server on this instance still joins locally.
+    const federationOff = () => res.status(403).json({ error: 'Federation is off on this instance', code: 'INSTANCE_FEDERATION_OFF' });
+    const outbound = (await federationSwitches()).outbound;
+    if (!outbound && urlHost(serverUrl) !== config.INSTANCE_DOMAIN.toLowerCase()) return federationOff();
+
     const remoteServer = await ServerDiscoveryService.fetchServerByUrl(serverUrl);
     if (!remoteServer) {
       return res.status(404).json({ error: 'Remote server not found' });
@@ -491,6 +548,7 @@ router.post(
 
     // A server hosted elsewhere that this instance blocked, or keeps this account out of.
     if (localServer?.is_local_server === false) {
+      if (!outbound) return federationOff();
       const refusal = await joinRefusalHere(supabase, localServer.id, userId);
       if (refusal) return res.status(403).json(refusal);
     }
@@ -1024,6 +1082,53 @@ router.get(
         };
       };
 
+      // A bot, webhook or bridged message, by the Group with its author in harmony:author
+      // (groupAuthor.ts): cached with no profile and no bot, its author in metadata. One in a
+      // thread unknown here is left out, as live delivery drops it: cached, it sat in the channel.
+      const groupAuthoredItem = async (note: any, groupAuthor: GroupAuthor) => {
+        const threadRef = typeof note['harmony:threadId'] === 'string' ? note['harmony:threadId'] : null;
+        const thread = threadRef ? await resolveThreadInChannel(supabase, threadRef, channelId) : null;
+        if (thread && thread.status !== 'found') return null;
+        const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
+        const content = Array.isArray(note['harmony:rawContent'])
+          ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
+          : [{ type: 'text', text: noteContentText(note.content) }];
+        const createdAt = note.published || new Date().toISOString();
+        const metadata = { ap_id: note.id, is_remote: true, federated: true, ...remoteAuthorMetadata(groupAuthor) };
+        if (messageUuid) {
+          try {
+            const { data: inserted } = await supabase
+              .from('messages')
+              .upsert({
+                id: messageUuid,
+                channel_id: channelId,
+                content,
+                created_at: createdAt,
+                updated_at: note.updated || createdAt,
+                metadata,
+                thread_id: thread?.status === 'found' ? thread.id : null,
+                encrypted: note['harmony:encrypted'] === true,
+                federation_status: 'skipped',
+              }, { onConflict: 'id', ignoreDuplicates: true })
+              .select('id')
+              .maybeSingle();
+            if (inserted) changed++;
+          } catch (cacheError: any) {
+            logger.debug(`Could not cache bot message: ${cacheError.message}`);
+          }
+        }
+        return {
+          id: messageUuid || note.id,
+          content,
+          created_at: note.published,
+          updated_at: note.updated,
+          metadata,
+          author: null,
+          encrypted: note['harmony:encrypted'] === true,
+          reactions: [],
+        };
+      };
+
       // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
         const activity = item.type === 'Create' ? item : { object: item };
@@ -1033,7 +1138,9 @@ router.get(
 
         if (fromGroup(note)) {
           const sys = systemNoticeOf(note);
-          return sys ? systemNoticeItem(note, sys) : null;
+          if (sys) return systemNoticeItem(note, sys);
+          const groupAuthor = parseGroupAuthor(note[HARMONY_AUTHOR]);
+          return groupAuthor ? groupAuthoredItem(note, groupAuthor) : null;
         }
 
         const authorUrl = note.attributedTo || activity.actor;
@@ -1081,11 +1188,17 @@ router.get(
           messageUuid = uuidMatch[1];
         }
 
+        // A message of a member of this instance is held here already; caching the host's copy
+        // showed it twice. Linked, never inserted (ownMessageRow).
+        const ownMessage = !!author?.id && !author.is_bridge
+          && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
+        const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
+
         // Cache message locally for reactions and offline access (only if we have a valid author ID)
-        let cachedMsgId: string | null = null;
+        let cachedMsgId: string | null = ownRowId;
         let cachedContent: any[] | null = null;
 
-        if (author?.id && !author.is_bridge) {
+        if (author?.id && !author.is_bridge && !ownMessage) {
           const messageTimestamp = note.published || new Date().toISOString();
 
           // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
@@ -1171,7 +1284,7 @@ router.get(
         }
 
         return {
-          id: cachedMsgId || messageUuid || note.id,
+          id: cachedMsgId || (ownMessage ? note.id : messageUuid || note.id),
           // The cached parts carry files, mentions and emoji; the HTML carries text only.
           content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
           created_at: note.published,
@@ -1601,9 +1714,10 @@ export class ServerDiscoveryService {
   }
 
   /**
-   * Create a Leave activity
+   * Create a Leave activity. `idSuffix` names it after the row it answers (instance-leave-<id>,
+   * which a closed instance still delivers: FederationSwitches.isClosingActivity).
    */
-  static createLeaveActivity(actorId: string, serverId: string): any {
+  static createLeaveActivity(actorId: string, serverId: string, idSuffix?: string): any {
     return {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1611,7 +1725,7 @@ export class ServerDiscoveryService {
           harmony: HARMONY_NS,
         },
       ],
-      id: `${actorId}/activities/${crypto.randomUUID()}`,
+      id: `${actorId}/activities/${idSuffix ?? crypto.randomUUID()}`,
       type: 'Leave',
       actor: actorId,
       object: serverId,
@@ -1661,11 +1775,13 @@ export class ServerDiscoveryService {
   static async sendMemberLeave(
     server: { ap_id: string | null; federation_inbox_url: string | null; is_local_server: boolean | null },
     member: { id: string; username: string; federated_id: string | null },
+    instanceLeaveId?: string,
   ): Promise<boolean> {
     if (server.is_local_server !== false || !server.federation_inbox_url || !server.ap_id) return false;
     const leaveActivity = ServerDiscoveryService.createLeaveActivity(
       member.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${member.username}`,
-      server.ap_id
+      server.ap_id,
+      instanceLeaveId ? `instance-leave-${instanceLeaveId}` : undefined,
     );
     await ServerDiscoveryService.sendLeaveRequest(server.federation_inbox_url, leaveActivity, member.id);
     return true;

@@ -64,7 +64,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import { usePushNotifications } from '@/composables/usePushNotifications'
-import { type TransportPreference, transportLabel } from '@/services/androidPush'
+import { type TransportPreference, fcmDirect, relayReady, transportLabel } from '@/services/androidPush'
 
 const toast = useToast()
 const push = usePushNotifications()
@@ -96,11 +96,19 @@ const statusNote = computed(() => {
   return push.isSubscribed.value ? 'active' : 'registering'
 })
 
+// Google reaches this device directly, or through the relay when the server cannot.
+const googleDirect = computed(() => !!status.value && !!server.value && fcmDirect(status.value, server.value))
+const googleRelayed = computed(() =>
+  !!status.value && !!server.value && relayReady(status.value, server.value, push.relaySupport.value))
+
 const fcmHint = computed(() => {
   const fcm = status.value?.fcm
   if (fcm === 'no_config') return 'Not included in this build'
   if (fcm === 'no_play_services') return 'Needs Google Play Services'
-  if (server.value && !server.value.fcm) return 'Not configured on this server'
+  if (server.value && !googleDirect.value && googleRelayed.value) {
+    return `Delivered through Google, relayed by ${new URL(push.relaySupport.value!.origin).host}`
+  }
+  if (server.value && !googleDirect.value) return 'Not configured on this server'
   return 'Delivered through Google'
 })
 
@@ -111,7 +119,7 @@ const options = computed(() => {
       value: 'fcm',
       label: 'Google (FCM)',
       hint: fcmHint.value,
-      disabled: status.value?.fcm !== 'available' || server.value?.fcm === false,
+      disabled: status.value?.fcm !== 'available' || (!!server.value && !googleDirect.value && !googleRelayed.value),
     },
   ]
   for (const d of status.value?.unifiedPush.distributors ?? []) {

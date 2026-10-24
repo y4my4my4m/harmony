@@ -719,7 +719,8 @@
       "disableConsequence4": "Los eliminará de este servidor y le dirá a cada uno el motivo",
       "disableConsequence5": "Los mantendrá fuera aunque vuelvas a activar la federación, hasta que se unan de nuevo con una invitación",
       "disableConfirm": "Desactivar la federación"
-    }
+    },
+    "federationInstanceOff": "La federación está desactivada en esta instancia; sus administradores la vuelven a activar."
   },
   "channel": {
     "create": "Crear canal",
@@ -3823,7 +3824,8 @@
       "invalidAvatar": "El avatar debe ser una URL https://.",
       "permission": "Necesitas el permiso Gestionar webhooks.",
       "saveFailed": "No se pudo guardar el webhook"
-    }
+    },
+    "disabledHere": "Los webhooks están desactivados en esta instancia."
   },
   "floatingVideo": {
     "region": "Reproductor de video",
@@ -3863,7 +3865,15 @@
       "turnedOff": "Cifrado desactivado",
       "voiceTurnedOn": "Cifrado de voz activado",
       "voiceTurnedOff": "Cifrado de voz desactivado",
-      "saveFailed": "No se pudo cambiar el cifrado. Inténtalo de nuevo."
+      "saveFailed": "No se pudo cambiar el cifrado. Inténtalo de nuevo.",
+      "historyLabel": "Los miembros nuevos pueden leer mensajes anteriores",
+      "historyAll": "Todos los mensajes",
+      "historyPinned": "Solo mensajes fijados",
+      "historyNone": "Ninguno",
+      "historyAllHint": "Quienes se unan después pueden leer los mensajes enviados antes de unirse, en cuanto un miembro que pueda leerlos abra Harmony.",
+      "historyPinnedHint": "Quienes se unan después pueden leer los mensajes fijados enviados antes de unirse, y nada más de antes.",
+      "historyNoneHint": "Quienes se unan después solo leen los mensajes enviados después de unirse.",
+      "historySaved": "Ajuste del historial de mensajes guardado"
     },
     "integrations": {
       "bots": "{count} bot de este servidor no puede leer mensajes cifrados ni publicar en este canal. | {count} bots de este servidor no pueden leer mensajes cifrados ni publicar en este canal.",
@@ -5087,7 +5097,15 @@
       "maxPersonalEmojis": "Emojis personales por usuario",
       "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan.",
       "publicProfilePages": "Mostrar perfiles y publicaciones públicas a visitantes sin sesión iniciada",
-      "publicProfilePagesHint": "Si está desactivado, los visitantes van a iniciar sesión. Las vistas previas de enlaces y la federación no cambian."
+      "publicProfilePagesHint": "Si está desactivado, los visitantes van a iniciar sesión. Las vistas previas de enlaces y la federación no cambian.",
+      "federationOutbound": "Enviar a otras instancias",
+      "federationOutboundHint": "Desactivado: no se entrega nada a otras instancias.",
+      "federationInbound": "Recibir de otras instancias",
+      "federationInboundHint": "Desactivado: se rechazan las entregas y solicitudes firmadas de otras instancias. Los perfiles y servidores siguen siendo legibles.",
+      "federationClosedWarning": "Con ambos desactivados, la federación se cierra: cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y los miembros de aquí abandonan los servidores alojados en otros sitios.",
+      "federationCloseConfirmTitle": "¿Cerrar la federación?",
+      "federationCloseConfirmMessage": "Cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y cada miembro de aquí abandona los servidores alojados en otros sitios. Al volver a activar un interruptor, los servidores se reabren; nadie eliminado vuelve.",
+      "federationCloseConfirm": "Cerrar la federación"
     },
     "activityLog": {
       "configKeys": {
@@ -6565,6 +6583,9 @@
       "1w": "Esta semana"
     }
   },
+  "instanceVersion": {
+    "older": "Tu instancia usa Harmony {version}. Algunas funciones de esta app necesitan una versión más reciente allí."
+  },
   "instancePicker": {
     "title": "Te damos la bienvenida a Harmony",
     "hint": "Harmony es federado: cualquiera puede alojar una instancia. Introduce el dominio de la instancia a la que quieres conectarte.",
@@ -7210,7 +7231,9 @@
     "notice": {
       "removedTitle": "El equipo de {instance} te ha eliminado de {server}.",
       "blockedTitle": "El equipo de {instance} ha bloqueado {server} en {instance}; lo has abandonado.",
-      "blockedMessage": "No ha cambiado nada para {server} en otras instancias."
+      "blockedMessage": "No ha cambiado nada para {server} en otras instancias.",
+      "federationOffTitle": "{instance} dejó de federar; abandonaste {server}.",
+      "federationOffMessage": "{server} continúa en otras instancias. Puedes volver a unirte cuando {instance} vuelva a federar."
     },
     "join": {
       "blocked": "El equipo de {instance} ha bloqueado este servidor en {instance}.",
@@ -7234,5 +7257,172 @@
       "mediaHidden": "Multimedia oculto",
       "keptOut": "{count} excluido | {count} excluidos"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "Webhooks salientes",
+    "heading": "Webhooks salientes",
+    "introBot": "Envía los eventos de este bot a una URL por HTTPS POST, en lugar de su conexión al gateway o junto a ella. Cada solicitud se firma con el secreto del webhook (Standard Webhooks).",
+    "introServer": "Envía los eventos de este servidor a una URL por HTTPS POST. Un webhook recibe los eventos de los canales que puede ver quien lo creó. Cada solicitud se firma con el secreto del webhook (Standard Webhooks).",
+    "create": "Nuevo webhook",
+    "createSubmit": "Crear webhook",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "done": "Listo",
+    "nameLabel": "Nombre",
+    "urlLabel": "URL",
+    "urlHint": "Solo HTTPS. Las redirecciones no se siguen.",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "Mensajes",
+      "reactions": "Reacciones",
+      "members": "Miembros",
+      "moderation": "Moderación"
+    },
+    "events": {
+      "MESSAGE_CREATE": "Mensaje enviado",
+      "MESSAGE_UPDATE": "Mensaje editado",
+      "MESSAGE_DELETE": "Mensaje eliminado",
+      "MESSAGE_REACTION_ADD": "Reacción añadida",
+      "MESSAGE_REACTION_REMOVE": "Reacción quitada",
+      "SERVER_MEMBER_ADD": "Miembro unido",
+      "SERVER_MEMBER_REMOVE": "Miembro salió",
+      "SERVER_MEMBER_KICK": "Miembro expulsado",
+      "SERVER_BAN_ADD": "Miembro baneado",
+      "SERVER_BAN_REMOVE": "Baneo retirado"
+    },
+    "copyOnce": "Copia ahora el secreto de firma de {name}; no se vuelve a mostrar.",
+    "secretHint": "Comprueba con él la cabecera webhook-signature de cada solicitud, como describe Standard Webhooks.",
+    "copySecret": "Copiar secreto",
+    "copied": "Copiado",
+    "copyFailed": "No se pudo copiar",
+    "loading": "Cargando…",
+    "loadFailed": "No se pudieron cargar los webhooks.",
+    "empty": "Aún no hay webhooks salientes.",
+    "limitReached": "Como máximo {count} webhooks.",
+    "eventCount": "Eventos: {count}",
+    "secretEndsWith": "El secreto termina en {hint}",
+    "state": {
+      "off": "Desactivado",
+      "disabledFailing": "Desactivado tras tres días de entregas fallidas. Última respuesta: {error}",
+      "failing": "Falla desde {date}. Última respuesta: {error}",
+      "delivered": "Última entrega {date}",
+      "never": "Nada entregado aún",
+      "unverified": "Esperando una respuesta 2xx al evento de prueba antes de enviar eventos",
+      "unverifiedFailing": "Sin verificar: el evento de prueba recibió {error}. Arregla el endpoint y envía un evento de prueba.",
+      "paused": "En pausa tras 10 intentos fallidos seguidos; un evento de prueba comprueba cada 5 minutos. Última respuesta: {error}",
+      "staff": "Desactivado por el equipo de esta instancia"
+    },
+    "active": "Activado",
+    "activeFor": "{name} activado",
+    "sendTest": "Enviar evento de prueba",
+    "testQueued": "Evento de prueba en cola",
+    "deliveries": "Entregas",
+    "deliveriesOf": "Entregas de {name}",
+    "noDeliveries": "Sin entregas en los últimos siete días.",
+    "logEvent": "Evento",
+    "logStatus": "Estado",
+    "logAnswer": "Respuesta",
+    "logTime": "Hora",
+    "status": {
+      "pending": "Pendiente ({attempts} intentos)",
+      "delivered": "Entregado",
+      "failed": "Falló tras {attempts} intentos"
+    },
+    "edit": "Editar",
+    "editFor": "Editar {name}",
+    "rotate": "Renovar secreto",
+    "rotateFor": "Renovar el secreto de {name}",
+    "delete": "Eliminar",
+    "deleteFor": "Eliminar {name}",
+    "created": "Webhook creado",
+    "updated": "Webhook guardado",
+    "rotated": "Nuevo secreto creado",
+    "deleted": "Webhook eliminado",
+    "confirmRotate": {
+      "title": "¿Renovar el secreto?",
+      "message": "{name} firma con un secreto nuevo desde ahora. Actualiza tu receptor con él.",
+      "confirm": "Renovar"
+    },
+    "confirmDelete": {
+      "title": "¿Eliminar el webhook?",
+      "message": "Se eliminan {name} y su registro de entregas.",
+      "confirm": "Eliminar"
+    },
+    "errors": {
+      "forbidden": "No puedes gestionar estos webhooks.",
+      "notFound": "Este webhook ya no existe.",
+      "invalidName": "Da al webhook un nombre de 1 a 80 caracteres.",
+      "invalidUrl": "Usa una URL https de 2048 caracteres como máximo.",
+      "invalidEvents": "Elige al menos un evento.",
+      "limit": "Ya hay cinco webhooks.",
+      "unavailable": "Los webhooks salientes necesitan Supabase Vault, que esta instancia no tiene.",
+      "saveFailed": "No se pudo guardar el webhook.",
+      "staffDisabled": "El equipo de esta instancia desactivó este webhook.",
+      "disabled": "Esta instancia no te permite crear webhooks salientes.",
+      "blockedDomain": "Esta instancia no envía a ese dominio.",
+      "limitUser": "Alcanzaste el límite de webhooks salientes de esta instancia.",
+      "tooSoon": "Espera unos segundos antes de enviar otro evento de prueba.",
+      "urlTooSoon": "Se acaba de enviar un evento de prueba. Espera unos segundos y guarda la nueva URL."
+    },
+    "notice": {
+      "disabledTitle": "El webhook {name} se desactivó",
+      "disabledMessage": "Sus entregas fallaron durante tres días. Última respuesta: {error}",
+      "short": "Webhook desactivado"
+    },
+    "unavailableOff": "Los webhooks salientes están desactivados en esta instancia.",
+    "unavailableStaff": "En esta instancia, solo su equipo crea webhooks salientes.",
+    "dropped": "{count} eventos omitidos ({reason}), el último {date}",
+    "dropReason": {
+      "rate_limited": "por encima del límite",
+      "paused": "durante la pausa"
+    }
+  },
+  "adminWebhooks": {
+    "tab": "Webhooks",
+    "settingsTitle": "Ajustes de webhooks",
+    "settingsIntro": "Límites para cada webhook saliente de esta instancia e interruptores para los webhooks salientes y entrantes.",
+    "settingsReadOnly": "Solo los administradores de la instancia cambian estos ajustes.",
+    "outgoingMode": "Quién puede crear webhooks salientes",
+    "modeEveryone": "Dueños de bots y gestores de webhooks de servidores",
+    "modeStaff": "Solo el equipo de la instancia",
+    "modeOff": "Nadie (webhooks salientes desactivados)",
+    "incomingEnabled": "Webhooks entrantes (publicar en canales)",
+    "ratePerMinute": "Eventos por webhook y minuto",
+    "hostRatePerMinute": "Solicitudes por destino y minuto",
+    "perUser": "Webhooks salientes por persona",
+    "blockedDomains": "Destinos bloqueados",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "Un dominio por línea; sus subdominios también quedan bloqueados.",
+    "save": "Guardar",
+    "saved": "Ajustes de webhooks guardados",
+    "saveFailed": "No se pudo guardar",
+    "loading": "Cargando…",
+    "loadFailed": "No se pudo cargar",
+    "listTitle": "Webhooks salientes",
+    "listIntro": "Todos los webhooks salientes de esta instancia, los más activos primero. Uno desactivado aquí sigue desactivado; su dueño no puede volver a activarlo.",
+    "refresh": "Actualizar",
+    "empty": "Aún no hay webhooks salientes.",
+    "colWebhook": "Webhook",
+    "colOwner": "Dueño",
+    "colDestination": "Destino",
+    "colState": "Estado",
+    "colDeliveries": "Últimas 24 horas",
+    "colActions": "Acciones",
+    "ownerBot": "Bot {name}",
+    "ownerServer": "Servidor {name}",
+    "deliveries24h": "{count} enviados, {failed} fallidos",
+    "stateActive": "Activo",
+    "stateUnverified": "Sin verificar",
+    "statePaused": "En pausa",
+    "stateFailing": "Fallando",
+    "stateOff": "Desactivado (dueño)",
+    "stateStaff": "Desactivado (equipo)",
+    "stateFailingOff": "Desactivado tras fallos",
+    "turnOff": "Desactivar",
+    "turnOn": "Activar",
+    "delete": "Eliminar",
+    "deleteFor": "Eliminar {name}",
+    "confirmDeleteTitle": "¿Eliminar este webhook?",
+    "confirmDeleteMessage": "Se eliminan {name} ({host}) y su registro de entregas. No se avisa a su dueño."
   }
 }

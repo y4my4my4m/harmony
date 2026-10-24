@@ -236,6 +236,12 @@ describe('POST /webhooks/channels/:id/:token', () => {
     let h = hook()
     expect((await post(`${h.id}/${h.token}`, { content: 'x' })).status).toBe(403)
 
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'WEBHOOK_DISABLED: webhooks are turned off on this instance' } })
+    h = hook()
+    const off = await post(`${h.id}/${h.token}`, { content: 'x' })
+    expect(off.status).toBe(403)
+    expect(off.body).toEqual({ message: 'Webhooks are turned off on this instance', code: 'WEBHOOKS_DISABLED' })
+
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'WEBHOOK_CONTENT_TOO_LONG: text exceeds the instance limit of 2000 characters' } })
     h = hook()
     const long = await post(`${h.id}/${h.token}`, { content: 'x' })

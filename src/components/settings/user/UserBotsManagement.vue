@@ -197,6 +197,11 @@
         </a>
       </section>
 
+      <!-- Outgoing webhooks: the bot's events by HTTPS POST -->
+      <section v-if="hasCapability('outgoing-webhooks')" class="settings-section">
+        <OutgoingWebhooksPanel :bot-id="detailBot.id" />
+      </section>
+
       <!-- Add to server -->
       <section class="settings-section">
         <h3 class="section-title">{{ t('bots.install.title') }}</h3>
@@ -425,6 +430,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
+import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -451,6 +457,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
+import OutgoingWebhooksPanel from '@/components/OutgoingWebhooksPanel.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useImageCrop } from '@/composables/useImageCrop'
 

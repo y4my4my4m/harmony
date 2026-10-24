@@ -392,7 +392,8 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canManageRoles: canManageRoles.value,
     canModerateReports: canManageMessages.value,
     canManageBans: canBanMembers.value,
-    canViewAuditLog: canViewAuditLog.value
+    canViewAuditLog: canViewAuditLog.value,
+    canManageWebhooks: canManageWebhooks.value
   }))
 
   const channelPermissions = computed(() => ({

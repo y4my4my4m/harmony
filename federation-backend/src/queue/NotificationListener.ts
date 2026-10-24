@@ -4,7 +4,8 @@
  * Maintains a dedicated pg connection that LISTENs on the 'federation_jobs'
  * channel.  When queue_federation_job() fires pg_notify(), this listener
  * adds the job to the appropriate BullMQ queue, giving near-zero latency
- * pickup without any polling.
+ * pickup without any polling. 'federation_switches' drops the cached
+ * federation switches (FederationSwitches).
  *
  * BullMQ handles retries, backoff, and persistence automatically.
  */
@@ -12,8 +13,11 @@
 import pg from 'pg';
 import { type Queue } from 'bullmq';
 import { logger } from '../utils/logger.js';
+import { invalidateFederationSwitches } from '../services/FederationSwitches.js';
 
 const CHANNEL = 'federation_jobs';
+// Migration 20261028500001: a change of the instance's federation switches.
+const SWITCHES_CHANNEL = 'federation_switches';
 const BATCH_WINDOW_MS = 50;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
@@ -79,6 +83,10 @@ export class NotificationListener {
       });
 
       this.client.on('notification', (msg) => {
+        if (msg.channel === SWITCHES_CHANNEL) {
+          invalidateFederationSwitches();
+          return;
+        }
         if (msg.channel === CHANNEL && msg.payload) {
           this.handleNotification(msg.payload);
         }
@@ -98,6 +106,7 @@ export class NotificationListener {
 
       await this.client.connect();
       await this.client.query(`LISTEN ${CHANNEL}`);
+      await this.client.query(`LISTEN ${SWITCHES_CHANNEL}`);
 
       this.reconnectAttempt = 0;
       logger.info(`NotificationListener connected and listening on "${CHANNEL}"`);

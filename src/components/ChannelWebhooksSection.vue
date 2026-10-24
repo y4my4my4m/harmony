@@ -6,7 +6,7 @@
         <p class="webhooks-hint">{{ t('webhooks.intro') }}</p>
       </div>
       <button
-        v-if="!form || form.mode !== 'create'"
+        v-if="incomingEnabled && (!form || form.mode !== 'create')"
         type="button"
         class="wh-btn wh-btn-primary"
         data-testid="webhook-new"
@@ -17,7 +17,8 @@
         {{ t('webhooks.create') }}
       </button>
     </div>
-    <p v-if="atLimit" class="webhooks-hint">{{ t('webhooks.limitReached', { count: MAX_WEBHOOKS_PER_CHANNEL }) }}</p>
+    <p v-if="!incomingEnabled" class="webhooks-hint" role="note" data-testid="webhook-disabled">{{ t('webhooks.disabledHere') }}</p>
+    <p v-else-if="atLimit" class="webhooks-hint">{{ t('webhooks.limitReached', { count: MAX_WEBHOOKS_PER_CHANNEL }) }}</p>
 
     <form v-if="form" class="webhook-form" data-testid="webhook-form" @submit.prevent="submitForm">
       <label class="webhook-field">
@@ -125,6 +126,7 @@ import {
   type ChannelWebhook,
   type ChannelWebhookWithToken,
 } from '@/services/channelWebhookService'
+import { webhookAvailability } from '@/services/outgoingWebhookService'
 import { debug } from '@/utils/debug'
 
 const props = defineProps<{ channelId: string }>()
@@ -143,6 +145,8 @@ const revealed = ref<{ name: string; url: string } | null>(null)
 const form = ref<{ mode: 'create' | 'edit'; id?: string; name: string; avatarUrl: string } | null>(null)
 
 const atLimit = computed(() => webhooks.value.length >= MAX_WEBHOOKS_PER_CHANNEL)
+/** Off while the instance has incoming webhooks turned off (webhook_settings). */
+const incomingEnabled = ref(true)
 
 function creatorLine(webhook: ChannelWebhook): string {
   const name = webhook.created_by_display_name || webhook.created_by_username
@@ -158,6 +162,9 @@ function lastUsedLine(webhook: ChannelWebhook): string {
 async function load() {
   loading.value = true
   loadError.value = null
+  webhookAvailability().then(a => { incomingEnabled.value = a.incoming_enabled !== false }).catch((error) => {
+    debug.error('Failed to read webhook availability:', error)
+  })
   try {
     webhooks.value = await listChannelWebhooks(props.channelId)
   } catch (error) {

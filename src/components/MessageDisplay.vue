@@ -601,7 +601,7 @@ import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
-import { getHarmonyProfileUserId, getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
 import { remoteServerHost } from '@/utils/serverUtils';
 import { getInstanceDomain } from '@/services/instanceConfig';
@@ -1279,9 +1279,7 @@ const getMessageAuthorId = (message: Message): string | null => {
   return message.user_id || message.bot_id || null;
 };
 
-const isMessageFromBot = (message: Message): boolean => {
-  return !!message.bot_id;
-};
+const isMessageFromBot = (message: Message): boolean => isBotAuthorMessage(message);
 
 // Discord bridge messages carry discord_user metadata.
 const hasDiscordUserMetadata = (message: Message): boolean => {
@@ -1346,6 +1344,8 @@ const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
     
     const webhook = getWebhookAuthor(message);
     if (webhook) return webhook.name;
+    const remote = getRemoteAuthor(message);
+    if (remote) return remote.name;
 
     // Regular bot
     if (message.bot_id) {
@@ -1374,6 +1374,8 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
     
     const webhook = getWebhookAuthor(message);
     if (webhook) return webhook.avatar_url || '/default_avatar.webp';
+    const remote = getRemoteAuthor(message);
+    if (remote) return remote.avatar_url || '/default_avatar.webp';
 
     // Regular bot
     if (message.bot_id) {
@@ -1403,7 +1405,7 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
       return color || 'var(--text-primary)';
     }
     
-    if (message.bot_id) {
+    if (isBotAuthorMessage(message)) {
       return BOT_NAME_COLOR;
     }
     
@@ -3208,41 +3210,7 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
 
   if (message.is_system || prevMessage.is_system) return true;
 
-  // For bot-puppeted messages (e.g., Discord bridge), compare the puppeted user identity
-  // rather than the bot_id, since multiple Discord users are puppeted through the same bot
-  if (message.bot_id && prevMessage.bot_id) {
-    const currentDiscordUser = message.metadata?.discord_user;
-    const prevDiscordUser = prevMessage.metadata?.discord_user;
-    
-    const currentWebhook = getWebhookAuthor(message);
-    const prevWebhook = getWebhookAuthor(prevMessage);
-    if (currentWebhook || prevWebhook) {
-      // One webhook posts under per-message names and avatars.
-      if (currentWebhook?.id !== prevWebhook?.id
-          || currentWebhook?.name !== prevWebhook?.name
-          || currentWebhook?.avatar_url !== prevWebhook?.avatar_url) return true;
-    }
-    // If both have discord_user metadata, compare by discord user id or username
-    else if (currentDiscordUser && prevDiscordUser) {
-      const currentId = currentDiscordUser.id || currentDiscordUser.username;
-      const prevId = prevDiscordUser.id || prevDiscordUser.username;
-      if (currentId !== prevId) return true;
-    } 
-    // If one has discord_user and the other doesn't, show header
-    else if (currentDiscordUser !== prevDiscordUser) {
-      return true;
-    }
-    // If neither has discord_user, compare bot_ids (same bot = same author)
-    else if (message.bot_id !== prevMessage.bot_id) {
-      return true;
-    }
-  } 
-  // Standard user message comparison
-  // Note: Use nullish coalescing to normalize null/undefined for bot_id comparison
-  // This fixes optimistic messages (bot_id: undefined) vs DB messages (bot_id: null)
-  else if (prevMessage.user_id !== message.user_id || (prevMessage.bot_id ?? null) !== (message.bot_id ?? null)) {
-    return true;
-  }
+  if (messageAuthorKey(message) !== messageAuthorKey(prevMessage)) return true;
   
   if (message.reply_to) return true;
   const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
@@ -3815,6 +3783,8 @@ const handleDecryptMessage = async (message: Message) => {
     debug.log('Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
+      id: messageToDecrypt.id,
+      is_pinned: messageToDecrypt.is_pinned,
       content: messageToDecrypt.content,
       channel_id: messageToDecrypt.channel_id || props.channelId || '',
       conversation_id: messageToDecrypt.conversation_id || props.conversationId || '',
@@ -4102,8 +4072,8 @@ const handleAuthorClick = (message: Message, event?: MouseEvent) => {
     showProfileModal.value = true;
     return;
   }
-  // A webhook's backing bot has no profile to show.
-  if (getWebhookAuthor(message)) return;
+  // A webhook's backing bot, and a bot of a copy's host, have no profile to show here.
+  if (getWebhookAuthor(message) || getRemoteAuthor(message)) return;
   if (message.bot_id) {
     const bot = botDataCache.value.get(message.bot_id);
     selectedBot.value = {

@@ -206,8 +206,10 @@ const dropdownStyle = computed(() => ({
 const loadDevices = async () => {
   try {
     // Labels are empty until a capture permission has been granted.
+    // A live probe track keeps the mic and camera on.
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      probe.getTracks().forEach(track => track.stop());
     } catch {
       // Continue even if permission denied - might already have it
     }

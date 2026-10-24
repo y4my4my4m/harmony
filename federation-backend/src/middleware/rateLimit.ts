@@ -282,6 +282,22 @@ export const instanceInboxLimit = createKeyedLimit({
   message: 'Too many inbox activities from this instance, please slow down.',
 });
 
+/** Push relay (routes/pushRelay.ts): messages to one device token. */
+export const pushRelayTokenLimit = createKeyedLimit({
+  name: 'push-relay-token',
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  message: 'Too many push messages to this device, please slow down.',
+});
+
+/** Push relay: messages from one sender, keyed by its VAPID public key. */
+export const pushRelaySenderLimit = createKeyedLimit({
+  name: 'push-relay-sender',
+  windowMs: 60 * 1000,
+  maxRequests: 3000,
+  message: 'Too many push messages from this sender, please slow down.',
+});
+
 export const linkPreviewLimiter = createRateLimiter({
   name: 'link-preview',
   windowMs: 60 * 1000,

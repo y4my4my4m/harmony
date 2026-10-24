@@ -49,8 +49,10 @@ import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
+import pushRelayRouter from './routes/pushRelay.js';
 import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
+import { refuseInboxWhenInboundOff } from './middleware/inboundFederation.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
 
@@ -83,10 +85,11 @@ export function createApp(): Application {
     (req as any).rawBody = buf;
   };
   const jsonTypes = ['application/json', 'application/activity+json', 'application/ld+json'];
-  app.use(
-    ['/inbox', '/users/:username/inbox', '/servers/:serverId/inbox'],
-    express.json({ limit: '1mb', type: jsonTypes, verify: jsonVerify })
-  );
+  const inboxPaths = ['/inbox', '/users/:username/inbox', '/servers/:serverId/inbox'];
+  app.use(inboxPaths, (req, res, next) => {
+    refuseInboxWhenInboundOff(req, res, next).catch(next);
+  });
+  app.use(inboxPaths, express.json({ limit: '1mb', type: jsonTypes, verify: jsonVerify }));
   app.use(express.json({ limit: '10mb', type: jsonTypes, verify: jsonVerify }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -112,6 +115,9 @@ export function createApp(): Application {
     if (req.method === 'POST' && p.endsWith('/test')) return next();
     return pushLimiter(req, res, next);
   };
+  // Before /push: the relay has its own limits and reads a raw body.
+  app.use('/push/relay', pushRelayRouter);
+  app.use('/api/federation/push/relay', pushRelayRouter);
   app.use('/push', pushWithLimiter, pushRouter);
   app.use('/api/federation/push', pushWithLimiter, pushRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);

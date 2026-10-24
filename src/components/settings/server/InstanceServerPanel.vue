@@ -120,7 +120,7 @@
           >
             <Avatar :src="person.avatar_url" size="sm" />
             <div class="person-info">
-              <span class="person-name">{{ personName(person) }}</span>
+              <span class="person-name"><DisplayName :user-id="person.profile_id" :fallback="personName(person)" truncate /></span>
               <span class="person-meta">
                 @{{ person.username }}
                 <template v-if="person.standing === 'pending'"> · {{ t('instanceServer.people.pending') }}</template>
@@ -179,6 +179,7 @@
 import { computed, onMounted, ref, useId, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'

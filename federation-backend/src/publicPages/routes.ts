@@ -17,6 +17,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { resolveLocalProfileEmojis } from '../utils/emojiResolvers.js';
 import { renderPostPage } from '../activitypub/postPageRenderer.js';
+import { postReactionCounts } from '../activitypub/postReactionCounts.js';
 import {
   pageContentSecurityPolicy,
   pageContext,
@@ -198,6 +199,8 @@ export async function sendPublicPostPage(req: Request, res: Response, postId: st
   }
 
   await resolveLocalEmojis(postAuthors([post]));
+  // Emoji and counts as the post's Note carries them (harmony:reactions); who reacted stays in the app.
+  if (local) post.reactions = await postReactionCounts(post.id).catch(() => []);
   // /posts/<id> of a local post is the same page as /@<username>/<id>: canonical there.
   const noindex = page.enabled === false;
   const html = renderPostPage(post, author, ctx, { noindex });

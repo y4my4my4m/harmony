@@ -882,8 +882,10 @@ class AdminService {
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
       let publicProfilePages = true
-      const enableOutbound = true
-      const enableInbound = true
+      let enableOutbound = true
+      let enableInbound = true
+      // False when the switches could not be read: the values above are then defaults, not state.
+      let federationSwitchesLoaded = false
 
       try {
         const { data: configData } = await supabase
@@ -1039,6 +1041,16 @@ class AdminService {
       } catch (configError) {
         debug.warn('Failed to fetch instance config from database, using defaults:', configError)
       }
+
+      // The switches as the federation backend enforces them (instance_federation_switches).
+      const { data: switches, error: switchesError } = await supabase.rpc('get_public_federation_settings')
+      if (switchesError) {
+        debug.warn('Failed to read the federation switches:', switchesError)
+      } else if (switches && typeof switches === 'object') {
+        enableInbound = (switches as Record<string, unknown>).enable_inbound_federation !== false
+        enableOutbound = (switches as Record<string, unknown>).enable_outbound_federation !== false
+        federationSwitchesLoaded = true
+      }
       
       return {
         chat: {
@@ -1065,7 +1077,8 @@ class AdminService {
           maxPostReactionsPerUser,
           publicProfilePages,
           enableOutbound,
-          enableInbound
+          enableInbound,
+          federationSwitchesLoaded,
         },
         webrtc: webrtcSettings,
         instance: {
@@ -1145,12 +1158,16 @@ class AdminService {
     outboundEnabled?: boolean;
   }): Promise<boolean> {
     try {
-      const { error } = await supabase.rpc('update_federation_settings', {
+      const args = {
         p_user_id: settings.userId,
         p_federation_enabled: settings.federationEnabled ?? null,
         p_inbound_enabled: settings.inboundEnabled ?? null,
         p_outbound_enabled: settings.outboundEnabled ?? null
-      });
+      };
+      // p_switches (20261028500001): without it the server keeps the stored switches. A server
+      // before 1.9.0 lacks the parameter and writes them unasked.
+      let { error } = await supabase.rpc('update_federation_settings', { ...args, p_switches: true });
+      if (error?.code === 'PGRST202') ({ error } = await supabase.rpc('update_federation_settings', args));
 
       if (error) {
         debug.error('Failed to update federation settings:', error);

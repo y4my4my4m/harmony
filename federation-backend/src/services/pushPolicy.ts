@@ -145,11 +145,12 @@ export type PushTransport = 'webpush' | 'unifiedpush' | 'fcm';
 export const APP_TRANSPORTS: readonly PushTransport[] = ['unifiedpush', 'fcm'];
 
 // FCM caps a data message at 4096 bytes; ntfy caps a UnifiedPush body at 4096 bytes after
-// RFC 8291 encryption adds 103. The budget leaves room for both.
-export const APP_PAYLOAD_MAX_BYTES = 3000;
+// RFC 8291 encryption adds 103; the push relay (routes/pushRelay.ts) carries at most 3060
+// encrypted bytes, 2957 of payload, as base64 in one FCM message. The budget fits all three.
+export const APP_PAYLOAD_MAX_BYTES = 2900;
 
-// 80 uuids with separators are 2959 bytes.
-const DISMISS_IDS_PER_MESSAGE = 80;
+// 75 uuids with separators are 2774 bytes, 2798 as a dismissal message.
+const DISMISS_IDS_PER_MESSAGE = 75;
 
 const FCM_TOKEN_RE = /^[A-Za-z0-9_:.-]{20,4096}$/;
 

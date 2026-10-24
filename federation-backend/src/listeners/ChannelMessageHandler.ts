@@ -16,7 +16,8 @@ import config from '../config/index.js';
 import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 import { LIVE_SYSTEM_NOTE_TYPES, loadSystemPeople, systemNote } from '../activitypub/systemNotes.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
-import { channelMessageActivity } from '../activitypub/channelMessageActivity.js';
+import { channelMessageActivity, withParentObjectIds } from '../activitypub/channelMessageActivity.js';
+import { groupAuthorOf, type GroupAuthor } from '../activitypub/groupAuthor.js';
 
 // TYPES
 
@@ -87,6 +88,7 @@ export async function handleChannelMessageFederation(
         message.thread_parent_message_id = thread.parent_message_id;
       }
     }
+    await withParentObjectIds(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')
@@ -185,8 +187,9 @@ export async function handleChannelMessageFederation(
 
     logger.info(`Server has members on ${remoteMemberGroups.length} remote instances`);
 
-    // Ensure author exists for federation
-    if (!message.author?.id) {
+    // A bot, webhook or bridged message goes out as the server's Group (groupAuthor.ts).
+    const signer = await messageSigner(message, server);
+    if (!signer) {
       logger.error(`Message ${message_id} has no valid author, skipping federation`);
       return;
     }
@@ -194,7 +197,7 @@ export async function handleChannelMessageFederation(
     await deliverToRemoteInstances(
       remoteMemberGroups,
       (audience) => channelMessageActivity(message, server, channel_id, channel_name, 'Create', audience),
-      message.author.id
+      signer
     );
 
     // Update federation status (preserve updated_at to avoid showing as edited)
@@ -327,6 +330,7 @@ export async function handleChannelMessageUpdate(
         message.thread_parent_message_id = thread.parent_message_id;
       }
     }
+    await withParentObjectIds(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')
@@ -338,13 +342,17 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    if (!message.author?.id) {
+    // A bot's edit goes out as the server's Group, as its message did.
+    const groupSigner = !message.author?.id && server.is_local_server !== false
+      ? await messageSigner(message, server)
+      : null;
+    if (!message.author?.id && !groupSigner) {
       logger.error(`Message ${message_id} has no valid author, skipping update federation`);
       return;
     }
 
     // CASE 1: Non-local server - forward edit to the remote server's inbox
-    if (server.is_local_server === false && server.federation_inbox_url) {
+    if (server.is_local_server === false && server.federation_inbox_url && message.author?.id) {
       logger.info(`Forwarding message edit to remote server: ${server.name}`);
 
       const activity = channelMessageActivity(
@@ -368,7 +376,7 @@ export async function handleChannelMessageUpdate(
     // A remote member's edit reaches the other instances as the Group's relay of it
     // (ServerInboxHandler). Signing as a remote profile would generate a key pair for it
     // and overwrite its published key.
-    if (message.author.is_local !== true) {
+    if (!groupSigner && message.author.is_local !== true) {
       logger.info(`Edit of ${message_id} by a remote author is relayed by the server inbox`);
       return;
     }
@@ -384,7 +392,7 @@ export async function handleChannelMessageUpdate(
       (audience) => channelMessageActivity(
         message, server, channel_id, message.channel?.name || 'channel', 'Update', audience
       ),
-      message.author.id
+      groupSigner ?? message.author.id
     );
 
     logger.info(`Message update federated to ${remoteMemberGroups.length} instances`);
@@ -481,6 +489,25 @@ export async function handleChannelMessageDelete(
 }
 
 // HELPER FUNCTIONS
+
+/**
+ * Who signs a local server's message: its profile author, else, for a bot row (a bot, a channel
+ * webhook, a person a bridge relays), the server's Group, with message.groupAuthor set for
+ * channelMessageActivity. Null when neither names it.
+ */
+async function messageSigner(message: any, server: any): Promise<DeliverySigner | null> {
+  if (message.author?.id) return message.author.id;
+  if (!message.bot_id || server.is_local_server === false) return null;
+  const { data: bot } = await getSupabaseClient()
+    .from('bots')
+    .select('id, username, display_name, avatar_url')
+    .eq('id', message.bot_id)
+    .maybeSingle();
+  const groupAuthor: GroupAuthor | null = groupAuthorOf(message, bot);
+  if (!groupAuthor) return null;
+  message.groupAuthor = groupAuthor;
+  return { serverId: server.id };
+}
 
 /** Attachment audience of a remote server's channel: the instance hosting it. */
 function remoteServerAudience(server: any): string {

@@ -27,6 +27,7 @@ import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
 import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
+import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata } from './groupAuthor.js';
 import {
   authorizeChannelWrite,
   federatedUploadUrls,
@@ -1712,16 +1713,35 @@ export class ActivityProcessor {
    * member on a third instance, reaches here as the Group's Delete.
    */
   private static async groupHostsChannel(actorUrl: string, channelId: string | null | undefined): Promise<boolean> {
-    if (!channelId) return false;
+    return !!(await this.groupServerOfChannel(actorUrl, channelId));
+  }
+
+  /** The copy whose Group is `actorUrl`, when it hosts `channelId`. */
+  private static async groupServerOfChannel(actorUrl: string, channelId: string | null | undefined): Promise<{ id: string } | null> {
+    if (!channelId) return null;
     const server = await this.resolveRemoteServer(actorUrl);
-    if (!server) return false;
+    if (!server) return null;
     const { data: channel } = await getSupabaseClient()
       .from('channels')
       .select('id')
       .eq('id', channelId)
       .eq('server_id', server.id)
       .maybeSingle();
-    return !!channel;
+    return channel ? { id: server.id } : null;
+  }
+
+  /**
+   * Why the Group `actorUrl` may not post a new message in `channelId` here: it does not host
+   * the channel, or its copy is blocked or suspended on this instance. Null when it may.
+   */
+  private static async groupChannelPostRefusal(actorUrl: string, channelId: string): Promise<string | null> {
+    const server = await this.groupServerOfChannel(actorUrl, channelId);
+    if (!server) return `not the Group hosting channel ${channelId}`;
+    const supabase = getSupabaseClient();
+    if (await isServerBlockedHere(supabase, server.id)) return `server ${server.id} is blocked on this instance`;
+    const { data } = await supabase.from('servers').select('suspended_at').eq('id', server.id).maybeSingle();
+    if (data?.suspended_at) return `server ${server.id} is suspended on this instance`;
+    return null;
   }
 
   /**
@@ -3717,8 +3737,9 @@ export class ActivityProcessor {
       logger.warn(`Malformed system notice ${object.id} from ${actorUrl}`);
       return;
     }
-    if (!(await this.groupHostsChannel(actorUrl, channelId))) {
-      logDenied('system notice', actorUrl, `not the Group hosting channel ${channelId}`);
+    const refusal = await this.groupChannelPostRefusal(actorUrl, channelId);
+    if (refusal) {
+      logDenied('system notice', actorUrl, refusal);
       return;
     }
     const messageId = typeof object.id === 'string' ? object.id.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1] : null;
@@ -3761,6 +3782,71 @@ export class ActivityProcessor {
   }
 
   /**
+   * A channel message of a bot, a webhook or a bridged person, sent by the Group hosting the
+   * channel with its author in harmony:author. Stored with no profile and no bot here: the
+   * author is metadata.remote_author (groupAuthor.ts remoteAuthorMetadata).
+   */
+  private static async processGroupAuthoredMessage(actorUrl: string, object: any, channelId: string): Promise<void> {
+    const author = parseGroupAuthor(object[HARMONY_AUTHOR]);
+    if (!author) {
+      logger.warn(`Malformed harmony:author on ${object.id} from ${actorUrl}`);
+      return;
+    }
+    const refusal = await this.groupChannelPostRefusal(actorUrl, channelId);
+    if (refusal) {
+      logDenied('bot message', actorUrl, refusal);
+      return;
+    }
+    const messageId = typeof object.id === 'string' ? object.id.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1] : null;
+    if (!messageId) {
+      logger.warn(`Bot message without a message id: ${object.id}`);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: existing } = await supabase.from('messages').select('id').eq('id', messageId).maybeSingle();
+    if (existing) return;
+
+    const threadRef = typeof object['harmony:threadId'] === 'string' ? object['harmony:threadId'] : null;
+    const thread = threadRef ? await resolveThreadInChannel(supabase, threadRef, channelId) : null;
+    if (thread?.status === 'foreign') {
+      logDenied('bot message', actorUrl, `thread ${threadRef} is not in channel ${channelId}`);
+      return;
+    }
+    // A stub thread names a member as its creator; without the thread the message would land in
+    // the channel itself.
+    if (thread?.status === 'absent') {
+      logger.warn(`Bot message ${object.id} names thread ${threadRef}, unknown here; dropped`);
+      return;
+    }
+    const replyTo = typeof object.inReplyTo === 'string'
+      ? await resolveMessageInChannel(supabase, object.inReplyTo, channelId)
+      : null;
+
+    const { error } = await supabase.from('messages').insert({
+      id: messageId,
+      channel_id: channelId,
+      content: await this.channelMessageContent(object, actorUrl),
+      created_at: notAfterNow(object.published),
+      updated_at: object.updated ? notAfterNow(object.updated) : null,
+      reply_to: replyTo,
+      thread_id: thread?.id ?? null,
+      is_deleted: false,
+      federation_status: 'completed',
+      encrypted: object['harmony:encrypted'] === true,
+      metadata: {
+        federated: true,
+        ap_id: object.id,
+        from_domain: new URL(actorUrl).hostname,
+        ...remoteAuthorMetadata(author),
+      },
+    });
+    if (error && error.code !== '23505') {
+      logger.error(`Failed to store bot message ${object.id}:`, error);
+    }
+  }
+
+  /**
    * Harmony server channel message, distinct from a regular post.
    */
   private static async processChannelMessage(activity: any, object: any, relay?: { groupUrl: string }): Promise<void> {
@@ -3795,11 +3881,18 @@ export class ActivityProcessor {
         logDenied('system notice', actorUrl, 'a relayed Note carries a system notice');
         return;
       }
-      if (await isServerBlockedHere(supabase, serverId)) {
-        logDenied('system notice', actorUrl, `server ${serverId} is blocked on this instance`);
+      await this.processSystemNotice(actorUrl, object, channelId);
+      return;
+    }
+
+    // A bot, webhook or bridged message speaks as its server's Group, its author in
+    // harmony:author (groupAuthor.ts): only the Group sends one, never relayed.
+    if (object[HARMONY_AUTHOR] !== undefined) {
+      if (relay) {
+        logDenied('bot message', actorUrl, 'a relayed Note carries a Group author');
         return;
       }
-      await this.processSystemNotice(actorUrl, object, channelId);
+      await this.processGroupAuthoredMessage(actorUrl, object, channelId);
       return;
     }
 
@@ -4176,6 +4269,24 @@ export class ActivityProcessor {
       .select('content, metadata, profiles:user_id(federated_id)')
       .eq('id', message.id)
       .maybeSingle();
+    // A bot, webhook or bridged message is the Group's to edit, not relayed (groupAuthor.ts).
+    const remoteAuthor = (stored as any)?.metadata?.remote_author;
+    if (remoteAuthor) {
+      if (relay || !(await this.groupHostsChannel(actorUrl, message.channel_id))) {
+        logDenied('bot message edit', actorUrl, `not the Group hosting ${object.id}`);
+        return;
+      }
+      const author = parseGroupAuthor(object[HARMONY_AUTHOR]);
+      const metadata = stored?.metadata && typeof stored.metadata === 'object' ? stored.metadata : {};
+      const { error } = await supabase.from('messages').update({
+        content: await this.channelMessageContent(object, actorUrl),
+        updated_at: notAfterNow(object.updated),
+        ...(author ? { metadata: { ...metadata, ...remoteAuthorMetadata(author) } } : {}),
+      }).eq('id', message.id);
+      if (error) logger.error(`Failed to apply the edit of ${object.id}:`, error);
+      return;
+    }
+
     const ownerUrl = (stored as any)?.profiles?.federated_id as string | null | undefined;
     if (!ownerUrl || !SignatureService.verifyActorMatch(actorUrl, ownerUrl)) {
       logDenied('channel message edit', actorUrl, `not the author of ${object.id}`);

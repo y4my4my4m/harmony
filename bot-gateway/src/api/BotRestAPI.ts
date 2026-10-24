@@ -78,7 +78,7 @@ export interface BotRequest extends Request {
 const SERVER_METADATA_KEYS = new Set([
   'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
   'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
-  'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook',
+  'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id',
 ])
 
 // The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept

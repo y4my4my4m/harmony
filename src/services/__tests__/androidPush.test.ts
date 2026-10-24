@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { supabase } from '@/supabase'
 
 const { invoke, addPluginListener, routerPush, markManyAsRead } = vi.hoisted(() => ({
@@ -27,8 +27,13 @@ import {
   chooseTransport,
   consumeLaunchTarget,
   decideAndroidRegistration,
+  fcmDirect,
   launchTargetIds,
+  pushRelayOrigin,
   readAndroidRecord,
+  relayEndpoint,
+  relayNeeded,
+  relayReady,
   resolveLaunchRoute,
   REREGISTER_AFTER_MS,
   transportLabel,
@@ -42,6 +47,7 @@ const FCM_TOKEN = 'fcm-token-' + 'x'.repeat(120)
 function status(over: Partial<NativePushStatus> & { up?: Partial<NativePushStatus['unifiedPush']> } = {}): NativePushStatus {
   return {
     fcm: over.fcm ?? 'available',
+    ...(over.fcmProject !== undefined ? { fcmProject: over.fcmProject } : {}),
     permission: over.permission ?? 'granted',
     unifiedPush: { distributors: [], distributor: null, endpoint: null, failure: null, ...over.up },
   }
@@ -87,6 +93,51 @@ describe('chooseTransport', () => {
     expect(transportLabel({ kind: 'fcm' }, [])).toBe('Google (FCM)')
     expect(transportLabel({ kind: 'unifiedpush', distributor: NTFY.id }, [NTFY])).toBe('UnifiedPush via ntfy')
     expect(transportLabel({ kind: 'off', reason: 'user' }, [])).toBe('Off')
+  })
+})
+
+describe('push relay decisions', () => {
+  const RELAY = { origin: 'https://relay.test', relay: true, fcmProject: 'harmony-fedi' }
+  const app = (over: Partial<NativePushStatus> = {}) => status({ fcmProject: 'harmony-fedi', ...over })
+  const selfHost = { fcm: false, unifiedpush: true }
+
+  it('reaches FCM directly when the server holds this build\'s project, or names none', () => {
+    expect(fcmDirect(app(), { fcm: true, unifiedpush: true, fcmProject: 'harmony-fedi' })).toBe(true)
+    expect(fcmDirect(app(), { fcm: true, unifiedpush: true })).toBe(true)
+    expect(fcmDirect(app(), { fcm: true, unifiedpush: true, fcmProject: 'someone-else' })).toBe(false)
+    expect(fcmDirect(app(), selfHost)).toBe(false)
+  })
+
+  it('needs the relay only where FCM works on the device and the server sends Web Push', () => {
+    expect(relayNeeded(app(), selfHost)).toBe(true)
+    expect(relayNeeded(app(), { fcm: true, unifiedpush: true, fcmProject: 'someone-else' })).toBe(true)
+    expect(relayNeeded(app(), { fcm: false, unifiedpush: false })).toBe(false)
+    expect(relayNeeded(app({ fcm: 'no_play_services' }), selfHost)).toBe(false)
+    expect(relayNeeded(status({ fcmProject: null }), selfHost)).toBe(false)
+    expect(relayReady(app(), selfHost, { ...RELAY, fcmProject: 'other-build' })).toBe(false)
+    expect(relayReady(app(), selfHost, { ...RELAY, relay: false })).toBe(false)
+    expect(relayReady(app(), selfHost, null)).toBe(false)
+  })
+
+  it('in automatic mode prefers direct FCM, then the relay, and a picked distributor over both', () => {
+    expect(chooseTransport('auto', app(), selfHost, RELAY)).toEqual({ kind: 'relay', origin: 'https://relay.test' })
+    expect(chooseTransport('fcm', app(), selfHost, RELAY)).toEqual({ kind: 'relay', origin: 'https://relay.test' })
+    expect(chooseTransport('auto', app(), { fcm: true, unifiedpush: true, fcmProject: 'harmony-fedi' }, RELAY)).toEqual({ kind: 'fcm' })
+    const picked = app({ up: { distributors: [NTFY], distributor: NTFY.id } })
+    expect(chooseTransport('auto', picked, selfHost, RELAY)).toEqual({ kind: 'unifiedpush', distributor: NTFY.id })
+    const sole = app({ up: { distributors: [NTFY] } })
+    expect(chooseTransport('auto', sole, selfHost, { ...RELAY, relay: false })).toEqual({ kind: 'unifiedpush', distributor: NTFY.id })
+    expect(chooseTransport('fcm', app(), selfHost, null)).toEqual({ kind: 'off', reason: 'unavailable' })
+  })
+
+  it('builds the relay endpoint from an https origin and the token', () => {
+    expect(pushRelayOrigin(' https://har.mony.lol/ ')).toBe('https://har.mony.lol')
+    expect(pushRelayOrigin('http://har.mony.lol')).toBeNull()
+    expect(pushRelayOrigin('')).toBeNull()
+    expect(pushRelayOrigin('not a url')).toBeNull()
+    expect(relayEndpoint('https://har.mony.lol', 'abc:APA91b_x-y'))
+      .toBe('https://har.mony.lol/api/federation/push/relay/fcm/abc%3AAPA91b_x-y')
+    expect(transportLabel({ kind: 'relay', origin: 'https://har.mony.lol' }, [])).toBe('Google (FCM) through har.mony.lol')
   })
 })
 
@@ -316,6 +367,64 @@ describe('Android reconcile', () => {
     await usePushNotifications().detachForLogout()
     expect(posts('/fcm/unregister')).toEqual([{ token: FCM_TOKEN }])
     expect(readAndroidRecord()).not.toBeNull()
+  })
+
+  describe('through the push relay', () => {
+    const RELAY_STATUS = 'https://relay.test/api/federation/push/status'
+    const relayStatus = (body: Record<string, unknown>) => {
+      const base = fetchMock.getMockImplementation()!
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (url === RELAY_STATUS) return new Response(JSON.stringify(body))
+        if (url.endsWith('/status')) return new Response(JSON.stringify({ fcm: false, unifiedpush: true }))
+        return base(url, init)
+      })
+    }
+
+    beforeEach(() => {
+      vi.stubEnv('VITE_PUSH_RELAY_ORIGIN', 'https://relay.test')
+      native = status({ fcmProject: 'harmony-fedi' })
+      const base = invoke.getMockImplementation()!
+      invoke.mockImplementation(async (cmd: string, args?: unknown) => cmd === 'plugin:harmony-push|get_relay_registration'
+        ? { token: FCM_TOKEN, p256dh: 'RP', auth: 'RA' }
+        : base(cmd, args))
+    })
+
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('registers the relay endpoint with this device\'s keys on a server without FCM', async () => {
+      relayStatus({ relay: true, fcmProject: 'harmony-fedi' })
+      const { usePushNotifications } = await import('@/composables/usePushNotifications')
+      const push = usePushNotifications()
+      await push.reconcile()
+
+      const endpoint = `https://relay.test/api/federation/push/relay/fcm/${FCM_TOKEN}`
+      expect(posts('/subscribe')).toEqual([expect.objectContaining({
+        transport: 'unifiedpush',
+        subscription: { endpoint, keys: { p256dh: 'RP', auth: 'RA' } },
+      })])
+      expect(posts('/fcm/register')).toEqual([])
+      expect(readAndroidRecord()).toMatchObject({ transport: 'relay', endpoint })
+      expect(push.androidChoice.value).toEqual({ kind: 'relay', origin: 'https://relay.test' })
+    })
+
+    it('registers nothing when the relay is off or forwards for another build', async () => {
+      relayStatus({ relay: false, fcmProject: 'harmony-fedi' })
+      const { usePushNotifications } = await import('@/composables/usePushNotifications')
+      await usePushNotifications().reconcile()
+      expect(posts('/subscribe')).toEqual([])
+      expect(readAndroidRecord()).toBeNull()
+    })
+
+    it('never asks the relay when the server reaches this build itself', async () => {
+      const base = fetchMock.getMockImplementation()!
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/status')
+        ? new Response(JSON.stringify({ fcm: true, unifiedpush: true, fcmProject: 'harmony-fedi' }))
+        : base(url, init))
+      const { usePushNotifications } = await import('@/composables/usePushNotifications')
+      await usePushNotifications().reconcile()
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain(RELAY_STATUS)
+      expect(posts('/fcm/register')).toHaveLength(1)
+    })
   })
 
   it('tests this device through its own transport', async () => {

@@ -719,7 +719,8 @@
       "disableConsequence4": "将他们从此服务器移除，并告知每个人原因",
       "disableConsequence5": "即使重新启用联邦，他们也不会自动回来，需通过邀请重新加入",
       "disableConfirm": "停用联邦"
-    }
+    },
+    "federationInstanceOff": "此实例的联邦已关闭；由其管理员重新开启。"
   },
   "channel": {
     "create": "创建频道",
@@ -3823,7 +3824,8 @@
       "invalidAvatar": "头像必须是 https:// 开头的 URL。",
       "permission": "你需要“管理 Webhook”权限。",
       "saveFailed": "无法保存 Webhook"
-    }
+    },
+    "disabledHere": "此实例已关闭 Webhook。"
   },
   "floatingVideo": {
     "region": "视频播放器",
@@ -3863,7 +3865,15 @@
       "turnedOff": "加密已关闭",
       "voiceTurnedOn": "语音加密已开启",
       "voiceTurnedOff": "语音加密已关闭",
-      "saveFailed": "无法更改加密设置。请重试。"
+      "saveFailed": "无法更改加密设置。请重试。",
+      "historyLabel": "新成员可以阅读之前的消息",
+      "historyAll": "所有消息",
+      "historyPinned": "仅置顶消息",
+      "historyNone": "无",
+      "historyAllHint": "之后加入的成员可以阅读加入前发送的消息，前提是有一位能阅读这些消息的成员打开 Harmony。",
+      "historyPinnedHint": "之后加入的成员只能阅读加入前发送的置顶消息。",
+      "historyNoneHint": "之后加入的成员只能阅读加入后发送的消息。",
+      "historySaved": "消息历史设置已保存"
     },
     "integrations": {
       "bots": "此服务器中的 {count} 个机器人无法读取加密消息，也无法在此频道发帖。",
@@ -5087,7 +5097,15 @@
       "maxPersonalEmojis": "每位用户的个人表情数",
       "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
       "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
-      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。"
+      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。",
+      "federationOutbound": "向其他实例发送",
+      "federationOutboundHint": "关闭：不向其他实例投递任何内容。",
+      "federationInbound": "从其他实例接收",
+      "federationInboundHint": "关闭：拒绝其他实例的投递和签名请求。个人资料和服务器仍可读取。",
+      "federationClosedWarning": "两者都关闭时联邦将关闭：此处的每个服务器停止联邦并移除来自其他实例的成员，此处的成员退出托管在别处的服务器。",
+      "federationCloseConfirmTitle": "关闭联邦？",
+      "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
+      "federationCloseConfirm": "关闭联邦"
     },
     "activityLog": {
       "configKeys": {
@@ -6565,6 +6583,9 @@
       "1w": "本周"
     }
   },
+  "instanceVersion": {
+    "older": "你的实例运行的是 Harmony {version}。本应用的部分功能需要该实例使用更新的版本。"
+  },
   "instancePicker": {
     "title": "欢迎使用 Harmony",
     "hint": "Harmony 是联邦式的：任何人都可以运行实例。请输入要连接的实例域名。",
@@ -7210,7 +7231,9 @@
     "notice": {
       "removedTitle": "{instance} 管理团队已将你移出 {server}。",
       "blockedTitle": "{instance} 管理团队在 {instance} 上屏蔽了 {server}；你已离开它。",
-      "blockedMessage": "{server} 在其他实例上没有任何变化。"
+      "blockedMessage": "{server} 在其他实例上没有任何变化。",
+      "federationOffTitle": "{instance} 已停止联邦；你已退出 {server}。",
+      "federationOffMessage": "{server} 在其他实例上继续存在。{instance} 恢复联邦后你可以再次加入。"
     },
     "join": {
       "blocked": "{instance} 管理团队已在 {instance} 上屏蔽此服务器。",
@@ -7234,5 +7257,172 @@
       "mediaHidden": "媒体已隐藏",
       "keptOut": "{count} 人已禁止加入 | {count} 人已禁止加入"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "外发 Webhook",
+    "heading": "外发 Webhook",
+    "introBot": "通过 HTTPS POST 将此机器人的事件发送到一个 URL，可替代或配合其网关连接。每个请求都用该 Webhook 的密钥签名（Standard Webhooks）。",
+    "introServer": "通过 HTTPS POST 将此服务器的事件发送到一个 URL。Webhook 接收其创建者能查看的频道中的事件。每个请求都用该 Webhook 的密钥签名（Standard Webhooks）。",
+    "create": "新建 Webhook",
+    "createSubmit": "创建 Webhook",
+    "save": "保存",
+    "cancel": "取消",
+    "done": "完成",
+    "nameLabel": "名称",
+    "urlLabel": "URL",
+    "urlHint": "仅限 HTTPS。不跟随重定向。",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "消息",
+      "reactions": "回应",
+      "members": "成员",
+      "moderation": "管理"
+    },
+    "events": {
+      "MESSAGE_CREATE": "发送消息",
+      "MESSAGE_UPDATE": "编辑消息",
+      "MESSAGE_DELETE": "删除消息",
+      "MESSAGE_REACTION_ADD": "添加回应",
+      "MESSAGE_REACTION_REMOVE": "移除回应",
+      "SERVER_MEMBER_ADD": "成员加入",
+      "SERVER_MEMBER_REMOVE": "成员离开",
+      "SERVER_MEMBER_KICK": "成员被踢出",
+      "SERVER_BAN_ADD": "成员被封禁",
+      "SERVER_BAN_REMOVE": "解除封禁"
+    },
+    "copyOnce": "请立即复制 {name} 的签名密钥；它不会再次显示。",
+    "secretHint": "按 Standard Webhooks 的说明，用它校验每个请求的 webhook-signature 头。",
+    "copySecret": "复制密钥",
+    "copied": "已复制",
+    "copyFailed": "无法复制",
+    "loading": "加载中…",
+    "loadFailed": "无法加载 Webhook。",
+    "empty": "还没有外发 Webhook。",
+    "limitReached": "最多 {count} 个 Webhook。",
+    "eventCount": "事件：{count}",
+    "secretEndsWith": "密钥结尾：{hint}",
+    "state": {
+      "off": "已关闭",
+      "disabledFailing": "连续三天投递失败后已关闭。最后的响应：{error}",
+      "failing": "自 {date} 起失败。最后的响应：{error}",
+      "delivered": "最后投递于 {date}",
+      "never": "尚未投递",
+      "unverified": "正在等待测试事件的 2xx 响应，之后才会发送事件",
+      "unverifiedFailing": "未验证：测试事件得到 {error}。请修复端点后再发送测试事件。",
+      "paused": "连续 10 次尝试失败后已暂停；每 5 分钟用测试事件探测一次。最后的响应：{error}",
+      "staff": "已被此实例的工作人员关闭"
+    },
+    "active": "开启",
+    "activeFor": "开启 {name}",
+    "sendTest": "发送测试事件",
+    "testQueued": "测试事件已排队",
+    "deliveries": "投递记录",
+    "deliveriesOf": "{name} 的投递记录",
+    "noDeliveries": "最近七天没有投递。",
+    "logEvent": "事件",
+    "logStatus": "状态",
+    "logAnswer": "响应",
+    "logTime": "时间",
+    "status": {
+      "pending": "等待中（已尝试 {attempts} 次）",
+      "delivered": "已投递",
+      "failed": "尝试 {attempts} 次后失败"
+    },
+    "edit": "编辑",
+    "editFor": "编辑 {name}",
+    "rotate": "更换密钥",
+    "rotateFor": "更换 {name} 的密钥",
+    "delete": "删除",
+    "deleteFor": "删除 {name}",
+    "created": "Webhook 已创建",
+    "updated": "Webhook 已保存",
+    "rotated": "已创建新密钥",
+    "deleted": "Webhook 已删除",
+    "confirmRotate": {
+      "title": "更换密钥？",
+      "message": "{name} 今后用新密钥签名。请更新你的接收端。",
+      "confirm": "更换"
+    },
+    "confirmDelete": {
+      "title": "删除 Webhook？",
+      "message": "将删除 {name} 及其投递记录。",
+      "confirm": "删除"
+    },
+    "errors": {
+      "forbidden": "你无法管理这些 Webhook。",
+      "notFound": "此 Webhook 已不存在。",
+      "invalidName": "请为 Webhook 起一个 1 到 80 个字符的名称。",
+      "invalidUrl": "请使用不超过 2048 个字符的 https URL。",
+      "invalidEvents": "请至少选择一个事件。",
+      "limit": "已有五个 Webhook。",
+      "unavailable": "外发 Webhook 需要 Supabase Vault，此实例未安装。",
+      "saveFailed": "无法保存 Webhook。",
+      "staffDisabled": "此实例的工作人员已关闭此 Webhook。",
+      "disabled": "此实例不允许你创建外发 Webhook。",
+      "blockedDomain": "此实例不向该域名发送。",
+      "limitUser": "你已达到此实例的外发 Webhook 上限。",
+      "tooSoon": "请稍等几秒再发送下一个测试事件。",
+      "urlTooSoon": "刚刚发送了测试事件。请稍等几秒再保存新的 URL。"
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} 已关闭",
+      "disabledMessage": "其投递连续三天失败。最后的响应：{error}",
+      "short": "Webhook 已关闭"
+    },
+    "unavailableOff": "此实例已关闭外发 Webhook。",
+    "unavailableStaff": "在此实例上，只有工作人员能创建外发 Webhook。",
+    "dropped": "已跳过 {count} 个事件（{reason}），最近一次 {date}",
+    "dropReason": {
+      "rate_limited": "超出速率限制",
+      "paused": "暂停期间"
+    }
+  },
+  "adminWebhooks": {
+    "tab": "Webhook",
+    "settingsTitle": "Webhook 设置",
+    "settingsIntro": "此实例上每个外发 Webhook 的限制，以及外发和传入 Webhook 的开关。",
+    "settingsReadOnly": "只有实例管理员能修改这些设置。",
+    "outgoingMode": "谁可以创建外发 Webhook",
+    "modeEveryone": "机器人所有者和服务器 Webhook 管理者",
+    "modeStaff": "仅实例工作人员",
+    "modeOff": "任何人都不能（外发 Webhook 关闭）",
+    "incomingEnabled": "传入 Webhook（向频道发帖）",
+    "ratePerMinute": "每个 Webhook 每分钟的事件数",
+    "hostRatePerMinute": "每个目标每分钟的请求数",
+    "perUser": "每人的外发 Webhook 数",
+    "blockedDomains": "屏蔽的目标",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "每行一个域名；其子域名也会被屏蔽。",
+    "save": "保存",
+    "saved": "Webhook 设置已保存",
+    "saveFailed": "无法保存",
+    "loading": "加载中…",
+    "loadFailed": "无法加载",
+    "listTitle": "外发 Webhook",
+    "listIntro": "此实例上的所有外发 Webhook，最活跃的在前。在这里关闭的 Webhook 会保持关闭；其所有者无法重新开启。",
+    "refresh": "刷新",
+    "empty": "还没有外发 Webhook。",
+    "colWebhook": "Webhook",
+    "colOwner": "所有者",
+    "colDestination": "目标",
+    "colState": "状态",
+    "colDeliveries": "最近 24 小时",
+    "colActions": "操作",
+    "ownerBot": "机器人 {name}",
+    "ownerServer": "服务器 {name}",
+    "deliveries24h": "已发送 {count}，失败 {failed}",
+    "stateActive": "活跃",
+    "stateUnverified": "未验证",
+    "statePaused": "已暂停",
+    "stateFailing": "失败中",
+    "stateOff": "已关闭（所有者）",
+    "stateStaff": "已关闭（工作人员）",
+    "stateFailingOff": "因失败关闭",
+    "turnOff": "关闭",
+    "turnOn": "开启",
+    "delete": "删除",
+    "deleteFor": "删除 {name}",
+    "confirmDeleteTitle": "删除此 Webhook？",
+    "confirmDeleteMessage": "将删除 {name}（{host}）及其投递记录。不会通知其所有者。"
   }
 }

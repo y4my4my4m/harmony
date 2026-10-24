@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { galleryMedia, withoutGalleryMedia } from '@/utils/postMedia'
+import { galleryMedia, isDirectMediaUrl, mediaUrlPath, withoutGalleryMedia } from '@/utils/postMedia'
 
 const imagePart = {
   type: 'file', url: 'https://files.remote.test/a.png', fileType: 'image', mimeType: 'image/png',
@@ -60,5 +60,33 @@ describe('withoutGalleryMedia', () => {
   it('returns the content unchanged without gallery media', () => {
     const content = [text, imagePart]
     expect(withoutGalleryMedia(content, [])).toBe(content)
+  })
+})
+
+describe('isDirectMediaUrl', () => {
+  it('is true for links to image, video and audio files, query included', () => {
+    for (const url of [
+      'https://static.klipy.com/ii/abc/de/fg/hijkl.gif',
+      'https://cdn.example/a.webp?width=800',
+      'https://media.example/clip.mp4',
+      'https://media.example/song.mp3',
+      'https://media.example/IMAGE.JPG',
+    ]) expect(isDirectMediaUrl(url), url).toBe(true)
+  })
+
+  it('is false for pages and media links without a file extension', () => {
+    for (const url of [
+      'https://klipy.com/gifs/old-man-yells-at-cloud',
+      'https://example.com/article.html',
+      'https://example.com/gif',
+      'https://youtu.be/abc',
+    ]) expect(isDirectMediaUrl(url), url).toBe(false)
+  })
+})
+
+describe('mediaUrlPath', () => {
+  it('drops protocol, host and query so copies of one file match', () => {
+    expect(mediaUrlPath('https://cdn.a.example/media/x.png?sig=1')).toBe('/media/x.png')
+    expect(mediaUrlPath('http://mirror.example/media/x.png')).toBe('/media/x.png')
   })
 })

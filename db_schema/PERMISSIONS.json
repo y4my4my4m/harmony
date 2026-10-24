@@ -223,7 +223,9 @@
         "function:can_manage_channel_webhooks",
         "function:create_channel_webhook",
         "function:list_channel_webhooks",
-        "function:lock_managed_channel_webhook"
+        "function:lock_managed_channel_webhook",
+        "function:can_manage_outgoing_webhooks",
+        "function:outgoing_webhook_creator_reads"
       ],
       "backend": [
         "bot-gateway/src/auth/botPermissions.ts"
@@ -233,7 +235,8 @@
       ],
       "pgtap": [
         "db_schema/tests/155_permission_audit.sql",
-        "db_schema/tests/111_channel_webhooks.sql"
+        "db_schema/tests/111_channel_webhooks.sql",
+        "db_schema/tests/194_outgoing_webhooks.sql"
       ],
       "e2e": [
         "e2e/specs/permission-audit.spec.ts"

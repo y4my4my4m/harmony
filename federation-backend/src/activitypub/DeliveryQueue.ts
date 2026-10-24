@@ -5,6 +5,7 @@ import { performanceMonitor } from '../services/PerformanceMonitor.js';
 import { logger } from '../utils/logger.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { isDeferredEngagement } from './deferredEngagement.js';
+import { outboundAllows } from '../services/FederationSwitches.js';
 
 type RequestSigner = (
   targetUrl: string,
@@ -440,6 +441,11 @@ export class DeliveryQueue {
       return { delivered: false, retry: false };
     }
 
+    if (!(await outboundAllows(activityData))) {
+      logger.info(`Outbound federation is off: ${activityData?.type} ${activityData?.id} to ${targetDomain} dropped`);
+      return { delivered: false, retry: false };
+    }
+
     // Check if endpoint is dead before attempting delivery
     const isDead = await this.isEndpointDead(targetInbox);
     if (isDead) {
@@ -546,6 +552,19 @@ export class DeliveryQueue {
           status: 'failed',
           last_attempt_at: new Date().toISOString(),
           error_message: 'Instance is blocked',
+        })
+        .eq('id', item.id);
+      return false;
+    }
+
+    if (!(await outboundAllows(item.activity_data))) {
+      logger.info(`Outbound federation is off: queued ${item.activity_data?.type} to ${targetDomain} dropped`);
+      await supabase
+        .from('federation_delivery_queue')
+        .update({
+          status: 'cancelled',
+          last_attempt_at: new Date().toISOString(),
+          error_message: 'Outbound federation is off',
         })
         .eq('id', item.id);
       return false;

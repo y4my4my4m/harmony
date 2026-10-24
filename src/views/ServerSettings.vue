@@ -255,6 +255,11 @@
             />
           </template>
 
+          <OutgoingWebhooksPanel
+            v-if="activeSection === 'outgoing-webhooks' && permissions.canManageWebhooks && hasCapability('outgoing-webhooks')"
+            :server-id="serverId"
+          />
+
           <DiscordBridgeSetup
             v-if="activeSection === 'discord-bridge' && permissions.canEditBasicInfo"
             :server-id="serverId"
@@ -269,6 +274,7 @@
 
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
@@ -296,6 +302,7 @@ import { getInstanceDomain } from '@/services/instanceConfig'
 import { useProfileStore } from '@/stores/useProfile'
 import ServerEmojiManagement from '@/components/settings/ServerEmojiManagement.vue'
 import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.vue'
+import OutgoingWebhooksPanel from '@/components/OutgoingWebhooksPanel.vue'
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
@@ -452,6 +459,8 @@ const availableSections = computed(() => {
     // server_sounds holds local servers' sounds only.
     ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },
+    // list_outgoing_webhooks requires MANAGE_WEBHOOKS on a local server.
+    ...(p.canManageWebhooks && hasCapability('outgoing-webhooks') ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel') }] : []),
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),
     { id: 'advanced', label: t('server.advancedSettings') }

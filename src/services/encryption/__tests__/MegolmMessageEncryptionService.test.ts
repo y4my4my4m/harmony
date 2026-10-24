@@ -5,6 +5,7 @@ import { indexedDB } from 'fake-indexeddb'
 import { MegolmService } from '../MegolmService'
 import { RecoveryKeyService } from '../RecoveryKeyService'
 import { MegolmMessageEncryptionService } from '../MegolmMessageEncryptionService'
+import { megolmKeyBackupService } from '../MegolmKeyBackupService'
 import { deviceIdentityService } from '../DeviceIdentityService'
 import { deviceKeyStore, signingKeyStore } from '../SecureSessionKeyStore'
 import {
@@ -631,10 +632,13 @@ describe('MegolmMessageEncryptionService', () => {
     const MEMBER_ID = 'eeeeeeee-1111-2222-3333-444444444444'
     const BANNED_ID = 'ffffffff-1111-2222-3333-444444444444'
     let upserted: any[]
+    // (session id, recipient) pairs skip_share_hidden_history drops.
+    let withheld: Set<string>
     let rpcResult: { data: unknown; error: unknown }
 
     beforeEach(async () => {
       upserted = []
+      withheld = new Set()
       ;(messageService as any).roomMemberCache.clear()
       const myKp = await crypto.subtle.generateKey(
         { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
@@ -654,10 +658,15 @@ describe('MegolmMessageEncryptionService', () => {
       ;(supabase.from as any).mockImplementation((table: string) => {
         if (table === 'user_key_pairs') {
           let ids: string[] = []
+          let userId: string | null = null
           const builder: any = {
             select: () => builder,
             in: (_field: string, values: string[]) => { ids = values; return builder },
-            eq: () => builder,
+            eq: (field: string, value: string) => { if (field === 'user_id') userId = value; return builder },
+            maybeSingle: () => Promise.resolve({
+              data: userId && topPublicLookup.has(userId) ? { identity_signing_public_key: topPublicLookup.get(userId) } : null,
+              error: null,
+            }),
             then: (resolve: any) => resolve({
               data: ids.filter((id) => publicKeys.has(id))
                 .map((id) => ({ user_id: id, identity_public_key: publicKeys.get(id) })),
@@ -667,7 +676,13 @@ describe('MegolmMessageEncryptionService', () => {
           return builder
         }
         if (table === 'megolm_session_shares') {
-          return { upsert: (rows: any) => { upserted.push(...rows); return Promise.resolve({ error: null }) } }
+          return {
+            upsert: (rows: any[]) => {
+              upserted.push(...rows)
+              const kept = rows.filter((r) => !withheld.has(`${r.session_id}:${r.recipient_user_id}`))
+              return { select: () => Promise.resolve({ data: kept.map((r) => ({ recipient_user_id: r.recipient_user_id })), error: null }) }
+            },
+          }
         }
         return userKeyPairsFromMock(topPublicLookup)(table)
       })
@@ -696,6 +711,181 @@ describe('MegolmMessageEncryptionService', () => {
       rpcResult = { data: null, error: { message: 'function does not exist' } }
       await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
       expect(upserted.map((r) => r.recipient_user_id).sort()).toEqual([MEMBER_ID, BANNED_ID].sort())
+    })
+
+    it('reports a member whose row the server withheld and keeps them unshared', async () => {
+      rpcResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
+      withheld.add(`${sessionId()}:${MEMBER_ID}`)
+      const refused = await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID])
+      expect(refused).toEqual([MEMBER_ID])
+      expect(megolm.getUsersNeedingSession(TEST_ROOM_ID, [MEMBER_ID], sessionId())).toEqual([MEMBER_ID])
+    })
+
+    it('reports nothing without the member list: a skipped row may be a non-member', async () => {
+      rpcResult = { data: null, error: { message: 'function does not exist' } }
+      withheld.add(`${sessionId()}:${BANNED_ID}`)
+      expect(await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])).toEqual([])
+    })
+
+    it('sends under a new session when the server withholds the current one from a member', async () => {
+      rpcResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
+      const first = sessionId()
+      withheld.add(`${first}:${MEMBER_ID}`)
+      const content: MessagePart[] = [{ type: 'text', text: 'after you joined' }]
+
+      const sent = await messageService.encryptMessage(content, TEST_ROOM_ID, [MEMBER_ID])
+
+      expect(sent.encryption_metadata.session_id).not.toBe(first)
+      expect(upserted.map((r) => r.session_id)).toEqual([first, sent.encryption_metadata.session_id])
+      expect(megolm.getUsersNeedingSession(TEST_ROOM_ID, [MEMBER_ID], sent.encryption_metadata.session_id)).toEqual([])
+      const decrypted = await messageService.decryptMessage({
+        content: sent.content,
+        channel_id: TEST_ROOM_ID,
+        encryption_metadata: sent.encryption_metadata,
+      })
+      expect(decrypted.content).toEqual(content)
+    })
+
+    it('rotates once: a second withheld session is sent as is', async () => {
+      rpcResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
+      const shareSpy = vi.spyOn(messageService as any, 'ensureSessionShared').mockResolvedValue([MEMBER_ID])
+      const first = sessionId()
+      const sent = await messageService.encryptMessage([{ type: 'text', text: 'x' }], TEST_ROOM_ID, [MEMBER_ID])
+      expect(shareSpy).toHaveBeenCalledTimes(2)
+      expect(sent.encryption_metadata.session_id).not.toBe(first)
+    })
+  })
+
+  // ─── Keys relayed by a member other than the sender ──────
+
+  describe('relayed session keys', () => {
+    const OTHER_SENDER = 'eeeeeeee-1111-2222-3333-444444444444'
+    const content: MessagePart[] = [{ type: 'text', text: 'before you joined' }]
+
+    let encrypted: Awaited<ReturnType<MegolmService['encryptMessage']>>
+    let sessionKey: string
+    let settle: ReturnType<typeof vi.spyOn>
+
+    function relayed(key: string, requestId: string, scope: 'session' | 'message' = 'session', messageId: string | null = null) {
+      return { requestId, roomId: TEST_ROOM_ID, senderUserId: OTHER_SENDER, sessionId: encrypted.sessionId, sessionKey: key, scope, messageId }
+    }
+
+    function offer(...keys: ReturnType<typeof relayed>[]) {
+      vi.spyOn(megolmKeyBackupService, 'relayedKeysFor').mockImplementation(() => [...keys])
+    }
+
+    beforeEach(async () => {
+      encrypted = await megolm.encryptMessage(TEST_ROOM_ID, JSON.stringify(content))
+      sessionKey = megolm.getSessionKeyForSharing(TEST_ROOM_ID, encrypted.sessionId)!.sessionKey
+      settle = vi.spyOn(megolmKeyBackupService, 'settleRelayedKey').mockResolvedValue()
+    })
+
+    const wrongKey = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+
+    it('imports a relayed key once it decrypts the message', async () => {
+      const key = relayed(sessionKey, 'r1')
+      offer(key)
+      const plaintext = await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted)
+      expect(JSON.parse(plaintext)).toEqual(content)
+      expect(megolm.getInboundSession(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId)?.sessionKey).toBe(sessionKey)
+      expect(settle).toHaveBeenCalledWith(key, true)
+    })
+
+    it('refuses a relayed key that does not decrypt the message', async () => {
+      const key = relayed(wrongKey(), 'r1')
+      offer(key)
+      expect(await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted)).toBeNull()
+      expect(megolm.hasInboundSession(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId)).toBe(false)
+      expect(settle).toHaveBeenCalledWith(key, false)
+    })
+
+    it('tries every relayed key and keeps the one that decrypts', async () => {
+      const bad = relayed(wrongKey(), 'r1')
+      const good = relayed(sessionKey, 'r2')
+      offer(bad, good)
+      const plaintext = await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted)
+      expect(JSON.parse(plaintext)).toEqual(content)
+      expect(settle.mock.calls).toEqual([[bad, false], [good, true]])
+    })
+
+    it('settles once for messages of the session decrypted together', async () => {
+      offer(relayed(sessionKey, 'r1'))
+      const second = await megolm.encryptMessage(TEST_ROOM_ID, JSON.stringify(content))
+      const trial = vi.spyOn(megolm, 'decryptWithSessionKey')
+      const results = await Promise.all([
+        (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted),
+        (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, second),
+      ])
+      expect(results.map((r: string) => JSON.parse(r))).toEqual([content, content])
+      expect(trial).toHaveBeenCalledTimes(1)
+      expect(settle).toHaveBeenCalledTimes(1)
+    })
+
+    it('is null without a relayed key', async () => {
+      offer()
+      expect(await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted)).toBeNull()
+      expect(settle).not.toHaveBeenCalled()
+    })
+
+    it('a decrypt miss reads the message through a relayed key before asking anyone', async () => {
+      offer(relayed(sessionKey, 'r1'))
+      const request = vi.spyOn(megolmKeyBackupService, 'createKeyRequest')
+      const parts = await (messageService as any).decryptMegolmMessage({
+        content: [{ type: 'text', text: encrypted.ciphertext }],
+        encryption_metadata: {
+          session_id: encrypted.sessionId,
+          message_index: encrypted.messageIndex,
+          sender_user_id: OTHER_SENDER,
+        },
+      }, TEST_ROOM_ID)
+      expect(parts).toEqual(content)
+      expect(request).not.toHaveBeenCalled()
+    })
+
+    it('keeps the key of a pinned message once it decrypts that message, and nothing else of the session', async () => {
+      const second = await megolm.encryptMessage(TEST_ROOM_ID, JSON.stringify(content))
+      const messageKey = await megolm.deriveMessageKey(sessionKey, encrypted.messageIndex)
+      const key = relayed(messageKey, 'r1', 'message', 'm1')
+      offer(key)
+
+      const plaintext = await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted, undefined, 'm1')
+
+      expect(JSON.parse(plaintext)).toEqual(content)
+      expect(settle).toHaveBeenCalledWith(key, true)
+      expect(megolm.getMessageKey(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, encrypted.messageIndex)).toBe(messageKey)
+      expect(megolm.hasInboundSession(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId)).toBe(false)
+      await expect(megolm.decryptMessage(TEST_ROOM_ID, OTHER_SENDER, second)).rejects.toThrow(/No inbound session/)
+    })
+
+    it('does not try the key of another message', async () => {
+      offer(relayed(await megolm.deriveMessageKey(sessionKey, encrypted.messageIndex), 'r1', 'message', 'm2'))
+      expect(await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted, undefined, 'm1')).toBeNull()
+      expect(settle).not.toHaveBeenCalled()
+    })
+
+    it('refuses a message key that does not decrypt its message', async () => {
+      const key = relayed(await megolm.deriveMessageKey(sessionKey, encrypted.messageIndex + 1), 'r1', 'message', 'm1')
+      offer(key)
+      expect(await (messageService as any).decryptWithRelayedKey(TEST_ROOM_ID, OTHER_SENDER, encrypted, undefined, 'm1')).toBeNull()
+      expect(settle).toHaveBeenCalledWith(key, false)
+      expect(megolm.getMessageKey(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, encrypted.messageIndex)).toBeUndefined()
+    })
+
+    it('a decrypt miss names the message and its pin in the key request', async () => {
+      offer()
+      vi.spyOn(messageService as any, 'recoverMissingSession').mockResolvedValue(false)
+      const request = vi.spyOn(megolmKeyBackupService, 'createKeyRequest').mockResolvedValue('req')
+      await expect((messageService as any).decryptMegolmMessage({
+        id: 'm1',
+        is_pinned: true,
+        content: [{ type: 'text', text: encrypted.ciphertext }],
+        encryption_metadata: {
+          session_id: encrypted.sessionId,
+          message_index: encrypted.messageIndex,
+          sender_user_id: OTHER_SENDER,
+        },
+      }, TEST_ROOM_ID)).rejects.toThrow(/key request sent/)
+      expect(request).toHaveBeenCalledWith(TEST_ROOM_ID, encrypted.sessionId, OTHER_SENDER, { id: 'm1', pinned: true })
     })
   })
 })

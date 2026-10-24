@@ -1,15 +1,14 @@
 // Service worker: push notifications and PWA caching.
-// Version 3.8 - storage render images are fetched in CORS mode and kept in Cache Storage:
-// emoji renders cache-first, other renders revalidated once per worker lifetime.
+// Version 3.9 - API and auth requests pass through to the browser; the API response cache
+// is dropped on activation.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const STATIC_CACHE = 'harmony-static-v3'
-const API_CACHE = 'harmony-api-v3'
 const EMOJI_CACHE = 'harmony-emoji-v2'
 const TRANSFORM_CACHE = 'harmony-transform-v2'
 // Notification bookkeeping, not HTTP responses. Keys encode their timestamp.
 const NOTIF_STATE_CACHE = 'harmony-notif-state-v1'
-const SW_VERSION = '3.8'
+const SW_VERSION = '3.9'
 
 const STATIC_RESOURCES = [
   '/',
@@ -41,7 +40,6 @@ self.addEventListener('activate', (event) => {
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME &&
               cacheName !== STATIC_CACHE &&
-              cacheName !== API_CACHE &&
               cacheName !== NOTIF_STATE_CACHE &&
               cacheName !== EMOJI_CACHE &&
               cacheName !== TRANSFORM_CACHE) {
@@ -527,8 +525,7 @@ function isStorageTransformRequest(url) {
 }
 
 self.addEventListener('fetch', (event) => {
-  // Only GET responses are cached. Intercepting other methods gains nothing and puts them
-  // under the 5 s API timeout below, which turns a slower POST into a synthetic 503.
+  // Only GET responses are cached; other methods pass through.
   if (event.request.method !== 'GET') {
     return
   }
@@ -564,8 +561,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Link-preview media: video byte ranges, and redirects whose lookup can outlast the
-  // 5 s API timeout below.
+  // Link-preview media: video byte ranges and redirects pass through.
   if (requestUrl.pathname.startsWith('/api/federation/embed-media')) {
     return
   }
@@ -592,8 +588,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   const url = new URL(event.request.url)
-  const isAPIRequest = url.pathname.startsWith('/api/')
-  const isAuthRequest = url.pathname.includes('/auth/')
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
   
@@ -612,8 +606,6 @@ self.addEventListener('fetch', (event) => {
 
   if (isModulePreload || isViteModule || (isJSRequest && isModuleRequest)) {
     return
-  } else if (isAPIRequest || isAuthRequest) {
-    event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
   } else if (isCSSRequest) {
     // Vite dev serves imported *.css as JS modules
     // (Content-Type: text/javascript); caching those as CSS fails validation.
@@ -624,48 +616,10 @@ self.addEventListener('fetch', (event) => {
     }
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
   }
-  // Everything else is left to the browser.
+  // Everything else is left to the browser, API and auth requests included: a cached answer
+  // belongs to whoever was signed in when it was stored, and a timeout here turned a slow
+  // answer into a 503 of this worker's own making.
 })
-
-async function enhancedNetworkFirst(request, cacheName) {
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5s
-    
-    const networkResponse = await fetch(request, {
-      signal: controller.signal
-    })
-    
-    clearTimeout(timeoutId)
-    
-    if (networkResponse.status === 200 && networkResponse.ok) {
-      const contentLength = networkResponse.headers.get('content-length')
-      const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1 MiB cap
-      
-      if (isSmallResponse) {
-        const cache = await caches.open(cacheName)
-        const responseClone = networkResponse.clone()
-        cache.put(request, responseClone).catch(err => {
-          console.warn('Failed to cache response:', err)
-        })
-      }
-    }
-    
-    return networkResponse
-  } catch (error) {
-    console.log('Service Worker: Network failed, trying cache:', error.message)
-    
-    const cachedResponse = await caches.match(request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-    
-    return new Response('Network unavailable', { 
-      status: 503,
-      headers: { 'Content-Type': 'text/plain' }
-    })
-  }
-}
 
 async function staleWhileRevalidate(request, cacheName) {
   const cachedResponse = await caches.match(request)

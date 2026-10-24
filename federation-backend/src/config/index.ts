@@ -22,7 +22,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.8.12'),
+  VERSION: z.string().default('1.9.0'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),
@@ -99,6 +99,9 @@ const envSchema = z.object({
   
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
+
+  // Testing only: outgoing webhook deliveries to http://localhost and to loopback addresses.
+  OUTGOING_WEBHOOKS_ALLOW_LOOPBACK: z.string().default('false').transform(v => v === 'true'),
   
   // Push endpoints on private, loopback or link-local addresses are refused. A self-hosted
   // UnifiedPush distributor reachable only on the LAN needs this set to 'true'.
@@ -170,6 +173,9 @@ const envSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() ? Number(v.trim()) : undefined),
     z.number().int().positive().optional(),
   ),
+  // Push relay (routes/pushRelay.ts): this instance forwards encrypted Web Push from any
+  // instance to the Android app through FCM with its service account. 'true' turns it on.
+  PUSH_RELAY_ENABLED: z.string().default('false').transform(v => v === 'true'),
   // Longest a public ActivityPub or WebFinger document is served from memory
   // (middleware/documentCache.ts), in milliseconds. 0 turns the cache off.
   DOCUMENT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(30000),

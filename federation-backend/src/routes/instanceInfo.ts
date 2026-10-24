@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import config from '../config/index.js';
 import { sendSuccess } from '../utils/response.js';
+import { CAPABILITIES } from '../config/capabilities.js';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.get('/', (_req: Request, res: Response) => {
     version: config.VERSION,
     supabaseUrl: config.PUBLIC_SUPABASE_URL,
     supabaseAnonKey: config.SUPABASE_ANON_KEY,
+    capabilities: CAPABILITIES,
   });
 });
 

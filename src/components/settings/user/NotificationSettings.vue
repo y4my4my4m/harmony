@@ -1058,7 +1058,7 @@ const pushStatusIcon = computed(() => {
 const pushStatusBadgeText = computed(() => {
   if (isAndroidClient) {
     const choice = pushNotifications.androidChoice.value
-    if (choice?.kind === 'fcm') return t('settings.notifications.push.status.fcm')
+    if (choice?.kind === 'fcm' || choice?.kind === 'relay') return t('settings.notifications.push.status.fcm')
     if (choice?.kind === 'unifiedpush') return t('settings.notifications.push.status.unifiedpush')
     return t('settings.notifications.push.status.whileOpen')
   }

@@ -154,6 +154,10 @@
       <AntiSpamAdmin />
     </div>
 
+    <div v-else-if="activeAdminTab === 'webhooks'" class="admin-grid single">
+      <WebhooksAdmin />
+    </div>
+
     <div v-else-if="activeAdminTab === 'content'" class="admin-grid">
       <AnnouncementsAdmin />
       <WelcomeServerAdmin />
@@ -202,6 +206,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
@@ -221,6 +226,7 @@ const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/R
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
 const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
+const WebhooksAdmin = defineAsyncComponent(() => import('@/components/admin/WebhooksAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
 const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin/WelcomeServerAdmin.vue'))
@@ -244,6 +250,7 @@ const adminTabs = [
   { key: 'reports', label: 'Reports', icon: 'flag' },
   { key: 'servers', label: t('hostStaff.tab'), icon: 'server' },
   { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
+  { key: 'webhooks', label: t('adminWebhooks.tab'), icon: 'link' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
   { key: 'config', label: 'Config', icon: 'settings' },
@@ -256,10 +263,11 @@ type AdminTabKey = typeof adminTabs[number]['key']
 const profileStore = useProfileStore()
 const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 // Instance moderators: reports, account actions, servers hosted here, the anti-spam queue,
-// federation read-only.
-const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam']
+// outgoing webhooks (switching one off), federation read-only.
+const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam', 'webhooks']
 const visibleTabs = computed(() =>
-  isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
+  (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
+    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))
