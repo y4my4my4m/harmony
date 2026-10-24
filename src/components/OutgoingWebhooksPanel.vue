@@ -2,7 +2,8 @@
   <section class="ow-section" :aria-labelledby="headingId" data-testid="outgoing-webhooks">
     <div class="ow-head">
       <div class="ow-head-text">
-        <h3 :id="headingId" class="ow-heading">{{ t('outgoingWebhooks.heading') }}</h3>
+        <!-- A server settings section of its own (h2); inside a bot's details, under its name (h3). -->
+        <component :is="serverId ? 'h2' : 'h3'" :id="headingId" class="ow-heading">{{ t('outgoingWebhooks.heading') }}</component>
         <p class="ow-hint">{{ botId ? t('outgoingWebhooks.introBot') : t('outgoingWebhooks.introServer') }}</p>
       </div>
       <button

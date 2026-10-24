@@ -261,7 +261,8 @@ test('a timeline shows the reply count, which opens the post', async ({ page }) 
 test.describe('with the service worker running', () => {
   test.use({ serviceWorkers: 'allow' })
 
-  test('the service worker leaves a slow POST to the API alone and still times out GETs', async ({ page, context }) => {
+  // The worker leaves API requests to the browser: no 5 s cut-off, no synthetic 503.
+  test('the service worker leaves slow API requests alone, POST and GET', async ({ page, context }) => {
     test.setTimeout(180_000)
     await context.route('**/api/federation/sw-probe', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 6500))
@@ -286,7 +287,10 @@ test.describe('with the service worker running', () => {
     })
     expect(post).toEqual({ status: 200, body: '{"ok":true}' })
 
-    const get = await page.evaluate(async () => (await fetch('/api/federation/sw-probe')).status)
-    expect(get).toBe(503)
+    const get = await page.evaluate(async () => {
+      const response = await fetch('/api/federation/sw-probe')
+      return { status: response.status, body: await response.text() }
+    })
+    expect(get).toEqual({ status: 200, body: '{"ok":true}' })
   })
 })
