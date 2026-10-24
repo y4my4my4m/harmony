@@ -7252,5 +7252,107 @@
       "mediaHidden": "Media hidden",
       "keptOut": "{count} kept out | {count} kept out"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "Outgoing webhooks",
+    "heading": "Outgoing webhooks",
+    "introBot": "Send this bot's events to a URL by HTTPS POST, in place of or beside its gateway connection. Each request is signed with the webhook's secret (Standard Webhooks).",
+    "introServer": "Send this server's events to a URL by HTTPS POST. A webhook receives the events of channels its creator can view. Each request is signed with the webhook's secret (Standard Webhooks).",
+    "create": "New webhook",
+    "createSubmit": "Create webhook",
+    "save": "Save",
+    "cancel": "Cancel",
+    "done": "Done",
+    "nameLabel": "Name",
+    "urlLabel": "URL",
+    "urlHint": "HTTPS only. Redirects are not followed.",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "Messages",
+      "reactions": "Reactions",
+      "members": "Members",
+      "moderation": "Moderation"
+    },
+    "events": {
+      "MESSAGE_CREATE": "Message sent",
+      "MESSAGE_UPDATE": "Message edited",
+      "MESSAGE_DELETE": "Message deleted",
+      "MESSAGE_REACTION_ADD": "Reaction added",
+      "MESSAGE_REACTION_REMOVE": "Reaction removed",
+      "SERVER_MEMBER_ADD": "Member joined",
+      "SERVER_MEMBER_REMOVE": "Member left",
+      "SERVER_MEMBER_KICK": "Member kicked",
+      "SERVER_BAN_ADD": "Member banned",
+      "SERVER_BAN_REMOVE": "Member unbanned"
+    },
+    "copyOnce": "Copy the signing secret of {name} now; it is not shown again.",
+    "secretHint": "Check each request's webhook-signature header with it, as Standard Webhooks describes.",
+    "copySecret": "Copy secret",
+    "copied": "Copied",
+    "copyFailed": "Could not copy",
+    "loading": "Loading…",
+    "loadFailed": "Could not load the webhooks.",
+    "empty": "No outgoing webhooks yet.",
+    "limitReached": "At most {count} webhooks.",
+    "eventCount": "Events: {count}",
+    "secretEndsWith": "Secret ends in {hint}",
+    "state": {
+      "off": "Off",
+      "disabledFailing": "Turned off after three days of failed deliveries. Last answer: {error}",
+      "failing": "Failing since {date}. Last answer: {error}",
+      "delivered": "Last delivered {date}",
+      "never": "Nothing delivered yet"
+    },
+    "active": "On",
+    "activeFor": "{name} on",
+    "sendTest": "Send test event",
+    "testQueued": "Test event queued",
+    "deliveries": "Deliveries",
+    "deliveriesOf": "Deliveries of {name}",
+    "noDeliveries": "No deliveries in the last seven days.",
+    "logEvent": "Event",
+    "logStatus": "Status",
+    "logAnswer": "Answer",
+    "logTime": "Time",
+    "status": {
+      "pending": "Pending ({attempts} attempts)",
+      "delivered": "Delivered",
+      "failed": "Failed after {attempts} attempts"
+    },
+    "edit": "Edit",
+    "editFor": "Edit {name}",
+    "rotate": "Rotate secret",
+    "rotateFor": "Rotate the secret of {name}",
+    "delete": "Delete",
+    "deleteFor": "Delete {name}",
+    "created": "Webhook created",
+    "updated": "Webhook saved",
+    "rotated": "New secret created",
+    "deleted": "Webhook deleted",
+    "confirmRotate": {
+      "title": "Rotate the secret?",
+      "message": "{name} signs with a new secret from now on. Update your receiver with it.",
+      "confirm": "Rotate"
+    },
+    "confirmDelete": {
+      "title": "Delete the webhook?",
+      "message": "{name} and its delivery log are deleted.",
+      "confirm": "Delete"
+    },
+    "errors": {
+      "forbidden": "You cannot manage these webhooks.",
+      "notFound": "This webhook no longer exists.",
+      "invalidName": "Give the webhook a name of 1 to 80 characters.",
+      "invalidUrl": "Use an https URL of at most 2048 characters.",
+      "invalidEvents": "Choose at least one event.",
+      "limit": "There are five webhooks already.",
+      "unavailable": "Outgoing webhooks need Supabase Vault, which this instance lacks.",
+      "saveFailed": "Could not save the webhook."
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} was turned off",
+      "disabledMessage": "Its deliveries failed for three days. Last answer: {error}",
+      "short": "Webhook turned off"
+    }
   }
 }

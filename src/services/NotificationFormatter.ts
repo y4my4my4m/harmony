@@ -490,6 +490,13 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
   },
 
+  // record_outgoing_webhook_attempt turned a bot's or server's webhook off after three days of failures.
+  outgoing_webhook_disabled: {
+    title: (data: any) => i18n.global.t('outgoingWebhooks.notice.disabledTitle', { name: data?.webhook?.name ?? '' }),
+    message: (data: any) => i18n.global.t('outgoingWebhooks.notice.disabledMessage', { error: data?.last_error ?? '—' }),
+    shortTitle: () => i18n.global.t('outgoingWebhooks.notice.short')
+  },
+
   report_update: {
     title: (data: any) => {
       // apply_server_report_resolution: the outcome of the server's moderators; local staff still decide.

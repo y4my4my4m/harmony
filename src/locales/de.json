@@ -7256,5 +7256,107 @@
       "mediaHidden": "Medien ausgeblendet",
       "keptOut": "{count} ferngehalten | {count} ferngehalten"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "Ausgehende Webhooks",
+    "heading": "Ausgehende Webhooks",
+    "introBot": "Sende die Ereignisse dieses Bots per HTTPS-POST an eine URL, statt oder neben seiner Gateway-Verbindung. Jede Anfrage wird mit dem Geheimnis des Webhooks signiert (Standard Webhooks).",
+    "introServer": "Sende die Ereignisse dieses Servers per HTTPS-POST an eine URL. Ein Webhook erhält die Ereignisse der Kanäle, die seine Erstellerin oder sein Ersteller sehen kann. Jede Anfrage wird mit dem Geheimnis des Webhooks signiert (Standard Webhooks).",
+    "create": "Neuer Webhook",
+    "createSubmit": "Webhook erstellen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "done": "Fertig",
+    "nameLabel": "Name",
+    "urlLabel": "URL",
+    "urlHint": "Nur HTTPS. Weiterleitungen werden nicht gefolgt.",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "Nachrichten",
+      "reactions": "Reaktionen",
+      "members": "Mitglieder",
+      "moderation": "Moderation"
+    },
+    "events": {
+      "MESSAGE_CREATE": "Nachricht gesendet",
+      "MESSAGE_UPDATE": "Nachricht bearbeitet",
+      "MESSAGE_DELETE": "Nachricht gelöscht",
+      "MESSAGE_REACTION_ADD": "Reaktion hinzugefügt",
+      "MESSAGE_REACTION_REMOVE": "Reaktion entfernt",
+      "SERVER_MEMBER_ADD": "Mitglied beigetreten",
+      "SERVER_MEMBER_REMOVE": "Mitglied gegangen",
+      "SERVER_MEMBER_KICK": "Mitglied gekickt",
+      "SERVER_BAN_ADD": "Mitglied gebannt",
+      "SERVER_BAN_REMOVE": "Bann aufgehoben"
+    },
+    "copyOnce": "Kopiere das Signaturgeheimnis von {name} jetzt; es wird nicht noch einmal angezeigt.",
+    "secretHint": "Prüfe damit den Header webhook-signature jeder Anfrage, wie Standard Webhooks es beschreibt.",
+    "copySecret": "Geheimnis kopieren",
+    "copied": "Kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "loading": "Wird geladen …",
+    "loadFailed": "Die Webhooks konnten nicht geladen werden.",
+    "empty": "Noch keine ausgehenden Webhooks.",
+    "limitReached": "Höchstens {count} Webhooks.",
+    "eventCount": "Ereignisse: {count}",
+    "secretEndsWith": "Geheimnis endet auf {hint}",
+    "state": {
+      "off": "Aus",
+      "disabledFailing": "Nach drei Tagen fehlgeschlagener Zustellungen ausgeschaltet. Letzte Antwort: {error}",
+      "failing": "Schlägt seit {date} fehl. Letzte Antwort: {error}",
+      "delivered": "Zuletzt zugestellt {date}",
+      "never": "Noch nichts zugestellt"
+    },
+    "active": "An",
+    "activeFor": "{name} an",
+    "sendTest": "Testereignis senden",
+    "testQueued": "Testereignis eingereiht",
+    "deliveries": "Zustellungen",
+    "deliveriesOf": "Zustellungen von {name}",
+    "noDeliveries": "Keine Zustellungen in den letzten sieben Tagen.",
+    "logEvent": "Ereignis",
+    "logStatus": "Status",
+    "logAnswer": "Antwort",
+    "logTime": "Zeit",
+    "status": {
+      "pending": "Ausstehend ({attempts} Versuche)",
+      "delivered": "Zugestellt",
+      "failed": "Fehlgeschlagen nach {attempts} Versuchen"
+    },
+    "edit": "Bearbeiten",
+    "editFor": "{name} bearbeiten",
+    "rotate": "Geheimnis erneuern",
+    "rotateFor": "Geheimnis von {name} erneuern",
+    "delete": "Löschen",
+    "deleteFor": "{name} löschen",
+    "created": "Webhook erstellt",
+    "updated": "Webhook gespeichert",
+    "rotated": "Neues Geheimnis erstellt",
+    "deleted": "Webhook gelöscht",
+    "confirmRotate": {
+      "title": "Geheimnis erneuern?",
+      "message": "{name} signiert ab jetzt mit einem neuen Geheimnis. Trage es in deinem Empfänger ein.",
+      "confirm": "Erneuern"
+    },
+    "confirmDelete": {
+      "title": "Webhook löschen?",
+      "message": "{name} und sein Zustellprotokoll werden gelöscht.",
+      "confirm": "Löschen"
+    },
+    "errors": {
+      "forbidden": "Du kannst diese Webhooks nicht verwalten.",
+      "notFound": "Diesen Webhook gibt es nicht mehr.",
+      "invalidName": "Gib dem Webhook einen Namen mit 1 bis 80 Zeichen.",
+      "invalidUrl": "Verwende eine https-URL mit höchstens 2048 Zeichen.",
+      "invalidEvents": "Wähle mindestens ein Ereignis.",
+      "limit": "Es gibt bereits fünf Webhooks.",
+      "unavailable": "Ausgehende Webhooks brauchen Supabase Vault, das dieser Instanz fehlt.",
+      "saveFailed": "Der Webhook konnte nicht gespeichert werden."
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} wurde ausgeschaltet",
+      "disabledMessage": "Seine Zustellungen sind drei Tage lang fehlgeschlagen. Letzte Antwort: {error}",
+      "short": "Webhook ausgeschaltet"
+    }
   }
 }

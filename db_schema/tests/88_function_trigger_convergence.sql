@@ -40,7 +40,6 @@ SELECT is_empty(
 SET LOCAL search_path = tests, pg_catalog;
 SELECT is_empty(
     $q$SELECT e.name FROM (VALUES
-            ('bot_webhooks', 'update_bot_webhooks_timestamp', NULL, 'CREATE TRIGGER update_bot_webhooks_timestamp BEFORE UPDATE ON public.bot_webhooks FOR EACH ROW EXECUTE FUNCTION public.update_bot_timestamp()'),
             ('bots', 'update_bots_timestamp', NULL, 'CREATE TRIGGER update_bots_timestamp BEFORE UPDATE ON public.bots FOR EACH ROW EXECUTE FUNCTION public.update_bot_timestamp()'),
             ('conversation_encryption_settings', 'update_conversation_encryption_settings_timestamp', NULL, 'CREATE TRIGGER update_conversation_encryption_settings_timestamp BEFORE UPDATE ON public.conversation_encryption_settings FOR EACH ROW EXECUTE FUNCTION public.update_encryption_timestamp()'),
             ('megolm_key_backups', 'update_megolm_backup_timestamp', NULL, 'CREATE TRIGGER update_megolm_backup_timestamp BEFORE UPDATE ON public.megolm_key_backups FOR EACH ROW EXECUTE FUNCTION public.update_megolm_backup_timestamp()'),

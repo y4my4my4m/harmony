@@ -99,6 +99,9 @@ const envSchema = z.object({
   
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
+
+  // Testing only: outgoing webhook deliveries to http://localhost and to loopback addresses.
+  OUTGOING_WEBHOOKS_ALLOW_LOOPBACK: z.string().default('false').transform(v => v === 'true'),
   
   // Push endpoints on private, loopback or link-local addresses are refused. A self-hosted
   // UnifiedPush distributor reachable only on the LAN needs this set to 'true'.

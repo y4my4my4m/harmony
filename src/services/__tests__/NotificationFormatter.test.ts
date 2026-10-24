@@ -139,6 +139,14 @@ describe('NotificationFormatter', () => {
       expect(closed.message).toBe('Mastodon Canada continues on other instances. You can join it again once harmony.test federates again.')
     })
 
+    it('says which outgoing webhook was turned off and its last answer', () => {
+      const off = NotificationFormatter.formatNotification(makeNotification('outgoing_webhook_disabled', {
+        data: { webhook: { id: 'w1', name: 'Deploys' }, bot_id: 'b1', server_id: null, last_error: 'HTTP 502' },
+      }))
+      expect(off.title).toBe('Webhook Deploys was turned off')
+      expect(off.message).toBe('Its deliveries failed for three days. Last answer: HTTP 502')
+    })
+
     it('names no moderator on a report update unless the moderator chose to', () => {
       const hidden = makeNotification('report_update', {
         data: { status: 'resolved', report_type: 'post', show_resolver: false, resolver_username: 'mod' },

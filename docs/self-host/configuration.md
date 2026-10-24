@@ -384,6 +384,7 @@ process and names the variable.
 | `FCM_SERVICE_ACCOUNT_JSON` | unset | Firebase service account JSON, raw or base64, for the Android app over FCM |
 | `FCM_SERVICE_ACCOUNT_FILE` | unset | Path to that JSON file. `FCM_SERVICE_ACCOUNT_JSON` wins when both are set |
 | `PUSH_ALLOW_PRIVATE_ENDPOINTS` | `false` | `true` accepts push endpoints on private, loopback or link-local addresses |
+| `OUTGOING_WEBHOOKS_ALLOW_LOOPBACK` | `false` | For tests only: `true` sends [outgoing webhook](/build/outgoing-webhooks) deliveries to `http://localhost` and loopback addresses |
 
 See [Push notifications](/self-host/push).
 

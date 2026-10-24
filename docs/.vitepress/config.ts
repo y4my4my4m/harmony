@@ -101,6 +101,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Gateway', link: '/build/gateway' },
         { text: 'REST API', link: '/build/rest' },
         { text: 'Webhooks API', link: '/build/webhooks' },
+        { text: 'Outgoing webhooks', link: '/build/outgoing-webhooks' },
         { text: 'Permissions and rate limits', link: '/build/permissions-rate-limits' },
       ],
     },

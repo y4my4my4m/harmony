@@ -100,6 +100,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   server_federation_closed: 'server_update',
   server_member_removed: 'server_update',
   server_instance_removed: 'server_update',
+  outgoing_webhook_disabled: 'server_update',
   report_update: 'server_update',
   moderation_warning: 'server_update',
   newcomer_message: 'server_update',

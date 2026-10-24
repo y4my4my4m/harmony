@@ -7256,5 +7256,107 @@
       "mediaHidden": "メディア非表示",
       "keptOut": "参加不可 {count} 人 | 参加不可 {count} 人"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "送信Webhook",
+    "heading": "送信Webhook",
+    "introBot": "このボットのイベントをHTTPS POSTでURLへ送ります。ゲートウェイ接続の代わりにも併用にも使えます。各リクエストはWebhookのシークレットで署名されます（Standard Webhooks）。",
+    "introServer": "このサーバーのイベントをHTTPS POSTでURLへ送ります。Webhookは作成者が閲覧できるチャンネルのイベントを受け取ります。各リクエストはWebhookのシークレットで署名されます（Standard Webhooks）。",
+    "create": "新しいWebhook",
+    "createSubmit": "Webhookを作成",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "done": "完了",
+    "nameLabel": "名前",
+    "urlLabel": "URL",
+    "urlHint": "HTTPSのみ。リダイレクトは追いません。",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "メッセージ",
+      "reactions": "リアクション",
+      "members": "メンバー",
+      "moderation": "モデレーション"
+    },
+    "events": {
+      "MESSAGE_CREATE": "メッセージ送信",
+      "MESSAGE_UPDATE": "メッセージ編集",
+      "MESSAGE_DELETE": "メッセージ削除",
+      "MESSAGE_REACTION_ADD": "リアクション追加",
+      "MESSAGE_REACTION_REMOVE": "リアクション削除",
+      "SERVER_MEMBER_ADD": "メンバー参加",
+      "SERVER_MEMBER_REMOVE": "メンバー退出",
+      "SERVER_MEMBER_KICK": "メンバーのキック",
+      "SERVER_BAN_ADD": "メンバーのBAN",
+      "SERVER_BAN_REMOVE": "BAN解除"
+    },
+    "copyOnce": "{name} の署名シークレットを今コピーしてください。再表示されません。",
+    "secretHint": "Standard Webhooksの手順で、各リクエストのwebhook-signatureヘッダーをこれで検証してください。",
+    "copySecret": "シークレットをコピー",
+    "copied": "コピーしました",
+    "copyFailed": "コピーできませんでした",
+    "loading": "読み込み中…",
+    "loadFailed": "Webhookを読み込めませんでした。",
+    "empty": "送信Webhookはまだありません。",
+    "limitReached": "最大{count}件です。",
+    "eventCount": "イベント: {count}",
+    "secretEndsWith": "シークレットの末尾: {hint}",
+    "state": {
+      "off": "オフ",
+      "disabledFailing": "配信失敗が3日続いたためオフになりました。最後の応答: {error}",
+      "failing": "{date} から失敗中。最後の応答: {error}",
+      "delivered": "最終配信 {date}",
+      "never": "まだ配信されていません"
+    },
+    "active": "オン",
+    "activeFor": "{name} をオン",
+    "sendTest": "テストイベントを送信",
+    "testQueued": "テストイベントを送信待ちにしました",
+    "deliveries": "配信",
+    "deliveriesOf": "{name} の配信",
+    "noDeliveries": "直近7日間の配信はありません。",
+    "logEvent": "イベント",
+    "logStatus": "状態",
+    "logAnswer": "応答",
+    "logTime": "時刻",
+    "status": {
+      "pending": "保留中（{attempts}回試行）",
+      "delivered": "配信済み",
+      "failed": "{attempts}回試行後に失敗"
+    },
+    "edit": "編集",
+    "editFor": "{name} を編集",
+    "rotate": "シークレットを更新",
+    "rotateFor": "{name} のシークレットを更新",
+    "delete": "削除",
+    "deleteFor": "{name} を削除",
+    "created": "Webhookを作成しました",
+    "updated": "Webhookを保存しました",
+    "rotated": "新しいシークレットを作成しました",
+    "deleted": "Webhookを削除しました",
+    "confirmRotate": {
+      "title": "シークレットを更新しますか？",
+      "message": "{name} は今後新しいシークレットで署名します。受信側を更新してください。",
+      "confirm": "更新"
+    },
+    "confirmDelete": {
+      "title": "Webhookを削除しますか？",
+      "message": "{name} とその配信ログを削除します。",
+      "confirm": "削除"
+    },
+    "errors": {
+      "forbidden": "これらのWebhookを管理する権限がありません。",
+      "notFound": "このWebhookは存在しません。",
+      "invalidName": "1〜80文字の名前を付けてください。",
+      "invalidUrl": "2048文字以内のhttps URLを使ってください。",
+      "invalidEvents": "イベントを1つ以上選んでください。",
+      "limit": "Webhookはすでに5件あります。",
+      "unavailable": "送信WebhookにはSupabase Vaultが必要ですが、このインスタンスにはありません。",
+      "saveFailed": "Webhookを保存できませんでした。"
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} はオフになりました",
+      "disabledMessage": "配信の失敗が3日続きました。最後の応答: {error}",
+      "short": "Webhookがオフになりました"
+    }
   }
 }

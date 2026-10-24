@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { TTLCache } from '../utils/TTLCache.js'
+import { OutgoingWebhookRoutes, OUTGOING_WEBHOOK_REFRESH_MS } from './outgoingWebhooks.js'
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
@@ -117,7 +118,15 @@ export class EventDispatcher {
   private editPollingInterval: NodeJS.Timeout | null = null
   private reactionPollingInterval: NodeJS.Timeout | null = null
   private permissionRefreshInterval: NodeJS.Timeout | null = null
+  private webhookRefreshInterval: NodeJS.Timeout | null = null
+  private memberPollingInterval: NodeJS.Timeout | null = null
+  private moderationPollingInterval: NodeJS.Timeout | null = null
   private pollsInFlight = new Set<string>()
+  // Highest server_member_changes.id handled; null until read at start.
+  private memberCursor: number | null = null
+  // server_membership_events: created_at of the newest handled row, and the ids inside the overlap.
+  private moderationCursor = new Date()
+  private moderationSeen = new TTLCache<string, true>(10_000, 10 * 60 * 1000)
   private lastProcessedTimestamp: Date = new Date()
   private lastReactionTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
@@ -167,13 +176,15 @@ export class EventDispatcher {
   // Key `${server_id}:${user_id}`; null is cached for an author without a nickname.
   private nicknameCache = new TTLCache<string, string | null>(NICKNAME_MAX, NICKNAME_TTL_MS)
   
-  constructor(private gateway: WebSocketGateway) {}
+  constructor(private gateway: WebSocketGateway, private webhooks = new OutgoingWebhookRoutes()) {}
   
   async start() {
     console.log('Starting Event Dispatcher...')
     
     await this.initializeChangeFeed()
     await this.initializeKnownReactions()
+    await this.initializeMemberFeed()
+    await this.webhooks.refresh()
     
     // Polling for all events; more reliable than Realtime.
     this.startPolling()
@@ -213,6 +224,95 @@ export class EventDispatcher {
       BOT_PERMISSIONS_REFRESH_MS,
       () => this.refreshBotPermissions(),
     )
+
+    this.memberPollingInterval = this.schedulePoll('members', 2000, () => this.pollMemberChanges())
+    this.moderationPollingInterval = this.schedulePoll('moderation', 2000, () => this.pollModerationEvents())
+    this.webhookRefreshInterval = this.schedulePoll('webhook-routes', OUTGOING_WEBHOOK_REFRESH_MS, () => this.webhooks.refresh())
+  }
+
+  /** Sends an event to its reading bots' connections and queues it for the webhooks taking it. */
+  private async dispatch(type: string, serverId: string, channelId: string | null, botIds: string[], d: Record<string, unknown>) {
+    if (botIds.length > 0) this.gateway.sendToMultipleBots(botIds, { op: 0, t: type, d })
+    await this.webhooks.enqueue(type, serverId, channelId, botIds, d)
+  }
+
+  // Members and moderation
+
+  /** Starts the member feed after its newest row: nothing earlier is dispatched. */
+  private async initializeMemberFeed() {
+    const { data, error } = await supabase
+      .from('server_member_changes')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+    if (error) {
+      console.error('server_member_changes: no start position; member events wait:', error.message)
+      return
+    }
+    this.memberCursor = Number(data?.[0]?.id ?? 0)
+  }
+
+  private async memberPayload(serverId: string, userId: string | null) {
+    const user = userId ? await this.resolveAuthor(userId, null) : null
+    return {
+      server_id: serverId,
+      user: user
+        ? { id: user.id, username: user.username, display_name: user.display_name, avatar_url: this.formatAvatarUrl(user.avatar_url) ?? null }
+        : { id: userId, username: null, display_name: null, avatar_url: null },
+    }
+  }
+
+  /** SERVER_MEMBER_ADD and SERVER_MEMBER_REMOVE, in the order the memberships changed. */
+  private async pollMemberChanges() {
+    if (this.memberCursor === null) {
+      await this.initializeMemberFeed()
+      return
+    }
+    const { data, error } = await supabase
+      .from('server_member_changes')
+      .select('id, server_id, user_id, change, created_at')
+      .gt('id', this.memberCursor)
+      .order('id', { ascending: true })
+      .limit(200)
+    if (error) {
+      console.error('Error polling member changes:', error.message)
+      return
+    }
+    for (const row of data ?? []) {
+      const type = row.change === 'join' ? 'SERVER_MEMBER_ADD' : 'SERVER_MEMBER_REMOVE'
+      const botIds = (await this.resolveBotPermissions(row.server_id)).map((r) => r.bot_id)
+      if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {
+        await this.dispatch(type, row.server_id, null, botIds, await this.memberPayload(row.server_id, row.user_id))
+      }
+      this.memberCursor = Number(row.id)
+    }
+  }
+
+  /** SERVER_MEMBER_KICK, SERVER_BAN_ADD and SERVER_BAN_REMOVE from server_membership_events. */
+  private async pollModerationEvents() {
+    const since = new Date(this.moderationCursor.getTime() - 5_000).toISOString()
+    const { data, error } = await supabase
+      .from('server_membership_events')
+      .select('id, server_id, user_id, event_type, created_at')
+      .gt('created_at', since)
+      .in('event_type', ['kick', 'ban', 'unban'])
+      .order('created_at', { ascending: true })
+      .limit(200)
+    if (error) {
+      console.error('Error polling moderation events:', error.message)
+      return
+    }
+    for (const row of data ?? []) {
+      if (this.moderationSeen.get(row.id)) continue
+      this.moderationSeen.set(row.id, true)
+      const type = row.event_type === 'kick' ? 'SERVER_MEMBER_KICK' : row.event_type === 'ban' ? 'SERVER_BAN_ADD' : 'SERVER_BAN_REMOVE'
+      const botIds = (await this.resolveBotPermissions(row.server_id)).map((r) => r.bot_id)
+      if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {
+        await this.dispatch(type, row.server_id, null, botIds, await this.memberPayload(row.server_id, row.user_id))
+      }
+      const createdAt = new Date(row.created_at)
+      if (createdAt > this.moderationCursor) this.moderationCursor = createdAt
+    }
   }
 
   // A tick that finds its previous run unfinished is skipped. Overlapping runs
@@ -343,7 +443,7 @@ export class EventDispatcher {
     if (!channelId || !serverId) return
 
     const botIds = await this.resolveReaders(serverId, channelId)
-    if (botIds.length === 0) return
+    if (botIds.length === 0 && !this.webhooks.wants(type, serverId, botIds)) return
 
     // { id, name, url, animated }. A custom emoji has its emojis row's id, name and absolute url.
     // A reaction without an emoji_id has id null and name its custom_emoji_content, a unicode
@@ -360,21 +460,15 @@ export class EventDispatcher {
       emoji = { id: null, name: reaction.custom_emoji_content ?? null, url, animated: isAnimatedEmojiUrl(url) }
     }
 
-    const event = {
-      op: 0,
-      t: type,
-      d: {
-        reaction_id: reaction.id,
-        message_id: reaction.message_id,
-        channel_id: reaction.channel_id,
-        user_id: reaction.user_id ?? null,
-        bot_id: reaction.bot_id ?? null,
-        emoji,
-        metadata: reaction.metadata ?? {},
-      },
-    }
-
-    this.gateway.sendToMultipleBots(botIds, event)
+    await this.dispatch(type, serverId, channelId, botIds, {
+      reaction_id: reaction.id,
+      message_id: reaction.message_id,
+      channel_id: reaction.channel_id,
+      user_id: reaction.user_id ?? null,
+      bot_id: reaction.bot_id ?? null,
+      emoji,
+      metadata: reaction.metadata ?? {},
+    })
     console.log(`Dispatched ${type} to ${botIds.length} bots`)
   }
 
@@ -696,17 +790,11 @@ export class EventDispatcher {
     
     console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
-    if (botIds.length === 0) {
+    if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_CREATE', serverId, botIds)) {
       return
     }
     
-    const event = {
-      op: 0,
-      t: 'MESSAGE_CREATE',
-      d: await this.formatMessage(message, serverId)
-    }
-    
-    this.gateway.sendToMultipleBots(botIds, event)
+    await this.dispatch('MESSAGE_CREATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
     
     console.log(`Dispatched MESSAGE_CREATE to ${botIds.length} bots:`, botIds)
   }
@@ -721,16 +809,9 @@ export class EventDispatcher {
     if (!serverId) return
     
     const botIds = await this.resolveReaders(serverId, message.channel_id, message.created_at)
-    if (botIds.length === 0) return
+    if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_UPDATE', serverId, botIds)) return
     
-    const formattedMessage = await this.formatMessage(message, serverId)
-    const event = {
-      op: 0,
-      t: 'MESSAGE_UPDATE',
-      d: formattedMessage
-    }
-    
-    this.gateway.sendToMultipleBots(botIds, event)
+    await this.dispatch('MESSAGE_UPDATE', serverId, message.channel_id, botIds, await this.formatMessage(message, serverId))
     
     console.log(`Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
@@ -750,22 +831,16 @@ export class EventDispatcher {
     }
     
     const botIds = await this.resolveReaders(serverId, message.channel_id)
-    if (botIds.length === 0) {
+    if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_DELETE', serverId, botIds)) {
       return
     }
     
-    const event = {
-      op: 0,
-      t: 'MESSAGE_DELETE',
-      d: {
-        id: message.id,
-        channel_id: message.channel_id,
-        thread_id: message.thread_id ?? null,
-        metadata: message.metadata
-      }
-    }
-    
-    this.gateway.sendToMultipleBots(botIds, event)
+    await this.dispatch('MESSAGE_DELETE', serverId, message.channel_id, botIds, {
+      id: message.id,
+      channel_id: message.channel_id,
+      thread_id: message.thread_id ?? null,
+      metadata: message.metadata
+    })
     
     console.log(`Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
   }
@@ -988,6 +1063,12 @@ export class EventDispatcher {
       clearInterval(this.permissionRefreshInterval)
       this.permissionRefreshInterval = null
     }
+    for (const interval of [this.memberPollingInterval, this.moderationPollingInterval, this.webhookRefreshInterval]) {
+      if (interval) clearInterval(interval)
+    }
+    this.memberPollingInterval = null
+    this.moderationPollingInterval = null
+    this.webhookRefreshInterval = null
 
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
@@ -1000,6 +1081,7 @@ export class EventDispatcher {
     this.emojiCache.clear()
     this.changeSeen.clear()
     this.deletedIds.clear()
+    this.moderationSeen.clear()
     console.log('Event Dispatcher shut down')
   }
 }

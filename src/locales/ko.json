@@ -7256,5 +7256,107 @@
       "mediaHidden": "미디어 숨김",
       "keptOut": "참여 차단 {count}명 | 참여 차단 {count}명"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "발신 웹훅",
+    "heading": "발신 웹훅",
+    "introBot": "이 봇의 이벤트를 HTTPS POST로 URL에 보냅니다. 게이트웨이 연결 대신 또는 함께 쓸 수 있습니다. 각 요청은 웹훅의 시크릿으로 서명됩니다(Standard Webhooks).",
+    "introServer": "이 서버의 이벤트를 HTTPS POST로 URL에 보냅니다. 웹훅은 만든 사람이 볼 수 있는 채널의 이벤트를 받습니다. 각 요청은 웹훅의 시크릿으로 서명됩니다(Standard Webhooks).",
+    "create": "새 웹훅",
+    "createSubmit": "웹훅 만들기",
+    "save": "저장",
+    "cancel": "취소",
+    "done": "완료",
+    "nameLabel": "이름",
+    "urlLabel": "URL",
+    "urlHint": "HTTPS만 가능합니다. 리디렉션은 따르지 않습니다.",
+    "defaultName": "웹훅",
+    "groups": {
+      "messages": "메시지",
+      "reactions": "반응",
+      "members": "멤버",
+      "moderation": "관리"
+    },
+    "events": {
+      "MESSAGE_CREATE": "메시지 전송",
+      "MESSAGE_UPDATE": "메시지 수정",
+      "MESSAGE_DELETE": "메시지 삭제",
+      "MESSAGE_REACTION_ADD": "반응 추가",
+      "MESSAGE_REACTION_REMOVE": "반응 제거",
+      "SERVER_MEMBER_ADD": "멤버 참가",
+      "SERVER_MEMBER_REMOVE": "멤버 나감",
+      "SERVER_MEMBER_KICK": "멤버 추방",
+      "SERVER_BAN_ADD": "멤버 차단",
+      "SERVER_BAN_REMOVE": "차단 해제"
+    },
+    "copyOnce": "{name}의 서명 시크릿을 지금 복사하세요. 다시 표시되지 않습니다.",
+    "secretHint": "Standard Webhooks 설명대로 각 요청의 webhook-signature 헤더를 이것으로 확인하세요.",
+    "copySecret": "시크릿 복사",
+    "copied": "복사했습니다",
+    "copyFailed": "복사하지 못했습니다",
+    "loading": "불러오는 중…",
+    "loadFailed": "웹훅을 불러오지 못했습니다.",
+    "empty": "아직 발신 웹훅이 없습니다.",
+    "limitReached": "최대 {count}개입니다.",
+    "eventCount": "이벤트: {count}",
+    "secretEndsWith": "시크릿 끝자리: {hint}",
+    "state": {
+      "off": "꺼짐",
+      "disabledFailing": "3일 동안 전달에 실패해 꺼졌습니다. 마지막 응답: {error}",
+      "failing": "{date}부터 실패 중. 마지막 응답: {error}",
+      "delivered": "마지막 전달 {date}",
+      "never": "아직 전달된 것이 없습니다"
+    },
+    "active": "켜짐",
+    "activeFor": "{name} 켜기",
+    "sendTest": "테스트 이벤트 보내기",
+    "testQueued": "테스트 이벤트를 대기열에 넣었습니다",
+    "deliveries": "전달 기록",
+    "deliveriesOf": "{name}의 전달 기록",
+    "noDeliveries": "최근 7일 동안 전달 기록이 없습니다.",
+    "logEvent": "이벤트",
+    "logStatus": "상태",
+    "logAnswer": "응답",
+    "logTime": "시간",
+    "status": {
+      "pending": "대기 중 ({attempts}회 시도)",
+      "delivered": "전달됨",
+      "failed": "{attempts}회 시도 후 실패"
+    },
+    "edit": "수정",
+    "editFor": "{name} 수정",
+    "rotate": "시크릿 갱신",
+    "rotateFor": "{name}의 시크릿 갱신",
+    "delete": "삭제",
+    "deleteFor": "{name} 삭제",
+    "created": "웹훅을 만들었습니다",
+    "updated": "웹훅을 저장했습니다",
+    "rotated": "새 시크릿을 만들었습니다",
+    "deleted": "웹훅을 삭제했습니다",
+    "confirmRotate": {
+      "title": "시크릿을 갱신할까요?",
+      "message": "{name}은(는) 이제부터 새 시크릿으로 서명합니다. 수신 측을 갱신하세요.",
+      "confirm": "갱신"
+    },
+    "confirmDelete": {
+      "title": "웹훅을 삭제할까요?",
+      "message": "{name}과(와) 전달 기록이 삭제됩니다.",
+      "confirm": "삭제"
+    },
+    "errors": {
+      "forbidden": "이 웹훅들을 관리할 수 없습니다.",
+      "notFound": "이 웹훅은 더 이상 없습니다.",
+      "invalidName": "1~80자의 이름을 지정하세요.",
+      "invalidUrl": "2048자 이하의 https URL을 사용하세요.",
+      "invalidEvents": "이벤트를 하나 이상 선택하세요.",
+      "limit": "이미 웹훅이 5개 있습니다.",
+      "unavailable": "발신 웹훅에는 Supabase Vault가 필요하지만 이 인스턴스에는 없습니다.",
+      "saveFailed": "웹훅을 저장하지 못했습니다."
+    },
+    "notice": {
+      "disabledTitle": "웹훅 {name}이(가) 꺼졌습니다",
+      "disabledMessage": "3일 동안 전달에 실패했습니다. 마지막 응답: {error}",
+      "short": "웹훅이 꺼졌습니다"
+    }
   }
 }

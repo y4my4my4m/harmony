@@ -7256,5 +7256,107 @@
       "mediaHidden": "媒体已隐藏",
       "keptOut": "{count} 人已禁止加入 | {count} 人已禁止加入"
     }
+  },
+  "outgoingWebhooks": {
+    "navLabel": "外发 Webhook",
+    "heading": "外发 Webhook",
+    "introBot": "通过 HTTPS POST 将此机器人的事件发送到一个 URL，可替代或配合其网关连接。每个请求都用该 Webhook 的密钥签名（Standard Webhooks）。",
+    "introServer": "通过 HTTPS POST 将此服务器的事件发送到一个 URL。Webhook 接收其创建者能查看的频道中的事件。每个请求都用该 Webhook 的密钥签名（Standard Webhooks）。",
+    "create": "新建 Webhook",
+    "createSubmit": "创建 Webhook",
+    "save": "保存",
+    "cancel": "取消",
+    "done": "完成",
+    "nameLabel": "名称",
+    "urlLabel": "URL",
+    "urlHint": "仅限 HTTPS。不跟随重定向。",
+    "defaultName": "Webhook",
+    "groups": {
+      "messages": "消息",
+      "reactions": "回应",
+      "members": "成员",
+      "moderation": "管理"
+    },
+    "events": {
+      "MESSAGE_CREATE": "发送消息",
+      "MESSAGE_UPDATE": "编辑消息",
+      "MESSAGE_DELETE": "删除消息",
+      "MESSAGE_REACTION_ADD": "添加回应",
+      "MESSAGE_REACTION_REMOVE": "移除回应",
+      "SERVER_MEMBER_ADD": "成员加入",
+      "SERVER_MEMBER_REMOVE": "成员离开",
+      "SERVER_MEMBER_KICK": "成员被踢出",
+      "SERVER_BAN_ADD": "成员被封禁",
+      "SERVER_BAN_REMOVE": "解除封禁"
+    },
+    "copyOnce": "请立即复制 {name} 的签名密钥；它不会再次显示。",
+    "secretHint": "按 Standard Webhooks 的说明，用它校验每个请求的 webhook-signature 头。",
+    "copySecret": "复制密钥",
+    "copied": "已复制",
+    "copyFailed": "无法复制",
+    "loading": "加载中…",
+    "loadFailed": "无法加载 Webhook。",
+    "empty": "还没有外发 Webhook。",
+    "limitReached": "最多 {count} 个 Webhook。",
+    "eventCount": "事件：{count}",
+    "secretEndsWith": "密钥结尾：{hint}",
+    "state": {
+      "off": "已关闭",
+      "disabledFailing": "连续三天投递失败后已关闭。最后的响应：{error}",
+      "failing": "自 {date} 起失败。最后的响应：{error}",
+      "delivered": "最后投递于 {date}",
+      "never": "尚未投递"
+    },
+    "active": "开启",
+    "activeFor": "开启 {name}",
+    "sendTest": "发送测试事件",
+    "testQueued": "测试事件已排队",
+    "deliveries": "投递记录",
+    "deliveriesOf": "{name} 的投递记录",
+    "noDeliveries": "最近七天没有投递。",
+    "logEvent": "事件",
+    "logStatus": "状态",
+    "logAnswer": "响应",
+    "logTime": "时间",
+    "status": {
+      "pending": "等待中（已尝试 {attempts} 次）",
+      "delivered": "已投递",
+      "failed": "尝试 {attempts} 次后失败"
+    },
+    "edit": "编辑",
+    "editFor": "编辑 {name}",
+    "rotate": "更换密钥",
+    "rotateFor": "更换 {name} 的密钥",
+    "delete": "删除",
+    "deleteFor": "删除 {name}",
+    "created": "Webhook 已创建",
+    "updated": "Webhook 已保存",
+    "rotated": "已创建新密钥",
+    "deleted": "Webhook 已删除",
+    "confirmRotate": {
+      "title": "更换密钥？",
+      "message": "{name} 今后用新密钥签名。请更新你的接收端。",
+      "confirm": "更换"
+    },
+    "confirmDelete": {
+      "title": "删除 Webhook？",
+      "message": "将删除 {name} 及其投递记录。",
+      "confirm": "删除"
+    },
+    "errors": {
+      "forbidden": "你无法管理这些 Webhook。",
+      "notFound": "此 Webhook 已不存在。",
+      "invalidName": "请为 Webhook 起一个 1 到 80 个字符的名称。",
+      "invalidUrl": "请使用不超过 2048 个字符的 https URL。",
+      "invalidEvents": "请至少选择一个事件。",
+      "limit": "已有五个 Webhook。",
+      "unavailable": "外发 Webhook 需要 Supabase Vault，此实例未安装。",
+      "saveFailed": "无法保存 Webhook。"
+    },
+    "notice": {
+      "disabledTitle": "Webhook {name} 已关闭",
+      "disabledMessage": "其投递连续三天失败。最后的响应：{error}",
+      "short": "Webhook 已关闭"
+    }
   }
 }

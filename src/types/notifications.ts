@@ -45,6 +45,7 @@ export type NotificationType =
   | 'server_federation_closed'
   | 'server_member_removed'
   | 'server_instance_removed'
+  | 'outgoing_webhook_disabled'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'

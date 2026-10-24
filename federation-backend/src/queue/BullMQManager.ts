@@ -31,6 +31,7 @@ import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handlePollVoteJob } from './handlers/pollVoteHandler.js';
 import { handleMemberRemovalJob } from './handlers/memberRemovalHandler.js';
 import { handleInstanceLeaveJob } from './handlers/instanceLeaveHandler.js';
+import { handleOutgoingWebhookJob } from './handlers/outgoingWebhookHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
@@ -59,6 +60,7 @@ export type JobType =
   | 'federate-poll-vote'
   | 'federate-member-removal'
   | 'federate-instance-leave'
+  | 'deliver-outgoing-webhook'
   | 'federate-profile'
   | 'federate-thread'
   | 'federate-voice-join'
@@ -105,6 +107,7 @@ const JOB_TYPES: JobType[] = [
   'federate-poll-vote',
   'federate-member-removal',
   'federate-instance-leave',
+  'deliver-outgoing-webhook',
   'federate-profile',
   'federate-thread',
   'federate-voice-join',
@@ -136,6 +139,7 @@ class BullMQManagerService {
   private isRunning = false;
   private handlerMap = new Map<string, HandlerFn>();
   private sweepIntervalId: ReturnType<typeof setInterval> | null = null;
+  private lastWebhookPrune = 0;
 
   /**
    * BullMQ connection options derived from RedisService.
@@ -231,6 +235,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
     this.handlerMap.set('federate-member-removal', handleMemberRemovalJob);
     this.handlerMap.set('federate-instance-leave', handleInstanceLeaveJob);
+    this.handlerMap.set('deliver-outgoing-webhook', handleOutgoingWebhookJob);
     this.handlerMap.set('federate-profile', handleProfileJob);
     this.handlerMap.set('federate-thread', handleThreadJob);
     this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
@@ -476,6 +481,17 @@ class BullMQManagerService {
       .limit(50);
     for (const row of undeliveredLeaves ?? []) {
       await this.addJob('federate-instance-leave', { type: 'delete', leave_id: row.id });
+    }
+
+    // Outgoing webhook deliveries due: retries, and first attempts whose notify was lost.
+    const { data: dueDeliveries } = await supabase.rpc('due_outgoing_webhook_deliveries', { p_limit: 200 });
+    for (const deliveryId of (dueDeliveries ?? []) as string[]) {
+      await this.addJob('deliver-outgoing-webhook', { type: 'create', delivery_id: deliveryId });
+    }
+    if (Date.now() - this.lastWebhookPrune > 3_600_000) {
+      this.lastWebhookPrune = Date.now();
+      const { error: pruneError } = await supabase.rpc('prune_outgoing_webhook_records');
+      if (pruneError) logger.warn(`prune_outgoing_webhook_records: ${pruneError.message}`);
     }
 
     // Reports for a server's moderators whose notify was lost, and settled reports of a Group

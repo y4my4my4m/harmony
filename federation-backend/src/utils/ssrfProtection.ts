@@ -180,6 +180,11 @@ function isBlockedIPv6(ip: string): boolean {
   return false;
 }
 
+/** A private, loopback, link-local or otherwise internal IPv4 or IPv6 address. */
+export function isBlockedAddress(ip: string): boolean {
+  return ip.includes(':') ? isBlockedIPv6(ip) : isBlockedIPv4(ip);
+}
+
 /**
  * Resolve hostname via DNS (both A and AAAA records) and verify NONE of
  * the resolved IPs are in private / link-local / loopback ranges.
