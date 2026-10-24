@@ -24,6 +24,23 @@ These ship before anything else. Most have a corresponding entry in `BUGS.md`.
 `useDM`/`useChat` and run `ALTER PUBLICATION supabase_realtime DROP TABLE
 public.messages;`. Until then both transports run and dedupe by message id.)*
 
+## 1.9.1
+
+1. **Media links on public post pages.**
+   Signed out, a post's GIF or image link (a klipy `.gif`) shows as a bare link: the public page renderer in the federation backend draws no media for a link, while the app draws it inline (`isDirectMediaUrl`).
+
+2. **Uploads up to 250 MB.**
+   One request per file today, capped by the bucket's `file_size_limit`, storage-api `FILE_SIZE_LIMIT` (50 MB), nginx `client_max_body_size` (50M) and Cloudflare's 100 MB request limit in front of the storage host. Resumable (TUS) uploads in 6 MB chunks lift the Cloudflare cap; the three server limits rise with them.
+
+3. **Bot and webhook messages towards older instances.**
+   Group-authored Notes reach instances before 1.9.0, which store a profile for the Group and drop the message. Send them only to peers on 1.9.0 or later, and remove the profiles already created.
+
+4. **Threads opened by bots.**
+   A thread a bot opens has no member creator and is not federated, so its messages are missing on copies. Federate it as opened by the server's Group.
+
+5. **Custom emoji in announcements.**
+   Announcements render as sanitized HTML without `img` and without shortcode lookup, so `:name:` stays text. Resolve shortcodes against the instance's emoji at render and allow `img` (https `src`, `alt`, `class`) in `src/utils/announcementContent.ts`.
+
 ## Next (correctness & UX)
 
 3. **Notifications behaviour & UX audit.**
@@ -35,6 +52,7 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 
 5. **Bridge mention resolution.**
     Discord → Harmony bridge currently caches by username only and emits `unresolved-${username}` mentions when it can't match (`BUGS.md` H41, H42). Fix the cache key and drop unresolved parts back to plain text.
+
 
 ## Later (scale & polish)
 
@@ -75,7 +93,7 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 14. **Followable announcement channels.**
     A channel other servers (and fediverse accounts) can follow; its posts are relayed into the follower's chosen channel. The channel is an ActivityPub actor with an outbox, so Mastodon users can follow it directly.
 
-*(Outgoing webhooks, push for the official Android app from any instance and reactions on public post pages, previously items 15 to 17, shipped in 1.9.0.)*
+*(Outgoing webhooks and reactions on public post pages, previously items 15 and 17, shipped in 1.9.0. The push relay for the official Android app, item 16, ships switched off: run on the publishing instance it would carry every instance's notifications, and moves to a separate service.)*
 
 ## v2.0 (under discussion)
 
