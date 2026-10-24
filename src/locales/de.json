@@ -6573,6 +6573,9 @@
       "1w": "Diese Woche"
     }
   },
+  "instanceVersion": {
+    "older": "Deine Instanz läuft mit Harmony {version}. Einige Funktionen dieser App brauchen dort eine neuere Version."
+  },
   "instancePicker": {
     "title": "Willkommen bei Harmony",
     "hint": "Harmony ist föderiert: Jede Person kann eine Instanz betreiben. Gib die Domain der Instanz ein, mit der du dich verbinden möchtest.",

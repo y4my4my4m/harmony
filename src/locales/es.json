@@ -6573,6 +6573,9 @@
       "1w": "Esta semana"
     }
   },
+  "instanceVersion": {
+    "older": "Tu instancia usa Harmony {version}. Algunas funciones de esta app necesitan una versión más reciente allí."
+  },
   "instancePicker": {
     "title": "Te damos la bienvenida a Harmony",
     "hint": "Harmony es federado: cualquiera puede alojar una instancia. Introduce el dominio de la instancia a la que quieres conectarte.",

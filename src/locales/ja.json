@@ -6573,6 +6573,9 @@
       "1w": "今週"
     }
   },
+  "instanceVersion": {
+    "older": "このインスタンスは Harmony {version} で動いています。このアプリの一部の機能には、より新しいバージョンが必要です。"
+  },
   "instancePicker": {
     "title": "Harmony へようこそ",
     "hint": "Harmony は連合型です。誰でもインスタンスを運営できます。接続するインスタンスのドメインを入力してください。",

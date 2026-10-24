@@ -50,7 +50,7 @@
         />
       </div>
 
-      <div v-if="state.messagesEncrypted" class="encryption-row">
+      <div v-if="state.messagesEncrypted && hasHistorySetting" class="encryption-row">
         <div class="encryption-row-text">
           <label :for="historyId" class="encryption-row-label">
             <Icon name="clock" :size="14" />
@@ -94,6 +94,7 @@ import {
 } from '@/services/ChannelEncryptionService'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
 import { normalizeHistoryVisibility, type EffectiveChannelEncryption } from '@/utils/channelEncryption'
+import { hasCapability } from '@/services/instanceCapabilities'
 import type { Channel } from '@/types'
 import { debug } from '@/utils/debug'
 
@@ -121,6 +122,8 @@ const canToggleMessages = computed(() =>
 const canToggleVoice = computed(() =>
   props.canManage && !saving.value && !!state.value && !state.value.voiceLocked)
 const canChangeHistory = computed(() => props.canManage && !saving.value && !!state.value)
+// The native app on an instance before 1.9.0: no history setting to change.
+const hasHistorySetting = computed(() => hasCapability('encrypted-history'))
 
 const historyHint = computed(() => {
   switch (state.value?.historyVisibility) {

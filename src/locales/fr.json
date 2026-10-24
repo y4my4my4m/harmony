@@ -6573,6 +6573,9 @@
       "1w": "Cette semaine"
     }
   },
+  "instanceVersion": {
+    "older": "Ton instance utilise Harmony {version}. Certaines fonctions de cette appli demandent une version plus récente."
+  },
   "instancePicker": {
     "title": "Bienvenue sur Harmony",
     "hint": "Harmony est fédéré : tout le monde peut héberger une instance. Saisissez le domaine de l’instance à laquelle vous voulez vous connecter.",

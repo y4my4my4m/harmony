@@ -42,6 +42,14 @@ It ends with a table of the containers and `Update complete (VERSION).`;
 then run `harmony doctor`. Nothing in an update deletes volumes, data
 directories or backups.
 
+### The apps and an older instance
+
+The desktop and mobile apps update on their own and talk to any instance, so they
+can be newer than yours. From 1.9.0 they read what your instance supports from
+`/api/federation/instance-info` (`capabilities`) at every start, hide what it
+lacks, and tell each user once that some features need a newer version. Updating
+the instance brings those features back without anyone reinstalling.
+
 ### Choose a version
 
 | Checkout | `harmony update` moves to | Image tag |

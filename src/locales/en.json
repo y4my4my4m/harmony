@@ -6569,6 +6569,9 @@
       "1w": "This week"
     }
   },
+  "instanceVersion": {
+    "older": "Your instance runs Harmony {version}. Some features of this app need a newer version there."
+  },
   "instancePicker": {
     "title": "Welcome to Harmony",
     "hint": "Harmony is federated: anyone can run an instance. Enter the domain of the instance you want to connect to.",

@@ -6573,6 +6573,9 @@
       "1w": "本周"
     }
   },
+  "instanceVersion": {
+    "older": "你的实例运行的是 Harmony {version}。本应用的部分功能需要该实例使用更新的版本。"
+  },
   "instancePicker": {
     "title": "欢迎使用 Harmony",
     "hint": "Harmony 是联邦式的：任何人都可以运行实例。请输入要连接的实例域名。",

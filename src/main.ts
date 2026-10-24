@@ -183,6 +183,12 @@ async function initializeApp() {
     // Mount the app AFTER auth
     mountApp()
 
+    if (isTauriRuntime()) {
+      import('@/services/instanceCapabilities')
+        .then((m) => m.checkInstanceVersion())
+        .catch((err) => debug.warn('Instance version check failed:', err))
+    }
+
     // Emoji pack detection probes external pack availability - best-effort
     // and NOT needed for first paint; run it after mount in the background.
     detectAvailablePacks()

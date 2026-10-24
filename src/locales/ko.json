@@ -6573,6 +6573,9 @@
       "1w": "이번 주"
     }
   },
+  "instanceVersion": {
+    "older": "이 인스턴스는 Harmony {version}을(를) 사용합니다. 이 앱의 일부 기능에는 더 새로운 버전이 필요합니다."
+  },
   "instancePicker": {
     "title": "Harmony에 오신 것을 환영합니다",
     "hint": "Harmony는 연합형입니다. 누구나 인스턴스를 운영할 수 있습니다. 연결할 인스턴스의 도메인을 입력하세요.",

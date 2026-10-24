@@ -13,6 +13,8 @@ export interface InstanceConfig {
   version?: string;
   /** Host part of local handles and ActivityPub ids; absent in instances stored before 1.9.0. */
   domain?: string;
+  /** Features the instance supports (instanceCapabilities.ts); empty for an instance before 1.9.0. */
+  capabilities?: string[];
 }
 
 export function isTauriRuntime(): boolean {
@@ -113,7 +115,24 @@ async function fetchInstanceInfoFrom(origin: string): Promise<InstanceConfig> {
     supabaseAnonKey: info.supabaseAnonKey,
     version: info.version,
     ...(typeof info.domain === 'string' && info.domain ? { domain: info.domain } : {}),
+    capabilities: Array.isArray(info.capabilities)
+      ? info.capabilities.filter((c: unknown): c is string => typeof c === 'string')
+      : [],
   };
+}
+
+/**
+ * Re-reads /instance-info for the stored instance and stores its version, capabilities and
+ * domain: an instance's admin updates it after the app picked it. The Supabase values apply from
+ * the next start. Null without a stored instance or an answer.
+ */
+export async function refreshStoredInstance(): Promise<InstanceConfig | null> {
+  const stored = getStoredInstance();
+  if (!stored) return null;
+  const info = await fetchInstanceInfoFrom(stored.origin);
+  const merged: InstanceConfig = { ...stored, ...info, origin: stored.origin };
+  setStoredInstance(merged);
+  return merged;
 }
 
 export async function fetchInstanceInfo(domainOrUrl: string): Promise<InstanceConfig> {

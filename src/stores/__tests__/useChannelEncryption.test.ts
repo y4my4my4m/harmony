@@ -3,6 +3,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { supabase } from '@/supabase'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
 
+const capabilities = vi.hoisted(() => ({ encryptedHistory: true }))
+vi.mock('@/services/instanceCapabilities', () => ({
+  hasCapability: (name: string) => name === 'encrypted-history' && capabilities.encryptedHistory,
+}))
+
 const SERVER_ID = 's1'
 
 function mockTables(policy: Record<string, any> | null, rows: Record<string, any>[]) {
@@ -21,6 +26,29 @@ describe('useChannelEncryptionStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  it('asks an instance before 1.9.0 only for the columns it has, and reads the encryption', async () => {
+    capabilities.encryptedHistory = false
+    let columns = ''
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'server_encryption_settings') {
+        return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { encryption_mode: 'optional' }, error: null }) }) }) }
+      }
+      return {
+        select: (cols: string) => {
+          columns = cols
+          return { in: () => Promise.resolve({ data: [{ channel_id: 'c1', messages_encrypted: true, voice_encrypted: false }], error: null }) }
+        },
+      }
+    })
+    const store = useChannelEncryptionStore()
+    await store.loadServer(SERVER_ID, ['c1'])
+    expect(columns).not.toContain('history_visibility')
+    expect(store.isMessagesEncrypted('c1')).toBe(true)
+    capabilities.encryptedHistory = true
+    await useChannelEncryptionStore().loadServer('s2', ['c1'])
+    expect(columns).toContain('history_visibility')
   })
 
   it('knows nothing about a channel until its server has loaded', () => {
