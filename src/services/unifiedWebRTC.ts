@@ -16,6 +16,8 @@ import {
 } from './voice/micGain';
 import { SOUNDBOARD_P2P_EVENT } from './soundboard/protocol';
 
+const RENEGOTIATION_STABLE_WAIT_MS = 10_000;
+
 // TYPES & INTERFACES
 
 export interface UserMediaState {
@@ -706,8 +708,9 @@ export class UnifiedWebRTCService {
           });
           this.localScreenStream = null;
 
-          // Remove the screen senders from every peer, then renegotiate once
-          for (const [userId, conn] of this.connections) {
+          // Remove the screen senders from every peer, then renegotiate once each, all peers at
+          // once: one peer slow to reach a stable state does not hold the others.
+          await Promise.allSettled([...this.connections].map(async ([userId, conn]) => {
             try {
               let removed = false;
               for (const sender of conn.peerConnection.getSenders()) {
@@ -725,7 +728,7 @@ export class UnifiedWebRTCService {
             } catch (error) {
               debug.error('Error removing screen tracks from peer', userId, ':', error);
             }
-          }
+          }));
         }
 
         this.screenShareVideoTrackId = null;
@@ -1607,16 +1610,22 @@ export class UnifiedWebRTCService {
   private async renegotiateWithPeer(userId: string, conn: UserConnection): Promise<void> {
     if (conn.peerConnection.signalingState !== 'stable') {
       debug.log('⏳ Waiting for stable signaling state before renegotiation...');
-      await new Promise(resolve => {
+      // A peer that never answered an earlier offer stays in have-local-offer, and a closed one
+      // never leaves 'closed': the wait is bounded and the offer skipped.
+      const deadline = Date.now() + RENEGOTIATION_STABLE_WAIT_MS;
+      const stable = await new Promise<boolean>(resolve => {
         const checkState = () => {
-          if (conn.peerConnection.signalingState === 'stable') {
-            resolve(true);
-          } else {
-            setTimeout(checkState, 100);
-          }
+          const state = conn.peerConnection.signalingState;
+          if (state === 'stable') resolve(true);
+          else if (state === 'closed' || Date.now() > deadline) resolve(false);
+          else setTimeout(checkState, 100);
         };
         checkState();
       });
+      if (!stable) {
+        debug.warn('Renegotiation with', userId, 'skipped: signaling state', conn.peerConnection.signalingState);
+        return;
+      }
     }
 
     const offer = await conn.peerConnection.createOffer();
