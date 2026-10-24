@@ -3863,7 +3863,15 @@
       "turnedOff": "Chiffrement désactivé",
       "voiceTurnedOn": "Chiffrement vocal activé",
       "voiceTurnedOff": "Chiffrement vocal désactivé",
-      "saveFailed": "Impossible de modifier le chiffrement. Réessayez."
+      "saveFailed": "Impossible de modifier le chiffrement. Réessayez.",
+      "historyLabel": "Les nouveaux membres peuvent lire les messages antérieurs",
+      "historyAll": "Tous les messages",
+      "historyPinned": "Messages épinglés uniquement",
+      "historyNone": "Aucun",
+      "historyAllHint": "Les membres qui arrivent plus tard peuvent lire les messages envoyés avant leur arrivée, dès qu'un membre qui peut les lire ouvre Harmony.",
+      "historyPinnedHint": "Les membres qui arrivent plus tard peuvent lire les messages épinglés envoyés avant leur arrivée, et rien d'autre d'avant.",
+      "historyNoneHint": "Les membres qui arrivent plus tard ne lisent que les messages envoyés après leur arrivée.",
+      "historySaved": "Réglage de l'historique des messages enregistré"
     },
     "integrations": {
       "bots": "{count} bot de ce serveur ne peut pas lire les messages chiffrés ni publier dans ce canal. | {count} bots de ce serveur ne peuvent pas lire les messages chiffrés ni publier dans ce canal.",

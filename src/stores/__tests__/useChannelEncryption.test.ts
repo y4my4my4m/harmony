@@ -66,7 +66,7 @@ describe('useChannelEncryptionStore', () => {
     store.applyEffective({
       channelId: 'c1', serverId: SERVER_ID, serverMode: 'disabled', voiceMode: 'disabled',
       messagesEncrypted: false, voiceEncrypted: false, messagesLocked: true, voiceLocked: false,
-      historyVisibility: 'joined', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
+      historyVisibility: 'all', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
     })
     expect(store.isMessagesEncrypted('c1')).toBe(false)
 
@@ -85,7 +85,7 @@ describe('useChannelEncryptionStore', () => {
     store.applyEffective({
       channelId: 'v1', serverId: SERVER_ID, serverMode: 'disabled', voiceMode: 'disabled',
       messagesEncrypted: false, voiceEncrypted: true, messagesLocked: true, voiceLocked: false,
-      historyVisibility: 'joined', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
+      historyVisibility: 'all', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
     })
     expect(store.isVoiceEncrypted('v1')).toBe(true)
     expect(store.isMessagesEncrypted('v1')).toBe(false)

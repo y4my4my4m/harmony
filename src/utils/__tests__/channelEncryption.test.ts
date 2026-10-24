@@ -76,12 +76,20 @@ describe('resolveChannelEncryption', () => {
     expect(r.voiceLocked).toBe(false)
   })
 
-  it('defaults history visibility to joined', () => {
-    expect(resolveChannelEncryption({ encryption_mode: 'optional' }, null).historyVisibility).toBe('joined')
-    expect(resolveChannelEncryption(
-      { encryption_mode: 'optional' },
-      { ...on, history_visibility: 'shared' },
-    ).historyVisibility).toBe('shared')
+  it('defaults history visibility to all and reads the pre-20261028200001 values as all', () => {
+    expect(resolveChannelEncryption({ encryption_mode: 'optional' }, null).historyVisibility).toBe('all')
+    for (const legacy of ['shared', 'joined']) {
+      expect(resolveChannelEncryption(
+        { encryption_mode: 'optional' },
+        { ...on, history_visibility: legacy },
+      ).historyVisibility).toBe('all')
+    }
+    for (const mode of ['pinned', 'none'] as const) {
+      expect(resolveChannelEncryption(
+        { encryption_mode: 'optional' },
+        { ...on, history_visibility: mode },
+      ).historyVisibility).toBe(mode)
+    }
   })
 
   it('treats an unknown server mode as disabled', () => {
@@ -100,7 +108,7 @@ describe('parseEffectiveChannelEncryption', () => {
       voice_encrypted: false,
       messages_locked: false,
       voice_locked: false,
-      history_visibility: 'joined',
+      history_visibility: 'pinned',
       enabled_at: '2026-10-01T00:00:00Z',
       enabled_by: 'p1',
       bot_count: 2,
@@ -115,7 +123,7 @@ describe('parseEffectiveChannelEncryption', () => {
       voiceEncrypted: false,
       messagesLocked: false,
       voiceLocked: false,
-      historyVisibility: 'joined',
+      historyVisibility: 'pinned',
       enabledAt: '2026-10-01T00:00:00Z',
       enabledBy: 'p1',
       botCount: 2,

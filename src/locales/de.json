@@ -3863,7 +3863,15 @@
       "turnedOff": "Verschlüsselung deaktiviert",
       "voiceTurnedOn": "Sprachverschlüsselung aktiviert",
       "voiceTurnedOff": "Sprachverschlüsselung deaktiviert",
-      "saveFailed": "Verschlüsselung konnte nicht geändert werden. Versuche es erneut."
+      "saveFailed": "Verschlüsselung konnte nicht geändert werden. Versuche es erneut.",
+      "historyLabel": "Neue Mitglieder können frühere Nachrichten lesen",
+      "historyAll": "Alle Nachrichten",
+      "historyPinned": "Nur angeheftete Nachrichten",
+      "historyNone": "Keine",
+      "historyAllHint": "Später beitretende Mitglieder können Nachrichten von vor ihrem Beitritt lesen, sobald ein Mitglied, das sie lesen kann, Harmony öffnet.",
+      "historyPinnedHint": "Später beitretende Mitglieder können angeheftete Nachrichten von vor ihrem Beitritt lesen, sonst nichts von davor.",
+      "historyNoneHint": "Später beitretende Mitglieder lesen nur Nachrichten, die nach ihrem Beitritt gesendet wurden.",
+      "historySaved": "Einstellung zum Nachrichtenverlauf gespeichert"
     },
     "integrations": {
       "bots": "{count} Bot auf diesem Server kann verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten. | {count} Bots auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",

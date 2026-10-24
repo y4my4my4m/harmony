@@ -3863,7 +3863,15 @@
       "turnedOff": "加密已关闭",
       "voiceTurnedOn": "语音加密已开启",
       "voiceTurnedOff": "语音加密已关闭",
-      "saveFailed": "无法更改加密设置。请重试。"
+      "saveFailed": "无法更改加密设置。请重试。",
+      "historyLabel": "新成员可以阅读之前的消息",
+      "historyAll": "所有消息",
+      "historyPinned": "仅置顶消息",
+      "historyNone": "无",
+      "historyAllHint": "之后加入的成员可以阅读加入前发送的消息，前提是有一位能阅读这些消息的成员打开 Harmony。",
+      "historyPinnedHint": "之后加入的成员只能阅读加入前发送的置顶消息。",
+      "historyNoneHint": "之后加入的成员只能阅读加入后发送的消息。",
+      "historySaved": "消息历史设置已保存"
     },
     "integrations": {
       "bots": "此服务器中的 {count} 个机器人无法读取加密消息，也无法在此频道发帖。",

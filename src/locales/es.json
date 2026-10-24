@@ -3863,7 +3863,15 @@
       "turnedOff": "Cifrado desactivado",
       "voiceTurnedOn": "Cifrado de voz activado",
       "voiceTurnedOff": "Cifrado de voz desactivado",
-      "saveFailed": "No se pudo cambiar el cifrado. Inténtalo de nuevo."
+      "saveFailed": "No se pudo cambiar el cifrado. Inténtalo de nuevo.",
+      "historyLabel": "Los miembros nuevos pueden leer mensajes anteriores",
+      "historyAll": "Todos los mensajes",
+      "historyPinned": "Solo mensajes fijados",
+      "historyNone": "Ninguno",
+      "historyAllHint": "Quienes se unan después pueden leer los mensajes enviados antes de unirse, en cuanto un miembro que pueda leerlos abra Harmony.",
+      "historyPinnedHint": "Quienes se unan después pueden leer los mensajes fijados enviados antes de unirse, y nada más de antes.",
+      "historyNoneHint": "Quienes se unan después solo leen los mensajes enviados después de unirse.",
+      "historySaved": "Ajuste del historial de mensajes guardado"
     },
     "integrations": {
       "bots": "{count} bot de este servidor no puede leer mensajes cifrados ni publicar en este canal. | {count} bots de este servidor no pueden leer mensajes cifrados ni publicar en este canal.",

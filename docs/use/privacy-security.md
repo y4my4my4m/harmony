@@ -106,6 +106,16 @@ In **Optional** mode, the server owner and anyone with **Manage Channels** can t
 1. Right-click the channel and choose **Edit channel**.
 2. On **General**, under **Encryption**, turn on **End-to-end encrypt messages**. Voice channels also have **End-to-end encrypt voice and video**, available in every mode unless the server requires it.
 
+An encrypted channel also has **New members can read earlier messages**, set by the same people in the same place:
+
+| Setting | A member who joins later reads |
+|---|---|
+| **All messages** (default) | everything sent before they joined |
+| **Pinned messages only** | the pinned messages from before they joined, nothing else from before |
+| **None** | only what is sent after they joined |
+
+Direct messages and group conversations always work like **None**: someone added to a group conversation reads only what is sent after they were added. Changing the setting applies to keys handed over from then on. Keys a member already received stay with them: switching to a stricter setting, unpinning a message or removing someone does not take back what they could already read.
+
 New channels can start encrypted with **End-to-end encryption** in the create channel dialog. Encryption applies to messages sent after it is turned on. Turning it off keeps earlier messages encrypted, sends new ones as plaintext, and posts a notice in the channel naming who turned it off. Encryption settings exist only for servers on your own instance.
 
 For encrypted voice and video, see [Voice, video and calls](/use/voice-video#encrypted-voice-channels).
@@ -162,7 +172,13 @@ The linking device needs your keys in a form it can hand over. It has them right
 
 ### Read messages sent before you joined
 
-When you cannot decrypt a message, your app asks its sender for the key. The sender's app hands it over automatically while it is open, but only if you are still a member of that channel or conversation.
+When you cannot decrypt a message, your app asks for its key. The sender's app, or the app of any member who can already read the message, hands it over automatically while it is open, but only while you and they are both members of that channel or conversation and only as far as the channel's **New members can read earlier messages** setting allows. The sender does not need to be online, or still a member. Until one of them opens Harmony, the message stays locked.
+
+Under **Pinned messages only**, a pinned message from before you joined arrives with a key that opens that message alone; the messages around it stay locked. Messages from before you joined a group conversation stay locked.
+
+Your app tries a key handed over by anyone other than the sender on the message itself before keeping it. A key that does not open the message is discarded and your app asks again.
+
+These rules are kept by the apps and the server together, and they protect against other members' apps, not against the server or the people in the room. The server decides who is a member, when they joined, what is pinned and which setting a channel has; a server run by someone who wants to read your history could change those answers. Anyone who can read a message can also copy it out of Harmony, and an app modified by its owner can ignore the setting for the messages it holds.
 
 ### If you lose your recovery phrase
 

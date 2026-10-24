@@ -3863,7 +3863,15 @@
       "turnedOff": "Encryption turned off",
       "voiceTurnedOn": "Voice encryption turned on",
       "voiceTurnedOff": "Voice encryption turned off",
-      "saveFailed": "Couldn't change encryption. Try again."
+      "saveFailed": "Couldn't change encryption. Try again.",
+      "historyLabel": "New members can read earlier messages",
+      "historyAll": "All messages",
+      "historyPinned": "Pinned messages only",
+      "historyNone": "None",
+      "historyAllHint": "Members who join later can read messages sent before they joined, once a member who can read them opens Harmony.",
+      "historyPinnedHint": "Members who join later can read pinned messages sent before they joined, and nothing else from before.",
+      "historyNoneHint": "Members who join later read only messages sent after they joined.",
+      "historySaved": "Message history setting saved"
     },
     "integrations": {
       "bots": "{count} bot in this server can't read encrypted messages or post in this channel. | {count} bots in this server can't read encrypted messages or post in this channel.",

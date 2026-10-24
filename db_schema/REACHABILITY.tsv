@@ -370,6 +370,7 @@ federation_room_media_access	definer	boolean	service_role	client	called by feder
 fetch_link_preview	definer	jsonb	service_role	trigger	called by process_local_link_previews
 finalize_dm_call_message	definer	void	anon+authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 fold_heart_reaction	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions BEFORE INSERT (trg_fold_heart_reaction)
+fulfill_megolm_key_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/MegolmKeyBackupService.ts
 generate_discord_bridge_pairing_code	invoker	text	anon+authenticated+service_role	client	called by get_or_create_discord_bridge_pairing, regenerate_discord_bridge_pairing
 generate_livekit_token	definer	jsonb	service_role	service key	nothing references it
 generate_mfa_recovery_codes	definer	text[]	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
@@ -429,6 +430,7 @@ get_post_with_context	invoker	jsonb	anon+authenticated+service_role	client	rpc i
 get_presence	definer	TABLE(profile_id uuid, status smallint, online boolean, is_mobile boolean, last_seen_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/userDataService.ts
 get_profile_media	invoker	TABLE(id uuid, created_at timestamp with time zone, visibility text, content_warning text, is_sensitive boolean, media_attachments jsonb, content_media jsonb)	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 get_public_federation_settings	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/federation/FederationDecisionService.ts, src/stores/useInstanceSettings.ts
+get_relayable_key_requests	definer	TABLE(id uuid, requester_user_id uuid, sender_user_id uuid, room_id text, session_id text, status text, request_signature text, request_signing_fingerprint text, accepts_relay boolean, message_id uuid, message_index integer, key_scope text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/encryption/MegolmKeyBackupService.ts
 get_reports_with_details	definer	TABLE(id uuid, created_at timestamp with time zone, updated_at timestamp with time zone, status text, report_type text, category text, reason text, comment text, source text, source_instance text, source_actor text, reporter_id uuid, reporter_username text, reporter_display_name text, reporter_avatar_url text, reporter_domain text, reporter_is_local boolean, reported_user_id uuid, reported_user_username text, reported_user_display_name text, reported_user_avatar_url text, reported_user_domain text, reported_user_is_local boolean, reported_user_is_suspended boolean, reported_user_is_silenced boolean, reported_domain_blocked boolean, reported_domain_limited boolean, reported_post_id uuid, reported_message_id uuid, reported_server_id uuid, scope_server_id uuid, reported_post_preview text, reported_post_ap_id text, reported_post_url text, reported_post_is_sensitive boolean, reported_post_content_warning text, reported_post_is_deleted boolean, reported_message_preview text, reported_message_is_deleted boolean, content_snapshot jsonb, forward boolean, forwarded_at timestamp with time zone, federation_status text, server_forward jsonb, assigned_to uuid, assigned_username text, resolved_at timestamp with time zone, resolver_username text, resolution_note text, open_reports_on_target bigint, total_count bigint)	authenticated+service_role	client	rpc in src/services/ReportService.ts
 get_restricted_voice_channels	definer	SETOF uuid	authenticated+service_role	client	rpc in src/stores/useServerUsers.ts
 get_room_epoch	definer	integer	authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
@@ -480,6 +482,7 @@ guard_integration_bot_client_write	invoker	trigger	service_role	trigger	trigger 
 guard_integration_install_client_write	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/DELETE/UPDATE (a_bot_server_permissions_integration_guard)
 guard_invite_client_write	invoker	trigger	service_role	trigger	trigger public.invites BEFORE INSERT/UPDATE (a_invites_client_write_guard)
 guard_local_username	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (guard_local_username)
+guard_megolm_key_request	definer	trigger	service_role	trigger	trigger public.megolm_key_requests BEFORE UPDATE (a_guard_megolm_key_request)
 guard_message_client_write	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_client_write_guard)
 guard_message_media_paths	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_media_path_guard)
 guard_message_poll_parts	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_poll_guard)
@@ -557,6 +560,7 @@ issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_
 join_public_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
+key_request_message_index	definer	trigger	service_role	trigger	trigger public.megolm_key_requests BEFORE INSERT (a_key_request_message_index)
 kick_server_member	definer	jsonb	authenticated+service_role	client	rpc in src/services/ModerationService.ts
 list_channel_webhooks	definer	jsonb	authenticated+service_role	client	rpc in src/services/channelWebhookService.ts
 list_my_sessions	definer	TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
@@ -573,6 +577,8 @@ mark_conversation_as_read	definer	void	authenticated+service_role	client	rpc in 
 mark_notifications_read_by_context	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ViewContextTracker.ts
 mark_server_as_read	definer	void	authenticated+service_role	client	rpc in src/services/TodayDigestService.ts, src/services/readState.ts
 mark_server_welcome_seen	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
+megolm_key_scope_allowed	definer	text	service_role	client, trigger	called by broadcast_key_request_event, fulfill_megolm_key_request, get_relayable_key_requests, +2
+megolm_session_began_before	definer	boolean	service_role	client, trigger	called by megolm_key_scope_allowed
 member_voice_channel	definer	uuid	service_role	client	called by move_voice_member, my_voice_state, set_server_voice_state
 message_custom_emoji_keys	invoker	text[]	service_role	trigger	called by enforce_message_content_permissions
 message_file_names	invoker	text	service_role	trigger	called by index_message_row
@@ -593,6 +599,7 @@ moderate_user	definer	boolean	authenticated+service_role	client	rpc in src/servi
 move_voice_member	definer	jsonb	authenticated+service_role	client	rpc in federation-backend/src/routes/voice.ts
 my_voice_state	definer	jsonb	authenticated+service_role	client	rpc in src/services/voice/voiceModerationApi.ts
 nodeinfo_active_users	definer	bigint	service_role	client	rpc in federation-backend/src/activitypub/NodeInfoService.ts
+normalize_channel_history_visibility	invoker	trigger	service_role	trigger	trigger public.channel_encryption_settings BEFORE INSERT/UPDATE (trg_normalize_channel_history_visibility)
 normalize_embed_url	invoker	text	anon+authenticated+service_role	trigger	called by fetch_link_preview, process_local_link_previews
 normalize_recovery_code	invoker	text	service_role	client	called by hash_recovery_code, redeem_recovery_code_and_disable_mfa, save_recovery_codes
 notification_actor_json(p profiles)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_newcomer_first_message, handle_post_mention_notifications, +3
@@ -694,6 +701,8 @@ review_suspicious_activity	definer	jsonb	authenticated+service_role	client	rpc i
 revoke_device	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 revoke_my_session	definer	boolean	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
 ring_dm_call	definer	integer	authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
+room_history_visibility	definer	text	service_role	client, trigger	called by megolm_key_scope_allowed
+room_joined_at	definer	timestamp with time zone	service_role	client, trigger	called by megolm_key_scope_allowed
 rotate_bot_token	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 rotate_prekeys	definer	jsonb	service_role	service key	nothing references it
 route_channel_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER INSERT (smart_route_channel_message)
@@ -757,6 +766,7 @@ session_step_up_fresh	invoker	boolean	service_role	client	called by begin_accoun
 set_bot_allowed_channels	definer	uuid[]	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
 set_category_permissions	definer	jsonb	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
 set_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
+set_channel_history_visibility	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
 set_conversation_hidden	definer	void	anon+authenticated+service_role	client	rpc in src/stores/useDM.ts
 set_custom_status	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/userDataService.ts
 set_domain_moderation	definer	void	authenticated+service_role	client	rpc in src/services/AdminService.ts
@@ -779,6 +789,8 @@ set_user_role_assigned_by	invoker	trigger	service_role	trigger	trigger public.us
 set_welcome_server	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc in federation-backend/src/routes/gifs.ts
 sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts
+skip_share_from_other_sender	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (b_megolm_session_shares_sender_guard)
+skip_share_hidden_history	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (c_megolm_session_shares_history_guard)
 skip_share_outside_room	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (a_megolm_session_shares_room_guard)
 slugify_server_name	invoker	text	anon+authenticated+service_role	trigger	called by generate_unique_server_slug
 soundboard_object_server	invoker	uuid	authenticated+service_role	policy	policy storage.objects DELETE on Soundboard managers can delete sounds, storage.objects INSERT on Soundboard managers can upload sounds, storage.objects SELECT on Writers read soundboard

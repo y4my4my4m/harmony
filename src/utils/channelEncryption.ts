@@ -19,7 +19,14 @@ import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 export type ServerEncryptionMode = 'disabled' | 'optional' | 'required' | 'required_local_only'
 export type VoiceEncryptionMode = 'disabled' | 'required'
-export type HistoryVisibility = 'joined' | 'shared'
+// For a session that began before a member joined: its key (all), keys of its pinned messages
+// (pinned) or nothing (none). 20261028200001_megolm_history_visibility.sql.
+export type HistoryVisibility = 'all' | 'pinned' | 'none'
+
+/** Rows and answers before that migration carry 'joined' / 'shared', which changed nothing: all. */
+export function normalizeHistoryVisibility(value: unknown): HistoryVisibility {
+  return value === 'pinned' || value === 'none' ? value : 'all'
+}
 
 export interface ServerEncryptionPolicy {
   encryption_mode?: string | null
@@ -91,7 +98,7 @@ export function resolveChannelEncryption(
     voiceEncrypted,
     messagesLocked: serverMode !== 'optional',
     voiceLocked: voiceMode === 'required',
-    historyVisibility: row?.history_visibility === 'shared' ? 'shared' : 'joined',
+    historyVisibility: normalizeHistoryVisibility(row?.history_visibility),
   }
 }
 
@@ -111,7 +118,7 @@ export function parseEffectiveChannelEncryption(raw: unknown): EffectiveChannelE
     voiceEncrypted: r.voice_encrypted === true,
     messagesLocked: r.messages_locked === true,
     voiceLocked: r.voice_locked === true,
-    historyVisibility: r.history_visibility === 'shared' ? 'shared' : 'joined',
+    historyVisibility: normalizeHistoryVisibility(r.history_visibility),
     enabledAt: typeof r.enabled_at === 'string' ? r.enabled_at : null,
     enabledBy: typeof r.enabled_by === 'string' ? r.enabled_by : null,
     botCount: typeof r.bot_count === 'number' ? r.bot_count : 0,

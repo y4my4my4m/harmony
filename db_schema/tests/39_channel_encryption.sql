@@ -132,8 +132,8 @@ SELECT results_eq(
     $q$SELECT messages_encrypted, voice_encrypted, history_visibility
          FROM public.channel_encryption_settings
         WHERE channel_id = 'e3930000-0000-0000-0000-000000000001'$q$,
-    $q$VALUES (false, false, 'joined'::text)$q$,
-    'a channel created under an optional server starts off with joined history visibility');
+    $q$VALUES (false, false, 'all'::text)$q$,
+    'a channel created under an optional server starts off with all history visible');
 SELECT is((SELECT messages_encrypted FROM public.channel_encryption_settings
             WHERE channel_id = 'e3930000-0000-0000-0000-000000000005'), true,
           'a channel created under a required server starts on');
@@ -225,8 +225,8 @@ SELECT throws_ok(
 SELECT throws_ok(
     $q$SELECT public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', NULL, NULL, 'everyone')$q$,
     '22023', NULL, 'an unknown history visibility is refused');
-SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', NULL, NULL, 'shared')->>'history_visibility',
-          'shared', 'history visibility changes without touching the other settings');
+SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000001', NULL, NULL, 'joined')->>'history_visibility',
+          'none', 'history visibility changes without touching the other settings; joined is stored as none');
 SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000004', NULL, true)->>'voice_encrypted',
           'true', 'an optional server lets the owner turn channel voice on');
 SELECT tests.clear_authentication();
@@ -254,7 +254,7 @@ SELECT tests.authenticate_as('e3900000-0000-0000-0000-0000000000a3');
 SELECT results_eq(
     $q$SELECT e->>'messages_encrypted', e->>'server_mode', e->>'messages_locked', e->>'history_visibility'
          FROM (SELECT public.effective_channel_encryption('e3930000-0000-0000-0000-000000000001') e) x$q$,
-    $q$VALUES ('true'::text, 'optional'::text, 'false'::text, 'shared'::text)$q$,
+    $q$VALUES ('true'::text, 'optional'::text, 'false'::text, 'none'::text)$q$,
     'a member reads the effective state of an encrypted channel');
 SELECT is((SELECT count(*)::int FROM public.channel_encryption_settings
             WHERE channel_id = 'e3930000-0000-0000-0000-000000000001'), 1,

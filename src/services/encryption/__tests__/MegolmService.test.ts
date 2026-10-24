@@ -326,4 +326,119 @@ describe('MegolmService', () => {
       expect(decrypted).toBe(plaintext)
     })
   })
+
+  // ─── Keys of single messages ─────────────────────────────
+
+  describe('single message keys', () => {
+    const SENDER = 'cccccccc-1111-2222-3333-444444444444'
+
+    async function sessionOfThree() {
+      const messages = [
+        await service.encryptMessage(TEST_ROOM_ID, 'zero'),
+        await service.encryptMessage(TEST_ROOM_ID, 'one'),
+        await service.encryptMessage(TEST_ROOM_ID, 'two'),
+      ]
+      const { sessionKey } = service.getSessionKeyForSharing(TEST_ROOM_ID, messages[0].sessionId)!
+      return { messages, sessionKey }
+    }
+
+    it("derives the key that decrypts one message and no other", async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      const key = await service.deriveMessageKey(sessionKey, messages[1].messageIndex)
+      expect(await service.decryptWithMessageKey(key, messages[1])).toBe('one')
+      await expect(service.decryptWithMessageKey(key, messages[0])).rejects.toThrow()
+      await expect(service.decryptWithMessageKey(key, messages[2])).rejects.toThrow()
+      expect(key).not.toBe(sessionKey)
+    })
+
+    it('decrypts a message whose key alone is held, and misses its neighbours', async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      const sessionId = messages[0].sessionId
+      await service.importMessageKey(TEST_ROOM_ID, SENDER, sessionId, 1, await service.deriveMessageKey(sessionKey, 1))
+
+      expect(service.hasInboundSession(TEST_ROOM_ID, SENDER, sessionId)).toBe(false)
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[1])).toBe('one')
+      await expect(service.decryptMessage(TEST_ROOM_ID, SENDER, messages[2])).rejects.toThrow(/No inbound session/)
+    })
+
+    it('keeps message keys across a restart, encrypted at rest', async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      const sessionId = messages[0].sessionId
+      const key = await service.deriveMessageKey(sessionKey, 2)
+      // A newcomer's store: no copy of the session.
+      service.close()
+      await clearAllDatabases()
+      await service.initialize(TEST_USER_ID, encryptionKey)
+      await service.importMessageKey(TEST_ROOM_ID, SENDER, sessionId, 2, key)
+
+      const stored = await new Promise<any>((resolve, reject) => {
+        const open = indexedDB.open(`harmony_megolm_sessions_${TEST_USER_ID}`)
+        open.onsuccess = () => {
+          const get = open.result.transaction('inbound_sessions', 'readonly').objectStore('inbound_sessions').get(sessionId)
+          get.onsuccess = () => { resolve(get.result); open.result.close() }
+          get.onerror = () => reject(get.error)
+        }
+        open.onerror = () => reject(open.error)
+      })
+      expect(JSON.stringify(stored)).not.toContain(key)
+
+      service.close()
+      await service.initialize(TEST_USER_ID, encryptionKey)
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[2])).toBe('two')
+    })
+
+    it('a session key supersedes message keys; a message key never replaces a session key', async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      const sessionId = messages[0].sessionId
+      await service.importMessageKey(TEST_ROOM_ID, SENDER, sessionId, 1, await service.deriveMessageKey(sessionKey, 1))
+      await service.importInboundSession(TEST_ROOM_ID, SENDER, sessionId, sessionKey, 0)
+      await service.importMessageKey(TEST_ROOM_ID, SENDER, sessionId, 2, 'aWdub3JlZA==')
+
+      expect(service.hasInboundSession(TEST_ROOM_ID, SENDER, sessionId)).toBe(true)
+      expect(service.getMessageKey(TEST_ROOM_ID, SENDER, sessionId, 2)).toBeUndefined()
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[0])).toBe('zero')
+    })
+
+    it('a backup merges message keys and upgrades them to a session key', async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      const sessionId = messages[0].sessionId
+      const base = { sessionId, roomId: TEST_ROOM_ID, senderUserId: SENDER, firstKnownIndex: 0, createdAt: 1 }
+      await service.importMessageKey(TEST_ROOM_ID, SENDER, sessionId, 1, await service.deriveMessageKey(sessionKey, 1))
+
+      await service.importAllSessions({
+        outbound: [],
+        inbound: [{ ...base, sessionKey: '', messageKeys: { 2: await service.deriveMessageKey(sessionKey, 2) } }],
+      })
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[1])).toBe('one')
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[2])).toBe('two')
+
+      await service.importAllSessions({ outbound: [], inbound: [{ ...base, sessionKey }] })
+      expect(service.hasInboundSession(TEST_ROOM_ID, SENDER, sessionId)).toBe(true)
+      expect(await service.decryptMessage(TEST_ROOM_ID, SENDER, messages[0])).toBe('zero')
+    })
+
+    it('does not share an inbound entry that holds message keys only', async () => {
+      const { messages, sessionKey } = await sessionOfThree()
+      await service.importMessageKey(TEST_ROOM_ID, TEST_USER_ID, 'c29sbw==', 0, await service.deriveMessageKey(sessionKey, 0))
+      expect(service.getSessionKeyForSharing(TEST_ROOM_ID, 'c29sbw==')).toBeNull()
+      expect(service.getSessionKeyForSharing(TEST_ROOM_ID, messages[0].sessionId)?.sessionKey).toBe(sessionKey)
+    })
+  })
+
+  describe('retiring the outbound session', () => {
+    it('opens a new session on the next encrypt', async () => {
+      const first = await service.encryptMessage(TEST_ROOM_ID, 'before')
+      await service.retireOutboundSession(TEST_ROOM_ID, first.sessionId)
+      const second = await service.encryptMessage(TEST_ROOM_ID, 'after')
+      expect(second.sessionId).not.toBe(first.sessionId)
+      expect(await service.decryptMessage(TEST_ROOM_ID, TEST_USER_ID, first)).toBe('before')
+    })
+
+    it('leaves a newer session alone', async () => {
+      const first = await service.encryptMessage(TEST_ROOM_ID, 'a')
+      await service.retireOutboundSession(TEST_ROOM_ID, 'bm90LWN1cnJlbnQ=')
+      const second = await service.encryptMessage(TEST_ROOM_ID, 'b')
+      expect(second.sessionId).toBe(first.sessionId)
+    })
+  })
 })

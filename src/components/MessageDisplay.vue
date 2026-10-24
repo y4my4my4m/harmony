@@ -3815,6 +3815,8 @@ const handleDecryptMessage = async (message: Message) => {
     debug.log('Decrypting with roomId:', roomId);
     
     const messageForDecryption = {
+      id: messageToDecrypt.id,
+      is_pinned: messageToDecrypt.is_pinned,
       content: messageToDecrypt.content,
       channel_id: messageToDecrypt.channel_id || props.channelId || '',
       conversation_id: messageToDecrypt.conversation_id || props.conversationId || '',

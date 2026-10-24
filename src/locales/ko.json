@@ -3863,7 +3863,15 @@
       "turnedOff": "암호화를 껐습니다",
       "voiceTurnedOn": "음성 암호화를 켰습니다",
       "voiceTurnedOff": "음성 암호화를 껐습니다",
-      "saveFailed": "암호화를 변경하지 못했습니다. 다시 시도하세요."
+      "saveFailed": "암호화를 변경하지 못했습니다. 다시 시도하세요.",
+      "historyLabel": "새 멤버가 이전 메시지를 읽을 수 있음",
+      "historyAll": "모든 메시지",
+      "historyPinned": "고정된 메시지만",
+      "historyNone": "없음",
+      "historyAllHint": "나중에 참여한 멤버는 메시지를 읽을 수 있는 멤버가 Harmony를 열면 참여 전에 보낸 메시지를 읽을 수 있습니다.",
+      "historyPinnedHint": "나중에 참여한 멤버는 참여 전에 보낸 고정된 메시지만 읽을 수 있습니다.",
+      "historyNoneHint": "나중에 참여한 멤버는 참여 후에 보낸 메시지만 읽습니다.",
+      "historySaved": "메시지 기록 설정을 저장했습니다"
     },
     "integrations": {
       "bots": "이 서버의 봇 {count}개는 암호화된 메시지를 읽거나 이 채널에 게시할 수 없습니다.",

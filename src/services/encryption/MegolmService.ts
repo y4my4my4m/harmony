@@ -54,9 +54,12 @@ export interface MegolmInboundSession {
   sessionId: string
   roomId: string
   senderUserId: string
-  sessionKey: string // Base64 encoded
+  sessionKey: string // Base64 encoded; empty when only messageKeys are held
   firstKnownIndex: number // Lowest decryptable message index
   createdAt: number
+  // Message index -> that message's AES-GCM key (raw, base64), held without the session key:
+  // pinned messages of a session that began before this user joined.
+  messageKeys?: Record<string, string>
 }
 
 export interface MegolmEncryptedMessage {
@@ -396,6 +399,20 @@ export class MegolmService {
     }
   }
 
+  /**
+   * Ends a room's outbound session if it is still `sessionId`: the next encrypt opens a new
+   * one. For a session the server would not share with a member who joined after it began.
+   */
+  async retireOutboundSession(roomId: string, sessionId: string): Promise<void> {
+    await this.withRoomEncryptLock(roomId, async () => {
+      await this.refreshOutboundSessionFromPersistence(roomId)
+      const current = this.outboundSessions.get(roomId)
+      if (!current || current.sessionId !== sessionId) return
+      current.rotateAt = 0
+      await this.saveOutboundSessionStrict(current)
+    })
+  }
+
   private async setCurrentRoomSession(roomId: string, sessionId: string): Promise<void> {
     await this.putInStore(STORES.ROOM_KEYS, { roomId, sessionId })
   }
@@ -465,6 +482,47 @@ export class MegolmService {
   }
 
   /**
+   * Stores the key of one message of a session whose session key this user does not hold.
+   * A held session key makes it redundant; it is then dropped.
+   */
+  async importMessageKey(
+    roomId: string,
+    senderUserId: string,
+    sessionId: string,
+    messageIndex: number,
+    messageKey: string,
+  ): Promise<void> {
+    const key = `${roomId}:${senderUserId}:${sessionId}`
+    const existing = this.inboundSessions.get(key)
+    if (existing?.sessionKey) return
+
+    const session: MegolmInboundSession = existing
+      ? { ...existing, messageKeys: { ...existing.messageKeys, [messageIndex]: messageKey } }
+      : {
+          sessionId,
+          roomId,
+          senderUserId,
+          sessionKey: '',
+          firstKnownIndex: 0,
+          createdAt: Date.now(),
+          messageKeys: { [messageIndex]: messageKey },
+        }
+    this.inboundSessions.set(key, session)
+
+    // The store is keyed by session id alone: a full copy filed under another sender keeps
+    // its row, and this entry lives in memory only.
+    const shadowed = Array.from(this.inboundSessions.values())
+      .some(s => s.sessionId === sessionId && s.roomId === roomId && s.senderUserId !== senderUserId && s.sessionKey)
+    if (!shadowed) await this.saveInboundSession(session)
+
+    debug.log(`Imported key of message ${messageIndex} of session ${sessionId.substring(0, 8)}...`)
+  }
+
+  getMessageKey(roomId: string, senderUserId: string, sessionId: string, messageIndex: number): string | undefined {
+    return this.getInboundSession(roomId, senderUserId, sessionId)?.messageKeys?.[messageIndex]
+  }
+
+  /**
    * Reloads an inbound session from IndexedDB into memory.
    *
    * The in-memory map is populated once at initialize(). A session imported by
@@ -492,9 +550,10 @@ export class MegolmService {
     }
   }
 
+  /** The session key is held, not only keys of single messages. */
   hasInboundSession(roomId: string, senderUserId: string, sessionId: string): boolean {
     const key = `${roomId}:${senderUserId}:${sessionId}`
-    return this.inboundSessions.has(key)
+    return !!this.inboundSessions.get(key)?.sessionKey
   }
 
   /**
@@ -651,14 +710,79 @@ export class MegolmService {
       throw new Error(`No inbound session found for session ${encryptedMessage.sessionId}`)
     }
     
+    if (!inboundSession.sessionKey) {
+      const messageKey = inboundSession.messageKeys?.[encryptedMessage.messageIndex]
+      if (!messageKey) {
+        throw new Error(`No inbound session found for session ${encryptedMessage.sessionId} (single message keys only)`)
+      }
+      return this.decryptWithMessageKey(messageKey, encryptedMessage, additionalData)
+    }
+
+    debug.log(`Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
+    return this.decryptWithInbound(inboundSession, encryptedMessage, additionalData)
+  }
+
+  /**
+   * The key of one message: HKDF of the session key at that index, the bytes
+   * deriveRatchetKey turns into the message's AES-GCM key. One-way: it yields
+   * neither the session key nor any other index's key.
+   */
+  async deriveMessageKey(sessionKeyBase64: string, messageIndex: number): Promise<string> {
+    const bits = await crypto.subtle.deriveBits(
+      this.ratchetParams(messageIndex),
+      await this.ratchetKeyMaterial(sessionKeyBase64, 'deriveBits'),
+      256,
+    )
+    return this.arrayBufferToBase64(bits)
+  }
+
+  /** Decrypts one message with its own key (deriveMessageKey). Throws on authentication failure. */
+  async decryptWithMessageKey(
+    messageKeyBase64: string,
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array,
+  ): Promise<string> {
+    const aesKey = await crypto.subtle.importKey(
+      'raw',
+      this.base64ToArrayBuffer(messageKeyBase64),
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt'],
+    )
+    return this.decryptWithAesKey(aesKey, encryptedMessage, additionalData)
+  }
+
+  /**
+   * Decrypts with a session key that is not stored, for a key received from a
+   * member other than its sender: it is imported only once it authenticates a
+   * ciphertext of the session. Throws on authentication failure.
+   */
+  async decryptWithSessionKey(
+    sessionKey: string,
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array,
+  ): Promise<string> {
+    return this.decryptWithInbound({ sessionKey, firstKnownIndex: 0 }, encryptedMessage, additionalData)
+  }
+
+  private async decryptWithInbound(
+    inboundSession: Pick<MegolmInboundSession, 'sessionKey' | 'firstKnownIndex'>,
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array,
+  ): Promise<string> {
     if (encryptedMessage.messageIndex < inboundSession.firstKnownIndex) {
       throw new Error(`Message index ${encryptedMessage.messageIndex} is before first known index ${inboundSession.firstKnownIndex}`)
     }
-    
-    debug.log(`Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
 
     const ratchetKey = await this.deriveRatchetKey(inboundSession.sessionKey, encryptedMessage.messageIndex)
+    return this.decryptWithAesKey(ratchetKey, encryptedMessage, additionalData)
+  }
 
+  private async decryptWithAesKey(
+    aesKey: CryptoKey,
+    encryptedMessage: MegolmEncryptedMessage,
+    additionalData?: Uint8Array,
+  ): Promise<string> {
     const combined = this.base64ToArrayBuffer(encryptedMessage.ciphertext)
     const combinedArray = new Uint8Array(combined)
     const iv = combinedArray.slice(0, 12)
@@ -671,7 +795,7 @@ export class MegolmService {
 
     const decryptedData = await crypto.subtle.decrypt(
       gcmParams,
-      ratchetKey,
+      aesKey,
       ciphertext
     )
 
@@ -686,31 +810,32 @@ export class MegolmService {
    * until rotation. See SECRECY PROPERTIES at the top of the file.
    */
   private async deriveRatchetKey(sessionKeyBase64: string, messageIndex: number): Promise<CryptoKey> {
-    const sessionKeyBytes = this.base64ToArrayBuffer(sessionKeyBase64)
-    
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      sessionKeyBytes,
-      { name: 'HKDF' },
-      false,
-      ['deriveKey']
-    )
-
-    const encoder = new TextEncoder()
-    const info = encoder.encode(`megolm_ratchet_${messageIndex}`)
-
     return crypto.subtle.deriveKey(
-      {
-        name: 'HKDF',
-        hash: 'SHA-256',
-        salt: new Uint8Array(32), // 32 zero bytes
-        info
-      },
-      keyMaterial,
+      this.ratchetParams(messageIndex),
+      await this.ratchetKeyMaterial(sessionKeyBase64, 'deriveKey'),
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt', 'decrypt']
     )
+  }
+
+  private ratchetKeyMaterial(sessionKeyBase64: string, usage: 'deriveKey' | 'deriveBits'): Promise<CryptoKey> {
+    return crypto.subtle.importKey(
+      'raw',
+      this.base64ToArrayBuffer(sessionKeyBase64),
+      { name: 'HKDF' },
+      false,
+      [usage]
+    )
+  }
+
+  private ratchetParams(messageIndex: number): HkdfParams {
+    return {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new Uint8Array(32), // 32 zero bytes
+      info: new TextEncoder().encode(`megolm_ratchet_${messageIndex}`),
+    }
   }
 
   // SESSION SHARING
@@ -737,7 +862,7 @@ export class MegolmService {
     if (!sessionId || !this.userId) return null
 
     const ownInbound = this.getInboundSession(roomId, this.userId, sessionId)
-    if (ownInbound) {
+    if (ownInbound?.sessionKey) {
       return {
         sessionId: ownInbound.sessionId,
         sessionKey: ownInbound.sessionKey,
@@ -852,10 +977,15 @@ export class MegolmService {
 
     for (const session of data.inbound) {
       const key = `${session.roomId}:${session.senderUserId}:${session.sessionId}`
-      if (!this.inboundSessions.has(key)) {
+      const existing = this.inboundSessions.get(key)
+      if (!existing || (!existing.sessionKey && session.sessionKey)) {
         this.inboundSessions.set(key, session)
         await this.saveInboundSession(session)
         debug.log(`  - Imported inbound session from ${session.senderUserId.substring(0, 8)}...`)
+      } else if (!existing.sessionKey && session.messageKeys) {
+        const merged = { ...existing, messageKeys: { ...session.messageKeys, ...existing.messageKeys } }
+        this.inboundSessions.set(key, merged)
+        await this.saveInboundSession(merged)
       }
     }
 
@@ -939,6 +1069,20 @@ export class MegolmService {
       sessionCopy._encrypted = true
     }
 
+    if (sessionCopy.messageKeys && typeof sessionCopy.messageKeys === 'object') {
+      const iv = crypto.getRandomValues(new Uint8Array(12))
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        this.encryptionKey,
+        new TextEncoder().encode(JSON.stringify(sessionCopy.messageKeys))
+      )
+      const combined = new Uint8Array(iv.length + encrypted.byteLength)
+      combined.set(iv)
+      combined.set(new Uint8Array(encrypted), iv.length)
+      sessionCopy.messageKeys = this.arrayBufferToBase64(combined.buffer)
+      sessionCopy._messageKeysEncrypted = true
+    }
+
     return sessionCopy
   }
 
@@ -962,6 +1106,17 @@ export class MegolmService {
       const decoder = new TextDecoder()
       sessionCopy.sessionKey = decoder.decode(decrypted)
       delete sessionCopy._encrypted
+    }
+
+    if (sessionCopy._messageKeysEncrypted && typeof sessionCopy.messageKeys === 'string') {
+      const combinedArray = new Uint8Array(this.base64ToArrayBuffer(sessionCopy.messageKeys))
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: combinedArray.slice(0, 12) },
+        this.encryptionKey,
+        combinedArray.slice(12)
+      )
+      sessionCopy.messageKeys = JSON.parse(new TextDecoder().decode(decrypted))
+      delete sessionCopy._messageKeysEncrypted
     }
 
     return sessionCopy
