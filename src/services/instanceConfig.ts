@@ -1,9 +1,9 @@
 // The native client is one binary for any instance, so it fetches Supabase
 // config from /instance-info at runtime. Inert on web (runtimeConfig.ts applies).
 
-import { runtimeConfig } from '@/services/runtimeConfig';
+import { runtimeConfig, STORED_INSTANCE_KEY } from '@/services/runtimeConfig';
 
-const STORAGE_KEY = 'harmony.instance';
+const STORAGE_KEY = STORED_INSTANCE_KEY;
 
 export interface InstanceConfig {
   origin: string;
@@ -11,6 +11,8 @@ export interface InstanceConfig {
   supabaseUrl: string;
   supabaseAnonKey: string;
   version?: string;
+  /** Host part of local handles and ActivityPub ids; absent in instances stored before 1.9.0. */
+  domain?: string;
 }
 
 export function isTauriRuntime(): boolean {
@@ -50,9 +52,10 @@ export function apiUrl(path: string): string {
   return stored ? `${stored.origin}${path}` : path;
 }
 
-// display domain for handles; on native runtimeConfig.domain is the build-time VITE_DOMAIN placeholder, so prefer the stored instance
+// display domain for handles: the stored instance's, then runtimeConfig.domain, then the page's host
 export function getInstanceDomain(): string {
   const stored = getStoredInstance();
+  if (stored?.domain) return stored.domain;
   if (stored) {
     try {
       return new URL(stored.origin).host;
@@ -109,6 +112,7 @@ async function fetchInstanceInfoFrom(origin: string): Promise<InstanceConfig> {
     supabaseUrl: info.supabaseUrl,
     supabaseAnonKey: info.supabaseAnonKey,
     version: info.version,
+    ...(typeof info.domain === 'string' && info.domain ? { domain: info.domain } : {}),
   };
 }
 
