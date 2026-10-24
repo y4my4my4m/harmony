@@ -54,12 +54,13 @@ export class OutgoingWebhookRoutes {
    */
   async enqueue(event: string, serverId: string, channelId: string | null, botIds: readonly string[], payload: Record<string, unknown>): Promise<void> {
     if (!this.wants(event, serverId, botIds)) return
+    const body = { ...payload, server_id: serverId }
     const { error } = await supabase.rpc('enqueue_outgoing_webhook_event', {
       p_event: event,
       p_server_id: serverId,
       p_channel_id: channelId,
       p_bot_ids: this.botsTaking(event, botIds),
-      p_payload: { ...payload, server_id: serverId },
+      p_payload: body,
     })
     if (error) console.error(`enqueue_outgoing_webhook_event ${event}: ${error.message}`)
   }

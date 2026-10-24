@@ -600,7 +600,7 @@ mark_server_welcome_seen	p_server_id uuid	jsonb	definer	public, pg_temp	authenti
 megolm_key_scope_allowed	p_room_id text, p_session_id text, p_sender uuid, p_user_id uuid, p_message_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 megolm_session_began_before	p_room_id text, p_session_id text, p_sender uuid, p_at timestamp with time zone	boolean	definer	public, pg_temp	service_role	unreferenced
 member_voice_channel	p_server_id uuid, p_profile uuid	uuid	definer	public, pg_temp	service_role	unreferenced
-merge_own_message_echoes		integer	invoker	public, pg_temp	service_role	unreferenced
+merge_own_message_echoes		integer	invoker	public, pg_temp		unreferenced
 message_custom_emoji_keys	p_content jsonb	text[]	invoker		service_role	unreferenced
 message_file_names	p_content jsonb	text	invoker	pg_catalog, pg_temp	service_role	unreferenced
 message_media_deletable	p_paths text[], p_min_age interval, p_limit integer	SETOF text	definer	public, pg_temp	service_role	client

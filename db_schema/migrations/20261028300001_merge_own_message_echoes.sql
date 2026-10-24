@@ -120,7 +120,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.merge_own_message_echoes() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.merge_own_message_echoes() FROM PUBLIC, anon, authenticated, service_role;
 
 SELECT public.merge_own_message_echoes();
 
