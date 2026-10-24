@@ -63,6 +63,12 @@ export default defineConfig({
       testIgnore: 'ios-*.spec.ts',
       use: { ...devices['Desktop Chrome'], ...browserChannel },
     },
+    // The Android app on an emulator or device (e2e/android); skipped without HARMONY_ANDROID.
+    {
+      name: 'android',
+      testDir: './e2e/android',
+      timeout: 300_000,
+    },
     // WebKit, the engine of the iOS app and every iOS browser; each spec sets its devices.
     {
       name: 'journeys-webkit',
