@@ -719,7 +719,8 @@
       "disableConsequence4": "このサーバーから削除し、それぞれに理由を通知します",
       "disableConsequence5": "連合を再び有効にしても戻りません。招待から再参加する必要があります",
       "disableConfirm": "連合を無効にする"
-    }
+    },
+    "federationInstanceOff": "このインスタンスでは連合がオフです。再開できるのは管理者です。"
   },
   "channel": {
     "create": "チャンネルを作成",
@@ -5095,7 +5096,15 @@
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
       "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。",
       "publicProfilePages": "ログインしていない訪問者にプロフィールと公開投稿を表示する",
-      "publicProfilePagesHint": "オフにすると、訪問者はログイン画面に送られます。リンクプレビューと連合には影響しません。"
+      "publicProfilePagesHint": "オフにすると、訪問者はログイン画面に送られます。リンクプレビューと連合には影響しません。",
+      "federationOutbound": "他のインスタンスへ送信",
+      "federationOutboundHint": "オフ：他のインスタンスには何も配信されません。",
+      "federationInbound": "他のインスタンスから受信",
+      "federationInboundHint": "オフ：他のインスタンスからの配信と署名付きリクエストを拒否します。プロフィールとサーバーは引き続き閲覧できます。",
+      "federationClosedWarning": "両方オフにすると連合を閉じます：このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスのメンバーは他所でホストされているサーバーから退出します。",
+      "federationCloseConfirmTitle": "連合を閉じますか？",
+      "federationCloseConfirmMessage": "このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスの全メンバーが他所でホストされているサーバーから退出します。スイッチを再びオンにするとサーバーは再開しますが、外されたメンバーは戻りません。",
+      "federationCloseConfirm": "連合を閉じる"
     },
     "activityLog": {
       "configKeys": {
@@ -7221,7 +7230,9 @@
     "notice": {
       "removedTitle": "{instance} のスタッフによって {server} から削除されました。",
       "blockedTitle": "{instance} のスタッフが {instance} で {server} をブロックしたため、退出しました。",
-      "blockedMessage": "他のインスタンスでは {server} について何も変わっていません。"
+      "blockedMessage": "他のインスタンスでは {server} について何も変わっていません。",
+      "federationOffTitle": "{instance} が連合を停止したため、{server} から退出しました。",
+      "federationOffMessage": "{server} は他のインスタンスで続いています。{instance} が連合を再開すれば再び参加できます。"
     },
     "join": {
       "blocked": "{instance} のスタッフが {instance} でこのサーバーをブロックしています。",

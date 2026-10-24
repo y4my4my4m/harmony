@@ -9,6 +9,7 @@ import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
+import { inboundAllowed } from '../services/FederationSwitches.js';
 
 const router = Router();
 
@@ -252,6 +253,9 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
   try {
     if (!config.ALLOW_FEDERATED_VOICE) {
       return res.status(403).json({ error: 'Federated voice is not enabled on this instance' });
+    }
+    if (!(await inboundAllowed())) {
+      return res.status(403).json({ error: 'Federation is off on this instance' });
     }
     
     const validation = federatedTokenRequestSchema.safeParse(req.body);

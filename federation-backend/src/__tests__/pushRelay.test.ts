@@ -200,7 +200,9 @@ describe('VAPID checks', () => {
     const otherKey = webPush.generateVAPIDKeys().publicKey
     expect(vapidProblem(ok.t, otherKey, 'https://relay.test', now)).toBe('bad signature')
     const [h, c, s] = ok.t.split('.')
-    expect(vapidProblem(`${h}.${c}.${s.slice(0, -2)}AA`, ok.k, 'https://relay.test', now)).toBe('bad signature')
+    // A middle character: the last one of an ES256 signature carries padding bits.
+    const flipped = `${s.slice(0, 10)}${s[10] === 'A' ? 'B' : 'A'}${s.slice(11)}`
+    expect(vapidProblem(`${h}.${c}.${flipped}`, ok.k, 'https://relay.test', now)).toBe('bad signature')
     expect(vapidProblem('a.b', ok.k, 'https://relay.test', now)).toBe('malformed JWT')
     expect(vapidProblem(ok.t, 'AAAA', 'https://relay.test', now)).toBe('k is not an uncompressed P-256 key')
 

@@ -50,6 +50,8 @@
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
 // Bot, webhook and bridged messages are the Group's Notes with harmony:author, each way
 // (cases/groupAuthored.ts).
+// The instance's federation switches refuse, drop and close against the peer
+// (cases/federationSwitches.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
@@ -107,6 +109,7 @@ import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
 import { caseSystemEvents } from './cases/systemEvents.ts'
 import { caseGroupAuthored } from './cases/groupAuthored.ts'
+import { caseFederationSwitches } from './cases/federationSwitches.ts'
 import { caseCopyAuthority } from './cases/copyAuthority.ts'
 import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
@@ -2906,6 +2909,12 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
+    })
+    // Last: closing the instance removes memberships the cases above set up.
+    await caseFederationSwitches({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      assert, eq,
+      ids: { bob: BOB, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF },
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

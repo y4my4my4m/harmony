@@ -882,8 +882,8 @@ class AdminService {
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
       let publicProfilePages = true
-      const enableOutbound = true
-      const enableInbound = true
+      let enableOutbound = true
+      let enableInbound = true
 
       try {
         const { data: configData } = await supabase
@@ -1038,6 +1038,15 @@ class AdminService {
         }
       } catch (configError) {
         debug.warn('Failed to fetch instance config from database, using defaults:', configError)
+      }
+
+      // The switches as the federation backend enforces them (instance_federation_switches).
+      const { data: switches, error: switchesError } = await supabase.rpc('get_public_federation_settings')
+      if (switchesError) {
+        debug.warn('Failed to read the federation switches:', switchesError)
+      } else if (switches && typeof switches === 'object') {
+        enableInbound = (switches as Record<string, unknown>).enable_inbound_federation !== false
+        enableOutbound = (switches as Record<string, unknown>).enable_outbound_federation !== false
       }
       
       return {

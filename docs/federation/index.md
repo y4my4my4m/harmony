@@ -70,7 +70,7 @@ Roles, permission overrides, the audit log, AutoMod rules, server bans and the i
 
 ### Turning federation off for a server
 
-Server owners control federation per server: **Server settings** → **Privacy settings** → **Enable federation**. The switch appears only when federation is enabled for the instance. With it off, the server rejects new `Join` requests from other instances and stops delivering to and accepting from remote members. Turning it off asks first, naming how many members from other instances it removes. Each of them is removed and told, in their inbox on their own instance, that the server stopped taking members from other instances; the server leaves their list. Turning federation back on brings nobody back: they rejoin with an invite.
+Server owners control federation per server: **Server settings** → **Privacy settings** → **Enable federation**. While the instance's federation is off ([Turning federation off for the instance](#turning-federation-off-for-the-instance)), the switch stays off and explains why. With it off, the server rejects new `Join` requests from other instances and stops delivering to and accepting from remote members. Turning it off asks first, naming how many members from other instances it removes. Each of them is removed and told, in their inbox on their own instance, that the server stopped taking members from other instances; the server leaves their list. Turning federation back on brings nobody back: they rejoin with an invite.
 
 A member whose instance missed that notice (its host runs an older Harmony, or the delivery failed) still sees the server. Opening it shows why it is silent, with a **Leave server** button, in place of its messages.
 
@@ -188,5 +188,15 @@ Instance admins manage federation in the admin panel under **Federation** and **
 | Mention and DM spam | **Anti-spam** → **Federation mention spam** | What happens to a remote post or DM that looks like spam: **Do nothing**, **Deliver it and add it to the review queue** (default), **Hold it in the review queue until released**, or **Reject it and add it to the review queue**. A post or DM looks like spam when it mentions at least 15 people (adjustable), or when it comes from a remote account younger than 7 days (adjustable) that nobody on the instance follows and that none of the mentioned users has talked to. Held items wait under **Suspicious activity** until released. |
 
 Harmony has no allowlist mode: every instance that is not blocked can federate.
+
+### Turning federation off for the instance
+
+**Admin panel** → **Config** → **Federation** has two switches. They take effect within ten seconds.
+
+- **Send to other instances** off: nothing is delivered to other instances, and members cannot join servers hosted elsewhere.
+- **Receive from other instances** off: every inbox answers 403, federated call tokens are refused, and signed reads from other instances are served as if unsigned. Profiles, WebFinger and a server's public profile stay readable.
+- Both off closes federation, after a confirmation. Every server here turns its federation off as its owner turning it off does: members from other instances are removed and told. Every member here leaves the servers hosted elsewhere they belonged to, and is told why. No server's federation turns back on while closed, and a server created then starts with it off. The Removes and Leaves of the closing are the only deliveries a closed instance makes.
+
+Turning either switch back on turns federation on again for the servers the closing turned off. Nobody removed comes back; they rejoin with an invite.
 
 Two environment settings of the federation backend also apply: `ALLOW_FEDERATED_VOICE` turns federated direct-message calls on or off (on by default), and `REQUIRE_VALID_SIGNATURES` cannot be turned off in production. See [Configuration](/self-host/configuration).

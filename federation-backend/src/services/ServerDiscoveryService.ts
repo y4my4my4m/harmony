@@ -30,6 +30,7 @@ import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
+import { federationSwitches } from './FederationSwitches.js';
 
 const router = Router();
 
@@ -490,6 +491,11 @@ router.post(
 
     if (userError || !user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Outbound federation off: the Join would never leave, and the membership would stay pending.
+    if (!(await federationSwitches()).outbound) {
+      return res.status(403).json({ error: 'Federation is off on this instance', code: 'INSTANCE_FEDERATION_OFF' });
     }
 
     const remoteServer = await ServerDiscoveryService.fetchServerByUrl(serverUrl);
@@ -1700,9 +1706,10 @@ export class ServerDiscoveryService {
   }
 
   /**
-   * Create a Leave activity
+   * Create a Leave activity. `idSuffix` names it after the row it answers (instance-leave-<id>,
+   * which a closed instance still delivers: FederationSwitches.isClosingActivity).
    */
-  static createLeaveActivity(actorId: string, serverId: string): any {
+  static createLeaveActivity(actorId: string, serverId: string, idSuffix?: string): any {
     return {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -1710,7 +1717,7 @@ export class ServerDiscoveryService {
           harmony: HARMONY_NS,
         },
       ],
-      id: `${actorId}/activities/${crypto.randomUUID()}`,
+      id: `${actorId}/activities/${idSuffix ?? crypto.randomUUID()}`,
       type: 'Leave',
       actor: actorId,
       object: serverId,
@@ -1760,11 +1767,13 @@ export class ServerDiscoveryService {
   static async sendMemberLeave(
     server: { ap_id: string | null; federation_inbox_url: string | null; is_local_server: boolean | null },
     member: { id: string; username: string; federated_id: string | null },
+    instanceLeaveId?: string,
   ): Promise<boolean> {
     if (server.is_local_server !== false || !server.federation_inbox_url || !server.ap_id) return false;
     const leaveActivity = ServerDiscoveryService.createLeaveActivity(
       member.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${member.username}`,
-      server.ap_id
+      server.ap_id,
+      instanceLeaveId ? `instance-leave-${instanceLeaveId}` : undefined,
     );
     await ServerDiscoveryService.sendLeaveRequest(server.federation_inbox_url, leaveActivity, member.id);
     return true;

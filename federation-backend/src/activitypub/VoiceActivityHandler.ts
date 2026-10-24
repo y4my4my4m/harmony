@@ -22,6 +22,7 @@ import { remoteServerHosts, type ChannelWriteServer } from './channelWriteAuthz.
 import { copyOfGroup, processVoiceMemberActivity, VOICE_MEMBER_TYPES } from './voiceModerationFederation.js';
 import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
+import { federationSwitches } from '../services/FederationSwitches.js';
 import { HARMONY_CONTEXT } from './harmonyContext.js';
 import type { 
   VoiceCallInvite, 
@@ -465,6 +466,10 @@ export class VoiceActivityHandler {
     call: { caller_federated_id: string; room_name: string },
     recipient: { id: string; federated_id: string },
   ): Promise<CallToken | null> {
+    if (!(await federationSwitches()).outbound) {
+      logger.info(`Outbound federation is off: no call token requested for ${call.room_name}`);
+      return null;
+    }
     let endpoint: string;
     try {
       endpoint = new URL('/api/livekit/federated-token', call.caller_federated_id).href;

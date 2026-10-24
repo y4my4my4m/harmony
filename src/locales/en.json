@@ -719,7 +719,8 @@
       "disableConsequence4": "Remove them from this server and tell each of them why",
       "disableConsequence5": "Keep them out if you turn federation back on, until they rejoin with an invite",
       "disableConfirm": "Disable federation"
-    }
+    },
+    "federationInstanceOff": "Federation is off on this instance; its admins turn it back on."
   },
   "channel": {
     "create": "Create channel",
@@ -5091,7 +5092,15 @@
       "maxPersonalEmojis": "Personal emojis per user",
       "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay.",
       "publicProfilePages": "Show profiles and public posts to visitors who aren't signed in",
-      "publicProfilePagesHint": "When off, visitors are sent to sign in. Link previews and federation are unaffected."
+      "publicProfilePagesHint": "When off, visitors are sent to sign in. Link previews and federation are unaffected.",
+      "federationOutbound": "Send to other instances",
+      "federationOutboundHint": "Off: nothing is delivered to other instances.",
+      "federationInbound": "Receive from other instances",
+      "federationInboundHint": "Off: other instances' deliveries and signed requests are refused. Profiles and servers stay readable.",
+      "federationClosedWarning": "With both off, federation closes: every server here stops federating and removes its members from other instances, and members here leave servers hosted elsewhere.",
+      "federationCloseConfirmTitle": "Close federation?",
+      "federationCloseConfirmMessage": "Every server here stops federating and removes its members from other instances, and every member here leaves servers hosted elsewhere. Turning a switch back on reopens the servers; nobody removed comes back.",
+      "federationCloseConfirm": "Close federation"
     },
     "activityLog": {
       "configKeys": {
@@ -7217,7 +7226,9 @@
     "notice": {
       "removedTitle": "You were removed from {server} by {instance} staff.",
       "blockedTitle": "{instance} staff blocked {server} on {instance}; you left it.",
-      "blockedMessage": "Nothing changed for {server} on other instances."
+      "blockedMessage": "Nothing changed for {server} on other instances.",
+      "federationOffTitle": "{instance} stopped federating; you left {server}.",
+      "federationOffMessage": "{server} continues on other instances. You can join it again once {instance} federates again."
     },
     "join": {
       "blocked": "{instance} staff blocked this server on {instance}.",

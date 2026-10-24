@@ -719,7 +719,8 @@
       "disableConsequence4": "Les retirer de ce serveur et indiquer à chacun pourquoi",
       "disableConsequence5": "Les tenir à l’écart même si vous réactivez la fédération, jusqu’à ce qu’ils reviennent avec une invitation",
       "disableConfirm": "Désactiver la fédération"
-    }
+    },
+    "federationInstanceOff": "La fédération est désactivée sur cette instance ; ses admins la réactivent."
   },
   "channel": {
     "create": "Créer un canal",
@@ -5095,7 +5096,15 @@
       "maxPersonalEmojis": "Emojis personnels par utilisateur",
       "maxPersonalEmojisHint": "Emojis que chaque personne peut garder dans Paramètres > Mes emojis, importés et générés par IA confondus (0-1000). Par défaut : 50. 0 désactive les emojis personnels. Les emojis déjà au-delà d'une limite abaissée sont conservés.",
       "publicProfilePages": "Montrer les profils et les publications publiques aux visiteurs non connectés",
-      "publicProfilePagesHint": "Désactivé, les visiteurs sont envoyés vers la connexion. Les aperçus de liens et la fédération ne changent pas."
+      "publicProfilePagesHint": "Désactivé, les visiteurs sont envoyés vers la connexion. Les aperçus de liens et la fédération ne changent pas.",
+      "federationOutbound": "Envoyer aux autres instances",
+      "federationOutboundHint": "Désactivé : rien n’est livré aux autres instances.",
+      "federationInbound": "Recevoir des autres instances",
+      "federationInboundHint": "Désactivé : les livraisons et requêtes signées des autres instances sont refusées. Les profils et serveurs restent lisibles.",
+      "federationClosedWarning": "Les deux désactivés, la fédération se ferme : chaque serveur d’ici cesse de fédérer et retire ses membres d’autres instances, et les membres d’ici quittent les serveurs hébergés ailleurs.",
+      "federationCloseConfirmTitle": "Fermer la fédération ?",
+      "federationCloseConfirmMessage": "Chaque serveur d’ici cesse de fédérer et retire ses membres d’autres instances, et chaque membre d’ici quitte les serveurs hébergés ailleurs. Réactiver un interrupteur rouvre les serveurs ; les personnes retirées ne reviennent pas.",
+      "federationCloseConfirm": "Fermer la fédération"
     },
     "activityLog": {
       "configKeys": {
@@ -7221,7 +7230,9 @@
     "notice": {
       "removedTitle": "L'équipe de {instance} t'a retiré de {server}.",
       "blockedTitle": "L'équipe de {instance} a bloqué {server} sur {instance} ; tu l'as quitté.",
-      "blockedMessage": "Rien n'a changé pour {server} sur les autres instances."
+      "blockedMessage": "Rien n'a changé pour {server} sur les autres instances.",
+      "federationOffTitle": "{instance} ne fédère plus ; vous avez quitté {server}.",
+      "federationOffMessage": "{server} continue sur d’autres instances. Vous pourrez le rejoindre de nouveau quand {instance} fédérera de nouveau."
     },
     "join": {
       "blocked": "L'équipe de {instance} a bloqué ce serveur sur {instance}.",

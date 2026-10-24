@@ -719,7 +719,8 @@
       "disableConsequence4": "Sie von diesem Server entfernen und jedem von ihnen den Grund nennen",
       "disableConsequence5": "Sie auch nach erneutem Aktivieren der Föderation draußen lassen, bis sie über eine Einladung wieder beitreten",
       "disableConfirm": "Föderation deaktivieren"
-    }
+    },
+    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein."
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -5095,7 +5096,15 @@
       "maxPersonalEmojis": "Persönliche Emojis pro Person",
       "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten.",
       "publicProfilePages": "Profile und öffentliche Beiträge Besuchern ohne Anmeldung zeigen",
-      "publicProfilePagesHint": "Ausgeschaltet werden Besucher zur Anmeldung geschickt. Linkvorschauen und Föderation bleiben unverändert."
+      "publicProfilePagesHint": "Ausgeschaltet werden Besucher zur Anmeldung geschickt. Linkvorschauen und Föderation bleiben unverändert.",
+      "federationOutbound": "An andere Instanzen senden",
+      "federationOutboundHint": "Aus: An andere Instanzen wird nichts zugestellt.",
+      "federationInbound": "Von anderen Instanzen empfangen",
+      "federationInboundHint": "Aus: Zustellungen und signierte Anfragen anderer Instanzen werden abgelehnt. Profile und Server bleiben lesbar.",
+      "federationClosedWarning": "Sind beide aus, wird die Föderation geschlossen: Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und Mitglieder hier verlassen Server, die anderswo gehostet werden.",
+      "federationCloseConfirmTitle": "Föderation schließen?",
+      "federationCloseConfirmMessage": "Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und jedes Mitglied hier verlässt Server, die anderswo gehostet werden. Wird ein Schalter wieder eingeschaltet, öffnen die Server wieder; Entfernte kehren nicht zurück.",
+      "federationCloseConfirm": "Föderation schließen"
     },
     "activityLog": {
       "configKeys": {
@@ -7221,7 +7230,9 @@
     "notice": {
       "removedTitle": "Das Team von {instance} hat dich aus {server} entfernt.",
       "blockedTitle": "Das Team von {instance} hat {server} auf {instance} blockiert; du hast ihn verlassen.",
-      "blockedMessage": "Für {server} hat sich auf anderen Instanzen nichts geändert."
+      "blockedMessage": "Für {server} hat sich auf anderen Instanzen nichts geändert.",
+      "federationOffTitle": "{instance} föderiert nicht mehr; du hast {server} verlassen.",
+      "federationOffMessage": "{server} besteht auf anderen Instanzen weiter. Du kannst wieder beitreten, sobald {instance} wieder föderiert."
     },
     "join": {
       "blocked": "Das Team von {instance} hat diesen Server auf {instance} blockiert.",

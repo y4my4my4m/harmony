@@ -719,7 +719,8 @@
       "disableConsequence4": "Los eliminará de este servidor y le dirá a cada uno el motivo",
       "disableConsequence5": "Los mantendrá fuera aunque vuelvas a activar la federación, hasta que se unan de nuevo con una invitación",
       "disableConfirm": "Desactivar la federación"
-    }
+    },
+    "federationInstanceOff": "La federación está desactivada en esta instancia; sus administradores la vuelven a activar."
   },
   "channel": {
     "create": "Crear canal",
@@ -5095,7 +5096,15 @@
       "maxPersonalEmojis": "Emojis personales por usuario",
       "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan.",
       "publicProfilePages": "Mostrar perfiles y publicaciones públicas a visitantes sin sesión iniciada",
-      "publicProfilePagesHint": "Si está desactivado, los visitantes van a iniciar sesión. Las vistas previas de enlaces y la federación no cambian."
+      "publicProfilePagesHint": "Si está desactivado, los visitantes van a iniciar sesión. Las vistas previas de enlaces y la federación no cambian.",
+      "federationOutbound": "Enviar a otras instancias",
+      "federationOutboundHint": "Desactivado: no se entrega nada a otras instancias.",
+      "federationInbound": "Recibir de otras instancias",
+      "federationInboundHint": "Desactivado: se rechazan las entregas y solicitudes firmadas de otras instancias. Los perfiles y servidores siguen siendo legibles.",
+      "federationClosedWarning": "Con ambos desactivados, la federación se cierra: cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y los miembros de aquí abandonan los servidores alojados en otros sitios.",
+      "federationCloseConfirmTitle": "¿Cerrar la federación?",
+      "federationCloseConfirmMessage": "Cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y cada miembro de aquí abandona los servidores alojados en otros sitios. Al volver a activar un interruptor, los servidores se reabren; nadie eliminado vuelve.",
+      "federationCloseConfirm": "Cerrar la federación"
     },
     "activityLog": {
       "configKeys": {
@@ -7221,7 +7230,9 @@
     "notice": {
       "removedTitle": "El equipo de {instance} te ha eliminado de {server}.",
       "blockedTitle": "El equipo de {instance} ha bloqueado {server} en {instance}; lo has abandonado.",
-      "blockedMessage": "No ha cambiado nada para {server} en otras instancias."
+      "blockedMessage": "No ha cambiado nada para {server} en otras instancias.",
+      "federationOffTitle": "{instance} dejó de federar; abandonaste {server}.",
+      "federationOffMessage": "{server} continúa en otras instancias. Puedes volver a unirte cuando {instance} vuelva a federar."
     },
     "join": {
       "blocked": "El equipo de {instance} ha bloqueado este servidor en {instance}.",

@@ -51,7 +51,7 @@ export async function handleInstanceLeaveJob(data: FederationJobData): Promise<v
   }
 
   const { ServerDiscoveryService } = await import('../../services/ServerDiscoveryService.js');
-  const sent = await ServerDiscoveryService.sendMemberLeave(server, member);
+  const sent = await ServerDiscoveryService.sendMemberLeave(server, member, leaveId);
   await markDelivered(leaveId);
   logger.info(`Instance leave ${leaveId} (${leave.reason}): ${sent ? 'Leave sent' : 'no Group inbox to tell'}`);
 }

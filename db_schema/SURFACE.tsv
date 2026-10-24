@@ -37,6 +37,7 @@ apply_account_move	p_origin_id uuid, p_target_id uuid	uuid	invoker	pg_catalog, p
 apply_category_permissions	p_channel_id uuid, p_category_id uuid	void	definer	public, pg_temp	service_role	unreferenced
 apply_domain_limit_on_profile_insert		trigger	invoker	public, pg_temp	service_role	trigger
 apply_group_voice_state	p_server_id uuid, p_user_id uuid, p_muted boolean, p_deafened boolean	boolean	definer	public, pg_temp	service_role	client
+apply_instance_federation_switches		void	definer	public, pg_temp	service_role	unreferenced
 apply_notification_override	p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_category_id uuid, p_changes jsonb	void	invoker	public, pg_temp	service_role	unreferenced
 apply_remote_engagement_counts		trigger	definer	public, pg_temp	service_role	trigger
 apply_server_encryption_floor		trigger	definer	public, extensions, pg_temp	service_role	trigger
@@ -490,6 +491,7 @@ guard_override_grants		trigger	invoker	public, pg_temp	service_role	trigger
 guard_post_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_profile_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_server_federation_instance_closed		trigger	definer	public, pg_temp	service_role	trigger
 guard_server_role_hierarchy		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_settings_default_role		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_sound_client_write		trigger	definer	public, pg_temp	service_role	trigger
@@ -533,6 +535,9 @@ index_message		trigger	definer	public, extensions, pg_temp	service_role	trigger
 index_message_row	p_message messages	void	definer	public, extensions, pg_temp	service_role	unreferenced
 initialize_user_encryption	p_user_id uuid, p_identity_public_key text, p_identity_private_key_encrypted text, p_device_id text	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 insert_ap_activity_outbound	p_ap_id text, p_ap_type text, p_actor_id uuid, p_actor_ap_id text, p_activity_data jsonb, p_object_id text, p_object_type text, p_to_addresses text[], p_cc_addresses text[], p_origin_domain text	uuid	definer	public, pg_temp	anon+authenticated+service_role	client
+instance_config_flag	p_value jsonb	boolean	invoker	public, pg_temp	service_role	unreferenced
+instance_federation_closed		boolean	definer	public, pg_temp	service_role	unreferenced
+instance_federation_switches	OUT inbound boolean, OUT outbound boolean	record	definer	public, pg_temp	service_role	client
 instance_keepouts_from_copy_bans		integer	definer	public, pg_temp		unreferenced
 instance_lift_keepout	p_server_id uuid, p_profile_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 instance_media_hidden_servers		SETOF uuid	definer	public, pg_temp	authenticated+service_role	client
@@ -828,6 +833,7 @@ trigger_create_default_server_structure		trigger	definer	public, extensions, pg_
 trigger_domain_suspension_removals		trigger	definer	public, pg_temp	service_role	trigger
 trigger_extract_post_hashtags		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_federation_closed_removals		trigger	definer	public, pg_temp	service_role	trigger
+trigger_instance_federation_switches		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_block_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_category_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_channel_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger

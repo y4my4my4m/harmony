@@ -1,7 +1,8 @@
 /**
  * Admin › Configuration › Federation: "Show profiles and public posts to visitors who aren't
  * signed in" reads instance_config public_profile_pages through getInstanceConfig and saves it
- * with the other settings through setInstanceConfigs (batch_set_instance_config).
+ * with the other settings through setInstanceConfigs (batch_set_instance_config). The instance's
+ * federation switches save through updateFederationSettings; turning both off asks first.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -21,6 +22,13 @@ vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/ColorPicker.vue', () => stub('ColorPicker'))
 vi.mock('@/components/admin/NewcomerAlertsDefault.vue', () => stub('NewcomerAlertsDefault'))
 vi.mock('@/components/settings/discord-bridge/BridgeAdminSection.vue', () => stub('BridgeAdminSection'))
+
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t }),
+}))
+const confirm = vi.hoisted(() => vi.fn(async () => true))
+vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm }) }))
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
@@ -94,5 +102,49 @@ describe('public profile pages setting', () => {
     await wrapper.get('button.save-btn').trigger('click')
     await flushPromises()
     expect((admin.setInstanceConfigs.mock.calls[1] as unknown as [Record<string, unknown>])[0].public_profile_pages).toBe(true)
+  })
+})
+
+describe('federation switches', () => {
+  async function turnBothOff() {
+    const wrapper = await openFederationTab(true)
+    await wrapper.get('[data-testid="federation-outbound-toggle"]').setValue(false)
+    expect(wrapper.find('[data-testid="federation-closed-warning"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="federation-inbound-toggle"]').setValue(false)
+    expect(wrapper.get('[data-testid="federation-closed-warning"]').text()).toContain('federation closes')
+    return wrapper
+  }
+
+  it('asks before closing federation, and saves nothing when declined', async () => {
+    confirm.mockResolvedValueOnce(false)
+    const wrapper = await turnBothOff()
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Close federation?', dangerAction: true }))
+    expect(admin.updateFederationSettings).not.toHaveBeenCalled()
+    expect(admin.setInstanceConfigs).not.toHaveBeenCalled()
+  })
+
+  it('closes federation once confirmed, and asks no more while it stays closed', async () => {
+    const wrapper = await turnBothOff()
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.updateFederationSettings).toHaveBeenCalledWith(expect.objectContaining({
+      inboundEnabled: false, outboundEnabled: false, federationEnabled: false,
+    }))
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves one switch off without asking', async () => {
+    const wrapper = await openFederationTab(true)
+    await wrapper.get('[data-testid="federation-inbound-toggle"]').setValue(false)
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(admin.updateFederationSettings).toHaveBeenCalledWith(expect.objectContaining({
+      inboundEnabled: false, outboundEnabled: true, federationEnabled: true,
+    }))
   })
 })

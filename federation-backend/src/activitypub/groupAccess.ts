@@ -11,6 +11,7 @@ import type { Request } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
+import { inboundAllowed } from '../services/FederationSwitches.js';
 import { SignatureService } from './SignatureService.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 
@@ -30,12 +31,14 @@ export interface GroupAccess {
 
 /**
  * Key owner of a valid HTTP signature on this request, or null. An absent,
- * invalid or blocked-instance signature reads as anonymous; public content is
- * still served to it.
+ * invalid or blocked-instance signature, and any signature while inbound
+ * federation is off, reads as anonymous; public content is still served to it.
  */
 export async function verifiedSigner(req: Request): Promise<string | null> {
   const signature = req.headers.signature;
   if (typeof signature !== 'string' || !signature) return null;
+  // Inbound federation off: no key is fetched, and the request reads as anonymous.
+  if (!(await inboundAllowed())) return null;
 
   // A signature that leaves out (request-target) authorizes any path on this
   // host within the Date window; Mastodon's signed GETs always cover it. An

@@ -131,6 +131,12 @@ describe('NotificationFormatter', () => {
       }))
       expect(blocked.title).toBe('harmony.test staff blocked Mastodon Canada on harmony.test; you left it.')
       expect(blocked.message).toBe('Nothing changed for Mastodon Canada on other instances.')
+
+      const closed = NotificationFormatter.formatNotification(makeNotification('server_instance_removed', {
+        data: { server, action: 'federation_off', reason: null },
+      }))
+      expect(closed.title).toBe('harmony.test stopped federating; you left Mastodon Canada.')
+      expect(closed.message).toBe('Mastodon Canada continues on other instances. You can join it again once harmony.test federates again.')
     })
 
     it('names no moderator on a report update unless the moderator chose to', () => {

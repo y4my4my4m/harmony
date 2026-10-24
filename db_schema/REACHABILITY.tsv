@@ -37,6 +37,7 @@ apply_account_move	invoker	uuid	service_role	client	called by begin_account_move
 apply_category_permissions	definer	void	service_role	client, trigger	called by channel_inherits_category_permissions, set_category_permissions, sync_channel_permissions
 apply_domain_limit_on_profile_insert	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT (apply_domain_limit_on_profile_insert_trigger)
 apply_group_voice_state	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/voiceModerationFederation.ts
+apply_instance_federation_switches	definer	void	service_role	trigger	called by trigger_instance_federation_switches
 apply_notification_override	invoker	void	service_role	client	called by update_category_notification_override, update_channel_notification_override
 apply_remote_engagement_counts	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (trg_posts_remote_engagement)
 apply_server_encryption_floor	definer	trigger	service_role	trigger	trigger public.server_encryption_settings AFTER INSERT/UPDATE (trg_apply_server_encryption_floor)
@@ -429,7 +430,7 @@ get_post_emoji_reactions	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url
 get_post_with_context	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 get_presence	definer	TABLE(profile_id uuid, status smallint, online boolean, is_mobile boolean, last_seen_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/userDataService.ts
 get_profile_media	invoker	TABLE(id uuid, created_at timestamp with time zone, visibility text, content_warning text, is_sensitive boolean, media_attachments jsonb, content_media jsonb)	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
-get_public_federation_settings	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/federation/FederationDecisionService.ts, src/stores/useInstanceSettings.ts
+get_public_federation_settings	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/federation/FederationDecisionService.ts, src/stores/useInstanceSettings.ts
 get_relayable_key_requests	definer	TABLE(id uuid, requester_user_id uuid, sender_user_id uuid, room_id text, session_id text, status text, request_signature text, request_signing_fingerprint text, accepts_relay boolean, message_id uuid, message_index integer, key_scope text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/encryption/MegolmKeyBackupService.ts
 get_reports_with_details	definer	TABLE(id uuid, created_at timestamp with time zone, updated_at timestamp with time zone, status text, report_type text, category text, reason text, comment text, source text, source_instance text, source_actor text, reporter_id uuid, reporter_username text, reporter_display_name text, reporter_avatar_url text, reporter_domain text, reporter_is_local boolean, reported_user_id uuid, reported_user_username text, reported_user_display_name text, reported_user_avatar_url text, reported_user_domain text, reported_user_is_local boolean, reported_user_is_suspended boolean, reported_user_is_silenced boolean, reported_domain_blocked boolean, reported_domain_limited boolean, reported_post_id uuid, reported_message_id uuid, reported_server_id uuid, scope_server_id uuid, reported_post_preview text, reported_post_ap_id text, reported_post_url text, reported_post_is_sensitive boolean, reported_post_content_warning text, reported_post_is_deleted boolean, reported_message_preview text, reported_message_is_deleted boolean, content_snapshot jsonb, forward boolean, forwarded_at timestamp with time zone, federation_status text, server_forward jsonb, assigned_to uuid, assigned_username text, resolved_at timestamp with time zone, resolver_username text, resolution_note text, open_reports_on_target bigint, total_count bigint)	authenticated+service_role	client	rpc in src/services/ReportService.ts
 get_restricted_voice_channels	definer	SETOF uuid	authenticated+service_role	client	rpc in src/stores/useServerUsers.ts
@@ -490,6 +491,7 @@ guard_override_grants	invoker	trigger	service_role	trigger	trigger public.channe
 guard_post_client_write	invoker	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (a_posts_client_write_guard)
 guard_profile_client_write	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (a_profiles_client_write_guard)
 guard_server_client_write	invoker	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_client_write_guard)
+guard_server_federation_instance_closed	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_instance_federation_guard)
 guard_server_role_hierarchy	invoker	trigger	service_role	trigger	trigger public.server_roles BEFORE INSERT/DELETE/UPDATE (a_server_roles_hierarchy_guard)
 guard_server_settings_default_role	invoker	trigger	service_role	trigger	trigger public.server_settings BEFORE INSERT/UPDATE (a_server_settings_default_role_guard)
 guard_server_sound_client_write	definer	trigger	service_role	trigger	trigger public.server_sounds BEFORE INSERT/UPDATE (guard_server_sound_client_write)
@@ -533,13 +535,16 @@ index_message	definer	trigger	service_role	trigger	trigger public.messages AFTER
 index_message_row	definer	void	service_role	trigger	called by index_message
 initialize_user_encryption	definer	jsonb	anon+authenticated+service_role	http anon	nothing references it
 insert_ap_activity_outbound	definer	uuid	anon+authenticated+service_role	client	rpc in src/services/federation/FederationActivityService.ts
+instance_config_flag	invoker	boolean	service_role	client, trigger	called by get_public_federation_settings, instance_federation_switches
+instance_federation_closed	definer	boolean	service_role	trigger	called by apply_instance_federation_switches, guard_server_federation_instance_closed
+instance_federation_switches	definer	record	service_role	client, trigger	rpc in federation-backend/src/services/FederationSwitches.ts
 instance_keepouts_from_copy_bans	definer	integer	-	nothing	nothing references it
 instance_lift_keepout	definer	boolean	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_media_hidden_servers	definer	SETOF uuid	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_remote_server_people	definer	TABLE(profile_id uuid, username text, display_name text, avatar_url text, standing text, reason text, set_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_remote_servers	definer	TABLE(server_id uuid, name text, icon text, host text, ap_id text, local_members integer, blocked boolean, media_hidden boolean, reason text, set_by uuid, set_at timestamp with time zone, kept_out integer)	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_remove_member	definer	jsonb	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
-instance_server_member_leaves	definer	boolean	service_role	client	called by instance_remove_member, instance_set_server_blocked
+instance_server_member_leaves	definer	boolean	service_role	client, trigger	called by apply_instance_federation_switches, instance_remove_member, instance_set_server_blocked
 instance_set_server_blocked	definer	jsonb	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_set_server_media_hidden	definer	boolean	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
@@ -828,6 +833,7 @@ trigger_create_default_server_structure	definer	trigger	anon+authenticated+servi
 trigger_domain_suspension_removals	definer	trigger	service_role	trigger	trigger public.federated_instances AFTER INSERT/UPDATE (z_federated_instances_suspension_removals)
 trigger_extract_post_hashtags	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (extract_hashtags_on_post_insert)
 trigger_federation_closed_removals	definer	trigger	service_role	trigger	trigger public.servers AFTER UPDATE (z_servers_federation_closed_removals)
+trigger_instance_federation_switches	definer	trigger	service_role	trigger	trigger public.instance_config AFTER INSERT/DELETE/UPDATE (z_instance_config_federation_switches)
 trigger_queue_block_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_blocks AFTER DELETE (trigger_federate_block_delete), public.user_blocks BEFORE INSERT (trigger_federate_block)
 trigger_queue_category_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER DELETE (trigger_federate_category_delete), public.channel_categories BEFORE INSERT/UPDATE (trigger_federate_category)
 trigger_queue_channel_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channels AFTER DELETE (trigger_federate_channel_delete), public.channels BEFORE INSERT/UPDATE (trigger_federate_channel)

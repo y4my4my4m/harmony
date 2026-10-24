@@ -472,13 +472,18 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
   },
 
-  // This instance's staff removed the user from a server hosted elsewhere, or blocked it here.
+  // This instance's staff removed the user from a server hosted elsewhere or blocked it here, or
+  // the instance stopped federating (action 'federation_off').
   server_instance_removed: {
     title: (data: any) => i18n.global.t(
-      data.action === 'block' ? 'instanceServer.notice.blockedTitle' : 'instanceServer.notice.removedTitle',
+      data.action === 'block' ? 'instanceServer.notice.blockedTitle'
+        : data.action === 'federation_off' ? 'instanceServer.notice.federationOffTitle'
+          : 'instanceServer.notice.removedTitle',
       { server: noticeServerName(data), instance: getInstanceDomain() }),
     message: (data: any) => data.action === 'block'
       ? i18n.global.t('instanceServer.notice.blockedMessage', { server: noticeServerName(data) })
+      : data.action === 'federation_off'
+        ? i18n.global.t('instanceServer.notice.federationOffMessage', { server: noticeServerName(data), instance: getInstanceDomain() })
       : data.reason
         ? i18n.global.t('federation.memberRemovedNotice.reason', { reason: data.reason })
         : i18n.global.t('federation.memberRemovedNotice.noReason'),

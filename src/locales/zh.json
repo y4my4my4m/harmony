@@ -719,7 +719,8 @@
       "disableConsequence4": "将他们从此服务器移除，并告知每个人原因",
       "disableConsequence5": "即使重新启用联邦，他们也不会自动回来，需通过邀请重新加入",
       "disableConfirm": "停用联邦"
-    }
+    },
+    "federationInstanceOff": "此实例的联邦已关闭；由其管理员重新开启。"
   },
   "channel": {
     "create": "创建频道",
@@ -5095,7 +5096,15 @@
       "maxPersonalEmojis": "每位用户的个人表情数",
       "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
       "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
-      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。"
+      "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。",
+      "federationOutbound": "向其他实例发送",
+      "federationOutboundHint": "关闭：不向其他实例投递任何内容。",
+      "federationInbound": "从其他实例接收",
+      "federationInboundHint": "关闭：拒绝其他实例的投递和签名请求。个人资料和服务器仍可读取。",
+      "federationClosedWarning": "两者都关闭时联邦将关闭：此处的每个服务器停止联邦并移除来自其他实例的成员，此处的成员退出托管在别处的服务器。",
+      "federationCloseConfirmTitle": "关闭联邦？",
+      "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
+      "federationCloseConfirm": "关闭联邦"
     },
     "activityLog": {
       "configKeys": {
@@ -7221,7 +7230,9 @@
     "notice": {
       "removedTitle": "{instance} 管理团队已将你移出 {server}。",
       "blockedTitle": "{instance} 管理团队在 {instance} 上屏蔽了 {server}；你已离开它。",
-      "blockedMessage": "{server} 在其他实例上没有任何变化。"
+      "blockedMessage": "{server} 在其他实例上没有任何变化。",
+      "federationOffTitle": "{instance} 已停止联邦；你已退出 {server}。",
+      "federationOffMessage": "{server} 在其他实例上继续存在。{instance} 恢复联邦后你可以再次加入。"
     },
     "join": {
       "blocked": "{instance} 管理团队已在 {instance} 上屏蔽此服务器。",
