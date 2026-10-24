@@ -36,6 +36,7 @@ import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
 import { channelMessageActivity, withParentObjectIds } from './channelMessageActivity.js';
+import { groupAuthorOf } from './groupAuthor.js';
 
 const router = Router();
 
@@ -478,7 +479,8 @@ router.get(
       .from('messages')
       .select(`
         *,
-        author:profiles!messages_user_id_fkey(id, username, federated_id, display_name, avatar_url)
+        author:profiles!messages_user_id_fkey(id, username, federated_id, display_name, avatar_url),
+        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
       `)
       .eq('channel_id', channelId)
       .eq('is_deleted', false);
@@ -497,7 +499,12 @@ router.get(
         const note = systemNote(message, { hostDomain, serverId, channelId, people });
         return note ? [note] : [];
       }
-      if (!message.author?.username) return [];
+      // A bot, webhook or bridged message is the Group's (groupAuthor.ts).
+      if (!message.author?.username) {
+        const groupAuthor = message.bot_id ? groupAuthorOf(message, message.bot) : null;
+        if (!groupAuthor) return [];
+        message.groupAuthor = groupAuthor;
+      }
       // The Note live delivery sends: attachments, emoji, threads, encryption.
       return [channelMessageActivity(message, server, channelId, channel.name, 'Create', mediaAudience).object];
     });
@@ -662,7 +669,8 @@ router.get(
         .select(`
           *,
           channel:channels!messages_channel_id_fkey(id, name),
-          author:profiles!messages_user_id_fkey(id, username, federated_id, display_name)
+          author:profiles!messages_user_id_fkey(id, username, federated_id, display_name),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
         .or(inHistory)
         .eq('is_deleted', false)
@@ -694,7 +702,12 @@ router.get(
           object: { ...note, 'harmony:channelName': message.channel?.name, 'harmony:serverId': serverId },
         }];
       }
-      if (!message.author?.username) return [];
+      // A bot, webhook or bridged message is the Group's (groupAuthor.ts).
+      if (!message.author?.username) {
+        const groupAuthor = message.bot_id ? groupAuthorOf(message, message.bot) : null;
+        if (!groupAuthor) return [];
+        message.groupAuthor = groupAuthor;
+      }
       // The Create live delivery sends: attachments, emoji, threads, encryption.
       return [channelMessageActivity(message, server, message.channel?.id, message.channel?.name, 'Create', mediaAudience)];
     });

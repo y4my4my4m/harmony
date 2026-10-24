@@ -15,6 +15,7 @@ import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js
 import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { withoutPollParts } from '../utils/polls.js';
 import { HARMONY_NS } from './harmonyContext.js';
+import { HARMONY_AUTHOR, type GroupAuthor } from './groupAuthor.js';
 
 /**
  * The Note id of a stored message: the id another instance sent it under (metadata.ap_id), else
@@ -61,11 +62,14 @@ export function channelMessageActivity(
   const messageUrl = messageObjectId(message.id, message.metadata?.ap_id);
   const activityId = `${serverUrl}/activities/${message.id}`;
 
-  if (!message.author?.username) {
+  // A bot, webhook or bridged message (message.groupAuthor, groupAuthor.ts) is the Group's.
+  const groupAuthor: GroupAuthor | undefined = message.groupAuthor ?? undefined;
+  if (!message.author?.username && !groupAuthor) {
     throw new Error(`Cannot create activity: message ${message.id} has no valid author`);
   }
-  const authorApId = message.author.federated_id || 
-    `https://${hostDomain}/users/${message.author.username}`;
+  const authorApId = groupAuthor
+    ? serverUrl
+    : message.author.federated_id || `https://${hostDomain}/users/${message.author.username}`;
 
   const contentHtml = convertContentToHTML(message.content);
   const tags = extractActivityPubTags(message.content);
@@ -139,6 +143,7 @@ export function channelMessageActivity(
       type: 'Note',
       id: messageUrl,
       attributedTo: authorApId,
+      ...(groupAuthor ? { [HARMONY_AUTHOR]: groupAuthor } : {}),
       content: contentHtml,
       'harmony:rawContent': federatedContent, // Send transformed content with absolute emoji URLs
       

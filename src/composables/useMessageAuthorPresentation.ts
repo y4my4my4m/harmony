@@ -11,7 +11,9 @@ import {
 import {
   getBridgeSource,
   getHarmonyProfileUserId,
+  getRemoteAuthor,
   getWebhookAuthor,
+  isBotAuthorMessage,
   isBridgedAuthorMessage,
 } from '@/utils/messageAuthor'
 
@@ -65,6 +67,8 @@ export function useMessageAuthorPresentation(
     }
     const webhook = getWebhookAuthor(msg)
     if (webhook) return webhook.name
+    const remote = getRemoteAuthor(msg)
+    if (remote) return remote.name
     if (msg.bot_id) {
       const bot = botCache.get(msg.bot_id)
       return bot?.display_name || bot?.username || 'Bot'
@@ -82,6 +86,8 @@ export function useMessageAuthorPresentation(
     }
     const webhook = getWebhookAuthor(msg)
     if (webhook) return webhook.avatar_url || '/default_avatar.webp'
+    const remote = getRemoteAuthor(msg)
+    if (remote) return remote.avatar_url || '/default_avatar.webp'
     if (msg.bot_id) return botCache.get(msg.bot_id)?.avatar_url || '/default_avatar.webp'
     if (msg.user_id) return getUserAvatarUrl(msg.user_id).value
     return '/default_avatar.webp'
@@ -99,7 +105,7 @@ export function useMessageAuthorPresentation(
       }
       return '#5865F2'
     }
-    if (msg.bot_id) return BOT_NAME_COLOR
+    if (isBotAuthorMessage(msg)) return BOT_NAME_COLOR
     if (msg.user_id) {
       const serverId = toValue(options?.serverId)
       const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, msg.user_id) : null

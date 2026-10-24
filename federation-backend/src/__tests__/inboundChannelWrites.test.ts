@@ -376,6 +376,74 @@ describe('shared inbox: channel messages', () => {
   })
 })
 
+describe('shared inbox: bot, webhook and bridged messages on a copy', () => {
+  const GROUP_R = `https://remote.test/servers/${R}`
+  const webhook = { kind: 'webhook', id: 'w1', name: 'Deployer', icon: 'https://remote.test/storage/v1/object/public/avatars/d.png' }
+  const authored = (actor: string, author: unknown, extra: Row = {}) => note(actor, R, CR, { 'harmony:author': author, ...extra })
+
+  it('stores the Group\'s webhook message with no profile and the author it names', async () => {
+    await P.processCreate(authored(GROUP_R, webhook))
+    const [row] = newMessages()
+    expect(row).toMatchObject({ channel_id: CR, federation_status: 'completed' })
+    expect(row.user_id ?? null).toBeNull()
+    expect(row.bot_id ?? null).toBeNull()
+    expect(row.metadata.remote_author).toEqual({ kind: 'webhook', id: 'w1', name: 'Deployer', avatar_url: webhook.icon })
+    expect(row.id).toBe(row.metadata.ap_id.split('/').pop())
+  })
+
+  it('stores a bridged Discord person as the bridge does on the host', async () => {
+    await P.processCreate(authored(GROUP_R, { kind: 'bridge', id: 'discord:42', name: 'Dana', source: 'discord' }))
+    const [row] = newMessages()
+    expect(row.metadata.discord_user).toEqual({ id: '42', username: 'Dana', display_name: 'Dana', avatar_url: null })
+    expect(row.metadata.bridge_source).toBe('discord')
+  })
+
+  it('refuses a Group author from a member, a Group on another host, or a relay', async () => {
+    await P.processCreate(authored(HOSTU, webhook))
+    await P.processCreate(authored(`https://evil.test/servers/${R}`, webhook))
+    await P.processCreate(note(GROUP_R, S1, C1, { 'harmony:author': webhook }))
+    expect(newMessages()).toHaveLength(0)
+  })
+
+  it('refuses a malformed author', async () => {
+    await P.processCreate(authored(GROUP_R, { kind: 'webhook', id: 'w1' }))
+    await P.processCreate(authored(GROUP_R, { kind: 'person', id: 'x', name: 'X' }))
+    await P.processCreate(authored(GROUP_R, { kind: 'bridge', id: '42', name: 'Dana' }))
+    expect(newMessages()).toHaveLength(0)
+  })
+
+  it('takes a thread of the channel, and drops a message naming one it lacks or one elsewhere', async () => {
+    const MIRROR_THREAD = '00000000-0000-4000-8000-0000000000e4'
+    tables.threads!.push({ id: MIRROR_THREAD, channel_id: CR, ap_id: `https://remote.test/threads/${MIRROR_THREAD}`, created_by: 'hostu', name: 'builds' })
+    await P.processCreate(authored(GROUP_R, webhook, { 'harmony:threadId': `https://remote.test/threads/${MIRROR_THREAD}` }))
+    expect(newMessages()).toHaveLength(1)
+    expect(newMessages()[0].thread_id).toBe(MIRROR_THREAD)
+    await P.processCreate(authored(GROUP_R, webhook, { 'harmony:threadId': 'https://remote.test/threads/00000000-0000-4000-8000-00000000dead' }))
+    await P.processCreate(authored(GROUP_R, webhook, { 'harmony:threadId': `https://peer.test/threads/${T1}` }))
+    expect(newMessages()).toHaveLength(1)
+  })
+
+  it('drops an icon that is not https', async () => {
+    await P.processCreate(authored(GROUP_R, { ...webhook, icon: 'javascript:alert(1)' }))
+    expect(newMessages()[0].metadata.remote_author.avatar_url).toBeNull()
+  })
+
+  it('takes the Group\'s edit and refuses a member\'s', async () => {
+    const create = authored(GROUP_R, webhook)
+    await P.processCreate(create)
+    const edit = (actor: string, text: string, author: unknown = webhook) => P.processUpdate({
+      type: 'Update',
+      actor,
+      object: { ...create.object, content: `<p>${text}</p>`, updated: FRESH, 'harmony:author': author },
+    })
+    await edit(HOSTU, 'member edit')
+    expect(JSON.stringify(newMessages()[0].content)).not.toContain('member edit')
+    await edit(GROUP_R, 'group edit', { ...webhook, name: 'Deployer 2' })
+    expect(JSON.stringify(newMessages()[0].content)).toContain('group edit')
+    expect(newMessages()[0].metadata.remote_author.name).toBe('Deployer 2')
+  })
+})
+
 describe('shared inbox: reactions', () => {
   const like = (actor: string, target: string) =>
     P.processLike({ type: 'Like', actor, id: `${new URL(actor).origin}/likes/${++seq}`, object: target })

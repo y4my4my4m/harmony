@@ -48,6 +48,8 @@
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts),
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
+// Bot, webhook and bridged messages are the Group's Notes with harmony:author, each way
+// (cases/groupAuthored.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
@@ -104,6 +106,7 @@ import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
 import { caseSystemEvents } from './cases/systemEvents.ts'
+import { caseGroupAuthored } from './cases/groupAuthored.ts'
 import { caseCopyAuthority } from './cases/copyAuthority.ts'
 import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
@@ -2843,6 +2846,14 @@ async function main() {
       }),
     })
     await caseSystemEvents({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET), assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseGroupAuthored({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
       bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET), assert, eq,
       ids: {

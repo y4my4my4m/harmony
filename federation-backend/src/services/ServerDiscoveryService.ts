@@ -29,6 +29,7 @@ import {
 import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
+import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
 
 const router = Router();
 
@@ -1072,6 +1073,48 @@ router.get(
         };
       };
 
+      // A bot, webhook or bridged message, by the Group with its author in harmony:author
+      // (groupAuthor.ts): cached with no profile and no bot, its author in metadata.
+      const groupAuthoredItem = async (note: any, groupAuthor: GroupAuthor) => {
+        const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
+        const content = Array.isArray(note['harmony:rawContent'])
+          ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
+          : [{ type: 'text', text: noteContentText(note.content) }];
+        const createdAt = note.published || new Date().toISOString();
+        const metadata = { ap_id: note.id, is_remote: true, federated: true, ...remoteAuthorMetadata(groupAuthor) };
+        if (messageUuid) {
+          try {
+            const { data: inserted } = await supabase
+              .from('messages')
+              .upsert({
+                id: messageUuid,
+                channel_id: channelId,
+                content,
+                created_at: createdAt,
+                updated_at: note.updated || createdAt,
+                metadata,
+                encrypted: note['harmony:encrypted'] === true,
+                federation_status: 'skipped',
+              }, { onConflict: 'id', ignoreDuplicates: true })
+              .select('id')
+              .maybeSingle();
+            if (inserted) changed++;
+          } catch (cacheError: any) {
+            logger.debug(`Could not cache bot message: ${cacheError.message}`);
+          }
+        }
+        return {
+          id: messageUuid || note.id,
+          content,
+          created_at: note.published,
+          updated_at: note.updated,
+          metadata,
+          author: null,
+          encrypted: note['harmony:encrypted'] === true,
+          reactions: [],
+        };
+      };
+
       // Transform messages using the cached author data
       const messages = await Promise.all(items.map(async (item: any) => {
         const activity = item.type === 'Create' ? item : { object: item };
@@ -1081,7 +1124,9 @@ router.get(
 
         if (fromGroup(note)) {
           const sys = systemNoticeOf(note);
-          return sys ? systemNoticeItem(note, sys) : null;
+          if (sys) return systemNoticeItem(note, sys);
+          const groupAuthor = parseGroupAuthor(note[HARMONY_AUTHOR]);
+          return groupAuthor ? groupAuthoredItem(note, groupAuthor) : null;
         }
 
         const authorUrl = note.attributedTo || activity.actor;
