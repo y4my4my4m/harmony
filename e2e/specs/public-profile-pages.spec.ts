@@ -134,6 +134,15 @@ test.beforeAll(async () => {
   posts.image = await post('Tonight over the harbour', 'public', 40, {
     media_attachments: [{ type: 'Image', url: photo, mediaType: 'image/webp', name: 'harbour.webp', description: 'Lights over a dark harbour' }],
   })
+  // Reactions: two people with 🔥, one with an image emoji of another instance.
+  for (const row of [
+    { user_id: reader.id, custom_emoji_content: '🔥' },
+    { user_id: staff.id, custom_emoji_content: '🔥' },
+    { user_id: author.id, custom_emoji_content: 'blobcat@remote.test', metadata: { remote_emoji_url: 'https://emoji.remote.test/blobcat.png' } },
+  ]) {
+    const { error: reacted } = await admin.from('post_interactions').insert({ post_id: posts.image, interaction_type: 'emoji_reaction', ...row })
+    if (reacted) throw new Error(`reaction ${row.custom_emoji_content}: ${reacted.message}`)
+  }
   posts.unlisted = await post('Unlisted note to self', 'unlisted', 30)
   posts.text = await post('Hello from the public page', 'public', 20)
 
@@ -196,6 +205,13 @@ test('a visitor opens a post and sees its image', async ({ browser }) => {
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth), { timeout: 15000 }).toBeGreaterThan(0)
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /\/storage\/v1\/object\/public\/user_media\/.+2\.webp$/)
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0)
+
+  // Its reactions: each emoji with its count, an image emoji as its image, nobody's name.
+  const reactions = card.getByRole('list', { name: 'Reactions' }).getByRole('listitem')
+  await expect(reactions).toHaveCount(2)
+  await expect(reactions.filter({ hasText: '🔥' })).toContainText('2')
+  await expect(reactions.locator('img.reaction-emoji')).toHaveAttribute('alt', ':blobcat@remote.test:')
+  await expect(card.getByRole('list', { name: 'Reactions' })).not.toContainText(reader.username)
 
   // /posts/<id> is the same page, canonical at /@<name>/<id>.
   await page.goto(`/posts/${posts.image}`)

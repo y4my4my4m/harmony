@@ -471,6 +471,22 @@ function truncate(text: string, max: number): string {
   return chars.length > max ? chars.slice(0, max - 1).join('') + '…' : text;
 }
 
+/** Emoji reactions as harmony:reactions entries: an image emoji names its image in tag.icon. */
+function reactionsHtml(reactions: unknown, ctx: PageContext): string {
+  if (!Array.isArray(reactions)) return '';
+  const items = reactions.slice(0, 64).map((r: any) => {
+    const content = typeof r?.content === 'string' ? r.content.slice(0, 128) : '';
+    const count = Number(r?.count);
+    if (!content || !Number.isFinite(count) || count < 1) return '';
+    const image = safeHttpUrl(r?.tag?.icon?.url);
+    const face = image
+      ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(content)}" class="reaction-emoji" loading="lazy">`
+      : `<span class="reaction-emoji">${escapeHtml(content)}</span>`;
+    return `<li class="reaction" title="${escapeHtml(content)}">${face}<span class="reaction-count">${formatCount(count, ctx.locale)}</span></li>`;
+  }).join('');
+  return items ? `<ul class="reactions" aria-label="${escapeHtml(ctx.t.reactions)}">${items}</ul>` : '';
+}
+
 export interface PostCardOptions {
   /** 'page': the post's own page (h1-level, full date); 'feed': a profile's list. */
   level: 'page' | 'feed';
@@ -517,6 +533,7 @@ export function renderPostCard(post: any, ctx: PageContext, opts: PostCardOption
   </header>
   ${replyTo}
   ${warned}
+  ${reactionsHtml(post.reactions, ctx)}
   <div class="stats-bar">${stat('reply', ctx.t.replies, post.replies_count)}${stat('boost', ctx.t.boosts, post.reblogs_count)}${stat('heart', ctx.t.favourites, post.favorites_count)}${flags.length ? `<span class="flags">${flags.join('')}</span>` : ''}</div>
 </article>`;
 }

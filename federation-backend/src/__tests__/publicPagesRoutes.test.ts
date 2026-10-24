@@ -327,3 +327,41 @@ describe('GET /posts/:postId', () => {
     expect(res.headers.location).toBe(`/login?redirect=${encodeURIComponent(`/posts/${POST_ID}`)}`)
   })
 })
+
+describe('reactions on a post page', () => {
+  const rows = [
+    { emoji_id: null, emoji_name: null, emoji_url: null, custom_emoji_content: '🔥', reaction_count: 3, user_reactions: null, current_user_reacted: false },
+    { emoji_id: null, emoji_name: null, emoji_url: 'https://remote.test/emoji/blobcat.png', custom_emoji_content: 'blobcat@remote.test', reaction_count: 1, user_reactions: null, current_user_reacted: false },
+    { emoji_id: null, emoji_name: null, emoji_url: null, custom_emoji_content: '❤️', reaction_count: 5, user_reactions: null, current_user_reacted: false },
+  ]
+  const reactions = (data: unknown, error: unknown = null) => rpc.mockImplementation(async (name: string) =>
+    name === 'get_post_emoji_reactions' ? { data, error } : { data: postPage(), error: null })
+
+  it('shows each emoji with its count and an image emoji as its image; hearts count as favourites', async () => {
+    reactions(rows)
+    const res = await get(`/@alice/${POST_ID}`)
+    expect(res.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith('get_post_emoji_reactions', { p_post_id: POST_ID, p_user_limit: 0 })
+    expect(res.text).toContain('<ul class="reactions" aria-label="Reactions">')
+    expect(res.text).toContain('<li class="reaction" title="🔥"><span class="reaction-emoji">🔥</span><span class="reaction-count">3</span></li>')
+    expect(res.text).toContain('<img src="https://remote.test/emoji/blobcat.png" alt=":blobcat@remote.test:" class="reaction-emoji"')
+    expect(res.text).not.toContain('title="❤️"')
+  })
+
+  it('reads no reactions for a post from another instance', async () => {
+    rpc.mockImplementation(async () => ({ data: postPage({}, { is_local: false, author: { ...alice, is_local: false, domain: 'remote.test' } }), error: null }))
+    const res = await get(`/posts/${POST_ID}`)
+    expect(res.status).toBe(200)
+    expect(rpc).not.toHaveBeenCalledWith('get_post_emoji_reactions', expect.anything())
+    expect(res.text).not.toContain('class="reactions"')
+  })
+
+  it('renders the page without reactions when they cannot be read', async () => {
+    reactions(null, { message: 'down' })
+    const res = await get(`/@alice/${POST_ID}`)
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('hello world')
+    expect(res.text).not.toContain('class="reactions"')
+  })
+})
+

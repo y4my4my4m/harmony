@@ -278,6 +278,10 @@ details[open] > summary .toggle .less { display: inline; }
 .quote time { color: var(--muted); font-size: 12px; }
 .stats-bar { display: flex; align-items: center; gap: 18px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
 .stat { display: inline-flex; align-items: center; gap: 6px; }
+.reactions { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.reaction { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1; }
+.reaction-emoji { font-size: 16px; }
+img.reaction-emoji { width: auto; height: 18px; max-width: 54px; object-fit: contain; }
 .stat-count { font-variant-numeric: tabular-nums; }
 .flags { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; }
 .visibility-badge { display: inline-flex; align-items: center; gap: 4px; }

@@ -380,3 +380,28 @@ describe('handOffScript', () => {
     expect(script).not.toContain('</script>');
   });
 });
+
+describe('post reactions', () => {
+  const page = (reactions: unknown) => renderPostPage({
+    id: POST_ID, created_at: '2026-10-01T12:00:00Z', content: [{ type: 'text', text: 'hi' }], visibility: 'public',
+    is_local: true, media_attachments: [], replies_count: 0, reblogs_count: 0, favorites_count: 0, reactions,
+  }, alice, ctx);
+
+  it('escapes what other instances named their emoji and keeps only http images', () => {
+    const html = page([
+      { content: '<script>alert(1)</script>', count: 2 },
+      { content: ':evil:', count: 1, tag: { type: 'Emoji', name: ':evil:', icon: { type: 'Image', url: 'javascript:alert(1)' } } },
+    ]);
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('<span class="reaction-emoji">:evil:</span>');
+  });
+
+  it('skips entries without content or a positive count, and lists nothing without reactions', () => {
+    expect(page([{ content: '', count: 3 }, { content: '🔥', count: 0 }, { content: '🔥', count: 'x' }])).not.toContain('class="reactions"');
+    expect(page(undefined)).not.toContain('class="reactions"');
+    expect(page([])).not.toContain('class="reactions"');
+  });
+});
+
