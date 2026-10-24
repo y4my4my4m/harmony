@@ -78,6 +78,9 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 15. **Outgoing webhooks.**
     Events (messages, members, reactions, moderation) sent as HTTP POSTs to a URL that a server's managers or a bot owner register, as an alternative to the bot gateway's WebSocket. Delivery runs in a separate worker through the job queue, with retries and backoff, endpoints disabled after repeated failures, and a delivery log. Each delivery is signed with HMAC-SHA256 over a timestamp and the body using a per-webhook secret (shown once, rotatable), carries an id for de-duplication, goes over HTTPS only without following redirects, and is refused for private, loopback and metadata addresses resolved at connect time. A payload holds only what its owner may read: no end-to-end encrypted or direct-message content. Channel webhooks that post into a channel already exist; the unused `bot_webhooks` table is replaced. Planned for 1.9.0.
 
+17. **Reactions on public post pages.**
+    The pages visitors see without signing in (`/@name/post`, `/posts/<id>`) show reply, boost and favorite counts but no emoji reactions: `public_page_post` reads no reactions and the page renders none. Each emoji with its count, custom emoji as their image, as the Note's `harmony:reactions` already carries them (who reacted stays in the app). Planned for 1.9.0.
+
 ## v2.0 (under discussion)
 
 Scoped for discussion; nothing here is committed. Each item names the public specification it depends on and the condition for shipping.
