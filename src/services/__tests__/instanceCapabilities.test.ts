@@ -73,11 +73,26 @@ describe('checkInstanceVersion', () => {
   })
 
   it('says nothing to an instance on the app\'s release, and takes its capabilities', async () => {
-    answer({ version: '1.9.0', capabilities: ['encrypted-history'] })
+    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks'] })
     const m = await load({ ...STORED, version: '1.8.12', capabilities: [] })
     await m.checkInstanceVersion('1.9.0')
     expect(info).not.toHaveBeenCalled()
     expect(m.hasCapability('encrypted-history')).toBe(true)
+  })
+
+  it('says nothing to an older instance that lacks no capability the app knows', async () => {
+    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks'] })
+    const m = await load({ ...STORED, version: '1.9.0' })
+    await m.checkInstanceVersion('1.9.1')
+    expect(info).not.toHaveBeenCalled()
+  })
+
+  it('hides outgoing webhooks on an instance that does not list them', async () => {
+    answer({ version: '1.9.0', capabilities: ['encrypted-history'] })
+    const m = await load({ ...STORED, version: '1.9.0' })
+    await m.checkInstanceVersion('1.9.1')
+    expect(m.hasCapability('outgoing-webhooks')).toBe(false)
+    expect(info).toHaveBeenCalledTimes(1)
   })
 
   it('keeps what it knew when the instance does not answer', async () => {

@@ -198,7 +198,7 @@
       </section>
 
       <!-- Outgoing webhooks: the bot's events by HTTPS POST -->
-      <section class="settings-section">
+      <section v-if="hasCapability('outgoing-webhooks')" class="settings-section">
         <OutgoingWebhooksPanel :bot-id="detailBot.id" />
       </section>
 
@@ -430,6 +430,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
+import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'

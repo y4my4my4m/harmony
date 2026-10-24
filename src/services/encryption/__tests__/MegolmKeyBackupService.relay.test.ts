@@ -551,6 +551,18 @@ describe('receiving a fulfilled key', () => {
     expect(calls.filter(c => c.table === 'megolm_key_requests' && c.op === 'insert')).toHaveLength(0)
   })
 
+  it('a refused session key answering a pinned message holds off that message\'s request too', async () => {
+    service.pendingRequests.clear()
+    await service.handleFulfilledRequest(fulfilled({
+      encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY, message_id: 'm-pinned-9',
+    }))
+    const [held] = megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)
+    await megolmKeyBackupService.settleRelayedKey(held, false)
+
+    await megolmKeyBackupService.createKeyRequest(ROOM, SESSION, SENDER, { id: 'm-pinned-9', pinned: true })
+    expect(calls.filter(c => c.table === 'megolm_key_requests' && c.op === 'insert')).toHaveLength(0)
+  })
+
   it('the unlock sweep fetches every wrapper key at once and leaves relayed rows fulfilled', async () => {
     const OTHER_SESSION = 'b3RoZXItc2Vzc2lvbg=='
     fulfilledRows = [

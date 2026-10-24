@@ -7361,7 +7361,8 @@
       "disabled": "このインスタンスでは送信Webhookを作成できません。",
       "blockedDomain": "このインスタンスはそのドメインへ送信しません。",
       "limitUser": "このインスタンスの送信Webhookの上限に達しました。",
-      "tooSoon": "次のテストイベントまで数秒お待ちください。"
+      "tooSoon": "次のテストイベントまで数秒お待ちください。",
+      "urlTooSoon": "テストイベントを送信したばかりです。数秒待ってから新しいURLを保存してください。"
     },
     "notice": {
       "disabledTitle": "Webhook {name} はオフになりました",

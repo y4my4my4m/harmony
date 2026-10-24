@@ -71,6 +71,11 @@ describe('refusedWebhookUrl', () => {
       'https://[::1]/x', 'https://[::ffff:127.0.0.1]/x', 'https://0x7f000001/x', 'https://[fd00::1]/x',
     ]) expect(refusedWebhookUrl(url, false), url).toBe('an internal address')
     expect(refusedWebhookUrl('https://93.184.216.34/x', false)).toBeNull()
+    for (const url of ['https://1572395042/x', 'https://exa%6Dple.com/x', 'https://ｅxample.com/x', 'https://[2001:DB8:0::1]/x']) {
+      expect(refusedWebhookUrl(url, false), url).toBe('host not in canonical form')
+    }
+    expect(refusedWebhookUrl('https://Hooks.Example:8443/x', false)).toBeNull()
+    expect(refusedWebhookUrl('https://[2001:db8::1]/x', false)).toBeNull()
     expect(refusedWebhookUrl('http://127.0.0.1:9/x', true)).toBeNull()
   })
 })

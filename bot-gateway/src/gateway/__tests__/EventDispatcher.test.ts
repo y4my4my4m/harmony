@@ -1001,6 +1001,34 @@ describe('member and moderation events', () => {
     expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD', 'SERVER_MEMBER_REMOVE'])
   })
 
+  it('sends a change inside the re-read window once, however long it stays there', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      await (dispatcher as any).initializeMemberFeed()
+      db.tables.server_member_changes.push({ id: 8, server_id: SERVER_ID, user_id: MALLORY, change: 'join', created_at: at(T0 + 1) })
+      await (dispatcher as any).pollMemberChanges()
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await (dispatcher as any).pollMemberChanges()
+      expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends a kick inside the re-read window once, however long it stays there', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      db.tables.server_membership_events.push(
+        { id: 'k9', server_id: SERVER_ID, user_id: MALLORY, event_type: 'kick', created_at: new Date().toISOString() })
+      await (dispatcher as any).pollModerationEvents()
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await (dispatcher as any).pollModerationEvents()
+      expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_KICK'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reads past a full page of moderation events of one timestamp instead of stalling on it', async () => {
     const recent = new Date().toISOString()
     for (let i = 0; i < 205; i++) {

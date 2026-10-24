@@ -10,7 +10,9 @@ import { getStoredInstance, isTauriRuntime, refreshStoredInstance, type Instance
 import { getBuildInfo } from '@/utils/buildInfo'
 import { debug } from '@/utils/debug'
 
-export type Capability = 'encrypted-history'
+/** The capabilities this app knows; federation-backend config/capabilities.ts lists the server's. */
+export const KNOWN_CAPABILITIES = ['encrypted-history', 'outgoing-webhooks'] as const
+export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 
 const instance = ref<InstanceConfig | null>(getStoredInstance())
 const NOTICE_KEY = 'harmony.instance-version-notice'
@@ -35,7 +37,8 @@ export function isOlderVersion(a: string | undefined, b: string | undefined): bo
 
 /**
  * Native app start: refreshes the stored instance, then says once per instance version when
- * the instance runs an older release than the app.
+ * the instance runs an older release than the app and lacks a capability the app knows: a
+ * version gap with nothing hidden says nothing.
  */
 export async function checkInstanceVersion(appVersion: string = getBuildInfo().version): Promise<void> {
   if (!isTauriRuntime()) return
@@ -46,6 +49,7 @@ export async function checkInstanceVersion(appVersion: string = getBuildInfo().v
   if (refreshed) instance.value = refreshed
   const current = instance.value
   if (!current?.version || !isOlderVersion(current.version, appVersion)) return
+  if (KNOWN_CAPABILITIES.every((c) => current.capabilities?.includes(c))) return
   const seen = `${current.origin}@${current.version}`
   try {
     if (localStorage.getItem(NOTICE_KEY) === seen) return

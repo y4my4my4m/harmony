@@ -7361,7 +7361,8 @@
       "disabled": "Esta instancia no te permite crear webhooks salientes.",
       "blockedDomain": "Esta instancia no envía a ese dominio.",
       "limitUser": "Alcanzaste el límite de webhooks salientes de esta instancia.",
-      "tooSoon": "Espera unos segundos antes de enviar otro evento de prueba."
+      "tooSoon": "Espera unos segundos antes de enviar otro evento de prueba.",
+      "urlTooSoon": "Se acaba de enviar un evento de prueba. Espera unos segundos y guarda la nueva URL."
     },
     "notice": {
       "disabledTitle": "El webhook {name} se desactivó",

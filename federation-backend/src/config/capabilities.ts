@@ -9,6 +9,9 @@ export const CAPABILITIES = [
   // get_relayable_key_requests, set_channel_history_visibility, channel_encryption_settings
   // .history_visibility (20261028100001, 20261028200001).
   'encrypted-history',
+  // Outgoing webhooks and the instance's webhook settings: create_outgoing_webhook and the
+  // admin_* webhook RPCs (20261028600001).
+  'outgoing-webhooks',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

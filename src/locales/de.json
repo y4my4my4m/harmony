@@ -7361,7 +7361,8 @@
       "disabled": "Diese Instanz erlaubt dir keine ausgehenden Webhooks.",
       "blockedDomain": "Diese Instanz sendet nicht an diese Domain.",
       "limitUser": "Du hast das Limit dieser Instanz für ausgehende Webhooks erreicht.",
-      "tooSoon": "Warte ein paar Sekunden, bevor du ein weiteres Testereignis sendest."
+      "tooSoon": "Warte ein paar Sekunden, bevor du ein weiteres Testereignis sendest.",
+      "urlTooSoon": "Gerade wurde ein Testereignis gesendet. Warte ein paar Sekunden und speichere dann die neue URL."
     },
     "notice": {
       "disabledTitle": "Webhook {name} wurde ausgeschaltet",

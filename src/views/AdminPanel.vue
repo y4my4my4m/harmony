@@ -206,6 +206,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
@@ -265,7 +266,8 @@ const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 // outgoing webhooks (switching one off), federation read-only.
 const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam', 'webhooks']
 const visibleTabs = computed(() =>
-  isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
+  (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
+    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))

@@ -704,10 +704,12 @@ export class MegolmKeyBackupService {
 
     if (!accepted) {
       debug.warn(`Held ${key.scope} key for session ${key.sessionId.substring(0, 8)} does not decrypt it - refused`)
-      // The request's dedup slot is re-armed: the next miss asks again after KEY_REQUEST_RETRY_MS,
-      // not at once, so a wrong answer does not drive a request loop.
-      const dedupKey = key.scope === 'message' && key.messageId ? `${key.sessionId}#${key.messageId}` : key.sessionId
-      this.pendingRequests.set(dedupKey, { requestId: key.requestId, createdAt: Date.now() })
+      // The request's dedup slots are re-armed: the next miss asks again after KEY_REQUEST_RETRY_MS,
+      // not at once, so a wrong answer does not drive a request loop. A pinned message's request
+      // is keyed by the message whatever the scope of its answer; others by the session.
+      const rearmed = { requestId: key.requestId, createdAt: Date.now() }
+      this.pendingRequests.set(key.sessionId, rearmed)
+      if (key.messageId) this.pendingRequests.set(`${key.sessionId}#${key.messageId}`, rearmed)
       await supabase
         .from('megolm_key_requests')
         .update({ status: 'expired' })

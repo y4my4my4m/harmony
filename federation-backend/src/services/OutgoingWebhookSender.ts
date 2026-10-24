@@ -46,6 +46,10 @@ export function refusedWebhookUrl(raw: string, allowLoopback = config.OUTGOING_W
   // An IP literal makes no lookup: connect.lookup never sees it.
   const literal = url.hostname.replace(/^\[|\]$/g, '');
   if (net.isIP(literal) && isBlockedAddress(literal) && !loopback) return 'an internal address';
+  // One spelling per host: the URL parser rewrites numeric, escaped, Unicode and IPv6 spellings,
+  // while blocked domains and the per-host rate key on the host as stored with the webhook.
+  const written = /^[a-z][a-z0-9+.-]*:\/\/(\[[^\]]*\]|[^/:?#]*)/i.exec(raw)?.[1]?.toLowerCase();
+  if (written !== url.hostname) return 'host not in canonical form';
   if (url.protocol === 'https:') return null;
   if (url.protocol === 'http:' && loopback) return null;
   return 'not https';

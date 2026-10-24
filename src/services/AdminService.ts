@@ -1158,12 +1158,16 @@ class AdminService {
     outboundEnabled?: boolean;
   }): Promise<boolean> {
     try {
-      const { error } = await supabase.rpc('update_federation_settings', {
+      const args = {
         p_user_id: settings.userId,
         p_federation_enabled: settings.federationEnabled ?? null,
         p_inbound_enabled: settings.inboundEnabled ?? null,
         p_outbound_enabled: settings.outboundEnabled ?? null
-      });
+      };
+      // p_switches (20261028500001): without it the server keeps the stored switches. A server
+      // before 1.9.0 lacks the parameter and writes them unasked.
+      let { error } = await supabase.rpc('update_federation_settings', { ...args, p_switches: true });
+      if (error?.code === 'PGRST202') ({ error } = await supabase.rpc('update_federation_settings', args));
 
       if (error) {
         debug.error('Failed to update federation settings:', error);

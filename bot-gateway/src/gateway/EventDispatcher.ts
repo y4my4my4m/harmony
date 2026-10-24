@@ -127,14 +127,17 @@ export class EventDispatcher {
   private moderationPollingInterval: NodeJS.Timeout | null = null
   private pollsInFlight = new Set<string>()
   // Highest server_member_changes.id handled; null until read at start. Ids are taken at insert
-  // and seen at commit, so each read goes MEMBER_ID_OVERLAP behind it; memberSeen drops repeats.
+  // and seen at commit, so each read goes MEMBER_ID_OVERLAP behind it; memberSeen holds the ids
+  // handled inside that window and is pruned as the window moves, not by age: a row stays in the
+  // window for as long as fewer than MEMBER_ID_OVERLAP newer rows exist.
   private memberCursor: number | null = null
   // Rows at or below the start position predate this process and are not sent.
   private memberFloor = 0
-  private memberSeen = new TTLCache<number, true>(10_000, 10 * 60 * 1000)
-  // server_membership_events: created_at of the newest handled row, and the ids inside the overlap.
+  private memberSeen = new Set<number>()
+  // server_membership_events: created_at of the newest handled row, and the ids handled inside the
+  // 5 s re-read window with their created_at (ms), pruned as the window moves.
   private moderationCursor = new Date()
-  private moderationSeen = new TTLCache<string, true>(10_000, 10 * 60 * 1000)
+  private moderationSeen = new Map<string, number>()
   private lastProcessedTimestamp: Date = new Date()
   private lastReactionTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
@@ -290,14 +293,16 @@ export class EventDispatcher {
     for (const row of data ?? []) {
       const id = Number(row.id)
       if (id > this.memberCursor) this.memberCursor = id
-      if (id <= this.memberFloor || this.memberSeen.get(id)) continue
-      this.memberSeen.set(id, true)
+      if (id <= this.memberFloor || this.memberSeen.has(id)) continue
+      this.memberSeen.add(id)
       const type = row.change === 'join' ? 'SERVER_MEMBER_ADD' : 'SERVER_MEMBER_REMOVE'
       const botIds = (await this.resolveBotPermissions(row.server_id)).map((r) => r.bot_id)
       if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {
         await this.dispatch(type, row.server_id, null, botIds, await this.memberPayload(row.server_id, row.user_id))
       }
     }
+    const below = this.memberCursor - MEMBER_ID_OVERLAP
+    for (const id of this.memberSeen) if (id <= below) this.memberSeen.delete(id)
   }
 
   /**
@@ -307,6 +312,15 @@ export class EventDispatcher {
    * one timestamp is drained by id.
    */
   private async pollModerationEvents() {
+    try {
+      await this.readModerationEvents()
+    } finally {
+      const below = this.moderationCursor.getTime() - 5_000
+      for (const [id, at] of this.moderationSeen) if (at < below) this.moderationSeen.delete(id)
+    }
+  }
+
+  private async readModerationEvents() {
     const columns = 'id, server_id, user_id, event_type, created_at'
     const types = ['kick', 'ban', 'unban']
     let from = new Date(this.moderationCursor.getTime() - 5_000).toISOString()
@@ -349,8 +363,8 @@ export class EventDispatcher {
     for (const row of rows) {
       const createdAt = new Date(row.created_at)
       if (createdAt > this.moderationCursor) this.moderationCursor = createdAt
-      if (this.moderationSeen.get(row.id)) continue
-      this.moderationSeen.set(row.id, true)
+      if (this.moderationSeen.has(row.id)) continue
+      this.moderationSeen.set(row.id, createdAt.getTime())
       const type = row.event_type === 'kick' ? 'SERVER_MEMBER_KICK' : row.event_type === 'ban' ? 'SERVER_BAN_ADD' : 'SERVER_BAN_REMOVE'
       const botIds = (await this.resolveBotPermissions(row.server_id)).map((r) => r.bot_id)
       if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {

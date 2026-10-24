@@ -8,7 +8,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(22);
+SELECT plan(24);
 
 DELETE FROM public.instance_config
  WHERE config_key IN ('enable_inbound_federation', 'enable_outbound_federation', 'federation_settings');
@@ -96,6 +96,13 @@ VALUES ('f1930000-0000-0000-0000-0000000000b1', 'New 193', '11111111-0000-0000-0
 SELECT is((SELECT federation_enabled FROM public.servers WHERE id = 'f1930000-0000-0000-0000-0000000000b1'),
           false, 'a server created while closed starts with federation off');
 SELECT lives_ok($q$SELECT public.apply_instance_federation_switches()$q$, 'closing again changes nothing');
+
+-- An admin panel before 1.9.0 sends both switches on with every save.
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT ok(public.update_federation_settings('11111111-0000-0000-0000-000000000001', true, true, true),
+          'an older admin panel saves');
+SELECT tests.clear_authentication();
+SELECT ok(public.instance_federation_closed(), 'without p_switches the switches stay as stored: still closed');
 
 -- Reopening. --------------------------------------------------------------------------------------
 SELECT pg_temp.set_flag('enable_inbound_federation', 'true');

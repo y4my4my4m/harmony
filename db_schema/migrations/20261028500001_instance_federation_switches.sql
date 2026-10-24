@@ -19,6 +19,10 @@
 --   a_servers_instance_federation_guard
 --        while closed, a local server's federation does not turn on, and a server created then
 --        starts with it off.
+--   update_federation_settings(..., p_switches)
+--        writes the switches only with p_switches true. Admin panels before 1.9.0 show both
+--        switches on whatever is stored and send them with every save: without the flag, saving
+--        any setting from an older app reopened a closed instance.
 
 BEGIN;
 
@@ -264,8 +268,75 @@ CREATE TRIGGER a_servers_instance_federation_guard
     EXECUTE FUNCTION public.guard_server_federation_instance_closed();
 
 -- ---------------------------------------------------------------------------
+-- Admin RPC
+-- ---------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.update_federation_settings(uuid, boolean, boolean, boolean, boolean);
+
+CREATE OR REPLACE FUNCTION public.update_federation_settings(
+    p_user_id uuid,
+    p_federation_enabled boolean DEFAULT NULL,
+    p_inbound_enabled boolean DEFAULT NULL,
+    p_outbound_enabled boolean DEFAULT NULL,
+    p_auto_accept_follows boolean DEFAULT NULL,
+    p_switches boolean DEFAULT false
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_settings jsonb;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Authentication required';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.auth_user_id = auth.uid() AND p.is_admin = true) THEN
+        RAISE EXCEPTION 'Unauthorized: Admin role required';
+    END IF;
+
+    SELECT COALESCE(c.config_value::jsonb, '{}'::jsonb) INTO v_settings
+      FROM public.instance_config c WHERE c.config_key = 'federation_settings';
+    v_settings := COALESCE(v_settings, '{}'::jsonb);
+
+    IF p_switches THEN
+        IF p_federation_enabled IS NOT NULL THEN
+            v_settings := v_settings || jsonb_build_object('federation_enabled', p_federation_enabled);
+        END IF;
+        IF p_inbound_enabled IS NOT NULL THEN
+            v_settings := v_settings || jsonb_build_object('enable_inbound_federation', p_inbound_enabled);
+            INSERT INTO public.instance_config (config_key, config_value, updated_at)
+            VALUES ('enable_inbound_federation', to_jsonb(p_inbound_enabled), now())
+            ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now();
+        END IF;
+        IF p_outbound_enabled IS NOT NULL THEN
+            v_settings := v_settings || jsonb_build_object('enable_outbound_federation', p_outbound_enabled);
+            INSERT INTO public.instance_config (config_key, config_value, updated_at)
+            VALUES ('enable_outbound_federation', to_jsonb(p_outbound_enabled), now())
+            ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now();
+        END IF;
+    END IF;
+    IF p_auto_accept_follows IS NOT NULL THEN
+        v_settings := v_settings || jsonb_build_object('federation_auto_accept_follows', p_auto_accept_follows);
+    END IF;
+
+    INSERT INTO public.instance_config (config_key, config_value, description, updated_at)
+    VALUES ('federation_settings', v_settings, 'Federation configuration settings', now())
+    ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now();
+    RETURN true;
+END;
+$$;
+
+COMMENT ON FUNCTION public.update_federation_settings IS
+'Update federation settings. Admin role required. NULL keeps a value; the switches are written only with p_switches true.';
+
+-- ---------------------------------------------------------------------------
 -- Grants
 -- ---------------------------------------------------------------------------
+
+REVOKE ALL ON FUNCTION public.update_federation_settings(uuid, boolean, boolean, boolean, boolean, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_federation_settings(uuid, boolean, boolean, boolean, boolean, boolean) TO authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.instance_config_flag(jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.instance_federation_switches() FROM PUBLIC, anon, authenticated;

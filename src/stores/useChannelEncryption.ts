@@ -64,8 +64,7 @@ export const useChannelEncryptionStore = defineStore('channelEncryption', {
         channelIds.length > 0
           ? supabase
               .from('channel_encryption_settings')
-              // An instance before 1.9.0 has no history_visibility column: the native app asks
-              // only for what it has.
+              // history_visibility is read where the instance enforces it (key relay, 1.9.0).
               .select(hasCapability('encrypted-history')
                 ? 'channel_id, messages_encrypted, voice_encrypted, history_visibility, enabled_at, enabled_by'
                 : 'channel_id, messages_encrypted, voice_encrypted, enabled_at, enabled_by')

@@ -243,7 +243,8 @@ DECLARE
     v_mode text := public.room_history_visibility(p_room_id);
     v_joined timestamp with time zone;
 BEGIN
-    IF v_mode = 'all' THEN
+    -- A member's own session: their other devices answer for it, whatever the setting.
+    IF v_mode = 'all' OR (p_sender IS NOT NULL AND p_sender = p_user_id) THEN
         RETURN 'session';
     END IF;
 
@@ -282,20 +283,28 @@ GRANT EXECUTE ON FUNCTION public.megolm_key_scope_allowed(text, text, uuid, uuid
 
 -- room_joined_at decides which history a member reads: a client never sets the join time. An
 -- insert takes now(), an update keeps the stored value. Pinned, not refused: clients writing
--- whole rows keep working.
+-- whole rows keep working. Accepting a pending membership and adding a participant back are
+-- joins, whoever writes them.
 CREATE OR REPLACE FUNCTION public.pin_membership_join_time()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_client boolean := current_user IN ('authenticated', 'anon') AND pg_trigger_depth() <= 1;
 BEGIN
-    IF current_user NOT IN ('authenticated', 'anon') OR pg_trigger_depth() > 1 THEN
-        RETURN NEW;
-    END IF;
     IF TG_TABLE_NAME = 'user_servers' THEN
-        NEW.created_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.created_at END;
+        IF TG_OP = 'UPDATE' AND NEW.status = 'accepted' AND OLD.status IS DISTINCT FROM 'accepted' THEN
+            NEW.created_at := now();
+        ELSIF v_client THEN
+            NEW.created_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.created_at END;
+        END IF;
     ELSE
-        NEW.joined_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.joined_at END;
+        IF TG_OP = 'UPDATE' AND OLD.left_at IS NOT NULL AND NEW.left_at IS NULL THEN
+            NEW.joined_at := now();
+        ELSIF v_client THEN
+            NEW.joined_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.joined_at END;
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -459,10 +468,9 @@ BEGIN
         RAISE EXCEPTION 'the request names no message' USING ERRCODE = '22023';
     END IF;
 
-    v_allowed := CASE WHEN v_request.requester_user_id = v_request.sender_user_id THEN 'session'
-                      ELSE public.megolm_key_scope_allowed(v_request.room_id, v_request.session_id,
-                                                           v_request.sender_user_id, v_request.requester_user_id,
-                                                           v_request.message_id) END;
+    v_allowed := public.megolm_key_scope_allowed(v_request.room_id, v_request.session_id,
+                                                 v_request.sender_user_id, v_request.requester_user_id,
+                                                 v_request.message_id);
     IF v_allowed IS NULL OR (p_key_scope = 'session' AND v_allowed <> 'session') THEN
         RAISE EXCEPTION 'the requester may not receive this key' USING ERRCODE = '42501';
     END IF;
@@ -518,9 +526,8 @@ BEGIN
            r.message_id, r.message_index, a.scope, r.created_at
       FROM public.megolm_key_requests r
       CROSS JOIN LATERAL (
-            SELECT CASE WHEN r.requester_user_id = r.sender_user_id THEN 'session'
-                        ELSE public.megolm_key_scope_allowed(r.room_id, r.session_id, r.sender_user_id,
-                                                             r.requester_user_id, r.message_id) END AS scope
+            SELECT public.megolm_key_scope_allowed(r.room_id, r.session_id, r.sender_user_id,
+                                                   r.requester_user_id, r.message_id) AS scope
       ) a
      WHERE r.status = 'pending'
        AND r.created_at > now() - interval '30 days'

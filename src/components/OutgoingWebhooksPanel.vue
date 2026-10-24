@@ -26,7 +26,7 @@
     <form v-if="form" class="ow-form" data-testid="outgoing-webhook-form" @submit.prevent="submitForm">
       <label class="ow-field">
         <span class="ow-field-label">{{ t('outgoingWebhooks.nameLabel') }}</span>
-        <input v-model="form.name" type="text" class="ow-input" maxlength="80" required data-testid="outgoing-webhook-name" />
+        <input ref="nameInput" v-model="form.name" type="text" class="ow-input" maxlength="80" required data-testid="outgoing-webhook-name" />
       </label>
       <label class="ow-field">
         <span class="ow-field-label">{{ t('outgoingWebhooks.urlLabel') }}</span>
@@ -56,7 +56,7 @@
         </label>
       </fieldset>
       <div class="ow-actions">
-        <button type="button" class="ow-btn" @click="form = null">{{ t('outgoingWebhooks.cancel') }}</button>
+        <button type="button" class="ow-btn" @click="closeForm">{{ t('outgoingWebhooks.cancel') }}</button>
         <button
           type="submit"
           class="ow-btn ow-btn-primary"
@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -337,13 +337,34 @@ async function load() {
   }
 }
 
+// The button that opened the form unmounts (New webhook) or sits below it (Edit): focus moves into
+// the form, and back to that button when the form closes.
+const nameInput = ref<HTMLInputElement | null>(null)
+let formOpener: HTMLElement | null = null
+
+function openForm(value: NonNullable<typeof form.value>) {
+  formOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  form.value = value
+  void nextTick(() => nameInput.value?.focus())
+}
+
+function closeForm() {
+  form.value = null
+  const opener = formOpener
+  formOpener = null
+  void nextTick(() => {
+    if (opener?.isConnected) opener.focus()
+    else (document.querySelector('[data-testid="outgoing-webhook-new"]') as HTMLElement | null)?.focus()
+  })
+}
+
 function startCreate() {
   revealed.value = null
-  form.value = { mode: 'create', name: t('outgoingWebhooks.defaultName'), url: '', events: ['MESSAGE_CREATE'] }
+  openForm({ mode: 'create', name: t('outgoingWebhooks.defaultName'), url: '', events: ['MESSAGE_CREATE'] })
 }
 
 function startEdit(webhook: OutgoingWebhook) {
-  form.value = { mode: 'edit', id: webhook.id, name: webhook.name, url: webhook.url, events: [...webhook.events] }
+  openForm({ mode: 'edit', id: webhook.id, name: webhook.name, url: webhook.url, events: [...webhook.events] })
 }
 
 function toggleEvent(event: string, on: boolean) {
@@ -351,12 +372,24 @@ function toggleEvent(event: string, on: boolean) {
   form.value.events = on ? [...new Set([...form.value.events, event])] : form.value.events.filter(e => e !== event)
 }
 
+function canonicalUrl(raw: string): string {
+  try {
+    return new URL(raw).href
+  } catch {
+    return raw
+  }
+}
+
 async function submitForm() {
   const current = form.value
   if (!current || busy.value || !owner.value) return
   busy.value = true
   try {
-    const fields = { name: current.name.trim(), url: current.url.trim(), events: current.events }
+    // A changed URL goes as the URL parser writes it (punycode, lowercase host, canonical IP):
+    // the server takes one spelling per host. An unchanged one goes as stored.
+    const url = current.url.trim()
+    const stored = current.mode === 'edit' ? webhooks.value.find(w => w.id === current.id)?.url : undefined
+    const fields = { name: current.name.trim(), url: url === stored ? url : canonicalUrl(url), events: current.events }
     if (current.mode === 'create') {
       const created = await createOutgoingWebhook(owner.value, fields)
       webhooks.value = [...webhooks.value, withoutSecret(created)]
@@ -368,10 +401,11 @@ async function submitForm() {
       toast.success(t('outgoingWebhooks.updated'))
       pollWhileUnverified()
     }
-    form.value = null
+    closeForm()
   } catch (error) {
     debug.error('Failed to save an outgoing webhook:', error)
-    toast.error(t(outgoingWebhookErrorKey(error)))
+    const key = outgoingWebhookErrorKey(error)
+    toast.error(t(current.mode === 'edit' && key === 'outgoingWebhooks.errors.tooSoon' ? 'outgoingWebhooks.errors.urlTooSoon' : key))
   } finally {
     busy.value = false
   }

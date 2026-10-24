@@ -7361,7 +7361,8 @@
       "disabled": "此实例不允许你创建外发 Webhook。",
       "blockedDomain": "此实例不向该域名发送。",
       "limitUser": "你已达到此实例的外发 Webhook 上限。",
-      "tooSoon": "请稍等几秒再发送下一个测试事件。"
+      "tooSoon": "请稍等几秒再发送下一个测试事件。",
+      "urlTooSoon": "刚刚发送了测试事件。请稍等几秒再保存新的 URL。"
     },
     "notice": {
       "disabledTitle": "Webhook {name} 已关闭",

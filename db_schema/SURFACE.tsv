@@ -903,7 +903,7 @@ update_channel_webhook	p_id uuid, p_name text, p_avatar_url text	jsonb	definer	p
 update_encryption_timestamp		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 update_endpoint_health	p_endpoint_url text, p_domain text, p_success boolean, p_http_status integer, p_error_message text	void	definer	public, extensions, pg_temp	service_role	client
 update_federation_health	p_instance_domain text, p_success boolean, p_latency_ms numeric, p_error text	void	definer	public, pg_temp	service_role	client
-update_federation_settings	p_user_id uuid, p_federation_enabled boolean, p_inbound_enabled boolean, p_outbound_enabled boolean, p_auto_accept_follows boolean	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
+update_federation_settings	p_user_id uuid, p_federation_enabled boolean, p_inbound_enabled boolean, p_outbound_enabled boolean, p_auto_accept_follows boolean, p_switches boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 update_follow_counts		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 update_group_icon	conversation_uuid uuid, user_profile_id uuid, icon_path text	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 update_group_name	conversation_uuid uuid, user_profile_id uuid, new_name text	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client

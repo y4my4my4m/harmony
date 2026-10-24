@@ -7361,7 +7361,8 @@
       "disabled": "Cette instance ne vous permet pas de créer des webhooks sortants.",
       "blockedDomain": "Cette instance n’envoie pas vers ce domaine.",
       "limitUser": "Vous avez atteint la limite de webhooks sortants de cette instance.",
-      "tooSoon": "Attendez quelques secondes avant d’envoyer un autre événement de test."
+      "tooSoon": "Attendez quelques secondes avant d’envoyer un autre événement de test.",
+      "urlTooSoon": "Un événement de test vient d’être envoyé. Attendez quelques secondes, puis enregistrez la nouvelle URL."
     },
     "notice": {
       "disabledTitle": "Le webhook {name} a été désactivé",

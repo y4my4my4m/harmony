@@ -76,7 +76,7 @@
           </thead>
           <tbody>
             <tr v-for="w in webhooks" :key="w.id" :data-testid="`webhooks-admin-${w.id}`">
-              <td>{{ w.name }}</td>
+              <td :id="`webhooks-admin-name-${w.id}`">{{ w.name }}</td>
               <td>
                 {{ w.bot_id ? t('adminWebhooks.ownerBot', { name: w.bot_name ?? '—' }) : t('adminWebhooks.ownerServer', { name: w.server_name ?? '—' }) }}
                 <span v-if="w.owner_username" class="wa-muted">@{{ w.owner_username }}</span>
@@ -91,6 +91,7 @@
                   class="wa-btn"
                   :disabled="busy"
                   :data-testid="`webhooks-admin-toggle-${w.id}`"
+                  :aria-describedby="`webhooks-admin-name-${w.id}`"
                   @click="toggle(w)"
                 >
                   {{ w.is_active ? t('adminWebhooks.turnOff') : t('adminWebhooks.turnOn') }}

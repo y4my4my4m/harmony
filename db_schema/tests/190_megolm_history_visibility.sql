@@ -8,7 +8,7 @@
 --   mallory  in no server
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(60);
+SELECT plan(63);
 
 -- Setup, as postgres. -------------------------------------------------------------------
 INSERT INTO auth.users (id, instance_id, aud, role, email)
@@ -281,6 +281,29 @@ SELECT ok((SELECT created_at > now() - interval '2 days' FROM public.user_server
 SELECT ok((SELECT joined_at > now() - interval '2 days' FROM public.conversation_participants
             WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001'),
   'nor to a group conversation');
+
+-- Joins: an accepted pending membership and a participant added back join now. -------------
+UPDATE public.user_servers SET status = 'pending'
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005';
+UPDATE public.user_servers SET status = 'accepted'
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005';
+SELECT is((SELECT created_at FROM public.user_servers
+            WHERE user_id = '19000000-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005'),
+  now(), 'an accepted membership joins when it is accepted');
+UPDATE public.conversation_participants SET left_at = now() - interval '1 hour'
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001';
+UPDATE public.conversation_participants SET left_at = NULL
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001';
+SELECT is((SELECT joined_at FROM public.conversation_participants
+            WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001'),
+  now(), 'a participant added back joins again');
+
+-- A sender who rejoined still has their own earlier sessions.
+UPDATE public.user_servers SET created_at = now()
+ WHERE user_id = '11111111-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005';
+SELECT is(public.megolm_key_scope_allowed('66666666-0000-0000-0000-000000000006', 's190old',
+            '11111111-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000001', NULL),
+  'session', 'a sender''s own session from before their current join is theirs');
 
 SELECT throws_ok($q$UPDATE public.megolm_key_requests SET key_scope = 'everything'
                     WHERE id = '19030000-0000-0000-0000-000000000002'$q$,

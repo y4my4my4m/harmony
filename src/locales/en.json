@@ -7357,7 +7357,8 @@
       "disabled": "This instance does not let you create outgoing webhooks.",
       "blockedDomain": "This instance does not send to that domain.",
       "limitUser": "You have reached this instance's limit of outgoing webhooks.",
-      "tooSoon": "Wait a few seconds before sending another test event."
+      "tooSoon": "Wait a few seconds before sending another test event.",
+      "urlTooSoon": "A test event went out a moment ago. Wait a few seconds, then save the new URL."
     },
     "notice": {
       "disabledTitle": "Webhook {name} was turned off",

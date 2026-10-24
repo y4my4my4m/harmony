@@ -903,7 +903,7 @@ update_channel_webhook	definer	jsonb	authenticated+service_role	client	rpc in sr
 update_encryption_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_encryption_settings BEFORE UPDATE (update_conversation_encryption_settings_timestamp), public.server_encryption_settings BEFORE UPDATE (update_server_encryption_settings_timestamp)
 update_endpoint_health	definer	void	service_role	client	rpc in federation-backend/src/activitypub/DeliveryQueue.ts
 update_federation_health	definer	void	service_role	client	rpc in federation-backend/src/activitypub/DeliveryQueue.ts, federation-backend/src/services/PerformanceMonitor.ts
-update_federation_settings	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
+update_federation_settings	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts
 update_follow_counts	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/DELETE/UPDATE (trg_update_follow_counts)
 update_group_icon	definer	jsonb	authenticated+service_role	client	rpc in src/utils/groupIconUtils.ts
 update_group_name	definer	jsonb	authenticated+service_role	client	rpc in src/components/dm/GroupSettingsModal.vue

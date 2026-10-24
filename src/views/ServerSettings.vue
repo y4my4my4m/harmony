@@ -256,7 +256,7 @@
           </template>
 
           <OutgoingWebhooksPanel
-            v-if="activeSection === 'outgoing-webhooks' && permissions.canManageWebhooks"
+            v-if="activeSection === 'outgoing-webhooks' && permissions.canManageWebhooks && hasCapability('outgoing-webhooks')"
             :server-id="serverId"
           />
 
@@ -274,6 +274,7 @@
 
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
@@ -459,7 +460,7 @@ const availableSections = computed(() => {
     ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },
     // list_outgoing_webhooks requires MANAGE_WEBHOOKS on a local server.
-    ...(p.canManageWebhooks ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel') }] : []),
+    ...(p.canManageWebhooks && hasCapability('outgoing-webhooks') ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel') }] : []),
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),
     { id: 'advanced', label: t('server.advancedSettings') }
