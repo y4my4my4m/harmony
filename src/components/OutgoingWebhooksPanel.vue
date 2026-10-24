@@ -227,6 +227,7 @@ const POLL_MS = 5_000
 const POLL_LIMIT = 24
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let polls = 0
+let disposed = false
 
 const owner = computed<OutgoingWebhookOwner | null>(() =>
   props.botId ? { botId: props.botId } : props.serverId ? { serverId: props.serverId } : null)
@@ -280,7 +281,7 @@ function stopPolling() {
 /** Reads the list again while a webhook waits for its first 2xx. */
 function pollWhileUnverified() {
   const waiting = webhooks.value.some(w => w.is_active && !w.verified_at)
-  if (!waiting) {
+  if (disposed || !waiting) {
     stopPolling()
     return
   }
@@ -288,12 +289,16 @@ function pollWhileUnverified() {
   polls = 0
   pollTimer = setInterval(async () => {
     polls += 1
-    if (polls > POLL_LIMIT || !owner.value) {
+    const polled = owner.value
+    if (polls > POLL_LIMIT || !polled) {
       stopPolling()
       return
     }
     try {
-      webhooks.value = (await listOutgoingWebhooks(owner.value)).map(withoutSecret)
+      const list = (await listOutgoingWebhooks(polled)).map(withoutSecret)
+      // A list read for an owner the panel no longer shows is dropped.
+      if (disposed || owner.value !== polled) return
+      webhooks.value = list
     } catch (error) {
       debug.error('Failed to refresh outgoing webhooks:', error)
     }
@@ -485,7 +490,10 @@ watch(owner, () => {
   void load()
 }, { immediate: true })
 
-onBeforeUnmount(stopPolling)
+onBeforeUnmount(() => {
+  disposed = true
+  stopPolling()
+})
 </script>
 
 <style scoped>

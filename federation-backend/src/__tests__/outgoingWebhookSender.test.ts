@@ -64,6 +64,15 @@ describe('refusedWebhookUrl', () => {
     expect(refusedWebhookUrl('https://u:p@hooks.example/', false)).toBe('credentials in the URL')
     expect(refusedWebhookUrl('nonsense', false)).toBe('not a URL')
   })
+
+  it('refuses an internal IP literal, which no lookup sees', () => {
+    for (const url of [
+      'https://127.0.0.1/x', 'https://10.0.0.5:8443/x', 'https://169.254.169.254/latest',
+      'https://[::1]/x', 'https://[::ffff:127.0.0.1]/x', 'https://0x7f000001/x', 'https://[fd00::1]/x',
+    ]) expect(refusedWebhookUrl(url, false), url).toBe('an internal address')
+    expect(refusedWebhookUrl('https://93.184.216.34/x', false)).toBeNull()
+    expect(refusedWebhookUrl('http://127.0.0.1:9/x', true)).toBeNull()
+  })
 })
 
 describe('guardedLookup', () => {

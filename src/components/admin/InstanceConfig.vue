@@ -280,6 +280,7 @@
           <input
             type="checkbox"
             v-model="config.federation.enableOutbound"
+            :disabled="!switchesLoaded"
             aria-describedby="federation-outbound-hint"
             data-testid="federation-outbound-toggle"
           />
@@ -293,6 +294,7 @@
           <input
             type="checkbox"
             v-model="config.federation.enableInbound"
+            :disabled="!switchesLoaded"
             aria-describedby="federation-inbound-hint"
             data-testid="federation-inbound-toggle"
           />
@@ -689,6 +691,8 @@ const { t } = useI18n()
 const { confirm } = useConfirmDialog()
 // The switches as last loaded or saved: turning both off from here closes federation.
 const savedFederation = ref({ inbound: true, outbound: true })
+// The switches were read; unread, they are neither shown as editable nor saved.
+const switchesLoaded = ref(false)
 
 const loadingStates = ref({ trendingRefresh: false })
 
@@ -789,6 +793,7 @@ const loadInstanceConfig = async () => {
       if (cfg.federation) {
         config.value.federation = { ...config.value.federation, ...cfg.federation }
         savedFederation.value = { inbound: cfg.federation.enableInbound, outbound: cfg.federation.enableOutbound }
+        switchesLoaded.value = cfg.federation.federationSwitchesLoaded === true
       }
       if (cfg.webrtc) {
         config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
@@ -855,7 +860,7 @@ const saveConfig = async () => {
   try {
     const userId = authStore.session.user.id
     const { enableInbound, enableOutbound } = config.value.federation
-    const closing = !enableInbound && !enableOutbound
+    const closing = switchesLoaded.value && !enableInbound && !enableOutbound
       && (savedFederation.value.inbound || savedFederation.value.outbound)
     if (closing && !(await confirm({
       title: t('admin.instance.federationCloseConfirmTitle'),
@@ -864,18 +869,22 @@ const saveConfig = async () => {
       dangerAction: true,
     }))) return
     
-    const fedSuccess = await adminService.updateFederationSettings({
-      userId,
-      inboundEnabled: enableInbound,
-      outboundEnabled: enableOutbound,
-      federationEnabled: enableInbound || enableOutbound
-    })
-
-    if (!fedSuccess) {
-      toast.error('Failed to save federation settings')
-      return
+    // Only switches that were read and changed are written.
+    const switchesChanged = switchesLoaded.value
+      && (enableInbound !== savedFederation.value.inbound || enableOutbound !== savedFederation.value.outbound)
+    if (switchesChanged) {
+      const fedSuccess = await adminService.updateFederationSettings({
+        userId,
+        inboundEnabled: enableInbound,
+        outboundEnabled: enableOutbound,
+        federationEnabled: enableInbound || enableOutbound
+      })
+      if (!fedSuccess) {
+        toast.error('Failed to save federation settings')
+        return
+      }
+      savedFederation.value = { inbound: enableInbound, outbound: enableOutbound }
     }
-    savedFederation.value = { inbound: enableInbound, outbound: enableOutbound }
 
     await adminService.setInstanceConfigs({
       max_server_size: config.value.chat.maxServerSize,

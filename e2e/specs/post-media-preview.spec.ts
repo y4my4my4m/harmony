@@ -1,7 +1,8 @@
 // Journey: a post shows a picture once. A GIF from the GIF picker is a link in the text, drawn
 // inline; the backend's preview of that link (media-only, titled with the host) drew a second
 // copy as a card. A post's attachment linked in its own text drew a card beside the gallery.
-// A link to a page keeps its card.
+// A link to a page keeps its card, and so does a GIF link beside an attachment: the gallery
+// takes media links out of the text, the card is what shows it.
 //
 // The stack runs no federation backend: previews are written into post metadata as its
 // enrichment writes them.
@@ -11,7 +12,7 @@ import { adminClient, createUser, deleteUser, dismissAnnouncements, signIn, type
 
 const admin = adminClient()
 let author: SpecUser
-const ids: Record<'gif' | 'attachment' | 'page', string> = { gif: '', attachment: '', page: '' }
+const ids: Record<'gif' | 'attachment' | 'gifBesideAttachment' | 'page', string> = { gif: '', attachment: '', gifBesideAttachment: '', page: '' }
 
 const GIF = 'https://static.klipy.test/ii/abc/de/fg/old-man-yells.gif'
 const PHOTO = 'https://media.preview.test/photos/cloud.png'
@@ -48,6 +49,11 @@ test.beforeAll(async () => {
     { [PHOTO]: preview(PHOTO, { title: host(PHOTO), siteName: host(PHOTO), image: PHOTO, mediaOnly: true }) },
     { media_attachments: [{ type: 'image', url: PHOTO, description: 'a cloud' }] },
   )
+  ids.gifBesideAttachment = await seedPost(
+    [{ type: 'text', text: 'cloud and a reaction ' }, { type: 'url', url: GIF, preview: true }],
+    { [GIF]: preview(GIF, { title: host(GIF), siteName: host(GIF), image: GIF, mediaOnly: true }) },
+    { media_attachments: [{ type: 'image', url: PHOTO, description: 'a cloud' }] },
+  )
   ids.page = await seedPost(
     [{ type: 'text', text: 'read this ' }, { type: 'url', url: PAGE, preview: true }],
     { [PAGE]: preview(PAGE, { title: 'Old man yells at cloud', description: 'A newspaper headline', siteName: 'News', image: PHOTO }) },
@@ -67,7 +73,7 @@ async function openPost(page: Page, id: string) {
   return post
 }
 
-test('a GIF or attachment shows once; a page link keeps its card', async ({ page }) => {
+test('a GIF or attachment shows once; a page link, or a GIF beside an attachment, keeps its card', async ({ page }) => {
   test.setTimeout(180_000)
   await page.route('https://*.preview.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/gif', body: PIXEL }))
   await page.route('https://static.klipy.test/**', (route) => route.fulfill({ status: 200, contentType: 'image/gif', body: PIXEL }))
@@ -83,6 +89,11 @@ test('a GIF or attachment shows once; a page link keeps its card', async ({ page
   const attachment = await openPost(page, ids.attachment)
   await expect(attachment.locator('.media-gallery')).toHaveCount(1)
   await expect(attachment.locator('.post-link-preview')).toHaveCount(0)
+
+  const beside = await openPost(page, ids.gifBesideAttachment)
+  await expect(beside.locator('.media-gallery')).toHaveCount(1)
+  await expect(beside.locator('.post-link-preview')).toHaveCount(1)
+  await expect(beside.locator(`.post-link-preview img[src="${GIF}"]`)).toHaveCount(1)
 
   const article = await openPost(page, ids.page)
   const card = article.locator('.post-link-preview')

@@ -525,8 +525,7 @@ function isStorageTransformRequest(url) {
 }
 
 self.addEventListener('fetch', (event) => {
-  // Only GET responses are cached. Intercepting other methods gains nothing and puts them
-  // under the 5 s API timeout below, which turns a slower POST into a synthetic 503.
+  // Only GET responses are cached; other methods pass through.
   if (event.request.method !== 'GET') {
     return
   }
@@ -562,8 +561,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Link-preview media: video byte ranges, and redirects whose lookup can outlast the
-  // 5 s API timeout below.
+  // Link-preview media: video byte ranges and redirects pass through.
   if (requestUrl.pathname.startsWith('/api/federation/embed-media')) {
     return
   }

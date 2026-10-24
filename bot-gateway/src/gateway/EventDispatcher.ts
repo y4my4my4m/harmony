@@ -94,6 +94,10 @@ const CHANGE_SEEN_MAX = 50_000
 // Ids already sent MESSAGE_DELETE, soft or hard.
 const DELETED_MAX = 10_000
 const DELETED_TTL_MS = 24 * 60 * 60 * 1000
+// server_member_changes ids re-read behind the cursor: joins and leaves committing out of id order.
+const MEMBER_ID_OVERLAP = 50
+const MODERATION_PAGE = 200
+const MODERATION_PAGES_PER_TICK = 10
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
 
 interface FeedPosition {
@@ -122,8 +126,12 @@ export class EventDispatcher {
   private memberPollingInterval: NodeJS.Timeout | null = null
   private moderationPollingInterval: NodeJS.Timeout | null = null
   private pollsInFlight = new Set<string>()
-  // Highest server_member_changes.id handled; null until read at start.
+  // Highest server_member_changes.id handled; null until read at start. Ids are taken at insert
+  // and seen at commit, so each read goes MEMBER_ID_OVERLAP behind it; memberSeen drops repeats.
   private memberCursor: number | null = null
+  // Rows at or below the start position predate this process and are not sent.
+  private memberFloor = 0
+  private memberSeen = new TTLCache<number, true>(10_000, 10 * 60 * 1000)
   // server_membership_events: created_at of the newest handled row, and the ids inside the overlap.
   private moderationCursor = new Date()
   private moderationSeen = new TTLCache<string, true>(10_000, 10 * 60 * 1000)
@@ -250,6 +258,7 @@ export class EventDispatcher {
       return
     }
     this.memberCursor = Number(data?.[0]?.id ?? 0)
+    this.memberFloor = this.memberCursor
   }
 
   private async memberPayload(serverId: string, userId: string | null) {
@@ -271,38 +280,75 @@ export class EventDispatcher {
     const { data, error } = await supabase
       .from('server_member_changes')
       .select('id, server_id, user_id, change, created_at')
-      .gt('id', this.memberCursor)
+      .gt('id', Math.max(0, this.memberCursor - MEMBER_ID_OVERLAP))
       .order('id', { ascending: true })
-      .limit(200)
+      .limit(200 + MEMBER_ID_OVERLAP)
     if (error) {
       console.error('Error polling member changes:', error.message)
       return
     }
     for (const row of data ?? []) {
+      const id = Number(row.id)
+      if (id > this.memberCursor) this.memberCursor = id
+      if (id <= this.memberFloor || this.memberSeen.get(id)) continue
+      this.memberSeen.set(id, true)
       const type = row.change === 'join' ? 'SERVER_MEMBER_ADD' : 'SERVER_MEMBER_REMOVE'
       const botIds = (await this.resolveBotPermissions(row.server_id)).map((r) => r.bot_id)
       if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {
         await this.dispatch(type, row.server_id, null, botIds, await this.memberPayload(row.server_id, row.user_id))
       }
-      this.memberCursor = Number(row.id)
     }
   }
 
-  /** SERVER_MEMBER_KICK, SERVER_BAN_ADD and SERVER_BAN_REMOVE from server_membership_events. */
+  /**
+   * SERVER_MEMBER_KICK, SERVER_BAN_ADD and SERVER_BAN_REMOVE from server_membership_events. Each
+   * tick reads from 5 s behind the cursor (rows commit after their created_at), in (created_at, id)
+   * order a page at a time, so a full window of seen rows never holds the cursor back; a page of
+   * one timestamp is drained by id.
+   */
   private async pollModerationEvents() {
-    const since = new Date(this.moderationCursor.getTime() - 5_000).toISOString()
-    const { data, error } = await supabase
-      .from('server_membership_events')
-      .select('id, server_id, user_id, event_type, created_at')
-      .gt('created_at', since)
-      .in('event_type', ['kick', 'ban', 'unban'])
-      .order('created_at', { ascending: true })
-      .limit(200)
-    if (error) {
-      console.error('Error polling moderation events:', error.message)
-      return
+    const columns = 'id, server_id, user_id, event_type, created_at'
+    const types = ['kick', 'ban', 'unban']
+    let from = new Date(this.moderationCursor.getTime() - 5_000).toISOString()
+    let after: string | null = null
+    let strict = false
+    for (let page = 0; page < MODERATION_PAGES_PER_TICK; page++) {
+      let query = supabase.from('server_membership_events').select(columns).in('event_type', types)
+      query = after !== null
+        ? query.eq('created_at', from).gt('id', after).order('id', { ascending: true })
+        : (strict ? query.gt('created_at', from) : query.gte('created_at', from))
+            .order('created_at', { ascending: true }).order('id', { ascending: true })
+      const { data, error } = await query.limit(MODERATION_PAGE)
+      if (error) {
+        console.error('Error polling moderation events:', error.message)
+        return
+      }
+      const rows = data ?? []
+      await this.dispatchModerationRows(rows)
+      const last = rows[rows.length - 1]
+      if (after !== null) {
+        if (rows.length < MODERATION_PAGE || !last) {
+          after = null
+          strict = true
+          continue
+        }
+        after = last.id
+        continue
+      }
+      if (rows.length < MODERATION_PAGE || !last) return
+      if (last.created_at === from) {
+        after = last.id
+        continue
+      }
+      from = last.created_at
+      strict = false
     }
-    for (const row of data ?? []) {
+  }
+
+  private async dispatchModerationRows(rows: Array<{ id: string; server_id: string; user_id: string | null; event_type: string; created_at: string }>) {
+    for (const row of rows) {
+      const createdAt = new Date(row.created_at)
+      if (createdAt > this.moderationCursor) this.moderationCursor = createdAt
       if (this.moderationSeen.get(row.id)) continue
       this.moderationSeen.set(row.id, true)
       const type = row.event_type === 'kick' ? 'SERVER_MEMBER_KICK' : row.event_type === 'ban' ? 'SERVER_BAN_ADD' : 'SERVER_BAN_REMOVE'
@@ -310,8 +356,6 @@ export class EventDispatcher {
       if (botIds.length > 0 || this.webhooks.wants(type, row.server_id, botIds)) {
         await this.dispatch(type, row.server_id, null, botIds, await this.memberPayload(row.server_id, row.user_id))
       }
-      const createdAt = new Date(row.created_at)
-      if (createdAt > this.moderationCursor) this.moderationCursor = createdAt
     }
   }
 
@@ -1082,6 +1126,7 @@ export class EventDispatcher {
     this.changeSeen.clear()
     this.deletedIds.clear()
     this.moderationSeen.clear()
+    this.memberSeen.clear()
     console.log('Event Dispatcher shut down')
   }
 }

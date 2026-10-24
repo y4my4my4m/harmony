@@ -48,17 +48,17 @@ vi.mock('@/services/AdminService', () => ({ adminService: admin }))
 
 const { default: InstanceConfig } = await import('../InstanceConfig.vue')
 
-function config(publicProfilePages: boolean) {
+function config(publicProfilePages: boolean, federationSwitchesLoaded = true) {
   return {
     chat: {},
-    federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, publicProfilePages },
+    federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded, publicProfilePages },
     webrtc: {},
     instance: { name: 'Harmony Test', registrationOpen: true },
   }
 }
 
-async function openFederationTab(publicProfilePages: boolean) {
-  admin.getInstanceConfig.mockResolvedValue(config(publicProfilePages))
+async function openFederationTab(publicProfilePages: boolean, federationSwitchesLoaded = true) {
+  admin.getInstanceConfig.mockResolvedValue(config(publicProfilePages, federationSwitchesLoaded))
   const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
   await flushPromises()
   const tab = wrapper.findAll('button.config-tab-btn').find((b) => b.text() === 'Federation')
@@ -146,5 +146,22 @@ describe('federation switches', () => {
     expect(admin.updateFederationSettings).toHaveBeenCalledWith(expect.objectContaining({
       inboundEnabled: false, outboundEnabled: true, federationEnabled: true,
     }))
+  })
+
+  it('writes no switch it did not change', async () => {
+    const wrapper = await openFederationTab(true)
+    await wrapper.get('[data-testid="public-profile-pages-toggle"]').setValue(false)
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.updateFederationSettings).not.toHaveBeenCalled()
+    expect(admin.setInstanceConfigs).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers and writes no switch it could not read', async () => {
+    const wrapper = await openFederationTab(true, false)
+    expect((wrapper.get('[data-testid="federation-inbound-toggle"]').element as HTMLInputElement).disabled).toBe(true)
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.updateFederationSettings).not.toHaveBeenCalled()
   })
 })

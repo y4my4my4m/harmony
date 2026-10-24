@@ -991,6 +991,25 @@ describe('member and moderation events', () => {
     expect(sent).toHaveLength(2)
   })
 
+  it('sends a join committed after a later one', async () => {
+    await (dispatcher as any).initializeMemberFeed()
+    db.tables.server_member_changes.push({ id: 9, server_id: SERVER_ID, user_id: MALLORY, change: 'join', created_at: at(T0 + 2) })
+    await (dispatcher as any).pollMemberChanges()
+    db.tables.server_member_changes.push({ id: 8, server_id: SERVER_ID, user_id: OWNER_ID, change: 'leave', created_at: at(T0 + 1) })
+    await (dispatcher as any).pollMemberChanges()
+    await (dispatcher as any).pollMemberChanges()
+    expect(sent.map((s) => s.event.t)).toEqual(['SERVER_MEMBER_ADD', 'SERVER_MEMBER_REMOVE'])
+  })
+
+  it('reads past a full page of moderation events of one timestamp instead of stalling on it', async () => {
+    const recent = new Date().toISOString()
+    for (let i = 0; i < 205; i++) {
+      db.tables.server_membership_events.push({ id: `e${String(i).padStart(3, '0')}`, server_id: SERVER_ID, user_id: MALLORY, event_type: 'ban', created_at: recent })
+    }
+    await (dispatcher as any).pollModerationEvents()
+    expect(sent.filter((s) => s.event.t === 'SERVER_BAN_ADD')).toHaveLength(205)
+  })
+
   it('sends a kick, a ban and an unban once each', async () => {
     const recent = new Date().toISOString()
     db.tables.server_membership_events.push(

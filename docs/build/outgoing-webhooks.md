@@ -36,7 +36,7 @@ A webhook takes the events you tick when you create or edit it.
 
 Every `data` carries `server_id`.
 
-Never sent: direct messages, end-to-end encrypted messages, and channels the webhook may not read. A bot's webhook follows the bot's [channel access](/build/permissions-rate-limits#how-permissions-are-computed); a server's webhook stops receiving a channel's events when its creator can no longer view the channel, and stops receiving anything when its creator no longer manages the server's webhooks.
+Never sent: direct messages, the content of end-to-end encrypted messages (their deletes and reactions are sent, as on the gateway), and channels the webhook may not read. A bot's webhook follows the bot's [channel access](/build/permissions-rate-limits#how-permissions-are-computed); a server's webhook stops receiving a channel's events when its creator can no longer view the channel, and stops receiving anything when its creator no longer manages the server's webhooks.
 
 ## The request
 
@@ -87,7 +87,7 @@ Verify the raw body before parsing it, and refuse a timestamp more than five min
 
 ## Verification
 
-A new webhook, or one whose URL changed, receives a `PING` first and no other event until its endpoint answers that `PING` with a 2xx. Until then its settings read "Waiting for a 2xx answer to the test event". A `PING` that fails is retried as any delivery is; **Send test event** sends another, at most one every 10 seconds.
+A new webhook, or one whose URL changed, receives a `PING` first and no other event until its endpoint answers that `PING` with a 2xx. Until then its settings read "Waiting for a 2xx answer to the test event". A `PING` that fails is retried as any delivery is; **Send test event** sends another, at most one every 10 seconds. Changing the URL ends every delivery still queued for the old one, and waits 10 seconds after the last `PING`.
 
 ## Delivery
 
@@ -103,8 +103,9 @@ A new webhook, or one whose URL changed, receives a `PING` first and no other ev
 ## Requirements and limits
 
 - **HTTPS only.** Redirects are not followed.
-- **Public addresses only.** A URL whose host resolves to a private, loopback, link-local or cloud metadata address is refused when the connection is made.
+- **Public addresses only.** A URL whose host is or resolves to a private, loopback, link-local or cloud metadata address is refused when the connection is made.
+- **Host names.** The host is written in ASCII (an internationalized domain in its `xn--` form) or as a bracketed IPv6 address, without a trailing dot or `%` escapes.
 - **Credentials.** A URL with a user name or password is refused.
 - **Size.** Five webhooks per bot and per server, and the instance's cap per person (10 by default) across the bots and servers they manage; names of 1 to 80 characters; URLs of at most 2048 characters.
-- **Instance settings.** The instance's staff choose who may create outgoing webhooks (everyone who manages a bot or a server's webhooks, staff only, or no one), the rates and the cap above, and blocked destination domains. They can turn any webhook off; its owner cannot turn it back on.
+- **Instance settings.** The instance's staff choose who may create outgoing webhooks (everyone who manages a bot or a server's webhooks, staff only, or no one), the rates and the cap above, and blocked destination domains. They can turn any webhook off; its owner cannot turn it back on. With outgoing webhooks set to no one, nothing is sent, deliveries already queued included.
 - **Instance requirement.** Outgoing webhooks keep their secrets in Supabase Vault. An instance without it cannot create them.

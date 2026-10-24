@@ -231,7 +231,8 @@ export class MegolmKeyBackupService {
       // A share row carries a session key and names its wrapper as sender; the
       // recipient files the session under that id. Only the session's sender
       // writes one, and only for a session key.
-      if (answer.scope !== 'session' || request.sender_user_id !== this.userId) return true
+      if (answer.scope !== 'session' || request.sender_user_id !== this.userId
+        || request.requester_user_id === this.userId) return true
 
       // Durable repair of the offline path. The fulfillment above reaches only
       // the requesting device. Writing a fresh megolm_session_shares row sealed
@@ -703,6 +704,10 @@ export class MegolmKeyBackupService {
 
     if (!accepted) {
       debug.warn(`Held ${key.scope} key for session ${key.sessionId.substring(0, 8)} does not decrypt it - refused`)
+      // The request's dedup slot is re-armed: the next miss asks again after KEY_REQUEST_RETRY_MS,
+      // not at once, so a wrong answer does not drive a request loop.
+      const dedupKey = key.scope === 'message' && key.messageId ? `${key.sessionId}#${key.messageId}` : key.sessionId
+      this.pendingRequests.set(dedupKey, { requestId: key.requestId, createdAt: Date.now() })
       await supabase
         .from('megolm_key_requests')
         .update({ status: 'expired' })
@@ -865,9 +870,17 @@ export class MegolmKeyBackupService {
             for (const s of prior.sessions.outbound || []) {
               if (!haveOutbound.has(`${s.roomId}:${s.sessionId}`)) sessions.outbound.push(s)
             }
-            const haveInbound = new Set(sessions.inbound.map(s => `${s.roomId}:${s.sessionId}`))
+            // A session key outranks message keys alone: a copy holding only a pinned message's
+            // key does not replace the backup's full one.
+            const inboundAt = new Map(sessions.inbound.map((s, i) => [`${s.roomId}:${s.sessionId}`, i]))
             for (const s of prior.sessions.inbound || []) {
-              if (!haveInbound.has(`${s.roomId}:${s.sessionId}`)) sessions.inbound.push(s)
+              const at = inboundAt.get(`${s.roomId}:${s.sessionId}`)
+              if (at === undefined) {
+                sessions.inbound.push(s)
+              } else if (!sessions.inbound[at].sessionKey && s.sessionKey) {
+                const messageKeys = { ...s.messageKeys, ...sessions.inbound[at].messageKeys }
+                sessions.inbound[at] = Object.keys(messageKeys).length > 0 ? { ...s, messageKeys } : s
+              }
             }
           }
         } catch {

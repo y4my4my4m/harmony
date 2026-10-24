@@ -1713,16 +1713,35 @@ export class ActivityProcessor {
    * member on a third instance, reaches here as the Group's Delete.
    */
   private static async groupHostsChannel(actorUrl: string, channelId: string | null | undefined): Promise<boolean> {
-    if (!channelId) return false;
+    return !!(await this.groupServerOfChannel(actorUrl, channelId));
+  }
+
+  /** The copy whose Group is `actorUrl`, when it hosts `channelId`. */
+  private static async groupServerOfChannel(actorUrl: string, channelId: string | null | undefined): Promise<{ id: string } | null> {
+    if (!channelId) return null;
     const server = await this.resolveRemoteServer(actorUrl);
-    if (!server) return false;
+    if (!server) return null;
     const { data: channel } = await getSupabaseClient()
       .from('channels')
       .select('id')
       .eq('id', channelId)
       .eq('server_id', server.id)
       .maybeSingle();
-    return !!channel;
+    return channel ? { id: server.id } : null;
+  }
+
+  /**
+   * Why the Group `actorUrl` may not post a new message in `channelId` here: it does not host
+   * the channel, or its copy is blocked or suspended on this instance. Null when it may.
+   */
+  private static async groupChannelPostRefusal(actorUrl: string, channelId: string): Promise<string | null> {
+    const server = await this.groupServerOfChannel(actorUrl, channelId);
+    if (!server) return `not the Group hosting channel ${channelId}`;
+    const supabase = getSupabaseClient();
+    if (await isServerBlockedHere(supabase, server.id)) return `server ${server.id} is blocked on this instance`;
+    const { data } = await supabase.from('servers').select('suspended_at').eq('id', server.id).maybeSingle();
+    if (data?.suspended_at) return `server ${server.id} is suspended on this instance`;
+    return null;
   }
 
   /**
@@ -3718,8 +3737,9 @@ export class ActivityProcessor {
       logger.warn(`Malformed system notice ${object.id} from ${actorUrl}`);
       return;
     }
-    if (!(await this.groupHostsChannel(actorUrl, channelId))) {
-      logDenied('system notice', actorUrl, `not the Group hosting channel ${channelId}`);
+    const refusal = await this.groupChannelPostRefusal(actorUrl, channelId);
+    if (refusal) {
+      logDenied('system notice', actorUrl, refusal);
       return;
     }
     const messageId = typeof object.id === 'string' ? object.id.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1] : null;
@@ -3772,8 +3792,9 @@ export class ActivityProcessor {
       logger.warn(`Malformed harmony:author on ${object.id} from ${actorUrl}`);
       return;
     }
-    if (!(await this.groupHostsChannel(actorUrl, channelId))) {
-      logDenied('bot message', actorUrl, `not the Group hosting channel ${channelId}`);
+    const refusal = await this.groupChannelPostRefusal(actorUrl, channelId);
+    if (refusal) {
+      logDenied('bot message', actorUrl, refusal);
       return;
     }
     const messageId = typeof object.id === 'string' ? object.id.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1] : null;
@@ -3860,10 +3881,6 @@ export class ActivityProcessor {
         logDenied('system notice', actorUrl, 'a relayed Note carries a system notice');
         return;
       }
-      if (await isServerBlockedHere(supabase, serverId)) {
-        logDenied('system notice', actorUrl, `server ${serverId} is blocked on this instance`);
-        return;
-      }
       await this.processSystemNotice(actorUrl, object, channelId);
       return;
     }
@@ -3873,10 +3890,6 @@ export class ActivityProcessor {
     if (object[HARMONY_AUTHOR] !== undefined) {
       if (relay) {
         logDenied('bot message', actorUrl, 'a relayed Note carries a Group author');
-        return;
-      }
-      if (await isServerBlockedHere(supabase, serverId)) {
-        logDenied('bot message', actorUrl, `server ${serverId} is blocked on this instance`);
         return;
       }
       await this.processGroupAuthoredMessage(actorUrl, object, channelId);

@@ -884,6 +884,8 @@ class AdminService {
       let publicProfilePages = true
       let enableOutbound = true
       let enableInbound = true
+      // False when the switches could not be read: the values above are then defaults, not state.
+      let federationSwitchesLoaded = false
 
       try {
         const { data: configData } = await supabase
@@ -1047,6 +1049,7 @@ class AdminService {
       } else if (switches && typeof switches === 'object') {
         enableInbound = (switches as Record<string, unknown>).enable_inbound_federation !== false
         enableOutbound = (switches as Record<string, unknown>).enable_outbound_federation !== false
+        federationSwitchesLoaded = true
       }
       
       return {
@@ -1074,7 +1077,8 @@ class AdminService {
           maxPostReactionsPerUser,
           publicProfilePages,
           enableOutbound,
-          enableInbound
+          enableInbound,
+          federationSwitchesLoaded,
         },
         webrtc: webrtcSettings,
         instance: {

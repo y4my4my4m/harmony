@@ -650,6 +650,7 @@ outgoing_webhook_valid_url	invoker	boolean	service_role	client	called by outgoin
 outgoing_webhooks_purge_secret	definer	trigger	service_role	trigger	trigger public.outgoing_webhooks AFTER DELETE (outgoing_webhooks_purge_secret)
 permission_bit_names	invoker	text[]	authenticated+service_role	client, policy, trigger	called by assert_grantable_bits, export_server_template, get_user_permissions, +1
 personal_emoji_limit	invoker	integer	authenticated+service_role	client, trigger	rpc in federation-backend/src/routes/gifs.ts
+pin_membership_join_time	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE INSERT/UPDATE (a_conversation_participants_pin_join_time), public.user_servers BEFORE INSERT/UPDATE (a_user_servers_pin_join_time)
 pin_message	definer	boolean	authenticated+service_role	client	rpc in src/services/MessageService.ts
 populate_reaction_context	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trg_populate_reaction_context)
 post_group_conversation_notice	definer	uuid	authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
@@ -964,4 +965,4 @@ webhook_availability	definer	jsonb	authenticated+service_role	client	named in sr
 webhook_message_parts	invoker	jsonb	service_role	client	called by execute_channel_webhook
 webhook_normalize_avatar_url	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook
 webhook_normalize_name	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook
-webhook_settings	definer	jsonb	service_role	client	called by admin_get_webhook_settings, admin_update_webhook_settings, assert_webhook_channel, +6
+webhook_settings	definer	jsonb	service_role	client	called by admin_get_webhook_settings, admin_update_webhook_settings, assert_webhook_channel, +8

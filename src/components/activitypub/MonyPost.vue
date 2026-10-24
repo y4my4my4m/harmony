@@ -1355,13 +1355,15 @@ const driveEmbeds = computed(() => {
       return true;
     });
 });
-// A preview of something the post already shows repeats it: a direct media link draws inline
-// in MonyContent, an attachment in MonyMediaGallery. A media link without a file extension is
-// not drawn inline, so its card stays.
+// A preview of something the post already shows repeats it: an attachment draws in
+// MonyMediaGallery, and with no attachment a direct media link draws inline in MonyContent.
+// Beside a gallery, withoutGalleryMedia strips direct media links from the text: the card is
+// what shows one. A media link without a file extension is not drawn inline either.
 const cardEmbeds = computed(() => {
   const gallery = new Set((displayMediaAttachments.value as any[]).map((m) => mediaUrlPath(String(m.url))));
+  const shown = (url: string) => gallery.size === 0 ? isDirectMediaUrl(url) : gallery.has(mediaUrlPath(url));
   return postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any) && !driveLinkFromUrl(e.url)
-    && !(e.url && (isDirectMediaUrl(e.url) || gallery.has(mediaUrlPath(e.url)))));
+    && !(e.url && shown(e.url)));
 });
 
 // When the post also has a media attachment, render link cards in the

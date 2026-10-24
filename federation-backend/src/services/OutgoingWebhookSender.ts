@@ -17,6 +17,7 @@
 
 import crypto from 'node:crypto';
 import dns from 'node:dns';
+import net from 'node:net';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { isBlockedAddress } from '../utils/ssrfProtection.js';
@@ -41,8 +42,12 @@ export function refusedWebhookUrl(raw: string, allowLoopback = config.OUTGOING_W
     return 'not a URL';
   }
   if (url.username || url.password) return 'credentials in the URL';
+  const loopback = allowLoopback && LOOPBACK_HOSTS.has(url.hostname);
+  // An IP literal makes no lookup: connect.lookup never sees it.
+  const literal = url.hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(literal) && isBlockedAddress(literal) && !loopback) return 'an internal address';
   if (url.protocol === 'https:') return null;
-  if (url.protocol === 'http:' && allowLoopback && LOOPBACK_HOSTS.has(url.hostname)) return null;
+  if (url.protocol === 'http:' && loopback) return null;
   return 'not https';
 }
 

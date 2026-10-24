@@ -280,6 +280,39 @@ GRANT EXECUTE ON FUNCTION public.room_joined_at(text, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.megolm_session_began_before(text, text, uuid, timestamp with time zone) TO service_role;
 GRANT EXECUTE ON FUNCTION public.megolm_key_scope_allowed(text, text, uuid, uuid, uuid) TO service_role;
 
+-- room_joined_at decides which history a member reads: a client never sets the join time. An
+-- insert takes now(), an update keeps the stored value. Pinned, not refused: clients writing
+-- whole rows keep working.
+CREATE OR REPLACE FUNCTION public.pin_membership_join_time()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF current_user NOT IN ('authenticated', 'anon') OR pg_trigger_depth() > 1 THEN
+        RETURN NEW;
+    END IF;
+    IF TG_TABLE_NAME = 'user_servers' THEN
+        NEW.created_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.created_at END;
+    ELSE
+        NEW.joined_at := CASE WHEN TG_OP = 'INSERT' THEN now() ELSE OLD.joined_at END;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.pin_membership_join_time() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS a_user_servers_pin_join_time ON public.user_servers;
+CREATE TRIGGER a_user_servers_pin_join_time
+    BEFORE INSERT OR UPDATE ON public.user_servers
+    FOR EACH ROW EXECUTE FUNCTION public.pin_membership_join_time();
+
+DROP TRIGGER IF EXISTS a_conversation_participants_pin_join_time ON public.conversation_participants;
+CREATE TRIGGER a_conversation_participants_pin_join_time
+    BEFORE INSERT OR UPDATE ON public.conversation_participants
+    FOR EACH ROW EXECUTE FUNCTION public.pin_membership_join_time();
+
 -- ---------------------------------------------------------------------------
 -- Key requests
 -- ---------------------------------------------------------------------------
@@ -410,7 +443,9 @@ BEGIN
     IF NOT FOUND OR v_request.status IS DISTINCT FROM 'pending' THEN
         RETURN false;
     END IF;
-    IF v_request.requester_user_id = v_caller THEN
+    -- A member's own request is answered by another member, or by their own other device for a
+    -- session they sent: own sessions have no share row.
+    IF v_request.requester_user_id = v_caller AND v_request.sender_user_id IS DISTINCT FROM v_caller THEN
         RAISE EXCEPTION 'a request is answered by another member' USING ERRCODE = '42501';
     END IF;
     IF v_request.sender_user_id IS DISTINCT FROM v_caller AND NOT v_request.accepts_relay THEN
@@ -424,9 +459,10 @@ BEGIN
         RAISE EXCEPTION 'the request names no message' USING ERRCODE = '22023';
     END IF;
 
-    v_allowed := public.megolm_key_scope_allowed(v_request.room_id, v_request.session_id,
-                                                 v_request.sender_user_id, v_request.requester_user_id,
-                                                 v_request.message_id);
+    v_allowed := CASE WHEN v_request.requester_user_id = v_request.sender_user_id THEN 'session'
+                      ELSE public.megolm_key_scope_allowed(v_request.room_id, v_request.session_id,
+                                                           v_request.sender_user_id, v_request.requester_user_id,
+                                                           v_request.message_id) END;
     IF v_allowed IS NULL OR (p_key_scope = 'session' AND v_allowed <> 'session') THEN
         RAISE EXCEPTION 'the requester may not receive this key' USING ERRCODE = '42501';
     END IF;
@@ -482,12 +518,13 @@ BEGIN
            r.message_id, r.message_index, a.scope, r.created_at
       FROM public.megolm_key_requests r
       CROSS JOIN LATERAL (
-            SELECT public.megolm_key_scope_allowed(r.room_id, r.session_id, r.sender_user_id,
-                                                   r.requester_user_id, r.message_id) AS scope
+            SELECT CASE WHEN r.requester_user_id = r.sender_user_id THEN 'session'
+                        ELSE public.megolm_key_scope_allowed(r.room_id, r.session_id, r.sender_user_id,
+                                                             r.requester_user_id, r.message_id) END AS scope
       ) a
      WHERE r.status = 'pending'
        AND r.created_at > now() - interval '30 days'
-       AND r.requester_user_id <> v_caller
+       AND (r.requester_user_id <> v_caller OR r.sender_user_id = v_caller)
        AND (r.sender_user_id = v_caller OR r.accepts_relay)
        AND public.is_room_member(r.room_id, v_caller)
        AND public.is_room_member(r.room_id, r.requester_user_id)

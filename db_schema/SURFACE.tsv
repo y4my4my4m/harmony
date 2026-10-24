@@ -650,6 +650,7 @@ outgoing_webhook_valid_url	p_url text	boolean	invoker	public, pg_temp	service_ro
 outgoing_webhooks_purge_secret		trigger	definer	public, pg_temp	service_role	trigger
 permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	unreferenced
 personal_emoji_limit		integer	invoker	public, pg_temp	authenticated+service_role	client
+pin_membership_join_time		trigger	invoker	public, pg_temp	service_role	trigger
 pin_message	p_message_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 populate_reaction_context		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 post_group_conversation_notice	p_conversation_id uuid, p_added_user_ids uuid[]	uuid	definer	public, pg_temp	authenticated+service_role	client

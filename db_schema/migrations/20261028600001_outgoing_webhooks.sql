@@ -41,7 +41,7 @@
 --
 -- Error messages begin with a stable code the client reads:
 --   OUTGOING_WEBHOOK_FORBIDDEN       42501  not the bot's owner, nor a manager of the server's webhooks
---   OUTGOING_WEBHOOK_DISABLED        42501  the instance does not let the caller create them
+--   OUTGOING_WEBHOOK_DISABLED        42501  the instance does not let the caller create them, or sends none
 --   OUTGOING_WEBHOOK_STAFF_DISABLED  42501  instance staff turned this webhook off
 --   OUTGOING_WEBHOOK_NOT_FOUND       P0002
 --   OUTGOING_WEBHOOK_INVALID_NAME    22023  not 1 to 80 characters
@@ -50,7 +50,7 @@
 --   OUTGOING_WEBHOOK_INVALID_EVENTS  22023  none, or one this instance does not send
 --   OUTGOING_WEBHOOK_LIMIT           54000  five per bot or per server
 --   OUTGOING_WEBHOOK_LIMIT_USER      54000  the instance's cap per creator
---   OUTGOING_WEBHOOK_TOO_SOON        54000  a test event within the last 10 seconds
+--   OUTGOING_WEBHOOK_TOO_SOON        54000  a test event or a new URL within the last 10 seconds
 --   OUTGOING_WEBHOOK_UNAVAILABLE     0A000  Supabase Vault is not installed
 --   WEBHOOK_DISABLED                 42501  incoming webhooks are turned off (assert_webhook_channel)
 
@@ -147,6 +147,9 @@ CREATE TABLE IF NOT EXISTS public.server_member_changes (
 );
 CREATE INDEX IF NOT EXISTS idx_server_member_changes_server ON public.server_member_changes (server_id);
 CREATE INDEX IF NOT EXISTS idx_server_member_changes_created ON public.server_member_changes (created_at);
+-- The bot gateway pages server_membership_events by (created_at, id).
+CREATE INDEX IF NOT EXISTS idx_server_membership_events_created
+    ON public.server_membership_events (created_at, id);
 
 REVOKE ALL ON public.outgoing_webhooks, public.outgoing_webhook_deliveries,
               public.outgoing_webhook_host_minutes, public.server_member_changes
@@ -375,8 +378,10 @@ LANGUAGE sql
 IMMUTABLE
 SET search_path = public, pg_temp
 AS $$
+    -- One spelling per host: ASCII labels or a bracketed IPv6 address, no trailing dot and no
+    -- escapes, so blocked domains and the per-host rate see the host the worker connects to.
     SELECT p_url IS NOT NULL AND char_length(p_url) <= 2048 AND p_url !~ '\s'
-       AND (p_url ~* '^https://[^/?#@]+(/|$|\?)'
+       AND (p_url ~* '^https://([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(:[0-9]{1,5})?(/|$|\?)'
             OR p_url ~* '^http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?(/|$|\?)')
 $$;
 
@@ -607,6 +612,17 @@ BEGIN
         RAISE EXCEPTION 'OUTGOING_WEBHOOK_STAFF_DISABLED: instance staff turned this webhook off' USING ERRCODE = '42501';
     END IF;
     PERFORM public.outgoing_webhook_check_fields(p_name, p_url, p_events);
+    IF v_new_url AND EXISTS (SELECT 1 FROM public.outgoing_webhook_deliveries d
+                              WHERE d.webhook_id = v_row.id AND d.event = 'PING' AND d.created_at > now() - interval '10 seconds') THEN
+        RAISE EXCEPTION 'OUTGOING_WEBHOOK_TOO_SOON: one test event per 10 seconds' USING ERRCODE = '54000';
+    END IF;
+    -- A new URL has acknowledged nothing: what was queued for the old one, an attempt in flight
+    -- included, ends unsent, and its answer verifies nothing.
+    IF v_new_url THEN
+        UPDATE public.outgoing_webhook_deliveries
+           SET status = 'failed', payload = NULL, claimed_at = NULL, last_error = 'URL changed before delivery'
+         WHERE webhook_id = v_row.id AND status = 'pending';
+    END IF;
     UPDATE public.outgoing_webhooks
        SET name = COALESCE(btrim(p_name), name),
            url = COALESCE(p_url, url),
@@ -694,6 +710,9 @@ DECLARE
 BEGIN
     IF NOT v_row.is_active THEN
         RAISE EXCEPTION 'OUTGOING_WEBHOOK_FORBIDDEN: turn the webhook on first' USING ERRCODE = '22023';
+    END IF;
+    IF public.webhook_settings() ->> 'outgoing_mode' = 'off' THEN
+        RAISE EXCEPTION 'OUTGOING_WEBHOOK_DISABLED: this instance sends no outgoing webhooks' USING ERRCODE = '42501';
     END IF;
     IF EXISTS (SELECT 1 FROM public.outgoing_webhook_deliveries d
                 WHERE d.webhook_id = v_row.id AND d.event = 'PING' AND d.created_at > now() - interval '10 seconds') THEN
@@ -837,6 +856,10 @@ BEGIN
     SELECT * INTO v_row FROM public.outgoing_webhooks WHERE id = p_webhook_id FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'OUTGOING_WEBHOOK_NOT_FOUND: no such webhook' USING ERRCODE = 'P0002';
+    END IF;
+    -- An owner's or a failing webhook's off is its owner's to undo.
+    IF p_active AND NOT v_row.is_active AND v_row.disabled_reason IS DISTINCT FROM 'staff' THEN
+        RAISE EXCEPTION 'OUTGOING_WEBHOOK_FORBIDDEN: staff turn back on only what staff turned off' USING ERRCODE = '42501';
     END IF;
     UPDATE public.outgoing_webhooks
        SET is_active = p_active,
@@ -1004,6 +1027,7 @@ DECLARE
     v_webhook public.outgoing_webhooks;
     v_minute timestamptz := date_trunc('minute', now());
     v_attempts integer;
+    v_refusal text;
 BEGIN
     PERFORM public.outgoing_webhook_assert_vault();
     SELECT d.* INTO v_delivery FROM public.outgoing_webhook_deliveries d WHERE d.id = p_delivery_id;
@@ -1012,11 +1036,21 @@ BEGIN
     END IF;
     -- Serialises the claims of one webhook.
     SELECT w.* INTO v_webhook FROM public.outgoing_webhooks w WHERE w.id = v_delivery.webhook_id FOR UPDATE;
-    IF NOT v_webhook.is_active OR public.outgoing_webhook_host_blocked(v_webhook.host) THEN
-        RETURN;
-    END IF;
     SELECT d.* INTO v_delivery FROM public.outgoing_webhook_deliveries d WHERE d.id = p_delivery_id FOR UPDATE;
     IF v_delivery.status <> 'pending' OR v_delivery.next_attempt_at > now() THEN
+        RETURN;
+    END IF;
+    -- A delivery that may not be sent ends unsent: left pending, it stayed due and filled the sweep.
+    v_refusal := CASE
+        WHEN public.webhook_settings() ->> 'outgoing_mode' = 'off' THEN 'outgoing webhooks are off on this instance'
+        WHEN NOT v_webhook.is_active THEN 'webhook turned off'
+        WHEN public.outgoing_webhook_host_blocked(v_webhook.host) THEN 'destination blocked on this instance'
+        WHEN v_delivery.event <> 'PING' AND v_webhook.verified_at IS NULL THEN 'endpoint not verified'
+    END;
+    IF v_refusal IS NOT NULL THEN
+        UPDATE public.outgoing_webhook_deliveries
+           SET status = 'failed', payload = NULL, claimed_at = NULL, last_error = v_refusal
+         WHERE id = v_delivery.id;
         RETURN;
     END IF;
 
@@ -1146,6 +1180,7 @@ BEGIN
     FOR v_webhook IN
         SELECT w.* FROM public.outgoing_webhooks w
          WHERE w.is_active AND w.consecutive_failures >= 10
+           AND public.webhook_settings() ->> 'outgoing_mode' <> 'off'
            AND COALESCE(w.last_failure_at, w.created_at) < now() - interval '5 minutes'
            AND NOT EXISTS (SELECT 1 FROM public.outgoing_webhook_deliveries d
                             WHERE d.webhook_id = w.id AND d.status = 'pending')

@@ -86,6 +86,7 @@
               <td>{{ t('adminWebhooks.deliveries24h', { count: w.deliveries_24h, failed: w.failed_24h }) }}</td>
               <td class="wa-row-actions">
                 <button
+                  v-if="w.is_active || w.disabled_reason === 'staff'"
                   type="button"
                   class="wa-btn"
                   :disabled="busy"

@@ -263,6 +263,24 @@ describe('answering a key request', () => {
     expect(updatesOf('megolm_key_requests')).toHaveLength(0)
   })
 
+  it("the sender's other device answers its own request and writes no share", async () => {
+    const outbound = await megolm.getOrCreateOutboundSession(ROOM)
+    const kp = await generateSigningKeyPair()
+    published.set(ME, { ...published.get(ME)!, identity_signing_public_key: await exportPublicSigningKey(kp.publicKey) })
+    const request: KeyRequest = {
+      id: 'f0f0f0f0-1111-2222-3333-444444444444', requester_user_id: ME, sender_user_id: ME, room_id: ROOM,
+      session_id: outbound.sessionId, status: 'pending', created_at: new Date().toISOString(), accepts_relay: true, key_scope: 'session',
+    }
+    request.request_signature = await signKeyRequest(
+      { room_id: ROOM, session_id: outbound.sessionId, requester_user_id: ME }, kp.privateKey)
+
+    expect(await service.handleIncomingKeyRequest(request)).toBe(true)
+
+    const [fulfil] = rpcNamed('fulfill_megolm_key_request')
+    expect(await unwrapAs(ME, ME, fulfil.args.p_encrypted_key)).toBe(outbound.sessionKey)
+    expect(repairSessionShareForUser).not.toHaveBeenCalled()
+  })
+
   it('a member holding the session relays it when the request accepts relays', async () => {
     await megolm.importInboundSession(ROOM, SENDER, SESSION, SESSION_KEY, 0)
     const request = await signedRequest({})
@@ -519,6 +537,18 @@ describe('receiving a fulfilled key', () => {
     expect(update.payload).toEqual({ status: 'expired' })
     expect(eqFilter(update, 'id')).toBe(first.requestId)
     expect(megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)).toEqual([second])
+  })
+
+  it('a refused relayed key holds off the next request for the retry window', async () => {
+    service.pendingRequests.clear()
+    await service.handleFulfilledRequest(
+      fulfilled({ encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY }),
+    )
+    const [held] = megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)
+    await megolmKeyBackupService.settleRelayedKey(held, false)
+
+    await megolmKeyBackupService.createKeyRequest(ROOM, SESSION, SENDER)
+    expect(calls.filter(c => c.table === 'megolm_key_requests' && c.op === 'insert')).toHaveLength(0)
   })
 
   it('the unlock sweep fetches every wrapper key at once and leaves relayed rows fulfilled', async () => {

@@ -11,7 +11,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(75);
+SELECT plan(87);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('f1940000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin194@test.local'),
@@ -329,6 +329,70 @@ SELECT throws_like($q$SELECT public.create_channel_webhook('66666666-0000-0000-0
                    'WEBHOOK_DISABLED%', 'with incoming webhooks off none is created');
 SELECT is(public.webhook_availability() ->> 'incoming_enabled', 'false', 'and the app is told');
 SELECT tests.clear_authentication();
+DELETE FROM public.instance_config WHERE config_key = 'webhook_settings';
+
+-- What may not be sent ends unsent. -----------------------------------------------------------------
+SELECT ok(NOT public.outgoing_webhook_valid_url('https://exa%6Dple.com/x')
+          AND NOT public.outgoing_webhook_valid_url('https://example.com./x')
+          AND NOT public.outgoing_webhook_valid_url('https://ｅxample.com/x')
+          AND public.outgoing_webhook_valid_url('https://Hooks.Example:8443/x?y')
+          AND public.outgoing_webhook_valid_url('https://[2001:db8::1]/x'),
+          'a host is spelled one way: no escapes, trailing dot or non-ASCII');
+
+UPDATE public.outgoing_webhooks SET is_active = false, disabled_reason = 'owner' WHERE id = pg_temp.wid('bob');
+SELECT tests.authenticate_as('f1940000-0000-0000-0000-0000000000a1');
+SELECT throws_like($q$SELECT public.admin_set_outgoing_webhook_active(pg_temp.wid('bob'), true)$q$,
+                   'OUTGOING_WEBHOOK_FORBIDDEN%', 'staff turn back on only what staff turned off');
+SELECT tests.clear_authentication();
+
+INSERT INTO public.outgoing_webhook_deliveries (id, webhook_id, event, payload)
+VALUES ('f1940000-0000-0000-0000-0000000000d1', pg_temp.wid('bob'), 'MESSAGE_CREATE', '{"id": "off1"}');
+SELECT is((SELECT count(*)::int FROM public.claim_outgoing_webhook_delivery('f1940000-0000-0000-0000-0000000000d1')),
+          0, 'a delivery of a webhook turned off is not sent');
+SELECT results_eq(
+    $q$SELECT status, payload IS NULL, last_error FROM public.outgoing_webhook_deliveries WHERE id = 'f1940000-0000-0000-0000-0000000000d1'$q$,
+    $q$VALUES ('failed'::text, true, 'webhook turned off'::text)$q$,
+    'it ends, rather than staying due for every sweep');
+
+CREATE TEMP TABLE x194 AS SELECT id FROM public.outgoing_webhooks WHERE name = 'x3';
+GRANT SELECT ON x194 TO authenticated;
+INSERT INTO public.outgoing_webhook_deliveries (id, webhook_id, event, payload)
+VALUES ('f1940000-0000-0000-0000-0000000000d2', (SELECT id FROM x194), 'MESSAGE_CREATE', '{"id": "unverified"}');
+SELECT is((SELECT count(*)::int FROM public.claim_outgoing_webhook_delivery('f1940000-0000-0000-0000-0000000000d2')),
+          0, 'an event is not sent to an endpoint that has not answered its PING');
+SELECT is((SELECT last_error FROM public.outgoing_webhook_deliveries WHERE id = 'f1940000-0000-0000-0000-0000000000d2'),
+          'endpoint not verified', 'and ends saying why');
+
+CREATE TEMP TABLE p194 AS
+SELECT d.id FROM public.outgoing_webhook_deliveries d WHERE d.webhook_id = (SELECT id FROM x194) AND d.event = 'PING';
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_like($q$SELECT public.update_outgoing_webhook((SELECT id FROM x194), p_url => 'https://other.example/3')$q$,
+                   'OUTGOING_WEBHOOK_TOO_SOON%', 'a new URL waits 10 seconds after the last test event');
+SELECT tests.clear_authentication();
+UPDATE public.outgoing_webhook_deliveries SET created_at = now() - interval '1 minute' WHERE id = (SELECT id FROM p194);
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT public.update_outgoing_webhook((SELECT id FROM x194), p_url => 'https://other.example/3');
+SELECT tests.clear_authentication();
+SELECT results_eq(
+    $q$SELECT status, last_error FROM public.outgoing_webhook_deliveries WHERE id = (SELECT id FROM p194)$q$,
+    $q$VALUES ('failed'::text, 'URL changed before delivery'::text)$q$,
+    'a new URL ends what was queued for the old one');
+SELECT ok(public.record_outgoing_webhook_attempt((SELECT id FROM p194), true, 200, NULL) IS NULL
+          AND (SELECT verified_at IS NULL FROM public.outgoing_webhooks WHERE id = (SELECT id FROM x194)),
+          'the old URL''s answer to its PING verifies nothing');
+
+SELECT pg_temp.settings('{"outgoing_mode": "off"}');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_like($q$SELECT public.test_outgoing_webhook((SELECT id FROM x194))$q$,
+                   'OUTGOING_WEBHOOK_DISABLED%', 'with outgoing webhooks off no test event is sent');
+SELECT tests.clear_authentication();
+CREATE TEMP TABLE q194 AS
+SELECT d.id FROM public.outgoing_webhook_deliveries d
+ WHERE d.webhook_id = (SELECT id FROM x194) AND d.event = 'PING' AND d.status = 'pending';
+SELECT is((SELECT count(*)::int FROM public.claim_outgoing_webhook_delivery((SELECT id FROM q194))),
+          0, 'nor anything already queued');
+SELECT is((SELECT status FROM public.outgoing_webhook_deliveries WHERE id = (SELECT id FROM q194)),
+          'failed', 'which ends');
 DELETE FROM public.instance_config WHERE config_key = 'webhook_settings';
 
 -- Member changes. ---------------------------------------------------------------------------------

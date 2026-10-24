@@ -8,7 +8,7 @@
 --   mallory  in no server
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(55);
+SELECT plan(60);
 
 -- Setup, as postgres. -------------------------------------------------------------------
 INSERT INTO auth.users (id, instance_id, aud, role, email)
@@ -255,6 +255,32 @@ SELECT isnt_empty($q$INSERT INTO public.megolm_session_shares (session_id, room_
                              '19000000-0000-0000-0000-000000000001', 'k') RETURNING id$q$,
   'all: an earlier session is shared');
 SELECT tests.clear_authentication();
+
+-- A sender's own other device answers for its own session, whatever the setting. ----------
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT is(public.set_channel_history_visibility('66666666-0000-0000-0000-000000000006', 'none')->>'history_visibility',
+  'none', 'switched to none for an own request');
+INSERT INTO public.megolm_key_requests (id, requester_user_id, sender_user_id, room_id, session_id, accepts_relay)
+VALUES ('19030000-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000001',
+        '66666666-0000-0000-0000-000000000006', 's190old', true);
+SELECT is((SELECT key_scope FROM public.get_relayable_key_requests() WHERE id = '19030000-0000-0000-0000-000000000005'),
+  'session', 'a sender lists their own request for their own session');
+SELECT ok(public.fulfill_megolm_key_request('19030000-0000-0000-0000-000000000005', 'v2:k', 'session'),
+  'and answers it from another device');
+
+-- Join times are pinned against client writes. -----------------------------------------
+SELECT tests.authenticate_as('eeeeeeee-0000-0000-0000-000000000190');
+UPDATE public.user_servers SET created_at = '2000-01-01'
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005';
+UPDATE public.conversation_participants SET joined_at = '2000-01-01'
+ WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001';
+SELECT tests.clear_authentication();
+SELECT ok((SELECT created_at > now() - interval '2 days' FROM public.user_servers
+            WHERE user_id = '19000000-0000-0000-0000-000000000001' AND server_id = '55555555-0000-0000-0000-000000000005'),
+  'a member cannot backdate their join to a server');
+SELECT ok((SELECT joined_at > now() - interval '2 days' FROM public.conversation_participants
+            WHERE user_id = '19000000-0000-0000-0000-000000000001' AND conversation_id = '19020000-0000-0000-0000-000000000001'),
+  'nor to a group conversation');
 
 SELECT throws_ok($q$UPDATE public.megolm_key_requests SET key_scope = 'everything'
                     WHERE id = '19030000-0000-0000-0000-000000000002'$q$,

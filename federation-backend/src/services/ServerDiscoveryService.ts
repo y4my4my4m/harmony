@@ -17,6 +17,7 @@ import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { clearJoinInFlight, markJoinInFlight } from '../activitypub/joinsInFlight.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
+import { resolveThreadInChannel } from '../activitypub/channelWriteAuthz.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { isGroupBlockedHere, isServerBlockedHere, joinRefusalHere, serverBlockedRefusal } from '../activitypub/instanceServerBlocks.js';
@@ -493,10 +494,11 @@ router.post(
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Outbound federation off: the Join would never leave, and the membership would stay pending.
-    if (!(await federationSwitches()).outbound) {
-      return res.status(403).json({ error: 'Federation is off on this instance', code: 'INSTANCE_FEDERATION_OFF' });
-    }
+    // Outbound federation off: a Join to a Group elsewhere would never leave, and the membership
+    // would stay pending. A server on this instance still joins locally.
+    const federationOff = () => res.status(403).json({ error: 'Federation is off on this instance', code: 'INSTANCE_FEDERATION_OFF' });
+    const outbound = (await federationSwitches()).outbound;
+    if (!outbound && urlHost(serverUrl) !== config.INSTANCE_DOMAIN.toLowerCase()) return federationOff();
 
     const remoteServer = await ServerDiscoveryService.fetchServerByUrl(serverUrl);
     if (!remoteServer) {
@@ -546,6 +548,7 @@ router.post(
 
     // A server hosted elsewhere that this instance blocked, or keeps this account out of.
     if (localServer?.is_local_server === false) {
+      if (!outbound) return federationOff();
       const refusal = await joinRefusalHere(supabase, localServer.id, userId);
       if (refusal) return res.status(403).json(refusal);
     }
@@ -1080,8 +1083,12 @@ router.get(
       };
 
       // A bot, webhook or bridged message, by the Group with its author in harmony:author
-      // (groupAuthor.ts): cached with no profile and no bot, its author in metadata.
+      // (groupAuthor.ts): cached with no profile and no bot, its author in metadata. One in a
+      // thread unknown here is left out, as live delivery drops it: cached, it sat in the channel.
       const groupAuthoredItem = async (note: any, groupAuthor: GroupAuthor) => {
+        const threadRef = typeof note['harmony:threadId'] === 'string' ? note['harmony:threadId'] : null;
+        const thread = threadRef ? await resolveThreadInChannel(supabase, threadRef, channelId) : null;
+        if (thread && thread.status !== 'found') return null;
         const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
         const content = Array.isArray(note['harmony:rawContent'])
           ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
@@ -1099,6 +1106,7 @@ router.get(
                 created_at: createdAt,
                 updated_at: note.updated || createdAt,
                 metadata,
+                thread_id: thread?.status === 'found' ? thread.id : null,
                 encrypted: note['harmony:encrypted'] === true,
                 federation_status: 'skipped',
               }, { onConflict: 'id', ignoreDuplicates: true })
