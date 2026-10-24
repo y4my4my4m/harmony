@@ -308,7 +308,7 @@ export async function resolveThreadInChannel(
   return thread.channel_id === channelId ? { status: 'found', id: thread.id } : { status: 'foreign' };
 }
 
-/** Parent message for a reply, restricted to `channelId`: ap_id first, then the UUID in the URL. */
+/** Parent message for a reply, restricted to `channelId`: ap_id, then host_ap_id, then the UUID in the URL. */
 export async function resolveMessageInChannel(
   supabase: Supabase,
   ref: string,
@@ -321,6 +321,14 @@ export async function resolveMessageInChannel(
     .eq('channel_id', channelId)
     .maybeSingle();
   if (byApId) return byApId.id;
+  // One of this instance's messages, as its host names it (ServerDiscoveryService ownMessageRow).
+  const { data: byHostApId } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('metadata->>host_ap_id', ref)
+    .eq('channel_id', channelId)
+    .maybeSingle();
+  if (byHostApId) return byHostApId.id;
   const uuid = ref.match(/\/messages\/([a-f0-9-]{36})/i)?.[1];
   if (!uuid) return null;
   const { data: byId } = await supabase

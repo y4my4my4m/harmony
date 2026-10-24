@@ -16,7 +16,7 @@ import config from '../config/index.js';
 import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 import { LIVE_SYSTEM_NOTE_TYPES, loadSystemPeople, systemNote } from '../activitypub/systemNotes.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
-import { channelMessageActivity } from '../activitypub/channelMessageActivity.js';
+import { channelMessageActivity, withParentObjectIds } from '../activitypub/channelMessageActivity.js';
 
 // TYPES
 
@@ -87,6 +87,7 @@ export async function handleChannelMessageFederation(
         message.thread_parent_message_id = thread.parent_message_id;
       }
     }
+    await withParentObjectIds(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')
@@ -327,6 +328,7 @@ export async function handleChannelMessageUpdate(
         message.thread_parent_message_id = thread.parent_message_id;
       }
     }
+    await withParentObjectIds(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')

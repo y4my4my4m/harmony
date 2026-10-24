@@ -35,7 +35,7 @@ import {
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
-import { channelMessageActivity } from './channelMessageActivity.js';
+import { channelMessageActivity, withParentObjectIds } from './channelMessageActivity.js';
 
 const router = Router();
 
@@ -489,6 +489,7 @@ router.get(
 
     // A system row of a type without a Note (an AutoMod alert) is left out of the page.
     const rows = messages || [];
+    await withParentObjectIds(supabase, rows.filter((m: any) => !m.is_system));
     const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
     const server = await serverNameRow(supabase, serverId);
     const items = rows.flatMap((message: any) => {
@@ -670,6 +671,7 @@ router.get(
       messages = data || [];
     }
 
+    await withParentObjectIds(supabase, messages.filter((m: any) => !m.is_system));
     const server = await serverNameRow(supabase, serverId);
     const people = await loadSystemPeople(supabase, messages.filter((m: any) => m.is_system));
     const items = messages.flatMap((message: any) => {

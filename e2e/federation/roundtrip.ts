@@ -138,6 +138,14 @@ const PRIV_GENERAL = 'fed00000-0000-0000-0000-000000000021'
 const PRIV_SECRET = 'fed00000-0000-0000-0000-000000000022'
 const PUB_SERVER = 'fed00000-0000-0000-0000-000000000030'
 const PUB_GENERAL = 'fed00000-0000-0000-0000-000000000031'
+// A message the peer's member sent into PRIV_GENERAL, the row this instance stored for it, and a
+// local reply to it.
+const PEER_SENT_ID = 'fed00000-0000-0000-0000-0000000000c1'
+const PEER_SENT_ROW = 'fed00000-0000-0000-0000-0000000000c2'
+const PEER_SENT_REPLY = 'fed00000-0000-0000-0000-0000000000c3'
+// fx_bob's messages in the peer's channel, as this instance stored them when he sent them.
+const BOB_OLDER_HOST = { id: 'fed00000-0000-0000-0000-0000000000c4', hostId: 'fed00000-0000-0000-0000-0000000000c5', text: 'bob on an older host' }
+const BOB_NEWER_HOST = { id: 'fed00000-0000-0000-0000-0000000000c6', text: 'bob on a 1.9.0 host' }
 
 // Hosted by the peer: a private Group with fx_bob as a member. REMOTE_REF is
 // the local reference row, keyed by the Group's UUID as a join would key it.
@@ -1052,6 +1060,14 @@ async function seedServers(db: SupabaseClient, peer: Peer) {
       { type: 'file', fileType: 'image', path: `c/${PUB_GENERAL}/meme.png`, fileName: 'meme.png', mimeType: 'image/png' },
     ] },
   ]))
+  await must('seed the peer\'s message', db.from('messages').insert({
+    id: PEER_SENT_ROW, channel_id: PRIV_GENERAL, user_id: REMOTE, content: [{ type: 'text', text: 'sent from the peer' }],
+    metadata: { ap_id: `${peer.base}/messages/${PEER_SENT_ID}`, federated: true }, federation_status: 'skipped',
+  }))
+  await must('seed a reply to the peer\'s message', db.from('messages').insert({
+    id: PEER_SENT_REPLY, channel_id: PRIV_GENERAL, user_id: ALICE, reply_to: PEER_SENT_ROW,
+    content: [{ type: 'text', text: 'reply to the peer' }],
+  }))
 }
 
 // ACTIVITIES
@@ -1454,6 +1470,15 @@ async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
   const member = await asMember(general)
   eq(member.status, 200, 'the signed member reads the private channel')
   assert(items(member).includes('private general message'), 'the member gets the channel messages', member.body)
+
+  // A message a member instance sent keeps the id it arrived under, and a reply names it so: a
+  // page naming it by this instance's row read on that instance as a second message.
+  const memberItems = member.json?.orderedItems ?? []
+  const sent = memberItems.find((n: any) => String(n.content ?? '').includes('sent from the peer'))
+  eq(sent?.id, `${peer.base}/messages/${PEER_SENT_ID}`, 'a message the peer sent is named by the peer\'s id')
+  const replied = memberItems.find((n: any) => String(n.content ?? '').includes('reply to the peer'))
+  eq(replied?.inReplyTo, `${peer.base}/messages/${PEER_SENT_ID}`, 'a reply to it names the peer\'s id')
+  assert(!items(member).includes(`/messages/${PEER_SENT_ROW}`), 'this instance\'s row id never names it', member.body)
   eq(member.headers['cache-control'], 'private, no-store', 'the private page is not cacheable')
 
   // A message's files reach a copy through its history page as through delivery: the
@@ -1587,6 +1612,46 @@ async function caseProxyReadsAsMember(db: SupabaseClient, peer: Peer, localUrl: 
   eq(refill.json?.changed, 1, 'the read reports the completed row')
   assert(hasFile(await cachedContent()), 'the row cached without its file holds it again', JSON.stringify(await cachedContent()))
   eq((await get(proxyUrl, as(BOB_AUTH))).json?.changed, 0, 'a read that changes nothing reports nothing')
+}
+
+async function caseProxyLinksOwnMessages(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
+  console.log('\nremote channel page naming a member\'s own messages -> linked to its row, never cached twice')
+
+  const proxyUrl = `${localUrl}/channels/${REMOTE_CHANNEL}/messages`
+  const as = { Accept: 'application/json', Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}` }
+  // The app stores microseconds; a host before 1.9.0 names the message by its own row, its
+  // timestamp cut to milliseconds. A 1.9.0 host names it by the id it was sent under.
+  const olderAt = new Date(Date.now() - 20 * 60_000)
+  const newerAt = new Date(Date.now() - 10 * 60_000)
+  const micros = (d: Date) => d.toISOString().replace('Z', '417Z')
+  await must('seed fx_bob\'s messages in the peer\'s channel', db.from('messages').insert([
+    { id: BOB_OLDER_HOST.id, channel_id: REMOTE_CHANNEL, user_id: BOB, created_at: micros(olderAt), content: [{ type: 'text', text: BOB_OLDER_HOST.text }], metadata: { federated_to: [new URL(peer.base).host] } },
+    { id: BOB_NEWER_HOST.id, channel_id: REMOTE_CHANNEL, user_id: BOB, created_at: micros(newerAt), content: [{ type: 'text', text: BOB_NEWER_HOST.text }], metadata: { federated_to: [new URL(peer.base).host] } },
+  ]))
+  const olderHostUrl = `${peer.base}/messages/${BOB_OLDER_HOST.hostId}`
+  peer.extraChannelItems = [
+    { type: 'Note', id: olderHostUrl, attributedTo: LOCAL_BOB, content: BOB_OLDER_HOST.text, context: peer.channelUrl(REMOTE_CHANNEL), published: olderAt.toISOString() },
+    { type: 'Note', id: `https://${INSTANCE_DOMAIN}/messages/${BOB_NEWER_HOST.id}`, attributedTo: LOCAL_BOB, content: BOB_NEWER_HOST.text, context: peer.channelUrl(REMOTE_CHANNEL), published: newerAt.toISOString() },
+  ]
+  try {
+    const copies = async (text: string) => ((await db.from('messages').select('id')
+      .eq('channel_id', REMOTE_CHANNEL).filter('content', 'cs', JSON.stringify([{ type: 'text', text }]))).data ?? []).map((r: any) => r.id)
+
+    for (const round of ['first', 'second']) {
+      const read = await get(proxyUrl, as)
+      eq(read.status, 200, `the ${round} read answers`)
+      const ids = (read.json?.messages ?? []).map((m: any) => m.id)
+      assert(ids.includes(BOB_OLDER_HOST.id) && ids.includes(BOB_NEWER_HOST.id),
+        `the ${round} read names fx_bob's messages by his rows`, JSON.stringify(ids))
+      eq(JSON.stringify(await copies(BOB_OLDER_HOST.text)), JSON.stringify([BOB_OLDER_HOST.id]), `after the ${round} read the older host's copy is not cached`)
+      eq(JSON.stringify(await copies(BOB_NEWER_HOST.text)), JSON.stringify([BOB_NEWER_HOST.id]), `after the ${round} read the 1.9.0 host's naming adds nothing`)
+    }
+    const linked = await must('fx_bob\'s row', db.from('messages').select('metadata').eq('id', BOB_OLDER_HOST.id).single())
+    eq(linked.metadata?.host_ap_id, olderHostUrl, 'his row keeps the older host\'s id for replies that name it')
+    eq(linked.metadata?.ap_id, undefined, 'and stays his own: no ap_id')
+  } finally {
+    peer.extraChannelItems = []
+  }
 }
 
 async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string) {
@@ -2687,6 +2752,7 @@ async function main() {
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
+    await caseProxyLinksOwnMessages(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
     await seedVoice(db, peer)
     await caseHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)

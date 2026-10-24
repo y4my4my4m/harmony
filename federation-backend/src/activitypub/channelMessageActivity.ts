@@ -16,6 +16,37 @@ import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia
 import { withoutPollParts } from '../utils/polls.js';
 import { HARMONY_NS } from './harmonyContext.js';
 
+/**
+ * The Note id of a stored message: the id another instance sent it under (metadata.ap_id), else
+ * this instance's URL for it. A copy holds its members' messages under the ids it sent; a page
+ * naming them by this instance's row ids read there as second messages.
+ */
+export function messageObjectId(id: string, apId?: unknown): string {
+  return typeof apId === 'string' && /^https?:\/\//i.test(apId)
+    ? apId
+    : `https://${config.INSTANCE_DOMAIN}/messages/${id}`;
+}
+
+/**
+ * Sets reply_to_ap_id and thread_parent_ap_id on rows: the ids their parent messages arrived
+ * under, where another instance sent them. One read for all rows.
+ */
+export async function withParentObjectIds(supabase: any, rows: any[]): Promise<void> {
+  const ids = [...new Set(rows.flatMap((m) => [m?.reply_to, m?.thread_parent_message_id])
+    .filter((v): v is string => typeof v === 'string' && v.length > 0))];
+  if (ids.length === 0) return;
+  const { data } = await supabase.from('messages').select('id, ap_id:metadata->>ap_id').in('id', ids);
+  const apIds = new Map<string, unknown>((data ?? []).map((r: any) => [r.id, r.ap_id]));
+  for (const m of rows) {
+    if (m?.reply_to) m.reply_to_ap_id = apIds.get(m.reply_to);
+    if (m?.thread_parent_message_id) m.thread_parent_ap_id = apIds.get(m.thread_parent_message_id);
+  }
+}
+
+/**
+ * `message.reply_to_ap_id` and `message.thread_parent_ap_id`, when the caller loaded them, name
+ * the reply's and the thread's parent by messageObjectId.
+ */
 export function channelMessageActivity(
   message: any,
   server: { id: string; name?: string | null },
@@ -27,7 +58,7 @@ export function channelMessageActivity(
   const hostDomain = config.INSTANCE_DOMAIN;
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   const channelUrl = `${serverUrl}/channels/${channelId}`;
-  const messageUrl = `https://${hostDomain}/messages/${message.id}`;
+  const messageUrl = messageObjectId(message.id, message.metadata?.ap_id);
   const activityId = `${serverUrl}/activities/${message.id}`;
 
   if (!message.author?.username) {
@@ -66,7 +97,7 @@ export function channelMessageActivity(
 
   let inReplyTo: string | undefined;
   if (message.reply_to) {
-    inReplyTo = `https://${hostDomain}/messages/${message.reply_to}`;
+    inReplyTo = messageObjectId(message.reply_to, message.reply_to_ap_id);
   }
 
   // Thread context - if this message belongs to a thread, include the thread AP ID
@@ -76,7 +107,7 @@ export function channelMessageActivity(
     threadApId = `https://${hostDomain}/threads/${message.thread_id}`;
     // Include thread's parent message so remote instances can create correct stub threads
     if (message.thread_parent_message_id) {
-      parentMessageApId = `https://${hostDomain}/messages/${message.thread_parent_message_id}`;
+      parentMessageApId = messageObjectId(message.thread_parent_message_id, message.thread_parent_ap_id);
     }
   }
 

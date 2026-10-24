@@ -32,6 +32,54 @@ import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 
 const router = Router();
 
+const ownHost = config.INSTANCE_DOMAIN.toLowerCase();
+
+/**
+ * The row this instance holds for one of its members' messages, as a host's channel page names
+ * it: by this instance's id (hosts from 1.9.0 serve the id a message arrived under), else the
+ * member's row in that channel with no ap_id and a created_at within 2 s of `published` (an
+ * earlier host names it by its own row, the timestamp cut to milliseconds or clamped to its
+ * clock). The host's id is kept as metadata.host_ap_id, which reply references resolve
+ * (resolveMessageInChannel). Null when there is none.
+ */
+async function ownMessageRow(
+  supabase: any,
+  channelId: string,
+  authorId: string,
+  note: any,
+  messageUuid: string | undefined,
+): Promise<string | null> {
+  if (urlHost(note.id) === ownHost) {
+    if (!messageUuid) return null;
+    const { data } = await supabase.from('messages').select('id')
+      .eq('id', messageUuid).eq('channel_id', channelId).maybeSingle();
+    return data?.id ?? null;
+  }
+  if (typeof note.id !== 'string') return null;
+  const { data: linked } = await supabase.from('messages').select('id')
+    .eq('channel_id', channelId).eq('metadata->>host_ap_id', note.id).limit(1).maybeSingle();
+  if (linked) return linked.id;
+
+  const published = Date.parse(note.published);
+  if (Number.isNaN(published)) return null;
+  const { data: candidates } = await supabase.from('messages').select('id, created_at, metadata')
+    .eq('channel_id', channelId)
+    .eq('user_id', authorId)
+    .is('metadata->>ap_id', null)
+    .is('metadata->>host_ap_id', null)
+    .gte('created_at', new Date(published - 2000).toISOString())
+    .lte('created_at', new Date(published + 2000).toISOString())
+    .limit(20);
+  const best = ((candidates ?? []) as Array<{ id: string; created_at: string; metadata: any }>)
+    .sort((a, b) => Math.abs(Date.parse(a.created_at) - published) - Math.abs(Date.parse(b.created_at) - published))[0];
+  if (!best) return null;
+  await supabase.from('messages')
+    .update({ metadata: { ...(best.metadata ?? {}), host_ap_id: note.id } })
+    .eq('id', best.id)
+    .is('metadata->>host_ap_id', null);
+  return best.id;
+}
+
 /** Pages of a remote members collection one sync reads; a Harmony host serves 500 members a page. */
 const MEMBER_SYNC_MAX_PAGES = 40;
 
@@ -1081,11 +1129,17 @@ router.get(
           messageUuid = uuidMatch[1];
         }
 
+        // A message of a member of this instance is held here already; caching the host's copy
+        // showed it twice. Linked, never inserted (ownMessageRow).
+        const ownMessage = !!author?.id && !author.is_bridge
+          && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
+        const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
+
         // Cache message locally for reactions and offline access (only if we have a valid author ID)
-        let cachedMsgId: string | null = null;
+        let cachedMsgId: string | null = ownRowId;
         let cachedContent: any[] | null = null;
 
-        if (author?.id && !author.is_bridge) {
+        if (author?.id && !author.is_bridge && !ownMessage) {
           const messageTimestamp = note.published || new Date().toISOString();
 
           // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
@@ -1171,7 +1225,7 @@ router.get(
         }
 
         return {
-          id: cachedMsgId || messageUuid || note.id,
+          id: cachedMsgId || (ownMessage ? note.id : messageUuid || note.id),
           // The cached parts carry files, mentions and emoji; the HTML carries text only.
           content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
           created_at: note.published,

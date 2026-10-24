@@ -580,6 +580,7 @@ mark_server_welcome_seen	definer	jsonb	authenticated+service_role	client	rpc in 
 megolm_key_scope_allowed	definer	text	service_role	client, trigger	called by broadcast_key_request_event, fulfill_megolm_key_request, get_relayable_key_requests, +2
 megolm_session_began_before	definer	boolean	service_role	client, trigger	called by megolm_key_scope_allowed
 member_voice_channel	definer	uuid	service_role	client	called by move_voice_member, my_voice_state, set_server_voice_state
+merge_own_message_echoes	invoker	integer	service_role	service key	nothing references it
 message_custom_emoji_keys	invoker	text[]	service_role	trigger	called by enforce_message_content_permissions
 message_file_names	invoker	text	service_role	trigger	called by index_message_row
 message_media_deletable	definer	SETOF text	service_role	client	rpc in federation-backend/src/queue/handlers/messageMediaCleanupHandler.ts
