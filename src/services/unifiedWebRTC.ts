@@ -712,9 +712,11 @@ export class UnifiedWebRTCService {
               let removed = false;
               for (const sender of conn.peerConnection.getSenders()) {
                 if (sender.track && screenTrackIds.has(sender.track.id)) {
+                  // removeTrack nulls sender.track.
+                  const kind = sender.track.kind;
                   conn.peerConnection.removeTrack(sender);
                   removed = true;
-                  debug.log('Removed screen sender from peer:', userId, sender.track.kind);
+                  debug.log('Removed screen sender from peer:', userId, kind);
                 }
               }
               if (removed) {
