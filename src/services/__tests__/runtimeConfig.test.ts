@@ -151,6 +151,17 @@ describe('shouldFetchRuntimeConfig', () => {
     expect(shouldFetchRuntimeConfig('production', { ...browser, __TAURI_INTERNALS__: {} })).toBe(false)
     expect(shouldFetchRuntimeConfig('production', { ...browser, __TAURI__: {} })).toBe(false)
   })
+
+  it('skips in a build with VITE_RUNTIME_CONFIG=off', () => {
+    expect(shouldFetchRuntimeConfig('production', browser, 'off')).toBe(false)
+    expect(shouldFetchRuntimeConfig('production', browser, ' OFF ')).toBe(false)
+  })
+
+  it('fetches with VITE_RUNTIME_CONFIG unset or any other value', () => {
+    expect(shouldFetchRuntimeConfig('production', browser, undefined)).toBe(true)
+    expect(shouldFetchRuntimeConfig('production', browser, '')).toBe(true)
+    expect(shouldFetchRuntimeConfig('production', browser, 'on')).toBe(true)
+  })
 })
 
 describe('runtimeConfig', () => {

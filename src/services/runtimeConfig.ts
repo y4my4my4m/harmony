@@ -5,6 +5,8 @@
 //
 // The top-level await below holds back every module that imports this one
 // until /config.json has resolved, so module-scope reads see the final values.
+// A build with VITE_RUNTIME_CONFIG=off never requests the file: its VITE_* are
+// final, and the page does not wait a round trip, or the fetch timeout, to boot.
 
 import { debug } from '@/utils/debug'
 
@@ -117,14 +119,16 @@ export async function fetchRuntimeConfig(
 }
 
 /**
- * Web pages only. Native clients pick their instance at runtime
- * (instanceConfig.ts) and unit tests run on the build env.
+ * Web pages of builds without VITE_RUNTIME_CONFIG=off. Native clients pick their
+ * instance at runtime (instanceConfig.ts) and unit tests run on the build env.
  */
 export function shouldFetchRuntimeConfig(
   mode: string = import.meta.env.MODE,
-  scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>
+  scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+  setting: string | undefined = import.meta.env.VITE_RUNTIME_CONFIG
 ): boolean {
   if (mode === 'test') return false
+  if ((setting || '').trim().toLowerCase() === 'off') return false
   if (typeof scope.window === 'undefined') return false
   // Same test as instanceConfig.isTauriRuntime; importing it closes an import cycle.
   return typeof scope.__TAURI_INTERNALS__ === 'undefined' && typeof scope.__TAURI__ === 'undefined'

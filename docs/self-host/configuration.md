@@ -286,7 +286,8 @@ non-empty key in `/config.json` wins.
   not a rebuild.
 - **Static build**: the `VITE_*` values in `.env` at build time apply. A
   `config.json` next to `index.html`, served as `application/json`, overrides
-  them.
+  them. `VITE_RUNTIME_CONFIG=off` skips the request: the page starts without
+  waiting a round trip for a file the instance does not serve.
 - **Desktop and Android apps** read neither: they fetch the chosen
   instance's `GET /api/federation/instance-info`.
 
