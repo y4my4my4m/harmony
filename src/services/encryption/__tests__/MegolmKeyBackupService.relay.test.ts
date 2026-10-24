@@ -539,20 +539,30 @@ describe('receiving a fulfilled key', () => {
     expect(megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)).toEqual([second])
   })
 
-  it('a refused relayed key holds off the next request for the retry window', async () => {
+  it('after a refused relayed key the next miss asks again at once; after a second, it waits', async () => {
     service.pendingRequests.clear()
+    service.refusals.clear()
+    const inserts = () => calls.filter(c => c.table === 'megolm_key_requests' && c.op === 'insert')
     await service.handleFulfilledRequest(
       fulfilled({ encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY }),
     )
-    const [held] = megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)
+    let [held] = megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)
     await megolmKeyBackupService.settleRelayedKey(held, false)
-
     await megolmKeyBackupService.createKeyRequest(ROOM, SESSION, SENDER)
-    expect(calls.filter(c => c.table === 'megolm_key_requests' && c.op === 'insert')).toHaveLength(0)
+    expect(inserts()).toHaveLength(1)
+
+    await service.handleFulfilledRequest(fulfilled({
+      id: '56565656-1111-2222-3333-444444444444', encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY,
+    }))
+    ;[held] = megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)
+    await megolmKeyBackupService.settleRelayedKey(held, false)
+    await megolmKeyBackupService.createKeyRequest(ROOM, SESSION, SENDER)
+    expect(inserts()).toHaveLength(1)
   })
 
-  it('a refused session key answering a pinned message holds off that message\'s request too', async () => {
+  it('a second refused session key answering a pinned message holds off that message\'s request too', async () => {
     service.pendingRequests.clear()
+    service.refusals.set(SESSION, { count: 1, at: Date.now() })
     await service.handleFulfilledRequest(fulfilled({
       encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY, message_id: 'm-pinned-9',
     }))

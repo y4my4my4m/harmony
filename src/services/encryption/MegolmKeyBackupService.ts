@@ -122,6 +122,8 @@ export class MegolmKeyBackupService {
   // so an unanswered/failed request can be re-issued without a full reload.
   private pendingRequests: Map<string, { requestId: string; createdAt: number }> = new Map()
   private readonly KEY_REQUEST_RETRY_MS = 2 * 60_000
+  // Relayed keys refused per session: how many, and when the last one was.
+  private refusals: Map<string, { count: number; at: number }> = new Map()
 
   // `${roomId}:${senderUserId}:${sessionId}` → relayed keys awaiting a ciphertext.
   private relayedKeys = new Map<string, RelayedKey[]>()
@@ -704,12 +706,19 @@ export class MegolmKeyBackupService {
 
     if (!accepted) {
       debug.warn(`Held ${key.scope} key for session ${key.sessionId.substring(0, 8)} does not decrypt it - refused`)
-      // The request's dedup slots are re-armed: the next miss asks again after KEY_REQUEST_RETRY_MS,
-      // not at once, so a wrong answer does not drive a request loop. A pinned message's request
-      // is keyed by the message whatever the scope of its answer; others by the session.
-      const rearmed = { requestId: key.requestId, createdAt: Date.now() }
-      this.pendingRequests.set(key.sessionId, rearmed)
-      if (key.messageId) this.pendingRequests.set(`${key.sessionId}#${key.messageId}`, rearmed)
+      // The first refusal lets the next miss ask again at once, for another holder's key. A
+      // further refusal within KEY_REQUEST_RETRY_MS re-arms the dedup slots, so the next request
+      // waits that long: a member answering wrongly every time does not drive a request loop. A
+      // pinned message's request is keyed by the message whatever its answer's scope.
+      const now = Date.now()
+      const prior = this.refusals.get(key.sessionId)
+      const count = prior && now - prior.at < this.KEY_REQUEST_RETRY_MS ? prior.count + 1 : 1
+      this.refusals.set(key.sessionId, { count, at: now })
+      if (count > 1) {
+        const rearmed = { requestId: key.requestId, createdAt: now }
+        this.pendingRequests.set(key.sessionId, rearmed)
+        if (key.messageId) this.pendingRequests.set(`${key.sessionId}#${key.messageId}`, rearmed)
+      }
       await supabase
         .from('megolm_key_requests')
         .update({ status: 'expired' })
@@ -719,6 +728,7 @@ export class MegolmKeyBackupService {
       return
     }
 
+    this.refusals.delete(key.sessionId)
     await this.markReceived(key.requestId, false)
     let others = supabase
       .from('megolm_key_requests')
@@ -834,6 +844,7 @@ export class MegolmKeyBackupService {
     this.broadcastUnsubs = []
     this.keyReceivedCallbacks.clear()
     this.pendingRequests.clear()
+    this.refusals.clear()
     this.relayedKeys.clear()
   }
 
