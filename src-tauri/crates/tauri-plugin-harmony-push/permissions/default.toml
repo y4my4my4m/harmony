@@ -7,6 +7,7 @@ permissions = [
   "allow-request-permission",
   "allow-open-settings",
   "allow-get-fcm-token",
+  "allow-get-relay-registration",
   "allow-show",
   "allow-cancel",
   "allow-take-launch-target",

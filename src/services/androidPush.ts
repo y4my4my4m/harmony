@@ -1,11 +1,14 @@
 /**
  * Android app push: the bridge to the harmony-push Tauri plugin and the decisions around it.
  *
- * Two transports reach a closed app. FCM needs Google Play Services, a build carrying
- * google-services.json and a server with a Firebase service account. UnifiedPush needs a
- * distributor app (ntfy, NextPush, ...) and a server with VAPID keys; the server then
- * delivers to it as Web Push. With neither, the running app still shows notifications
- * itself through the same plugin.
+ * Three transports reach a closed app. FCM needs Google Play Services, a build carrying
+ * google-services.json and a server holding the service account of that build's Firebase
+ * project. UnifiedPush needs a distributor app (ntfy, NextPush, ...) and a server with VAPID
+ * keys; the server then delivers to it as Web Push. The relay serves a build's FCM to any
+ * server with VAPID keys: the server sends Web Push to the relay (federation-backend
+ * routes/pushRelay.ts) at an endpoint naming this device's FCM token, and the relay forwards
+ * the ciphertext through the build's Firebase project. With none, the running app still
+ * shows notifications itself through the same plugin.
  *
  * Kotlin side: src-tauri/crates/tauri-plugin-harmony-push/android.
  */
@@ -40,6 +43,8 @@ export interface UnifiedPushEndpoint {
 
 export interface NativePushStatus {
   fcm: FcmState
+  /** Firebase project of this build; null without google-services.json. */
+  fcmProject?: string | null
   permission: NativePermission
   unifiedPush: {
     distributors: Distributor[]
@@ -54,18 +59,29 @@ export interface NativePushStatus {
 export interface ServerPushSupport {
   fcm: boolean
   unifiedpush: boolean
+  /** Firebase project of the server's service account; absent before 1.9.0. */
+  fcmProject?: string | null
+}
+
+/** A push relay that forwards to FCM, as its GET /push/status reports it. */
+export interface RelaySupport {
+  /** Origin of the relay's instance, e.g. https://har.mony.lol. */
+  origin: string
+  relay: boolean
+  fcmProject: string | null
 }
 
 export type TransportPreference = 'auto' | 'fcm' | 'off' | `unifiedpush:${string}`
 
 export type TransportChoice =
   | { kind: 'fcm' }
+  | { kind: 'relay'; origin: string }
   | { kind: 'unifiedpush'; distributor: string }
   | { kind: 'off'; reason: 'user' | 'unavailable' | 'choose_distributor' }
 
 export interface AndroidPushRecord {
-  transport: 'fcm' | 'unifiedpush'
-  /** FCM token, or the UnifiedPush endpoint URL. */
+  transport: 'fcm' | 'relay' | 'unifiedpush'
+  /** FCM token, or the relay or UnifiedPush endpoint URL. */
   endpoint: string
   /** push_subscriptions row id; the server lists FCM rows by id only. */
   id?: string
@@ -129,20 +145,52 @@ export interface CancelCriteria {
 // ---------------------------------------------------------------------------
 
 /**
+ * Whether the server reaches this build's FCM tokens itself: it holds a service account of
+ * the build's Firebase project. A server or build that names no project counts as matching.
+ */
+export function fcmDirect(status: Pick<NativePushStatus, 'fcm' | 'fcmProject'>, server: ServerPushSupport): boolean {
+  if (status.fcm !== 'available' || !server.fcm) return false
+  return !server.fcmProject || !status.fcmProject || server.fcmProject === status.fcmProject
+}
+
+/**
+ * Whether this device reaches the server through the relay: FCM works on the device, the
+ * server cannot reach this build's tokens but sends Web Push, and the relay forwards for this
+ * build's Firebase project.
+ */
+export function relayReady(
+  status: Pick<NativePushStatus, 'fcm' | 'fcmProject'>,
+  server: ServerPushSupport,
+  relay: RelaySupport | null,
+): boolean {
+  return relayNeeded(status, server) && !!relay?.relay && relay.fcmProject === status.fcmProject
+}
+
+/** Whether FCM would reach this device only through a relay: the relay's status is then asked. */
+export function relayNeeded(status: Pick<NativePushStatus, 'fcm' | 'fcmProject'>, server: ServerPushSupport): boolean {
+  return status.fcm === 'available' && !!status.fcmProject && server.unifiedpush && !fcmDirect(status, server)
+}
+
+/**
  * Which transport this device uses. A distributor the user picked wins in automatic mode;
- * otherwise FCM when both ends support it, then a sole installed distributor. Several
- * distributors and no choice yet leave push off until the user picks one in Settings.
+ * otherwise FCM when the server reaches this build's tokens, then the relay, then a sole
+ * installed distributor. Several distributors and no choice yet leave push off until the user
+ * picks one in Settings. "Google (FCM)" means FCM directly or through the relay.
  */
 export function chooseTransport(
   preference: TransportPreference,
-  status: Pick<NativePushStatus, 'fcm' | 'unifiedPush'>,
+  status: Pick<NativePushStatus, 'fcm' | 'fcmProject' | 'unifiedPush'>,
   server: ServerPushSupport,
+  relay: RelaySupport | null = null,
 ): TransportChoice {
   const installed = status.unifiedPush.distributors.map(d => d.id)
-  const fcmReady = status.fcm === 'available' && server.fcm
+  const direct = fcmDirect(status, server)
+  const relayed = relayReady(status, server, relay)
+  const google = (): TransportChoice | null =>
+    direct ? { kind: 'fcm' } : relayed && relay ? { kind: 'relay', origin: relay.origin } : null
 
   if (preference === 'off') return { kind: 'off', reason: 'user' }
-  if (preference === 'fcm') return fcmReady ? { kind: 'fcm' } : { kind: 'off', reason: 'unavailable' }
+  if (preference === 'fcm') return google() ?? { kind: 'off', reason: 'unavailable' }
   if (preference.startsWith('unifiedpush:')) {
     const distributor = preference.slice('unifiedpush:'.length)
     return server.unifiedpush && installed.includes(distributor)
@@ -152,7 +200,8 @@ export function chooseTransport(
 
   const saved = status.unifiedPush.distributor
   if (server.unifiedpush && saved && installed.includes(saved)) return { kind: 'unifiedpush', distributor: saved }
-  if (fcmReady) return { kind: 'fcm' }
+  const viaGoogle = google()
+  if (viaGoogle) return viaGoogle
   if (server.unifiedpush && installed.length === 1) return { kind: 'unifiedpush', distributor: installed[0] }
   if (server.unifiedpush && installed.length > 1) return { kind: 'off', reason: 'choose_distributor' }
   return { kind: 'off', reason: 'unavailable' }
@@ -163,7 +212,7 @@ export function chooseTransport(
  * the account's device list, null when it could not be fetched.
  */
 export function decideAndroidRegistration(input: {
-  transport: 'fcm' | 'unifiedpush'
+  transport: 'fcm' | 'relay' | 'unifiedpush'
   current: string
   record: AndroidPushRecord | null
   rows: ServerRow[] | null
@@ -209,8 +258,37 @@ export function launchTargetIds(target: PushLaunchTarget): string[] {
 export function transportLabel(choice: TransportChoice | null, distributors: Distributor[]): string {
   if (!choice || choice.kind === 'off') return 'Off'
   if (choice.kind === 'fcm') return 'Google (FCM)'
+  if (choice.kind === 'relay') return `Google (FCM) through ${hostOf(choice.origin)}`
   const name = distributors.find(d => d.id === choice.distributor)?.name || choice.distributor
   return `UnifiedPush via ${name}`
+}
+
+function hostOf(origin: string): string {
+  try {
+    return new URL(origin).host
+  } catch {
+    return origin
+  }
+}
+
+/**
+ * Origin of the push relay this build's FCM messages go through: VITE_PUSH_RELAY_ORIGIN, the
+ * instance that holds the build's Firebase service account. Null when unset or not https.
+ */
+export function pushRelayOrigin(value: string | undefined = import.meta.env.VITE_PUSH_RELAY_ORIGIN): string | null {
+  const raw = (value || '').trim()
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'https:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
+/** The relay's Web Push endpoint for one FCM token (POST /push/relay/fcm/:token). */
+export function relayEndpoint(origin: string, token: string): string {
+  return `${origin}/api/federation/push/relay/fcm/${encodeURIComponent(token)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +318,7 @@ export function writeTransportPreference(preference: TransportPreference): void 
 export function readAndroidRecord(): AndroidPushRecord | null {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECORD_KEY) || 'null')
-    if ((parsed?.transport === 'fcm' || parsed?.transport === 'unifiedpush') &&
+    if ((parsed?.transport === 'fcm' || parsed?.transport === 'relay' || parsed?.transport === 'unifiedpush') &&
         typeof parsed.endpoint === 'string' && typeof parsed.registeredAt === 'number') {
       return parsed
     }
@@ -314,6 +392,11 @@ export async function openNativeNotificationSettings(): Promise<void> {
 export async function getFcmToken(): Promise<string> {
   const result = await call<{ token: string }>('get_fcm_token')
   return result.token
+}
+
+/** This device's FCM token and the Web Push keys the relay's messages are encrypted to. */
+export async function getRelayRegistration(): Promise<{ token: string; p256dh: string; auth: string }> {
+  return call<{ token: string; p256dh: string; auth: string }>('get_relay_registration')
 }
 
 export async function registerUnifiedPush(distributor: string, vapid: string | null): Promise<void> {

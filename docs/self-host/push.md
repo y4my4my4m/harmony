@@ -18,6 +18,7 @@ push on for their devices is in
 | Web Push | Browsers and the installed web app (PWA): desktop, Android, and iOS or iPadOS 16.4 and later when added to the home screen | A VAPID key pair |
 | UnifiedPush | The Android app, through a distributor app the user installs | The same VAPID key pair |
 | FCM | The Android app on a device with Google Play services | A Firebase service account of the project the app build was made with |
+| FCM through a relay | The official Android app on a device with Google Play services, on any instance | The same VAPID key pair; the relay holds the Firebase service account |
 
 The desktop app shows system notifications itself while it runs and needs no
 server setting.
@@ -126,6 +127,35 @@ To use FCM with an app build you make yourself:
 off and the Android app offers UnifiedPush only. With FCM configured, the
 backend logs `FCM enabled for project` followed by the project id.
 
+## The push relay (official Android app)
+
+An FCM token works only with the service account of the app build's Firebase
+project, and that account is never handed out: it could push to every install.
+An instance without it still reaches the official app through the relay that
+the app's publisher runs:
+
+1. The app asks the relay's `/api/federation/push/status` whether it forwards
+   for the app's Firebase project (`relay: true` and a matching `fcmProject`).
+2. It subscribes on your instance as an ordinary UnifiedPush device, with the
+   endpoint `https://<relay>/api/federation/push/relay/fcm/<FCM token>` and
+   Web Push keys the app made.
+3. Your worker encrypts each notification to those keys (RFC 8291) and signs
+   the request with your VAPID key, as for any UnifiedPush distributor.
+4. The relay checks the VAPID signature, forwards the ciphertext through FCM
+   unread, and the app decrypts it.
+
+Your instance needs nothing beyond its VAPID key pair. The relay learns the
+device's FCM token, your instance's VAPID public key, and the size and time of
+each message, not its content. It limits each sending key and each device, and
+answers 413 for a message over 3060 bytes; the worker keeps app payloads below
+that. Where your instance holds the service account of the app's own project,
+the app uses FCM directly and the relay is not involved.
+
+To run a relay for an app you build yourself: give the instance the build's
+FCM service account, set `PUSH_RELAY_ENABLED=true` in `federation.env`, and
+build the app with `VITE_PUSH_RELAY_ORIGIN` set to that instance's https
+origin.
+
 ## Check push
 
 `harmony doctor` reports push in its **Services** section. It passes when
@@ -139,7 +169,7 @@ curl https://chat.example.com/api/federation/push/status
 ```
 
 ```json
-{ "available": true, "configured": true, "fcm": false, "unifiedpush": true }
+{ "available": true, "configured": true, "fcm": false, "unifiedpush": true, "fcmProject": null, "relay": false }
 ```
 
 | Field | Means |
@@ -148,6 +178,8 @@ curl https://chat.example.com/api/federation/push/status
 | `configured` | The VAPID key pair is set (Web Push) |
 | `unifiedpush` | Same as `configured` |
 | `fcm` | A valid FCM service account is loaded |
+| `fcmProject` | That account's Firebase project; the app uses FCM directly only when its own project matches |
+| `relay` | This instance relays Web Push to FCM for its app build (`PUSH_RELAY_ENABLED=true` and an FCM service account) |
 
 To send a real notification, open **User settings** → **Notifications** on a
 device with push turned on and select **Test push**.
@@ -159,6 +191,7 @@ device with push turned on and select **Test push**.
 | Subscribed, nothing arrives | `harmony logs federation-worker`: the worker sends every push. A user active on another device gets no push by default |
 | A distributor on the LAN is refused | `PUSH_ALLOW_PRIVATE_ENDPOINTS=true` |
 | Android FCM never delivers | `"fcm": true` in `/push/status`, and the service account belongs to the app build's Firebase project |
+| The official app gets nothing on an instance without FCM | `"unifiedpush": true` on the instance, `"relay": true` on the relay's `/push/status`, and `harmony logs federation-worker` for the relay's answer (401 VAPID, 413 size, 429 limit) |
 
 A push endpoint that answers 404 or 410, and an FCM token Firebase rejects,
 are deleted from `push_subscriptions` at once. Other failures are counted on

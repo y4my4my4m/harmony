@@ -49,6 +49,7 @@ import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
+import pushRelayRouter from './routes/pushRelay.js';
 import { documentCache, subscribeDocumentInvalidation } from './middleware/documentCache.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
@@ -112,6 +113,9 @@ export function createApp(): Application {
     if (req.method === 'POST' && p.endsWith('/test')) return next();
     return pushLimiter(req, res, next);
   };
+  // Before /push: the relay has its own limits and reads a raw body.
+  app.use('/push/relay', pushRelayRouter);
+  app.use('/api/federation/push/relay', pushRelayRouter);
   app.use('/push', pushWithLimiter, pushRouter);
   app.use('/api/federation/push', pushWithLimiter, pushRouter);
   app.use('/link-preview', linkPreviewLimiter, linkPreviewRouter);

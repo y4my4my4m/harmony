@@ -21,6 +21,7 @@ import { apiUrl } from '@/services/instanceConfig'
 import {
   type AndroidPushRecord,
   type NativePushStatus,
+  type RelaySupport,
   type ServerPushSupport,
   type ServerRow,
   type TransportChoice,
@@ -28,13 +29,17 @@ import {
   chooseTransport,
   decideAndroidRegistration,
   getFcmToken,
+  getRelayRegistration,
   initAndroidPush,
   isAndroidApp,
   nativePushStatus,
   openNativeNotificationSettings,
+  pushRelayOrigin,
   readAndroidRecord,
   readTransportPreference,
   registerUnifiedPush,
+  relayEndpoint,
+  relayNeeded,
   requestNativePermission,
   unregisterUnifiedPush,
   writeAndroidRecord,
@@ -59,6 +64,7 @@ const androidStatus = ref<NativePushStatus | null>(null)
 const androidChoice = ref<TransportChoice | null>(null)
 const androidPreference = ref<TransportPreference>('auto')
 const serverSupport = ref<ServerPushSupport | null>(null)
+const relaySupport = ref<RelaySupport | null>(null)
 
 let initPromise: Promise<void> | null = null
 let reconcilePromise: Promise<void> | null = null
@@ -587,10 +593,40 @@ async function fetchServerSupport(): Promise<ServerPushSupport> {
     const response = await pushFetch('/status')
     if (!response.ok) return { fcm: false, unifiedpush: false }
     const data = await response.json()
-    return { fcm: data.fcm === true, unifiedpush: data.unifiedpush === true }
+    return {
+      fcm: data.fcm === true,
+      unifiedpush: data.unifiedpush === true,
+      fcmProject: typeof data.fcmProject === 'string' ? data.fcmProject : null,
+    }
   } catch {
     return { fcm: false, unifiedpush: false }
   }
+}
+
+const RELAY_STATUS_TTL_MS = 10 * 60 * 1000
+let relayStatusCache: { at: number; support: RelaySupport | null } | null = null
+
+/** The push relay's status, from its own instance; null when unreachable or unset. */
+async function fetchRelaySupport(): Promise<RelaySupport | null> {
+  const origin = pushRelayOrigin()
+  if (!origin) return null
+  if (relayStatusCache && Date.now() - relayStatusCache.at < RELAY_STATUS_TTL_MS) return relayStatusCache.support
+  let support: RelaySupport | null = null
+  try {
+    const response = await fetch(`${origin}${PUSH_BASE}/status`)
+    if (response.ok) {
+      const data = await response.json()
+      support = {
+        origin,
+        relay: data.relay === true,
+        fcmProject: typeof data.fcmProject === 'string' ? data.fcmProject : null,
+      }
+    }
+  } catch {
+    support = null
+  }
+  relayStatusCache = { at: Date.now(), support }
+  return support
 }
 
 function serverRows(): ServerRow[] {
@@ -659,7 +695,10 @@ async function reconcileAndroid(): Promise<void> {
 
   const server = await fetchServerSupport()
   serverSupport.value = server
-  const choice = chooseTransport(androidPreference.value, status, server)
+  // The relay is asked only when this server cannot reach the build's FCM tokens itself.
+  const relay = relayNeeded(status, server) ? await fetchRelaySupport() : null
+  relaySupport.value = relay
+  const choice = chooseTransport(androidPreference.value, status, server, relay)
   androidChoice.value = choice
   const listed = await fetchSubscriptions()
   const record = readAndroidRecord()
@@ -690,6 +729,34 @@ async function reconcileAndroid(): Promise<void> {
         writeAndroidRecord({ transport: 'fcm', endpoint: fcmToken, id: data.id, registeredAt: Date.now() })
         await fetchSubscriptions()
         debug.log('FCM token registered for this account')
+      }
+      return
+    }
+
+    if (choice.kind === 'relay') {
+      // An ordinary Web Push subscription to the server; its endpoint is the relay, which
+      // forwards the ciphertext through FCM. A rotated token is a new endpoint.
+      const registration = await getRelayRegistration()
+      const endpoint = relayEndpoint(choice.origin, registration.token)
+      const current = readAndroidRecord()
+      const decision = decideAndroidRegistration({
+        transport: 'relay', current: endpoint, record: current, rows: listed ? serverRows() : null, now: Date.now(),
+      })
+      if (decision.kind === 'register') {
+        const response = await pushFetch('/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({
+            subscription: { endpoint, keys: { p256dh: registration.p256dh, auth: registration.auth } },
+            previousEndpoint: decision.previous,
+            deviceName: androidDeviceName(),
+            transport: 'unifiedpush',
+          }),
+        }, token)
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || `Server error ${response.status}`)
+        writeAndroidRecord({ transport: 'relay', endpoint, registeredAt: Date.now() })
+        await fetchSubscriptions()
+        debug.log('Push relay endpoint registered for this account')
       }
       return
     }
@@ -819,6 +886,7 @@ export function usePushNotifications() {
     androidChoice,
     androidPreference,
     serverSupport,
+    relaySupport,
 
     initialize,
     reconcile,

@@ -16,6 +16,10 @@ class HarmonyFirebaseService : FirebaseMessagingService() {
   // are fetched inline.
   override fun onMessageReceived(message: RemoteMessage) {
     if (message.data.isEmpty()) return
+    if (FcmRelay.isRelayed(message.data)) {
+      FcmRelay.handle(this, message.data, message.sentTime)
+      return
+    }
     PushInbox.handle(this, message.data, message.sentTime, fetchImages = true)
   }
 }

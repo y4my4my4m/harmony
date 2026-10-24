@@ -11,6 +11,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { bearerToken, sessionIdFromToken } from '../utils/sessionAssurance.js';
 import { logger } from '../utils/logger.js';
+import config from '../config/index.js';
 import { isValidFcmToken } from '../services/pushPolicy.js';
 
 const supabaseAdmin = getSupabaseClient();
@@ -49,6 +50,11 @@ router.get('/status', (_req: Request, res: Response): void => {
     available: PushNotificationService.isAvailable(),
     configured: webPush,
     fcm: PushNotificationService.isFcmConfigured(),
+    // Firebase project of the service account: only tokens of an app build with this project
+    // reach FCM from here.
+    fcmProject: PushNotificationService.getFcmSender().projectId(),
+    // This instance relays encrypted Web Push to FCM for its app (routes/pushRelay.ts).
+    relay: config.PUSH_RELAY_ENABLED === true && PushNotificationService.isFcmConfigured(),
     unifiedpush: webPush,
   });
 });
