@@ -72,6 +72,21 @@ export function galleryMedia(source: any): MediaAttachment[] {
   return media
 }
 
+/** A media URL's path: protocol, host and query dropped, so copies of one file match. */
+export function mediaUrlPath(url: string): string {
+  const u = url.split('?')[0]
+  const path = u.includes('/') ? u.replace(/^[^/]*\/\/[^/]+/, '') : u
+  return path || u
+}
+
+/**
+ * A link straight to an image, video or audio file. Post content draws such a link inline;
+ * the extensions are useContentRenderer's isImageUrl, isVideoUrl and isAudioUrl.
+ */
+export function isDirectMediaUrl(url: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|mp4|webm|ogg|avi|mov|wmv|flv|m4v|mp3|wav|flac|aac|m4a|opus)(\?.*)?$/i.test(url)
+}
+
 /**
  * Content without the parts the gallery shows: media file parts, and any part whose URL
  * is a gallery URL. URLs match on their path; protocol, host and query may differ.
@@ -79,16 +94,11 @@ export function galleryMedia(source: any): MediaAttachment[] {
 export function withoutGalleryMedia<T>(content: T, media: MediaAttachment[]): T {
   if (!Array.isArray(content) || media.length === 0) return content
 
-  const normalizeUrl = (url: string) => {
-    const u = url.split('?')[0]
-    const path = u.includes('/') ? u.replace(/^[^/]*\/\/[^/]+/, '') : u
-    return path || u
-  }
-  const mediaUrlPaths = new Set(media.map((m) => normalizeUrl(String(m.url))))
+  const mediaUrlPaths = new Set(media.map((m) => mediaUrlPath(String(m.url))))
 
   const isGalleryPart = (p: any): boolean => {
     const partUrl = p?.url
-    if (partUrl && (mediaUrlPaths.has(normalizeUrl(partUrl)) || mediaUrlPaths.has(partUrl))) return true
+    if (partUrl && (mediaUrlPaths.has(mediaUrlPath(partUrl)) || mediaUrlPaths.has(partUrl))) return true
     const t = String(p?.type || '').toLowerCase()
     if (t === 'file') {
       const ft = p?.fileType || p?.file_type || ''
