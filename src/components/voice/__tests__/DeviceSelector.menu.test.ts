@@ -5,6 +5,7 @@ import { resetLayersForTests } from '@/utils/a11y/layers'
 // The device picker is a menu button: the trigger reports expanded, the list
 // is a menu of menuitemradio items with the selection checked, focus starts
 // on the selected device, and a choice or Escape returns focus to the trigger.
+// The capture that unlocks device labels is stopped once the list is read.
 
 const h = vi.hoisted(() => ({ updateInputDevice: vi.fn(async () => undefined) }))
 vi.mock('@/utils/mediaDevices', () => ({
@@ -77,5 +78,13 @@ describe('DeviceSelector', () => {
     expect(trigger.attributes('aria-expanded')).toBe('false')
     expect(document.querySelector('[role="menu"]')).toBeNull()
     expect(document.activeElement).toBe(trigger.element)
+  })
+
+  it('stops the label-unlock capture after opening', async () => {
+    const tracks = [{ kind: 'audio', stop: vi.fn() }, { kind: 'video', stop: vi.fn() }]
+    ;(navigator.mediaDevices as unknown as { getUserMedia: unknown }).getUserMedia = vi.fn(async () => ({ getTracks: () => tracks }))
+    await openFromKeyboard()
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({ audio: true, video: true })
+    for (const track of tracks) expect(track.stop).toHaveBeenCalledTimes(1)
   })
 })
