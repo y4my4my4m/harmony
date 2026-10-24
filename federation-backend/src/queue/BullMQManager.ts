@@ -333,7 +333,8 @@ class BullMQManagerService {
     return producer;
   }
 
-  async addJob(jobType: JobType | string, data: FederationJobData): Promise<string | undefined> {
+  /** `delayMs` holds the job back that long before a worker takes it. */
+  async addJob(jobType: JobType | string, data: FederationJobData, delayMs?: number): Promise<string | undefined> {
     const queue = this.queueFor(jobType);
     if (!queue) {
       logger.warn(`No queue for job type "${jobType}"`);
@@ -343,6 +344,7 @@ class BullMQManagerService {
     const job = await queue.add(jobType, data, {
       attempts: 5,
       backoff: { type: 'exponential', delay: 5000 },
+      ...(delayMs && delayMs > 0 ? { delay: delayMs } : {}),
     });
 
     logger.debug(`Queued ${jobType} job: ${job.id}`);
@@ -483,9 +485,11 @@ class BullMQManagerService {
       await this.addJob('federate-instance-leave', { type: 'delete', leave_id: row.id });
     }
 
-    // Outgoing webhook deliveries due: retries, and first attempts whose notify was lost.
+    // Outgoing webhook deliveries due: retries, deferred attempts, first attempts whose notify was
+    // lost, and one probe for each paused webhook.
     const { data: dueDeliveries } = await supabase.rpc('due_outgoing_webhook_deliveries', { p_limit: 200 });
-    for (const deliveryId of (dueDeliveries ?? []) as string[]) {
+    const { data: probes } = await supabase.rpc('outgoing_webhook_probes');
+    for (const deliveryId of [...((dueDeliveries ?? []) as string[]), ...((probes ?? []) as string[])]) {
       await this.addJob('deliver-outgoing-webhook', { type: 'create', delivery_id: deliveryId });
     }
     if (Date.now() - this.lastWebhookPrune > 3_600_000) {

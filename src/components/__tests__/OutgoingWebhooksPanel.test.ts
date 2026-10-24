@@ -34,18 +34,22 @@ const { default: OutgoingWebhooksPanel } = await import('../OutgoingWebhooksPane
 const WEBHOOK = {
   id: 'w1', bot_id: 'b1', server_id: null, name: 'Deploys', url: 'https://hooks.example/deploys',
   events: ['MESSAGE_CREATE'], secret_hint: 'AbC=', is_active: true, disabled_reason: null, failing_since: null,
+  verified_at: '2026-10-24T00:00:01Z', paused: false, dropped_events: 0, last_dropped_at: null, last_drop_reason: null,
   last_success_at: null, last_failure_at: null, last_status: null, last_error: null, created_at: '2026-10-24T00:00:00Z',
 }
 
 let webhooks: any[]
+let availability: any
 beforeEach(() => {
   vi.clearAllMocks()
   webhooks = [WEBHOOK]
+  availability = { outgoing_mode: 'everyone', incoming_enabled: true, can_create_outgoing: true, per_user: 10 }
   rpc.mockImplementation(async (fn: string, args: any) => {
     switch (fn) {
+      case 'webhook_availability': return { data: availability, error: null }
       case 'list_outgoing_webhooks': return { data: webhooks, error: null }
       case 'create_outgoing_webhook':
-        return { data: { ...WEBHOOK, id: 'w2', name: args.p_name, url: args.p_url, events: args.p_events, secret: 'whsec_NEWSECRET' }, error: null }
+        return { data: { ...WEBHOOK, id: 'w2', name: args.p_name, url: args.p_url, events: args.p_events, verified_at: null, secret: 'whsec_NEWSECRET' }, error: null }
       case 'rotate_outgoing_webhook_secret': return { data: { ...WEBHOOK, secret: 'whsec_ROTATED', secret_hint: 'TED' }, error: null }
       case 'update_outgoing_webhook': return { data: { ...WEBHOOK, is_active: args.p_active ?? true, disabled_reason: args.p_active === false ? 'owner' : null }, error: null }
       case 'test_outgoing_webhook': return { data: 'd1', error: null }
@@ -114,10 +118,35 @@ describe('OutgoingWebhooksPanel', () => {
       .toBe('Turned off after three days of failed deliveries. Last answer: HTTP 502')
   })
 
+  it('reads a new webhook as waiting for its test event, a paused one, one staff turned off, and skipped events', async () => {
+    webhooks = [
+      { ...WEBHOOK, id: 'a', verified_at: null },
+      { ...WEBHOOK, id: 'b', paused: true, last_error: 'HTTP 500', dropped_events: 4, last_drop_reason: 'paused', last_dropped_at: '2026-10-24T01:00:00Z' },
+      { ...WEBHOOK, id: 'c', is_active: false, disabled_reason: 'staff' },
+    ]
+    const wrapper = await mountPanel()
+    expect(wrapper.get('[data-testid="outgoing-webhook-a"] [data-testid="outgoing-webhook-state"]').text())
+      .toBe('Waiting for a 2xx answer to the test event before events are sent')
+    expect(wrapper.get('[data-testid="outgoing-webhook-b"] [data-testid="outgoing-webhook-state"]').text()).toContain('Paused after 10 failed attempts')
+    expect(wrapper.get('[data-testid="outgoing-webhook-b"] [data-testid="outgoing-webhook-dropped"]').text()).toContain('4 events skipped (while paused)')
+    expect(wrapper.get('[data-testid="outgoing-webhook-c"] [data-testid="outgoing-webhook-state"]').text()).toBe('Turned off by this instance\'s staff')
+    expect((wrapper.get('[data-testid="outgoing-webhook-active-c"]').element as HTMLInputElement).disabled).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('offers no new webhook where the instance does not let the viewer create one', async () => {
+    availability = { outgoing_mode: 'staff', incoming_enabled: true, can_create_outgoing: false, per_user: 10 }
+    const wrapper = await mountPanel()
+    expect(wrapper.find('[data-testid="outgoing-webhook-new"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="outgoing-webhook-unavailable"]').text()).toBe('On this instance, only its staff create outgoing webhooks.')
+  })
+
   it('names a refused URL by the RPC\'s code', async () => {
     rpc.mockImplementation(async (fn: string) => fn === 'list_outgoing_webhooks'
       ? { data: [], error: null }
-      : { data: null, error: { message: 'OUTGOING_WEBHOOK_INVALID_URL: an https URL of at most 2048 characters' } })
+      : fn === 'webhook_availability'
+        ? { data: availability, error: null }
+        : { data: null, error: { message: 'OUTGOING_WEBHOOK_INVALID_URL: an https URL of at most 2048 characters' } })
     const wrapper = await mountPanel()
     await wrapper.get('[data-testid="outgoing-webhook-new"]').trigger('click')
     await wrapper.get('[data-testid="outgoing-webhook-url"]').setValue('http://example.com')

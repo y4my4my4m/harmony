@@ -17,17 +17,22 @@ add_user_prekeys	definer	integer	service_role	service key	nothing references it
 add_user_to_conversation	definer	uuid	authenticated+service_role	client	rpc in src/stores/useDM.ts
 admin_add_supporter	definer	uuid	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_delete_instance_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
+admin_delete_outgoing_webhook	definer	void	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_drive_remove_file	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/ReportsModeration.vue
 admin_drive_unblock_hash	definer	boolean	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
 admin_drive_usage	definer	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint)	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
+admin_get_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_list_instance_emojis	definer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint, is_ai_generated boolean)	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
+admin_list_outgoing_webhooks	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_list_supporters	definer	jsonb	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_moderate_post	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
 admin_rename_instance_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 admin_resolve_pending_donation	definer	uuid	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_set_drive_quota	definer	bigint	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
 admin_set_moderator	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts
+admin_set_outgoing_webhook_active	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_update_supporter	definer	boolean	authenticated+service_role	client	rpc in src/services/FundingService.ts
+admin_update_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 aggregate_hourly_metrics	definer	integer	service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts
 antispam_check_local_author	definer	boolean	service_role	trigger	called by antispam_post_guard, automod_check_message
 antispam_int	invoker	integer	service_role	trigger	called by antispam_check_local_author
@@ -163,7 +168,7 @@ check_key_consistency	definer	TABLE(user_id uuid, username text, has_public_key 
 check_message_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_check_message_emoji_reaction_limit)
 claim_ap_activity	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 claim_device_recovery_trust	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
-claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
+claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
 claim_session_share	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 clamp_profile_moderation_on_insert	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.profiles BEFORE INSERT (a_clamp_profile_moderation_on_insert_trigger)
 cleanup_dead_endpoint_users	definer	void	service_role	trigger	called by trigger_cleanup_dead_endpoint
@@ -541,7 +546,7 @@ index_message	definer	trigger	service_role	trigger	trigger public.messages AFTER
 index_message_row	definer	void	service_role	trigger	called by index_message
 initialize_user_encryption	definer	jsonb	anon+authenticated+service_role	http anon	nothing references it
 insert_ap_activity_outbound	definer	uuid	anon+authenticated+service_role	client	rpc in src/services/federation/FederationActivityService.ts
-instance_config_flag	invoker	boolean	service_role	client, trigger	called by get_public_federation_settings, instance_federation_switches
+instance_config_flag	invoker	boolean	service_role	client, trigger	called by get_public_federation_settings, instance_federation_switches, webhook_settings
 instance_federation_closed	definer	boolean	service_role	trigger	called by apply_instance_federation_switches, guard_server_federation_instance_closed
 instance_federation_switches	definer	record	service_role	client, trigger	rpc in federation-backend/src/services/FederationSwitches.ts
 instance_keepouts_from_copy_bans	definer	integer	-	nothing	nothing references it
@@ -553,6 +558,7 @@ instance_remove_member	definer	jsonb	authenticated+service_role	client	rpc in sr
 instance_server_member_leaves	definer	boolean	service_role	client, trigger	called by apply_instance_federation_switches, instance_remove_member, instance_set_server_blocked
 instance_set_server_blocked	definer	jsonb	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
 instance_set_server_media_hidden	definer	boolean	authenticated+service_role	client	rpc in src/services/instanceServerTools.ts
+is_active_instance_staff	definer	boolean	service_role	client	called by admin_get_webhook_settings, admin_list_outgoing_webhooks, admin_set_outgoing_webhook_active, +2
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
@@ -581,7 +587,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_drive_remove_file, admin_moderate_post, admin_set_drive_quota, +20
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_outgoing_webhook, admin_drive_remove_file, admin_moderate_post, +23
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -634,8 +640,11 @@ outgoing_webhook_assert_vault	invoker	void	service_role	client	called by claim_o
 outgoing_webhook_check_fields	invoker	void	service_role	client	called by create_outgoing_webhook, update_outgoing_webhook
 outgoing_webhook_creator_reads	definer	boolean	service_role	client	called by enqueue_outgoing_webhook_event
 outgoing_webhook_event_types	invoker	text[]	service_role	client	called by enqueue_outgoing_webhook_event, outgoing_webhook_check_fields
-outgoing_webhook_json	definer	jsonb	service_role	client	called by create_outgoing_webhook, list_outgoing_webhooks, rotate_outgoing_webhook_secret, +1
+outgoing_webhook_host	invoker	text	service_role	client	called by create_outgoing_webhook, outgoing_webhook_check_fields, update_outgoing_webhook
+outgoing_webhook_host_blocked	definer	boolean	service_role	client	called by claim_outgoing_webhook_delivery, enqueue_outgoing_webhook_event, outgoing_webhook_check_fields
+outgoing_webhook_json	definer	jsonb	service_role	client	called by admin_list_outgoing_webhooks, admin_set_outgoing_webhook_active, create_outgoing_webhook, +3
 outgoing_webhook_new_secret	definer	text	service_role	client	called by create_outgoing_webhook, rotate_outgoing_webhook_secret
+outgoing_webhook_probes	definer	SETOF uuid	service_role	client	rpc in federation-backend/src/queue/BullMQManager.ts
 outgoing_webhook_routes	definer	TABLE(bot_id uuid, server_id uuid, events text[])	service_role	client	rpc in bot-gateway/src/gateway/outgoingWebhooks.ts
 outgoing_webhook_valid_url	invoker	boolean	service_role	client	called by outgoing_webhook_check_fields
 outgoing_webhooks_purge_secret	definer	trigger	service_role	trigger	trigger public.outgoing_webhooks AFTER DELETE (outgoing_webhooks_purge_secret)
@@ -674,6 +683,7 @@ purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
 queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +42
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
+queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
 queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public.notifications AFTER UPDATE STATEMENT (trg_queue_push_dismissal_on_read)
@@ -950,6 +960,8 @@ voice_participant_joined_at	invoker	trigger	service_role	trigger	trigger public.
 voice_remove_member	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/services/voiceGrantSync.ts
 vote_message_poll	definer	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean)	authenticated+service_role	client	rpc in src/services/MessagePollService.ts
 vote_remote_poll	definer	jsonb	authenticated+service_role	client	rpc in src/services/RemotePollService.ts
+webhook_availability	definer	jsonb	authenticated+service_role	client	named in src/components/__tests__/OutgoingWebhooksPanel.test.ts, src/services/outgoingWebhookService.ts
 webhook_message_parts	invoker	jsonb	service_role	client	called by execute_channel_webhook
 webhook_normalize_avatar_url	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook
 webhook_normalize_name	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook
+webhook_settings	definer	jsonb	service_role	client	called by admin_get_webhook_settings, admin_update_webhook_settings, assert_webhook_channel, +6

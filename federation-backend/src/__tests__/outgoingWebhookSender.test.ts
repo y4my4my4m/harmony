@@ -121,13 +121,20 @@ describe('sendDelivery', () => {
 describe('deliverOutgoingWebhook', () => {
   it('claims, sends and records one attempt', async () => {
     rpc.mockImplementation(async (fn: string) => fn === 'claim_outgoing_webhook_delivery'
-      ? { data: [delivery(`${base}/hook`)], error: null }
+      ? { data: [{ ...delivery(`${base}/hook`), defer_ms: null }], error: null }
       : { data: 'delivered', error: null })
-    await deliverOutgoingWebhook('9f0e2d4c-0000-4000-8000-000000000001')
+    expect(await deliverOutgoingWebhook('9f0e2d4c-0000-4000-8000-000000000001')).toBeNull()
     expect(received).toHaveLength(1)
     expect(rpc).toHaveBeenCalledWith('record_outgoing_webhook_attempt', {
       p_delivery_id: '9f0e2d4c-0000-4000-8000-000000000001', p_ok: true, p_status: 204, p_error: null,
     })
+  })
+
+  it('returns the delay of a deferred claim and sends nothing', async () => {
+    rpc.mockResolvedValue({ data: [{ delivery_id: null, url: null, secret: null, event: null, payload: null, created_at: null, defer_ms: 2000 }], error: null })
+    expect(await deliverOutgoingWebhook('9f0e2d4c-0000-4000-8000-000000000001')).toBe(2000)
+    expect(received).toHaveLength(0)
+    expect(rpc).toHaveBeenCalledTimes(1)
   })
 
   it('sends nothing when there is nothing to claim', async () => {

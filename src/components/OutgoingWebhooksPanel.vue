@@ -6,7 +6,7 @@
         <p class="ow-hint">{{ botId ? t('outgoingWebhooks.introBot') : t('outgoingWebhooks.introServer') }}</p>
       </div>
       <button
-        v-if="!form || form.mode !== 'create'"
+        v-if="canCreate && (!form || form.mode !== 'create')"
         type="button"
         class="ow-btn ow-btn-primary"
         data-testid="outgoing-webhook-new"
@@ -17,7 +17,10 @@
         {{ t('outgoingWebhooks.create') }}
       </button>
     </div>
-    <p v-if="atLimit" class="ow-hint">{{ t('outgoingWebhooks.limitReached', { count: MAX_OUTGOING_WEBHOOKS }) }}</p>
+    <p v-if="availability && !availability.can_create_outgoing" class="ow-hint" role="note" data-testid="outgoing-webhook-unavailable">
+      {{ availability.outgoing_mode === 'off' ? t('outgoingWebhooks.unavailableOff') : t('outgoingWebhooks.unavailableStaff') }}
+    </p>
+    <p v-else-if="atLimit" class="ow-hint">{{ t('outgoingWebhooks.limitReached', { count: MAX_OUTGOING_WEBHOOKS }) }}</p>
 
     <form v-if="form" class="ow-form" data-testid="outgoing-webhook-form" @submit.prevent="submitForm">
       <label class="ow-field">
@@ -88,6 +91,7 @@
             <span class="ow-meta ow-url" :title="webhook.url">{{ webhook.url }}</span>
             <span class="ow-meta">{{ t('outgoingWebhooks.eventCount', { count: webhook.events.length }) }} · {{ t('outgoingWebhooks.secretEndsWith', { hint: webhook.secret_hint }) }}</span>
             <span class="ow-meta" :class="{ 'ow-warning': stateTone(webhook) === 'warning' }" data-testid="outgoing-webhook-state">{{ stateLine(webhook) }}</span>
+            <span v-if="webhook.dropped_events > 0" class="ow-meta ow-warning" data-testid="outgoing-webhook-dropped">{{ droppedLine(webhook) }}</span>
           </div>
           <label class="ow-switch" :title="t('outgoingWebhooks.active')">
             <input
@@ -95,7 +99,7 @@
               role="switch"
               :checked="webhook.is_active"
               :aria-label="t('outgoingWebhooks.activeFor', { name: webhook.name })"
-              :disabled="busy"
+              :disabled="busy || webhook.disabled_reason === 'staff'"
               :data-testid="`outgoing-webhook-active-${webhook.id}`"
               @change="setActive(webhook, ($event.target as HTMLInputElement).checked)"
             />
@@ -172,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -192,6 +196,8 @@ import {
   type OutgoingWebhookDelivery,
   type OutgoingWebhookOwner,
   type OutgoingWebhookWithSecret,
+  type WebhookAvailability,
+  webhookAvailability,
 } from '@/services/outgoingWebhookService'
 import { debug } from '@/utils/debug'
 
@@ -214,6 +220,14 @@ const openLog = ref<string | null>(null)
 const deliveries = ref<OutgoingWebhookDelivery[]>([])
 const logLoading = ref(false)
 
+const availability = ref<WebhookAvailability | null>(null)
+const canCreate = computed(() => availability.value?.can_create_outgoing !== false)
+// While a webhook waits for the 2xx that verifies it, the list is read again every POLL_MS, for POLL_LIMIT reads.
+const POLL_MS = 5_000
+const POLL_LIMIT = 24
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let polls = 0
+
 const owner = computed<OutgoingWebhookOwner | null>(() =>
   props.botId ? { botId: props.botId } : props.serverId ? { serverId: props.serverId } : null)
 const atLimit = computed(() => webhooks.value.length >= MAX_OUTGOING_WEBHOOKS)
@@ -223,20 +237,68 @@ function formatTime(value: string): string {
 }
 
 function stateTone(webhook: OutgoingWebhook): 'ok' | 'warning' {
-  return webhook.disabled_reason === 'failing' || (webhook.is_active && webhook.failing_since) ? 'warning' : 'ok'
+  if (!webhook.is_active) return webhook.disabled_reason === 'owner' ? 'ok' : 'warning'
+  return webhook.failing_since || webhook.paused || !webhook.verified_at ? 'warning' : 'ok'
+}
+
+function lastAnswer(webhook: OutgoingWebhook): string | number {
+  return webhook.last_error ?? webhook.last_status ?? '—'
 }
 
 function stateLine(webhook: OutgoingWebhook): string {
   if (!webhook.is_active) {
-    return webhook.disabled_reason === 'failing'
-      ? t('outgoingWebhooks.state.disabledFailing', { error: webhook.last_error ?? webhook.last_status ?? '—' })
-      : t('outgoingWebhooks.state.off')
+    if (webhook.disabled_reason === 'failing') return t('outgoingWebhooks.state.disabledFailing', { error: lastAnswer(webhook) })
+    if (webhook.disabled_reason === 'staff') return t('outgoingWebhooks.state.staff')
+    return t('outgoingWebhooks.state.off')
   }
+  if (!webhook.verified_at) {
+    return webhook.last_failure_at
+      ? t('outgoingWebhooks.state.unverifiedFailing', { error: lastAnswer(webhook) })
+      : t('outgoingWebhooks.state.unverified')
+  }
+  if (webhook.paused) return t('outgoingWebhooks.state.paused', { error: lastAnswer(webhook) })
   if (webhook.failing_since) {
     return t('outgoingWebhooks.state.failing', { date: formatTime(webhook.failing_since), error: webhook.last_error ?? webhook.last_status ?? '—' })
   }
   if (webhook.last_success_at) return t('outgoingWebhooks.state.delivered', { date: formatTime(webhook.last_success_at) })
   return t('outgoingWebhooks.state.never')
+}
+
+function droppedLine(webhook: OutgoingWebhook): string {
+  return t('outgoingWebhooks.dropped', {
+    count: webhook.dropped_events,
+    reason: t(`outgoingWebhooks.dropReason.${webhook.last_drop_reason ?? 'rate_limited'}`),
+    date: webhook.last_dropped_at ? formatTime(webhook.last_dropped_at) : '—',
+  })
+}
+
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+}
+
+/** Reads the list again while a webhook waits for its first 2xx. */
+function pollWhileUnverified() {
+  const waiting = webhooks.value.some(w => w.is_active && !w.verified_at)
+  if (!waiting) {
+    stopPolling()
+    return
+  }
+  if (pollTimer) return
+  polls = 0
+  pollTimer = setInterval(async () => {
+    polls += 1
+    if (polls > POLL_LIMIT || !owner.value) {
+      stopPolling()
+      return
+    }
+    try {
+      webhooks.value = (await listOutgoingWebhooks(owner.value)).map(withoutSecret)
+    } catch (error) {
+      debug.error('Failed to refresh outgoing webhooks:', error)
+    }
+    if (!webhooks.value.some(w => w.is_active && !w.verified_at)) stopPolling()
+  }, POLL_MS)
 }
 
 function withoutSecret(webhook: OutgoingWebhook): OutgoingWebhook {
@@ -253,8 +315,12 @@ async function load() {
   if (!owner.value) return
   loading.value = true
   loadError.value = null
+  webhookAvailability().then(a => { availability.value = a }).catch((error) => {
+    debug.error('Failed to read webhook availability:', error)
+  })
   try {
     webhooks.value = (await listOutgoingWebhooks(owner.value)).map(withoutSecret)
+    pollWhileUnverified()
   } catch (error) {
     debug.error('Failed to load outgoing webhooks:', error)
     const key = outgoingWebhookErrorKey(error)
@@ -290,9 +356,11 @@ async function submitForm() {
       webhooks.value = [...webhooks.value, withoutSecret(created)]
       revealed.value = { name: created.name, secret: created.secret }
       toast.success(t('outgoingWebhooks.created'))
+      pollWhileUnverified()
     } else if (current.id) {
       replace(await updateOutgoingWebhook(current.id, fields))
       toast.success(t('outgoingWebhooks.updated'))
+      pollWhileUnverified()
     }
     form.value = null
   } catch (error) {
@@ -413,8 +481,11 @@ watch(owner, () => {
   form.value = null
   revealed.value = null
   openLog.value = null
+  stopPolling()
   void load()
 }, { immediate: true })
+
+onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>

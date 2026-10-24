@@ -3824,7 +3824,8 @@
       "invalidAvatar": "Der Avatar muss eine https://-URL sein.",
       "permission": "Dafür brauchst du die Berechtigung „Webhooks verwalten“.",
       "saveFailed": "Webhook konnte nicht gespeichert werden"
-    }
+    },
+    "disabledHere": "Webhooks sind auf dieser Instanz ausgeschaltet."
   },
   "floatingVideo": {
     "region": "Videoplayer",
@@ -7305,7 +7306,11 @@
       "disabledFailing": "Nach drei Tagen fehlgeschlagener Zustellungen ausgeschaltet. Letzte Antwort: {error}",
       "failing": "Schlägt seit {date} fehl. Letzte Antwort: {error}",
       "delivered": "Zuletzt zugestellt {date}",
-      "never": "Noch nichts zugestellt"
+      "never": "Noch nichts zugestellt",
+      "unverified": "Wartet auf eine 2xx-Antwort auf das Testereignis, bevor Ereignisse gesendet werden",
+      "unverifiedFailing": "Nicht bestätigt: Das Testereignis erhielt {error}. Repariere den Endpunkt und sende ein Testereignis.",
+      "paused": "Pausiert nach 10 fehlgeschlagenen Versuchen in Folge; alle 5 Minuten prüft ein Testereignis. Letzte Antwort: {error}",
+      "staff": "Vom Team dieser Instanz ausgeschaltet"
     },
     "active": "An",
     "activeFor": "{name} an",
@@ -7351,12 +7356,72 @@
       "invalidEvents": "Wähle mindestens ein Ereignis.",
       "limit": "Es gibt bereits fünf Webhooks.",
       "unavailable": "Ausgehende Webhooks brauchen Supabase Vault, das dieser Instanz fehlt.",
-      "saveFailed": "Der Webhook konnte nicht gespeichert werden."
+      "saveFailed": "Der Webhook konnte nicht gespeichert werden.",
+      "staffDisabled": "Das Team dieser Instanz hat diesen Webhook ausgeschaltet.",
+      "disabled": "Diese Instanz erlaubt dir keine ausgehenden Webhooks.",
+      "blockedDomain": "Diese Instanz sendet nicht an diese Domain.",
+      "limitUser": "Du hast das Limit dieser Instanz für ausgehende Webhooks erreicht.",
+      "tooSoon": "Warte ein paar Sekunden, bevor du ein weiteres Testereignis sendest."
     },
     "notice": {
       "disabledTitle": "Webhook {name} wurde ausgeschaltet",
       "disabledMessage": "Seine Zustellungen sind drei Tage lang fehlgeschlagen. Letzte Antwort: {error}",
       "short": "Webhook ausgeschaltet"
+    },
+    "unavailableOff": "Ausgehende Webhooks sind auf dieser Instanz ausgeschaltet.",
+    "unavailableStaff": "Auf dieser Instanz erstellen nur ihre Admins und Moderatoren ausgehende Webhooks.",
+    "dropped": "{count} Ereignisse übersprungen ({reason}), zuletzt {date}",
+    "dropReason": {
+      "rate_limited": "über dem Limit",
+      "paused": "während der Pause"
     }
+  },
+  "adminWebhooks": {
+    "tab": "Webhooks",
+    "settingsTitle": "Webhook-Einstellungen",
+    "settingsIntro": "Limits für jeden ausgehenden Webhook dieser Instanz und Schalter für ausgehende und eingehende Webhooks.",
+    "settingsReadOnly": "Nur Instanz-Admins ändern diese Einstellungen.",
+    "outgoingMode": "Wer ausgehende Webhooks erstellen darf",
+    "modeEveryone": "Bot-Besitzer und Webhook-Verwalter von Servern",
+    "modeStaff": "Nur das Instanz-Team",
+    "modeOff": "Niemand (ausgehende Webhooks aus)",
+    "incomingEnabled": "Eingehende Webhooks (Posten in Kanäle)",
+    "ratePerMinute": "Ereignisse pro Webhook und Minute",
+    "hostRatePerMinute": "Anfragen pro Ziel und Minute",
+    "perUser": "Ausgehende Webhooks pro Person",
+    "blockedDomains": "Gesperrte Ziele",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "Eine Domain pro Zeile; ihre Subdomains sind mitgesperrt.",
+    "save": "Speichern",
+    "saved": "Webhook-Einstellungen gespeichert",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "loading": "Wird geladen …",
+    "loadFailed": "Laden fehlgeschlagen",
+    "listTitle": "Ausgehende Webhooks",
+    "listIntro": "Jeder ausgehende Webhook dieser Instanz, die aktivsten zuerst. Ein hier ausgeschalteter Webhook bleibt aus; sein Besitzer kann ihn nicht wieder einschalten.",
+    "refresh": "Aktualisieren",
+    "empty": "Noch keine ausgehenden Webhooks.",
+    "colWebhook": "Webhook",
+    "colOwner": "Besitzer",
+    "colDestination": "Ziel",
+    "colState": "Status",
+    "colDeliveries": "Letzte 24 Stunden",
+    "colActions": "Aktionen",
+    "ownerBot": "Bot {name}",
+    "ownerServer": "Server {name}",
+    "deliveries24h": "{count} gesendet, {failed} fehlgeschlagen",
+    "stateActive": "Aktiv",
+    "stateUnverified": "Nicht bestätigt",
+    "statePaused": "Pausiert",
+    "stateFailing": "Schlägt fehl",
+    "stateOff": "Aus (Besitzer)",
+    "stateStaff": "Aus (Team)",
+    "stateFailingOff": "Aus nach Fehlern",
+    "turnOff": "Ausschalten",
+    "turnOn": "Einschalten",
+    "delete": "Löschen",
+    "deleteFor": "{name} löschen",
+    "confirmDeleteTitle": "Diesen Webhook löschen?",
+    "confirmDeleteMessage": "{name} ({host}) und sein Zustellprotokoll werden gelöscht. Sein Besitzer wird nicht benachrichtigt."
   }
 }

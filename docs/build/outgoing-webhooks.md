@@ -85,11 +85,18 @@ function verify(secret, headers, rawBody) {
 
 Verify the raw body before parsing it, and refuse a timestamp more than five minutes from your clock.
 
+## Verification
+
+A new webhook, or one whose URL changed, receives a `PING` first and no other event until its endpoint answers that `PING` with a 2xx. Until then its settings read "Waiting for a 2xx answer to the test event". A `PING` that fails is retried as any delivery is; **Send test event** sends another, at most one every 10 seconds.
+
 ## Delivery
 
 - **Order.** Events are sent as they happen, each delivery on its own: a retried delivery can arrive after later ones.
 - **Retries.** A failed attempt is retried after 30 seconds, 2 minutes, 10 minutes, 30 minutes, 1 hour, 3 hours and 6 hours. After the eighth failure the delivery is given up.
+- **Pausing.** After 10 failed attempts in a row a webhook is paused: new events are skipped, and a `PING` probes it every 5 minutes. The first 2xx resumes it.
 - **Turning off.** A webhook whose deliveries have failed for three days, with no success in between, is turned off and its owner is notified. Turning it on again in its settings resumes deliveries from then on.
+- **Rate.** Each webhook takes at most the instance's events per minute (120 by default); events past it are skipped. Skipped events, whether over the rate or while paused, are counted in the webhook's settings.
+- **Concurrency.** At most two attempts of one webhook are in flight at a time, and each destination host receives at most the instance's requests per minute (600 by default) across all webhooks; attempts past either wait.
 - **Log.** **Deliveries** lists the last 25 of the past seven days with their status and the last answer.
 - **Timing.** The gateway reads messages every second, and edits, deletes, reactions and member events every 2 seconds. A new or changed webhook takes effect within 10 seconds. Events that occur while the gateway restarts are not sent.
 
@@ -98,5 +105,6 @@ Verify the raw body before parsing it, and refuse a timestamp more than five min
 - **HTTPS only.** Redirects are not followed.
 - **Public addresses only.** A URL whose host resolves to a private, loopback, link-local or cloud metadata address is refused when the connection is made.
 - **Credentials.** A URL with a user name or password is refused.
-- **Size.** Five webhooks per bot and per server; names of 1 to 80 characters; URLs of at most 2048 characters.
+- **Size.** Five webhooks per bot and per server, and the instance's cap per person (10 by default) across the bots and servers they manage; names of 1 to 80 characters; URLs of at most 2048 characters.
+- **Instance settings.** The instance's staff choose who may create outgoing webhooks (everyone who manages a bot or a server's webhooks, staff only, or no one), the rates and the cap above, and blocked destination domains. They can turn any webhook off; its owner cannot turn it back on.
 - **Instance requirement.** Outgoing webhooks keep their secrets in Supabase Vault. An instance without it cannot create them.

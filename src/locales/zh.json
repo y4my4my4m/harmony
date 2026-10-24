@@ -3824,7 +3824,8 @@
       "invalidAvatar": "头像必须是 https:// 开头的 URL。",
       "permission": "你需要“管理 Webhook”权限。",
       "saveFailed": "无法保存 Webhook"
-    }
+    },
+    "disabledHere": "此实例已关闭 Webhook。"
   },
   "floatingVideo": {
     "region": "视频播放器",
@@ -7305,7 +7306,11 @@
       "disabledFailing": "连续三天投递失败后已关闭。最后的响应：{error}",
       "failing": "自 {date} 起失败。最后的响应：{error}",
       "delivered": "最后投递于 {date}",
-      "never": "尚未投递"
+      "never": "尚未投递",
+      "unverified": "正在等待测试事件的 2xx 响应，之后才会发送事件",
+      "unverifiedFailing": "未验证：测试事件得到 {error}。请修复端点后再发送测试事件。",
+      "paused": "连续 10 次尝试失败后已暂停；每 5 分钟用测试事件探测一次。最后的响应：{error}",
+      "staff": "已被此实例的工作人员关闭"
     },
     "active": "开启",
     "activeFor": "开启 {name}",
@@ -7351,12 +7356,72 @@
       "invalidEvents": "请至少选择一个事件。",
       "limit": "已有五个 Webhook。",
       "unavailable": "外发 Webhook 需要 Supabase Vault，此实例未安装。",
-      "saveFailed": "无法保存 Webhook。"
+      "saveFailed": "无法保存 Webhook。",
+      "staffDisabled": "此实例的工作人员已关闭此 Webhook。",
+      "disabled": "此实例不允许你创建外发 Webhook。",
+      "blockedDomain": "此实例不向该域名发送。",
+      "limitUser": "你已达到此实例的外发 Webhook 上限。",
+      "tooSoon": "请稍等几秒再发送下一个测试事件。"
     },
     "notice": {
       "disabledTitle": "Webhook {name} 已关闭",
       "disabledMessage": "其投递连续三天失败。最后的响应：{error}",
       "short": "Webhook 已关闭"
+    },
+    "unavailableOff": "此实例已关闭外发 Webhook。",
+    "unavailableStaff": "在此实例上，只有工作人员能创建外发 Webhook。",
+    "dropped": "已跳过 {count} 个事件（{reason}），最近一次 {date}",
+    "dropReason": {
+      "rate_limited": "超出速率限制",
+      "paused": "暂停期间"
     }
+  },
+  "adminWebhooks": {
+    "tab": "Webhook",
+    "settingsTitle": "Webhook 设置",
+    "settingsIntro": "此实例上每个外发 Webhook 的限制，以及外发和传入 Webhook 的开关。",
+    "settingsReadOnly": "只有实例管理员能修改这些设置。",
+    "outgoingMode": "谁可以创建外发 Webhook",
+    "modeEveryone": "机器人所有者和服务器 Webhook 管理者",
+    "modeStaff": "仅实例工作人员",
+    "modeOff": "任何人都不能（外发 Webhook 关闭）",
+    "incomingEnabled": "传入 Webhook（向频道发帖）",
+    "ratePerMinute": "每个 Webhook 每分钟的事件数",
+    "hostRatePerMinute": "每个目标每分钟的请求数",
+    "perUser": "每人的外发 Webhook 数",
+    "blockedDomains": "屏蔽的目标",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "每行一个域名；其子域名也会被屏蔽。",
+    "save": "保存",
+    "saved": "Webhook 设置已保存",
+    "saveFailed": "无法保存",
+    "loading": "加载中…",
+    "loadFailed": "无法加载",
+    "listTitle": "外发 Webhook",
+    "listIntro": "此实例上的所有外发 Webhook，最活跃的在前。在这里关闭的 Webhook 会保持关闭；其所有者无法重新开启。",
+    "refresh": "刷新",
+    "empty": "还没有外发 Webhook。",
+    "colWebhook": "Webhook",
+    "colOwner": "所有者",
+    "colDestination": "目标",
+    "colState": "状态",
+    "colDeliveries": "最近 24 小时",
+    "colActions": "操作",
+    "ownerBot": "机器人 {name}",
+    "ownerServer": "服务器 {name}",
+    "deliveries24h": "已发送 {count}，失败 {failed}",
+    "stateActive": "活跃",
+    "stateUnverified": "未验证",
+    "statePaused": "已暂停",
+    "stateFailing": "失败中",
+    "stateOff": "已关闭（所有者）",
+    "stateStaff": "已关闭（工作人员）",
+    "stateFailingOff": "因失败关闭",
+    "turnOff": "关闭",
+    "turnOn": "开启",
+    "delete": "删除",
+    "deleteFor": "删除 {name}",
+    "confirmDeleteTitle": "删除此 Webhook？",
+    "confirmDeleteMessage": "将删除 {name}（{host}）及其投递记录。不会通知其所有者。"
   }
 }

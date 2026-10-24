@@ -17,17 +17,22 @@ add_user_prekeys	p_user_id uuid, p_device_id text, p_prekeys jsonb	integer	defin
 add_user_to_conversation	conversation_uuid uuid, user_uuid uuid, user_role text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_add_supporter	p_user_id uuid, p_tier_id uuid, p_amount numeric, p_platform text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_delete_instance_emoji	p_emoji_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_outgoing_webhook	p_webhook_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 admin_drive_remove_file	p_file uuid, p_block boolean, p_reason text, p_bucket text, p_path text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_drive_unblock_hash	p_sha256 text	boolean	definer	public, pg_temp	authenticated+service_role	client
 admin_drive_usage	p_limit integer, p_profile uuid	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint)	definer	public, pg_temp	authenticated+service_role	client
+admin_get_webhook_settings		jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_list_instance_emojis	p_search text, p_source text, p_sort text, p_limit integer, p_offset integer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint, is_ai_generated boolean)	definer	public, pg_temp	authenticated+service_role	client
+admin_list_outgoing_webhooks		jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_list_supporters		jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_moderate_post	p_post_id uuid, p_action text, p_value text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 admin_rename_instance_emoji	p_emoji_id uuid, p_name text	void	definer	public, pg_temp	authenticated+service_role	client
 admin_resolve_pending_donation	p_pending_id uuid, p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_set_drive_quota	p_profile uuid, p_quota_bytes bigint	bigint	definer	public, pg_temp	authenticated+service_role	client
 admin_set_moderator	p_profile_id uuid, p_is_moderator boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
+admin_set_outgoing_webhook_active	p_webhook_id uuid, p_active boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_update_supporter	p_user_id uuid, p_changes jsonb	boolean	definer	public, pg_temp	authenticated+service_role	client
+admin_update_webhook_settings	p_settings jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
 aggregate_hourly_metrics		integer	definer	public, pg_temp	service_role	client
 antispam_check_local_author	p_author uuid, p_kind text, p_content jsonb, p_op text	boolean	definer	public, pg_temp	service_role	unreferenced
 antispam_int	p_value jsonb, p_default integer	integer	invoker	public, pg_temp	service_role	unreferenced
@@ -163,7 +168,7 @@ check_key_consistency		TABLE(user_id uuid, username text, has_public_key boolean
 check_message_emoji_reaction_limit		trigger	definer	public, pg_temp	service_role	trigger
 claim_ap_activity	p_ap_id text	boolean	definer	public, pg_temp	service_role	client
 claim_device_recovery_trust	p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
-claim_outgoing_webhook_delivery	p_delivery_id uuid	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone)	definer	public, pg_temp	service_role	client
+claim_outgoing_webhook_delivery	p_delivery_id uuid	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	definer	public, pg_temp	service_role	client
 claim_session_share	p_share_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 clamp_profile_moderation_on_insert		trigger	invoker	public, pg_temp	anon+authenticated+service_role	trigger
 cleanup_dead_endpoint_users	p_endpoint_url text	void	definer	public, pg_temp	service_role	unreferenced
@@ -553,6 +558,7 @@ instance_remove_member	p_server_id uuid, p_profile_id uuid, p_keep_out boolean, 
 instance_server_member_leaves	p_server_id uuid, p_profile_id uuid, p_action text, p_reason text	boolean	definer	public, pg_temp	service_role	unreferenced
 instance_set_server_blocked	p_server_id uuid, p_blocked boolean, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 instance_set_server_media_hidden	p_server_id uuid, p_hidden boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
+is_active_instance_staff	p_profile_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 is_author_suspended	p_author_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 is_blocked_by	target_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
 is_conversation_participant	p_conversation_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
@@ -634,8 +640,11 @@ outgoing_webhook_assert_vault		void	invoker	public, pg_temp	service_role	unrefer
 outgoing_webhook_check_fields	p_name text, p_url text, p_events text[]	void	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhook_creator_reads	p_webhook outgoing_webhooks, p_channel_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 outgoing_webhook_event_types		text[]	invoker	public, pg_temp	service_role	unreferenced
+outgoing_webhook_host	p_url text	text	invoker	public, pg_temp	service_role	unreferenced
+outgoing_webhook_host_blocked	p_host text	boolean	definer	public, pg_temp	service_role	unreferenced
 outgoing_webhook_json	p_id uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
 outgoing_webhook_new_secret	p_webhook_id uuid	text	definer	public, pg_temp	service_role	unreferenced
+outgoing_webhook_probes		SETOF uuid	definer	public, pg_temp	service_role	client
 outgoing_webhook_routes		TABLE(bot_id uuid, server_id uuid, events text[])	definer	public, pg_temp	service_role	client
 outgoing_webhook_valid_url	p_url text	boolean	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhooks_purge_secret		trigger	definer	public, pg_temp	service_role	trigger
@@ -674,6 +683,7 @@ purge_processed_ap_activities		integer	definer	public, pg_temp	service_role	unre
 purge_stale_invites		integer	definer	public, pg_temp	service_role	unreferenced
 queue_federation_job	p_job_name text, p_job_data jsonb, p_priority integer, p_retry_limit integer, p_expire_in_seconds integer	uuid	definer	public, pg_temp	service_role	unreferenced
 queue_message_media_cleanup		trigger	definer	public, pg_temp	service_role	trigger
+queue_outgoing_webhook_ping	p_webhook outgoing_webhooks	uuid	definer	public, pg_temp	service_role	unreferenced
 queue_push_dismissal	p_user_id uuid, p_ids uuid[]	void	definer	public, pg_temp	service_role	unreferenced
 queue_push_dismissal_on_delete		trigger	definer	public, pg_temp	service_role	trigger
 queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigger
@@ -950,6 +960,8 @@ voice_participant_joined_at		trigger	invoker	public, pg_temp	service_role	trigge
 voice_remove_member	p_server_id uuid, p_user_id uuid, p_reason text, p_to_channel uuid	uuid	definer	public, pg_temp	service_role	client
 vote_message_poll	p_poll_id uuid, p_option_ids uuid[]	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean)	definer	public, pg_temp	authenticated+service_role	client
 vote_remote_poll	p_post_id uuid, p_choices integer[]	jsonb	definer	public, pg_temp	authenticated+service_role	client
+webhook_availability		jsonb	definer	public, pg_temp	authenticated+service_role	client
 webhook_message_parts	p_text text	jsonb	invoker	public, pg_temp	service_role	unreferenced
 webhook_normalize_avatar_url	p_url text	text	invoker	public, pg_temp	service_role	unreferenced
 webhook_normalize_name	p_name text	text	invoker	public, pg_temp	service_role	unreferenced
+webhook_settings		jsonb	definer	public, pg_temp	service_role	unreferenced

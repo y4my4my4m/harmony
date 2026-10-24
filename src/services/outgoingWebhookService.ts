@@ -27,7 +27,14 @@ export interface OutgoingWebhook {
   events: OutgoingWebhookEvent[]
   secret_hint: string | null
   is_active: boolean
-  disabled_reason: 'owner' | 'failing' | null
+  disabled_reason: 'owner' | 'failing' | 'staff' | null
+  /** Set by the first 2xx to a test event; events flow only once verified. */
+  verified_at: string | null
+  /** Ten failed attempts in a row: new events are dropped, a test event probes every 5 minutes. */
+  paused: boolean
+  dropped_events: number
+  last_dropped_at: string | null
+  last_drop_reason: 'rate_limited' | 'paused' | null
   failing_since: string | null
   last_success_at: string | null
   last_failure_at: string | null
@@ -93,8 +100,55 @@ export const listOutgoingWebhookDeliveries = (id: string, limit = 25) =>
 
 export const testOutgoingWebhook = (id: string) => call<string>('test_outgoing_webhook', { p_webhook_id: id })
 
+/** webhook_availability(): the instance's switches as they apply to the caller. */
+export interface WebhookAvailability {
+  outgoing_mode: 'everyone' | 'staff' | 'off'
+  incoming_enabled: boolean
+  can_create_outgoing: boolean
+  per_user: number
+}
+
+export const webhookAvailability = () => call<WebhookAvailability>('webhook_availability', {})
+
+/** instance_config webhook_settings with defaults (webhook_settings()). */
+export interface WebhookSettings {
+  outgoing_mode: 'everyone' | 'staff' | 'off'
+  incoming_enabled: boolean
+  rate_per_minute: number
+  host_rate_per_minute: number
+  per_user: number
+  blocked_domains: string[]
+}
+
+/** An outgoing webhook as admin_list_outgoing_webhooks returns it. */
+export interface AdminOutgoingWebhook extends OutgoingWebhook {
+  host: string
+  bot_name: string | null
+  server_name: string | null
+  owner_username: string | null
+  deliveries_24h: number
+  failed_24h: number
+}
+
+export const adminGetWebhookSettings = () => call<WebhookSettings>('admin_get_webhook_settings', {})
+
+export const adminUpdateWebhookSettings = (settings: Partial<WebhookSettings>) =>
+  call<WebhookSettings>('admin_update_webhook_settings', { p_settings: settings })
+
+export const adminListOutgoingWebhooks = () => call<AdminOutgoingWebhook[]>('admin_list_outgoing_webhooks', {})
+
+export const adminSetOutgoingWebhookActive = (id: string, active: boolean) =>
+  call<OutgoingWebhook>('admin_set_outgoing_webhook_active', { p_webhook_id: id, p_active: active })
+
+export const adminDeleteOutgoingWebhook = (id: string) => call<void>('admin_delete_outgoing_webhook', { p_webhook_id: id })
+
 const ERROR_KEYS: Array<[string, string]> = [
+  ['OUTGOING_WEBHOOK_STAFF_DISABLED', 'outgoingWebhooks.errors.staffDisabled'],
+  ['OUTGOING_WEBHOOK_DISABLED', 'outgoingWebhooks.errors.disabled'],
   ['OUTGOING_WEBHOOK_FORBIDDEN', 'outgoingWebhooks.errors.forbidden'],
+  ['OUTGOING_WEBHOOK_BLOCKED_DOMAIN', 'outgoingWebhooks.errors.blockedDomain'],
+  ['OUTGOING_WEBHOOK_LIMIT_USER', 'outgoingWebhooks.errors.limitUser'],
+  ['OUTGOING_WEBHOOK_TOO_SOON', 'outgoingWebhooks.errors.tooSoon'],
   ['OUTGOING_WEBHOOK_NOT_FOUND', 'outgoingWebhooks.errors.notFound'],
   ['OUTGOING_WEBHOOK_INVALID_NAME', 'outgoingWebhooks.errors.invalidName'],
   ['OUTGOING_WEBHOOK_INVALID_URL', 'outgoingWebhooks.errors.invalidUrl'],

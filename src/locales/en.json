@@ -3824,7 +3824,8 @@
       "invalidAvatar": "The avatar must be an https:// URL.",
       "permission": "You need the Manage Webhooks permission.",
       "saveFailed": "Couldn't save the webhook"
-    }
+    },
+    "disabledHere": "Webhooks are turned off on this instance."
   },
   "floatingVideo": {
     "region": "Video player",
@@ -7301,7 +7302,11 @@
       "disabledFailing": "Turned off after three days of failed deliveries. Last answer: {error}",
       "failing": "Failing since {date}. Last answer: {error}",
       "delivered": "Last delivered {date}",
-      "never": "Nothing delivered yet"
+      "never": "Nothing delivered yet",
+      "unverified": "Waiting for a 2xx answer to the test event before events are sent",
+      "unverifiedFailing": "Not verified: the test event got {error}. Fix the endpoint, then send a test event.",
+      "paused": "Paused after 10 failed attempts in a row; a test event probes every 5 minutes. Last answer: {error}",
+      "staff": "Turned off by this instance's staff"
     },
     "active": "On",
     "activeFor": "{name} on",
@@ -7347,12 +7352,72 @@
       "invalidEvents": "Choose at least one event.",
       "limit": "There are five webhooks already.",
       "unavailable": "Outgoing webhooks need Supabase Vault, which this instance lacks.",
-      "saveFailed": "Could not save the webhook."
+      "saveFailed": "Could not save the webhook.",
+      "staffDisabled": "This instance's staff turned this webhook off.",
+      "disabled": "This instance does not let you create outgoing webhooks.",
+      "blockedDomain": "This instance does not send to that domain.",
+      "limitUser": "You have reached this instance's limit of outgoing webhooks.",
+      "tooSoon": "Wait a few seconds before sending another test event."
     },
     "notice": {
       "disabledTitle": "Webhook {name} was turned off",
       "disabledMessage": "Its deliveries failed for three days. Last answer: {error}",
       "short": "Webhook turned off"
+    },
+    "unavailableOff": "Outgoing webhooks are turned off on this instance.",
+    "unavailableStaff": "On this instance, only its staff create outgoing webhooks.",
+    "dropped": "{count} events skipped ({reason}), last {date}",
+    "dropReason": {
+      "rate_limited": "over the rate limit",
+      "paused": "while paused"
     }
+  },
+  "adminWebhooks": {
+    "tab": "Webhooks",
+    "settingsTitle": "Webhook settings",
+    "settingsIntro": "Limits for every outgoing webhook on this instance, and switches for outgoing and incoming webhooks.",
+    "settingsReadOnly": "Only instance admins change these settings.",
+    "outgoingMode": "Who may create outgoing webhooks",
+    "modeEveryone": "Bot owners and server webhook managers",
+    "modeStaff": "Instance staff only",
+    "modeOff": "No one (outgoing webhooks off)",
+    "incomingEnabled": "Incoming webhooks (posting into channels)",
+    "ratePerMinute": "Events per webhook per minute",
+    "hostRatePerMinute": "Requests per destination per minute",
+    "perUser": "Outgoing webhooks per person",
+    "blockedDomains": "Blocked destinations",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "One domain per line; its subdomains are blocked too.",
+    "save": "Save",
+    "saved": "Webhook settings saved",
+    "saveFailed": "Could not save",
+    "loading": "Loading…",
+    "loadFailed": "Could not load",
+    "listTitle": "Outgoing webhooks",
+    "listIntro": "Every outgoing webhook on this instance, busiest first. A webhook turned off here stays off; its owner cannot turn it back on.",
+    "refresh": "Refresh",
+    "empty": "No outgoing webhooks yet.",
+    "colWebhook": "Webhook",
+    "colOwner": "Owner",
+    "colDestination": "Destination",
+    "colState": "State",
+    "colDeliveries": "Last 24 hours",
+    "colActions": "Actions",
+    "ownerBot": "Bot {name}",
+    "ownerServer": "Server {name}",
+    "deliveries24h": "{count} sent, {failed} failed",
+    "stateActive": "Active",
+    "stateUnverified": "Not verified",
+    "statePaused": "Paused",
+    "stateFailing": "Failing",
+    "stateOff": "Off (owner)",
+    "stateStaff": "Off (staff)",
+    "stateFailingOff": "Off after failures",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "delete": "Delete",
+    "deleteFor": "Delete {name}",
+    "confirmDeleteTitle": "Delete this webhook?",
+    "confirmDeleteMessage": "{name} ({host}) and its delivery log are deleted. Its owner is not told."
   }
 }

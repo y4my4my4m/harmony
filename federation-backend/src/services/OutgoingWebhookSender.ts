@@ -90,6 +90,11 @@ interface ClaimedDelivery {
   created_at: string;
 }
 
+/** claim_outgoing_webhook_delivery's row: a delivery to send, or only defer_ms. */
+interface ClaimRow extends Partial<ClaimedDelivery> {
+  defer_ms: number | null;
+}
+
 export interface AttemptOutcome {
   ok: boolean;
   status: number | null;
@@ -137,13 +142,19 @@ export async function sendDelivery(delivery: ClaimedDelivery, now = Date.now()):
   }
 }
 
-/** Claims, sends and records one delivery. A database error throws, for the job to retry. */
-export async function deliverOutgoingWebhook(deliveryId: string): Promise<void> {
+/**
+ * Claims, sends and records one delivery. Returns the milliseconds to wait before trying again
+ * when the claim was deferred (two attempts of the webhook in flight, or its host at its rate),
+ * else null. A database error throws, for the job to retry.
+ */
+export async function deliverOutgoingWebhook(deliveryId: string): Promise<number | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc('claim_outgoing_webhook_delivery', { p_delivery_id: deliveryId });
   if (error) throw new Error(`claim_outgoing_webhook_delivery ${deliveryId}: ${error.message}`);
-  const delivery = (Array.isArray(data) ? data[0] : data) as ClaimedDelivery | undefined;
-  if (!delivery) return;
+  const row = (Array.isArray(data) ? data[0] : data) as ClaimRow | undefined;
+  if (!row) return null;
+  if (row.defer_ms != null) return row.defer_ms;
+  const delivery = row as ClaimedDelivery;
 
   const outcome = await sendDelivery(delivery);
   const { data: status, error: recordError } = await supabase.rpc('record_outgoing_webhook_attempt', {
@@ -154,4 +165,5 @@ export async function deliverOutgoingWebhook(deliveryId: string): Promise<void> 
   });
   if (recordError) throw new Error(`record_outgoing_webhook_attempt ${deliveryId}: ${recordError.message}`);
   logger.info(`Outgoing webhook ${delivery.event} ${deliveryId}: ${outcome.ok ? 'delivered' : `${outcome.error}; ${status}`}`);
+  return null;
 }

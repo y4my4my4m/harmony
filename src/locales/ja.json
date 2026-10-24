@@ -3824,7 +3824,8 @@
       "invalidAvatar": "アバターは https:// の URL にしてください。",
       "permission": "「Webhook の管理」権限が必要です。",
       "saveFailed": "Webhook を保存できませんでした"
-    }
+    },
+    "disabledHere": "このインスタンスではWebhookがオフです。"
   },
   "floatingVideo": {
     "region": "動画プレーヤー",
@@ -7305,7 +7306,11 @@
       "disabledFailing": "配信失敗が3日続いたためオフになりました。最後の応答: {error}",
       "failing": "{date} から失敗中。最後の応答: {error}",
       "delivered": "最終配信 {date}",
-      "never": "まだ配信されていません"
+      "never": "まだ配信されていません",
+      "unverified": "イベント送信の前に、テストイベントへの2xx応答を待っています",
+      "unverifiedFailing": "未確認：テストイベントの応答は {error} でした。エンドポイントを直してからテストイベントを送ってください。",
+      "paused": "10回連続で失敗したため一時停止中。5分ごとにテストイベントで確認します。最後の応答: {error}",
+      "staff": "このインスタンスのスタッフがオフにしました"
     },
     "active": "オン",
     "activeFor": "{name} をオン",
@@ -7351,12 +7356,72 @@
       "invalidEvents": "イベントを1つ以上選んでください。",
       "limit": "Webhookはすでに5件あります。",
       "unavailable": "送信WebhookにはSupabase Vaultが必要ですが、このインスタンスにはありません。",
-      "saveFailed": "Webhookを保存できませんでした。"
+      "saveFailed": "Webhookを保存できませんでした。",
+      "staffDisabled": "このインスタンスのスタッフがこのWebhookをオフにしました。",
+      "disabled": "このインスタンスでは送信Webhookを作成できません。",
+      "blockedDomain": "このインスタンスはそのドメインへ送信しません。",
+      "limitUser": "このインスタンスの送信Webhookの上限に達しました。",
+      "tooSoon": "次のテストイベントまで数秒お待ちください。"
     },
     "notice": {
       "disabledTitle": "Webhook {name} はオフになりました",
       "disabledMessage": "配信の失敗が3日続きました。最後の応答: {error}",
       "short": "Webhookがオフになりました"
+    },
+    "unavailableOff": "このインスタンスでは送信Webhookがオフです。",
+    "unavailableStaff": "このインスタンスでは、送信Webhookを作成できるのはスタッフのみです。",
+    "dropped": "{count}件のイベントをスキップ（{reason}）、最終 {date}",
+    "dropReason": {
+      "rate_limited": "上限超過",
+      "paused": "一時停止中"
     }
+  },
+  "adminWebhooks": {
+    "tab": "Webhook",
+    "settingsTitle": "Webhook設定",
+    "settingsIntro": "このインスタンスのすべての送信Webhookの上限と、送信・受信Webhookのスイッチ。",
+    "settingsReadOnly": "この設定を変更できるのはインスタンス管理者のみです。",
+    "outgoingMode": "送信Webhookを作成できる人",
+    "modeEveryone": "ボットの所有者とサーバーのWebhook管理者",
+    "modeStaff": "インスタンスのスタッフのみ",
+    "modeOff": "誰も作成できない（送信Webhookオフ）",
+    "incomingEnabled": "受信Webhook（チャンネルへの投稿）",
+    "ratePerMinute": "Webhookごと・1分あたりのイベント数",
+    "hostRatePerMinute": "送信先ごと・1分あたりのリクエスト数",
+    "perUser": "1人あたりの送信Webhook数",
+    "blockedDomains": "ブロックする送信先",
+    "blockedPlaceholder": "example.com",
+    "blockedHint": "1行に1ドメイン。サブドメインもブロックされます。",
+    "save": "保存",
+    "saved": "Webhook設定を保存しました",
+    "saveFailed": "保存できませんでした",
+    "loading": "読み込み中…",
+    "loadFailed": "読み込めませんでした",
+    "listTitle": "送信Webhook",
+    "listIntro": "このインスタンスのすべての送信Webhook（多い順）。ここでオフにしたWebhookは所有者がオンに戻せません。",
+    "refresh": "更新",
+    "empty": "送信Webhookはまだありません。",
+    "colWebhook": "Webhook",
+    "colOwner": "所有者",
+    "colDestination": "送信先",
+    "colState": "状態",
+    "colDeliveries": "直近24時間",
+    "colActions": "操作",
+    "ownerBot": "ボット {name}",
+    "ownerServer": "サーバー {name}",
+    "deliveries24h": "送信 {count}件、失敗 {failed}件",
+    "stateActive": "有効",
+    "stateUnverified": "未確認",
+    "statePaused": "一時停止",
+    "stateFailing": "失敗中",
+    "stateOff": "オフ（所有者）",
+    "stateStaff": "オフ（スタッフ）",
+    "stateFailingOff": "失敗によりオフ",
+    "turnOff": "オフにする",
+    "turnOn": "オンにする",
+    "delete": "削除",
+    "deleteFor": "{name} を削除",
+    "confirmDeleteTitle": "このWebhookを削除しますか？",
+    "confirmDeleteMessage": "{name}（{host}）とその配信ログを削除します。所有者には通知されません。"
   }
 }
