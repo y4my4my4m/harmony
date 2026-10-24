@@ -68,12 +68,9 @@ describe('service worker fetch routing', () => {
     expect(sw.network).not.toHaveBeenCalled()
   })
 
-  it('still answers a GET to the API network-first', async () => {
+  it('leaves a GET to the API to the browser: no cached answers, no 503 of its own', () => {
     const sw = loadWorker()
-    const respondWith = sw.intercept(new Request(`${ORIGIN}/api/federation/fetch-replies/status?post_ap_id=x`))
-    expect(respondWith).toHaveBeenCalledTimes(1)
-    const response = await respondWith.mock.calls[0][0]
-    expect(response.status).toBe(200)
-    expect(sw.network).toHaveBeenCalledTimes(1)
+    expect(sw.intercept(new Request(`${ORIGIN}/api/federation/fetch-replies/status?post_ap_id=x`)).mock.calls).toHaveLength(0)
+    expect(sw.network).not.toHaveBeenCalled()
   })
 })

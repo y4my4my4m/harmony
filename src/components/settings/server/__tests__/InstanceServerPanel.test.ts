@@ -30,6 +30,11 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => h.toast }))
 vi.mock('@/services/instanceConfig', () => ({ getInstanceDomain: () => 'harmony.test' }))
+// DisplayName resolves emoji through the user cache; here a name is its text.
+vi.mock('@/components/DisplayName.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return { default: defineComponent({ props: ['userId', 'fallback', 'truncate'], setup: (props) => () => h('span', props.fallback) }) }
+})
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: h.profile }) }))
 vi.mock('@/services/instanceServerTools', () => ({
   getRemoteServer: h.getRemoteServer,
