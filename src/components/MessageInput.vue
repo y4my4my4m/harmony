@@ -80,10 +80,12 @@
     <div v-else
          class="message-container"
          :class="{ 'buzz-over-limit': overLimitBuzz, 'has-over-limit': messageTooLong }"
-         @dragenter.prevent="handleDragEnter"
-         @dragover.prevent="handleDragOver"
-         @dragleave.prevent="handleDragLeave"
-         @drop.prevent="handleDrop">
+         @dragstart="handleDragStart"
+         @dragend="handleDragEnd"
+         @dragenter="handleDragEnter"
+         @dragover="handleDragOver"
+         @dragleave="handleDragLeave"
+         @drop="handleDrop">
       <!-- Voice recording replaces the normal input. -->
       <div v-if="isVoiceRecording" class="voice-recording-wrapper">
         <VoiceRecorder
@@ -1349,16 +1351,41 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       polite(t('messageA11y.upload.removed', { name: removedFile.name }));
     };
 
+    // A drag that starts in the editor (selected text) is the editor's own: the browser moves
+    // the text. Its events stop here uncancelled, as the chat's own drop zone (ChatComponent)
+    // cancels every drop it sees.
+    let dragFromEditor = false;
+    const handleDragStart = (event: DragEvent) => {
+      const target = event.target as Node | null;
+      const element = target?.nodeType === Node.ELEMENT_NODE ? target as Element : target?.parentElement;
+      dragFromEditor = !!element?.closest('.rich-text-editor');
+    };
+    const handleDragEnd = () => {
+      dragFromEditor = false;
+    };
+
     const handleDragEnter = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       isDragging.value = true;
     };
 
     const handleDragOver = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
     };
 
     const handleDragLeave = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       const currentTarget = event.currentTarget as HTMLElement;
       const relatedTarget = event.relatedTarget as Node | null;
@@ -1368,6 +1395,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleDrop = async (event: DragEvent) => {
+      if (dragFromEditor) {
+        dragFromEditor = false;
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       isDragging.value = false;

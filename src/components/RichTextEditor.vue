@@ -56,7 +56,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
-import { historyShortcut, isImeKeyEvent } from '@/utils/editorShortcuts';
+import { createImeKeyFilter, historyShortcut, isImeKeyEvent } from '@/utils/editorShortcuts';
 import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
 import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { linkPasteText } from '@/utils/maskedLinks';
@@ -841,12 +841,16 @@ const hasFormattableMarkers = (text: string): boolean => {
 // compositionend arrived and its render has not run yet.
 let compositionRenderPending = false;
 
+const imeKeys = createImeKeyFilter();
+
 const handleCompositionStart = () => {
   composing = true;
+  imeKeys.compositionStart();
 };
 
-const handleCompositionEnd = () => {
+const handleCompositionEnd = (event: CompositionEvent) => {
   composing = false;
+  imeKeys.compositionEnd(event);
   compositionRenderPending = true;
   // WebKit fires compositionend before the input event of the committed text.
   setTimeout(() => {
@@ -932,13 +936,10 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
 };
 
 // Keys during a composition are the IME's: Enter commits the conversion, arrows and Tab move
-// within the candidates. WebKit sends the committing Enter after compositionend as keyCode 229.
-// On a phone keyboard every key is 229; the phone Enter path below handles those.
-const isImeKey = (event: KeyboardEvent): boolean =>
-  event.isComposing || (event.keyCode === 229 && !(isMobileViewport.value || isTouchOnly));
-
+// within the candidates. WebKit sends the committing Enter after compositionend as keyCode 229;
+// any other 229 (phone keyboards, IBus, fcitx) is an ordinary key (createImeKeyFilter).
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (isImeKey(event)) return;
+  if (imeKeys.isImeKey(event)) return;
   const historyAction = historyShortcut(event);
   if (historyAction) {
     event.preventDefault();
@@ -1021,6 +1022,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 const handleFocus = (event: FocusEvent) => {
   // No composition survives a focus change; a missed compositionend must not hold renders off.
   composing = false;
+  imeKeys.reset();
   isFocused.value = true;
   keyboardFocused.value = focusFromNavigationKey();
   emit('focus', event);

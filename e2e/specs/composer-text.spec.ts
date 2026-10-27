@@ -6,6 +6,8 @@
 // - A paste with Windows line ends is stored with newlines, not "\r\n".
 // - Text or a link dropped on the composer goes in where it lands; the drop was cancelled
 //   for files and the text discarded.
+// - Text dragged within the composer moves; the drop handler inserted it again beside the
+//   original.
 // - A draft typed just before a reload is there after it; drafts were written 500 ms after
 //   the last keystroke and nowhere else.
 
@@ -143,6 +145,34 @@ test('text dropped on the composer goes in where it lands', async ({ page }) => 
     }
   })
   await expect(editor(page)).toHaveText('before https://example.com/dropped after')
+})
+
+test('text dragged within the composer moves, once', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', "Playwright drives a native text drag in Chromium's composer")
+  await open(page)
+  await page.keyboard.type('alpha beta gamma', { delay: 10 })
+  const word = (from: number, to: number) => page.evaluate(([a, b]) => {
+    const el = document.querySelector('[data-testid="message-input"] .rich-text-editor') as HTMLElement
+    const text = el.firstChild as Text
+    const range = document.createRange()
+    range.setStart(text, a)
+    range.setEnd(text, b)
+    const box = range.getBoundingClientRect()
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2, right: box.right }
+  }, [from, to])
+  const beta = await word(6, 10)
+  await page.mouse.dblclick(beta.x, beta.y)
+  const end = await word(11, 16)
+  await page.mouse.move(beta.x, beta.y)
+  await page.mouse.down()
+  await page.mouse.move(beta.x + 10, beta.y, { steps: 4 })
+  await page.mouse.move(end.right - 1, end.y, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(async () => (await editor(page).textContent())?.replace(/\s+/g, ' ').trim()).toMatch(/^alpha gamma ?beta$/)
+  const before = await count()
+  await page.keyboard.press('Enter')
+  await expect.poll(count, { timeout: 15000 }).toBeGreaterThan(before)
+  expect((await lastText()).replace(/\s+/g, ' ').trim()).toMatch(/^alpha gamma ?beta$/)
 })
 
 test('a draft typed just before a reload is there after it', async ({ page }) => {

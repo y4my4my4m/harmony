@@ -5,6 +5,8 @@
 // - The same at phone width, a composition per word.
 // - The Enter that commits a composition in WebKit (Safari, the macOS and iOS apps) arrives
 //   after compositionend with isComposing false and keyCode 229: it does not send.
+// - Any other Enter with keyCode 229 sends: IBus and fcitx on Linux send 229 for plain keys,
+//   and every 229 was taken for an input method's key.
 // - Enter of an open composition in the edit box commits it; the edit stays open.
 // - Arrow keys of an open composition pick its candidates; the suggestion list keeps its
 //   selection.
@@ -79,6 +81,14 @@ const webkitCommitEnter = (page: Page, selector: string) => page.evaluate((sel) 
   el.dispatchEvent(enter)
 }, selector)
 
+/** keydown Enter with keyCode 229 and no composition, as IBus and fcitx send a plain Enter. */
+const plain229Enter = (page: Page, selector: string) => page.evaluate((sel) => {
+  const el = document.querySelector(sel) as HTMLElement
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, isComposing: false })
+  Object.defineProperty(enter, 'keyCode', { value: 229 })
+  el.dispatchEvent(enter)
+}, selector)
+
 const composingKey = (page: Page, selector: string, key: string) => page.evaluate(({ sel, key }) => {
   const el = document.querySelector(sel) as HTMLElement
   const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true, isComposing: true })
@@ -117,6 +127,30 @@ test("WebKit's Enter that commits a composition does not send", async ({ page })
   await page.keyboard.press('Enter')
   await expect.poll(count, { timeout: 15000 }).toBeGreaterThan(before)
   expect(await lastText()).toBe('漢字')
+})
+
+test('Enter with keyCode 229 outside a composition sends', async ({ page }) => {
+  await signIn(page, user)
+  await openChannel(page, server.id, channel)
+  await editor(page).click()
+  await page.keyboard.type('ibus enter', { delay: 10 })
+  let before = await count()
+  await plain229Enter(page, COMPOSER)
+  await expect.poll(count, { timeout: 15000 }).toBeGreaterThan(before)
+  expect(await lastText()).toBe('ibus enter')
+
+  // Past the 500 ms after a composition, a 229 Enter is ordinary again.
+  await page.keyboard.insertText('later')
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel) as HTMLElement
+    el.dispatchEvent(new CompositionEvent('compositionstart', { data: '', bubbles: true }))
+    el.dispatchEvent(new CompositionEvent('compositionend', { data: 'later', bubbles: true }))
+  }, COMPOSER)
+  await page.waitForTimeout(700)
+  before = await count()
+  await plain229Enter(page, COMPOSER)
+  await expect.poll(count, { timeout: 15000 }).toBeGreaterThan(before)
+  expect(await lastText()).toBe('later')
 })
 
 test('Enter of a composition in the edit box commits it and the edit stays open', async ({ page }) => {

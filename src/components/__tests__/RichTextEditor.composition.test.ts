@@ -92,9 +92,18 @@ describe('RichTextEditor IME composition', () => {
     const { wrapper, root } = setup('')
     await settle()
     root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true }))
+    root.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }))
+    root.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'に' }))
     root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true }))
     expect(wrapper.emitted('keydown')).toBeUndefined()
     root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(wrapper.emitted('keydown')).toHaveLength(1)
+  })
+
+  it('hands the parent a keyCode 229 key with no composition near (IBus, fcitx)', async () => {
+    const { wrapper, root } = setup('')
+    await settle()
+    root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true }))
     expect(wrapper.emitted('keydown')).toHaveLength(1)
   })
 })

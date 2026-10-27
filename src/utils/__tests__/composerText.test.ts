@@ -14,13 +14,15 @@ import type { MessagePart } from '@/types'
 
 describe('isImeKeyEvent', () => {
   it('owns keys of an open composition', () => {
-    expect(isImeKeyEvent({ isComposing: true, keyCode: 13 })).toBe(true)
+    expect(isImeKeyEvent({ isComposing: true, keyCode: 13 } as KeyboardEvent)).toBe(true)
   })
-  it("owns WebKit's committing Enter, sent after compositionend with keyCode 229", () => {
-    expect(isImeKeyEvent({ isComposing: false, keyCode: 229 })).toBe(true)
+  // WebKit's committing Enter (keyCode 229 after compositionend) is the editor's to mark:
+  // editorShortcuts.test.ts. A 229 no editor marked is an ordinary key (IBus, fcitx).
+  it('leaves keyCode 229 no editor marked', () => {
+    expect(isImeKeyEvent({ isComposing: false, keyCode: 229 } as KeyboardEvent)).toBe(false)
   })
   it('leaves an ordinary Enter', () => {
-    expect(isImeKeyEvent({ isComposing: false, keyCode: 13 })).toBe(false)
+    expect(isImeKeyEvent({ isComposing: false, keyCode: 13 } as KeyboardEvent)).toBe(false)
   })
 })
 
