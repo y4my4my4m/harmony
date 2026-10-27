@@ -72,12 +72,11 @@
                 v-model="editedName"
                 type="text"
                 class="form-input"
-                maxlength="100"
                 @input="onNameInput"
                 @keydown.enter="saveChanges"
                 ref="nameInput"
               />
-              <div class="character-count" aria-hidden="true">{{ editedName.length }}/100</div>
+              <div class="character-count" aria-hidden="true">{{ nameLength(editedName) }}/{{ NAME_MAX_LENGTH }}</div>
             </div>
 
             <div class="form-group">
@@ -313,7 +312,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer'
 import { useRovingTabindex } from '@/composables/useRovingTabindex'
 import { uid, focusProgrammatically } from '@/utils/a11y/focus'
 import { userDataService } from '@/services/userDataService'
-import { finalizeChannelNameFor, formatChannelNameFor } from '@/utils/channelName'
+import { NAME_MAX_LENGTH, clipName, finalizeChannelNameFor, formatChannelNameFor, nameLength } from '@/utils/channelName'
 import { SLOWMODE_STEPS, formatSlowmode, slowmodeStepIndex } from '@/utils/slowmode'
 import {
   roleService,
@@ -428,8 +427,11 @@ const slowmodeSpoken = computed(() => formatSlowmode(t, editedSlowmode.value, 'l
 
 // The name follows its type's rule (utils/channelName.ts) as it is typed. A name left untouched
 // is saved as it is.
-const onNameInput = () => {
-  editedName.value = formatChannelNameFor(props.channel?.type, editedName.value)
+// The cap counts code points, as char_length does; maxlength would count UTF-16 units.
+const onNameInput = (event: Event) => {
+  editedName.value = clipName(formatChannelNameFor(props.channel?.type, editedName.value))
+  const input = event.target as HTMLInputElement
+  if (input.value !== editedName.value) input.value = editedName.value
 }
 const nameToSave = computed(() => {
   if (editedName.value.trim() === (props.channel?.name ?? '').trim()) return editedName.value.trim()
@@ -437,7 +439,7 @@ const nameToSave = computed(() => {
 })
 
 const isValidName = computed(() => {
-  return nameToSave.value.length > 0 && nameToSave.value.length <= 100
+  return nameToSave.value.length > 0 && nameLength(nameToSave.value) <= NAME_MAX_LENGTH
 })
 
 // General-tab values as loaded, for the unsaved-changes check.

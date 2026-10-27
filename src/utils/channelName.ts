@@ -14,6 +14,19 @@
 /** Channel type whose names keep spaces and letter case. */
 export const VOICE_CHANNEL_TYPE = 1
 
+/** channels_name_length_check and channel_categories_name_length_check: char_length(name) <= 100. */
+export const NAME_MAX_LENGTH = 100
+
+/** Length as char_length counts it: code points. String.length counts UTF-16 units, two for an emoji. */
+export function nameLength(name: string): number {
+  return [...name].length
+}
+
+/** `name` cut to `max` code points; a surrogate pair is never split. */
+export function clipName(name: string, max = NAME_MAX_LENGTH): string {
+  return nameLength(name) > max ? [...name].slice(0, max).join('') : name
+}
+
 // sanitize_profile_string's removal set, newlines included.
 // eslint-disable-next-line no-control-regex -- the set is control and format characters.
 const STRIPPED = new RegExp('[\\u0001-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff]', 'g')
@@ -83,7 +96,7 @@ export type CategoryNameProblem = 'required' | 'tooShort' | 'tooLong'
 /** The rule both category dialogs apply to a finalized name; the database caps it at 100. */
 export function categoryNameProblem(name: string): CategoryNameProblem | null {
   if (!name) return 'required'
-  if (name.length < 2) return 'tooShort'
-  if (name.length > 100) return 'tooLong'
+  if (nameLength(name) < 2) return 'tooShort'
+  if (nameLength(name) > NAME_MAX_LENGTH) return 'tooLong'
   return null
 }

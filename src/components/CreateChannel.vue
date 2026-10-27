@@ -11,7 +11,7 @@
         v-model="newChannelName"
         :label="$t('channel.channelName')"
         :placeholder="$t('channel.placeholders.channelName')"
-        :max-length="100"
+        :max-length="NAME_MAX_LENGTH"
         :show-char-count="true"
         :error-message="channelNameError"
         :hint="channelNameHint"
@@ -254,7 +254,7 @@ import {
   type ServerEncryptionMode,
   type VoiceEncryptionMode,
 } from '@/utils/channelEncryption'
-import { finalizeChannelNameFor, formatChannelNameFor, namesKeepSpaces } from '@/utils/channelName'
+import { NAME_MAX_LENGTH, finalizeChannelNameFor, formatChannelNameFor, nameLength, namesKeepSpaces } from '@/utils/channelName'
 import { SLOWMODE_STEPS, formatSlowmode } from '@/utils/slowmode'
 import { hasCapability } from '@/services/instanceCapabilities'
 import type { HistoryVisibility } from '@/utils/channelEncryption'
@@ -417,7 +417,7 @@ const isAtChannelLimit = computed(() => currentChannelCount.value >= MAX_CHANNEL
 const canCreate = computed(() => {
   return newChannelName.value.trim().length > 0 && 
          !channelNameError.value && 
-         newChannelName.value.trim().length <= 100 &&
+         nameLength(newChannelName.value.trim()) <= NAME_MAX_LENGTH &&
          !isAtChannelLimit.value &&
          !isCheckingLimit.value
 })
@@ -448,7 +448,7 @@ const validateChannelName = () => {
     return
   }
 
-  if (name.length > 100) {
+  if (nameLength(name) > NAME_MAX_LENGTH) {
     channelNameError.value = t('chatNav.create.nameTooLong')
     return
   }

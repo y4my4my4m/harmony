@@ -5,6 +5,9 @@
 //
 // Keystrokes, not fill(): the name is formatted on every input event, and one
 // fill() event cannot show a typed space surviving its own keystroke.
+//
+// The 100-character cap counts characters as the database's char_length does (code points):
+// a name of emoji, two UTF-16 units each, keeps all 100.
 
 import { test, expect } from '@playwright/test'
 import {
@@ -108,3 +111,36 @@ test('a category keeps its spaces and case, created and renamed', async ({ page 
   await expect.poll(async () => (await stored('Ops Team')).length).toBe(1)
 })
 
+const PARTY = '\u{1F389}'
+
+test('the 100-character cap counts an emoji as one character', async ({ page }) => {
+  test.setTimeout(120_000)
+  const renamed = await addChannel(admin, server, 'emoji-rename')
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+
+  await test.step('Create Channel keeps 100 emoji, counts them as 100 and stops at 100', async () => {
+    const modal = await openCreateChannel(page)
+    const input = modal.locator('input.modern-input')
+    await input.fill(PARTY.repeat(101))
+    await expect(input).toHaveValue(PARTY.repeat(100))
+    await expect(modal.locator('.char-count')).toHaveText(/100\s*\/\s*100/)
+    await modal.locator('button').filter({ hasText: 'Create Channel' }).click()
+    await expect(modal).toBeHidden({ timeout: 30000 })
+    await expect.poll(async () => (await admin.from('channels').select('name').eq('server_id', server.id).eq('name', PARTY.repeat(100))).data?.length ?? 0)
+      .toBe(1)
+  })
+
+  await test.step('a rename keeps 60 emoji', async () => {
+    await channelRow(page, 'emoji-rename').click({ button: 'right' })
+    await page.locator('.context-menu .context-menu-item').filter({ hasText: 'Edit channel' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit channel' })
+    const input = dialog.locator('#channel-name')
+    await input.fill(PARTY.repeat(60))
+    await expect(input).toHaveValue(PARTY.repeat(60))
+    await expect(dialog.locator('#channel-name ~ .character-count')).toHaveText('60/100')
+    await dialog.getByRole('button', { name: 'Save changes' }).click()
+    await expect.poll(async () => (await admin.from('channels').select('name').eq('id', renamed).single()).data?.name)
+      .toBe(PARTY.repeat(60))
+  })
+})

@@ -11,7 +11,7 @@
       <ModernInput
         :model-value="categoryName"
         :label="t('chatNav.create.categoryName')"
-        :max-length="100"
+        :max-length="NAME_MAX_LENGTH"
         :show-char-count="true"
         :error-message="errorMessage"
         :hint="hint"
@@ -58,7 +58,7 @@ import CategoryPrivacyFields from '@/components/CategoryPrivacyFields.vue'
 import { supabase } from '@/supabase'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import type { CategoryPrivacy } from '@/services/categoryPermissions'
-import { categoryNameProblem, formatCategoryNameInput, finalizeCategoryName } from '@/utils/channelName'
+import { NAME_MAX_LENGTH, categoryNameProblem, formatCategoryNameInput, finalizeCategoryName, nameLength } from '@/utils/channelName'
 
 // Max categories per server
 const MAX_CATEGORIES_PER_SERVER = 25
@@ -118,7 +118,7 @@ const isAtCategoryLimit = computed(() => currentCategoryCount.value >= MAX_CATEG
 const canCreate = computed(() => {
   const name = finalizeCategoryName(categoryName.value)
   return name.length > 0 &&
-         name.length <= 100 &&
+         nameLength(name) <= NAME_MAX_LENGTH &&
          !isAtCategoryLimit.value &&
          !isCheckingLimit.value
 })
@@ -127,7 +127,7 @@ const hint = computed(() => {
   if (categoryName.value.length === 0) {
     return t('chatNav.create.categoryHint')
   }
-  if (categoryName.value.length > 0 && categoryName.value.length < 2) {
+  if (nameLength(categoryName.value) < 2) {
     return t('chatNav.create.categoryTooShort')
   }
   return t('chatNav.create.categoryGood')

@@ -8,6 +8,9 @@ import {
   finalizeChannelNameFor,
   formatChannelNameFor,
   namesKeepSpaces,
+  nameLength,
+  clipName,
+  NAME_MAX_LENGTH,
 } from '@/utils/channelName'
 
 describe('channel names', () => {
@@ -89,5 +92,30 @@ describe('category names', () => {
     expect(categoryNameProblem('A')).toBe('tooShort')
     expect(categoryNameProblem('Staff Area')).toBeNull()
     expect(categoryNameProblem('x'.repeat(101))).toBe('tooLong')
+  })
+})
+
+// The database caps names with char_length, which counts code points; an emoji is one code
+// point and two UTF-16 units.
+describe('name length', () => {
+  const party = '\u{1F389}'
+
+  it('counts code points, as char_length does', () => {
+    expect(nameLength('general')).toBe(7)
+    expect(nameLength(party.repeat(3))).toBe(3)
+    expect(party.repeat(3).length).toBe(6)
+  })
+
+  it('clips to 100 code points without splitting a surrogate pair', () => {
+    expect(NAME_MAX_LENGTH).toBe(100)
+    expect(clipName(party.repeat(101))).toBe(party.repeat(100))
+    expect(clipName('a' + party.repeat(100))).toBe('a' + party.repeat(99))
+    expect(clipName(party.repeat(100))).toBe(party.repeat(100))
+  })
+
+  it('lets a category name of 100 emoji through and stops the 101st', () => {
+    expect(categoryNameProblem(party.repeat(100))).toBe(null)
+    expect(categoryNameProblem(party.repeat(101))).toBe('tooLong')
+    expect(categoryNameProblem(party)).toBe('tooShort')
   })
 })
