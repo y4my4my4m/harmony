@@ -901,6 +901,7 @@ trigger_queue_thread_federation	definer	trigger	service_role	trigger	trigger pub
 trigger_queue_voice_channel_join_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT (trigger_federate_voice_channel_join)
 trigger_queue_voice_channel_leave_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants AFTER DELETE (trigger_federate_voice_channel_leave)
 trigger_remote_member_removal	definer	trigger	service_role	trigger	trigger public.server_membership_events AFTER INSERT (z_membership_events_remote_removal)
+trusted_link_hosts_cap	invoker	trigger	service_role	trigger	trigger public.trusted_link_hosts BEFORE INSERT (t_trusted_link_hosts_cap)
 unban_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 unpin_message	definer	boolean	authenticated+service_role	client	rpc in src/services/MessageService.ts
 unread_change_payload	invoker	jsonb	service_role	trigger	called by broadcast_unread_count_event, handle_new_dm_unread, handle_new_message_unread
