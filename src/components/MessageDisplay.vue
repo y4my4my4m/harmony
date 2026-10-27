@@ -276,13 +276,15 @@
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
-                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance admin">
+                <span
+                  v-if="getInstanceBadge(item.message).value"
+                  class="instance-badge"
+                  :class="getInstanceBadge(item.message).value!.kind"
+                  :title="instanceBadgeTitle(getInstanceBadge(item.message).value!)"
+                  data-testid="message-staff-badge"
+                >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
-                </span>
-                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
+                  {{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </button>
@@ -616,7 +618,7 @@ import { useOutboxStore } from '@/stores/useOutbox';
 import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { showInstanceStaffBadge } from '@/utils/instanceBadge';
+import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
 import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -1292,18 +1294,22 @@ const getDiscordUserInfo = (message: Message): { username: string; display_name:
   return message.metadata?.discord_user || null;
 };
 
-const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null> => {
+// This instance's staff flags do not surface inside a federated server; a remote author's role on
+// its own instance does (instanceBadge.ts).
+const getInstanceBadge = (message: Message): ComputedRef<InstanceStaffBadge | null> => {
   return computed(() => {
     const userId = message.user_id;
     if (!userId) return null;
-    // Global instance staff flags must not surface inside a federated server.
-    if (!showInstanceStaffBadge(serverChannelStore.currentServer)) return null;
-    const profile = getUserProfile(userId).value;
-    if (profile?.is_admin) return 'admin';
-    if (profile?.is_moderator) return 'mod';
-    return null;
+    return instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer);
   });
 };
+
+function instanceBadgeTitle(badge: InstanceStaffBadge): string {
+  if (badge.domain) {
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
+  }
+  return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+}
 
 // Helper functions for bot display
 const getBotDisplayName = (botId: string): ComputedRef<string> => {

@@ -109,8 +109,12 @@
               </p>
             </div>
             
-            <div v-if="isInstanceAdmin(user) && !isBridgedDiscord" class="role-badge instance-admin-badge">Instance owner</div>
-            <div v-else-if="isInstanceModerator(user) && !isBridgedDiscord" class="role-badge instance-mod-badge">Instance mod</div>
+            <div
+              v-if="profileStaffBadge && !isBridgedDiscord"
+              class="role-badge"
+              :class="profileStaffBadge.kind === 'admin' ? 'instance-admin-badge' : 'instance-mod-badge'"
+              data-testid="profile-staff-badge"
+            >{{ profileStaffBadgeText }}</div>
             <SupporterBadge v-if="user?.id && !isBridgedDiscord" :user-id="user.id" />
 
             <div class="user-badges">
@@ -454,7 +458,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
-import { showInstanceStaffBadge } from '@/utils/instanceBadge'
+import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge'
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
 import { contrastRatio } from '@/utils/colorUtils'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -526,7 +530,8 @@ const {
   subscribeToProfilePresence,
   unsubscribeFromProfilePresence,
   getPresenceAwareStatus,
-  getCurrentUser
+  getCurrentUser,
+  getUserProfile,
 } = useUserData()
 
 // Reactive state
@@ -1390,15 +1395,29 @@ const getUserRoles = (user: any) => {
   return fetchedUserRoles.value
 }
 
-const isInstanceAdmin = (user: any) => {
-  if (!showInstanceStaffBadge(serverChannelStore.currentServer, isInServerContext.value)) return false
-  return user?.is_admin || user?.isAdmin || user?.profile?.is_admin || false
-}
+// This instance's staff, where showInstanceStaffBadge allows it; a remote account's role on its own
+// instance, named with that instance, everywhere (instanceBadge.ts).
+const profileStaffBadge = computed((): InstanceStaffBadge | null => {
+  const user: any = props.user
+  if (!user) return null
+  const stored: any = user.id ? getUserProfile(user.id).value : null
+  return instanceStaffBadge({
+    is_admin: user.is_admin || user.isAdmin || user.profile?.is_admin || stored?.is_admin,
+    is_moderator: user.is_moderator || user.isModerator || user.profile?.is_moderator || stored?.is_moderator,
+    is_local: user.is_local ?? user.isLocal ?? stored?.is_local,
+    instance_role: user.instance_role ?? stored?.instance_role,
+    domain: user.domain ?? stored?.domain,
+  }, serverChannelStore.currentServer, isInServerContext.value)
+})
 
-const isInstanceModerator = (user: any) => {
-  if (!showInstanceStaffBadge(serverChannelStore.currentServer, isInServerContext.value)) return false
-  return user?.is_moderator || user?.isModerator || user?.profile?.is_moderator || false
-}
+const profileStaffBadgeText = computed(() => {
+  const badge = profileStaffBadge.value
+  if (!badge) return ''
+  if (badge.domain) {
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminBadgeOf' : 'chatNav.members.instanceModBadgeOf', { domain: badge.domain })
+  }
+  return t(badge.kind === 'admin' ? 'activitypub.followA11y.instanceOwner' : 'activitypub.followA11y.instanceMod')
+})
 
 const getUserBio = (user: any) => {
   return user?.bio || user?.profile?.bio || user?.about

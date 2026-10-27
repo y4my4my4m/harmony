@@ -6076,7 +6076,11 @@
       "discord": "Discord ブリッジのメンバー",
       "instanceAdmin": "インスタンス管理者",
       "instanceMod": "インスタンスモデレーター",
-      "searchHint": "名前またはユーザー名"
+      "searchHint": "名前またはユーザー名",
+      "instanceAdminOf": "{domain} の管理者",
+      "instanceModOf": "{domain} のモデレーター",
+      "instanceAdminBadgeOf": "{domain} の管理者",
+      "instanceModBadgeOf": "{domain} のモデレーター"
     },
     "create": {
       "textHint": "スペースはハイフンに、アルファベットは小文字になります。「-」と「_」以外の記号は削除されます",

@@ -6076,7 +6076,11 @@
       "discord": "Miembro del puente de Discord",
       "instanceAdmin": "administrador de la instancia",
       "instanceMod": "moderador de la instancia",
-      "searchHint": "Nombre o nombre de usuario"
+      "searchHint": "Nombre o nombre de usuario",
+      "instanceAdminOf": "administrador de {domain}",
+      "instanceModOf": "moderador de {domain}",
+      "instanceAdminBadgeOf": "Administrador de {domain}",
+      "instanceModBadgeOf": "Moderador de {domain}"
     },
     "create": {
       "textHint": "Los espacios se convierten en guiones y las letras en minúsculas; se quitan los signos de puntuación salvo - y _",

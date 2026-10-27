@@ -98,6 +98,9 @@ export interface ProfileField {
   verified_at?: string | null;
 }
 
+/** Staff role of an account on its instance, as its actor's harmony:instanceRole names it. */
+export type InstanceRole = 'admin' | 'moderator';
+
 /**
  * A user inside the server/chat context: member lists, voice participants,
  * message authors, presence. Use Profile for ActivityPub/federation contexts
@@ -113,6 +116,8 @@ export interface User {
   color?: string;
   is_admin?: boolean;
   is_moderator?: boolean;
+  /** Staff role a remote account holds on its own instance. */
+  instance_role?: InstanceRole | null;
   status: UserStatus;
   roles?: Role[]; // Server-specific roles
   created_at?: string;
@@ -155,6 +160,8 @@ export interface Profile {
   color?: string;
   is_admin?: boolean;
   is_moderator?: boolean;
+  /** Staff role a remote account holds on its own instance. */
+  instance_role?: InstanceRole | null;
   // ActivityPub fields
   federated_id?: string;
   ap_id?: string;
@@ -200,6 +207,8 @@ export interface UserData {
   roles?: any[]
   isAdmin?: boolean
   isModerator?: boolean
+  /** Staff role a remote account holds on its own instance (profiles.instance_role). */
+  instanceRole?: InstanceRole | null
   messageCount?: number
   voiceTime?: number
 

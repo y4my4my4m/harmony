@@ -6076,7 +6076,11 @@
       "discord": "Membre du pont Discord",
       "instanceAdmin": "administrateur de l'instance",
       "instanceMod": "modérateur de l'instance",
-      "searchHint": "Nom ou nom d'utilisateur"
+      "searchHint": "Nom ou nom d'utilisateur",
+      "instanceAdminOf": "administrateur de {domain}",
+      "instanceModOf": "modérateur de {domain}",
+      "instanceAdminBadgeOf": "Administrateur de {domain}",
+      "instanceModBadgeOf": "Modérateur de {domain}"
     },
     "create": {
       "textHint": "Les espaces deviennent des tirets et les lettres passent en minuscules ; la ponctuation autre que - et _ est retirée",

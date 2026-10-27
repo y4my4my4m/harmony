@@ -2,6 +2,7 @@ import config from '../../config/index.js';
 import { getFullAvatarUrl, getFullBannerUrl, getFullEmojiUrl } from '../../utils/urlUtils.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
 import { HARMONY_NS } from '../harmonyContext.js';
+import { HARMONY_INSTANCE_ROLE, instanceRoleOf } from '../copyMirror.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -430,6 +431,12 @@ export function profileToActor(profile: any): any {
   // Harmony extension: profile color
   if (profile.color) {
     actor['harmony:profileColor'] = profile.color;
+  }
+
+  // Staff of this instance (copyMirror.ts).
+  const instanceRole = instanceRoleOf(profile);
+  if (instanceRole) {
+    actor[HARMONY_INSTANCE_ROLE] = instanceRole;
   }
 
   // Harmony extension: custom status (Discord-style status)

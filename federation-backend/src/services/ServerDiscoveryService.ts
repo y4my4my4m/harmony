@@ -17,7 +17,7 @@ import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { clearJoinInFlight, markJoinInFlight } from '../activitypub/joinsInFlight.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
-import { resolveThreadInChannel } from '../activitypub/channelWriteAuthz.js';
+import { resolveMessageInChannel, resolveThreadInChannel } from '../activitypub/channelWriteAuthz.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { isGroupBlockedHere, isServerBlockedHere, joinRefusalHere, serverBlockedRefusal } from '../activitypub/instanceServerBlocks.js';
@@ -32,6 +32,19 @@ import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, s
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
 import { federationSwitches } from './FederationSwitches.js';
+import {
+  HARMONY_MEMBER_ROLES,
+  HARMONY_PINNED_AT,
+  HARMONY_PINS,
+  HARMONY_ROLES,
+  MAX_PINS,
+  parseGroupRoles,
+  parseMemberRoles,
+  parsePinnedAt,
+  parsePinsAdvert,
+  pinsCollectionId,
+} from '../activitypub/copyMirror.js';
+import { CopyMirrorService } from './CopyMirrorService.js';
 
 const router = Router();
 
@@ -85,6 +98,12 @@ async function ownMessageRow(
 
 /** Pages of a remote members collection one sync reads; a Harmony host serves 500 members a page. */
 const MEMBER_SYNC_MAX_PAGES = 40;
+
+/** Channels of a Group one sync reads pins of. */
+const MAX_SYNCED_CHANNELS = 500;
+
+/** Least time between two reads of a copy's members a member's sync asks for. */
+const MEMBER_RESYNC_MS = 10 * 60_000;
 
 // API ROUTES
 
@@ -805,7 +824,9 @@ router.post(
 /**
  * GET /servers/:serverId/sync
  * Sync server metadata from remote, signed as the requester when a bearer
- * token names a local member of the server, else as any local member.
+ * token names a local member of the server, else as any local member. A
+ * member asking also has the members and their roles read, at most once in
+ * MEMBER_RESYNC_MS per server.
  */
 router.get(
   '/servers/:serverId/sync',
@@ -823,6 +844,7 @@ router.get(
       : undefined;
 
     await ServerDiscoveryService.syncRemoteServer(serverId, { asUserId });
+    if (asUserId) await ServerDiscoveryService.resyncMembers(serverId, asUserId);
 
     return res.json({ success: true, message: 'Server synced' });
   })
@@ -860,6 +882,346 @@ router.get(
     return res.json({ federationClosed });
   })
 );
+
+/**
+ * Items of a channel collection page of a server hosted elsewhere, cached as rows of its copy: the
+ * Group's notices and the messages it speaks for, and members' messages; a message of this
+ * instance's own member is linked to its row, never inserted (ownMessageRow). Returns the
+ * client's message objects in page order, null for an item dropped, and how many rows changed.
+ */
+export async function cacheChannelItems(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  channelId: string,
+  server: { ap_id: string },
+  items: any[],
+): Promise<{ messages: any[]; changed: number }> {
+  // A Note attributed to the Group is a system notice (systemNotes.ts); the Group is not
+  // a member to resolve. A malformed one is dropped.
+  const groupUrl = String(server.ap_id).replace(/\/$/, '').toLowerCase();
+  const fromGroup = (note: any) =>
+    typeof note?.attributedTo === 'string' && note.attributedTo.replace(/\/$/, '').toLowerCase() === groupUrl;
+  const systemNoticeOf = (note: any): HarmonySystem | null =>
+    fromGroup(note) ? parseHarmonySystem(note[HARMONY_SYSTEM]) : null;
+
+  // Deduplicate author URLs to avoid fetching the same user multiple times
+  const uniqueAuthorUrls = new Set<string>();
+  for (const item of items) {
+    const activity = item.type === 'Create' ? item : { object: item };
+    const note = activity.object;
+    if (!note) continue;
+
+    if (fromGroup(note)) {
+      const sys = systemNoticeOf(note);
+      for (const url of sys ? systemActorUrls(sys) : []) uniqueAuthorUrls.add(url);
+      continue;
+    }
+
+    const authorUrl = note.attributedTo || activity.actor;
+    if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
+      uniqueAuthorUrls.add(authorUrl);
+    }
+  }
+
+  // Fetch all unique authors in parallel.
+  // ensureRemoteUser returns the profile directly.
+  const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+  const authorMap = new Map<string, any>();
+  
+  const fetchResults = await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
+    try {
+      const profile = await ActivityProcessor['ensureRemoteUser'](url);
+      if (profile) {
+        logger.debug(`Got profile for ${url}: id=${profile.id}, username=${profile.username}`);
+        return { url, profile };
+      } else {
+        logger.warn(`ensureRemoteUser returned null for ${url}`);
+        return null;
+      }
+    } catch (err) {
+      logger.warn(`Could not fetch author ${url}: ${err}`);
+      return null;
+    }
+  }));
+  
+  for (const result of fetchResults) {
+    if (result && result.profile) {
+      const { url, profile } = result;
+      authorMap.set(url, profile);
+      authorMap.set(url.toLowerCase(), profile);
+      if (profile.federated_id && profile.federated_id !== url) {
+        authorMap.set(profile.federated_id, profile);
+        authorMap.set(profile.federated_id.toLowerCase(), profile);
+      }
+      logger.debug(`Mapped author: ${url} -> ${profile.username}`);
+    }
+  }
+  
+  logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
+
+  // Rows this read inserted or completed.
+  let changed = 0;
+
+  // A system notice is cached as an authorless system row naming local profiles.
+  const systemNoticeItem = async (note: any, sys: HarmonySystem) => {
+    const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
+    const metadata = systemMetadata(
+      sys,
+      (url) => (authorMap.get(url) || authorMap.get(url.toLowerCase()))?.id ?? null,
+    );
+    const createdAt = note.published || new Date().toISOString();
+    if (messageUuid) {
+      try {
+        const { data: inserted } = await supabase
+          .from('messages')
+          .upsert({
+            id: messageUuid,
+            channel_id: channelId,
+            content: [{ type: 'text', text: noteContentText(note.content) || sys.type }],
+            is_system: true,
+            created_at: createdAt,
+            updated_at: createdAt,
+            metadata: { ...metadata, ap_id: note.id, is_remote: true, federated: true },
+            federation_status: 'skipped',
+          }, { onConflict: 'id', ignoreDuplicates: true })
+          .select('id')
+          .maybeSingle();
+        if (inserted) changed++;
+      } catch (cacheError: any) {
+        logger.debug(`Could not cache system notice: ${cacheError.message}`);
+      }
+    }
+    return {
+      id: messageUuid || note.id,
+      content: note.content,
+      created_at: note.published,
+      updated_at: note.updated,
+      is_system: true,
+      metadata: { ...metadata, ap_id: note.id, is_bridge: false },
+      author: null,
+      reactions: [],
+    };
+  };
+
+  // A bot, webhook or bridged message, by the Group with its author in harmony:author
+  // (groupAuthor.ts): cached with no profile and no bot, its author in metadata. One in a
+  // thread unknown here is left out, as live delivery drops it: cached, it sat in the channel.
+  const groupAuthoredItem = async (note: any, groupAuthor: GroupAuthor) => {
+    const threadRef = typeof note['harmony:threadId'] === 'string' ? note['harmony:threadId'] : null;
+    const thread = threadRef ? await resolveThreadInChannel(supabase, threadRef, channelId) : null;
+    if (thread && thread.status !== 'found') return null;
+    const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
+    const content = Array.isArray(note['harmony:rawContent'])
+      ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
+      : [{ type: 'text', text: noteContentText(note.content) }];
+    const createdAt = note.published || new Date().toISOString();
+    const metadata = { ap_id: note.id, is_remote: true, federated: true, ...remoteAuthorMetadata(groupAuthor) };
+    if (messageUuid) {
+      try {
+        const { data: inserted } = await supabase
+          .from('messages')
+          .upsert({
+            id: messageUuid,
+            channel_id: channelId,
+            content,
+            created_at: createdAt,
+            updated_at: note.updated || createdAt,
+            metadata,
+            thread_id: thread?.status === 'found' ? thread.id : null,
+            encrypted: note['harmony:encrypted'] === true,
+            federation_status: 'skipped',
+          }, { onConflict: 'id', ignoreDuplicates: true })
+          .select('id')
+          .maybeSingle();
+        if (inserted) changed++;
+      } catch (cacheError: any) {
+        logger.debug(`Could not cache bot message: ${cacheError.message}`);
+      }
+    }
+    return {
+      id: messageUuid || note.id,
+      content,
+      created_at: note.published,
+      updated_at: note.updated,
+      metadata,
+      author: null,
+      encrypted: note['harmony:encrypted'] === true,
+      reactions: [],
+    };
+  };
+
+  // Transform messages using the cached author data
+  const messages = await Promise.all(items.map(async (item: any) => {
+    const activity = item.type === 'Create' ? item : { object: item };
+    const note = activity.object;
+    
+    if (!note) return null;
+
+    if (fromGroup(note)) {
+      const sys = systemNoticeOf(note);
+      if (sys) return systemNoticeItem(note, sys);
+      const groupAuthor = parseGroupAuthor(note[HARMONY_AUTHOR]);
+      return groupAuthor ? groupAuthoredItem(note, groupAuthor) : null;
+    }
+
+    const authorUrl = note.attributedTo || activity.actor;
+    
+    let author = authorMap.get(authorUrl) || 
+                 authorMap.get(authorUrl?.toLowerCase()) || 
+                 null;
+
+    // For bridge messages (Discord, Matrix, etc.) or messages without a valid author,
+    // try to extract info from the note itself
+    if (!author) {
+      // Check if the note has author name in the content or signature
+      // Common bridge patterns:
+      // - <strong>Username</strong>: message
+      // - **Username**: message
+      // - [Username]: message
+      const bridgeMatch = note.content?.match(/<strong>([^<]+)<\/strong>:/) ||
+                          note.content?.match(/\*\*([^*]+)\*\*:/) ||
+                          note.content?.match(/^\[([^\]]+)\]:?/);
+      const bridgeName = bridgeMatch?.[1] || note.name || 'External User';
+      
+      author = {
+        id: null,
+        username: bridgeName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 30),
+        display_name: bridgeName,
+        avatar_url: null,
+        federated_id: authorUrl || `bridge:${note.id}`,
+        is_bridge: true,
+      };
+      
+      // Only log as debug if we have an authorUrl (expected case for bridges)
+      if (!authorUrl || authorUrl.includes('/undefined')) {
+        logger.debug(`Bridge message ${note.id}: ${bridgeName}`);
+      } else {
+        logger.warn(`Author not found for ${authorUrl}, using bridge fallback: ${bridgeName}`);
+      }
+    }
+
+    // Ciphertext from the host: shown as encrypted here, never as text.
+    const isEncrypted = note['harmony:encrypted'] === true;
+
+    let messageUuid: string | undefined;
+    const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
+    if (uuidMatch) {
+      messageUuid = uuidMatch[1];
+    }
+
+    // A message of a member of this instance is held here already; caching the host's copy
+    // showed it twice. Linked, never inserted (ownMessageRow).
+    const ownMessage = !!author?.id && !author.is_bridge
+      && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
+    const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
+
+    // Cache message locally for reactions and offline access (only if we have a valid author ID)
+    let cachedMsgId: string | null = ownRowId;
+    let cachedContent: any[] | null = null;
+
+    if (author?.id && !author.is_bridge && !ownMessage) {
+      const messageTimestamp = note.published || new Date().toISOString();
+
+      // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
+      if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
+        cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
+      } else if (note.content) {
+        cachedContent = [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }];
+      } else {
+        cachedContent = [];
+      }
+
+      const messageData: any = {
+        channel_id: channelId,
+        user_id: author.id,
+        content: cachedContent,
+        created_at: messageTimestamp,
+        updated_at: note.updated || messageTimestamp,
+        metadata: { ap_id: note.id, is_remote: true, federated: true },
+        encrypted: isEncrypted,
+        // This gets set by the trigger anyway when 'federated' key is present
+        federation_status: 'skipped',
+      };
+
+      if (messageUuid) {
+        messageData.id = messageUuid;
+      }
+
+      // Upsert to avoid duplicates - use onConflict with id if we have UUID
+      try {
+        const { data: cachedMsg } = await supabase
+          .from('messages')
+          .upsert(messageData, {
+            onConflict: 'id',
+            ignoreDuplicates: true,
+          })
+          .select('id')
+          .maybeSingle();
+        
+        // ignoreDuplicates: a row comes back only when this upsert inserted it.
+        cachedMsgId = cachedMsg?.id;
+        if (cachedMsgId) changed++;
+        // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
+        // host's page carried text only.
+        if (isEncrypted && messageUuid) {
+          const { data: flagged } = await supabase
+            .from('messages')
+            .update({ encrypted: true })
+            .eq('id', messageUuid)
+            .eq('channel_id', channelId)
+            .eq('encrypted', false)
+            .select('id');
+          changed += flagged?.length ?? 0;
+        }
+        if (messageUuid && cachedContent.some((part: any) => part?.type === 'file')) {
+          const { data: filled } = await supabase
+            .from('messages')
+            .update({ content: cachedContent })
+            .eq('id', messageUuid)
+            .eq('channel_id', channelId)
+            .not('content', 'cs', JSON.stringify([{ type: 'file' }]))
+            .select('id');
+          changed += filled?.length ?? 0;
+        }
+      } catch (cacheError: any) {
+        logger.debug(`Could not cache message: ${cacheError.message}`);
+      }
+    }
+
+    // Extract custom emojis from tags (preserve URLs)
+    const customEmojis = (note.tag || [])
+      .filter((t: any) => t.type === 'Emoji')
+      .map((t: any) => ({
+        name: t.name?.replace(/:/g, '') || t.id?.split('/').pop(),
+        url: t.icon?.url,
+      }));
+
+    let reactions: any[] = [];
+    if (cachedMsgId) {
+      const { data: rxns } = await supabase.rpc('get_message_reactions', { 
+        message_id: cachedMsgId 
+      });
+      reactions = rxns || [];
+    }
+
+    return {
+      id: cachedMsgId || (ownMessage ? note.id : messageUuid || note.id),
+      // The cached parts carry files, mentions and emoji; the HTML carries text only.
+      content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
+      created_at: note.published,
+      updated_at: note.updated,
+      metadata: { 
+        ap_id: note.id,
+        is_bridge: author?.is_bridge || false,
+        customEmojis: customEmojis.length > 0 ? customEmojis : undefined,
+      },
+      author,
+      encrypted: isEncrypted,
+      reactions, // Include reactions with emoji URLs
+    };
+  }));
+
+  return { messages, changed };
+}
 
 /**
  * GET /channels/:channelId/messages
@@ -974,331 +1336,7 @@ router.get(
       const data = await response.json();
       
       const items = data.orderedItems || data.items || [];
-
-      // A Note attributed to the Group is a system notice (systemNotes.ts); the Group is not
-      // a member to resolve. A malformed one is dropped.
-      const groupUrl = String(server.ap_id).replace(/\/$/, '').toLowerCase();
-      const fromGroup = (note: any) =>
-        typeof note?.attributedTo === 'string' && note.attributedTo.replace(/\/$/, '').toLowerCase() === groupUrl;
-      const systemNoticeOf = (note: any): HarmonySystem | null =>
-        fromGroup(note) ? parseHarmonySystem(note[HARMONY_SYSTEM]) : null;
-
-      // Deduplicate author URLs to avoid fetching the same user multiple times
-      const uniqueAuthorUrls = new Set<string>();
-      for (const item of items) {
-        const activity = item.type === 'Create' ? item : { object: item };
-        const note = activity.object;
-        if (!note) continue;
-
-        if (fromGroup(note)) {
-          const sys = systemNoticeOf(note);
-          for (const url of sys ? systemActorUrls(sys) : []) uniqueAuthorUrls.add(url);
-          continue;
-        }
-
-        const authorUrl = note.attributedTo || activity.actor;
-        if (authorUrl && authorUrl !== 'undefined' && !authorUrl.endsWith('/undefined')) {
-          uniqueAuthorUrls.add(authorUrl);
-        }
-      }
-
-      // Fetch all unique authors in parallel.
-      // ensureRemoteUser returns the profile directly.
-      const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-      const authorMap = new Map<string, any>();
-      
-      const fetchResults = await Promise.all(Array.from(uniqueAuthorUrls).map(async (url) => {
-        try {
-          const profile = await ActivityProcessor['ensureRemoteUser'](url);
-          if (profile) {
-            logger.debug(`Got profile for ${url}: id=${profile.id}, username=${profile.username}`);
-            return { url, profile };
-          } else {
-            logger.warn(`ensureRemoteUser returned null for ${url}`);
-            return null;
-          }
-        } catch (err) {
-          logger.warn(`Could not fetch author ${url}: ${err}`);
-          return null;
-        }
-      }));
-      
-      for (const result of fetchResults) {
-        if (result && result.profile) {
-          const { url, profile } = result;
-          authorMap.set(url, profile);
-          authorMap.set(url.toLowerCase(), profile);
-          if (profile.federated_id && profile.federated_id !== url) {
-            authorMap.set(profile.federated_id, profile);
-            authorMap.set(profile.federated_id.toLowerCase(), profile);
-          }
-          logger.debug(`Mapped author: ${url} -> ${profile.username}`);
-        }
-      }
-      
-      logger.info(`Author map has ${authorMap.size} entries for ${uniqueAuthorUrls.size} unique URLs`);
-
-      // Rows this read inserted or completed.
-      let changed = 0;
-
-      // A system notice is cached as an authorless system row naming local profiles.
-      const systemNoticeItem = async (note: any, sys: HarmonySystem) => {
-        const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
-        const metadata = systemMetadata(
-          sys,
-          (url) => (authorMap.get(url) || authorMap.get(url.toLowerCase()))?.id ?? null,
-        );
-        const createdAt = note.published || new Date().toISOString();
-        if (messageUuid) {
-          try {
-            const { data: inserted } = await supabase
-              .from('messages')
-              .upsert({
-                id: messageUuid,
-                channel_id: channelId,
-                content: [{ type: 'text', text: noteContentText(note.content) || sys.type }],
-                is_system: true,
-                created_at: createdAt,
-                updated_at: createdAt,
-                metadata: { ...metadata, ap_id: note.id, is_remote: true, federated: true },
-                federation_status: 'skipped',
-              }, { onConflict: 'id', ignoreDuplicates: true })
-              .select('id')
-              .maybeSingle();
-            if (inserted) changed++;
-          } catch (cacheError: any) {
-            logger.debug(`Could not cache system notice: ${cacheError.message}`);
-          }
-        }
-        return {
-          id: messageUuid || note.id,
-          content: note.content,
-          created_at: note.published,
-          updated_at: note.updated,
-          is_system: true,
-          metadata: { ...metadata, ap_id: note.id, is_bridge: false },
-          author: null,
-          reactions: [],
-        };
-      };
-
-      // A bot, webhook or bridged message, by the Group with its author in harmony:author
-      // (groupAuthor.ts): cached with no profile and no bot, its author in metadata. One in a
-      // thread unknown here is left out, as live delivery drops it: cached, it sat in the channel.
-      const groupAuthoredItem = async (note: any, groupAuthor: GroupAuthor) => {
-        const threadRef = typeof note['harmony:threadId'] === 'string' ? note['harmony:threadId'] : null;
-        const thread = threadRef ? await resolveThreadInChannel(supabase, threadRef, channelId) : null;
-        if (thread && thread.status !== 'found') return null;
-        const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
-        const content = Array.isArray(note['harmony:rawContent'])
-          ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
-          : [{ type: 'text', text: noteContentText(note.content) }];
-        const createdAt = note.published || new Date().toISOString();
-        const metadata = { ap_id: note.id, is_remote: true, federated: true, ...remoteAuthorMetadata(groupAuthor) };
-        if (messageUuid) {
-          try {
-            const { data: inserted } = await supabase
-              .from('messages')
-              .upsert({
-                id: messageUuid,
-                channel_id: channelId,
-                content,
-                created_at: createdAt,
-                updated_at: note.updated || createdAt,
-                metadata,
-                thread_id: thread?.status === 'found' ? thread.id : null,
-                encrypted: note['harmony:encrypted'] === true,
-                federation_status: 'skipped',
-              }, { onConflict: 'id', ignoreDuplicates: true })
-              .select('id')
-              .maybeSingle();
-            if (inserted) changed++;
-          } catch (cacheError: any) {
-            logger.debug(`Could not cache bot message: ${cacheError.message}`);
-          }
-        }
-        return {
-          id: messageUuid || note.id,
-          content,
-          created_at: note.published,
-          updated_at: note.updated,
-          metadata,
-          author: null,
-          encrypted: note['harmony:encrypted'] === true,
-          reactions: [],
-        };
-      };
-
-      // Transform messages using the cached author data
-      const messages = await Promise.all(items.map(async (item: any) => {
-        const activity = item.type === 'Create' ? item : { object: item };
-        const note = activity.object;
-        
-        if (!note) return null;
-
-        if (fromGroup(note)) {
-          const sys = systemNoticeOf(note);
-          if (sys) return systemNoticeItem(note, sys);
-          const groupAuthor = parseGroupAuthor(note[HARMONY_AUTHOR]);
-          return groupAuthor ? groupAuthoredItem(note, groupAuthor) : null;
-        }
-
-        const authorUrl = note.attributedTo || activity.actor;
-        
-        let author = authorMap.get(authorUrl) || 
-                     authorMap.get(authorUrl?.toLowerCase()) || 
-                     null;
-
-        // For bridge messages (Discord, Matrix, etc.) or messages without a valid author,
-        // try to extract info from the note itself
-        if (!author) {
-          // Check if the note has author name in the content or signature
-          // Common bridge patterns:
-          // - <strong>Username</strong>: message
-          // - **Username**: message
-          // - [Username]: message
-          const bridgeMatch = note.content?.match(/<strong>([^<]+)<\/strong>:/) ||
-                              note.content?.match(/\*\*([^*]+)\*\*:/) ||
-                              note.content?.match(/^\[([^\]]+)\]:?/);
-          const bridgeName = bridgeMatch?.[1] || note.name || 'External User';
-          
-          author = {
-            id: null,
-            username: bridgeName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').substring(0, 30),
-            display_name: bridgeName,
-            avatar_url: null,
-            federated_id: authorUrl || `bridge:${note.id}`,
-            is_bridge: true,
-          };
-          
-          // Only log as debug if we have an authorUrl (expected case for bridges)
-          if (!authorUrl || authorUrl.includes('/undefined')) {
-            logger.debug(`Bridge message ${note.id}: ${bridgeName}`);
-          } else {
-            logger.warn(`Author not found for ${authorUrl}, using bridge fallback: ${bridgeName}`);
-          }
-        }
-
-        // Ciphertext from the host: shown as encrypted here, never as text.
-        const isEncrypted = note['harmony:encrypted'] === true;
-
-        let messageUuid: string | undefined;
-        const uuidMatch = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i);
-        if (uuidMatch) {
-          messageUuid = uuidMatch[1];
-        }
-
-        // A message of a member of this instance is held here already; caching the host's copy
-        // showed it twice. Linked, never inserted (ownMessageRow).
-        const ownMessage = !!author?.id && !author.is_bridge
-          && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
-        const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
-
-        // Cache message locally for reactions and offline access (only if we have a valid author ID)
-        let cachedMsgId: string | null = ownRowId;
-        let cachedContent: any[] | null = null;
-
-        if (author?.id && !author.is_bridge && !ownMessage) {
-          const messageTimestamp = note.published || new Date().toISOString();
-
-          // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
-          if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
-            cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
-          } else if (note.content) {
-            cachedContent = [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }];
-          } else {
-            cachedContent = [];
-          }
-
-          const messageData: any = {
-            channel_id: channelId,
-            user_id: author.id,
-            content: cachedContent,
-            created_at: messageTimestamp,
-            updated_at: note.updated || messageTimestamp,
-            metadata: { ap_id: note.id, is_remote: true, federated: true },
-            encrypted: isEncrypted,
-            // This gets set by the trigger anyway when 'federated' key is present
-            federation_status: 'skipped',
-          };
-
-          if (messageUuid) {
-            messageData.id = messageUuid;
-          }
-
-          // Upsert to avoid duplicates - use onConflict with id if we have UUID
-          try {
-            const { data: cachedMsg } = await supabase
-              .from('messages')
-              .upsert(messageData, {
-                onConflict: 'id',
-                ignoreDuplicates: true,
-              })
-              .select('id')
-              .maybeSingle();
-            
-            // ignoreDuplicates: a row comes back only when this upsert inserted it.
-            cachedMsgId = cachedMsg?.id;
-            if (cachedMsgId) changed++;
-            // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
-            // host's page carried text only.
-            if (isEncrypted && messageUuid) {
-              const { data: flagged } = await supabase
-                .from('messages')
-                .update({ encrypted: true })
-                .eq('id', messageUuid)
-                .eq('channel_id', channelId)
-                .eq('encrypted', false)
-                .select('id');
-              changed += flagged?.length ?? 0;
-            }
-            if (messageUuid && cachedContent.some((part: any) => part?.type === 'file')) {
-              const { data: filled } = await supabase
-                .from('messages')
-                .update({ content: cachedContent })
-                .eq('id', messageUuid)
-                .eq('channel_id', channelId)
-                .not('content', 'cs', JSON.stringify([{ type: 'file' }]))
-                .select('id');
-              changed += filled?.length ?? 0;
-            }
-          } catch (cacheError: any) {
-            logger.debug(`Could not cache message: ${cacheError.message}`);
-          }
-        }
-
-        // Extract custom emojis from tags (preserve URLs)
-        const customEmojis = (note.tag || [])
-          .filter((t: any) => t.type === 'Emoji')
-          .map((t: any) => ({
-            name: t.name?.replace(/:/g, '') || t.id?.split('/').pop(),
-            url: t.icon?.url,
-          }));
-
-        let reactions: any[] = [];
-        if (cachedMsgId) {
-          const { data: rxns } = await supabase.rpc('get_message_reactions', { 
-            message_id: cachedMsgId 
-          });
-          reactions = rxns || [];
-        }
-
-        return {
-          id: cachedMsgId || (ownMessage ? note.id : messageUuid || note.id),
-          // The cached parts carry files, mentions and emoji; the HTML carries text only.
-          content: cachedContent && cachedContent.length > 0 ? cachedContent : note.content,
-          created_at: note.published,
-          updated_at: note.updated,
-          metadata: { 
-            ap_id: note.id,
-            is_bridge: author?.is_bridge || false,
-            customEmojis: customEmojis.length > 0 ? customEmojis : undefined,
-          },
-          author,
-          encrypted: isEncrypted,
-          reactions, // Include reactions with emoji URLs
-        };
-      }));
+      const { messages, changed } = await cacheChannelItems(supabase, channelId, server, items);
 
       return res.json({
         messages: messages.filter(Boolean),
@@ -1911,6 +1949,10 @@ export class ServerDiscoveryService {
 
       await this.syncRemoteStructure(serverId, server.ap_id, remoteServer['harmony:channels']);
 
+      const roles = parseGroupRoles(remoteServer[HARMONY_ROLES], server.ap_id);
+      if (roles) await CopyMirrorService.applyGroupRoles(serverId, server.ap_id, roles);
+      await this.syncAdvertisedPins(serverId, server.ap_id, remoteServer['harmony:channels'], signer);
+
       logger.info(`Synced remote server: ${remoteServer.name}`);
     } catch (error) {
       logger.error('Error syncing remote server:', error);
@@ -2006,6 +2048,116 @@ export class ServerDiscoveryService {
   }
 
   /**
+   * Members of a copy and their roles read again, signed as `signAs`, unless read in the last
+   * MEMBER_RESYNC_MS (federation_metadata.members_synced_at).
+   */
+  static async resyncMembers(serverId: string, signAs: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { data: server } = await supabase
+      .from('servers')
+      .select('ap_id, is_local_server, federation_metadata')
+      .eq('id', serverId)
+      .maybeSingle();
+    const meta = server?.federation_metadata ?? {};
+    if (!server?.ap_id || server.is_local_server !== false || typeof meta.members !== 'string') return;
+    const last = Date.parse(meta.members_synced_at ?? '');
+    if (Number.isFinite(last) && Date.now() - last < MEMBER_RESYNC_MS) return;
+    await supabase
+      .from('servers')
+      .update({ federation_metadata: { ...meta, members_synced_at: new Date().toISOString() } })
+      .eq('id', serverId);
+    await this.syncRemoteServerMembers(serverId, meta.members, { signAs, serverApId: server.ap_id });
+  }
+
+  /**
+   * Pins of each channel whose entry in a Group's harmony:channels advertises them (copyMirror.ts),
+   * read where the copy's pins differ in count or newest pin time. A Group that advertises none
+   * (Harmony before 1.9.1) leaves the copy's pins as they are.
+   */
+  static async syncAdvertisedPins(serverId: string, serverApId: string, entries: unknown, signAs: string): Promise<void> {
+    if (!Array.isArray(entries)) return;
+    const supabase = getSupabaseClient();
+    for (const entry of entries.slice(0, MAX_SYNCED_CHANNELS)) {
+      if (!entry || typeof entry !== 'object' || typeof entry.id !== 'string' || !entry.id.startsWith(`${serverApId}/channels/`)) continue;
+      const advert = parsePinsAdvert(entry[HARMONY_PINS], entry.id);
+      if (!advert) continue;
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('server_id', serverId)
+        .eq('ap_id', entry.id)
+        .maybeSingle();
+      if (!channel) continue;
+      const { data: pinned } = await supabase
+        .from('messages')
+        .select('pinned_at')
+        .eq('channel_id', channel.id)
+        .eq('is_pinned', true);
+      const times = (pinned || []).map((m: any) => Date.parse(m.pinned_at)).filter((t: number) => Number.isFinite(t));
+      const newest = times.length > 0 ? Math.max(...times) : null;
+      const same = (pinned || []).length === advert.totalItems
+        && (advert.updated === null ? newest === null : newest === Date.parse(advert.updated));
+      if (same) continue;
+      if (advert.totalItems === 0) {
+        await CopyMirrorService.applyChannelPins(channel.id, new Map());
+        continue;
+      }
+      await this.syncChannelPins(serverId, channel.id, { signAs });
+    }
+  }
+
+  /**
+   * A copy's channel pinned as its Group's pins collection says, read signed as `signAs`, else as
+   * a local member: pinned Notes the copy lacks are cached (cacheChannelItems), and pinned rows the
+   * collection does not name are unpinned. False when the collection could not be read; the pins
+   * are then left as they are.
+   */
+  static async syncChannelPins(serverId: string, channelId: string, opts: { signAs?: string } = {}): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    const [{ data: server }, { data: channel }] = await Promise.all([
+      supabase.from('servers').select('id, ap_id, is_local_server').eq('id', serverId).maybeSingle(),
+      supabase.from('channels').select('id, ap_id').eq('id', channelId).eq('server_id', serverId).maybeSingle(),
+    ]);
+    if (!server?.ap_id || server.is_local_server !== false || typeof channel?.ap_id !== 'string'
+      || !channel.ap_id.startsWith(`${server.ap_id}/channels/`)) {
+      return false;
+    }
+    const signer = opts.signAs ?? await this.pickSigningMember(serverId);
+    if (!signer) return false;
+
+    const url = pinsCollectionId(channel.ap_id);
+    let body: any;
+    try {
+      const response = await SignatureService.signedApFetch(url, {
+        headers: { 'Accept': 'application/activity+json, application/json', 'User-Agent': federationUserAgent() },
+        timeoutMs: 10000,
+        signAs: signer,
+      });
+      if (!response.ok) {
+        logger.info(`Pins of ${channel.ap_id} not read: ${response.status}`);
+        return false;
+      }
+      body = await response.json();
+    } catch (error) {
+      logger.warn(`Pins of ${channel.ap_id} not read: ${(error as Error).message}`);
+      return false;
+    }
+    if (body?.id !== url || !Array.isArray(body.orderedItems)) return false;
+
+    const notes = body.orderedItems
+      .slice(0, MAX_PINS)
+      .filter((n: any) => n && typeof n === 'object' && typeof n.id === 'string');
+    await cacheChannelItems(supabase, channel.id, server, notes);
+    const pinned = new Map<string, string>();
+    for (const note of notes) {
+      const rowId = await resolveMessageInChannel(supabase, note.id, channel.id);
+      if (rowId) pinned.set(rowId, parsePinnedAt(note[HARMONY_PINNED_AT]) ?? new Date().toISOString());
+    }
+    await CopyMirrorService.applyChannelPins(channel.id, pinned);
+    return true;
+  }
+
+  /**
    * Sync remote server members
    * Fetches the members collection, every page up to MEMBER_SYNC_MAX_PAGES, and creates local
    * profiles for remote users. A page's `next` must sit on the collection's origin. With
@@ -2033,6 +2185,9 @@ export class ServerDiscoveryService {
         'User-Agent': federationUserAgent(),
       };
       const members: unknown[] = [];
+      // harmony:memberRoles of every page read; null while no page carried it.
+      let memberRoles: unknown[] | null = null;
+      let complete = false;
       let pageUrl: string | null = membersUrl + '?page=1';
       for (let pages = 0; pageUrl && pages < MEMBER_SYNC_MAX_PAGES; pages++) {
         const response = await SignatureService.signedApFetch(pageUrl, {
@@ -2046,8 +2201,12 @@ export class ServerDiscoveryService {
         }
         const membersPage = await response.json();
         if (Array.isArray(membersPage.orderedItems)) members.push(...membersPage.orderedItems);
+        if (Array.isArray(membersPage[HARMONY_MEMBER_ROLES])) {
+          memberRoles = [...(memberRoles ?? []), ...membersPage[HARMONY_MEMBER_ROLES]];
+        }
         const next = typeof membersPage.next === 'string' ? membersPage.next : null;
         pageUrl = next && sameOrigin(next, membersUrl) ? next : null;
+        complete = pageUrl === null;
       }
 
       logger.info(`Found ${members.length} remote members`);
@@ -2096,6 +2255,14 @@ export class ServerDiscoveryService {
         } catch (memberError) {
           logger.debug(`Failed to process member:`, memberError);
         }
+      }
+
+      // Roles of the members, once their profiles exist.
+      const groupUrl = opts.serverApId
+        ?? (await supabase.from('servers').select('ap_id').eq('id', serverId).maybeSingle()).data?.ap_id;
+      const entries = typeof groupUrl === 'string' ? parseMemberRoles(memberRoles, groupUrl) : null;
+      if (entries && typeof groupUrl === 'string') {
+        await CopyMirrorService.applyMemberRoles(serverId, groupUrl, entries, { complete });
       }
 
       logger.info(`Synced remote server members for server: ${serverId}`);

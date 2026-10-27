@@ -2,6 +2,7 @@ import { config } from '../../config/index.js';
 import { decodeHtmlEntities, escapeHtml } from '../../utils/contentUtils.js';
 import { findHandles } from '../../utils/mentionGrammar.js';
 import { parseFocalPoint } from '../../utils/focalPoint.js';
+import { HARMONY_INSTANCE_ROLE, parseInstanceRole, type InstanceRole } from '../copyMirror.js';
 
 interface MentionTagInfo {
   username: string;
@@ -573,6 +574,7 @@ export function actorToProfile(actor: any): {
   display_name_emojis?: Array<{ name: string; url: string }>;
   also_known_as: string[];
   moved_to_uri: string | null;
+  instance_role: InstanceRole | null;
 } {
   const actorUrl = new URL(actor.id);
   const domain = actorUrl.hostname;
@@ -589,6 +591,8 @@ export function actorToProfile(actor: any): {
     is_local: false,
     also_known_as: parseAlsoKnownAs(actor.alsoKnownAs).filter((uri) => uri !== actor.id),
     moved_to_uri: parseMovedTo(actor.movedTo),
+    // Staff of the actor's own instance: the document comes from its own URL or its own Update.
+    instance_role: parseInstanceRole(actor[HARMONY_INSTANCE_ROLE]),
   };
   if (profile.moved_to_uri === actor.id) profile.moved_to_uri = null;
 

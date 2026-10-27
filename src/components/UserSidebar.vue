@@ -254,10 +254,14 @@
                       <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                     </svg>
                   </span>
-                  <span v-if="isUserInstanceAdmin(item.user!.id).value" class="instance-badge admin" :title="t('chatNav.members.instanceAdmin')" aria-hidden="true">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  </span>
-                  <span v-else-if="isUserInstanceMod(item.user!.id).value" class="instance-badge mod" :title="t('chatNav.members.instanceMod')" aria-hidden="true">
+                  <span
+                    v-if="staffBadge(item.user!.id).value"
+                    class="instance-badge"
+                    :class="staffBadge(item.user!.id).value!.kind"
+                    :title="staffBadgeLabel(staffBadge(item.user!.id).value!)"
+                    data-testid="member-staff-badge"
+                    aria-hidden="true"
+                  >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   </span>
                 </div>
@@ -375,7 +379,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerRolesStore } from '@/stores/useServerRoles';
-import { showInstanceStaffBadge } from '@/utils/instanceBadge';
+import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
@@ -462,23 +466,18 @@ function hasCustomStatusToShow(userId: string): boolean {
   return !!(s.text || s.emoji || s.emoji_url || (s.type && s.type !== 'custom'));
 }
 
-// Instance staff badges apply to the local instance only; they are hidden on
-// federated servers, where the owner is an ordinary member.
-const showInstanceStaff = computed(() =>
-  showInstanceStaffBadge(serverChannelStore.currentServer)
+// This instance's staff badges are hidden on federated servers, where the owner is an ordinary
+// member; a remote account's role on its own instance shows everywhere (instanceBadge.ts).
+const staffBadge = (userId: string) => computed(() =>
+  instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer)
 );
 
-const isUserInstanceAdmin = (userId: string) => computed(() => {
-  if (!showInstanceStaff.value) return false;
-  const profile = getUserProfile(userId).value;
-  return profile?.is_admin === true;
-});
-
-const isUserInstanceMod = (userId: string) => computed(() => {
-  if (!showInstanceStaff.value) return false;
-  const profile = getUserProfile(userId).value;
-  return profile?.is_moderator === true && !profile?.is_admin;
-});
+function staffBadgeLabel(badge: InstanceStaffBadge): string {
+  if (badge.domain) {
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
+  }
+  return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+}
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -1088,6 +1087,29 @@ const toggleGroup = (groupName: string) => {
   collapsedGroups.value[groupName] = !collapsedGroups.value[groupName];
 };
 
+// Roles changed elsewhere (a realtime broadcast, a copy's sync): the current server's sections reload.
+let roleReloadTimer: ReturnType<typeof setTimeout> | null = null;
+function onRoleBroadcast(event: Event) {
+  const detail = (event as CustomEvent).detail;
+  const serverId = detail?.new?.server_id ?? detail?.old?.server_id;
+  if (!serverId || serverId !== serverChannelStore.currentServerId) return;
+  if (roleReloadTimer) clearTimeout(roleReloadTimer);
+  roleReloadTimer = setTimeout(() => {
+    roleReloadTimer = null;
+    if (serverId !== serverChannelStore.currentServerId) return;
+    roleService.clearServerCache(serverId);
+    rolesLoadedForServer.value = null;
+    void loadServerRolesAndAssignments(serverId);
+  }, 250);
+}
+window.addEventListener('server-structure:role-change', onRoleBroadcast);
+window.addEventListener('server-structure:user-role-change', onRoleBroadcast);
+onUnmounted(() => {
+  window.removeEventListener('server-structure:role-change', onRoleBroadcast);
+  window.removeEventListener('server-structure:user-role-change', onRoleBroadcast);
+  if (roleReloadTimer) clearTimeout(roleReloadTimer);
+});
+
 const loadServerRolesAndAssignments = async (serverId: string) => {
   if (!serverId || rolesLoadedForServer.value === serverId) return;
   
@@ -1117,6 +1139,8 @@ const loadServerRolesAndAssignments = async (serverId: string) => {
 
       userRolesMap.value = newUserRolesMap;
       debug.log(`UserSidebar: Loaded role assignments for ${newUserRolesMap.size} users`);
+    } else {
+      userRolesMap.value = new Map();
     }
     
   } catch (error) {
@@ -1351,8 +1375,8 @@ const memberStateText = (item: SidebarItem): string => {
     parts.push(t(presenceStatusKey(item.bot.status)));
   } else if (item.user) {
     parts.push(t(presenceStatusKey(getStatusForAvatarValue(item.user.id))));
-    if (isUserInstanceAdmin(item.user.id).value) parts.push(t('chatNav.members.instanceAdmin'));
-    else if (isUserInstanceMod(item.user.id).value) parts.push(t('chatNav.members.instanceMod'));
+    const badge = staffBadge(item.user.id).value;
+    if (badge) parts.push(staffBadgeLabel(badge));
   }
   const group = item.groupKey ?? '';
   if (group.startsWith('role:') || group === 'federated') {

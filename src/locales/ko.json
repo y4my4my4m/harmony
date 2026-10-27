@@ -6076,7 +6076,11 @@
       "discord": "Discord 브리지 멤버",
       "instanceAdmin": "인스턴스 관리자",
       "instanceMod": "인스턴스 모더레이터",
-      "searchHint": "이름 또는 사용자 이름"
+      "searchHint": "이름 또는 사용자 이름",
+      "instanceAdminOf": "{domain} 관리자",
+      "instanceModOf": "{domain} 모더레이터",
+      "instanceAdminBadgeOf": "{domain} 관리자",
+      "instanceModBadgeOf": "{domain} 모더레이터"
     },
     "create": {
       "textHint": "공백은 하이픈으로, 영문자는 소문자로 바뀝니다. - 와 _ 이외의 기호는 제거됩니다",

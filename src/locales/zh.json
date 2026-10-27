@@ -6076,7 +6076,11 @@
       "discord": "Discord 桥接成员",
       "instanceAdmin": "实例管理员",
       "instanceMod": "实例版主",
-      "searchHint": "名称或用户名"
+      "searchHint": "名称或用户名",
+      "instanceAdminOf": "{domain} 管理员",
+      "instanceModOf": "{domain} 版主",
+      "instanceAdminBadgeOf": "{domain} 管理员",
+      "instanceModBadgeOf": "{domain} 版主"
     },
     "create": {
       "textHint": "空格会变成连字符，字母会转为小写；除 - 和 _ 以外的标点会被去掉",

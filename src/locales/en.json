@@ -6072,7 +6072,11 @@
       "discord": "Discord bridge member",
       "instanceAdmin": "instance admin",
       "instanceMod": "instance moderator",
-      "searchHint": "Name or username"
+      "searchHint": "Name or username",
+      "instanceAdminOf": "admin of {domain}",
+      "instanceModOf": "moderator of {domain}",
+      "instanceAdminBadgeOf": "Admin of {domain}",
+      "instanceModBadgeOf": "Moderator of {domain}"
     },
     "create": {
       "textHint": "Spaces become dashes and letters are lowercased; punctuation other than - and _ is dropped",

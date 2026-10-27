@@ -71,7 +71,7 @@ interface PresenceRow {
 
 /** Bulk member-list hydration - omit federation_metadata (large JSONB, rarely needed). */
 const PROFILE_BULK_SELECT =
-  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
+  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, instance_role'
 
 class UserDataService extends EventTarget {
   private users = new Map<string, UserData>()
@@ -1252,6 +1252,7 @@ class UserDataService extends EventTarget {
             updatedAt: profile.updated_at,
             isAdmin: profile.is_admin ?? existing?.isAdmin ?? false,
             isModerator: profile.is_moderator ?? existing?.isModerator ?? false,
+            instanceRole: profile.instance_role ?? null,
             source: 'database'
           }
 
@@ -1333,6 +1334,7 @@ class UserDataService extends EventTarget {
       roles: userData.roles || [],
       is_admin: userData.isAdmin || false,
       is_moderator: userData.isModerator || false,
+      instance_role: userData.instanceRole ?? null,
       is_local: userData.isLocal,
       online_at: userData.lastSeen,
       last_seen: userData.lastSeen

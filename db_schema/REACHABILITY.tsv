@@ -154,7 +154,7 @@ channel_grants_everyone	definer	boolean	service_role	client, trigger	called by b
 channel_inherits_category_permissions	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (a_channels_inherit_category_permissions)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
 channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
-channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by assert_webhook_channel, discord_bridge_encrypted_channel_ids, effective_channel_encryption, +8
+channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by assert_webhook_channel, discord_bridge_encrypted_channel_ids, effective_channel_encryption, +9
 channel_mute_active	invoker	boolean	service_role	trigger	called by broadcast_unread_count_event, handle_new_message_unread, sync_unread_mute
 channel_name_normalized	invoker	text	authenticated+service_role	client, trigger	called by apply_channel_name_rule, create_channel
 channel_permissions_synced	invoker	boolean	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
@@ -381,6 +381,7 @@ federation_history_cutoffs	definer	jsonb	service_role	client	rpc in federation-b
 federation_media_access	definer	boolean	service_role	client	rpc in federation-backend/src/routes/media.ts
 federation_post_access	definer	boolean	service_role	client	named in federation-backend/src/__tests__/postObjectAccess.test.ts, federation-backend/src/activitypub/postAccess.ts
 federation_room_media_access	definer	boolean	service_role	client	called by federation_media_access
+federation_server_recipients	definer	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	service_role	client	rpc in federation-backend/src/utils/federationUtils.ts
 fetch_link_preview	definer	jsonb	service_role	trigger	called by process_local_link_previews
 finalize_dm_call_message	definer	void	anon+authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 fold_heart_reaction	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions BEFORE INSERT (trg_fold_heart_reaction)
@@ -457,7 +458,7 @@ get_server_bots	definer	TABLE(id uuid, username text, display_name text, avatar_
 get_server_encryption_stats	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/ServerEncryptionSettings.vue
 get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts, src/services/serverMembershipService.ts
 get_server_member_timeouts	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
-get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts, federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
+get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
 get_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 get_server_notification_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/notificationSettings.ts
 get_server_voice_activities	definer	SETOF jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
@@ -503,6 +504,7 @@ guard_message_poll_parts	invoker	trigger	service_role	trigger	trigger public.mes
 guard_override_grants	invoker	trigger	service_role	trigger	trigger public.channel_permission_overrides BEFORE INSERT/UPDATE (a_channel_overrides_grant_guard)
 guard_post_client_write	invoker	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (a_posts_client_write_guard)
 guard_profile_client_write	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (a_profiles_client_write_guard)
+guard_profile_instance_role	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (a_profiles_instance_role_guard)
 guard_server_client_write	invoker	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_client_write_guard)
 guard_server_federation_instance_closed	definer	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_instance_federation_guard)
 guard_server_role_hierarchy	invoker	trigger	service_role	trigger	trigger public.server_roles BEFORE INSERT/DELETE/UPDATE (a_server_roles_hierarchy_guard)
@@ -684,7 +686,7 @@ public_post_page	definer	jsonb	service_role	client	named in federation-backend/s
 public_profile_page	definer	jsonb	service_role	client	named in federation-backend/src/__tests__/publicPagesActivityPub.test.ts, federation-backend/src/__tests__/publicPagesRoutes.test.ts, federation-backend/src/publicPages/routes.ts
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +42
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +45
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
@@ -877,6 +879,7 @@ trigger_queue_channel_federation	definer	trigger	anon+authenticated+service_role
 trigger_queue_channel_message_delete_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER UPDATE (trigger_federate_channel_message_delete)
 trigger_queue_channel_message_edit_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER UPDATE (trigger_federate_channel_message_edit)
 trigger_queue_channel_message_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages BEFORE INSERT (trigger_federate_channel_message)
+trigger_queue_channel_pin_federation	definer	trigger	service_role	trigger	trigger public.messages AFTER UPDATE (z_messages_pin_federation)
 trigger_queue_channel_reaction_delete_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions AFTER DELETE (trigger_federate_channel_reaction_delete)
 trigger_queue_channel_reaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_federate_channel_reaction)
 trigger_queue_dm_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages BEFORE INSERT (trigger_federate_dm)
@@ -884,6 +887,7 @@ trigger_queue_follow_federation	definer	trigger	service_role	trigger	trigger pub
 trigger_queue_follow_response_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows BEFORE UPDATE (trigger_federate_follow_response)
 trigger_queue_interaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions AFTER DELETE (trigger_federate_post_interaction_delete), public.post_interactions BEFORE INSERT (trigger_federate_post_interaction)
 trigger_queue_member_removal	definer	trigger	service_role	trigger	trigger public.federation_member_removals AFTER INSERT (trigger_federate_member_removal)
+trigger_queue_member_roles_federation	definer	trigger	service_role	trigger	trigger public.user_roles AFTER INSERT/DELETE/UPDATE (z_user_roles_federation)
 trigger_queue_message_reaction_delete_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions AFTER DELETE (trigger_federate_message_reaction_delete)
 trigger_queue_message_reaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_federate_message_reaction)
 trigger_queue_post_federation	definer	trigger	anon+authenticated+service_role	client, trigger	named in federation-backend/src/listeners/DatabaseListener.ts; trigger public.posts BEFORE INSERT/UPDATE (trigger_federate_post)
@@ -891,6 +895,7 @@ trigger_queue_profile_federation	definer	trigger	service_role	trigger	trigger pu
 trigger_queue_push_notification	definer	trigger	anon+authenticated+service_role	trigger	trigger public.notifications AFTER INSERT (trigger_send_push_notification)
 trigger_queue_report_federation	definer	trigger	service_role	trigger	trigger public.reports BEFORE INSERT (trigger_federate_report)
 trigger_queue_report_resolution	definer	trigger	service_role	trigger	trigger public.reports AFTER UPDATE (trigger_federate_report_resolution)
+trigger_queue_server_roles_federation	definer	trigger	service_role	trigger	trigger public.server_roles AFTER INSERT/DELETE/UPDATE (z_server_roles_federation)
 trigger_queue_server_update_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER UPDATE (trigger_federate_server_update)
 trigger_queue_thread_federation	definer	trigger	service_role	trigger	trigger public.threads BEFORE INSERT/UPDATE (trigger_federate_thread)
 trigger_queue_voice_channel_join_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT (trigger_federate_voice_channel_join)

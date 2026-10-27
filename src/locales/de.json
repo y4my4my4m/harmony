@@ -6076,7 +6076,11 @@
       "discord": "Mitglied über die Discord-Brücke",
       "instanceAdmin": "Instanz-Admin",
       "instanceMod": "Instanz-Moderator",
-      "searchHint": "Name oder Benutzername"
+      "searchHint": "Name oder Benutzername",
+      "instanceAdminOf": "Admin von {domain}",
+      "instanceModOf": "Moderator von {domain}",
+      "instanceAdminBadgeOf": "Admin von {domain}",
+      "instanceModBadgeOf": "Moderator von {domain}"
     },
     "create": {
       "textHint": "Leerzeichen werden zu Bindestrichen und Buchstaben zu Kleinbuchstaben; Satzzeichen außer - und _ entfallen",

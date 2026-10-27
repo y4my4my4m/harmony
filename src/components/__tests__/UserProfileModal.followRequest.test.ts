@@ -63,6 +63,7 @@ vi.mock('@/composables/useUserData', async () => {
     DEFAULT_USER_COLOR: 'var(--text-primary)',
     useUserData: () => ({
       getUser: none,
+      getUserProfile: none,
       getUserStatusText: () => ref('Offline'),
       getUserDisplayName: none,
       getUserAvatarUrl: none,

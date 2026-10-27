@@ -39,6 +39,7 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useLeaveServer } from '@/composables/useLeaveServer'
 import { checkRemoteServer, isRemoteServerClosed } from '@/utils/remoteServerStatus'
+import { syncRemoteServerCopy } from '@/utils/remoteServerSync'
 import CallChatElsewhere from '@/components/voice/CallChatElsewhere.vue'
 import { useCallChat } from '@/components/voice/callChat'
 import { channelListLoading, loadOlderChannelMessages, loadOlderConversationMessages } from '@/composables/chatPaging'
@@ -105,6 +106,7 @@ const routeServer = computed(() => {
 const closedServer = computed(() => isRemoteServerClosed(routeServer.value?.id) ? routeServer.value : null)
 watch(() => [routeServer.value?.id, routeServer.value?.is_local_server], () => {
   void checkRemoteServer(routeServer.value)
+  void syncRemoteServerCopy(routeServer.value)
 }, { immediate: true })
 
 const callChat = useCallChat()

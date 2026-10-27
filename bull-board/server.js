@@ -28,6 +28,8 @@ const QUEUE_NAMES = [
   'federate-channel-crud',
   'federate-category-crud',
   'federate-server-update',
+  'federate-channel-pin',
+  'federate-member-roles',
   'federate-block',
   'federate-report',
   'federate-profile',

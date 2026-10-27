@@ -19,6 +19,7 @@ import { handleDMJob } from './handlers/dmHandler.js';
 import { handleChannelMessageJob, handleChannelMessageEditJob, handleChannelMessageDeleteJob } from './handlers/channelMessageHandler.js';
 import { handleChannelReactionJob } from './handlers/channelReactionHandler.js';
 import { handleChannelCrudJob, handleCategoryCrudJob, handleServerUpdateJob } from './handlers/serverStructureHandler.js';
+import { handleChannelPinJob, handleMemberRolesJob } from './handlers/copyMirrorHandler.js';
 import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
@@ -55,6 +56,8 @@ export type JobType =
   | 'federate-channel-crud'
   | 'federate-category-crud'
   | 'federate-server-update'
+  | 'federate-channel-pin'
+  | 'federate-member-roles'
   | 'federate-block'
   | 'federate-report'
   | 'federate-poll-vote'
@@ -102,6 +105,8 @@ const JOB_TYPES: JobType[] = [
   'federate-channel-crud',
   'federate-category-crud',
   'federate-server-update',
+  'federate-channel-pin',
+  'federate-member-roles',
   'federate-block',
   'federate-report',
   'federate-poll-vote',
@@ -230,6 +235,8 @@ class BullMQManagerService {
     this.handlerMap.set('federate-channel-crud', handleChannelCrudJob);
     this.handlerMap.set('federate-category-crud', handleCategoryCrudJob);
     this.handlerMap.set('federate-server-update', handleServerUpdateJob);
+    this.handlerMap.set('federate-channel-pin', handleChannelPinJob);
+    this.handlerMap.set('federate-member-roles', handleMemberRolesJob);
     this.handlerMap.set('federate-block', handleBlockJob);
     this.handlerMap.set('federate-report', handleReportJob);
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
