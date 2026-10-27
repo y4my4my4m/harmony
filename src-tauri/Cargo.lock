@@ -2425,6 +2425,7 @@ dependencies = [
 name = "harmony-download"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "reqwest",
  "rustls",
  "tokio",

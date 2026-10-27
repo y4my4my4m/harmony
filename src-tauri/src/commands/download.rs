@@ -3,9 +3,9 @@
 //! names the download for download_cancel.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use harmony_download::Cancel;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
@@ -16,8 +16,8 @@ pub enum DownloadEvent {
   Retrying { attempt: u32 },
 }
 
-fn running() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
-  static RUNNING: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+fn running() -> &'static Mutex<HashMap<String, Arc<Cancel>>> {
+  static RUNNING: OnceLock<Mutex<HashMap<String, Arc<Cancel>>>> = OnceLock::new();
   RUNNING.get_or_init(Default::default)
 }
 
@@ -31,32 +31,37 @@ pub async fn download_file(
   file_name: String,
   on_event: Channel<DownloadEvent>,
 ) -> Result<String, String> {
+  // Registered before the folder lookup and client setup: a cancel during either is kept.
+  let cancel = Arc::new(Cancel::default());
+  running().lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone(), cancel.clone());
+  let result = save(&app, &url, &file_name, &cancel, on_event).await;
+  running().lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+  result
+}
+
+async fn save(
+  app: &AppHandle,
+  url: &str,
+  file_name: &str,
+  cancel: &Cancel,
+  on_event: Channel<DownloadEvent>,
+) -> Result<String, String> {
   let dir = app.path().download_dir().map_err(|e| e.to_string())?;
   let client = harmony_download::client()?;
-  let cancel = Arc::new(AtomicBool::new(false));
-  running().lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone(), cancel.clone());
-  let result = harmony_download::download(
-    &client,
-    &url,
-    &dir,
-    &file_name,
-    &cancel,
-    &harmony_download::RETRY_DELAYS,
-    move |event| {
-      let _ = on_event.send(match event {
-        harmony_download::Event::Progress { loaded, total } => DownloadEvent::Progress { loaded, total },
-        harmony_download::Event::Retrying { attempt } => DownloadEvent::Retrying { attempt },
-      });
-    },
-  )
-  .await;
-  running().lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
-  result.map(|path| path.to_string_lossy().into_owned()).map_err(|e| e.to_string())
+  harmony_download::download(&client, url, &dir, file_name, cancel, &harmony_download::RETRY_DELAYS, move |event| {
+    let _ = on_event.send(match event {
+      harmony_download::Event::Progress { loaded, total } => DownloadEvent::Progress { loaded, total },
+      harmony_download::Event::Retrying { attempt } => DownloadEvent::Retrying { attempt },
+    });
+  })
+  .await
+  .map(|path| path.to_string_lossy().into_owned())
+  .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn download_cancel(id: String) {
-  if let Some(flag) = running().lock().unwrap_or_else(|e| e.into_inner()).get(&id) {
-    flag.store(true, Ordering::SeqCst);
+  if let Some(cancel) = running().lock().unwrap_or_else(|e| e.into_inner()).get(&id) {
+    cancel.cancel();
   }
 }
