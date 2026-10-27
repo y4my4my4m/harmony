@@ -13,6 +13,7 @@ import { federatePostEngagement, isLikeInteraction } from '../activitypub/postEn
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
+import { stickerNoteExtension } from '../utils/stickers.js';
 import { fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
@@ -1211,6 +1212,8 @@ export async function handleNewDM(message: any): Promise<void> {
       directMessage: true,
       conversation: conversationTag,
       'harmony:encrypted': message.encrypted === true ? true : undefined,
+      // Harmony 1.9.2 and later rebuild the sticker from this and the attachment at its url.
+      'harmony:sticker': stickerNoteExtension(message.content),
     };
 
     if (conversationType === 'group') {

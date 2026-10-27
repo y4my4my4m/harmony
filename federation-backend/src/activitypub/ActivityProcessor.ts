@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
-import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
-import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
+import { mergeQuestionPoll, questionPollMetadata } from '../utils/polls.js';
+import { actorHostname } from '../utils/mentionParts.js';
+import { inboundRawContent } from '../utils/inboundContent.js';
+import { withInboundSticker } from '../utils/stickers.js';
 import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
@@ -4409,7 +4410,7 @@ export class ActivityProcessor {
   private static async channelMessageContent(object: any, actorUrl: string): Promise<any> {
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
+      content = inboundRawContent(object['harmony:rawContent'], actorHostname(actorUrl));
     } else if (typeof object.content === 'string') {
       content = noteToContent(object);
     } else if (Array.isArray(object.content)) {
@@ -4579,7 +4580,7 @@ export class ActivityProcessor {
       .insert({
         user_id: authorId,
         conversation_id: conversationId,
-        content,
+        content: withInboundSticker(content, object['harmony:sticker'], metadata.from_domain),
         metadata,
         encrypted: object['harmony:encrypted'] === true,
         created_at: dmTimestamp,
