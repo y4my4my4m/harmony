@@ -10,6 +10,7 @@ const { authStore, push, toast, sb } = vi.hoisted(() => {
   const chain: any = {
     select: () => chain,
     eq: () => chain,
+    in: () => Promise.resolve({ data: [], error: null }),
     maybeSingle: () => Promise.resolve({ data: null, error: null }),
   }
   return {

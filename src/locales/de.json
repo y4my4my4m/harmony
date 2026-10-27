@@ -97,7 +97,8 @@
     "oauth": {
       "google": "Mit Google fortfahren",
       "twitch": "Mit Twitch fortfahren",
-      "github": "Mit GitHub fortfahren"
+      "github": "Mit GitHub fortfahren",
+      "custom": "Mit {name} fortfahren"
     },
     "callback": {
       "signingIn": "Anmelden...",
@@ -5123,7 +5124,12 @@
       "federationClosedWarning": "Sind beide aus, wird die Föderation geschlossen: Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und Mitglieder hier verlassen Server, die anderswo gehostet werden.",
       "federationCloseConfirmTitle": "Föderation schließen?",
       "federationCloseConfirmMessage": "Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und jedes Mitglied hier verlässt Server, die anderswo gehostet werden. Wird ein Schalter wieder eingeschaltet, öffnen die Server wieder; Entfernte kehren nicht zurück.",
-      "federationCloseConfirm": "Föderation schließen"
+      "federationCloseConfirm": "Föderation schließen",
+      "customOAuthTitle": "Eigene Anmeldeanbieter",
+      "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
+      "customOAuthEmpty": "Noch keine.",
+      "customOAuthCallback": "Weiterleitungs-URL (Callback), die beim Anbieter eingetragen wird:",
+      "customOAuthManage": "Auf dem Server, im Harmony-Ordner:"
     },
     "activityLog": {
       "configKeys": {

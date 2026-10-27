@@ -97,7 +97,8 @@
     "oauth": {
       "google": "Google で続ける",
       "twitch": "Twitch で続ける",
-      "github": "GitHub で続ける"
+      "github": "GitHub で続ける",
+      "custom": "{name} で続ける"
     },
     "callback": {
       "signingIn": "ログイン中...",
@@ -5123,7 +5124,12 @@
       "federationClosedWarning": "両方オフにすると連合を閉じます：このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスのメンバーは他所でホストされているサーバーから退出します。",
       "federationCloseConfirmTitle": "連合を閉じますか？",
       "federationCloseConfirmMessage": "このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスの全メンバーが他所でホストされているサーバーから退出します。スイッチを再びオンにするとサーバーは再開しますが、外されたメンバーは戻りません。",
-      "federationCloseConfirm": "連合を閉じる"
+      "federationCloseConfirm": "連合を閉じる",
+      "customOAuthTitle": "独自のサインインプロバイダー",
+      "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
+      "customOAuthEmpty": "まだありません。",
+      "customOAuthCallback": "プロバイダーに登録するリダイレクト（コールバック）URL：",
+      "customOAuthManage": "サーバー上の Harmony フォルダーで："
     },
     "activityLog": {
       "configKeys": {

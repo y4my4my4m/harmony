@@ -29,6 +29,10 @@ harmony admin create [--email E] [--username U] [--password P] [--display-name N
 harmony admin reset-password (--email E | --username U) [--password P]
 harmony admin invite <email> [--send]
 harmony registration [open | invite | closed]
+harmony auth providers
+harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --token-url URL --userinfo-url URL)
+                             [--client-id C] [--client-secret-file FILE|-] [options]
+harmony auth remove-provider ID
 harmony config
 harmony version
 harmony help
@@ -395,6 +399,59 @@ It writes `REGISTRATION` to `.env`, `DISABLE_SIGNUP` to `supabase/.env` and
 when `DISABLE_SIGNUP` changed. `open` stops with `no admin exists yet; create
 one first (harmony admin create), then open registration` while there is no
 admin.
+
+## harmony auth
+
+```text
+harmony auth providers
+harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
+                             --authorize-url URL --token-url URL --userinfo-url URL)
+                             [--client-id C] [--client-secret-file FILE|-] [--scopes "S ..."]
+                             [--icon URL] [--email-optional | --require-email] [--no-pkce | --pkce]
+harmony auth remove-provider ID
+```
+
+Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
+Authentik or Keycloak. [OAuth sign-in](/self-host/oauth#your-own-identity-provider)
+walks through it.
+
+`providers` lists the providers the auth service knows, whether the sign-in
+page shows them, and the redirect (callback) URL to register with them,
+`API_EXTERNAL_URL/auth/v1/callback`. It warns about buttons whose provider the
+auth service no longer has.
+
+`add-provider` creates the provider `custom:ID`, or updates it when it exists,
+and puts its button on the sign-in page. `ID` is 1 to 43 characters of `a-z`,
+`0-9` and `-`. The auth service fetches the issuer's discovery document first
+and refuses the provider when it cannot.
+
+| Option | Effect |
+|---|---|
+| `--name N` | Button text: **Continue with N**. Required for a new provider |
+| `--issuer URL` | OIDC: the issuer, exactly as the provider's discovery document states it. Endpoints come from `URL/.well-known/openid-configuration` |
+| `--discovery-url URL` | OIDC: the discovery document lives elsewhere |
+| `--authorize-url`, `--token-url`, `--userinfo-url` | OAuth 2.0 without discovery: all three for a new provider |
+| `--client-id C` | Client ID the provider issued. Required for a new provider |
+| `--client-secret-file FILE` | Reads the client secret from `FILE`; `-` reads standard input |
+| `--scopes "S ..."` | Space-separated. OIDC default: `openid email profile` (`openid` is always added) |
+| `--icon URL` | `https://` image shown on the button; without it, a key |
+| `--email-optional` | Accepts accounts the provider gives no address; `--require-email` undoes it |
+| `--no-pkce` | For a provider without PKCE; `--pkce` undoes it |
+
+Without `--client-secret-file`, the secret comes from
+`HARMONY_OAUTH_CLIENT_SECRET`, or else from a hidden prompt; empty keeps the
+stored secret of an existing provider. A URL option must start with
+`https://`. A provider's type (OIDC or OAuth 2.0) cannot change: remove it and
+add it again.
+
+`remove-provider` deletes the provider and its button. An account that signed
+in only through it has no way in until it gets a password
+(`harmony admin reset-password`).
+
+Messages from the auth service come through as they are, for example
+`adding the provider failed (HTTP 400: URL cannot resolve to private network
+addresses)`; [Troubleshooting](/self-host/oauth#troubleshooting-your-own-provider)
+explains them.
 
 ## harmony config
 

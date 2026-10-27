@@ -166,6 +166,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { consumePostAuthRedirect, peekPostAuthRedirect } from '@/utils/postAuthRedirect';
 import { normalizeUsernameInput, USERNAME_MIN_LENGTH } from '@/utils/usernameRules';
+import { isOAuthIdentityProvider } from '@/utils/customOAuthProviders';
 import { supabase } from '@/supabase';
 import Icon from '@/components/common/Icon.vue';
 import OnboardingServerSuggestions from '@/components/welcome/OnboardingServerSuggestions.vue';
@@ -266,7 +267,7 @@ function prefillFromOAuth(
   identities: Array<{ provider: string }>,
   email?: string,
 ) {
-  const oauth = identities.some(i => ['google', 'github', 'twitch'].includes(i.provider));
+  const oauth = identities.some(i => isOAuthIdentityProvider(i.provider));
 
   if (oauth) {
     avatarPreview.value = metadata.avatar_url || metadata.picture || null;

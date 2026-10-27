@@ -102,7 +102,8 @@
     "oauth": {
       "google": "Continue with Google",
       "twitch": "Continue with Twitch",
-      "github": "Continue with GitHub"
+      "github": "Continue with GitHub",
+      "custom": "Continue with {name}"
     },
     "callback": {
       "signingIn": "Signing you in...",
@@ -5119,7 +5120,12 @@
       "federationClosedWarning": "With both off, federation closes: every server here stops federating and removes its members from other instances, and members here leave servers hosted elsewhere.",
       "federationCloseConfirmTitle": "Close federation?",
       "federationCloseConfirmMessage": "Every server here stops federating and removes its members from other instances, and every member here leaves servers hosted elsewhere. Turning a switch back on reopens the servers; nobody removed comes back.",
-      "federationCloseConfirm": "Close federation"
+      "federationCloseConfirm": "Close federation",
+      "customOAuthTitle": "Your own sign-in providers",
+      "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
+      "customOAuthEmpty": "None yet.",
+      "customOAuthCallback": "Redirect (callback) URL to register with the provider:",
+      "customOAuthManage": "On the server, from the Harmony folder:"
     },
     "activityLog": {
       "configKeys": {

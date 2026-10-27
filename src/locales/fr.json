@@ -97,7 +97,8 @@
     "oauth": {
       "google": "Continuer avec Google",
       "twitch": "Continuer avec Twitch",
-      "github": "Continuer avec GitHub"
+      "github": "Continuer avec GitHub",
+      "custom": "Continuer avec {name}"
     },
     "callback": {
       "signingIn": "Connexion en cours...",
@@ -5123,7 +5124,12 @@
       "federationClosedWarning": "Les deux désactivés, la fédération se ferme : chaque serveur d’ici cesse de fédérer et retire ses membres d’autres instances, et les membres d’ici quittent les serveurs hébergés ailleurs.",
       "federationCloseConfirmTitle": "Fermer la fédération ?",
       "federationCloseConfirmMessage": "Chaque serveur d’ici cesse de fédérer et retire ses membres d’autres instances, et chaque membre d’ici quitte les serveurs hébergés ailleurs. Réactiver un interrupteur rouvre les serveurs ; les personnes retirées ne reviennent pas.",
-      "federationCloseConfirm": "Fermer la fédération"
+      "federationCloseConfirm": "Fermer la fédération",
+      "customOAuthTitle": "Vos propres fournisseurs de connexion",
+      "customOAuthHint": "Fournisseurs OpenID Connect ou OAuth 2.0 auxquels cette instance fait confiance, comme Authentik, Keycloak ou Better Auth. Leurs boutons suivent ceux ci-dessus sur la page de connexion. Leurs secrets client restent sur le serveur : on les ajoute et on les retire là-bas.",
+      "customOAuthEmpty": "Aucun pour l’instant.",
+      "customOAuthCallback": "URL de redirection (callback) à enregistrer chez le fournisseur :",
+      "customOAuthManage": "Sur le serveur, depuis le dossier de Harmony :"
     },
     "activityLog": {
       "configKeys": {

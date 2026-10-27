@@ -97,7 +97,8 @@
     "oauth": {
       "google": "Google로 계속",
       "twitch": "Twitch로 계속",
-      "github": "GitHub로 계속"
+      "github": "GitHub로 계속",
+      "custom": "{name}(으)로 계속"
     },
     "callback": {
       "signingIn": "로그인 중...",
@@ -5123,7 +5124,12 @@
       "federationClosedWarning": "둘 다 끄면 연합이 닫힙니다: 여기의 모든 서버가 연합을 멈추고 다른 인스턴스의 멤버를 내보내며, 여기의 멤버는 다른 곳에서 호스팅되는 서버를 떠납니다.",
       "federationCloseConfirmTitle": "연합을 닫을까요?",
       "federationCloseConfirmMessage": "여기의 모든 서버가 연합을 멈추고 다른 인스턴스의 멤버를 내보내며, 여기의 모든 멤버가 다른 곳에서 호스팅되는 서버를 떠납니다. 스위치를 다시 켜면 서버가 다시 열리지만, 내보낸 사람은 돌아오지 않습니다.",
-      "federationCloseConfirm": "연합 닫기"
+      "federationCloseConfirm": "연합 닫기",
+      "customOAuthTitle": "자체 로그인 제공자",
+      "customOAuthHint": "이 인스턴스가 신뢰하는 OpenID Connect 또는 OAuth 2.0 제공자(Authentik, Keycloak, Better Auth 등)입니다. 로그인 페이지에서 위 버튼들 다음에 표시됩니다. 클라이언트 시크릿은 서버에 남으므로 추가와 삭제는 서버에서 합니다.",
+      "customOAuthEmpty": "아직 없습니다.",
+      "customOAuthCallback": "제공자에 등록할 리디렉션(콜백) URL:",
+      "customOAuthManage": "서버의 Harmony 폴더에서:"
     },
     "activityLog": {
       "configKeys": {

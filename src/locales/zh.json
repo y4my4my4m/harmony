@@ -97,7 +97,8 @@
     "oauth": {
       "google": "使用 Google 继续",
       "twitch": "使用 Twitch 继续",
-      "github": "使用 GitHub 继续"
+      "github": "使用 GitHub 继续",
+      "custom": "使用 {name} 继续"
     },
     "callback": {
       "signingIn": "正在登录...",
@@ -5123,7 +5124,12 @@
       "federationClosedWarning": "两者都关闭时联邦将关闭：此处的每个服务器停止联邦并移除来自其他实例的成员，此处的成员退出托管在别处的服务器。",
       "federationCloseConfirmTitle": "关闭联邦？",
       "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
-      "federationCloseConfirm": "关闭联邦"
+      "federationCloseConfirm": "关闭联邦",
+      "customOAuthTitle": "自有登录提供方",
+      "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
+      "customOAuthEmpty": "暂无。",
+      "customOAuthCallback": "在提供方登记的重定向（回调）URL：",
+      "customOAuthManage": "在服务器上的 Harmony 目录中："
     },
     "activityLog": {
       "configKeys": {
