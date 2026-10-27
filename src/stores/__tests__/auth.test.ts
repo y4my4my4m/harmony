@@ -766,6 +766,17 @@ describe('useAuthStore', () => {
     })
   })
 
+  describe('cleanupNotificationSystem', () => {
+    // Every sign-out path runs it; a server copy synced as one account is read again as the next.
+    it('forgets which server copies were synced', async () => {
+      const resetRemoteServerSync = vi.fn()
+      vi.doMock('@/utils/remoteServerSync', () => ({ resetRemoteServerSync }))
+      useAuthStore().cleanupNotificationSystem()
+      await vi.waitFor(() => expect(resetRemoteServerSync).toHaveBeenCalledTimes(1))
+      vi.doUnmock('@/utils/remoteServerSync')
+    })
+  })
+
   describe('suspended account', () => {
     it('ends every session when a restored session belongs to a suspended account', async () => {
       const { signOutEverywhere } = await import('@/supabase')
