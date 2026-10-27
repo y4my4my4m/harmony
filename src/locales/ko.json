@@ -153,8 +153,6 @@
       "invalidTitle": "잘못되었거나 만료된 링크",
       "invalidBody": "이 비밀번호 재설정 링크는 잘못되었거나 만료되었습니다. 새 링크를 요청하세요.",
       "enterNew": "아래에 새 비밀번호를 입력하세요",
-      "newPlaceholder": "새 비밀번호 입력",
-      "confirmPlaceholder": "새 비밀번호 확인",
       "remember": "비밀번호가 기억나셨나요?",
       "verifying": "비밀번호 재설정 링크 확인 중…",
       "verifyAndReset": "확인 후 비밀번호 재설정",
@@ -222,7 +220,6 @@
     "basicInformation": "서버에 대한 기본 정보",
     "viewBasicInformation": "서버 기본 정보 보기",
     "tellPeopleAbout": "서버에 대해 알려주세요",
-    "enterServerName": "서버 이름 입력",
     "serverNameAppearance": "멤버에게 표시되는 서버 이름입니다",
     "serverNameAppearanceView": "멤버에게 표시되는 서버 이름",
     "charactersRemaining": "{current}/{max}자",
@@ -234,7 +231,6 @@
     "iconRestriction": "서버 소유자만 서버 아이콘을 변경할 수 있습니다.",
     "loadingUsers": "사용자 로딩 중...",
     "membersCount": "{count}명",
-    "searchMembersPlaceholder": "멤버 검색...",
     "emojiManagement": "이모지 관리",
     "customEmojis": "사용자 지정 이모지",
     "customEmojisDesc": "사용자 지정 이모지를 추가하여 서버를 개인화하세요",
@@ -281,7 +277,6 @@
     "deleteServerConfirmItem3": "모든 멤버 데이터 및 역할",
     "deleteServerConfirmItem4": "서버 설정 및 구성",
     "deleteServerConfirmLabel": "삭제를 확인하려면 정확한 서버 이름을 입력하세요:",
-    "deleteServerConfirmPlaceholder": "서버 이름을 여기에 입력하세요...",
     "deleting": "삭제 중...",
     "noServerIconSet": "서버 아이콘이 설정되지 않음",
     "fileSizeTooLarge": "파일 크기는 8MB 미만이어야 합니다",
@@ -679,7 +674,7 @@
       "addMemberTo": "{member}을(를) {role}에 추가",
       "currentMembers": "현재 멤버",
       "filterMembers": "멤버 필터",
-      "filterPlaceholder": "필터...",
+      "filterPlaceholder": "이름 또는 사용자 이름",
       "removeMemberFrom": "{role}에서 {member} 제거",
       "bridged": "Discord",
       "bridgedTitle": "Discord 브리지 멤버",
@@ -764,7 +759,6 @@
       "tabs": {
         "general": "일반"
       },
-      "namePlaceholder": "채널 이름 입력",
       "description": "설명",
       "descriptionPlaceholder": "이 채널은 어떤 곳인가요?",
       "slowmode": "슬로우 모드",
@@ -1064,7 +1058,8 @@
       "search": "이모지 검색",
       "searchHint": "Enter는 첫 번째 결과를 고릅니다. 아래쪽 화살표로 이모지로 이동합니다.",
       "results": "이모지 {count}개를 찾았습니다",
-      "noResults": "이모지를 찾을 수 없습니다"
+      "noResults": "이모지를 찾을 수 없습니다",
+      "searchTerms": "단축 코드 또는 키워드"
     },
     "mediaPicker": {
       "label": "GIF, 스티커, 이모지"
@@ -1412,6 +1407,10 @@
       "float": "다른 창 위에 띄우기",
       "backToApp": "앱으로 돌아가기",
       "dragHint": "드래그해서 옮기세요. Harmony 위에 놓으면 다시 들어갑니다."
+    },
+    "toolbar": {
+      "controls": "음성 컨트롤",
+      "call": "통화"
     }
   },
   "dm": {
@@ -1696,7 +1695,8 @@
         "adoptAccountDesc": "이 기기가 그 모양으로 바뀝니다.",
         "adoptDevice": "이 기기의 모양",
         "adoptDeviceDesc": "동기화를 켠 다른 기기는 다음에 Harmony를 열 때 이 모양으로 바뀝니다."
-      }
+      },
+      "savedThemeNameHint": "예: 늦은 밤"
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -2592,7 +2592,8 @@
     "postA11y": {
       "heading": "{name}, {time}",
       "boostHeading": "{booster}님이 {name}님을 부스트함, {time}",
-      "actionCount": "{action}, {count}"
+      "actionCount": "{action}, {count}",
+      "actions": "게시물 작업"
     },
     "postMenu": {
       "copyLink": "링크 복사",
@@ -2749,7 +2750,8 @@
       "added": "추가됨",
       "addedNamed": "추가됨: {name}",
       "remove": "삭제",
-      "removeNamed": "{name} 삭제"
+      "removeNamed": "{name} 삭제",
+      "searchToAddHint": "이름 또는 {'@'}사용자{'@'}도메인"
     },
     "searchA11y": {
       "title": "사용자 검색",
@@ -2957,7 +2959,6 @@
     "externalNotAllowed": "이 채널에서는 유니코드 이모지와 이 서버의 이모지만 사용할 수 있습니다.",
     "postReactionLimit": "이 게시물에 반응을 {count}개 남겼습니다. 다른 반응을 추가하려면 하나를 제거하세요.",
     "search": "이모지 검색...",
-    "searchEmojis": "이모지 검색...",
     "aiGenerate": "생성",
     "aiGenerating": "생성 중…",
     "aiGeneratePlaceholder": "생성할 이모지를 설명하세요…",
@@ -3237,7 +3238,6 @@
     "edit": {
       "title": "카테고리 편집",
       "name": "카테고리 이름",
-      "namePlaceholder": "카테고리 이름 입력",
       "save": "변경 사항 저장",
       "saving": "저장 중…",
       "failed": "카테고리를 업데이트하지 못했어요. 다시 시도해 주세요.",
@@ -3710,7 +3710,6 @@
       "title": "서버 봇",
       "description": "봇은 Bot API를 통해 이 서버에서 동작하며, 여기에서 부여한 권한으로 제한됩니다.",
       "browseTitle": "봇 추가",
-      "searchPlaceholder": "봇 검색",
       "emptyDirectory": "아직 사용할 수 있는 봇이 없습니다. 누구나 사용자 설정 → 내 봇에서 봇을 만들 수 있습니다.",
       "noResults": "“{query}”와(과) 일치하는 봇이 없습니다.",
       "loadMore": "더 보기",
@@ -3749,7 +3748,9 @@
       "channelHidden": "{'@'}everyone에게 숨겨짐",
       "channelsSaved": "채널 접근을 저장했습니다",
       "channelsFailed": "채널 접근을 저장하지 못했습니다",
-      "channelsLoadFailed": "채널 접근을 불러오지 못했습니다"
+      "channelsLoadFailed": "채널 접근을 불러오지 못했습니다",
+      "searchLabel": "봇 검색",
+      "searchHint": "이름 또는 설명"
     },
     "permissions": {
       "read_messages": {
@@ -5221,8 +5222,6 @@
       "title": "인스턴스 이모지",
       "hint": "인스턴스 전체 이모지와 가져온 이모지입니다. 관리자 업로드, Discord 브리지와 봇 이모지, 연합된 반응과 게시물의 이모지가 포함됩니다. 서버 이모지는 각 서버가 관리합니다. 개인 이모지와 AI 생성 이모지는 사용자 이모지에 표시됩니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
       "refresh": "새로고침",
-      "searchPlaceholder": "이름 또는 도메인으로 검색",
-      "searchPlaceholderUser": "이름 또는 소유자로 검색",
       "source": {
         "label": "출처",
         "all": "모든 출처",
@@ -5264,7 +5263,10 @@
         "invalidName": "이름은 영문자, 숫자, _ 또는 - 로 2~64자입니다.",
         "nameTaken": "다른 인스턴스 이모지가 이미 그 이름을 사용합니다.",
         "nameTakenUser": "소유자에게 같은 이름의 이모지가 이미 있습니다."
-      }
+      },
+      "searchLabel": "이모지 검색",
+      "searchHint": "이름 또는 도메인",
+      "searchHintUser": "이름 또는 소유자"
     }
   },
   "discordBridge": {
@@ -6072,7 +6074,8 @@
       "group": "{title}, {count}명",
       "discord": "Discord 브리지 멤버",
       "instanceAdmin": "인스턴스 관리자",
-      "instanceMod": "인스턴스 모더레이터"
+      "instanceMod": "인스턴스 모더레이터",
+      "searchHint": "이름 또는 사용자 이름"
     },
     "create": {
       "textHint": "공백은 하이픈으로, 영문자는 소문자로 바뀝니다. - 와 _ 이외의 기호는 제거됩니다",
@@ -6082,7 +6085,6 @@
       "nameTooLong": "채널 이름은 100자 이하여야 합니다",
       "categorySubtitle": "카테고리로 채널을 정리하세요",
       "categoryName": "카테고리 이름",
-      "categoryPlaceholder": "카테고리 이름 입력…",
       "categoryHint": "카테고리는 채널 정리에 도움이 됩니다",
       "categoryGood": "좋아요! 채널 정리에 도움이 됩니다",
       "categoryRequired": "카테고리 이름은 필수입니다",
@@ -6100,13 +6102,14 @@
     },
     "threadsModal": {
       "title": "스레드",
-      "search": "스레드 이름 검색",
       "joined": "참여한 스레드 {count}개",
       "older": "이전 스레드",
       "noMessages": "아직 메시지가 없습니다",
       "startedBy": "시작한 사람",
       "lastActive": "마지막 활동: {time}",
-      "loading": "스레드를 불러오는 중…"
+      "loading": "스레드를 불러오는 중…",
+      "searchLabel": "스레드 검색",
+      "searchHint": "스레드 이름"
     },
     "mediaPicker": {
       "label": "GIF, 스티커, 이모지",
@@ -6439,7 +6442,8 @@
       "emojiUnavailable": "이 이모지는 사운드에 사용할 수 없습니다. 참여한 서버의 이모지, 인스턴스 이모지 또는 내 이모지를 선택하세요.",
       "load": "이 서버의 사운드를 불러오지 못했습니다.",
       "generic": "문제가 발생했습니다. 다시 시도하세요."
-    }
+    },
+    "searchHint": "사운드 이름"
   },
   "voiceMessage": {
     "label": "음성 메시지",
@@ -6692,7 +6696,8 @@
     "source": {
       "drive": "Drive 파일",
       "link": "링크"
-    }
+    },
+    "linkHint": "YouTube, SoundCloud, Spotify 또는 파일 링크"
   },
   "driveAdmin": {
     "settings": "Drive 저장 공간",
@@ -6733,7 +6738,8 @@
     "loadingChannels": "채널을 불러오는 중…",
     "channelsFailed": "채널을 불러오지 못했습니다.",
     "noChannels": "게시할 수 있는 채널이 없습니다.",
-    "noMatches": "검색 결과가 없습니다."
+    "noMatches": "검색 결과가 없습니다.",
+    "searchHint": "사람, 그룹, 서버 또는 채널 이름"
   },
   "drive": {
     "title": "Drive",
@@ -6814,8 +6820,9 @@
       "list": "목록"
     },
     "search": {
-      "placeholder": "Drive 검색",
-      "results": "“{query}” 검색 결과"
+      "results": "“{query}” 검색 결과",
+      "label": "Drive 검색",
+      "hint": "파일 이름"
     },
     "selection": {
       "label": "선택한 파일",
@@ -6945,7 +6952,8 @@
       "resetLink": "링크 재설정",
       "resetTitle": "링크를 재설정할까요?",
       "resetText": "이미 게시된 곳을 포함해 현재 링크는 누구에게도 작동하지 않게 됩니다. 파일을 볼 수 있는 사람은 새 링크를 복사할 수 있습니다.",
-      "until": "{date}까지"
+      "until": "{date}까지",
+      "searchPeopleHint": "이름 또는 사용자 이름"
     },
     "preview": {
       "previous": "이전 파일",
@@ -7079,7 +7087,6 @@
     "title": "이 인스턴스에서 호스팅하는 서버",
     "intro": "{instance}에 있는 서버의 신뢰 및 안전 관리입니다. 서버 모더레이터가 아닌 {instance} 스태프로서 조치하며, 모든 조치는 서버 감사 로그에 기록되어 서버 소유자와 모더레이터가 볼 수 있습니다.",
     "staffBadge": "{instance} 스태프",
-    "search": "이름, 소유자 또는 ID로 검색",
     "filterAll": "전체",
     "filterSuspended": "정지됨",
     "empty": "아직 이 인스턴스에서 호스팅하는 서버가 없습니다.",
@@ -7177,7 +7184,10 @@
       "accountSuspended": "{instance}에서 계정 정지됨",
       "domainSuspended": "{instance}에서 {domain} 정지됨"
     },
-    "rowAction": "{action}: {target}"
+    "rowAction": "{action}: {target}",
+    "membersSearchHint": "이름 또는 사용자 이름",
+    "searchLabel": "서버 검색",
+    "searchHint": "이름, 소유자 또는 ID"
   },
   "instanceServer": {
     "panel": {
@@ -7259,7 +7269,8 @@
       "manageLabel": "{instance}에서 {server} 관리",
       "empty": "{instance}에서 다른 곳에 호스팅된 서버에 참여한 사람이 없습니다.",
       "noMatch": "일치하는 서버가 없습니다.",
-      "loadFailed": "다른 인스턴스의 서버를 불러오지 못했습니다."
+      "loadFailed": "다른 인스턴스의 서버를 불러오지 못했습니다.",
+      "searchHint": "이름 또는 호스트"
     },
     "state": {
       "blocked": "차단됨",

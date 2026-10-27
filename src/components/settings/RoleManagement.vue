@@ -174,7 +174,6 @@
                 type="text"
                 class="form-input"
                 :disabled="selectedRole.is_default"
-                :placeholder="t('server.roleManagement.roleName')"
                 :aria-describedby="selectedRole.is_default ? `${a11yId}-name-help` : undefined"
                 maxlength="100"
               />

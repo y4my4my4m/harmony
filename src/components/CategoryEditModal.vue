@@ -28,7 +28,6 @@
               v-model="editedName"
               type="text"
               class="form-input"
-              :placeholder="t('category.edit.namePlaceholder')"
               maxlength="100"
               @keydown.enter="saveChanges"
               ref="nameInput"

@@ -238,7 +238,7 @@ In a server channel, right-click a message and choose **Pin message**, or **Unpi
 
 ## Message actions
 
-Hovering a message shows a toolbar with **Add reaction**, **Reply**, **Create thread**, **Edit message** and **Delete message** where they apply, and **More actions**. **More actions**, a right-click, or Enter on a focused message opens the full menu:
+Hovering a message, or focusing it with the keyboard, shows a toolbar with **Add reaction**, **Reply**, **Create thread**, **Edit message** and **Delete message** where they apply, and **More actions**. The toolbar is one Tab stop; Left and Right move between its buttons. **More actions**, a right-click, or Enter on a focused message opens the full menu:
 
 | Item | Shown |
 |---|---|

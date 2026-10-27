@@ -30,7 +30,7 @@
           v-model="query"
           type="search"
           class="sbp-search-input"
-          :placeholder="t('soundboard.search')"
+          :placeholder="t('soundboard.searchHint')"
           :aria-label="t('soundboard.search')"
           data-testid="soundboard-search"
         />

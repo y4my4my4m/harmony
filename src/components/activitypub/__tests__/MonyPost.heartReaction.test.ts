@@ -155,7 +155,7 @@ const mountPost = (post: any, detailed = false) =>
     global: {
       plugins: [pinia],
       directives: { 'click-outside': {} },
-      stubs: { teleport: true },
+      stubs: { teleport: true, AppToolbar: false },
     },
   })
 

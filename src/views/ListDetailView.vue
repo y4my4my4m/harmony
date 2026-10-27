@@ -60,7 +60,7 @@
             v-model="memberSearchQuery"
             type="search"
             :aria-label="t('activitypub.listsA11y.searchToAdd')"
-            :placeholder="t('activitypub.listsA11y.searchToAdd')"
+            :placeholder="t('activitypub.listsA11y.searchToAddHint')"
             :aria-busy="searching"
             data-testid="list-member-search"
           />

@@ -6,7 +6,7 @@
         ref="searchInput"
         v-model="searchQuery"
         type="text"
-        :placeholder="$t('emoji.searchEmojis')"
+        :placeholder="t('messageA11y.emoji.searchTerms')"
         :aria-label="t('messageA11y.emoji.search')"
         :aria-describedby="searchHintId"
         class="search-input"

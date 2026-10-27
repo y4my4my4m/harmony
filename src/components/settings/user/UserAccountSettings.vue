@@ -79,7 +79,6 @@
             v-model="localProfile.display_name"
             type="text"
             class="form-input"
-            :placeholder="t('auth.displayName')"
             maxlength="50"
             :aria-invalid="!!displayNameError || undefined"
             :aria-describedby="displayNameError ? `${uid}-display-name-error ${uid}-display-name-hint` : `${uid}-display-name-hint`"
@@ -110,7 +109,6 @@
             :value="profile?.username || ''"
             type="text"
             class="form-input"
-            :placeholder="t('auth.username')"
             maxlength="32"
             readonly
             :aria-describedby="`${uid}-username-hint`"

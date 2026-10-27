@@ -77,7 +77,7 @@
           <input
             v-model="query"
             class="drive-input drive-share__search-input"
-            :placeholder="t('drive.share.searchPeople')"
+            :placeholder="t('drive.share.searchPeopleHint')"
             :aria-label="t('drive.share.searchPeople')"
             :aria-busy="searching"
             data-testid="drive-share-search"

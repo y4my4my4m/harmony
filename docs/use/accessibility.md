@@ -35,13 +35,26 @@ Long lists take one Tab stop, and the arrow keys move inside them:
 | List | Keys |
 |---|---|
 | Channel list | Up and Down, Home and End. Typing letters jumps to the next item whose name starts with them. |
-| Message list | Up and Down move one message, Page Up and Page Down a screenful, Home and End to the first and last loaded message. Up from the first message loads older ones. Tab moves through the controls of the focused message. |
+| Message list | Up and Down move one message, Page Up and Page Down a screenful, Home and End to the first and last loaded message, from the message or from any control in it. Up from the first message loads older ones. Tab moves through the controls of the focused message; Escape on one of them returns to the message. |
 | Member list | Up and Down, Home and End. |
 | Post feeds | Page Down and Page Up, or `j` and `k` outside text fields, move between posts. Ctrl+Home and Ctrl+End leave the feed. |
 | Timeline and other tabs | Left and Right, Home and End. Enter or Space opens the focused tab. |
 | Emoji picker | Arrow keys move through the grid. From the search field, Down moves to the first emoji and Enter picks it. |
 
 Each server and folder in the server rail is its own Tab stop.
+
+Text fields, sliders, menus and media controls inside a list item keep their own arrow keys.
+
+### Toolbars
+
+A group of related buttons is a toolbar with one Tab stop: Left and Right move between its buttons and wrap at the ends, and Home and End go to the first and last. Toolbars are:
+
+- a message's actions (**Add reaction**, **Reply**, **Create thread**, **Edit message**, **Delete message**, **More actions**) and its reactions; in a message, Up, Down, Home and End still move between messages,
+- a post's actions (**Reply**, **Boost**, **Favorite**, **Add reaction**, **Bookmark**, **More options**) and its reactions,
+- the voice panel's controls and its call buttons, and the controls of the call view,
+- the bar for selected files in Drive.
+
+A toolbar that stays on screen keeps the button used last as its Tab stop.
 
 ### Menus and dialogs
 
@@ -66,12 +79,13 @@ Controls show a focus outline when they are reached with the keyboard, not when 
 - The browser tab title names the current view and the instance, with the unread count in front, such as "(3) #general – Book Club – Harmony" for a channel.
 - After you move to another view, its title is announced. If the move left focus nowhere, focus goes to the new view's first heading.
 - Buttons that show only an icon have a name, and toggle buttons report whether they are pressed.
-- Times are read as the full date and time, while the screen shows a short form such as "5m".
+- Post times are read as the full date and time, while the screen shows a short form such as "5m". A message's time is read as the time of day; the day headings and each message's name carry the date.
+- A field's placeholder never repeats its label; where a field shows one, it says what to type, such as "Name or username".
 - On phones, **Navigation menu** and **Member list** open the side drawers.
 
 ### Messages
 
-The message list is labelled with where you are, such as "Messages in #general". Each message is one item.
+The message list is labelled with where you are, such as "Messages in #general". Each message is one item, named by its author, its text, the message it replies to, then its time, its state and its date: "Sam, Yes, it went up this morning, Replying to Alex Is the new build out yet?, 6:10 PM, edited, October 23, 2026". The date comes last, so moving on cuts it off.
 
 With **Announce new messages** on, messages that arrive in the open channel, conversation or thread are read out politely; your own are not. A single message is read as the author and its text, cut at 160 characters. Several messages arriving together are summarized, for example "3 new messages from Alice, Bob". Spoilers and encrypted message text are never read out; attachments are named by their kind and their description.
 

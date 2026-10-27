@@ -153,8 +153,6 @@
       "invalidTitle": "無効または期限切れのリンク",
       "invalidBody": "このパスワードリセットリンクは無効か期限切れです。新しいリンクをリクエストしてください。",
       "enterNew": "新しいパスワードを入力してください",
-      "newPlaceholder": "新しいパスワードを入力",
-      "confirmPlaceholder": "新しいパスワードを再入力",
       "remember": "パスワードを思い出しましたか？",
       "verifying": "パスワードリセットリンクを確認中…",
       "verifyAndReset": "確認してパスワードをリセット",
@@ -283,7 +281,6 @@
     "basicInformation": "サーバーに関する基本情報",
     "viewBasicInformation": "サーバーの基本情報を表示",
     "tellPeopleAbout": "サーバーについて説明してください",
-    "enterServerName": "サーバー名を入力",
     "serverNameAppearance": "メンバーに表示されるサーバー名です",
     "serverNameAppearanceView": "メンバーに表示されるサーバー名",
     "charactersRemaining": "{current}/{max} 文字",
@@ -295,7 +292,6 @@
     "iconRestriction": "サーバー所有者のみがサーバーアイコンを変更できます。",
     "loadingUsers": "ユーザーを読み込み中...",
     "membersCount": "{count} メンバー",
-    "searchMembersPlaceholder": "メンバーを検索...",
     "emojiManagement": "絵文字管理",
     "customEmojis": "カスタム絵文字",
     "customEmojisDesc": "カスタム絵文字を追加してサーバーをカスタマイズ",
@@ -342,7 +338,6 @@
     "deleteServerConfirmItem3": "すべてのメンバーデータと役割",
     "deleteServerConfirmItem4": "サーバー設定と構成",
     "deleteServerConfirmLabel": "削除を確認するには、正確なサーバー名を入力してください：",
-    "deleteServerConfirmPlaceholder": "ここにサーバー名を入力...",
     "deleting": "削除中...",
     "noServerIconSet": "サーバーアイコンが設定されていません",
     "fileSizeTooLarge": "ファイルサイズは8MB未満である必要があります",
@@ -679,7 +674,7 @@
       "addMemberTo": "{member} を {role} に追加",
       "currentMembers": "現在のメンバー",
       "filterMembers": "メンバーを絞り込む",
-      "filterPlaceholder": "絞り込み…",
+      "filterPlaceholder": "名前またはユーザー名",
       "removeMemberFrom": "{member} を {role} から外す",
       "bridged": "Discord",
       "bridgedTitle": "Discordブリッジのメンバー",
@@ -764,7 +759,6 @@
       "tabs": {
         "general": "一般"
       },
-      "namePlaceholder": "チャンネル名を入力",
       "description": "説明",
       "descriptionPlaceholder": "このチャンネルは何について話す場所ですか？",
       "slowmode": "低速モード",
@@ -1064,7 +1058,8 @@
       "search": "絵文字を検索",
       "searchHint": "Enter で最初の結果を選択。下矢印で絵文字に移動します。",
       "results": "{count} 件の絵文字が見つかりました",
-      "noResults": "絵文字が見つかりません"
+      "noResults": "絵文字が見つかりません",
+      "searchTerms": "ショートコードまたはキーワード"
     },
     "mediaPicker": {
       "label": "GIF、ステッカー、絵文字"
@@ -1412,6 +1407,10 @@
       "float": "他のウィンドウの前面に表示",
       "backToApp": "アプリに戻す",
       "dragHint": "ドラッグして移動します。Harmony の上にドロップすると元に戻ります。"
+    },
+    "toolbar": {
+      "controls": "ボイスの操作",
+      "call": "通話"
     }
   },
   "dm": {
@@ -1696,7 +1695,8 @@
         "adoptAccountDesc": "この端末がその外観に切り替わります。",
         "adoptDevice": "この端末の外観",
         "adoptDeviceDesc": "同期をオンにした他の端末は、次に Harmony を開いたときにこの外観に切り替わります。"
-      }
+      },
+      "savedThemeNameHint": "例: 夜更かし"
     },
     "voice": {
       "title": "音声とビデオ",
@@ -2592,7 +2592,8 @@
     "postA11y": {
       "heading": "{name}、{time}",
       "boostHeading": "{booster} が {name} をブースト、{time}",
-      "actionCount": "{action}、{count}"
+      "actionCount": "{action}、{count}",
+      "actions": "投稿の操作"
     },
     "postMenu": {
       "copyLink": "リンクをコピー",
@@ -2749,7 +2750,8 @@
       "added": "追加済み",
       "addedNamed": "追加済み: {name}",
       "remove": "削除",
-      "removeNamed": "{name} を削除"
+      "removeNamed": "{name} を削除",
+      "searchToAddHint": "名前または{'@'}ユーザー{'@'}ドメイン"
     },
     "searchA11y": {
       "title": "ユーザーを検索",
@@ -2949,7 +2951,6 @@
     "flags": "旗",
     "custom": "カスタム",
     "noResults": "絵文字が見つかりません",
-    "searchEmojis": "絵文字を検索...",
     "aiGenerate": "生成",
     "aiGenerating": "生成中…",
     "aiGeneratePlaceholder": "生成する絵文字を説明してください…",
@@ -3218,7 +3219,6 @@
     "edit": {
       "title": "カテゴリを編集",
       "name": "カテゴリ名",
-      "namePlaceholder": "カテゴリ名を入力",
       "save": "変更を保存",
       "saving": "保存中…",
       "failed": "カテゴリを更新できませんでした。もう一度お試しください。",
@@ -3710,7 +3710,6 @@
       "title": "サーバーのボット",
       "description": "ボットは Bot API を通じてこのサーバーで動作し、ここで付与された権限に制限されます。",
       "browseTitle": "ボットを追加",
-      "searchPlaceholder": "ボットを検索",
       "emptyDirectory": "利用可能なボットはまだありません。ユーザーは誰でも「ユーザー設定 → マイボット」でボットを作成できます。",
       "noResults": "「{query}」に一致するボットはありません。",
       "loadMore": "さらに読み込む",
@@ -3749,7 +3748,9 @@
       "channelHidden": "{'@'}everyone には非表示",
       "channelsSaved": "チャンネルへのアクセスを保存しました",
       "channelsFailed": "チャンネルへのアクセスを保存できませんでした",
-      "channelsLoadFailed": "チャンネルへのアクセスを読み込めませんでした"
+      "channelsLoadFailed": "チャンネルへのアクセスを読み込めませんでした",
+      "searchLabel": "ボットを検索",
+      "searchHint": "名前または説明"
     },
     "permissions": {
       "read_messages": {
@@ -5221,8 +5222,6 @@
       "title": "インスタンス絵文字",
       "hint": "インスタンス全体の絵文字とインポートされた絵文字です。管理者のアップロード、Discord ブリッジやボットの絵文字、連合したリアクションや投稿の絵文字が含まれます。サーバー絵文字は各サーバーが管理します。個人絵文字と AI 生成の絵文字は「ユーザー絵文字」に表示されます。メッセージはカスタム絵文字を名前で参照するため、名前の変更や削除の後、以前のメッセージには画像ではなく :name: のテキストが表示されます。",
       "refresh": "更新",
-      "searchPlaceholder": "名前またはドメインで検索",
-      "searchPlaceholderUser": "名前または所有者で検索",
       "source": {
         "label": "ソース",
         "all": "すべてのソース",
@@ -5264,7 +5263,10 @@
         "invalidName": "名前は英数字、_、- の 2〜64 文字です。",
         "nameTaken": "その名前は別のインスタンス絵文字で使われています。",
         "nameTakenUser": "所有者はすでに同じ名前の絵文字を持っています。"
-      }
+      },
+      "searchLabel": "絵文字を検索",
+      "searchHint": "名前またはドメイン",
+      "searchHintUser": "名前またはオーナー"
     }
   },
   "discordBridge": {
@@ -6072,7 +6074,8 @@
       "group": "{title}、{count} 人",
       "discord": "Discord ブリッジのメンバー",
       "instanceAdmin": "インスタンス管理者",
-      "instanceMod": "インスタンスモデレーター"
+      "instanceMod": "インスタンスモデレーター",
+      "searchHint": "名前またはユーザー名"
     },
     "create": {
       "textHint": "スペースはハイフンに、アルファベットは小文字になります。「-」と「_」以外の記号は削除されます",
@@ -6082,7 +6085,6 @@
       "nameTooLong": "チャンネル名は 100 文字以内にしてください",
       "categorySubtitle": "カテゴリーでチャンネルを整理しましょう",
       "categoryName": "カテゴリー名",
-      "categoryPlaceholder": "カテゴリー名を入力…",
       "categoryHint": "カテゴリーでチャンネルを整理できます",
       "categoryGood": "いいですね。チャンネルの整理に役立ちます",
       "categoryRequired": "カテゴリー名は必須です",
@@ -6100,13 +6102,14 @@
     },
     "threadsModal": {
       "title": "スレッド",
-      "search": "スレッド名で検索",
       "joined": "参加中のスレッド {count} 件",
       "older": "以前のスレッド",
       "noMessages": "まだメッセージはありません",
       "startedBy": "作成者",
       "lastActive": "最終アクティブ: {time}",
-      "loading": "スレッドを読み込み中…"
+      "loading": "スレッドを読み込み中…",
+      "searchLabel": "スレッドを検索",
+      "searchHint": "スレッド名"
     },
     "mediaPicker": {
       "label": "GIF・ステッカー・絵文字",
@@ -6439,7 +6442,8 @@
       "emojiUnavailable": "この絵文字はサウンドに使えません。参加しているサーバーの絵文字、インスタンスの絵文字、または自分の絵文字を選んでください。",
       "load": "このサーバーのサウンドを読み込めませんでした。",
       "generic": "問題が発生しました。もう一度お試しください。"
-    }
+    },
+    "searchHint": "サウンド名"
   },
   "voiceMessage": {
     "label": "ボイスメッセージ",
@@ -6692,7 +6696,8 @@
     "source": {
       "drive": "Drive のファイル",
       "link": "リンク"
-    }
+    },
+    "linkHint": "YouTube、SoundCloud、Spotify、またはファイルのリンク"
   },
   "driveAdmin": {
     "settings": "Drive ストレージ",
@@ -6733,7 +6738,8 @@
     "loadingChannels": "チャンネルを読み込み中…",
     "channelsFailed": "チャンネルを読み込めませんでした。",
     "noChannels": "投稿できるチャンネルがありません。",
-    "noMatches": "検索に一致するものはありません。"
+    "noMatches": "検索に一致するものはありません。",
+    "searchHint": "相手、グループ、サーバー、チャンネルの名前"
   },
   "drive": {
     "title": "Drive",
@@ -6814,8 +6820,9 @@
       "list": "リスト"
     },
     "search": {
-      "placeholder": "Drive を検索",
-      "results": "「{query}」の検索結果"
+      "results": "「{query}」の検索結果",
+      "label": "Drive を検索",
+      "hint": "ファイル名"
     },
     "selection": {
       "label": "選択したファイル",
@@ -6945,7 +6952,8 @@
       "resetLink": "リンクをリセット",
       "resetTitle": "リンクをリセットしますか？",
       "resetText": "現在のリンクは、すでに投稿された場所も含め、誰に対しても使えなくなります。ファイルを見られる人は新しいリンクをコピーできます。",
-      "until": "{date} まで"
+      "until": "{date} まで",
+      "searchPeopleHint": "名前またはユーザー名"
     },
     "preview": {
       "previous": "前のファイル",
@@ -7079,7 +7087,6 @@
     "title": "このインスタンスでホストしているサーバー",
     "intro": "{instance} 上のサーバーの信頼と安全。ここでの操作はサーバーのモデレーターとしてではなく {instance} のスタッフとして行われ、サーバーの監査ログに記録されてオーナーとモデレーターが確認できます。",
     "staffBadge": "{instance} のスタッフ",
-    "search": "名前、オーナー、IDで検索",
     "filterAll": "すべて",
     "filterSuspended": "停止中",
     "empty": "このインスタンスにはまだサーバーがありません。",
@@ -7177,7 +7184,10 @@
       "accountSuspended": "{instance} でアカウントが停止されています",
       "domainSuspended": "{instance} で {domain} が停止されています"
     },
-    "rowAction": "{action}：{target}"
+    "rowAction": "{action}：{target}",
+    "membersSearchHint": "名前またはユーザー名",
+    "searchLabel": "サーバーを検索",
+    "searchHint": "名前、オーナー、または ID"
   },
   "instanceServer": {
     "panel": {
@@ -7259,7 +7269,8 @@
       "manageLabel": "{instance} で {server} を管理",
       "empty": "{instance} には、他の場所でホストされたサーバーに参加している人がいません。",
       "noMatch": "一致するサーバーはありません。",
-      "loadFailed": "他のインスタンスのサーバーを読み込めませんでした。"
+      "loadFailed": "他のインスタンスのサーバーを読み込めませんでした。",
+      "searchHint": "名前またはホスト"
     },
     "state": {
       "blocked": "ブロック中",

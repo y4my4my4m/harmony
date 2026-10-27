@@ -1,9 +1,8 @@
 <template>
   <Teleport :to="portalTarget">
-    <div
+    <AppToolbar
       class="message-actions message-actions-floating"
-      role="group"
-      :aria-label="t('messageA11y.actions.label')"
+      :label="t('messageA11y.actions.label')"
       :style="style"
     >
       <template v-if="message.is_system">
@@ -19,7 +18,7 @@
         <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="deleteLabel || t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><Icon v-if="hidesOnInstance" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
         <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" aria-haspopup="menu" @click="emit('context-menu', message, $event)"><MoreIcon/></button>
       </template>
-    </div>
+    </AppToolbar>
   </Teleport>
 </template>
 
@@ -32,6 +31,7 @@ import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Icon from '@/components/common/Icon.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import { useT } from '@/composables/useT';
 import { usePortalTarget } from '@/composables/usePortalTarget';
 

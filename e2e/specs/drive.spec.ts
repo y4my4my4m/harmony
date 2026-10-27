@@ -60,6 +60,25 @@ test('upload, file away, search, trash and share a link', async ({ page, browser
     await expect(page.getByTestId('drive-usage')).not.toContainText(/^0 B/)
   })
 
+  await test.step('two selected files: the selection bar is a toolbar with one Tab stop', async () => {
+    await file(page, IMAGE).click({ modifiers: ['ControlOrMeta'] })
+    await file(page, NOTES).click({ modifiers: ['ControlOrMeta'] })
+    const bar = page.getByRole('toolbar', { name: 'Selected files' })
+    await expect(bar).toBeVisible()
+    await expect(bar.locator('button[tabindex="0"]')).toHaveCount(1)
+    const move = bar.getByRole('button', { name: 'Move', exact: true })
+    const clear = bar.getByRole('button', { name: 'Clear selection' })
+    await move.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(bar.getByRole('button', { name: 'Move to trash' })).toBeFocused()
+    await page.keyboard.press('End')
+    await expect(clear).toBeFocused()
+    await page.keyboard.press('ArrowRight')
+    await expect(move).toBeFocused()
+    await clear.click()
+    await expect(bar).toBeHidden()
+  })
+
   await test.step('a new folder takes a file by Move and opens from the list', async () => {
     await page.getByTestId('drive-new-folder').click()
     await page.getByTestId('drive-name-input').fill(FOLDER)

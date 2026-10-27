@@ -153,8 +153,6 @@
       "invalidTitle": "Lien invalide ou expiré",
       "invalidBody": "Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.",
       "enterNew": "Saisissez votre nouveau mot de passe ci-dessous",
-      "newPlaceholder": "Saisissez votre nouveau mot de passe",
-      "confirmPlaceholder": "Confirmez votre nouveau mot de passe",
       "remember": "Vous vous souvenez de votre mot de passe ?",
       "verifying": "Vérification du lien de réinitialisation…",
       "verifyAndReset": "Vérifier et réinitialiser le mot de passe",
@@ -222,7 +220,6 @@
     "basicInformation": "Informations de base sur votre serveur",
     "viewBasicInformation": "Voir les informations de base du serveur",
     "tellPeopleAbout": "Dites aux gens de quoi parle votre serveur",
-    "enterServerName": "Entrez le nom du serveur",
     "serverNameAppearance": "C'est ainsi que votre serveur apparaîtra aux membres",
     "serverNameAppearanceView": "Nom du serveur tel qu'il apparaît aux membres",
     "charactersRemaining": "{current}/{max} caractères",
@@ -234,7 +231,6 @@
     "iconRestriction": "Seul le propriétaire du serveur peut changer l'icône du serveur.",
     "loadingUsers": "Chargement des utilisateurs...",
     "membersCount": "{count} membre | {count} membres",
-    "searchMembersPlaceholder": "Rechercher des membres...",
     "emojiManagement": "Gestion des émojis",
     "customEmojis": "Émojis personnalisés",
     "customEmojisDesc": "Ajoutez des émojis personnalisés pour personnaliser votre serveur",
@@ -281,7 +277,6 @@
     "deleteServerConfirmItem3": "Toutes les données et rôles des membres",
     "deleteServerConfirmItem4": "Paramètres et configuration du serveur",
     "deleteServerConfirmLabel": "Pour confirmer la suppression, tapez le nom exact du serveur :",
-    "deleteServerConfirmPlaceholder": "Tapez le nom du serveur ici...",
     "deleting": "Suppression...",
     "noServerIconSet": "Aucune icône de serveur définie",
     "fileSizeTooLarge": "La taille du fichier doit être inférieure à 8 Mo",
@@ -679,7 +674,7 @@
       "addMemberTo": "Ajouter {member} à {role}",
       "currentMembers": "Membres actuels",
       "filterMembers": "Filtrer les membres",
-      "filterPlaceholder": "Filtrer…",
+      "filterPlaceholder": "Nom ou nom d'utilisateur",
       "removeMemberFrom": "Retirer {member} de {role}",
       "bridged": "Discord",
       "bridgedTitle": "Membre du pont Discord",
@@ -764,7 +759,6 @@
       "tabs": {
         "general": "Général"
       },
-      "namePlaceholder": "Saisissez le nom du salon",
       "description": "Description",
       "descriptionPlaceholder": "De quoi parle ce salon ?",
       "slowmode": "Mode lent",
@@ -1064,7 +1058,8 @@
       "search": "Rechercher un emoji",
       "searchHint": "Entrée choisit le premier résultat. La flèche bas passe aux emoji.",
       "results": "{count} emoji trouvé | {count} emoji trouvés",
-      "noResults": "Aucun emoji trouvé"
+      "noResults": "Aucun emoji trouvé",
+      "searchTerms": "Code court ou mot-clé"
     },
     "mediaPicker": {
       "label": "GIF, autocollants et emoji"
@@ -1412,6 +1407,10 @@
       "float": "Flotter au-dessus des autres fenêtres",
       "backToApp": "Revenir dans l'application",
       "dragHint": "Fais glisser pour le déplacer. Dépose-le sur Harmony pour le remettre en place."
+    },
+    "toolbar": {
+      "controls": "Commandes vocales",
+      "call": "Appel"
     }
   },
   "dm": {
@@ -1696,7 +1695,8 @@
         "adoptAccountDesc": "Cet appareil l'adopte.",
         "adoptDevice": "Celle de cet appareil",
         "adoptDeviceDesc": "Vos autres appareils synchronisés l'adoptent à la prochaine ouverture de Harmony."
-      }
+      },
+      "savedThemeNameHint": "ex. : Nuit blanche"
     },
     "voice": {
       "title": "Voix et vidéo",
@@ -2592,7 +2592,8 @@
     "postA11y": {
       "heading": "{name}, {time}",
       "boostHeading": "{booster} a boosté {name}, {time}",
-      "actionCount": "{action}, {count}"
+      "actionCount": "{action}, {count}",
+      "actions": "Actions de la publication"
     },
     "postMenu": {
       "copyLink": "Copier le lien",
@@ -2749,7 +2750,8 @@
       "added": "Ajouté",
       "addedNamed": "Ajouté : {name}",
       "remove": "Retirer",
-      "removeNamed": "Retirer {name}"
+      "removeNamed": "Retirer {name}",
+      "searchToAddHint": "Nom ou {'@'}utilisateur{'@'}domaine"
     },
     "searchA11y": {
       "title": "Rechercher des personnes",
@@ -2957,7 +2959,6 @@
     "externalNotAllowed": "Dans ce salon, seuls les émojis Unicode et ceux de ce serveur sont utilisables.",
     "postReactionLimit": "Vous avez {count} réactions sur cette publication. Retirez-en une pour en ajouter une autre.",
     "search": "Rechercher des émojis...",
-    "searchEmojis": "Rechercher des émojis...",
     "aiGenerate": "Générer",
     "aiGenerating": "Génération…",
     "aiGeneratePlaceholder": "Décrivez un émoji à générer…",
@@ -3237,7 +3238,6 @@
     "edit": {
       "title": "Modifier la catégorie",
       "name": "Nom de la catégorie",
-      "namePlaceholder": "Saisissez le nom de la catégorie",
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "failed": "Impossible de mettre à jour la catégorie. Réessayez.",
@@ -3710,7 +3710,6 @@
       "title": "Bots du serveur",
       "description": "Les bots agissent dans ce serveur via la Bot API, dans la limite des permissions accordées ici.",
       "browseTitle": "Ajouter un bot",
-      "searchPlaceholder": "Rechercher des bots",
       "emptyDirectory": "Aucun bot n'est encore disponible. Tout utilisateur peut en créer un dans Paramètres utilisateur → Mes bots.",
       "noResults": "Aucun bot ne correspond à « {query} ».",
       "loadMore": "Charger plus",
@@ -3749,7 +3748,9 @@
       "channelHidden": "Masqué à {'@'}everyone",
       "channelsSaved": "Accès aux canaux enregistré",
       "channelsFailed": "Impossible d'enregistrer l'accès aux canaux",
-      "channelsLoadFailed": "Impossible de charger l'accès aux canaux"
+      "channelsLoadFailed": "Impossible de charger l'accès aux canaux",
+      "searchLabel": "Rechercher des bots",
+      "searchHint": "Nom ou description"
     },
     "permissions": {
       "read_messages": {
@@ -5221,8 +5222,6 @@
       "title": "Emojis de l'instance",
       "hint": "Emojis de toute l'instance et importés : envois des administrateurs, emojis des ponts Discord et des bots, et emojis issus de réactions et de publications fédérées. Les emojis de serveur restent gérés par leurs serveurs ; les emojis personnels et générés par IA figurent sous Emojis des utilisateurs. Les messages désignent les emojis personnalisés par leur nom ; après un renommage ou une suppression, les messages antérieurs affichent le texte :nom: au lieu de l'image.",
       "refresh": "Actualiser",
-      "searchPlaceholder": "Rechercher par nom ou domaine",
-      "searchPlaceholderUser": "Rechercher par nom ou propriétaire",
       "source": {
         "label": "Source",
         "all": "Toutes les sources",
@@ -5264,7 +5263,10 @@
         "invalidName": "Les noms comptent de 2 à 64 lettres, chiffres, _ ou -.",
         "nameTaken": "Un autre emoji de l'instance utilise déjà ce nom.",
         "nameTakenUser": "Le propriétaire a déjà un emoji portant ce nom."
-      }
+      },
+      "searchLabel": "Rechercher des emoji",
+      "searchHint": "Nom ou domaine",
+      "searchHintUser": "Nom ou propriétaire"
     }
   },
   "discordBridge": {
@@ -6072,7 +6074,8 @@
       "group": "{title}, {count} membre | {title}, {count} membres",
       "discord": "Membre du pont Discord",
       "instanceAdmin": "administrateur de l'instance",
-      "instanceMod": "modérateur de l'instance"
+      "instanceMod": "modérateur de l'instance",
+      "searchHint": "Nom ou nom d'utilisateur"
     },
     "create": {
       "textHint": "Les espaces deviennent des tirets et les lettres passent en minuscules ; la ponctuation autre que - et _ est retirée",
@@ -6082,7 +6085,6 @@
       "nameTooLong": "Le nom du salon doit comporter 100 caractères au maximum",
       "categorySubtitle": "Organisez vos salons avec des catégories",
       "categoryName": "Nom de la catégorie",
-      "categoryPlaceholder": "Saisissez le nom de la catégorie…",
       "categoryHint": "Les catégories aident à organiser vos salons",
       "categoryGood": "Bon choix ! Cela aidera à organiser vos salons",
       "categoryRequired": "Le nom de la catégorie est requis",
@@ -6100,13 +6102,14 @@
     },
     "threadsModal": {
       "title": "Fils",
-      "search": "Rechercher un nom de fil",
       "joined": "{count} fil rejoint | {count} fils rejoints",
       "older": "Fils plus anciens",
       "noMessages": "Pas encore de messages",
       "startedBy": "Lancé par",
       "lastActive": "Dernière activité : {time}",
-      "loading": "Chargement des fils…"
+      "loading": "Chargement des fils…",
+      "searchLabel": "Rechercher des fils",
+      "searchHint": "Nom du fil"
     },
     "mediaPicker": {
       "label": "GIF, autocollants et emoji",
@@ -6439,7 +6442,8 @@
       "emojiUnavailable": "Cet émoji ne peut pas être utilisé pour un son. Choisissez un émoji de l'un de vos serveurs, de l'instance ou l'un des vôtres.",
       "load": "Impossible de charger les sons de ce serveur.",
       "generic": "Une erreur s'est produite. Réessayez."
-    }
+    },
+    "searchHint": "Nom du son"
   },
   "voiceMessage": {
     "label": "Message vocal",
@@ -6692,7 +6696,8 @@
     "source": {
       "drive": "Fichier Drive",
       "link": "Lien"
-    }
+    },
+    "linkHint": "Lien YouTube, SoundCloud, Spotify ou d'un fichier"
   },
   "driveAdmin": {
     "settings": "Stockage Drive",
@@ -6733,7 +6738,8 @@
     "loadingChannels": "Chargement des salons…",
     "channelsFailed": "Impossible de charger les salons.",
     "noChannels": "Aucun salon où vous pouvez publier.",
-    "noMatches": "Aucun résultat pour cette recherche."
+    "noMatches": "Aucun résultat pour cette recherche.",
+    "searchHint": "Nom d'une personne, d'un groupe, d'un serveur ou d'un salon"
   },
   "drive": {
     "title": "Drive",
@@ -6814,8 +6820,9 @@
       "list": "Liste"
     },
     "search": {
-      "placeholder": "Rechercher dans votre Drive",
-      "results": "Résultats pour « {query} »"
+      "results": "Résultats pour « {query} »",
+      "label": "Rechercher dans votre Drive",
+      "hint": "Nom du fichier"
     },
     "selection": {
       "label": "Fichiers sélectionnés",
@@ -6945,7 +6952,8 @@
       "resetLink": "Réinitialiser le lien",
       "resetTitle": "Réinitialiser le lien ?",
       "resetText": "Le lien actuel cesse de fonctionner pour tout le monde, y compris là où il a déjà été publié. Les personnes qui voient le fichier peuvent copier le nouveau lien.",
-      "until": "Jusqu'au {date}"
+      "until": "Jusqu'au {date}",
+      "searchPeopleHint": "Nom ou nom d'utilisateur"
     },
     "preview": {
       "previous": "Fichier précédent",
@@ -7079,7 +7087,6 @@
     "title": "Serveurs hébergés ici",
     "intro": "Confiance et sécurité pour les serveurs de {instance}. Tu agis en tant qu'équipe de {instance}, pas en tant que modération d'un serveur, et chaque action est inscrite au journal d'audit du serveur, que voient son propriétaire et sa modération.",
     "staffBadge": "Équipe de {instance}",
-    "search": "Rechercher par nom, propriétaire ou ID",
     "filterAll": "Tous",
     "filterSuspended": "Suspendus",
     "empty": "Aucun serveur n'est encore hébergé ici.",
@@ -7177,7 +7184,10 @@
       "accountSuspended": "Compte suspendu sur {instance}",
       "domainSuspended": "{domain} suspendu sur {instance}"
     },
-    "rowAction": "{action} : {target}"
+    "rowAction": "{action} : {target}",
+    "membersSearchHint": "Nom ou nom d'utilisateur",
+    "searchLabel": "Rechercher des serveurs",
+    "searchHint": "Nom, propriétaire ou ID"
   },
   "instanceServer": {
     "panel": {
@@ -7259,7 +7269,8 @@
       "manageLabel": "Gérer {server} sur {instance}",
       "empty": "Personne sur {instance} n'a rejoint de serveur hébergé ailleurs.",
       "noMatch": "Aucun serveur ne correspond.",
-      "loadFailed": "Impossible de charger les serveurs d'autres instances."
+      "loadFailed": "Impossible de charger les serveurs d'autres instances.",
+      "searchHint": "Nom ou hôte"
     },
     "state": {
       "blocked": "Bloqué",

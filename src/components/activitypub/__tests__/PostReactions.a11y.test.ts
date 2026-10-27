@@ -42,13 +42,13 @@ beforeEach(() => {
 })
 
 describe('PostReactions chips', () => {
-  it('are toggle buttons in a named group, named by emoji and count, described by who reacted', () => {
+  it('are toggle buttons in a named toolbar, named by emoji and count, described by who reacted', () => {
     usePostReactionsStore().bulkSetReactions({
       'post-1': [group('🎉', true, ['Alice', 'Bob']), group(':blob_cat@remote.example:', false, ['Carol'])] as any,
     })
     const wrapper = mount(PostReactions, { props: { post }, global: { stubs: { LoadingSpinner: true, Icon: true } } })
 
-    const groupEl = wrapper.get('[role="group"]')
+    const groupEl = wrapper.get('[role="toolbar"]')
     expect(groupEl.attributes('aria-label')).toBe('activitypub.reactionsA11y.group')
 
     const chips = wrapper.findAll('button.reaction')

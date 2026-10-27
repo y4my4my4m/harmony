@@ -67,9 +67,11 @@ In the attachment description dialog, Ctrl/Cmd+Enter saves the description.
 | Keys | Action |
 |---|---|
 | Tab | Move into the list. The list is one Tab stop; Tab from a message moves through that message's controls, then out of the list. |
-| Up / Down | Previous or next message. Up from the first loaded message loads older ones. |
+| Up / Down | Previous or next message, from the message or from a control in it. Up from the first loaded message loads older ones. |
 | Page Up / Page Down | Move by a screenful of messages. |
 | Home / End | First or last loaded message. |
+| Escape | On a control inside a message, return to the message. |
+| Left / Right | In a message's actions or reactions, move between the buttons. |
 | Enter, context menu key or Shift+F10 | Open **Message options** for the focused message. |
 | Shift+Page Up | Jump to the **New messages** divider. |
 | Context menu key or Shift+F10 | On a reaction, list who reacted. |
@@ -119,6 +121,8 @@ In the attachment description dialog, Ctrl/Cmd+Enter saves the description.
 | Menu | Escape or Tab | Close the menu. |
 | Dialog | Tab / Shift+Tab | Move between controls; focus stays inside the dialog. |
 | Tabs | Left / Right, Home / End | Move between tabs; Enter or Space opens one. |
+| Toolbar | Left / Right | Move between its buttons; wraps at the ends. Message and post actions, reactions, the voice panel, the call view and the Drive selection bar are toolbars. |
+| Toolbar | Home / End | First or last button; in a message, first or last message instead. |
 | Emoji picker search | Down | Move to the first emoji. |
 | Emoji picker search | Enter | Pick the first result. |
 | Emoji picker grid | Arrow keys | Move between emoji. Up from the first row returns to the search field. |

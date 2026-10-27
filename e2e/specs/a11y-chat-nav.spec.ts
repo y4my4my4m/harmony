@@ -655,7 +655,7 @@ test('pinned messages and all threads open as dialogs and return focus', async (
   await page.keyboard.press('Enter')
   const all = page.getByRole('dialog', { name: 'Threads' })
   await expect(all).toBeVisible({ timeout: 10000 })
-  await expect(all.getByRole('textbox', { name: 'Search for thread name' })).toBeFocused()
+  await expect(all.getByRole('textbox', { name: 'Search threads' })).toBeFocused()
   await settled(page)
   await expectNoAxeViolations(page, { include: '[role="dialog"]', label: 'all threads' })
   await page.keyboard.press('Escape')

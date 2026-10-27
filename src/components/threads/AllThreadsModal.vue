@@ -34,8 +34,8 @@
                 <input 
                   v-model="searchQuery"
                   type="text" 
-                  :placeholder="t('chatNav.threadsModal.search')"
-                  :aria-label="t('chatNav.threadsModal.search')"
+                  :placeholder="t('chatNav.threadsModal.searchHint')"
+                  :aria-label="t('chatNav.threadsModal.searchLabel')"
                 />
               </div>
               <button type="button" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')" @click="close">

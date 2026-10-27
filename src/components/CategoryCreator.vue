@@ -11,7 +11,6 @@
       <ModernInput
         :model-value="categoryName"
         :label="t('chatNav.create.categoryName')"
-        :placeholder="t('chatNav.create.categoryPlaceholder')"
         :max-length="100"
         :show-char-count="true"
         :error-message="errorMessage"

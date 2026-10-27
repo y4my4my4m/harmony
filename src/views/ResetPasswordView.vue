@@ -66,7 +66,6 @@
               @input="passwordError = ''"
               required
               autocomplete="new-password"
-              :placeholder="t('auth.reset.newPlaceholder')"
             />
             <button 
               type="button" 
@@ -104,7 +103,6 @@
               @input="confirmPasswordError = ''"
               required
               autocomplete="new-password"
-              :placeholder="t('auth.reset.confirmPlaceholder')"
             />
             <button 
               type="button" 

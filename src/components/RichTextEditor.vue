@@ -1265,8 +1265,13 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
+/* Generated text is exposed as the field's text after its aria-label (Firefox,
+   Chromium); the empty alternative text keeps it visual only. The plain
+   declaration is the fallback where `content: <value> / <alt>` does not parse
+   (Safari < 17.4, Firefox < 128). */
 .rich-text-editor.is-empty::before {
   content: attr(data-placeholder);
+  content: attr(data-placeholder) / "";
   color: var(--text-muted);
   pointer-events: none;
   position: absolute;

@@ -137,7 +137,7 @@ const mountPost = (post: any) =>
     global: {
       plugins: [createPinia()],
       directives: { 'click-outside': {} },
-      stubs: { RouterLink: RouterLinkStub },
+      stubs: { RouterLink: RouterLinkStub, AppToolbar: false },
     },
   })
 

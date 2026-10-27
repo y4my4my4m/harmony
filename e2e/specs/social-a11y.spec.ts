@@ -236,6 +236,21 @@ test('boost and favourite are toggles with fixed names, counts and pressed state
     const favourite = post.locator('[data-testid="post-favorite-btn"]')
     const boost = post.locator('[data-testid="post-reblog-btn"]')
 
+    await test.step('the actions are a toolbar: one Tab stop, Left and Right between them', async () => {
+      const bar = post.getByRole('toolbar', { name: 'Post actions' })
+      await expect(bar.locator('[tabindex="0"]')).toHaveCount(1)
+      await favourite.focus()
+      await page.keyboard.press('ArrowRight')
+      await expect(bar.getByRole('button', { name: 'Add reaction' })).toBeFocused()
+      await page.keyboard.press('ArrowLeft')
+      await expect(favourite).toBeFocused()
+      await page.keyboard.press('Home')
+      await expect(post.locator('[data-testid="post-reply-btn"]')).toBeFocused()
+      await page.keyboard.press('End')
+      await expect(post.locator('[data-testid="post-menu-btn"]')).toBeFocused()
+      await expect(bar.locator('[tabindex="0"]')).toHaveCount(1)
+    })
+
     await test.step('favourite toggles from the keyboard; its name carries the count', async () => {
       await expect(favourite).toHaveAccessibleName('Favorite')
       await expect(favourite).toHaveAttribute('aria-pressed', 'false')

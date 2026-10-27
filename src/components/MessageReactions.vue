@@ -1,13 +1,8 @@
 <template>
   <div v-if="showReactions && reactions.length > 0" ref="rootRef" class="message-reactions" data-testid="message-reactions">
     <div class="reactions-gutter" aria-hidden="true"></div>
-    <TransitionGroup
-      name="reaction-list"
-      tag="div"
-      class="reactions-container"
-      role="group"
-      :aria-label="t('message.reactions.title')"
-    >
+    <AppToolbar class="reactions-container" :label="t('message.reactions.title')" :home-end="false">
+    <TransitionGroup name="reaction-list">
       <button
         v-for="reactionGroup in reactions"
         :key="getReactionKey(reactionGroup)"
@@ -81,6 +76,7 @@
         </svg>
       </button>
     </TransitionGroup>
+    </AppToolbar>
     <span :id="hintId" class="sr-only">{{ t('messageA11y.reactions.hint') }}</span>
   </div>
 </template>
@@ -97,6 +93,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { reactionGroupKey } from '@/utils/reactionUsers';
 import Icon from '@/components/common/Icon.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import type { Message, Emoji, ReactionGroup } from '@/types';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';

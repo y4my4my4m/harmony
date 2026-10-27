@@ -131,7 +131,6 @@
                 autocomplete="off"
                 spellcheck="false"
                 :class="{ 'error': confirmationError }"
-                :placeholder="$t('server.deleteServerConfirmPlaceholder')"
                 :aria-invalid="confirmationError ? 'true' : undefined"
                 :aria-describedby="confirmationError ? `${uid}-error` : undefined"
                 :readonly="deleting"

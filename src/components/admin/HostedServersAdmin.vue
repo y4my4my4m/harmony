@@ -25,8 +25,8 @@
             v-model="search"
             type="search"
             class="cyber-input"
-            :placeholder="t('hostStaff.search')"
-            :aria-label="t('hostStaff.search')"
+            :placeholder="t('hostStaff.searchHint')"
+            :aria-label="t('hostStaff.searchLabel')"
             data-testid="hosted-servers-search"
           />
         </div>

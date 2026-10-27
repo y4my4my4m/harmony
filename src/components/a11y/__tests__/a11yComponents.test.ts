@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import IconButton from '../IconButton.vue'
 import AppTimestamp from '../AppTimestamp.vue'
 import VisuallyHidden from '../VisuallyHidden.vue'
 import SkipLink from '../SkipLink.vue'
+import AppToolbar from '../AppToolbar.vue'
 import { composedTitle, pushViewTitle, setRouteTitle, setTitleInstance, setTitleUnread } from '@/utils/a11y/documentTitle'
 import { toastRole } from '@/utils/a11y/toastRole'
 import { patchRoleButtons, roleButtonKeyActivation } from '@/utils/a11y/roleButtons'
@@ -130,3 +132,70 @@ describe('roleButtons', () => {
   })
 })
 
+
+describe('AppToolbar', () => {
+  const Host = (homeEnd = true) => defineComponent({
+    setup() {
+      const extra = ref(false)
+      return { extra }
+    },
+    render() {
+      return h(AppToolbar, { label: 'Message actions', homeEnd }, () => [
+        h('button', { id: 'react' }, 'React'),
+        h('button', { id: 'reply', 'aria-disabled': 'true' }, 'Reply'),
+        h('button', { id: 'more' }, 'More'),
+        this.extra ? h('button', { id: 'extra' }, 'Extra') : null,
+      ])
+    },
+  })
+  const press = (id: string, key: string) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    document.getElementById(id)!.dispatchEvent(event)
+    return event
+  }
+  const stops = () => Array.from(document.querySelectorAll('[role="toolbar"] button')).map((b) => b.getAttribute('tabindex'))
+
+  it('is a labelled toolbar with one Tab stop', () => {
+    const wrapper = mount(Host(), { attachTo: document.body })
+    expect(wrapper.get('[role="toolbar"]').attributes('aria-label')).toBe('Message actions')
+    expect(stops()).toEqual(['0', '-1', '-1'])
+  })
+
+  it('moves with Left and Right, wraps, and keeps aria-disabled controls focusable', () => {
+    mount(Host(), { attachTo: document.body })
+    document.getElementById('react')!.focus()
+    press('react', 'ArrowRight')
+    expect(document.activeElement?.id).toBe('reply')
+    press('reply', 'ArrowRight')
+    press('more', 'ArrowRight')
+    expect(document.activeElement?.id).toBe('react')
+    press('react', 'ArrowLeft')
+    expect(document.activeElement?.id).toBe('more')
+    expect(stops()).toEqual(['-1', '-1', '0'])
+    expect(press('more', 'ArrowDown').defaultPrevented).toBe(false)
+  })
+
+  it('goes to the ends with Home and End, or leaves them when homeEnd is false', () => {
+    mount(Host(), { attachTo: document.body })
+    document.getElementById('react')!.focus()
+    press('react', 'End')
+    expect(document.activeElement?.id).toBe('more')
+    press('more', 'Home')
+    expect(document.activeElement?.id).toBe('react')
+    document.body.innerHTML = ''
+    mount(Host(false), { attachTo: document.body })
+    document.getElementById('react')!.focus()
+    expect(press('react', 'End').defaultPrevented).toBe(false)
+    expect(document.activeElement?.id).toBe('react')
+  })
+
+  it('gives the Tab stop to a control focused by pointer and to the toolbar\'s new controls', async () => {
+    const wrapper = mount(Host(), { attachTo: document.body })
+    document.getElementById('more')!.focus()
+    expect(stops()).toEqual(['-1', '-1', '0'])
+    ;(wrapper.vm as unknown as { extra: boolean }).extra = true
+    await nextTick()
+    await Promise.resolve()
+    expect(stops()).toEqual(['-1', '-1', '0', '-1'])
+  })
+})

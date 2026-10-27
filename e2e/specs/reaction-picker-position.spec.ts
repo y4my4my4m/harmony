@@ -32,7 +32,7 @@ type Box = { x: number; y: number; width: number; height: number }
 async function openPicker(page: Page, text: string): Promise<{ picker: Locator; button: Box }> {
   const row = page.locator('[data-testid="message-list"] .message-item').filter({ hasText: text })
   await row.hover()
-  const trigger = row.getByRole('group', { name: 'Message actions' }).getByRole('button', { name: 'Add reaction', exact: true })
+  const trigger = row.getByRole('toolbar', { name: 'Message actions' }).getByRole('button', { name: 'Add reaction', exact: true })
   const button = (await trigger.boundingBox())!
   await trigger.click()
   const picker = page.getByRole('dialog', { name: 'Add reaction' })

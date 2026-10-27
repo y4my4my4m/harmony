@@ -11,7 +11,7 @@
           :id="inputId"
           :type="type"
           :value="modelValue"
-          :placeholder="placeholder"
+          :placeholder="placeholder || ' '"
           :required="required"
           :disabled="disabled"
           :maxlength="maxLength"
@@ -217,7 +217,8 @@ defineExpose({
   box-shadow: 0 0 0 1px var(--error);
 }
 
-/* Success state */
+/* Success state. :placeholder-shown marks an empty field; without a placeholder
+   prop the input carries a blank one so it still matches. */
 .input-group:not(.has-error) .modern-input:valid:not(:placeholder-shown) {
   border-color: var(--success);
 }

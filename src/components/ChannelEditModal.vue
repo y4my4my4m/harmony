@@ -72,7 +72,6 @@
                 v-model="editedName"
                 type="text"
                 class="form-input"
-                :placeholder="t('channel.edit.namePlaceholder')"
                 maxlength="100"
                 @input="onNameInput"
                 @keydown.enter="saveChanges"

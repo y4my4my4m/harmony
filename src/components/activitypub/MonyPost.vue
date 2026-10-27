@@ -356,7 +356,7 @@
 
       <!-- Action Buttons. Toggle names stay fixed; aria-pressed carries the state and
            the visible count is part of the name. -->
-      <div class="post-actions">
+      <AppToolbar class="post-actions" :label="t('activitypub.postA11y.actions')" items=".action-button, .reply-count-link">
         <div class="reply-action">
           <button
             type="button"
@@ -692,7 +692,7 @@
             </button>
           </SocialMenu>
         </div>
-      </div>
+      </AppToolbar>
     </div>
 
     <!-- Report Modal -->
@@ -841,6 +841,7 @@ import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import SocialMenu from './SocialMenu.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';

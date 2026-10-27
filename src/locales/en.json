@@ -153,8 +153,6 @@
       "invalidTitle": "Invalid or expired link",
       "invalidBody": "This password reset link is invalid or has expired. Request a new one.",
       "enterNew": "Enter your new password below",
-      "newPlaceholder": "Enter your new password",
-      "confirmPlaceholder": "Confirm your new password",
       "remember": "Remember your password?",
       "verifying": "Verifying password reset link…",
       "verifyAndReset": "Verify and reset password",
@@ -207,7 +205,6 @@
     "rulesPlaceholder": "One rule per line, e.g.\nBe respectful\nNo spam",
     "rulesHint": "Shown to people before they accept an invite (max 25 rules).",
     "tellPeopleAbout": "Tell people what your server is about",
-    "enterServerName": "Enter server name",
     "serverNameAppearance": "This is how your server will appear to members",
     "serverNameAppearanceView": "Server name as it appears to members",
     "charactersRemaining": "{current}/{max} characters",
@@ -226,7 +223,6 @@
     "createCategory": "Create category",
     "inviteLink": "Get invite link",
     "searchMembers": "Search members",
-    "searchMembersPlaceholder": "Search members...",
     "discoverCommunities": "Discover communities",
     "serverSettings": "Server settings",
     "serverInformation": "Server information",
@@ -335,7 +331,6 @@
     "deleteServerConfirmItem3": "All roles, permissions, and custom emojis will be erased",
     "deleteServerConfirmItem4": "Invite links and integrations will stop working",
     "deleteServerConfirmLabel": "Type the server name to confirm:",
-    "deleteServerConfirmPlaceholder": "Type the server name here",
     "noServerIconSet": "No server icon set",
     "selectValidImageFile": "Please select a valid image file",
     "fileSizeTooLarge": "File size is too large",
@@ -679,7 +674,7 @@
       "addMemberTo": "Add {member} to {role}",
       "currentMembers": "Current members",
       "filterMembers": "Filter members",
-      "filterPlaceholder": "Filter...",
+      "filterPlaceholder": "Name or username",
       "removeMemberFrom": "Remove {member} from {role}",
       "bridged": "Discord",
       "bridgedTitle": "Discord bridge member",
@@ -764,7 +759,6 @@
       "tabs": {
         "general": "General"
       },
-      "namePlaceholder": "Enter channel name",
       "description": "Description",
       "descriptionPlaceholder": "What's this channel about?",
       "slowmode": "Slowmode",
@@ -942,7 +936,6 @@
     "edit": {
       "title": "Edit category",
       "name": "Category name",
-      "namePlaceholder": "Enter category name",
       "save": "Save changes",
       "saving": "Saving…",
       "failed": "Couldn't update the category. Try again.",
@@ -1112,7 +1105,8 @@
       "search": "Search emoji",
       "searchHint": "Enter picks the first result. Down arrow moves to the emoji.",
       "results": "{count} emoji found | {count} emoji found",
-      "noResults": "No emoji found"
+      "noResults": "No emoji found",
+      "searchTerms": "Shortcode or keyword"
     },
     "mediaPicker": {
       "label": "GIFs, stickers and emoji"
@@ -1460,6 +1454,10 @@
       "float": "Float over other windows",
       "backToApp": "Back to the app",
       "dragHint": "Drag to move. Drop it on Harmony to put it back."
+    },
+    "toolbar": {
+      "controls": "Voice controls",
+      "call": "Call"
     }
   },
   "dm": {
@@ -1782,7 +1780,8 @@
         "adoptAccountDesc": "This device switches to it.",
         "adoptDevice": "This device's",
         "adoptDeviceDesc": "Your other devices with sync on switch to it the next time they open Harmony."
-      }
+      },
+      "savedThemeNameHint": "e.g. Late night"
     },
     "audio": {
       "title": "Sounds",
@@ -2646,7 +2645,8 @@
     "postA11y": {
       "heading": "{name}, {time}",
       "boostHeading": "{booster} boosted {name}, {time}",
-      "actionCount": "{action}, {count}"
+      "actionCount": "{action}, {count}",
+      "actions": "Post actions"
     },
     "postMenu": {
       "copyLink": "Copy link",
@@ -2803,7 +2803,8 @@
       "added": "Added",
       "addedNamed": "Added {name}",
       "remove": "Remove",
-      "removeNamed": "Remove {name}"
+      "removeNamed": "Remove {name}",
+      "searchToAddHint": "Name or {'@'}user{'@'}domain"
     },
     "searchA11y": {
       "title": "Search users",
@@ -3011,7 +3012,6 @@
     "externalNotAllowed": "Only unicode and this server's emoji can be used in this channel.",
     "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
-    "searchEmojis": "Search emojis...",
     "aiGenerate": "Generate",
     "aiGenerating": "Generating…",
     "aiGeneratePlaceholder": "Describe an emoji to generate…",
@@ -3710,7 +3710,6 @@
       "title": "Server bots",
       "description": "Bots act in this server through the Bot API, limited to the permissions granted here.",
       "browseTitle": "Add a bot",
-      "searchPlaceholder": "Search bots",
       "emptyDirectory": "No bots are available yet. Any user can create one under User Settings → My Bots.",
       "noResults": "No bots match “{query}”.",
       "loadMore": "Load more",
@@ -3749,7 +3748,9 @@
       "channelHidden": "Hidden from {'@'}everyone",
       "channelsSaved": "Channel access saved",
       "channelsFailed": "Could not save channel access",
-      "channelsLoadFailed": "Could not load channel access"
+      "channelsLoadFailed": "Could not load channel access",
+      "searchLabel": "Search bots",
+      "searchHint": "Name or description"
     },
     "permissions": {
       "read_messages": {
@@ -5217,8 +5218,6 @@
       "title": "Instance emojis",
       "hint": "Instance-wide and imported emojis: admin uploads, Discord bridge and bot emojis, and emojis from federated reactions and posts. Server emojis stay with their servers; personal and AI-generated emojis are listed under User emojis. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
       "refresh": "Refresh",
-      "searchPlaceholder": "Search by name or domain",
-      "searchPlaceholderUser": "Search by name or owner",
       "source": {
         "label": "Source",
         "all": "All sources",
@@ -5260,7 +5259,10 @@
         "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
         "nameTaken": "Another instance emoji already uses that name.",
         "nameTakenUser": "The owner already has an emoji with that name."
-      }
+      },
+      "searchLabel": "Search emoji",
+      "searchHint": "Name or domain",
+      "searchHintUser": "Name or owner"
     }
   },
   "discordBridge": {
@@ -6068,7 +6070,8 @@
       "group": "{title}, {count} member | {title}, {count} members",
       "discord": "Discord bridge member",
       "instanceAdmin": "instance admin",
-      "instanceMod": "instance moderator"
+      "instanceMod": "instance moderator",
+      "searchHint": "Name or username"
     },
     "create": {
       "textHint": "Spaces become dashes and letters are lowercased; punctuation other than - and _ is dropped",
@@ -6078,7 +6081,6 @@
       "nameTooLong": "Channel name must be 100 characters or less",
       "categorySubtitle": "Organize your channels with categories",
       "categoryName": "Category name",
-      "categoryPlaceholder": "Enter category name…",
       "categoryHint": "Categories help organize your channels",
       "categoryGood": "Good choice! This will help organize your channels",
       "categoryRequired": "Category name is required",
@@ -6096,13 +6098,14 @@
     },
     "threadsModal": {
       "title": "Threads",
-      "search": "Search for thread name",
       "joined": "{count} joined thread | {count} joined threads",
       "older": "Older threads",
       "noMessages": "No messages yet",
       "startedBy": "Started by",
       "lastActive": "Last active {time}",
-      "loading": "Loading threads…"
+      "loading": "Loading threads…",
+      "searchLabel": "Search threads",
+      "searchHint": "Thread name"
     },
     "mediaPicker": {
       "label": "GIFs, stickers and emoji",
@@ -6435,7 +6438,8 @@
       "emojiUnavailable": "That emoji can't be used for a sound. Pick an emoji of one of your servers, an instance emoji or one of your own.",
       "load": "Couldn't load this server's sounds.",
       "generic": "Something went wrong. Try again."
-    }
+    },
+    "searchHint": "Sound name"
   },
   "voiceMessage": {
     "label": "Voice message",
@@ -6656,7 +6660,8 @@
     "loadingChannels": "Loading channels…",
     "channelsFailed": "Channels could not be loaded.",
     "noChannels": "No channels you can post in.",
-    "noMatches": "Nothing matches your search."
+    "noMatches": "Nothing matches your search.",
+    "searchHint": "Person, group, server or channel name"
   },
   "drive": {
     "title": "Drive",
@@ -6737,8 +6742,9 @@
       "list": "List"
     },
     "search": {
-      "placeholder": "Search your Drive",
-      "results": "Results for “{query}”"
+      "results": "Results for “{query}”",
+      "label": "Search your Drive",
+      "hint": "File name"
     },
     "selection": {
       "label": "Selected files",
@@ -6868,7 +6874,8 @@
       "resetLink": "Reset link",
       "resetTitle": "Reset the link?",
       "resetText": "The current link stops working for everyone, including where it was already posted. People who can see the file can copy the new link.",
-      "until": "Until {date}"
+      "until": "Until {date}",
+      "searchPeopleHint": "Name or username"
     },
     "preview": {
       "previous": "Previous file",
@@ -6990,7 +6997,8 @@
     "source": {
       "drive": "Drive file",
       "link": "Link"
-    }
+    },
+    "linkHint": "YouTube, SoundCloud, Spotify or a file link"
   },
   "support": {
     "title": "Support this instance",
@@ -7075,7 +7083,6 @@
     "title": "Servers hosted here",
     "intro": "Trust & Safety for servers on {instance}. You act as {instance} staff, not as a server moderator, and each action is recorded in the server's audit log for its owner and moderators to see.",
     "staffBadge": "{instance} staff",
-    "search": "Search by name, owner or ID",
     "filterAll": "All",
     "filterSuspended": "Suspended",
     "empty": "No servers are hosted here yet.",
@@ -7173,7 +7180,10 @@
       "accountSuspended": "Account suspended on {instance}",
       "domainSuspended": "{domain} suspended on {instance}"
     },
-    "rowAction": "{action}: {target}"
+    "rowAction": "{action}: {target}",
+    "membersSearchHint": "Name or username",
+    "searchLabel": "Search servers",
+    "searchHint": "Name, owner or ID"
   },
   "instanceServer": {
     "panel": {
@@ -7255,7 +7265,8 @@
       "manageLabel": "Manage {server} on {instance}",
       "empty": "No one on {instance} has joined a server hosted elsewhere.",
       "noMatch": "No servers match.",
-      "loadFailed": "Couldn't load servers from other instances."
+      "loadFailed": "Couldn't load servers from other instances.",
+      "searchHint": "Name or host"
     },
     "state": {
       "blocked": "Blocked",

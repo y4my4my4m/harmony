@@ -23,7 +23,7 @@
         v-model="query"
         type="search"
         class="search-input"
-        :placeholder="t('instanceServer.dashboard.search')"
+        :placeholder="t('instanceServer.dashboard.searchHint')"
         data-testid="remote-servers-search"
       />
       <label class="sr-only" :for="`${uid}-filter`">{{ t('instanceServer.dashboard.filter') }}</label>

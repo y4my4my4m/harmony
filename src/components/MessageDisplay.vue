@@ -58,7 +58,7 @@
     </div>
     
     <!-- Virtual scrolled message list. Each virtual row is a listitem; the
-         article inside it is the focusable row (keyboard model: onListKeydown). -->
+         article inside it is the focusable row (keyboard model: roving). -->
     <div
       v-if="displayItems.length > 0"
       ref="virtualListRef"
@@ -66,7 +66,7 @@
       :aria-label="listLabel"
       :aria-busy="isLoadingOlderMessages ? 'true' : undefined"
       :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }"
-      @keydown="onListKeydown"
+      @keydown="roving.onKeydown"
       @focusin="onListFocusIn"
       @focusout="onListFocusOut"
     >
@@ -203,7 +203,7 @@
           <!-- System message: an authorless event, rendered from metadata -->
           <div v-if="item.message.is_system" class="system-message">
             <div class="system-message-content">
-              <AppTimestamp class="system-timestamp" :value="item.message.created_at">
+              <AppTimestamp class="system-timestamp" :value="item.message.created_at" speak="time">
                 <template v-for="(line, lineIndex) in systemTimestampLines(item.message.created_at)" :key="lineIndex"><br v-if="lineIndex > 0" />{{ line }}</template>
               </AppTimestamp>
               <div :id="`msg-body-${item.message.id}`" class="system-content">
@@ -220,17 +220,17 @@
             </div>
             
             <!-- Message actions for system messages (hover or focus within the row); on mobile with tap use floating popup -->
-            <div
+            <AppToolbar
               v-if="showsActionBar(item.message.id)"
               class="message-actions"
-              role="group"
-              :aria-label="t('messageA11y.actions.label')"
+              :label="t('messageA11y.actions.label')"
+              :home-end="false"
               :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
             >
               <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
               <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
               <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
-            </div>
+            </AppToolbar>
             
             <!-- Reactions for system messages -->
             <MessageReactions
@@ -288,7 +288,7 @@
               </button>
               <!-- Pin and encryption state are spoken in the row name (rowMeta). -->
               <span class="timestamp">
-                <AppTimestamp :value="item.message.created_at" :short="formatTimestamp(item.message.created_at)" />
+                <AppTimestamp :value="item.message.created_at" :short="formatTimestamp(item.message.created_at)" speak="time" />
                 <span
                   v-if="item.message.is_pinned"
                   class="pin-indicator"
@@ -350,7 +350,7 @@
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
           <div class="message-gutter">
-            <AppTimestamp class="message-gutter-time" :value="item.message.created_at" :short="formatTimeOnly(item.message.created_at)" />
+            <AppTimestamp class="message-gutter-time" :value="item.message.created_at" :short="formatTimeOnly(item.message.created_at)" speak="time" />
           </div>
           <div class="message-main">
             <UnifiedMessageContent 
@@ -399,11 +399,11 @@
         </div>
 
         <!-- Message actions on hover or focus within the row; on mobile with tap use floating popup -->
-        <div
+        <AppToolbar
           v-if="!item.message.failed && showsActionBar(item.message.id)"
           class="message-actions"
-          role="group"
-          :aria-label="t('messageA11y.actions.label')"
+          :label="t('messageA11y.actions.label')"
+          :home-end="false"
           :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
         >
           <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
@@ -412,7 +412,7 @@
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
-        </div>
+        </AppToolbar>
         
         <!-- Reactions -->
         <MessageReactions
@@ -685,10 +685,10 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';
-import { useRovingTabindex } from '@/composables/useRovingTabindex';
-import { isContextMenuKey } from '@/composables/useMenu';
+import { PARKED_ATTR, useRovingTabindex } from '@/composables/useRovingTabindex';
 import { createNewMessageAnnouncer } from '@/composables/useNewMessageAnnouncer';
 import { messageSpeechText } from '@/utils/a11y/messageSpeech';
 import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
@@ -1940,34 +1940,38 @@ const listLabel = computed(() => {
   return name ? t('messageA11y.list.channel', { name }) : t('messageA11y.list.generic');
 });
 
-const spokenTimeFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long', timeStyle: 'short' }));
-const spokenTime = (value: Date | string): string => {
-  const date = new Date(value);
-  return isValid(date) ? spokenTimeFormat.value.format(date) : '';
-};
+const spokenClockFormat = computed(() => new Intl.DateTimeFormat(locale.value, { timeStyle: 'short' }));
+const spokenDateFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long' }));
 
 const isSendingRow = (message: Message): boolean =>
   !message.failed && (!!message.sending || !!message.id?.startsWith('temp-'));
 
-/** Time and state, read after the row's content in its accessible name. */
+/**
+ * Time of day, state, then the date: "6:10 PM, edited, October 23, 2026", read
+ * after the row's content in its accessible name. Every row carries its own
+ * date, last, independent of the rows loaded around it.
+ */
 const rowMeta = (message: Message): string => {
-  const parts = [spokenTime(message.created_at)];
+  const date = new Date(message.created_at);
+  const dated = isValid(date);
+  const parts = [dated ? spokenClockFormat.value.format(date) : ''];
   if (isMessageEdited(message)) parts.push(t('messageA11y.row.edited'));
   if (mentionsMe(message)) parts.push(t('messageA11y.row.mentionsYou'));
   if (message.is_pinned) parts.push(t('messageA11y.row.pinned'));
   if (message.decrypted) parts.push(t('messageA11y.row.encrypted'));
   if (message.failed) parts.push(t('messageA11y.row.failed'));
   else if (isSendingRow(message)) parts.push(t('messageA11y.row.sending'));
+  if (dated) parts.push(spokenDateFormat.value.format(date));
   return parts.filter(Boolean).join(', ');
 };
 
-/** Author, reply reference, content, then time and state. */
+/** Author, content, the message replied to, then time, state and date. */
 const rowLabelledBy = (message: Message): string => {
   const id = message.id;
   if (message.is_system) return `msg-body-${id} msg-meta-${id}`;
-  const parts = [`msg-head-${id}`];
+  const parts = [`msg-head-${id}`, `msg-body-${id}`];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
-  parts.push(`msg-body-${id}`, `msg-meta-${id}`);
+  parts.push(`msg-meta-${id}`);
   return parts.join(' ');
 };
 
@@ -2029,8 +2033,12 @@ const onDocumentFocusIn = (event: FocusEvent) => {
   focusMessageId.value = null;
 };
 
-// Row moves use the roving helper while the target row is mounted; a row off
-// the rendered range is scrolled to first and focused once it mounts.
+// Keyboard model: useRovingTabindex over every display item, rendered or not.
+// Up/Down/PageUp/PageDown/Home/End move between rows from the row or from a
+// control inside it; Escape on such a control returns to its row; Enter, the
+// ContextMenu key and Shift+F10 on a row open its menu. Up past the oldest
+// loaded row loads the previous page. A row off the rendered range is scrolled
+// to first and focused once it mounts.
 const roving = useRovingTabindex(virtualListRef, {
   itemSelector: ROW_SELECTOR,
   loop: false,
@@ -2039,6 +2047,17 @@ const roving = useRovingTabindex(virtualListRef, {
     const at = items.findIndex(el => el.dataset.rowKey === tabStopKey.value);
     return at >= 0 ? at : items.length - 1;
   },
+  virtual: {
+    count: () => displayItems.value.length,
+    indexOf: (el) => displayItems.value.findIndex(item => item.key === el.dataset.rowKey),
+    focusIndex: (index) => focusRowIndex(index),
+  },
+  pageSize: () => pageStep(),
+  onBoundary: (direction) => {
+    if (direction < 0 && !isAllMessagesLoaded.value) props.loadMoreMessages?.();
+  },
+  onEnter: (row) => activateRowElement(row),
+  onContextMenu: (row) => activateRowElement(row),
 });
 
 /** Keeps a focused row inside the viewport; a row taller than it aligns by its top. */
@@ -2105,37 +2124,15 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
   showContextMenu(item.message, box.left + 56, box.top + Math.min(box.height, 24), row);
 };
 
-const onListKeydown = (event: KeyboardEvent) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement) || !target.matches(ROW_SELECTOR) || event.altKey || event.metaKey) return;
-  const items = displayItems.value;
-  const index = items.findIndex(item => item.key === target.dataset.rowKey);
-  if (index < 0) return;
-  if (isContextMenuKey(event) || (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey)) {
-    event.preventDefault();
-    activateRow(items[index], target);
-    return;
-  }
-  let next: number;
-  switch (event.key) {
-    case 'ArrowUp': next = index - 1; break;
-    case 'ArrowDown': next = index + 1; break;
-    case 'PageUp': next = index - pageStep(); break;
-    case 'PageDown': next = index + pageStep(); break;
-    case 'Home': next = 0; break;
-    case 'End': next = items.length - 1; break;
-    default: return;
-  }
-  event.preventDefault();
-  if (next < 0 && !isAllMessagesLoaded.value) props.loadMoreMessages?.();
-  next = Math.max(0, Math.min(items.length - 1, next));
-  if (next !== index) focusRowIndex(next);
+const activateRowElement = (row: HTMLElement) => {
+  const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
+  if (item) activateRow(item, row);
 };
 
 // Interactive content of rows other than the tab stop row leaves the Tab
 // sequence: Tab from a row walks that row's controls, then leaves the list.
-// The original tabindex is kept in data-roving-muted and restored when the
-// row becomes the tab stop or takes focus.
+// The original tabindex is kept in PARKED_ATTR and restored when the row
+// becomes the tab stop or takes focus.
 const ROW_INNER_FOCUSABLE = 'a[href], button, input, select, textarea, iframe, audio[controls], video[controls], [contenteditable="true"], [tabindex]';
 
 const muteInactiveRows = () => {
@@ -2145,14 +2142,14 @@ const muteInactiveRows = () => {
   for (const row of Array.from(list.querySelectorAll<HTMLElement>(ROW_SELECTOR))) {
     const live = row.dataset.rowKey === tabStopKey.value || (!!active && row.contains(active));
     for (const el of Array.from(row.querySelectorAll<HTMLElement>(ROW_INNER_FOCUSABLE))) {
-      const muted = el.getAttribute('data-roving-muted');
+      const muted = el.getAttribute(PARKED_ATTR);
       if (live) {
         if (muted === null) continue;
-        el.removeAttribute('data-roving-muted');
+        el.removeAttribute(PARKED_ATTR);
         if (muted === '') el.removeAttribute('tabindex');
         else el.setAttribute('tabindex', muted);
       } else if (muted === null) {
-        el.setAttribute('data-roving-muted', el.getAttribute('tabindex') ?? '');
+        el.setAttribute(PARKED_ATTR, el.getAttribute('tabindex') ?? '');
         el.setAttribute('tabindex', '-1');
       }
     }

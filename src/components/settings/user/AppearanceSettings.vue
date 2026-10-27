@@ -355,7 +355,7 @@
             v-model="savedThemeName"
             type="text"
             class="theme-name-input"
-            :placeholder="$t('settings.appearance.savedThemeName')"
+            :placeholder="$t('settings.appearance.savedThemeNameHint')"
             @keyup.enter="saveCurrentTheme"
           />
           <button type="button" class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">

@@ -10,7 +10,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            :placeholder="$t('server.searchMembersPlaceholder')"
+            :placeholder="t('chatNav.members.searchHint')"
             :aria-label="t('chatNav.members.search')"
             :aria-describedby="memberCountId"
             class="search-input"
@@ -86,7 +86,7 @@
         role="list"
         :aria-label="t('a11y.drawer.memberList')"
         :style="{ height: `${sidebarTotalSize}px`, position: 'relative' }"
-        @keydown="onMemberListKeydown"
+        @keydown="memberRoving.onKeydown"
       >
         <div
           v-for="virtualRow in sidebarVirtualRows"
@@ -361,7 +361,6 @@ import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
-import { isContextMenuKey } from '@/composables/useMenu';
 import { focusElement, uid } from '@/utils/a11y/focus';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { debug } from '@/utils/debug'
@@ -1253,9 +1252,10 @@ const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
 const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
 
 // --- KEYBOARD AND SCREEN READER ---
-// One Tab stop for the list; arrows move between group headers and members.
-// Rows outside the virtualizer's window are not in the DOM: Home/End scroll
-// to the ends first, and every focus move scrolls its row into view.
+// One Tab stop for the list; arrows move between group headers and members,
+// over every row whether rendered or not. A row outside the virtualizer's
+// window is scrolled to first and focused once it mounts; every focus move
+// scrolls its row into view.
 
 const memberCountId = uid('member-count');
 const memberListRef = ref<HTMLElement | null>(null);
@@ -1264,6 +1264,17 @@ const clearSearchRef = ref<HTMLButtonElement | null>(null);
 const memberRoving = useRovingTabindex(memberListRef, {
   itemSelector: '[data-member-item]',
   onActivate: (el) => el.scrollIntoView?.({ block: 'nearest' }),
+  virtual: {
+    count: () => sidebarDisplayItems.value.length,
+    indexOf: (el) => Number(el.dataset.memberIndex ?? -1),
+    focusIndex: (index) => { void focusMemberIndex(index); },
+  },
+  onContextMenu: (el) => {
+    const user = sidebarDisplayItems.value[Number(el.dataset.memberIndex)]?.user;
+    if (!user) return;
+    const r = styleRect(el);
+    openContextMenu(user, r.left + 24, r.bottom);
+  },
 });
 
 // Virtual rows mount and unmount on scroll, outside this component's render.
@@ -1281,33 +1292,18 @@ watch(memberListRef, (el, old) => {
   if (el) memberObserver?.observe(el, { childList: true, subtree: true });
 });
 
-const focusMemberIndex = async (index: number) => {
-  sidebarVirtualizer.value.scrollToIndex(index, { align: 'auto' });
-  await nextTick();
-  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-  const el = memberListRef.value?.querySelector<HTMLElement>(`[data-member-index="${index}"]`);
-  if (el) memberRoving.focusItem(memberRoving.items().indexOf(el));
-};
+const memberRowAt = (index: number) =>
+  memberListRef.value?.querySelector<HTMLElement>(`[data-member-index="${index}"]`) ?? null;
 
-const onMemberListKeydown = (event: KeyboardEvent) => {
-  const target = event.target as HTMLElement | null;
-  if (!target?.matches('[data-member-item]')) return;
-  if (isContextMenuKey(event)) {
-    const index = Number(target.dataset.memberIndex);
-    const user = sidebarDisplayItems.value[index]?.user;
-    if (user) {
-      event.preventDefault();
-      const r = styleRect(target);
-      openContextMenu(user, r.left + 24, r.bottom);
-    }
-    return;
+const focusMemberIndex = async (index: number) => {
+  let el = memberRowAt(index);
+  if (!el) {
+    sidebarVirtualizer.value.scrollToIndex(index, { align: 'auto' });
+    await nextTick();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    el = memberRowAt(index);
   }
-  if ((event.key === 'Home' || event.key === 'End') && !event.altKey && !event.metaKey) {
-    event.preventDefault();
-    void focusMemberIndex(event.key === 'Home' ? 0 : sidebarDisplayItems.value.length - 1);
-    return;
-  }
-  memberRoving.onKeydown(event);
+  if (el) memberRoving.focusItem(memberRoving.items().indexOf(el));
 };
 
 const clearSearch = () => {
