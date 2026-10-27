@@ -66,7 +66,7 @@ test.describe('phone', () => {
       expect(await selection(page)).toBe('')
     })
 
-    const bar = page.getByRole('group', { name: 'Message actions' })
+    const bar = page.getByRole('toolbar', { name: 'Message actions' })
     await test.step('a long press opens the bar with nothing selected', async () => {
       await page.evaluate(() => window.getSelection()?.removeAllRanges())
       const b = (await words(page).boundingBox())!
