@@ -4210,17 +4210,20 @@ defineExpose({ editLastOwnMessage });
   contain: layout paint;
 }
 
-/* Phone layout: a long press opens the message action bar, as Discord's opens its
-   action sheet, and starts no text selection: the selection handles and the system
-   copy menu land on the bar. Copy text is in the bar's More menu. Editors (inline
-   edit) keep selection, and the Android tap-to-caret handling that relies on it. */
-.message-display.touch-actions :deep(*) {
-  -webkit-user-select: none;
-  user-select: none;
-}
-.message-display.touch-actions :deep(:is(.rich-text-editor, .rich-text-editor *, input, textarea)) {
-  -webkit-user-select: text;
-  user-select: text;
+/* Phone layout on a touch screen: a long press opens the message action bar, as
+   Discord's opens its action sheet, and starts no text selection: the selection
+   handles and the system copy menu land on the bar. Copy text is in the bar's More
+   menu. Editors (inline edit) keep selection, and the Android tap-to-caret handling
+   that relies on it. A narrow window with a mouse selects text as on a desktop. */
+@media (hover: none) and (pointer: coarse) {
+  .message-display.touch-actions :deep(*) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .message-display.touch-actions :deep(:is(.rich-text-editor, .rich-text-editor *, input, textarea)) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 /* Individual message item */

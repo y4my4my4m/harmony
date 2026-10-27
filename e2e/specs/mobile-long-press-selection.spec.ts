@@ -3,7 +3,8 @@
 // and copy menu would land on the bar. Message text is not selectable in the phone layout
 // (a triple tap's worth of mouse selection selects nothing); Copy text is in the bar's More
 // menu. The inline editor of an edited message stays selectable, and on a desktop message
-// text still selects.
+// text still selects, in a window as narrow as a phone's included: the lockout follows the
+// touch screen, not the width.
 //
 // Headless Chromium's touch emulation starts no selection on a long press, so the
 // selection is attempted with the mouse: text that cannot be selected by mouse cannot be
@@ -102,6 +103,21 @@ test('on a desktop message text still selects', async ({ page }) => {
   await openChannel(page, server.id, server.generalChannelId)
   await dismissAnnouncements(page)
   await expect(row(page)).toBeVisible({ timeout: 30000 })
+  await expect(words(page)).toHaveCSS('user-select', 'text')
+  await tripleClickText(page)
+  expect(await selection(page)).toContain('hold this sentence')
+})
+
+test('in a desktop window as narrow as a phone message text still selects', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 412, height: 860 })
+  await signIn(page, user)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await dismissAnnouncements(page)
+  await expect(row(page)).toBeVisible({ timeout: 30000 })
+  // The phone layout is in force: the width is the phone's, the pointer is a mouse.
+  expect(await page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches)).toBe(false)
+  await expect(page.locator('[data-testid="message-list"]')).toHaveClass(/touch-actions/)
   await expect(words(page)).toHaveCSS('user-select', 'text')
   await tripleClickText(page)
   expect(await selection(page)).toContain('hold this sentence')
