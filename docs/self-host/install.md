@@ -169,7 +169,8 @@ password. The admin panel is in **User settings** → **Instance admin**
 **Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
 **Webhooks**, **Content**, **Emojis**, **Config**, **Funding**, **Drive**
 and **Tools**. The instance name, description, rules, icon and legal links
-are under **Config** → **Branding**. **Webhooks** sets who may create
+are under **Config** → **Branding**, the largest file each account may upload
+under **Config** → **Uploads**. **Webhooks** sets who may create
 [outgoing webhooks](/build/outgoing-webhooks), their rates, the cap per
 person and blocked destinations, turns incoming webhooks off, and lists every
 outgoing webhook with its destination and last day's deliveries.
