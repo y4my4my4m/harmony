@@ -186,11 +186,14 @@ It asks for the client secret without showing it. For scripts, pass
 `--client-secret-file FILE` (`-` reads standard input) or set
 `HARMONY_OAUTH_CLIENT_SECRET`. Before it stores anything, the sign-in
 service fetches `ISSUER/.well-known/openid-configuration` and checks that
-its `issuer` equals `--issuer`:
+its `issuer` equals `--issuer`. The provider's accounts stay apart from
+existing ones ([First sign-in and existing accounts](#first-sign-in-and-existing-accounts)):
 
 ```text
+==> Recreating the auth service with PROVIDER_LINKING_DOMAINS=custom:authentik=custom:authentik...
 ==> Saving sign-in provider custom:authentik...
  ✓ Sign-in provider custom:authentik (Authentik) added; its button shows on the next load of the sign-in page
+ ✓ Existing accounts: kept apart; a first sign-in through custom:authentik makes a new account
 
    Redirect (callback) URL to register with the provider:
 
@@ -226,7 +229,7 @@ harmony auth add-provider authentik --name Authentik \
 
 Authentik's `email` scope sends `email_verified`; see
 [First sign-in and existing accounts](#first-sign-in-and-existing-accounts)
-for what it decides.
+for when it matters.
 
 ### Any other OIDC provider
 
@@ -272,32 +275,55 @@ harmony auth add-provider forge --name "Example Forge" \
 
 ### First sign-in and existing accounts
 
-The sign-in service treats your provider as it treats Google, GitHub and
-Twitch. It knows a person by the provider's `sub` claim:
+The sign-in service knows a person by the provider's `sub` claim. What a
+first sign-in does with an account that already has the same address is set
+per provider:
 
-| The person | What happens |
-|---|---|
-| Signed in with this provider before | Signed in to that account |
-| New, and no account has their address | A new account; they pick a username and display name, prefilled from the provider's `name`, `preferred_username` and `picture` |
-| New, and an account has their address | When the provider marks the address verified (`email_verified: true`), or the instance confirms addresses automatically (`ENABLE_EMAIL_AUTOCONFIRM=true`, the default without SMTP), the provider is linked to that account and they are signed in to it. Otherwise a separate account is made, and it must confirm its address by email before it can sign in |
+| The person | Kept apart (default) | `--link-existing-accounts` |
+|---|---|---|
+| Signed in with this provider before | Signed in to that account | Signed in to that account |
+| New, and no account has their address | A new account; they pick a username and display name, prefilled from the provider's `name`, `preferred_username` and `picture` | The same |
+| New, and an account has their address | A new, separate account with the same address | When the address counts as verified, the provider is linked to that account and they are signed in to it; otherwise a separate account is made, and it must confirm its address by email before it can sign in |
 
 Registration set to `invite` or `closed` refuses the new accounts, as it does
 for the built-in providers; existing accounts still sign in.
 
-Linking follows the address. With `ENABLE_EMAIL_AUTOCONFIRM=true`, anyone who
-can make your provider vouch for an address signs in to the Harmony account
-that has it, whether or not the provider checked the address. When your
-provider lets people choose an address without checking it, keep its
-accounts apart. In `self-host/supabase/.env`:
+A new provider is kept apart. `harmony auth add-provider` adds
+`custom:ID=custom:ID` to `PROVIDER_LINKING_DOMAINS` in
+`self-host/supabase/.env` and recreates the sign-in service before it saves
+the provider:
 
 ```bash
-PROVIDER_LINKING_DOMAINS=custom:authentik=authentik
+PROVIDER_LINKING_DOMAINS=custom:authentik=custom:authentik
 ```
 
-then `docker compose up -d auth`. Several providers go comma-separated
-(`custom:a=a,custom:b=b`); providers that share the name after `=` link to
-each other and to nothing else. Their accounts stay separate even when the
-address matches an existing one.
+Linking follows the address. An address counts as verified when the provider
+marks it so (`email_verified: true`), or always when the instance confirms
+addresses automatically (`ENABLE_EMAIL_AUTOCONFIRM=true`, the default without
+SMTP). With automatic confirmation, anyone who can make your provider vouch
+for an address signs in to the Harmony account that has it, the admin's
+included, whether or not the provider checked the address: self-registration
+in Keycloak or Authentik lets anyone type any address. So
+`--link-existing-accounts` is refused while `ENABLE_EMAIL_AUTOCONFIRM=true`,
+unless you add `--provider-verifies-email` for a provider that only hands out
+addresses it has checked:
+
+```bash
+harmony auth add-provider authentik --link-existing-accounts             # with SMTP configured
+harmony auth add-provider authentik --link-existing-accounts --provider-verifies-email
+harmony auth add-provider authentik --separate-accounts                  # back to the default
+```
+
+Each runs on an existing provider too and changes only this setting.
+`harmony auth providers` shows it per provider under **EXISTING ACCOUNTS**,
+and `harmony doctor` warns about a provider that links by address under
+automatic confirmation.
+
+`PROVIDER_LINKING_DOMAINS` takes comma-separated `provider=domain` pairs:
+providers that share the name after `=` link to each other and to nothing
+else (`custom:a=staff,custom:b=staff`). A value that is not such pairs stops
+the sign-in service from starting; `harmony doctor` checks it. After editing
+it by hand, run `docker compose up -d auth`.
 
 ### Change or remove a provider
 
@@ -309,8 +335,8 @@ harmony auth add-provider authentik --client-secret-file /root/authentik-secret
 ```
 
 ```bash
-harmony auth providers                   # the providers, and whether the sign-in page shows them
-harmony auth remove-provider authentik   # removes the provider and its button
+harmony auth providers                   # the providers, whether the sign-in page shows them, how they link
+harmony auth remove-provider authentik   # removes the provider, its button and its linking entry
 ```
 
 An account that signed in only through a removed provider has no way in

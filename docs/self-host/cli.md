@@ -32,6 +32,7 @@ harmony registration [open | invite | closed]
 harmony auth providers
 harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [options]
+                             [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 harmony config
 harmony version
@@ -205,6 +206,7 @@ server's own port only.
 | `push` | always | `VAPID_PUBLIC_KEY` (87 characters), `VAPID_PRIVATE_KEY` (43) and `VAPID_SUBJECT` in `federation.env`, and the backend serving the public key at `/api/federation/push/vapid-key` | FAIL when missing: `bash configure.sh --non-interactive`, then `docker compose up -d`. FAIL when not served: `docker compose up -d federation-server`; `harmony logs federation-server` |
 | `email` | always | `SMTP_HOST` in `supabase/.env` is set and accepts a TCP connection on `SMTP_PORT` (default 587) | WARN with no SMTP server: `harmony config`. WARN when unreachable: check the host and port; many VPS providers block outgoing 25 and 587 until asked |
 | `auth` | always | `https://db.DOMAIN/auth/v1/health` answers 200 | FAIL: `harmony logs auth`; `harmony logs kong` |
+| `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and no provider on the sign-in page joins accounts by address while `ENABLE_EMAIL_AUTOCONFIRM=true` | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth add-provider ID --separate-accounts` |
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
@@ -238,6 +240,7 @@ Postgres, and for the exposure itself.
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `release` | `HARMONY_VERSION` against the latest GitHub release (not run with `--offline`) | WARN when GitHub is unreachable; WARN when a newer release exists; OK on `edge` | `harmony update` |
+| `gotrue` | The auth service's image against the Supabase stack's own `supabase/gotrue` image | WARN when the service runs an older one | `bash configure.sh --non-interactive` (sets `GOTRUE_IMAGE`), then `docker compose up -d auth` |
 | `supabase` | The Supabase stack's commit (`supabase/.harmony-supabase-ref`) against the commit `configure.sh` pins | WARN when they differ | `harmony backup`, then `bash configure.sh --refresh-supabase && docker compose up -d` |
 
 ## harmony backup
@@ -408,6 +411,7 @@ harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
                              --authorize-url URL --token-url URL --userinfo-url URL)
                              [--client-id C] [--client-secret-file FILE|-] [--scopes "S ..."]
                              [--icon URL] [--email-optional | --require-email] [--no-pkce | --pkce]
+                             [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 ```
 
@@ -416,9 +420,12 @@ Authentik or Keycloak. [OAuth sign-in](/self-host/oauth#your-own-identity-provid
 walks through it.
 
 `providers` lists the providers the auth service knows, whether the sign-in
-page shows them, and the redirect (callback) URL to register with them,
+page shows them, what a first sign-in does with an existing account that has
+the same address (**EXISTING ACCOUNTS**: `separate`, `by address`, or
+`shared: NAME`), and the redirect (callback) URL to register with them,
 `API_EXTERNAL_URL/auth/v1/callback`. It warns about buttons whose provider the
-auth service no longer has.
+auth service no longer has, and about providers that join accounts by address
+while `ENABLE_EMAIL_AUTOCONFIRM=true`.
 
 `add-provider` creates the provider `custom:ID`, or updates it when it exists,
 and puts its button on the sign-in page. `ID` is 1 to 43 characters of `a-z`,
@@ -437,6 +444,9 @@ and refuses the provider when it cannot.
 | `--icon URL` | `https://` image shown on the button; without it, a key |
 | `--email-optional` | Accepts accounts the provider gives no address; `--require-email` undoes it |
 | `--no-pkce` | For a provider without PKCE; `--pkce` undoes it |
+| `--separate-accounts` | A first sign-in makes a new account, even when an account has the same address. The default for a new provider |
+| `--link-existing-accounts` | A first sign-in joins the account that has the same verified address. Refused while `ENABLE_EMAIL_AUTOCONFIRM=true` unless `--provider-verifies-email` is given too |
+| `--provider-verifies-email` | With `--link-existing-accounts`: states that the provider hands out no address it has not checked |
 
 Without `--client-secret-file`, the secret comes from
 `HARMONY_OAUTH_CLIENT_SECRET`, or else from a hidden prompt; empty keeps the
@@ -444,9 +454,15 @@ stored secret of an existing provider. A URL option must start with
 `https://`. A provider's type (OIDC or OAuth 2.0) cannot change: remove it and
 add it again.
 
-`remove-provider` deletes the provider and its button. An account that signed
-in only through it has no way in until it gets a password
-(`harmony admin reset-password`).
+The two account options write `PROVIDER_LINKING_DOMAINS` in
+`supabase/.env` (`custom:ID=custom:ID` keeps the provider apart) and recreate
+the auth service before the provider is saved. An update without either
+keeps the provider's setting. See
+[First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts).
+
+`remove-provider` deletes the provider and its button, then its entry in
+`PROVIDER_LINKING_DOMAINS`. An account that signed in only through it has no
+way in until it gets a password (`harmony admin reset-password`).
 
 Messages from the auth service come through as they are, for example
 `adding the provider failed (HTTP 400: URL cannot resolve to private network

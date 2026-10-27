@@ -273,15 +273,19 @@ values.
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME` | from the email answers | Outgoing email. See [Email (SMTP)](/self-host/email) |
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
-| `PROVIDER_LINKING_DOMAINS` | not written | Your own sign-in providers that never join an existing account by its address, as `custom:ID=NAME,...` (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`). See [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `PROVIDER_LINKING_DOMAINS` | `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Your own sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`). A value that is not such pairs stops the sign-in service from starting. See [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.196.0` on, otherwise `supabase/gotrue:v2.196.0`. A newer image set by hand stays |
 
 ### Sign-in service version
 
 `supabase-overrides.yml` runs the sign-in service (`auth`) on
-`supabase/gotrue:v2.196.0` rather than the pinned upstream stack's
-`v2.177.0`: sign-in through your own identity provider needs it. On start
-it carries the `auth` schema forward with its own migrations, which add
-tables and nullable columns. It also sets
+`GOTRUE_IMAGE` from `supabase/.env`. `configure.sh` (and so `harmony update`)
+sets it to `supabase/gotrue:v2.196.0` while the Supabase stack's own image is
+older, as the pinned upstream stack's `v2.177.0` is: sign-in through your own
+identity provider needs it. From `v2.196.0` on, the stack's own image runs, so
+a newer stack is never downgraded. On start the sign-in service carries the
+`auth` schema forward with its own migrations, which add tables and nullable
+columns. `supabase-overrides.yml` also sets
 `GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL` to `API_EXTERNAL_URL/auth/v1`, the base of
 those providers' callback. The providers themselves are not configuration
 files: `harmony auth add-provider` stores them in the sign-in service. See

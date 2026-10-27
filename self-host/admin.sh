@@ -11,6 +11,7 @@
 #            --authorize-url URL --token-url URL --userinfo-url URL) [--client-id ID]
 #            [--client-secret-file FILE|-] [--scopes "S ..."] [--icon URL]
 #            [--email-optional | --require-email] [--no-pkce | --pkce]
+#            [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 #   bash admin.sh auth remove-provider ID
 #   bash admin.sh has-admin           exit 0 when a local admin exists
 #
@@ -39,12 +40,22 @@
 # HARMONY_OAUTH_CLIENT_SECRET or a hidden prompt; empty keeps a stored one. The sign-in
 # page shows instance_config.custom_oauth_providers, which add-provider and
 # remove-provider keep in step.
+#
+# A new provider is kept apart: PROVIDER_LINKING_DOMAINS in supabase/.env gains
+# custom:ID=custom:ID (lib.sh, linking_*), so its first sign-in never joins an existing
+# account by address. GoTrue reads that value at start: a change recreates the auth
+# service, and the provider is saved only once the running service has the value.
+# --link-existing-accounts drops the pair. With ENABLE_EMAIL_AUTOCONFIRM=true GoTrue takes
+# every address a provider sends as verified, so linking is refused there unless
+# --provider-verifies-email states the provider only hands out addresses it has checked.
+# An update without either option keeps the provider's mode. remove-provider drops the pair
+# after the provider.
 # =============================================================================
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-usage() { sed -n '2,42p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,53p' "${BASH_SOURCE[0]}"; }
 
 # Node program run in federation-server. PARAMS is a JSON object whose values
 # are base64, so any byte of a password survives the trip.
@@ -315,6 +326,11 @@ await saveShown(before ? shown.map((s) => (s.id === id ? entry : s)) : [...shown
 out({ ok: true, id, name: provider.name, type: provider.provider_type, created: !existing });
 '
 
+NODE_PROVIDER_EXISTS='
+const id = arg("id");
+out({ ok: true, exists: (await gotrueProviders()).some((p) => p.identifier === id) });
+'
+
 NODE_PROVIDER_REMOVE='
 const id = arg("id");
 const known = (await gotrueProviders()).some((p) => p.identifier === id);
@@ -543,15 +559,77 @@ provider_id() {
 
 need_https() { [[ -z "$2" || "$2" =~ ^https://[^[:space:]]+$ ]] || die "$1 must be an https:// URL"; }
 
+linking_value() { env_get "$SB_ENV" PROVIDER_LINKING_DOMAINS; }
+autoconfirm_on() { truthy "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"; }
+
+# linking_checked: PROVIDER_LINKING_DOMAINS, or a stop when GoTrue would not parse it.
+linking_checked() {
+	local value
+	value="$(linking_value)"
+	linking_valid "$value" ||
+		die "PROVIDER_LINKING_DOMAINS in supabase/.env is not comma-separated provider=domain pairs ('$value'); the auth service does not start with it. Correct it, then docker compose up -d auth"
+	printf '%s' "$value"
+}
+
+# apply_linking VALUE: writes PROVIDER_LINKING_DOMAINS, recreates the auth service and checks
+# that the running container has the value (supabase-overrides.yml maps it to
+# GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS).
+apply_linking() {
+	local value="$1" id running
+	env_set "$SB_ENV" PROVIDER_LINKING_DOMAINS "$value"
+	info "Recreating the auth service with PROVIDER_LINKING_DOMAINS=$value..."
+	compose up -d auth >/dev/null 2>&1 || die "could not recreate the auth service: docker compose up -d auth"
+	wait_healthy auth || die "the auth service is not healthy: docker compose logs auth"
+	id="$(svc_id auth)"
+	running="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null |
+		sed -n 's/^GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=//p')"
+	[[ "$running" == "$value" ]] ||
+		die "the auth service runs with GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS='$running', not '$value'; check supabase-overrides.yml"
+}
+
+# say_linking ID VALUE: the provider's mode, as harmony auth providers shows it.
+say_linking() {
+	case "$(linking_mode "$2" "$1")" in
+		separate)   ok "Existing accounts: kept apart; a first sign-in through $1 makes a new account" ;;
+		"by address")
+			ok "Existing accounts: a first sign-in through $1 joins the account that has its address"
+			if autoconfirm_on; then
+				warn "ENABLE_EMAIL_AUTOCONFIRM=true: every address $1 sends counts as verified"
+			fi ;;
+		shared:*)   ok "Existing accounts: joined only with accounts of the providers in linking domain $(linking_domain "$2" "$1")" ;;
+	esac
+}
+
 auth_providers() {
-	local res rows stale
+	local res rows stale value pid pname ptype pstate pwhere ids="" orphans="" open=""
 	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_LIST"
 	rows="$(printf '%s' "$(json_field "$res" rows)" | base64 -d)"
+	value="$(linking_value)"
+	if ! linking_valid "$value"; then
+		warn "PROVIDER_LINKING_DOMAINS in supabase/.env is not provider=domain pairs ('$value'); the auth service does not start with it"
+		value=""
+	fi
 	if [[ -z "$rows" ]]; then
 		info "No custom sign-in providers (harmony auth add-provider adds one)"
 	else
-		{ printf 'ID\tNAME\tTYPE\tSIGN-IN PAGE\tISSUER OR AUTHORIZE URL\n'; printf '%s\n' "$rows"; } | column -t -s $'\t'
+		{
+			printf 'ID\tNAME\tTYPE\tSIGN-IN PAGE\tEXISTING ACCOUNTS\tISSUER OR AUTHORIZE URL\n'
+			while IFS=$'\t' read -r pid pname ptype pstate pwhere; do
+				printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" "$pwhere"
+			done <<<"$rows"
+		} | column -t -s $'\t'
+		while IFS=$'\t' read -r pid _; do
+			[[ "$(linking_mode "$value" "$pid")" != "by address" ]] || open+="${open:+ }$pid"
+			ids+=" $pid "
+		done <<<"$rows"
 	fi
+	for pid in $(printf '%s' "$value" | tr ',' '\n' | sed -n 's/^[[:space:]]*\(custom:[^=[:space:]]*\)[[:space:]]*=.*/\1/p'); do
+		[[ "$ids" == *" $pid "* ]] || orphans+="${orphans:+ }$pid"
+	done
+	if [[ -n "$open" ]] && autoconfirm_on; then
+		warn "$open join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address they send as verified (harmony auth add-provider ID --separate-accounts keeps them apart)"
+	fi
+	[[ -z "$orphans" ]] || info "PROVIDER_LINKING_DOMAINS names providers the auth service lacks: $orphans"
 	stale="$(json_field "$res" stale)"
 	[[ -z "$stale" ]] || warn "buttons without a provider in the auth service: $stale (harmony auth remove-provider ID removes them)"
 	show_callback
@@ -560,6 +638,7 @@ auth_providers() {
 auth_add_provider() {
 	local id="" name="" issuer="" discovery="" authorize="" token="" userinfo="" client_id="" secret="" secret_file=""
 	local scopes="" icon="" icon_set=0 email_optional="" pkce="" type="" res
+	local link="" vouch=0 linking want
 	if [[ $# -gt 0 && "$1" != -* ]]; then id="$1"; shift; fi
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
@@ -577,10 +656,17 @@ auth_add_provider() {
 			--require-email) email_optional=0 ;;
 			--no-pkce) pkce=0 ;;
 			--pkce) pkce=1 ;;
+			--separate-accounts) [[ "$link" != 1 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=0 ;;
+			--link-existing-accounts) [[ "$link" != 0 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=1 ;;
+			--provider-verifies-email) vouch=1 ;;
 			*) die "unknown argument: $1 (harmony help)" ;;
 		esac
 		shift
 	done
+	[[ $vouch -eq 0 || "$link" == 1 ]] || die "--provider-verifies-email goes with --link-existing-accounts"
+	if [[ "$link" == 1 ]] && autoconfirm_on && [[ $vouch -eq 0 ]]; then
+		die "ENABLE_EMAIL_AUTOCONFIRM=true in supabase/.env: the auth service counts every address a provider sends as verified, so whoever sets an address at the provider signs in to the Harmony account that has it, the admin's included. --provider-verifies-email states the provider hands out only addresses it has checked; otherwise configure SMTP first (harmony config)"
+	fi
 	[[ -n "$id" ]] || die "usage: harmony auth add-provider ID --name NAME --issuer URL --client-id ID [options] (harmony help)"
 	id="$(provider_id "$id")"
 	for pair in "--issuer:$issuer" "--discovery-url:$discovery" "--authorize-url:$authorize" \
@@ -611,6 +697,20 @@ auth_add_provider() {
 		ask_secret secret "Client secret from the provider (empty keeps the stored one)"
 	fi
 
+	# Linking first: GoTrue must run with the provider's pair before the provider exists.
+	linking="$(linking_checked)"
+	case "$link" in
+		1) want="$(linking_set "$linking" "$id")" ;;
+		0) want="$(linking_set "$linking" "$id" "$id")" ;;
+		*)
+			want="$linking"
+			if [[ "$(linking_mode "$linking" "$id")" == "by address" ]]; then
+				node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_EXISTS" id "$id"
+				[[ "$(json_field "$res" exists)" == true ]] || want="$(linking_set "$linking" "$id" "$id")"
+			fi ;;
+	esac
+	[[ "$want" == "$linking" ]] || apply_linking "$want"
+
 	info "Saving sign-in provider $id..."
 	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_ADD" id "$id" type "$type" name "$name" \
 		issuer "$issuer" discovery_url "$discovery" authorize_url "$authorize" token_url "$token" \
@@ -621,22 +721,30 @@ auth_add_provider() {
 	else
 		ok "Sign-in provider $id ($(json_field "$res" name)) updated"
 	fi
+	say_linking "$id" "$want"
 	show_callback
 }
 
 auth_remove_provider() {
-	local id="${1:-}" res
+	local id="${1:-}" res linking paired=false
 	[[ -n "$id" ]] || die "usage: harmony auth remove-provider ID"
 	id="$(provider_id "$id")"
+	linking="$(linking_checked)"
+	[[ -z "$(linking_domain "$linking" "$id")" ]] || paired=true
 	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_REMOVE" id "$id"
-	if [[ "$(json_field "$res" removed)" != true && "$(json_field "$res" unlisted)" != true ]]; then
+	if [[ "$(json_field "$res" removed)" != true && "$(json_field "$res" unlisted)" != true ]] && ! $paired; then
 		die "no sign-in provider $id (harmony auth providers lists them)"
 	fi
 	if [[ "$(json_field "$res" removed)" == true ]]; then
 		ok "Sign-in provider $id removed"
 		info "An account that signed in only through it has no way in until it gets a password (harmony admin reset-password)"
-	else
+	elif [[ "$(json_field "$res" unlisted)" == true ]]; then
 		ok "Button of $id removed from the sign-in page (the auth service had no such provider)"
+	fi
+	# After the provider: while it exists, its pair keeps it apart.
+	if $paired; then
+		apply_linking "$(linking_set "$linking" "$id")"
+		ok "$id removed from PROVIDER_LINKING_DOMAINS"
 	fi
 }
 

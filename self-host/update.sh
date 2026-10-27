@@ -5,7 +5,9 @@
 # Steps; a failure stops the update and says what state it left:
 #   1. check out the new code
 #   2. merge new configuration keys (configure.sh --non-interactive); the image
-#      tag follows the checkout (X.Y.Z at tag vX.Y.Z, otherwise edge)
+#      tag follows the checkout (X.Y.Z at tag vX.Y.Z, otherwise edge); the auth
+#      image (GOTRUE_IMAGE) is the Supabase stack's own unless that is older than
+#      supabase-overrides.yml needs
 #   3. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
 #      stack is untouched
 #   4. back up the database and the config files into backups/

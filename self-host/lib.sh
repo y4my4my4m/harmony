@@ -73,6 +73,92 @@ version_ge() {
 
 compose_version() { docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//'; }
 
+# Auth image of the Supabase stack in supabase/ (supabase/gotrue:vX.Y.Z); empty when absent.
+stack_gotrue_image() {
+	{ grep -oE 'supabase/gotrue:v[0-9]+\.[0-9]+\.[0-9]+' "$SELF_HOST_DIR/supabase/docker-compose.yml" 2>/dev/null || true; } | head -1
+}
+
+# --- account linking of sign-in providers ---------------------------------------
+# PROVIDER_LINKING_DOMAINS in supabase/.env (GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS):
+# comma-separated provider=domain pairs, parsed as GoTrue 2.196.0's
+# conf.ProviderLinkingDomains.Decode does (split on ',', then on the first '=', both sides
+# trimmed and non-empty; a later pair for the same provider wins). A provider without a pair
+# is in the "default" domain: its first sign-in joins the existing account that has its
+# address, the address counting as verified when GoTrue autoconfirms (ENABLE_EMAIL_AUTOCONFIRM).
+# A value that does not parse stops GoTrue from starting.
+
+# linking_valid VALUE: status 0 when GoTrue parses VALUE; empty parses.
+linking_valid() {
+	LD="$1" awk 'BEGIN {
+		v = ENVIRON["LD"]; gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", v)
+		if (v == "") exit 0
+		n = split(v, pairs, ",")
+		for (i = 1; i <= n; i++) {
+			eq = index(pairs[i], "=")
+			if (eq == 0) exit 1
+			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
+			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
+			if (p == "" || d == "") exit 1
+		}
+		exit 0
+	}'
+}
+
+# linking_domain VALUE PROVIDER: PROVIDER's linking domain; empty for the default domain.
+# VALUE must parse (linking_valid).
+linking_domain() {
+	LD="$1" LP="$2" awk 'BEGIN {
+		n = split(ENVIRON["LD"], pairs, ",")
+		for (i = 1; i <= n; i++) {
+			eq = index(pairs[i], "=")
+			if (eq == 0) continue
+			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
+			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
+			if (p == ENVIRON["LP"]) found = d
+		}
+		printf "%s", found
+	}'
+}
+
+# linking_set VALUE PROVIDER [DOMAIN]: VALUE without PROVIDER's pairs, then PROVIDER=DOMAIN
+# appended when DOMAIN is given. Other pairs keep their order, trimmed. VALUE must parse.
+linking_set() {
+	LD="$1" LP="$2" LV="${3:-}" awk 'BEGIN {
+		n = split(ENVIRON["LD"], pairs, ",")
+		for (i = 1; i <= n; i++) {
+			eq = index(pairs[i], "=")
+			if (eq == 0) continue
+			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
+			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
+			if (p == ENVIRON["LP"]) continue
+			out = out (out == "" ? "" : ",") p "=" d
+		}
+		if (ENVIRON["LV"] != "") out = out (out == "" ? "" : ",") ENVIRON["LP"] "=" ENVIRON["LV"]
+		printf "%s", out
+	}'
+}
+
+# linking_mode VALUE PROVIDER: how PROVIDER's first sign-in treats an existing account with its
+# address. "by address": no pair, or the domain named default, which is GoTrue's pool of every
+# provider without one: it joins the account. "separate": a domain no other provider has.
+# "shared: DOMAIN": joins only accounts of the providers mapped to DOMAIN. VALUE must parse.
+linking_mode() {
+	LD="$1" LP="$2" awk 'BEGIN {
+		n = split(ENVIRON["LD"], pairs, ",")
+		for (i = 1; i <= n; i++) {
+			eq = index(pairs[i], "=")
+			if (eq == 0) continue
+			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
+			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
+			dom[p] = d
+		}
+		me = ENVIRON["LP"]
+		if (!(me in dom) || dom[me] == "default") { printf "by address"; exit }
+		for (p in dom) if (p != me && dom[p] == dom[me]) { printf "shared: %s", dom[me]; exit }
+		printf "separate"
+	}'
+}
+
 # docker compose in self-host/, so .env, COMPOSE_FILE and COMPOSE_PROFILES apply.
 compose() { ( cd "$SELF_HOST_DIR" && docker compose "$@" ); }
 
