@@ -710,6 +710,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
     const uploaded = await uploadMessageMedia(room, userId, result.blob, {
       fileName: `voice.${ext}`,
       contentType: result.mimeType,
+      ownProgress: true,
     })
     debug.log('Voice upload success:', { path: uploaded.path })
 
@@ -1146,6 +1147,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           label: fileData.name,
           ephemeral: sentTemporary,
           resumeKey: `${room}/${uploaderId}`,
+          ownProgress: true,
           onProgress: (fraction) => {
             if (!holdsDraftAttachment(fileData)) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);

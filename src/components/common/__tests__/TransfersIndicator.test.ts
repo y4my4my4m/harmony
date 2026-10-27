@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createMemoryHistory, createRouter } from 'vue-router'
 
 // The transfers indicator lists running, failed and just-finished transfers after the show
 // delay, with Cancel while running, Dismiss once failed, and Reconnecting while a dropped
-// connection is retried.
+// connection is retried. A transfer whose page shows its own progress is listed only on other
+// pages.
 
 vi.mock('@/composables/useT', () => ({
   useT: () => ({ t: (key: string, values?: Record<string, unknown>) => `${key}${values ? JSON.stringify(values) : ''}` }),
@@ -54,6 +56,24 @@ describe('TransfersIndicator', () => {
 
     await item.get('[data-testid="transfer-cancel"]').trigger('click')
     expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('lists a transfer with an origin only away from that page', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
+    })
+    await router.push('/chat/s/c')
+    await router.isReady()
+    registerTransfer({ id: 'o', direction: 'upload', name: 'held.txt', progress: progress(1, 10), origin: '/chat/s/c' })
+    const wrapper = mount(TransfersIndicator, { global: { plugins: [router] } })
+    vi.advanceTimersByTime(TRANSFER_SHOW_DELAY_MS)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="transfer-item"]').exists()).toBe(false)
+
+    await router.push('/dm')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="transfer-item"]').text()).toContain('held.txt')
   })
 
   it('never shows a transfer that finishes within the delay', async () => {
