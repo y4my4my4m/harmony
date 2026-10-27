@@ -992,7 +992,9 @@
       "reveal": "显示剧透",
       "mark": "标记为剧透",
       "unmark": "取消剧透"
-    }
+    },
+    "jumpLoading": "正在加载消息…",
+    "jumpFailed": "无法加载该消息。"
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "此设备的外观",
         "adoptDeviceDesc": "开启同步的其他设备下次打开 Harmony 时切换为此外观。"
       },
-      "savedThemeNameHint": "例如：深夜"
+      "savedThemeNameHint": "例如：深夜",
+      "fluxDockBottom": "栏位于底部",
+      "fluxDockBottomDesc": "服务器坞、频道条和你的胶囊沿窗口底部而不是顶部排列；从栏打开的菜单向上展开。需要横向布局。"
     },
     "voice": {
       "title": "语音与视频",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "暂无来自 {domain} 的帖子",
       "emptyMessage": "来自 {domain} 的公开帖子到达本实例后会显示在这里。",
       "feedLabel": "来自 {domain} 的帖子"
-    }
+    },
+    "instanceStatusFilter": "状态",
+    "instanceSoftwareFilter": "软件"
   },
   "moderation": {
     "report": "举报",
@@ -3266,7 +3272,8 @@
     "title": "公告",
     "markRead": "标记为已读",
     "markAllRead": "全部标记为已读",
-    "viewPast": "查看过往公告"
+    "viewPast": "查看过往公告",
+    "dontShowAgain": "不再显示"
   },
   "federation": {
     "joinRemoteServer": "加入远程服务器",

@@ -22,6 +22,14 @@ export interface SkinOption {
   type: 'boolean'
   /** Default value applied when the user has no stored preference. */
   default: boolean
+  /** vue-i18n keys; when set, the picker shows these instead of label and description. */
+  labelKey?: string
+  descriptionKey?: string
+  /**
+   * Id of another option of the same skin this one takes effect under. With that
+   * option off, the toggle shows disabled; skin CSS gates on both attributes.
+   */
+  requires?: string
 }
 
 /**

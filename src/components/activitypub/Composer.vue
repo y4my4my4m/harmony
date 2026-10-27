@@ -1035,17 +1035,17 @@ onMounted(() => {
     }
   }
 
-  nextTick(() => {
-    if (props.mode === 'modal' || props.type === 'reply' || props.type === 'edit') {
-      richEditorRef.value?.focus();
-      if (content.value.length > 0) {
-        nextTick(() => {
-          richEditorRef.value?.setCursorPosition(content.value.length);
-        });
-      }
-    }
-  });
+  if (props.mode === 'modal' || props.type === 'reply' || props.type === 'edit') focusAfterPrefill();
 });
+
+// Every prefill (mentions, a reply's mentions, a re-draft, an edit) leaves the caret after
+// its text and its trailing space, collapsed, as Mastodon does.
+const focusAfterPrefill = () => {
+  nextTick(() => {
+    richEditorRef.value?.focus();
+    if (content.value.length > 0) nextTick(() => richEditorRef.value?.moveCaretToEnd());
+  });
+};
 
 // Unmounting without handleClose (the layout leaves) keeps the draft as well.
 onBeforeUnmount(saveDraft);
@@ -1058,10 +1058,11 @@ watch(() => props.isOpen, (isOpen) => {
   }
 });
 
-watch(() => props.initialContent, (val) => {
+watch(() => props.initialContent, (val, previous) => {
   if (props.type === 'post' && val?.trim()) {
     content.value = val;
-    nextTick(() => richEditorRef.value?.setCursorPosition(content.value.length));
+    // The first value is placed by onMounted; a later one replaces the text in an open composer.
+    if (previous !== undefined) focusAfterPrefill();
   }
 }, { immediate: true });
 
@@ -1071,14 +1072,7 @@ watch(() => props.replyToPost, (replyPost) => {
     const prefill = replyMentionPrefill(replyPost, currentUser.value);
     if (!prefill) return;
     content.value = prefill;
-
-    nextTick(() => {
-      richEditorRef.value?.focus();
-      // Cursor lands after the mention and its trailing space.
-      nextTick(() => {
-        richEditorRef.value?.setCursorPosition(content.value.length);
-      });
-    });
+    focusAfterPrefill();
   }
 });
 </script>

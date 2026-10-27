@@ -34,45 +34,27 @@
           :aria-label="t('activitypub.trendingFilters')"
           data-block-sidebar-gestures
         >
-          <label
+          <SocialSelect
             v-if="showRangeFilter"
-            class="chip chip-select"
-            :class="{ 'is-active': timeRange !== DEFAULT_RANGE }"
-          >
-            <Icon name="clock" :size="14" class="chip-icon" />
-            <span class="chip-label" aria-hidden="true">{{ rangeLabel(timeRange) }}</span>
-            <Icon name="chevron-down" :size="14" class="chip-caret" />
-            <select
-              class="chip-native"
-              :value="timeRange"
-              :aria-label="t('activitypub.trendingTimeRange')"
-              data-testid="trending-range"
-              @change="setQuery({ range: ($event.target as HTMLSelectElement).value })"
-            >
-              <option v-for="range in TIME_RANGES" :key="range" :value="range">{{ rangeLabel(range) }}</option>
-            </select>
-          </label>
+            :model-value="timeRange"
+            :options="rangeOptions"
+            :label="t('activitypub.trendingTimeRange')"
+            icon="clock"
+            :active="timeRange !== DEFAULT_RANGE"
+            data-testid="trending-range"
+            @update:model-value="setQuery({ range: $event })"
+          />
 
-          <label
+          <SocialSelect
             v-if="showSourceFilter"
-            class="chip chip-select"
-            :class="{ 'is-active': source !== '' }"
-          >
-            <Icon name="globe" :size="14" class="chip-icon" />
-            <span class="chip-label" aria-hidden="true">{{ sourceLabel }}</span>
-            <Icon name="chevron-down" :size="14" class="chip-caret" />
-            <select
-              class="chip-native"
-              :value="source"
-              :aria-label="t('activitypub.trendingSource')"
-              data-testid="trending-source"
-              @change="setQuery({ source: ($event.target as HTMLSelectElement).value })"
-            >
-              <option value="">{{ t('activitypub.allInstances') }}</option>
-              <option value="local">{{ t('activitypub.thisInstance') }}</option>
-              <option v-for="domain in sourceDomains" :key="domain" :value="domain">{{ domain }}</option>
-            </select>
-          </label>
+            :model-value="source"
+            :options="sourceOptions"
+            :label="t('activitypub.trendingSource')"
+            icon="globe"
+            :active="source !== ''"
+            data-testid="trending-source"
+            @update:model-value="setQuery({ source: $event })"
+          />
 
           <button
             v-if="showMediaFilter"
@@ -293,6 +275,7 @@ import ProfileCard from '@/components/common/ProfileCard.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Composer from './Composer.vue'
+import SocialSelect, { type SocialSelectOption } from './SocialSelect.vue'
 import type { TimelinePost, FederatedUser } from '@/types'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
@@ -395,12 +378,6 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   buttons[next]?.focus()
 }
 
-const sourceLabel = computed(() => {
-  if (source.value === '') return t('activitypub.allInstances')
-  if (source.value === 'local') return t('activitypub.thisInstance')
-  return source.value
-})
-
 const rangeLabel = (range: TrendingTimeRange): string => {
   switch (range) {
     case '1h': return t('activitypub.lastHour')
@@ -411,6 +388,10 @@ const rangeLabel = (range: TrendingTimeRange): string => {
   }
 }
 
+const rangeOptions = computed<SocialSelectOption[]>(() =>
+  TIME_RANGES.map(range => ({ value: range, label: rangeLabel(range) })),
+)
+
 // Sources ---------------------------------------------------------------------------------
 const knownDomains = ref<string[]>([])
 
@@ -420,6 +401,12 @@ const sourceDomains = computed(() => {
   if (source.value && source.value !== 'local') set.add(source.value)
   return Array.from(set).sort((a, b) => a.localeCompare(b))
 })
+
+const sourceOptions = computed<SocialSelectOption[]>(() => [
+  { value: '', label: t('activitypub.allInstances') },
+  { value: 'local', label: t('activitypub.thisInstance') },
+  ...sourceDomains.value.map(domain => ({ value: domain, label: domain })),
+])
 
 const loadKnownDomains = async () => {
   if (!federationEnabled.value || knownDomains.value.length > 0) return
@@ -850,43 +837,6 @@ defineExpose({ refresh })
 
 .chip.is-active .chip-icon {
   color: var(--text-link);
-}
-
-.chip-select {
-  padding-right: var(--space-2);
-}
-
-.chip-label {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* The native select covers the chip transparently: the whole pill opens the menu, and
-   the chip is as wide as the visible label rather than the longest option. */
-.chip-native {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  opacity: 0;
-  font: inherit;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.chip-native option {
-  background: var(--background-secondary);
-  color: var(--text-primary);
-}
-
-.chip-caret {
-  pointer-events: none;
-  flex-shrink: 0;
 }
 
 .chip-clear {

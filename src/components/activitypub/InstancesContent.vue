@@ -2,17 +2,23 @@
   <div class="explore-content">
     <div class="explore-controls">
       <div class="filter-group">
-        <select v-model="instanceStatusFilter" class="filter-select">
-          <option value="all">{{ $t('activitypub.allStatuses', 'All Statuses') }}</option>
-          <option value="online">{{ $t('activitypub.online') }}</option>
-          <option value="slow">{{ $t('activitypub.slow') }}</option>
-          <option value="idle">{{ $t('activitypub.lastSeenLongAgo', 'Idle') }}</option>
-        </select>
+        <SocialSelect
+          v-model="instanceStatusFilter"
+          :options="statusOptions"
+          :label="t('activitypub.instanceStatusFilter')"
+          icon="activity"
+          :active="instanceStatusFilter !== 'all'"
+          data-testid="instances-status"
+        />
 
-        <select v-model="instanceSoftwareFilter" class="filter-select">
-          <option value="all">{{ $t('activitypub.allSoftware', 'All Software') }}</option>
-          <option v-for="sw in availableSoftware" :key="sw" :value="sw">{{ softwareDisplayName(sw) }}</option>
-        </select>
+        <SocialSelect
+          v-model="instanceSoftwareFilter"
+          :options="softwareOptions"
+          :label="t('activitypub.instanceSoftwareFilter')"
+          icon="server"
+          :active="instanceSoftwareFilter !== 'all'"
+          data-testid="instances-software"
+        />
 
         <button @click="refreshContent" class="refresh-btn" :disabled="isLoading">
           <Icon name="refresh-cw" :size="16" :class="{ spinning: isLoading }" />
@@ -140,6 +146,7 @@ import { useRouter } from 'vue-router';
 import { activityPubService } from '@/services/activityPubService';
 import { adminService } from '@/services/AdminService';
 import InstanceDetailModal from './InstanceDetailModal.vue';
+import SocialSelect, { type SocialSelectOption } from './SocialSelect.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
@@ -166,6 +173,18 @@ const availableSoftware = computed(() => {
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 });
+
+const statusOptions = computed<SocialSelectOption[]>(() => [
+  { value: 'all', label: t('activitypub.allStatuses') },
+  { value: 'online', label: t('activitypub.online') },
+  { value: 'slow', label: t('activitypub.slow') },
+  { value: 'idle', label: t('activitypub.lastSeenLongAgo') },
+]);
+
+const softwareOptions = computed<SocialSelectOption[]>(() => [
+  { value: 'all', label: t('activitypub.allSoftware') },
+  ...availableSoftware.value.map(sw => ({ value: sw, label: softwareDisplayName(sw) })),
+]);
 
 const filteredInstances = computed(() => {
   if (!knownInstances.value) return [];
@@ -407,10 +426,10 @@ defineExpose({ refreshContent });
 
 .filter-group {
   display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.filter-select,
 .search-input {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
@@ -730,7 +749,6 @@ defineExpose({ refreshContent });
     flex-wrap: wrap;
   }
 
-  .filter-select,
   .refresh-btn {
     min-height: 40px;
   }

@@ -992,7 +992,9 @@
       "reveal": "Spoiler anzeigen",
       "mark": "Als Spoiler markieren",
       "unmark": "Spoiler entfernen"
-    }
+    },
+    "jumpLoading": "Nachricht wird geladen…",
+    "jumpFailed": "Diese Nachricht konnte nicht geladen werden."
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "Die dieses Geräts",
         "adoptDeviceDesc": "Deine anderen Geräte mit aktivierter Synchronisierung wechseln beim nächsten Öffnen von Harmony zu ihr."
       },
-      "savedThemeNameHint": "z. B. Spätschicht"
+      "savedThemeNameHint": "z. B. Spätschicht",
+      "fluxDockBottom": "Leiste unten",
+      "fluxDockBottomDesc": "Server-Dock, Kanalleiste und deine Kapsel verlaufen am unteren statt am oberen Fensterrand; Menüs der Leiste öffnen sich nach oben. Erfordert das horizontale Layout."
     },
     "voice": {
       "title": "Sprache & Video",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "Noch keine Beiträge von {domain}",
       "emptyMessage": "Öffentliche Beiträge von {domain} erscheinen hier, sobald sie diese Instanz erreichen.",
       "feedLabel": "Beiträge von {domain}"
-    }
+    },
+    "instanceStatusFilter": "Status",
+    "instanceSoftwareFilter": "Software"
   },
   "moderation": {
     "report": "Melden",
@@ -3266,7 +3272,8 @@
     "title": "Ankündigungen",
     "markRead": "Als gelesen markieren",
     "markAllRead": "Alle als gelesen markieren",
-    "viewPast": "Frühere Ankündigungen anzeigen"
+    "viewPast": "Frühere Ankündigungen anzeigen",
+    "dontShowAgain": "Nicht mehr anzeigen"
   },
   "federation": {
     "joinRemoteServer": "Remote-Server beitreten",

@@ -1039,7 +1039,9 @@
       "reveal": "Reveal spoiler",
       "mark": "Mark as spoiler",
       "unmark": "Remove spoiler"
-    }
+    },
+    "jumpLoading": "Loading the message…",
+    "jumpFailed": "That message couldn't be loaded."
   },
   "messageA11y": {
     "list": {
@@ -1551,7 +1553,8 @@
     "title": "Announcements",
     "markRead": "Mark as read",
     "markAllRead": "Mark all as read",
-    "viewPast": "View past announcements"
+    "viewPast": "View past announcements",
+    "dontShowAgain": "Don't show again"
   },
   "user": {
     "panelToggle": "Your account and voice controls",
@@ -1782,7 +1785,9 @@
         "adoptDevice": "This device's",
         "adoptDeviceDesc": "Your other devices with sync on switch to it the next time they open Harmony."
       },
-      "savedThemeNameHint": "e.g. Late night"
+      "savedThemeNameHint": "e.g. Late night",
+      "fluxDockBottom": "Bar at the bottom",
+      "fluxDockBottomDesc": "The server dock, the channel strip and your capsule run along the bottom of the window instead of the top; menus from the bar open upward. Needs the horizontal layout."
     },
     "audio": {
       "title": "Sounds",
@@ -2858,7 +2863,9 @@
       "emptyTitle": "No posts from {domain} yet",
       "emptyMessage": "Public posts from {domain} show here once they reach this instance.",
       "feedLabel": "Posts from {domain}"
-    }
+    },
+    "instanceStatusFilter": "Status",
+    "instanceSoftwareFilter": "Software"
   },
   "moderation": {
     "report": "Report",

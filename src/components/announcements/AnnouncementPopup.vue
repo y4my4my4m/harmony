@@ -51,14 +51,29 @@
                 />
                 <template v-else>{{ announcement.author_display_name }}</template>
               </span>
-              <button type="button" @click="markRead(announcement.id)" class="mark-read-btn" data-testid="announcement-mark-read">
+              <button
+                v-if="announcements.length > 1"
+                type="button"
+                @click="markRead(announcement.id)"
+                class="mark-read-btn"
+                data-testid="announcement-mark-read"
+              >
                 {{ $t('announcements.markRead', 'Mark as read') }}
               </button>
             </div>
           </div>
         </div>
 
-        <div class="popup-footer">
+        <!-- Outside the scrolling body: the dismiss action shows without scrolling. -->
+        <div class="popup-footer" data-testid="announcement-footer">
+          <button
+            type="button"
+            class="view-past-btn"
+            data-testid="announcement-view-past"
+            @click="viewPastAnnouncements"
+          >
+            {{ $t('announcements.viewPast', 'View past announcements') }}
+          </button>
           <button
             v-if="announcements.length > 1"
             type="button"
@@ -69,12 +84,13 @@
             {{ $t('announcements.markAllRead', 'Mark all as read') }}
           </button>
           <button
+            v-else
             type="button"
-            class="view-past-btn"
-            data-testid="announcement-view-past"
-            @click="viewPastAnnouncements"
+            @click="markRead(announcements[0].id)"
+            class="mark-all-btn"
+            data-testid="announcement-mark-read"
           >
-            {{ $t('announcements.viewPast', 'View past announcements') }}
+            {{ $t('announcements.dontShowAgain') }}
           </button>
         </div>
       </div>
@@ -331,6 +347,7 @@ onMounted(async () => {
 }
 
 .popup-footer {
+  flex-shrink: 0;
   padding: 16px 24px;
   border-top: 1px solid var(--border-primary);
   display: flex;
@@ -355,8 +372,6 @@ onMounted(async () => {
 }
 
 .view-past-btn {
-  /* Pinned right whether or not the mark-all button renders. */
-  margin-left: auto;
   background: transparent;
   color: var(--text-secondary);
   border: 1px solid var(--border-primary);

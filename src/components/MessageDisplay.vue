@@ -1,6 +1,7 @@
 <template>
   <div
     class="message-display"
+    :class="{ 'touch-actions': isMobile }"
     data-region="messages"
     ref="messageDisplayContainer"
     data-chat-messages
@@ -34,6 +35,26 @@
     />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
+
+    <!-- A reply's target outside the loaded rows: the list scrolls up to this at once
+         and it stays until the rows around the target replace the list. -->
+    <div v-if="pendingJumpId" class="jump-loading" role="status" data-testid="jump-loading">
+      <div class="jump-loading-label">
+        <LoadingSpinner :size="16" />
+        <span>{{ $t('message.jumpLoading') }}</span>
+      </div>
+      <div v-for="n in 3" :key="`jump-skeleton-${n}`" class="skeleton-message" aria-hidden="true">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-header">
+            <div class="skeleton-username"></div>
+            <div class="skeleton-timestamp"></div>
+          </div>
+          <div class="skeleton-text-line" style="width: 85%;"></div>
+          <div class="skeleton-text-line" style="width: 60%;"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Loading older messages indicator. The zero-height sticky wrapper floats it
          over the top of the viewport; showing or hiding it moves nothing below. -->
@@ -1713,6 +1734,9 @@ const applyScroll = (el: HTMLElement) => {
 // value; a newer jump to a message or to the present ends them.
 let seatGeneration = 0;
 
+// Reply target being loaded from outside the list; the placeholder shows meanwhile.
+const pendingJumpId = ref<string | null>(null);
+
 const measureEnd = () => {
   const el = messageDisplayContainer.value;
   if (!el) return;
@@ -2851,6 +2875,7 @@ const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
 watch(() => [props.channelId, props.conversationId, props.threadId], () => {
   void readMarkers.flush();
   observedMessages.clear();
+  pendingJumpId.value = null;
 });
 
 // Opening a channel with unread state reads it: its newest messages may have been
@@ -2955,7 +2980,7 @@ const setupTopSentinelObserver = () => {
   topSentinelObserver = new IntersectionObserver(
     (entries) => {
       const entry = entries[0];
-      if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
+      if (entry?.isIntersecting && hasInitiallyScrolled && !pendingJumpId.value && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('Top sentinel visible (prefetch zone) - auto-loading older messages');
         props.loadMoreMessages?.();
       }
@@ -3061,6 +3086,7 @@ const jumpToMessageRow = (messageId: string): boolean => {
     item => item.type === 'message' && item.message?.id === messageId
   );
   if (indexOf() < 0) return false;
+  pendingJumpId.value = null;
   setPinned(false);
   openFollowBottomUntil = 0;
   highlightRow(messageId);
@@ -3183,7 +3209,7 @@ const handleScrollThrottled = throttle(() => {
   isAtTop.value = scrollTop === 0;
 
   // Prefetch when near top (within 400px)
-  if (scrollTop < 400 && hasScrollbar.value) {
+  if (scrollTop < 400 && hasScrollbar.value && !pendingJumpId.value) {
     if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
       props.loadMoreMessages();
     }
@@ -3684,19 +3710,49 @@ const replyTo = (message: Message) => {
   hoveredMessageId.value = null;
 };
 
+const isRowLoaded = (messageId: string) =>
+  displayItems.value.some(item => item.type === 'message' && item.message?.id === messageId);
+
+// The list moves toward its top at once, where the placeholder shows, rather than
+// waiting on the window load. The list's own older-page loads hold off meanwhile:
+// the window replaces the list.
+const startPendingJump = (messageId: string) => {
+  pendingJumpId.value = messageId;
+  ++seatGeneration;
+  setPinned(false);
+  openFollowBottomUntil = 0;
+  const c = messageDisplayContainer.value;
+  if (!c) return;
+  const instant = document.documentElement.getAttribute('data-reduce-motion') === 'true'
+    || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  c.scrollTo({ top: 0, behavior: instant ? 'auto' : 'smooth' });
+};
+
+const endPendingJump = (messageId: string) => {
+  if (pendingJumpId.value === messageId) pendingJumpId.value = null;
+};
+
 const handleReplyClick = async (replyMessageId: string) => {
   // A thread view's rows are its own; the channel's list is not on screen.
   if (props.threadId) {
     if (!jumpToMessageRow(replyMessageId)) debug.warn(`Reply target is not in this thread: ${replyMessageId}`);
     return;
   }
-  if (props.channelId && chatStore.currentChannelId) {
-    const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
-    if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
-  } else if (props.conversationId) {
-    const success = await dmStore.jumpToMessage(replyMessageId);
-    if (!success) debug.warn(`Could not jump to DM message: ${replyMessageId}`);
+  const inChannel = !!(props.channelId && chatStore.currentChannelId);
+  if (!inChannel && !props.conversationId) return;
+  if (!isRowLoaded(replyMessageId)) startPendingJump(replyMessageId);
+  const success = inChannel
+    ? await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId!)
+    : await dmStore.jumpToMessage(replyMessageId);
+  if (!success) {
+    debug.warn(`Could not jump to message: ${replyMessageId}`);
+    if (pendingJumpId.value === replyMessageId) toast.error(t('message.jumpFailed'));
+    endPendingJump(replyMessageId);
+    return;
   }
+  // The store lands on the row shortly after the list changes; jumpToMessageRow ends the
+  // placeholder there. This bounds it should the landing not run.
+  setTimeout(() => endPendingJump(replyMessageId), 1000);
 };
 
 // Thread Logic
@@ -4154,6 +4210,19 @@ defineExpose({ editLastOwnMessage });
   contain: layout paint;
 }
 
+/* Phone layout: a long press opens the message action bar, as Discord's opens its
+   action sheet, and starts no text selection: the selection handles and the system
+   copy menu land on the bar. Copy text is in the bar's More menu. Editors (inline
+   edit) keep selection, and the Android tap-to-caret handling that relies on it. */
+.message-display.touch-actions :deep(*) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.message-display.touch-actions :deep(:is(.rich-text-editor, .rich-text-editor *, input, textarea)) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Individual message item */
 .message-item {
   position: relative;
@@ -4605,6 +4674,20 @@ defineExpose({ editLastOwnMessage });
 /* Loading skeletons */
 .loading-skeleton {
   padding: 16px;
+}
+
+.jump-loading {
+  padding: 8px 16px 16px;
+}
+
+.jump-loading-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .skeleton-message {

@@ -992,7 +992,9 @@
       "reveal": "ネタバレを表示",
       "mark": "ネタバレとしてマーク",
       "unmark": "ネタバレを解除"
-    }
+    },
+    "jumpLoading": "メッセージを読み込んでいます…",
+    "jumpFailed": "そのメッセージを読み込めませんでした。"
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "この端末の外観",
         "adoptDeviceDesc": "同期をオンにした他の端末は、次に Harmony を開いたときにこの外観に切り替わります。"
       },
-      "savedThemeNameHint": "例: 夜更かし"
+      "savedThemeNameHint": "例: 夜更かし",
+      "fluxDockBottom": "バーを下に表示",
+      "fluxDockBottomDesc": "サーバードック、チャンネルの帯、あなたのカプセルをウィンドウの上ではなく下に並べます。バーから開くメニューは上に開きます。横レイアウトが必要です。"
     },
     "voice": {
       "title": "音声とビデオ",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "{domain} の投稿はまだありません",
       "emptyMessage": "{domain} の公開投稿は、このインスタンスに届くとここに表示されます。",
       "feedLabel": "{domain} の投稿"
-    }
+    },
+    "instanceStatusFilter": "ステータス",
+    "instanceSoftwareFilter": "ソフトウェア"
   },
   "moderation": {
     "report": "報告",
@@ -3247,7 +3253,8 @@
     "title": "お知らせ",
     "markRead": "既読にする",
     "markAllRead": "すべて既読にする",
-    "viewPast": "過去のお知らせを表示"
+    "viewPast": "過去のお知らせを表示",
+    "dontShowAgain": "今後表示しない"
   },
   "gif": {
     "search": "GIF を検索...",

@@ -992,7 +992,9 @@
       "reveal": "스포일러 보기",
       "mark": "스포일러로 표시",
       "unmark": "스포일러 해제"
-    }
+    },
+    "jumpLoading": "메시지를 불러오는 중…",
+    "jumpFailed": "해당 메시지를 불러올 수 없습니다."
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "이 기기의 모양",
         "adoptDeviceDesc": "동기화를 켠 다른 기기는 다음에 Harmony를 열 때 이 모양으로 바뀝니다."
       },
-      "savedThemeNameHint": "예: 늦은 밤"
+      "savedThemeNameHint": "예: 늦은 밤",
+      "fluxDockBottom": "막대를 아래에 표시",
+      "fluxDockBottomDesc": "서버 독, 채널 줄, 내 캡슐이 창 위쪽 대신 아래쪽을 따라 배치됩니다. 막대에서 여는 메뉴는 위로 열립니다. 가로 레이아웃이 필요합니다."
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "아직 {domain}의 게시물이 없습니다",
       "emptyMessage": "{domain}의 공개 게시물이 이 인스턴스에 도달하면 여기에 표시됩니다.",
       "feedLabel": "{domain}의 게시물"
-    }
+    },
+    "instanceStatusFilter": "상태",
+    "instanceSoftwareFilter": "소프트웨어"
   },
   "moderation": {
     "report": "신고",
@@ -3266,7 +3272,8 @@
     "title": "공지사항",
     "markRead": "읽음으로 표시",
     "markAllRead": "모두 읽음으로 표시",
-    "viewPast": "지난 공지 보기"
+    "viewPast": "지난 공지 보기",
+    "dontShowAgain": "다시 보지 않기"
   },
   "federation": {
     "joinRemoteServer": "원격 서버 참여",

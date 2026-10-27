@@ -1,9 +1,9 @@
 /**
  * A value the parent sets after mount and then places the caret in (Composer.vue's reply
- * mentions) is rendered once, by the modelValue watcher. The editor's mount render, which
- * waits for the current server's roles, does not render it again: that render restored the
- * caret it read before the parent placed it, in front of the mentions (Chrome, opened from a
- * server channel with the roles cached).
+ * mentions) is rendered once, by the modelValue watcher. A value the editor is created with
+ * (the post composer's prefill) is rendered at mount, before the current server's roles are
+ * looked up. A render after the parent placed the caret restores the caret it read before
+ * that, in front of the mentions.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
@@ -93,14 +93,47 @@ describe('RichTextEditor in a reply', () => {
     expect(textBeforeCaret(root)).toBe(PREFILL)
   })
 
-  it('still renders a value it was mounted with once the roles arrive', async () => {
+  it('renders a value it was mounted with at mount, before the roles arrive', async () => {
     const wrapper = mount(RichTextEditor, { props: { modelValue: 'draft @bob kept' }, attachTo: document.body })
     await settle()
     const root = wrapper.find('.rich-text-editor').element as HTMLElement
-    expect(root.textContent).toBe('')
+    expect(root.textContent!.replace(/\u00a0/g, ' ')).toBe('draft @bob kept')
 
     releaseRoles()
     await settle()
     expect(root.textContent!.replace(/\u00a0/g, ' ')).toBe('draft @bob kept')
+  })
+})
+
+// Composer.vue's post prefill (Mention, re-draft): the text is there when the editor is
+// created; the composer focuses it and moves the caret to the end from its own mounted hook.
+const PostComposer = defineComponent(() => {
+  const content = ref(PREFILL)
+  const editor = ref<Editor & { moveCaretToEnd: () => void }>()
+  onMounted(() => {
+    nextTick(() => {
+      editor.value?.focus()
+      nextTick(() => editor.value?.moveCaretToEnd())
+    })
+  })
+  return () => h(RichTextEditor, {
+    ref: editor,
+    modelValue: content.value,
+    'onUpdate:modelValue': (v: string) => { content.value = v },
+  })
+})
+
+describe('RichTextEditor in a prefilled post', () => {
+  it('has the text drawn when the composer places the caret, which stays at the end when the roles arrive', async () => {
+    const wrapper = mount(PostComposer, { attachTo: document.body })
+    await settle()
+    const root = wrapper.find('.rich-text-editor').element as HTMLElement
+    expect(textBeforeCaret(root)).toBe(PREFILL)
+
+    releaseRoles()
+    await settle()
+    expect(root.textContent!.replace(/\u00a0/g, ' ')).toBe(PREFILL)
+    expect(textBeforeCaret(root)).toBe(PREFILL)
+    expect(getSelection()!.isCollapsed).toBe(true)
   })
 })

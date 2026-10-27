@@ -9,7 +9,7 @@
       icon="search"
       :title="$t('gif.noneFound', { kind: mediaNoun })"
     />
-    <div v-else class="inline-gif-grid">
+    <div v-else class="inline-gif-grid" data-testid="inline-gif-grid" @wheel="onGridWheel">
       <template v-for="item in items" :key="item.id">
         <GifAdSlot
           v-if="item.kind === 'ad'"
@@ -76,6 +76,7 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
 import { debug } from '@/utils/debug';
+import { horizontalWheelDelta } from '@/utils/wheelToHorizontal';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import {
@@ -122,6 +123,14 @@ const mediaNoun = computed(() => {
 });
 
 const stripFragment = (url: string) => stripKlipyAttributionFragment(url);
+
+const onGridWheel = (event: WheelEvent) => {
+  const grid = event.currentTarget as HTMLElement;
+  const px = horizontalWheelDelta(event, grid);
+  if (px === null) return;
+  grid.scrollLeft += px;
+  event.preventDefault();
+};
 
 // The clip currently previewing with audio (toggled via the mute/unmute icon).
 const audioClipId = ref<string | null>(null);

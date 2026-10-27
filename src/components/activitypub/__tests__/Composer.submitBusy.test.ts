@@ -72,7 +72,7 @@ const mountReply = () => shallowMount(Composer, {
   global: {
     directives: { 'click-outside': {} },
     stubs: {
-      RichTextEditor: { name: 'RichTextEditor', render: () => null, methods: { focus() {}, setCursorPosition() {} } },
+      RichTextEditor: { name: 'RichTextEditor', render: () => null, methods: { focus() {}, setCursorPosition() {}, moveCaretToEnd() {} } },
     },
   },
 })

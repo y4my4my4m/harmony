@@ -40,6 +40,19 @@ export const fluxSkin: Skin = {
       default: true,
     },
     {
+      id: 'dock-bottom',
+      label: 'Bar at the bottom',
+      labelKey: 'settings.appearance.fluxDockBottom',
+      description:
+        'The server dock, the channel strip and your capsule run along the ' +
+        'bottom of the window instead of the top; menus from the bar open ' +
+        'upward. Needs the horizontal layout.',
+      descriptionKey: 'settings.appearance.fluxDockBottomDesc',
+      type: 'boolean',
+      default: false,
+      requires: 'dock',
+    },
+    {
       id: 'lens',
       label: 'Lens refraction',
       description:

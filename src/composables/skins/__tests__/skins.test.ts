@@ -297,6 +297,19 @@ describe('flux', () => {
     for (const id of ['dock', 'lens', 'liquid', 'drift', 'orbits']) expect(ids).toContain(id)
   })
 
+  // The bar at the bottom is the horizontal layout upside down: off by default, offered only
+  // with that layout on, and every rule gated on both attributes inside the desktop query.
+  it('puts the bar at the bottom only with the horizontal layout on', () => {
+    const option = (skin.options ?? []).find((o) => o.id === 'dock-bottom')!
+    expect(option).toMatchObject({ type: 'boolean', default: false, requires: 'dock', labelKey: 'settings.appearance.fluxDockBottom' })
+    const css = readFileSync(resolve(__dirname, '..', 'flux', 'skin.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const rules = css.split('}').filter((rule) => rule.includes('data-skin-dock-bottom'))
+    expect(rules.length).toBeGreaterThan(0)
+    for (const rule of rules) expect(rule, rule.trim()).toContain('[data-skin-dock="on"][data-skin-dock-bottom="on"]')
+    const outside = css.split('@media (min-width: 1024px)')[0]
+    expect(outside).not.toContain('data-skin-dock-bottom')
+  })
+
   // The horizontal layout moves regions; it must stay off phones, where nav,
   // rail and aside are touch drawers.
   it('moves regions only inside desktop media queries', () => {

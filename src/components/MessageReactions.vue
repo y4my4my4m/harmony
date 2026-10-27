@@ -386,11 +386,16 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   align-items: center;
 }
 
+/* Pill geometry is Discord's message reaction (web client stylesheet
+   17256.2f23007cdb83038c.css, .reaction_f8896c, read 2026-10-27): 1px border,
+   8px radius, 2px 6px padding, a 20px emoji with 2px vertical margin, the
+   count 14px semibold 6px after it. Height 30px. */
 .reaction {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
+  gap: 6px;
+  padding: 2px 6px;
   background-color: var(--background-quinary);
   border: 1px solid transparent;
   border-radius: 8px;
@@ -401,7 +406,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   -webkit-user-select: none;
   /* iOS shows a link/image callout on long-press otherwise. */
   -webkit-touch-callout: none;
-  min-height: 22px;
+  min-height: 30px;
 }
 
 .reaction {
@@ -437,21 +442,27 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .reaction-emoji {
-  max-width: 64px;
-  height: 16px;
+  max-width: 80px;
+  height: 20px;
+  margin: 2px 0;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .native-emoji {
-  font-size: 16px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  margin: 2px 0;
+  font-size: 20px;
+  line-height: 20px;
   flex-shrink: 0;
 }
 
 .reaction-count {
-  font-size: 0.8125rem;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-muted);
   min-width: 9px;
   text-align: center;
@@ -462,16 +473,18 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .reaction-emoji-broken {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0;
   color: var(--text-muted);
   opacity: 0.5;
   flex-shrink: 0;
 }
 
 .missing-emoji {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -503,13 +516,16 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 
+/* Discord's always-shown add button (.reactionBtn_f8896c.forceShow_f8896c):
+   the pill's 30px height, 7px side padding. */
 .add-reaction-btn {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 22px;
-  padding: 0;
+  width: 34px;
+  height: 30px;
+  padding: 0 7px;
   background-color: transparent;
   border: 1px dashed var(--border-hover);
   border-radius: 8px;
@@ -530,8 +546,8 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .add-reaction-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
 }
 
 @media (max-width: 768px) {

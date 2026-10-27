@@ -992,7 +992,9 @@
       "reveal": "Mostrar spoiler",
       "mark": "Marcar como spoiler",
       "unmark": "Quitar spoiler"
-    }
+    },
+    "jumpLoading": "Cargando el mensaje…",
+    "jumpFailed": "No se pudo cargar ese mensaje."
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "La de este dispositivo",
         "adoptDeviceDesc": "Tus otros dispositivos con la sincronización activada la usarán la próxima vez que abran Harmony."
       },
-      "savedThemeNameHint": "p. ej., Noche"
+      "savedThemeNameHint": "p. ej., Noche",
+      "fluxDockBottom": "Barra abajo",
+      "fluxDockBottomDesc": "El dock de servidores, la tira de canales y tu cápsula van en la parte inferior de la ventana en lugar de la superior; los menús de la barra se abren hacia arriba. Requiere el diseño horizontal."
     },
     "voice": {
       "title": "Voz y video",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "Aún no hay publicaciones de {domain}",
       "emptyMessage": "Las publicaciones públicas de {domain} aparecen aquí cuando llegan a esta instancia.",
       "feedLabel": "Publicaciones de {domain}"
-    }
+    },
+    "instanceStatusFilter": "Estado",
+    "instanceSoftwareFilter": "Software"
   },
   "moderation": {
     "report": "Reportar",
@@ -3247,7 +3253,8 @@
     "title": "Anuncios",
     "markRead": "Marcar como leído",
     "markAllRead": "Marcar todo como leído",
-    "viewPast": "Ver anuncios anteriores"
+    "viewPast": "Ver anuncios anteriores",
+    "dontShowAgain": "No volver a mostrar"
   },
   "gif": {
     "search": "Buscar GIF...",

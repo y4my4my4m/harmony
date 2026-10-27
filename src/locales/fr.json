@@ -992,7 +992,9 @@
       "reveal": "Afficher le spoiler",
       "mark": "Marquer comme spoiler",
       "unmark": "Retirer le spoiler"
-    }
+    },
+    "jumpLoading": "Chargement du message…",
+    "jumpFailed": "Ce message n'a pas pu être chargé."
   },
   "messageA11y": {
     "list": {
@@ -1697,7 +1699,9 @@
         "adoptDevice": "Celle de cet appareil",
         "adoptDeviceDesc": "Vos autres appareils synchronisés l'adoptent à la prochaine ouverture de Harmony."
       },
-      "savedThemeNameHint": "ex. : Nuit blanche"
+      "savedThemeNameHint": "ex. : Nuit blanche",
+      "fluxDockBottom": "Barre en bas",
+      "fluxDockBottomDesc": "Le dock des serveurs, la bande des salons et ta capsule longent le bas de la fenêtre au lieu du haut ; les menus de la barre s'ouvrent vers le haut. Nécessite la disposition horizontale."
     },
     "voice": {
       "title": "Voix et vidéo",
@@ -2805,7 +2809,9 @@
       "emptyTitle": "Aucune publication de {domain} pour le moment",
       "emptyMessage": "Les publications publiques de {domain} apparaissent ici dès qu’elles parviennent à cette instance.",
       "feedLabel": "Publications de {domain}"
-    }
+    },
+    "instanceStatusFilter": "Statut",
+    "instanceSoftwareFilter": "Logiciel"
   },
   "moderation": {
     "report": "Signaler",
@@ -3266,7 +3272,8 @@
     "title": "Annonces",
     "markRead": "Marquer comme lu",
     "markAllRead": "Tout marquer comme lu",
-    "viewPast": "Voir les annonces passées"
+    "viewPast": "Voir les annonces passées",
+    "dontShowAgain": "Ne plus afficher"
   },
   "federation": {
     "joinRemoteServer": "Rejoindre un serveur distant",

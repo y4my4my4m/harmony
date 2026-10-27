@@ -22,6 +22,8 @@
     :aria-label="placeholder"
     contenteditable="true"
     @input="handleInput"
+    @compositionstart="handleCompositionStart"
+    @compositionend="handleCompositionEnd"
     @keydown="handleKeyDown"
     @focus="handleFocus"
     @blur="handleBlur"
@@ -111,6 +113,11 @@ const serverChannelStore = useServerChannelStore();
 // Emoji resolution goes through emojiShortcodeResolver.findEmojiByName.
 const { isLoaded: unifiedLoaded } = useUnifiedEmoji();
 const isRendering = ref(false);
+// An IME composition is open. The composed text's DOM belongs to the IME: a rebuild
+// (renderContent) ends the composition, the browser commits the half-converted text
+// and every later update of it lands beside that copy. Typing and late emoji data do not
+// rebuild until compositionend; a parent's own text change (a picked suggestion) does.
+let composing = false;
 const skipNextWatch = ref(false); // Suppresses the modelValue watcher for one cycle during manual render
 const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
 const visualTheme = useVisualTheme();
@@ -237,6 +244,10 @@ const setCursorPosition = (targetPosition: number) => {
   debug.log('setCursorPosition called with:', targetPosition);
   setSelectionOffsets(targetPosition, targetPosition);
 };
+
+// After the last character as drawn: a local mention's pill drops its domain, so the
+// drawn text can be shorter than the value.
+const moveCaretToEnd = () => setCursorPosition(getPlainText().length);
 
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
@@ -820,6 +831,12 @@ const handleInput = (event?: Event) => {
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
 
+  // Mid-composition text is provisional: no undo step and no rebuild until it commits.
+  if (composing || (event instanceof InputEvent && event.isComposing)) {
+    autoExpand();
+    return;
+  }
+
   undoRedo.pushState(text, cursorPos);
 
   // Render is driven from input, not the modelValue watcher: the watcher
@@ -880,7 +897,25 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
   applyEditorTextChange(newText, selectionStart, selectionEnd);
 };
 
+const handleCompositionStart = () => {
+  composing = true;
+};
+
+// Chromium sends the composition's last input event before compositionend, WebKit after it:
+// the committed text is handled here once either way.
+const handleCompositionEnd = () => {
+  composing = false;
+  handleInput();
+};
+
+// Keys during a composition are the IME's: Enter commits the conversion, arrows and Tab move
+// within the candidates. WebKit sends the committing Enter after compositionend as keyCode 229.
+// On a phone keyboard every key is 229; the phone Enter path below handles those.
+const isImeKey = (event: KeyboardEvent): boolean =>
+  event.isComposing || (event.keyCode === 229 && !(isMobileViewport.value || isTouchOnly));
+
 const handleKeyDown = (event: KeyboardEvent) => {
+  if (isImeKey(event)) return;
   const historyAction = historyShortcut(event);
   if (historyAction) {
     event.preventDefault();
@@ -961,6 +996,8 @@ const handleKeyDown = (event: KeyboardEvent) => {
 };
 
 const handleFocus = (event: FocusEvent) => {
+  // No composition survives a focus change; a missed compositionend must not hold renders off.
+  composing = false;
   isFocused.value = true;
   keyboardFocused.value = focusFromNavigationKey();
   emit('focus', event);
@@ -1160,6 +1197,7 @@ defineExpose({
   replaceText,
   getCursorPosition,
   setCursorPosition,
+  moveCaretToEnd,
   getPlainText,
   renderContent,
   skipNextWatch,
@@ -1169,7 +1207,7 @@ defineExpose({
 
 // Emoji pack loads lazily; re-render so :shortcode: text resolves.
 watch(unifiedLoaded, (loaded) => {
-  if (loaded && editorRef.value && props.modelValue) {
+  if (loaded && editorRef.value && props.modelValue && !composing) {
     const text = getPlainText();
     if (text && text.includes(':')) {
       renderContent(text);
@@ -1223,27 +1261,30 @@ onMounted(() => {
 });
 onBeforeUnmount(() => detachTapToCaret?.());
 
-onMounted(async () => {
-  // Pre-warm the role cache so mentions render without a resolve round-trip.
-  const serverId = serverChannelStore.currentServerId;
-  if (serverId) {
-    try {
-      const roles = await roleService.getRolesForServer(serverId);
-      for (const role of roles) {
-        roleDisplayCache.set(role.id, { name: role.name.replace(/^@/, ''), color: role.color });
-      }
-    } catch { /* non-critical */ }
-  }
-
+// The value the editor is created with renders at mount, before anything awaits: a parent
+// places the caret from its own mounted hook (the post composer's prefilled mentions), and a
+// render after that restores the caret captured before it, at the start of the text.
+onMounted(() => {
   if (props.modelValue) {
-    // A value set after mount (a reply's mentions) is already rendered by the modelValue
-    // watcher. Rendering it again here restores a caret captured before the parent placed it,
-    // which puts typing in front of the mentions.
     if (getPlainText() !== props.modelValue) renderContent(props.modelValue);
     undoRedo.reset(props.modelValue, props.modelValue.length);
   }
   autoExpand();
+  void prewarmRoles();
 });
+
+// Role names for role mentions, so they render without a resolve round-trip. A pill drawn
+// before they load resolves its own name (resolveRoleDisplay).
+async function prewarmRoles() {
+  const serverId = serverChannelStore.currentServerId;
+  if (!serverId) return;
+  try {
+    const roles = await roleService.getRolesForServer(serverId);
+    for (const role of roles) {
+      roleDisplayCache.set(role.id, { name: role.name.replace(/^@/, ''), color: role.color });
+    }
+  } catch { /* non-critical */ }
+}
 </script>
 <style scoped>
 .rich-text-editor {

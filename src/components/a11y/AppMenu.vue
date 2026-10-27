@@ -10,9 +10,10 @@
 
     <AppMenu v-if="open" :anchor="buttonEl" :id="menuId" :initial-focus="initialFocus" :label="t('...')" @close="open = false">
 
-  Position: `x`/`y` (CSS px, see utils/appZoom) or `anchor` (below it,
-  left-aligned, flipped above when it would overflow), clamped EDGE px inside
-  the viewport.
+  Position: `x`/`y` (CSS px, see utils/appZoom; opens upward from the point
+  when it would overflow below) or `anchor` (below it, left-aligned, flipped
+  above when it would overflow), clamped EDGE px inside the viewport, and
+  placed again when its size changes.
   `trigger` overrides the element focus returns to. Attributes (class, id,
   data-testid) land on the menu element. `@close` carries the reason
   ('escape' | 'tab' | 'outside' | 'dismiss').
@@ -35,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useMenu, type MenuCloseReason } from '@/composables/useMenu'
 import { styleRect, styleViewport } from '@/utils/appZoom'
 import { usePortalTarget } from '@/composables/usePortalTarget'
@@ -76,10 +77,12 @@ useMenu(menuEl, {
   initialFocus: () => props.initialFocus,
 })
 
-onMounted(() => {
+const place = () => {
   const el = menuEl.value
   if (!el || !props.teleport) return
-  const r = styleRect(el)
+  // Layout size, not the box: an entrance animation that scales the menu (Flux's
+  // harmony-flux-pour starts at 0.6) shrinks getBoundingClientRect while it runs.
+  const r = { width: el.offsetWidth, height: el.offsetHeight }
   const viewport = styleViewport(el)
   let x = props.x
   let y = props.y
@@ -88,12 +91,26 @@ onMounted(() => {
     x = a.left
     y = a.bottom + 4
     if (y + r.height > viewport.height - EDGE) y = a.top - r.height - 4
+  } else if (y + r.height > viewport.height - EDGE && y - r.height >= EDGE) {
+    // No room under the point: the menu opens upward from it.
+    y -= r.height
   }
   pos.value = {
     x: Math.max(EDGE, Math.min(x, viewport.width - r.width - EDGE)),
     y: Math.max(EDGE, Math.min(y, viewport.height - r.height - EDGE)),
   }
+}
+
+// Content rendered after mount changes the menu's size: it is placed again.
+let resizeObserver: ResizeObserver | null = null
+onMounted(() => {
+  place()
+  if (menuEl.value && props.teleport && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => place())
+    resizeObserver.observe(menuEl.value)
+  }
 })
+onBeforeUnmount(() => resizeObserver?.disconnect())
 
 defineExpose({ element: menuEl })
 </script>
