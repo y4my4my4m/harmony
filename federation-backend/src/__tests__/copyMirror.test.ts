@@ -109,14 +109,25 @@ describe('member roles', () => {
 
 describe('pins', () => {
   it('advertises the count and the newest pin of a channel', () => {
-    expect(mirror.pinsAdvert(CHANNEL, ['2026-10-01T00:00:00Z', '2026-10-03T12:00:00+02:00', '2026-10-02T00:00:00Z'])).toEqual({
+    const pins = mirror.summarizePins(['2026-10-01T00:00:00Z', '2026-10-03T12:00:00+02:00', '2026-10-02T00:00:00Z'])
+    expect(mirror.pinsAdvert(CHANNEL, pins)).toEqual({
       type: 'OrderedCollection', id: `${CHANNEL}/pins`, totalItems: 3, updated: '2026-10-03T10:00:00.000Z',
     })
-    expect(mirror.pinsAdvert(CHANNEL, [])).toMatchObject({ totalItems: 0, updated: null })
+    expect(mirror.pinsAdvert(CHANNEL, mirror.summarizePins([]))).toMatchObject({ totalItems: 0, updated: null })
+  })
+
+  it('counts a pin with no time and never takes it as the newest', () => {
+    expect(mirror.summarizePins([null, '2026-10-01T00:00:00Z', 'garbage'])).toEqual({ total: 3, newest: '2026-10-01T00:00:00.000Z' })
+    expect(mirror.summarizePins([null])).toEqual({ total: 1, newest: null })
+  })
+
+  it('keys an advert by count and newest pin', () => {
+    expect(mirror.pinsAdvertKey({ totalItems: 2, updated: '2026-10-01T00:00:00.000Z' })).toBe('2|2026-10-01T00:00:00.000Z')
+    expect(mirror.pinsAdvertKey({ totalItems: 0, updated: null })).toBe('0|')
   })
 
   it('reads an advert only for its own channel', () => {
-    const advert = mirror.pinsAdvert(CHANNEL, ['2026-10-01T00:00:00Z'])
+    const advert = mirror.pinsAdvert(CHANNEL, mirror.summarizePins(['2026-10-01T00:00:00Z']))
     expect(mirror.parsePinsAdvert(advert, CHANNEL)).toEqual({ id: `${CHANNEL}/pins`, totalItems: 1, updated: '2026-10-01T00:00:00.000Z' })
     expect(mirror.parsePinsAdvert(advert, `${GROUP}/channels/55555555-5555-4555-8555-555555555555`)).toBeNull()
     expect(mirror.parsePinsAdvert({ ...advert, totalItems: -1 }, CHANNEL)).toBeNull()

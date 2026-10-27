@@ -47,7 +47,9 @@ import {
   pinsCollectionId,
   roleApId,
   rolesToAp,
+  summarizePins,
   type ApRole,
+  type PinSummary,
 } from './copyMirror.js';
 
 const router = Router();
@@ -55,6 +57,12 @@ const router = Router();
 // channels.type: 0 = text, 1 = voice, 2 = category.
 const CHANNEL_TYPE_VOICE = 1;
 const CHANNEL_TYPE_CATEGORY = 2;
+
+/** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
+const READ_PAGE = 1000;
+
+/** Channel ids per pinned-row read: the `in` list stays under 2 KB of query string. */
+const PIN_CHANNEL_CHUNK = 50;
 
 /**
  * Convert server to ActivityPub Group
@@ -66,7 +74,7 @@ function serverToGroup(
   ownerProfile: any | null,
   hostDomain: string,
   publicKeyPem: string | null,
-  display: { roles: ApRole[]; pinnedAt: Map<string, string[]> | null } = { roles: [], pinnedAt: null },
+  display: { roles: ApRole[] | null; pins: Map<string, PinSummary> | null } = { roles: null, pins: null },
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
@@ -128,8 +136,8 @@ function serverToGroup(
       return url ? { type: 'Image', url } : undefined;
     })(),
     
-    // Display-only roles of the server (copyMirror.ts).
-    [HARMONY_ROLES]: display.roles,
+    // Display-only roles of the server (copyMirror.ts); absent when unread.
+    ...(display.roles ? { [HARMONY_ROLES]: display.roles } : {}),
 
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
@@ -154,9 +162,9 @@ function serverToGroup(
         categoryId: c.category,
         description: c.description || undefined,
         channelType, // 'text', 'voice', or 'category'
-        ...(channelType === 'category' || !display.pinnedAt
-          ? {}
-          : { [HARMONY_PINS]: pinsAdvert(`${serverUrl}/channels/${c.id}`, display.pinnedAt.get(c.id) ?? []) }),
+        ...(channelType !== 'category' && display.pins?.has(c.id)
+          ? { [HARMONY_PINS]: pinsAdvert(`${serverUrl}/channels/${c.id}`, display.pins.get(c.id)!) }
+          : {}),
       };
     }),
     
@@ -244,44 +252,107 @@ async function accessFor(req: Request): Promise<GroupAccess | null> {
   return loadGroupAccess(req.params.serverId, await verifiedSigner(req));
 }
 
-/** The server's roles as harmony:roles lists them. */
-export async function loadApRoles(supabase: ReturnType<typeof getSupabaseClient>, serverId: string, serverUrl: string): Promise<ApRole[]> {
+/** The server's roles as harmony:roles lists them; null when they cannot be read. */
+export async function loadApRoles(supabase: ReturnType<typeof getSupabaseClient>, serverId: string, serverUrl: string): Promise<ApRole[] | null> {
   const { data, error } = await supabase
     .from('server_roles')
     .select('id, name, color, position, hoist, mentionable, unicode_emoji, is_default')
     .eq('server_id', serverId);
   if (error) {
     logger.error(`Roles of server ${serverId} not read: ${error.message}`);
-    return [];
+    return null;
   }
   return rolesToAp(serverUrl, data || []);
 }
 
 /**
- * Pinned rows of `channelIds` from each channel's history cutoff on, newest pin first: what the
- * channels' pins collections serve the reader. A notice without a Note is left out.
+ * A pinned row the pins collection serves a Note of: a notice of a type with a Note, or a message
+ * someone speaks for. The rows channelNotes drops are exactly the others.
+ */
+function servesNote(row: any): boolean {
+  if (row.is_system) return SYSTEM_NOTE_TYPES.has(row.metadata?.type);
+  if (row.author?.username) return true;
+  return !!row.bot_id && groupAuthorOf(row, row.bot) !== null;
+}
+
+/** Newest pin first, a pin with no time last: the order of the pins collection. */
+function byPinnedAtDesc(a: any, b: any): number {
+  const ta = a.pinned_at ? Date.parse(a.pinned_at) : NaN;
+  const tb = b.pinned_at ? Date.parse(b.pinned_at) : NaN;
+  if (Number.isNaN(ta)) return Number.isNaN(tb) ? 0 : 1;
+  if (Number.isNaN(tb)) return -1;
+  return tb - ta;
+}
+
+/**
+ * Pinned rows of a channel its pins collection serves the reader, from `since` on, newest pin
+ * first; null when they cannot be read.
  */
 async function pinnedRows(
   supabase: ReturnType<typeof getSupabaseClient>,
-  channelIds: string[],
-  cutoffs: Map<string, string>,
-  select = 'id, channel_id, pinned_at, is_system, metadata',
-): Promise<any[]> {
-  const inHistory = channelIds.length > 0 ? historyFilter(channelIds, cutoffs) : null;
-  if (!inHistory) return [];
-  const { data, error } = await supabase
+  channelId: string,
+  since: string | undefined,
+): Promise<any[] | null> {
+  let query = supabase
     .from('messages')
-    .select(select)
-    .or(inHistory)
+    .select(NOTE_ROW_SELECT)
+    .eq('channel_id', channelId)
     .eq('is_pinned', true)
-    .eq('is_deleted', false)
-    .order('pinned_at', { ascending: false })
-    .limit(MAX_PINS * channelIds.length);
+    .eq('is_deleted', false);
+  if (since !== undefined) query = query.gte('created_at', since);
+  const { data, error } = await query
+    .order('pinned_at', { ascending: false, nullsFirst: false })
+    .limit(MAX_PINS);
   if (error) {
-    logger.error(`Pinned messages not read: ${error.message}`);
-    return [];
+    logger.error(`Pins of channel ${channelId} not read: ${error.message}`);
+    return null;
   }
-  return (data || []).filter((m: any) => !m.is_system || SYSTEM_NOTE_TYPES.has(m.metadata?.type));
+  return (data || []).filter(servesNote);
+}
+
+/**
+ * What each channel's pins collection serves a reader without a history cutoff (pinnedRows): the
+ * count and newest pin, read a chunk of channels and a page of rows at a time. Null when any read
+ * fails: a short count would have copies unpin what the host still pins.
+ */
+async function pinSummaries(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  channelIds: string[],
+): Promise<Map<string, PinSummary> | null> {
+  const rowsOf = new Map<string, any[]>(channelIds.map(id => [id, []]));
+  for (let i = 0; i < channelIds.length; i += PIN_CHANNEL_CHUNK) {
+    const chunk = channelIds.slice(i, i + PIN_CHANNEL_CHUNK);
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`id, channel_id, pinned_at, is_system, bot_id,
+          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user,
+          author:profiles!messages_user_id_fkey(username),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)`)
+        .in('channel_id', chunk)
+        .eq('is_pinned', true)
+        .eq('is_deleted', false)
+        // Not by id alone: the primary key would satisfy that order and scan every message.
+        .order('pinned_at', { ascending: false, nullsFirst: false })
+        .order('id')
+        .range(from, from + READ_PAGE - 1);
+      if (error) {
+        logger.error(`Pinned messages not read: ${error.message}`);
+        return null;
+      }
+      for (const row of (data || []) as any[]) {
+        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user };
+        rowsOf.get(row.channel_id)?.push({ ...row, metadata });
+      }
+      if ((data || []).length < READ_PAGE) break;
+    }
+  }
+  const summaries = new Map<string, PinSummary>();
+  for (const [channelId, rows] of rowsOf) {
+    const served = rows.sort(byPinnedAtDesc).slice(0, MAX_PINS).filter(servesNote);
+    summaries.set(channelId, summarizePins(served.map(r => r.pinned_at)));
+  }
+  return summaries;
 }
 
 /**
@@ -377,15 +448,12 @@ router.get(
       .eq('status', 'accepted');
 
     const serverUrl = `https://${config.INSTANCE_DOMAIN}/servers/${server.id}`;
-    // Without the reader's history cutoffs no channel advertises pins.
+    // Pins are advertised for the channels the reader reads whole: under a history cutoff the
+    // count would follow whichever member signs. None without the cutoffs.
     const cutoffs = await loadHistoryCutoffs(serverId, access);
-    const pinnedAt = cutoffs ? new Map<string, string[]>() : null;
-    if (cutoffs && pinnedAt) {
-      for (const row of await pinnedRows(supabase, listedChannels.map(c => c.id), cutoffs)) {
-        if (!row.pinned_at) continue;
-        pinnedAt.set(row.channel_id, [...(pinnedAt.get(row.channel_id) ?? []), row.pinned_at]);
-      }
-    }
+    const pins = cutoffs
+      ? await pinSummaries(supabase, listedChannels.filter(c => !cutoffs.has(c.id)).map(c => c.id))
+      : null;
 
     const group = serverToGroup(
       server,
@@ -394,7 +462,7 @@ router.get(
       ownerProfile,
       config.INSTANCE_DOMAIN,
       publicKeyPem,
-      { roles: await loadApRoles(supabase, server.id, serverUrl), pinnedAt },
+      { roles: await loadApRoles(supabase, server.id, serverUrl), pins },
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -644,7 +712,13 @@ router.get(
       return;
     }
 
-    const rows = await pinnedRows(supabase, [channelId], cutoffs, NOTE_ROW_SELECT);
+    const rows = await pinnedRows(supabase, channelId, cutoffs.get(channelId));
+    if (!rows) {
+      // An empty collection would have copies unpin everything.
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+      res.status(503).json({ error: 'Pins unavailable' });
+      return;
+    }
     const notes = await channelNotes(supabase, rows, { serverId, channelId, channelName: channel.name, mediaAudience });
     const pinnedAt = new Map(rows.map((r: any) => [messageObjectId(r.id, r.metadata?.ap_id), r.pinned_at]));
     const items = notes.map((note: any) => ({ ...note, [HARMONY_PINNED_AT]: pinnedAt.get(note.id) ?? null }));
@@ -668,28 +742,37 @@ export const MEMBERS_PAGE_SIZE = 500;
 /** User ids per role lookup: an id list in the query string stays under 4 KB. */
 const ROLE_LOOKUP_CHUNK = 100;
 
-/** harmony:memberRoles of a members page: each member holding a role other than the default one. */
+/**
+ * harmony:memberRoles of a members page: each member holding a role other than the default one.
+ * Null when an assignment cannot be read: a short list would strip copies' members of roles.
+ */
 async function memberRoleEntries(
   supabase: ReturnType<typeof getSupabaseClient>,
   serverId: string,
   serverUrl: string,
   members: { userId: string; actor: string }[],
-): Promise<{ member: string; roles: string[] }[]> {
+): Promise<{ member: string; roles: string[] }[] | null> {
   const rolesOf = new Map<string, string[]>();
   for (let i = 0; i < members.length; i += ROLE_LOOKUP_CHUNK) {
     const chunk = members.slice(i, i + ROLE_LOOKUP_CHUNK).map(m => m.userId);
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('user_id, role_id, role:server_roles!inner(is_default)')
-      .eq('server_id', serverId)
-      .in('user_id', chunk);
-    if (error) {
-      logger.error(`Role assignments of server ${serverId} not read: ${error.message}`);
-      return [];
-    }
-    for (const row of data || []) {
-      if ((row as any).role?.is_default === true) continue;
-      rolesOf.set(row.user_id, [...(rolesOf.get(row.user_id) ?? []), roleApId(serverUrl, row.role_id)]);
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id, role_id, role:server_roles!inner(is_default)')
+        .eq('server_id', serverId)
+        .in('user_id', chunk)
+        .order('user_id')
+        .order('role_id')
+        .range(from, from + READ_PAGE - 1);
+      if (error) {
+        logger.error(`Role assignments of server ${serverId} not read: ${error.message}`);
+        return null;
+      }
+      for (const row of data || []) {
+        if ((row as any).role?.is_default === true) continue;
+        rolesOf.set(row.user_id, [...(rolesOf.get(row.user_id) ?? []), roleApId(serverUrl, row.role_id)]);
+      }
+      if ((data || []).length < READ_PAGE) break;
     }
   }
   return members
@@ -770,7 +853,7 @@ router.get(
       type: 'OrderedCollectionPage',
       partOf: membersUrl,
       orderedItems: items,
-      [HARMONY_MEMBER_ROLES]: memberRoles,
+      ...(memberRoles ? { [HARMONY_MEMBER_ROLES]: memberRoles } : {}),
       next: items.length === limit ? `${membersUrl}?page=${page + 1}` : undefined,
     });
   })

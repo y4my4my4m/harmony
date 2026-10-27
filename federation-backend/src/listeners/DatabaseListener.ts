@@ -381,7 +381,8 @@ export async function startDatabaseListener(): Promise<void> {
               public: payload.old.public !== payload.new.public,
             }
           });
-          await handleServerUpdated(payload.new, payload.old);
+          await handleServerUpdated(payload.new, payload.old)
+            .catch(error => logger.error('Failed to federate server update:', error));
         }
       }
     )
@@ -913,7 +914,14 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
   }
 }
 
-/** Sends Update for the server Group object to remote member instances. */
+/** The server's roles could not be read; an Update(Group) without them is not sent. */
+export class ServerRolesUnreadError extends Error {}
+
+/**
+ * Sends Update for the server Group object to remote member instances. Throws
+ * ServerRolesUnreadError when the roles cannot be read, so the job retries: harmony:roles is the
+ * whole list, and copies delete a role it leaves out.
+ */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -925,6 +933,8 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     }
     
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
+    const roles = await loadApRoles(getSupabaseClient(), server.id, serverUrl);
+    if (!roles) throw new ServerRolesUnreadError(`Roles of server ${server.id} not read; Update(Group) not sent`);
     
     const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
@@ -950,7 +960,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         'harmony:suspended': server.suspended_at
           ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
           : null,
-        [HARMONY_ROLES]: await loadApRoles(getSupabaseClient(), server.id, serverUrl),
+        [HARMONY_ROLES]: roles,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),
@@ -965,6 +975,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     
     logger.info(`Server update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
+    if (error instanceof ServerRolesUnreadError) throw error;
     logger.error('Failed to federate server update:', error);
   }
 }

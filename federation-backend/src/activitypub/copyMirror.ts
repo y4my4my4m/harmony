@@ -6,14 +6,17 @@
  *   "harmony:roles": [{ "type": "harmony:Role", "id": "<group>/roles/<uuid>", "name", "color",
  *                       "position", "hoist", "mentionable", "unicodeEmoji"? }]
  *       every role but the default one, highest position first. No permission bits: permissions
- *       are enforced on the host, and a copy stores its roles display-only.
+ *       are enforced on the host, and a copy stores its roles display-only. Absent when the roles
+ *       cannot be read: an empty list deletes a copy's roles.
  *   "harmony:channels"[i]["harmony:pins"]:
  *       { "type": "OrderedCollection", "id": "<channel>/pins", "totalItems", "updated"? }
- *       the pins the signer reads; updated is the newest harmony:pinnedAt.
+ *       totalItems counts the Notes <channel>/pins serves; updated is the newest non-null
+ *       harmony:pinnedAt. Absent for a channel the signer reads from a history cutoff on, and on
+ *       every channel when the pins cannot be read.
  * <channel>/pins: OrderedCollection of the pinned Notes, newest pin first, each with
- *   "harmony:pinnedAt".
+ *   "harmony:pinnedAt" (null for a pin with no time). 5xx when the pins cannot be read.
  * Members page: "harmony:memberRoles": [{ "member": "<actor>", "roles": ["<role id>"] }]
- *   the members of that page holding a role.
+ *   the members of that page holding a role; absent when the assignments cannot be read.
  * Live, the Group's activities, signed with its key:
  *   Update(Group) with "harmony:roles"     the whole list; a role absent from it is deleted
  *   Update { "type": "harmony:MemberRoles", "id", "member", "roles" }   all of the member's roles
@@ -93,6 +96,12 @@ export interface PinsAdvert {
   updated: string | null;
 }
 
+/** Pins a channel's collection serves: how many, and the newest pin time. */
+export interface PinSummary {
+  total: number;
+  newest: string | null;
+}
+
 export function roleApId(serverUrl: string, roleId: string): string {
   return `${serverUrl}/roles/${roleId}`;
 }
@@ -121,14 +130,28 @@ export function rolesToAp(serverUrl: string, rows: RoleRow[]): ApRole[] {
     });
 }
 
-export function pinsAdvert(channelUrl: string, pinnedAt: string[]): PinsAdvert & { type: 'OrderedCollection' } {
-  const newest = pinnedAt.reduce<string | null>((max, at) => (max === null || Date.parse(at) > Date.parse(max) ? at : max), null);
+/** PinSummary of pin times; a pin with no time counts and is never the newest. */
+export function summarizePins(pinnedAt: (string | null | undefined)[]): PinSummary {
+  let newest: number | null = null;
+  for (const at of pinnedAt) {
+    const t = typeof at === 'string' ? Date.parse(at) : NaN;
+    if (Number.isFinite(t) && (newest === null || t > newest)) newest = t;
+  }
+  return { total: pinnedAt.length, newest: newest === null ? null : new Date(newest).toISOString() };
+}
+
+export function pinsAdvert(channelUrl: string, pins: PinSummary): PinsAdvert & { type: 'OrderedCollection' } {
   return {
     type: 'OrderedCollection',
     id: pinsCollectionId(channelUrl),
-    totalItems: pinnedAt.length,
-    updated: newest === null ? null : new Date(newest).toISOString(),
+    totalItems: pins.total,
+    updated: pins.newest,
   };
+}
+
+/** The part of an advert a copy compares: totalItems and updated. */
+export function pinsAdvertKey(advert: Pick<PinsAdvert, 'totalItems' | 'updated'>): string {
+  return `${advert.totalItems}|${advert.updated ?? ''}`;
 }
 
 export function memberRolesObject(serverUrl: string, userId: string, member: string, roleIds: string[]) {
