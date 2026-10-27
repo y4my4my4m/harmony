@@ -41,10 +41,11 @@
       :disabled="disabled"
       title="Record voice message"
     >
-      <!-- Filled capsule and 2px stand: the weight of the GIF pill and emoji face beside it. -->
+      <!-- Filled capsule on a 2px stand, 17x22 overall: the optical size of the 23px emoji face
+           and 23x17 GIF pill beside it. -->
       <svg class="mic-glyph" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-        <rect x="8.5" y="2" width="7" height="12.5" rx="3.5" fill="currentColor"/>
-        <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v4M8.5 21.5h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <rect x="7.5" y="1" width="9" height="13.5" rx="4.5" fill="currentColor"/>
+        <path d="M4.5 11a7.5 7.5 0 0 0 15 0M12 18.5V22M8 22h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
