@@ -27,7 +27,7 @@ Type in the composer at the bottom of the channel and send:
 - **From Drive**, in the same menu, attaches files already in your [Drive](/use/drive) without uploading them again.
 - Attached files appear above the composer. Each one has buttons to describe it ([Describe an image](#describe-an-image)), mark it as a spoiler ([Spoilers](#spoilers)) and remove it. The placeholder changes to **Add a comment...** for text sent with the files.
 - Every file you send is kept in your Drive and counts toward your storage. The clock button on an attachment makes it temporary instead: it is deleted after a number of days the instance sets, 30 by default. When your Drive is full, every upload is temporary. See [Storage and temporary files](/use/drive#storage-and-temporary-files).
-- **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. **Emoji picker**, beside it, inserts emoji into your message.
+- **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. The **Stickers** tab also lists the server's, the instance's and your own custom stickers above KLIPY's; see [Stickers](/use/stickers). **Emoji picker**, beside it, inserts emoji into your message.
 
 ## Music links
 

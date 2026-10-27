@@ -102,6 +102,12 @@ deleted files. It sweeps every 10 minutes.
 | **Max custom emojis per server** | `max_custom_emojis_per_server` | `50` | Custom emoji a server holds, checked by the web app. `0` is no limit |
 | **Personal emojis per user** | `max_personal_emojis_per_user` | `50` | Emoji each person keeps in **User settings** → **My emojis**, uploads and AI-generated together, `0` to `1000`. `0` turns personal emoji off. The database refuses an emoji past the limit; emoji already past a lowered limit stay |
 
+### Sticker limits
+
+**Config** → **Federation** also holds the sticker caps: `max_stickers_per_server` (`15`),
+`max_instance_stickers` (`50`) and `max_personal_stickers_per_user` (`0`, personal stickers
+off). [Stickers](/self-host/stickers) describes them with the file limits.
+
 ## Change a setting
 
 ### With harmony config

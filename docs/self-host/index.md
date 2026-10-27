@@ -190,6 +190,8 @@ password `DASHBOARD_PASSWORD` from `supabase/.env`.
 - [Email (SMTP)](/self-host/email), [OAuth sign-in](/self-host/oauth),
   [Voice and video](/self-host/voice), [Push notifications](/self-host/push),
   [Discord bridges](/self-host/discord-bridges): optional features.
+- [Stickers](/self-host/stickers): instance stickers, sticker limits, personal
+  stickers and sticker reports.
 - [The harmony command](/self-host/cli): every subcommand and flag, and every
   check `harmony doctor` runs.
 - [Monitoring](/self-host/monitoring): watching an instance.
