@@ -276,6 +276,7 @@
             target="_blank"
             rel="noopener noreferrer"
             class="url-link url-link--masked"
+            dir="auto"
             :title="shownUrl(part.url)"
             :data-href="shownUrl(part.url)"
           >{{ shownLinkLabel(part) }}</a></InlineMarks>
@@ -367,6 +368,7 @@
             rel="noopener noreferrer"
             class="url-link"
             :class="{ 'sr-only-focusable': part === soleGifLink, 'url-link--masked': !!shownLinkLabel(part) }"
+            :dir="shownLinkLabel(part) ? 'auto' : undefined"
             :title="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
             :data-href="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
           >{{ shownLinkLabel(part) ?? shownUrl(part.url) }}</a></InlineMarks>
@@ -2045,6 +2047,12 @@ export default defineComponent({
 
 .url-link:hover {
   text-decoration: underline;
+}
+
+/* A label is laid out apart from the text around it: no override or mark outside it reorders
+   it, and its direction is its own first strong character's (dir="auto"). */
+.url-link--masked {
+  unicode-bidi: isolate;
 }
 
 /* Keyboard focus names a masked link's destination; hover has the title. */

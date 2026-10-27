@@ -26,7 +26,7 @@ vi.mock('../utils/logger.js', () => ({
 import { convertContentToHTML } from '../utils/contentUtils.js'
 import { postToNote } from '../activitypub/converters/toActivityPub.js'
 import { noteToContent } from '../activitypub/converters/fromActivityPub.js'
-import { isDeceptiveLabel, urlPartPlainText } from '../utils/maskedLinks.js'
+import { anchorLinkLabel, isDeceptiveLabel, shownLinkLabel, urlPartPlainText } from '../utils/maskedLinks.js'
 
 const docs = { type: 'url', url: 'https://example.com/docs?a=1&b=2', preview: true, label: 'the <docs>' }
 
@@ -101,5 +101,46 @@ describe('plain text', () => {
   it('names the host after the label', () => {
     expect(urlPartPlainText(docs)).toBe('the <docs> (example.com)')
     expect(isDeceptiveLabel('www.paypal.com', 'https://evil.example')).toBe(true)
+  })
+})
+
+// The same rules as src/utils/maskedLinks.ts; src/utils/__tests__/maskedLinks.test.ts holds
+// the full table.
+describe('label policy', () => {
+  const evil = 'https://evil.example/x'
+
+  it.each([
+    ['a host after words', 'Sign in at accounts.google.com'],
+    ['a host before words', 'paypal.com login'],
+    ['a one-dot leader', 'paypal\u2024com'],
+    ['an ideographic full stop', 'paypal\u3002com'],
+    ['a Cyrillic TLD', 'paypal.c\u043Em'],
+    ['a fullwidth TLD', 'paypal.\uFF43\uFF4F\uFF4D'],
+    ['a trailing Hangul filler', 'paypal.com\u3164'],
+    ['a host in parentheses', '(paypal.com)'],
+    ['a Polish host', 'mbank.pl'],
+  ])('shows the URL, and takes no inbound label, for %s', (_name, label) => {
+    expect(shownLinkLabel({ type: 'url', url: evil, label })).toBeNull()
+    expect(anchorLinkLabel(label, evil)).toBeUndefined()
+    expect(isDeceptiveLabel(label, evil)).toBe(true)
+  })
+
+  it('takes no parent domain of the destination', () => {
+    expect(shownLinkLabel({ type: 'url', url: 'https://attacker.github.io', label: 'github.io' })).toBeNull()
+  })
+
+  it('shows no label for a destination that is not http(s)', () => {
+    expect(shownLinkLabel({ type: 'url', url: 'javascript://google.com/%0aalert(1)', label: 'google.com' })).toBeNull()
+    expect(convertContentToHTML([{ type: 'url', url: 'javascript://google.com/%0aalert(1)', label: 'google.com' }])).not.toContain('>google.com<')
+  })
+
+  it('shows the label without bidi marks, the destination named after a host-shaped name', () => {
+    expect(shownLinkLabel({ type: 'url', url: evil, label: '\u200Fcom\u200F.\u200Fpaypal' })).toBe('com.paypal (evil.example)')
+    expect(shownLinkLabel({ type: 'url', url: 'https://nodejs.org', label: 'Node.js' })).toBe('Node.js (nodejs.org)')
+    expect(urlPartPlainText({ type: 'url', url: 'https://nodejs.org', label: 'Node.js' })).toBe('Node.js (nodejs.org)')
+  })
+
+  it('shows a label naming the destination as typed', () => {
+    expect(shownLinkLabel({ type: 'url', url: 'https://www.example.com/a', label: 'read it on example.com' })).toBe('read it on example.com')
   })
 })

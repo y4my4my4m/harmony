@@ -6,6 +6,10 @@
 // - A reply's preview of it reads the label and the host.
 // - A label naming another host renders the real URL; a url part without a label (every
 //   client before 1.9.1) renders as before.
+// - A label shows exactly the text the host check read: bidi marks are gone (RLM turned
+//   "com.paypal" into "paypal.com" on screen), the label is isolated from the text around it,
+//   look-alike hosts and hosts mid-sentence show the URL, a host-shaped name gains the
+//   destination host, and a destination that is not http(s) shows no label.
 // - On a phone the same text sent with the send button gives the same link.
 
 import { test, expect, devices, type Page } from '@playwright/test'
@@ -187,6 +191,64 @@ test('a label naming another host shows the real URL; a link without a label sho
   await expect(row(page, 'deceptive')).not.toContainText('paypal')
   await expect(row(page, 'plain').locator('a.url-link')).toHaveText('https://example.org/p')
   await expect(row(page, 'plain').locator('a.url-link')).not.toHaveAttribute('title', /.+/)
+})
+
+test('a label shows only what the host check read', async ({ page }) => {
+  const RLM = '\u200F'
+  const insert = (text: string, url: string, label: string, leading = false) => ({
+    channel_id: channel,
+    user_id: friend.id,
+    content: leading
+      ? [{ type: 'url', url, preview: false, label }, { type: 'text', text: ` ${text}` }]
+      : [{ type: 'text', text: `${text} ` }, { type: 'url', url, preview: false, label }],
+  })
+  await admin.from('messages').insert([
+    insert('bidimark', 'https://evil.example/bidi', `${RLM}com${RLM}.${RLM}paypal`, true),
+    insert('cyrillic', 'https://evil.example/cyr', 'paypal.c\u043Em'),
+    insert('sentence', 'https://evil.example/sentence', 'log in at paypal.com'),
+    insert('dotleader', 'https://evil.example/leader', 'paypal\u2024com'),
+    insert('library', 'https://nodejs.org/en', 'Node.js'),
+    insert('scheme', 'javascript://google.com/%0aalert(1)', 'google.com'),
+  ])
+  await signIn(page, user)
+  await openChannel(page, server.id, channel)
+
+  await test.step('bidi marks are dropped and the label is laid out on its own', async () => {
+    const link = row(page, 'bidimark').locator('a.url-link')
+    await expect(link).toHaveText('com.paypal (evil.example)', { timeout: 30000 })
+    expect(await link.evaluate((el) => el.textContent?.includes('\u200F'))).toBe(false)
+    await expect(link).toHaveCSS('unicode-bidi', 'isolate')
+    // On screen "com" stands left of "paypal": nothing reorders the label.
+    const order = await link.evaluate((el) => {
+      const text = el.firstChild as Text
+      const at = (word: string) => {
+        const range = document.createRange()
+        const i = text.data.indexOf(word)
+        range.setStart(text, i)
+        range.setEnd(text, i + word.length)
+        return range.getBoundingClientRect().left
+      }
+      return at('com') < at('paypal')
+    })
+    expect(order).toBe(true)
+  })
+
+  await test.step('look-alike and mid-sentence hosts show the URL', async () => {
+    await expect(row(page, 'cyrillic').locator('a.url-link')).toHaveText('https://evil.example/cyr')
+    await expect(row(page, 'sentence').locator('a.url-link')).toHaveText('https://evil.example/sentence')
+    await expect(row(page, 'dotleader').locator('a.url-link')).toHaveText('https://evil.example/leader')
+    await expect(row(page, 'sentence')).not.toContainText('paypal')
+  })
+
+  await test.step('a host-shaped name gains the destination host', async () => {
+    await expect(row(page, 'library').locator('a.url-link')).toHaveText('Node.js (nodejs.org)')
+  })
+
+  await test.step('a destination that is not http(s) shows no label', async () => {
+    const r = row(page, 'scheme')
+    await expect(r.locator('a')).toHaveCount(0)
+    await expect(r.locator('.url-link--unsafe')).toHaveText('javascript://google.com/%0aalert(1)')
+  })
 })
 
 test('a post written with a masked link shows its label', async ({ page }) => {

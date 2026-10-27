@@ -124,6 +124,7 @@
             rel="noopener noreferrer"
             class="url-link"
             :title="shownLinkLabel(part) ? part.url : undefined"
+            :dir="shownLinkLabel(part) ? 'auto' : undefined"
             @click="handleLinkClick(part.url, $event)"
           >
             {{ shownLinkLabel(part) ?? part.url }}
