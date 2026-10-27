@@ -572,18 +572,7 @@ export class ActivityProcessor {
       void (async () => {
         const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
         await ServerDiscoveryService.syncRemoteServer(server.id, { asUserId: userProfile.id });
-        const { data: synced } = await supabase
-          .from('servers')
-          .select('ap_id, federation_metadata')
-          .eq('id', server.id)
-          .maybeSingle();
-        const membersUrl = synced?.federation_metadata?.members;
-        if (typeof membersUrl === 'string' && synced?.ap_id) {
-          await ServerDiscoveryService.syncRemoteServerMembers(server.id, membersUrl, {
-            signAs: userProfile.id,
-            serverApId: synced.ap_id,
-          });
-        }
+        await ServerDiscoveryService.queueMemberSync(server.id, userProfile.id);
       })().catch(err => logger.warn(`Accept(Join): sync of server ${server.id} failed:`, err));
     }
   }
@@ -1613,6 +1602,14 @@ export class ActivityProcessor {
       logger.warn(`Update(${MEMBER_ROLES_TYPE}) from ${actorUrl} names no member`);
       return;
     }
+    // A role the host creates and assigns at once can arrive before the Update(Group) naming it:
+    // the Group is read first, once.
+    const unknown = await CopyMirrorService.unknownRoles(server.id, entry.roles);
+    if (unknown && unknown.length > 0) {
+      logger.info(`Update(${MEMBER_ROLES_TYPE}) from ${actorUrl} names ${unknown.length} role(s) the copy lacks; reading the Group`);
+      const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+      await ServerDiscoveryService.syncRemoteServerShared(server.id);
+    }
     await CopyMirrorService.applyMemberRoles(server.id, server.ap_id, [entry], { complete: false });
   }
 
@@ -1641,7 +1638,7 @@ export class ActivityProcessor {
     }
     const messageId = await resolveMessageInChannel(supabase, noteId, channel.id);
     if (messageId) {
-      await CopyMirrorService.setPinned(channel.id, messageId, pinned ? notAfterNow(activity.published) : null);
+      await CopyMirrorService.setPinned(channel.id, messageId, pinned, pinned ? notAfterNow(activity.published) : null);
       return;
     }
     if (!pinned) return;

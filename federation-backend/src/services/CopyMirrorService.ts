@@ -10,6 +10,7 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { redis } from './RedisService.js';
 import type { MemberRoles, ParsedRole } from '../activitypub/copyMirror.js';
 
 /** Ids per `in` filter: the query string stays under 8 KB with URLs of 80 characters. */
@@ -22,6 +23,12 @@ function chunks<T>(items: T[], size = CHUNK): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
 }
+
+/** Redis hash of a copy's last applied pins adverts: channel id -> pinsAdvertKey. */
+const PIN_ADVERTS_KEY = (serverId: string) => `copy-pin-adverts:${serverId}`;
+
+/** The same, for writes Redis did not take. */
+const pinAdvertsInProcess = new Map<string, Map<string, string>>();
 
 const LOCAL_ACTOR = () => new RegExp(`^https://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/users/([A-Za-z0-9_]+)$`, 'i');
 
@@ -163,6 +170,26 @@ export class CopyMirrorService {
     return stale.length + missing.length;
   }
 
+  /** Ids among `roleApIds` naming no role the copy stores; null when its roles cannot be read. */
+  static async unknownRoles(serverId: string, roleApIds: string[]): Promise<string[] | null> {
+    const wanted = [...new Set(roleApIds)];
+    if (wanted.length === 0) return [];
+    const stored = new Set<string>();
+    for (const ids of chunks(wanted)) {
+      const { data, error } = await getSupabaseClient()
+        .from('server_roles')
+        .select('ap_id')
+        .eq('server_id', serverId)
+        .in('ap_id', ids);
+      if (error) {
+        logger.warn(`Roles of copy ${serverId} not read: ${error.message}`);
+        return null;
+      }
+      for (const r of data || []) stored.add(r.ap_id);
+    }
+    return wanted.filter((id) => !stored.has(id));
+  }
+
   /** Profile ids of the actors that are members of the copy, by actor id. Nothing is fetched. */
   private static async membersOf(serverId: string, actors: string[]): Promise<Map<string, string>> {
     const supabase = getSupabaseClient();
@@ -203,21 +230,26 @@ export class CopyMirrorService {
     return members;
   }
 
-  /** Pins or unpins one message of a copy's channel. */
-  static async setPinned(channelId: string, messageId: string, pinnedAt: string | null): Promise<void> {
+  /**
+   * Pins or unpins one message of a copy's channel. A pin's time may be null: a host serves
+   * harmony:pinnedAt null for a pin it holds no time of. False when the row is not written.
+   */
+  static async setPinned(channelId: string, messageId: string, pinned: boolean, pinnedAt: string | null = null): Promise<boolean> {
     const { error } = await getSupabaseClient()
       .from('messages')
-      .update({ is_pinned: pinnedAt !== null, pinned_at: pinnedAt, pinned_by: null })
+      .update({ is_pinned: pinned, pinned_at: pinned ? pinnedAt : null, pinned_by: null })
       .eq('id', messageId)
       .eq('channel_id', channelId);
     if (error) logger.warn(`Pin of message ${messageId} not set: ${error.message}`);
+    return !error;
   }
 
   /**
    * A copy's channel pinned exactly as `pinned` (row id -> pinned at) says: other pinned rows of
-   * the channel are unpinned. Returns the rows changed.
+   * the channel are unpinned. A null time keeps the time of a row already pinned. Returns the rows
+   * changed, or null when the pins cannot be read or a write fails.
    */
-  static async applyChannelPins(channelId: string, pinned: Map<string, string>): Promise<number> {
+  static async applyChannelPins(channelId: string, pinned: Map<string, string | null>): Promise<number | null> {
     const supabase = getSupabaseClient();
     const { data: current, error } = await supabase
       .from('messages')
@@ -226,21 +258,41 @@ export class CopyMirrorService {
       .eq('is_pinned', true);
     if (error) {
       logger.warn(`Pins of channel ${channelId} not read: ${error.message}`);
-      return 0;
+      return null;
     }
     let changed = 0;
+    let failed = false;
     const was = new Map((current || []).map((m: any) => [m.id as string, m.pinned_at as string | null]));
     for (const [id] of was) {
       if (pinned.has(id)) continue;
-      await this.setPinned(channelId, id, null);
-      changed++;
+      if (await this.setPinned(channelId, id, false)) changed++;
+      else failed = true;
     }
     for (const [id, at] of pinned) {
-      const before = was.get(id);
-      if (before !== undefined && before !== null && Date.parse(before) === Date.parse(at)) continue;
-      await this.setPinned(channelId, id, at);
-      changed++;
+      if (was.has(id)) {
+        const before = was.get(id) ?? null;
+        if (at === null) continue;
+        if (before !== null && Date.parse(before) === Date.parse(at)) continue;
+      }
+      if (await this.setPinned(channelId, id, true, at)) changed++;
+      else failed = true;
     }
-    return changed;
+    return failed ? null : changed;
+  }
+
+  /** The pins advert last applied to each channel of a copy (pinsAdvertKey), by channel id. */
+  static async pinAdvertsSeen(serverId: string): Promise<Map<string, string>> {
+    const stored = await redis.hgetall(PIN_ADVERTS_KEY(serverId));
+    return new Map([...(pinAdvertsInProcess.get(serverId) ?? []), ...Object.entries(stored ?? {})]);
+  }
+
+  static async notePinAdvert(serverId: string, channelId: string, key: string): Promise<void> {
+    if (await redis.hset(PIN_ADVERTS_KEY(serverId), channelId, key)) {
+      pinAdvertsInProcess.get(serverId)?.delete(channelId);
+      return;
+    }
+    const seen = pinAdvertsInProcess.get(serverId) ?? new Map<string, string>();
+    seen.set(channelId, key);
+    pinAdvertsInProcess.set(serverId, seen);
   }
 }

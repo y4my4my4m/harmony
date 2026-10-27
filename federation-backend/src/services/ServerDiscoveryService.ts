@@ -42,7 +42,10 @@ import {
   parseMemberRoles,
   parsePinnedAt,
   parsePinsAdvert,
+  pinsAdvertKey,
   pinsCollectionId,
+  summarizePins,
+  type PinsAdvert,
 } from '../activitypub/copyMirror.js';
 import { CopyMirrorService } from './CopyMirrorService.js';
 
@@ -102,8 +105,32 @@ const MEMBER_SYNC_MAX_PAGES = 40;
 /** Channels of a Group one sync reads pins of. */
 const MAX_SYNCED_CHANNELS = 500;
 
-/** Least time between two reads of a copy's members a member's sync asks for. */
+/** Least time between two reads of a copy's members. */
 const MEMBER_RESYNC_MS = 10 * 60_000;
+
+/** Actors without a profile one member sync fetches at once. */
+const MEMBER_FETCH_CONCURRENCY = 4;
+
+/** Ids per `in` filter: the query string stays under 8 KB with URLs of 80 characters. */
+const IN_CHUNK = 80;
+
+/** Memberships per upsert. */
+const MEMBERSHIP_BATCH = 500;
+
+/** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
+const READ_PAGE = 1000;
+
+/** Copies whose member sync runs in this process, with no job queue to hold it. */
+const memberSyncsInProcess = new Set<string>();
+
+/** `fn` over `items`, at most `limit` at once. */
+async function eachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) await fn(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+}
 
 // API ROUTES
 
@@ -725,10 +752,10 @@ router.post(
       logger.info(`Join complete: server=${localServer.id}, status=${initialStatus}, defaultChannel=${defaultChannel?.id || 'none'}`);
 
       // A local server's members are its own rows; only remote references
-      // mirror a remote member list.
-      if (remoteServer.members && !localServer.is_local_server) {
-        ServerDiscoveryService.syncRemoteServerMembers(localServer.id, remoteServer.members)
-          .catch(err => logger.error('Failed to sync remote members:', err));
+      // mirror a remote member list. For a pending member it is read on Accept(Join).
+      if (remoteServer.members && !localServer.is_local_server && initialStatus === 'accepted') {
+        void ServerDiscoveryService.queueMemberSync(localServer.id, userId)
+          .catch(err => logger.warn(`Member sync of ${localServer.id} not queued:`, err));
       }
 
       return res.json({
@@ -825,8 +852,8 @@ router.post(
  * GET /servers/:serverId/sync
  * Sync server metadata from remote, signed as the requester when a bearer
  * token names a local member of the server, else as any local member. A
- * member asking also has the members and their roles read, at most once in
- * MEMBER_RESYNC_MS per server.
+ * member asking also has the members and their roles read in the background,
+ * at most once in MEMBER_RESYNC_MS per server (queueMemberSync).
  */
 router.get(
   '/servers/:serverId/sync',
@@ -844,7 +871,10 @@ router.get(
       : undefined;
 
     await ServerDiscoveryService.syncRemoteServer(serverId, { asUserId });
-    if (asUserId) await ServerDiscoveryService.resyncMembers(serverId, asUserId);
+    if (asUserId) {
+      void ServerDiscoveryService.queueMemberSync(serverId, asUserId)
+        .catch(err => logger.warn(`Member sync of ${serverId} not queued:`, err));
+    }
 
     return res.json({ success: true, message: 'Server synced' });
   })
@@ -1876,6 +1906,17 @@ export class ServerDiscoveryService {
     return ids.find(id => localIds.has(id)) ?? null;
   }
 
+  private static syncsInFlight = new Map<string, Promise<void>>();
+
+  /** syncRemoteServer signed as a local member, joined by calls for the same server while it runs. */
+  static syncRemoteServerShared(serverId: string): Promise<void> {
+    const running = this.syncsInFlight.get(serverId);
+    if (running) return running;
+    const sync = this.syncRemoteServer(serverId).finally(() => this.syncsInFlight.delete(serverId));
+    this.syncsInFlight.set(serverId, sync);
+    return sync;
+  }
+
   /**
    * Sync a remote server's metadata and channels. The Group is fetched signed
    * as `asUserId`, else as a local accepted member; with neither there is no
@@ -1922,6 +1963,13 @@ export class ServerDiscoveryService {
         return;
       }
 
+      const owner = await this.resolveGroupOwner(remoteServer);
+      // Read again after the fetches: a member sync can stamp members_synced_at during them.
+      const { data: current } = await supabase
+        .from('servers')
+        .select('federation_metadata')
+        .eq('id', serverId)
+        .maybeSingle();
       await supabase
         .from('servers')
         .update({
@@ -1930,13 +1978,10 @@ export class ServerDiscoveryService {
           icon: remoteServer.icon?.url ?? null,
           banner: remoteServer.image?.url || null,
           public: remoteServer.discoverable !== false,
-          ...await (async () => {
-            const owner = await this.resolveGroupOwner(remoteServer);
-            return owner === undefined ? {} : { owner };
-          })(),
+          ...(owner === undefined ? {} : { owner }),
           ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {
-            ...server.federation_metadata,
+            ...(current?.federation_metadata ?? server.federation_metadata),
             outbox: remoteServer.outbox,
             members: remoteServer.members,
             followers: remoteServer.followers,
@@ -2048,69 +2093,122 @@ export class ServerDiscoveryService {
   }
 
   /**
-   * Members of a copy and their roles read again, signed as `signAs`, unless read in the last
-   * MEMBER_RESYNC_MS (federation_metadata.members_synced_at).
+   * The copy's members collection and Group, when its members were not read in the last
+   * MEMBER_RESYNC_MS (federation_metadata.members_synced_at); else null.
    */
-  static async resyncMembers(serverId: string, signAs: string): Promise<void> {
-    const supabase = getSupabaseClient();
-    const { data: server } = await supabase
+  private static async memberSyncTarget(serverId: string): Promise<{ members: string; apId: string } | null> {
+    const { data: server } = await getSupabaseClient()
       .from('servers')
       .select('ap_id, is_local_server, federation_metadata')
       .eq('id', serverId)
       .maybeSingle();
     const meta = server?.federation_metadata ?? {};
-    if (!server?.ap_id || server.is_local_server !== false || typeof meta.members !== 'string') return;
+    if (!server?.ap_id || server.is_local_server !== false || typeof meta.members !== 'string') return null;
     const last = Date.parse(meta.members_synced_at ?? '');
-    if (Number.isFinite(last) && Date.now() - last < MEMBER_RESYNC_MS) return;
-    await supabase
-      .from('servers')
-      .update({ federation_metadata: { ...meta, members_synced_at: new Date().toISOString() } })
-      .eq('id', serverId);
-    await this.syncRemoteServerMembers(serverId, meta.members, { signAs, serverApId: server.ap_id });
+    if (Number.isFinite(last) && Date.now() - last < MEMBER_RESYNC_MS) return null;
+    return { members: meta.members, apId: server.ap_id };
   }
 
   /**
-   * Pins of each channel whose entry in a Group's harmony:channels advertises them (copyMirror.ts),
-   * read where the copy's pins differ in count or newest pin time. A Group that advertises none
-   * (Harmony before 1.9.1) leaves the copy's pins as they are.
+   * Members of a copy and their roles read again, signed as `signAs`, unless read in the last
+   * MEMBER_RESYNC_MS. Queued as copy-member-sync, one job per server at a time; with no queue,
+   * run in the background in this process, one run per server at a time. Never waits for the read.
+   */
+  static async queueMemberSync(serverId: string, signAs: string): Promise<void> {
+    if (!(await this.memberSyncTarget(serverId))) return;
+    let jobId: string | undefined;
+    try {
+      const { bullmqManager } = await import('../queue/BullMQManager.js');
+      jobId = await bullmqManager.addJob(
+        'copy-member-sync',
+        { type: 'update', server_id: serverId, sign_as: signAs },
+        { dedupeId: `copy-member-sync:${serverId}`, attempts: 1 },
+      );
+    } catch (error) {
+      logger.warn(`Member sync of ${serverId} not queued: ${(error as Error).message}`);
+    }
+    if (jobId || memberSyncsInProcess.has(serverId)) return;
+    memberSyncsInProcess.add(serverId);
+    void this.runMemberSync(serverId, signAs)
+      .catch(error => logger.error(`Member sync of ${serverId} failed:`, error))
+      .finally(() => memberSyncsInProcess.delete(serverId));
+  }
+
+  /**
+   * One member sync of a copy (queueMemberSync). members_synced_at is stamped when a run that read
+   * the collection ends; a run that read nothing leaves it as it was.
+   */
+  static async runMemberSync(serverId: string, signAs: string): Promise<void> {
+    const target = await this.memberSyncTarget(serverId);
+    if (!target) return;
+    const read = await this.syncRemoteServerMembers(serverId, target.members, { signAs, serverApId: target.apId });
+    if (!read) return;
+    const supabase = getSupabaseClient();
+    const { data: server } = await supabase.from('servers').select('federation_metadata').eq('id', serverId).maybeSingle();
+    if (!server) return;
+    await supabase
+      .from('servers')
+      .update({ federation_metadata: { ...(server.federation_metadata ?? {}), members_synced_at: new Date().toISOString() } })
+      .eq('id', serverId);
+  }
+
+  /**
+   * Pins of each channel whose entry in a Group's harmony:channels advertises them (copyMirror.ts).
+   * An advert equal to the last one applied to the channel is skipped. Otherwise the channel's
+   * collection is read where the copy's pins differ from the advert in count or newest pin time;
+   * a count of 0 is read too, never applied blind. The advert is remembered once the copy matches
+   * it or the collection is applied, so Notes the copy cannot hold do not cause a read every sync.
+   * A channel without an advert (Harmony before 1.9.1, a reader under a history cutoff) keeps its
+   * pins as they are.
    */
   static async syncAdvertisedPins(serverId: string, serverApId: string, entries: unknown, signAs: string): Promise<void> {
     if (!Array.isArray(entries)) return;
-    const supabase = getSupabaseClient();
+    const adverts = new Map<string, PinsAdvert>();
     for (const entry of entries.slice(0, MAX_SYNCED_CHANNELS)) {
       if (!entry || typeof entry !== 'object' || typeof entry.id !== 'string' || !entry.id.startsWith(`${serverApId}/channels/`)) continue;
       const advert = parsePinsAdvert(entry[HARMONY_PINS], entry.id);
-      if (!advert) continue;
-      const { data: channel } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('server_id', serverId)
-        .eq('ap_id', entry.id)
-        .maybeSingle();
-      if (!channel) continue;
-      const { data: pinned } = await supabase
-        .from('messages')
-        .select('pinned_at')
-        .eq('channel_id', channel.id)
-        .eq('is_pinned', true);
-      const times = (pinned || []).map((m: any) => Date.parse(m.pinned_at)).filter((t: number) => Number.isFinite(t));
-      const newest = times.length > 0 ? Math.max(...times) : null;
-      const same = (pinned || []).length === advert.totalItems
-        && (advert.updated === null ? newest === null : newest === Date.parse(advert.updated));
-      if (same) continue;
-      if (advert.totalItems === 0) {
-        await CopyMirrorService.applyChannelPins(channel.id, new Map());
-        continue;
-      }
-      await this.syncChannelPins(serverId, channel.id, { signAs });
+      if (advert) adverts.set(entry.id, advert);
     }
+    if (adverts.size === 0) return;
+
+    const supabase = getSupabaseClient();
+    const seen = await CopyMirrorService.pinAdvertsSeen(serverId);
+    const apIds = [...adverts.keys()];
+    for (let i = 0; i < apIds.length; i += IN_CHUNK) {
+      const { data: channels } = await supabase
+        .from('channels')
+        .select('id, ap_id')
+        .eq('server_id', serverId)
+        .in('ap_id', apIds.slice(i, i + IN_CHUNK));
+      for (const channel of channels || []) {
+        const advert = adverts.get(channel.ap_id);
+        if (!advert) continue;
+        const key = pinsAdvertKey(advert);
+        if (seen.get(channel.id) === key) continue;
+        if (await this.copyPinsMatch(channel.id, advert) || await this.syncChannelPins(serverId, channel.id, { signAs })) {
+          await CopyMirrorService.notePinAdvert(serverId, channel.id, key);
+        }
+      }
+    }
+  }
+
+  /** The copy's channel holds as many pins as the advert, the newest at its time. */
+  private static async copyPinsMatch(channelId: string, advert: PinsAdvert): Promise<boolean> {
+    const { data: pinned, error } = await getSupabaseClient()
+      .from('messages')
+      .select('pinned_at')
+      .eq('channel_id', channelId)
+      .eq('is_pinned', true);
+    if (error) return false;
+    const held = summarizePins((pinned || []).map((m: any) => m.pinned_at));
+    return held.total === advert.totalItems && held.newest === advert.updated;
   }
 
   /**
    * A copy's channel pinned as its Group's pins collection says, read signed as `signAs`, else as
    * a local member: pinned Notes the copy lacks are cached (cacheChannelItems), and pinned rows the
-   * collection does not name are unpinned. False when the collection could not be read; the pins
-   * are then left as they are.
+   * collection does not name are unpinned. False when the collection could not be read, the pins
+   * then left as they are, or not every pin was written.
    */
   static async syncChannelPins(serverId: string, channelId: string, opts: { signAs?: string } = {}): Promise<boolean> {
     const supabase = getSupabaseClient();
@@ -2148,27 +2246,30 @@ export class ServerDiscoveryService {
       .slice(0, MAX_PINS)
       .filter((n: any) => n && typeof n === 'object' && typeof n.id === 'string');
     await cacheChannelItems(supabase, channel.id, server, notes);
-    const pinned = new Map<string, string>();
+    // A pin the host sends no time of keeps the copy's time, else has none.
+    const pinned = new Map<string, string | null>();
     for (const note of notes) {
       const rowId = await resolveMessageInChannel(supabase, note.id, channel.id);
-      if (rowId) pinned.set(rowId, parsePinnedAt(note[HARMONY_PINNED_AT]) ?? new Date().toISOString());
+      if (rowId) pinned.set(rowId, parsePinnedAt(note[HARMONY_PINNED_AT]));
     }
-    await CopyMirrorService.applyChannelPins(channel.id, pinned);
-    return true;
+    return (await CopyMirrorService.applyChannelPins(channel.id, pinned)) !== null;
   }
 
   /**
-   * Sync remote server members
-   * Fetches the members collection, every page up to MEMBER_SYNC_MAX_PAGES, and creates local
-   * profiles for remote users. A page's `next` must sit on the collection's origin. With
-   * `signAs`, the collection must sit on the server's host and each GET is signed as that
-   * local user.
+   * Members of a copy read from its Group's members collection, every page up to
+   * MEMBER_SYNC_MAX_PAGES; a page's `next` must sit on the collection's origin. With `signAs`, the
+   * collection must sit on the server's host and each GET is signed as that local user.
+   *
+   * An actor holding a profile here is taken as stored, stale or not; only actors without one are
+   * fetched. Members the copy lacks are added in batches. Roles (harmony:memberRoles) are applied
+   * once the profiles exist; members no entry names lose theirs only when every page was read and
+   * each carried the property. True when the collection was read and the members stored.
    */
   static async syncRemoteServerMembers(
     serverId: string,
     membersUrl: string,
     opts: { signAs?: string; serverApId?: string } = {},
-  ): Promise<void> {
+  ): Promise<boolean> {
     const supabase = getSupabaseClient();
 
     try {
@@ -2176,7 +2277,7 @@ export class ServerDiscoveryService {
 
       if (opts.signAs && (!opts.serverApId || !sameOrigin(membersUrl, opts.serverApId))) {
         logger.warn(`Members collection ${membersUrl} is not on the server's host; not signing a fetch to it`);
-        return;
+        return false;
       }
 
       // BUGS.md H15: membersUrl is from remote AP response.
@@ -2185,9 +2286,10 @@ export class ServerDiscoveryService {
         'User-Agent': federationUserAgent(),
       };
       const members: unknown[] = [];
-      // harmony:memberRoles of every page read; null while no page carried it.
-      let memberRoles: unknown[] | null = null;
-      let complete = false;
+      const memberRoles: unknown[] = [];
+      let pagesRead = 0;
+      let pagesWithRoles = 0;
+      let reachedEnd = false;
       let pageUrl: string | null = membersUrl + '?page=1';
       for (let pages = 0; pageUrl && pages < MEMBER_SYNC_MAX_PAGES; pages++) {
         const response = await SignatureService.signedApFetch(pageUrl, {
@@ -2200,75 +2302,124 @@ export class ServerDiscoveryService {
           break;
         }
         const membersPage = await response.json();
-        if (Array.isArray(membersPage.orderedItems)) members.push(...membersPage.orderedItems);
-        if (Array.isArray(membersPage[HARMONY_MEMBER_ROLES])) {
-          memberRoles = [...(memberRoles ?? []), ...membersPage[HARMONY_MEMBER_ROLES]];
+        pagesRead++;
+        if (Array.isArray(membersPage?.orderedItems)) members.push(...membersPage.orderedItems);
+        if (Array.isArray(membersPage?.[HARMONY_MEMBER_ROLES])) {
+          memberRoles.push(...membersPage[HARMONY_MEMBER_ROLES]);
+          pagesWithRoles++;
         }
-        const next = typeof membersPage.next === 'string' ? membersPage.next : null;
+        const next = typeof membersPage?.next === 'string' ? membersPage.next : null;
         pageUrl = next && sameOrigin(next, membersUrl) ? next : null;
-        complete = pageUrl === null;
+        reachedEnd = pageUrl === null;
       }
+      if (pagesRead === 0) return false;
 
-      logger.info(`Found ${members.length} remote members`);
-
-      const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
-
+      const actors = new Set<string>();
       for (const member of members as any[]) {
+        const url = typeof member === 'string' ? member : (member?.id || member?.actor);
+        if (typeof url !== 'string') continue;
         try {
-          // Member can be a URL string or an object with id
-          const memberUrl = typeof member === 'string' ? member : (member?.id || member?.actor);
-          
-          if (!memberUrl || typeof memberUrl !== 'string') {
-            continue;
-          }
-
-          // Skip members from our own instance - they're local users, not remote
-          try {
-            const memberHost = new URL(memberUrl).host;
-            if (memberHost === config.INSTANCE_DOMAIN) {
-              logger.debug(`Skipping local user in member sync: ${memberUrl}`);
-              continue;
-            }
-          } catch {
-            continue; // Invalid URL
-          }
-
-          const profile = await ActivityProcessor['ensureRemoteUser'](memberUrl);
-          
-          if (profile) {
-            const { error } = await supabase
-              .from('user_servers')
-              .upsert({
-                server_id: serverId,
-                user_id: profile.id,
-                status: 'accepted',
-                member_instance: new URL(memberUrl).host,
-              }, {
-                onConflict: 'server_id,user_id',
-                ignoreDuplicates: true,
-              });
-
-            if (!error) {
-              logger.debug(`Added remote member: ${profile.username}`);
-            }
-          }
-        } catch (memberError) {
-          logger.debug(`Failed to process member:`, memberError);
+          const { protocol, host } = new URL(url);
+          // Members of this instance are local accounts, already members here.
+          if ((protocol === 'https:' || protocol === 'http:') && host !== config.INSTANCE_DOMAIN) actors.add(url);
+        } catch {
+          continue;
         }
       }
+      logger.info(`Found ${actors.size} remote members of ${membersUrl}`);
 
-      // Roles of the members, once their profiles exist.
+      const profileOf = await this.storedActorProfiles([...actors]);
+      if (!profileOf) return false;
+      const unknown = [...actors].filter(url => !profileOf.has(url));
+      if (unknown.length > 0) {
+        const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+        await eachLimited(unknown, MEMBER_FETCH_CONCURRENCY, async (url) => {
+          try {
+            const profile = await ActivityProcessor['ensureRemoteUser'](url);
+            if (profile?.id) profileOf.set(url, profile.id);
+          } catch (error) {
+            logger.debug(`Member ${url} not resolved:`, error);
+          }
+        });
+      }
+      if (!(await this.addCopyMembers(serverId, profileOf))) return false;
+
       const groupUrl = opts.serverApId
         ?? (await supabase.from('servers').select('ap_id').eq('id', serverId).maybeSingle()).data?.ap_id;
-      const entries = typeof groupUrl === 'string' ? parseMemberRoles(memberRoles, groupUrl) : null;
+      const entries = pagesWithRoles > 0 && typeof groupUrl === 'string' ? parseMemberRoles(memberRoles, groupUrl) : null;
       if (entries && typeof groupUrl === 'string') {
-        await CopyMirrorService.applyMemberRoles(serverId, groupUrl, entries, { complete });
+        await CopyMirrorService.applyMemberRoles(serverId, groupUrl, entries, {
+          complete: reachedEnd && pagesWithRoles === pagesRead,
+        });
       }
 
       logger.info(`Synced remote server members for server: ${serverId}`);
+      return true;
     } catch (error) {
       logger.error('Error syncing remote server members:', error);
+      return false;
     }
+  }
+
+  /** Profile ids of the actors holding a profile here, by actor id; null when they cannot be read. */
+  private static async storedActorProfiles(actors: string[]): Promise<Map<string, string> | null> {
+    const supabase = getSupabaseClient();
+    const found = new Map<string, string>();
+    for (let i = 0; i < actors.length; i += IN_CHUNK) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, federated_id')
+        .in('federated_id', actors.slice(i, i + IN_CHUNK));
+      if (error) {
+        logger.warn(`Profiles of members not read: ${error.message}`);
+        return null;
+      }
+      for (const p of data || []) found.set(p.federated_id, p.id);
+    }
+    return found;
+  }
+
+  /**
+   * Accepted memberships of the copy for the profiles (actor id -> profile id) it does not hold
+   * yet, in batches. False when the copy's members cannot be read.
+   */
+  private static async addCopyMembers(serverId: string, profileOf: Map<string, string>): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    const held = new Set<string>();
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await supabase
+        .from('user_servers')
+        .select('user_id')
+        .eq('server_id', serverId)
+        .order('user_id')
+        .range(from, from + READ_PAGE - 1);
+      if (error) {
+        logger.warn(`Members of copy ${serverId} not read: ${error.message}`);
+        return false;
+      }
+      for (const m of data || []) held.add(m.user_id);
+      if ((data || []).length < READ_PAGE) break;
+    }
+
+    const rows = new Map<string, { server_id: string; user_id: string; status: 'accepted'; member_instance: string }>();
+    for (const [url, userId] of profileOf) {
+      if (held.has(userId) || rows.has(userId)) continue;
+      rows.set(userId, { server_id: serverId, user_id: userId, status: 'accepted', member_instance: new URL(url).host });
+    }
+    const pending = [...rows.values()];
+    const upsertOpts = { onConflict: 'server_id,user_id', ignoreDuplicates: true };
+    for (let i = 0; i < pending.length; i += MEMBERSHIP_BATCH) {
+      const batch = pending.slice(i, i + MEMBERSHIP_BATCH);
+      const { error } = await supabase.from('user_servers').upsert(batch, upsertOpts);
+      if (!error) continue;
+      // A row a guard trigger refuses (a ban, an account kept out here) fails its whole batch.
+      for (const row of batch) {
+        const { error: rowError } = await supabase.from('user_servers').upsert(row, upsertOpts);
+        if (rowError) logger.debug(`Member ${row.user_id} of copy ${serverId} not stored: ${rowError.message}`);
+      }
+    }
+    if (pending.length > 0) logger.info(`Added ${pending.length} remote member(s) to copy ${serverId}`);
+    return true;
   }
 
   /**
