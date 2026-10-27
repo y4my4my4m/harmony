@@ -63,6 +63,8 @@ export interface MessageMediaUploadOptions {
   folder?: string | null
   /** An interrupted upload of the same file under this key is continued (storageUpload.ts). */
   resumeKey?: string
+  /** The starting page shows the progress (storageUpload.ts ownProgress). */
+  ownProgress?: boolean
 }
 
 export interface MessageMediaUpload {
@@ -154,6 +156,7 @@ export function startMessageMediaUpload(
       label: options.label ?? options.name ?? ((file as File).name || undefined),
       onProgress: options.onProgress,
       resumeKey: options.resumeKey,
+      ownProgress: options.ownProgress,
       state,
     })
     try {

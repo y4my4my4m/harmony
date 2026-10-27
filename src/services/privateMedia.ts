@@ -584,13 +584,14 @@ export async function uploadMessageMedia(
   room: string,
   uploaderId: string,
   file: Blob,
-  options: { fileName?: string; contentType?: string } = {},
+  options: { fileName?: string; contentType?: string; ownProgress?: boolean } = {},
 ): Promise<UploadedMessageMedia> {
   if (!mediaRoomOfPath(`${room}/`)) throw new Error('Attachments need a channel or conversation')
   const path = messageMediaPath(room, uploaderId, options.fileName ?? (file as File).name)
   const { error } = await uploadStorageObject(MESSAGE_MEDIA_BUCKET, path, file, {
     upsert: false,
     label: options.fileName ?? ((file as File).name || undefined),
+    ownProgress: options.ownProgress,
     ...(options.contentType ? { contentType: options.contentType } : {}),
   })
   if (error) throw error

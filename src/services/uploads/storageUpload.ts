@@ -64,6 +64,8 @@ export interface StorageUploadOptions {
   metadata?: Record<string, unknown>
   /** Name in the transfers indicator; without one the upload is not listed. */
   label?: string
+  /** The starting page shows this upload's progress: the indicator lists it only on other pages. */
+  ownProgress?: boolean
   onProgress?: (fraction: number) => void
   /** Scope within which an interrupted upload of the same file is continued. */
   resumeKey?: string
@@ -710,6 +712,7 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
       name: options.label,
       progress: view,
       cancel: () => (state.cancel ? state.cancel() : upload.abort()),
+      origin: options.ownProgress && typeof window !== 'undefined' ? window.location.pathname : undefined,
     })
   }
 

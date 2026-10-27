@@ -33,6 +33,7 @@ const PNG = Buffer.from(
 )
 const EMOJI_POST = '**/storage/v1/object/emojis/**'
 const TUS = '**/storage/v1/upload/resumable**'
+const MEDIA_POST = '**/storage/v1/object/message_media/**'
 const MiB = 1024 * 1024
 
 let owner: SpecUser
@@ -206,6 +207,39 @@ test('an upload keeps going after its page is left', async ({ page }) => {
     .poll(async () => (await admin.from('emojis').select('name').eq('server_id', server.id).eq('name', 'party')).data?.length, { timeout: 20000 })
     .toBe(1)
   await page.unroute(EMOJI_POST)
+})
+
+test('a chat attachment is listed in the transfers panel only away from its channel', async ({ page }) => {
+  test.setTimeout(120_000)
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  let held = false
+  await page.route(MEDIA_POST, async (route: Route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    held = true
+    await released
+    await route.fallback()
+  })
+
+  await page.getByTestId('composer-file-input').setInputFiles({ name: 'held.txt', mimeType: 'text/plain', buffer: Buffer.from('held '.repeat(200)) })
+  await expect(previews(page).filter({ hasText: 'held.txt' })).toContainText('Uploading', { timeout: 15000 })
+  await expect.poll(() => held).toBe(true)
+
+  // The indicator lists a transfer 600 ms after it starts; the composer's row shows this one.
+  const item = page.getByTestId('transfers-indicator').getByTestId('transfer-item').filter({ hasText: 'held.txt' })
+  await page.waitForTimeout(1500)
+  await expect(item).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Direct messages', exact: true }).click()
+  await page.waitForURL(/\/dm/, { timeout: 15000 })
+  await expect(item).toBeVisible({ timeout: 10000 })
+  await expect(item).toHaveAttribute('data-status', 'running')
+
+  release()
+  await expect(item).toHaveAttribute('data-status', 'completed', { timeout: 20000 })
+  await page.unroute(MEDIA_POST)
 })
 
 test('a large upload resumes from where storage cut it off', async ({ page }) => {
