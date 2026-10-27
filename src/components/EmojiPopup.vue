@@ -46,7 +46,7 @@
     </div>
 
     <!-- Emoji Content Area -->
-    <div ref="contentRef" class="emoji-content" @keydown="onGridKeydown">
+    <div ref="contentRef" class="emoji-content" @keydown="onGridKeydown" @pointerover="trackPreview" @focusin="trackPreview">
       <!-- Favorite Emojis (always visible) -->
       <div v-if="!activeQuery" class="emoji-section">
         <h3 class="section-title">
@@ -82,7 +82,7 @@
             >
               <template v-if="fav.emoji_url">
                 <svg v-if="brokenEmojiUrls.has(fav.emoji_url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-                <img v-else :src="getEmojiUrl(fav.emoji_url, 42)" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(fav.emoji_url!)" />
+                <img v-else :src="getEmojiUrl(fav.emoji_url, 42)" :data-preview-src="getEmojiUrl(fav.emoji_url, 96)" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(fav.emoji_url!)" />
               </template>
               <img
                 v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
@@ -133,7 +133,7 @@
           >
             <template v-if="getFrequentEmojiDisplayUrl(emoji)">
               <svg v-if="brokenEmojiUrls.has(getFrequentEmojiDisplayUrl(emoji)!)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getFrequentEmojiDisplayUrl(emoji) ?? undefined" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(getFrequentEmojiDisplayUrl(emoji)!)" />
+              <img v-else :src="getFrequentEmojiDisplayUrl(emoji) ?? undefined" :data-preview-src="getFrequentEmojiDisplayUrl(emoji, 96) ?? undefined" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(getFrequentEmojiDisplayUrl(emoji)!)" />
             </template>
             <img
               v-else-if="!isNativePack && getFrequentEmojiSvgUrl(emoji)"
@@ -187,7 +187,7 @@
               @blur="hoveredEmojiName = null"
             >
               <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getEmojiUrl(emoji.url, 42)" alt="" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" :data-preview-src="getEmojiUrl(emoji.url, 96)" alt="" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
             </button>
           </div>
         </LazyEmojiSection>
@@ -258,10 +258,7 @@
       />
     </div>
 
-    <!-- Emoji preview bar -->
-    <div class="emoji-preview-bar" aria-hidden="true">
-      <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
-    </div>
+    <EmojiPreviewBar :name="hoveredEmojiName" :glyph="previewGlyph" />
 
     <!-- Favorite toast -->
     <Transition name="fav-toast">
@@ -318,6 +315,8 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { EMOJI_CATEGORIES } from '@/utils/emojiConstants';
 import { debug } from '@/utils/debug';
 import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
+import EmojiPreviewBar from '@/components/EmojiPreviewBar.vue';
+import { useEmojiPreviewGlyph } from '@/composables/useEmojiPreviewGlyph';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -445,6 +444,7 @@ const favoriteLabel = (fav: EmojiFavorite): string =>
 const frequentLabel = (emoji: { id: string; native?: string; name: string; url?: string }): string =>
   getFrequentEmojiDisplayUrl(emoji) ? customEmojiLabel(emoji.name) : humanizeEmojiName(emoji.name) || emoji.native || emoji.id;
 const hoveredEmojiName = ref<string | null>(null);
+const { glyph: previewGlyph, track: trackPreview } = useEmojiPreviewGlyph();
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
 const collapsedSections = ref(new Set<string>());
 
@@ -583,9 +583,9 @@ function isCustomServerEmoji(emoji: { id: string; native?: string; name: string;
  * Get the display URL for a frequently used emoji
  * Handles custom server emojis by checking stored URL or looking up in emoji cache
  */
-function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {
+function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: string; url?: string }, size = 42): string | null {
   if (emoji.url && !isLocalAssetUrl(emoji.url)) {
-    return getEmojiUrl(emoji.url, 42);
+    return getEmojiUrl(emoji.url, size);
   }
   
   // If it's not identified as a custom emoji, return null (let other handlers deal with it)
@@ -594,7 +594,7 @@ function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: 
   }
   
   const url = customEmojiUrlByName(emojiCacheStore.resolvedEmojis).get(emoji.name);
-  return url ? getEmojiUrl(url, 42) : null;
+  return url ? getEmojiUrl(url, size) : null;
 }
 
 /**
@@ -1223,6 +1223,23 @@ watch(
   background-color: var(--background-modifier-hover);
 }
 
+/* The glyph grows inside its own 36px cell (28px x 1.25 = 35px): no neighbour moves or is
+   covered, and the button stays the only hit target. */
+.emoji-item > * {
+  pointer-events: none;
+  transition: transform 0.12s ease;
+}
+
+@media (hover: hover) {
+  .emoji-item:hover > * {
+    transform: scale(1.25);
+  }
+}
+
+.emoji-item:focus-visible > * {
+  transform: scale(1.25);
+}
+
 .emoji-item img,
 .emoji-svg {
   width: 28px;
@@ -1317,26 +1334,10 @@ watch(
   background: var(--border-hover);
 }
 
-.emoji-preview-bar {
-  height: 28px;
-  padding: 0 12px;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.emoji-preview-name {
-  font-size: 12px;
-  color: var(--color-text-secondary, var(--text-secondary));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .fav-toast {
   position: absolute;
-  bottom: 36px;
+  bottom: 56px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--background-tertiary);

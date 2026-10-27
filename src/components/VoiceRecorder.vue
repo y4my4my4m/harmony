@@ -41,11 +41,10 @@
       :disabled="disabled"
       title="Record voice message"
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/>
-        <line x1="8" y1="23" x2="16" y2="23"/>
+      <!-- Filled capsule and 2px stand: the weight of the GIF pill and emoji face beside it. -->
+      <svg class="mic-glyph" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <rect x="8.5" y="2" width="7" height="12.5" rx="3.5" fill="currentColor"/>
+        <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v4M8.5 21.5h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
@@ -173,8 +172,20 @@ onUnmounted(() => {
 }
 
 .mic-trigger:hover:not(.disabled) {
-  color: var(--text-link);
-  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--text-primary);
+  background: var(--background-modifier-hover);
+}
+
+.mic-glyph {
+  display: block;
+  transition: transform 0.2s;
+}
+
+/* Scale of the emoji face's hover (EmojiUI). */
+@media (hover: hover) {
+  .mic-trigger:hover:not(.disabled) .mic-glyph {
+    transform: scale(1.14);
+  }
 }
 
 .mic-trigger.disabled {

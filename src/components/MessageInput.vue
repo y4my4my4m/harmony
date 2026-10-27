@@ -223,7 +223,7 @@
           <button
             ref="gifTriggerRef"
             type="button"
-            class="icon-button"
+            class="icon-button composer-tool"
             :class="{ 'is-collapsed': actionsCollapsed }"
             data-testid="composer-gif"
             :aria-label="t('messageA11y.composer.gif')"
@@ -238,7 +238,7 @@
             v-if="!isCompact"
             ref="emojiTriggerRef"
             type="button"
-            class="icon-button"
+            class="icon-button composer-tool"
             data-testid="composer-emoji"
             :aria-label="t('messageA11y.composer.emoji')"
             :title="t('messageA11y.composer.emoji')"
@@ -1794,6 +1794,29 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   .icon-button:hover {
     background-color: var(--background-modifier-hover);
+  }
+
+  /* GIF and emoji share the mic's box (VoiceRecorder .mic-trigger): 32px, colour, hover. */
+  .composer-tool {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .composer-tool:hover {
+    color: var(--text-primary);
+  }
+
+  .composer-tool > svg {
+    transition: transform 0.2s;
+  }
+
+  @media (hover: hover) {
+    .composer-tool:hover > svg {
+      transform: scale(1.14);
+    }
   }
 
   /* Send button; rendered on mobile only. */
