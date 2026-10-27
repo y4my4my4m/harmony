@@ -16,6 +16,7 @@ vi.mock('@/utils/uploadValidation', () => ({
 
 import {
   TUS_CHUNK_BYTES,
+  TUS_MIN_PART_BYTES,
   TUS_RETRY_DELAYS_MS,
   TUS_THRESHOLD_BYTES,
   UploadAbortedError,
@@ -24,6 +25,7 @@ import {
   startStorageUpload,
   storedResumableUploads,
   tusUploadId,
+  unevenPart,
   uploadStorageObject,
 } from '@/services/uploads/storageUpload'
 import { TRANSFER_SHOW_DELAY_MS, resetTransfers, transfers } from '@/services/transfers'
@@ -31,6 +33,7 @@ import { TRANSFER_SHOW_DELAY_MS, resetTransfers, transfers } from '@/services/tr
 const BASE = 'http://localhost:54321'
 const TUS = `${BASE}/storage/v1/upload/resumable`
 const UPLOAD_ID = 'bWVzc2FnZV9tZWRpYS91L3gvYS5iaW4vdjE'
+const SECOND_ID = 'bWVzc2FnZV9tZWRpYS91L3gvYS5iaW4vdjI'
 
 class FakeXHR {
   static all: FakeXHR[] = []
@@ -101,8 +104,10 @@ beforeEach(() => {
   forgetResumableUploads()
 })
 
-afterEach(() => {
+afterEach(async () => {
   started.splice(0).forEach((upload) => upload.abort())
+  // Termination requests go out on the stubbed fetch.
+  await flushPromises()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
@@ -312,7 +317,9 @@ describe('resuming', () => {
     // The page goes away mid-transfer: its requests stop answering; the record stays.
     expect(Object.values(storedResumableUploads())).toEqual([expect.objectContaining({ id: UPLOAD_ID, path: 'c/r/u/one.mp4' })])
 
+    // The reloaded page has no upload in flight.
     FakeXHR.all = []
+    resetStorageUploads()
     const again = start({ bucket: 'message_media', path: 'c/r/u/two.mp4', file: bigFile(size, 'video.mp4'), resumeKey: 'c/r/u' })
     await requests(1)
     expect(last().method).toBe('HEAD')
@@ -326,6 +333,161 @@ describe('resuming', () => {
     await expect(again.result).resolves.toEqual({ path: 'c/r/u/one.mp4' })
     expect(sent('POST')).toHaveLength(0)
     expect(storedResumableUploads()).toEqual({})
+  })
+
+  it('starts a new upload when a cut PATCH left a short part stored', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const size = TUS_CHUNK_BYTES * 2 + 100
+    const short = TUS_MIN_PART_BYTES + 512 * 1024
+    const upload = start({ bucket: 'message_media', path: 'u/x/k.bin', file: bigFile(size) })
+    await requests(1)
+    last().answer(201, { Location: `${TUS}/${UPLOAD_ID}` })
+    await requests(2)
+    last().upload.onprogress?.({ lengthComputable: true, loaded: short, total: TUS_CHUNK_BYTES })
+    last().onerror?.()
+    await vi.advanceTimersByTimeAsync(TUS_RETRY_DELAYS_MS[0])
+    await requests(3)
+    expect(last().method).toBe('HEAD')
+    // @tus/s3-store stored the 5.5 MiB as a part; R2 would refuse to complete the upload.
+    last().answer(200, { 'Upload-Offset': String(short), 'Upload-Length': String(size) })
+    await requests(4)
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith(`${TUS}/${UPLOAD_ID}`, expect.objectContaining({ method: 'DELETE' }))
+    expect(last()).toMatchObject({ method: 'POST', url: TUS })
+    last().answer(201, { Location: `${TUS}/${SECOND_ID}` })
+    await requests(5)
+    expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${SECOND_ID}` })
+    expect(last().headers['Upload-Offset']).toBe('0')
+    expect(last().bodySize()).toBe(TUS_CHUNK_BYTES)
+    expect(upload.state.loaded).toBe(0)
+    last().answer(204, { 'Upload-Offset': String(TUS_CHUNK_BYTES) })
+    await requests(6)
+    last().answer(204, { 'Upload-Offset': String(TUS_CHUNK_BYTES * 2) })
+    await requests(7)
+    last().answer(204, { 'Upload-Offset': String(size) })
+    await expect(upload.result).resolves.toEqual({ path: 'u/x/k.bin' })
+  })
+
+  it('does not continue a stored upload that holds a short part', async () => {
+    const size = TUS_CHUNK_BYTES * 2 + 100
+    const short = TUS_CHUNK_BYTES + TUS_MIN_PART_BYTES
+    const file = bigFile(size, 'video.mp4')
+    start({ bucket: 'message_media', path: 'c/r/u/one.mp4', file, resumeKey: 'c/r/u' })
+    await requests(1)
+    last().answer(201, { Location: `${TUS}/${UPLOAD_ID}` })
+    await requests(2)
+
+    FakeXHR.all = []
+    resetStorageUploads()
+    const again = start({ bucket: 'message_media', path: 'c/r/u/two.mp4', file: bigFile(size, 'video.mp4'), resumeKey: 'c/r/u' })
+    await requests(1)
+    expect(last().method).toBe('HEAD')
+    last().answer(200, { 'Upload-Offset': String(short), 'Upload-Length': String(size) })
+    await requests(2)
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith(`${TUS}/${UPLOAD_ID}`, expect.objectContaining({ method: 'DELETE' }))
+    expect(last()).toMatchObject({ method: 'POST', url: TUS })
+    expect(decodeMetadata(last().headers['Upload-Metadata']).objectName).toBe('c/r/u/two.mp4')
+    last().answer(201, { Location: `${TUS}/${SECOND_ID}` })
+    await requests(3)
+    expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${SECOND_ID}` })
+    expect(last().headers['Upload-Offset']).toBe('0')
+    expect(Object.values(storedResumableUploads())).toEqual([expect.objectContaining({ id: SECOND_ID })])
+    again.abort()
+  })
+
+  it('restarts once when storage refuses to complete, then fails without waiting out the retries', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const size = TUS_THRESHOLD_BYTES + 5
+    const refused = JSON.stringify({ statusCode: '500', message: 'All non-trailing parts must have the same length.' })
+    const upload = start({ bucket: 'message_media', path: 'u/x/l.bin', file: bigFile(size) })
+    for (const [n, id] of [[0, UPLOAD_ID], [5, SECOND_ID]] as const) {
+      await requests(n + 1)
+      expect(last()).toMatchObject({ method: 'POST', url: TUS })
+      last().answer(201, { Location: `${TUS}/${id}` })
+      await requests(n + 2)
+      expect(last().headers['Upload-Offset']).toBe('0')
+      last().answer(204, { 'Upload-Offset': String(TUS_CHUNK_BYTES) })
+      await requests(n + 3)
+      // The PATCH with the last bytes: the parts are stored, completion is refused.
+      last().answer(500, {}, refused)
+      await vi.advanceTimersByTimeAsync(TUS_RETRY_DELAYS_MS[0])
+      await requests(n + 4)
+      expect(last().method).toBe('HEAD')
+      last().answer(200, { 'Upload-Offset': String(size), 'Upload-Length': String(size) })
+      await requests(n + 5)
+      expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${id}` })
+      expect(last().bodySize()).toBe(0)
+      last().answer(500, {}, refused)
+      await flushPromises()
+      expect(fetch).toHaveBeenCalledWith(`${TUS}/${id}`, expect.objectContaining({ method: 'DELETE' }))
+    }
+    await expect(upload.result).rejects.toThrow('All non-trailing parts must have the same length.')
+    expect(FakeXHR.all).toHaveLength(10)
+  })
+
+  it('starts a new upload when HEAD carries no Upload-Offset', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const size = TUS_CHUNK_BYTES * 2 + 100
+    const upload = start({ bucket: 'message_media', path: 'u/x/m.bin', file: bigFile(size) })
+    await requests(1)
+    last().answer(201, { Location: `${TUS}/${UPLOAD_ID}` })
+    await requests(2)
+    last().answer(204, { 'Upload-Offset': String(TUS_CHUNK_BYTES) })
+    await requests(3)
+    last().onerror?.()
+    await vi.advanceTimersByTimeAsync(TUS_RETRY_DELAYS_MS[0])
+    await requests(4)
+    expect(last().method).toBe('HEAD')
+    // Not exposed to the page, or dropped by a proxy: the offset is unknown, not 0.
+    last().answer(200, { 'Upload-Length': String(size) })
+    await requests(5)
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledWith(`${TUS}/${UPLOAD_ID}`, expect.objectContaining({ method: 'DELETE' }))
+    expect(last()).toMatchObject({ method: 'POST', url: TUS })
+    last().answer(201, { Location: `${TUS}/${SECOND_ID}` })
+    await requests(6)
+    expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${SECOND_ID}` })
+    expect(last().headers['Upload-Offset']).toBe('0')
+    expect(sent('PATCH').filter((x) => x.url === `${TUS}/${UPLOAD_ID}`)).toHaveLength(2)
+    upload.abort()
+  })
+
+  it('gives a second upload of the same file its own TUS upload; cancelling it leaves the first', async () => {
+    const size = TUS_CHUNK_BYTES + 50
+    const first = start({ bucket: 'message_media', path: 'c/r/u/one.mp4', file: bigFile(size, 'video.mp4'), resumeKey: 'c/r/u' })
+    await requests(1)
+    last().answer(201, { Location: `${TUS}/${UPLOAD_ID}` })
+    await requests(2)
+    const firstPatch = last()
+
+    const second = start({ bucket: 'message_media', path: 'c/r/u/two.mp4', file: bigFile(size, 'video.mp4'), resumeKey: 'c/r/u' })
+    await requests(3)
+    expect(last()).toMatchObject({ method: 'POST', url: TUS })
+    last().answer(201, { Location: `${TUS}/${SECOND_ID}` })
+    await requests(4)
+    expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${SECOND_ID}` })
+    second.abort()
+    await expect(second.result).rejects.toBeInstanceOf(UploadAbortedError)
+    await flushPromises()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith(`${TUS}/${SECOND_ID}`, expect.objectContaining({ method: 'DELETE' }))
+
+    firstPatch.answer(204, { 'Upload-Offset': String(TUS_CHUNK_BYTES) })
+    await requests(5)
+    expect(last()).toMatchObject({ method: 'PATCH', url: `${TUS}/${UPLOAD_ID}` })
+    last().answer(204, { 'Upload-Offset': String(size) })
+    await expect(first.result).resolves.toEqual({ path: 'c/r/u/one.mp4' })
+    expect(storedResumableUploads()).toEqual({})
+  })
+
+  it('names a short part by its offset', () => {
+    expect(unevenPart(TUS_MIN_PART_BYTES - 1, TUS_CHUNK_BYTES * 3)).toBe(false)
+    expect(unevenPart(TUS_MIN_PART_BYTES, TUS_CHUNK_BYTES * 3)).toBe(true)
+    expect(unevenPart(TUS_CHUNK_BYTES, TUS_CHUNK_BYTES * 3)).toBe(false)
+    expect(unevenPart(TUS_CHUNK_BYTES * 2 + TUS_MIN_PART_BYTES, TUS_CHUNK_BYTES * 3)).toBe(true)
+    // The whole file stored: the short part is the last.
+    expect(unevenPart(TUS_CHUNK_BYTES + TUS_MIN_PART_BYTES, TUS_CHUNK_BYTES + TUS_MIN_PART_BYTES)).toBe(false)
   })
 
   it('takes the id from any Location form', () => {

@@ -5,7 +5,9 @@
 // upload shows its progress. An emoji upload started in server settings keeps going after the
 // settings close, in the transfers indicator, and the emoji lands. A file over 6 MiB goes up
 // through storage's resumable (tus) endpoint: its first PATCH is cut after half its bytes reach
-// storage, and the upload resumes from the offset storage reports rather than from zero.
+// storage, and the upload resumes from the offset storage reports rather than from zero. Cut after
+// 5.5 MiB, which S3 storage keeps as a short part R2 cannot complete, the upload is terminated and
+// sent again from zero.
 
 import { createHash, randomBytes } from 'node:crypto'
 import { test, expect, type Download, type Page, type Route } from '@playwright/test'
@@ -261,5 +263,59 @@ test('a large upload resumes from where storage cut it off', async ({ page }) =>
   // The tus upload carries the Drive metadata a one-request upload does.
   const { data: kept } = await admin.from('drive_files').select('name, size_bytes, sha256').eq('path', part!.path!)
   expect(kept?.[0]).toMatchObject({ name, size_bytes: size, sha256: createHash('sha256').update(bytes).digest('hex') })
+  await page.unroute(TUS)
+})
+
+test('a large upload cut with a short part stored starts over', async ({ page }) => {
+  test.setTimeout(240_000)
+  const size = 13 * MiB + 777
+  const bytes = randomBytes(size)
+  const name = 'short part.bin'
+  const patches: Array<{ id: string; offset: number; bytes: number }> = []
+  const deleted: string[] = []
+  let cut = false
+
+  const idOf = (url: string) => new URL(url).pathname.split('/').pop() ?? ''
+  await page.route(TUS, async (route: Route) => {
+    const request = route.request()
+    if (request.method() === 'DELETE') deleted.push(idOf(request.url()))
+    if (request.method() !== 'PATCH') return route.fallback()
+    const body = request.postDataBuffer() ?? Buffer.alloc(0)
+    patches.push({ id: idOf(request.url()), offset: Number(request.headers()['upload-offset']), bytes: body.length })
+    if (!cut) {
+      cut = true
+      // 5.5 MiB reach storage, then the connection drops.
+      const headers = { ...request.headers() }
+      delete headers['content-length']
+      await route.fetch({ postData: body.subarray(0, 5.5 * MiB), headers })
+      return route.abort('connectionreset')
+    }
+    return route.fallback()
+  })
+
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  const text = `short part by ${owner.username}`
+  const posted = await sendAttachment(page, { name, mimeType: 'application/octet-stream', buffer: bytes }, text, 120_000)
+  await expect(posted).toContainText(name)
+
+  const [first, second] = [patches[0].id, patches[1].id]
+  expect(first).not.toBe(second)
+  expect(patches).toEqual([
+    { id: first, offset: 0, bytes: 6 * MiB },
+    { id: second, offset: 0, bytes: 6 * MiB },
+    { id: second, offset: 6 * MiB, bytes: 6 * MiB },
+    { id: second, offset: 12 * MiB, bytes: size - 12 * MiB },
+  ])
+  await expect.poll(() => deleted).toEqual([first])
+
+  const { data } = await admin.from('messages').select('content').eq('channel_id', server.generalChannelId).eq('user_id', owner.id)
+  const content = (data ?? []).map((row) => row.content as Array<{ type: string; text?: string; path?: string; fileName?: string }>)
+    .find((parts) => JSON.stringify(parts).includes(text))
+  const part = content?.find((p) => p.type === 'file')
+  const stored = await admin.storage.from('message_media').download(part!.path!)
+  expect(stored.error).toBeNull()
+  const got = Buffer.from(await stored.data!.arrayBuffer())
+  expect(createHash('sha256').update(got).digest('hex')).toBe(createHash('sha256').update(bytes).digest('hex'))
   await page.unroute(TUS)
 })

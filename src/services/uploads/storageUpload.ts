@@ -18,9 +18,12 @@ import { registerTransfer, settleTransfer, type TransferEntry, type TransferProg
  * core, creation and termination) in PATCHes ending on TUS_CHUNK_BYTES boundaries. A PATCH that
  * fails on the network, stalls, or meets a 5xx, 423, 429 or an offset conflict (409) is resumed
  * from the offset a HEAD reports, after TUS_RETRY_DELAYS_MS; while the browser is offline the
- * wait lasts until it is back. A creation answered 404 or 405, or whose Location the page may not
- * read (Access-Control-Expose-Headers), sends this and every later file in one request; one with
- * no answer at all while the browser is online, this file only.
+ * wait lasts until it is back. A HEAD with no usable Upload-Offset, or one showing a short part
+ * stored (unevenPart), terminates the upload and starts a new one. The empty PATCH that only
+ * completes an upload, answered 5xx, does the same once; the second time the upload fails. A
+ * creation answered 404 or 405, or whose Location the page may not read
+ * (Access-Control-Expose-Headers), sends this and every later file in one request; one with no
+ * answer at all while the browser is online, this file only.
  *
  * Deviation from tus-js-client: the PATCH and HEAD URL is SUPABASE_URL plus the upload id, the
  * last segment of the creation Location. storage-api builds Location from forwarded headers;
@@ -28,7 +31,8 @@ import { registerTransfer, settleTransfer, type TransferEntry, type TransferProg
  *
  * An upload given a `resumeKey` records its TUS upload in localStorage until it settles. The same
  * file uploaded again under the same key, after a reload within RESUME_TTL_MS, continues that
- * upload and its object, whatever `path` the new call names.
+ * upload and its object, whatever `path` the new call names. A record whose upload this page is
+ * still sending is not continued: the second upload gets its own.
  */
 
 export type UploadStatus = 'uploading' | 'completed' | 'error' | 'aborted'
@@ -110,11 +114,20 @@ export const DEFAULT_CACHE_CONTROL = '3600'
 export const TUS_THRESHOLD_BYTES = 6 * 1024 * 1024
 
 /**
- * PATCH size. Supabase requires 6 MiB chunks on its S3 backend: storage-api's S3Store sends each
- * PATCH of at least 5 MiB as one multipart part, and R2 refuses parts of unequal size. Chunks end
- * on multiples of this size, so a PATCH resumed mid-chunk completes the part it left.
+ * PATCH size. Supabase requires 6 MiB chunks on its S3 backend: storage-api's S3Store (@tus/s3-store
+ * 2.0) stores each PATCH of at least TUS_MIN_PART_BYTES as one multipart part, and R2 refuses to
+ * complete an upload whose parts other than the last differ in size. Chunks end on multiples of
+ * this size.
+ *
+ * A PATCH cut short keeps the bytes storage received (@tus/server ends the stream on a
+ * disconnect). Under TUS_MIN_PART_BYTES past the chunk boundary they are held as an incomplete
+ * part, which the resumed PATCH prepends: the part ends on the boundary at full size. At or above
+ * it they are stored as a short part, and the upload restarts (unevenPart).
  */
 export const TUS_CHUNK_BYTES = 6 * 1024 * 1024
+
+/** @tus/s3-store minPartSize, 5_242_880 bytes. */
+export const TUS_MIN_PART_BYTES = 5 * 1024 * 1024
 
 /** Waits before each resume of a failed PATCH, ms; the upload fails after the last. */
 export const TUS_RETRY_DELAYS_MS = [1000, 3000, 5000, 10_000, 20_000, 30_000, 60_000]
@@ -135,6 +148,9 @@ const RESUME_STORE = 'harmony.resumableUploads'
 
 /** The endpoint answered as absent or unreadable; this session sends every file in one request. */
 let tusUnavailable = false
+
+/** TUS upload ids being sent by this page. */
+const inFlight = new Set<string>()
 
 export function newUploadState(total: number): UploadState {
   return reactive<UploadState>({
@@ -458,16 +474,36 @@ async function tusCreate(link: Link, options: StorageUploadOptions, path: string
   return id
 }
 
-/** Offset of an upload; null when storage no longer has it. */
-async function tusOffset(link: Link, id: string, size: number): Promise<number | null> {
+/**
+ * HEAD of an upload: its offset; 'gone' when storage no longer has it; 'unknown' when its
+ * Upload-Offset is absent or malformed, or it or Upload-Length does not fit the file.
+ */
+type Probe = number | 'gone' | 'unknown'
+
+async function tusOffset(link: Link, id: string, size: number): Promise<Probe> {
   const answer = await send(link, 'HEAD', tusUrl(id), await tusHeaders(), null)
-  if (answer.status === 404 || answer.status === 410 || answer.status === 403) return null
+  if (answer.status === 404 || answer.status === 410 || answer.status === 403) return 'gone'
   if (answer.status < 200 || answer.status >= 300) throw new NetworkFailure(false)
-  const offset = Number(answer.header('Upload-Offset'))
+  // Number(null) and Number('') are 0: an absent header is not an offset.
+  const header = answer.header('Upload-Offset')?.trim() ?? ''
+  const offset = /^\d+$/.test(header) ? Number(header) : NaN
   const length = answer.header('Upload-Length')
-  if (!Number.isFinite(offset) || offset < 0 || offset > size) return null
-  if (length !== null && Number(length) !== size) return null
+  if (!Number.isSafeInteger(offset) || offset > size) return 'unknown'
+  if (length !== null && Number(length) !== size) return 'unknown'
   return offset
+}
+
+/**
+ * Storage holds a short part that is not the last: at least TUS_MIN_PART_BYTES past a chunk
+ * boundary, short of the end (TUS_CHUNK_BYTES). R2 refuses to complete such an upload.
+ */
+export function unevenPart(offset: number, size: number): boolean {
+  return offset < size && offset % TUS_CHUNK_BYTES >= TUS_MIN_PART_BYTES
+}
+
+/** Termination: storage drops the upload and the parts kept so far. */
+function terminate(id: string): void {
+  void tusHeaders().then((headers) => fetch(tusUrl(id), { method: 'DELETE', headers })).catch(() => {})
 }
 
 /** tus answers an Upload-Offset that is not the upload's own with 409 "Upload-Offset conflict". */
@@ -517,39 +553,19 @@ async function sendResumable(
   state: UploadState,
   report: Report,
 ): Promise<string> {
+  const size = options.file.size
   const key = fingerprint(options)
   let path = options.path
   let id: string | null = null
   let offset = 0
 
-  if (key) {
-    const record = readRecords()[key]
-    if (record && Date.now() - record.at < RESUME_TTL_MS && record.bucket === options.bucket && record.size === options.file.size) {
-      const stored = await tusOffset(link, record.id, options.file.size).catch(() => null)
-      if (stored !== null) {
-        id = record.id
-        path = record.path
-        offset = stored
-        report(offset)
-      }
-    }
-    if (id === null && record) {
-      const records = readRecords()
-      delete records[key]
-      writeRecords(records)
-    }
+  const remember = (uploadId: string) => {
+    if (!key) return
+    const records = readRecords()
+    records[key] = { id: uploadId, bucket: options.bucket, path, size, at: Date.now() }
+    writeRecords(records)
   }
-
-  if (id === null) {
-    id = await tusCreate(link, options, path)
-    if (key) {
-      const records = readRecords()
-      records[key] = { id, bucket: options.bucket, path, size: options.file.size, at: Date.now() }
-      writeRecords(records)
-    }
-  }
-  const uploadId = id
-  const forget = () => {
+  const forget = (uploadId: string) => {
     if (!key) return
     const records = readRecords()
     if (records[key]?.id === uploadId) {
@@ -557,49 +573,108 @@ async function sendResumable(
       writeRecords(records)
     }
   }
+  const drop = (uploadId: string) => {
+    terminate(uploadId)
+    forget(uploadId)
+    inFlight.delete(uploadId)
+  }
+  const create = async () => {
+    const created = await tusCreate(link, options, path)
+    inFlight.add(created)
+    remember(created)
+    return created
+  }
+
+  if (key) {
+    const record = readRecords()[key]
+    // A record whose upload is in flight belongs to that upload; this one starts its own.
+    if (record && !inFlight.has(record.id)) {
+      let stored: Probe = 'gone'
+      if (Date.now() - record.at < RESUME_TTL_MS && record.bucket === options.bucket && record.size === size) {
+        inFlight.add(record.id)
+        stored = await tusOffset(link, record.id, size).catch(() => 'gone' as const)
+      }
+      if (typeof stored === 'number' && !unevenPart(stored, size)) {
+        id = record.id
+        path = record.path
+        offset = stored
+        report(offset)
+      } else {
+        inFlight.delete(record.id)
+        if (stored !== 'gone') terminate(record.id)
+        forget(record.id)
+      }
+    }
+  }
 
   // The PATCH reaching the full length runs storage's completion. Offset at the full length
   // without its answer (a resumed upload, a lost response) proves only the bytes: an empty
   // PATCH there completes it.
   let attempt = 0
-  let finished = false
+  let restarted = false
   try {
-    while (!finished) {
+    if (id === null) id = await create()
+    for (;;) {
+      const at = offset
       try {
-        const at = offset
-        offset = await tusPatch(link, options, uploadId, offset, report)
+        if (id === null) {
+          id = await create()
+          offset = 0
+          report(0)
+          continue
+        }
+        offset = await tusPatch(link, options, id, offset, report)
         attempt = 0
         state.reconnecting = false
         report(offset)
-        if (offset >= options.file.size && (at < offset || at === options.file.size)) finished = true
-      } catch (error) {
+        if (offset >= size && (at < offset || at === size)) break
+      } catch (thrown) {
+        // A creation mid-upload that gets no usable answer is retried as a dropped request.
+        const error = thrown instanceof TusUnavailableError ? new NetworkFailure(false) : thrown
+        // Every byte is stored and completion alone is refused (R2: parts of unequal size): the
+        // upload starts over once, then fails.
+        if (id !== null && at === size && error instanceof StorageUploadError && error.status >= 500) {
+          drop(id)
+          id = null
+          if (restarted) throw error
+          restarted = true
+          continue
+        }
         if (!retryable(error) || attempt >= TUS_RETRY_DELAYS_MS.length) {
           if (error instanceof NetworkFailure) throw networkError(error, options.bucket)
           throw error
         }
         state.reconnecting = true
         await sleep(link, TUS_RETRY_DELAYS_MS[attempt++])
-        const resumed = await tusOffset(link, uploadId, options.file.size).catch((failure: unknown) => {
+        if (id === null) continue
+        const probe = await tusOffset(link, id, size).catch((failure: unknown) => {
           if (failure instanceof UploadAbortedError) throw failure
           return undefined
         })
-        if (resumed === null) throw new StorageUploadError(humanizeUploadError({ message: 'Upload expired' }, options.bucket), 410)
-        if (resumed !== undefined) offset = resumed
+        if (probe === 'gone') throw new StorageUploadError(humanizeUploadError({ message: 'Upload expired' }, options.bucket), 410)
+        if (probe === 'unknown' || (probe !== undefined && unevenPart(probe, size))) {
+          drop(id)
+          id = null
+          offset = 0
+        } else if (probe !== undefined) {
+          offset = probe
+        }
         report(offset)
       }
     }
   } catch (error) {
-    if (error instanceof UploadAbortedError) {
-      // Termination: storage drops the parts kept so far.
-      void tusHeaders().then((headers) => fetch(tusUrl(uploadId), { method: 'DELETE', headers })).catch(() => {})
-      forget()
-    } else if (error instanceof StorageUploadError) {
-      forget()
+    if (id !== null && error instanceof UploadAbortedError) {
+      terminate(id)
+      forget(id)
+    } else if (id !== null && error instanceof StorageUploadError) {
+      forget(id)
     }
     // A network failure keeps the record: the same file picked again continues the upload.
     throw error
+  } finally {
+    if (id !== null) inFlight.delete(id)
   }
-  forget()
+  if (id !== null) forget(id)
   return path
 }
 
@@ -717,7 +792,8 @@ export async function uploadStorageObject(
   }
 }
 
-/** Test hook: the TUS endpoint is tried again. */
+/** Test hook: the TUS endpoint is tried again and no upload is in flight. */
 export function resetStorageUploads(): void {
   tusUnavailable = false
+  inFlight.clear()
 }
