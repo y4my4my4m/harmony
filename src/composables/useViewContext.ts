@@ -9,12 +9,13 @@
  *
  * A tab reports
  *   its view      shown on screen, with input in the last IDLE_MS;
- *   'background'  hidden, with input in the last IDLE_MS, on a computer that shows system
- *                 notifications itself (the desktop app, or a desktop browser with notification
- *                 permission): in use, viewing nothing;
+ *   'background'  hidden, with input in the last IDLE_MS, on a computer that shows Harmony's
+ *                 desktop notifications itself: the desktop app with the OS permission, or a
+ *                 desktop browser with notification permission; desktop notifications on and
+ *                 outside quiet hours: in use, viewing nothing;
  *   'away'        otherwise: no input for IDLE_MS; hidden on a phone or tablet, which notifies
- *                 through its own push; hidden without notification permission; closed; signed
- *                 out.
+ *                 through its own push; hidden where no desktop notification would show; closed;
+ *                 signed out.
  *
  * Every route reports its view. One without a channel, DM or social view reports
  * 'home' or 'settings', so the last channel shown does not stay viewed.
@@ -30,6 +31,7 @@ import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
 import { isMobileDevice, isTauri } from '@/utils/platform'
+import { useNotificationStore } from '@/stores/useNotification'
 
 export type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
 
@@ -59,6 +61,10 @@ let backgroundWrite: ReturnType<typeof setTimeout> | null = null
 let pageGone = false
 let accessToken: string | null = null
 let detachListeners: (() => void) | null = null
+// Signed out on this tab: 'away' stands, through input and the heartbeat, until updateViewContext.
+let released = false
+// Desktop app: the notification plugin's grant as last read, on attach and on every visibility change.
+let nativePermission = false
 
 /** The view this tab reports. */
 export function getCurrentViewContext() {
@@ -78,8 +84,10 @@ function rpcArgs(view: SyncedView) {
 // Signed out, nothing is sent: the RPC refuses anon. BaseLayout mounts on the initial
 // route before an auth page replaces it, and the heartbeat outlives that mount.
 function syncView(view: SyncedView): Promise<void> {
+  if (released && view.viewType !== 'away') return Promise.resolve()
   return supabase.auth.getSession().then(async ({ data: { session } }) => {
     if (!session) return
+    if (released && view.viewType !== 'away') return
     const { error } = await supabase.rpc('sync_view_context_from_presence', rpcArgs(view))
     if (error) debug.warn('Failed to sync view context to DB:', error)
   }).catch((error) => debug.warn('Failed to sync view context to DB:', error))
@@ -111,10 +119,36 @@ function isHidden(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden'
 }
 
-/** Shows system notifications of its own while hidden: the desktop app, or a desktop browser allowed to. */
+// Touch-primary: a tablet that requests the desktop site reports a desktop user agent.
+function isTouchPrimary(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: none) and (pointer: coarse)').matches
+}
+
+// The gate useNotification.shouldShowDesktopNotification applies before any type. Preferences
+// not yet loaded show nothing.
+function desktopNotificationsOn(): boolean {
+  try {
+    const store = useNotificationStore()
+    return store.preferences?.desktop_notifications === true && !store.isQuietHours
+  } catch {
+    return false
+  }
+}
+
+function refreshNativePermission(): void {
+  if (!isTauri()) return
+  void import('@tauri-apps/plugin-notification')
+    .then(({ isPermissionGranted }) => isPermissionGranted())
+    .then((granted) => { nativePermission = granted === true })
+    .catch(() => { nativePermission = false })
+}
+
+/** Shows Harmony's desktop notifications itself while hidden. */
 function notifiesInBackground(): boolean {
-  if (isMobileDevice()) return false
-  if (isTauri()) return true
+  if (isMobileDevice() || isTouchPrimary()) return false
+  if (!desktopNotificationsOn()) return false
+  if (isTauri()) return nativePermission
   return typeof Notification !== 'undefined' && Notification.permission === 'granted'
 }
 
@@ -134,7 +168,7 @@ function cancelBackgroundWrite(): void {
 }
 
 function enterBackground(): void {
-  if (presence === 'background') return
+  if (released || presence === 'background') return
   presence = 'background'
   viewContextTracker.setAttentive(false)
   cancelBackgroundWrite()
@@ -150,7 +184,7 @@ function setPresence(next: DevicePresence, viaKeepalive = false): void {
     return
   }
   cancelBackgroundWrite()
-  if (presence === next) return
+  if (presence === next || (released && next !== 'away')) return
   const was = presence
   presence = next
   viewContextTracker.setAttentive(next === 'viewing')
@@ -167,6 +201,7 @@ function attachListeners(): void {
   if (detachListeners || typeof window === 'undefined') return
 
   const onVisibility = () => {
+    refreshNativePermission()
     if (!isHidden()) {
       pageGone = false
       lastInputAt = Date.now()
@@ -174,6 +209,7 @@ function attachListeners(): void {
     setPresence(presenceNow(), true)
   }
   const onInput = () => {
+    if (released) return
     lastInputAt = Date.now()
     if (presence === 'away' && !isHidden()) setPresence('viewing')
   }
@@ -190,8 +226,10 @@ function attachListeners(): void {
   window.addEventListener('pagehide', onPageHide)
   window.addEventListener('pageshow', onPageShow)
   INPUT_EVENTS.forEach((type) => window.addEventListener(type, onInput, { passive: true, capture: true }))
+  refreshNativePermission()
 
   heartbeat = setInterval(() => {
+    if (released) return
     const next = presenceNow()
     if (next !== presence) {
       setPresence(next)
@@ -239,6 +277,7 @@ export async function updateViewContext(
     })
 
     lastView = { viewType, serverId, channelId, conversationId }
+    released = false
     attachListeners()
     // Navigation is input; a tab that shows a new view is not idle.
     lastInputAt = Date.now()
@@ -259,11 +298,13 @@ export async function updateViewContext(
 }
 
 /**
- * Marks this tab away while the session is still valid. Used on sign-out; bounded
- * so it cannot hold sign-out up.
+ * Marks this tab away while the session is still valid, and keeps it away: input and the
+ * heartbeat write nothing until the next updateViewContext. Used on sign-out; bounded so it
+ * cannot hold sign-out up.
  */
 export async function markDeviceAway(timeoutMs = 2000): Promise<void> {
   cancelBackgroundWrite()
+  released = true
   presence = 'away'
   viewContextTracker.setAttentive(false)
   await Promise.race([
@@ -292,6 +333,7 @@ export async function cleanupViewContext(): Promise<void> {
   lastView = { viewType: 'home' }
   presence = 'viewing'
   pageGone = false
+  released = false
   viewContextTracker.reset()
 
   await sessionHeartbeat.stop()

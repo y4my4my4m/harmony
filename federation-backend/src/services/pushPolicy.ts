@@ -66,9 +66,10 @@ export function pushAllowedForType(type: string, prefs: NotificationPrefs): bool
  * In use is public.has_active_session: a device_view_contexts row other than 'away' written in
  * the last 150 s. The client (src/composables/useViewContext.ts) rewrites its row every 60 s
  * while the device has had input in the last 10 minutes and either shows Harmony on screen or,
- * on a computer that shows system notifications itself, runs it in the background
- * ('background'). It writes 'away' after 10 minutes without input, when a phone or tablet puts
- * the app in the background, on close and on sign-out.
+ * on a computer that would show Harmony's desktop notifications itself (permission granted,
+ * desktop notifications on, outside quiet hours), runs it in the background ('background'). It
+ * writes 'away' after 10 minutes without input, when a phone or tablet puts the app in the
+ * background, on close and on sign-out.
  *
  * A device viewing the notification's channel or DM goes further: send_notification creates no
  * notification at all (is_user_viewing_context), and sendForNotification checks it again.
