@@ -1,4 +1,4 @@
-// Journey: the reaction tooltip names a default emoji by its shortcode, as text, both while
+// Journey: the reaction pill's emoji card names a default emoji by its shortcode, as text, both while
 // the reaction is on its way (the request is held) and once it is stored; never by the emoji
 // character between colons. The reaction is added with quick react (double-click, thumbs up).
 
@@ -35,7 +35,7 @@ test.afterAll(async () => {
 })
 
 const row = (page: Page) => page.locator('[data-testid="message-list"] .message-item').filter({ hasText: 'label me' })
-const tooltipLabel = (page: Page) => page.locator('.reaction-tooltip .emoji-name')
+const tooltipLabel = (page: Page) => page.getByTestId('emoji-info-name')
 
 test('a default emoji reaction is labelled :thumbs_up: before and after it is stored', async ({ page }) => {
   test.setTimeout(120_000)
