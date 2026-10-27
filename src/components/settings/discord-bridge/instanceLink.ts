@@ -3,7 +3,7 @@
  * bot-gateway's GET /bridge/v2/discord/authorize, which redirects to Discord's consent screen.
  */
 import { isTauriRuntime } from '@/services/instanceConfig'
-import { openExternalUrl } from '@/services/tauriLinks'
+import { openExternalUrl } from '@/services/outsideLinks'
 import { buildInstanceAuthorizeUrl, resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { createInstanceLink } from './bridgeApi'
 

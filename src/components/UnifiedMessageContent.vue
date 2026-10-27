@@ -280,7 +280,7 @@
             :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
-            class="url-link url-link--masked"
+            class="url-link url-link--masked masked-link"
             dir="auto"
             :title="shownUrl(part.url)"
             :data-href="shownUrl(part.url)"
@@ -390,7 +390,7 @@
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
-            :class="{ 'sr-only-focusable': part === soleGifLink, 'url-link--masked': !!shownLinkLabel(part) }"
+            :class="{ 'sr-only-focusable': part === soleGifLink, 'url-link--masked': !!shownLinkLabel(part), 'masked-link': isMaskedUrlPart(part) }"
             :dir="shownLinkLabel(part) ? 'auto' : undefined"
             :title="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
             :data-href="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
@@ -490,6 +490,7 @@
             v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url) && !isCoveredLink(partIndex)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
+            :masked="isMaskedUrlPart(part)"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
             @embed-loaded="handleEmbedLoad"
           />
@@ -500,6 +501,7 @@
             v-if="resolveEmbedPayload(part)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
+            :masked="maskedUrls.has(part.url)"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
             @embed-loaded="handleEmbedLoad"
           />
@@ -578,7 +580,7 @@
               :href="klipyWatermarkHref(part.url)"
               target="_blank"
               rel="noopener noreferrer nofollow"
-              @click.stop="openWatermark($event, klipyWatermarkHref(part.url))"
+              @click.stop="activateStoppedLink"
               title="via KLIPY"
             >
               <img
@@ -663,7 +665,7 @@
               :href="klipyWatermarkHref(part.url)"
               target="_blank"
               rel="noopener noreferrer nofollow"
-              @click.stop="openWatermark($event, klipyWatermarkHref(part.url))"
+              @click.stop="activateStoppedLink"
               title="via KLIPY"
             >
               <img
@@ -818,8 +820,8 @@ import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
 import InlineMarks from '@/components/common/InlineMarks';
-import { openExternalUrl } from '@/services/tauriLinks';
-import { getInstanceDomain, isTauriRuntime } from '@/services/instanceConfig';
+import { activateStoppedLink } from '@/services/outsideLinks';
+import { getInstanceDomain } from '@/services/instanceConfig';
 import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
@@ -854,7 +856,7 @@ import { renderChatMessageText, type CodeBlock as RenderedCodeBlock } from '@/ut
 import { renderInlineRuns, SPOILER_GROUP_PREFIX, type InlineMark, type RunPart } from '@/utils/inlineMarkdownRuns';
 import { convertEmoticons } from '@/utils/emoticons';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
-import { shownLinkLabel } from '@/utils/maskedLinks';
+import { isMaskedUrlPart, maskedUrlsIn, shownLinkLabel } from '@/utils/maskedLinks';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -1021,13 +1023,6 @@ export default defineComponent({
     const klipyWatermarkHref = (url: string) =>
       sanitizeUrl(parseKlipyItemPageUrl(url)) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
-    // The credit link keeps its click from the message (@click.stop), so the document's link
-    // handler never sees it: the native client opens it outside the app here.
-    const openWatermark = (event: MouseEvent, href: string) => {
-      if (!isTauriRuntime()) return;
-      event.preventDefault();
-      void openExternalUrl(href);
-    };
     // Stickers render small and inline, with no lightbox or zoom.
     const isStickerMedia = (url: string) => isStickerMessageUrl(url);
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
@@ -1458,6 +1453,9 @@ export default defineComponent({
     const onEmbedMediaError = (url: string) => {
       failedEmbedMedia.add(url);
     };
+
+    // A preview part of a masked link's URL opens like the link.
+    const maskedUrls = computed(() => maskedUrlsIn(props.content));
 
     // The url part of a GIF link that is the whole message: its text is out of sight.
     const soleGifLink = computed(() => soleGifLinkPart(displayContent.value, (part) => {
@@ -1956,6 +1954,8 @@ export default defineComponent({
       showsPreview,
       shownUrl,
       shownLinkLabel,
+      isMaskedUrlPart,
+      maskedUrls,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,
@@ -1991,7 +1991,7 @@ export default defineComponent({
       mediaPartFileName,
       isPrivateMediaPart,
       klipyWatermarkHref,
-      openWatermark,
+      activateStoppedLink,
       klipyWatermarkLogoUrl,
       isStickerMedia,
       isAiEmojiMedia,

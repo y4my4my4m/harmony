@@ -27,7 +27,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import { dismissVersion, findAndroidUpdate, type AndroidRelease } from '@/services/androidReleaseNotice'
-import { openExternalUrl } from '@/services/tauriLinks'
+import { openExternalUrl } from '@/services/outsideLinks'
 
 const { t } = useI18n()
 const release = ref<AndroidRelease | null>(null)

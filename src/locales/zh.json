@@ -6150,6 +6150,28 @@
     "playOnSite": "在 {site} 上播放",
     "playInX": "在 X 播放器中播放"
   },
+  "outsideLink": {
+    "title": "即将离开 Harmony",
+    "lead": "此链接指向 Harmony 之外的网站。打开前请确认地址。",
+    "maskedLead": "此链接的文字可能与其实际去向不符。打开前请确认地址。",
+    "trust": "今后信任 {host}",
+    "copy": "复制链接",
+    "open": "打开链接",
+    "copied": "链接已复制",
+    "copyFailed": "无法复制链接",
+    "trustFailed": "无法将 {host} 保存为受信任的网站",
+    "settings": {
+      "title": "外部链接",
+      "askEvery": "打开任何外部链接前先询问",
+      "askEveryDescription": "对每个指向其他网站的链接显示“即将离开 Harmony”确认。文字可能与地址不符的隐藏链接始终会询问。",
+      "trusted": "受信任的网站",
+      "trustedDescription": "指向这些网站的链接将直接打开，不再询问。",
+      "trustedEmpty": "没有受信任的网站。在“即将离开 Harmony”确认中勾选“信任”即可添加。",
+      "remove": "移除",
+      "removeLabel": "从受信任的网站中移除 {host}",
+      "saveFailed": "无法保存更改"
+    }
+  },
   "threadCreate": {
     "button": "新建话题",
     "nameLabel": "话题名称",

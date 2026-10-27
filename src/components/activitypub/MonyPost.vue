@@ -248,6 +248,7 @@
             target="_blank"
             rel="noopener noreferrer"
             class="post-link-preview post-link-preview--compact"
+            :class="{ 'masked-link': maskedUrls.has(embed.url) }"
           >
             <LinkEmbedCard :payload="(embed as any)" variant="compact" />
           </a>
@@ -291,6 +292,7 @@
               target="_blank"
               rel="noopener noreferrer"
               class="post-link-preview"
+              :class="{ 'masked-link': maskedUrls.has(embed.url) }"
             >
               <LinkEmbedCard :payload="(embed as any)" :variant="cardEmbedVariant" />
             </a>
@@ -797,7 +799,8 @@ import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { boostLinkTarget, postLinks } from '@/utils/postLinks'
-import { openLink } from '@/services/tauriLinks'
+import { openLink } from '@/services/outsideLinks'
+import { maskedUrlsIn } from '@/utils/maskedLinks'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -1290,6 +1293,9 @@ const displayContent = computed(() => {
   // Quote posts render the original content in a quoted block
   return (isReblog.value && props.post.reblog) ? props.post.reblog.content : props.post.content;
 });
+
+// A preview card of a masked link's URL opens like the link.
+const maskedUrls = computed(() => maskedUrlsIn(displayContent.value));
 
 const remotePollSource = computed<any>(() => (isReblog.value && props.post.reblog) ? props.post.reblog : props.post);
 const remotePollMetadata = computed(() => {

@@ -6150,6 +6150,28 @@
     "playOnSite": "{site}에서 재생",
     "playInX": "X 플레이어에서 재생"
   },
+  "outsideLink": {
+    "title": "Harmony를 떠납니다",
+    "lead": "이 링크는 Harmony 외부 사이트로 이동합니다. 열기 전에 주소를 확인하세요.",
+    "maskedLead": "이 링크의 텍스트는 실제로 이동하는 곳과 다를 수 있습니다. 열기 전에 주소를 확인하세요.",
+    "trust": "앞으로 {host} 신뢰하기",
+    "copy": "링크 복사",
+    "open": "링크 열기",
+    "copied": "링크를 복사했습니다",
+    "copyFailed": "링크를 복사하지 못했습니다",
+    "trustFailed": "{host}을(를) 신뢰하는 사이트로 저장하지 못했습니다",
+    "settings": {
+      "title": "외부 링크",
+      "askEvery": "외부 링크를 열기 전에 항상 묻기",
+      "askEveryDescription": "다른 사이트로 가는 모든 링크에 'Harmony를 떠납니다' 확인을 표시합니다. 텍스트가 주소와 다를 수 있는 마스크 링크는 항상 묻습니다.",
+      "trusted": "신뢰하는 사이트",
+      "trustedDescription": "이 사이트로 가는 링크는 묻지 않고 열립니다.",
+      "trustedEmpty": "신뢰하는 사이트가 없습니다. 'Harmony를 떠납니다' 확인에서 '신뢰하기'를 선택하면 추가됩니다.",
+      "remove": "제거",
+      "removeLabel": "신뢰하는 사이트에서 {host} 제거",
+      "saveFailed": "변경 사항을 저장하지 못했습니다"
+    }
+  },
   "threadCreate": {
     "button": "새 스레드",
     "nameLabel": "스레드 이름",

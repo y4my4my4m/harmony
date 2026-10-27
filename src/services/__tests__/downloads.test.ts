@@ -14,7 +14,7 @@ vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string, values?: Record<st
 const toast = vi.hoisted(() => ({ info: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 const openExternalUrl = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@/services/tauriLinks', () => ({ openExternalUrl }))
+vi.mock('@/services/outsideLinks', () => ({ openExternalUrl }))
 const media = vi.hoisted(() => ({ local: new Map<string, string>(), resolve: vi.fn() }))
 vi.mock('@/services/privateMedia', () => ({
   localMediaPathOf: (url: string) => media.local.get(url),

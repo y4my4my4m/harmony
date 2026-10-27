@@ -6150,6 +6150,28 @@
     "playOnSite": "Reproducir en {site}",
     "playInX": "Reproducir en el reproductor de X"
   },
+  "outsideLink": {
+    "title": "Saliendo de Harmony",
+    "lead": "Este enlace lleva a un sitio fuera de Harmony. Comprueba la dirección antes de abrirlo.",
+    "maskedLead": "El texto de este enlace puede ocultar adónde lleva realmente. Comprueba la dirección antes de abrirlo.",
+    "trust": "Confiar en {host} a partir de ahora",
+    "copy": "Copiar enlace",
+    "open": "Abrir enlace",
+    "copied": "Enlace copiado",
+    "copyFailed": "No se pudo copiar el enlace",
+    "trustFailed": "No se pudo guardar {host} como sitio de confianza",
+    "settings": {
+      "title": "Enlaces externos",
+      "askEvery": "Preguntar antes de abrir cualquier enlace externo",
+      "askEveryDescription": "Muestra el aviso «Saliendo de Harmony» para cada enlace a otro sitio. Los enlaces enmascarados, cuyo texto puede no coincidir con su dirección, siempre preguntan.",
+      "trusted": "Sitios de confianza",
+      "trustedDescription": "Los enlaces a estos sitios se abren sin preguntar.",
+      "trustedEmpty": "No hay sitios de confianza. Marca «Confiar» en el aviso «Saliendo de Harmony» para añadir uno.",
+      "remove": "Quitar",
+      "removeLabel": "Quitar {host} de los sitios de confianza",
+      "saveFailed": "No se pudo guardar el cambio"
+    }
+  },
   "threadCreate": {
     "button": "Nuevo hilo",
     "nameLabel": "Nombre del hilo",

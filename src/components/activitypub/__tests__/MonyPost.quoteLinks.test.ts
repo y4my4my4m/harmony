@@ -23,7 +23,7 @@ const resolver = vi.hoisted(() => ({ resolveByApUrl: vi.fn() }))
 vi.mock('@/services/PostResolverService', () => ({ postResolverService: resolver }))
 
 const openLink = vi.hoisted(() => vi.fn())
-vi.mock('@/services/tauriLinks', () => ({ openLink }))
+vi.mock('@/services/outsideLinks', () => ({ openLink }))
 
 vi.mock('vue-toastification', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),

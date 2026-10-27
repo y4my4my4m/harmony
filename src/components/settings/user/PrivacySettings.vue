@@ -68,6 +68,44 @@
 
     </div>
 
+    <div class="settings-section" data-testid="outside-link-settings">
+      <h3 class="section-title">{{ $t('outsideLink.settings.title') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-t3`">{{ $t('outsideLink.settings.askEvery') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t3-desc`">{{ $t('outsideLink.settings.askEveryDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch :labelledby="`${a11yId}-t3`" :describedby="`${a11yId}-t3-desc`"
+            :model-value="outsideLinks.askEveryLink"
+            :disabled="!outsideLinks.signedIn"
+            data-testid="ask-every-link-toggle"
+            @change="onAskEveryLinkChange"
+          />
+        </div>
+      </div>
+
+      <h4 class="setting-label trusted-sites-title" :id="`${a11yId}-trusted`">{{ $t('outsideLink.settings.trusted') }}</h4>
+      <p class="setting-description">{{ $t('outsideLink.settings.trustedDescription') }}</p>
+      <p v-if="outsideLinks.hostList.length === 0" class="setting-description trusted-sites-empty" data-testid="trusted-sites-empty">
+        {{ $t('outsideLink.settings.trustedEmpty') }}
+      </p>
+      <ul v-else class="blocked-users-list trusted-sites-list" :aria-labelledby="`${a11yId}-trusted`" data-testid="trusted-sites">
+        <li v-for="host in outsideLinks.hostList" :key="host" class="blocked-user-item">
+          <span class="user-name trusted-host" dir="ltr" translate="no">{{ host }}</span>
+          <button
+            type="button"
+            class="unblock-btn"
+            :aria-label="$t('outsideLink.settings.removeLabel', { host })"
+            @click="untrustHost(host)"
+          >
+            {{ $t('outsideLink.settings.remove') }}
+          </button>
+        </li>
+      </ul>
+    </div>
+
     <DataExportPanel class="export-card" />
 
     <div class="settings-section">
@@ -148,6 +186,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
+import { useOutsideLinkSettingsStore } from '@/stores/outsideLinkSettings'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -190,6 +229,28 @@ const CACHE_TTL_MS = 30000
 const onUrlStripChange = () => {
   setUrlTrackingStrippingEnabled(stripUrlTrackers.value)
   toast.success(t('settings.toasts.privacyUpdated'))
+}
+
+// Outside links (stores/outsideLinkSettings): saved per account as they change.
+const outsideLinks = useOutsideLinkSettingsStore()
+
+const onAskEveryLinkChange = async (value: boolean) => {
+  try {
+    await outsideLinks.setAskEveryLink(value)
+    toast.success(t('settings.toasts.privacyUpdated'))
+  } catch (error) {
+    debug.error('Failed to save ask-every-link:', error)
+    toast.error(t('outsideLink.settings.saveFailed'))
+  }
+}
+
+const untrustHost = async (host: string) => {
+  try {
+    await outsideLinks.untrust(host)
+  } catch (error) {
+    debug.error('Failed to remove trusted host:', error)
+    toast.error(t('outsideLink.settings.saveFailed'))
+  }
 }
 
 // The profile can arrive after mount; the switch stays disabled until it does.
@@ -273,6 +334,8 @@ const unmuteUser = async (userId: string) => {
 
 onMounted(async () => {
   stripUrlTrackers.value = isUrlTrackingStrippingEnabled()
+  // Another device may have trusted a host since this one loaded.
+  void outsideLinks.reload()
 
   const profileId = props.profile?.id
   if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {
@@ -442,6 +505,26 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.trusted-sites-title {
+  margin-top: 20px;
+}
+
+.trusted-sites-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trusted-host {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.trusted-sites-empty {
+  margin-top: 8px;
 }
 
 .blocked-user-item {

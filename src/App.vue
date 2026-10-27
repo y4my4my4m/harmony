@@ -99,6 +99,9 @@
     @close="handleClosePublicServers"
   />
 
+  <!-- "Leaving Harmony": masked links, and every outside link when the account asks for it. -->
+  <OutsideLinkDialog />
+
   <!-- Clicked invite link from another (compatible) instance -->
   <JoinFederatedServer
     v-if="remoteInviteUrl && !isAuthRoute"
@@ -128,6 +131,8 @@ import { warmLazyUi } from '@/utils/warmLazyUi'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
+import { installOutsideLinks } from '@/services/outsideLinks'
+import OutsideLinkDialog from '@/components/OutsideLinkDialog.vue'
 import { installInterfaceSounds } from '@/utils/interfaceSounds'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
@@ -289,6 +294,7 @@ onMounted(() => {
   // Same-instance links (e.g. invite URLs) navigate in-app instead of opening
   // a new PWA window / external browser
   uninstallLinkInterceptor = installInternalLinkInterceptor(router)
+  installOutsideLinks()
   uninstallInterfaceSounds = installInterfaceSounds()
 })
 

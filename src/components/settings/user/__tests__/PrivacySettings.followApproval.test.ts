@@ -9,6 +9,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 const setStrip = vi.hoisted(() => vi.fn())
+const outsideLinks = vi.hoisted(() => ({
+  askEveryLink: false,
+  signedIn: true,
+  hostList: [] as string[],
+  reload: vi.fn(async () => {}),
+  setAskEveryLink: vi.fn(async (_on: boolean) => {}),
+  untrust: vi.fn(async (_host: string) => {}),
+}))
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -16,6 +24,11 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({ loadBlockingData: vi.fn() }) }))
+vi.mock('@/stores/outsideLinkSettings', async () => {
+  const { reactive } = await import('vue')
+  const store = reactive(outsideLinks)
+  return { useOutsideLinkSettingsStore: () => store }
+})
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerToggle: vi.fn() }) }))
 vi.mock('@/utils/urlTrackerStripper', () => ({
   isUrlTrackingStrippingEnabled: () => true,
@@ -76,6 +89,8 @@ beforeEach(() => {
   stored = { manually_approves_followers: false }
   updates = []
   failUpdate = false
+  outsideLinks.askEveryLink = false
+  outsideLinks.hostList = []
   ;(supabase.from as any).mockImplementation(query)
 })
 
@@ -136,5 +151,45 @@ describe('PrivacySettings save model', () => {
     await flushPromises()
     expect(setStrip).toHaveBeenCalledWith(false)
     expect(toast.success).toHaveBeenCalledWith('settings.toasts.privacyUpdated')
+  })
+})
+
+describe('PrivacySettings outside links', () => {
+  it('saves ask-every-link on change and confirms it', async () => {
+    const wrapper = mountSettings()
+    await flushPromises()
+    expect(outsideLinks.reload).toHaveBeenCalled()
+    await wrapper.get('[data-testid="ask-every-link-toggle"]').trigger('click')
+    await flushPromises()
+    expect(outsideLinks.setAskEveryLink).toHaveBeenCalledWith(true)
+    expect(toast.success).toHaveBeenCalledWith('settings.toasts.privacyUpdated')
+  })
+
+  it('says when the setting could not be saved', async () => {
+    outsideLinks.setAskEveryLink.mockRejectedValueOnce(new Error('denied'))
+    const wrapper = mountSettings()
+    await flushPromises()
+    await wrapper.get('[data-testid="ask-every-link-toggle"]').trigger('click')
+    await flushPromises()
+    expect(toast.error).toHaveBeenCalledWith('outsideLink.settings.saveFailed')
+  })
+
+  it('lists trusted sites, each with a named Remove', async () => {
+    outsideLinks.hostList = ['example.com', 'docs.example.org']
+    const wrapper = mountSettings()
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="trusted-sites"] li')
+    expect(items.map((li) => li.find('.trusted-host').text())).toEqual(['example.com', 'docs.example.org'])
+    const remove = items[1].get('button')
+    expect(remove.attributes('aria-label')).toBe('outsideLink.settings.removeLabel')
+    await remove.trigger('click')
+    expect(outsideLinks.untrust).toHaveBeenCalledWith('docs.example.org')
+  })
+
+  it('says when no site is trusted', async () => {
+    const wrapper = mountSettings()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="trusted-sites-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="trusted-sites"]').exists()).toBe(false)
   })
 })
