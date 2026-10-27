@@ -1043,6 +1043,7 @@ type DisplayItem =
       key: string;
       groupId: string;
       count: number;
+      messageIds: string[];
     }
   | {
       type: 'reported';
@@ -1093,7 +1094,8 @@ const displayItems = computed((): DisplayItem[] => {
           type: 'blocked-group',
           key: `blocked-${groupId}`,
           groupId: groupId,
-          count: groupMessages.length
+          count: groupMessages.length,
+          messageIds: groupMessages.map(m => m.id),
         });
       }
     } else if (reportedMessageIds.value.has(message.id) && !revealedReportedIds.value.has(message.id)) {
@@ -3062,6 +3064,21 @@ watch(isLoadingNewerMessages, (loading, wasLoading) => {
   if (wasLoading && !loading) setTimeout(maybeLoadNewer, 300);
 });
 
+// The row a message is shown in: its own, or the blocked or reported placeholder
+// standing for it, where a jump to it lands.
+const rowIndexOf = (messageId: string) => displayItems.value.findIndex(item =>
+  item.type === 'blocked-group' ? item.messageIds.includes(messageId) : item.message.id === messageId
+);
+const isRowLoaded = (messageId: string) => rowIndexOf(messageId) >= 0;
+
+const rowElement = (messageId: string): HTMLElement | null => {
+  const own = document.getElementById(`message-${messageId}`);
+  if (own) return own;
+  const item = displayItems.value[rowIndexOf(messageId)];
+  if (!item) return null;
+  return messageDisplayContainer.value?.querySelector<HTMLElement>(`[data-row-key="${item.key}"]`) ?? null;
+};
+
 // The message a jump landed on. Bound in the template, so it survives the row
 // leaving the rendered range.
 const highlightedRowId = ref<string | null>(null);
@@ -3082,9 +3099,7 @@ const highlightRow = (messageId: string) => {
 // position is re-seated from the row's DOM box while rows above it settle. A row
 // taller than the view is aligned by its top instead.
 const jumpToMessageRow = (messageId: string): boolean => {
-  const indexOf = () => displayItems.value.findIndex(
-    item => item.type === 'message' && item.message?.id === messageId
-  );
+  const indexOf = () => rowIndexOf(messageId);
   if (indexOf() < 0) return false;
   pendingJumpId.value = null;
   setPinned(false);
@@ -3101,7 +3116,7 @@ const jumpToMessageRow = (messageId: string): boolean => {
     requestAnimationFrame(() => {
       if (generation !== seatGeneration) return;
       const c = messageDisplayContainer.value;
-      const el = document.getElementById(`message-${messageId}`);
+      const el = rowElement(messageId);
       if (c && el) {
         const box = styleRect(el);
         const view = styleRect(c);
@@ -3710,18 +3725,19 @@ const replyTo = (message: Message) => {
   hoveredMessageId.value = null;
 };
 
-const isRowLoaded = (messageId: string) =>
-  displayItems.value.some(item => item.type === 'message' && item.message?.id === messageId);
+// Where the reply jump that scrolled the list toward its top started.
+let jumpOrigin: { messageId: string; context: string; scrollTop: number; pinned: boolean } | null = null;
 
 // The list moves toward its top at once, where the placeholder shows, rather than
 // waiting on the window load. The list's own older-page loads hold off meanwhile:
 // the window replaces the list.
 const startPendingJump = (messageId: string) => {
+  const c = messageDisplayContainer.value;
+  jumpOrigin = { messageId, context: contextKey(), scrollTop: c?.scrollTop ?? 0, pinned: pinState.pinned };
   pendingJumpId.value = messageId;
   ++seatGeneration;
   setPinned(false);
   openFollowBottomUntil = 0;
-  const c = messageDisplayContainer.value;
   if (!c) return;
   const instant = document.documentElement.getAttribute('data-reduce-motion') === 'true'
     || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -3730,6 +3746,21 @@ const startPendingJump = (messageId: string) => {
 
 const endPendingJump = (messageId: string) => {
   if (pendingJumpId.value === messageId) pendingJumpId.value = null;
+};
+
+// A jump that cannot land leaves the list where it was read: at the end when pinned,
+// else at the same offset. The list is unchanged: a failed window load replaces nothing.
+const returnFromJump = (messageId: string) => {
+  const origin = jumpOrigin;
+  jumpOrigin = null;
+  const c = messageDisplayContainer.value;
+  if (!c || origin?.messageId !== messageId || origin.context !== contextKey()) return;
+  ++seatGeneration;
+  if (origin.pinned) {
+    seatAtEnd();
+    return;
+  }
+  c.scrollTo({ top: origin.scrollTop, behavior: 'auto' });
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
@@ -3746,7 +3777,10 @@ const handleReplyClick = async (replyMessageId: string) => {
     : await dmStore.jumpToMessage(replyMessageId);
   if (!success) {
     debug.warn(`Could not jump to message: ${replyMessageId}`);
-    if (pendingJumpId.value === replyMessageId) toast.error(t('message.jumpFailed'));
+    if (pendingJumpId.value === replyMessageId) {
+      toast.error(t('message.jumpFailed'));
+      returnFromJump(replyMessageId);
+    }
     endPendingJump(replyMessageId);
     return;
   }
