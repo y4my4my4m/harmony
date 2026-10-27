@@ -112,7 +112,7 @@ const FEATURED_PAGE = 50
 const featuredOffset = ref(0)
 const featuredTotal = ref(0)
 
-const loadFeaturedServers = async () => {
+const loadFeaturedServers = async (): Promise<void> => {
   loadingStates.value.featuredServers = true
   try {
     const page = await adminService.pagePublicServersForAdmin(FEATURED_PAGE, featuredOffset.value)

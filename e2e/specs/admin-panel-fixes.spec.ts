@@ -144,8 +144,7 @@ test('Drive renders a custom emoji in an account name', async ({ page }) => {
   test.setTimeout(120_000)
   await signIn(page, staff)
   await openAdminTab(page, 'drive')
-  const usage = page.getByTestId('drive-admin-usage')
-  const row = usage.locator(`[data-profile-id="${named.id}"]`)
+  const row = page.getByTestId('drive-admin').locator('tr').filter({ hasText: `@${named.username}` })
   await expect(row).toBeVisible({ timeout: 20000 })
   await expect(row.locator(`img[alt=":${nameEmoji}:"]`)).toBeVisible({ timeout: 15000 })
   await expect(row).toContainText('Drive')
@@ -233,10 +232,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const page = await context.newPage()
     await signIn(page, staff)
     await openAdminTab(page, 'emojis')
-    const library = page.getByTestId('instance-emoji-library')
-    await expect(library.getByTestId('emoji-upload-area')).toBeVisible({ timeout: 20000 })
     const browse = page.locator('.instance-emoji-admin')
-    await expect(browse.locator('.emoji-row').first()).toBeVisible({ timeout: 15000 })
+    await expect(browse.locator('.emoji-row').first()).toBeVisible({ timeout: 20000 })
 
     const layout = await page.evaluate(() => {
       const box = (el: Element | null) => el?.getBoundingClientRect() ?? null
@@ -257,6 +254,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(layout.hintInset).toBeGreaterThanOrEqual(12)
     expect(layout.columns).toBe(1)
     expect(layout.tileRight).toBeLessThanOrEqual(375)
+    const library = page.getByTestId('instance-emoji-library')
+    await expect(library.getByTestId('emoji-upload-area')).toBeVisible({ timeout: 15000 })
     await expectNoAxeViolations(page, { include: '.instance-emoji-admin', label: `admin emoji browser (${colorScheme})` })
     await expectNoAxeViolations(page, { include: '[data-testid="instance-emoji-library"]', label: `admin instance emojis (${colorScheme})` })
     await context.close()

@@ -6,7 +6,6 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/supabase'
-import { INSTANCE_EMOJI_FOLDER } from '@/services/InstanceEmojiAdminService'
 import { uploadInstanceEmoji } from '@/services/instanceEmojiUpload'
 
 const emoji = vi.hoisted(() => ({
@@ -20,7 +19,8 @@ const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>
 const storageFrom = supabase.storage.from as unknown as ReturnType<typeof vi.fn>
 const remove = vi.fn(async () => ({ data: null, error: null }))
 
-const PATH = new RegExp(`^${INSTANCE_EMOJI_FOLDER}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$`)
+// create_instance_emoji's path rule.
+const PATH = /^00000000-0000-0000-0000-000000000000\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/
 
 beforeEach(() => {
   rpc.mockReset()
