@@ -4,6 +4,10 @@
 // top, as the dialogs whose footer is a column (KickBanModal, design-system .modal-footer).
 // The button group was a flex item of the footer row at its content width, so on a phone
 // the stack was as narrow as its widest label and stood at the right edge.
+//
+// Each test has its own reader, follower and server: the follow is the notification that
+// enables Clear all. The dialog is measured once its enter transition has ended, in one
+// frame (settledBoxes).
 
 import { test, expect, devices, type Locator, type Page } from '@playwright/test'
 import {
@@ -24,7 +28,7 @@ let reader: SpecUser
 let follower: SpecUser
 let server: SeededServer
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   reader = await createUser(admin, 'cfmph')
   server = await seedServer(admin, reader, `Confirm ${reader.username.slice(-6)}`)
   follower = await createUser(admin, 'cfmpf')
@@ -33,7 +37,7 @@ test.beforeAll(async () => {
   if (error) throw new Error(`follow: ${error.message}`)
 })
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await deleteUser(admin, follower)
   await deleteUser(admin, reader)
 })
@@ -41,11 +45,27 @@ test.afterAll(async () => {
 const confirmDialog = (page: Page) =>
   page.locator('.modal-container').filter({ hasText: "Clear all notifications? This can't be undone." })
 
-async function boxes(dialog: Locator) {
-  const footer = (await dialog.locator('.modal-footer').boundingBox())!
-  const confirm = (await dialog.getByRole('button', { name: 'Clear all' }).boundingBox())!
-  const cancel = (await dialog.getByRole('button', { name: 'Cancel' }).boundingBox())!
-  return { footer, confirm, cancel }
+type Box = { x: number; y: number; width: number; height: number }
+
+/**
+ * Footer and button boxes of the open dialog. UnifiedModal enters through a Vue <Transition>:
+ * the dialog starts at translateY(32px) scale(0.95) and the overlay fades in; the enter
+ * classes stay on the overlay until the fade ends. Boxes read one by one across that change
+ * mix the two states (a scaled footer around an unscaled button: 9.25px off at 412px).
+ */
+async function settledBoxes(page: Page, dialog: Locator): Promise<{ footer: Box; confirm: Box; cancel: Box }> {
+  await expect(dialog).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('.modal-overlay').filter({ has: dialog })).not.toHaveClass(/modal-enter/, { timeout: 5000 })
+  return dialog.evaluate((el) => {
+    const box = (node: Element | null | undefined): Box => {
+      if (!node) throw new Error('dialog part missing')
+      const r = node.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    }
+    const button = (label: string) =>
+      [...el.querySelectorAll('.modal-footer button')].find((b) => b.textContent?.trim() === label)
+    return { footer: box(el.querySelector('.modal-footer')), confirm: box(button('Clear all')), cancel: box(button('Cancel')) }
+  })
 }
 
 test('on a desktop the buttons sit at the right of the footer, confirm last', async ({ page }) => {
@@ -56,13 +76,11 @@ test('on a desktop the buttons sit at the right of the footer, confirm last', as
   await dismissAnnouncements(page)
   await page.locator('[data-testid="notification-bell"]').click()
   await page.locator('[data-testid="notification-clear-all"]').click()
-  const dialog = confirmDialog(page)
-  await expect(dialog).toBeVisible({ timeout: 10000 })
-  const { footer, confirm, cancel } = await boxes(dialog)
+  const { footer, confirm, cancel } = await settledBoxes(page, confirmDialog(page))
   expect(Math.abs(confirm.y - cancel.y)).toBeLessThan(2)
   expect(cancel.x + cancel.width).toBeLessThan(confirm.x)
   // The footer's right padding is 32px (--space-8).
-  expect(footer.x + footer.width - (confirm.x + confirm.width)).toBeLessThan(40)
+  expect(Math.abs(footer.x + footer.width - 32 - (confirm.x + confirm.width))).toBeLessThan(2)
   expect(cancel.x - footer.x).toBeGreaterThan(footer.width / 3)
 })
 
@@ -83,14 +101,12 @@ test.describe('phone', () => {
     await expect(bell).toBeVisible({ timeout: 10000 })
     await bell.tap()
     await page.locator('[data-testid="notification-clear-all"]').tap()
-    const dialog = confirmDialog(page)
-    await expect(dialog).toBeVisible({ timeout: 10000 })
 
-    const { footer, confirm, cancel } = await boxes(dialog)
+    const { footer, confirm, cancel } = await settledBoxes(page, confirmDialog(page))
     expect(confirm.y + confirm.height).toBeLessThanOrEqual(cancel.y + 1)
     for (const button of [confirm, cancel]) {
       // The footer's side padding on a phone is 24px each (--space-6).
-      expect(button.width).toBeGreaterThan(footer.width - 2 * 24 - 2)
+      expect(Math.abs(button.width - (footer.width - 2 * 24))).toBeLessThan(2)
       expect(Math.abs(button.x - (footer.x + 24))).toBeLessThan(2)
     }
   })
