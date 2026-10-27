@@ -1,5 +1,9 @@
 import { vi } from 'vitest'
 import { webcrypto } from 'node:crypto'
+import { config } from '@vue/test-utils'
+
+// InlineMarks is markup around its slot: under shallowMount a stub drops the message part inside.
+config.global.stubs = { ...config.global.stubs, InlineMarks: false }
 
 // Polyfill Web Crypto API for Node 18 (natively global in Node 20+)
 if (!globalThis.crypto?.subtle) {
