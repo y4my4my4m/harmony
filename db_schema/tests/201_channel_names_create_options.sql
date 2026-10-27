@@ -5,7 +5,7 @@
 -- Fixture server_1: alice owns it, bob is a member without permissions.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(42);
+SELECT plan(49);
 
 -- Rule. The same cases as src/utils/__tests__/channelName.test.ts. --------------------------
 SELECT is(public.channel_name_normalized(v.raw, v.type), v.expected, v.label)
@@ -59,6 +59,36 @@ SELECT is((SELECT name FROM public.channels WHERE id = (SELECT id FROM c201 WHER
 SELECT throws_ok(
   $q$INSERT INTO public.channels (server_id, name, type) VALUES ('55555555-0000-0000-0000-000000000005', '?!', 0)$q$,
   '23514', NULL, 'a name the rule empties is refused');
+
+-- A server hosted elsewhere: its channels keep the host's names, is_remote or not.
+INSERT INTO public.profiles (id, username, display_name, domain, federated_id, is_local)
+VALUES ('f2010000-0000-0000-0000-0000000000e1', 'host201', 'Host 201', 'host201.test',
+        'https://host201.test/users/host201', false);
+INSERT INTO public.servers (id, name, owner, is_local_server, federation_enabled, host_domain, ap_id)
+VALUES ('f2010000-0000-0000-0000-0000000000a1', 'Copy 201', 'f2010000-0000-0000-0000-0000000000e1', false, true,
+        'host201.test', 'https://host201.test/servers/f2010000-0000-0000-0000-0000000000a1');
+INSERT INTO public.channels (id, server_id, name, type, is_remote)
+VALUES ('f2010000-0000-0000-0000-0000000000c1', 'f2010000-0000-0000-0000-0000000000a1', 'Host Name!', 0, false);
+SELECT is((SELECT name FROM public.channels WHERE id = 'f2010000-0000-0000-0000-0000000000c1'), 'Host Name!',
+  'a channel of a server hosted elsewhere keeps its name without is_remote');
+UPDATE public.channels SET name = '???' WHERE id = 'f2010000-0000-0000-0000-0000000000c1';
+SELECT is((SELECT name FROM public.channels WHERE id = 'f2010000-0000-0000-0000-0000000000c1'), '???',
+  'and a rename there is the host''s, even one the rule would empty');
+
+-- A template from before the rule: a text channel named by punctuation alone.
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT lives_ok(
+  $q$SELECT set_config('t201.tpl_server', public.create_server_from_template('Tpl 201',
+       '{"format": "harmony.server-template", "version": 1,
+         "channels": [{"ref": "q", "name": "???", "type": 0, "order": 0},
+                      {"ref": "n", "name": "Old Style Name", "type": 0, "order": 1},
+                      {"ref": "v", "name": "Lounge ?", "type": 1, "order": 2}]}'::jsonb)::text, true)$q$,
+  'a template whose channel name the rule empties still creates the server');
+SELECT tests.clear_authentication();
+SELECT is((SELECT array_agg(name ORDER BY "order") FROM public.channels
+            WHERE server_id = NULLIF(current_setting('t201.tpl_server', true), '')::uuid),
+          ARRAY['channel', 'old-style-name', 'Lounge ?'],
+  'that channel is named ''channel''; the others follow the rule of their type');
 
 -- create_channel. -------------------------------------------------------------------------
 INSERT INTO public.server_encryption_settings (server_id, encryption_mode, voice_encryption_mode)
@@ -124,6 +154,37 @@ SELECT throws_ok(
 SELECT tests.clear_authentication();
 SELECT is((SELECT count(*)::int FROM public.channels WHERE name = 'policy-201'), 0,
   'and no channel is created');
+
+-- A channel manager without ADMINISTRATOR, private channel not listing the manager's role: the
+-- options apply before the @everyone deny takes VIEW_CHANNEL from the manager.
+UPDATE public.server_encryption_settings SET encryption_mode = 'optional'
+ WHERE server_id = '55555555-0000-0000-0000-000000000005';
+INSERT INTO public.server_roles (id, server_id, name, position, permissions) VALUES
+  ('f2011000-0000-0000-0000-000000000001', '55555555-0000-0000-0000-000000000005', 'channel managers 201', 2, 4),
+  ('f2011000-0000-0000-0000-000000000002', '55555555-0000-0000-0000-000000000005', 'staff 201', 3, 0);
+INSERT INTO public.user_roles (user_id, role_id, server_id) VALUES
+  ('22222222-0000-0000-0000-000000000002', 'f2011000-0000-0000-0000-000000000001', '55555555-0000-0000-0000-000000000005');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT lives_ok(
+  $q$SELECT set_config('t201.private', (public.create_channel('55555555-0000-0000-0000-000000000005', 'staff-only-201',
+       p_private => true, p_allowed_role_ids => ARRAY['f2011000-0000-0000-0000-000000000002']::uuid[],
+       p_messages_encrypted => true, p_history_visibility => 'none')).id::text, true)$q$,
+  'a channel manager creates a private encrypted channel that excludes their own role');
+SELECT tests.clear_authentication();
+SELECT results_eq(
+  $q$SELECT messages_encrypted, history_visibility FROM public.channel_encryption_settings
+      WHERE channel_id = NULLIF(current_setting('t201.private', true), '')::uuid$q$,
+  $q$VALUES (true, 'none'::text)$q$,
+  'its encryption and history visibility are stored');
+SELECT results_eq(
+  $q$SELECT r.name, o.allow_permissions, o.deny_permissions
+       FROM public.channel_permission_overrides o JOIN public.server_roles r ON r.id = o.role_id
+      WHERE o.channel_id = NULLIF(current_setting('t201.private', true), '')::uuid ORDER BY r.name$q$,
+  $q$VALUES ('everyone'::text, 0::bigint, 2::bigint), ('staff 201'::text, 2::bigint, 0::bigint)$q$,
+  'and it is private: @everyone denied VIEW_CHANNEL, the listed role allowed');
+UPDATE public.server_encryption_settings SET encryption_mode = 'disabled'
+ WHERE server_id = '55555555-0000-0000-0000-000000000005';
+DELETE FROM public.user_roles WHERE role_id = 'f2011000-0000-0000-0000-000000000001';
 
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT throws_ok(

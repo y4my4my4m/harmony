@@ -14,15 +14,22 @@
 --   t_channels_name_rule
 --        Applies the rule to a local channel's name on insert and when an update changes it:
 --        create_channel, direct writes, server templates and the bot API alike. A channel from
---        another instance (is_remote) keeps its origin's name. A name the rule empties is
---        refused (23514). Stored names are not rewritten.
+--        another instance (is_remote), or of a server hosted elsewhere (is_local_server not
+--        true), keeps its origin's name. A name the rule empties is refused (23514). Stored
+--        names are not rewritten.
 --   create_channel(..., p_description, p_slowmode_seconds, p_messages_encrypted,
 --                  p_voice_encrypted, p_history_visibility)
 --        As 20261026200001, with the options Create Channel offers set in the same transaction:
 --        description, slowmode (0-21600 s), and the encryption the channel editor sets
 --        (set_channel_encryption, set_channel_history_visibility; their checks apply). NULL
---        leaves the default. The six-argument signature is dropped: callers naming only its
---        arguments resolve to this one.
+--        leaves the default. The options apply before the private overrides: the @everyone
+--        deny takes VIEW_CHANNEL, and with it MANAGE_CHANNELS in the channel, from a manager
+--        without ADMINISTRATOR whose roles are not listed. The six-argument signature is
+--        dropped: callers naming only its arguments resolve to this one.
+--   create_server_from_template
+--        As 20261011000001, with each channel name under the rule of its type; a name the rule
+--        empties (a template from before it, e.g. '???') becomes 'channel', or 'voice' for a
+--        voice channel, instead of refusing the server.
 --   record_instance_branding(domain, icon_url, banner_url, theme_color)
 --        One answered probe of a known instance (federation backend, GET /instances/probe):
 --        each http(s) URL of at most 2048 characters and each #rgb[a]/#rrggbb[aa] colour
@@ -74,7 +81,9 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-    IF NEW.is_remote IS TRUE THEN
+    IF NEW.is_remote IS TRUE
+       OR NOT EXISTS (SELECT 1 FROM public.servers s
+                       WHERE s.id = NEW.server_id AND s.is_local_server IS TRUE) THEN
         RETURN NEW;
     END IF;
     IF TG_OP = 'UPDATE' AND NEW.name IS NOT DISTINCT FROM OLD.name THEN
@@ -134,6 +143,16 @@ BEGIN
     VALUES (v_id, p_name, p_server_id, COALESCE(p_type, 0), p_category,
             NULLIF(btrim(p_description), ''), COALESCE(p_slowmode_seconds, 0));
 
+    -- Before the private overrides: set_channel_encryption requires MANAGE_CHANNELS in the
+    -- channel, which the @everyone VIEW_CHANNEL deny takes from a manager without ADMINISTRATOR.
+    -- Its notices are system rows, which trigger_new_message_unread skips.
+    IF p_messages_encrypted IS NOT NULL OR p_voice_encrypted IS NOT NULL THEN
+        PERFORM public.set_channel_encryption(v_id, p_messages_encrypted, p_voice_encrypted);
+    END IF;
+    IF p_history_visibility IS NOT NULL THEN
+        PERFORM public.set_channel_history_visibility(v_id, p_history_visibility);
+    END IF;
+
     IF p_private IS TRUE THEN
         SELECT id INTO v_everyone
           FROM public.server_roles
@@ -169,13 +188,6 @@ BEGIN
                updated_at = now();
     END IF;
 
-    IF p_messages_encrypted IS NOT NULL OR p_voice_encrypted IS NOT NULL THEN
-        PERFORM public.set_channel_encryption(v_id, p_messages_encrypted, p_voice_encrypted);
-    END IF;
-    IF p_history_visibility IS NOT NULL THEN
-        PERFORM public.set_channel_history_visibility(v_id, p_history_visibility);
-    END IF;
-
     SELECT * INTO v_channel FROM public.channels WHERE id = v_id;
     IF NOT FOUND THEN
         v_channel.id := v_id;
@@ -194,6 +206,205 @@ REVOKE ALL ON FUNCTION public.create_channel(uuid, text, integer, uuid, boolean,
     FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_channel(uuid, text, integer, uuid, boolean, uuid[], text, integer, boolean, boolean, text)
     TO authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- create_server_from_template: as 20261011000001_server_templates.sql, with channel names under
+-- the rule.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.create_server_from_template(p_name text, p_template jsonb)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_me uuid := public.get_current_profile_id();
+    v_name text;
+    v_tpl jsonb;
+    v_server uuid;
+    v_everyone uuid;
+    v_admin uuid;
+    v_ids jsonb := '{}'::jsonb;
+    v_item jsonb;
+    v_id uuid;
+    v_rank integer := 0;
+    v_part jsonb;
+BEGIN
+    IF v_me IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
+    END IF;
+
+    v_name := public.sanitize_profile_string(p_name, 2147483647, false);
+    IF COALESCE(v_name, '') = '' THEN
+        RAISE EXCEPTION 'server name must not be blank' USING ERRCODE = '23514';
+    END IF;
+    IF char_length(v_name) > 100 THEN
+        RAISE EXCEPTION 'server name exceeds 100 characters' USING ERRCODE = '23514';
+    END IF;
+
+    v_tpl := public.server_template_canonical(p_template);
+
+    INSERT INTO public.servers (name, description, owner, public, allow_cross_server_emojis, rules, category)
+    VALUES (v_name,
+            v_tpl #>> '{server,description}',
+            v_me,
+            (v_tpl #>> '{server,public}')::boolean,
+            (v_tpl #>> '{server,allow_cross_server_emojis}')::boolean,
+            v_tpl #> '{server,rules}',
+            v_tpl #>> '{server,category}')
+    RETURNING id INTO v_server;
+
+    DELETE FROM public.channels WHERE server_id = v_server;
+    DELETE FROM public.channel_categories WHERE server_id = v_server;
+
+    SELECT sr.id INTO v_everyone FROM public.server_roles sr WHERE sr.server_id = v_server AND sr.is_default;
+    SELECT sr.id INTO v_admin FROM public.server_roles sr WHERE sr.server_id = v_server AND sr.is_admin;
+    IF v_everyone IS NULL OR v_admin IS NULL THEN
+        RAISE EXCEPTION 'server creation did not create @everyone and Admin' USING ERRCODE = 'P0002';
+    END IF;
+
+    -- Roles ----------------------------------------------------------------
+    FOR v_item IN
+        SELECT e.value
+          FROM jsonb_array_elements(v_tpl -> 'roles') WITH ORDINALITY e
+         ORDER BY (e.value ->> 'position')::integer, e.ordinality
+    LOOP
+        IF (v_item ->> 'is_default')::boolean THEN
+            UPDATE public.server_roles
+               SET color = v_item ->> 'color',
+                   permissions = (v_item ->> 'permissions')::bigint,
+                   mentionable = (v_item ->> 'mentionable')::boolean,
+                   hoist = (v_item ->> 'hoist')::boolean,
+                   unicode_emoji = v_item ->> 'unicode_emoji'
+             WHERE id = v_everyone;
+            v_id := v_everyone;
+        ELSIF (v_item ->> 'is_admin')::boolean THEN
+            -- ADMINISTRATOR is bit 0.
+            UPDATE public.server_roles
+               SET color = v_item ->> 'color',
+                   permissions = (v_item ->> 'permissions')::bigint | 1,
+                   mentionable = (v_item ->> 'mentionable')::boolean,
+                   hoist = (v_item ->> 'hoist')::boolean,
+                   unicode_emoji = v_item ->> 'unicode_emoji'
+             WHERE id = v_admin;
+            v_id := v_admin;
+        ELSE
+            v_rank := v_rank + 1;
+            INSERT INTO public.server_roles
+                   (server_id, name, color, position, permissions, is_default, is_admin, mentionable, hoist, unicode_emoji)
+            VALUES (v_server, v_item ->> 'name', v_item ->> 'color', v_rank, (v_item ->> 'permissions')::bigint,
+                    false, false, (v_item ->> 'mentionable')::boolean, (v_item ->> 'hoist')::boolean,
+                    v_item ->> 'unicode_emoji')
+            RETURNING id INTO v_id;
+        END IF;
+        v_ids := v_ids || jsonb_build_object(v_item ->> 'ref', v_id);
+    END LOOP;
+
+    -- Categories and channels ----------------------------------------------
+    FOR v_item IN SELECT e.value FROM jsonb_array_elements(v_tpl -> 'categories') e LOOP
+        INSERT INTO public.channel_categories (server_id, name, "order")
+        VALUES (v_server, v_item ->> 'name', (v_item ->> 'order')::integer)
+        RETURNING id INTO v_id;
+        v_ids := v_ids || jsonb_build_object(v_item ->> 'ref', v_id);
+    END LOOP;
+
+    FOR v_item IN SELECT e.value FROM jsonb_array_elements(v_tpl -> 'channels') e LOOP
+        -- t_channels_name_rule refuses a name it empties; a template from before the rule may
+        -- hold one.
+        INSERT INTO public.channels (server_id, name, description, type, "order", slowmode_seconds, category)
+        VALUES (v_server,
+                COALESCE(NULLIF(public.channel_name_normalized(v_item ->> 'name', (v_item ->> 'type')::integer), ''),
+                         CASE WHEN (v_item ->> 'type')::integer = 1 THEN 'voice' ELSE 'channel' END),
+                v_item ->> 'description', (v_item ->> 'type')::smallint,
+                (v_item ->> 'order')::integer, (v_item ->> 'slowmode_seconds')::integer,
+                (v_ids ->> (v_item ->> 'category'))::uuid)
+        RETURNING id INTO v_id;
+        v_ids := v_ids || jsonb_build_object(v_item ->> 'ref', v_id);
+
+        INSERT INTO public.channel_permission_overrides
+               (channel_id, target_type, role_id, user_id, allow_permissions, deny_permissions)
+        SELECT v_id, 'role', (v_ids ->> (o ->> 'role'))::uuid, NULL, (o ->> 'allow')::bigint, (o ->> 'deny')::bigint
+          FROM jsonb_array_elements(v_item -> 'overrides') o;
+
+        -- VIEW_CHANNEL is bit 1.
+        IF (v_item ->> 'private')::boolean THEN
+            INSERT INTO public.channel_permission_overrides AS cpo
+                   (channel_id, target_type, role_id, user_id, allow_permissions, deny_permissions)
+            VALUES (v_id, 'role', v_everyone, NULL, 0, 2)
+            ON CONFLICT (channel_id, role_id) WHERE user_id IS NULL DO UPDATE
+               SET allow_permissions = COALESCE(cpo.allow_permissions, 0) & ~2::bigint,
+                   deny_permissions = COALESCE(cpo.deny_permissions, 0) | 2;
+        END IF;
+    END LOOP;
+
+    -- Settings -------------------------------------------------------------
+    v_part := v_tpl -> 'settings';
+    IF jsonb_typeof(v_part) = 'object' THEN
+        INSERT INTO public.server_settings AS ss
+               (server_id, default_role_id, invite_permissions, default_message_notifications,
+                system_channel_id, newcomer_alerts, system_messages_enabled)
+        VALUES (v_server,
+                (v_ids ->> (v_part ->> 'default_role'))::uuid,
+                jsonb_set(v_part -> 'invite_permissions', '{allowed_roles}',
+                          (SELECT COALESCE(jsonb_agg(v_ids -> (x #>> '{}')), '[]'::jsonb)
+                             FROM jsonb_array_elements(v_part #> '{invite_permissions,allowed_roles}') x)),
+                v_part ->> 'default_message_notifications',
+                (v_ids ->> (v_part ->> 'system_channel'))::uuid,
+                (v_part ->> 'newcomer_alerts')::boolean,
+                (v_part ->> 'system_messages_enabled')::boolean)
+        ON CONFLICT (server_id) DO UPDATE
+           SET default_role_id = EXCLUDED.default_role_id,
+               invite_permissions = EXCLUDED.invite_permissions,
+               default_message_notifications = EXCLUDED.default_message_notifications,
+               system_channel_id = EXCLUDED.system_channel_id,
+               newcomer_alerts = EXCLUDED.newcomer_alerts,
+               system_messages_enabled = EXCLUDED.system_messages_enabled;
+    END IF;
+
+    -- Welcome screen -------------------------------------------------------
+    v_part := v_tpl -> 'welcome';
+    IF jsonb_typeof(v_part) = 'object' THEN
+        PERFORM public.set_server_welcome(v_server, (v_part ->> 'enabled')::boolean, v_part ->> 'message',
+                                          v_part -> 'rules', (v_part ->> 'require_acceptance')::boolean);
+    END IF;
+
+    -- AutoMod --------------------------------------------------------------
+    v_part := v_tpl -> 'automod';
+    IF jsonb_typeof(v_part) = 'object' THEN
+        DELETE FROM public.server_automod_rules WHERE server_id = v_server;
+        PERFORM public.update_server_automod_settings(v_server,
+            jsonb_build_object('enabled', v_part -> 'enabled',
+                               'exempt_bots', v_part -> 'exempt_bots',
+                               'alert_channel_id', v_ids -> (v_part ->> 'alert_channel'))
+            || CASE WHEN jsonb_typeof(v_part -> 'raid_settings') = 'object'
+                    THEN jsonb_build_object('raid_settings', v_part -> 'raid_settings')
+                    ELSE '{}'::jsonb END);
+        FOR v_item IN SELECT e.value FROM jsonb_array_elements(v_part -> 'rules') e LOOP
+            PERFORM public.upsert_server_automod_rule(v_server, jsonb_build_object(
+                'name', v_item -> 'name',
+                'rule_type', v_item -> 'rule_type',
+                'enabled', v_item -> 'enabled',
+                'config', v_item -> 'config',
+                'actions', v_item -> 'actions',
+                'exempt_role_ids', (SELECT COALESCE(jsonb_agg(v_ids -> (x #>> '{}')), '[]'::jsonb)
+                                      FROM jsonb_array_elements(v_item -> 'exempt_roles') x),
+                'exempt_channel_ids', (SELECT COALESCE(jsonb_agg(v_ids -> (x #>> '{}')), '[]'::jsonb)
+                                         FROM jsonb_array_elements(v_item -> 'exempt_channels') x),
+                'position', v_item -> 'position'));
+        END LOOP;
+    END IF;
+
+    INSERT INTO public.user_servers (server_id, user_id, status)
+    VALUES (v_server, v_me, 'accepted')
+    ON CONFLICT (user_id, server_id) DO NOTHING;
+
+    RETURN v_server;
+END;
+$$;
+
+COMMENT ON FUNCTION public.create_server_from_template(text, jsonb) IS
+    'Create a server owned by the caller from a harmony.server-template document, in one transaction.';
 
 -- ---------------------------------------------------------------------------
 -- Peer instance branding

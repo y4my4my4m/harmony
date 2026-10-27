@@ -156,7 +156,7 @@ channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc i
 channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
 channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by assert_webhook_channel, discord_bridge_encrypted_channel_ids, effective_channel_encryption, +9
 channel_mute_active	invoker	boolean	service_role	trigger	called by broadcast_unread_count_event, handle_new_message_unread, sync_unread_mute
-channel_name_normalized	invoker	text	authenticated+service_role	client, trigger	called by apply_channel_name_rule, create_channel
+channel_name_normalized	invoker	text	authenticated+service_role	client, trigger	called by apply_channel_name_rule, create_channel, create_server_from_template
 channel_permissions_synced	invoker	boolean	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
 channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_message_unread
 channel_webhook_json	invoker	jsonb	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +2
