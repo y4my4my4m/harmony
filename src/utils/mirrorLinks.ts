@@ -48,6 +48,34 @@ export function resolveMirrorPreferences(prefs?: MirrorLinkPreferences | null): 
   return out
 }
 
+/**
+ * Every host serving a site's post links: the site and its embed-fixer mirrors, selectable or
+ * not. Mirrors X_HOSTS, INSTAGRAM_HOSTS and BLUESKY_HOSTS in
+ * federation-backend/src/services/socialEmbeds.ts.
+ */
+export const SOCIAL_SITE_HOSTS: Record<MirrorSite, readonly string[]> = {
+  x: [
+    'x.com', 'twitter.com',
+    'vxtwitter.com', 'fxtwitter.com', 'fixupx.com', 'fixvx.com',
+    'twittpr.com', 'girlcockx.com', 'nitter.net', 'xcancel.com',
+  ],
+  instagram: [
+    'instagram.com', 'instagr.am',
+    'kkinstagram.com', 'ddinstagram.com', 'uuinstagram.com', 'eeinstagram.com',
+    'vxinstagram.com', 'instagramez.com', 'fxstagram.com',
+  ],
+  bluesky: ['bsky.app', 'fxbsky.app', 'bskye.app', 'bskx.app', 'vxbsky.app'],
+}
+
+/** The site whose post links `hostname` serves, mirrors included; the subdomain prefixes are socialEmbeds' hostOf. */
+export function socialSiteOfHost(hostname: string): MirrorSite | null {
+  const host = hostname.toLowerCase().replace(/^(www|mobile|m|d|g)\./, '')
+  for (const site of MIRROR_SITES) {
+    if (SOCIAL_SITE_HOSTS[site].includes(host)) return site
+  }
+  return null
+}
+
 const X_SOURCE = /^(?:www\.|mobile\.)?(?:x|twitter)\.com$/
 const INSTAGRAM_SOURCE = /^(?:www\.|m\.)?instagram\.com$/
 const BLUESKY_SOURCE = /^(?:www\.)?bsky\.app$/

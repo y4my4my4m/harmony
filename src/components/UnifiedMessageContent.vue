@@ -307,13 +307,16 @@
 
           <!-- Regular URL links -->
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
-               render as inert text (no <a>) so dangerous URLs can't execute on click. -->
+               render as inert text (no <a>) so dangerous URLs can't execute on click.
+               A GIF link that is the whole message is out of sight until focused; screen
+               readers still read it. -->
           <a
             v-else-if="sanitizeUrl(shownUrl(part.url))"
             :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
+            :class="{ 'sr-only-focusable': part === soleGifLink }"
           >{{ shownUrl(part.url) }}</a>
           <span
             v-else
@@ -332,6 +335,7 @@
                 :src="embedMedia(part)!.url"
                 :alt="t('messageA11y.image.gif')"
                 @load="handleImageLoad(embedMedia(part)!.url)"
+                @error="onEmbedMediaError(embedMedia(part)!.url)"
                 @click="openMedia(embedMedia(part)!.url)"
                 v-show="imageLoadedState[embedMedia(part)!.url]"
                 draggable="false"
@@ -359,6 +363,7 @@
                 playsinline
                 class="content-video"
                 preload="metadata"
+                @error="onEmbedMediaError(embedMedia(part)!.url)"
               ></video>
             </div>
           </div>
@@ -728,7 +733,7 @@ import {
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { soleDriveLinkPart } from '@/utils/driveLinkContent';
-import { isWikimediaPage } from '@/utils/embedPreview';
+import { linkPreviewMedia, soleGifLinkPart, type LinkPreviewMedia } from '@/utils/gifLinks';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
@@ -1265,33 +1270,28 @@ export default defineComponent({
       return null;
     };
 
-    /**
-     * Renders an embed as media instead of a link card when the resolved media
-     * is the content (GIF pages: klipy / tenor / giphy).
-     *
-     * Decided from the media file extension, not only the backend's mediaOnly
-     * flag: embeds persist in message metadata and are cached 24h server-side,
-     * so already-stored payloads and hosts unknown to the backend heuristic
-     * still upgrade to media rendering.
-     */
-    const embedMedia = (part: MessagePart): { kind: 'image' | 'video' | 'clip'; url: string } | null => {
+    /** The media an embed renders as instead of a link card (utils/gifLinks.linkPreviewMedia). */
+    const embedMedia = (part: MessagePart): LinkPreviewMedia | null => {
       // A link to a media file already plays or shows inline; its preview answers with the
       // same file.
       if (part && typeof part === 'object' && part.type === 'url' && showsPreview(part)
           && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url))) {
         return null;
       }
-      const payload = resolveEmbedPayload(part);
-      if (payload && isWikimediaPage(payload.url)) return null;
-      // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
-      if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };
-      const media = payload?.image;
-      if (!media) return null;
-
-      if (/\.(mp4|webm|mov)(\?|#|$)/i.test(media)) return { kind: 'video', url: media };
-      if (payload.mediaOnly || /\.gif(\?|#|$)/i.test(media)) return { kind: 'image', url: media };
-      return null;
+      return linkPreviewMedia(resolveEmbedPayload(part));
     };
+
+    // Embed media that did not load: its link shows again.
+    const failedEmbedMedia = reactive(new Set<string>());
+    const onEmbedMediaError = (url: string) => {
+      failedEmbedMedia.add(url);
+    };
+
+    // The url part of a GIF link that is the whole message: its text is out of sight.
+    const soleGifLink = computed(() => soleGifLinkPart(displayContent.value, (part) => {
+      const media = embedMedia(part as MessagePart);
+      return media && !failedEmbedMedia.has(media.url) ? media : null;
+    }));
 
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
@@ -1657,6 +1657,7 @@ export default defineComponent({
       rootRef,
       instanceDomain,
       soleDriveLink,
+      soleGifLink,
       openMedia,
       chatMediaKey,
       nativeVideoControls,
@@ -1711,6 +1712,7 @@ export default defineComponent({
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,
+      onEmbedMediaError,
       decrypting,
       handleDecryptClick,
       // GIF favorites
@@ -2139,10 +2141,13 @@ a.channel-mention {
   color: var(--warning);
 }
 
-/* KLIPY attribution watermark - official logo, fades in on hover */
+/* KLIPY attribution watermark - official logo, fades in on hover. Top-left: the bottom edge
+   holds a clip's player controls, the top-right corner the favorite, pop-out and remove
+   buttons. Klipy's guidelines (docs.klipy.com/attribution) make it optional and set no
+   position. */
 .klipy-watermark {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   left: 8px;
   display: block;
   line-height: 0;

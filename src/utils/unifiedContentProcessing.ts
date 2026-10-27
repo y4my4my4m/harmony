@@ -740,11 +740,11 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
       parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
 
-    let url = rawUrl;
+    // Rewrite first: the stored link is cleaned by the rules of the host it goes out on.
+    let url = mirrorLink(rawUrl, mirrors);
     if (shouldStripTrackers) {
       url = stripTrackingParameters(url);
     }
-    url = mirrorLink(url, mirrors);
 
     parts.push({ type: 'url', url, preview });
     lastIndex = segmentEnd;

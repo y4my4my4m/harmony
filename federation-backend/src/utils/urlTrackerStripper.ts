@@ -57,9 +57,6 @@ const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
   'youtube.com': ['si', 'feature'],
   'youtu.be':    ['si', 'feature'],
 
-  'twitter.com': ['s', 't', 'ref_src', 'ref_url'],
-  'x.com':       ['s', 't', 'ref_src', 'ref_url'],
-
   'tiktok.com': [
     'is_from_webapp', 'is_copy_url', 'sender_device', 'sender_web_id',
     'share_id', 'share_app_id', 'share_link_id', 'share_item_id', 'share_channel',
@@ -69,6 +66,45 @@ const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
   'fb.com':         ['ref', 'refsrc'],
   'm.facebook.com': ['ref', 'refsrc'],
 };
+
+// Share extras of X, Instagram and Bluesky post links, on the site and on its
+// embed-fixer mirrors. Mirrors SOCIAL_TRACKING_PARAMS and SOCIAL_SITE_HOSTS of
+// src/utils/urlTrackerStripper.ts and src/utils/mirrorLinks.ts; the hosts are
+// those of services/socialEmbeds.ts.
+const SOCIAL_SITES: Array<{ hosts: ReadonlyArray<string>; params: string[] }> = [
+  {
+    hosts: [
+      'x.com', 'twitter.com',
+      'vxtwitter.com', 'fxtwitter.com', 'fixupx.com', 'fixvx.com',
+      'twittpr.com', 'girlcockx.com', 'nitter.net', 'xcancel.com',
+    ],
+    params: ['s', 't', 'ref_src', 'ref_url'],
+  },
+  {
+    hosts: [
+      'instagram.com', 'instagr.am',
+      'kkinstagram.com', 'ddinstagram.com', 'uuinstagram.com', 'eeinstagram.com',
+      'vxinstagram.com', 'instagramez.com', 'fxstagram.com',
+    ],
+    params: ['mdxt'],
+  },
+  {
+    hosts: ['bsky.app', 'fxbsky.app', 'bskye.app', 'bskx.app', 'vxbsky.app'],
+    params: ['ref_src', 'ref_url'],
+  },
+];
+
+// Klipy's integration requirements: media URLs are used as returned, their
+// parameters never removed or altered.
+const UNTOUCHED_HOST = /(^|\.)klipy\.com$/;
+
+function hostTrackingParams(hostname: string): ReadonlyArray<string> {
+  const lower = hostname.toLowerCase();
+  const domain = lower.replace(/^www\./, '');
+  if (DOMAIN_TRACKING_PARAMS[domain]) return DOMAIN_TRACKING_PARAMS[domain];
+  const social = lower.replace(/^(www|mobile|m|d|g)\./, '');
+  return SOCIAL_SITES.find((site) => site.hosts.includes(social))?.params ?? [];
+}
 
 function shouldStripParam(name: string, hostExtras: ReadonlyArray<string>): boolean {
   if (UNIVERSAL_TRACKING_PARAMS.has(name)) return true;
@@ -90,8 +126,8 @@ export function stripTrackingParameters(url: string): string {
     return url;
   }
 
-  const domain = urlObj.hostname.replace(/^www\./i, '');
-  const hostExtras = DOMAIN_TRACKING_PARAMS[domain] ?? [];
+  if (UNTOUCHED_HOST.test(urlObj.hostname.toLowerCase())) return url;
+  const hostExtras = hostTrackingParams(urlObj.hostname);
 
   // Collect then delete; deleting during iteration skips entries.
   const toDelete: string[] = [];

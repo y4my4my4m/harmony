@@ -57,6 +57,42 @@ describe('urlTrackerStripper', () => {
     })
   })
 
+  describe('stripTrackingParameters (post links on embed-fixer mirrors)', () => {
+    it.each([
+      ['kkinstagram.com', 'https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=MXN0Z2w5YWF3c2U1eg==', 'https://kkinstagram.com/reel/De-YBL8zRXm/'],
+      ['eeinstagram.com', 'https://eeinstagram.com/p/C0fQuIUJ875/?igsh=MWZ5dDlkd3lqNXQ5Mg==&mdxt=MXN0Z2w5YWF3c2U1eg==', 'https://eeinstagram.com/p/C0fQuIUJ875/'],
+      ['www.ddinstagram.com', 'https://www.ddinstagram.com/reel/De-YBL8zRXm/?igshid=x&utm_source=ig_web_copy_link', 'https://www.ddinstagram.com/reel/De-YBL8zRXm/'],
+      ['fixupx.com', 'https://fixupx.com/NASA/status/2112560723603632217?s=46&t=AbCdEf', 'https://fixupx.com/NASA/status/2112560723603632217'],
+      ['vxtwitter.com', 'https://vxtwitter.com/NASA/status/1?ref_src=twsrc%5Etfw&ref_url=https%3A%2F%2Fexample.com', 'https://vxtwitter.com/NASA/status/1'],
+      ['fxtwitter.com', 'https://fxtwitter.com/NASA/status/1?s=20', 'https://fxtwitter.com/NASA/status/1'],
+      ['fxbsky.app', 'https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m?ref_src=embed', 'https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m'],
+      ['bskye.app', 'https://bskye.app/profile/bsky.app/post/3mx?ref_src=embed&utm_medium=share', 'https://bskye.app/profile/bsky.app/post/3mx'],
+    ])('strips the share trackers of the site on %s', (_host, sent, stored) => {
+      expect(stripTrackingParameters(sent)).toBe(stored)
+    })
+
+    it('strips Instagram mdxt on the site itself and keeps the carousel index', () => {
+      expect(stripTrackingParameters('https://www.instagram.com/p/C0fQuIUJ875/?img_index=3&mdxt=MXN0Z2w5YWF3c2U1eg==&igsh=x'))
+        .toBe('https://www.instagram.com/p/C0fQuIUJ875/?img_index=3')
+    })
+
+    it('strips X share tokens on mobile.twitter.com and leaves the X search query', () => {
+      expect(stripTrackingParameters('https://mobile.twitter.com/jack/status/20?s=21')).toBe('https://mobile.twitter.com/jack/status/20')
+      expect(stripTrackingParameters('https://x.com/search?q=launch&src=typed_query')).toBe('https://x.com/search?q=launch&src=typed_query')
+    })
+
+    it('leaves the site-only names on other hosts', () => {
+      expect(stripTrackingParameters('https://example.com/a?mdxt=1&s=2&t=3&ref_src=4')).toBe('https://example.com/a?mdxt=1&s=2&t=3&ref_src=4')
+      expect(stripTrackingParameters('https://notkkinstagram.com/reel/x/?mdxt=1')).toBe('https://notkkinstagram.com/reel/x/?mdxt=1')
+    })
+
+    it('leaves Klipy URLs as Klipy returned them', () => {
+      const media = 'https://static.klipy.com/ii/abc/de/fg/cat.gif?utm_source=partner&fbclid=1'
+      expect(stripTrackingParameters(media)).toBe(media)
+      expect(stripTrackingParameters('https://klipy.com/gifs/cat?utm_source=x')).toBe('https://klipy.com/gifs/cat?utm_source=x')
+    })
+  })
+
   describe('stripTrackingParameters (universal utm_*)', () => {
     it('strips utm_* from any domain', () => {
       const url = 'https://arstechnica.com/science/article/?utm_brand=arstechnica&utm_social-type=owned&utm_source=mastodon&utm_medium=social'
