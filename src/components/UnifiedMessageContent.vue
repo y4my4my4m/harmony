@@ -99,8 +99,10 @@
       v-else
       class="content-display"
       :class="{ 'system-message-content': isSystem }"
-      @click="revealTextSpoiler"
+      @click="onContentClick"
       @keydown="onTextKeydown"
+      @pointerover="onEmojiPointerOver"
+      @pointerout="onEmojiPointerOut"
     >
       <!--
         Unverified-author badge. Shown only for messages that were encrypted,
@@ -267,6 +269,7 @@
           :title="`:${part.emoji?.name}:`"
           :data-emoji-token="emojiPartToken(part.emoji)"
           draggable="false"
+          :ref="(el) => bindEmojiPart(el, part.emoji)"
           @error="handleEmojiLoadError"
         /></InlineMarks>
         
@@ -809,6 +812,8 @@ import { userDataService } from '@/services/userDataService';
 import { useUserData } from '@/composables/useUserData';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { emojiInfoTargetFromElement, emojiInfoTargetFromPart, type EmojiInfoTarget, type EmojiResolver } from '@/utils/emojiInfoTarget';
+import { hoverEmojiInfo, leaveEmojiInfo, openEmojiInfo } from '@/composables/useEmojiInfo';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
@@ -1107,6 +1112,7 @@ export default defineComponent({
       const root = rootRef.value;
       if (root) for (const piece of Array.from(root.querySelectorAll<HTMLElement>(`.${group}`))) revealOne(piece);
       revealedSpoilerGroups.add(group);
+      nextTick(enhanceEmojiInfo);
       if (hadFocus) nextTick(() => focusElement(frame?.querySelector<HTMLElement>('.media-open, video') ?? null));
     };
     const revealTextSpoiler = (event: MouseEvent) => {
@@ -1117,6 +1123,15 @@ export default defineComponent({
     };
     const onTextKeydown = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
+      const emoji = emojiInfoElementOf(event.target);
+      if (emoji && emoji === event.target) {
+        const target = emojiInfoTargetOf(emoji);
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openEmojiInfo(emoji, target, { via: 'keyboard' });
+        return;
+      }
       const spoiler = (event.target as HTMLElement | null)?.closest<HTMLElement>('.md-spoiler[role="button"]');
       if (!spoiler) return;
       event.preventDefault();
@@ -1124,6 +1139,76 @@ export default defineComponent({
       const text = spoilerPieces(spoiler).map((piece) => piece.textContent ?? '').join('');
       revealSpoilerElement(spoiler);
       polite(t('messageA11y.spoiler.revealed', { text: text.trim() }));
+      nextTick(enhanceEmojiInfo);
+    };
+
+    // Emoji info (components/emoji/EmojiInfoHost.vue). Custom emoji parts map to their part's
+    // emoji; unicode emoji of v-html text are read from the element. An emoji under a covered
+    // spoiler, or inside a link, mention or other control, opens nothing.
+    const emojiParts = new WeakMap<Element, unknown>();
+    const bindEmojiPart = (el: unknown, emoji: unknown) => {
+      if (el instanceof Element) emojiParts.set(el, emoji);
+    };
+    const resolveForInfo: EmojiResolver = (input) => {
+      const resolved = resolveEmoji(input);
+      return {
+        unicode: resolved.unicode,
+        shortcode: resolved.shortcode,
+        imageUrl: resolved.display.type === 'svg' ? resolved.display.content : null,
+      };
+    };
+    const emojiInfoTargetOf = (el: Element): EmojiInfoTarget | null =>
+      emojiParts.has(el) ? emojiInfoTargetFromPart(emojiParts.get(el)) : emojiInfoTargetFromElement(el, resolveForInfo);
+    const EMOJI_INFO_SELECTOR = '.emoji-icon, img.inline-emoji, .native-emoji';
+    const EMOJI_INFO_BLOCKED = 'a, button, .mention, [role="button"], [role="link"], [role="option"], [role="menuitem"], .md-spoiler:not(.revealed)';
+    const enhanceEmojiInfo = () => {
+      const display = rootRef.value?.querySelector('.content-display');
+      if (!display) return;
+      for (const el of Array.from(display.querySelectorAll<HTMLElement>(EMOJI_INFO_SELECTOR))) {
+        if (el.hasAttribute('data-emoji-info')) continue;
+        if (el.parentElement?.closest(EMOJI_INFO_BLOCKED)) continue;
+        if (!emojiInfoTargetOf(el)) continue;
+        el.setAttribute('data-emoji-info', '');
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-haspopup', 'dialog');
+      }
+    };
+    onMounted(enhanceEmojiInfo);
+    onUpdated(enhanceEmojiInfo);
+    const emojiInfoElementOf = (node: EventTarget | null): HTMLElement | null => {
+      const el = node instanceof Element ? node.closest<HTMLElement>('[data-emoji-info]') : null;
+      if (!el || !rootRef.value?.contains(el) || el.closest('.md-spoiler:not(.revealed)')) return null;
+      return el;
+    };
+    const onContentClick = (event: MouseEvent) => {
+      const emoji = emojiInfoElementOf(event.target);
+      const target = emoji ? emojiInfoTargetOf(emoji) : null;
+      if (!emoji || !target) {
+        const covered = (event.target as HTMLElement | null)?.closest('.md-spoiler:not(.revealed)');
+        revealTextSpoiler(event);
+        if (covered) nextTick(enhanceEmojiInfo);
+        return;
+      }
+      event.stopPropagation();
+      openEmojiInfo(emoji, target, { via: 'click' });
+    };
+    const onEmojiPointerOver = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      const emoji = emojiInfoElementOf(event.target);
+      if (!emoji) return;
+      const related = event.relatedTarget;
+      if (related instanceof Node && emoji.contains(related)) return;
+      const target = emojiInfoTargetOf(emoji);
+      if (target) hoverEmojiInfo(emoji, target);
+    };
+    const onEmojiPointerOut = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      const emoji = emojiInfoElementOf(event.target);
+      if (!emoji) return;
+      const related = event.relatedTarget;
+      if (related instanceof Node && emoji.contains(related)) return;
+      leaveEmojiInfo();
     };
 
     // Text alternative of an image part: its description, else what it is. The
@@ -1917,6 +2002,10 @@ export default defineComponent({
       nativeVideoControls,
       mediaPartGone,
       onTextKeydown,
+      onContentClick,
+      onEmojiPointerOver,
+      onEmojiPointerOut,
+      bindEmojiPart,
       imageAltText,
       channelMentionHref,
       isHiddenSpoiler,

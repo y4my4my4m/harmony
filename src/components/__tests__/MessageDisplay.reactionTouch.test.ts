@@ -4,8 +4,8 @@
  * Double tap and double-click each react only under their own switch; the
  * dblclick a browser sends after a double tap is not a double-click.
  * The message long-press tolerates finger jitter and cancels on a drag or a
- * touchcancel. The pill's open-reactions and the context menu's View reactions
- * open the one reactions list.
+ * touchcancel. The pill's info card (All reactions) and the context menu's View
+ * reactions open the one reactions list.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +15,7 @@ import type { Message } from '@/types'
 
 const shared = vi.hoisted(() => ({
   outbox: { has: (_id: string) => false, discard: (_id: string) => {} },
+  groups: [{ emoji_id: null, emoji: { name: '👍', content: '👍' }, count: 2, current_user_reacted: false, reactions: [] }],
   quickReactEnabled: true,
   doubleClick: true,
   doubleTap: true,
@@ -49,7 +50,9 @@ vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => loose({
 vi.mock('@/stores/useActivityPub', () => ({
   useActivityPubStore: () => loose({ blockedUsers: new Set(), isBlocked: () => false }),
 }))
-vi.mock('@/stores/useReactions', () => ({ useReactionsStore: () => loose({ getMessageReactions: () => [] }) }))
+vi.mock('@/stores/useReactions', () => ({
+  useReactionsStore: () => loose({ getMessageReactions: (id: string) => (id === 'msg-1' ? shared.groups : []) }),
+}))
 vi.mock('@/stores/postReactions', () => ({ usePostReactionsStore: () => loose({}) }))
 vi.mock('@/stores/useThreads', () => ({
   useThreadsStore: () => loose({ threadForMessage: () => null, threadsForChannel: () => [] }),
@@ -78,7 +81,7 @@ vi.mock('@/composables/useQuickReactSettings', () => ({
     emoji: ref({ id: 'thumbs', name: 'thumbs', url: '', content: '👍' }),
   }),
 }))
-vi.mock('@/composables/useLayoutState', () => ({ useLayoutState: () => ({ isMobile: ref(false) }) }))
+vi.mock('@/composables/useLayoutState', () => ({ useLayoutState: () => ({ isMobile: ref(false) }), isMobileLayout: () => false }))
 vi.mock('@/composables/useUnreadCounts', () => ({ useUnreadCounts: () => ({ getUnreadCount: () => null }) }))
 vi.mock('@/composables/useReadDivider', () => ({
   useReadDivider: () => ({
@@ -124,11 +127,12 @@ vi.mock('@tanstack/vue-virtual', async () => {
 })
 
 import MessageDisplay from '../MessageDisplay.vue'
+import { closeEmojiInfo, useEmojiInfo } from '@/composables/useEmojiInfo'
 
 const ReactionsStub = defineComponent({
   name: 'MessageReactions',
   props: { message: { type: Object, required: true } },
-  emits: ['open-reactions'],
+  emits: ['reaction-info'],
   setup() {
     return () => h('div', { class: 'message-reactions' }, [h('div', { class: 'reaction' }, '👍 2')])
   },
@@ -159,6 +163,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  closeEmojiInfo()
   vi.useRealTimers()
 })
 
@@ -264,13 +269,19 @@ describe('MessageDisplay message long-press', () => {
 })
 
 describe('MessageDisplay reactions list', () => {
-  it('opens on the pill emoji and closes', async () => {
+  it('opens on the pill emoji from its info card and closes', async () => {
     const wrapper = mountDisplay()
     await flushPromises()
     expect(wrapper.findComponent({ name: 'ReactionsModal' }).exists()).toBe(false)
 
-    wrapper.findComponent(ReactionsStub).vm.$emit('open-reactions', 'msg-1', '👍')
+    const anchor = wrapper.get('.message-reactions .reaction').element as HTMLElement
+    wrapper.findComponent(ReactionsStub).vm.$emit('reaction-info', 'msg-1', '👍', anchor, 'click')
+    const { request } = useEmojiInfo()
+    expect(request.value).toMatchObject({ mode: 'pinned', anchor, target: { kind: 'default', glyph: '👍' } })
+    expect(request.value!.reactions!.count()).toBe(2)
+    request.value!.reactions!.onShowAll!()
     await flushPromises()
+    expect(request.value).toBeNull()
     const modal = wrapper.findComponent({ name: 'ReactionsModal' })
     expect(modal.props()).toMatchObject({ messageId: 'msg-1', initialEmojiKey: '👍' })
 

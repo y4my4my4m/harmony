@@ -175,7 +175,7 @@ const resolvedEmoji = (group: ReactionGroup) => {
   }
 }
 
-/** `:shortcode:` of the emoji, the same label ReactionTooltip shows. */
+/** `:shortcode:` of the emoji, the same label the emoji info card shows. */
 const emojiLabel = (group: ReactionGroup): string => {
   if (isCustomEmoji(group)) return `:${group.emoji.name}:`
   const shortcode = resolvedEmoji(group)?.shortcode

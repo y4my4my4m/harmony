@@ -117,6 +117,9 @@
   <!-- Media viewer opened through openLightbox -->
   <MediaLightboxHost />
 
+  <!-- Emoji info card opened through openEmojiInfo / hoverEmojiInfo -->
+  <EmojiInfoHost v-if="!isAuthRoute" />
+
   <!-- Uploads and downloads, on every page until they settle -->
   <TransfersIndicator v-if="!isAuthRoute" />
 </template>
@@ -155,6 +158,7 @@ import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationMod
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import MediaLightboxHost from '@/components/common/MediaLightboxHost.vue'
+import EmojiInfoHost from '@/components/emoji/EmojiInfoHost.vue'
 import TransfersIndicator from '@/components/common/TransfersIndicator.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'

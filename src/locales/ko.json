@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}, 반응 {count}개",
       "pillYou": "{emoji}, 나를 포함한 반응 {count}개",
-      "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 반응한 사람을 볼 수 있습니다.",
+      "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 이모지와 반응한 사람을 볼 수 있습니다.",
       "removed": "반응을 취소했습니다: {emoji}"
     },
     "emoji": {
@@ -2985,6 +2985,37 @@
     "flags": "깃발",
     "custom": "사용자 지정",
     "noResults": "이모지를 찾을 수 없습니다"
+  },
+  "emojiInfo": {
+    "dialog": "이모지",
+    "loading": "출처를 찾는 중…",
+    "default": "기본 이모지입니다. 어디서나 쓸 수 있습니다.",
+    "thisServer": "이 서버의 이모지입니다.",
+    "yourServer": "참가 중인 서버 {server}의 이모지입니다.",
+    "publicServer": "공개 서버 {server}의 이모지입니다. 참가하면 어디서나 쓸 수 있습니다.",
+    "remoteServer": "{domain}의 서버 {server}의 이모지입니다.",
+    "personalYours": "내 개인 이모지입니다. 어디서나 쓸 수 있습니다.",
+    "personalOf": "{name}님의 개인 이모지입니다.",
+    "personalUnknown": "개인 이모지입니다.",
+    "instance": "이 인스턴스의 이모지입니다.",
+    "remote": "다른 인스턴스의 이모지입니다: {domain}",
+    "discord": "Discord에서 연동된 Discord 이모지입니다.",
+    "unavailable": "비공개이거나 더 이상 이용할 수 없는 서버의 이모지입니다.",
+    "members": "멤버 {count}명",
+    "publicLabel": "공개 서버",
+    "privateLabel": "초대 전용 서버",
+    "moreEmoji": "이 서버의 다른 이모지",
+    "joined": "{server}에 참가했습니다",
+    "reactedBy": "{names}님이 반응했습니다",
+    "reactedByOthers": "{names}님 외 {count}명이 반응했습니다",
+    "reactionCount": "반응 {count}개",
+    "nameSeparator": ", ",
+    "allReactions": "모든 반응",
+    "copy": "복사",
+    "copied": "{text} 복사됨",
+    "copyFailed": "복사하지 못했습니다",
+    "copyLink": "이미지 링크 복사",
+    "linkCopied": "이미지 링크를 복사했습니다"
   },
   "inbox": {
     "title": "알림",
