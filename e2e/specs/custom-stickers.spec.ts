@@ -40,6 +40,8 @@ import { expectNoAxeViolations } from './a11y'
 test.describe.configure({ mode: 'serial' })
 
 const admin = adminClient()
+// A full page load boots the app again; on a cold dev server under load that takes most of a minute.
+const BOOT_MS = 60_000
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64',
@@ -68,6 +70,10 @@ test.beforeAll(async () => {
   const { data, error } = await admin.from('instance_config').select('config_key, config_value, description')
   if (error || !data) throw new Error(`snapshot instance_config: ${error?.message}`)
   configSnapshot = data
+  // Defaults of 20261031200001 (pgTAP 206 checks the seeded values); a run that ended early leaves others.
+  await setCap('max_stickers_per_server', 15)
+  await setCap('max_instance_stickers', 50)
+  await setCap('max_personal_stickers_per_user', 0)
   owner = await createUser(admin, 'stko')
   member = await createUser(admin, 'stkm')
   staff = await createUser(admin, 'stka')
@@ -132,7 +138,7 @@ test('an owner uploads a server sticker; a member sends it with text and it rend
     await signIn(page, owner)
     await page.goto(`/server/${server.id}?section=stickers`)
     const section = page.getByTestId('server-stickers')
-    await expect(section.getByTestId('sticker-count')).toHaveText('0 / 15', { timeout: 20000 })
+    await expect(section.getByTestId('sticker-count')).toHaveText('0 / 15', { timeout: BOOT_MS })
     const library = await pick(page, { name: 'cat_wave.png', mimeType: 'image/png', buffer: PNG }, 'server')
     await expect(library.getByTestId('sticker-name-input')).toHaveValue('cat wave')
     await library.getByTestId('sticker-name-input').fill('Cat wave')
@@ -166,7 +172,7 @@ test('an owner uploads a server sticker; a member sends it with text and it rend
       await signIn(memberPage, member)
       await memberPage.goto(`/server/${server.id}?section=stickers`)
       const section = memberPage.getByTestId('server-stickers')
-      await expect(section.getByTestId('sticker-row')).toHaveCount(1, { timeout: 20000 })
+      await expect(section.getByTestId('sticker-row')).toHaveCount(1, { timeout: BOOT_MS })
       await expect(section.getByTestId('sticker-upload-form')).toHaveCount(0)
       await expect(section.getByTestId('sticker-delete')).toHaveCount(0)
     } finally {
@@ -195,7 +201,8 @@ test('an owner uploads a server sticker; a member sends it with text and it rend
       const img = row.getByTestId('message-sticker').locator('img')
       await expect(img).toHaveAttribute('alt', 'Sticker Cat wave: A cat waving')
       await expect(img).toHaveJSProperty('complete', true)
-      expect(await img.evaluate((el: HTMLImageElement) => el.getBoundingClientRect().width)).toBe(160)
+      // The pending row is replaced by the stored one; the size is read once that settles.
+      await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.getBoundingClientRect().width)).toBe(160)
       await expect(row.locator('.content-image')).toHaveCount(0)
       await expect(composer(memberPage)).toHaveText('')
       await expectNoAxeViolations(memberPage, { include: '[data-testid="message-sticker"]', label: 'sticker in a message' })
@@ -217,7 +224,7 @@ test('refusals: long animation, SVG, oversized files and a stale cap', async ({ 
   await signIn(page, owner)
   await page.goto(`/server/${server.id}?section=stickers`)
   const section = page.getByTestId('server-stickers')
-  await expect(section.getByTestId('sticker-count')).toHaveText('1 / 15', { timeout: 20000 })
+  await expect(section.getByTestId('sticker-count')).toHaveText('1 / 15', { timeout: BOOT_MS })
   const error = section.getByTestId('sticker-upload-error')
 
   await test.step('the page refuses an animation over 5 s and an SVG', async () => {
@@ -244,7 +251,7 @@ test('refusals: long animation, SVG, oversized files and a stale cap', async ({ 
     expect((await admin.from('stickers').select('id').eq('server_id', server.id)).data).toHaveLength(1)
     await expect.poll(async () => (await admin.storage.from('stickers').list(`server/${server.id}`)).data?.length).toBe(1)
     await page.reload()
-    await expect(section.getByTestId('sticker-cap-reached')).toHaveText('Sticker limit reached (1).', { timeout: 20000 })
+    await expect(section.getByTestId('sticker-cap-reached')).toHaveText('Sticker limit reached (1).', { timeout: BOOT_MS })
     await setCap('max_stickers_per_server', 15)
   })
 })
@@ -258,7 +265,7 @@ test('personal stickers are off by default; an admin allows them and the member 
     await page.goto('/settings/stickers')
     const section = page.getByTestId('user-stickers')
     await expect(section.getByTestId('sticker-uploads-off')).toHaveText(
-      'Personal stickers are turned off on this instance. An admin can allow them.', { timeout: 20000 })
+      'Personal stickers are turned off on this instance. An admin can allow them.', { timeout: BOOT_MS })
     await expect(section.getByTestId('sticker-upload-form')).toHaveCount(0)
     const refused = await (await userClient(member)).storage.from('stickers').upload(`user/${member.id}/${randomUUID()}.png`, PNG, { contentType: 'image/png' })
     expect(refused.error).toBeTruthy()
@@ -272,7 +279,7 @@ test('personal stickers are off by default; an admin allows them and the member 
       await adminPage.goto('/admin?tab=config')
       await adminPage.locator('.config-tab-btn', { hasText: 'Federation' }).click()
       const field = adminPage.getByLabel('Personal stickers per user')
-      await expect(field).toHaveValue('0', { timeout: 20000 })
+      await expect(field).toHaveValue('0', { timeout: BOOT_MS })
       await expect(adminPage.locator('#max-personal-stickers-hint')).toContainText('turns personal stickers off')
       await field.fill('1')
       await adminPage.locator('.config-section').getByRole('button', { name: 'Save changes' }).click()
@@ -286,7 +293,7 @@ test('personal stickers are off by default; an admin allows them and the member 
   await test.step('the member uploads one and finds it in the picker', async () => {
     await page.reload()
     const section = page.getByTestId('user-stickers')
-    await expect(section.getByTestId('sticker-count')).toHaveText('0 / 1', { timeout: 20000 })
+    await expect(section.getByTestId('sticker-count')).toHaveText('0 / 1', { timeout: BOOT_MS })
     await upload(page, 'user', { name: 'me.png', mimeType: 'image/png', buffer: PNG }, 'Me waving', 'Me, waving hello')
     await expect(section.getByTestId('sticker-count')).toHaveText('1 / 1', { timeout: 20000 })
     await expect(section.getByTestId('sticker-cap-reached')).toBeVisible()
@@ -310,7 +317,7 @@ test('an admin adds an instance sticker that members find by search; members can
       await signIn(adminPage, staff)
       await adminPage.goto('/admin?tab=stickers')
       const section = adminPage.getByTestId('instance-stickers')
-      await expect(section.getByTestId('sticker-count')).toBeVisible({ timeout: 20000 })
+      await expect(section.getByTestId('sticker-count')).toBeVisible({ timeout: BOOT_MS })
       await upload(adminPage, 'instance', { name: 'party.png', mimeType: 'image/png', buffer: PNG }, 'Party', 'Confetti falling')
       await expect(section.getByTestId('sticker-row').filter({ hasText: 'Party' })).toBeVisible({ timeout: 20000 })
     } finally {
@@ -368,7 +375,7 @@ test('a member reports a sticker; staff remove it and the message shows a placeh
       const item = adminPage.locator('.report-item').filter({ has: adminPage.locator('.report-type-badge.sticker') }).first()
       await item.click()
       const proof = item.getByTestId('report-sticker')
-      await expect(proof).toContainText('Cat wave', { timeout: 20000 })
+      await expect(proof).toContainText('Cat wave', { timeout: BOOT_MS })
       await proof.getByTestId('report-remove-sticker').click()
       const confirm = adminPage.getByRole('alertdialog')
       await confirm.getByRole('button', { name: 'Delete', exact: true }).click()
@@ -382,6 +389,6 @@ test('a member reports a sticker; staff remove it and the message shows a placeh
 
   await page.reload()
   const gone = messageList(page).getByTestId('message-sticker-gone').first()
-  await expect(gone).toContainText('Sticker removed', { timeout: 30000 })
+  await expect(gone).toContainText('Sticker removed', { timeout: BOOT_MS })
   await expect(gone).toHaveAttribute('aria-label', 'Sticker Cat wave, no longer available: A cat waving')
 })
