@@ -293,7 +293,7 @@ jobs:
           docker run --rm --network host --ipc=host
           -v "$PWD:$PWD" -w "$PWD" -u "$(id -u):$(id -g)"
           -e HOME=/tmp/pwhome -e CI=true -e PW_BUNDLED=1
-          mcr.microsoft.com/playwright:v1.58.2-noble
+          mcr.microsoft.com/playwright:v1.60.0-noble
           npx playwright test --project=journeys-webkit
 
       - name: Keep the report when a journey fails
