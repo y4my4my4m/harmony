@@ -98,9 +98,17 @@ export function settleTransfer(entry: TransferEntry): void {
   }
 }
 
-/** Sign-out and test hook: drops every entry. Running transfers are aborted by their owners. */
+/** Sign-out and test hook: cancels every running transfer and drops every entry. */
 export function resetTransfers(): void {
+  const running = entries.filter((entry) => entry.progress.status === 'running')
   for (const timer of timers.values()) clearTimeout(timer)
   timers.clear()
   entries.splice(0, entries.length)
+  for (const entry of running) {
+    try {
+      entry.cancel?.()
+    } catch {
+      /* the rest are still cancelled */
+    }
+  }
 }

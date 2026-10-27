@@ -499,6 +499,15 @@ describe('resuming', () => {
 })
 
 describe('background uploads', () => {
+  it('is aborted when sign-out resets the transfers', async () => {
+    const upload = start({ bucket: 'emojis', path: 's/u/wave.png', file: new File(['png'], 'wave.png'), label: 'wave.png' })
+    await requests(1)
+    resetTransfers()
+    await expect(upload.result).rejects.toBeInstanceOf(UploadAbortedError)
+    expect(upload.state.status).toBe('aborted')
+    expect(transfers()).toHaveLength(0)
+  })
+
   it('keeps uploading and listed after the page that started it is left', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let result: Promise<{ data: { path: string } | null }> | null = null
