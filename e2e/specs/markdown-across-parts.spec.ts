@@ -4,6 +4,10 @@
 // mention showed everything. The text parts render as one run now: both halves are bold, the
 // link sits inside the bold, a spoiler covers the mention and reveals as one. Stored content
 // is unchanged.
+// - A spoiler around a link covers the link's image, GIF and preview card too: they render
+//   outside the text and showed in the clear while the markers vanished. One click reveals all.
+// - Two spoilers of one message reveal apart: their group ids restarted with each run.
+// - A quote line holding a mention is one quote with the mention inside; it split into three.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
@@ -39,8 +43,8 @@ test.beforeEach(async ({ page: _page }, info) => {
   channel = await addChannel(admin, server, `m${info.testId.slice(0, 6)}${info.repeatEachIndex}${info.retry}`)
 })
 
-async function seed(content: unknown[]): Promise<void> {
-  const { error } = await admin.from('messages').insert({ channel_id: channel, user_id: user.id, content })
+async function seed(content: unknown[], metadata?: Record<string, unknown>): Promise<void> {
+  const { error } = await admin.from('messages').insert({ channel_id: channel, user_id: user.id, content, ...(metadata ? { metadata } : {}) })
   if (error) throw new Error(`message: ${error.message}`)
 }
 
@@ -128,4 +132,102 @@ test('a message typed in the composer renders its bold link', async ({ page }) =
   await expect(posted.locator('.unified-content')).not.toContainText('**')
   await expect(posted.locator('strong.md-mark.md-bold > a.url-link')).toHaveText('https://example.com/c')
   await expect(posted.locator('.text-content .md-bold')).toHaveText(['typed ', ' across'])
+})
+
+const IMAGE = 'https://media.example.test/runs/secret.png'
+const GIF_PAGE = 'https://klipy.com/gifs/runs-secret'
+const GIF = 'https://static.klipy.test/ii/runs/secret.gif'
+const ARTICLE = 'https://news.example.test/runs/secret-article'
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="#0ea5e9"/></svg>'
+
+const embed = (url: string, over: Record<string, unknown>) => ({
+  cacheKey: `generic:${url}`, url, normalizedUrl: url, provider: 'generic',
+  fetchedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString(), ...over,
+})
+
+test('a spoiler around a link covers its image, GIF and preview card until clicked', async ({ page }) => {
+  await page.route(/https:\/\/(media\.example\.test|static\.klipy\.test)\//, (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG }))
+  await seed([{ type: 'text', text: 'pic ||' }, { type: 'url', url: IMAGE, preview: true }, { type: 'text', text: '||' }])
+  await seed(
+    [{ type: 'text', text: 'gif ||' }, { type: 'url', url: GIF_PAGE, preview: true }, { type: 'text', text: '||' }],
+    { embeds: { [GIF_PAGE]: embed(GIF_PAGE, { title: 'Secret', siteName: 'Klipy', image: GIF, mediaOnly: true }) } },
+  )
+  await seed(
+    [{ type: 'text', text: 'card ||' }, { type: 'url', url: ARTICLE, preview: true }, { type: 'text', text: '||' }],
+    { embeds: { [ARTICLE]: embed(ARTICLE, { title: 'The secret article', siteName: 'News', description: 'Spoils it all' }) } },
+  )
+  await open(page)
+
+  await test.step('the image is covered; its cover reveals it', async () => {
+    const r = row(page, 'pic')
+    await expect(r).toBeVisible({ timeout: 30000 })
+    await expect(r.locator('.unified-content')).not.toContainText('||')
+    const frame = r.locator('.media-frame')
+    await expect(frame).toHaveClass(/media-spoiler/)
+    await expect(r.locator(`img[src="${IMAGE}"]`)).toHaveCSS('filter', /blur/)
+    await r.locator('.media-spoiler-cover').click()
+    await expect(frame).not.toHaveClass(/media-spoiler/)
+    await expect(r.locator(`img[src="${IMAGE}"]`)).toHaveCSS('filter', 'none')
+  })
+
+  await test.step('the GIF is covered; a click on the spoiler bar reveals bar and GIF', async () => {
+    const r = row(page, 'gif')
+    const bar = r.locator('.md-mark.md-spoiler')
+    await expect(bar).toBeVisible()
+    await expect(r.locator('.media-frame')).toHaveClass(/media-spoiler/)
+    await expect(r.locator(`img[src="${GIF}"]`)).toHaveCSS('filter', /blur/)
+    await bar.click()
+    await expect(bar).toHaveClass(/revealed/)
+    await expect(r.locator('.media-frame')).not.toHaveClass(/media-spoiler/)
+  })
+
+  await test.step('the preview card is out until the spoiler is revealed', async () => {
+    const r = row(page, 'card')
+    const bar = r.locator('.md-mark.md-spoiler')
+    await expect(bar).toBeVisible()
+    await expect(r.locator('.provider-embed')).toHaveCount(0)
+    await expect(r).not.toContainText('The secret article')
+    await bar.click()
+    await expect(r.locator('.provider-embed')).toBeVisible()
+    await expect(r).toContainText('The secret article')
+  })
+})
+
+test('two spoilers of one message reveal apart', async ({ page }) => {
+  const mention = { type: 'mention', userId: user.id, username: user.username, domain: 'localhost', isLocal: true }
+  await seed([
+    { type: 'text', text: '||first ' }, mention, { type: 'text', text: ' one||' },
+    { type: 'embed', url: 'https://example.test/block', previewId: 'none' },
+    { type: 'text', text: '||second ' }, mention, { type: 'text', text: ' two||' },
+  ])
+  await open(page)
+  const r = row(page, 'first')
+  await expect(r).toBeVisible({ timeout: 30000 })
+  await expect(r.locator('.md-spoiler')).toHaveCount(6)
+  await r.locator('.text-content .md-spoiler').filter({ hasText: 'first' }).click()
+  await expect(r.locator('.md-spoiler.revealed')).toHaveCount(3)
+  await expect(r.locator('.text-content .md-spoiler').filter({ hasText: 'second' })).not.toHaveClass(/revealed/)
+  await expect(r.locator('button.mention').nth(1)).toHaveCSS('visibility', 'hidden')
+})
+
+test('a quote line holding a mention is one quote with the mention inside', async ({ page }) => {
+  await seed([
+    { type: 'text', text: 'said\n> quoted ' },
+    { type: 'mention', userId: user.id, username: user.username, domain: 'localhost', isLocal: true },
+    { type: 'text', text: ' rest\nafter' },
+  ])
+  await open(page)
+  const r = row(page, 'quoted')
+  await expect(r).toBeVisible({ timeout: 30000 })
+  const quote = r.locator('blockquote')
+  await expect(quote).toHaveCount(1)
+  await expect(quote.locator('button.mention')).toHaveCount(1)
+  await expect(quote).toHaveText(/^quoted @.+ rest$/)
+  await expect(quote).not.toContainText('said')
+  await expect(quote).not.toContainText('after')
+  // One line: the mention sits beside the quoted words.
+  const words = (await quote.locator('.text-content').first().boundingBox())!
+  const name = (await quote.locator('button.mention').boundingBox())!
+  expect(Math.abs(name.y + name.height / 2 - (words.y + words.height / 2))).toBeLessThan(6)
+  await expect(quote).toHaveCSS('border-left-style', 'solid')
 })

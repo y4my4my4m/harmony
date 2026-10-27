@@ -113,7 +113,12 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >Unverified author</span>
-      <template v-for="(part, partIndex) in displayContent" :key="partIndex">
+      <!-- Parts render in groups: a quote holding a link, mention or emoji is one blockquote
+           around its text pieces and parts (utils/inlineMarkdownRuns); every other group is
+           its parts alone. -->
+      <template v-for="group in renderGroups" :key="group.key">
+      <InlineMarks :marks="group.marks">
+      <template v-for="{ part, partIndex, piece } in group.items" :key="`${partIndex}-${piece ?? ''}`">
         <!-- Grouped image/video mosaic (Discord-style) -->
         <MessageMediaGallery
           v-if="part && typeof part === 'object' && part.type === 'media_gallery'"
@@ -183,7 +188,7 @@
             </span>
           </template>
           <!-- Normal text -->
-          <template v-else v-for="(segment, segmentIndex) in textSegmentsAt(partIndex, part.text)" :key="`${partIndex}-${segmentIndex}`">
+          <template v-else v-for="(segment, segmentIndex) in textSegmentsAt(partIndex, part.text, piece)" :key="`${partIndex}-${segmentIndex}`">
             <span 
               v-if="segment.type === 'text'" 
               class="text-content"
@@ -285,11 +290,12 @@
             v-if="isImageUrl(part.url) && showsPreview(part)" 
             class="media-container image-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="displayMediaUrl(part.url)"
                 :alt="t('messageA11y.image.noDescription')"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
                 @load="handleImageLoad(part.url)"
                 @error="onAttachmentMediaError(part.url)"
                 @click="openMedia(chatMediaKey(part))"
@@ -298,11 +304,19 @@
                 class="content-image"
               />
               <button
+                v-if="!isCoveredLink(partIndex)"
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
                 @click.stop="openMedia(chatMediaKey(part))"
               ></button>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
 
@@ -312,16 +326,25 @@
             class="media-container video-container"
             :ref="el => bindVideoContainer(partIndex, el)"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="part.url"
                 :controls="nativeVideoControls"
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
                 @play="handleVideoPlay"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(chatMediaKey(part), $event)" />
+              <VideoControls v-if="!nativeVideoControls && !isCoveredLink(partIndex)" expandable @expand="openMedia(chatMediaKey(part), $event)" />
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
               <button
                 v-if="floatingVideos.canPopOut(partIndex)"
                 type="button"
@@ -382,11 +405,12 @@
             v-if="embedMedia(part)?.kind === 'image'"
             class="media-container image-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <div v-if="!imageLoadedState[embedMedia(part)!.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="embedMedia(part)!.url"
                 :alt="t('messageA11y.image.gif')"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
                 @load="handleImageLoad(embedMedia(part)!.url)"
                 @error="onEmbedMediaError(embedMedia(part)!.url)"
                 @click="openMedia(embedMedia(part)!.url)"
@@ -395,18 +419,26 @@
                 class="content-image"
               />
               <button
+                v-if="!isCoveredLink(partIndex)"
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
                 @click.stop="openMedia(embedMedia(part)!.url)"
               ></button>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
           <div
             v-else-if="embedMedia(part)?.kind === 'video'"
             class="media-container video-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="embedMedia(part)!.url"
                 controls
@@ -416,27 +448,46 @@
                 playsinline
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
                 @error="onEmbedMediaError(embedMedia(part)!.url)"
               ></video>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
           <div
             v-else-if="embedMedia(part)?.kind === 'clip'"
             class="media-container video-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="embedMedia(part)!.url"
                 :controls="nativeVideoControls"
                 playsinline
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(embedMedia(part)!.url, $event)" />
+              <VideoControls v-if="!nativeVideoControls && !isCoveredLink(partIndex)" expandable @expand="openMedia(embedMedia(part)!.url, $event)" />
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
+          <!-- A link inside a covered spoiler shows its preview card once revealed. -->
           <ProviderEmbedSwitch
-            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
+            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url) && !isCoveredLink(partIndex)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
@@ -723,6 +774,8 @@
           :poll="part"
           :message-id="messageId"
         />
+      </template>
+      </InlineMarks>
       </template>
     </div>
 
@@ -1025,8 +1078,36 @@ export default defineComponent({
       const root = rootRef.value;
       return group && root ? Array.from(root.querySelectorAll<HTMLElement>(`.${group}`)) : [spoiler];
     };
+    // A link inside `||…||` carries the spoiler as a mark (utils/inlineMarkdownRuns); its media
+    // stays covered and its preview card out until that spoiler is revealed. The revealed
+    // groups are state, as the media is template, not v-html.
+    const revealedSpoilerGroups = reactive(new Set<string>());
+    const spoilerGroupOf = (spoiler: Element): string | undefined =>
+      Array.from(spoiler.classList).find((c) => c.startsWith(SPOILER_GROUP_PREFIX));
+    const linkSpoilerGroup = (partIndex: number): string | null => {
+      const mark = marksAt(partIndex).find((m) => m.className.split(' ').includes('md-spoiler'));
+      if (!mark) return null;
+      return mark.className.split(' ').find((c) => c.startsWith(SPOILER_GROUP_PREFIX)) ?? `md-spoiler-part-${partIndex}`;
+    };
+    const isCoveredLink = (partIndex: number): boolean => {
+      const group = linkSpoilerGroup(partIndex);
+      return !!group && !revealedSpoilerGroups.has(group);
+    };
     const revealSpoilerElement = (spoiler: HTMLElement) => {
       for (const piece of spoilerPieces(spoiler)) revealOne(piece);
+      const group = spoilerGroupOf(spoiler);
+      if (group) revealedSpoilerGroups.add(group);
+    };
+    // The cover unmounts on reveal; focus moves to the media it covered.
+    const revealLinkSpoiler = (partIndex: number, event?: MouseEvent) => {
+      const group = linkSpoilerGroup(partIndex);
+      if (!group) return;
+      const frame = event?.currentTarget instanceof HTMLElement ? event.currentTarget.closest('.media-frame') : null;
+      const hadFocus = !!frame && frame.contains(document.activeElement);
+      const root = rootRef.value;
+      if (root) for (const piece of Array.from(root.querySelectorAll<HTMLElement>(`.${group}`))) revealOne(piece);
+      revealedSpoilerGroups.add(group);
+      if (hadFocus) nextTick(() => focusElement(frame?.querySelector<HTMLElement>('.media-open, video') ?? null));
     };
     const revealTextSpoiler = (event: MouseEvent) => {
       const spoiler = (event.target as HTMLElement | null)?.closest<HTMLElement>('.md-spoiler');
@@ -1528,14 +1609,40 @@ export default defineComponent({
         (text) => renderChatMessageText(text, options),
       );
     });
-    const textSegmentsAt = (partIndex: number, text: string): TextSegment[] => {
+    const textSegmentsAt = (partIndex: number, text: string, piece?: number): TextSegment[] => {
       const rendered = inlineRuns.value?.text[partIndex];
-      return rendered
-        ? splitCodeBlockSegments(rendered.html, rendered.codeBlocks)
-        : renderTextSegments(text);
+      if (!rendered) return renderTextSegments(text);
+      const html = piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html;
+      return splitCodeBlockSegments(html, rendered.codeBlocks);
     };
     const NO_MARKS: InlineMark[] = [];
     const marksAt = (partIndex: number): InlineMark[] => inlineRuns.value?.marks[partIndex] ?? NO_MARKS;
+
+    // Consecutive parts and text pieces in one lifted quote share a group drawn as one
+    // blockquote; the rest form groups with no element of their own.
+    const QUOTE_MARKS: InlineMark[] = [{ tag: 'blockquote', className: 'md-blockquote' }];
+    interface RenderItem { part: DisplayPart; partIndex: number; piece?: number }
+    interface RenderGroup { key: string; marks: InlineMark[]; items: RenderItem[] }
+    const renderGroups = computed<RenderGroup[]>(() => {
+      const runs = inlineRuns.value;
+      const groups: RenderGroup[] = [];
+      let open: RenderGroup | null = null;
+      let openQuote: number | undefined;
+      const add = (item: RenderItem, quote: number | undefined) => {
+        if (!open || quote !== openQuote) {
+          open = { key: `${item.partIndex}-${item.piece ?? ''}`, marks: quote === undefined ? NO_MARKS : QUOTE_MARKS, items: [] };
+          openQuote = quote;
+          groups.push(open);
+        }
+        open.items.push(item);
+      };
+      displayContent.value.forEach((part, partIndex) => {
+        const pieces = runs?.text[partIndex]?.pieces;
+        if (pieces) pieces.forEach((p, piece) => add({ part, partIndex, piece }, p.quote));
+        else add({ part, partIndex }, runs?.quotes[partIndex]);
+      });
+      return groups;
+    });
 
     watch(() => props.editableContent, (newVal) => {
       // Guard against a write-back loop through the editor.
@@ -1814,6 +1921,8 @@ export default defineComponent({
       channelMentionHref,
       isHiddenSpoiler,
       revealMediaSpoiler,
+      isCoveredLink,
+      revealLinkSpoiler,
       revealTextSpoiler,
       displayContent,
       onAttachmentMediaError,
@@ -1855,6 +1964,7 @@ export default defineComponent({
       renderTextSegments,
       textSegmentsAt,
       marksAt,
+      renderGroups,
       handleHashtagClick,
       handleChannelMentionClick,
       handleMentionClick,
@@ -2007,7 +2117,8 @@ export default defineComponent({
   font-size: 0.85em;
 }
 
-.text-content :deep(.md-blockquote) {
+.text-content :deep(.md-blockquote),
+.content-display :deep(.md-mark.md-blockquote) {
   border-left: 4px solid var(--text-muted);
   padding: 2px 0 2px 12px;
   user-select: text;
@@ -2016,6 +2127,11 @@ export default defineComponent({
   -ms-user-select: text;
   margin: 2px 0;
   color: var(--text-secondary);
+}
+
+/* Text inside a lifted quote takes the quote's colour. */
+.content-display :deep(.md-mark.md-blockquote .text-content) {
+  color: inherit;
 }
 
 .text-content :deep(.md-blockquote + .md-blockquote),

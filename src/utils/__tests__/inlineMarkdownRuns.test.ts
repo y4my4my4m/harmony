@@ -98,11 +98,58 @@ describe('renderInlineRuns', () => {
     expect(html[3]).toBe('<strong class="md-bold"> c</strong>');
   });
 
-  it('a quote line split by a part leaves no empty quote behind', () => {
-    const { html } = htmlOf([text('> quote '), inline, text('\nplain')]);
-    expect(html[0]).toContain('md-blockquote');
-    expect(html[2]).not.toContain('blockquote');
-    expect(html[2]).toContain('plain');
+  it('a quote holding a part is lifted: its text and the part name one quote', () => {
+    const { runs } = htmlOf([text('> quote '), inline, text(' rest')]);
+    expect(runs.text[0]?.pieces).toEqual([{ html: 'quote ', quote: 0 }]);
+    expect(runs.quotes[1]).toBe(0);
+    expect(runs.marks[1]).toEqual([]);
+    expect(runs.text[2]?.pieces).toEqual([{ html: ' rest', quote: 0 }]);
+    expect(runs.text.map((r) => r?.html).join('')).not.toContain('blockquote');
+  });
+
+  it('text around a lifted quote stays outside it', () => {
+    const { runs } = htmlOf([text('intro\n> quote '), inline, text(' rest\nafter')]);
+    expect(runs.text[0]?.pieces).toEqual([{ html: 'intro<br>' }, { html: 'quote ', quote: 0 }]);
+    expect(runs.quotes[1]).toBe(0);
+    expect(runs.text[2]?.pieces).toEqual([{ html: ' rest', quote: 0 }, { html: '<br>after' }]);
+  });
+
+  it('a quote line ending at a part leaves no empty piece behind', () => {
+    const { runs } = htmlOf([text('> quote '), inline, text('\nplain')]);
+    expect(runs.text[0]?.pieces).toEqual([{ html: 'quote ', quote: 0 }]);
+    expect(runs.quotes[1]).toBe(0);
+    expect(runs.text[2]?.pieces).toBeUndefined();
+    expect(runs.text[2]?.html).toBe('<br>plain');
+  });
+
+  it('formatting inside a lifted quote is carried as usual', () => {
+    const { runs } = htmlOf([text('> **q '), inline, text('** r')]);
+    expect(runs.quotes[1]).toBe(0);
+    expect(runs.marks[1]).toEqual([{ tag: 'strong', className: 'md-bold' }]);
+    expect(runs.text[2]?.pieces).toEqual([{ html: ' r', quote: 0 }]);
+  });
+
+  it('a quote without a part stays in the HTML', () => {
+    const { runs } = htmlOf([text('> plain quote\nx '), inline, text(' y')]);
+    expect(runs.text[0]?.html).toContain('<blockquote class="md-blockquote">plain quote</blockquote>');
+    expect(runs.text[0]?.pieces).toBeUndefined();
+    expect(runs.quotes[1]).toBeUndefined();
+  });
+
+  it('spoiler and quote groups are unique across the runs of a message', () => {
+    const { runs, html } = htmlOf([
+      text('||a '), inline, text(' b||'), block,
+      text('||c '), inline, text(' d|| \n> e '), inline, block,
+      text('> f '), inline,
+    ]);
+    const groupOf = (h: string | undefined) => /md-spoiler-group-\d+/.exec(h ?? '')?.[0];
+    expect(groupOf(html[0])).toBeTruthy();
+    expect(groupOf(html[4])).toBeTruthy();
+    expect(groupOf(html[4])).not.toBe(groupOf(html[0]));
+    expect(runs.marks[5]?.[0].className).toContain(groupOf(html[4])!);
+    expect(runs.quotes[7]).toBeDefined();
+    expect(runs.quotes[10]).toBeDefined();
+    expect(runs.quotes[10]).not.toBe(runs.quotes[7]);
   });
 
   it('a part right after a line start is no quote marker', () => {
@@ -120,18 +167,22 @@ describe('renderInlineRuns', () => {
 });
 
 describe('splitAtSentinels', () => {
+  it('leaves a quote holding a sentinel inside another element to part-by-part rendering', () => {
+    expect(splitAtSentinels(`<span class="md-spoiler"><blockquote class="md-blockquote">a${PART_SENTINEL}</blockquote></span>`)).toBeNull();
+  });
+
   it('closes and reopens the open elements at each sentinel', () => {
     const split = splitAtSentinels(`<strong class="md-bold">a${PART_SENTINEL}b${PART_SENTINEL}c</strong>`);
     expect(split?.chunks).toEqual([
-      '<strong class="md-bold">a</strong>',
-      '<strong class="md-bold">b</strong>',
-      '<strong class="md-bold">c</strong>',
+      [{ html: '<strong class="md-bold">a</strong>' }],
+      [{ html: '<strong class="md-bold">b</strong>' }],
+      [{ html: '<strong class="md-bold">c</strong>' }],
     ]);
     expect(split?.marks).toHaveLength(2);
   });
 
   it('keeps an inline emoji image in an otherwise empty slice', () => {
     const split = splitAtSentinels(`<strong class="md-bold"><img class="inline-emoji" src="a.svg" alt="x">${PART_SENTINEL}</strong>`);
-    expect(split?.chunks[0]).toContain('<img');
+    expect(split?.chunks[0][0].html).toContain('<img');
   });
 });
