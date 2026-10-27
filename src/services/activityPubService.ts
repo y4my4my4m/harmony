@@ -5,15 +5,16 @@ import { apiUrl } from '@/services/instanceConfig';
 import { trendingService } from './TrendingService';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
-const POST_AUTHOR_EMBED = `
-  author:profiles!posts_author_id_fkey(
+const POST_AUTHOR_COLUMNS = `
     id, username, display_name, avatar_url, color, domain, is_local, is_suspended,
     supporter_membership:instance_supporters(
       is_active,
       tier:instance_supporter_tiers(name, badge_icon, badge_color)
     )
-  )
 `;
+const POST_AUTHOR_EMBED = `author:profiles!posts_author_id_fkey(${POST_AUTHOR_COLUMNS})`;
+// Inner join: a filter on author.* drops the posts whose author does not match.
+const POST_AUTHOR_EMBED_INNER = `author:profiles!posts_author_id_fkey!inner(${POST_AUTHOR_COLUMNS})`;
 import type { 
   Post, 
   Follow, 
@@ -545,7 +546,7 @@ export class ActivityPubService {
     }
   }
 
-  // Public posts by profiles on `domain`, capped at the first 100 profiles.
+  // Public posts by accounts on `domain`, newest first, filtered on the author's profile.
   async getInstanceActivity(
     domain: string, 
     options: { limit?: number; cursor?: string } = {}
@@ -553,28 +554,11 @@ export class ActivityPubService {
     try {
       const { limit = 20, cursor } = options;
 
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('domain', domain)
-        .limit(100);
-
-      if (profileError) throw profileError;
-      
-      if (!profiles || profiles.length === 0) {
-        return { posts: [], hasMore: false, cursor: null };
-      }
-
-      const profileIds = profiles.map(p => p.id);
-
       // limit + 1 rows: the extra row signals hasMore.
       let query = supabase
         .from('posts')
-        .select(`
-          *,
-          ${POST_AUTHOR_EMBED}
-        `)
-        .in('author_id', profileIds)
+        .select(`*, ${POST_AUTHOR_EMBED_INNER}`)
+        .eq('author.domain', domain)
         .eq('visibility', 'public')
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
