@@ -1,8 +1,9 @@
 // Journey: hovering an emoji in the composer's picker or the reaction picker grows its glyph
 // inside its own 36px cell and shows it large, with its name, in the bar under the grid. No
 // cell, neighbour or the bar moves, and the pointer keeps hitting the emoji under it. A phone
-// has no hover: nothing grows there. The composer's mic, GIF and emoji buttons share one box,
-// glyph size and colour.
+// has no hover: nothing grows there. Right-clicking an emoji in the reaction picker opens its
+// menu over the picker. The composer's mic, GIF and emoji buttons share one box, glyph size
+// and colour; the mic's drawing stays within about 14x19 of its 24px box.
 
 import { test, expect, devices, type Locator, type Page } from '@playwright/test'
 import {
@@ -129,6 +130,19 @@ test('reaction picker: the same preview', async ({ page }) => {
   const picker = page.getByRole('dialog', { name: 'Add reaction' })
   await expect(picker).toBeVisible()
   await expectHoverPreview(page, picker)
+
+  await test.step("an emoji's right-click menu opens over the picker", async () => {
+    const item = picker.locator('.emoji-item').first()
+    await item.click({ button: 'right' })
+    const menu = page.locator('.emoji-ctx-menu')
+    await expect(menu).toBeVisible()
+    const first = menu.locator('.emoji-ctx-item').first()
+    const onTop = await first.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+    })
+    expect(onTop).toBe(true)
+  })
 })
 
 test('composer: mic, GIF and emoji share one box, glyph size and colour', async ({ page }) => {
@@ -150,6 +164,13 @@ test('composer: mic, GIF and emoji share one box, glyph size and colour', async 
     expect(glyph.width).toBeCloseTo(24, 0)
     expect(glyph.height).toBeCloseTo(24, 0)
   }
+  // The mic's drawing (capsule and stand, without stroke) is smaller than the 23px emoji face.
+  const mark = await mic.locator('svg').evaluate((el) => {
+    const b = (el as SVGSVGElement).getBBox()
+    return { width: b.width, height: b.height }
+  })
+  expect(mark.height).toBeLessThanOrEqual(19.5)
+  expect(mark.width).toBeLessThanOrEqual(14)
   // One row: the three centres share a line.
   const centres = await Promise.all([mic, gif, emoji].map(async (b) => { const r = await box(b); return r.y + r.height / 2 }))
   expect(Math.max(...centres) - Math.min(...centres)).toBeLessThan(1)
