@@ -2,7 +2,9 @@
 // apps preview with the post's media; Harmony still shows the post. Appearance turns the
 // rewrite off per site, the choice is stored on the profile, and a link sent then stays as
 // typed. Share trackers (Instagram's igsh and mdxt, utm_*) leave a sent link, typed on a
-// mirror or rewritten to one, and the cleaned link still shows the post.
+// mirror or rewritten to one, and the cleaned link still shows the post. A masked link and a
+// `<url>` link keep their host: a mirror is for the preview other apps draw, and a label naming
+// x.com no longer matched a link stored on fixupx.com.
 //
 // The stack runs no federation backend and no realtime: the preview is written into the
 // message metadata as the backend's enrichment writes it, keyed by the stored link, and the
@@ -98,6 +100,18 @@ test('a sent X post link is stored on fixupx.com and still shows the post', asyn
     await expect(card).toHaveAttribute('data-platform', 'x')
     await expect(card.getByTestId('social-embed-text')).toHaveText('Rollout day')
   })
+})
+
+test('a masked link and a link without preview keep their host', async ({ page }) => {
+  await signIn(page, user)
+  await openChannel(page, server.id, server.generalChannelId)
+  await dismissAnnouncements(page)
+  const label = POST.replace('https://', '')
+  expect(await send(page, 'maskedx', `[${label}](${POST}?utm_source=share)`)).toEqual([POST])
+  const masked = messageList(page).locator('.message-item').filter({ hasText: 'maskedx ' }).last().locator('a.url-link')
+  await expect(masked).toHaveText(label)
+  await expect(masked).toHaveAttribute('href', POST)
+  expect(await send(page, 'angledx', `<${OTHER_POST}>`)).toEqual([OTHER_POST])
 })
 
 test('with the X mirror turned off in Appearance, a sent link stays as typed', async ({ page }) => {

@@ -234,9 +234,10 @@ describe('parseContentToMessageParts with masked links', () => {
     expect(parts).toEqual([{ type: 'url', url: 'https://example.com/a?id=1', preview: true, label: 'utm_source=x' }])
   })
 
-  it('rewrites the URL to the chosen mirror', async () => {
-    const parts = await parseContentToMessageParts('[a post](https://x.com/NASA/status/1)')
-    expect(parts).toEqual([{ type: 'url', url: 'https://fixupx.com/NASA/status/1', preview: true, label: 'a post' }])
+  it('keeps the URL off the mirror, so a label naming its host still matches', async () => {
+    const parts = await parseContentToMessageParts('[x.com/NASA/status/1](https://x.com/NASA/status/1)')
+    expect(parts).toEqual([{ type: 'url', url: 'https://x.com/NASA/status/1', preview: true, label: 'x.com/NASA/status/1' }])
+    expect(shownLinkLabel(parts[0])).toBe('x.com/NASA/status/1')
   })
 
   it('parses bare URLs beside masked ones', async () => {

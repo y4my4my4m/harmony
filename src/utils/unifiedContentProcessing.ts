@@ -716,18 +716,19 @@ function markdownCodeRanges(text: string): Array<[number, number]> {
 
 /**
  * A typed link as stored: rewritten to the chosen mirror first, then cleaned by the rules of the
- * host it goes out on.
+ * host it goes out on. A mirror exists for the preview other apps draw, so a link with a label
+ * (whose text may name the host) or without a preview keeps its host.
  */
-function storedUrl(rawUrl: string): string {
-  const url = mirrorLink(rawUrl, mirrorLinkPreferences());
+function storedUrl(rawUrl: string, mirror: boolean): string {
+  const url = mirror ? mirrorLink(rawUrl, mirrorLinkPreferences()) : rawUrl;
   return isUrlTrackingStrippingEnabled() ? stripTrackingParameters(url) : url;
 }
 
 /**
  * Splits text into url and emoji parts. Masked links `[label](url)` become url parts with a
  * label (utils/maskedLinks); the label stays as typed. URL tracking-parameter stripping and the
- * post-link mirrors of utils/mirrorLinks happen here so every caller (ActivityPub, DMs, chat)
- * gets them.
+ * post-link mirrors of utils/mirrorLinks (storedUrl) happen here so every caller (ActivityPub,
+ * DMs, chat) gets them.
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -739,7 +740,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   let last = 0;
   for (const link of links) {
     if (link.start > last) parts.push(...await parseTextForBareUrls(text.slice(last, link.start), emojiDataMap));
-    parts.push({ type: 'url', url: storedUrl(link.url), preview: link.preview, label: link.label });
+    parts.push({ type: 'url', url: storedUrl(link.url, false), preview: link.preview, label: link.label });
     last = link.end;
   }
   if (last < text.length) parts.push(...await parseTextForBareUrls(text.slice(last), emojiDataMap));
@@ -770,7 +771,7 @@ async function parseTextForBareUrls(text: string, emojiDataMap: Record<string, a
       parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
 
-    parts.push({ type: 'url', url: storedUrl(rawUrl), preview });
+    parts.push({ type: 'url', url: storedUrl(rawUrl, preview), preview });
     lastIndex = segmentEnd;
   }
   
