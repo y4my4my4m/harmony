@@ -189,6 +189,17 @@ describe('AppToolbar', () => {
     expect(document.activeElement?.id).toBe('react')
   })
 
+  it('moves the Tab stop off a control that stops rendering when the viewport resizes', async () => {
+    mount(Host(), { attachTo: document.body })
+    document.getElementById('more')!.focus()
+    document.getElementById('more')!.blur()
+    expect(stops()).toEqual(['-1', '-1', '0'])
+    document.getElementById('more')!.getClientRects = () => [] as unknown as DOMRectList
+    window.dispatchEvent(new Event('resize'))
+    await Promise.resolve()
+    expect(stops()).toEqual(['0', '-1', '0'])
+  })
+
   it('gives the Tab stop to a control focused by pointer and to the toolbar\'s new controls', async () => {
     const wrapper = mount(Host(), { attachTo: document.body })
     document.getElementById('more')!.focus()

@@ -15,7 +15,9 @@
   Attributes (class, style, data-testid) fall through to the root.
 
   Controls rendered by a child component (TransitionGroup) change without a
-  render of this component; a MutationObserver re-syncs the Tab stop.
+  render of this component; a MutationObserver re-syncs the Tab stop. Controls
+  a media query hides are not items; a viewport resize, zoom included, re-syncs
+  the Tab stop off a control that stopped rendering.
 -->
 <template>
   <div ref="root" role="toolbar" :aria-label="label" @keydown="onKeydown" @focusin="sync">
@@ -46,19 +48,24 @@ const { onKeydown, sync } = useRovingTabindex(root, {
 
 let observer: MutationObserver | null = null
 let queued = false
-onMounted(() => {
-  if (!root.value || typeof MutationObserver === 'undefined') return
-  observer = new MutationObserver(() => {
-    if (queued) return
-    queued = true
-    queueMicrotask(() => {
-      queued = false
-      sync()
-    })
+const queueSync = () => {
+  if (queued) return
+  queued = true
+  queueMicrotask(() => {
+    queued = false
+    sync()
   })
+}
+onMounted(() => {
+  window.addEventListener('resize', queueSync)
+  if (!root.value || typeof MutationObserver === 'undefined') return
+  observer = new MutationObserver(queueSync)
   observer.observe(root.value, { childList: true, subtree: true })
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', queueSync)
+  observer?.disconnect()
+})
 
 defineExpose({ sync })
 </script>

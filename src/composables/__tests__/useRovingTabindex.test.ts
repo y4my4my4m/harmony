@@ -56,6 +56,29 @@ describe('useRovingTabindex', () => {
     expect(document.activeElement?.textContent).toBe('c')
   })
 
+  // A control a media query hides has no boxes and refuses focus; moving onto it strands focus
+  // and leaves the Tab stop on a control that cannot be tabbed to.
+  it('skips items that render no box', () => {
+    const { items } = mountList(['a', 'b', 'c'], { orientation: 'horizontal' })
+    items()[1].getClientRects = () => [] as unknown as DOMRectList
+    items()[0].focus()
+    key(items()[0], 'ArrowRight')
+    expect(document.activeElement).toBe(items()[2])
+    expect(items().map((el) => el.getAttribute('tabindex'))).toEqual(['-1', '-1', '0'])
+    key(items()[2], 'ArrowLeft')
+    expect(document.activeElement).toBe(items()[0])
+  })
+
+  it('keeps the Tab stop where it was when the item moved to refuses focus', () => {
+    const { items, onActivate } = mountList(['a', 'b', 'c'])
+    items()[1].focus = () => {}
+    items()[0].focus()
+    key(items()[0], 'ArrowDown')
+    expect(document.activeElement).toBe(items()[0])
+    expect(items().map((el) => el.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
   it('moves by rows in a grid and clamps at the edges', () => {
     const { items } = mountList(['1', '2', '3', '4', '5', '6'], { orientation: 'grid', columns: 3 })
     items()[0].focus()

@@ -8,8 +8,9 @@
  *
  * Options:
  *   itemSelector  items inside the container. Disabled ones ([disabled],
- *                 [aria-disabled="true"]) and those inside a menu, listbox or
- *                 dialog rendered in the container are skipped.
+ *                 [aria-disabled="true"]), unrendered ones ([hidden], [inert],
+ *                 display: none on them or an ancestor) and those inside a menu,
+ *                 listbox or dialog rendered in the container are skipped.
  *                 Default '[data-roving-item]'.
  *   focusableDisabled  aria-disabled items stay items, as in a toolbar, where
  *                 they remain focusable (APG). Default false.
@@ -45,7 +46,8 @@
  * component (expand/collapse) and only Up/Down/Home/End move here.
  *
  * Home/End go to the first/last item (Ctrl+Home/End in a grid; elsewhere
- * Ctrl+Home/End are left to the page, where a feed leaves on them). The tabindex
+ * Ctrl+Home/End are left to the page, where a feed leaves on them). The Tab
+ * stop stays where it was when the item moved to refuses focus. The tabindex
  * values are rewritten on every key and by `sync()`; call sync() after the
  * item list changes. An item an enclosing list has parked out of the Tab
  * sequence (PARKED_ATTR) keeps tabindex="-1"; its value is written to the
@@ -143,15 +145,16 @@ export function useRovingTabindex(container: Ref<HTMLElement | null | undefined>
     return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
       if (el.matches(skipSelector) || el.closest('[hidden], [inert]')) return false
       const popup = el.closest(POPUP_SELECTOR)
-      return !popup || popup === root || !root.contains(popup)
+      if (popup && popup !== root && root.contains(popup)) return false
+      // No boxes: display: none on the item or an ancestor. happy-dom reports one box for every element.
+      return el.getClientRects().length > 0
     })
   }
 
+  const attrOf = (el: HTMLElement) => (el.hasAttribute(PARKED_ATTR) ? PARKED_ATTR : 'tabindex')
+
   const setActive = (list: HTMLElement[], index: number) => {
-    list.forEach((el, i) => {
-      const value = i === index ? '0' : '-1'
-      el.setAttribute(el.hasAttribute(PARKED_ATTR) ? PARKED_ATTR : 'tabindex', value)
-    })
+    list.forEach((el, i) => el.setAttribute(attrOf(el), i === index ? '0' : '-1'))
   }
 
   /** Re-applies tabindex values, keeping the focused item, else the initial one, active. */
@@ -165,11 +168,20 @@ export function useRovingTabindex(container: Ref<HTMLElement | null | undefined>
     setActive(list, Math.max(0, Math.min(index, list.length - 1)))
   }
 
+  // tabindex is written before focus(): an item without one is not focusable.
   const moveTo = (list: HTMLElement[], index: number) => {
     const item = list[index]
     if (!item) return
+    const previous = list.map((el) => el.getAttribute(attrOf(el)))
     setActive(list, index)
-    focusElement(item)
+    if (!focusElement(item) && !item.contains(document.activeElement)) {
+      list.forEach((el, i) => {
+        const value = previous[i]
+        if (value === null) el.removeAttribute(attrOf(el))
+        else el.setAttribute(attrOf(el), value)
+      })
+      return
+    }
     options.onActivate?.(item, index)
   }
 
