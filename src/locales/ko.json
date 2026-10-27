@@ -7474,5 +7474,41 @@
     "showInFolder": "폴더에서 보기",
     "downloadStarted": "{name} 다운로드 중",
     "downloadFailed": "다운로드 실패: {reason}"
+  },
+  "uploadLimits": {
+    "tooLarge": "“{name}”의 크기는 {size}(으)로 업로드 한도 {limit}을(를) 넘습니다.",
+    "tooLargeFile": "이 파일의 크기는 {size}(으)로 업로드 한도 {limit}을(를) 넘습니다.",
+    "title": "업로드",
+    "hint": "각 계정이 채널, 스레드, 다이렉트 메시지, 게시물에 첨부하거나 드라이브에 보관할 수 있는 가장 큰 파일입니다. 프로필 사진, 배너, 서버 아이콘, 이모지, 사운드에는 별도의 한도가 있습니다.",
+    "tier": {
+      "user": "계정별 최대 파일",
+      "moderator": "인스턴스 모더레이터별 최대 파일",
+      "admin": "인스턴스 관리자별 최대 파일"
+    },
+    "tierName": {
+      "user": "계정",
+      "moderator": "인스턴스 모더레이터",
+      "admin": "인스턴스 관리자"
+    },
+    "aboveCeiling": "상한 {limit}을(를) 넘습니다",
+    "ceiling": "서버 운영자가 정한 상한",
+    "ceilingHint": "어떤 업로드 한도도 이보다 클 수 없습니다. 운영자는 서버에서 harmony config --upload-ceiling으로 올립니다.",
+    "driveNote": "최대 파일은 드라이브 저장 공간과 다릅니다. 계정의 저장 공간을 넘게 되는 업로드는 임시 파일로 보관됩니다.",
+    "readOnly": "업로드 한도는 인스턴스 관리자만 바꿀 수 있습니다.",
+    "save": "저장",
+    "saved": "저장됨",
+    "loadFailed": "업로드 한도를 불러오지 못했습니다.",
+    "saveFailed": "업로드 한도를 저장하지 못했습니다.",
+    "user": {
+      "open": "{name}의 업로드 한도",
+      "title": "{name}의 업로드 한도",
+      "tier": "등급: {tier}, {limit}",
+      "effective": "현재 최대 파일: {limit}",
+      "choice": "한도",
+      "useTier": "등급 한도 사용",
+      "custom": "개별 한도",
+      "customLabel": "{name}의 업로드 한도, MB",
+      "ceiling": "상한: {limit}"
+    }
   }
 }

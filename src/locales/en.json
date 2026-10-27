@@ -7470,5 +7470,41 @@
     "showInFolder": "Show in folder",
     "downloadStarted": "Downloading {name}",
     "downloadFailed": "Download failed: {reason}"
+  },
+  "uploadLimits": {
+    "tooLarge": "“{name}” is {size}, over your upload limit of {limit}.",
+    "tooLargeFile": "This file is {size}, over your upload limit of {limit}.",
+    "title": "Uploads",
+    "hint": "The largest file each account may attach in channels, threads, direct messages and posts, or keep in Drive. Profile pictures, banners, server icons, emoji and sounds have limits of their own.",
+    "tier": {
+      "user": "Largest file per account",
+      "moderator": "Largest file per instance moderator",
+      "admin": "Largest file per instance admin"
+    },
+    "tierName": {
+      "user": "account",
+      "moderator": "instance moderator",
+      "admin": "instance admin"
+    },
+    "aboveCeiling": "Above the ceiling of {limit}",
+    "ceiling": "Ceiling set by the server operator",
+    "ceilingHint": "No upload limit can be higher. The operator raises it on the server with harmony config --upload-ceiling.",
+    "driveNote": "The largest file is not Drive storage: an upload that would take an account past its storage is kept as a temporary file.",
+    "readOnly": "Only instance admins change upload limits.",
+    "save": "Save",
+    "saved": "Saved",
+    "loadFailed": "Could not load the upload limits.",
+    "saveFailed": "Could not save the upload limits.",
+    "user": {
+      "open": "Upload limit of {name}",
+      "title": "Upload limit of {name}",
+      "tier": "Tier: {tier}, {limit}",
+      "effective": "Largest file now: {limit}",
+      "choice": "Limit",
+      "useTier": "Use the tier",
+      "custom": "Custom limit",
+      "customLabel": "Upload limit of {name}, MB",
+      "ceiling": "Ceiling: {limit}"
+    }
   }
 }

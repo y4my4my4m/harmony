@@ -7474,5 +7474,41 @@
     "showInFolder": "Mostrar en la carpeta",
     "downloadStarted": "Descargando {name}",
     "downloadFailed": "Error en la descarga: {reason}"
+  },
+  "uploadLimits": {
+    "tooLarge": "«{name}» pesa {size} y supera tu límite de subida de {limit}.",
+    "tooLargeFile": "Este archivo pesa {size} y supera tu límite de subida de {limit}.",
+    "title": "Subidas",
+    "hint": "El archivo más grande que cada cuenta puede adjuntar en canales, hilos, mensajes directos y publicaciones, o guardar en Drive. Las fotos de perfil, banners, iconos de servidor, emojis y sonidos tienen sus propios límites.",
+    "tier": {
+      "user": "Archivo más grande por cuenta",
+      "moderator": "Archivo más grande por moderador de la instancia",
+      "admin": "Archivo más grande por administrador de la instancia"
+    },
+    "tierName": {
+      "user": "cuenta",
+      "moderator": "moderador de la instancia",
+      "admin": "administrador de la instancia"
+    },
+    "aboveCeiling": "Supera el tope de {limit}",
+    "ceiling": "Tope fijado por el operador del servidor",
+    "ceilingHint": "Ningún límite de subida puede ser mayor. El operador lo sube en el servidor con harmony config --upload-ceiling.",
+    "driveNote": "El archivo más grande no es el almacenamiento de Drive: una subida que llevaría una cuenta por encima de su almacenamiento se guarda como archivo temporal.",
+    "readOnly": "Solo los administradores de la instancia cambian los límites de subida.",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "loadFailed": "No se pudieron cargar los límites de subida.",
+    "saveFailed": "No se pudieron guardar los límites de subida.",
+    "user": {
+      "open": "Límite de subida de {name}",
+      "title": "Límite de subida de {name}",
+      "tier": "Nivel: {tier}, {limit}",
+      "effective": "Archivo más grande ahora: {limit}",
+      "choice": "Límite",
+      "useTier": "Usar el del nivel",
+      "custom": "Límite propio",
+      "customLabel": "Límite de subida de {name}, MB",
+      "ceiling": "Tope: {limit}"
+    }
   }
 }
