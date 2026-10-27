@@ -10,6 +10,7 @@
  */
 
 import { plainDisplayName } from '../utils/plainDisplayName.js';
+import { urlPartPlainText } from '../utils/maskedLinks.js';
 import webPush, { PushSubscription } from 'web-push';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
@@ -942,7 +943,7 @@ class PushNotificationServiceClass {
             if (part.type === 'text') return part.text;
             if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`;
             if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`;
-            if (part.type === 'url') return part.url;
+            if (part.type === 'url') return typeof part.url === 'string' ? urlPartPlainText(part) : '';
             if (part.type === 'hashtag') return `#${part.name}`;
             return '';
           })

@@ -233,6 +233,16 @@
         
         <!-- URLs (with special handling for images and videos) -->
         <template v-else-if="part && typeof part === 'object' && part.type === 'url'">
+          <!-- A masked link to media shows its label above the media. -->
+          <a
+            v-if="shownLinkLabel(part) && showsPreview(part) && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url)) && sanitizeUrl(shownUrl(part.url))"
+            :href="sanitizeUrl(shownUrl(part.url))"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="url-link url-link--masked"
+            :title="shownUrl(part.url)"
+            :data-href="shownUrl(part.url)"
+          >{{ shownLinkLabel(part) }}</a>
           <!-- Image URLs -->
           <div 
             v-if="isImageUrl(part.url) && showsPreview(part)" 
@@ -310,14 +320,18 @@
                render as inert text (no <a>) so dangerous URLs can't execute on click.
                A GIF link that is the whole message is out of sight until focused; screen
                readers still read it. -->
+          <!-- A masked link shows its label (utils/maskedLinks), the destination on hover and
+               keyboard focus. -->
           <a
             v-else-if="sanitizeUrl(shownUrl(part.url))"
             :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
-            :class="{ 'sr-only-focusable': part === soleGifLink }"
-          >{{ shownUrl(part.url) }}</a>
+            :class="{ 'sr-only-focusable': part === soleGifLink, 'url-link--masked': !!shownLinkLabel(part) }"
+            :title="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
+            :data-href="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
+          >{{ shownLinkLabel(part) ?? shownUrl(part.url) }}</a>
           <span
             v-else
             class="url-link url-link--unsafe"
@@ -744,6 +758,8 @@ import { isUrlTrackingStrippingEnabled, stripTrackingParameters } from '@/utils/
 import { isSpoilerFileName } from '@/utils/spoiler';
 import { pollPartOf } from '@/utils/messagePoll';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
+import { isImeKeyEvent } from '@/utils/editorShortcuts';
+import { shownLinkLabel } from '@/utils/maskedLinks';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -1476,6 +1492,8 @@ export default defineComponent({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Enter and Escape of an open composition commit or cancel it, not the edit.
+      if (isImeKeyEvent(event)) return;
       const suggest = ensureAutoSuggest();
       // Auto-suggest claims keys first. Escape with the popup open closes the
       // popup only; the edit stays open.
@@ -1716,6 +1734,7 @@ export default defineComponent({
       isVideoUrl,
       showsPreview,
       shownUrl,
+      shownLinkLabel,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,
@@ -1776,9 +1795,11 @@ export default defineComponent({
   display: inline;
 }
 
-/* Display mode container */
+/* Display mode container. Its direction is its text's first strong character's, as the
+   composer's dir="auto": an Arabic or Hebrew message keeps its punctuation at its end. */
 .content-display {
   display: inline;
+  unicode-bidi: plaintext;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -1900,6 +1921,12 @@ export default defineComponent({
 
 .url-link:hover {
   text-decoration: underline;
+}
+
+/* Keyboard focus names a masked link's destination; hover has the title. */
+.url-link--masked:focus-visible::after {
+  content: ' (' attr(data-href) ')';
+  color: var(--text-muted);
 }
 
 /* Mentions, hashtags and names are buttons (channel references links) set in

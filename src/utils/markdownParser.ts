@@ -1,4 +1,5 @@
 import { DISCORD_EMOJI_TOKEN_INNER } from '@/utils/discordEmoji';
+import { findMaskedLinks } from '@/utils/maskedLinks';
 
 export interface MarkdownNode {
   type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji' | 'newline';
@@ -14,10 +15,13 @@ export interface ParsedContent {
 }
 
 export interface MarkdownToken {
-  type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji';
+  type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji' | 'link';
+  /** A link's text between the brackets, untrimmed. */
   content: string;
   language?: string;
   raw?: string;
+  /** A link's text between the parentheses (utils/maskedLinks). */
+  destination?: string;
   children?: MarkdownToken[];
 }
 
@@ -247,9 +251,20 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
     end: number;
     content: string;
     raw: string;
+    destination?: string;
   }
 
   const matches: InnerMatch[] = [];
+  for (const link of findMaskedLinks(content)) {
+    matches.push({
+      type: 'link',
+      start: link.start,
+      end: link.end,
+      content: link.rawLabel,
+      raw: content.slice(link.start, link.end),
+      destination: link.rawDestination,
+    });
+  }
   for (const [type, pattern] of Object.entries(innerPatterns)) {
     let match;
     while ((match = pattern.exec(content)) !== null) {
@@ -291,6 +306,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
       content: m.content,
       raw: m.raw
     };
+    if (m.destination !== undefined) token.destination = m.destination;
 
     if (FORMATTING_TYPES.has(m.type)) {
       const children = parseInlineChildren(m.content, m.type);
@@ -313,7 +329,7 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
   const tokens: MarkdownToken[] = [];
   
   interface Match {
-    type: keyof typeof PATTERNS | 'incomplete_codeblock';
+    type: keyof typeof PATTERNS | 'incomplete_codeblock' | 'link';
     match: RegExpMatchArray;
     start: number;
     end: number;
@@ -321,6 +337,7 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     language?: string;
     raw: string;
     isIncomplete?: boolean;
+    destination?: string;
   }
 
   const findAllMatches = (text: string): Match[] => {
@@ -392,6 +409,25 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
       pattern.lastIndex = 0;
     });
 
+    // Masked links: markers shown, label and destination as their own spans.
+    for (const link of findMaskedLinks(text)) {
+      const insideCodeBlock = matches.some(codeMatch =>
+        (codeMatch.type === 'codeblock' || codeMatch.type === 'incomplete_codeblock') &&
+        link.start >= codeMatch.start && link.end <= codeMatch.end
+      );
+      if (insideCodeBlock) continue;
+      const raw = text.slice(link.start, link.end);
+      matches.push({
+        type: 'link',
+        match: [raw] as unknown as RegExpMatchArray,
+        start: link.start,
+        end: link.end,
+        content: link.rawLabel,
+        raw,
+        destination: link.rawDestination,
+      });
+    }
+
     // Sort by start position, longer matches first for overlaps
     return matches.sort((a, b) => {
       if (a.start !== b.start) return a.start - b.start;
@@ -435,7 +471,8 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         type: match.type as MarkdownToken['type'],
         content: match.content,
         language: match.language,
-        raw: match.raw
+        raw: match.raw,
+        ...(match.destination !== undefined ? { destination: match.destination } : {}),
       });
     }
 

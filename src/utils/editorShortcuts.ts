@@ -21,3 +21,12 @@ export function historyShortcut(event: ShortcutEvent): HistoryShortcut | null {
   if (letter === 'y' && !event.shiftKey) return 'redo';
   return null;
 }
+
+/**
+ * A key the input method owns: pressed while a composition is open, or the Enter that commits
+ * one. WebKit (Safari, the macOS and iOS apps) dispatches that Enter's keydown after
+ * compositionend, with isComposing false and keyCode 229; Chromium sets isComposing.
+ */
+export function isImeKeyEvent(event: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>): boolean {
+  return event.isComposing || event.keyCode === 229;
+}

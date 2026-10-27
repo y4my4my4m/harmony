@@ -15,6 +15,8 @@ import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
 import { convertEmoticons } from '@/utils/emoticons'
 import { HERE_ROLE_ID, hereMentionPart } from '@/utils/hereMention'
+import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
+import { escapeHtml } from '@/utils/sanitize'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -74,6 +76,8 @@ function opaqueRanges(content: string): Array<{ start: number; end: number }> {
       if (m[0].length === 0) re.lastIndex++;
     }
   }
+  // A masked link's label is link text: "[@bob's page](…)" holds no mention.
+  for (const link of findMaskedLinks(content)) ranges.push({ start: link.start, end: link.end });
   return ranges;
 }
 // Alternation order: a Discord token wins over the shortcode split
@@ -650,7 +654,8 @@ export async function parseContentToMessageParts(
     );
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      if (part.type !== 'url') continue;
+      // A masked link keeps its label; a channel reference would show the channel name.
+      if (part.type !== 'url' || part.label) continue;
       const linked = matchChannelUrl(part.url, byId);
       if (linked) {
         parts[i] = {
@@ -710,20 +715,45 @@ function markdownCodeRanges(text: string): Array<[number, number]> {
 }
 
 /**
- * Splits text into url and emoji parts. URL tracking-parameter stripping and the post-link
- * mirrors of utils/mirrorLinks happen here so every caller (ActivityPub, DMs, chat) gets them.
+ * A typed link as stored: rewritten to the chosen mirror first, then cleaned by the rules of the
+ * host it goes out on.
+ */
+function storedUrl(rawUrl: string): string {
+  const url = mirrorLink(rawUrl, mirrorLinkPreferences());
+  return isUrlTrackingStrippingEnabled() ? stripTrackingParameters(url) : url;
+}
+
+/**
+ * Splits text into url and emoji parts. Masked links `[label](url)` become url parts with a
+ * label (utils/maskedLinks); the label stays as typed. URL tracking-parameter stripping and the
+ * post-link mirrors of utils/mirrorLinks happen here so every caller (ActivityPub, DMs, chat)
+ * gets them.
  */
 async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
-  
+  const codeRanges = markdownCodeRanges(text);
+  const links = findMaskedLinks(text, (at) => codeRanges.some(([start, end]) => at >= start && at < end));
+  if (links.length === 0) return parseTextForBareUrls(text, emojiDataMap);
+
+  const parts: MessagePart[] = [];
+  let last = 0;
+  for (const link of links) {
+    if (link.start > last) parts.push(...await parseTextForBareUrls(text.slice(last, link.start), emojiDataMap));
+    parts.push({ type: 'url', url: storedUrl(link.url), preview: link.preview, label: link.label });
+    last = link.end;
+  }
+  if (last < text.length) parts.push(...await parseTextForBareUrls(text.slice(last), emojiDataMap));
+  return parts;
+}
+
+async function parseTextForBareUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
+  if (!text) return [];
+
   URL_MATCH_REGEX.lastIndex = 0;
   const parts: MessagePart[] = [];
   let lastIndex = 0;
   let match;
-  
-  const shouldStripTrackers = isUrlTrackingStrippingEnabled();
-  const mirrors = mirrorLinkPreferences();
-  
+
   const codeRanges = markdownCodeRanges(text);
 
   while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
@@ -740,13 +770,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
       parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
 
-    // Rewrite first: the stored link is cleaned by the rules of the host it goes out on.
-    let url = mirrorLink(rawUrl, mirrors);
-    if (shouldStripTrackers) {
-      url = stripTrackingParameters(url);
-    }
-
-    parts.push({ type: 'url', url, preview });
+    parts.push({ type: 'url', url: storedUrl(rawUrl), preview });
     lastIndex = segmentEnd;
   }
   
@@ -858,8 +882,11 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
       }
       
-      case 'url':
-        return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
+      case 'url': {
+        // A label naming another host goes out as the URL (utils/maskedLinks).
+        const label = shownLinkLabel(part);
+        return `<a href="${escapeHtml(part.url)}" target="_blank" rel="noopener">${escapeHtml(label ?? part.url)}</a>`;
+      }
         
       case 'hashtag': {
         const currentDomain = runtimeConfig.domain as string;
@@ -908,7 +935,8 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
         return `#${part.name}`;
         
       case 'url':
-        return part.url;
+        // Editing shows a masked link as typed.
+        return part.label ? urlPartSource(part) : part.url;
         
       case 'emoji':
         return discordEmojiPartText(part.emoji) ?? `:${part.emoji.name}:`;
@@ -1036,7 +1064,8 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
       if (element.tagName === 'A' && !element.classList.contains('mention') && !element.classList.contains('hashtag')) {
         const href = element.getAttribute('href');
         if (href && /^https?:\/\//i.test(href)) {
-          parts.push({ type: 'url', url: href, preview: true });
+          const label = anchorLinkLabel(element.textContent || '', href);
+          parts.push(label ? { type: 'url', url: href, preview: true, label } : { type: 'url', url: href, preview: true });
           return;
         }
       }

@@ -11,13 +11,14 @@
     }"
     role="textbox"
     aria-multiline="true"
+    dir="auto"
     spellcheck="true"
     aria-haspopup="listbox"
     aria-invalid="false"
     aria-autocomplete="list"
     :aria-activedescendant="props.autoSuggestActive && props.autoSuggestSelectedId ? props.autoSuggestSelectedId : undefined"
     :aria-controls="props.autoSuggestActive ? 'auto-suggest-listbox' : undefined"
-    autocorrect="off"
+    autocorrect="on"
     data-can-focus="true"
     :aria-label="placeholder"
     contenteditable="true"
@@ -55,9 +56,10 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
-import { historyShortcut } from '@/utils/editorShortcuts';
+import { historyShortcut, isImeKeyEvent } from '@/utils/editorShortcuts';
 import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
-import { linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
+import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
+import { linkPasteText } from '@/utils/maskedLinks';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
@@ -283,8 +285,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
     
     if (matchStart > lastIndex) {
       const textBefore = text.substring(lastIndex, matchStart);
-      const textNode = document.createTextNode(textBefore.replace(/ /g, '\u00A0'));
-      fragment.appendChild(textNode);
+      fragment.appendChild(document.createTextNode(editorSpaces(textBefore)));
     }
     
     if (match[1]) {
@@ -329,8 +330,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
       // A match ending at end-of-text is an in-progress autosuggest query and
       // stays text: in "@username test @use", "@use" is not yet a pill.
       if (matchEnd === text.length) {
-        const textNode = document.createTextNode(match[0].replace(/ /g, '\u00A0'));
-        fragment.appendChild(textNode);
+        fragment.appendChild(document.createTextNode(editorSpaces(match[0])));
         lastIndex = matchStart; // Held back so the trailing-text branch emits it
       } else {
         const username = match[4];
@@ -344,9 +344,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   }
   
   if (lastIndex < text.length) {
-    const remainingText = text.substring(lastIndex);
-    const textNode = document.createTextNode(remainingText.replace(/ /g, '\u00A0'));
-    fragment.appendChild(textNode);
+    fragment.appendChild(document.createTextNode(editorSpaces(text.substring(lastIndex))));
   }
   
   return fragment;
@@ -763,6 +761,24 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       return div;
     }
     
+    case 'link': {
+      // `[label](url)` keeps its markers as text: the caret moves through it as typed.
+      const span = document.createElement('span');
+      span.className = 'editor-link-wrapper';
+      const piece = (className: string, text: string) => {
+        const el = document.createElement('span');
+        el.className = className;
+        el.textContent = text;
+        span.appendChild(el);
+      };
+      piece('editor-marker', '[');
+      piece('editor-link-label', token.content);
+      piece('editor-marker', '](');
+      piece('editor-link-url', token.destination ?? '');
+      piece('editor-marker', ')');
+      return span;
+    }
+
     case 'emoji': {
       const emoji = findEmojiByName(token.content) as any;
       if (emoji) {
@@ -818,7 +834,24 @@ const hasFormattableMarkers = (text: string): boolean => {
   if (/^\s*>/m.test(text)) return true;
   if (/```/.test(text)) return true;
   if (/@role:(?:[a-f0-9-]+|here)/i.test(text)) return true;
+  if (text.includes('](')) return true;
   return false;
+};
+
+// compositionend arrived and its render has not run yet.
+let compositionRenderPending = false;
+
+const handleCompositionStart = () => {
+  composing = true;
+};
+
+const handleCompositionEnd = () => {
+  composing = false;
+  compositionRenderPending = true;
+  // WebKit fires compositionend before the input event of the committed text.
+  setTimeout(() => {
+    if (compositionRenderPending && editorRef.value) handleInput();
+  }, 0);
 };
 
 const handleInput = (event?: Event) => {
@@ -832,10 +865,11 @@ const handleInput = (event?: Event) => {
   emit('cursor-position-changed', cursorPos);
 
   // Mid-composition text is provisional: no undo step and no rebuild until it commits.
-  if (composing || (event instanceof InputEvent && event.isComposing)) {
+  if (composing || (event as InputEvent | undefined)?.isComposing) {
     autoExpand();
     return;
   }
+  compositionRenderPending = false;
 
   undoRedo.pushState(text, cursorPos);
 
@@ -897,17 +931,6 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
   applyEditorTextChange(newText, selectionStart, selectionEnd);
 };
 
-const handleCompositionStart = () => {
-  composing = true;
-};
-
-// Chromium sends the composition's last input event before compositionend, WebKit after it:
-// the committed text is handled here once either way.
-const handleCompositionEnd = () => {
-  composing = false;
-  handleInput();
-};
-
 // Keys during a composition are the IME's: Enter commits the conversion, arrows and Tab move
 // within the candidates. WebKit sends the committing Enter after compositionend as keyCode 229.
 // On a phone keyboard every key is 229; the phone Enter path below handles those.
@@ -942,7 +965,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   
   // Mobile: Enter inserts a line break; send is a button tap.
   // Desktop: parent handles Enter as send, Shift+Enter as line break.
-  if (event.key === 'Enter' && !event.isComposing && isMobile && !event.shiftKey) {
+  if (event.key === 'Enter' && !isImeKeyEvent(event) && isMobile && !event.shiftKey) {
     // Parent may consume it, e.g. while auto-suggest is open.
     emit('keydown', event);
     
@@ -1037,9 +1060,37 @@ const handlePaste = (event: ClipboardEvent) => {
     }
   }
 
+  const text = pastedText(event.clipboardData);
+  if (pasteLinkOverSelection(text)) return;
+
   // Text only: pasted HTML is reduced to text with emoji tokens; renderContent
   // turns the tokens back into emoji.
-  insertTextAtCursor(pastedText(event.clipboardData));
+  insertTextAtCursor(text);
+};
+
+/**
+ * A URL pasted over selected text links the text to it, `[text](url)`, as Slack and Notion do.
+ * False, for an ordinary paste, when nothing is selected, the selection reaches outside the
+ * editor or into code, or the paste and selection make no link (utils/maskedLinks).
+ */
+const pasteLinkOverSelection = (pasted: string): boolean => {
+  if (!editorRef.value) return false;
+  const selection = editorSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0);
+  if (!editorRef.value.contains(range.commonAncestorContainer)) return false;
+  const inCode = (node: Node) => {
+    const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+    return !!el?.closest('.editor-code-wrapper, .editor-codeblock-wrapper, .editor-link-wrapper');
+  };
+  if (inCode(range.startContainer) || inCode(range.endContainer)) return false;
+  const { start, end } = getSelectionOffsets();
+  const full = getPlainText();
+  const replacement = linkPasteText(full.slice(start, end), pasted);
+  if (replacement === null) return false;
+  const caret = start + replacement.length;
+  applyEditorTextChange(full.slice(0, start) + replacement + full.slice(end), caret, caret);
+  return true;
 };
 
 // Composer text of a selection holding emoji, emoji as their tokens. Null
@@ -1096,15 +1147,43 @@ const replaceText = (text: string, caret: number) => {
  * Inserts `text` where the caret was when the editor last had focus (at the end when it never
  * had one), focuses the editor and puts the caret after the insert.
  */
-const insertAtCaret = (text: string) => {
+const insertAtCaret = (text: string, position?: number) => {
   if (!editorRef.value) return;
   const full = getPlainText();
   const focused = editorRef.value.contains(editorDocument().activeElement);
-  const at = Math.min(Math.max(focused ? getCursorPosition() : blurCaret ?? full.length, 0), full.length);
+  const at = Math.min(Math.max(position ?? (focused ? getCursorPosition() : blurCaret ?? full.length), 0), full.length);
   const caret = at + text.length;
   blurCaret = caret;
   editorRef.value.focus();
   applyEditorTextChange(full.slice(0, at) + text + full.slice(at), caret, caret);
+};
+
+/**
+ * Inserts `text` at the text position under a viewport point; as insertAtCaret when the point
+ * is outside the editor.
+ */
+const insertAtPoint = (text: string, clientX: number, clientY: number) => {
+  if (!editorRef.value) return;
+  const doc = editorDocument() as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  let node: Node | null = null;
+  let offset = 0;
+  const position = doc.caretPositionFromPoint?.(clientX, clientY);
+  if (position) {
+    node = position.offsetNode;
+    offset = position.offset;
+  } else {
+    const range = doc.caretRangeFromPoint?.(clientX, clientY);
+    if (range) {
+      node = range.startContainer;
+      offset = range.startOffset;
+    }
+  }
+  const at = node && editorRef.value.contains(node)
+    ? getPlainTextOffsetForPoint(editorRef.value, node, offset)
+    : undefined;
+  insertAtCaret(text, at);
 };
 
 const insertTextAtCursor = (text: string) => {
@@ -1194,6 +1273,7 @@ defineExpose({
   clear,
   insertTextAtCursor,
   insertAtCaret,
+  insertAtPoint,
   replaceText,
   getCursorPosition,
   setCursorPosition,
@@ -1512,6 +1592,15 @@ async function prewarmRoles() {
 
 .rich-text-editor :deep(.editor-role-mention) {
   font-weight: 600;
+}
+
+.rich-text-editor :deep(.editor-link-label) {
+  color: var(--text-link);
+  text-decoration: underline;
+}
+
+.rich-text-editor :deep(.editor-link-url) {
+  color: var(--text-muted);
 }
 
 .rich-text-editor :deep(.editor-blockquote) {

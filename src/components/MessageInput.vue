@@ -349,6 +349,7 @@ import { serverSuspension } from '@/utils/serverSuspension';
 import { roleService, Permission } from '@/services/RoleService';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
+import { isImeKeyEvent } from '@/utils/editorShortcuts';
 
 interface Props {
   giphyOpen?: boolean;
@@ -873,6 +874,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Keys of an open composition, and the Enter that commits it, are the input method's.
+      if (isImeKeyEvent(event)) return;
+
       // Auto-suggest claims its own keys, Enter included.
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
       
@@ -901,7 +905,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       // Desktop: Enter sends, Shift+Enter newlines.
       // Mobile: Enter newlines; sending requires the send button.
-      if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
+      if (event.key === 'Enter' && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
 
         // Enter does not send while a parameterized command is active;
@@ -1372,7 +1376,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (files && files.length > 0) {
         const fileArray = Array.from(files);
         await handleFilesSelected(fileArray);
+        return;
       }
+      // The drop is cancelled for files; dropped text or a dragged link goes in where it lands.
+      const text = event.dataTransfer?.getData('text/plain');
+      if (text) richEditorRef.value?.insertAtPoint(text.replace(/\r\n?/g, '\n'), event.clientX, event.clientY);
     };
 
     const handleExternalFileDrop = (event: CustomEvent) => {

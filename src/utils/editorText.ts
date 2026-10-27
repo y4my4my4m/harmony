@@ -213,6 +213,18 @@ export function linearize(root: HTMLElement): EditorText {
   return { text, units, enter, leave }
 }
 
+/**
+ * Text-node form of composer text. A space the browser collapses (at either end of the node,
+ * or after another space) becomes a no-break space; the last space of a run stays a space, so
+ * a line wraps between words and not inside one.
+ */
+export function editorSpaces(text: string): string {
+  return text.replace(/ +/g, (run: string, at: number) => {
+    if (at === 0 || at + run.length === text.length) return '\u00a0'.repeat(run.length)
+    return '\u00a0'.repeat(run.length - 1) + ' '
+  })
+}
+
 /** The text the editor sends: no-break spaces as spaces, whitespace alone as empty. */
 export function plainTextOf(lin: EditorText): string {
   const text = lin.text.replace(/\u00a0/g, ' ')

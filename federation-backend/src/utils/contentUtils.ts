@@ -8,6 +8,7 @@
  */
 
 import config from '../config/index.js';
+import { shownLinkLabel } from './maskedLinks.js';
 
 /**
  * Escape HTML entities to prevent XSS
@@ -78,6 +79,9 @@ export function convertContentToHTML(content: any): string {
 
         case 'url': {
           const url = escapeHtml(part.url || '');
+          // A masked link: utils/maskedLinks names the outbound form.
+          const label = shownLinkLabel(part);
+          if (label) return `<a href="${url}">${escapeHtml(label)}</a><span class="invisible"> (${url})</span>`;
           return `<a href="${url}">${url}</a>`;
         }
 

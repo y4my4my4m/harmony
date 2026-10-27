@@ -137,7 +137,7 @@ A message's content is an array of parts. These are the part types a bot sends; 
 | `type` | Fields | Notes |
 |---|---|---|
 | `text` | `text` | Plain text. Markdown in it is rendered by the app. |
-| `url` | `url`, `preview` | A link. Unless `preview` is `false`, the instance fetches a link preview card for it, except for links to the instance itself. A link inside a `text` part gets no card. |
+| `url` | `url`, `preview`, optional `label` | A link. Unless `preview` is `false`, the instance fetches a link preview card for it, except for links to the instance itself. A link inside a `text` part gets no card. With `label`, the app shows the label in place of the URL, as a masked link `[label](url)` typed in the app; apps before 1.9.1 show the URL. A label that names another host than the URL's shows the URL instead. |
 | `mention` | `userId`, `username`, `domain`, `isLocal` | A member mention. |
 | `role_mention` | `roleId`, `roleName`, `roleColor` | A role mention; `roleId` `here` is @here. See [Mentions](#mentions). |
 | `channel_mention` | `channelId`, `name`, optional `messageId` | A channel link. The server fills in `serverId` and the stored name. |

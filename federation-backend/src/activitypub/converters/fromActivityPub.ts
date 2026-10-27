@@ -1,5 +1,6 @@
 import { config } from '../../config/index.js';
 import { decodeHtmlEntities, escapeHtml } from '../../utils/contentUtils.js';
+import { anchorLinkLabel } from '../../utils/maskedLinks.js';
 import { findHandles } from '../../utils/mentionGrammar.js';
 import { parseFocalPoint } from '../../utils/focalPoint.js';
 import { HARMONY_INSTANCE_ROLE, parseInstanceRole, type InstanceRole } from '../copyMirror.js';
@@ -212,8 +213,13 @@ export function noteToContent(note: any): any[] {
     return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
   }
   
+  // Step 0: labelled anchors (`<a href=X>text</a>` whose text is not X) become placeholders the
+  // cleaning keeps; splitTextWithUrls turns them into url parts with a label.
+  const links: LabelledLink[] = [];
+  const withLinks = labelledAnchorsToPlaceholders(html, links);
+
   // Step 1: Clean HTML to get plain text
-  let cleanText: string = html;
+  let cleanText: string = withLinks;
   cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
   // Block-level closing tags: <p>, <blockquote>, <h1>-<h6> imply paragraph breaks (double newline)
   cleanText = cleanText.replace(/<\/(?:p|blockquote|h[1-6])>/gi, '\n\n');
@@ -267,7 +273,7 @@ export function noteToContent(note: any): any[] {
   // If no tags, parse URLs from the text and return
   if (allTags.length === 0) {
     if (cleanText) {
-      splitTextWithUrls(parts, cleanText);
+      splitTextWithUrls(parts, cleanText, links);
     }
     
     // Still check for attachments
@@ -339,7 +345,7 @@ export function noteToContent(note: any): any[] {
     if (tagPos.position > currentIndex) {
       const textBefore = cleanText.substring(currentIndex, tagPos.position);
       if (textBefore.trim()) {
-        splitTextWithUrls(parts, textBefore);
+        splitTextWithUrls(parts, textBefore, links);
       }
     }
     
@@ -389,7 +395,7 @@ export function noteToContent(note: any): any[] {
   if (currentIndex < cleanText.length) {
     const remaining = cleanText.substring(currentIndex);
     if (remaining.trim()) {
-      splitTextWithUrls(parts, remaining);
+      splitTextWithUrls(parts, remaining, links);
     }
   }
   
@@ -398,12 +404,61 @@ export function noteToContent(note: any): any[] {
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
 }
 
+interface LabelledLink {
+  url: string;
+  label: string;
+}
+
+// U+E010 <index> U+E011: private-use code points no cleaning step touches.
+const LINK_PLACEHOLDER = /\uE010(\d+)\uE011/g;
+const ANCHOR = /<a\s([^>]*)>([\s\S]*?)<\/a>(<span class="invisible">[^<]*<\/span>)?/gi;
+
+/**
+ * Replaces each anchor whose text is a label (utils/maskedLinks anchorLinkLabel) with a
+ * placeholder indexing `links`. Mentions, hashtags and anchors showing their own URL are left
+ * for the cleaning. The `<span class="invisible"> (URL)</span>` this version sends after a
+ * labelled anchor goes with it.
+ */
+function labelledAnchorsToPlaceholders(html: string, links: LabelledLink[]): string {
+  return html.replace(ANCHOR, (whole: string, attrs: string, inner: string, invisible?: string) => {
+    if (/\bclass\s*=\s*["'][^"']*\b(?:mention|hashtag|u-url)\b/i.test(attrs)) return whole;
+    const hrefMatch = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+    const href = decodeHtmlEntities(hrefMatch?.[1] ?? hrefMatch?.[2] ?? '').trim();
+    if (!/^https?:\/\//i.test(href)) return whole;
+    const text = decodeHtmlEntities(inner.replace(/<[^>]*>/g, ''));
+    // "@user" and "#tag" text is a mention or hashtag some servers send without a class.
+    if (/^\s*[@#]/.test(text)) return whole;
+    const label = anchorLinkLabel(text, href);
+    if (!label) return whole;
+    links.push({ url: href, label });
+    const shown = invisible ? decodeHtmlEntities(invisible.replace(/<[^>]*>/g, '')) : '';
+    const tail = invisible && !shown.includes(href) ? invisible : '';
+    return `\uE010${links.length - 1}\uE011${tail}`;
+  });
+}
+
 /**
  * Split text on URLs, emitting alternating text and url parts.
  * Bare https?:// URLs found in the cleaned plain-text become clickable
- * `{ type: 'url', url, preview: true }` parts.
+ * `{ type: 'url', url, preview: true }` parts; link placeholders become url
+ * parts with their label.
  */
-function splitTextWithUrls(parts: any[], text: string): void {
+function splitTextWithUrls(parts: any[], text: string, links: LabelledLink[] = []): void {
+  if (links.length > 0 && text.includes('\uE010')) {
+    let last = 0;
+    LINK_PLACEHOLDER.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = LINK_PLACEHOLDER.exec(text)) !== null) {
+      const link = links[Number(m[1])];
+      if (!link) continue;
+      if (m.index > last) splitTextWithUrls(parts, text.slice(last, m.index));
+      parts.push({ type: 'url', url: link.url, preview: true, label: link.label });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) splitTextWithUrls(parts, text.slice(last));
+    return;
+  }
+
   const urlRegex = /\bhttps?:\/\/\S+/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;

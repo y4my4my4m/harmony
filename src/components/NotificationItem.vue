@@ -99,6 +99,7 @@ import type { Notification } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { urlPartPlainText } from '@/utils/maskedLinks'
 
 const props = defineProps<{
   notification: Notification
@@ -187,7 +188,7 @@ function partsText(content: any): string | null {
       if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
       if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
       if (part.type === 'hashtag') return `#${part.name}`
-      if (part.type === 'url') return part.url
+      if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''
       return ''
     })
     .join(' ')

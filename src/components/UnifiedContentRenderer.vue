@@ -123,9 +123,10 @@
             target="_blank" 
             rel="noopener noreferrer"
             class="url-link"
+            :title="shownLinkLabel(part) ? part.url : undefined"
             @click="handleLinkClick(part.url, $event)"
           >
-            {{ part.url }}
+            {{ shownLinkLabel(part) ?? part.url }}
           </a>
         </template>
         
@@ -207,6 +208,7 @@ import { escapeHtml, sanitizeMessageHtml, safeHref } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
+import { shownLinkLabel } from '@/utils/maskedLinks';
 import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useUserData } from '@/composables/useUserData';

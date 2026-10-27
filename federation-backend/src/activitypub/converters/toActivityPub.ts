@@ -3,6 +3,7 @@ import { getFullAvatarUrl, getFullBannerUrl, getFullEmojiUrl } from '../../utils
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
 import { HARMONY_NS } from '../harmonyContext.js';
 import { HARMONY_INSTANCE_ROLE, instanceRoleOf } from '../copyMirror.js';
+import { shownLinkLabel } from '../../utils/maskedLinks.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -816,6 +817,11 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         const safeUrl = safeAttrUrlOutbound(item.url || '');
         if (!safeUrl) {
           return escapeHtmlAttr(item.url || '');
+        }
+        // A masked link: utils/maskedLinks names the outbound form.
+        const label = shownLinkLabel(item);
+        if (label) {
+          return `<a href="${escapeHtmlAttr(safeUrl)}" rel="nofollow noopener noreferrer" target="_blank">${escapeHtmlAttr(label)}</a><span class="invisible"> (${escapeHtmlAttr(safeUrl)})</span>`;
         }
         return `<a href="${escapeHtmlAttr(safeUrl)}" rel="nofollow noopener noreferrer" target="_blank">${escapeHtmlAttr(safeUrl)}</a>`;
       }

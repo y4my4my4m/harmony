@@ -1,5 +1,6 @@
 import type { MessagePart, MentionContent } from '@/types';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
+import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
@@ -103,9 +104,8 @@ export function messagePartsToMarkdown(
         return part.roleId ? `@role:${part.roleId}` : '';
 
       case 'url':
-        // <url> is the send-time syntax for a link without a preview; an edit keeps it.
-        if (!part.url) return '';
-        return part.preview === false || (part as any).preview === 'false' ? `<${part.url}>` : part.url;
+        // <url> (no preview) and [label](url) are send-time syntax; an edit keeps them.
+        return part.url ? urlPartSource(part) : '';
 
       case 'embed':
         return part.url || '';
@@ -188,7 +188,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return part.roleName ? `@${part.roleName}` : '';
       
       case 'url':
-        return part.url || '';
+        return part.url ? urlPartPlainText(part) : '';
       
       case 'file':
         return '[file]';
@@ -209,7 +209,7 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
   return parts.map((part: any) => {
     switch (part?.type) {
       case 'text': return part.text || '';
-      case 'url': return part.url || '';
+      case 'url': return part.url ? urlPartSource(part) : '';
       case 'mention': {
         if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
         return `@${part.username}`;
@@ -304,7 +304,7 @@ export function coalesceInlineContentForMarkdown(
         flush();
         result.push(part);
       } else {
-        textBuffer += url;
+        textBuffer += part.label ? urlPartSource(part) : url;
       }
     } else {
       flush();

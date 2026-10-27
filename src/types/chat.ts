@@ -273,6 +273,8 @@ export interface UrlContent {
   url: string;
   preview: boolean;
   embedId?: string;
+  /** Link text of a masked link `[label](url)` (utils/maskedLinks); absent: the URL shows. */
+  label?: string;
 }
 
 export type EmbedProvider =
