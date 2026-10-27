@@ -40,6 +40,7 @@ antispam_post_guard	definer	trigger	service_role	trigger	trigger public.posts BE
 antispam_settings	definer	jsonb	service_role	client	called by get_instance_antispam_settings, update_instance_antispam_settings
 apply_account_move	invoker	uuid	service_role	client	called by begin_account_move, record_remote_account_move
 apply_category_permissions	definer	void	service_role	client, trigger	called by channel_inherits_category_permissions, set_category_permissions, sync_channel_permissions
+apply_channel_name_rule	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (t_channels_name_rule)
 apply_domain_limit_on_profile_insert	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT (apply_domain_limit_on_profile_insert_trigger)
 apply_group_voice_state	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/voiceModerationFederation.ts
 apply_instance_federation_switches	definer	void	service_role	trigger	called by trigger_instance_federation_switches
@@ -155,6 +156,7 @@ channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc i
 channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
 channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by assert_webhook_channel, discord_bridge_encrypted_channel_ids, effective_channel_encryption, +8
 channel_mute_active	invoker	boolean	service_role	trigger	called by broadcast_unread_count_event, handle_new_message_unread, sync_unread_mute
+channel_name_normalized	invoker	text	authenticated+service_role	client, trigger	called by apply_channel_name_rule, create_channel
 channel_permissions_synced	invoker	boolean	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
 channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_message_unread
 channel_webhook_json	invoker	jsonb	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +2
@@ -691,6 +693,7 @@ queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public
 recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/donations.ts, src/services/FundingService.ts
 record_ai_emoji_generation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT (record_ai_emoji_generation)
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
+record_instance_branding	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/instanceBranding.ts
 record_instance_nodeinfo	definer	text	service_role	client	rpc in federation-backend/src/activitypub/instanceSoftware.ts
 record_instance_software	definer	text	service_role	client	rpc in federation-backend/src/activitypub/instanceSoftware.ts
 record_metric	definer	uuid	service_role	client	called by record_slow_query

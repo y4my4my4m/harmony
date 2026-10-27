@@ -1118,7 +1118,7 @@ const sendDirectMessage = async () => {
 }
 
 const openSettings = () => {
-  router.push('/settings/profile')
+  router.push('/settings/account')
   emit('close')
 }
 

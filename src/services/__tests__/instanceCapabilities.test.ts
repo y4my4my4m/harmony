@@ -81,7 +81,7 @@ describe('checkInstanceVersion', () => {
   })
 
   it('says nothing to an older instance that lacks no capability the app knows', async () => {
-    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks'] })
+    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks', 'channel-create-options'] })
     const m = await load({ ...STORED, version: '1.9.0' })
     await m.checkInstanceVersion('1.9.1')
     expect(info).not.toHaveBeenCalled()

@@ -913,6 +913,9 @@
         "savePermissions": "No se pudieron guardar los permisos del canal",
         "saveOverride": "No se pudo guardar la excepción de {role}"
       }
+    },
+    "createOptions": {
+      "more": "Más opciones"
     }
   },
   "message": {
@@ -2244,7 +2247,7 @@
       "displayNameEmojiHint": "Escribe : para añadir emojis personalizados.",
       "displayNameRequired": "El nombre visible no puede estar vacío.",
       "displayNameNoEmoji": "Los emojis personalizados en los nombres visibles están desactivados en esta instancia. Quita los códigos de emoji como :name: de tu nombre visible.",
-      "usernameHint": "El nombre de usuario no se puede cambiar: otros servidores identifican tu cuenta con él.",
+      "usernameHint": "El nombre de usuario no se puede cambiar: otras instancias identifican tu cuenta con él.",
       "bioCount": "{count}/{max} caracteres",
       "displayColor": "Color visible",
       "displayColorHint": "Se usa en tu nombre visible y en los detalles del perfil.",
@@ -2451,8 +2454,8 @@
     "addReaction": "Añadir reacción",
     "adminBadge": "Admin",
     "modBadge": "Mod",
-    "instanceAdmin": "Administrador del servidor",
-    "instanceModerator": "Moderador del servidor",
+    "instanceAdmin": "Administrador de la instancia",
+    "instanceModerator": "Moderador de la instancia",
     "altTextEdit": "Editar descripción",
     "altTextLabel": "Descríbelo para quienes no pueden verlo",
     "altTextMissing": "Sin descripción",
@@ -2472,7 +2475,7 @@
     "boostDisabled": "Esta publicación no se puede impulsar",
     "boostDisabledDirect": "Las publicaciones directas no se pueden impulsar",
     "boostDisabledFollowers": "Las publicaciones solo para seguidores no se pueden impulsar",
-    "boostedFromAnotherInstance": "Impulsado desde otro servidor",
+    "boostedFromAnotherInstance": "Impulsado desde otra instancia",
     "boostsLabel": "impulso | impulsos",
     "repliesLabel": "respuesta | respuestas",
     "favoritesLabel": "favorito | favoritos",
@@ -2790,9 +2793,15 @@
       "statLabel": "{stat}, ver quién",
       "emptyFavorites": "Nadie ha marcado esta publicación como favorita todavía.",
       "emptyBoosts": "Nadie ha impulsado esta publicación todavía.",
-      "moreElsewhere": "{count} cuenta más en otro servidor no aparece aquí. | {count} cuentas más en otros servidores no aparecen aquí.",
-      "onlyElsewhere": "{count} cuenta en otro servidor no aparece aquí. | {count} cuentas en otros servidores no aparecen aquí.",
+      "moreElsewhere": "{count} cuenta más en otra instancia no aparece aquí. | {count} cuentas más en otras instancias no aparecen aquí.",
+      "onlyElsewhere": "{count} cuenta en otra instancia no aparece aquí. | {count} cuentas en otras instancias no aparecen aquí.",
       "loadFailed": "No se pudo cargar esta lista."
+    },
+    "instancePosts": {
+      "subtitle": "Publicaciones públicas de cuentas en {domain}",
+      "emptyTitle": "Aún no hay publicaciones de {domain}",
+      "emptyMessage": "Las publicaciones públicas de {domain} aparecen aquí cuando llegan a esta instancia.",
+      "feedLabel": "Publicaciones de {domain}"
     }
   },
   "moderation": {
@@ -2844,7 +2853,7 @@
       "contentWarning": "CW: {warning}",
       "encryptedMessage": "Mensaje cifrado",
       "ciphertextOnly": "[solo texto cifrado]",
-      "reporterSuppliedNote": "texto proporcionado por quien reporta, no verificable por el servidor",
+      "reporterSuppliedNote": "texto proporcionado por quien reporta, no verificable por esta instancia",
       "message": "Mensaje tal como se reportó",
       "server": "Servidor tal como se reportó"
     },
@@ -4500,7 +4509,7 @@
       "self": "Aún no has publicado nada.",
       "other": "{name} aún no ha publicado nada.",
       "withheldTitle": "Sin publicaciones públicas",
-      "withheld": "{domain} no publica las publicaciones de esta cuenta. Aquí solo aparecen las que llegan a este servidor."
+      "withheld": "{domain} no publica las publicaciones de esta cuenta. Aquí solo aparecen las que llegan a esta instancia."
     },
     "profileFollowing": {
       "other": "{name} aún no sigue a nadie."
@@ -5093,7 +5102,7 @@
     },
     "instance": {
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
-      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otros servidores que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
+      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otras instancias que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",
       "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan.",
       "publicProfilePages": "Mostrar perfiles y publicaciones públicas a visitantes sin sesión iniciada",
@@ -6066,12 +6075,11 @@
       "instanceMod": "moderador de la instancia"
     },
     "create": {
-      "textHint": "Usa minúsculas, números, guiones y guiones bajos; los espacios se convierten en guiones",
-      "voiceHint": "Elige un nombre que describa tu canal de voz",
+      "textHint": "Los espacios se convierten en guiones y las letras en minúsculas; se quitan los signos de puntuación salvo - y _",
+      "voiceHint": "Se conservan los espacios y las mayúsculas",
       "looksGood": "Se ve bien",
       "nameRequired": "El nombre del canal es obligatorio",
       "nameTooLong": "El nombre del canal debe tener 100 caracteres o menos",
-      "voiceInvalid": "El nombre del canal de voz contiene caracteres no válidos",
       "categorySubtitle": "Organiza tus canales con categorías",
       "categoryName": "Nombre de la categoría",
       "categoryPlaceholder": "Escribe el nombre de la categoría…",
@@ -6473,7 +6481,8 @@
       "serverSettings": "Ajustes del servidor",
       "thread": "Hilo",
       "today": "Hoy",
-      "newProfile": "Crea tu perfil"
+      "newProfile": "Crea tu perfil",
+      "instancePosts": "Publicaciones de la instancia"
     },
     "announcer": {
       "more": "{count} más | {count} más"

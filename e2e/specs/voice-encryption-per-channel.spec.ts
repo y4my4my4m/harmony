@@ -159,9 +159,12 @@ test('a voice channel is created encrypted', async ({ page }) => {
   await modal.locator('input.modern-input').fill('secret lounge')
   await expectNoAxeViolations(page, { include: '[role="dialog"]', label: 'create channel dialog, voice encryption' })
 
-  const saved = page.waitForResponse((r) => r.url().includes('/rpc/set_channel_encryption'))
+  // The channel is created encrypted: create_channel carries the choice.
+  const saved = page.waitForResponse((r) => r.url().includes('/rpc/create_channel'))
   await modal.locator('button').filter({ hasText: 'Create channel' }).click()
-  expect((await saved).status()).toBe(200)
+  const response = await saved
+  expect(response.status()).toBe(200)
+  expect(response.request().postDataJSON()).toMatchObject({ p_type: 1, p_voice_encrypted: true })
   await expect(modal).toBeHidden({ timeout: 30000 })
 
   const { data: created } = await admin.from('channels').select('id, type').eq('server_id', server.id).eq('name', 'secret lounge').single()

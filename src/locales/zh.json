@@ -913,6 +913,9 @@
         "savePermissions": "无法保存频道权限",
         "saveOverride": "无法保存 {role} 的覆盖设置"
       }
+    },
+    "createOptions": {
+      "more": "更多选项"
     }
   },
   "message": {
@@ -2244,7 +2247,7 @@
       "displayNameEmojiHint": "输入 : 可添加自定义表情。",
       "displayNameRequired": "显示名称不能为空。",
       "displayNameNoEmoji": "此实例已禁用显示名称中的自定义表情。请从显示名称中删除 :name: 之类的表情代码。",
-      "usernameHint": "用户名无法更改：其他服务器通过它识别你的账号。",
+      "usernameHint": "用户名无法更改：其他实例通过它识别你的账号。",
       "bioCount": "{count}/{max} 个字符",
       "displayColor": "显示颜色",
       "displayColorHint": "用于你的显示名称和个人资料强调色。",
@@ -2392,8 +2395,8 @@
     "addReaction": "添加反应",
     "adminBadge": "管理员",
     "modBadge": "版主",
-    "instanceAdmin": "服务器管理员",
-    "instanceModerator": "服务器版主",
+    "instanceAdmin": "实例管理员",
+    "instanceModerator": "实例版主",
     "altTextEdit": "编辑描述",
     "altTextLabel": "为看不到的人描述此内容",
     "altTextMissing": "无描述",
@@ -2413,7 +2416,7 @@
     "boostDisabled": "此帖子无法转发",
     "boostDisabledDirect": "私信帖子无法转发",
     "boostDisabledFollowers": "仅关注者可见的帖子无法转发",
-    "boostedFromAnotherInstance": "转发自其他服务器",
+    "boostedFromAnotherInstance": "转发自其他实例",
     "boostsLabel": "转发",
     "repliesLabel": "回复",
     "favoritesLabel": "收藏",
@@ -2790,9 +2793,15 @@
       "statLabel": "{stat}，查看是谁",
       "emptyFavorites": "还没有人收藏这条帖子。",
       "emptyBoosts": "还没有人转发这条帖子。",
-      "moreElsewhere": "另有 {count} 个其他服务器上的账号未在此列出。",
-      "onlyElsewhere": "其他服务器上的 {count} 个账号未在此列出。",
+      "moreElsewhere": "另有 {count} 个其他实例上的账号未在此列出。",
+      "onlyElsewhere": "其他实例上的 {count} 个账号未在此列出。",
       "loadFailed": "无法加载此列表。"
+    },
+    "instancePosts": {
+      "subtitle": "{domain} 上账号的公开帖子",
+      "emptyTitle": "暂无来自 {domain} 的帖子",
+      "emptyMessage": "来自 {domain} 的公开帖子到达本实例后会显示在这里。",
+      "feedLabel": "来自 {domain} 的帖子"
     }
   },
   "moderation": {
@@ -2844,7 +2853,7 @@
       "contentWarning": "内容警告：{warning}",
       "encryptedMessage": "加密消息",
       "ciphertextOnly": "[仅有密文]",
-      "reporterSuppliedNote": "由举报者提供的文本，服务器无法验证",
+      "reporterSuppliedNote": "由举报者提供的文本，本实例无法验证",
       "message": "被举报时的消息",
       "server": "被举报时的服务器"
     },
@@ -4500,7 +4509,7 @@
       "self": "您还没有发布任何内容。",
       "other": "{name} 还没有发布任何内容。",
       "withheldTitle": "没有公开帖子",
-      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本服务器的帖子。"
+      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本实例的帖子。"
     },
     "profileFollowing": {
       "other": "{name} 还没有关注任何人。"
@@ -5093,7 +5102,7 @@
     },
     "instance": {
       "maxPostReactions": "每人对一条帖子的最大反应数",
-      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
+      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他实例的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
       "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
       "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
@@ -6066,12 +6075,11 @@
       "instanceMod": "实例版主"
     },
     "create": {
-      "textHint": "使用小写字母、数字、连字符和下划线；空格会变成连字符",
-      "voiceHint": "为语音频道起一个能描述它的名字",
+      "textHint": "空格会变成连字符，字母会转为小写；除 - 和 _ 以外的标点会被去掉",
+      "voiceHint": "保留空格和大写字母",
       "looksGood": "看起来不错",
       "nameRequired": "频道名称为必填项",
       "nameTooLong": "频道名称不能超过 100 个字符",
-      "voiceInvalid": "语音频道名称包含无效字符",
       "categorySubtitle": "用分类整理你的频道",
       "categoryName": "分类名称",
       "categoryPlaceholder": "输入分类名称…",
@@ -6473,7 +6481,8 @@
       "serverSettings": "服务器设置",
       "thread": "子区",
       "today": "今天",
-      "newProfile": "创建个人资料"
+      "newProfile": "创建个人资料",
+      "instancePosts": "实例帖子"
     },
     "announcer": {
       "more": "还有 {count} 条"

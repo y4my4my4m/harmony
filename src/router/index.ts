@@ -289,6 +289,17 @@ const router = createRouter({
           }
         },
         {
+          path: 'instances/:domain',
+          name: 'InstancePosts',
+          meta: { titleKey: 'a11y.title.instancePosts' },
+          component: () => import('@/views/InstancePostsView.vue'),
+          props: route => ({
+            instanceDomain: route.params.domain as string,
+            currentView: CurrentView.INSTANCES,
+            viewType: ViewType.EXPLORE
+          })
+        },
+        {
           path: 'posts/:handle/:noteId',
           name: 'RemotePostDetail',
           meta: { titleKey: 'activitypub.post' },

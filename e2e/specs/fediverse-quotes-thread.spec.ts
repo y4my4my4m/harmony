@@ -110,7 +110,7 @@ test('a remote reply that quotes a post reads as the reply with the quote under 
   await expect(quoting).toBeVisible({ timeout: 30_000 })
   await expect(quoting.locator('.quoted-post')).toContainText(`the quoted words ${marker}`)
   await expect(quoting.locator('.quote-comment')).not.toContainText('RE:')
-  await expect(page.getByText('Boosted from another server')).toHaveCount(0)
+  await expect(page.getByText('Boosted from another instance')).toHaveCount(0)
 
   const unfetched = page.locator('article').filter({ hasText: `quote of a post never fetched ${marker}` })
   await expect(unfetched.getByRole('link', { name: 'View quoted post' })).toHaveAttribute('href', MISSING)

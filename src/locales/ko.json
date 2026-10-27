@@ -913,6 +913,9 @@
         "savePermissions": "채널 권한을 저장하지 못했습니다",
         "saveOverride": "{role}의 재정의를 저장하지 못했습니다"
       }
+    },
+    "createOptions": {
+      "more": "추가 옵션"
     }
   },
   "message": {
@@ -2244,7 +2247,7 @@
       "displayNameEmojiHint": ":를 입력하면 사용자 지정 이모지를 추가할 수 있습니다.",
       "displayNameRequired": "표시 이름은 비워 둘 수 없습니다.",
       "displayNameNoEmoji": "이 인스턴스에서는 표시 이름에 사용자 지정 이모지를 사용할 수 없습니다. :name: 같은 이모지 코드를 표시 이름에서 지워 주세요.",
-      "usernameHint": "사용자 이름은 변경할 수 없습니다. 다른 서버가 사용자 이름으로 계정을 식별합니다.",
+      "usernameHint": "사용자 이름은 변경할 수 없습니다. 다른 인스턴스가 사용자 이름으로 계정을 식별합니다.",
       "bioCount": "{count}/{max}자",
       "displayColor": "표시 색상",
       "displayColorHint": "표시 이름과 프로필 강조 색에 사용됩니다.",
@@ -2392,8 +2395,8 @@
     "addReaction": "반응 추가",
     "adminBadge": "관리자",
     "modBadge": "모더레이터",
-    "instanceAdmin": "서버 관리자",
-    "instanceModerator": "서버 모더레이터",
+    "instanceAdmin": "인스턴스 관리자",
+    "instanceModerator": "인스턴스 모더레이터",
     "altTextEdit": "설명 편집",
     "altTextLabel": "볼 수 없는 사람을 위해 설명을 작성하세요",
     "altTextMissing": "설명 없음",
@@ -2413,7 +2416,7 @@
     "boostDisabled": "이 게시물은 부스트할 수 없습니다",
     "boostDisabledDirect": "다이렉트 게시물은 부스트할 수 없습니다",
     "boostDisabledFollowers": "팔로워 전용 게시물은 부스트할 수 없습니다",
-    "boostedFromAnotherInstance": "다른 서버에서 부스트됨",
+    "boostedFromAnotherInstance": "다른 인스턴스에서 부스트됨",
     "boostsLabel": "부스트",
     "repliesLabel": "답장",
     "favoritesLabel": "좋아요",
@@ -2790,9 +2793,15 @@
       "statLabel": "{stat}, 누가 했는지 보기",
       "emptyFavorites": "아직 아무도 이 게시물에 좋아요를 누르지 않았습니다.",
       "emptyBoosts": "아직 아무도 이 게시물을 부스트하지 않았습니다.",
-      "moreElsewhere": "다른 서버의 계정 {count}개가 더 있지만 여기에는 표시되지 않습니다.",
-      "onlyElsewhere": "다른 서버의 계정 {count}개는 여기에 표시되지 않습니다.",
+      "moreElsewhere": "다른 인스턴스의 계정 {count}개가 더 있지만 여기에는 표시되지 않습니다.",
+      "onlyElsewhere": "다른 인스턴스의 계정 {count}개는 여기에 표시되지 않습니다.",
       "loadFailed": "이 목록을 불러오지 못했습니다."
+    },
+    "instancePosts": {
+      "subtitle": "{domain} 계정의 공개 게시물",
+      "emptyTitle": "아직 {domain}의 게시물이 없습니다",
+      "emptyMessage": "{domain}의 공개 게시물이 이 인스턴스에 도달하면 여기에 표시됩니다.",
+      "feedLabel": "{domain}의 게시물"
     }
   },
   "moderation": {
@@ -2844,7 +2853,7 @@
       "contentWarning": "CW: {warning}",
       "encryptedMessage": "암호화된 메시지",
       "ciphertextOnly": "[암호문만 있음]",
-      "reporterSuppliedNote": "신고자가 제공한 텍스트로, 서버에서 확인할 수 없음",
+      "reporterSuppliedNote": "신고자가 제공한 텍스트로, 이 인스턴스에서 확인할 수 없음",
       "message": "신고 당시 메시지",
       "server": "신고 당시 서버"
     },
@@ -4500,7 +4509,7 @@
       "self": "아직 게시한 내용이 없습니다.",
       "other": "{name}님은 아직 아무것도 게시하지 않았습니다.",
       "withheldTitle": "공개 게시물 없음",
-      "withheld": "{domain}은(는) 이 계정의 게시물을 공개하지 않습니다. 이 서버에 도달한 게시물만 여기에 표시됩니다."
+      "withheld": "{domain}은(는) 이 계정의 게시물을 공개하지 않습니다. 이 인스턴스에 도달한 게시물만 여기에 표시됩니다."
     },
     "profileFollowing": {
       "other": "{name}님은 아직 아무도 팔로우하지 않습니다."
@@ -5093,7 +5102,7 @@
     },
     "instance": {
       "maxPostReactions": "게시물당 1인 최대 반응 수",
-      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
+      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 인스턴스에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
       "maxPersonalEmojis": "사용자당 개인 이모지 수",
       "maxPersonalEmojisHint": "각 사용자가 설정 > 내 이모지에 보관할 수 있는 이모지 수로, 업로드한 이모지와 AI로 생성한 이모지를 합한 값입니다(0-1000). 기본값: 50. 0이면 개인 이모지가 꺼집니다. 한도를 낮춰도 이미 초과한 이모지는 유지됩니다.",
       "publicProfilePages": "로그인하지 않은 방문자에게 프로필과 공개 게시물 표시",
@@ -6066,12 +6075,11 @@
       "instanceMod": "인스턴스 모더레이터"
     },
     "create": {
-      "textHint": "소문자, 숫자, 하이픈, 밑줄을 사용하세요. 공백은 하이픈이 됩니다",
-      "voiceHint": "음성 채널을 설명하는 이름을 정하세요",
+      "textHint": "공백은 하이픈으로, 영문자는 소문자로 바뀝니다. - 와 _ 이외의 기호는 제거됩니다",
+      "voiceHint": "공백과 대문자가 그대로 유지됩니다",
       "looksGood": "좋습니다",
       "nameRequired": "채널 이름은 필수입니다",
       "nameTooLong": "채널 이름은 100자 이하여야 합니다",
-      "voiceInvalid": "음성 채널 이름에 사용할 수 없는 문자가 있습니다",
       "categorySubtitle": "카테고리로 채널을 정리하세요",
       "categoryName": "카테고리 이름",
       "categoryPlaceholder": "카테고리 이름 입력…",
@@ -6473,7 +6481,8 @@
       "serverSettings": "서버 설정",
       "thread": "스레드",
       "today": "오늘",
-      "newProfile": "프로필 만들기"
+      "newProfile": "프로필 만들기",
+      "instancePosts": "인스턴스 게시물"
     },
     "announcer": {
       "more": "{count}개 더"

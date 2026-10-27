@@ -616,7 +616,7 @@ async function handleContextAction(action: string, user: User) {
     case 'change-nickname':
       // No standalone server-nickname modal exists; profile fields live on the
       // user settings page.
-      router.push('/settings/profile');
+      router.push('/settings/account');
       break;
     case 'invite':
       await openInviteForUser(user);

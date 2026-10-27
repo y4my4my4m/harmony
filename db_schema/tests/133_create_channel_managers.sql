@@ -58,8 +58,8 @@ SELECT throws_ok($q$SELECT public.create_channel('55555555-0000-0000-0000-000000
 SELECT tests.clear_authentication();
 
 SELECT is(prosecdef, false, 'create_channel stays SECURITY INVOKER, so channel RLS and guards apply')
-  FROM pg_proc WHERE oid = 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[])'::regprocedure;
-SELECT ok(NOT has_function_privilege('anon', 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[])', 'EXECUTE'),
+  FROM pg_proc WHERE oid = 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[], text, integer, boolean, boolean, text)'::regprocedure;
+SELECT ok(NOT has_function_privilege('anon', 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[], text, integer, boolean, boolean, text)', 'EXECUTE'),
     'anon cannot call create_channel');
 
 SELECT * FROM finish();

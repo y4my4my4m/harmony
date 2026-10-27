@@ -2,7 +2,7 @@
 // favourites and boosts counts are buttons; each opens one dialog with a Favorites and a Boosts
 // tab, on the tab clicked. Accounts are listed newest first and link to their profiles, a remote
 // account by its full handle. A favourites count above the rows stored here ends the list with
-// the number of accounts on other servers. Escape closes the dialog and focus returns to the
+// the number of accounts on other instances. Escape closes the dialog and focus returns to the
 // count it was opened from.
 
 import { randomUUID } from 'node:crypto'
@@ -57,7 +57,7 @@ test.beforeAll(async () => {
     if (error) throw new Error(`${row.interaction_type} by ${row.user_id}: ${error.message}`)
   }
 
-  // Two more favourites are known only to other servers.
+  // Two more favourites are known only to other instances.
   const counts = await admin.from('posts').update({ favorites_count: 5, reblogs_count: 1 }).eq('id', postId)
   if (counts.error) throw new Error(`counts: ${counts.error.message}`)
 })
@@ -106,7 +106,7 @@ test('the author lists who favourited and boosted the post', async ({ page }) =>
   await expect(accounts.nth(1)).toHaveAttribute('href', `/social/profile/${cal.username}`)
   await expect(accounts.nth(2)).toContainText(bea.displayName)
   await expect(accounts.nth(2)).toHaveAttribute('href', `/social/profile/${bea.username}`)
-  await expect(panel.getByTestId('post-interactions-elsewhere')).toHaveText("2 more on other servers aren't listed here.")
+  await expect(panel.getByTestId('post-interactions-elsewhere')).toHaveText("2 more on other instances aren't listed here.")
 
   await page.keyboard.press('ArrowRight')
   const boostsTab = dialog.getByRole('tab', { name: /Boosts/ })

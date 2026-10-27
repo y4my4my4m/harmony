@@ -466,11 +466,12 @@ function formatExpiry(expiresAt: string): string {
   border-bottom: none;
 }
 
+/* BaseModal's .icon-container tint and .modal-icon colour. */
 .header-icon {
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-  background: var(--harmony-primary-light);
+  background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   color: var(--text-link);
   border-radius: var(--radius-lg);
   display: flex;

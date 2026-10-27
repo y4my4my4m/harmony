@@ -69,6 +69,22 @@ describe('new channel name', () => {
     expect(rpc).toHaveBeenCalledWith('create_channel', expect.objectContaining({ p_name: 'off-topic_chat' }))
     wrapper.unmount()
   })
+
+  it('keeps spaces and case in a voice channel name, one space between words', async () => {
+    rpc.mockClear()
+    const wrapper = mount(CreateChannel, { props: { show: true, serverId: 's1' }, global, attachTo: document.body })
+    const voice = document.body.querySelector<HTMLInputElement>('[data-testid="channel-type-voice"]')!
+    voice.checked = true
+    voice.dispatchEvent(new Event('change', { bubbles: true }))
+    await flushPromises()
+    await type("  Mike's  Room ")
+    expect(field().value).toBe("Mike's Room ")
+
+    form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(rpc).toHaveBeenCalledWith('create_channel', expect.objectContaining({ p_name: "Mike's Room", p_type: 1 }))
+    wrapper.unmount()
+  })
 })
 
 describe('new category name', () => {

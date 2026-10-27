@@ -175,7 +175,7 @@ describe('PostInteractionsDialog', () => {
     await flushPromises()
 
     expect(rows(wrapper)).toHaveLength(2)
-    expect(elsewhere(wrapper).text()).toBe("3 more on other servers aren't listed here.")
+    expect(elsewhere(wrapper).text()).toBe("3 more on other instances aren't listed here.")
     expect(tab(wrapper, 'favorite').text()).toMatch(/Favorites\s*5/)
   })
 
@@ -183,7 +183,7 @@ describe('PostInteractionsDialog', () => {
     serve({ favorite: { 0: page([account('alice')], 1) } })
     const wrapper = mountDialog({ favoritesCount: 2 })
     await flushPromises()
-    expect(elsewhere(wrapper).text()).toBe("1 more on another server isn't listed here.")
+    expect(elsewhere(wrapper).text()).toBe("1 more on another instance isn't listed here.")
   })
 
   it('names the accounts elsewhere in place of the empty state when none are stored here', async () => {
@@ -192,7 +192,7 @@ describe('PostInteractionsDialog', () => {
     await flushPromises()
     expect(rows(wrapper)).toHaveLength(0)
     expect(wrapper.find('[data-testid="post-interactions-empty"]').exists()).toBe(false)
-    expect(elsewhere(wrapper).text()).toBe("12 accounts on other servers aren't listed here.")
+    expect(elsewhere(wrapper).text()).toBe("12 accounts on other instances aren't listed here.")
   })
 
   it('shows the empty state for a tab with no accounts', async () => {

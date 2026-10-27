@@ -49,7 +49,7 @@
               v-for="instance in filteredInstances"
               :key="instance.domain"
               class="instance-card"
-              :class="{ 'has-banner': getInstanceBanner(instance) }"
+              :class="{ 'has-banner': !!instanceBannerStyle(instance) }"
               tabindex="0"
               :aria-label="instance.domain"
               @click="showInstanceDetails(instance)"
@@ -57,9 +57,9 @@
             >
               <!-- Banner background -->
               <div
-                v-if="getInstanceBanner(instance)"
+                v-if="instanceBannerStyle(instance)"
                 class="instance-card-banner"
-                :style="{ backgroundImage: `url(${getInstanceBanner(instance)})` }"
+                :style="instanceBannerStyle(instance)!"
               >
               </div>
 
@@ -136,6 +136,7 @@ import { openLink } from '@/services/tauriLinks';
 import { ref, computed, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { activityPubService } from '@/services/activityPubService';
 import { adminService } from '@/services/AdminService';
 import InstanceDetailModal from './InstanceDetailModal.vue';
@@ -143,8 +144,10 @@ import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
+import { brandingDue, instanceBannerStyle, instanceIconUrl } from '@/utils/instanceBranding';
 
 const { t } = useI18n();
+const router = useRouter();
 
 const isLoading = ref(false);
 
@@ -220,13 +223,13 @@ const loadInstances = async () => {
     isLoading.value = false;
   }
 
-  enrichMissingInstanceMetadata();
+  void refreshDueBranding();
 };
 
-const enrichMissingInstanceMetadata = async () => {
-  const toEnrich = knownInstances.value.filter(
-    inst => !inst.metadata?.icon_url && !inst.metadata?.banner_url
-  );
+// The probe stores what it reads on the instance's row; the answer shows now. A read younger
+// than a day is not repeated.
+const refreshDueBranding = async () => {
+  const toEnrich = knownInstances.value.filter(inst => brandingDue(inst));
   if (!toEnrich.length) return;
 
   const BATCH = 5;
@@ -240,7 +243,7 @@ const enrichMissingInstanceMetadata = async () => {
       const result = results[j];
       if (result.status === 'fulfilled' && result.value) {
         const inst = batch[j];
-        const idx = knownInstances.value.findIndex(k => k.id === inst.id);
+        const idx = knownInstances.value.findIndex(k => k.domain === inst.domain);
         if (idx !== -1) {
           knownInstances.value[idx] = {
             ...knownInstances.value[idx],
@@ -261,7 +264,12 @@ const showInstanceDetails = async (instance: any) => {
     
     const stats = await activityPubService.getInstanceStats(instance.domain);
     if (stats) {
-      selectedInstanceDetails.value = { ...instance, ...stats };
+      // The listed metadata carries a probe answered since the row was read.
+      selectedInstanceDetails.value = {
+        ...instance,
+        ...stats,
+        metadata: { ...(stats.metadata || {}), ...(instance.metadata || {}) },
+      };
     }
     
     showInstanceModal.value = true;
@@ -277,7 +285,7 @@ const visitInstance = (instance: any) => {
 };
 
 const viewInstancePosts = (instance: any) => {
-  openLink(`https://${instance.domain}/public`);
+  void router.push({ name: 'InstancePosts', params: { domain: instance.domain } });
 };
 
 const searchInstances = async (searchTerm: string) => {
@@ -331,18 +339,10 @@ const getInstanceStatusText = (instance: any) => {
 
 const failedIconUrls = ref(new Set<string>());
 
-const getInstanceIcon = (instance: any): string | null => {
-  const url = instance.metadata?.icon_url || null;
-  if (url && failedIconUrls.value.has(url)) return null;
-  return url;
-};
+const getInstanceIcon = (instance: any): string | null => instanceIconUrl(instance, failedIconUrls.value);
 
 const instanceSoftwareLine = (instance: any): string =>
   `${softwareDisplayName(instance.software) || t('activitypub.unknown')}${instance.version ? ` ${instance.version}` : ''}`;
-
-const getInstanceBanner = (instance: any): string | null => {
-  return instance.metadata?.banner_url || null;
-};
 
 const handleIconError = (url: string) => {
   failedIconUrls.value.add(url);

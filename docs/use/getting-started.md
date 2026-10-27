@@ -161,7 +161,7 @@ The server name at the top opens a menu. Which items appear depends on your perm
 | Item | What it does |
 |---|---|
 | **Server settings** or **Overview** | Server settings for members who manage the server; a read-only overview for others who may view it. |
-| **Create category**, **Create channel** | For members who manage channels. |
+| **Create category**, **Create channel** | For members who manage channels. A text channel's name is lowercase with `-` for spaces (`release-notes`); a voice channel and a category keep spaces and capitals (`Game Night`). **More options** in **Create channel** sets the description and, for a text channel, slowmode. |
 | **Get invite link** | Opens **Invite people**. |
 | **Notification settings** | Notification level and mute for this server ([Notifications and apps](/use/notifications-apps)). |
 | **Server rules & welcome** | Shown when the server has a welcome screen. |

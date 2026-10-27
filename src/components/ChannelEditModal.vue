@@ -314,7 +314,8 @@ import { useAnnouncer } from '@/composables/useAnnouncer'
 import { useRovingTabindex } from '@/composables/useRovingTabindex'
 import { uid, focusProgrammatically } from '@/utils/a11y/focus'
 import { userDataService } from '@/services/userDataService'
-import { finalizeChannelName, formatChannelNameInput } from '@/utils/channelName'
+import { finalizeChannelNameFor, formatChannelNameFor } from '@/utils/channelName'
+import { SLOWMODE_STEPS, formatSlowmode, slowmodeStepIndex } from '@/utils/slowmode'
 import {
   roleService,
   Permission,
@@ -416,19 +417,6 @@ const canManageEncryption = computed(() =>
 const canManageChannelWebhooks = computed(() =>
   props.channel?.type === 0 && (canManageEncryption.value || canManageWebhooks.value))
 
-// Discord-style slowmode intervals (seconds)
-const SLOWMODE_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600]
-
-// Short form beside the slider ("5m"), long form as its aria-valuetext ("5 minutes").
-const SLOWMODE_FORM = { short: 'slowmodeShort', long: 'slowmodeLong' } as const
-
-function formatSlowmode(seconds: number, form: 'short' | 'long'): string {
-  if (seconds === 0) return t('channel.edit.slowmodeOff')
-  if (seconds < 60) return t(`channel.edit.${SLOWMODE_FORM[form]}.seconds`, seconds)
-  if (seconds < 3600) return t(`channel.edit.${SLOWMODE_FORM[form]}.minutes`, seconds / 60)
-  return t(`channel.edit.${SLOWMODE_FORM[form]}.hours`, seconds / 3600)
-}
-
 const editedName = ref('')
 const editedDescription = ref('')
 const slowmodeIndex = ref(0)
@@ -436,18 +424,17 @@ const isLoading = ref(false)
 const nameInput = ref<HTMLInputElement>()
 
 const editedSlowmode = computed(() => SLOWMODE_STEPS[slowmodeIndex.value] ?? 0)
-const slowmodeLabel = computed(() => formatSlowmode(editedSlowmode.value, 'short'))
-const slowmodeSpoken = computed(() => formatSlowmode(editedSlowmode.value, 'long'))
+const slowmodeLabel = computed(() => formatSlowmode(t, editedSlowmode.value, 'short'))
+const slowmodeSpoken = computed(() => formatSlowmode(t, editedSlowmode.value, 'long'))
 
-// A text channel's name follows the rule Create Channel applies (lowercase, '-' for spaces), as
-// it is typed; a voice channel's name is free. A name left untouched is saved as it is.
-const isTextChannel = computed(() => props.channel?.type === 0)
+// The name follows its type's rule (utils/channelName.ts) as it is typed. A name left untouched
+// is saved as it is.
 const onNameInput = () => {
-  if (isTextChannel.value) editedName.value = formatChannelNameInput(editedName.value)
+  editedName.value = formatChannelNameFor(props.channel?.type, editedName.value)
 }
 const nameToSave = computed(() => {
   if (editedName.value.trim() === (props.channel?.name ?? '').trim()) return editedName.value.trim()
-  return isTextChannel.value ? finalizeChannelName(editedName.value) : editedName.value.trim()
+  return finalizeChannelNameFor(props.channel?.type, editedName.value)
 })
 
 const isValidName = computed(() => {
@@ -546,15 +533,7 @@ const saveChanges = async () => {
 function resetGeneral(channel: Channel) {
   editedName.value = channel.name || ''
   editedDescription.value = channel.description || ''
-  const savedSlowmode = channel.slowmode_seconds ?? 0
-  let stepIndex = SLOWMODE_STEPS.indexOf(savedSlowmode)
-  if (stepIndex < 0) {
-    // Custom value (e.g. set via API): snap to the closest step below.
-    stepIndex = 0
-    for (let i = SLOWMODE_STEPS.length - 1; i >= 0; i--) {
-      if (SLOWMODE_STEPS[i] <= savedSlowmode) { stepIndex = i; break }
-    }
-  }
+  const stepIndex = slowmodeStepIndex(channel.slowmode_seconds)
   slowmodeIndex.value = stepIndex
   savedGeneral.value = { name: editedName.value, description: editedDescription.value, slowmodeIndex: stepIndex }
 }

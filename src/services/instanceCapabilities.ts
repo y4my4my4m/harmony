@@ -11,7 +11,7 @@ import { getBuildInfo } from '@/utils/buildInfo'
 import { debug } from '@/utils/debug'
 
 /** The capabilities this app knows; federation-backend config/capabilities.ts lists the server's. */
-export const KNOWN_CAPABILITIES = ['encrypted-history', 'outgoing-webhooks'] as const
+export const KNOWN_CAPABILITIES = ['encrypted-history', 'outgoing-webhooks', 'channel-create-options'] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 
 const instance = ref<InstanceConfig | null>(getStoredInstance())

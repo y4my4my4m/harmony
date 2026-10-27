@@ -913,6 +913,9 @@
         "savePermissions": "Kanalberechtigungen konnten nicht gespeichert werden",
         "saveOverride": "Überschreibung für {role} konnte nicht gespeichert werden"
       }
+    },
+    "createOptions": {
+      "more": "Weitere Optionen"
     }
   },
   "message": {
@@ -2244,7 +2247,7 @@
       "displayNameEmojiHint": "Tippe : für eigene Emojis.",
       "displayNameRequired": "Der Anzeigename darf nicht leer sein.",
       "displayNameNoEmoji": "Eigene Emojis in Anzeigenamen sind auf dieser Instanz deaktiviert. Entferne Emoji-Kürzel wie :name: aus deinem Anzeigenamen.",
-      "usernameHint": "Benutzernamen können nicht geändert werden: Andere Server erkennen dein Konto daran.",
+      "usernameHint": "Benutzernamen können nicht geändert werden: Andere Instanzen erkennen dein Konto daran.",
       "bioCount": "{count}/{max} Zeichen",
       "displayColor": "Anzeigefarbe",
       "displayColorHint": "Wird für deinen Anzeigenamen und Profilakzente verwendet.",
@@ -2392,8 +2395,8 @@
     "addReaction": "Reaktion hinzufügen",
     "adminBadge": "Admin",
     "modBadge": "Mod",
-    "instanceAdmin": "Serveradministrator",
-    "instanceModerator": "Servermoderator",
+    "instanceAdmin": "Instanz-Administrator",
+    "instanceModerator": "Instanz-Moderator",
     "altTextEdit": "Beschreibung bearbeiten",
     "altTextLabel": "Beschreibe dies für Menschen, die es nicht sehen können",
     "altTextMissing": "Keine Beschreibung",
@@ -2413,7 +2416,7 @@
     "boostDisabled": "Dieser Beitrag kann nicht geboostet werden",
     "boostDisabledDirect": "Direktbeiträge können nicht geboostet werden",
     "boostDisabledFollowers": "Beiträge nur für Follower können nicht geboostet werden",
-    "boostedFromAnotherInstance": "Von einem anderen Server geboostet",
+    "boostedFromAnotherInstance": "Von einer anderen Instanz geboostet",
     "boostsLabel": "Boost | Boosts",
     "repliesLabel": "Antwort | Antworten",
     "favoritesLabel": "Favorit | Favoriten",
@@ -2790,9 +2793,15 @@
       "statLabel": "{stat}, anzeigen, von wem",
       "emptyFavorites": "Noch niemand hat diesen Beitrag favorisiert.",
       "emptyBoosts": "Noch niemand hat diesen Beitrag geboostet.",
-      "moreElsewhere": "{count} weiteres Konto auf einem anderen Server wird hier nicht aufgeführt. | {count} weitere Konten auf anderen Servern werden hier nicht aufgeführt.",
-      "onlyElsewhere": "{count} Konto auf einem anderen Server wird hier nicht aufgeführt. | {count} Konten auf anderen Servern werden hier nicht aufgeführt.",
+      "moreElsewhere": "{count} weiteres Konto auf einer anderen Instanz wird hier nicht aufgeführt. | {count} weitere Konten auf anderen Instanzen werden hier nicht aufgeführt.",
+      "onlyElsewhere": "{count} Konto auf einer anderen Instanz wird hier nicht aufgeführt. | {count} Konten auf anderen Instanzen werden hier nicht aufgeführt.",
       "loadFailed": "Diese Liste konnte nicht geladen werden."
+    },
+    "instancePosts": {
+      "subtitle": "Öffentliche Beiträge von Konten auf {domain}",
+      "emptyTitle": "Noch keine Beiträge von {domain}",
+      "emptyMessage": "Öffentliche Beiträge von {domain} erscheinen hier, sobald sie diese Instanz erreichen.",
+      "feedLabel": "Beiträge von {domain}"
     }
   },
   "moderation": {
@@ -2844,7 +2853,7 @@
       "contentWarning": "CW: {warning}",
       "encryptedMessage": "Verschlüsselte Nachricht",
       "ciphertextOnly": "[nur Chiffretext]",
-      "reporterSuppliedNote": "vom Meldenden bereitgestellter Text, vom Server nicht überprüfbar",
+      "reporterSuppliedNote": "vom Meldenden bereitgestellter Text, von dieser Instanz nicht überprüfbar",
       "message": "Nachricht wie gemeldet",
       "server": "Server wie gemeldet"
     },
@@ -4500,7 +4509,7 @@
       "self": "Du hast noch nichts gepostet.",
       "other": "{name} hat noch nichts gepostet.",
       "withheldTitle": "Keine öffentlichen Beiträge",
-      "withheld": "{domain} veröffentlicht die Beiträge dieses Kontos nicht. Hier erscheinen nur Beiträge, die diesen Server erreichen."
+      "withheld": "{domain} veröffentlicht die Beiträge dieses Kontos nicht. Hier erscheinen nur Beiträge, die diese Instanz erreichen."
     },
     "profileFollowing": {
       "other": "{name} folgt noch niemandem."
@@ -5093,7 +5102,7 @@
     },
     "instance": {
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
-      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
+      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Instanzen über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
       "maxPersonalEmojis": "Persönliche Emojis pro Person",
       "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten.",
       "publicProfilePages": "Profile und öffentliche Beiträge Besuchern ohne Anmeldung zeigen",
@@ -6066,12 +6075,11 @@
       "instanceMod": "Instanz-Moderator"
     },
     "create": {
-      "textHint": "Kleinbuchstaben, Ziffern, Binde- und Unterstriche verwenden; Leerzeichen werden zu Bindestrichen",
-      "voiceHint": "Wähle einen Namen, der deinen Sprachkanal beschreibt",
+      "textHint": "Leerzeichen werden zu Bindestrichen und Buchstaben zu Kleinbuchstaben; Satzzeichen außer - und _ entfallen",
+      "voiceHint": "Leerzeichen und Großbuchstaben bleiben erhalten",
       "looksGood": "Sieht gut aus",
       "nameRequired": "Ein Kanalname ist erforderlich",
       "nameTooLong": "Der Kanalname darf höchstens 100 Zeichen lang sein",
-      "voiceInvalid": "Der Name des Sprachkanals enthält ungültige Zeichen",
       "categorySubtitle": "Ordne deine Kanäle mit Kategorien",
       "categoryName": "Kategoriename",
       "categoryPlaceholder": "Kategorienamen eingeben…",
@@ -6473,7 +6481,8 @@
       "serverSettings": "Servereinstellungen",
       "thread": "Thread",
       "today": "Heute",
-      "newProfile": "Erstelle dein Profil"
+      "newProfile": "Erstelle dein Profil",
+      "instancePosts": "Beiträge der Instanz"
     },
     "announcer": {
       "more": "{count} weitere | {count} weitere"

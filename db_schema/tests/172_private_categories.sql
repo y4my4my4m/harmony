@@ -370,7 +370,7 @@ SELECT ok(NOT has_table_privilege('authenticated', 'public.channel_category_perm
           AND has_table_privilege('authenticated', 'public.channel_category_permission_overrides', 'SELECT'),
     'clients read templates and write them through the functions alone');
 SELECT is(prosecdef, false, 'create_channel stays SECURITY INVOKER')
-  FROM pg_proc WHERE oid = 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[])'::regprocedure;
+  FROM pg_proc WHERE oid = 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[], text, integer, boolean, boolean, text)'::regprocedure;
 
 SELECT * FROM finish();
 ROLLBACK;

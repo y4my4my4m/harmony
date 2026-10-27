@@ -913,6 +913,9 @@
         "savePermissions": "チャンネルの権限を保存できませんでした",
         "saveOverride": "{role} の上書きを保存できませんでした"
       }
+    },
+    "createOptions": {
+      "more": "その他のオプション"
     }
   },
   "message": {
@@ -2244,7 +2247,7 @@
       "displayNameEmojiHint": ": を入力するとカスタム絵文字を追加できます。",
       "displayNameRequired": "表示名を空にすることはできません。",
       "displayNameNoEmoji": "このインスタンスでは表示名にカスタム絵文字を使えません。:name: のような絵文字コードを表示名から削除してください。",
-      "usernameHint": "ユーザー名は変更できません。他のサーバーはユーザー名でアカウントを識別します。",
+      "usernameHint": "ユーザー名は変更できません。他のインスタンスはユーザー名でアカウントを識別します。",
       "bioCount": "{count}/{max} 文字",
       "displayColor": "表示色",
       "displayColorHint": "表示名とプロフィールのアクセントに使われます。",
@@ -2451,8 +2454,8 @@
     "addReaction": "リアクションを追加",
     "adminBadge": "管理者",
     "modBadge": "モデレーター",
-    "instanceAdmin": "サーバー管理者",
-    "instanceModerator": "サーバーモデレーター",
+    "instanceAdmin": "インスタンス管理者",
+    "instanceModerator": "インスタンスモデレーター",
     "altTextEdit": "説明を編集",
     "altTextLabel": "見ることができない人のために説明を追加してください",
     "altTextMissing": "説明なし",
@@ -2472,7 +2475,7 @@
     "boostDisabled": "この投稿はブーストできません",
     "boostDisabledDirect": "ダイレクト投稿はブーストできません",
     "boostDisabledFollowers": "フォロワー限定の投稿はブーストできません",
-    "boostedFromAnotherInstance": "別のサーバーからブースト",
+    "boostedFromAnotherInstance": "別のインスタンスからブースト",
     "boostsLabel": "ブースト",
     "repliesLabel": "返信",
     "favoritesLabel": "お気に入り",
@@ -2790,9 +2793,15 @@
       "statLabel": "{stat}、ユーザーを表示",
       "emptyFavorites": "まだ誰もこの投稿をお気に入りに登録していません。",
       "emptyBoosts": "まだ誰もこの投稿をブーストしていません。",
-      "moreElsewhere": "ほかのサーバーのアカウントがさらに {count} 件ありますが、ここには表示されていません。",
-      "onlyElsewhere": "ほかのサーバーのアカウント {count} 件はここには表示されていません。",
+      "moreElsewhere": "ほかのインスタンスのアカウントがさらに {count} 件ありますが、ここには表示されていません。",
+      "onlyElsewhere": "ほかのインスタンスのアカウント {count} 件はここには表示されていません。",
       "loadFailed": "このリストを読み込めませんでした。"
+    },
+    "instancePosts": {
+      "subtitle": "{domain} のアカウントによる公開投稿",
+      "emptyTitle": "{domain} の投稿はまだありません",
+      "emptyMessage": "{domain} の公開投稿は、このインスタンスに届くとここに表示されます。",
+      "feedLabel": "{domain} の投稿"
     }
   },
   "moderation": {
@@ -2844,7 +2853,7 @@
       "contentWarning": "CW：{warning}",
       "encryptedMessage": "暗号化されたメッセージ",
       "ciphertextOnly": "［暗号文のみ］",
-      "reporterSuppliedNote": "報告者が提供したテキストで、サーバーでは検証できません",
+      "reporterSuppliedNote": "報告者が提供したテキストで、このインスタンスでは検証できません",
       "message": "報告時のメッセージ",
       "server": "報告時のサーバー"
     },
@@ -4500,7 +4509,7 @@
       "self": "まだ何も投稿していません。",
       "other": "{name} はまだ何も投稿していません。",
       "withheldTitle": "公開投稿はありません",
-      "withheld": "{domain} はこのアカウントの投稿を公開していません。このサーバーに届いた投稿のみここに表示されます。"
+      "withheld": "{domain} はこのアカウントの投稿を公開していません。このインスタンスに届いた投稿のみここに表示されます。"
     },
     "profileFollowing": {
       "other": "{name} はまだ誰もフォローしていません。"
@@ -5093,7 +5102,7 @@
     },
     "instance": {
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
-      "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のサーバーから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
+      "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のインスタンスから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
       "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
       "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。",
       "publicProfilePages": "ログインしていない訪問者にプロフィールと公開投稿を表示する",
@@ -6066,12 +6075,11 @@
       "instanceMod": "インスタンスモデレーター"
     },
     "create": {
-      "textHint": "小文字・数字・ハイフン・アンダースコアが使えます。スペースはハイフンになります",
-      "voiceHint": "ボイスチャンネルを表す名前を付けましょう",
+      "textHint": "スペースはハイフンに、アルファベットは小文字になります。「-」と「_」以外の記号は削除されます",
+      "voiceHint": "スペースと大文字はそのまま残ります",
       "looksGood": "問題ありません",
       "nameRequired": "チャンネル名は必須です",
       "nameTooLong": "チャンネル名は 100 文字以内にしてください",
-      "voiceInvalid": "ボイスチャンネル名に使えない文字が含まれています",
       "categorySubtitle": "カテゴリーでチャンネルを整理しましょう",
       "categoryName": "カテゴリー名",
       "categoryPlaceholder": "カテゴリー名を入力…",
@@ -6473,7 +6481,8 @@
       "serverSettings": "サーバー設定",
       "thread": "スレッド",
       "today": "今日",
-      "newProfile": "プロフィールを作成"
+      "newProfile": "プロフィールを作成",
+      "instancePosts": "インスタンスの投稿"
     },
     "announcer": {
       "more": "ほか {count} 件"

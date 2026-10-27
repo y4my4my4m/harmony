@@ -145,6 +145,7 @@ export interface InstanceSearchResult {
   federation_enabled: boolean;
   icon_url?: string;
   banner_url?: string;
+  theme_color?: string;
 }
 
 export interface InstanceStats {
@@ -1622,34 +1623,18 @@ class AdminService {
   }
 
   /**
-   * Re-probes an instance for icon/banner URLs and updates the row in place.
-   * Returns null when discovery fails or yields neither URL.
+   * Re-probes an instance for its icon, banner and theme colour. The probe stores them on the
+   * instance's row (record_instance_branding); the answer is the metadata to merge, absent values
+   * left out, with the read's time. Null when discovery fails.
    */
-  async enrichInstanceMetadata(instance: { id: string; domain: string; metadata?: any }): Promise<{ icon_url?: string; banner_url?: string } | null> {
-    try {
-      const discovered = await this.discoverInstance(instance.domain);
-      if (!discovered) return null;
-
-      const newIcon = discovered.icon_url;
-      const newBanner = discovered.banner_url;
-
-      if (!newIcon && !newBanner) return null;
-
-      const updatedMetadata = {
-        ...(instance.metadata || {}),
-        ...(newIcon && { icon_url: newIcon }),
-        ...(newBanner && { banner_url: newBanner }),
-      };
-
-      await supabase
-        .from('federated_instances')
-        .update({ metadata: updatedMetadata })
-        .eq('id', instance.id);
-
-      return { icon_url: newIcon, banner_url: newBanner };
-    } catch {
-      return null;
-    }
+  async enrichInstanceMetadata(instance: { domain: string }): Promise<Record<string, string> | null> {
+    const discovered = await this.discoverInstance(instance.domain);
+    if (!discovered) return null;
+    const branding: Record<string, string> = { branding_read_at: new Date().toISOString() };
+    if (discovered.icon_url) branding.icon_url = discovered.icon_url;
+    if (discovered.banner_url) branding.banner_url = discovered.banner_url;
+    if (discovered.theme_color) branding.theme_color = discovered.theme_color;
+    return branding;
   }
 
   async updateFederatedInstance(

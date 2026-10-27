@@ -913,6 +913,9 @@
         "savePermissions": "Failed to save channel permissions",
         "saveOverride": "Failed to save override for {role}"
       }
+    },
+    "createOptions": {
+      "more": "More options"
     }
   },
   "category": {
@@ -2298,7 +2301,7 @@
       "displayNameEmojiHint": "Type : to add custom emoji.",
       "displayNameRequired": "Display name cannot be empty.",
       "displayNameNoEmoji": "Custom emojis in display names are disabled on this instance. Remove emoji shortcodes such as :name: from your display name.",
-      "usernameHint": "Usernames can’t be changed: other servers identify your account by it.",
+      "usernameHint": "Usernames can’t be changed: other instances identify your account by it.",
       "bioCount": "{count}/{max} characters",
       "displayColor": "Display color",
       "displayColorHint": "Used for your display name and profile accents.",
@@ -2505,8 +2508,8 @@
     "addReaction": "Add reaction",
     "adminBadge": "Admin",
     "modBadge": "Mod",
-    "instanceAdmin": "Server administrator",
-    "instanceModerator": "Server moderator",
+    "instanceAdmin": "Instance administrator",
+    "instanceModerator": "Instance moderator",
     "altTextEdit": "Edit description",
     "altTextLabel": "Describe this for people who can't see it",
     "altTextMissing": "No description",
@@ -2526,7 +2529,7 @@
     "boostDisabled": "This post can't be boosted",
     "boostDisabledDirect": "Direct posts can't be boosted",
     "boostDisabledFollowers": "Followers-only posts can't be boosted",
-    "boostedFromAnotherInstance": "Boosted from another server",
+    "boostedFromAnotherInstance": "Boosted from another instance",
     "boostsLabel": "boost | boosts",
     "repliesLabel": "reply | replies",
     "favoritesLabel": "favorite | favorites",
@@ -2844,9 +2847,15 @@
       "statLabel": "{stat}, show who",
       "emptyFavorites": "No one has favorited this post yet.",
       "emptyBoosts": "No one has boosted this post yet.",
-      "moreElsewhere": "{count} more on another server isn't listed here. | {count} more on other servers aren't listed here.",
-      "onlyElsewhere": "{count} account on another server isn't listed here. | {count} accounts on other servers aren't listed here.",
+      "moreElsewhere": "{count} more on another instance isn't listed here. | {count} more on other instances aren't listed here.",
+      "onlyElsewhere": "{count} account on another instance isn't listed here. | {count} accounts on other instances aren't listed here.",
       "loadFailed": "Couldn't load this list."
+    },
+    "instancePosts": {
+      "subtitle": "Public posts from accounts on {domain}",
+      "emptyTitle": "No posts from {domain} yet",
+      "emptyMessage": "Public posts from {domain} show here once they reach this instance.",
+      "feedLabel": "Posts from {domain}"
     }
   },
   "moderation": {
@@ -2898,7 +2907,7 @@
       "contentWarning": "CW: {warning}",
       "encryptedMessage": "Encrypted message",
       "ciphertextOnly": "[ciphertext only]",
-      "reporterSuppliedNote": "text supplied by the reporter, not verifiable by the server",
+      "reporterSuppliedNote": "text supplied by the reporter, not verifiable by this instance",
       "message": "Message as reported",
       "server": "Server as reported"
     },
@@ -4500,7 +4509,7 @@
       "self": "You haven't posted anything yet.",
       "other": "{name} hasn't posted anything yet.",
       "withheldTitle": "No public posts",
-      "withheld": "{domain} doesn't publish this account's posts. Only posts that reach this server show here."
+      "withheld": "{domain} doesn't publish this account's posts. Only posts that reach this instance show here."
     },
     "profileFollowing": {
       "other": "{name} isn't following anyone yet."
@@ -5089,7 +5098,7 @@
     },
     "instance": {
       "maxPostReactions": "Max reactions per person on a post",
-      "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.",
+      "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other instances past the limit are dropped. Chat messages hold at most 20 different emoji.",
       "maxPersonalEmojis": "Personal emojis per user",
       "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay.",
       "publicProfilePages": "Show profiles and public posts to visitors who aren't signed in",
@@ -6062,12 +6071,11 @@
       "instanceMod": "instance moderator"
     },
     "create": {
-      "textHint": "Use lowercase letters, numbers, dashes and underscores; spaces become dashes",
-      "voiceHint": "Choose a name that describes your voice channel",
+      "textHint": "Spaces become dashes and letters are lowercased; punctuation other than - and _ is dropped",
+      "voiceHint": "Spaces and capital letters are kept",
       "looksGood": "Looks good",
       "nameRequired": "Channel name is required",
       "nameTooLong": "Channel name must be 100 characters or less",
-      "voiceInvalid": "Voice channel name contains invalid characters",
       "categorySubtitle": "Organize your channels with categories",
       "categoryName": "Category name",
       "categoryPlaceholder": "Enter category name…",
@@ -6469,7 +6477,8 @@
       "serverSettings": "Server settings",
       "thread": "Thread",
       "today": "Today",
-      "newProfile": "Create your profile"
+      "newProfile": "Create your profile",
+      "instancePosts": "Instance posts"
     },
     "announcer": {
       "more": "{count} more | {count} more"

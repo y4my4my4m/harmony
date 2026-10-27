@@ -1279,6 +1279,9 @@ export class BotRestAPI {
         .select('*')
         .single()
 
+      // The database applies the channel naming rule (channel_name_normalized): a text channel's
+      // name is lowercased with '-' for spaces, and one the rule empties is a check violation.
+      if (error?.code === '23514') return res.status(400).json({ error: error.message })
       if (error) return res.status(500).json({ error: error.message })
 
       await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id })

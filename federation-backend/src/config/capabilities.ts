@@ -12,6 +12,8 @@ export const CAPABILITIES = [
   // Outgoing webhooks and the instance's webhook settings: create_outgoing_webhook and the
   // admin_* webhook RPCs (20261028600001).
   'outgoing-webhooks',
+  // create_channel's description, slowmode and encryption arguments (20261030700001).
+  'channel-create-options',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

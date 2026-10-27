@@ -450,13 +450,15 @@ Returns every channel of the server, ordered by `order`, including channels the 
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Required. Trimmed and cut to 100 characters. |
+| `name` | string | Required. Trimmed and cut to 100 characters, then stored under the channel naming rule below. |
 | `type` | integer | `1` creates a voice channel; any other value a text channel. |
 | `category_id` | UUID or `null` | |
 | `description` | string | Cut to 1024 characters. |
 | `order` | integer | Default `0`. |
 
-Returns `201` with the [channel object](#list-channels), whose `type` is in Discord's numbering: `2` for a voice channel. `400` `name is required`; `403` `Missing permission: manage_channels`.
+Channel names follow Discord's rule. A text channel's name is lowercased, each space becomes `-`, ASCII punctuation other than `-` and `_` is dropped, and repeated or edge `-` go: `Release Notes!` is stored as `release-notes`. Letters outside ASCII and emoji stay. A voice channel keeps its spaces and letter case; runs of spaces become one. The returned object carries the stored name.
+
+Returns `201` with the [channel object](#list-channels), whose `type` is in Discord's numbering: `2` for a voice channel. `400` `name is required`, or a name the rule leaves empty; `403` `Missing permission: manage_channels`.
 
 ### Edit channel
 

@@ -375,7 +375,8 @@ const routeBasedProps = computed(() => {
     // Explore routes
     'SocialTrending': { currentView: 'trending', viewType: 'explore' },
     'SocialInstances': { currentView: 'instances', viewType: 'explore' },
-    
+    'InstancePosts': { currentView: 'instances', viewType: 'explore' },
+
     // Post routes
     'PostView': { currentView: 'post', viewType: 'post' },
     'PostDetail': { currentView: 'post', viewType: 'post' }, // Legacy support

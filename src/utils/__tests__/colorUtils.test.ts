@@ -303,6 +303,14 @@ describe('colorUtils', () => {
       expect(root.style.getPropertyValue('--icon-primary')).toBe('#5e6168')
     })
 
+    it.each(['dark', 'light'] as const)('keeps --harmony-primary-light a 10%% tint of the primary, as the presets do (%s)', (mode) => {
+      const palette = generateThemePalette('#0EA5E9', mode)
+      applyThemePalette(palette)
+      const root = document.documentElement
+      expect(root.style.getPropertyValue('--harmony-primary-light')).toBe(`color-mix(in srgb, ${palette.primary} 10%, transparent)`)
+      expect(root.style.getPropertyValue('--h-primary-light')).toBe(palette.primaryLight)
+    })
+
     it.each(['#0EA5E9', '#ed4245', '#8B5CF6', '#facc15', '#22c55e'])(
       'high contrast gives the primary fill 4.5:1 against its label and drops it when off (%s)',
       (primary) => {
