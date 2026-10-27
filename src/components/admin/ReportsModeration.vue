@@ -82,6 +82,23 @@
       </div>
 
       <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
+        <div v-if="report.reporter_id || report.reported_user_id || reportServerId(report)" class="report-ids" data-testid="report-ids">
+          <span class="report-ids-title">{{ t('admin.reports.ids.title') }}</span>
+          <dl>
+            <div v-if="report.reporter_id">
+              <dt>{{ t('admin.reports.ids.reporter') }}</dt>
+              <dd><code>{{ report.reporter_id }}</code><CopyIdButton :id="report.reporter_id" kind="user" :target="t('admin.reports.ids.reporter')" /></dd>
+            </div>
+            <div v-if="report.reported_user_id">
+              <dt>{{ t('admin.reports.ids.reported') }}</dt>
+              <dd><code>{{ report.reported_user_id }}</code><CopyIdButton :id="report.reported_user_id" kind="user" :target="t('admin.reports.ids.reported')" /></dd>
+            </div>
+            <div v-if="reportServerId(report)">
+              <dt>{{ t('admin.reports.ids.server') }}</dt>
+              <dd><code>{{ reportServerId(report) }}</code><CopyIdButton :id="reportServerId(report)!" kind="server" :target="t('admin.reports.ids.server')" /></dd>
+            </div>
+          </dl>
+        </div>
         <div v-if="report.comment" class="report-comment">
           <label>{{ report.source === 'federation' ? t('admin.reports.commentFrom', { instance: report.source_instance }) : "Reporter's comment" }}</label>
           <p>{{ report.comment }}</p>
@@ -230,6 +247,7 @@ import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import { adminService } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { userDataService } from '@/services/userDataService'
@@ -294,6 +312,10 @@ const removeReportedFile = async (report: { reason?: string | null }, path: stri
   removedFiles.value = { ...removedFiles.value, [path]: true }
 }
 const { t } = useI18n()
+
+/** The reported server, or the server a message report was filed in. */
+const reportServerId = (report: ReportWithDetails): string | null =>
+  report.reported_server_id ?? report.scope_server_id ?? null
 
 const PAGE = 50
 
@@ -1017,6 +1039,49 @@ onMounted(async () => {
   margin: 0;
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.report-ids-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.report-ids dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+
+.report-ids dl > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.report-ids dt {
+  color: var(--text-secondary);
+}
+
+.report-ids dd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.report-ids code {
+  font-family: var(--font-mono, monospace);
+  overflow-wrap: anywhere;
 }
 
 

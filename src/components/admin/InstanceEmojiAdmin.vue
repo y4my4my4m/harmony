@@ -1,8 +1,8 @@
 <template>
-  <div class="admin-module instance-emoji-admin">
+  <section class="admin-module instance-emoji-admin" aria-labelledby="instance-emoji-browse-title">
     <div class="module-header">
-      <Icon name="emoji" :size="20" />
-      <h2>{{ t('admin.instanceEmojis.title') }}</h2>
+      <Icon name="search" :size="20" />
+      <h2 id="instance-emoji-browse-title">{{ t('admin.instanceEmojis.browseTitle') }}</h2>
       <div class="module-actions">
         <button class="action-btn" :disabled="loading" @click="load">
           <Icon :name="loading ? 'loader' : 'refresh-cw'" :size="16" :class="{ spin: loading }" />
@@ -21,22 +21,31 @@
           :placeholder="searchPlaceholder"
           :aria-label="t('admin.instanceEmojis.searchLabel')"
         />
-        <select v-model="source" class="cyber-select compact" :aria-label="t('admin.instanceEmojis.source.label')">
+        <select v-model="source" class="cyber-select emoji-select" :aria-label="t('admin.instanceEmojis.source.label')">
           <option value="all">{{ t('admin.instanceEmojis.source.all') }}</option>
           <option value="local">{{ t('admin.instanceEmojis.source.local') }}</option>
           <option value="remote">{{ t('admin.instanceEmojis.source.remote') }}</option>
           <option value="user">{{ t('admin.instanceEmojis.source.user') }}</option>
         </select>
-        <select v-model="sort" class="cyber-select compact" :aria-label="t('admin.instanceEmojis.sort.label')">
+        <select v-model="sort" class="cyber-select emoji-select" :aria-label="t('admin.instanceEmojis.sort.label')">
           <option value="newest">{{ t('admin.instanceEmojis.sort.newest') }}</option>
           <option value="name">{{ t('admin.instanceEmojis.sort.name') }}</option>
         </select>
       </div>
 
-      <div v-if="loading && rows.length === 0" class="loading-state"><LoadingSpinner :size="20" /></div>
-      <div v-else-if="rows.length === 0" class="empty-state">{{ source === 'user' ? t('admin.instanceEmojis.emptyUser') : t('admin.instanceEmojis.empty') }}</div>
-      <ul v-else class="emoji-list">
-        <li v-for="emoji in rows" :key="emoji.id" class="emoji-row">
+      <div v-if="loading && rows.length === 0" class="loading-state" role="status">
+        <LoadingSpinner :size="20" />
+        <span class="sr-only">{{ t('admin.instanceEmojis.loading') }}</span>
+      </div>
+      <EmptyState
+        v-else-if="rows.length === 0"
+        class="empty-state"
+        size="sm"
+        icon="smile"
+        :title="source === 'user' ? t('admin.instanceEmojis.emptyUser') : t('admin.instanceEmojis.empty')"
+      />
+      <ul v-else class="emoji-list" :aria-busy="loading || undefined" aria-labelledby="instance-emoji-browse-title">
+        <li v-for="emoji in rows" :key="emoji.id" class="emoji-row" :class="{ renaming: editingId === emoji.id }">
           <img class="emoji-img" :src="getEmojiUrl(emoji.url)" :alt="`:${emoji.name}:`" loading="lazy" />
           <div class="emoji-main">
             <form v-if="editingId === emoji.id" class="rename-form" @submit.prevent="saveRename(emoji)">
@@ -45,11 +54,15 @@
                 v-model="editName"
                 class="cyber-input rename-input"
                 maxlength="64"
+                autocomplete="off"
+                spellcheck="false"
                 :aria-label="t('admin.instanceEmojis.newName')"
                 @keydown.esc="cancelRename"
               />
-              <button type="submit" class="primary-btn-sm" :disabled="busy.has(emoji.id)">{{ t('common.save') }}</button>
-              <button type="button" class="action-btn" @click="cancelRename">{{ t('common.cancel') }}</button>
+              <div class="rename-actions">
+                <button type="submit" class="primary-btn-sm" :disabled="busy.has(emoji.id)">{{ t('common.save') }}</button>
+                <button type="button" class="action-btn" @click="cancelRename">{{ t('common.cancel') }}</button>
+              </div>
             </form>
             <span v-else class="emoji-name">:{{ emoji.name }}:</span>
             <div class="emoji-meta">
@@ -66,13 +79,25 @@
             </div>
           </div>
           <div v-if="editingId !== emoji.id" class="emoji-actions">
-            <button class="action-btn" :disabled="busy.has(emoji.id)" @click="startRename(emoji)">
-              <Icon name="pencil" :size="14" />
-              {{ t('admin.instanceEmojis.rename') }}
+            <button
+              type="button"
+              class="action-btn icon-btn"
+              :disabled="busy.has(emoji.id)"
+              :aria-label="`${t('admin.instanceEmojis.rename')} :${emoji.name}:`"
+              :title="t('admin.instanceEmojis.rename')"
+              @click="startRename(emoji)"
+            >
+              <Icon name="pencil" :size="15" />
             </button>
-            <button class="action-btn danger" :disabled="busy.has(emoji.id)" @click="remove(emoji)">
-              <Icon name="trash" :size="14" />
-              {{ t('common.delete') }}
+            <button
+              type="button"
+              class="action-btn icon-btn danger"
+              :disabled="busy.has(emoji.id)"
+              :aria-label="`${t('common.delete')} :${emoji.name}:`"
+              :title="t('common.delete')"
+              @click="remove(emoji)"
+            >
+              <Icon name="trash" :size="15" />
             </button>
           </div>
         </li>
@@ -84,13 +109,14 @@
         <button class="action-btn" :disabled="offset + PAGE_SIZE >= total || loading" @click="goTo(offset + PAGE_SIZE)">{{ t('admin.instanceEmojis.next') }}</button>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -273,42 +299,70 @@ onMounted(load)
 
 <style scoped src="./adminShared.css"></style>
 <style scoped>
+.module-body {
+  padding: 16px 24px 24px;
+}
+
+.module-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .emoji-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.emoji-filters .cyber-input,
+.emoji-filters .cyber-select {
+  padding: 8px 12px;
 }
 
 .emoji-search {
-  flex: 1 1 220px;
+  flex: 1 1 240px;
   min-width: 0;
 }
 
+.emoji-filters .emoji-select {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 140px;
+}
+
 .emoji-list {
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  list-style: none;
 }
 
 .emoji-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-md);
-  background: var(--background-secondary);
+  min-width: 0;
+  padding: 12px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--background-quaternary);
+  border-radius: var(--radius-base);
+}
+
+.emoji-row.renaming {
+  border-color: var(--harmony-primary);
+  background-color: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 
 .emoji-img {
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   object-fit: contain;
-  flex-shrink: 0;
 }
 
 .emoji-main {
@@ -320,9 +374,10 @@ onMounted(load)
 }
 
 .emoji-name {
-  font-family: var(--font-mono, monospace);
-  color: var(--text-primary);
   overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -330,16 +385,21 @@ onMounted(load)
 .emoji-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  font-size: 12px;
-  color: var(--text-tertiary);
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 
 .badge {
+  max-width: 100%;
+  overflow: hidden;
   padding: 0 6px;
   border-radius: var(--radius-sm);
   background: var(--background-tertiary);
   color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge.local,
@@ -353,24 +413,50 @@ onMounted(load)
 
 .emoji-actions {
   display: flex;
-  gap: 6px;
   flex-shrink: 0;
+  gap: 4px;
 }
 
-.action-btn.danger:hover:not(:disabled) {
-  border-color: var(--error, #ef4444);
-  color: var(--text-danger, #ef4444);
+.icon-btn {
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  color: var(--text-secondary);
+}
+
+.icon-btn:hover:not(:disabled) {
+  border-color: transparent;
+  background-color: var(--background-quaternary);
+  color: var(--text-primary);
+}
+
+.icon-btn.danger:hover:not(:disabled) {
+  color: var(--text-danger);
 }
 
 .rename-form {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  align-items: center;
 }
 
 .rename-input {
-  flex: 1;
   min-width: 0;
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+}
+
+.rename-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.rename-actions .action-btn {
+  padding: 4px 10px;
+  font-size: 13px;
 }
 
 .emoji-pagination {
@@ -378,22 +464,28 @@ onMounted(load)
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .page-info {
   font-size: 13px;
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+  .emoji-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
-  .emoji-row {
-    flex-wrap: wrap;
+  .module-body {
+    padding: 12px 12px 16px;
   }
 
-  .emoji-actions {
-    width: 100%;
-    justify-content: flex-end;
+  .emoji-filters .emoji-select {
+    flex: 1 1 140px;
   }
 }
 </style>

@@ -348,6 +348,7 @@
             <span class="supporter-name">
               <DisplayName v-if="supporter.user_id" :user-id="supporter.user_id" :fallback="supporter.user?.display_name || supporter.user?.username" />
               <template v-else>{{ supporter.user?.display_name || supporter.user?.username }}</template>
+              <CopyIdButton v-if="supporter.user_id" :id="supporter.user_id" kind="user" :target="supporter.user?.username ? `@${supporter.user.username}` : null" />
             </span>
             <span class="supporter-meta">
               {{ supporter.tier?.name || 'No tier' }}
@@ -542,6 +543,7 @@ import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'

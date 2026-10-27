@@ -65,7 +65,10 @@
       >
         <img :src="getServerIconUrl(server.icon, 96, server.name)" alt="" class="server-icon" />
         <div class="server-details">
-          <span class="server-name">{{ server.name }}</span>
+          <span class="server-title">
+            <span class="server-name">{{ server.name }}</span>
+            <CopyIdButton :id="server.server_id" kind="server" :target="server.name" />
+          </span>
           <span class="server-meta">
             {{ server.host }} ·
             {{ t('instanceServer.panel.localMembers', { count: server.local_members, instance }, server.local_members) }}
@@ -113,6 +116,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import InstanceServerPanel from '@/components/settings/server/InstanceServerPanel.vue'
 import { useT } from '@/composables/useT'
 import { getInstanceDomain } from '@/services/instanceConfig'
@@ -231,7 +235,15 @@ onMounted(load)
   gap: 2px;
 }
 
+.server-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .server-name {
+  min-width: 0;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;

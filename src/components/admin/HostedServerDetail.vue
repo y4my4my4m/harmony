@@ -13,12 +13,17 @@
           {{ server.name }}
           <span v-if="server.suspended_at" class="badge suspended">{{ t('hostStaff.suspendedBadge') }}</span>
         </h3>
+        <p class="detail-id">
+          <code>{{ server.id }}</code>
+          <CopyIdButton :id="server.id" kind="server" :target="server.name" />
+        </p>
         <p class="detail-meta">
           <span>
             {{ t('hostStaff.owner') }}:
             <template v-if="server.owner_id">
               {{ server.owner_display_name || server.owner_username }}
               <span class="muted">@{{ server.owner_username }}</span>
+              <CopyIdButton :id="server.owner_id" kind="user" :target="`@${server.owner_username}`" />
             </template>
             <template v-else>{{ t('hostStaff.noOwner') }}</template>
           </span>
@@ -98,6 +103,7 @@
               <span v-if="member.is_owner" class="badge owner">{{ t('hostStaff.ownerBadge') }}</span>
               <span v-if="member.is_instance_staff" class="badge admin">{{ t('hostStaff.instanceStaffBadge') }}</span>
               <span v-if="member.status === 'pending'" class="badge inactive">{{ t('hostStaff.pending') }}</span>
+              <CopyIdButton :id="member.user_id" kind="user" :target="memberLabel(member)" />
             </div>
           </div>
           <div class="row-actions">
@@ -220,6 +226,7 @@ import {
   type HostedServerMessage,
 } from '@/services/HostedServerStaffService'
 import { memberHandle, memberName, type StaffAction } from './hostedServerStaff'
+import CopyIdButton from './CopyIdButton.vue'
 
 const props = defineProps<{
   server: HostedServer
@@ -453,6 +460,20 @@ onMounted(() => { void loadMembers(true) })
 /* Focused on open, by script only. */
 .detail-heading:focus {
   outline: none;
+}
+
+.detail-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.detail-id code {
+  font-family: var(--font-mono, monospace);
+  overflow-wrap: anywhere;
 }
 
 .detail-meta {

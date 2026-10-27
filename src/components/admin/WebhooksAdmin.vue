@@ -79,6 +79,7 @@
               <td :id="`webhooks-admin-name-${w.id}`">{{ w.name }}</td>
               <td>
                 {{ w.bot_id ? t('adminWebhooks.ownerBot', { name: w.bot_name ?? '—' }) : t('adminWebhooks.ownerServer', { name: w.server_name ?? '—' }) }}
+                <CopyIdButton v-if="!w.bot_id && w.server_id" :id="w.server_id" kind="server" :target="w.server_name" />
                 <span v-if="w.owner_username" class="wa-muted">@{{ w.owner_username }}</span>
               </td>
               <td><code>{{ w.host }}</code></td>
@@ -132,6 +133,7 @@ import {
   type WebhookSettings,
 } from '@/services/outgoingWebhookService'
 import { debug } from '@/utils/debug'
+import CopyIdButton from './CopyIdButton.vue'
 
 const { t } = useI18n()
 const toast = useToast()

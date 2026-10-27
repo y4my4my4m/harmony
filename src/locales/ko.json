@@ -5089,7 +5089,13 @@
         "reason": "사유(계정 기록에 보관됨):"
       },
       "confirmAction": "{action}을(를) 실행할까요? 신고가 해결 처리됩니다.",
-      "actionDone": "{action}: 완료"
+      "actionDone": "{action}: 완료",
+      "ids": {
+        "title": "ID",
+        "reporter": "신고자",
+        "reported": "신고된 사용자",
+        "server": "서버"
+      }
     },
     "federation": {
       "limited": "제한됨",
@@ -5275,11 +5281,32 @@
         "delete": "이모지를 삭제하지 못했습니다.",
         "invalidName": "이름은 영문자, 숫자, _ 또는 - 로 2~64자입니다.",
         "nameTaken": "다른 인스턴스 이모지가 이미 그 이름을 사용합니다.",
-        "nameTakenUser": "소유자에게 같은 이름의 이모지가 이미 있습니다."
+        "nameTakenUser": "소유자에게 같은 이름의 이모지가 이미 있습니다.",
+        "notAdmin": "인스턴스 관리자만 인스턴스 이모지를 업로드할 수 있습니다.",
+        "duplicateFile": "그 파일은 이미 인스턴스 이모지입니다."
       },
       "searchLabel": "이모지 검색",
       "searchHint": "이름 또는 도메인",
-      "searchHintUser": "이름 또는 소유자"
+      "searchHintUser": "이름 또는 소유자",
+      "browseTitle": "이 인스턴스의 모든 이모지",
+      "loading": "이모지를 불러오는 중",
+      "library": {
+        "description": "모든 로컬 사용자가 이모지 선택기에서 이 인스턴스 이름 아래에서 찾을 수 있습니다.",
+        "listLabel": "로컬 인스턴스 이모지",
+        "empty": "아직 인스턴스 이모지가 없습니다",
+        "emptyHint": "위에서 업로드하세요. 모든 로컬 사용자가 사용할 수 있습니다.",
+        "loading": "인스턴스 이모지를 불러오는 중",
+        "retry": "다시 시도"
+      }
+    },
+    "copyId": {
+      "user": "사용자 ID 복사",
+      "server": "서버 ID 복사",
+      "named": "{action}: {target}",
+      "userCopied": "사용자 ID를 복사했습니다",
+      "serverCopied": "서버 ID를 복사했습니다",
+      "userFailed": "사용자 ID를 복사하지 못했습니다",
+      "serverFailed": "서버 ID를 복사하지 못했습니다"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "첨부 파일",
     "removeFile": "파일 삭제",
     "removeAndBlock": "삭제하고 재업로드 차단",
-    "removed": "삭제됨"
+    "removed": "삭제됨",
+    "searchLabel": "계정 검색",
+    "searchHint": "이름 또는 {'@'}핸들",
+    "loading": "계정을 불러오는 중",
+    "noMatch": "일치하는 계정이 없습니다.",
+    "pages": "계정 페이지",
+    "previous": "이전",
+    "next": "다음",
+    "range": "{from}–{to} / {total}"
   },
   "share": {
     "title": "Harmony로 공유",

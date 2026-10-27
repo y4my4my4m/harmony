@@ -5089,7 +5089,13 @@
         "reason": "理由（アカウントに記録されます）："
       },
       "confirmAction": "{action}を実行しますか？この報告は解決済みになります。",
-      "actionDone": "{action}：完了"
+      "actionDone": "{action}：完了",
+      "ids": {
+        "title": "ID",
+        "reporter": "報告者",
+        "reported": "報告されたユーザー",
+        "server": "サーバー"
+      }
     },
     "federation": {
       "limited": "制限中",
@@ -5275,11 +5281,32 @@
         "delete": "絵文字を削除できませんでした。",
         "invalidName": "名前は英数字、_、- の 2〜64 文字です。",
         "nameTaken": "その名前は別のインスタンス絵文字で使われています。",
-        "nameTakenUser": "所有者はすでに同じ名前の絵文字を持っています。"
+        "nameTakenUser": "所有者はすでに同じ名前の絵文字を持っています。",
+        "notAdmin": "インスタンス絵文字をアップロードできるのはインスタンス管理者だけです。",
+        "duplicateFile": "そのファイルはすでにインスタンス絵文字です。"
       },
       "searchLabel": "絵文字を検索",
       "searchHint": "名前またはドメイン",
-      "searchHintUser": "名前またはオーナー"
+      "searchHintUser": "名前またはオーナー",
+      "browseTitle": "このインスタンスのすべての絵文字",
+      "loading": "絵文字を読み込み中",
+      "library": {
+        "description": "ローカルユーザー全員が、絵文字ピッカーのこのインスタンス名の下で使えます。",
+        "listLabel": "ローカルのインスタンス絵文字",
+        "empty": "インスタンス絵文字はまだありません",
+        "emptyHint": "上からアップロードしてください。ローカルユーザー全員が使えます。",
+        "loading": "インスタンス絵文字を読み込み中",
+        "retry": "再試行"
+      }
+    },
+    "copyId": {
+      "user": "ユーザーIDをコピー",
+      "server": "サーバーIDをコピー",
+      "named": "{action}：{target}",
+      "userCopied": "ユーザーIDをコピーしました",
+      "serverCopied": "サーバーIDをコピーしました",
+      "userFailed": "ユーザーIDをコピーできませんでした",
+      "serverFailed": "サーバーIDをコピーできませんでした"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "添付ファイル",
     "removeFile": "ファイルを削除",
     "removeAndBlock": "削除して再アップロードをブロック",
-    "removed": "削除しました"
+    "removed": "削除しました",
+    "searchLabel": "アカウントを検索",
+    "searchHint": "名前または{'@'}ハンドル",
+    "loading": "アカウントを読み込み中",
+    "noMatch": "一致するアカウントはありません。",
+    "pages": "アカウントのページ",
+    "previous": "前へ",
+    "next": "次へ",
+    "range": "{from}–{to} / {total}"
   },
   "share": {
     "title": "Harmonyで共有",

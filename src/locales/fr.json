@@ -5089,7 +5089,13 @@
         "reason": "Raison (conservée avec le compte) :"
       },
       "confirmAction": "{action} ? Cela résout le signalement.",
-      "actionDone": "{action} : terminé"
+      "actionDone": "{action} : terminé",
+      "ids": {
+        "title": "Identifiants",
+        "reporter": "Auteur du signalement",
+        "reported": "Utilisateur signalé",
+        "server": "Serveur"
+      }
     },
     "federation": {
       "limited": "Limité",
@@ -5275,11 +5281,32 @@
         "delete": "Impossible de supprimer l'emoji.",
         "invalidName": "Les noms comptent de 2 à 64 lettres, chiffres, _ ou -.",
         "nameTaken": "Un autre emoji de l'instance utilise déjà ce nom.",
-        "nameTakenUser": "Le propriétaire a déjà un emoji portant ce nom."
+        "nameTakenUser": "Le propriétaire a déjà un emoji portant ce nom.",
+        "notAdmin": "Seuls les administrateurs de l'instance peuvent téléverser des emojis d'instance.",
+        "duplicateFile": "Ce fichier est déjà un emoji d'instance."
       },
       "searchLabel": "Rechercher des emoji",
       "searchHint": "Nom ou domaine",
-      "searchHintUser": "Nom ou propriétaire"
+      "searchHintUser": "Nom ou propriétaire",
+      "browseTitle": "Tous les emojis de cette instance",
+      "loading": "Chargement des emojis",
+      "library": {
+        "description": "Tous les utilisateurs locaux les trouvent dans le sélecteur d'emojis sous le nom de cette instance.",
+        "listLabel": "Emojis locaux de l'instance",
+        "empty": "Aucun emoji d'instance pour l'instant",
+        "emptyHint": "Téléversez-en un ci-dessus. Tous les utilisateurs locaux peuvent l'utiliser.",
+        "loading": "Chargement des emojis de l'instance",
+        "retry": "Réessayer"
+      }
+    },
+    "copyId": {
+      "user": "Copier l'ID de l'utilisateur",
+      "server": "Copier l'ID du serveur",
+      "named": "{action} : {target}",
+      "userCopied": "ID de l'utilisateur copié",
+      "serverCopied": "ID du serveur copié",
+      "userFailed": "Impossible de copier l'ID de l'utilisateur",
+      "serverFailed": "Impossible de copier l'ID du serveur"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "Fichiers joints",
     "removeFile": "Retirer le fichier",
     "removeAndBlock": "Retirer et bloquer la remise en ligne",
-    "removed": "Retiré"
+    "removed": "Retiré",
+    "searchLabel": "Rechercher des comptes",
+    "searchHint": "Nom ou {'@'}identifiant",
+    "loading": "Chargement des comptes",
+    "noMatch": "Aucun compte ne correspond.",
+    "pages": "Pages des comptes",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "range": "{from}–{to} sur {total}"
   },
   "share": {
     "title": "Partager sur Harmony",
