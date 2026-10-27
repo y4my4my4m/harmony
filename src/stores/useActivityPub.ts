@@ -15,7 +15,7 @@ import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
 import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
 import { uploadStorageObject } from '@/services/uploads/storageUpload';
-import { UploadLimitError } from '@/services/uploads/uploadLimit';
+import { UploadLimitError, checkUploadLimit } from '@/services/uploads/uploadLimit';
 import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
@@ -2132,6 +2132,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         const description = typeof attachment?.description === 'string' ? attachment.description.trim() : '';
         const focus = attachment instanceof File ? null : attachmentFocus(attachment);
         if (typeof attachment?.drivePath === 'string' && !(attachment.file instanceof File)) {
+          if (typeof attachment.size === 'number') {
+            await checkUploadLimit('user_media', { size: attachment.size }, attachment.filename);
+          }
           const url = await copyDriveFileToPostMedia(attachment.drivePath, authUserId);
           return withMediaEdits({
             type: attachment.type === 'video' ? 'Video' : attachment.type === 'audio' ? 'Audio' : 'Image',

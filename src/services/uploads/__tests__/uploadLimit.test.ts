@@ -121,6 +121,12 @@ describe('checking a file', () => {
     await expect(checkUploadLimit('message_media', file(5 * MiB))).resolves.toBeUndefined()
   })
 
+  it('counts a server-side copy (a Drive file attached to a post) by its size', async () => {
+    limitIs(5 * MiB)
+    await expect(checkUploadLimit('user_media', { size: 6 * MiB }, 'talk.mp4')).rejects.toMatchObject({ limit: 5 * MiB })
+    await expect(checkUploadLimit('user_media', { size: 5 * MiB }, 'talk.mp4')).resolves.toBeUndefined()
+  })
+
   it('leaves buckets with fixed limits alone', async () => {
     limitIs(1)
     await expect(checkUploadLimit('emojis', file(1024))).resolves.toBeUndefined()

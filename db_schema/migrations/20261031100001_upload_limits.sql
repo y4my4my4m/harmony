@@ -32,8 +32,9 @@
 -- is sent; a standard upload once its body is stored. Same path as drive_track_object's
 -- blocked-hash refusal.
 -- An object without an owner (service role: bridges, the federation backend) has no
--- per-account limit. An UPDATE that keeps bucket, version and size (a move or rename keeps
--- them) is not checked.
+-- per-account limit. An UPDATE that keeps bucket and size is not checked: a rename, and the
+-- ON CONFLICT branch of an upsert, whose proposed row the INSERT trigger already checked
+-- (canUpload's upsert test carries the existing row's size under a new version).
 
 BEGIN;
 
@@ -357,7 +358,6 @@ BEGIN
     END IF;
     IF TG_OP = 'UPDATE'
        AND NEW.bucket_id = OLD.bucket_id
-       AND v_new ->> 'version' IS NOT DISTINCT FROM to_jsonb(OLD) ->> 'version'
        AND NEW.metadata ->> 'size' IS NOT DISTINCT FROM OLD.metadata ->> 'size' THEN
         RETURN NEW;
     END IF;

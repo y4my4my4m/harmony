@@ -9,7 +9,7 @@
 -- upload-length in request.headers.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(50);
+SELECT plan(51);
 
 SELECT set_config('storage.allow_delete_query', 'true', true);
 -- The fixtures' first profile is an instance admin.
@@ -205,6 +205,10 @@ SELECT lives_ok(
     $q$UPDATE storage.objects SET name = 'u/aaaaaaaa-0000-0000-0000-000000000001/renamed.bin'
         WHERE bucket_id = 'message_media' AND name = 'u/aaaaaaaa-0000-0000-0000-000000000001/big.bin'$q$,
     'a rename of an object over a lowered limit passes');
+SELECT lives_ok(
+    $q$UPDATE storage.objects SET version = 'v2'
+        WHERE bucket_id = 'message_media' AND name = 'u/aaaaaaaa-0000-0000-0000-000000000001/renamed.bin'$q$,
+    'a new version keeping the size (an upsert''s conflict branch, checked as its INSERT) passes');
 SELECT throws_like(
     $q$UPDATE storage.objects SET metadata = '{"size": 4194304}'
         WHERE bucket_id = 'message_media' AND name = 'u/aaaaaaaa-0000-0000-0000-000000000001/small.bin'$q$,

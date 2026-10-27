@@ -85,8 +85,11 @@ export function uploadLimitMessage(size: number, limit: number, name?: string): 
     : i18n.global.t('uploadLimits.tooLargeFile', values)
 }
 
-/** Throws UploadLimitError when `file` would go over the account's limit in `bucket`. */
-export async function checkUploadLimit(bucket: string, file: Blob, name?: string): Promise<void> {
+/**
+ * Throws UploadLimitError when `file` would go over the account's limit in `bucket`. A copy
+ * into the bucket counts as an upload of its size.
+ */
+export async function checkUploadLimit(bucket: string, file: { size: number }, name?: string): Promise<void> {
   if (!LIMITED_BUCKETS.has(bucket)) return
   const limit = await getUploadLimit()
   if (limit !== null && file.size > limit) {
@@ -98,7 +101,7 @@ export async function checkUploadLimit(bucket: string, file: Blob, name?: string
  * Storage refused `file`: the limit as it is now, when the file exceeds it. Storage words a
  * limit refusal as a row-level security refusal (42501), or 413 past the ceiling.
  */
-export async function limitRefusal(bucket: string, file: Blob, name?: string): Promise<UploadLimitError | null> {
+export async function limitRefusal(bucket: string, file: { size: number }, name?: string): Promise<UploadLimitError | null> {
   if (!LIMITED_BUCKETS.has(bucket)) return null
   const limit = await getUploadLimit({ fresh: true }).catch(() => null)
   return limit !== null && file.size > limit
