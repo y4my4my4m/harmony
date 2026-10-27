@@ -174,6 +174,17 @@ describe('messageContentUtils', () => {
       expect(messageTextLength(parts as any)).toBe(11)
     })
 
+    it('counts the label of a masked link, as the database does', () => {
+      const parts = [
+        { type: 'text', text: 'read ' },
+        { type: 'url', url: 'https://example.com/docs', preview: true, label: 'the docs' },
+        { type: 'url', url: 'https://example.com/plain', preview: true },
+        { type: 'url', url: 'https://example.com', label: 7 },
+      ]
+      // 'read ' (5) + 'the docs' (8); the urls and a label that is not a string count nothing.
+      expect(messageTextLength(parts as any)).toBe(13)
+    })
+
     it('returns 0 for missing or non-array input', () => {
       expect(messageTextLength(null as any)).toBe(0)
       expect(messageTextLength(undefined as any)).toBe(0)

@@ -6,10 +6,14 @@
 --                          content_preview / message_preview and index_message_row (search).
 --   automod_message_text   text parts and url labels, one per line (the alert excerpt).
 --   automod_check_message  the text keyword, regex and invite rules match: labels added.
+--   jsonb_text_content_length
+--                          text parts and url labels: max_message_length and max_post_length
+--                          (enforce_message_length, enforce_post_length) and the 50000
+--                          character CHECKs count a label as text.
 --
 -- Each is redefined from its latest definition (baseline; 20261005100001_server_automod;
 -- 20261011600001_here_mention) with the label added and nothing else changed. Rows already
--- stored hold no label; nothing to backfill.
+-- stored hold no label; nothing to backfill, and no stored row fails the CHECKs.
 
 BEGIN;
 
@@ -43,6 +47,49 @@ BEGIN
     RETURN trim(result);
 END;
 $$;
+
+-- As the baseline, plus string labels of url parts. src/utils/messageContentUtils.ts
+-- messageTextLength counts the same.
+CREATE OR REPLACE FUNCTION public.jsonb_text_content_length(content jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path = public, extensions, pg_temp
+AS $$
+DECLARE
+    total integer := 0;
+    n integer;
+    i integer;
+    part jsonb;
+BEGIN
+    IF content IS NULL OR jsonb_typeof(content) <> 'array' THEN
+        RETURN 0;
+    END IF;
+
+    n := jsonb_array_length(content);
+    IF n = 0 THEN
+        RETURN 0;
+    END IF;
+
+    FOR i IN 0..(n - 1) LOOP
+        part := content -> i;
+        IF jsonb_typeof(part) <> 'object' THEN
+            CONTINUE;
+        END IF;
+        IF (part ->> 'type') = 'text' THEN
+            total := total + COALESCE(char_length(part ->> 'text'), 0);
+        ELSIF (part ->> 'type') = 'url' AND jsonb_typeof(part -> 'label') = 'string' THEN
+            total := total + char_length(part ->> 'label');
+        END IF;
+    END LOOP;
+
+    RETURN total;
+END;
+$$;
+
+COMMENT ON FUNCTION public.jsonb_text_content_length(jsonb) IS
+'Total character count across the text parts and url labels of a MessagePart[] jsonb. IMMUTABLE so it can be used from CHECK constraints. Keep MAX_MESSAGE_TEXT_LENGTH / MAX_POST_TEXT_LENGTH in src/utils/messageContentUtils.ts in sync with the constraint limits.';
 
 CREATE OR REPLACE FUNCTION public.automod_message_text(p_content jsonb)
 RETURNS text

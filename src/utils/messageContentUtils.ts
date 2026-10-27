@@ -33,17 +33,21 @@ export const DEFAULT_MAX_MESSAGE_TEXT_LENGTH = 2000;
 export const DEFAULT_MAX_POST_TEXT_LENGTH = 500;
 
 /**
- * Sum the length of all `text` parts in a message. Non-text parts
- * (mentions, emojis, files, urls, embeds) are not counted because their
- * payload is structurally bounded by other validation (file count limit,
- * URL parsing, mention resolution, ...).
+ * Sum the length of all `text` parts and masked-link labels in a message, as
+ * the database's length checks do (20261030900001). Other parts (mentions, emojis, files, the
+ * urls themselves, embeds) are not counted because their payload is
+ * structurally bounded by other validation (file count limit, URL parsing,
+ * mention resolution, ...).
  */
 export function messageTextLength(parts: MessagePart[]): number {
   if (!Array.isArray(parts)) return 0;
   let total = 0;
   for (const part of parts) {
-    if (part && typeof part === 'object' && part.type === 'text') {
+    if (!part || typeof part !== 'object') continue;
+    if (part.type === 'text') {
       total += (part.text || '').length;
+    } else if (part.type === 'url' && typeof part.label === 'string') {
+      total += part.label.length;
     }
   }
   return total;

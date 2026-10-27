@@ -7,7 +7,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(9);
+SELECT plan(13);
 
 SELECT is(public.extract_message_text(
             '[{"type":"text","text":"read "},
@@ -38,6 +38,32 @@ SELECT ok(EXISTS (SELECT 1 FROM public.message_search_index
                   WHERE message_id = 'a2030000-0000-0000-0000-00000000000a'
                     AND content_tsvector @@ plainto_tsquery('english', 'walrus handbook')),
           'search finds a message by its link label');
+
+-- Length ----------------------------------------------------------------------------------
+SELECT is(public.jsonb_text_content_length(
+            '[{"type":"text","text":"abc"},{"type":"url","url":"https://example.com","label":"de"},
+              {"type":"url","url":"https://example.com/plain"},{"type":"url","url":"https://example.com","label":7}]'::jsonb),
+          5, 'a label counts toward the text length; a url and a label that is not a string do not');
+
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT throws_ok(
+  format($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES ('66666666-0000-0000-0000-000000000006',
+            '22222222-0000-0000-0000-000000000002', %L::jsonb)$q$,
+         jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'hi'),
+                           jsonb_build_object('type', 'url', 'url', 'https://example.com', 'label', repeat('x', 1999)))),
+  '23514', NULL, 'a label past max_message_length is refused');
+SELECT lives_ok(
+  format($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES ('66666666-0000-0000-0000-000000000006',
+            '22222222-0000-0000-0000-000000000002', %L::jsonb)$q$,
+         jsonb_build_array(jsonb_build_object('type', 'text', 'text', 'hi'),
+                           jsonb_build_object('type', 'url', 'url', 'https://example.com', 'label', repeat('x', 1998)))),
+  'text and label within max_message_length are written');
+SELECT tests.clear_authentication();
+SELECT throws_ok(
+  format($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES ('66666666-0000-0000-0000-000000000006',
+            '11111111-0000-0000-0000-000000000001', %L::jsonb)$q$,
+         jsonb_build_array(jsonb_build_object('type', 'url', 'url', 'https://example.com', 'label', repeat('x', 50001)))),
+  '23514', NULL, 'a service writer cannot store a label past the 50000 character ceiling');
 
 -- AutoMod ---------------------------------------------------------------------------------
 INSERT INTO public.servers (id, name, owner) VALUES
