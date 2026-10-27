@@ -53,7 +53,7 @@ INSERT INTO public.messages (id, channel_id, user_id, content, encrypted) VALUES
    '11111111-0000-0000-0000-000000000001', '[{"type":"text","text":"ciphertext"}]', true);
 
 -- Surface ---------------------------------------------------------------------------
-SELECT ok(NOT has_function_privilege('anon', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean)', 'EXECUTE')
+SELECT ok(NOT has_function_privilege('anon', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean, uuid)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.moderate_report(uuid, text, text, text, boolean)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.get_reports_with_details(text, integer, integer, uuid)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.set_domain_moderation(text, text, text)', 'EXECUTE'),
