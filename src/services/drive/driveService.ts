@@ -437,6 +437,13 @@ export function driveLinkContentUrl(token: string, download = false): string {
 }
 
 /**
+ * Lifetime of a Drive download URL, s; privateMedia VIEW_URL_TTL_SECONDS, which chat attachments
+ * download with. The desktop download resumes with Range on the same URL; once it expires,
+ * storage answers 400 and the download fails.
+ */
+export const DRIVE_DOWNLOAD_URL_TTL_SECONDS = 6 * 60 * 60
+
+/**
  * A URL that downloads the file under its Drive name. The name is added by namedDownloadUrl:
  * storage-js's own `download` option leaves & # + unescaped.
  */
@@ -445,7 +452,7 @@ export async function driveDownloadUrl(file: Pick<DriveFile, 'bucket' | 'path' |
   if (file.bucket === 'user_media') {
     return namedDownloadUrl(supabase.storage.from('user_media').getPublicUrl(file.path).data.publicUrl, name)
   }
-  const { data, error } = await supabase.storage.from('message_media').createSignedUrl(file.path, 120)
+  const { data, error } = await supabase.storage.from('message_media').createSignedUrl(file.path, DRIVE_DOWNLOAD_URL_TTL_SECONDS)
   if (error || !data?.signedUrl) throw error ?? new Error('No download URL')
   return namedDownloadUrl(data.signedUrl, name)
 }
