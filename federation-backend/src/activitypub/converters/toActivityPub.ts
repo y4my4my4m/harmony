@@ -754,7 +754,7 @@ function escapeHtmlAttr(str: string): string {
  */
 const SAFE_URL_SCHEMES_OUTBOUND = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
-function safeAttrUrlOutbound(url: string | null | undefined): string {
+export function safeAttrUrlOutbound(url: string | null | undefined): string {
   if (url == null) return '';
   // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
