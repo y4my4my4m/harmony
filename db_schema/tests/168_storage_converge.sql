@@ -109,7 +109,7 @@ SELECT matches((SELECT pg_get_expr(polwithcheck, polrelid) FROM pg_policy
                    AND polname = 'Authenticated users can upload user_media'),
                'drive_can_upload', 'the superseded user_media upload policy carries the Drive quota check');
 SELECT results_eq($$SELECT public, file_size_limit FROM storage.buckets WHERE id = 'message_media'$$,
-                  $$VALUES (false, 52428800::bigint)$$, 'message_media is private, 50 MB');
+                  $$VALUES (false, NULL::bigint)$$, 'message_media is private, without a bucket limit');
 SELECT results_eq($$SELECT public, file_size_limit, allowed_mime_types FROM storage.buckets WHERE id = 'soundboard'$$,
                   $$VALUES (true, 524288::bigint, ARRAY['audio/mpeg', 'audio/ogg', 'audio/wav'])$$,
                   'soundboard is public, 512 KB, three audio types');
