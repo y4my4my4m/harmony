@@ -8,6 +8,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { supabase } from '@/supabase'
 
+vi.mock('@/services/uploads/storageUpload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/uploads/storageUpload')>()),
+  uploadStorageObject: async (...args: Parameters<typeof import('../../../tests/helpers/storageUploadMock').uploadThroughStorageMock>) =>
+    (await import('../../../tests/helpers/storageUploadMock')).uploadThroughStorageMock(...args),
+}))
+
 vi.mock('@/services/userDataService', () => ({
   userDataService: { getCurrentUser: () => ({ id: 'me' }) },
 }))

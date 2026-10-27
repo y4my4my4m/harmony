@@ -335,6 +335,7 @@ import {
   draftAttachments,
   draftAttachmentShown,
   holdsDraftAttachment,
+  removeDraftAttachment,
   localDraftKey,
   openDraftAttachments,
   releaseAttachment,
@@ -1136,7 +1137,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         {
           validate: true,
           name: props.encryptedRoom ? undefined : fileData.name,
+          label: fileData.name,
           ephemeral: sentTemporary,
+          resumeKey: `${room}/${uploaderId}`,
           onProgress: (fraction) => {
             if (!holdsDraftAttachment(fileData)) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
@@ -1166,7 +1169,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           if (draftAttachmentShown(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
-          if (error instanceof UploadAbortedError) return;
+          // Cancelled in the transfers indicator: the draft lets go of the file. A removal
+          // from the draft aborts after the draft has let go.
+          if (error instanceof UploadAbortedError) {
+            removeDraftAttachment(fileData);
+            return;
+          }
           fileData.uploadStatus = 'error';
           fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
           fileData.uploadProgress = 0;

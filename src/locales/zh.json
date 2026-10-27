@@ -282,6 +282,7 @@
     "fileSizeTooLarge": "文件大小必须小于 8MB",
     "selectValidImageFile": "请选择有效的图片文件",
     "uploadingEmojis": "正在上传 {current}/{total} 个表情...",
+    "uploadingEmoji": "正在上传 {name}…",
     "copyEmojiName": "复制表情名称",
     "renameEmoji": "重命名表情",
     "deleteEmojiTitle": "删除表情",
@@ -7444,5 +7445,18 @@
     "deleteFor": "删除 {name}",
     "confirmDeleteTitle": "删除此 Webhook？",
     "confirmDeleteMessage": "将删除 {name}（{host}）及其投递记录。不会通知其所有者。"
+  },
+  "transfers": {
+    "label": "传输",
+    "uploading": "正在上传 {count} 个文件 | 正在上传 {count} 个文件",
+    "downloading": "正在下载 {count} 个文件 | 正在下载 {count} 个文件",
+    "reconnecting": "正在重新连接…",
+    "done": "已完成",
+    "progress": "{name}，{percent}%",
+    "cancel": "取消 {name}",
+    "dismiss": "关闭 {name}",
+    "showInFolder": "在文件夹中显示",
+    "downloadStarted": "正在下载 {name}",
+    "downloadFailed": "下载失败：{reason}"
   }
 }

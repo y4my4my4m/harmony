@@ -149,7 +149,7 @@ describe('MyEmojisSettings', () => {
     const w = await render()
     const file = new File(['png'], 'cat.png', { type: 'image/png' })
     await pick(w, file)
-    expect(service.uploadMyEmoji).toHaveBeenCalledWith('me', file)
+    expect(service.uploadMyEmoji).toHaveBeenCalledWith('me', file, { onProgress: expect.any(Function) })
     expect(rows(w)[0].find('.emoji-name').text()).toBe(':cat:')
     expect(w.get('[data-testid="emoji-count"]').text()).toBe('3 / 50')
     expect(service.refreshPersonalEmojis).toHaveBeenCalledWith('me')

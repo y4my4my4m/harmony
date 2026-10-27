@@ -282,6 +282,7 @@
     "fileSizeTooLarge": "La taille du fichier doit être inférieure à 8 Mo",
     "selectValidImageFile": "Veuillez sélectionner un fichier image valide",
     "uploadingEmojis": "Téléversement de {current} sur {total} émojis...",
+    "uploadingEmoji": "Téléversement de {name}…",
     "copyEmojiName": "Copier le nom de l'émoji",
     "renameEmoji": "Renommer l'émoji",
     "deleteEmojiTitle": "Supprimer l'émoji",
@@ -7444,5 +7445,18 @@
     "deleteFor": "Supprimer {name}",
     "confirmDeleteTitle": "Supprimer ce webhook ?",
     "confirmDeleteMessage": "{name} ({host}) et son journal de livraisons sont supprimés. Son propriétaire n’est pas prévenu."
+  },
+  "transfers": {
+    "label": "Transferts",
+    "uploading": "Téléversement de {count} fichier | Téléversement de {count} fichiers",
+    "downloading": "Téléchargement de {count} fichier | Téléchargement de {count} fichiers",
+    "reconnecting": "Reconnexion…",
+    "done": "Terminé",
+    "progress": "{name}, {percent} %",
+    "cancel": "Annuler {name}",
+    "dismiss": "Masquer {name}",
+    "showInFolder": "Afficher dans le dossier",
+    "downloadStarted": "Téléchargement de {name}",
+    "downloadFailed": "Échec du téléchargement : {reason}"
   }
 }

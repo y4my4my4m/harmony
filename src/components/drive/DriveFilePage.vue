@@ -133,6 +133,7 @@ import { useDriveUsage } from '@/composables/useDriveUsage'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
 import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { driveDownloadUrl, type DriveFileCardFile } from '@/services/drive/driveService'
+import { saveFile } from '@/services/downloads'
 import { daysUntil, driveMediaSource, driveThumbnail, formatBytes, kindIcon } from '@/components/drive/driveFormat'
 import { useDriveLightbox } from '@/components/drive/useDriveLightbox'
 
@@ -180,13 +181,7 @@ async function download(): Promise<void> {
   } catch {
     return
   }
-  const a = document.createElement('a')
-  a.href = url
-  a.rel = 'noopener'
-  a.download = card.value.name || ''
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  await saveFile(url, card.value.name || '', { named: true })
 }
 </script>
 

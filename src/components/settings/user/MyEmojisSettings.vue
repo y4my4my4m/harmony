@@ -86,7 +86,7 @@ function refreshPicker() {
 }
 
 const adapter: EmojiLibraryAdapter<MyEmoji> = {
-  upload: async (file) => uploadMyEmoji(await me(), file),
+  upload: async (file, options) => uploadMyEmoji(await me(), file, options),
   rename: (emoji, name) => renameMyEmoji(emoji.id, name),
   remove: async (emoji) => deleteMyEmoji(emoji, await me()),
   removeMany: async (rows) => deleteMyEmojis(rows, await me()),

@@ -109,6 +109,12 @@ fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
       on_load.on_page_started(payload.url());
     }
   });
+  // The page's own saves reach the webview as downloads: blob: and data: URLs (exports, an
+  // attachment this client still holds). CEF cancels every download of a webview without a
+  // handler; with this one it asks where to save, WebView2 and WKWebView save into Downloads.
+  // http(s) files go through download_file; navigations to them open outside (external_links).
+  #[cfg(desktop)]
+  let builder = builder.on_download(|_webview, _event| true);
   // WKWebView reports subframe loads to the navigation handler without their frame; Apple
   // judges navigations in its own delegate once the webview exists (apple_navigation.rs).
   #[cfg(not(any(target_os = "macos", target_os = "ios")))]
@@ -253,7 +259,9 @@ pub fn run() {
     float_dock::float_dock_open,
     float_dock::float_dock_close,
     float_dock::float_dock_focus_main,
-    updater::updater_status
+    updater::updater_status,
+    commands::download::download_file,
+    commands::download::download_cancel
   ]);
   // mobile (android/ios) — no desktop-only commands
   #[cfg(mobile)]
@@ -261,7 +269,8 @@ pub fn run() {
     commands::media::set_system_bar_colors,
     commands::media::android_call_service,
     commands::media::android_open_url,
-    commands::media::android_video_thumbnail
+    commands::media::android_video_thumbnail,
+    commands::media::android_download
   ]);
 
   let app = match builder.build(context) {

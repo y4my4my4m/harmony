@@ -502,7 +502,7 @@
               @click="requestRemoveAttachment(part.url)"
             />
             <video
-              :src="mediaSrc(part)"
+              :src="namedMediaSrc(part)"
               :controls="nativeVideoControls"
               class="content-video"
               preload="metadata"
@@ -593,7 +593,7 @@
               {{ part.fileName }}
             </div>
             <audio
-              :src="mediaSrc(part)"
+              :src="namedMediaSrc(part)"
               controls
               preload="metadata"
               class="content-audio"
@@ -614,10 +614,11 @@
           <Icon name="file" :size="20" class="file-icon" />
           <a
             v-if="sanitizeUrl(mediaSrc(part) || '')"
-            :href="sanitizeUrl(mediaSrc(part) || '')"
-            target="_blank"
+            :href="fileDownloadHref(part)"
             rel="noopener noreferrer"
             class="file-name"
+            data-testid="file-attachment-link"
+            @click.prevent="downloadFilePart(part)"
           >
             {{ mediaPartFileName(part) }}
           </a>
@@ -719,7 +720,8 @@ import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError, resolveMediaPartUrl } from '@/services/privateMedia';
+import { namedDownloadUrl, saveFile } from '@/services/downloads';
 import { useLightbox } from '@/composables/useLightbox';
 import { chatLightboxEntries, chatMediaKey, type ChatLightboxHelpers } from '@/utils/messageLightboxMedia';
 import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
@@ -881,6 +883,22 @@ export default defineComponent({
         ? getAttachmentThumbnailUrl(stripKlipyAttributionFragment(part))
         : mediaPartSource(part, 'thumbnail');
     const mediaSrc = (part: { url?: string; path?: string }) => mediaPartSource(part);
+    // Players fetch past Content-Disposition; the browser's own Download item in their menu
+    // saves under the part's name.
+    const namedMediaSrc = (part: { url?: string; path?: string; fileName?: string }) => {
+      const src = mediaSrc(part);
+      return src ? namedDownloadUrl(src, mediaPartFileName(part)) : src;
+    };
+    // A file part downloads under its recorded name, from the remote object even while this
+    // client still holds the bytes locally; the href is the same named URL for open-in-tab.
+    const fileDownloadHref = (part: { url?: string; path?: string; fileName?: string }) => {
+      const src = sanitizeUrl(mediaSrc(part) || '');
+      return src ? namedDownloadUrl(src, mediaPartFileName(part)) : '';
+    };
+    const downloadFilePart = async (part: { url?: string; path?: string; fileName?: string }) => {
+      const url = (await resolveMediaPartUrl(part)) ?? sanitizeUrl(mediaSrc(part) || '');
+      if (url) await saveFile(url, mediaPartFileName(part));
+    };
     // A part whose object this client is uploading.
     const hasUpload = (part: { url?: string; path?: string }) =>
       isPrivateMediaPart(part) && !!messageMediaUploadState(part.path);
@@ -1722,6 +1740,9 @@ export default defineComponent({
       showKlipyWatermark,
       displayMediaUrl,
       mediaSrc,
+      namedMediaSrc,
+      fileDownloadHref,
+      downloadFilePart,
       mediaLoadKey,
       hasUpload,
       mediaPartFileName,

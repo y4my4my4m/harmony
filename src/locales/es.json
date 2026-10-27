@@ -357,6 +357,7 @@
     "federationHandle": "Identificador del servidor",
     "federationHandleDesc": "Comparte este identificador para que personas de otras instancias puedan encontrar este servidor y unirse a él.",
     "uploadingEmojis": "Subiendo emoji {current} de {total}...",
+    "uploadingEmoji": "Subiendo {name}…",
     "copyEmojiName": "Copiar nombre del emoji",
     "renameEmoji": "Renombrar emoji",
     "deleteEmojiTitle": "Eliminar emoji",
@@ -7444,5 +7445,18 @@
     "deleteFor": "Eliminar {name}",
     "confirmDeleteTitle": "¿Eliminar este webhook?",
     "confirmDeleteMessage": "Se eliminan {name} ({host}) y su registro de entregas. No se avisa a su dueño."
+  },
+  "transfers": {
+    "label": "Transferencias",
+    "uploading": "Subiendo {count} archivo | Subiendo {count} archivos",
+    "downloading": "Descargando {count} archivo | Descargando {count} archivos",
+    "reconnecting": "Reconectando…",
+    "done": "Completado",
+    "progress": "{name}, {percent} %",
+    "cancel": "Cancelar {name}",
+    "dismiss": "Descartar {name}",
+    "showInFolder": "Mostrar en la carpeta",
+    "downloadStarted": "Descargando {name}",
+    "downloadFailed": "Error en la descarga: {reason}"
   }
 }

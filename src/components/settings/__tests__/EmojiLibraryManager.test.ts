@@ -144,7 +144,7 @@ describe('EmojiLibraryManager', () => {
     const wrapper = render()
     const file = png('cat.png')
     await pick(wrapper, [file])
-    expect(adapter.upload).toHaveBeenCalledWith(file)
+    expect(adapter.upload).toHaveBeenCalledWith(file, { onProgress: expect.any(Function) })
     expect(wrapper.emitted('uploaded')?.[0]?.[0]).toMatchObject({ name: 'cat' })
     expect(h.toast.success).toHaveBeenCalledWith('Emoji "cat" uploaded')
     expect(wrapper.get('[data-testid="emoji-count"]').text()).toBe('3 / 50')

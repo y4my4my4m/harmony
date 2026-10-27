@@ -160,7 +160,6 @@
         />
       </div>
 
-      <DriveUploads />
       <div v-if="pageDrop" class="drive-dropzone" aria-hidden="true">
         <div class="drive-dropzone__card">
           <Icon name="cloud-upload" :size="34" />
@@ -336,12 +335,12 @@ import ConfirmDialog from '@/components/drive/DriveConfirmDialog.vue'
 import DriveSidebar from '@/components/drive/DriveSidebar.vue'
 import DriveItems from '@/components/drive/DriveItems.vue'
 import DriveDetails from '@/components/drive/DriveDetails.vue'
-import DriveUploads from '@/components/drive/DriveUploads.vue'
 import DriveMoveDialog from '@/components/drive/DriveMoveDialog.vue'
 import DriveShareDialog from '@/components/drive/DriveShareDialog.vue'
 import DrivePreview from '@/components/drive/DrivePreview.vue'
 import DriveNameDialog from '@/components/drive/DriveNameDialog.vue'
 import '@/components/drive/drive.css'
+import { saveFile } from '@/services/downloads'
 import { useT } from '@/composables/useT'
 import { useDriveUsage } from '@/composables/useDriveUsage'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
@@ -615,14 +614,7 @@ async function dropItems(folderId: string | null, payload: DriveDragPayload): Pr
 
 async function download(file: DriveFile): Promise<void> {
   const url = await attempt(() => driveDownloadUrl(file))
-  if (!url) return
-  const a = document.createElement('a')
-  a.href = url
-  a.rel = 'noopener'
-  a.download = file.name || ''
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  if (url) await saveFile(url, file.name || '', { named: true })
 }
 
 function hasFiles(event: DragEvent): boolean {

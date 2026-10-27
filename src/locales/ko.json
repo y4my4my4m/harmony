@@ -282,6 +282,7 @@
     "fileSizeTooLarge": "파일 크기는 8MB 미만이어야 합니다",
     "selectValidImageFile": "유효한 이미지 파일을 선택하세요",
     "uploadingEmojis": "{total}개 중 {current}개 이모지 업로드 중...",
+    "uploadingEmoji": "{name} 업로드 중…",
     "copyEmojiName": "이모지 이름 복사",
     "renameEmoji": "이모지 이름 변경",
     "deleteEmojiTitle": "이모지 삭제",
@@ -7444,5 +7445,18 @@
     "deleteFor": "{name} 삭제",
     "confirmDeleteTitle": "이 웹훅을 삭제할까요?",
     "confirmDeleteMessage": "{name} ({host})과(와) 전달 기록이 삭제됩니다. 소유자에게는 알리지 않습니다."
+  },
+  "transfers": {
+    "label": "전송",
+    "uploading": "파일 {count}개 업로드 중 | 파일 {count}개 업로드 중",
+    "downloading": "파일 {count}개 다운로드 중 | 파일 {count}개 다운로드 중",
+    "reconnecting": "다시 연결하는 중…",
+    "done": "완료",
+    "progress": "{name}, {percent}%",
+    "cancel": "{name} 취소",
+    "dismiss": "{name} 닫기",
+    "showInFolder": "폴더에서 보기",
+    "downloadStarted": "{name} 다운로드 중",
+    "downloadFailed": "다운로드 실패: {reason}"
   }
 }

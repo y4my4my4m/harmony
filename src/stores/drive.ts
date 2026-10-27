@@ -37,13 +37,6 @@ export interface DriveLocation {
 
 export type DriveLayout = 'grid' | 'list'
 
-export interface DriveUploadItem {
-  key: string
-  name: string
-  size: number
-  upload: MessageMediaUpload
-}
-
 const LAYOUT_KEY = 'harmony:drive-layout'
 const PAGE_SIZE = 200
 
@@ -68,7 +61,6 @@ export const useDriveStore = defineStore('drive', () => {
   const sort = ref<DriveSort>('newest')
   const layout = ref<DriveLayout>(storedLayout())
   const selected = ref<Set<string>>(new Set())
-  const uploads = ref<DriveUploadItem[]>([])
   let loadSeq = 0
 
   const files = computed(() => entries.value.map((e) => e.file))
@@ -228,32 +220,28 @@ export const useDriveStore = defineStore('drive', () => {
   const keepFiles = (ids: string[]) => mutate(() => keepDriveFiles(ids))
   const emptyTrash = () => mutate(() => emptyDriveTrash())
 
-  /** Uploads files into Drive itself (u/<auth uid>/...), into `folderId`. */
-  function uploadFiles(list: File[], folderId: string | null): void {
+  /**
+   * Uploads files into Drive itself (u/<auth uid>/...), into `folderId`. Progress shows in the
+   * transfers indicator, on any page.
+   */
+  function uploadFiles(list: File[], folderId: string | null): MessageMediaUpload[] {
     const uid = useAuthStore().session?.user?.id
-    if (!uid) return
-    for (const file of list) {
+    if (!uid) return []
+    return list.map((file) => {
       const path = messageMediaPath('u', uid, file.name)
       const upload = markRaw(startMessageMediaUpload(path, file, {
         validate: true,
         name: file.name,
         reuse: false,
         folder: folderId,
+        resumeKey: `u/${uid}`,
       }))
-      const item: DriveUploadItem = { key: path, name: file.name, size: file.size, upload }
-      uploads.value = [...uploads.value, item]
       upload.result.catch(() => {}).finally(() => {
-        setTimeout(() => {
-          uploads.value = uploads.value.filter((u) => u.key !== path || u.upload.state.status === 'error')
-        }, 1500)
         void loadFiles()
         void refreshDriveUsage(true)
       })
-    }
-  }
-
-  function dismissUpload(key: string): void {
-    uploads.value = uploads.value.filter((u) => u.key !== key)
+      return upload
+    })
   }
 
   function reset(): void {
@@ -265,14 +253,13 @@ export const useDriveStore = defineStore('drive', () => {
     query.value = ''
     kind.value = null
     selected.value = new Set()
-    uploads.value = []
   }
 
   return {
     location, entries, files, total, loading, error, folders, tree, query, kind, sort, layout,
-    selected, selectedFiles, uploads, childFolders, breadcrumbs, folderById,
+    selected, selectedFiles, childFolders, breadcrumbs, folderById,
     setLayout, loadFiles, loadFolders, loadTree, refreshAll, open, select, selectAll, clearSelection,
     createFolder, renameFolder, moveFolder, deleteFolder, renameFile, setLinkToken, moveFiles, trashFiles,
-    restoreFiles, deleteFiles, keepFiles, emptyTrash, uploadFiles, dismissUpload, reset,
+    restoreFiles, deleteFiles, keepFiles, emptyTrash, uploadFiles, reset,
   }
 })

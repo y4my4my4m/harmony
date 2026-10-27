@@ -135,6 +135,7 @@ dependencies = [
  "base64 0.22.1",
  "block2 0.6.2",
  "glib-sys 0.22.9",
+ "harmony-download",
  "jni 0.21.1",
  "libc",
  "log",
@@ -2418,6 +2419,15 @@ dependencies = [
  "libc",
  "pango-sys 0.22.9",
  "system-deps 9.0.0",
+]
+
+[[package]]
+name = "harmony-download"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "rustls",
+ "tokio",
 ]
 
 [[package]]

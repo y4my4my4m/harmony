@@ -343,6 +343,7 @@
     "federationHandle": "Server handle",
     "federationHandleDesc": "Share this handle so people on other instances can find and join this server.",
     "uploadingEmojis": "Uploading emoji {current} of {total}...",
+    "uploadingEmoji": "Uploading {name}…",
     "copyEmojiName": "Copy emoji name",
     "renameEmoji": "Rename emoji",
     "deleteEmojiTitle": "Delete emoji",
@@ -7440,5 +7441,18 @@
     "deleteFor": "Delete {name}",
     "confirmDeleteTitle": "Delete this webhook?",
     "confirmDeleteMessage": "{name} ({host}) and its delivery log are deleted. Its owner is not told."
+  },
+  "transfers": {
+    "label": "Transfers",
+    "uploading": "Uploading {count} file | Uploading {count} files",
+    "downloading": "Downloading {count} file | Downloading {count} files",
+    "reconnecting": "Reconnecting…",
+    "done": "Done",
+    "progress": "{name}, {percent}%",
+    "cancel": "Cancel {name}",
+    "dismiss": "Dismiss {name}",
+    "showInFolder": "Show in folder",
+    "downloadStarted": "Downloading {name}",
+    "downloadFailed": "Download failed: {reason}"
   }
 }

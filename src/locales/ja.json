@@ -343,6 +343,7 @@
     "fileSizeTooLarge": "ファイルサイズは8MB未満である必要があります",
     "selectValidImageFile": "有効な画像ファイルを選択してください",
     "uploadingEmojis": "{total}個中{current}個の絵文字をアップロード中...",
+    "uploadingEmoji": "{name} をアップロード中…",
     "copyEmojiName": "絵文字名をコピー",
     "renameEmoji": "絵文字名を変更",
     "deleteEmojiTitle": "絵文字を削除",
@@ -7444,5 +7445,18 @@
     "deleteFor": "{name} を削除",
     "confirmDeleteTitle": "このWebhookを削除しますか？",
     "confirmDeleteMessage": "{name}（{host}）とその配信ログを削除します。所有者には通知されません。"
+  },
+  "transfers": {
+    "label": "転送",
+    "uploading": "{count} 件のファイルをアップロード中 | {count} 件のファイルをアップロード中",
+    "downloading": "{count} 件のファイルをダウンロード中 | {count} 件のファイルをダウンロード中",
+    "reconnecting": "再接続中…",
+    "done": "完了",
+    "progress": "{name}、{percent}%",
+    "cancel": "{name} をキャンセル",
+    "dismiss": "{name} を閉じる",
+    "showInFolder": "フォルダーで表示",
+    "downloadStarted": "{name} をダウンロード中",
+    "downloadFailed": "ダウンロードに失敗しました: {reason}"
   }
 }

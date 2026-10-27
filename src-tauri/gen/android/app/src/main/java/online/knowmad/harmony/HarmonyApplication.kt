@@ -1,11 +1,13 @@
 package online.knowmad.harmony
 
 import android.app.Application
+import android.app.DownloadManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.lang.ref.WeakReference
@@ -73,6 +75,25 @@ class HarmonyApplication : Application() {
     }
   }
 
+  // DownloadManager saves into Downloads (API 29+: the shared Downloads folder, no storage
+  // permission; before: the app's own Downloads folder), shows its progress notification and
+  // resumes after a dropped connection. Throws for a non-web URL; the Rust caller clears it.
+  fun downloadUrl(url: String, fileName: String) {
+    val uri = Uri.parse(url)
+    val scheme = uri.scheme?.lowercase()
+    require((scheme == "https" || scheme == "http") && !uri.host.isNullOrEmpty()) { "not a web URL" }
+    val name = downloadName(fileName)
+    val request = DownloadManager.Request(uri)
+      .setTitle(name)
+      .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+    } else {
+      request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name)
+    }
+    (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+  }
+
   fun startCallService() {
     val i = Intent(this, CallForegroundService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
@@ -94,4 +115,15 @@ class HarmonyApplication : Application() {
       .apply()
     activity?.get()?.applyBars(statusHex, navHex, statusDark, navDark)
   }
+}
+
+// A file name for Downloads: path separators and control characters become `_`, at most 200
+// characters, never empty.
+internal fun downloadName(fileName: String): String {
+  val cleaned = fileName.map { c -> if (c == '/' || c == '\\' || c.isISOControl()) '_' else c }
+    .joinToString("")
+    .trim()
+    .trimEnd('.', ' ')
+  val bounded = if (cleaned.length > 200) cleaned.take(200) else cleaned
+  return bounded.ifEmpty { "download" }
 }

@@ -14,6 +14,7 @@ import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
 import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
 import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
+import { uploadStorageObject } from '@/services/uploads/storageUpload';
 import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
@@ -2148,15 +2149,15 @@ export const useActivityPubStore = defineStore('activitypub', {
         const filePath = `${authUserId}/posts/${fileName}`;
 
         try {
-          const { data, error } = await supabase.storage
-            .from('user_media')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
+          const { data, error } = await uploadStorageObject('user_media', filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            label: file.name,
+          });
 
-          if (error) {
+          if (error || !data) {
             debug.error('Upload error:', error);
+            if (!error) throw new Error(`Failed to upload "${file.name}"`);
             if (error.message?.includes('row-level security') || error.message?.includes('Unauthorized')) {
               throw new Error('Media upload failed: storage permission denied. Please try again or contact your instance admin.');
             }

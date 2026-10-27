@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import { i18n } from '@/i18n';
 import { immutableObjectPath, immutableUploadOptions, prepareImageUpload } from '@/utils/imageResize'
 import { removeReplacedObject } from '@/utils/storageImageUtils'
+import { uploadStorageObject } from '@/services/uploads/storageUpload'
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { invalidateServerMemberCache } from '@/services/usersService'
@@ -60,9 +61,10 @@ export const useServerStore = defineStore('server', {
           const filePath = immutableObjectPath(serverData.id, 'icon', icon.extension);
 
           debug.log('Uploading server icon to:', filePath);
-          const { error: uploadError } = await supabase.storage
-            .from('server_icons')
-            .upload(filePath, icon.file, immutableUploadOptions(icon));
+          const { error: uploadError } = await uploadStorageObject('server_icons', filePath, icon.file, {
+            ...immutableUploadOptions(icon),
+            label: file.name || undefined,
+          });
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_icons'));
@@ -87,9 +89,10 @@ export const useServerStore = defineStore('server', {
           const filePath = immutableObjectPath(serverData.id, 'banner', banner.extension);
 
           debug.log('Uploading server banner to:', filePath);
-          const { error: uploadError } = await supabase.storage
-            .from('server_banners')
-            .upload(filePath, banner.file, immutableUploadOptions(banner));
+          const { error: uploadError } = await uploadStorageObject('server_banners', filePath, banner.file, {
+            ...immutableUploadOptions(banner),
+            label: bannerFile.name || undefined,
+          });
 
           if (uploadError) {
             toast.error(humanizeUploadError(uploadError, 'server_banners'));

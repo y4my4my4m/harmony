@@ -72,9 +72,7 @@ router.get('/link/:token', async (req: Request, res: Response) => {
     return;
   }
   const download = req.query.download === '1' ? (target.name || 'file') : undefined;
-  const options = thumb
-    ? { transform: THUMBNAIL_TRANSFORM }
-    : download ? { download } : undefined;
+  const options = thumb ? { transform: THUMBNAIL_TRANSFORM } : undefined;
   const { data: signed, error: signError } = await supabase.storage
     .from(target.bucket)
     .createSignedUrl(target.path, REDIRECT_TTL_SECONDS, options);
@@ -82,13 +80,18 @@ router.get('/link/:token', async (req: Request, res: Response) => {
     deny(res, 404);
     return;
   }
+  // storage-js's own `download` option passes the name through encodeURI, which leaves & # +
+  // unescaped and cuts the name there.
+  const source = download
+    ? `${signed.signedUrl}${signed.signedUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(download)}`
+    : signed.signedUrl;
 
   const abort = new AbortController();
   res.on('close', () => abort.abort());
   let upstream: globalThis.Response;
   try {
     const range = typeof req.headers.range === 'string' ? req.headers.range : undefined;
-    upstream = await fetch(signed.signedUrl, {
+    upstream = await fetch(source, {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       headers: range ? { Range: range } : {},
       signal: abort.signal,
