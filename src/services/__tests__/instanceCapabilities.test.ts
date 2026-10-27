@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { CAPABILITIES as SERVER_CAPABILITIES } from '../../../federation-backend/src/config/capabilities'
 
 // The native app against an instance older than itself: capabilities come from /instance-info,
 // a server before 1.9.0 lists none, and the app says once per server version that it is older.
@@ -21,6 +22,8 @@ async function load(stored: Record<string, unknown> | null, native = true) {
   localStorage.clear()
   if (native) vi.stubGlobal('__TAURI_INTERNALS__', {})
   if (stored) localStorage.setItem('harmony.instance', JSON.stringify(stored))
+  // main.ts loads i18n before the app starts; instanceCapabilities imports it when it speaks.
+  await import('@/i18n')
   return import('@/services/instanceCapabilities')
 }
 
@@ -81,10 +84,23 @@ describe('checkInstanceVersion', () => {
   })
 
   it('says nothing to an older instance that lacks no capability the app knows', async () => {
-    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks', 'channel-create-options'] })
+    answer({ version: '1.9.0', capabilities: [...SERVER_CAPABILITIES] })
     const m = await load({ ...STORED, version: '1.9.0' })
     await m.checkInstanceVersion('1.9.1')
     expect(info).not.toHaveBeenCalled()
+  })
+
+  it('knows the capabilities the federation backend of this release lists, and no others', async () => {
+    const m = await load(STORED)
+    expect([...m.KNOWN_CAPABILITIES].sort()).toEqual([...SERVER_CAPABILITIES].sort())
+  })
+
+  it('hides instance staff roles on an instance before 1.9.1', async () => {
+    answer({ version: '1.9.0', capabilities: ['encrypted-history', 'outgoing-webhooks', 'channel-create-options'] })
+    const m = await load({ ...STORED, version: '1.9.0' })
+    await m.checkInstanceVersion('1.9.1')
+    expect(m.hasCapability('instance-staff-roles')).toBe(false)
+    expect(m.hasCapability('channel-create-options')).toBe(true)
   })
 
   it('hides outgoing webhooks on an instance that does not list them', async () => {

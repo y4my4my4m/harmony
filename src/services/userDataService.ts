@@ -33,6 +33,7 @@ import {
   resolveUnifiedEmojiDisplay,
 } from '@/services/emojiShortcodeResolver'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { channelRetryDelay, isChannelRefusal } from '@/utils/realtimeRefusal'
 
 const EMOJI_SHORTCODE_TEST_REGEX = createShortcodeRegex()
@@ -71,7 +72,15 @@ interface PresenceRow {
 
 /** Bulk member-list hydration - omit federation_metadata (large JSONB, rarely needed). */
 const PROFILE_BULK_SELECT =
-  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator, instance_role'
+  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
+
+/**
+ * PROFILE_BULK_SELECT plus the columns of the instance's release. profiles.instance_role is
+ * 1.9.1 (instance-staff-roles); PostgREST answers 400 to a select naming a column it lacks.
+ */
+function profileBulkSelect(): string {
+  return hasCapability('instance-staff-roles') ? `${PROFILE_BULK_SELECT}, instance_role` : PROFILE_BULK_SELECT
+}
 
 class UserDataService extends EventTarget {
   private users = new Map<string, UserData>()
@@ -1212,7 +1221,7 @@ class UserDataService extends EventTarget {
         const chunk = missingUserIds.slice(i, i + PROFILE_BACKFILL_CHUNK)
         const { data: profiles, error } = await supabase
           .from('profiles')
-          .select(PROFILE_BULK_SELECT)
+          .select(profileBulkSelect())
           .in('id', chunk)
 
         if (error) {
