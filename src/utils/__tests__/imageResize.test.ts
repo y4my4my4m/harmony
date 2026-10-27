@@ -127,6 +127,7 @@ describe('fitWithin', () => {
     expect(IMAGE_SHRINK_BOUNDS.server_icon.maxWidth).toBe(1024)
     expect(IMAGE_SHRINK_BOUNDS.group_icon.maxWidth).toBe(1024)
     expect(IMAGE_SHRINK_BOUNDS.emoji).toEqual({ maxWidth: 256, maxHeight: 256 })
+    expect(IMAGE_SHRINK_BOUNDS.sticker).toEqual({ maxWidth: 320, maxHeight: 320 })
   })
 })
 
@@ -249,6 +250,22 @@ describe('prepareImageUpload', () => {
       .toMatchObject({ extension: 'png', contentType: 'image/png' })
     const overLimit = await prepareImageUpload(fileOf(apng(4), 'spin.apng', 'image/apng'), 'emoji', budget(100), codec)
     expect(overLimit).toMatchObject({ extension: 'apng', contentType: 'image/png', reencoded: false })
+  })
+
+  it('redraws a still image over maxSide within the kind bounds, though its bytes fit', async () => {
+    const { codec, renders } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/png': 900 } })
+    const original = fileOf(png(), 'wide.png', 'image/png')
+    const result = await prepareImageUpload(original, 'sticker', { ...budget(original.size), maxSide: 320 }, codec)
+    expect(renders[0]).toEqual({ width: 320, height: 107, orientation: 1 })
+    expect(result).toMatchObject({ extension: 'png', reencoded: true })
+  })
+
+  it('keeps an animated original over maxSide: animation is never redrawn', async () => {
+    const { codec, decode } = fakeCodec({ width: 3000, height: 1000 })
+    const animated = fileOf(apng(3), 'wide.png', 'image/png')
+    const result = await prepareImageUpload(animated, 'sticker', { ...budget(animated.size), maxSide: 320 }, codec)
+    expect(result).toEqual({ file: animated, extension: 'apng', contentType: 'image/png', reencoded: false })
+    expect(decode).not.toHaveBeenCalled()
   })
 
   it('relabels a file whose type the bytes contradict and keeps its bytes', async () => {

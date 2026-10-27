@@ -1116,7 +1116,8 @@
       "video": "Video",
       "audio": "Audio",
       "file": "Datei {name}",
-      "poll": "Umfrage: {question}"
+      "poll": "Umfrage: {question}",
+      "sticker": "Sticker {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -4375,7 +4376,8 @@
       "invite": "Einladungen",
       "emoji": "Emojis",
       "sound": "Sounds",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Sticker"
     },
     "actions": {
       "channel_create": "{actor} hat den Kanal {target} erstellt",
@@ -4422,7 +4424,10 @@
       "bot_remove": "{actor} hat den Bot {target} entfernt",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor} hat den Server suspendiert",
-      "server_unsuspend": "{actor} hat die Suspendierung des Servers aufgehoben"
+      "server_unsuspend": "{actor} hat die Suspendierung des Servers aufgehoben",
+      "sticker_create": "{actor} hat den Sticker {target} hinzugefügt",
+      "sticker_update": "{actor} hat den Sticker {target} bearbeitet",
+      "sticker_delete": "{actor} hat den Sticker {target} entfernt"
     },
     "fields": {
       "name": "Name",
@@ -5128,12 +5133,21 @@
       "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
       "customOAuthEmpty": "Noch keine.",
       "customOAuthCallback": "Weiterleitungs-URL (Callback), die beim Anbieter eingetragen wird:",
-      "customOAuthManage": "Auf dem Server, im Harmony-Ordner:"
+      "customOAuthManage": "Auf dem Server, im Harmony-Ordner:",
+      "maxStickersPerServer": "Sticker pro Server",
+      "maxStickersPerServerHint": "0 bis 100. 0 schaltet Server-Sticker aus.",
+      "maxInstanceStickers": "Instanz-Sticker",
+      "maxInstanceStickersHint": "0 bis 500. Jedes lokale Konto kann Instanz-Sticker senden. 0 schaltet sie aus.",
+      "maxPersonalStickers": "Persönliche Sticker pro Person",
+      "maxPersonalStickersHint": "0 bis 100. 0, der Standard, schaltet persönliche Sticker aus."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag",
-        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person"
+        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person",
+        "maxStickersPerServer": "Sticker pro Server",
+        "maxInstanceStickers": "Instanz-Sticker",
+        "maxPersonalStickersPerUser": "Persönliche Sticker pro Person"
       },
       "staff": {
         "someServer": "ein Server",
@@ -7474,5 +7488,80 @@
     "showInFolder": "Im Ordner anzeigen",
     "downloadStarted": "{name} wird heruntergeladen",
     "downloadFailed": "Download fehlgeschlagen: {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name}: {description}",
+    "goneLabel": "Sticker {name}, nicht mehr verfügbar: {description}",
+    "removed": "Sticker entfernt",
+    "unavailable": "Sticker nicht verfügbar",
+    "preview": "Sticker: {name}",
+    "pickLabel": "Sticker {name} senden: {description}",
+    "picker": {
+      "server": "Dieser Server",
+      "instance": "Instanz-Sticker",
+      "mine": "Meine Sticker"
+    },
+    "errors": {
+      "type": "Ein Sticker ist ein PNG-, APNG-, WebP- oder GIF-Bild.",
+      "size": "Dieser Sticker ist {size} groß; das Limit ist {max}.",
+      "dimensions": "Dieser Sticker hat {width}×{height} Pixel; das Limit ist {max}×{max}. Animierte Sticker werden nicht verkleinert.",
+      "duration": "Diese Animation läuft {seconds} s; das Limit ist {max} s.",
+      "dimensionsGeneric": "Ein Sticker hat höchstens {max}×{max} Pixel.",
+      "durationGeneric": "Ein animierter Sticker läuft höchstens {max} Sekunden.",
+      "nameLength": "Ein Stickername hat {min} bis {max} Zeichen.",
+      "descriptionMissing": "Beschreibe den Sticker für Menschen, die ihn nicht sehen können.",
+      "descriptionLength": "Eine Beschreibung hat höchstens {max} Zeichen.",
+      "limit": "Sticker-Limit erreicht ({max}).",
+      "off": "Diese Sticker sind auf dieser Instanz ausgeschaltet.",
+      "nameTaken": "Ein Sticker hier hat diesen Namen bereits.",
+      "forbidden": "Du kannst diese Sticker nicht verwalten.",
+      "notFound": "Diesen Sticker gibt es nicht mehr.",
+      "generic": "Der Sticker konnte nicht gespeichert werden."
+    },
+    "manage": {
+      "navLabel": "Sticker",
+      "serverTitle": "Sticker",
+      "serverDescription": "Sticker, die Mitglieder in den Kanälen und Threads dieses Servers senden können. Mitglieder mit „Ausdrücke verwalten“ fügen sie hinzu, bearbeiten und entfernen sie.",
+      "instanceTitle": "Instanz-Sticker",
+      "instanceDescription": "Sticker, die jedes Konto dieser Instanz in jedem Server und jeder Unterhaltung senden kann.",
+      "myTitle": "Meine Sticker",
+      "myDescription": "Sticker, die nur du senden kannst, in jedem Server und jeder Unterhaltung.",
+      "upload": "Sticker hinzufügen",
+      "limits": "PNG, APNG, WebP oder GIF, bis {size} und {side}×{side} Pixel; Animationen bis {seconds} Sekunden. Größere Standbilder werden verkleinert.",
+      "file": "Bild",
+      "name": "Name",
+      "description": "Beschreibung",
+      "descriptionHint": "Wird von Screenreadern vorgelesen und angezeigt, wenn das Bild nicht lädt. Pflichtfeld.",
+      "uploading": "Wird hochgeladen…",
+      "uploadButton": "Sticker hochladen",
+      "uploaded": "Sticker „{name}“ hinzugefügt",
+      "saved": "Sticker „{name}“ gespeichert",
+      "deleted": "Sticker „{name}“ entfernt",
+      "listTitle": "Sticker",
+      "empty": "Noch keine Sticker.",
+      "editLabel": "Sticker {name} bearbeiten",
+      "deleteLabel": "Sticker {name} löschen",
+      "deleteTitle": "Sticker entfernen",
+      "deleteConfirm": "„{name}“ entfernen? Nachrichten, die ihn gesendet haben, zeigen stattdessen einen Platzhalter.",
+      "loading": "Sticker werden geladen",
+      "loadFailed": "Sticker konnten nicht geladen werden.",
+      "off": {
+        "server": "Server-Sticker sind auf dieser Instanz ausgeschaltet.",
+        "instance": "Instanz-Sticker sind ausgeschaltet. Erhöhe das Limit unter Admin → Config.",
+        "user": "Persönliche Sticker sind auf dieser Instanz ausgeschaltet. Ein Admin kann sie erlauben."
+      }
+    },
+    "report": {
+      "menu": "Sticker melden",
+      "proof": "Gemeldeter Sticker",
+      "remove": "Sticker entfernen",
+      "removeConfirm": "Diesen Sticker für alle entfernen? Nachrichten, die ihn gesendet haben, zeigen stattdessen einen Platzhalter.",
+      "removed": "Sticker entfernt",
+      "scope": {
+        "server": "Sticker von {server}",
+        "instance": "Instanz-Sticker",
+        "user": "Persönlicher Sticker"
+      }
+    }
   }
 }

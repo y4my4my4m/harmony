@@ -240,6 +240,48 @@
         <span id="max-personal-emojis-hint" class="setting-hint">{{ $t('admin.instance.maxPersonalEmojisHint') }}</span>
       </div>
       <div class="setting-group">
+        <label for="max-stickers-per-server">{{ $t('admin.instance.maxStickersPerServer') }}</label>
+        <input
+          id="max-stickers-per-server"
+          v-model.number="config.federation.maxStickersPerServer"
+          type="number"
+          class="cyber-input"
+          min="0"
+          max="100"
+          aria-describedby="max-stickers-per-server-hint"
+          data-testid="max-stickers-per-server-input"
+        />
+        <span id="max-stickers-per-server-hint" class="setting-hint">{{ $t('admin.instance.maxStickersPerServerHint') }}</span>
+      </div>
+      <div class="setting-group">
+        <label for="max-instance-stickers">{{ $t('admin.instance.maxInstanceStickers') }}</label>
+        <input
+          id="max-instance-stickers"
+          v-model.number="config.federation.maxInstanceStickers"
+          type="number"
+          class="cyber-input"
+          min="0"
+          max="500"
+          aria-describedby="max-instance-stickers-hint"
+          data-testid="max-instance-stickers-input"
+        />
+        <span id="max-instance-stickers-hint" class="setting-hint">{{ $t('admin.instance.maxInstanceStickersHint') }}</span>
+      </div>
+      <div class="setting-group">
+        <label for="max-personal-stickers">{{ $t('admin.instance.maxPersonalStickers') }}</label>
+        <input
+          id="max-personal-stickers"
+          v-model.number="config.federation.maxPersonalStickersPerUser"
+          type="number"
+          class="cyber-input"
+          min="0"
+          max="100"
+          aria-describedby="max-personal-stickers-hint"
+          data-testid="max-personal-stickers-input"
+        />
+        <span id="max-personal-stickers-hint" class="setting-hint">{{ $t('admin.instance.maxPersonalStickersHint') }}</span>
+      </div>
+      <div class="setting-group">
         <label>Custom emoji image quality</label>
         <input
           v-model.number="config.federation.customEmojiTransformQuality"
@@ -705,6 +747,7 @@ import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
 import type { CustomOAuthProvider } from '@/utils/customOAuthProviders'
 
 const authStore = useAuthStore()
@@ -790,6 +833,9 @@ const config = ref({
     retryAttempts: 3,
     maxCustomEmojisPerServer: 50,
     maxPersonalEmojisPerUser: DEFAULT_PERSONAL_EMOJIS_PER_USER,
+    maxStickersPerServer: DEFAULT_STICKER_CAPS.server,
+    maxInstanceStickers: DEFAULT_STICKER_CAPS.instance,
+    maxPersonalStickersPerUser: DEFAULT_STICKER_CAPS.user,
     customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
     maxPostReactionsPerUser: 10,
@@ -931,6 +977,9 @@ const saveConfig = async () => {
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
       max_personal_emojis_per_user: parsePersonalEmojiLimit(config.value.federation.maxPersonalEmojisPerUser),
+      max_stickers_per_server: parseStickerCap('server', config.value.federation.maxStickersPerServer),
+      max_instance_stickers: parseStickerCap('instance', config.value.federation.maxInstanceStickers),
+      max_personal_stickers_per_user: parseStickerCap('user', config.value.federation.maxPersonalStickersPerUser),
       custom_emoji_transform_quality: Math.min(
         100,
         Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))

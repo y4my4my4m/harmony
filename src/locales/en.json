@@ -1163,7 +1163,8 @@
       "video": "video",
       "audio": "audio",
       "file": "file {name}",
-      "poll": "poll: {question}"
+      "poll": "poll: {question}",
+      "sticker": "sticker {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -4375,7 +4376,8 @@
       "invite": "Invites",
       "emoji": "Emojis",
       "sound": "Sounds",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Stickers"
     },
     "actions": {
       "channel_create": "{actor} created channel {target}",
@@ -4422,7 +4424,10 @@
       "bot_remove": "{actor} removed the bot {target}",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor} suspended the server",
-      "server_unsuspend": "{actor} lifted the server's suspension"
+      "server_unsuspend": "{actor} lifted the server's suspension",
+      "sticker_create": "{actor} added sticker {target}",
+      "sticker_update": "{actor} edited sticker {target}",
+      "sticker_delete": "{actor} removed sticker {target}"
     },
     "fields": {
       "name": "Name",
@@ -5124,12 +5129,21 @@
       "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
       "customOAuthEmpty": "None yet.",
       "customOAuthCallback": "Redirect (callback) URL to register with the provider:",
-      "customOAuthManage": "On the server, from the Harmony folder:"
+      "customOAuthManage": "On the server, from the Harmony folder:",
+      "maxStickersPerServer": "Stickers per server",
+      "maxStickersPerServerHint": "0 to 100. 0 turns server stickers off.",
+      "maxInstanceStickers": "Instance stickers",
+      "maxInstanceStickersHint": "0 to 500. Every local account can send instance stickers. 0 turns them off.",
+      "maxPersonalStickers": "Personal stickers per user",
+      "maxPersonalStickersHint": "0 to 100. 0, the default, turns personal stickers off."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Max reactions per person on a post",
-        "maxPersonalEmojisPerUser": "Personal emojis per user"
+        "maxPersonalEmojisPerUser": "Personal emojis per user",
+        "maxStickersPerServer": "Stickers per server",
+        "maxInstanceStickers": "Instance stickers",
+        "maxPersonalStickersPerUser": "Personal stickers per user"
       },
       "staff": {
         "someServer": "a server",
@@ -7470,5 +7484,80 @@
     "showInFolder": "Show in folder",
     "downloadStarted": "Downloading {name}",
     "downloadFailed": "Download failed: {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name}: {description}",
+    "goneLabel": "Sticker {name}, no longer available: {description}",
+    "removed": "Sticker removed",
+    "unavailable": "Sticker unavailable",
+    "preview": "Sticker: {name}",
+    "pickLabel": "Send sticker {name}: {description}",
+    "picker": {
+      "server": "This server",
+      "instance": "Instance stickers",
+      "mine": "My stickers"
+    },
+    "errors": {
+      "type": "A sticker is a PNG, APNG, WebP or GIF image.",
+      "size": "That sticker is {size}; the limit is {max}.",
+      "dimensions": "That sticker is {width}×{height} pixels; the limit is {max}×{max}. Animated stickers are not resized.",
+      "duration": "That animation runs {seconds} s; the limit is {max} s.",
+      "dimensionsGeneric": "A sticker is at most {max}×{max} pixels.",
+      "durationGeneric": "An animated sticker runs at most {max} seconds.",
+      "nameLength": "A sticker name is {min} to {max} characters.",
+      "descriptionMissing": "Describe the sticker for people who cannot see it.",
+      "descriptionLength": "A description is at most {max} characters.",
+      "limit": "Sticker limit reached ({max}).",
+      "off": "These stickers are turned off on this instance.",
+      "nameTaken": "A sticker here already has that name.",
+      "forbidden": "You cannot manage these stickers.",
+      "notFound": "That sticker no longer exists.",
+      "generic": "The sticker could not be saved."
+    },
+    "manage": {
+      "navLabel": "Stickers",
+      "serverTitle": "Stickers",
+      "serverDescription": "Stickers members can send in this server's channels and threads. Members with Manage Expressions add, edit and remove them.",
+      "instanceTitle": "Instance stickers",
+      "instanceDescription": "Stickers every account on this instance can send in any server or conversation.",
+      "myTitle": "My stickers",
+      "myDescription": "Stickers only you can send, in any server or conversation.",
+      "upload": "Add a sticker",
+      "limits": "PNG, APNG, WebP or GIF, up to {size} and {side}×{side} pixels; animations up to {seconds} seconds. Larger still images are resized.",
+      "file": "Image",
+      "name": "Name",
+      "description": "Description",
+      "descriptionHint": "Read aloud by screen readers and shown when the image cannot load. Required.",
+      "uploading": "Uploading…",
+      "uploadButton": "Upload sticker",
+      "uploaded": "Sticker \"{name}\" added",
+      "saved": "Sticker \"{name}\" saved",
+      "deleted": "Sticker \"{name}\" removed",
+      "listTitle": "Stickers",
+      "empty": "No stickers yet.",
+      "editLabel": "Edit sticker {name}",
+      "deleteLabel": "Delete sticker {name}",
+      "deleteTitle": "Remove sticker",
+      "deleteConfirm": "Remove \"{name}\"? Messages that sent it show a placeholder instead.",
+      "loading": "Loading stickers",
+      "loadFailed": "Stickers could not be loaded.",
+      "off": {
+        "server": "Server stickers are turned off on this instance.",
+        "instance": "Instance stickers are turned off. Raise the limit in Admin → Config.",
+        "user": "Personal stickers are turned off on this instance. An admin can allow them."
+      }
+    },
+    "report": {
+      "menu": "Report sticker",
+      "proof": "Reported sticker",
+      "remove": "Remove sticker",
+      "removeConfirm": "Remove this sticker for everyone? Messages that sent it show a placeholder instead.",
+      "removed": "Sticker removed",
+      "scope": {
+        "server": "Sticker of {server}",
+        "instance": "Instance sticker",
+        "user": "Personal sticker"
+      }
+    }
   }
 }

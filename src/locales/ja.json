@@ -1116,7 +1116,8 @@
       "video": "動画",
       "audio": "音声",
       "file": "ファイル {name}",
-      "poll": "投票: {question}"
+      "poll": "投票: {question}",
+      "sticker": "スタンプ {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -4375,7 +4376,8 @@
       "invite": "招待",
       "emoji": "絵文字",
       "sound": "サウンド",
-      "bot": "BOT"
+      "bot": "BOT",
+      "sticker": "スタンプ"
     },
     "actions": {
       "channel_create": "{actor}がチャンネル{target}を作成しました",
@@ -4422,7 +4424,10 @@
       "bot_remove": "{actor}がBOT{target}を削除しました",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor}がサーバーを停止しました",
-      "server_unsuspend": "{actor}がサーバーの停止を解除しました"
+      "server_unsuspend": "{actor}がサーバーの停止を解除しました",
+      "sticker_create": "{actor} がスタンプ {target} を追加しました",
+      "sticker_update": "{actor} がスタンプ {target} を編集しました",
+      "sticker_delete": "{actor} がスタンプ {target} を削除しました"
     },
     "fields": {
       "name": "名前",
@@ -5128,12 +5133,21 @@
       "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
       "customOAuthEmpty": "まだありません。",
       "customOAuthCallback": "プロバイダーに登録するリダイレクト（コールバック）URL：",
-      "customOAuthManage": "サーバー上の Harmony フォルダーで："
+      "customOAuthManage": "サーバー上の Harmony フォルダーで：",
+      "maxStickersPerServer": "サーバーごとのスタンプ数",
+      "maxStickersPerServerHint": "0〜100。0 でサーバーのスタンプを無効にします。",
+      "maxInstanceStickers": "インスタンスのスタンプ数",
+      "maxInstanceStickersHint": "0〜500。すべてのローカルアカウントがインスタンスのスタンプを送信できます。0 で無効にします。",
+      "maxPersonalStickers": "ユーザーごとの個人スタンプ数",
+      "maxPersonalStickersHint": "0〜100。既定の 0 で個人スタンプを無効にします。"
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数",
-        "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数"
+        "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数",
+        "maxStickersPerServer": "サーバーごとのスタンプ数",
+        "maxInstanceStickers": "インスタンスのスタンプ数",
+        "maxPersonalStickersPerUser": "ユーザーごとの個人スタンプ数"
       },
       "staff": {
         "someServer": "あるサーバー",
@@ -7474,5 +7488,80 @@
     "showInFolder": "フォルダーで表示",
     "downloadStarted": "{name} をダウンロード中",
     "downloadFailed": "ダウンロードに失敗しました: {reason}"
+  },
+  "stickers": {
+    "alt": "スタンプ {name}: {description}",
+    "goneLabel": "スタンプ {name}(利用できなくなりました): {description}",
+    "removed": "スタンプは削除されました",
+    "unavailable": "スタンプを表示できません",
+    "preview": "スタンプ: {name}",
+    "pickLabel": "スタンプ {name} を送信: {description}",
+    "picker": {
+      "server": "このサーバー",
+      "instance": "インスタンスのスタンプ",
+      "mine": "マイスタンプ"
+    },
+    "errors": {
+      "type": "スタンプは PNG、APNG、WebP、GIF 画像です。",
+      "size": "このスタンプは {size} です。上限は {max} です。",
+      "dimensions": "このスタンプは {width}×{height} ピクセルです。上限は {max}×{max} です。アニメーションスタンプは縮小されません。",
+      "duration": "このアニメーションは {seconds} 秒です。上限は {max} 秒です。",
+      "dimensionsGeneric": "スタンプは最大 {max}×{max} ピクセルです。",
+      "durationGeneric": "アニメーションスタンプは最大 {max} 秒です。",
+      "nameLength": "スタンプ名は {min}〜{max} 文字です。",
+      "descriptionMissing": "見ることができない人のために、スタンプの説明を入力してください。",
+      "descriptionLength": "説明は最大 {max} 文字です。",
+      "limit": "スタンプの上限に達しました ({max})。",
+      "off": "このインスタンスではこれらのスタンプは無効です。",
+      "nameTaken": "その名前のスタンプはすでにあります。",
+      "forbidden": "これらのスタンプを管理する権限がありません。",
+      "notFound": "そのスタンプはもう存在しません。",
+      "generic": "スタンプを保存できませんでした。"
+    },
+    "manage": {
+      "navLabel": "スタンプ",
+      "serverTitle": "スタンプ",
+      "serverDescription": "メンバーがこのサーバーのチャンネルとスレッドで送信できるスタンプです。「表現の管理」を持つメンバーが追加・編集・削除します。",
+      "instanceTitle": "インスタンスのスタンプ",
+      "instanceDescription": "このインスタンスのすべてのアカウントが、どのサーバーや会話でも送信できるスタンプです。",
+      "myTitle": "マイスタンプ",
+      "myDescription": "あなただけが、どのサーバーや会話でも送信できるスタンプです。",
+      "upload": "スタンプを追加",
+      "limits": "PNG、APNG、WebP、GIF。{size} まで、{side}×{side} ピクセルまで。アニメーションは {seconds} 秒まで。大きい静止画は縮小されます。",
+      "file": "画像",
+      "name": "名前",
+      "description": "説明",
+      "descriptionHint": "スクリーンリーダーで読み上げられ、画像を読み込めないときに表示されます。必須です。",
+      "uploading": "アップロード中…",
+      "uploadButton": "スタンプをアップロード",
+      "uploaded": "スタンプ「{name}」を追加しました",
+      "saved": "スタンプ「{name}」を保存しました",
+      "deleted": "スタンプ「{name}」を削除しました",
+      "listTitle": "スタンプ",
+      "empty": "スタンプはまだありません。",
+      "editLabel": "スタンプ {name} を編集",
+      "deleteLabel": "スタンプ {name} を削除",
+      "deleteTitle": "スタンプを削除",
+      "deleteConfirm": "「{name}」を削除しますか?送信済みのメッセージには代わりにプレースホルダーが表示されます。",
+      "loading": "スタンプを読み込み中",
+      "loadFailed": "スタンプを読み込めませんでした。",
+      "off": {
+        "server": "このインスタンスではサーバーのスタンプは無効です。",
+        "instance": "インスタンスのスタンプは無効です。管理 → Config で上限を上げてください。",
+        "user": "このインスタンスでは個人スタンプは無効です。管理者が許可できます。"
+      }
+    },
+    "report": {
+      "menu": "スタンプを通報",
+      "proof": "通報されたスタンプ",
+      "remove": "スタンプを削除",
+      "removeConfirm": "このスタンプを全員から削除しますか?送信済みのメッセージには代わりにプレースホルダーが表示されます。",
+      "removed": "スタンプは削除されました",
+      "scope": {
+        "server": "{server} のスタンプ",
+        "instance": "インスタンスのスタンプ",
+        "user": "個人スタンプ"
+      }
+    }
   }
 }

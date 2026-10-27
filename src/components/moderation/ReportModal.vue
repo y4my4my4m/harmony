@@ -47,6 +47,13 @@
             <blockquote class="proof-quote">{{ targetMessagePreview }}</blockquote>
           </div>
 
+          <!-- Proof: the sticker -->
+          <div v-if="reportType === 'sticker' && targetSticker" class="proof-section" data-testid="report-sticker-proof">
+            <label>{{ t('stickers.report.proof') }}</label>
+            <img :src="targetSticker.url" :alt="targetSticker.description" class="proof-sticker" />
+            <span class="proof-sticker-name">{{ targetSticker.name }}</span>
+          </div>
+
           <!-- Proof: post preview -->
           <div v-if="reportType === 'post' && targetPostPreview" class="proof-section">
             <label>Reported post</label>
@@ -151,13 +158,15 @@ import { usePortalTarget } from '@/composables/usePortalTarget'
 const portalTarget = usePortalTarget()
 
 interface Props {
-  reportType: 'user' | 'post' | 'message' | 'server'
+  reportType: 'user' | 'post' | 'message' | 'server' | 'sticker'
   targetUserId?: string
   targetPostId?: string
   targetMessageId?: string
   targetServerId?: string
   targetMessagePreview?: string
   targetPostPreview?: string
+  /** The sticker of a 'sticker' report. */
+  targetSticker?: { id: string; name: string; description: string; url: string } | null
   targetUser?: {
     username: string
     display_name?: string
@@ -222,6 +231,7 @@ const submitReport = async () => {
       reported_post_id: props.targetPostId,
       reported_message_id: props.targetMessageId,
       reported_server_id: props.targetServerId,
+      reported_sticker_id: props.reportType === 'sticker' ? props.targetSticker?.id : undefined,
       report_type: props.reportType,
       reason: selectedReason.value,
       comment: comment.value || undefined,
@@ -379,6 +389,18 @@ onUnmounted(() => {
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.proof-sticker {
+  display: block;
+  max-width: 120px;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+.proof-sticker-name {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .proof-quote {

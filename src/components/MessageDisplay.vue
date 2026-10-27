@@ -577,6 +577,7 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
+    @report-sticker="(sticker: StickerContent) => (stickerReport = sticker)"
     @view-reactions="(message: Message) => openReactionsModal(message.id, null)"
     @reply="replyTo"
     @edit="startEdit"
@@ -595,6 +596,13 @@
     :target-server="reportTargetServer"
     @close="showReportModal = false"
     @hide="handleHideReportedContent"
+  />
+
+  <ReportModal
+    v-if="stickerReport"
+    report-type="sticker"
+    :target-sticker="stickerReport"
+    @close="stickerReport = null"
   />
 
   <!-- Delete Message Confirmation Modal -->
@@ -622,7 +630,7 @@ import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailu
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
+import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, StickerContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
@@ -3430,7 +3438,7 @@ const editFailureMessage = (error: any): string => {
   return t('message.editNotSaved', { reason: error?.message || '' });
 };
 
-const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
+const saveEdit = async (messageId: string, newContent?: string, retainedFiles: MessagePart[] = []) => {
   if (!editableMessageId.value) return;
   const textContent = newContent ?? editableMessageContent.value;
   // Allow saving a message that has no text as long as at least one attachment
@@ -3672,6 +3680,8 @@ const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
 
   emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
+
+const stickerReport = ref<StickerContent | null>(null);
 
 const handleReportMessage = (message: Message) => {
   const authorId = message.user_id || (message as any).author_id;

@@ -104,6 +104,8 @@
       v-if="mediaPickerOpen"
       @click.stop
       @sendGif="handleSendGif"
+      @sendSticker="handleSendSticker"
+      custom-stickers
       @sendEmoji="handleSendEmoji"
       :closePopup="closeMediaPicker"
       :position="'above'"
@@ -205,6 +207,7 @@
   import { mediaRoom } from '@/services/privateMedia';
   import { forgetMessageMediaUpload } from '@/services/messageMediaUpload';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
+  import { stickerMessageParts, type StickerPartSource } from '@/utils/stickerParts';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import { useMessageReactionLimit } from '@/composables/useReactionLimits';
   import ThreadView from '@/components/threads/ThreadView.vue';
@@ -1247,6 +1250,40 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         } catch (error) {
           debug.error('Error sending GIF:', error);
           restoreReplyTarget(savedReply);
+        }
+      };
+
+      // One message: the composer's text, if any, then the sticker and its image fallback.
+      const handleSendSticker = async (sticker: StickerPartSource) => {
+        closeMediaPicker();
+        const target = currentTarget();
+        if (!target) return;
+        const text = messageContent.value;
+        const sentDraftKey = draftKey.value;
+        const replyId = replyToMessageId.value || undefined;
+        const savedReply = consumeReplyTarget();
+        const turn = takeSendTurn(targetOrderKey(target));
+        messageInputRef.value?.clearText();
+        let sent = false;
+        try {
+          const textParts = text.trim() ? await parseMessageInput(text, targetServerId(target)) : [];
+          const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
+            target,
+            [...textParts, ...stickerMessageParts(sticker)],
+            replyId,
+            turn,
+          );
+          sent = sendOutcome === 'ok';
+        } catch (error) {
+          debug.error('Error sending sticker:', error);
+        } finally {
+          turn.release();
+        }
+        if (sent) {
+          clearSentDraft(sentDraftKey, text);
+        } else {
+          restoreReplyTarget(savedReply);
+          if (text) restoreComposer(text, []);
         }
       };
 

@@ -300,6 +300,7 @@ import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
+import { messageSticker } from '@/utils/stickerParts'
 import { systemEventPreviewKey } from '@/utils/systemEvents'
 import { isUndecrypted } from '@/utils/channelEncryption'
 import { pollPreview } from '@/utils/messagePoll'
@@ -665,6 +666,9 @@ const getMessagePreviewText = (message: Message): string => {
   if (textParts) return textParts.length > 50 ? textParts.substring(0, 50) + '...' : textParts
   
   // Check for other content types
+  const sticker = messageSticker(content)
+  if (sticker) return t('stickers.preview', { name: sticker.name })
+
   const filePart = content.find(part => part.type === 'file')
   if (filePart) return 'File'
   

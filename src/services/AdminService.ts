@@ -4,6 +4,7 @@ import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
@@ -881,6 +882,9 @@ class AdminService {
       let retryAttempts = 3
       let maxCustomEmojisPerServer = 50
       let maxPersonalEmojisPerUser = DEFAULT_PERSONAL_EMOJIS_PER_USER
+      let maxStickersPerServer = DEFAULT_STICKER_CAPS.server
+      let maxInstanceStickers = DEFAULT_STICKER_CAPS.instance
+      let maxPersonalStickersPerUser = DEFAULT_STICKER_CAPS.user
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
@@ -894,7 +898,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -1002,6 +1006,15 @@ class AdminService {
                 case 'max_personal_emojis_per_user':
                   maxPersonalEmojisPerUser = parsePersonalEmojiLimit(value)
                   break
+                case 'max_stickers_per_server':
+                  maxStickersPerServer = parseStickerCap('server', value)
+                  break
+                case 'max_instance_stickers':
+                  maxInstanceStickers = parseStickerCap('instance', value)
+                  break
+                case 'max_personal_stickers_per_user':
+                  maxPersonalStickersPerUser = parseStickerCap('user', value)
+                  break
                 case 'custom_emoji_transform_quality': {
                   const q = typeof value === 'number' ? value : parseInt(String(value), 10)
                   if (!Number.isNaN(q)) {
@@ -1078,6 +1091,9 @@ class AdminService {
           retryAttempts,
           maxCustomEmojisPerServer,
           maxPersonalEmojisPerUser,
+          maxStickersPerServer,
+          maxInstanceStickers,
+          maxPersonalStickersPerUser,
           customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
           maxPostReactionsPerUser,

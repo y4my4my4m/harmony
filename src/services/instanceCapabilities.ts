@@ -15,6 +15,7 @@ export const KNOWN_CAPABILITIES = [
   'outgoing-webhooks',
   'channel-create-options',
   'instance-staff-roles',
+  'custom-stickers',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

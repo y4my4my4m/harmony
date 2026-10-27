@@ -110,6 +110,27 @@
           </ul>
         </div>
 
+        <div v-if="report.report_type === 'sticker' && reportedSticker(report)" class="report-proof" data-testid="report-sticker">
+          <label>{{ t('stickers.report.proof') }}</label>
+          <div class="report-sticker">
+            <img :src="reportedSticker(report)!.url" :alt="reportedSticker(report)!.description" class="report-sticker-img" />
+            <div class="report-sticker-text">
+              <strong>{{ reportedSticker(report)!.name }}</strong>
+              <span>{{ reportedSticker(report)!.description }}</span>
+              <span class="report-sticker-scope">{{ t(`stickers.report.scope.${reportedSticker(report)!.scope}`, { server: reportedSticker(report)!.server_name ?? '' }) }}</span>
+            </div>
+          </div>
+          <span v-if="removedStickers[reportedSticker(report)!.id]" class="report-file-done" data-testid="report-sticker-removed">{{ t('stickers.report.removed') }}</span>
+          <button
+            v-else-if="!serverId && isInstanceModerator"
+            class="report-link-btn"
+            data-testid="report-remove-sticker"
+            @click.stop="removeReportedSticker(reportedSticker(report)!.id)"
+          >
+            <Icon name="trash-2" :size="14" /> {{ t('stickers.report.remove') }}
+          </button>
+        </div>
+
         <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
           <label>{{ t('admin.reports.messageNow') }}</label>
           <p v-if="report.reported_message_is_deleted" class="evidence-gone">Deleted since the report</p>
@@ -237,6 +258,8 @@ import { supabase } from '@/supabase'
 import { MESSAGE_MEDIA_BUCKET, mediaPartSource, storageObjectFromUrl } from '@/services/privateMedia'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { deleteSticker, stickerErrorMessage } from '@/services/stickerService'
+import { useStickersStore } from '@/stores/useStickers'
 import {
   ACTIONS_WITH_REASON,
   DESTRUCTIVE_ACTIONS,
@@ -294,6 +317,44 @@ const removeReportedFile = async (report: { reason?: string | null }, path: stri
   removedFiles.value = { ...removedFiles.value, [path]: true }
 }
 const { t } = useI18n()
+
+interface ReportedSticker {
+  id: string
+  scope: 'server' | 'instance' | 'user'
+  server_name?: string | null
+  name: string
+  description: string
+  url: string
+}
+
+/** content_snapshot.sticker of a sticker report (create_report). */
+const reportedSticker = (report: ReportWithDetails): ReportedSticker | null => {
+  const sticker = (report.content_snapshot as { sticker?: ReportedSticker } | null)?.sticker
+  return sticker && typeof sticker.id === 'string' && typeof sticker.url === 'string' ? sticker : null
+}
+
+const removedStickers = ref<Record<string, boolean>>({})
+const removeReportedSticker = async (id: string) => {
+  const ok = await confirm({
+    title: t('stickers.manage.deleteTitle'),
+    message: t('stickers.report.removeConfirm'),
+    confirmButtonText: t('common.delete'),
+    dangerAction: true,
+  })
+  if (!ok) return
+  try {
+    await deleteSticker(id)
+    useStickersStore().markRemoved(id)
+    removedStickers.value = { ...removedStickers.value, [id]: true }
+  } catch (error) {
+    // The row is already gone when another moderator removed it.
+    if ((error as { code?: string })?.code === 'P0002') {
+      removedStickers.value = { ...removedStickers.value, [id]: true }
+      return
+    }
+    toast.error(stickerErrorMessage(error))
+  }
+}
 
 const PAGE = 50
 
@@ -579,6 +640,30 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.report-sticker {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.report-sticker-img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.report-sticker-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.report-sticker-scope {
+  color: var(--text-secondary);
+}
+
 .report-files {
   display: flex;
   flex-direction: column;

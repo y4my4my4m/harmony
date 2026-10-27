@@ -58,6 +58,8 @@ function extractTextFromContent(content: MessagePart[]): string {
           return part.emoji?.name ? `:${part.emoji.name}:` : ''
         case 'hashtag':
           return part.name ? `#${part.name}` : ''
+        case 'sticker':
+          return `${part.name} ${part.description}`
         default:
           return ''
       }

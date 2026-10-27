@@ -73,8 +73,11 @@
       :show-favorites="showFavorites"
       :media-type="activeTab"
       :initial-search-query="activeTab === 'gifs' ? initialSearchQuery : ''"
+      :channel-id="channelId ?? null"
+      :custom-stickers="customStickers"
       @update:show-favorites="showFavorites = $event"
       @send-gif="handleSendGif"
+      @send-sticker="handleSendSticker"
       @send-emoji="handleSendEmoji"
     />
 
@@ -104,6 +107,7 @@ import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import type { GifMediaType } from '@/services/gifProviderService';
 import type { Gif, Emoji } from '@/types';
+import type { Sticker } from '@/services/stickerService';
 import { useDialog } from '@/composables/useDialog';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
 import { useT } from '@/composables/useT';
@@ -122,6 +126,8 @@ interface Props {
   initialSearchQuery?: string;
   /** Server channel the picked emoji goes to; null in a DM or post composer. */
   channelId?: string | null;
+  /** The Stickers tab lists custom stickers; chat composers send them, posts do not. */
+  customStickers?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -132,6 +138,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface Emits {
   (e: 'sendGif', gif: Gif): void;
+  (e: 'sendSticker', sticker: Sticker): void;
   (e: 'sendEmoji', emoji: Emoji): void;
 }
 
@@ -366,6 +373,11 @@ const popupStyle = computed(() => {
 
 const handleSendGif = (gif: Gif) => {
   emit('sendGif', gif);
+  props.closePopup?.();
+};
+
+const handleSendSticker = (sticker: Sticker) => {
+  emit('sendSticker', sticker);
   props.closePopup?.();
 };
 
