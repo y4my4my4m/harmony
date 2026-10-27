@@ -1883,7 +1883,7 @@
         "toMyDevices": "自分のデバイスへのプッシュ",
         "toMyDevicesDescription": "デバイスを削除せずに、すべての場所でプッシュをオフにします",
         "awayOnly": "離席中のみ",
-        "awayOnlyDescription": "別のデバイスで Harmony を開いて使っている間はプッシュしません",
+        "awayOnlyDescription": "いずれかのデバイスで Harmony を使っている間は、ほかのデバイスにプッシュは届きません。そのデバイスで Harmony を閉じるか、10 分間操作がないとプッシュが再開します。",
         "mentions": "メンション",
         "mentionsDescription": "メンションされたときにプッシュ通知を受け取ります",
         "dms": "ダイレクトメッセージ",

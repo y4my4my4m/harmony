@@ -1883,7 +1883,7 @@
         "toMyDevices": "Push an meine Geräte",
         "toMyDevicesDescription": "Schaltet Push überall aus, ohne Geräte zu entfernen",
         "awayOnly": "Nur wenn ich abwesend bin",
-        "awayOnlyDescription": "Kein Push, solange Harmony auf einem anderen Gerät geöffnet ist und genutzt wird",
+        "awayOnlyDescription": "Solange du Harmony auf einem deiner Geräte nutzt, bekommen deine anderen Geräte keinen Push. Push setzt wieder ein, wenn du Harmony dort schließt oder nach 10 Minuten ohne Aktivität.",
         "mentions": "Erwähnungen",
         "mentionsDescription": "Push-Benachrichtigungen erhalten, wenn du erwähnt wirst",
         "dms": "Direktnachrichten",

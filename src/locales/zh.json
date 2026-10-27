@@ -1883,7 +1883,7 @@
         "toMyDevices": "推送到我的设备",
         "toMyDevicesDescription": "在所有设备上关闭推送，但不移除任何设备",
         "awayOnly": "仅在我离开时",
-        "awayOnlyDescription": "在其他设备上打开并使用 Harmony 时不推送",
+        "awayOnlyDescription": "当你在某一台设备上使用 Harmony 时，其他设备不会收到推送。在该设备上关闭 Harmony，或 10 分钟无操作后，推送恢复。",
         "mentions": "提及",
         "mentionsDescription": "被提及时接收推送通知",
         "dms": "私信",

@@ -365,9 +365,9 @@ describe('FCM token registry', () => {
 });
 
 describe('delivery by transport', () => {
-  const browser = { subscription_id: 'w1', endpoint: 'https://push.test/w', p256dh: 'p', auth: 'a', push_enabled: true, push_offline_only: false, transport: 'webpush' };
-  const up = { subscription_id: 'u1', endpoint: 'https://ntfy.test/up1', p256dh: 'p2', auth: 'a2', push_enabled: true, push_offline_only: false, transport: 'unifiedpush' };
-  const fcm = { subscription_id: 'f1', endpoint: TOKEN, p256dh: null, auth: null, push_enabled: true, push_offline_only: false, transport: 'fcm' };
+  const browser = { subscription_id: 'w1', endpoint: 'https://push.test/w', p256dh: 'p', auth: 'a', push_enabled: true, transport: 'webpush' };
+  const up = { subscription_id: 'u1', endpoint: 'https://ntfy.test/up1', p256dh: 'p2', auth: 'a2', push_enabled: true, transport: 'unifiedpush' };
+  const fcm = { subscription_id: 'f1', endpoint: TOKEN, p256dh: null, auth: null, push_enabled: true, transport: 'fcm' };
   const payload = { title: 'T', body: 'B', type: 'dm', data: { notification_id: 'n9', type: 'dm', url: '/dm/c', conversation_id: 'c' } };
   const app = { kind: 'notification', id: 'n9', type: 'dm', title: 'T', body: 'B', url: '/dm/c' };
 
@@ -376,7 +376,7 @@ describe('delivery by transport', () => {
     PushNotificationService.setFcmSender(new FcmSender({ account: ACCOUNT, fetchImpl: fn }));
     state.subscriptions = [browser, up, fcm];
 
-    const result = await PushNotificationService.sendToUser('u1', payload, undefined, () => app);
+    const result = await PushNotificationService.sendToUser('u1', payload, () => app);
     expect(result).toEqual({ sent: 3, failed: 0 });
 
     const bodies = new Map(webPushSend.mock.calls.map(([sub, body, opts]) => [(sub as any).endpoint, { body: JSON.parse(body), opts }]));
@@ -390,13 +390,13 @@ describe('delivery by transport', () => {
   it('skips FCM targets when FCM is not configured', async () => {
     PushNotificationService.setFcmSender(new FcmSender({ account: null }));
     state.subscriptions = [browser, fcm];
-    expect(await PushNotificationService.sendToUser('u1', payload, undefined, () => app)).toEqual({ sent: 1, failed: 0 });
+    expect(await PushNotificationService.sendToUser('u1', payload, () => app)).toEqual({ sent: 1, failed: 0 });
   });
 
   it('builds the app payload only when an app target is eligible', async () => {
     const build = vi.fn(() => app);
     state.subscriptions = [browser];
-    await PushNotificationService.sendToUser('u1', payload, undefined, build);
+    await PushNotificationService.sendToUser('u1', payload, build);
     expect(build).not.toHaveBeenCalled();
   });
 
@@ -404,7 +404,7 @@ describe('delivery by transport', () => {
     const { fn } = fakeFetch([tokenOk(), () => json(404, { error: { status: 'NOT_FOUND', details: [{ '@type': 'type.googleapis.com/google.firebase.fcm.v1.FcmError', errorCode: 'UNREGISTERED' }] } })]);
     PushNotificationService.setFcmSender(new FcmSender({ account: ACCOUNT, fetchImpl: fn }));
     state.subscriptions = [fcm];
-    expect(await PushNotificationService.sendToUser('u1', payload, undefined, () => app)).toEqual({ sent: 0, failed: 1 });
+    expect(await PushNotificationService.sendToUser('u1', payload, () => app)).toEqual({ sent: 0, failed: 1 });
     expect(calls).toContainEqual(expect.objectContaining({ table: 'push_subscriptions', action: 'delete', filters: [['eq', 'id', 'f1']] }));
   });
 

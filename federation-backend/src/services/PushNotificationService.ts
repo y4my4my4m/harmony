@@ -25,6 +25,7 @@ import {
   clip,
   compactPushData,
   dismissalMessages,
+  heldWhileDeviceInUse,
   isValidFcmToken,
   isWithinQuietHours,
   pushAllowedForType,
@@ -63,7 +64,6 @@ export interface PushSubscriptionData {
   p256dh: string | null;
   auth: string | null;
   push_enabled: boolean;
-  push_offline_only: boolean;
   /** Absent before migration 20261004100001, which means webpush. */
   transport?: PushTransport | null;
 }
@@ -579,10 +579,6 @@ class PushNotificationServiceClass {
   async sendToUser(
     userId: string,
     payload: PushPayload,
-    options?: {
-      respectOfflineOnly?: boolean;
-      isUserOnline?: boolean;
-    },
     app?: AppDataBuilder
   ): Promise<{ sent: number; failed: number }> {
     if (!this.isInitialized && !this.isFcmConfigured()) {
@@ -597,11 +593,7 @@ class PushNotificationServiceClass {
       return { sent: 0, failed: 0 };
     }
 
-    const eligible = subscriptions.filter(sub => {
-      if (!sub.push_enabled) return false;
-      if (options?.respectOfflineOnly && sub.push_offline_only && options?.isUserOnline) return false;
-      return this.canDeliver(sub);
-    });
+    const eligible = subscriptions.filter(sub => sub.push_enabled && this.canDeliver(sub));
 
     if (eligible.length === 0) {
       return { sent: 0, failed: 0 };
@@ -657,10 +649,7 @@ class PushNotificationServiceClass {
     return { sent, failed };
   }
 
-  /**
-   * Check if user has any active sessions (Discord-like smart push)
-   * Returns true if user is actively using the app on any device
-   */
+  /** A device of the user is in use (pushPolicy.heldWhileDeviceInUse). False when the check fails. */
   async hasActiveSession(userId: string): Promise<boolean> {
     try {
       const { data, error } = await supabaseAdmin
@@ -710,13 +699,9 @@ class PushNotificationServiceClass {
   }
 
   /**
-   * Send push notification for a database notification
-   * This is called when a new notification is created in the notifications table
-   * 
-   * Smart behavior (Discord-like):
-   * - If user has active session AND push_offline_only is true → don't send
-   * - If user is viewing the exact context of notification → don't send
-   * - Otherwise → send push
+   * Pushes a notifications row to the recipient's devices unless preferences, quiet hours,
+   * Busy, a device viewing its channel or DM, or a device in use hold it
+   * (pushPolicy.heldWhileDeviceInUse).
    */
   async sendForNotification(notification: {
     id: string;
@@ -777,12 +762,8 @@ class PushNotificationServiceClass {
         }
       }
 
-      const hasActiveSession = await this.hasActiveSession(notification.user_id);
-      
-      // push_offline_only defaults to true, as in notification_preferences. Security
-      // notices push regardless: the active session may be the one they report.
-      if (notification.type !== 'security' && (prefs?.push_offline_only ?? true) && hasActiveSession) {
-        logger.debug(`Skipping push - user has active session and offline-only is enabled`);
+      if (heldWhileDeviceInUse(notification.type, prefs) && await this.hasActiveSession(notification.user_id)) {
+        logger.debug('Skipping push - a device of the user is in use');
         return;
       }
 
@@ -868,10 +849,7 @@ class PushNotificationServiceClass {
 
       const payload = this.buildPayloadFromNotification(notification);
 
-      await this.sendToUser(notification.user_id, payload, {
-        respectOfflineOnly: false, // Already checked above
-        isUserOnline: hasActiveSession
-      }, () => this.buildAppData(notification, payload));
+      await this.sendToUser(notification.user_id, payload, () => this.buildAppData(notification, payload));
 
       logger.info(`Push sent for ${notification.type} to user ${notification.user_id}`);
     } catch (error) {

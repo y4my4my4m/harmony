@@ -1,11 +1,20 @@
 /**
- * Where this tab is looking, for notification suppression.
+ * Where this tab is looking and whether its device is in use, for notification suppression.
  *
- * The view goes to device_view_contexts through sync_view_context_from_presence:
- * send_notification skips a channel or DM a device is viewing, and push checks
- * whether any device is active. A row counts for 150 s after its last write, so the
- * context is rewritten every 60 s while the tab is visible, and replaced by 'away'
- * when the tab hides or has had no input for IDLE_MS.
+ * The report goes to device_view_contexts through sync_view_context_from_presence:
+ * send_notification skips a channel or DM a device is viewing, and, under "Only when I'm away"
+ * (on by default), push is held from every device while any device is in use
+ * (heldWhileDeviceInUse in federation-backend/src/services/pushPolicy.ts). A row counts for
+ * 150 s after its last write; the tab rewrites it every 60 s unless it reports 'away'.
+ *
+ * A tab reports
+ *   its view      shown on screen, with input in the last IDLE_MS;
+ *   'background'  hidden, with input in the last IDLE_MS, on a computer that shows system
+ *                 notifications itself (the desktop app, or a desktop browser with notification
+ *                 permission): in use, viewing nothing;
+ *   'away'        otherwise: no input for IDLE_MS; hidden on a phone or tablet, which notifies
+ *                 through its own push; hidden without notification permission; closed; signed
+ *                 out.
  *
  * Every route reports its view. One without a channel, DM or social view reports
  * 'home' or 'settings', so the last channel shown does not stay viewed.
@@ -20,11 +29,15 @@ import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
+import { isMobileDevice, isTauri } from '@/utils/platform'
 
 export type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
 
+/** viewing: the tab reports its view. */
+type DevicePresence = 'viewing' | 'background' | 'away'
+
 interface SyncedView {
-  viewType: ViewType | 'away'
+  viewType: ViewType | Exclude<DevicePresence, 'viewing'>
   serverId?: string
   channelId?: string
   conversationId?: string
@@ -32,11 +45,18 @@ interface SyncedView {
 
 const HEARTBEAT_MS = 60_000
 const IDLE_MS = 10 * 60_000
+// A closing page fires pagehide right after visibilitychange. 'background' is written once
+// the page has outlived this delay, so it never lands after the closing 'away'.
+const BACKGROUND_DELAY_MS = 500
+const INPUT_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const
 
 let lastView: SyncedView = { viewType: 'home' }
-let away = false
+let presence: DevicePresence = 'viewing'
 let lastInputAt = Date.now()
 let heartbeat: ReturnType<typeof setInterval> | null = null
+let backgroundWrite: ReturnType<typeof setTimeout> | null = null
+// Between pagehide and pageshow the page is unloading or in the back/forward cache.
+let pageGone = false
 let accessToken: string | null = null
 let detachListeners: (() => void) | null = null
 
@@ -87,55 +107,97 @@ function syncAwayKeepalive(): void {
   }
 }
 
-function setAway(next: boolean, viaKeepalive = false): void {
-  if (away === next) return
-  away = next
-  viewContextTracker.setAttentive(!next)
-  if (next) {
-    if (viaKeepalive) syncAwayKeepalive()
-    else void syncView({ viewType: 'away' })
-  } else {
-    void syncView(lastView)
-    // Notifications that arrived while away were kept unread; the view is seen again.
-    if (lastView.viewType === 'server_channel' || lastView.viewType === 'dm') {
-      void viewContextTracker.clearExistingNotificationsForContext()
-    }
-  }
-}
-
 function isHidden(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+}
+
+/** Shows system notifications of its own while hidden: the desktop app, or a desktop browser allowed to. */
+function notifiesInBackground(): boolean {
+  if (isMobileDevice()) return false
+  if (isTauri()) return true
+  return typeof Notification !== 'undefined' && Notification.permission === 'granted'
+}
+
+function presenceNow(): DevicePresence {
+  if (Date.now() - lastInputAt > IDLE_MS) return 'away'
+  if (!isHidden()) return 'viewing'
+  return !pageGone && notifiesInBackground() ? 'background' : 'away'
+}
+
+function report(state: DevicePresence): SyncedView {
+  return state === 'viewing' ? lastView : { viewType: state }
+}
+
+function cancelBackgroundWrite(): void {
+  if (backgroundWrite) clearTimeout(backgroundWrite)
+  backgroundWrite = null
+}
+
+function enterBackground(): void {
+  if (presence === 'background') return
+  presence = 'background'
+  viewContextTracker.setAttentive(false)
+  cancelBackgroundWrite()
+  backgroundWrite = setTimeout(() => {
+    backgroundWrite = null
+    if (presence === 'background') void syncView(report('background'))
+  }, BACKGROUND_DELAY_MS)
+}
+
+function setPresence(next: DevicePresence, viaKeepalive = false): void {
+  if (next === 'background') {
+    enterBackground()
+    return
+  }
+  cancelBackgroundWrite()
+  if (presence === next) return
+  const was = presence
+  presence = next
+  viewContextTracker.setAttentive(next === 'viewing')
+  if (next === 'away' && viaKeepalive) syncAwayKeepalive()
+  else void syncView(report(next))
+  // Notifications that arrived while not viewing were kept unread; the view is seen again.
+  if (next === 'viewing' && was !== 'viewing'
+    && (lastView.viewType === 'server_channel' || lastView.viewType === 'dm')) {
+    void viewContextTracker.clearExistingNotificationsForContext()
+  }
 }
 
 function attachListeners(): void {
   if (detachListeners || typeof window === 'undefined') return
 
   const onVisibility = () => {
-    if (isHidden()) {
-      setAway(true, true)
-    } else {
+    if (!isHidden()) {
+      pageGone = false
       lastInputAt = Date.now()
-      setAway(false)
     }
+    setPresence(presenceNow(), true)
   }
   const onInput = () => {
     lastInputAt = Date.now()
-    if (away && !isHidden()) setAway(false)
+    if (presence === 'away' && !isHidden()) setPresence('viewing')
   }
-  const onPageHide = () => setAway(true, true)
+  const onPageHide = () => {
+    pageGone = true
+    setPresence('away', true)
+  }
+  const onPageShow = () => {
+    pageGone = false
+    onVisibility()
+  }
 
   document.addEventListener('visibilitychange', onVisibility)
   window.addEventListener('pagehide', onPageHide)
-  const inputEvents = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
-  inputEvents.forEach((type) => window.addEventListener(type, onInput, { passive: true, capture: true }))
+  window.addEventListener('pageshow', onPageShow)
+  INPUT_EVENTS.forEach((type) => window.addEventListener(type, onInput, { passive: true, capture: true }))
 
   heartbeat = setInterval(() => {
-    if (isHidden()) return
-    if (Date.now() - lastInputAt > IDLE_MS) {
-      setAway(true)
+    const next = presenceNow()
+    if (next !== presence) {
+      setPresence(next)
       return
     }
-    if (!away) void syncView(lastView)
+    if (presence !== 'away' && !backgroundWrite) void syncView(report(presence))
   }, HEARTBEAT_MS)
 
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -148,16 +210,18 @@ function attachListeners(): void {
   detachListeners = () => {
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('pagehide', onPageHide)
-    inputEvents.forEach((type) => window.removeEventListener(type, onInput, { capture: true }))
+    window.removeEventListener('pageshow', onPageShow)
+    INPUT_EVENTS.forEach((type) => window.removeEventListener(type, onInput, { capture: true }))
     if (heartbeat) clearInterval(heartbeat)
     heartbeat = null
+    cancelBackgroundWrite()
     data.subscription.unsubscribe()
   }
 }
 
 /**
  * Records the view this tab shows: local suppression immediately, then the
- * database. A hidden or idle tab keeps reporting 'away' until it is used.
+ * database. A hidden or idle tab reports 'background' or 'away' until it is used.
  */
 export async function updateViewContext(
   viewType: ViewType,
@@ -178,15 +242,11 @@ export async function updateViewContext(
     attachListeners()
     // Navigation is input; a tab that shows a new view is not idle.
     lastInputAt = Date.now()
-    if (isHidden()) {
-      away = true
-      viewContextTracker.setAttentive(false)
-    } else {
-      away = false
-      viewContextTracker.setAttentive(true)
-    }
+    cancelBackgroundWrite()
+    presence = presenceNow()
+    viewContextTracker.setAttentive(presence === 'viewing')
 
-    void syncView(away ? { viewType: 'away' } : lastView)
+    void syncView(report(presence))
 
     sessionHeartbeat.updateContext({
       serverId,
@@ -203,7 +263,8 @@ export async function updateViewContext(
  * so it cannot hold sign-out up.
  */
 export async function markDeviceAway(timeoutMs = 2000): Promise<void> {
-  away = true
+  cancelBackgroundWrite()
+  presence = 'away'
   viewContextTracker.setAttentive(false)
   await Promise.race([
     syncView({ viewType: 'away' }),
@@ -227,8 +288,10 @@ export async function cleanupViewContext(): Promise<void> {
     detachListeners()
     detachListeners = null
   }
+  cancelBackgroundWrite()
   lastView = { viewType: 'home' }
-  away = false
+  presence = 'viewing'
+  pageGone = false
   viewContextTracker.reset()
 
   await sessionHeartbeat.stop()

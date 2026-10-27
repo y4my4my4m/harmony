@@ -153,6 +153,109 @@ describe('useViewContextTracking', () => {
     scope.stop()
   })
 
+  describe('device in use', () => {
+    const DESKTOP_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36'
+    const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36'
+    let permission: NotificationPermission = 'granted'
+    let userAgent = DESKTOP_UA
+    const realNotification = (globalThis as any).Notification
+
+    beforeEach(() => {
+      permission = 'granted'
+      userAgent = DESKTOP_UA
+      ;(globalThis as any).Notification = { get permission() { return permission } }
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => userAgent })
+    })
+
+    afterEach(() => {
+      ;(globalThis as any).Notification = realNotification
+      delete (navigator as any).userAgent
+    })
+
+    const hide = () => { hidden = true; document.dispatchEvent(new Event('visibilitychange')) }
+    const show = () => { hidden = false; document.dispatchEvent(new Event('visibilitychange')) }
+    const inChannel = async () => {
+      route.current = reactive(at('ChatChannel', '/chat/s1/c1', { serverId: 's1', channelId: 'c1' }))
+      const scope = track()
+      await settle()
+      rpc.mockClear()
+      return scope
+    }
+
+    it('keeps a computer that shows its own notifications in use while hidden, viewing nothing', async () => {
+      const scope = await inChannel()
+      hide()
+      await vi.advanceTimersByTimeAsync(500)
+      expect(syncedViews()).toEqual(['background'])
+      expect(viewContextTracker.shouldShowNotificationUI({ server_id: 's1', channel_id: 'c1', type: 'mention' }).showDesktop).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(syncedViews()).toEqual(['background', 'background'])
+      scope.stop()
+    })
+
+    it('reports away once a hidden computer has had no input for 10 minutes', async () => {
+      const scope = await inChannel()
+      hide()
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(syncedViews().filter((v) => v !== 'background')).toEqual([])
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(syncedViews().at(-1)).toBe('away')
+      scope.stop()
+    })
+
+    it('reports a phone in the background away at once', async () => {
+      userAgent = PHONE_UA
+      const scope = await inChannel()
+      hide()
+      await settle()
+      expect(syncedViews()).toEqual(['away'])
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(syncedViews()).toEqual(['away'])
+      scope.stop()
+    })
+
+    it('reports a hidden browser without notification permission away at once', async () => {
+      permission = 'default'
+      const scope = await inChannel()
+      hide()
+      await settle()
+      expect(syncedViews()).toEqual(['away'])
+      scope.stop()
+    })
+
+    it('reports a closing page away, never in the background', async () => {
+      const scope = await inChannel()
+      hide()
+      window.dispatchEvent(new Event('pagehide'))
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(syncedViews()).toEqual(['away'])
+      scope.stop()
+    })
+
+    it('shows the view again on return from the background and reads its notifications', async () => {
+      const scope = await inChannel()
+      hide()
+      await vi.advanceTimersByTimeAsync(500)
+      show()
+      await settle()
+      expect(syncedViews()).toEqual(['background', 'server_channel'])
+      expect(contextReads()).toEqual([{ p_context_type: 'channel', p_context_id: 'c1' }])
+      scope.stop()
+    })
+
+    it('counts pointer movement as input on a visible tab', async () => {
+      const scope = await inChannel()
+      await vi.advanceTimersByTimeAsync(9 * 60_000)
+      window.dispatchEvent(new Event('pointermove'))
+      await vi.advanceTimersByTimeAsync(3 * 60_000)
+      expect(syncedViews()).not.toContain('away')
+      await vi.advanceTimersByTimeAsync(9 * 60_000)
+      expect(syncedViews().at(-1)).toBe('away')
+      scope.stop()
+    })
+  })
+
   it('sends nothing while signed out, heartbeat included', async () => {
     getSession.mockResolvedValue(signedOut)
     route.current = reactive(at('Chat', '/'))

@@ -12,7 +12,7 @@ import { localProfileIdFromBearer } from '../middleware/auth.js';
 import { bearerToken, sessionIdFromToken } from '../utils/sessionAssurance.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { isValidFcmToken } from '../services/pushPolicy.js';
+import { isValidFcmToken, testPushPayload } from '../services/pushPolicy.js';
 
 const supabaseAdmin = getSupabaseClient();
 
@@ -301,20 +301,7 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
     const fcmToken = isValidFcmToken(req.body?.fcmToken) ? req.body.fcmToken as string : undefined;
     const endpoint = fcmToken ?? optionalString(req.body?.endpoint, 2048);
 
-    const testPayload = {
-      title: 'Test notification',
-      message: 'Push notifications are working.',
-      body: 'Push notifications are working.',
-      type: 'test' as const,
-      icon: '/img/app_icon_square.webp',
-      badge: '/img/app_icon_square.webp',
-      tag: `harmony-test-${Date.now()}`,
-      data: {
-        test: true,
-        url: '/',
-        timestamp: new Date().toISOString()
-      }
-    };
+    const testPayload = testPushPayload();
 
     if (endpoint) {
       const { data: allSubs, error: subError } = await supabaseAdmin
@@ -335,7 +322,6 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
           p256dh: sub.p256dh,
           auth: sub.auth,
           push_enabled: sub.push_enabled,
-          push_offline_only: sub.push_offline_only,
           transport: sub.transport,
         },
         testPayload

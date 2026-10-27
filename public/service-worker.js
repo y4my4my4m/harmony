@@ -164,8 +164,11 @@ async function handlePushEvent(event) {
   try {
     // A focused window shows its own toast from the realtime event. Uncontrolled
     // windows count: a page loaded before this worker activated is still the app.
-    const clients = await windowClients()
-    if (clients.some((client) => client.focused)) return
+    // A test push has no realtime event and is sent from the focused Settings page.
+    if (payload.type !== 'test') {
+      const clients = await windowClients()
+      if (clients.some((client) => client.focused)) return
+    }
 
     await showOnce(payload.title || getDefaultTitle(payload.type), {
       body: payload.message || payload.body || '',

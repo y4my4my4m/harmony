@@ -56,6 +56,30 @@ export function pushAllowedForType(type: string, prefs: NotificationPrefs): bool
   return (TYPE_GATES[type] ?? []).every((column) => prefs[column] !== false);
 }
 
+/**
+ * Push is held from every device of a user, on every transport, while any of their devices is
+ * in use: that device shows the notification itself from the realtime event, and a push would
+ * repeat it on the others. notification_preferences.push_offline_only ("Only when I'm away",
+ * column default true; a missing row reads as true) turns this on; false pushes to every
+ * device regardless.
+ *
+ * In use is public.has_active_session: a device_view_contexts row other than 'away' written in
+ * the last 150 s. The client (src/composables/useViewContext.ts) rewrites its row every 60 s
+ * while the device has had input in the last 10 minutes and either shows Harmony on screen or,
+ * on a computer that shows system notifications itself, runs it in the background
+ * ('background'). It writes 'away' after 10 minutes without input, when a phone or tablet puts
+ * the app in the background, on close and on sign-out.
+ *
+ * A device viewing the notification's channel or DM goes further: send_notification creates no
+ * notification at all (is_user_viewing_context), and sendForNotification checks it again.
+ *
+ * Security notices push regardless: the session in use may be the one they report. Test pushes
+ * (routes/push.ts) do not pass through here and reach the device that asked.
+ */
+export function heldWhileDeviceInUse(type: string, prefs: NotificationPrefs): boolean {
+  return type !== 'security' && prefs?.push_offline_only !== false;
+}
+
 const profileHandle = (user: any): string | null => {
   if (!user?.username) return null;
   const handle = user.domain && user.is_local !== true ? `${user.username}@${user.domain}` : user.username;
@@ -131,6 +155,28 @@ export function compactPushData(
   put('post_id', data.post_id || data.post?.id);
   if (avatarUrl && avatarUrl.length <= 512) out.avatar_url = avatarUrl;
   return out;
+}
+
+/**
+ * The Settings test push. Type 'test' is shown on the device that asked even while Harmony is
+ * open there: by the service worker (public/service-worker.js) and by the Android app
+ * (PushInbox.kt). Nothing in-app shows it otherwise.
+ */
+export function testPushPayload(now: Date = new Date()) {
+  return {
+    title: 'Test notification',
+    message: 'Push notifications are working.',
+    body: 'Push notifications are working.',
+    type: 'test' as const,
+    icon: '/img/app_icon_square.webp',
+    badge: '/img/app_icon_square.webp',
+    tag: `harmony-test-${now.getTime()}`,
+    data: {
+      test: true,
+      url: '/',
+      timestamp: now.toISOString(),
+    },
+  };
 }
 
 /** Truncates to max code points, appending an ellipsis. */
