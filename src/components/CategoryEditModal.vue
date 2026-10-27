@@ -28,12 +28,11 @@
               v-model="editedName"
               type="text"
               class="form-input"
-              :placeholder="t('category.edit.namePlaceholder')"
-              maxlength="100"
+              @input="onNameInput"
               @keydown.enter="saveChanges"
               ref="nameInput"
             />
-            <div class="character-count" aria-hidden="true">{{ editedName.length }}/100</div>
+            <div class="character-count" aria-hidden="true">{{ nameLength(editedName) }}/{{ NAME_MAX_LENGTH }}</div>
           </div>
 
           <div v-if="category" class="form-group">
@@ -82,7 +81,7 @@ import CategoryPrivacyFields from '@/components/CategoryPrivacyFields.vue'
 import { getCategoryOverrides, privacyFromOverrides, type CategoryPrivacy } from '@/services/categoryPermissions'
 import { roleService } from '@/services/RoleService'
 import type { Category } from '@/types'
-import { categoryNameProblem, finalizeCategoryName } from '@/utils/channelName'
+import { NAME_MAX_LENGTH, categoryNameProblem, clipName, finalizeCategoryName, nameLength } from '@/utils/channelName'
 
 interface Props {
   show: boolean
@@ -114,6 +113,15 @@ let privacyLoadSeq = 0
 
 // The rule Create Category applies: spaces and case kept, whitespace collapsed, 2-100 characters.
 const isValidName = computed(() => categoryNameProblem(finalizeCategoryName(editedName.value)) === null)
+
+// The cap counts code points, as char_length does; maxlength would count UTF-16 units.
+const onNameInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const clipped = clipName(input.value)
+  if (clipped === input.value) return
+  input.value = clipped
+  editedName.value = clipped
+}
 
 const samePrivacy = (a: CategoryPrivacy, b: CategoryPrivacy) =>
   a.isPrivate === b.isPrivate

@@ -41,6 +41,8 @@ export function isViewableMediaPart(part: MessagePart): boolean {
     // <url> (preview false) and suppressed embeds render a link, not media.
     const preview = (part as { preview?: unknown }).preview;
     if (preview === false || preview === 'false') return false;
+    // A masked link shows its label above its own media.
+    if ((part as { label?: unknown }).label) return false;
     const url = (part as { url?: string }).url || '';
     return isImageMediaUrl(url) || isVideoMediaUrl(url);
   }

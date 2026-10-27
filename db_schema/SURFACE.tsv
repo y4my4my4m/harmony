@@ -40,6 +40,7 @@ antispam_post_guard		trigger	definer	public, pg_temp	service_role	trigger
 antispam_settings		jsonb	definer	public, pg_temp	service_role	unreferenced
 apply_account_move	p_origin_id uuid, p_target_id uuid	uuid	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
 apply_category_permissions	p_channel_id uuid, p_category_id uuid	void	definer	public, pg_temp	service_role	unreferenced
+apply_channel_name_rule		trigger	invoker	public, pg_temp	service_role	trigger
 apply_domain_limit_on_profile_insert		trigger	invoker	public, pg_temp	service_role	trigger
 apply_group_voice_state	p_server_id uuid, p_user_id uuid, p_muted boolean, p_deafened boolean	boolean	definer	public, pg_temp	service_role	client
 apply_instance_federation_switches		void	definer	public, pg_temp	service_role	unreferenced
@@ -155,6 +156,7 @@ channel_is_restricted	p_channel_id uuid	boolean	definer	public, pg_temp	service_
 channel_message_changes	p_after_at timestamp with time zone, p_after_id uuid, p_limit integer	jsonb	invoker	public, pg_temp	service_role	client
 channel_messages_encrypted	p_channel_id uuid	boolean	definer	public, extensions, pg_temp	authenticated+service_role	unreferenced
 channel_mute_active	p_user_id uuid, p_channel_id uuid	boolean	invoker	public, pg_temp	service_role	unreferenced
+channel_name_normalized	p_name text, p_type integer	text	invoker	public, pg_temp	authenticated+service_role	unreferenced
 channel_permissions_synced	p_channel_id uuid	boolean	invoker	public, pg_temp	authenticated+service_role	client
 channel_viewer_ids	p_channel_id uuid	SETOF uuid	definer	public, pg_temp	service_role	unreferenced
 channel_webhook_json	p_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
@@ -196,7 +198,7 @@ convert_jsonb_to_ap	content jsonb	text	invoker	public, extensions, pg_temp	anon+
 count_pinned_messages	p_channel_id uuid, p_conversation_id uuid	integer	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 count_profile_media	p_author_id uuid	integer	invoker	public, pg_temp	anon+authenticated+service_role	client
 create_bot	p_username text, p_display_name text, p_bio text, p_bot_type text, p_is_public boolean	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
-create_channel	p_server_id uuid, p_name text, p_type integer, p_category uuid, p_private boolean, p_allowed_role_ids uuid[]	channels	invoker	public, pg_temp	authenticated+service_role	client
+create_channel	p_server_id uuid, p_name text, p_type integer, p_category uuid, p_private boolean, p_allowed_role_ids uuid[], p_description text, p_slowmode_seconds integer, p_messages_encrypted boolean, p_voice_encrypted boolean, p_history_visibility text	channels	invoker	public, pg_temp	authenticated+service_role	client
 create_channel_thread	p_channel_id uuid, p_name text, p_auto_archive_duration integer	uuid	definer	public, pg_temp	authenticated+service_role	client
 create_channel_webhook	p_channel_id uuid, p_name text, p_avatar_url text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 create_comprehensive_timeline_entries		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -379,6 +381,7 @@ federation_history_cutoffs	p_server_id uuid, p_actor_ap_id text	jsonb	definer	pu
 federation_media_access	p_name text, p_domain text	boolean	definer	public, pg_temp	service_role	client
 federation_post_access	p_post_id uuid, p_domain text	boolean	definer	public, pg_temp	service_role	client
 federation_room_media_access	p_kind text, p_room uuid, p_domain text	boolean	definer	public, pg_temp	service_role	unreferenced
+federation_server_recipients	p_server_id uuid	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	definer	public, extensions, pg_temp	service_role	client
 fetch_link_preview	p_url text	jsonb	definer	public, pg_temp	service_role	unreferenced
 finalize_dm_call_message	p_message_id uuid, p_ended_at timestamp with time zone, p_duration_seconds integer, p_participants uuid[]	void	definer	public, pg_temp	anon+authenticated+service_role	client
 fold_heart_reaction		trigger	invoker	public, pg_temp	anon+authenticated+service_role	trigger
@@ -501,6 +504,7 @@ guard_message_poll_parts		trigger	invoker	public, pg_temp	service_role	trigger
 guard_override_grants		trigger	invoker	public, pg_temp	service_role	trigger
 guard_post_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_profile_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_profile_instance_role		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_federation_instance_closed		trigger	definer	public, pg_temp	service_role	trigger
 guard_server_role_hierarchy		trigger	invoker	public, pg_temp	service_role	trigger
@@ -691,6 +695,7 @@ queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigg
 recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 record_ai_emoji_generation		trigger	definer	public, pg_temp	service_role	trigger
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
+record_instance_branding	p_domain text, p_icon_url text, p_banner_url text, p_theme_color text	boolean	definer	public, pg_temp	service_role	client
 record_instance_nodeinfo	p_domain text, p_software text, p_version text, p_user_count bigint, p_status_count bigint, p_create boolean	text	definer	public, pg_temp	service_role	client
 record_instance_software	p_domain text, p_software text, p_version text, p_source text	text	definer	public, pg_temp	service_role	client
 record_metric	p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -874,6 +879,7 @@ trigger_queue_channel_federation		trigger	definer	public, pg_temp	anon+authentic
 trigger_queue_channel_message_delete_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_channel_message_edit_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_channel_message_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+trigger_queue_channel_pin_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_channel_reaction_delete_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_channel_reaction_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_dm_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -881,6 +887,7 @@ trigger_queue_follow_federation		trigger	definer	public, extensions, pg_temp	ser
 trigger_queue_follow_response_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_interaction_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_member_removal		trigger	definer	public, pg_temp	service_role	trigger
+trigger_queue_member_roles_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_message_reaction_delete_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_message_reaction_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_post_federation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
@@ -888,6 +895,7 @@ trigger_queue_profile_federation		trigger	definer	public, pg_temp	service_role	t
 trigger_queue_push_notification		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_report_federation		trigger	definer	public, extensions, pg_temp	service_role	trigger
 trigger_queue_report_resolution		trigger	definer	public, extensions, pg_temp	service_role	trigger
+trigger_queue_server_roles_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_server_update_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_thread_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_voice_channel_join_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger

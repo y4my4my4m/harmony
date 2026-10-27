@@ -6,11 +6,15 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import {
   MIRROR_HOSTS,
+  MIRROR_SITES,
+  SOCIAL_SITE_HOSTS,
   mirrorLink,
   resolveMirrorPreferences,
   setMirrorLinkPreferences,
+  socialSiteOfHost,
 } from '@/utils/mirrorLinks'
 import { parseContentToMessageParts } from '@/utils/unifiedContentProcessing'
+import { shownLinkLabel } from '@/utils/maskedLinks'
 
 const defaults = resolveMirrorPreferences(undefined)
 const allOn = resolveMirrorPreferences({ x: { enabled: true }, instagram: { enabled: true }, bluesky: { enabled: true } })
@@ -79,6 +83,16 @@ describe('mirrorLink', () => {
     expect(MIRROR_HOSTS.bluesky).not.toContain('evil.example')
   })
 
+  it('knows every pickable mirror as a host of its site', () => {
+    for (const site of MIRROR_SITES) {
+      for (const host of MIRROR_HOSTS[site]) expect(socialSiteOfHost(host)).toBe(site)
+      expect(SOCIAL_SITE_HOSTS[site]).toEqual(expect.arrayContaining([...MIRROR_HOSTS[site]]))
+    }
+    expect(socialSiteOfHost('www.kkinstagram.com')).toBe('instagram')
+    expect(socialSiteOfHost('mobile.twitter.com')).toBe('x')
+    expect(socialSiteOfHost('kkinstagram.com.evil.example')).toBeNull()
+  })
+
   it('leaves X alone when turned off', () => {
     const off = resolveMirrorPreferences({ x: { enabled: false } })
     expect(mirrorLink('https://x.com/NASA/status/1', off)).toBe('https://x.com/NASA/status/1')
@@ -95,15 +109,23 @@ describe('sent content', () => {
   const texts = async (text: string) =>
     (await parseContentToMessageParts(text)).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
 
-  it('rewrites bare post links, a link without preview included', async () => {
-    expect(await urls('look https://x.com/NASA/status/1 and <https://twitter.com/jack/status/20>'))
+  it('rewrites bare post links', async () => {
+    expect(await urls('look https://x.com/NASA/status/1 and https://twitter.com/jack/status/20'))
       .toEqual(['https://fixupx.com/NASA/status/1', 'https://fixupx.com/jack/status/20'])
-    const parts = await parseContentToMessageParts('<https://x.com/NASA/status/1>')
-    expect(parts.find((p: any) => p.type === 'url')).toMatchObject({ preview: false })
   })
 
-  it('rewrites the link of a markdown link', async () => {
-    expect(await urls('[the launch](https://x.com/NASA/status/1)')).toEqual(['https://fixupx.com/NASA/status/1'])
+  // A mirror is there for the preview other apps draw: a link without one keeps its host.
+  it('leaves a link without preview on its host', async () => {
+    const parts = await parseContentToMessageParts('<https://x.com/NASA/status/1>')
+    expect(parts.find((p: any) => p.type === 'url')).toEqual({ type: 'url', url: 'https://x.com/NASA/status/1', preview: false })
+  })
+
+  // A label may name the host; a rewritten host would no longer match it (utils/maskedLinks).
+  it('leaves the link of a markdown link on its host', async () => {
+    expect(await urls('[the launch](https://x.com/NASA/status/1)')).toEqual(['https://x.com/NASA/status/1'])
+    const parts = await parseContentToMessageParts('[x.com/NASA/status/1](https://x.com/NASA/status/1)')
+    expect(parts).toEqual([{ type: 'url', url: 'https://x.com/NASA/status/1', preview: true, label: 'x.com/NASA/status/1' }])
+    expect(shownLinkLabel(parts[0])).toBe('x.com/NASA/status/1')
   })
 
   it('leaves links in inline code and fenced blocks as typed', async () => {
@@ -112,6 +134,26 @@ describe('sent content', () => {
     const fenced = '```\ncurl https://x.com/NASA/status/1\n```'
     expect(await urls(fenced)).toEqual([])
     expect(await texts(fenced)).toContain('https://x.com/NASA/status/1')
+  })
+
+  it('stores a mirror link without its share trackers, typed on the mirror or rewritten to it', async () => {
+    setMirrorLinkPreferences({ instagram: { enabled: true } })
+    expect(await urls('https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=MXN0Z2w5YWF3c2U1eg=='))
+      .toEqual(['https://kkinstagram.com/reel/De-YBL8zRXm/'])
+    expect(await urls('https://www.instagram.com/nasa/reel/De-YBL8zRXm/?utm_source=ig_web_copy_link&igsh=MXN0Z2w5YWF3c2U1eg==&mdxt=MXN0Z2w5YWF3c2U1eg=='))
+      .toEqual(['https://kkinstagram.com/reel/De-YBL8zRXm/'])
+    expect(await urls('https://x.com/NASA/status/1?s=46&t=AbC')).toEqual(['https://fixupx.com/NASA/status/1'])
+    expect(await urls('[post](<https://x.com/NASA/status/1?utm_source=a&id=2>)')).toEqual(['https://x.com/NASA/status/1?id=2'])
+    expect(await urls('https://fxbsky.app/profile/bsky.app/post/3mx?ref_src=embed')).toEqual(['https://fxbsky.app/profile/bsky.app/post/3mx'])
+  })
+
+  it('keeps share trackers when stripping is turned off in Privacy', async () => {
+    localStorage.setItem('harmony-privacy-strip-url-trackers', 'false')
+    try {
+      expect(await urls('https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=a')).toEqual(['https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=a'])
+    } finally {
+      localStorage.removeItem('harmony-privacy-strip-url-trackers')
+    }
   })
 
   it('follows the preferences set by the visual theme', async () => {

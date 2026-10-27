@@ -212,16 +212,17 @@ jobs:
   # journeys run the federation backend's HTTP app (e2e/specs/backend.ts); the bot
   # gateway journeys run bot-gateway (e2e/specs/botGateway.ts).
   # ----------------------------------------------------------------
-  # Two shards on their own runners and stacks: 239 journeys on one worker took 31-33 min of
-  # a 40 min limit on 2026-10-20. Each shard runs about half, whole serial groups together.
+  # Three shards on their own runners and stacks: 239 journeys on one worker took 31-33 min of
+  # a 40 min limit on 2026-10-20; with 1.9.1 a half (227 tests) ran past 30 min. Each shard runs
+  # about a third, whole serial groups together.
   e2e-journeys:
-    name: E2E Journeys (${{ matrix.shard }}/2)
+    name: E2E Journeys (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -246,7 +247,7 @@ jobs:
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
-      - run: npx playwright test --project=journeys --shard=${{ matrix.shard }}/2
+      - run: npx playwright test --project=journeys --shard=${{ matrix.shard }}/3
         env:
           CI: true
 
@@ -293,7 +294,7 @@ jobs:
           docker run --rm --network host --ipc=host
           -v "$PWD:$PWD" -w "$PWD" -u "$(id -u):$(id -g)"
           -e HOME=/tmp/pwhome -e CI=true -e PW_BUNDLED=1
-          mcr.microsoft.com/playwright:v1.58.2-noble
+          mcr.microsoft.com/playwright:v1.60.0-noble
           npx playwright test --project=journeys-webkit
 
       - name: Keep the report when a journey fails

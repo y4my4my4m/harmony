@@ -14,9 +14,14 @@ export interface LibraryEmoji {
 export type EmojiLibraryOperation = 'upload' | 'rename' | 'delete'
 
 /** The operations behind one emoji library: a server's, or the caller's personal one. */
+export interface EmojiUploadProgress {
+  /** Fraction of the image sent, 0 to 1. */
+  onProgress?: (fraction: number) => void
+}
+
 export interface EmojiLibraryAdapter<E extends LibraryEmoji = LibraryEmoji> {
   /** The created emoji; null for a refusal without a reason. Throws UploadRejectedError with a user-facing message. */
-  upload(file: File): Promise<E | null>
+  upload(file: File, options?: EmojiUploadProgress): Promise<E | null>
   rename(emoji: E, name: string): Promise<void>
   remove(emoji: E): Promise<void>
   removeMany(emojis: E[]): Promise<{ success: string[]; failed: string[] }>

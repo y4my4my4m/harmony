@@ -435,20 +435,23 @@ export class FederationServerService {
   // SYNC REMOTE SERVER
 
   /**
-   * Sync remote server metadata (channels, icon, etc.)
-   * 
+   * Sync a remote server's copy: channels, icon, roles, pins, and, for a member, the members and
+   * their roles. Read from the host as the signed-in member.
+   *
    * @param serverId - The local server reference ID
    */
   async syncServer(serverId: string): Promise<{ success: boolean; error?: string }> {
     try {
       debug.log(`Syncing server: ${serverId}`)
 
+      const { data: { session } } = await supabase.auth.getSession()
       const response = await fetch(
         federationApi(`/servers/${serverId}/sync`),
         {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
           },
         }
       )

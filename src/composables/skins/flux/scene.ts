@@ -368,8 +368,10 @@ export default function createFluxScene(): SkinScene {
     const icon = (e.target as Element | null)?.closest?.('[data-region="rail"] :is(.rail-entry, .header-item-wrapper, .portal)')
     if (!icon) return
     const r = styleRect(icon)
+    // Under the icon; with the dock at the bottom, the icon's top (the tooltip lifts itself by its height).
+    const atBottom = root.getAttribute('data-skin-dock-bottom') === 'on'
     body.style.setProperty('--flux-tip-x', `${r.left + r.width / 2}px`)
-    body.style.setProperty('--flux-tip-y', `${r.bottom + 10}px`)
+    body.style.setProperty('--flux-tip-y', `${atBottom ? r.top - 10 : r.bottom + 10}px`)
   }
   const onWheel = (e: WheelEvent) => {
     if (!dockActive() || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return

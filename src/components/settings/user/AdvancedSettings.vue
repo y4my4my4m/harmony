@@ -297,7 +297,6 @@
               type="text"
               autocomplete="off"
               spellcheck="false"
-              placeholder="DELETE"
             />
           </div>
 

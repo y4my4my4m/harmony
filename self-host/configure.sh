@@ -55,6 +55,9 @@ SUPABASE_REPO="${SUPABASE_REPO:-https://github.com/supabase/supabase}"
 SUPABASE_REF_DEFAULT=31b6368049a1d9f5ef409383567b3f9bdaf018e9
 SUPABASE_REF="${SUPABASE_REF:-$SUPABASE_REF_DEFAULT}"
 COMPOSE_MIN=2.24.4
+# GoTrue release supabase-overrides.yml needs: custom OAuth/OIDC providers whose key sets mix
+# algorithms (2.196.0).
+GOTRUE_MIN=2.196.0
 
 ENV_FILE="$SCRIPT_DIR/.env"
 SB_ENV="$SUPABASE_DIR/.env"
@@ -528,6 +531,22 @@ if $SMTP_SET; then
 	# SMTP host flips it, so a hand edit stays.
 	smtp_configured "$OLD_SMTP_HOST" || env_set "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM false
 fi
+# gotrue_image_for STACK_COMPOSE CURRENT: GOTRUE_IMAGE, the auth image supabase-overrides.yml
+# runs. The stack's own supabase/gotrue image from GOTRUE_MIN on, otherwise GOTRUE_MIN; a
+# CURRENT image at least as new stays, so the override never downgrades.
+gotrue_image_for() {
+	local img cur="$2"
+	img="$({ grep -oE 'supabase/gotrue:v[0-9]+\.[0-9]+\.[0-9]+' "$1" 2>/dev/null || true; } | head -1)"
+	[[ -n "$img" ]] && version_ge "${img##*:v}" "$GOTRUE_MIN" || img="supabase/gotrue:v$GOTRUE_MIN"
+	if [[ "$cur" =~ ^supabase/gotrue:v([0-9]+\.[0-9]+\.[0-9]+)$ ]] && version_ge "${BASH_REMATCH[1]}" "${img##*:v}"; then
+		img="$cur"
+	fi
+	printf '%s' "$img"
+}
+cur_gotrue="$(env_get "$SB_ENV" GOTRUE_IMAGE)"
+gotrue_img="$(gotrue_image_for "$SUPABASE_DIR/docker-compose.yml" "$cur_gotrue")"
+[[ "$cur_gotrue" == "$gotrue_img" ]] || info "supabase/.env: GOTRUE_IMAGE=$gotrue_img"
+env_set "$SB_ENV" GOTRUE_IMAGE "$gotrue_img"
 chmod 600 "$SB_ENV"
 ok "self-host/supabase/.env"
 

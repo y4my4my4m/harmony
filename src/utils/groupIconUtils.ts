@@ -106,13 +106,11 @@ export function getDefaultGroupIcon(conversationId: string, size: number = DEFAU
   return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
-/**
- * Upload a group icon file
- */
+/** Uploads a group icon; `onProgress` receives percent, 0 to 100. */
 export async function uploadGroupIcon(
   conversationId: string,
   file: File,
-  _onProgress?: (progress: number) => void
+  onProgress?: (percent: number) => void
 ): Promise<{ success: boolean; iconPath?: string; error?: string }> {
   try {
     const { data: conversation } = await supabase
@@ -122,7 +120,9 @@ export async function uploadGroupIcon(
       .single()
     const previousPath: string | null = conversation?.metadata?.icon_url ?? null
 
-    const uploaded = await uploadImageObject(file, 'group_icon', BUCKET_NAME, conversationId, 'icon')
+    const uploaded = await uploadImageObject(file, 'group_icon', BUCKET_NAME, conversationId, 'icon', {
+      onProgress: onProgress && ((fraction) => onProgress(Math.round(fraction * 100))),
+    })
     if (!uploaded.success || !uploaded.path) {
       return { success: false, error: uploaded.error }
     }

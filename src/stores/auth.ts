@@ -1072,6 +1072,9 @@ export const useAuthStore = defineStore('auth', {
           import('@/services/ChannelEncryptionService').then(({ forgetChannelEncryption }) => forgetChannelEncryption()),
           import('@/services/conversationEncryption').then(({ forgetConversationEncryption }) => forgetConversationEncryption()),
           import('@/services/privateMedia').then(({ forgetSignedMediaUrls }) => forgetSignedMediaUrls()),
+          import('@/services/uploads/storageUpload').then(({ forgetResumableUploads }) => forgetResumableUploads()),
+          import('@/services/transfers').then(({ resetTransfers }) => resetTransfers()),
+          import('@/utils/remoteServerSync').then(({ resetRemoteServerSync }) => resetRemoteServerSync()),
         ]).catch(error => {
           debug.error('Error clearing account caches:', error);
         });

@@ -4,6 +4,7 @@ import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
 export interface SystemStats {
@@ -145,6 +146,7 @@ export interface InstanceSearchResult {
   federation_enabled: boolean;
   icon_url?: string;
   banner_url?: string;
+  theme_color?: string;
 }
 
 export interface InstanceStats {
@@ -854,6 +856,7 @@ class AdminService {
       let registrationOpen = true
       let requiresApproval = false
       let oauthProviders: string[] | Record<string, boolean> = []
+      let customOAuthProviders: CustomOAuthProvider[] = []
       let termsUrl = ''
       let privacyUrl = ''
       let instanceIconUrl = ''
@@ -891,7 +894,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -937,6 +940,9 @@ class AdminService {
                   break
                 case 'oauth_providers':
                   oauthProviders = value
+                  break
+                case 'custom_oauth_providers':
+                  customOAuthProviders = parseCustomOAuthProviders(value)
                   break
                 case 'terms_url':
                   termsUrl = (typeof value === 'string' ? value : String(value)) || ''
@@ -1089,6 +1095,7 @@ class AdminService {
           registrationOpen: registrationOpen,
           requiresApproval: requiresApproval,
           oauthProviders: oauthProviders,
+          customOAuthProviders,
           termsUrl: termsUrl,
           privacyUrl: privacyUrl,
           iconUrl: instanceIconUrl,
@@ -1622,34 +1629,18 @@ class AdminService {
   }
 
   /**
-   * Re-probes an instance for icon/banner URLs and updates the row in place.
-   * Returns null when discovery fails or yields neither URL.
+   * Re-probes an instance for its icon, banner and theme colour. The probe stores them on the
+   * instance's row (record_instance_branding); the answer is the metadata to merge, absent values
+   * left out, with the read's time. Null when discovery fails.
    */
-  async enrichInstanceMetadata(instance: { id: string; domain: string; metadata?: any }): Promise<{ icon_url?: string; banner_url?: string } | null> {
-    try {
-      const discovered = await this.discoverInstance(instance.domain);
-      if (!discovered) return null;
-
-      const newIcon = discovered.icon_url;
-      const newBanner = discovered.banner_url;
-
-      if (!newIcon && !newBanner) return null;
-
-      const updatedMetadata = {
-        ...(instance.metadata || {}),
-        ...(newIcon && { icon_url: newIcon }),
-        ...(newBanner && { banner_url: newBanner }),
-      };
-
-      await supabase
-        .from('federated_instances')
-        .update({ metadata: updatedMetadata })
-        .eq('id', instance.id);
-
-      return { icon_url: newIcon, banner_url: newBanner };
-    } catch {
-      return null;
-    }
+  async enrichInstanceMetadata(instance: { domain: string }): Promise<Record<string, string> | null> {
+    const discovered = await this.discoverInstance(instance.domain);
+    if (!discovered) return null;
+    const branding: Record<string, string> = { branding_read_at: new Date().toISOString() };
+    if (discovered.icon_url) branding.icon_url = discovered.icon_url;
+    if (discovered.banner_url) branding.banner_url = discovered.banner_url;
+    if (discovered.theme_color) branding.theme_color = discovered.theme_color;
+    return branding;
   }
 
   async updateFederatedInstance(

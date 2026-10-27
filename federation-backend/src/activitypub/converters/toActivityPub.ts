@@ -2,6 +2,8 @@ import config from '../../config/index.js';
 import { getFullAvatarUrl, getFullBannerUrl, getFullEmojiUrl } from '../../utils/urlUtils.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
 import { HARMONY_NS } from '../harmonyContext.js';
+import { HARMONY_INSTANCE_ROLE, instanceRoleOf } from '../copyMirror.js';
+import { shownLinkLabel } from '../../utils/maskedLinks.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -432,6 +434,12 @@ export function profileToActor(profile: any): any {
     actor['harmony:profileColor'] = profile.color;
   }
 
+  // Staff of this instance (copyMirror.ts).
+  const instanceRole = instanceRoleOf(profile);
+  if (instanceRole) {
+    actor[HARMONY_INSTANCE_ROLE] = instanceRole;
+  }
+
   // Harmony extension: custom status (Discord-style status)
   if (customStatusData) {
     // A storage path becomes the public URL: getPublicUrl alone names SUPABASE_URL's host,
@@ -746,7 +754,7 @@ function escapeHtmlAttr(str: string): string {
  */
 const SAFE_URL_SCHEMES_OUTBOUND = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
-function safeAttrUrlOutbound(url: string | null | undefined): string {
+export function safeAttrUrlOutbound(url: string | null | undefined): string {
   if (url == null) return '';
   // eslint-disable-next-line no-control-regex
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
@@ -809,6 +817,11 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         const safeUrl = safeAttrUrlOutbound(item.url || '');
         if (!safeUrl) {
           return escapeHtmlAttr(item.url || '');
+        }
+        // A masked link: utils/maskedLinks names the outbound form.
+        const label = shownLinkLabel(item);
+        if (label) {
+          return `<a href="${escapeHtmlAttr(safeUrl)}" rel="nofollow noopener noreferrer" target="_blank">${escapeHtmlAttr(label)}</a><span class="invisible"> (${escapeHtmlAttr(safeUrl)})</span>`;
         }
         return `<a href="${escapeHtmlAttr(safeUrl)}" rel="nofollow noopener noreferrer" target="_blank">${escapeHtmlAttr(safeUrl)}</a>`;
       }

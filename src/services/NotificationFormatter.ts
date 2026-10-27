@@ -14,6 +14,7 @@ import { securityNoticeText } from '@/utils/securityNotice'
 import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
 import { getInstanceDomain } from '@/services/instanceConfig'
+import { urlPartPlainText } from '@/utils/maskedLinks'
 
 export interface NotificationMessage {
   title: string
@@ -68,7 +69,7 @@ function extractContentText(content: any): string | null {
         if (part.type === 'mention') return `@${part.username || ''}`
         if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji || ''}:`
         if (part.type === 'hashtag') return `#${part.name || ''}`
-        if (part.type === 'url') return part.url || ''
+        if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''
         return ''
       })
       .join(' ')

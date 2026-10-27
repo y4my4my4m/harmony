@@ -3,21 +3,21 @@
     <div class="instance-detail-layout">
       <!-- Banner -->
       <div
-        v-if="instanceBanner"
+        v-if="bannerStyle"
         class="instance-modal-banner"
-        :style="{ backgroundImage: `url(${instanceBanner})` }"
+        :style="bannerStyle"
       >
       </div>
 
-      <header class="instance-modal-header" :class="{ 'has-banner': !!instanceBanner }">
+      <header class="instance-modal-header" :class="{ 'has-banner': !!bannerStyle }">
         <div class="instance-header-main">
           <div class="instance-icon-wrap">
             <img
-              v-if="instanceIcon && !iconFailed"
+              v-if="instanceIcon"
               :src="instanceIcon"
               :alt="instance.domain"
               class="instance-icon-img"
-              @error="iconFailed = true"
+              @error="onIconError"
             />
             <span v-else class="instance-monogram" aria-hidden="true">{{ instanceMonogram(instance.domain) }}</span>
           </div>
@@ -208,6 +208,7 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
+import { instanceBannerStyle, instanceIconUrl } from '@/utils/instanceBranding';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
 const router = useRouter();
@@ -219,7 +220,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-defineEmits<{
+const emit = defineEmits<{
   close: [];
   'view-posts': [instance: FederatedInstance];
 }>();
@@ -227,10 +228,15 @@ defineEmits<{
 const recentPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
 const urlCopied = ref(false);
-const iconFailed = ref(false);
+// An icon that fails to load gives way to the fallback (Harmony's icon, else the monogram).
+const failedIcons = ref<ReadonlySet<string>>(new Set());
 
-const instanceIcon = computed(() => props.instance.metadata?.icon_url || null);
-const instanceBanner = computed(() => props.instance.metadata?.banner_url || null);
+const instanceIcon = computed(() => instanceIconUrl(props.instance, failedIcons.value));
+const bannerStyle = computed(() => instanceBannerStyle(props.instance));
+
+function onIconError() {
+  if (instanceIcon.value) failedIcons.value = new Set([...failedIcons.value, instanceIcon.value]);
+}
 
 const INSTANCE_DESCRIPTION_ALLOWED_TAGS = ['br', 'b', 'i', 'em', 'strong', 'a', 'p', 'span', 'ul', 'ol', 'li'];
 const INSTANCE_DESCRIPTION_ALLOWED_ATTRS = ['href', 'rel', 'target'];
@@ -334,7 +340,8 @@ const viewPost = (post: TimelinePost) => {
 };
 
 const viewAllPosts = () => {
-  openLink(`https://${props.instance.domain}/public`);
+  emit('close');
+  void router.push({ name: 'InstancePosts', params: { domain: props.instance.domain } });
 };
 
 const copyInstanceUrl = async () => {

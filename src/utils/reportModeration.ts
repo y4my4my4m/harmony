@@ -6,6 +6,7 @@
 
 import { i18n } from '@/i18n'
 import { isPrivateMediaPart, messageMediaReferenceUrl } from '@/services/privateMedia'
+import { urlPartSource } from '@/utils/maskedLinks'
 
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
 
@@ -276,7 +277,8 @@ interface SnapshotPart {
 function partText(part: SnapshotPart): string {
   switch (part?.type) {
     case 'text': return part.text ?? ''
-    case 'url': return part.url ?? '[link]'
+    // Moderators see a masked link's destination beside its label.
+    case 'url': return part.url ? urlPartSource({ ...part, url: part.url }) : '[link]'
     case 'mention': return part.mention ?? `@${part.username ?? 'user'}`
     case 'hashtag': return `#${part.name ?? 'tag'}`
     case 'emoji': return `:${part.emoji?.name ?? 'emoji'}:`

@@ -673,4 +673,35 @@ describe('server routes', () => {
       ])
     })
   })
+
+  describe('POST /servers/:id/channels', () => {
+    it('returns the name the database stored under the naming rule', async () => {
+      routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+      routeTables({
+        bot_audit_log: { data: null, error: null },
+        channels: {
+          data: { id: 'made', server_id: SERVER_ID, name: 'release-notes', type: 0, order: 0, category: null },
+          error: null,
+        },
+      })
+      const res = await supertest(makeApp()).post(`/api/v1/servers/${SERVER_ID}/channels`).send({ name: 'Release Notes' })
+
+      expect(res.status).toBe(201)
+      expect(res.body.name).toBe('release-notes')
+    })
+
+    it('answers 400 for a name the naming rule empties', async () => {
+      routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+      routeTables({
+        channels: {
+          data: null,
+          error: { code: '23514', message: 'channel name has no characters the naming rule keeps' },
+        },
+      })
+      const res = await supertest(makeApp()).post(`/api/v1/servers/${SERVER_ID}/channels`).send({ name: '!!!' })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toMatch(/naming rule/)
+    })
+  })
 })

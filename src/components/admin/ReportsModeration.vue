@@ -569,7 +569,7 @@ const navigateToReportUser = (report: ReportWithDetails, which: 'reporter' | 're
 }
 
 const navigateToPost = (postId: string) => {
-  router.push(`/post/${postId}`)
+  router.push({ name: 'PostDetail', params: { postId } })
 }
 
 onMounted(async () => {

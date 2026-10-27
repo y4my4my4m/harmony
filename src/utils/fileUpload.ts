@@ -7,6 +7,7 @@ import {
   prepareImageUpload,
   type ImageUploadKind,
 } from '@/utils/imageResize'
+import { uploadStorageObject } from '@/services/uploads/storageUpload'
 
 export interface UploadResult {
   success: boolean;
@@ -57,7 +58,8 @@ export async function uploadImageObject(
   kind: ImageUploadKind,
   bucket: string,
   folder: string,
-  stem: string
+  stem: string,
+  options: { onProgress?: (fraction: number) => void } = {}
 ): Promise<UploadResult> {
   try {
     const sourceError = imageSourceError(file);
@@ -73,11 +75,13 @@ export async function uploadImageObject(
     const path = immutableObjectPath(folder, stem, prepared.extension);
     debug.log(`Uploading ${bucket}/${path} (${file.size} -> ${prepared.file.size} bytes)`);
 
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, prepared.file, immutableUploadOptions(prepared));
+    const { data, error } = await uploadStorageObject(bucket, path, prepared.file, {
+      ...immutableUploadOptions(prepared),
+      label: file.name || undefined,
+      onProgress: options.onProgress,
+    });
 
-    if (error) {
+    if (error || !data) {
       debug.error('Upload error:', error);
       return { success: false, path, error: humanizeUploadError(error, bucket) };
     }

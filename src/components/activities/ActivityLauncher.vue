@@ -31,7 +31,7 @@
           class="act-launch__input"
           type="url"
           inputmode="url"
-          :placeholder="t('activities.linkPlaceholder')"
+          :placeholder="t('activities.linkHint')"
           :aria-label="t('activities.linkPlaceholder')"
           :aria-invalid="!!error"
           data-testid="activity-link"

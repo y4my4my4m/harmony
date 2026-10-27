@@ -501,7 +501,7 @@ import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
 import { useChatStore } from '@/stores/useChat';
 import { statePersistence } from '@/services/StatePersistence';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
-import { isContextMenuKey, useMenuButton } from '@/composables/useMenu';
+import { useMenuButton } from '@/composables/useMenu';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { focusElement, uid } from '@/utils/a11y/focus';
@@ -1542,7 +1542,14 @@ const onChannelClick = (event: MouseEvent, channel: Channel) => {
 };
 
 const sidebarEl = ref<HTMLElement | null>(null);
-const roving = useRovingTabindex(sidebarEl, { itemSelector: '[data-roving-item]', typeahead: true });
+const roving = useRovingTabindex(sidebarEl, {
+  itemSelector: '[data-roving-item]',
+  typeahead: true,
+  onContextMenu: (el) => {
+    const { navKind, navId } = el.dataset;
+    if (navKind && navId) openContextMenuFromKeyboard(el, navKind, navId);
+  },
+});
 
 const navItem = (kind: string, id: string): HTMLElement | null =>
   sidebarEl.value?.querySelector<HTMLElement>(`[data-nav-kind="${kind}"][data-nav-id="${CSS.escape(id)}"]`) ?? null;
@@ -1610,17 +1617,12 @@ const findActiveThread = (threadId: string): ThreadWithDetails | null => {
   return null;
 };
 
+// List-specific keys; the roving helper handles the rest.
 const onNavKeydown = (event: KeyboardEvent) => {
-  const el = event.target as HTMLElement | null;
-  const kind = el?.dataset?.navKind;
-  const id = el?.dataset?.navId;
-  if (!el || !kind || !id) return;
-  if (isContextMenuKey(event)) {
-    event.preventDefault();
-    openContextMenuFromKeyboard(el, kind, id);
-    return;
-  }
-  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+  const el = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('[data-nav-kind][data-nav-id]') : null;
+  const kind = el?.dataset.navKind;
+  const id = el?.dataset.navId;
+  if (el && kind && id && event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
     const delta = event.key === 'ArrowUp' ? -1 : 1;
     if (kind === 'channel') {
       const channel = props.channels.find(c => c.id === id);
@@ -1638,7 +1640,7 @@ const onNavKeydown = (event: KeyboardEvent) => {
     return;
   }
   // A native link activates on Enter only; Space activates it as it does a button.
-  if (event.key === ' ' && el.tagName === 'A') {
+  if (el && event.target === el && event.key === ' ' && el.tagName === 'A') {
     event.preventDefault();
     el.click();
     return;

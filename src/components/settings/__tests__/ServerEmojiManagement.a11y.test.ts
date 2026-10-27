@@ -107,7 +107,7 @@ describe('ServerEmojiManagement accessibility', () => {
     await input.trigger('change')
     await flushPromises()
 
-    expect(h.uploadEmoji).toHaveBeenCalledWith(SERVER, 'me', file)
+    expect(h.uploadEmoji).toHaveBeenCalledWith(SERVER, 'me', file, { onProgress: expect.any(Function) })
     expect(wrapper.emitted('emoji-uploaded')?.[0]?.[0]).toMatchObject({ id: 'e3' })
   })
 

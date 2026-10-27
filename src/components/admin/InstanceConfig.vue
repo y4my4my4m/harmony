@@ -606,6 +606,27 @@
         <Icon name="save" :size="16" />
         {{ savingOAuthProviders ? 'Saving…' : 'Save OAuth settings' }}
       </button>
+
+      <section class="custom-oauth" data-testid="admin-custom-oauth" aria-labelledby="custom-oauth-title">
+        <h4 id="custom-oauth-title">{{ $t('admin.instance.customOAuthTitle') }}</h4>
+        <p class="setting-hint">{{ $t('admin.instance.customOAuthHint') }}</p>
+        <ul v-if="customOAuthProviders.length" class="custom-oauth-list" data-testid="admin-custom-oauth-list">
+          <li v-for="provider in customOAuthProviders" :key="provider.id" class="custom-oauth-item">
+            <img v-if="provider.icon" :src="provider.icon" alt="" width="20" height="20" referrerpolicy="no-referrer" />
+            <Icon v-else name="key" :size="20" />
+            <span class="custom-oauth-name">{{ provider.name }}</span>
+            <code class="custom-oauth-id">{{ provider.id }}</code>
+          </li>
+        </ul>
+        <p v-else class="setting-hint" data-testid="admin-custom-oauth-empty">{{ $t('admin.instance.customOAuthEmpty') }}</p>
+        <p class="setting-hint">{{ $t('admin.instance.customOAuthCallback') }}</p>
+        <code class="custom-oauth-command" data-testid="admin-custom-oauth-callback">{{ customOAuthCallbackUrl }}</code>
+        <p class="setting-hint">{{ $t('admin.instance.customOAuthManage') }}</p>
+        <pre class="custom-oauth-command"><code>harmony auth add-provider authentik --name Authentik \
+  --issuer https://auth.example.com/application/o/harmony/ --client-id …
+harmony auth providers
+harmony auth remove-provider authentik</code></pre>
+      </section>
     </div>
 
     <!-- WebRTC / Voice Settings -->
@@ -684,6 +705,7 @@ import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import type { CustomOAuthProvider } from '@/utils/customOAuthProviders'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -742,6 +764,11 @@ const oauthProviders = ref({
 })
 const oauthProvidersChanged = ref(false)
 const savingOAuthProviders = ref(false)
+// Read-only: each provider's client secret lives in GoTrue on the host.
+const customOAuthProviders = ref<CustomOAuthProvider[]>([])
+// GoTrue's callback for custom providers: GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL (API_EXTERNAL_URL/auth/v1)
+// + /callback. The web app's Supabase URL is API_EXTERNAL_URL on a self-host install.
+const customOAuthCallbackUrl = `${(runtimeConfig.supabaseUrl || '').replace(/\/+$/, '')}/auth/v1/callback`
 // Configuration
 const config = ref({
   chat: {
@@ -843,6 +870,7 @@ const loadInstanceConfig = async () => {
         }
       }
       oauthProvidersChanged.value = false
+      customOAuthProviders.value = cfg.instance.customOAuthProviders || []
     }
   } catch (error) {
     debug.error('Failed to load instance config:', error)
@@ -1602,6 +1630,60 @@ onMounted(() => {
   font-weight: 600;
   margin-bottom: 16px;
   color: var(--text-primary);
+}
+
+.custom-oauth {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.custom-oauth h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.custom-oauth-list {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-oauth-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+}
+
+.custom-oauth-item img {
+  object-fit: contain;
+}
+
+.custom-oauth-name {
+  font-weight: 500;
+}
+
+.custom-oauth-id {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.custom-oauth-command {
+  display: block;
+  margin: 4px 0 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 

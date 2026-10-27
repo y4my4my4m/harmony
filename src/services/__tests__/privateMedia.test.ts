@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/supabase'
+
+vi.mock('@/services/uploads/storageUpload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/uploads/storageUpload')>()),
+  uploadStorageObject: async (...args: Parameters<typeof import('../../../tests/helpers/storageUploadMock').uploadThroughStorageMock>) =>
+    (await import('../../../tests/helpers/storageUploadMock')).uploadThroughStorageMock(...args),
+}))
 import {
   COMPAT_URL_TTL_SECONDS,
   MESSAGE_MEDIA_BUCKET,

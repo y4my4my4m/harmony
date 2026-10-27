@@ -73,6 +73,33 @@ pub fn android_open_url(url: String) -> Result<(), String> {
   Ok(())
 }
 
+// Hands an http(s) URL to DownloadManager, which saves it into Downloads as `file_name`, shows
+// its own notification and resumes after a dropped connection.
+#[tauri::command]
+pub fn android_download(url: String, file_name: String) -> Result<(), String> {
+  if !is_web_url(&url) {
+    return Err("only http and https URLs are downloaded".into());
+  }
+  #[cfg(target_os = "android")]
+  {
+    use jni::objects::JValue;
+    with_app_context(|env, context| {
+      let jurl = env.new_string(&url)?;
+      let jname = env.new_string(&file_name)?;
+      env.call_method(
+        context,
+        "downloadUrl",
+        "(Ljava/lang/String;Ljava/lang/String;)V",
+        &[JValue::Object(&jurl), JValue::Object(&jname)],
+      )?;
+      Ok(())
+    })?;
+  }
+  #[cfg(not(target_os = "android"))]
+  let _ = file_name;
+  Ok(())
+}
+
 fn is_web_url(url: &str) -> bool {
   let lower = url.to_ascii_lowercase();
   let rest = if let Some(r) = lower.strip_prefix("https://") {

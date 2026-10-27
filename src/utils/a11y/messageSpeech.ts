@@ -4,6 +4,7 @@
 
 import type { MessagePart } from '@/types'
 import { customEmojiLabel } from './emojiNames'
+import { urlPartPlainText } from '@/utils/maskedLinks'
 
 export type Translate = (key: string, params?: Record<string, unknown>, plural?: number) => string
 
@@ -49,7 +50,7 @@ export function messageSpeechText(
         pieces.push(`#${p.name ?? ''}`)
         break
       case 'url':
-        pieces.push(p.url ?? '')
+        pieces.push(typeof p.url === 'string' ? urlPartPlainText({ ...p, url: p.url }) : '')
         break
       case 'file': {
         const alt = typeof p.altText === 'string' ? p.altText.trim() : ''

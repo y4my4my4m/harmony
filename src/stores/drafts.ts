@@ -29,21 +29,34 @@ export const useDraftsStore = defineStore('drafts', () => {
 
   function persistDebounced() {
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(persistNow, SAVE_DEBOUNCE_MS)
+    saveTimer = setTimeout(() => {
+      saveTimer = null
+      persistNow()
+    }, SAVE_DEBOUNCE_MS)
   }
 
   function makeKey(type: 'channel' | 'conversation' | 'thread', id: string): string {
     return `${type}:${id}`
   }
 
+  // An emptied draft is written at once, not after the debounce: a send empties it, and a
+  // stored draft still holding the sent text comes back on the next start.
+  function persistRemoval() {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = null
+    persistNow()
+  }
+
   function saveDraft(key: string, content: string) {
     const trimmed = content.trim()
     if (!trimmed) {
+      const had = key in drafts.value
       delete drafts.value[key]
-    } else {
-      drafts.value[key] = content
-      evictOldest()
+      if (had) persistRemoval()
+      return
     }
+    drafts.value[key] = content
+    evictOldest()
     persistDebounced()
   }
 
@@ -52,8 +65,9 @@ export const useDraftsStore = defineStore('drafts', () => {
   }
 
   function clearDraft(key: string) {
+    const had = key in drafts.value
     delete drafts.value[key]
-    persistDebounced()
+    if (had) persistRemoval()
   }
 
   function evictOldest() {
@@ -66,7 +80,22 @@ export const useDraftsStore = defineStore('drafts', () => {
     }
   }
 
+  // A reload, a closed tab or an app sent to the background inside the debounce window would
+  // keep the draft as it was before the last keystrokes.
+  function flush() {
+    if (!saveTimer) return
+    clearTimeout(saveTimer)
+    saveTimer = null
+    persistNow()
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush()
+    })
+  }
+
   load()
 
-  return { drafts, makeKey, saveDraft, getDraft, clearDraft, load }
+  return { drafts, makeKey, saveDraft, getDraft, clearDraft, load, flush }
 })

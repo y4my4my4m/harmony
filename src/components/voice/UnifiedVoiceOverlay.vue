@@ -274,7 +274,7 @@
 
         <!-- Bottom Controls -->
         <div class="voice-controls">
-          <div class="media-controls">
+          <AppToolbar class="media-controls" :label="t('voice.toolbar.controls')">
             <!-- Microphone with device selector -->
             <div class="control-group">
               <button
@@ -399,7 +399,7 @@
             >
               <Icon name="music" />
             </button>
-          </div>
+          </AppToolbar>
 
           <div class="action-controls">
             <button @click="leaveChannel" class="leave-button" data-testid="voice-leave">
@@ -505,6 +505,7 @@ import ActivityStage from '@/components/activities/ActivityStage.vue';
 import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useI18n } from 'vue-i18n';
 import { dismissVoicePopovers, voicePopoverOpen, type Rect } from './voiceMenuModel';

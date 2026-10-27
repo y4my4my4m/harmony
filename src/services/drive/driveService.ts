@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { namedDownloadUrl } from '@/utils/storageDownloadUrl'
 import { apiUrl } from '@/services/instanceConfig'
 
 /**
@@ -435,15 +436,25 @@ export function driveLinkContentUrl(token: string, download = false): string {
   return apiUrl(`/api/federation/drive/link/${encodeURIComponent(token)}${download ? '?download=1' : ''}`)
 }
 
-/** A URL that downloads the file under its Drive name. */
+/**
+ * Lifetime of a Drive download URL, s; privateMedia VIEW_URL_TTL_SECONDS, which chat attachments
+ * download with. The desktop download resumes with Range on the same URL; once it expires,
+ * storage answers 400 and the download fails.
+ */
+export const DRIVE_DOWNLOAD_URL_TTL_SECONDS = 6 * 60 * 60
+
+/**
+ * A URL that downloads the file under its Drive name. The name is added by namedDownloadUrl:
+ * storage-js's own `download` option leaves & # + unescaped.
+ */
 export async function driveDownloadUrl(file: Pick<DriveFile, 'bucket' | 'path' | 'name'>): Promise<string> {
-  const download = file.name || file.path.split('/').pop() || 'file'
+  const name = file.name || file.path.split('/').pop() || 'file'
   if (file.bucket === 'user_media') {
-    return supabase.storage.from('user_media').getPublicUrl(file.path, { download }).data.publicUrl
+    return namedDownloadUrl(supabase.storage.from('user_media').getPublicUrl(file.path).data.publicUrl, name)
   }
-  const { data, error } = await supabase.storage.from('message_media').createSignedUrl(file.path, 120, { download })
+  const { data, error } = await supabase.storage.from('message_media').createSignedUrl(file.path, DRIVE_DOWNLOAD_URL_TTL_SECONDS)
   if (error || !data?.signedUrl) throw error ?? new Error('No download URL')
-  return data.signedUrl
+  return namedDownloadUrl(data.signedUrl, name)
 }
 
 /** Public URL of a user_media (post media) object. */

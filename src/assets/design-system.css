@@ -1076,6 +1076,12 @@ strong {
   gap: var(--space-3);
 }
 
+/* A button group in the footer row spans it. At its content width the phone
+   layout's full-width stacked buttons shrink to the widest label at the right edge. */
+.modal-footer > .modal-actions {
+  flex: 1 1 auto;
+}
+
 /* Loading States - spinner + label stacks (replaces legacy .loading-spinner margin-bottom).
    Scoped with :has() so ONLY containers that directly hold a <LoadingSpinner>
    (.harmony-spinner) get centered + gapped. Containers that hold skeleton grids

@@ -83,7 +83,7 @@
         v-model="memberSearch"
         type="search"
         class="cyber-input"
-        :placeholder="t('hostStaff.membersSearch')"
+        :placeholder="t('hostStaff.membersSearchHint')"
         :aria-label="t('hostStaff.membersSearch')"
       />
       <p v-if="membersError" class="detail-error" role="alert">{{ membersError }}</p>

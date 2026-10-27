@@ -97,7 +97,8 @@
     "oauth": {
       "google": "使用 Google 继续",
       "twitch": "使用 Twitch 继续",
-      "github": "使用 GitHub 继续"
+      "github": "使用 GitHub 继续",
+      "custom": "使用 {name} 继续"
     },
     "callback": {
       "signingIn": "正在登录...",
@@ -153,8 +154,6 @@
       "invalidTitle": "链接无效或已过期",
       "invalidBody": "此密码重置链接无效或已过期。请重新申请。",
       "enterNew": "请在下方输入新密码",
-      "newPlaceholder": "输入新密码",
-      "confirmPlaceholder": "确认新密码",
       "remember": "想起密码了？",
       "verifying": "正在验证密码重置链接…",
       "verifyAndReset": "验证并重置密码",
@@ -222,7 +221,6 @@
     "basicInformation": "关于您服务器的基本信息",
     "viewBasicInformation": "查看服务器基本信息",
     "tellPeopleAbout": "告诉人们您的服务器是关于什么的",
-    "enterServerName": "输入服务器名称",
     "serverNameAppearance": "这是您的服务器向成员显示的方式",
     "serverNameAppearanceView": "向成员显示的服务器名称",
     "charactersRemaining": "{current}/{max} 个字符",
@@ -234,7 +232,6 @@
     "iconRestriction": "只有服务器所有者可以更改服务器图标。",
     "loadingUsers": "加载用户中...",
     "membersCount": "{count} 名成员",
-    "searchMembersPlaceholder": "搜索成员...",
     "emojiManagement": "表情管理",
     "customEmojis": "自定义表情",
     "customEmojisDesc": "添加自定义表情以个性化您的服务器",
@@ -281,12 +278,12 @@
     "deleteServerConfirmItem3": "所有成员数据和角色",
     "deleteServerConfirmItem4": "服务器设置和配置",
     "deleteServerConfirmLabel": "要确认删除，请输入确切的服务器名称：",
-    "deleteServerConfirmPlaceholder": "在此输入服务器名称...",
     "deleting": "删除中...",
     "noServerIconSet": "未设置服务器图标",
     "fileSizeTooLarge": "文件大小必须小于 8MB",
     "selectValidImageFile": "请选择有效的图片文件",
     "uploadingEmojis": "正在上传 {current}/{total} 个表情...",
+    "uploadingEmoji": "正在上传 {name}…",
     "copyEmojiName": "复制表情名称",
     "renameEmoji": "重命名表情",
     "deleteEmojiTitle": "删除表情",
@@ -679,7 +676,7 @@
       "addMemberTo": "将 {member} 添加到 {role}",
       "currentMembers": "当前成员",
       "filterMembers": "筛选成员",
-      "filterPlaceholder": "筛选…",
+      "filterPlaceholder": "名称或用户名",
       "removeMemberFrom": "将 {member} 从 {role} 中移除",
       "bridged": "Discord",
       "bridgedTitle": "Discord 桥接成员",
@@ -764,7 +761,6 @@
       "tabs": {
         "general": "常规"
       },
-      "namePlaceholder": "输入频道名称",
       "description": "描述",
       "descriptionPlaceholder": "这个频道是关于什么的？",
       "slowmode": "慢速模式",
@@ -913,6 +909,9 @@
         "savePermissions": "无法保存频道权限",
         "saveOverride": "无法保存 {role} 的覆盖设置"
       }
+    },
+    "createOptions": {
+      "more": "更多选项"
     }
   },
   "message": {
@@ -930,8 +929,7 @@
     "markUnread": "标记为未读",
     "copyLink": "复制链接",
     "report": "举报",
-    "escapeToCancel": "按 Esc",
-    "enterToSave": "按 Enter",
+    "editHint": "按 Esc {cancel} • 按 Enter {save}",
     "cancel": "取消",
     "save": "保存",
     "edited": "已编辑",
@@ -994,7 +992,9 @@
       "reveal": "显示剧透",
       "mark": "标记为剧透",
       "unmark": "取消剧透"
-    }
+    },
+    "jumpLoading": "正在加载消息…",
+    "jumpFailed": "无法加载该消息。"
   },
   "messageA11y": {
     "list": {
@@ -1061,7 +1061,8 @@
       "search": "搜索表情",
       "searchHint": "按 Enter 选择第一个结果。按下箭头移到表情。",
       "results": "找到 {count} 个表情",
-      "noResults": "未找到表情"
+      "noResults": "未找到表情",
+      "searchTerms": "短代码或关键词"
     },
     "mediaPicker": {
       "label": "GIF、贴纸和表情"
@@ -1409,6 +1410,10 @@
       "float": "悬浮于其他窗口之上",
       "backToApp": "返回应用",
       "dragHint": "拖动以移动。拖回 Harmony 上即可放回。"
+    },
+    "toolbar": {
+      "controls": "语音控制",
+      "call": "通话"
     }
   },
   "dm": {
@@ -1693,7 +1698,10 @@
         "adoptAccountDesc": "此设备切换为该外观。",
         "adoptDevice": "此设备的外观",
         "adoptDeviceDesc": "开启同步的其他设备下次打开 Harmony 时切换为此外观。"
-      }
+      },
+      "savedThemeNameHint": "例如：深夜",
+      "fluxDockBottom": "栏位于底部",
+      "fluxDockBottomDesc": "服务器坞、频道条和你的胶囊沿窗口底部而不是顶部排列；从栏打开的菜单向上展开。需要横向布局。"
     },
     "voice": {
       "title": "语音与视频",
@@ -1883,7 +1891,7 @@
         "toMyDevices": "推送到我的设备",
         "toMyDevicesDescription": "在所有设备上关闭推送，但不移除任何设备",
         "awayOnly": "仅在我离开时",
-        "awayOnlyDescription": "在其他设备上打开并使用 Harmony 时不推送",
+        "awayOnlyDescription": "当你在某一台设备上使用 Harmony 时，其他设备不会收到推送。在该设备上关闭 Harmony，或 10 分钟无操作后，推送恢复。",
         "mentions": "提及",
         "mentionsDescription": "被提及时接收推送通知",
         "dms": "私信",
@@ -2244,7 +2252,7 @@
       "displayNameEmojiHint": "输入 : 可添加自定义表情。",
       "displayNameRequired": "显示名称不能为空。",
       "displayNameNoEmoji": "此实例已禁用显示名称中的自定义表情。请从显示名称中删除 :name: 之类的表情代码。",
-      "usernameHint": "用户名无法更改：其他服务器通过它识别你的账号。",
+      "usernameHint": "用户名无法更改：其他实例通过它识别你的账号。",
       "bioCount": "{count}/{max} 个字符",
       "displayColor": "显示颜色",
       "displayColorHint": "用于你的显示名称和个人资料强调色。",
@@ -2392,8 +2400,8 @@
     "addReaction": "添加反应",
     "adminBadge": "管理员",
     "modBadge": "版主",
-    "instanceAdmin": "服务器管理员",
-    "instanceModerator": "服务器版主",
+    "instanceAdmin": "实例管理员",
+    "instanceModerator": "实例版主",
     "altTextEdit": "编辑描述",
     "altTextLabel": "为看不到的人描述此内容",
     "altTextMissing": "无描述",
@@ -2413,7 +2421,7 @@
     "boostDisabled": "此帖子无法转发",
     "boostDisabledDirect": "私信帖子无法转发",
     "boostDisabledFollowers": "仅关注者可见的帖子无法转发",
-    "boostedFromAnotherInstance": "转发自其他服务器",
+    "boostedFromAnotherInstance": "转发自其他实例",
     "boostsLabel": "转发",
     "repliesLabel": "回复",
     "favoritesLabel": "收藏",
@@ -2589,7 +2597,8 @@
     "postA11y": {
       "heading": "{name}，{time}",
       "boostHeading": "{booster} 转发了 {name}，{time}",
-      "actionCount": "{action}，{count}"
+      "actionCount": "{action}，{count}",
+      "actions": "帖子操作"
     },
     "postMenu": {
       "copyLink": "复制链接",
@@ -2746,7 +2755,8 @@
       "added": "已添加",
       "addedNamed": "已添加：{name}",
       "remove": "移除",
-      "removeNamed": "移除 {name}"
+      "removeNamed": "移除 {name}",
+      "searchToAddHint": "名称或 {'@'}用户{'@'}域名"
     },
     "searchA11y": {
       "title": "搜索用户",
@@ -2790,10 +2800,18 @@
       "statLabel": "{stat}，查看是谁",
       "emptyFavorites": "还没有人收藏这条帖子。",
       "emptyBoosts": "还没有人转发这条帖子。",
-      "moreElsewhere": "另有 {count} 个其他服务器上的账号未在此列出。",
-      "onlyElsewhere": "其他服务器上的 {count} 个账号未在此列出。",
+      "moreElsewhere": "另有 {count} 个其他实例上的账号未在此列出。",
+      "onlyElsewhere": "其他实例上的 {count} 个账号未在此列出。",
       "loadFailed": "无法加载此列表。"
-    }
+    },
+    "instancePosts": {
+      "subtitle": "{domain} 上账号的公开帖子",
+      "emptyTitle": "暂无来自 {domain} 的帖子",
+      "emptyMessage": "来自 {domain} 的公开帖子到达本实例后会显示在这里。",
+      "feedLabel": "来自 {domain} 的帖子"
+    },
+    "instanceStatusFilter": "状态",
+    "instanceSoftwareFilter": "软件"
   },
   "moderation": {
     "report": "举报",
@@ -2844,7 +2862,7 @@
       "contentWarning": "内容警告：{warning}",
       "encryptedMessage": "加密消息",
       "ciphertextOnly": "[仅有密文]",
-      "reporterSuppliedNote": "由举报者提供的文本，服务器无法验证",
+      "reporterSuppliedNote": "由举报者提供的文本，本实例无法验证",
       "message": "被举报时的消息",
       "server": "被举报时的服务器"
     },
@@ -2948,7 +2966,6 @@
     "externalNotAllowed": "此频道只能使用 Unicode 表情符号和本服务器的表情符号。",
     "postReactionLimit": "您已对此帖子添加 {count} 个反应。请移除一个后再添加。",
     "search": "搜索表情...",
-    "searchEmojis": "搜索表情...",
     "aiGenerate": "生成",
     "aiGenerating": "生成中…",
     "aiGeneratePlaceholder": "描述要生成的表情…",
@@ -3228,7 +3245,6 @@
     "edit": {
       "title": "编辑分类",
       "name": "分类名称",
-      "namePlaceholder": "输入分类名称",
       "save": "保存更改",
       "saving": "保存中…",
       "failed": "无法更新分类，请重试。",
@@ -3256,7 +3272,8 @@
     "title": "公告",
     "markRead": "标记为已读",
     "markAllRead": "全部标记为已读",
-    "viewPast": "查看过往公告"
+    "viewPast": "查看过往公告",
+    "dontShowAgain": "不再显示"
   },
   "federation": {
     "joinRemoteServer": "加入远程服务器",
@@ -3701,7 +3718,6 @@
       "title": "服务器机器人",
       "description": "机器人通过 Bot API 在此服务器中执行操作，仅限于此处授予的权限。",
       "browseTitle": "添加机器人",
-      "searchPlaceholder": "搜索机器人",
       "emptyDirectory": "暂无可用的机器人。任何用户都可以在“用户设置 → 我的机器人”中创建机器人。",
       "noResults": "没有与“{query}”匹配的机器人。",
       "loadMore": "加载更多",
@@ -3740,7 +3756,9 @@
       "channelHidden": "对 {'@'}everyone 隐藏",
       "channelsSaved": "频道访问已保存",
       "channelsFailed": "无法保存频道访问",
-      "channelsLoadFailed": "无法加载频道访问"
+      "channelsLoadFailed": "无法加载频道访问",
+      "searchLabel": "搜索机器人",
+      "searchHint": "名称或描述"
     },
     "permissions": {
       "read_messages": {
@@ -4500,7 +4518,7 @@
       "self": "您还没有发布任何内容。",
       "other": "{name} 还没有发布任何内容。",
       "withheldTitle": "没有公开帖子",
-      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本服务器的帖子。"
+      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本实例的帖子。"
     },
     "profileFollowing": {
       "other": "{name} 还没有关注任何人。"
@@ -5093,7 +5111,7 @@
     },
     "instance": {
       "maxPostReactions": "每人对一条帖子的最大反应数",
-      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
+      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他实例的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
       "maxPersonalEmojis": "每位用户的个人表情数",
       "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
       "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
@@ -5105,7 +5123,12 @@
       "federationClosedWarning": "两者都关闭时联邦将关闭：此处的每个服务器停止联邦并移除来自其他实例的成员，此处的成员退出托管在别处的服务器。",
       "federationCloseConfirmTitle": "关闭联邦？",
       "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
-      "federationCloseConfirm": "关闭联邦"
+      "federationCloseConfirm": "关闭联邦",
+      "customOAuthTitle": "自有登录提供方",
+      "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
+      "customOAuthEmpty": "暂无。",
+      "customOAuthCallback": "在提供方登记的重定向（回调）URL：",
+      "customOAuthManage": "在服务器上的 Harmony 目录中："
     },
     "activityLog": {
       "configKeys": {
@@ -5212,8 +5235,6 @@
       "title": "实例表情",
       "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情由各自的服务器管理；个人表情和 AI 生成的表情列在“用户表情”下。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
       "refresh": "刷新",
-      "searchPlaceholder": "按名称或域名搜索",
-      "searchPlaceholderUser": "按名称或所有者搜索",
       "source": {
         "label": "来源",
         "all": "所有来源",
@@ -5255,7 +5276,10 @@
         "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
         "nameTaken": "另一个实例表情已使用该名称。",
         "nameTakenUser": "所有者已有同名的表情。"
-      }
+      },
+      "searchLabel": "搜索表情",
+      "searchHint": "名称或域名",
+      "searchHintUser": "名称或所有者"
     }
   },
   "discordBridge": {
@@ -6063,18 +6087,21 @@
       "group": "{title}，{count} 人",
       "discord": "Discord 桥接成员",
       "instanceAdmin": "实例管理员",
-      "instanceMod": "实例版主"
+      "instanceMod": "实例版主",
+      "searchHint": "名称或用户名",
+      "instanceAdminOf": "{domain} 管理员",
+      "instanceModOf": "{domain} 版主",
+      "instanceAdminBadgeOf": "{domain} 管理员",
+      "instanceModBadgeOf": "{domain} 版主"
     },
     "create": {
-      "textHint": "使用小写字母、数字、连字符和下划线；空格会变成连字符",
-      "voiceHint": "为语音频道起一个能描述它的名字",
+      "textHint": "空格会变成连字符，字母会转为小写；除 - 和 _ 以外的标点会被去掉",
+      "voiceHint": "保留空格和大写字母",
       "looksGood": "看起来不错",
       "nameRequired": "频道名称为必填项",
       "nameTooLong": "频道名称不能超过 100 个字符",
-      "voiceInvalid": "语音频道名称包含无效字符",
       "categorySubtitle": "用分类整理你的频道",
       "categoryName": "分类名称",
-      "categoryPlaceholder": "输入分类名称…",
       "categoryHint": "分类有助于整理你的频道",
       "categoryGood": "不错！这有助于整理你的频道",
       "categoryRequired": "分类名称为必填项",
@@ -6092,13 +6119,14 @@
     },
     "threadsModal": {
       "title": "子区",
-      "search": "搜索子区名称",
       "joined": "已加入 {count} 个子区",
       "older": "较早的子区",
       "noMessages": "还没有消息",
       "startedBy": "发起人",
       "lastActive": "最后活跃：{time}",
-      "loading": "正在加载子区…"
+      "loading": "正在加载子区…",
+      "searchLabel": "搜索子区",
+      "searchHint": "子区名称"
     },
     "mediaPicker": {
       "label": "GIF、贴纸和表情",
@@ -6431,7 +6459,8 @@
       "emojiUnavailable": "该表情不能用于音效。请选择你所在服务器的表情、实例表情或你自己的表情。",
       "load": "无法加载此服务器的音效。",
       "generic": "出了点问题，请重试。"
-    }
+    },
+    "searchHint": "音效名称"
   },
   "voiceMessage": {
     "label": "语音消息",
@@ -6473,7 +6502,8 @@
       "serverSettings": "服务器设置",
       "thread": "子区",
       "today": "今天",
-      "newProfile": "创建个人资料"
+      "newProfile": "创建个人资料",
+      "instancePosts": "实例帖子"
     },
     "announcer": {
       "more": "还有 {count} 条"
@@ -6683,7 +6713,8 @@
     "source": {
       "drive": "Drive 文件",
       "link": "链接"
-    }
+    },
+    "linkHint": "YouTube、SoundCloud、Spotify 或文件链接"
   },
   "driveAdmin": {
     "settings": "Drive 存储",
@@ -6724,7 +6755,8 @@
     "loadingChannels": "正在加载频道…",
     "channelsFailed": "无法加载频道。",
     "noChannels": "没有你可以发言的频道。",
-    "noMatches": "没有匹配的结果。"
+    "noMatches": "没有匹配的结果。",
+    "searchHint": "联系人、群组、服务器或频道名称"
   },
   "drive": {
     "title": "Drive",
@@ -6805,8 +6837,9 @@
       "list": "列表"
     },
     "search": {
-      "placeholder": "搜索你的 Drive",
-      "results": "“{query}”的搜索结果"
+      "results": "“{query}”的搜索结果",
+      "label": "搜索你的 Drive",
+      "hint": "文件名"
     },
     "selection": {
       "label": "已选文件",
@@ -6936,7 +6969,8 @@
       "resetLink": "重置链接",
       "resetTitle": "要重置链接吗？",
       "resetText": "当前链接将对所有人失效，包括已经发布过的地方。能查看此文件的人可以复制新链接。",
-      "until": "至 {date}"
+      "until": "至 {date}",
+      "searchPeopleHint": "名称或用户名"
     },
     "preview": {
       "previous": "上一个文件",
@@ -7070,7 +7104,6 @@
     "title": "本实例托管的服务器",
     "intro": "{instance} 上服务器的信任与安全。你以 {instance} 工作人员的身份操作，而不是服务器管理员；每项操作都会记入服务器的审计日志，服务器所有者和管理员都能看到。",
     "staffBadge": "{instance} 工作人员",
-    "search": "按名称、所有者或 ID 搜索",
     "filterAll": "全部",
     "filterSuspended": "已停用",
     "empty": "本实例尚未托管任何服务器。",
@@ -7168,7 +7201,10 @@
       "accountSuspended": "账户在 {instance} 被停用",
       "domainSuspended": "{domain} 在 {instance} 被停用"
     },
-    "rowAction": "{action}：{target}"
+    "rowAction": "{action}：{target}",
+    "membersSearchHint": "名称或用户名",
+    "searchLabel": "搜索服务器",
+    "searchHint": "名称、所有者或 ID"
   },
   "instanceServer": {
     "panel": {
@@ -7250,7 +7286,8 @@
       "manageLabel": "在 {instance} 上管理 {server}",
       "empty": "{instance} 上还没有人加入托管在其他地方的服务器。",
       "noMatch": "没有匹配的服务器。",
-      "loadFailed": "无法加载来自其他实例的服务器。"
+      "loadFailed": "无法加载来自其他实例的服务器。",
+      "searchHint": "名称或主机"
     },
     "state": {
       "blocked": "已屏蔽",
@@ -7424,5 +7461,18 @@
     "deleteFor": "删除 {name}",
     "confirmDeleteTitle": "删除此 Webhook？",
     "confirmDeleteMessage": "将删除 {name}（{host}）及其投递记录。不会通知其所有者。"
+  },
+  "transfers": {
+    "label": "传输",
+    "uploading": "正在上传 {count} 个文件 | 正在上传 {count} 个文件",
+    "downloading": "正在下载 {count} 个文件 | 正在下载 {count} 个文件",
+    "reconnecting": "正在重新连接…",
+    "done": "已完成",
+    "progress": "{name}，{percent}%",
+    "cancel": "取消 {name}",
+    "dismiss": "关闭 {name}",
+    "showInFolder": "在文件夹中显示",
+    "downloadStarted": "正在下载 {name}",
+    "downloadFailed": "下载失败：{reason}"
   }
 }

@@ -87,7 +87,7 @@ test('chat on a phone: composer, long press and emoji picker', async ({ page }) 
     await page.waitForTimeout(900)
     await row.dispatchEvent('contextmenu', { clientX: touch.clientX, clientY: touch.clientY, button: 2 })
     await row.dispatchEvent('touchend', { touches: [], changedTouches: [touch], targetTouches: [] })
-    await expect(page.getByRole('group', { name: 'Message actions' })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('toolbar', { name: 'Message actions' })).toBeVisible({ timeout: 5000 })
     await expect(page.getByRole('menu', { name: 'Message options' })).toHaveCount(0)
   })
 

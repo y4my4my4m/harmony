@@ -39,6 +39,7 @@ when installed as root):
 | `harmony admin reset-password (--email E \| --username U)` | set a new password |
 | `harmony admin invite <email> [--send]` | a single-use invitation link (emailed with `--send`) |
 | `harmony registration open\|invite\|closed` | who can create an account |
+| `harmony auth providers \| add-provider \| remove-provider` | sign-in through your own OAuth/OIDC provider (Authentik, Keycloak, ...) |
 | `harmony config` | change the install answers and apply them |
 
 ## Files

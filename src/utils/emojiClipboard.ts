@@ -143,7 +143,9 @@ export function htmlToTokenText(html: string): TokenText {
  */
 export function pastedText(data: DataTransfer | null | undefined): string {
   if (!data) return ''
-  const plain = data.getData('text/plain') || ''
+  // Windows clipboards end lines with CRLF; a stored "\r" shows as nothing and breaks
+  // line-anchored markdown.
+  const plain = (data.getData('text/plain') || '').replace(/\r\n?/g, '\n')
   const html = data.getData('text/html') || ''
   if (!html) return plain
   const fromHtml = htmlToTokenText(html)

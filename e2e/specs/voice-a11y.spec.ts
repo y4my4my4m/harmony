@@ -265,6 +265,59 @@ test('user panel: mute and deafen are toggle buttons that announce their state; 
   })
 })
 
+// At 480 px and below the dock hides React (display: none); a desktop window that narrow, or one
+// at 200% zoom, gets the same layout. 600 px to 420 px changes no layout flag, so nothing in the
+// dock renders again when React hides.
+test('a narrow dock: arrows pass the hidden React button and the toolbar keeps one Tab stop', async ({ page }) => {
+  test.setTimeout(150_000)
+  await page.setViewportSize({ width: 600, height: 800 })
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  await enterVoice(page, { serverId: server.id, channelId: loungeId, channelName: 'lounge', selfId: owner.id, others: [member.id] })
+  // Reactions are offered over video on LiveKit.
+  await page.evaluate(() => {
+    const root = document.querySelector('#app') as unknown as {
+      __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, StoreHandle> } } } }
+    }
+    root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((state) => {
+      state.connectionMode = 'livekit'
+      state.allUsers = state.allUsers.map((u: Record<string, unknown>) => ({ ...u, isVideoEnabled: true }))
+    })
+  })
+
+  const controls = page.getByRole('region', { name: 'Voice connection' }).getByRole('toolbar', { name: 'Voice controls' })
+  const share = controls.getByRole('button', { name: 'Share screen', exact: true })
+  const react = controls.getByRole('button', { name: 'React', exact: true })
+  const tabStops = controls.locator('button[tabindex="0"]:visible')
+
+  await test.step('at 600 px React is a control and holds the Tab stop once reached', async () => {
+    await expect(react).toBeVisible({ timeout: 20000 })
+    await share.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(react).toBeFocused()
+    await expect(react).toHaveAttribute('tabindex', '0')
+  })
+
+  await test.step('at 420 px React is hidden and the Tab stop moves to a control shown', async () => {
+    await page.setViewportSize({ width: 420, height: 800 })
+    await expect(react).toBeHidden()
+    await expect(tabStops).toHaveCount(1)
+  })
+
+  await test.step('at 420 px arrows pass the hidden control and the Tab stop follows focus', async () => {
+    await share.focus()
+    await page.keyboard.press('ArrowRight')
+    const focused = controls.locator('button:focus')
+    await expect(focused).toHaveCount(1)
+    await expect(focused).toBeVisible()
+    await expect(focused).toHaveAttribute('tabindex', '0')
+    await expect(tabStops).toHaveCount(1)
+    await page.keyboard.press('ArrowLeft')
+    await expect(share).toBeFocused()
+    await expect(share).toHaveAttribute('tabindex', '0')
+  })
+})
+
 type StoreHandle = { $patch: (fn: (state: Record<string, any>) => void) => void; [key: string]: any }
 
 /**
@@ -328,6 +381,15 @@ test('in a call: the dock region, toggles, minimized panel, call view dialog and
     await expect(mute).toHaveAttribute('aria-pressed', 'false')
     await expect(dock.getByRole('button', { name: 'Deafen', exact: true })).toHaveAttribute('aria-pressed', 'false')
     await expect(dock.getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    // Two toolbars, one Tab stop each: mute to pop-out, participants to leave.
+    const controls = dock.getByRole('toolbar', { name: 'Voice controls' })
+    await expect(controls.locator('button[tabindex="0"]')).toHaveCount(1)
+    await expect(dock.getByRole('toolbar', { name: 'Call' }).locator('button[tabindex="0"]')).toHaveCount(1)
+    await mute.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(controls.getByRole('button', { name: 'Deafen', exact: true })).toBeFocused()
+    await page.keyboard.press('ArrowLeft')
+    await expect(mute).toBeFocused()
     await expect(dock.getByRole('button', { name: 'Share screen', exact: true })).toHaveAttribute('aria-pressed', 'false')
     await expectNoAxeViolations(page, { include: '[data-testid="voice-dock"]', label: 'voice dock' })
   })

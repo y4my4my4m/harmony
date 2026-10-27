@@ -29,6 +29,16 @@ import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigr
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata } from './groupAuthor.js';
 import {
+  HARMONY_ROLES,
+  isPinsTarget,
+  MEMBER_ROLES_TYPE,
+  parseGroupRoles,
+  parseChannelPosition,
+  parseMemberRolesObject,
+  pinsTargetChannel,
+} from './copyMirror.js';
+import { CopyMirrorService } from '../services/CopyMirrorService.js';
+import {
   authorizeChannelWrite,
   federatedUploadUrls,
   storedFileUrls,
@@ -562,18 +572,7 @@ export class ActivityProcessor {
       void (async () => {
         const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
         await ServerDiscoveryService.syncRemoteServer(server.id, { asUserId: userProfile.id });
-        const { data: synced } = await supabase
-          .from('servers')
-          .select('ap_id, federation_metadata')
-          .eq('id', server.id)
-          .maybeSingle();
-        const membersUrl = synced?.federation_metadata?.members;
-        if (typeof membersUrl === 'string' && synced?.ap_id) {
-          await ServerDiscoveryService.syncRemoteServerMembers(server.id, membersUrl, {
-            signAs: userProfile.id,
-            serverApId: synced.ap_id,
-          });
-        }
+        await ServerDiscoveryService.queueMemberSync(server.id, userProfile.id);
       })().catch(err => logger.warn(`Accept(Join): sync of server ${server.id} failed:`, err));
     }
   }
@@ -1426,6 +1425,7 @@ export class ActivityProcessor {
         banner_url: profileData.banner,
         public_key: profileData.public_key,
         manually_approves_followers: profileData.manually_approves_followers === true,
+        instance_role: profileData.instance_role,
       };
 
       if (profileData.custom_status) {
@@ -1579,7 +1579,71 @@ export class ActivityProcessor {
       } else {
         logger.info(`Updated remote server: ${object.name || existingServer.id}`);
       }
+
+      const roles = parseGroupRoles(object[HARMONY_ROLES], serverActorUrl);
+      if (roles) await CopyMirrorService.applyGroupRoles(existingServer.id, serverActorUrl, roles);
+    } else if (object.type === MEMBER_ROLES_TYPE) {
+      await this.processMemberRolesUpdate(actorUrl, object);
     }
+  }
+
+  /**
+   * Update(harmony:MemberRoles) of a server hosted elsewhere, by its Group: all of one member's
+   * roles on the copy (copyMirror.ts).
+   */
+  private static async processMemberRolesUpdate(actorUrl: string, object: any): Promise<void> {
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) {
+      logger.warn(`Rejecting Update(${MEMBER_ROLES_TYPE}): ${actorUrl} is not a known remote server actor`);
+      return;
+    }
+    const entry = parseMemberRolesObject(object, server.ap_id);
+    if (!entry) {
+      logger.warn(`Update(${MEMBER_ROLES_TYPE}) from ${actorUrl} names no member`);
+      return;
+    }
+    // A role the host creates and assigns at once can arrive before the Update(Group) naming it:
+    // the Group is read first, once.
+    const unknown = await CopyMirrorService.unknownRoles(server.id, entry.roles);
+    if (unknown && unknown.length > 0) {
+      logger.info(`Update(${MEMBER_ROLES_TYPE}) from ${actorUrl} names ${unknown.length} role(s) the copy lacks; reading the Group`);
+      const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+      await ServerDiscoveryService.syncRemoteServerShared(server.id);
+    }
+    await CopyMirrorService.applyMemberRoles(server.id, server.ap_id, [entry], { complete: false });
+  }
+
+  /**
+   * Add or Remove of a Note in a channel's pins (<channel>/pins), by the channel's Group. A Note the
+   * copy lacks is read with the channel's pins collection (ServerDiscoveryService.syncChannelPins).
+   */
+  private static async processChannelPin(activity: any, target: string, noteId: string | undefined, pinned: boolean): Promise<void> {
+    const actorUrl = normalizeActor(activity.actor);
+    const server = await this.resolveRemoteServer(actorUrl);
+    const channelApId = server ? pinsTargetChannel(target, server.ap_id) : null;
+    if (!server || !channelApId || !noteId) {
+      logger.warn(`Rejecting ${activity.type} to ${target}: ${actorUrl} is not the Group of that channel`);
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('server_id', server.id)
+      .eq('ap_id', channelApId)
+      .maybeSingle();
+    if (!channel) {
+      logger.info(`${activity.type} to ${target}: no copy of that channel here`);
+      return;
+    }
+    const messageId = await resolveMessageInChannel(supabase, noteId, channel.id);
+    if (messageId) {
+      await CopyMirrorService.setPinned(channel.id, messageId, pinned, pinned ? notAfterNow(activity.published) : null);
+      return;
+    }
+    if (!pinned) return;
+    const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
+    await ServerDiscoveryService.syncChannelPins(server.id, channel.id);
   }
 
   /**
@@ -2780,7 +2844,7 @@ export class ActivityProcessor {
       const catData: any = {
         server_id: serverId,
         name: object.name,
-        order: object.position || object.order || 0,
+        order: parseChannelPosition(object) ?? 0,
       };
       if (entityUuid) catData.id = entityUuid;
 
@@ -2823,7 +2887,7 @@ export class ActivityProcessor {
         name: object.name,
         description: object.description,
         type: channelType,
-        order: object.position || object.order || 0,
+        order: parseChannelPosition(object) ?? 0,
         ap_id: object.id,
         is_remote: true,
         category: categoryId,
@@ -2874,7 +2938,7 @@ export class ActivityProcessor {
           .from('channel_categories')
           .update({
             name: object.name,
-            order: object.position || object.order,
+            order: parseChannelPosition(object),
           })
           .eq('id', entityUuid);
         logger.info(`Updated remote category: ${object.name}`);
@@ -2883,7 +2947,7 @@ export class ActivityProcessor {
           id: entityUuid,
           server_id: server.id,
           name: object.name,
-          order: object.position || object.order || 0,
+          order: parseChannelPosition(object) ?? 0,
         });
         if (error) {
           logger.error(`Failed to auto-create category ${object.name}:`, error);
@@ -2919,7 +2983,7 @@ export class ActivityProcessor {
           .update({
             name: object.name,
             description: object.description,
-            order: object.position || object.order,
+            order: parseChannelPosition(object),
             category: categoryId,
           })
           .eq('id', channel.id);
@@ -2931,7 +2995,7 @@ export class ActivityProcessor {
           name: object.name,
           description: object.description,
           type: channelType,
-          order: object.position || object.order || 0,
+          order: parseChannelPosition(object) ?? 0,
           ap_id: object.id,
           is_remote: true,
           category: categoryId,
@@ -3006,6 +3070,11 @@ export class ActivityProcessor {
 
     if (object && ['harmony:TextChannel', 'harmony:VoiceChannel', 'harmony:Category'].includes(object.type)) {
       await this.processHarmonyChannelAdd(activity, object);
+      return;
+    }
+
+    if (isPinsTarget(targetUrl)) {
+      await this.processChannelPin(activity, targetUrl, objectUrl, true);
       return;
     }
 
@@ -3129,6 +3198,11 @@ export class ActivityProcessor {
     const groupUrl = normalizeActor(activity.actor);
     if (groupUrl && targetUrl && sameUrl(targetUrl, `${groupUrl}/members`)) {
       await this.processGroupMemberRemove(activity, groupUrl, objectUrl);
+      return;
+    }
+
+    if (isPinsTarget(targetUrl)) {
+      await this.processChannelPin(activity, targetUrl, objectUrl, false);
       return;
     }
 
@@ -3648,6 +3722,7 @@ export class ActivityProcessor {
       following_url: profileData.following_url,
       is_local: false,
       manually_approves_followers: profileData.manually_approves_followers === true,
+      instance_role: profileData.instance_role,
       updated_at: new Date().toISOString(),
       last_synced_at: new Date().toISOString(),
       ...(await movedColumns(supabase, profileData, existing)),

@@ -180,7 +180,9 @@ test('an instance admin finds a user AI emoji under User emojis and deletes it',
   await expect(panel.locator('.empty-state')).toHaveText('No instance emojis match.', { timeout: 10000 })
 
   await panel.getByRole('combobox', { name: 'Source' }).selectOption('user')
-  await expect(panel.getByRole('searchbox', { name: 'Search by name or owner' })).toHaveValue(otherName)
+  const search = panel.getByRole('searchbox', { name: 'Search emoji' })
+  await expect(search).toHaveValue(otherName)
+  await expect(search).toHaveAttribute('placeholder', 'Name or owner')
   const row = panel.locator('.emoji-row').filter({ hasText: `:${otherName}:` })
   await expect(row).toBeVisible({ timeout: 10000 })
   await expect(panel.locator('.emoji-row')).toHaveCount(1)

@@ -729,7 +729,9 @@ export function applyThemePalette(palette: ThemePalette): void {
   // Primary colors (keep as HEX for compatibility)
   root.style.setProperty('--harmony-primary', palette.primary)
   root.style.setProperty('--harmony-primary-hover', palette.primaryHover)
-  root.style.setProperty('--harmony-primary-light', palette.primaryLight)
+  // A 10% tint, as the presets set it and as -secondary-light and -accent-light are here: it
+  // backs tiles and badges whose text and glyphs take --text-link.
+  root.style.setProperty('--harmony-primary-light', `color-mix(in srgb, ${palette.primary} 10%, transparent)`)
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)

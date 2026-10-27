@@ -133,9 +133,12 @@ describe('TrendingContent posts', () => {
     await flushPromises()
     expect(push).toHaveBeenCalledWith({ query: { tab: 'hashtags' } })
 
-    const select = wrapper.find('[data-testid="trending-range"]')
-    ;(select.element as HTMLSelectElement).value = '7d'
-    await select.trigger('change')
+    await wrapper.find('[data-testid="trending-range"]').trigger('click')
+    await flushPromises()
+    const option = document.body.querySelector<HTMLElement>('[data-testid="trending-range-menu"] [role="menuitemradio"][data-value="7d"]')
+    expect(option).not.toBeNull()
+    option!.click()
+    await flushPromises()
     expect(replace).toHaveBeenCalledWith({ query: { tab: 'hashtags', range: '7d' } })
   })
 })

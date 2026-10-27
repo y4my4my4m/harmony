@@ -17,8 +17,10 @@ import { fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
-import { getCategoryRecipientGroups, getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
+import { channelPosition, HARMONY_ROLES } from '../activitypub/copyMirror.js';
+import { loadApRoles } from '../activitypub/GroupService.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -379,7 +381,8 @@ export async function startDatabaseListener(): Promise<void> {
               public: payload.old.public !== payload.new.public,
             }
           });
-          await handleServerUpdated(payload.new, payload.old);
+          await handleServerUpdated(payload.new, payload.old)
+            .catch(error => logger.error('Failed to federate server update:', error));
         }
       }
     )
@@ -729,7 +732,7 @@ async function enqueueChannelCategory(channel: any, serverUrl: string, groups: a
       type: 'harmony:Category',
       id: `${serverUrl}/channels/${category.id}`,
       name: category.name,
-      position: category.order || 0,
+      ...channelPosition(category.order),
       category: null,
     },
     published: new Date().toISOString(),
@@ -784,7 +787,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
         id: channelUrl,
         name: channel.name,
         description: channel.description,
-        position: channel.order || 0,
+        ...channelPosition(channel.order),
         category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
       },
       published: new Date().toISOString(),
@@ -842,7 +845,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
         id: channelUrl,
         name: channel.name,
         description: channel.description,
-        position: channel.order || 0,
+        ...channelPosition(channel.order),
         category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
       },
       published: new Date().toISOString(),
@@ -911,7 +914,14 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
   }
 }
 
-/** Sends Update for the server Group object to remote member instances. */
+/** The server's roles could not be read; an Update(Group) without them is not sent. */
+export class ServerRolesUnreadError extends Error {}
+
+/**
+ * Sends Update for the server Group object to remote member instances. Throws
+ * ServerRolesUnreadError when the roles cannot be read, so the job retries: harmony:roles is the
+ * whole list, and copies delete a role it leaves out.
+ */
 export async function handleServerUpdated(server: any, _oldServer: any): Promise<void> {
   try {
     const hostDomain = config.INSTANCE_DOMAIN;
@@ -923,6 +933,8 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     }
     
     const serverUrl = `https://${hostDomain}/servers/${server.id}`;
+    const roles = await loadApRoles(getSupabaseClient(), server.id, serverUrl);
+    if (!roles) throw new ServerRolesUnreadError(`Roles of server ${server.id} not read; Update(Group) not sent`);
     
     const iconUrl = getFullServerIconUrl(server.icon) ?? undefined;
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
@@ -948,6 +960,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         'harmony:suspended': server.suspended_at
           ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
           : null,
+        [HARMONY_ROLES]: roles,
         updated: new Date().toISOString(),
       },
       published: new Date().toISOString(),
@@ -962,63 +975,9 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     
     logger.info(`Server update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
+    if (error instanceof ServerRolesUnreadError) throw error;
     logger.error('Failed to federate server update:', error);
   }
-}
-
-/** Members of a server grouped by remote instance, excluding this host. */
-async function getRemoteMemberGroups(serverId: string): Promise<any[]> {
-  const supabase = getSupabaseClient();
-  const hostDomain = config.INSTANCE_DOMAIN;
-
-  const { data: memberGroups, error: rpcError } = await supabase
-    .rpc('get_server_members_by_instance', { p_server_id: serverId });
-
-  if (!rpcError && memberGroups) {
-    return memberGroups.filter(
-      (group: any) => group.instance !== 'local' && group.instance !== hostDomain
-    );
-  }
-
-  // Fallback when the RPC is unavailable or errors.
-  const { data: members } = await supabase
-    .from('user_servers')
-    .select(`
-      member_instance,
-      profile:profiles!user_servers_user_id_fkey(federated_id, shared_inbox_url)
-    `)
-    .eq('server_id', serverId)
-    .eq('status', 'accepted')
-    .not('member_instance', 'is', null);
-
-  if (!members) {
-    return [];
-  }
-
-  const instanceMap = new Map<string, any>();
-
-  for (const member of members) {
-    const instance = member.member_instance;
-    if (!instance || instance === hostDomain) continue;
-
-    const profile = (member as any).profile;
-    if (!profile?.federated_id) continue;
-
-    if (!instanceMap.has(instance)) {
-      instanceMap.set(instance, {
-        instance,
-        member_ap_ids: [],
-        member_count: 0,
-        shared_inbox: profile.shared_inbox_url || `https://${instance}/inbox`,
-      });
-    }
-
-    const group = instanceMap.get(instance)!;
-    group.member_ap_ids.push(profile.federated_id);
-    group.member_count++;
-  }
-
-  return Array.from(instanceMap.values());
 }
 
 // CHANNEL MESSAGE FEDERATION HANDLERS

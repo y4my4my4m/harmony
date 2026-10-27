@@ -94,6 +94,17 @@ export function draftAttachmentShown(file: FilePreviewData): boolean {
   return k !== null && (shown.get(k) ?? 0) > 0
 }
 
+/** Takes `file` out of the draft holding it and frees it. */
+export function removeDraftAttachment(file: FilePreviewData): void {
+  const k = holderOf(file)
+  if (k === null) return
+  const raw = toRaw(file)
+  const rest = (toRaw(lists).get(k) ?? []).filter((entry) => entry !== raw)
+  if (rest.length === 0) lists.delete(k)
+  else lists.set(k, rest)
+  releaseAttachment(file)
+}
+
 /** Frees an attachment's object URL, running upload and upload state. */
 export function releaseAttachment(file: FilePreviewData): void {
   if (file.preview?.startsWith('blob:')) URL.revokeObjectURL(file.preview)

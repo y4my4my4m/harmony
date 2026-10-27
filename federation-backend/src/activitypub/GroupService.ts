@@ -33,16 +33,36 @@ import {
   type GroupAccess,
 } from './groupAccess.js';
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
-import { loadSystemPeople, systemNote } from './systemNotes.js';
+import { loadSystemPeople, systemNote, SYSTEM_NOTE_TYPES } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
-import { channelMessageActivity, withParentObjectIds } from './channelMessageActivity.js';
+import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
 import { groupAuthorOf } from './groupAuthor.js';
+import {
+  HARMONY_MEMBER_ROLES,
+  HARMONY_PINNED_AT,
+  HARMONY_PINS,
+  HARMONY_ROLES,
+  MAX_PINS,
+  pinsAdvert,
+  pinsCollectionId,
+  roleApId,
+  rolesToAp,
+  summarizePins,
+  type ApRole,
+  type PinSummary,
+} from './copyMirror.js';
 
 const router = Router();
 
 // channels.type: 0 = text, 1 = voice, 2 = category.
 const CHANNEL_TYPE_VOICE = 1;
 const CHANNEL_TYPE_CATEGORY = 2;
+
+/** Rows per read; PostgREST answers at most max-rows (1000 on Supabase) to one request. */
+const READ_PAGE = 1000;
+
+/** Channel ids per pinned-row read: the `in` list stays under 2 KB of query string. */
+const PIN_CHANNEL_CHUNK = 50;
 
 /**
  * Convert server to ActivityPub Group
@@ -53,7 +73,8 @@ function serverToGroup(
   memberCount: number,
   ownerProfile: any | null,
   hostDomain: string,
-  publicKeyPem: string | null
+  publicKeyPem: string | null,
+  display: { roles: ApRole[] | null; pins: Map<string, PinSummary> | null } = { roles: null, pins: null },
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
@@ -115,6 +136,9 @@ function serverToGroup(
       return url ? { type: 'Image', url } : undefined;
     })(),
     
+    // Display-only roles of the server (copyMirror.ts); absent when unread.
+    ...(display.roles ? { [HARMONY_ROLES]: display.roles } : {}),
+
     // Harmony extension: Channel structure
     'harmony:channels': channels.map(c => {
       let channelType: string;
@@ -138,6 +162,9 @@ function serverToGroup(
         categoryId: c.category,
         description: c.description || undefined,
         channelType, // 'text', 'voice', or 'category'
+        ...(channelType !== 'category' && display.pins?.has(c.id)
+          ? { [HARMONY_PINS]: pinsAdvert(`${serverUrl}/channels/${c.id}`, display.pins.get(c.id)!) }
+          : {}),
       };
     }),
     
@@ -223,6 +250,109 @@ async function serverNameRow(supabase: ReturnType<typeof getSupabaseClient>, ser
 
 async function accessFor(req: Request): Promise<GroupAccess | null> {
   return loadGroupAccess(req.params.serverId, await verifiedSigner(req));
+}
+
+/** The server's roles as harmony:roles lists them; null when they cannot be read. */
+export async function loadApRoles(supabase: ReturnType<typeof getSupabaseClient>, serverId: string, serverUrl: string): Promise<ApRole[] | null> {
+  const { data, error } = await supabase
+    .from('server_roles')
+    .select('id, name, color, position, hoist, mentionable, unicode_emoji, is_default')
+    .eq('server_id', serverId);
+  if (error) {
+    logger.error(`Roles of server ${serverId} not read: ${error.message}`);
+    return null;
+  }
+  return rolesToAp(serverUrl, data || []);
+}
+
+/**
+ * A pinned row the pins collection serves a Note of: a notice of a type with a Note, or a message
+ * someone speaks for. The rows channelNotes drops are exactly the others.
+ */
+function servesNote(row: any): boolean {
+  if (row.is_system) return SYSTEM_NOTE_TYPES.has(row.metadata?.type);
+  if (row.author?.username) return true;
+  return !!row.bot_id && groupAuthorOf(row, row.bot) !== null;
+}
+
+/** Newest pin first, a pin with no time last: the order of the pins collection. */
+function byPinnedAtDesc(a: any, b: any): number {
+  const ta = a.pinned_at ? Date.parse(a.pinned_at) : NaN;
+  const tb = b.pinned_at ? Date.parse(b.pinned_at) : NaN;
+  if (Number.isNaN(ta)) return Number.isNaN(tb) ? 0 : 1;
+  if (Number.isNaN(tb)) return -1;
+  return tb - ta;
+}
+
+/**
+ * Pinned rows of a channel its pins collection serves the reader, from `since` on, newest pin
+ * first; null when they cannot be read.
+ */
+async function pinnedRows(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  channelId: string,
+  since: string | undefined,
+): Promise<any[] | null> {
+  let query = supabase
+    .from('messages')
+    .select(NOTE_ROW_SELECT)
+    .eq('channel_id', channelId)
+    .eq('is_pinned', true)
+    .eq('is_deleted', false);
+  if (since !== undefined) query = query.gte('created_at', since);
+  const { data, error } = await query
+    .order('pinned_at', { ascending: false, nullsFirst: false })
+    .limit(MAX_PINS);
+  if (error) {
+    logger.error(`Pins of channel ${channelId} not read: ${error.message}`);
+    return null;
+  }
+  return (data || []).filter(servesNote);
+}
+
+/**
+ * What each channel's pins collection serves a reader without a history cutoff (pinnedRows): the
+ * count and newest pin, read a chunk of channels and a page of rows at a time. Null when any read
+ * fails: a short count would have copies unpin what the host still pins.
+ */
+async function pinSummaries(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  channelIds: string[],
+): Promise<Map<string, PinSummary> | null> {
+  const rowsOf = new Map<string, any[]>(channelIds.map(id => [id, []]));
+  for (let i = 0; i < channelIds.length; i += PIN_CHANNEL_CHUNK) {
+    const chunk = channelIds.slice(i, i + PIN_CHANNEL_CHUNK);
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`id, channel_id, pinned_at, is_system, bot_id,
+          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user,
+          author:profiles!messages_user_id_fkey(username),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)`)
+        .in('channel_id', chunk)
+        .eq('is_pinned', true)
+        .eq('is_deleted', false)
+        // Not by id alone: the primary key would satisfy that order and scan every message.
+        .order('pinned_at', { ascending: false, nullsFirst: false })
+        .order('id')
+        .range(from, from + READ_PAGE - 1);
+      if (error) {
+        logger.error(`Pinned messages not read: ${error.message}`);
+        return null;
+      }
+      for (const row of (data || []) as any[]) {
+        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user };
+        rowsOf.get(row.channel_id)?.push({ ...row, metadata });
+      }
+      if ((data || []).length < READ_PAGE) break;
+    }
+  }
+  const summaries = new Map<string, PinSummary>();
+  for (const [channelId, rows] of rowsOf) {
+    const served = rows.sort(byPinnedAtDesc).slice(0, MAX_PINS).filter(servesNote);
+    summaries.set(channelId, summarizePins(served.map(r => r.pinned_at)));
+  }
+  return summaries;
 }
 
 /**
@@ -317,13 +447,22 @@ router.get(
       .eq('server_id', serverId)
       .eq('status', 'accepted');
 
+    const serverUrl = `https://${config.INSTANCE_DOMAIN}/servers/${server.id}`;
+    // Pins are advertised for the channels the reader reads whole: under a history cutoff the
+    // count would follow whichever member signs. None without the cutoffs.
+    const cutoffs = await loadHistoryCutoffs(serverId, access);
+    const pins = cutoffs
+      ? await pinSummaries(supabase, listedChannels.filter(c => !cutoffs.has(c.id)).map(c => c.id))
+      : null;
+
     const group = serverToGroup(
       server,
       channels,
       memberCount || 0,
       ownerProfile,
       config.INSTANCE_DOMAIN,
-      publicKeyPem
+      publicKeyPem,
+      { roles: await loadApRoles(supabase, server.id, serverUrl), pins },
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -398,6 +537,42 @@ router.get(
     });
   })
 );
+
+/** Columns channelNotes reads of a message row. */
+const NOTE_ROW_SELECT = `
+  *,
+  author:profiles!messages_user_id_fkey(id, username, federated_id, display_name, avatar_url),
+  bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+`;
+
+/**
+ * Notes of a channel's rows (NOTE_ROW_SELECT), in row order. A system row of a type without a
+ * Note (an AutoMod alert) and a row nobody speaks for are left out.
+ */
+async function channelNotes(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  rows: any[],
+  ctx: { serverId: string; channelId: string; channelName: string | null; mediaAudience: string },
+): Promise<any[]> {
+  const hostDomain = config.INSTANCE_DOMAIN;
+  await withParentObjectIds(supabase, rows.filter((m: any) => !m.is_system));
+  const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
+  const server = await serverNameRow(supabase, ctx.serverId);
+  return rows.flatMap((message: any) => {
+    if (message.is_system) {
+      const note = systemNote(message, { hostDomain, serverId: ctx.serverId, channelId: ctx.channelId, people });
+      return note ? [note] : [];
+    }
+    // A bot, webhook or bridged message is the Group's (groupAuthor.ts).
+    if (!message.author?.username) {
+      const groupAuthor = message.bot_id ? groupAuthorOf(message, message.bot) : null;
+      if (!groupAuthor) return [];
+      message.groupAuthor = groupAuthor;
+    }
+    // The Note live delivery sends: attachments, emoji, threads, encryption.
+    return [channelMessageActivity(message, server, ctx.channelId, ctx.channelName, 'Create', ctx.mediaAudience).object];
+  });
+}
 
 /**
  * GET /servers/:serverId/channels/:channelId/messages - Channel message collection
@@ -477,11 +652,7 @@ router.get(
 
     let pageQuery = supabase
       .from('messages')
-      .select(`
-        *,
-        author:profiles!messages_user_id_fkey(id, username, federated_id, display_name, avatar_url),
-        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
-      `)
+      .select(NOTE_ROW_SELECT)
       .eq('channel_id', channelId)
       .eq('is_deleted', false);
     if (since !== undefined) pageQuery = pageQuery.gte('created_at', since);
@@ -489,25 +660,7 @@ router.get(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // A system row of a type without a Note (an AutoMod alert) is left out of the page.
-    const rows = messages || [];
-    await withParentObjectIds(supabase, rows.filter((m: any) => !m.is_system));
-    const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
-    const server = await serverNameRow(supabase, serverId);
-    const items = rows.flatMap((message: any) => {
-      if (message.is_system) {
-        const note = systemNote(message, { hostDomain, serverId, channelId, people });
-        return note ? [note] : [];
-      }
-      // A bot, webhook or bridged message is the Group's (groupAuthor.ts).
-      if (!message.author?.username) {
-        const groupAuthor = message.bot_id ? groupAuthorOf(message, message.bot) : null;
-        if (!groupAuthor) return [];
-        message.groupAuthor = groupAuthor;
-      }
-      // The Note live delivery sends: attachments, emoji, threads, encryption.
-      return [channelMessageActivity(message, server, channelId, channel.name, 'Create', mediaAudience).object];
-    });
+    const items = await channelNotes(supabase, messages || [], { serverId, channelId, channelName: channel.name, mediaAudience });
 
     res.setHeader('Content-Type', 'application/activity+json');
     // 10s: live messages are pushed; pages serve backfill and sync. File URLs vary by signer.
@@ -518,14 +671,114 @@ router.get(
       type: 'OrderedCollectionPage',
       partOf: messagesUrl,
       orderedItems: items,
-      next: rows.length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
+      next: (messages || []).length === limit ? `${messagesUrl}?page=${page + 1}` : undefined,
       prev: page > 1 ? `${messagesUrl}?page=${page - 1}` : undefined,
+    });
+  })
+);
+
+/**
+ * GET /servers/:serverId/channels/:channelId/pins - the channel's pinned Notes, newest pin
+ * first, each with harmony:pinnedAt (copyMirror.ts). Read under the channel's rules and history
+ * cutoff, as its messages are; one page: a channel holds at most 50 pins.
+ */
+router.get(
+  '/servers/:serverId/channels/:channelId/pins',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { serverId, channelId } = req.params;
+    const supabase = getSupabaseClient();
+    const channelUrl = `https://${config.INSTANCE_DOMAIN}/servers/${serverId}/channels/${channelId}`;
+
+    const signer = await verifiedSigner(req);
+    const access = await loadGroupAccess(serverId, signer);
+    if (!access || !readableChannelIds(access).has(channelId)) {
+      notFound(res, 'Channel');
+      return;
+    }
+    const mediaAudience = access.memberId && signer
+      ? new URL(signer).host.toLowerCase()
+      : PUBLIC_AUDIENCE;
+
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('id, name')
+      .eq('id', channelId)
+      .eq('server_id', serverId)
+      .not('is_remote', 'is', true)
+      .maybeSingle();
+    const cutoffs = channel ? await loadHistoryCutoffs(serverId, access) : null;
+    if (!channel || !cutoffs) {
+      notFound(res, 'Channel');
+      return;
+    }
+
+    const rows = await pinnedRows(supabase, channelId, cutoffs.get(channelId));
+    if (!rows) {
+      // An empty collection would have copies unpin everything.
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+      res.status(503).json({ error: 'Pins unavailable' });
+      return;
+    }
+    const notes = await channelNotes(supabase, rows, { serverId, channelId, channelName: channel.name, mediaAudience });
+    const pinnedAt = new Map(rows.map((r: any) => [messageObjectId(r.id, r.metadata?.ap_id), r.pinned_at]));
+    const items = notes.map((note: any) => ({ ...note, [HARMONY_PINNED_AT]: pinnedAt.get(note.id) ?? null }));
+
+    res.setHeader('Content-Type', 'application/activity+json');
+    // 10s, as the messages collection: pins are pushed.
+    setCaching(res, isPublicView(access, [channelId]), 'public, max-age=10', true);
+    res.json({
+      '@context': ['https://www.w3.org/ns/activitystreams', HARMONY_CONTEXT],
+      id: pinsCollectionId(channelUrl),
+      type: 'OrderedCollection',
+      totalItems: items.length,
+      orderedItems: items,
     });
   })
 );
 
 /** Members per page of a Group's members collection. */
 export const MEMBERS_PAGE_SIZE = 500;
+
+/** User ids per role lookup: an id list in the query string stays under 4 KB. */
+const ROLE_LOOKUP_CHUNK = 100;
+
+/**
+ * harmony:memberRoles of a members page: each member holding a role other than the default one.
+ * Null when an assignment cannot be read: a short list would strip copies' members of roles.
+ */
+async function memberRoleEntries(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  serverId: string,
+  serverUrl: string,
+  members: { userId: string; actor: string }[],
+): Promise<{ member: string; roles: string[] }[] | null> {
+  const rolesOf = new Map<string, string[]>();
+  for (let i = 0; i < members.length; i += ROLE_LOOKUP_CHUNK) {
+    const chunk = members.slice(i, i + ROLE_LOOKUP_CHUNK).map(m => m.userId);
+    for (let from = 0; ; from += READ_PAGE) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id, role_id, role:server_roles!inner(is_default)')
+        .eq('server_id', serverId)
+        .in('user_id', chunk)
+        .order('user_id')
+        .order('role_id')
+        .range(from, from + READ_PAGE - 1);
+      if (error) {
+        logger.error(`Role assignments of server ${serverId} not read: ${error.message}`);
+        return null;
+      }
+      for (const row of data || []) {
+        if ((row as any).role?.is_default === true) continue;
+        rolesOf.set(row.user_id, [...(rolesOf.get(row.user_id) ?? []), roleApId(serverUrl, row.role_id)]);
+      }
+      if ((data || []).length < READ_PAGE) break;
+    }
+  }
+  return members
+    .filter(m => rolesOf.has(m.userId))
+    .map(m => ({ member: m.actor, roles: rolesOf.get(m.userId)!.sort() }));
+}
 
 /**
  * GET /servers/:serverId/members - Member collection
@@ -583,22 +836,24 @@ router.get(
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
-    const items = (memberships || []).map((m: any) => {
-      const memberApId = m.profile?.federated_id ||
-        (m.profile?.is_local ? `https://${hostDomain}/users/${m.profile?.username}` : null);
-
-      return memberApId;
-    }).filter(Boolean);
+    const members = (memberships || []).map((m: any) => ({
+      userId: m.user_id as string,
+      actor: (m.profile?.federated_id ||
+        (m.profile?.is_local ? `https://${hostDomain}/users/${m.profile?.username}` : null)) as string | null,
+    })).filter((m): m is { userId: string; actor: string } => !!m.actor);
+    const items = members.map(m => m.actor);
+    const memberRoles = await memberRoleEntries(supabase, serverId, `https://${hostDomain}/servers/${serverId}`, members);
 
     res.setHeader('Content-Type', 'application/activity+json');
     // 60s: membership changes occasionally.
     setCaching(res, access.isPublic, 'public, max-age=60', false);
     res.json({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': ['https://www.w3.org/ns/activitystreams', HARMONY_CONTEXT],
       id: `${membersUrl}?page=${page}`,
       type: 'OrderedCollectionPage',
       partOf: membersUrl,
       orderedItems: items,
+      ...(memberRoles ? { [HARMONY_MEMBER_ROLES]: memberRoles } : {}),
       next: items.length === limit ? `${membersUrl}?page=${page + 1}` : undefined,
     });
   })

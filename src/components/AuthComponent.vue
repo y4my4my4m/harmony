@@ -6,23 +6,40 @@
     </div>
 
     <!-- OAuth Providers -->
-    <div v-if="enabledOAuthProviders.length > 0" class="oauth-section">
+    <div v-if="hasOAuthButtons" class="oauth-section">
       <button 
         v-for="provider in enabledOAuthProviders" 
         :key="provider.id"
         class="oauth-btn"
         :class="[`oauth-${provider.id}`, { 'loading': oauthLoading === provider.id }]"
-        @click="handleOAuthLogin(provider.id)"
+        @click="handleOAuthLogin(provider.id, provider.name)"
         :disabled="isLoading || oauthLoading !== null"
       >
         <span class="oauth-icon" aria-hidden="true" v-html="provider.icon"></span>
         <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) }}</span>
         <span v-if="oauthLoading === provider.id" class="oauth-spinner" aria-hidden="true"></span>
       </button>
+      <button
+        v-for="provider in customOAuthProviders"
+        :key="provider.id"
+        class="oauth-btn oauth-custom"
+        :class="{ 'loading': oauthLoading === provider.id }"
+        :data-provider="provider.id"
+        data-testid="oauth-custom"
+        @click="handleOAuthLogin(provider.id, provider.name)"
+        :disabled="isLoading || oauthLoading !== null"
+      >
+        <span v-if="provider.icon" class="oauth-icon" aria-hidden="true">
+          <img :src="provider.icon" alt="" referrerpolicy="no-referrer" />
+        </span>
+        <span v-else class="oauth-icon" aria-hidden="true" v-html="CUSTOM_PROVIDER_ICON"></span>
+        <span class="oauth-label">{{ $t('auth.oauth.custom', { name: provider.name }) }}</span>
+        <span v-if="oauthLoading === provider.id" class="oauth-spinner" aria-hidden="true"></span>
+      </button>
     </div>
 
     <!-- Divider (only show if OAuth providers are enabled) -->
-    <div v-if="enabledOAuthProviders.length > 0" class="divider">
+    <div v-if="hasOAuthButtons" class="divider">
       <span>{{ $t('auth.orContinueWith') }}</span>
     </div>
 
@@ -375,6 +392,7 @@ import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { useDialog } from '@/composables/useDialog'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 
@@ -420,6 +438,11 @@ const allOAuthProviders = [
 
 // Enabled OAuth providers (will be filtered based on config)
 const enabledOAuthProviders = ref<typeof allOAuthProviders>([])
+// The instance's own providers (instance_config.custom_oauth_providers), after the built-in ones.
+const customOAuthProviders = ref<CustomOAuthProvider[]>([])
+const hasOAuthButtons = computed(() => enabledOAuthProviders.value.length > 0 || customOAuthProviders.value.length > 0)
+// A custom provider without an icon: a key.
+const CUSTOM_PROVIDER_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>`
 
 // Reactive state
 const email = ref('')
@@ -510,8 +533,9 @@ const validatePassword = () => {
   }
 }
 
-// OAuth Login
-const handleOAuthLogin = async (providerId: string) => {
+// OAuth Login. A custom provider's id is its GoTrue identifier (custom:<slug>), which
+// GoTrue's /authorize takes as the provider.
+const handleOAuthLogin = async (providerId: string, providerName: string) => {
   oauthLoading.value = providerId
 
   // Persist the remember-me preference BEFORE the OAuth redirect. The session
@@ -568,7 +592,7 @@ const handleOAuthLogin = async (providerId: string) => {
       return
     }
     debug.error('OAuth error:', error)
-    formError.value = authErrorMessage(error, t('auth.errors.oauthFailed', { provider: providerId }))
+    formError.value = authErrorMessage(error, t('auth.errors.oauthFailed', { provider: providerName }))
     oauthLoading.value = null
   }
 }
@@ -764,11 +788,13 @@ const loadEnabledOAuthProviders = async () => {
 
     // Method 1: Try to get from instance_config directly
     try {
-      const { data: oauthConfig, error: oauthError } = await supabase
+      const { data: configRows, error: oauthError } = await supabase
         .from('instance_config')
-        .select('config_value')
-        .eq('config_key', 'oauth_providers')
-        .maybeSingle()
+        .select('config_key, config_value')
+        .in('config_key', ['oauth_providers', 'custom_oauth_providers'])
+      const oauthConfig = configRows?.find((row) => row.config_key === 'oauth_providers')
+      customOAuthProviders.value = parseCustomOAuthProviders(
+        configRows?.find((row) => row.config_key === 'custom_oauth_providers')?.config_value)
 
       debug.log('OAuth config query result:', { data: oauthConfig, error: oauthError })
 
@@ -944,9 +970,14 @@ onMounted(async () => {
   justify-content: center;
 }
 
-.oauth-icon :deep(svg) {
+.oauth-icon :deep(svg),
+.oauth-icon img {
   width: 100%;
   height: 100%;
+}
+
+.oauth-icon img {
+  object-fit: contain;
 }
 
 .oauth-spinner {
@@ -966,6 +997,7 @@ onMounted(async () => {
 
 .oauth-twitch .oauth-icon { color: #9146FF; }
 .oauth-github .oauth-icon { color: var(--text-primary); }
+.oauth-custom .oauth-icon { color: var(--text-primary); }
 
 /* ========================================
    Divider

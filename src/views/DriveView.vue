@@ -58,8 +58,8 @@
               v-model="searchDraft"
               type="search"
               class="drive-input drive-search__input"
-              :placeholder="t('drive.search.placeholder')"
-              :aria-label="t('drive.search.placeholder')"
+              :placeholder="t('drive.search.hint')"
+              :aria-label="t('drive.search.label')"
               data-testid="drive-search"
             />
           </div>
@@ -94,7 +94,7 @@
         </div>
 
         <Transition name="drive-selection">
-          <div v-if="drive.selected.size > 1" class="drive-selection" role="toolbar" :aria-label="t('drive.selection.label')" data-testid="drive-selection">
+          <AppToolbar v-if="drive.selected.size > 1" class="drive-selection" :label="t('drive.selection.label')" data-testid="drive-selection">
             <span class="drive-selection__count">{{ t('drive.selection.count', { count: drive.selected.size }, drive.selected.size) }}</span>
             <button v-if="ownSelection && drive.location.view !== 'trash'" type="button" class="drive-btn drive-btn--ghost" @click="moveTarget = { files: [...drive.selected], folder: null }">
               <Icon name="folder-input" :size="15" />{{ t('drive.actions.move') }}
@@ -108,7 +108,7 @@
             <button type="button" class="drive-icon-btn" :aria-label="t('drive.selection.clear')" @click="drive.clearSelection()">
               <Icon name="x" :size="16" />
             </button>
-          </div>
+          </AppToolbar>
         </Transition>
       </header>
 
@@ -160,7 +160,6 @@
         />
       </div>
 
-      <DriveUploads />
       <div v-if="pageDrop" class="drive-dropzone" aria-hidden="true">
         <div class="drive-dropzone__card">
           <Icon name="cloud-upload" :size="34" />
@@ -329,18 +328,19 @@ import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import AppToolbar from '@/components/a11y/AppToolbar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ChatMenu from '@/components/chat/ChatMenu.vue'
 import ConfirmDialog from '@/components/drive/DriveConfirmDialog.vue'
 import DriveSidebar from '@/components/drive/DriveSidebar.vue'
 import DriveItems from '@/components/drive/DriveItems.vue'
 import DriveDetails from '@/components/drive/DriveDetails.vue'
-import DriveUploads from '@/components/drive/DriveUploads.vue'
 import DriveMoveDialog from '@/components/drive/DriveMoveDialog.vue'
 import DriveShareDialog from '@/components/drive/DriveShareDialog.vue'
 import DrivePreview from '@/components/drive/DrivePreview.vue'
 import DriveNameDialog from '@/components/drive/DriveNameDialog.vue'
 import '@/components/drive/drive.css'
+import { saveFile } from '@/services/downloads'
 import { useT } from '@/composables/useT'
 import { useDriveUsage } from '@/composables/useDriveUsage'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
@@ -614,14 +614,7 @@ async function dropItems(folderId: string | null, payload: DriveDragPayload): Pr
 
 async function download(file: DriveFile): Promise<void> {
   const url = await attempt(() => driveDownloadUrl(file))
-  if (!url) return
-  const a = document.createElement('a')
-  a.href = url
-  a.rel = 'noopener'
-  a.download = file.name || ''
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  if (url) await saveFile(url, file.name || '', { named: true })
 }
 
 function hasFiles(event: DragEvent): boolean {

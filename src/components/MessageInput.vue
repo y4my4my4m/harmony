@@ -80,10 +80,12 @@
     <div v-else
          class="message-container"
          :class="{ 'buzz-over-limit': overLimitBuzz, 'has-over-limit': messageTooLong }"
-         @dragenter.prevent="handleDragEnter"
-         @dragover.prevent="handleDragOver"
-         @dragleave.prevent="handleDragLeave"
-         @drop.prevent="handleDrop">
+         @dragstart="handleDragStart"
+         @dragend="handleDragEnd"
+         @dragenter="handleDragEnter"
+         @dragover="handleDragOver"
+         @dragleave="handleDragLeave"
+         @drop="handleDrop">
       <!-- Voice recording replaces the normal input. -->
       <div v-if="isVoiceRecording" class="voice-recording-wrapper">
         <VoiceRecorder
@@ -223,7 +225,7 @@
           <button
             ref="gifTriggerRef"
             type="button"
-            class="icon-button"
+            class="icon-button composer-tool"
             :class="{ 'is-collapsed': actionsCollapsed }"
             data-testid="composer-gif"
             :aria-label="t('messageA11y.composer.gif')"
@@ -238,7 +240,7 @@
             v-if="!isCompact"
             ref="emojiTriggerRef"
             type="button"
-            class="icon-button"
+            class="icon-button composer-tool"
             data-testid="composer-emoji"
             :aria-label="t('messageA11y.composer.emoji')"
             :title="t('messageA11y.composer.emoji')"
@@ -335,6 +337,7 @@ import {
   draftAttachments,
   draftAttachmentShown,
   holdsDraftAttachment,
+  removeDraftAttachment,
   localDraftKey,
   openDraftAttachments,
   releaseAttachment,
@@ -348,6 +351,7 @@ import { serverSuspension } from '@/utils/serverSuspension';
 import { roleService, Permission } from '@/services/RoleService';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
+import { isImeKeyEvent } from '@/utils/editorShortcuts';
 
 interface Props {
   giphyOpen?: boolean;
@@ -872,6 +876,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Keys of an open composition, and the Enter that commits it, are the input method's.
+      if (isImeKeyEvent(event)) return;
+
       // Auto-suggest claims its own keys, Enter included.
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
       
@@ -900,7 +907,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       // Desktop: Enter sends, Shift+Enter newlines.
       // Mobile: Enter newlines; sending requires the send button.
-      if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !isMobile.value) {
+      if (event.key === 'Enter' && !event.shiftKey && !isMobile.value) {
         event.preventDefault();
 
         // Enter does not send while a parameterized command is active;
@@ -1136,7 +1143,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         {
           validate: true,
           name: props.encryptedRoom ? undefined : fileData.name,
+          label: fileData.name,
           ephemeral: sentTemporary,
+          resumeKey: `${room}/${uploaderId}`,
           onProgress: (fraction) => {
             if (!holdsDraftAttachment(fileData)) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
@@ -1166,7 +1175,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           if (draftAttachmentShown(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
-          if (error instanceof UploadAbortedError) return;
+          // Cancelled in the transfers indicator: the draft lets go of the file. A removal
+          // from the draft aborts after the draft has let go.
+          if (error instanceof UploadAbortedError) {
+            removeDraftAttachment(fileData);
+            return;
+          }
           fileData.uploadStatus = 'error';
           fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
           fileData.uploadProgress = 0;
@@ -1337,16 +1351,41 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       polite(t('messageA11y.upload.removed', { name: removedFile.name }));
     };
 
+    // A drag that starts in the editor (selected text) is the editor's own: the browser moves
+    // the text. Its events stop here uncancelled, as the chat's own drop zone (ChatComponent)
+    // cancels every drop it sees.
+    let dragFromEditor = false;
+    const handleDragStart = (event: DragEvent) => {
+      const target = event.target as Node | null;
+      const element = target?.nodeType === Node.ELEMENT_NODE ? target as Element : target?.parentElement;
+      dragFromEditor = !!element?.closest('.rich-text-editor');
+    };
+    const handleDragEnd = () => {
+      dragFromEditor = false;
+    };
+
     const handleDragEnter = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       isDragging.value = true;
     };
 
     const handleDragOver = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
     };
 
     const handleDragLeave = (event: DragEvent) => {
+      if (dragFromEditor) {
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       const currentTarget = event.currentTarget as HTMLElement;
       const relatedTarget = event.relatedTarget as Node | null;
@@ -1356,6 +1395,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const handleDrop = async (event: DragEvent) => {
+      if (dragFromEditor) {
+        dragFromEditor = false;
+        event.stopPropagation();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       isDragging.value = false;
@@ -1364,7 +1408,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (files && files.length > 0) {
         const fileArray = Array.from(files);
         await handleFilesSelected(fileArray);
+        return;
       }
+      // The drop is cancelled for files; dropped text or a dragged link goes in where it lands.
+      const text = event.dataTransfer?.getData('text/plain');
+      if (text) richEditorRef.value?.insertAtPoint(text.replace(/\r\n?/g, '\n'), event.clientX, event.clientY);
     };
 
     const handleExternalFileDrop = (event: CustomEvent) => {
@@ -1778,6 +1826,29 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   .icon-button:hover {
     background-color: var(--background-modifier-hover);
+  }
+
+  /* GIF and emoji share the mic's box (VoiceRecorder .mic-trigger): 32px, colour, hover. */
+  .composer-tool {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .composer-tool:hover {
+    color: var(--text-primary);
+  }
+
+  .composer-tool > svg {
+    transition: transform 0.2s;
+  }
+
+  @media (hover: hover) {
+    .composer-tool:hover > svg {
+      transform: scale(1.14);
+    }
   }
 
   /* Send button; rendered on mobile only. */

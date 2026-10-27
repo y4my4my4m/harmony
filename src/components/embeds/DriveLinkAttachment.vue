@@ -152,11 +152,11 @@
     <Icon :name="kindIcon(card.kind, card.mime_type)" :size="20" class="file-icon" aria-hidden="true" />
     <a
       v-if="safeSource"
-      :href="safeSource"
-      target="_blank"
+      :href="namedDownloadUrl(safeSource, name)"
       rel="noopener noreferrer"
       class="file-name"
       data-testid="drive-attachment-name"
+      @click.prevent="download"
     >{{ name }}</a>
     <span v-else class="file-name" data-testid="drive-attachment-name">{{ name }}</span>
     <span class="file-size">{{ size }}</span>
@@ -231,6 +231,7 @@ import {
   type MediaPartLike,
 } from '@/services/privateMedia'
 import { sanitizeUrl } from '@/utils/sanitize'
+import { namedDownloadUrl, saveFile } from '@/services/downloads'
 
 const props = defineProps<{ link: DriveLinkRef; url: string }>()
 const emit = defineEmits<{ 'embed-loaded': [] }>()
@@ -363,24 +364,19 @@ function openInDrive(): void {
 async function download(): Promise<void> {
   const value = card.value
   if (!value) return
-  let url: string
   if (value.via === 'link') {
     if (!linkToken.value) return
-    url = driveLinkContentUrl(linkToken.value, true)
-  } else {
-    try {
-      url = await driveDownloadUrl(value)
-    } catch {
-      return
-    }
+    // The backend link route names the file itself.
+    await saveFile(driveLinkContentUrl(linkToken.value, true), value.name || '', { named: true })
+    return
   }
-  const a = document.createElement('a')
-  a.href = url
-  a.rel = 'noopener'
-  a.download = value.name || ''
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  let url: string
+  try {
+    url = await driveDownloadUrl(value)
+  } catch {
+    return
+  }
+  await saveFile(url, value.name || '', { named: true })
 }
 </script>
 

@@ -5,13 +5,17 @@
 
 import { ref } from 'vue'
 import { useToast } from 'vue-toastification'
-import { i18n } from '@/i18n'
 import { getStoredInstance, isTauriRuntime, refreshStoredInstance, type InstanceConfig } from '@/services/instanceConfig'
 import { getBuildInfo } from '@/utils/buildInfo'
 import { debug } from '@/utils/debug'
 
 /** The capabilities this app knows; federation-backend config/capabilities.ts lists the server's. */
-export const KNOWN_CAPABILITIES = ['encrypted-history', 'outgoing-webhooks'] as const
+export const KNOWN_CAPABILITIES = [
+  'encrypted-history',
+  'outgoing-webhooks',
+  'channel-create-options',
+  'instance-staff-roles',
+] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 
 const instance = ref<InstanceConfig | null>(getStoredInstance())
@@ -57,5 +61,7 @@ export async function checkInstanceVersion(appVersion: string = getBuildInfo().v
   } catch {
     // Storage refused: the notice may repeat on the next start.
   }
+  // i18n loads here: userDataService imports hasCapability, and i18n.ts creates the instance at import.
+  const { i18n } = await import('@/i18n')
   useToast().info(i18n.global.t('instanceVersion.older', { version: current.version }), { timeout: 12000 })
 }

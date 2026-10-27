@@ -55,8 +55,8 @@
             v-model="searchQuery"
             type="search"
             class="search-input"
-            :placeholder="t('bots.server.searchPlaceholder')"
-            :aria-label="t('bots.server.searchPlaceholder')"
+            :placeholder="t('bots.server.searchHint')"
+            :aria-label="t('bots.server.searchLabel')"
           />
         </div>
       </div>

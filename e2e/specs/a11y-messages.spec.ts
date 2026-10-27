@@ -120,11 +120,11 @@ test('messages read in order with author and time; arrows move between them', as
   await test.step('a labelled list of articles, one per message, named author, content and time', async () => {
     await expect(messageList(page).getByRole('list', { name: 'Messages in #general' })).toBeVisible({ timeout: 30000 })
     await expect(rowOf(page, 'Morning everyone')).toHaveAccessibleName(
-      new RegExp(`^${member.displayName}.*Morning everyone.*\\d{4} at \\d`),
+      new RegExp(`^${member.displayName}.*Morning everyone.*\\d{1,2}:\\d{2}.*, [A-Z][a-z]+ \\d{1,2}, \\d{4}$`),
     )
     // Grouped under the same header, the second message still names its author and time.
     const second = rowOf(page, 'Coffee is ready')
-    await expect(second).toHaveAccessibleName(new RegExp(`^${member.displayName}.*Coffee is ready.*\\d{4} at \\d`))
+    await expect(second).toHaveAccessibleName(new RegExp(`^${member.displayName}.*Coffee is ready.*\\d{1,2}:\\d{2}.*, [A-Z][a-z]+ \\d{1,2}, \\d{4}$`))
     await expect(second.locator('.message-header')).toHaveCount(0)
     await expect(rowOf(page, 'can you review the plan')).toHaveAccessibleName(/mentions you/)
     const items = list.getByRole('listitem')
@@ -181,7 +181,7 @@ test('messages read in order with author and time; arrows move between them', as
   await test.step('focus shows the action bar with labelled buttons', async () => {
     const row = rowOf(page, 'Coffee is ready')
     await row.focus()
-    const bar = row.getByRole('group', { name: 'Message actions' })
+    const bar = row.getByRole('toolbar', { name: 'Message actions' })
     await expect(bar).toBeVisible()
     for (const name of ['Add reaction', 'Reply', 'Create thread', 'More actions']) {
       await expect(bar.getByRole('button', { name, exact: true })).toBeVisible()
@@ -220,7 +220,7 @@ test('messages read in order with author and time; arrows move between them', as
     const row = rowOf(page, 'Morning everyone')
     await row.locator('.message-group').click({ position: { x: 300, y: 8 } })
     await page.mouse.move(2, 400)
-    await expect(row.getByRole('group', { name: 'Message actions' })).toHaveCount(0)
+    await expect(row.getByRole('toolbar', { name: 'Message actions' })).toHaveCount(0)
   })
 
   await expectNoAxeViolations(page, { label: 'chat with messages' })

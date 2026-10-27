@@ -5,8 +5,9 @@
  * The frontend cannot directly fetch nodeinfo/mastodon-api/webfinger from remote
  * fediverse instances because those servers don't set CORS headers for our origin.
  *
- * A NodeInfo answer is stored on the instance's existing federated_instances row
- * (record_instance_nodeinfo, no row created): the route is unauthenticated.
+ * A NodeInfo answer, and the icon, banner and theme colour of any answer, are stored on the
+ * instance's existing federated_instances row (record_instance_nodeinfo,
+ * record_instance_branding; no row created): the route is unauthenticated.
  */
 
 import { Router, Request, Response } from 'express';
@@ -16,6 +17,7 @@ import { logger } from '../utils/logger.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { nodeinfoFacts, recordInstanceNodeinfo, type NodeinfoFacts } from '../activitypub/instanceSoftware.js';
+import { brandingColor, brandingUrl, recordInstanceBranding } from '../activitypub/instanceBranding.js';
 
 const router = Router();
 
@@ -31,15 +33,10 @@ interface InstanceProbeResult {
   federation_enabled: boolean;
   icon_url?: string;
   banner_url?: string;
+  theme_color?: string;
 }
 
 const PROBE_TIMEOUT = 10_000;
-
-function resolveUrl(domain: string, url: string | null | undefined): string | undefined {
-  if (!url) return undefined;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `https://${domain}${url.startsWith('/') ? '' : '/'}${url}`;
-}
 
 async function probeNodeinfo(domain: string): Promise<{ result: InstanceProbeResult; facts: NodeinfoFacts | null } | null> {
   try {
@@ -78,8 +75,9 @@ async function probeNodeinfo(domain: string): Promise<{ result: InstanceProbeRes
       status_count: nodeinfo.usage?.localPosts || 0,
       api_available: true,
       federation_enabled: nodeinfo.openRegistrations !== false,
-      icon_url: nodeinfo.metadata?.icon || nodeinfo.metadata?.iconUrl || undefined,
-      banner_url: nodeinfo.metadata?.banner || nodeinfo.metadata?.bannerUrl || undefined,
+      icon_url: brandingUrl(domain, nodeinfo.metadata?.icon || nodeinfo.metadata?.iconUrl),
+      banner_url: brandingUrl(domain, nodeinfo.metadata?.banner || nodeinfo.metadata?.bannerUrl),
+      theme_color: brandingColor(nodeinfo.metadata?.themeColor),
     };
     return { result, facts: nodeinfoFacts(nodeinfo) };
   } catch {
@@ -126,8 +124,8 @@ async function probeMastodonAPI(domain: string): Promise<InstanceProbeResult | n
         admin_contact: instance.contact?.email || instance.email,
         api_available: true,
         federation_enabled: true,
-        icon_url: iconUrl,
-        banner_url: bannerUrl,
+        icon_url: brandingUrl(domain, iconUrl),
+        banner_url: brandingUrl(domain, bannerUrl),
       };
     } catch {
       continue;
@@ -167,10 +165,8 @@ async function probeActivityPubActor(domain: string): Promise<InstanceProbeResul
         });
         if (actorResp.ok) {
           const actor = await actorResp.json();
-          if (actor.icon?.url) result.icon_url = actor.icon.url;
-          else if (typeof actor.icon === 'string') result.icon_url = actor.icon;
-          if (actor.image?.url) result.banner_url = actor.image.url;
-          else if (typeof actor.image === 'string') result.banner_url = actor.image;
+          result.icon_url = brandingUrl(domain, actor.icon?.url ?? actor.icon);
+          result.banner_url = brandingUrl(domain, actor.image?.url ?? actor.image);
           if (actor.summary) result.description = actor.summary;
         }
       }
@@ -205,8 +201,9 @@ async function probeMisskeyAPI(domain: string): Promise<InstanceProbeResult | nu
       status_count: 0,
       api_available: true,
       federation_enabled: true,
-      icon_url: resolveUrl(domain, meta.iconUrl),
-      banner_url: resolveUrl(domain, meta.bannerUrl),
+      icon_url: brandingUrl(domain, meta.iconUrl),
+      banner_url: brandingUrl(domain, meta.bannerUrl),
+      theme_color: brandingColor(meta.themeColor),
     };
   } catch {
     return null;
@@ -263,9 +260,18 @@ router.get(
     if (!base.banner_url) {
       base.banner_url = misskeyResult?.banner_url || mastodonResult?.banner_url || actorResult?.banner_url;
     }
+    if (!base.theme_color) {
+      base.theme_color = misskeyResult?.theme_color;
+    }
     if (!base.description && misskeyResult?.description) {
       base.description = misskeyResult.description;
     }
+
+    await recordInstanceBranding(cleanDomain, {
+      icon: base.icon_url,
+      banner: base.banner_url,
+      themeColor: base.theme_color,
+    });
 
     logger.info(`Instance probed: ${cleanDomain} (${base.software})`);
 

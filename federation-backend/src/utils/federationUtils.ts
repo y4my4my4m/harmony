@@ -16,12 +16,27 @@ export interface RemoteMemberGroup {
 }
 
 /**
- * Get remote member groups for a server, grouped by instance.
- * Used to determine which remote instances need to receive federated activities.
+ * Remote instances to tell about a server: accepted, unbanned, unsuspended remote members grouped
+ * by instance, with a shared inbox their profiles name (public.federation_server_recipients,
+ * migration 20261030100001). Before that migration, get_server_members_by_instance, which names
+ * no inbox: delivery then goes to https://<account domain>/inbox.
  */
 export async function getRemoteMemberGroups(serverId: string): Promise<RemoteMemberGroup[]> {
   const supabase = getSupabaseClient();
   const hostDomain = config.INSTANCE_DOMAIN;
+
+  const { data: recipients, error: recipientsError } = await supabase
+    .rpc('federation_server_recipients', { p_server_id: serverId });
+  if (!recipientsError && Array.isArray(recipients)) {
+    return recipients
+      .filter((row: any) => row.instance && row.instance !== hostDomain.toLowerCase())
+      .map((row: any) => ({
+        instance: row.instance,
+        member_ap_ids: row.member_ap_ids || [],
+        member_count: row.member_count || 0,
+        shared_inbox: row.shared_inbox || `https://${row.instance}/inbox`,
+      }));
+  }
 
   const { data: memberGroups, error: rpcError } = await supabase
     .rpc('get_server_members_by_instance', { p_server_id: serverId });

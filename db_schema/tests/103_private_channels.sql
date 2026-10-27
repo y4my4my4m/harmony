@@ -70,7 +70,7 @@ SELECT is((SELECT count(*)::int FROM public.channels WHERE id = (SELECT id FROM 
           1, 'the role grants the private channel');
 SELECT tests.clear_authentication();
 
-SELECT ok(NOT has_function_privilege('anon', 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[])', 'EXECUTE'),
+SELECT ok(NOT has_function_privilege('anon', 'public.create_channel(uuid, text, integer, uuid, boolean, uuid[], text, integer, boolean, boolean, text)', 'EXECUTE'),
           'anon cannot call create_channel');
 
 SELECT * FROM finish();

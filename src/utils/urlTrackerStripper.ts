@@ -1,3 +1,5 @@
+import { socialSiteOfHost, type MirrorSite } from '@/utils/mirrorLinks'
+
 // Strip tracking / analytics parameters from URLs without changing the
 // destination resource. Two layers:
 //
@@ -6,11 +8,12 @@
 //      params (utm_*, fbclid, gclid, etc.) with no functional effect on the
 //      destination page.
 //   2. `DOMAIN_TRACKING_PARAMS` adds host-specific extras the universal list
-//      must not touch (Twitter's `s` and `t`, YouTube's `feature`, TikTok's
-//      share metadata).
+//      must not touch (YouTube's `feature`, TikTok's share metadata), and
+//      `SOCIAL_TRACKING_PARAMS` the share extras of X, Instagram and Bluesky
+//      post links, on the site and on every embed-fixer mirror of it.
 //
-// Only the rendered URL is cleaned. The original stays in the message body and
-// database so federation peers see what the sender wrote.
+// Links the user sends are stored cleaned (unifiedContentProcessing
+// parseTextForUrls); links in received content are cleaned where they render.
 
 // Always-stripped exact param names, drawn from the analytics suites of the
 // major ad/email networks. All are inert for the resource they're attached to.
@@ -62,11 +65,6 @@ const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
   'soundcloud.com':   ['si'],
   'm.soundcloud.com': ['si'],
 
-  // X / Twitter share-link extras. `s` and `t` are post-share signature
-  // tokens; the tweet still loads without them.
-  'twitter.com': ['s', 't', 'ref_src', 'ref_url'],
-  'x.com':       ['s', 't', 'ref_src', 'ref_url'],
-
   // TikTok share metadata
   'tiktok.com': [
     'is_from_webapp', 'is_copy_url', 'sender_device', 'sender_web_id',
@@ -78,6 +76,28 @@ const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
   'facebook.com':   ['ref', 'refsrc'],
   'fb.com':         ['ref', 'refsrc'],
   'm.facebook.com': ['ref', 'refsrc'],
+}
+
+// Share extras of post links per site, on every host of utils/mirrorLinks
+// SOCIAL_SITE_HOSTS (the site and its embed-fixer mirrors).
+//   X:         `s` and `t` are share signature tokens; the post loads without them.
+//   Instagram: `mdxt` is a base64 share id like `igsh` (MXN0Z2w5YWF3c2U1eg== is
+//              1stgl9aawse5z). `igsh`, `igshid` and `utm_*` are universal.
+//   Bluesky:   its embed snippet links posts with `ref_src=embed`.
+const SOCIAL_TRACKING_PARAMS: Record<MirrorSite, string[]> = {
+  x:         ['s', 't', 'ref_src', 'ref_url'],
+  instagram: ['mdxt'],
+  bluesky:   ['ref_src', 'ref_url'],
+}
+
+// Klipy's integration requirements: media URLs are used as returned, their
+// parameters never removed or altered.
+const UNTOUCHED_HOST = /(^|\.)klipy\.com$/
+
+function hostTrackingParams(hostname: string): ReadonlyArray<string> {
+  const domain = hostname.toLowerCase().replace(/^www\./, '')
+  const site = socialSiteOfHost(hostname)
+  return DOMAIN_TRACKING_PARAMS[domain] ?? (site ? SOCIAL_TRACKING_PARAMS[site] : [])
 }
 
 function shouldStripParam(name: string, hostExtras: ReadonlyArray<string>): boolean {
@@ -97,8 +117,8 @@ export function stripTrackingParameters(url: string): string {
     return url
   }
 
-  const domain = urlObj.hostname.replace(/^www\./i, '')
-  const hostExtras = DOMAIN_TRACKING_PARAMS[domain] ?? []
+  if (UNTOUCHED_HOST.test(urlObj.hostname.toLowerCase())) return url
+  const hostExtras = hostTrackingParams(urlObj.hostname)
 
   // Collect then delete; searchParams must not be mutated while iterating.
   const toDelete: string[] = []

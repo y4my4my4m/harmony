@@ -1,7 +1,8 @@
 /**
  * Create channel: a voice channel offers "Encrypt voice and video" whatever the server's message
- * encryption mode, applied through set_channel_encryption after create_channel; a server
- * requiring encrypted voice shows it on and locked and sends nothing.
+ * encryption mode, applied by create_channel in the call that creates the channel (an instance
+ * without 'channel-create-options': set_channel_encryption after it); a server requiring
+ * encrypted voice shows it on and locked and sends nothing.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
@@ -9,6 +10,11 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 const rpc = vi.hoisted(() => vi.fn(async () => ({ data: { id: 'ch1' }, error: null })))
 const setEncryption = vi.hoisted(() => vi.fn(async () => null))
 const policy = vi.hoisted(() => ({ value: null as Record<string, string> | null }))
+const capabilities = vi.hoisted(() => ({ createOptions: true }))
+
+vi.mock('@/services/instanceCapabilities', () => ({
+  hasCapability: (name: string) => name !== 'channel-create-options' || capabilities.createOptions,
+}))
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -73,6 +79,7 @@ beforeEach(() => {
   rpc.mockClear()
   setEncryption.mockClear()
   policy.value = null
+  capabilities.createOptions = true
 })
 
 describe('Create channel voice encryption', () => {
@@ -91,8 +98,10 @@ describe('Create channel voice encryption', () => {
     expect(voiceSwitch()!.getAttribute('aria-checked')).toBe('true')
 
     await submit('Lounge')
-    expect(rpc).toHaveBeenCalledWith('create_channel', expect.objectContaining({ p_type: 1 }))
-    expect(setEncryption).toHaveBeenCalledWith('ch1', { voiceEncrypted: true })
+    expect(rpc).toHaveBeenCalledWith('create_channel', expect.objectContaining({
+      p_type: 1, p_voice_encrypted: true, p_messages_encrypted: null,
+    }))
+    expect(setEncryption).not.toHaveBeenCalled()
   })
 
   it('creates an unencrypted voice channel when left off', async () => {
@@ -112,7 +121,24 @@ describe('Create channel voice encryption', () => {
     await flushPromises()
 
     await submit('Lounge')
-    expect(setEncryption).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledWith('create_channel', expect.objectContaining({
+      p_messages_encrypted: true, p_voice_encrypted: true, p_history_visibility: null,
+    }))
+    expect(setEncryption).not.toHaveBeenCalled()
+  })
+
+  it('applies encryption after creating on an instance without creation options', async () => {
+    capabilities.createOptions = false
+    policy.value = { encryption_mode: 'optional', voice_encryption_mode: 'disabled' }
+    await open('voice')
+    const messages = document.body.querySelectorAll<HTMLButtonElement>('[role="switch"]')
+    Array.from(messages).find((el) => el.getAttribute('aria-label') === 'channelEncryption.create.label')!.click()
+    voiceSwitch()!.click()
+    await flushPromises()
+
+    await submit('Lounge')
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_messages_encrypted')
     expect(setEncryption).toHaveBeenCalledWith('ch1', { messagesEncrypted: true, voiceEncrypted: true })
   })
 

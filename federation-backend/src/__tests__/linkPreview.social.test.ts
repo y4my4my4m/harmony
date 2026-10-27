@@ -440,4 +440,21 @@ describe('post links', () => {
     expect(social.parseTweetUrl('https://twitter.com/jack/status/20')).toEqual({ user: 'jack', id: '20' })
     expect(social.parseTweetUrl('https://x.com/jack')).toBeNull()
   })
+
+  it('reads mirror links with their share trackers stripped as the posts they were', async () => {
+    const { stripTrackingParameters } = await import('../utils/urlTrackerStripper.js')
+    const cases: Array<[string, string, string]> = [
+      ['https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=MXN0Z2w5YWF3c2U1eg==', 'https://kkinstagram.com/reel/De-YBL8zRXm/', 'instagram'],
+      ['https://www.instagram.com/reel/De-YBL8zRXm/?igsh=MXN0Z2w5YWF3c2U1eg==&mdxt=MXN0Z2w5YWF3c2U1eg==&img_index=2',
+        'https://www.instagram.com/reel/De-YBL8zRXm/?img_index=2', 'instagram'],
+      ['https://fixupx.com/NASA/status/2112560723603632217?s=46&t=AbC', 'https://fixupx.com/NASA/status/2112560723603632217', 'x'],
+      ['https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m?ref_src=embed', 'https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m', 'bluesky'],
+    ]
+    for (const [sent, stored, platform] of cases) {
+      expect(stripTrackingParameters(sent)).toBe(stored)
+      expect(social.socialPlatformOf(stored)).toBe(platform)
+    }
+    const klipy = 'https://static.klipy.com/ii/abc/de/fg/gif.gif?utm_source=partner&s=1'
+    expect(stripTrackingParameters(klipy)).toBe(klipy)
+  })
 })

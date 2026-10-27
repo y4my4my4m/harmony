@@ -117,7 +117,7 @@ const maxEmojis = computed(() => {
 const uploaderId = (): string => profileStore.profile?.id ?? props.ownerId
 
 const adapter: EmojiLibraryAdapter<Emoji> = {
-  upload: (file) => uploadEmoji(props.serverId, uploaderId(), file),
+  upload: (file, options) => uploadEmoji(props.serverId, uploaderId(), file, options),
   async rename(emoji, name) {
     if (!(await renameEmoji(emoji.id, name, props.serverId))) throw new Error('rename refused')
   },

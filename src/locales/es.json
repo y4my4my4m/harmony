@@ -97,7 +97,8 @@
     "oauth": {
       "google": "Continuar con Google",
       "twitch": "Continuar con Twitch",
-      "github": "Continuar con GitHub"
+      "github": "Continuar con GitHub",
+      "custom": "Continuar con {name}"
     },
     "callback": {
       "signingIn": "Iniciando sesión...",
@@ -153,8 +154,6 @@
       "invalidTitle": "Enlace no válido o caducado",
       "invalidBody": "Este enlace de restablecimiento no es válido o ha caducado. Solicita uno nuevo.",
       "enterNew": "Introduce tu nueva contraseña a continuación",
-      "newPlaceholder": "Introduce tu nueva contraseña",
-      "confirmPlaceholder": "Confirma tu nueva contraseña",
       "remember": "¿Recuerdas tu contraseña?",
       "verifying": "Verificando el enlace de restablecimiento…",
       "verifyAndReset": "Verificar y restablecer contraseña",
@@ -233,7 +232,6 @@
     "basicInformation": "Información básica sobre tu servidor",
     "viewBasicInformation": "Ver información básica del servidor",
     "tellPeopleAbout": "Cuéntale a la gente de qué trata tu servidor",
-    "enterServerName": "Introduce el nombre del servidor",
     "serverNameAppearance": "Así es como aparecerá tu servidor a los miembros",
     "serverNameAppearanceView": "Nombre del servidor tal como aparece a los miembros",
     "charactersRemaining": "{current}/{max} caracteres",
@@ -244,7 +242,6 @@
     "iconRecommendation": "Tamaño recomendado: 512x512 px. Tamaño máximo: 8 MB. Compatible con JPG, PNG, GIF.",
     "iconRestriction": "Solo el propietario del servidor puede cambiar el icono.",
     "loadingUsers": "Cargando usuarios...",
-    "searchMembersPlaceholder": "Buscar miembros...",
     "serverSettings": "Configuración del servidor",
     "serverInformation": "Información del servidor",
     "saveChanges": "Guardar cambios",
@@ -349,7 +346,6 @@
     "deleteServerConfirmItem3": "Todos los roles, permisos y emojis personalizados se borrarán",
     "deleteServerConfirmItem4": "Los enlaces de invitación e integraciones dejarán de funcionar",
     "deleteServerConfirmLabel": "Escribe el nombre del servidor para confirmar:",
-    "deleteServerConfirmPlaceholder": "Escribe aquí el nombre del servidor",
     "noServerIconSet": "No se ha establecido un icono del servidor",
     "selectValidImageFile": "Por favor, selecciona un archivo de imagen válido",
     "fileSizeTooLarge": "El tamaño del archivo es demasiado grande",
@@ -362,6 +358,7 @@
     "federationHandle": "Identificador del servidor",
     "federationHandleDesc": "Comparte este identificador para que personas de otras instancias puedan encontrar este servidor y unirse a él.",
     "uploadingEmojis": "Subiendo emoji {current} de {total}...",
+    "uploadingEmoji": "Subiendo {name}…",
     "copyEmojiName": "Copiar nombre del emoji",
     "renameEmoji": "Renombrar emoji",
     "deleteEmojiTitle": "Eliminar emoji",
@@ -679,7 +676,7 @@
       "addMemberTo": "Añadir a {member} a {role}",
       "currentMembers": "Miembros actuales",
       "filterMembers": "Filtrar miembros",
-      "filterPlaceholder": "Filtrar...",
+      "filterPlaceholder": "Nombre o nombre de usuario",
       "removeMemberFrom": "Quitar a {member} de {role}",
       "bridged": "Discord",
       "bridgedTitle": "Miembro del puente de Discord",
@@ -764,7 +761,6 @@
       "tabs": {
         "general": "General"
       },
-      "namePlaceholder": "Introduce el nombre del canal",
       "description": "Descripción",
       "descriptionPlaceholder": "¿De qué trata este canal?",
       "slowmode": "Modo lento",
@@ -913,6 +909,9 @@
         "savePermissions": "No se pudieron guardar los permisos del canal",
         "saveOverride": "No se pudo guardar la excepción de {role}"
       }
+    },
+    "createOptions": {
+      "more": "Más opciones"
     }
   },
   "message": {
@@ -930,8 +929,7 @@
     "markUnread": "Marcar como no leído",
     "copyLink": "Copiar enlace",
     "report": "Reportar",
-    "escapeToCancel": "escape para",
-    "enterToSave": "enter para",
+    "editHint": "escape para {cancel} • enter para {save}",
     "cancel": "cancelar",
     "save": "guardar",
     "edited": "editado",
@@ -994,7 +992,9 @@
       "reveal": "Mostrar spoiler",
       "mark": "Marcar como spoiler",
       "unmark": "Quitar spoiler"
-    }
+    },
+    "jumpLoading": "Cargando el mensaje…",
+    "jumpFailed": "No se pudo cargar ese mensaje."
   },
   "messageA11y": {
     "list": {
@@ -1061,7 +1061,8 @@
       "search": "Buscar emoji",
       "searchHint": "Intro elige el primer resultado. La flecha abajo pasa a los emojis.",
       "results": "{count} emoji encontrado | {count} emojis encontrados",
-      "noResults": "No se encontraron emojis"
+      "noResults": "No se encontraron emojis",
+      "searchTerms": "Código corto o palabra clave"
     },
     "mediaPicker": {
       "label": "GIFs, stickers y emojis"
@@ -1409,6 +1410,10 @@
       "float": "Flotar sobre otras ventanas",
       "backToApp": "Volver a la aplicación",
       "dragHint": "Arrastra para moverlo. Suéltalo sobre Harmony para devolverlo."
+    },
+    "toolbar": {
+      "controls": "Controles de voz",
+      "call": "Llamada"
     }
   },
   "dm": {
@@ -1693,7 +1698,10 @@
         "adoptAccountDesc": "Este dispositivo pasa a usarla.",
         "adoptDevice": "La de este dispositivo",
         "adoptDeviceDesc": "Tus otros dispositivos con la sincronización activada la usarán la próxima vez que abran Harmony."
-      }
+      },
+      "savedThemeNameHint": "p. ej., Noche",
+      "fluxDockBottom": "Barra abajo",
+      "fluxDockBottomDesc": "El dock de servidores, la tira de canales y tu cápsula van en la parte inferior de la ventana en lugar de la superior; los menús de la barra se abren hacia arriba. Requiere el diseño horizontal."
     },
     "voice": {
       "title": "Voz y video",
@@ -1883,7 +1891,7 @@
         "toMyDevices": "Push a mis dispositivos",
         "toMyDevicesDescription": "Desactiva el push en todas partes sin quitar ningún dispositivo",
         "awayOnly": "Solo cuando no estoy",
-        "awayOnlyDescription": "Omite el push mientras Harmony está abierto y en uso en otro dispositivo",
+        "awayOnlyDescription": "Mientras usas Harmony en uno de tus dispositivos, los demás no reciben push. El push vuelve cuando cierras Harmony allí o tras 10 minutos sin actividad.",
         "mentions": "Menciones",
         "mentionsDescription": "Recibe notificaciones push cuando te mencionen",
         "dms": "Mensajes directos",
@@ -2244,7 +2252,7 @@
       "displayNameEmojiHint": "Escribe : para añadir emojis personalizados.",
       "displayNameRequired": "El nombre visible no puede estar vacío.",
       "displayNameNoEmoji": "Los emojis personalizados en los nombres visibles están desactivados en esta instancia. Quita los códigos de emoji como :name: de tu nombre visible.",
-      "usernameHint": "El nombre de usuario no se puede cambiar: otros servidores identifican tu cuenta con él.",
+      "usernameHint": "El nombre de usuario no se puede cambiar: otras instancias identifican tu cuenta con él.",
       "bioCount": "{count}/{max} caracteres",
       "displayColor": "Color visible",
       "displayColorHint": "Se usa en tu nombre visible y en los detalles del perfil.",
@@ -2451,8 +2459,8 @@
     "addReaction": "Añadir reacción",
     "adminBadge": "Admin",
     "modBadge": "Mod",
-    "instanceAdmin": "Administrador del servidor",
-    "instanceModerator": "Moderador del servidor",
+    "instanceAdmin": "Administrador de la instancia",
+    "instanceModerator": "Moderador de la instancia",
     "altTextEdit": "Editar descripción",
     "altTextLabel": "Descríbelo para quienes no pueden verlo",
     "altTextMissing": "Sin descripción",
@@ -2472,7 +2480,7 @@
     "boostDisabled": "Esta publicación no se puede impulsar",
     "boostDisabledDirect": "Las publicaciones directas no se pueden impulsar",
     "boostDisabledFollowers": "Las publicaciones solo para seguidores no se pueden impulsar",
-    "boostedFromAnotherInstance": "Impulsado desde otro servidor",
+    "boostedFromAnotherInstance": "Impulsado desde otra instancia",
     "boostsLabel": "impulso | impulsos",
     "repliesLabel": "respuesta | respuestas",
     "favoritesLabel": "favorito | favoritos",
@@ -2589,7 +2597,8 @@
     "postA11y": {
       "heading": "{name}, {time}",
       "boostHeading": "{booster} impulsó a {name}, {time}",
-      "actionCount": "{action}, {count}"
+      "actionCount": "{action}, {count}",
+      "actions": "Acciones de la publicación"
     },
     "postMenu": {
       "copyLink": "Copiar enlace",
@@ -2746,7 +2755,8 @@
       "added": "Añadido",
       "addedNamed": "Añadido: {name}",
       "remove": "Quitar",
-      "removeNamed": "Quitar a {name}"
+      "removeNamed": "Quitar a {name}",
+      "searchToAddHint": "Nombre o {'@'}usuario{'@'}dominio"
     },
     "searchA11y": {
       "title": "Buscar usuarios",
@@ -2790,10 +2800,18 @@
       "statLabel": "{stat}, ver quién",
       "emptyFavorites": "Nadie ha marcado esta publicación como favorita todavía.",
       "emptyBoosts": "Nadie ha impulsado esta publicación todavía.",
-      "moreElsewhere": "{count} cuenta más en otro servidor no aparece aquí. | {count} cuentas más en otros servidores no aparecen aquí.",
-      "onlyElsewhere": "{count} cuenta en otro servidor no aparece aquí. | {count} cuentas en otros servidores no aparecen aquí.",
+      "moreElsewhere": "{count} cuenta más en otra instancia no aparece aquí. | {count} cuentas más en otras instancias no aparecen aquí.",
+      "onlyElsewhere": "{count} cuenta en otra instancia no aparece aquí. | {count} cuentas en otras instancias no aparecen aquí.",
       "loadFailed": "No se pudo cargar esta lista."
-    }
+    },
+    "instancePosts": {
+      "subtitle": "Publicaciones públicas de cuentas en {domain}",
+      "emptyTitle": "Aún no hay publicaciones de {domain}",
+      "emptyMessage": "Las publicaciones públicas de {domain} aparecen aquí cuando llegan a esta instancia.",
+      "feedLabel": "Publicaciones de {domain}"
+    },
+    "instanceStatusFilter": "Estado",
+    "instanceSoftwareFilter": "Software"
   },
   "moderation": {
     "report": "Reportar",
@@ -2844,7 +2862,7 @@
       "contentWarning": "CW: {warning}",
       "encryptedMessage": "Mensaje cifrado",
       "ciphertextOnly": "[solo texto cifrado]",
-      "reporterSuppliedNote": "texto proporcionado por quien reporta, no verificable por el servidor",
+      "reporterSuppliedNote": "texto proporcionado por quien reporta, no verificable por esta instancia",
       "message": "Mensaje tal como se reportó",
       "server": "Servidor tal como se reportó"
     },
@@ -2940,7 +2958,6 @@
     "flags": "Banderas",
     "custom": "Personalizados",
     "noResults": "No se encontraron emojis",
-    "searchEmojis": "Buscar emojis...",
     "aiGenerate": "Generar",
     "aiGenerating": "Generando…",
     "aiGeneratePlaceholder": "Describe un emoji para generarlo…",
@@ -3209,7 +3226,6 @@
     "edit": {
       "title": "Editar categoría",
       "name": "Nombre de la categoría",
-      "namePlaceholder": "Escribe el nombre de la categoría",
       "save": "Guardar cambios",
       "saving": "Guardando…",
       "failed": "No se pudo actualizar la categoría. Inténtalo de nuevo.",
@@ -3237,7 +3253,8 @@
     "title": "Anuncios",
     "markRead": "Marcar como leído",
     "markAllRead": "Marcar todo como leído",
-    "viewPast": "Ver anuncios anteriores"
+    "viewPast": "Ver anuncios anteriores",
+    "dontShowAgain": "No volver a mostrar"
   },
   "gif": {
     "search": "Buscar GIF...",
@@ -3701,7 +3718,6 @@
       "title": "Bots del servidor",
       "description": "Los bots actúan en este servidor a través de la Bot API, limitados a los permisos concedidos aquí.",
       "browseTitle": "Añadir un bot",
-      "searchPlaceholder": "Buscar bots",
       "emptyDirectory": "Aún no hay bots disponibles. Cualquier usuario puede crear uno en Configuración de usuario → Mis bots.",
       "noResults": "Ningún bot coincide con “{query}”.",
       "loadMore": "Cargar más",
@@ -3740,7 +3756,9 @@
       "channelHidden": "Oculto para {'@'}everyone",
       "channelsSaved": "Acceso a canales guardado",
       "channelsFailed": "No se pudo guardar el acceso a canales",
-      "channelsLoadFailed": "No se pudo cargar el acceso a canales"
+      "channelsLoadFailed": "No se pudo cargar el acceso a canales",
+      "searchLabel": "Buscar bots",
+      "searchHint": "Nombre o descripción"
     },
     "permissions": {
       "read_messages": {
@@ -4500,7 +4518,7 @@
       "self": "Aún no has publicado nada.",
       "other": "{name} aún no ha publicado nada.",
       "withheldTitle": "Sin publicaciones públicas",
-      "withheld": "{domain} no publica las publicaciones de esta cuenta. Aquí solo aparecen las que llegan a este servidor."
+      "withheld": "{domain} no publica las publicaciones de esta cuenta. Aquí solo aparecen las que llegan a esta instancia."
     },
     "profileFollowing": {
       "other": "{name} aún no sigue a nadie."
@@ -5093,7 +5111,7 @@
     },
     "instance": {
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
-      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otros servidores que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
+      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otras instancias que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",
       "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan.",
       "publicProfilePages": "Mostrar perfiles y publicaciones públicas a visitantes sin sesión iniciada",
@@ -5105,7 +5123,12 @@
       "federationClosedWarning": "Con ambos desactivados, la federación se cierra: cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y los miembros de aquí abandonan los servidores alojados en otros sitios.",
       "federationCloseConfirmTitle": "¿Cerrar la federación?",
       "federationCloseConfirmMessage": "Cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y cada miembro de aquí abandona los servidores alojados en otros sitios. Al volver a activar un interruptor, los servidores se reabren; nadie eliminado vuelve.",
-      "federationCloseConfirm": "Cerrar la federación"
+      "federationCloseConfirm": "Cerrar la federación",
+      "customOAuthTitle": "Proveedores de inicio de sesión propios",
+      "customOAuthHint": "Proveedores OpenID Connect u OAuth 2.0 en los que confía esta instancia, como Authentik, Keycloak o Better Auth. Sus botones aparecen en la página de inicio de sesión después de los anteriores. Sus secretos de cliente permanecen en el servidor, así que se añaden y se quitan allí.",
+      "customOAuthEmpty": "Ninguno todavía.",
+      "customOAuthCallback": "URL de redirección (callback) que se registra en el proveedor:",
+      "customOAuthManage": "En el servidor, desde la carpeta de Harmony:"
     },
     "activityLog": {
       "configKeys": {
@@ -5212,8 +5235,6 @@
       "title": "Emojis de la instancia",
       "hint": "Emojis de toda la instancia e importados: subidas de administradores, emojis de puentes de Discord y bots, y emojis de reacciones y publicaciones federadas. Los emojis de servidor los gestionan sus servidores; los emojis personales y generados con IA aparecen en Emojis de usuarios. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
       "refresh": "Actualizar",
-      "searchPlaceholder": "Buscar por nombre o dominio",
-      "searchPlaceholderUser": "Buscar por nombre o propietario",
       "source": {
         "label": "Origen",
         "all": "Todos los orígenes",
@@ -5255,7 +5276,10 @@
         "invalidName": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
         "nameTaken": "Otro emoji de la instancia ya usa ese nombre.",
         "nameTakenUser": "El propietario ya tiene un emoji con ese nombre."
-      }
+      },
+      "searchLabel": "Buscar emoji",
+      "searchHint": "Nombre o dominio",
+      "searchHintUser": "Nombre o propietario"
     }
   },
   "discordBridge": {
@@ -6063,18 +6087,21 @@
       "group": "{title}, {count} miembro | {title}, {count} miembros",
       "discord": "Miembro del puente de Discord",
       "instanceAdmin": "administrador de la instancia",
-      "instanceMod": "moderador de la instancia"
+      "instanceMod": "moderador de la instancia",
+      "searchHint": "Nombre o nombre de usuario",
+      "instanceAdminOf": "administrador de {domain}",
+      "instanceModOf": "moderador de {domain}",
+      "instanceAdminBadgeOf": "Administrador de {domain}",
+      "instanceModBadgeOf": "Moderador de {domain}"
     },
     "create": {
-      "textHint": "Usa minúsculas, números, guiones y guiones bajos; los espacios se convierten en guiones",
-      "voiceHint": "Elige un nombre que describa tu canal de voz",
+      "textHint": "Los espacios se convierten en guiones y las letras en minúsculas; se quitan los signos de puntuación salvo - y _",
+      "voiceHint": "Se conservan los espacios y las mayúsculas",
       "looksGood": "Se ve bien",
       "nameRequired": "El nombre del canal es obligatorio",
       "nameTooLong": "El nombre del canal debe tener 100 caracteres o menos",
-      "voiceInvalid": "El nombre del canal de voz contiene caracteres no válidos",
       "categorySubtitle": "Organiza tus canales con categorías",
       "categoryName": "Nombre de la categoría",
-      "categoryPlaceholder": "Escribe el nombre de la categoría…",
       "categoryHint": "Las categorías ayudan a organizar tus canales",
       "categoryGood": "¡Buena elección! Esto ayudará a organizar tus canales",
       "categoryRequired": "El nombre de la categoría es obligatorio",
@@ -6092,13 +6119,14 @@
     },
     "threadsModal": {
       "title": "Hilos",
-      "search": "Buscar por nombre de hilo",
       "joined": "{count} hilo unido | {count} hilos unidos",
       "older": "Hilos anteriores",
       "noMessages": "Aún no hay mensajes",
       "startedBy": "Iniciado por",
       "lastActive": "Última actividad: {time}",
-      "loading": "Cargando hilos…"
+      "loading": "Cargando hilos…",
+      "searchLabel": "Buscar hilos",
+      "searchHint": "Nombre del hilo"
     },
     "mediaPicker": {
       "label": "GIF, stickers y emojis",
@@ -6431,7 +6459,8 @@
       "emojiUnavailable": "Ese emoji no se puede usar para un sonido. Elige un emoji de uno de tus servidores, de la instancia o uno propio.",
       "load": "No se pudieron cargar los sonidos de este servidor.",
       "generic": "Algo salió mal. Inténtalo de nuevo."
-    }
+    },
+    "searchHint": "Nombre del sonido"
   },
   "voiceMessage": {
     "label": "Mensaje de voz",
@@ -6473,7 +6502,8 @@
       "serverSettings": "Ajustes del servidor",
       "thread": "Hilo",
       "today": "Hoy",
-      "newProfile": "Crea tu perfil"
+      "newProfile": "Crea tu perfil",
+      "instancePosts": "Publicaciones de la instancia"
     },
     "announcer": {
       "more": "{count} más | {count} más"
@@ -6683,7 +6713,8 @@
     "source": {
       "drive": "Archivo de Drive",
       "link": "Enlace"
-    }
+    },
+    "linkHint": "Enlace de YouTube, SoundCloud, Spotify o de un archivo"
   },
   "driveAdmin": {
     "settings": "Almacenamiento de Drive",
@@ -6724,7 +6755,8 @@
     "loadingChannels": "Cargando canales…",
     "channelsFailed": "No se pudieron cargar los canales.",
     "noChannels": "No hay canales en los que puedas publicar.",
-    "noMatches": "Nada coincide con tu búsqueda."
+    "noMatches": "Nada coincide con tu búsqueda.",
+    "searchHint": "Nombre de una persona, grupo, servidor o canal"
   },
   "drive": {
     "title": "Drive",
@@ -6805,8 +6837,9 @@
       "list": "Lista"
     },
     "search": {
-      "placeholder": "Buscar en tu Drive",
-      "results": "Resultados para «{query}»"
+      "results": "Resultados para «{query}»",
+      "label": "Buscar en tu Drive",
+      "hint": "Nombre del archivo"
     },
     "selection": {
       "label": "Archivos seleccionados",
@@ -6936,7 +6969,8 @@
       "resetLink": "Restablecer enlace",
       "resetTitle": "¿Restablecer el enlace?",
       "resetText": "El enlace actual deja de funcionar para todos, también donde ya se publicó. Quienes pueden ver el archivo pueden copiar el enlace nuevo.",
-      "until": "Hasta el {date}"
+      "until": "Hasta el {date}",
+      "searchPeopleHint": "Nombre o nombre de usuario"
     },
     "preview": {
       "previous": "Archivo anterior",
@@ -7070,7 +7104,6 @@
     "title": "Servidores alojados aquí",
     "intro": "Confianza y seguridad para los servidores de {instance}. Actúas como el equipo de {instance}, no como moderador de un servidor, y cada acción queda registrada en el registro de auditoría del servidor, que ven su propietario y sus moderadores.",
     "staffBadge": "Equipo de {instance}",
-    "search": "Buscar por nombre, propietario o ID",
     "filterAll": "Todos",
     "filterSuspended": "Suspendidos",
     "empty": "Aún no hay servidores alojados aquí.",
@@ -7168,7 +7201,10 @@
       "accountSuspended": "Cuenta suspendida en {instance}",
       "domainSuspended": "{domain} suspendido en {instance}"
     },
-    "rowAction": "{action}: {target}"
+    "rowAction": "{action}: {target}",
+    "membersSearchHint": "Nombre o nombre de usuario",
+    "searchLabel": "Buscar servidores",
+    "searchHint": "Nombre, propietario o ID"
   },
   "instanceServer": {
     "panel": {
@@ -7250,7 +7286,8 @@
       "manageLabel": "Gestionar {server} en {instance}",
       "empty": "Nadie de {instance} se ha unido a un servidor alojado en otro lugar.",
       "noMatch": "Ningún servidor coincide.",
-      "loadFailed": "No se pudieron cargar los servidores de otras instancias."
+      "loadFailed": "No se pudieron cargar los servidores de otras instancias.",
+      "searchHint": "Nombre o host"
     },
     "state": {
       "blocked": "Bloqueado",
@@ -7424,5 +7461,18 @@
     "deleteFor": "Eliminar {name}",
     "confirmDeleteTitle": "¿Eliminar este webhook?",
     "confirmDeleteMessage": "Se eliminan {name} ({host}) y su registro de entregas. No se avisa a su dueño."
+  },
+  "transfers": {
+    "label": "Transferencias",
+    "uploading": "Subiendo {count} archivo | Subiendo {count} archivos",
+    "downloading": "Descargando {count} archivo | Descargando {count} archivos",
+    "reconnecting": "Reconectando…",
+    "done": "Completado",
+    "progress": "{name}, {percent} %",
+    "cancel": "Cancelar {name}",
+    "dismiss": "Descartar {name}",
+    "showInFolder": "Mostrar en la carpeta",
+    "downloadStarted": "Descargando {name}",
+    "downloadFailed": "Error en la descarga: {reason}"
   }
 }

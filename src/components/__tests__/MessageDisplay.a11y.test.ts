@@ -147,7 +147,7 @@ let wrapper: VueWrapper | null = null
 async function mountList(messages: Message[]) {
   wrapper = shallowMount(MessageDisplay, {
     props: { messages, currentUserId: 'me', channelId: 'chan-1' },
-    global: { mocks: { $t: (key: string) => key } },
+    global: { mocks: { $t: (key: string) => key }, stubs: { AppToolbar: false, AppTimestamp: false } },
     attachTo: document.body,
   })
   await flushPromises()
@@ -196,9 +196,25 @@ describe('MessageDisplay rows', () => {
     expect(wrapper!.get('#msg-head-m2').attributes('aria-hidden')).toBeUndefined()
   })
 
-  it('adds the reply reference to the name of a reply', async () => {
+  it('names a reply by its own text first, then the message it replies to', async () => {
     await mountList([message('m1', 0), message('m2', 1, { reply_to: 'm1' })])
-    expect(rows()[1].attributes('aria-labelledby')).toBe('msg-head-m2 msg-reply-m2 msg-body-m2 msg-meta-m2')
+    expect(rows()[1].attributes('aria-labelledby')).toBe('msg-head-m2 msg-body-m2 msg-reply-m2 msg-meta-m2')
+  })
+
+  it('leads the time part with the time of day; the date comes last, after the state', async () => {
+    await mountList([message('m1', 0), message('m2', 1, { user_id: 'me', updated_at: at(5) })])
+    const clock = new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(at(0))
+    const day = new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(at(0))
+    expect(wrapper!.get('#msg-meta-m1').text()).toBe(`${clock}, ${day}`)
+    expect(wrapper!.get('#msg-meta-m2').text()).toBe(`${new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(at(1))}, messageA11y.row.edited, ${day}`)
+  })
+
+  it('reads a message\'s timestamp as its time of day; the full date stays in the title', async () => {
+    await mountList([message('m1', 0)])
+    const time = wrapper!.get('#message-m1 time')
+    const clock = new Intl.DateTimeFormat('en', { timeStyle: 'short' }).format(at(0))
+    expect(time.get('.sr-only').text()).toBe(clock)
+    expect(time.attributes('title')).toBe(new Intl.DateTimeFormat('en', { dateStyle: 'long', timeStyle: 'short' }).format(at(0)))
   })
 
   it('says when a message mentions the viewer', async () => {
@@ -243,14 +259,100 @@ describe('MessageDisplay keyboard', () => {
     expect(third.getAttribute('tabindex')).toBe('-1')
   })
 
-  it('leaves keys pressed inside a row to the control that has focus', async () => {
+  it('moves between rows from a control inside a row', async () => {
+    await mountList([message('m1', 0), message('m2', 10), message('m3', 20)])
+    const [first, second, third] = rows().map((r) => r.element as HTMLElement)
+    const inner = document.createElement('button')
+    second.appendChild(inner)
+    inner.focus()
+    await press(inner, 'ArrowUp')
+    expect(document.activeElement).toBe(first)
+    inner.focus()
+    await press(inner, 'ArrowDown')
+    expect(document.activeElement).toBe(third)
+    inner.focus()
+    await press(inner, 'Home')
+    expect(document.activeElement).toBe(first)
+    const link = document.createElement('a')
+    link.href = '#x'
+    second.appendChild(link)
+    link.focus()
+    await press(link, 'End')
+    expect(document.activeElement).toBe(third)
+  })
+
+  it('leaves arrows to text fields, sliders and menus inside a row', async () => {
+    await mountList([message('m1', 0), message('m2', 10)])
+    const second = rows()[1].element as HTMLElement
+    const field = document.createElement('input')
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    const slider = document.createElement('div')
+    slider.setAttribute('role', 'slider')
+    slider.tabIndex = 0
+    const menu = document.createElement('div')
+    menu.setAttribute('role', 'menu')
+    const menuItem = document.createElement('button')
+    menuItem.setAttribute('role', 'menuitem')
+    menu.appendChild(menuItem)
+    second.append(field, editable, slider, menu)
+    for (const control of [field, editable, slider, menuItem]) {
+      control.focus()
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })
+      control.dispatchEvent(event)
+      await nextTick()
+      expect(event.defaultPrevented).toBe(false)
+      expect(document.activeElement).toBe(control)
+    }
+  })
+
+  it('returns focus to the row on Escape from a control inside it', async () => {
     await mountList([message('m1', 0), message('m2', 10)])
     const second = rows()[1].element as HTMLElement
     const inner = document.createElement('button')
     second.appendChild(inner)
     inner.focus()
-    await press(inner, 'ArrowUp')
-    expect(document.activeElement).toBe(inner)
+    await press(inner, 'Escape')
+    expect(document.activeElement).toBe(second)
+    // On the row itself Escape is left to the page.
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    second.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('makes the action bar a toolbar: one Tab stop, Left/Right inside, Up/Down and Home/End to the list', async () => {
+    await mountList([message('m1', 0), message('m2', 10), message('m3', 20)])
+    const [first, second, third] = rows().map((r) => r.element as HTMLElement)
+    const barButtons = () => wrapper!.findAll('[data-message-id="m2"] [role="toolbar"] button').map((b) => b.element as HTMLElement)
+    second.focus()
+    await rows()[1].trigger('mouseover')
+    await flushPromises()
+    const bar = wrapper!.get('[data-message-id="m2"] [role="toolbar"]')
+    expect(bar.attributes('aria-label')).toBe('messageA11y.actions.label')
+    const buttons = barButtons()
+    expect(buttons.length).toBeGreaterThan(2)
+    expect(buttons.filter((b) => b.getAttribute('tabindex') === '0')).toHaveLength(1)
+    buttons[0].focus()
+    await press(buttons[0], 'ArrowRight')
+    expect(document.activeElement).toBe(buttons[1])
+    expect(buttons[1].getAttribute('tabindex')).toBe('0')
+    expect(buttons[0].getAttribute('tabindex')).toBe('-1')
+    await press(buttons[1], 'ArrowLeft')
+    expect(document.activeElement).toBe(buttons[0])
+    await press(buttons[0], 'ArrowLeft')
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+    await press(buttons[buttons.length - 1], 'ArrowDown')
+    expect(document.activeElement).toBe(third)
+    await rows()[1].trigger('mouseover')
+    await flushPromises()
+    barButtons()[0].focus()
+    await press(barButtons()[0], 'Home')
+    expect(document.activeElement).toBe(first)
+    await rows()[1].trigger('mouseover')
+    await flushPromises()
+    barButtons()[0].focus()
+    await press(barButtons()[0], 'Escape')
+    expect(document.activeElement).toBe(second)
   })
 
   it('opens the message menu on Enter, the ContextMenu key and Shift+F10, returning focus to the row', async () => {

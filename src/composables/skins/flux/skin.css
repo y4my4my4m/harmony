@@ -21,6 +21,9 @@
  *   [        centred conversation                 | members    ]
  *   [        glass prompt bar                     |            ]
  *
+ * Option "dock-bottom" turns it upside down: dock and capsule on the bottom
+ * edge, the channel strip over them, the prompt over the strip.
+ *
  * The base layout turns into a column, the rail into a horizontal dock, the
  * channel list into a single scrolling row (its wrappers collapse with
  * display: contents) and the chat context bar, which only repeats the
@@ -501,6 +504,21 @@
     z-index: 1;
     width: 100%;
     height: 100%;
+    overflow: visible;
+  }
+  /* The server menu hangs off the strip, outside the scrolling row (.chat-content
+     clips both axes): its containing block is the strip's wrapper, not the name
+     button inside the row, and the strip paints over the conversation, a later
+     sibling with a stacking context of its own (backdrop-filter). */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"]:has(.channel-sidebar) {
+    z-index: 2;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .server-header {
+    position: static;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .server-dropdown {
+    top: calc(100% + 8px);
+    left: 8px;
   }
   :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .chat-content {
     width: 100%;
@@ -675,6 +693,41 @@
     border-radius: 24px;
     background: var(--fx-tint);
     box-shadow: inset 0 0 0 1px var(--sm-edge), inset 0 1px 0 var(--sm-edge);
+  }
+
+  /* Option "dock-bottom": the layout above upside down. The dock and the user
+     capsule run along the bottom edge, the channel strip sits on them, the
+     conversation and its prompt above the strip. What opens from the bar opens
+     upward; tooltips sit over the hovered icon (--flux-tip-y is then the icon's
+     top, from the scene). */
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] .base-layout {
+    padding: 16px 16px 14px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] [data-region="rail"] {
+    order: 1;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] [data-region="nav"]:has(.channel-sidebar) {
+    order: 1;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] [data-region="user"] {
+    top: auto;
+    bottom: 14px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] [data-region="user"] .status-dropdown {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] [data-region="nav"] .server-dropdown {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] .sidebar-tooltip {
+    transform: translate(-50%, -100%);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-skin-dock-bottom="on"] .sidebar-tooltip-arrow {
+    top: auto;
+    bottom: -6px;
+    transform: translateX(-50%) rotate(-90deg);
   }
 }
 

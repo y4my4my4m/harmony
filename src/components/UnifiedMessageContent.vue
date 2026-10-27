@@ -6,7 +6,7 @@
         ref="editRichEditorRef"
         class="edit-textarea"
         :model-value="localEditableContent"
-        placeholder="Edit message"
+        :placeholder="t('message.editMessage')"
         :min-height="44"
         :max-height="200"
         :auto-suggest-active="!!autoSuggest?.state.value.isActive"
@@ -57,11 +57,31 @@
           </button>
         </div>
       </div>
-      <div class="edit-actions">
-        <span class="edit-hint">
-          escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • 
-          enter to <span class="edit-action" @click="handleSaveEdit">save</span>
-        </span>
+      <!-- Phone keyboards have no Escape and their Enter is a line break: the edit saves
+           and cancels by its buttons, as the composer sends by its button. -->
+      <div v-if="isMobileEdit" class="edit-actions edit-actions--buttons">
+        <button
+          type="button"
+          class="edit-button edit-button--cancel"
+          data-testid="edit-cancel"
+          @click="handleCancelEdit"
+        >{{ t('common.cancel') }}</button>
+        <button
+          type="button"
+          class="edit-button edit-button--save"
+          data-testid="edit-save"
+          @click="handleSaveEdit"
+        >{{ t('common.save') }}</button>
+      </div>
+      <div v-else class="edit-actions">
+        <i18n-t keypath="message.editHint" scope="global" tag="span" class="edit-hint">
+          <template #cancel>
+            <button type="button" class="edit-action" data-testid="edit-cancel" @click="handleCancelEdit">{{ t('message.cancel') }}</button>
+          </template>
+          <template #save>
+            <button type="button" class="edit-action" data-testid="edit-save" @click="handleSaveEdit">{{ t('message.save') }}</button>
+          </template>
+        </i18n-t>
       </div>
       <AutoSuggest
         v-if="autoSuggest"
@@ -75,7 +95,13 @@
     </div>
     
     <!-- Display mode -->
-    <div v-else class="content-display" :class="{ 'system-message-content': isSystem }">
+    <div
+      v-else
+      class="content-display"
+      :class="{ 'system-message-content': isSystem }"
+      @click="revealTextSpoiler"
+      @keydown="onTextKeydown"
+    >
       <!--
         Unverified-author badge. Shown only for messages that were encrypted,
         decrypted successfully, but whose sender signature could not be
@@ -87,7 +113,12 @@
         class="unverified-author-badge"
         title="This message was decrypted but the sender's identity could not be cryptographically verified. The sender may be running an older client, or the message may have been tampered with."
       >Unverified author</span>
-      <template v-for="(part, partIndex) in displayContent" :key="partIndex">
+      <!-- Parts render in groups: a quote holding a link, mention or emoji is one blockquote
+           around its text pieces and parts (utils/inlineMarkdownRuns); every other group is
+           its parts alone. -->
+      <template v-for="group in renderGroups" :key="group.key">
+      <InlineMarks :marks="group.marks">
+      <template v-for="{ part, partIndex, piece } in group.items" :key="`${partIndex}-${piece ?? ''}`">
         <!-- Grouped image/video mosaic (Discord-style) -->
         <MessageMediaGallery
           v-if="part && typeof part === 'object' && part.type === 'media_gallery'"
@@ -157,13 +188,11 @@
             </span>
           </template>
           <!-- Normal text -->
-          <template v-else v-for="(segment, segmentIndex) in renderTextSegments(part.text)" :key="`${partIndex}-${segmentIndex}`">
+          <template v-else v-for="(segment, segmentIndex) in textSegmentsAt(partIndex, part.text, piece)" :key="`${partIndex}-${segmentIndex}`">
             <span 
               v-if="segment.type === 'text'" 
               class="text-content"
               v-html="segment.content"
-              @click="revealTextSpoiler"
-              @keydown="onTextKeydown"
             ></span>
             <CodeBlock 
               v-else-if="segment.type === 'codeblock'"
@@ -174,8 +203,10 @@
         </template>
         
         <!-- User mentions (display name with @ prefix) -->
-        <button
-          v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
+        <InlineMarks
+          v-else-if="part && typeof part === 'object' && part.type === 'mention'"
+          :marks="marksAt(partIndex)"
+        ><button
           type="button"
           class="mention" 
           :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !!mentionSuffix(part) }"
@@ -191,36 +222,44 @@
             v-if="mentionSuffix(part)"
             class="mention-domain"
           >@{{ mentionSuffix(part) }}</span>
-        </button>
+        </button></InlineMarks>
 
         <!-- Role mentions -->
-        <span
+        <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'role_mention'"
+          :marks="marksAt(partIndex)"
+        ><span
           class="mention role-mention"
           :style="part.roleColor ? { color: part.roleColor, backgroundColor: part.roleColor + '1a' } : {}"
-        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
+        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span></InlineMarks>
         
         <!-- Hashtags -->
-        <button
+        <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'hashtag'"
+          :marks="marksAt(partIndex)"
+        ><button
           type="button"
           class="hashtag"
           @click="handleHashtagClick(part.name, $event)"
           :title="`Used ${part.count || 0} times`"
-        >#{{ part.name }}</button>
+        >#{{ part.name }}</button></InlineMarks>
 
         <!-- Channel references (server chat, Discord-style) -->
-        <a
+        <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'channel_mention'"
+          :marks="marksAt(partIndex)"
+        ><a
           class="mention channel-mention"
           :href="channelMentionHref(part)"
           :title="`Go to #${part.name}`"
           @click.prevent="handleChannelMentionClick(part, $event)"
-        >#{{ part.name }}</a>
+        >#{{ part.name }}</a></InlineMarks>
         
         <!-- Custom emojis -->
-        <img 
+        <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'emoji'"
+          :marks="marksAt(partIndex)"
+        ><img
           class="emoji-icon"
           :class="{ 'single': isSingleEmoji }"
           :src="getEmojiUrl(part.emoji.url, 96)"
@@ -229,20 +268,34 @@
           :data-emoji-token="emojiPartToken(part.emoji)"
           draggable="false"
           @error="handleEmojiLoadError"
-        />
+        /></InlineMarks>
         
         <!-- URLs (with special handling for images and videos) -->
         <template v-else-if="part && typeof part === 'object' && part.type === 'url'">
+          <!-- A masked link to media shows its label above the media. -->
+          <InlineMarks
+            v-if="shownLinkLabel(part) && showsPreview(part) && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url)) && sanitizeUrl(shownUrl(part.url))"
+            :marks="marksAt(partIndex)"
+          ><a
+            :href="sanitizeUrl(shownUrl(part.url))"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="url-link url-link--masked"
+            dir="auto"
+            :title="shownUrl(part.url)"
+            :data-href="shownUrl(part.url)"
+          >{{ shownLinkLabel(part) }}</a></InlineMarks>
           <!-- Image URLs -->
           <div 
             v-if="isImageUrl(part.url) && showsPreview(part)" 
             class="media-container image-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="displayMediaUrl(part.url)"
                 :alt="t('messageA11y.image.noDescription')"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
                 @load="handleImageLoad(part.url)"
                 @error="onAttachmentMediaError(part.url)"
                 @click="openMedia(chatMediaKey(part))"
@@ -251,11 +304,19 @@
                 class="content-image"
               />
               <button
+                v-if="!isCoveredLink(partIndex)"
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
                 @click.stop="openMedia(chatMediaKey(part))"
               ></button>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
 
@@ -265,16 +326,25 @@
             class="media-container video-container"
             :ref="el => bindVideoContainer(partIndex, el)"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="part.url"
                 :controls="nativeVideoControls"
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
                 @play="handleVideoPlay"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(chatMediaKey(part), $event)" />
+              <VideoControls v-if="!nativeVideoControls && !isCoveredLink(partIndex)" expandable @expand="openMedia(chatMediaKey(part), $event)" />
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
               <button
                 v-if="floatingVideos.canPopOut(partIndex)"
                 type="button"
@@ -307,18 +377,27 @@
 
           <!-- Regular URL links -->
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
-               render as inert text (no <a>) so dangerous URLs can't execute on click. -->
-          <a
+               render as inert text (no <a>) so dangerous URLs can't execute on click.
+               A GIF link that is the whole message is out of sight until focused; screen
+               readers still read it. -->
+          <!-- A masked link shows its label (utils/maskedLinks), the destination on hover and
+               keyboard focus. -->
+          <InlineMarks
             v-else-if="sanitizeUrl(shownUrl(part.url))"
+            :marks="marksAt(partIndex)"
+          ><a
             :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
-          >{{ shownUrl(part.url) }}</a>
-          <span
-            v-else
+            :class="{ 'sr-only-focusable': part === soleGifLink, 'url-link--masked': !!shownLinkLabel(part) }"
+            :dir="shownLinkLabel(part) ? 'auto' : undefined"
+            :title="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
+            :data-href="shownLinkLabel(part) ? shownUrl(part.url) : undefined"
+          >{{ shownLinkLabel(part) ?? shownUrl(part.url) }}</a></InlineMarks>
+          <InlineMarks v-else :marks="marksAt(partIndex)"><span
             class="url-link url-link--unsafe"
-          >{{ part.url }}</span>
+          >{{ part.url }}</span></InlineMarks>
           <!-- Media-only embeds (GIF pages: tenor / giphy / klipy). The
                resolved image is the content; render as a direct image URL,
                without link-preview card chrome. -->
@@ -326,30 +405,40 @@
             v-if="embedMedia(part)?.kind === 'image'"
             class="media-container image-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <div v-if="!imageLoadedState[embedMedia(part)!.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="embedMedia(part)!.url"
                 :alt="t('messageA11y.image.gif')"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
                 @load="handleImageLoad(embedMedia(part)!.url)"
+                @error="onEmbedMediaError(embedMedia(part)!.url)"
                 @click="openMedia(embedMedia(part)!.url)"
                 v-show="imageLoadedState[embedMedia(part)!.url]"
                 draggable="false"
                 class="content-image"
               />
               <button
+                v-if="!isCoveredLink(partIndex)"
                 type="button"
                 class="media-open"
                 :aria-label="t('messageA11y.image.open')"
                 @click.stop="openMedia(embedMedia(part)!.url)"
               ></button>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
           <div
             v-else-if="embedMedia(part)?.kind === 'video'"
             class="media-container video-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="embedMedia(part)!.url"
                 controls
@@ -359,26 +448,46 @@
                 playsinline
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
+                @error="onEmbedMediaError(embedMedia(part)!.url)"
               ></video>
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
           <div
             v-else-if="embedMedia(part)?.kind === 'clip'"
             class="media-container video-container"
           >
-            <div class="media-frame">
+            <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
               <video
                 :src="embedMedia(part)!.url"
                 :controls="nativeVideoControls"
                 playsinline
                 class="content-video"
                 preload="metadata"
+                :aria-hidden="isCoveredLink(partIndex) ? 'true' : undefined"
+                :tabindex="isCoveredLink(partIndex) ? -1 : undefined"
               ></video>
-              <VideoControls v-if="!nativeVideoControls" expandable @expand="openMedia(embedMedia(part)!.url, $event)" />
+              <VideoControls v-if="!nativeVideoControls && !isCoveredLink(partIndex)" expandable @expand="openMedia(embedMedia(part)!.url, $event)" />
+              <button
+                v-if="isCoveredLink(partIndex)"
+                type="button"
+                class="media-spoiler-cover"
+                :aria-label="t('message.spoiler.reveal')"
+                @click.stop="revealLinkSpoiler(partIndex, $event)"
+              >{{ t('message.spoiler.label') }}</button>
             </div>
           </div>
+          <!-- A link inside a covered spoiler shows its preview card once revealed. -->
           <ProviderEmbedSwitch
-            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
+            v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url) && !isCoveredLink(partIndex)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
@@ -497,7 +606,7 @@
               @click="requestRemoveAttachment(part.url)"
             />
             <video
-              :src="mediaSrc(part)"
+              :src="namedMediaSrc(part)"
               :controls="nativeVideoControls"
               class="content-video"
               preload="metadata"
@@ -588,7 +697,7 @@
               {{ part.fileName }}
             </div>
             <audio
-              :src="mediaSrc(part)"
+              :src="namedMediaSrc(part)"
               controls
               preload="metadata"
               class="content-audio"
@@ -609,10 +718,11 @@
           <Icon name="file" :size="20" class="file-icon" />
           <a
             v-if="sanitizeUrl(mediaSrc(part) || '')"
-            :href="sanitizeUrl(mediaSrc(part) || '')"
-            target="_blank"
+            :href="fileDownloadHref(part)"
             rel="noopener noreferrer"
             class="file-name"
+            data-testid="file-attachment-link"
+            @click.prevent="downloadFilePart(part)"
           >
             {{ mediaPartFileName(part) }}
           </a>
@@ -665,6 +775,8 @@
           :message-id="messageId"
         />
       </template>
+      </InlineMarks>
+      </template>
     </div>
 
     <ConfirmationModal
@@ -705,16 +817,18 @@ import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.v
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
+import InlineMarks from '@/components/common/InlineMarks';
 import { openExternalUrl } from '@/services/tauriLinks';
 import { getInstanceDomain, isTauriRuntime } from '@/services/instanceConfig';
 import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
-import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
+import { groupMediaGalleryParts, type DisplayPart } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError, resolveMediaPartUrl } from '@/services/privateMedia';
+import { namedDownloadUrl, saveFile } from '@/services/downloads';
 import { useLightbox } from '@/composables/useLightbox';
 import { chatLightboxEntries, chatMediaKey, type ChatLightboxHelpers } from '@/utils/messageLightboxMedia';
 import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
@@ -728,7 +842,7 @@ import {
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { soleDriveLinkPart } from '@/utils/driveLinkContent';
-import { isWikimediaPage } from '@/utils/embedPreview';
+import { linkPreviewMedia, soleGifLinkPart, type LinkPreviewMedia } from '@/utils/gifLinks';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
@@ -736,7 +850,11 @@ import { sanitizeUrl } from '@/utils/sanitize';
 import { isUrlTrackingStrippingEnabled, stripTrackingParameters } from '@/utils/urlTrackerStripper';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import { pollPartOf } from '@/utils/messagePoll';
-import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
+import { renderChatMessageText, type CodeBlock as RenderedCodeBlock } from '@/utils/chatMessageTextRenderer';
+import { renderInlineRuns, SPOILER_GROUP_PREFIX, type InlineMark, type RunPart } from '@/utils/inlineMarkdownRuns';
+import { convertEmoticons } from '@/utils/emoticons';
+import { isImeKeyEvent } from '@/utils/editorShortcuts';
+import { shownLinkLabel } from '@/utils/maskedLinks';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -751,6 +869,7 @@ import {
 } from '@/utils/klipyAttribution';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useAnnouncer } from '@/composables/useAnnouncer';
+import { useViewport } from '@/composables/useViewport';
 import { focusElement } from '@/utils/a11y/focus';
 
 export default defineComponent({
@@ -771,6 +890,7 @@ export default defineComponent({
     Icon,
     PollCard,
     VideoControls,
+    InlineMarks,
   },
   props: {
     content: {
@@ -861,6 +981,9 @@ export default defineComponent({
     const editableFiles = ref<FileContent[]>([]);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const { t } = useI18n();
+    const { isMobileViewport, isTouchOnly } = useViewport();
+    // Same test as RichTextEditor's phone Enter path.
+    const isMobileEdit = computed(() => isMobileViewport.value || isTouchOnly);
     const visualTheme = useVisualTheme();
     const decrypting = ref(false);
     const instanceSettings = useInstanceSettingsStore();
@@ -876,6 +999,22 @@ export default defineComponent({
         ? getAttachmentThumbnailUrl(stripKlipyAttributionFragment(part))
         : mediaPartSource(part, 'thumbnail');
     const mediaSrc = (part: { url?: string; path?: string }) => mediaPartSource(part);
+    // Players fetch past Content-Disposition; the browser's own Download item in their menu
+    // saves under the part's name.
+    const namedMediaSrc = (part: { url?: string; path?: string; fileName?: string }) => {
+      const src = mediaSrc(part);
+      return src ? namedDownloadUrl(src, mediaPartFileName(part)) : src;
+    };
+    // A file part downloads under its recorded name, from the remote object even while this
+    // client still holds the bytes locally; the href is the same named URL for open-in-tab.
+    const fileDownloadHref = (part: { url?: string; path?: string; fileName?: string }) => {
+      const src = sanitizeUrl(mediaSrc(part) || '');
+      return src ? namedDownloadUrl(src, mediaPartFileName(part)) : '';
+    };
+    const downloadFilePart = async (part: { url?: string; path?: string; fileName?: string }) => {
+      const url = (await resolveMediaPartUrl(part)) ?? sanitizeUrl(mediaSrc(part) || '');
+      if (url) await saveFile(url, mediaPartFileName(part));
+    };
     // A part whose object this client is uploading.
     const hasUpload = (part: { url?: string; path?: string }) =>
       isPrivateMediaPart(part) && !!messageMediaUploadState(part.path);
@@ -926,12 +1065,49 @@ export default defineComponent({
     onMounted(enhanceTextSpoilers);
     onUpdated(enhanceTextSpoilers);
 
-    const revealSpoilerElement = (spoiler: HTMLElement) => {
+    const revealOne = (spoiler: HTMLElement) => {
       spoiler.classList.add('revealed');
       spoiler.removeAttribute('role');
       spoiler.removeAttribute('aria-label');
       spoiler.removeAttribute('aria-expanded');
       if (spoiler.hasAttribute('tabindex')) spoiler.setAttribute('tabindex', '-1');
+    };
+    // A spoiler split around a link or mention is one spoiler: its pieces reveal together.
+    const spoilerPieces = (spoiler: HTMLElement): HTMLElement[] => {
+      const group = Array.from(spoiler.classList).find((c) => c.startsWith(SPOILER_GROUP_PREFIX));
+      const root = rootRef.value;
+      return group && root ? Array.from(root.querySelectorAll<HTMLElement>(`.${group}`)) : [spoiler];
+    };
+    // A link inside `||…||` carries the spoiler as a mark (utils/inlineMarkdownRuns); its media
+    // stays covered and its preview card out until that spoiler is revealed. The revealed
+    // groups are state, as the media is template, not v-html.
+    const revealedSpoilerGroups = reactive(new Set<string>());
+    const spoilerGroupOf = (spoiler: Element): string | undefined =>
+      Array.from(spoiler.classList).find((c) => c.startsWith(SPOILER_GROUP_PREFIX));
+    const linkSpoilerGroup = (partIndex: number): string | null => {
+      const mark = marksAt(partIndex).find((m) => m.className.split(' ').includes('md-spoiler'));
+      if (!mark) return null;
+      return mark.className.split(' ').find((c) => c.startsWith(SPOILER_GROUP_PREFIX)) ?? `md-spoiler-part-${partIndex}`;
+    };
+    const isCoveredLink = (partIndex: number): boolean => {
+      const group = linkSpoilerGroup(partIndex);
+      return !!group && !revealedSpoilerGroups.has(group);
+    };
+    const revealSpoilerElement = (spoiler: HTMLElement) => {
+      for (const piece of spoilerPieces(spoiler)) revealOne(piece);
+      const group = spoilerGroupOf(spoiler);
+      if (group) revealedSpoilerGroups.add(group);
+    };
+    // The cover unmounts on reveal; focus moves to the media it covered.
+    const revealLinkSpoiler = (partIndex: number, event?: MouseEvent) => {
+      const group = linkSpoilerGroup(partIndex);
+      if (!group) return;
+      const frame = event?.currentTarget instanceof HTMLElement ? event.currentTarget.closest('.media-frame') : null;
+      const hadFocus = !!frame && frame.contains(document.activeElement);
+      const root = rootRef.value;
+      if (root) for (const piece of Array.from(root.querySelectorAll<HTMLElement>(`.${group}`))) revealOne(piece);
+      revealedSpoilerGroups.add(group);
+      if (hadFocus) nextTick(() => focusElement(frame?.querySelector<HTMLElement>('.media-open, video') ?? null));
     };
     const revealTextSpoiler = (event: MouseEvent) => {
       const spoiler = (event.target as HTMLElement | null)?.closest<HTMLElement>('.md-spoiler');
@@ -945,8 +1121,9 @@ export default defineComponent({
       if (!spoiler) return;
       event.preventDefault();
       event.stopPropagation();
+      const text = spoilerPieces(spoiler).map((piece) => piece.textContent ?? '').join('');
       revealSpoilerElement(spoiler);
-      polite(t('messageA11y.spoiler.revealed', { text: (spoiler.textContent ?? '').trim() }));
+      polite(t('messageA11y.spoiler.revealed', { text: text.trim() }));
     };
 
     // Text alternative of an image part: its description, else what it is. The
@@ -1265,33 +1442,28 @@ export default defineComponent({
       return null;
     };
 
-    /**
-     * Renders an embed as media instead of a link card when the resolved media
-     * is the content (GIF pages: klipy / tenor / giphy).
-     *
-     * Decided from the media file extension, not only the backend's mediaOnly
-     * flag: embeds persist in message metadata and are cached 24h server-side,
-     * so already-stored payloads and hosts unknown to the backend heuristic
-     * still upgrade to media rendering.
-     */
-    const embedMedia = (part: MessagePart): { kind: 'image' | 'video' | 'clip'; url: string } | null => {
+    /** The media an embed renders as instead of a link card (utils/gifLinks.linkPreviewMedia). */
+    const embedMedia = (part: MessagePart): LinkPreviewMedia | null => {
       // A link to a media file already plays or shows inline; its preview answers with the
       // same file.
       if (part && typeof part === 'object' && part.type === 'url' && showsPreview(part)
           && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url))) {
         return null;
       }
-      const payload = resolveEmbedPayload(part);
-      if (payload && isWikimediaPage(payload.url)) return null;
-      // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
-      if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };
-      const media = payload?.image;
-      if (!media) return null;
-
-      if (/\.(mp4|webm|mov)(\?|#|$)/i.test(media)) return { kind: 'video', url: media };
-      if (payload.mediaOnly || /\.gif(\?|#|$)/i.test(media)) return { kind: 'image', url: media };
-      return null;
+      return linkPreviewMedia(resolveEmbedPayload(part));
     };
+
+    // Embed media that did not load: its link shows again.
+    const failedEmbedMedia = reactive(new Set<string>());
+    const onEmbedMediaError = (url: string) => {
+      failedEmbedMedia.add(url);
+    };
+
+    // The url part of a GIF link that is the whole message: its text is out of sight.
+    const soleGifLink = computed(() => soleGifLinkPart(displayContent.value, (part) => {
+      const media = embedMedia(part as MessagePart);
+      return media && !failedEmbedMedia.has(media.url) ? media : null;
+    }));
 
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
@@ -1355,13 +1527,19 @@ export default defineComponent({
         convertEmoticons: visualTheme.currentSettings.value.renderEmoticonsAsEmoji !== false,
       });
 
+    type TextSegment = { type: 'text' | 'codeblock'; content?: string; code?: string; language?: string };
+
     // Splits rendered text on code-block placeholders, interleaving CodeBlock segments.
     const renderTextSegments = (text: string) => {
       const { renderedText, codeBlocks } = renderTextContent(text);
-      const segments: Array<{type: 'text' | 'codeblock'; content?: string; code?: string; language?: string}> = [];
+      return splitCodeBlockSegments(renderedText, codeBlocks);
+    };
+
+    const splitCodeBlockSegments = (renderedText: string, codeBlocks: RenderedCodeBlock[]): TextSegment[] => {
+      const segments: TextSegment[] = [];
       
       if (codeBlocks.length === 0) {
-        segments.push({ type: 'text', content: renderedText });
+        if (renderedText) segments.push({ type: 'text', content: renderedText });
         return segments;
       }
       
@@ -1393,6 +1571,78 @@ export default defineComponent({
       
       return segments;
     };
+
+    // Text parts render by inline run (utils/inlineMarkdownRuns): markdown spans the links,
+    // mentions and emoji between them. Emoticons convert part by part first, as each part's
+    // edges count as whitespace there.
+    const runPartKind = (part: DisplayPart): RunPart => {
+      if (!part || typeof part !== 'object') return { kind: 'block' };
+      switch (part.type) {
+        case 'text': {
+          const text = part.text || '';
+          const convert = visualTheme.currentSettings.value.renderEmoticonsAsEmoji !== false;
+          return { kind: 'text', text: convert ? convertEmoticons(text) : text };
+        }
+        case 'mention':
+        case 'role_mention':
+        case 'hashtag':
+        case 'channel_mention':
+        case 'emoji':
+        case 'url':
+          return { kind: 'inline' };
+        default:
+          return { kind: 'block' };
+      }
+    };
+    const inlineRuns = computed(() => {
+      if (props.encrypted && !props.decrypted) return null;
+      const options = {
+        isNativePack: isNativePack.value,
+        emojiServiceLoaded: emojiServiceLoaded.value,
+        resolveEmoji,
+        isSingleEmoji: props.isSingleEmoji,
+        greentextEnabled: visualTheme.currentSettings.value.greentextEnabled !== false,
+        convertEmoticons: false,
+      };
+      return renderInlineRuns(
+        displayContent.value.map(runPartKind),
+        (text) => renderChatMessageText(text, options),
+      );
+    });
+    const textSegmentsAt = (partIndex: number, text: string, piece?: number): TextSegment[] => {
+      const rendered = inlineRuns.value?.text[partIndex];
+      if (!rendered) return renderTextSegments(text);
+      const html = piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html;
+      return splitCodeBlockSegments(html, rendered.codeBlocks);
+    };
+    const NO_MARKS: InlineMark[] = [];
+    const marksAt = (partIndex: number): InlineMark[] => inlineRuns.value?.marks[partIndex] ?? NO_MARKS;
+
+    // Consecutive parts and text pieces in one lifted quote share a group drawn as one
+    // blockquote; the rest form groups with no element of their own.
+    const QUOTE_MARKS: InlineMark[] = [{ tag: 'blockquote', className: 'md-blockquote' }];
+    interface RenderItem { part: DisplayPart; partIndex: number; piece?: number }
+    interface RenderGroup { key: string; marks: InlineMark[]; items: RenderItem[] }
+    const renderGroups = computed<RenderGroup[]>(() => {
+      const runs = inlineRuns.value;
+      const groups: RenderGroup[] = [];
+      let open: RenderGroup | null = null;
+      let openQuote: number | undefined;
+      const add = (item: RenderItem, quote: number | undefined) => {
+        if (!open || quote !== openQuote) {
+          open = { key: `${item.partIndex}-${item.piece ?? ''}`, marks: quote === undefined ? NO_MARKS : QUOTE_MARKS, items: [] };
+          openQuote = quote;
+          groups.push(open);
+        }
+        open.items.push(item);
+      };
+      displayContent.value.forEach((part, partIndex) => {
+        const pieces = runs?.text[partIndex]?.pieces;
+        if (pieces) pieces.forEach((p, piece) => add({ part, partIndex, piece }, p.quote));
+        else add({ part, partIndex }, runs?.quotes[partIndex]);
+      });
+      return groups;
+    });
 
     watch(() => props.editableContent, (newVal) => {
       // Guard against a write-back loop through the editor.
@@ -1458,6 +1708,8 @@ export default defineComponent({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Enter and Escape of an open composition commit or cancel it, not the edit.
+      if (isImeKeyEvent(event)) return;
       const suggest = ensureAutoSuggest();
       // Auto-suggest claims keys first. Escape with the popup open closes the
       // popup only; the edit stays open.
@@ -1467,6 +1719,8 @@ export default defineComponent({
       }
       
       if (event.key === 'Enter' && !event.shiftKey) {
+        // Unconsumed, RichTextEditor inserts the line break.
+        if (isMobileEdit.value) return;
         if (!suggest.state.value.isActive) {
           event.preventDefault();
           handleSaveEdit();
@@ -1657,6 +1911,7 @@ export default defineComponent({
       rootRef,
       instanceDomain,
       soleDriveLink,
+      soleGifLink,
       openMedia,
       chatMediaKey,
       nativeVideoControls,
@@ -1666,6 +1921,8 @@ export default defineComponent({
       channelMentionHref,
       isHiddenSpoiler,
       revealMediaSpoiler,
+      isCoveredLink,
+      revealLinkSpoiler,
       revealTextSpoiler,
       displayContent,
       onAttachmentMediaError,
@@ -1682,6 +1939,7 @@ export default defineComponent({
       handleSaveEdit,
       handleCancelEdit,
       handleKeyDown,
+      isMobileEdit,
       handleRichEditorUpdate,
       handleEditCursorPositionChanged,
       emojiPartToken,
@@ -1697,12 +1955,16 @@ export default defineComponent({
       isVideoUrl,
       showsPreview,
       shownUrl,
+      shownLinkLabel,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,
       formatMentionDisplay,
       renderTextContent,
       renderTextSegments,
+      textSegmentsAt,
+      marksAt,
+      renderGroups,
       handleHashtagClick,
       handleChannelMentionClick,
       handleMentionClick,
@@ -1711,6 +1973,7 @@ export default defineComponent({
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,
+      onEmbedMediaError,
       decrypting,
       handleDecryptClick,
       // GIF favorites
@@ -1720,6 +1983,9 @@ export default defineComponent({
       showKlipyWatermark,
       displayMediaUrl,
       mediaSrc,
+      namedMediaSrc,
+      fileDownloadHref,
+      downloadFilePart,
       mediaLoadKey,
       hasUpload,
       mediaPartFileName,
@@ -1753,9 +2019,11 @@ export default defineComponent({
   display: inline;
 }
 
-/* Display mode container */
+/* Display mode container. Its direction is its text's first strong character's, as the
+   composer's dir="auto": an Arabic or Hebrew message keeps its punctuation at its end. */
 .content-display {
   display: inline;
+  unicode-bidi: plaintext;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -1789,26 +2057,34 @@ export default defineComponent({
   -ms-user-select: text;
 }
 
-.text-content :deep(.md-bold) {
+/* .md-mark: the same elements drawn around a link, mention or emoji (InlineMarks). The
+   design-system reset gives every element font-weight: normal, so bold names the descendants. */
+.text-content :deep(.md-bold),
+.content-display :deep(.md-mark.md-bold),
+.content-display :deep(.md-mark.md-bold *) {
   font-weight: bold;
   color: var(--text-primary);
 }
 
-.text-content :deep(.md-italic) {
+.text-content :deep(.md-italic),
+.content-display :deep(.md-mark.md-italic) {
   font-style: italic;
 }
 
-.text-content :deep(.md-strikethrough) {
+.text-content :deep(.md-strikethrough),
+.content-display :deep(.md-mark.md-strikethrough) {
   text-decoration: line-through;
   opacity: 0.6;
 }
 
-.text-content :deep(.md-underline) {
+.text-content :deep(.md-underline),
+.content-display :deep(.md-mark.md-underline) {
   text-decoration: underline;
 }
 
 /* Covered until clicked; text and inline emoji stay invisible. */
-.text-content :deep(.md-spoiler) {
+.text-content :deep(.md-spoiler),
+.content-display :deep(.md-mark.md-spoiler) {
   background: var(--text-primary);
   color: transparent;
   border-radius: 3px;
@@ -1820,17 +2096,20 @@ export default defineComponent({
 }
 
 .text-content :deep(.md-spoiler:not(.revealed) img),
-.text-content :deep(.md-spoiler:not(.revealed) .md-code) {
+.text-content :deep(.md-spoiler:not(.revealed) .md-code),
+.content-display :deep(.md-mark.md-spoiler:not(.revealed) > *) {
   visibility: hidden;
 }
 
-.text-content :deep(.md-spoiler.revealed) {
+.text-content :deep(.md-spoiler.revealed),
+.content-display :deep(.md-mark.md-spoiler.revealed) {
   background: var(--background-modifier-hover, rgba(127, 127, 127, 0.18));
   color: inherit;
   cursor: text;
 }
 
-.text-content :deep(.md-code) {
+.text-content :deep(.md-code),
+.content-display :deep(.md-mark.md-code) {
   background-color: var(--background-tertiary);
   border-radius: 3px;
   padding: 2px 4px;
@@ -1838,7 +2117,8 @@ export default defineComponent({
   font-size: 0.85em;
 }
 
-.text-content :deep(.md-blockquote) {
+.text-content :deep(.md-blockquote),
+.content-display :deep(.md-mark.md-blockquote) {
   border-left: 4px solid var(--text-muted);
   padding: 2px 0 2px 12px;
   user-select: text;
@@ -1849,12 +2129,18 @@ export default defineComponent({
   color: var(--text-secondary);
 }
 
+/* Text inside a lifted quote takes the quote's colour. */
+.content-display :deep(.md-mark.md-blockquote .text-content) {
+  color: inherit;
+}
+
 .text-content :deep(.md-blockquote + .md-blockquote),
 .text-content :deep(.md-blockquote br + .md-blockquote) {
   margin-top: 0;
 }
 
-.text-content :deep(.md-greentext) {
+.text-content :deep(.md-greentext),
+.content-display :deep(.md-mark.md-greentext) {
   color: #789922;
   user-select: text;
   -webkit-user-select: text;
@@ -1877,6 +2163,18 @@ export default defineComponent({
 
 .url-link:hover {
   text-decoration: underline;
+}
+
+/* A label is laid out apart from the text around it: no override or mark outside it reorders
+   it, and its direction is its own first strong character's (dir="auto"). */
+.url-link--masked {
+  unicode-bidi: isolate;
+}
+
+/* Keyboard focus names a masked link's destination; hover has the title. */
+.url-link--masked:focus-visible::after {
+  content: ' (' attr(data-href) ')';
+  color: var(--text-muted);
 }
 
 /* Mentions, hashtags and names are buttons (channel references links) set in
@@ -1909,7 +2207,8 @@ a.channel-mention {
 .hashtag:focus-visible,
 .system-username:focus-visible,
 .encrypted-click-target:focus-visible,
-.text-content :deep(.md-spoiler:focus-visible) {
+.text-content :deep(.md-spoiler:focus-visible),
+.content-display :deep(.md-mark.md-spoiler:focus-visible) {
   outline: 2px solid var(--border-focus);
   outline-offset: 1px;
 }
@@ -2139,10 +2438,13 @@ a.channel-mention {
   color: var(--warning);
 }
 
-/* KLIPY attribution watermark - official logo, fades in on hover */
+/* KLIPY attribution watermark - official logo, fades in on hover. Top-left: the bottom edge
+   holds a clip's player controls, the top-right corner the favorite, pop-out and remove
+   buttons. Klipy's guidelines (docs.klipy.com/attribution) make it optional and set no
+   position. */
 .klipy-watermark {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   left: 8px;
   display: block;
   line-height: 0;
@@ -2396,6 +2698,10 @@ a.channel-mention {
 }
 
 .edit-action {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
   color: var(--text-link);
   cursor: pointer;
   font-weight: 500;
@@ -2403,6 +2709,33 @@ a.channel-mention {
 
 .edit-action:hover {
   text-decoration: underline;
+}
+
+.edit-actions--buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.edit-button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.edit-button--cancel {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.edit-button--save {
+  background: var(--harmony-primary-fill, var(--harmony-primary));
+  color: var(--text-on-primary);
 }
 
 @media (max-width: 768px) {

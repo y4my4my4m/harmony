@@ -1,12 +1,7 @@
 <template>
-  <div
-    v-if="reactions.length > 0"
-    class="post-reactions"
-    data-testid="post-reactions"
-    role="group"
-    :aria-label="t('activitypub.reactionsA11y.group')"
-  >
-    <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
+  <div v-if="reactions.length > 0" class="post-reactions" data-testid="post-reactions">
+    <AppToolbar class="reactions-container" :label="t('activitypub.reactionsA11y.group')">
+    <TransitionGroup name="reaction-list">
       <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">
         <LoadingSpinner :size="16" />
@@ -61,6 +56,7 @@
         <span v-if="reactorNames(reaction)" :id="`${idBase}-${index}`" class="sr-only">{{ reactorNames(reaction) }}</span>
       </button>
     </TransitionGroup>
+    </AppToolbar>
   </div>
 </template>
 
@@ -82,6 +78,7 @@ import { isHeartEmoji } from '@/utils/heartReaction';
 import { plainDisplayName } from '@/utils/plainDisplayName';
 import { uid } from '@/utils/a11y/focus';
 import Icon from '@/components/common/Icon.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost } from '@/types';
 

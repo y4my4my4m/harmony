@@ -54,10 +54,54 @@ describe('GET /instances/probe', () => {
     const res = await probe('https://Mony.test/')
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({ domain: 'mony.test', software: 'harmony', version: '1.8.11', user_count: 2, status_count: 37 })
-    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledTimes(2)
     expect(rpc).toHaveBeenCalledWith('record_instance_nodeinfo', {
       p_domain: 'mony.test', p_software: 'harmony', p_version: '1.8.11', p_user_count: 2, p_status_count: 37, p_create: false,
     })
+    expect(rpc).toHaveBeenCalledWith('record_instance_branding', {
+      p_domain: 'mony.test', p_icon_url: null, p_banner_url: null, p_theme_color: null,
+    })
+  })
+
+  it('stores a Harmony peer\'s NodeInfo icon, banner and theme colour', async () => {
+    serveNodeinfo({
+      software: { name: 'harmony', version: '1.9.1' },
+      usage: { users: { total: 8 }, localPosts: 8 },
+      metadata: {
+        nodeName: 'Mony.World',
+        icon: 'https://db.mony.test/storage/v1/object/public/server_icons/instance/icon.webp',
+        banner: '/storage/v1/object/public/server_banners/instance/banner.webp',
+        themeColor: '#e67e22',
+      },
+    })
+
+    const res = await probe('mony.test')
+    expect(res.body).toMatchObject({
+      icon_url: 'https://db.mony.test/storage/v1/object/public/server_icons/instance/icon.webp',
+      banner_url: 'https://mony.test/storage/v1/object/public/server_banners/instance/banner.webp',
+      theme_color: '#e67e22',
+    })
+    expect(rpc).toHaveBeenCalledWith('record_instance_branding', {
+      p_domain: 'mony.test',
+      p_icon_url: 'https://db.mony.test/storage/v1/object/public/server_icons/instance/icon.webp',
+      p_banner_url: 'https://mony.test/storage/v1/object/public/server_banners/instance/banner.webp',
+      p_theme_color: '#e67e22',
+    })
+  })
+
+  it('passes on no icon that is not an http(s) URL and no colour that is not hex', async () => {
+    serveNodeinfo({
+      software: { name: 'harmony', version: '1.9.1' },
+      metadata: { icon: 'javascript:alert(1)', banner: 'data:image/png;base64,AAAA', themeColor: 'red' },
+    })
+
+    const res = await probe('mony.test')
+    expect(res.body.icon_url).toBeUndefined()
+    expect(res.body.banner_url).toBeUndefined()
+    expect(res.body.theme_color).toBeUndefined()
+    expect(rpc).toHaveBeenCalledWith('record_instance_branding', expect.objectContaining({
+      p_icon_url: null, p_banner_url: null, p_theme_color: null,
+    }))
   })
 
   it('stores absent usage as null and still answers 0', async () => {

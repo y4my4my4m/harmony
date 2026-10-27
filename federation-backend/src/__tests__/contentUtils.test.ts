@@ -72,6 +72,31 @@ describe('contentUtils', () => {
       expect(html).toContain('<a')
     })
 
+    it('links http(s), mailto and tel URLs, and renders any other scheme as text', () => {
+      expect(convertContentToHTML([{ type: 'url', url: 'https://example.com/a?b=1&c=2' }]))
+        .toBe('<a href="https://example.com/a?b=1&amp;c=2">https://example.com/a?b=1&amp;c=2</a>')
+      expect(convertContentToHTML([{ type: 'url', url: 'mailto:ann@example.com' }])).toContain('<a href="mailto:ann@example.com">')
+      for (const url of ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'java\tscript:alert(1)', 'data:text/html,<script>x</script>', 'vbscript:x']) {
+        const html = convertContentToHTML([{ type: 'url', url }])
+        expect(html).not.toContain('<a')
+        expect(html).not.toContain('<script>')
+      }
+      expect(convertContentToHTML([{ type: 'url', url: 'javascript:alert(1)' }])).toBe('javascript:alert(1)')
+    })
+
+    it('checks the scheme of a masked link and of a link part', () => {
+      expect(convertContentToHTML([{ type: 'url', url: 'javascript:alert(1)', label: 'click me' }])).not.toContain('<a')
+      expect(convertContentToHTML([{ type: 'link', url: 'javascript:alert(1)', text: 'click' }])).toBe('click')
+      expect(convertContentToHTML([{ type: 'link', url: 'https://example.com', text: 'site' }]))
+        .toBe('<a href="https://example.com">site</a>')
+    })
+
+    it('escapes a mention part\'s username and domain', () => {
+      const html = convertContentToHTML([{ type: 'mention', username: 'a"><script>x</script>', domain: 'evil.test' }])
+      expect(html).not.toContain('<script>')
+      expect(html).toContain('href="https://evil.test/users/a&quot;&gt;&lt;script&gt;x&lt;/script&gt;"')
+    })
+
     it('handles emoji object parts', () => {
       const content = [{ type: 'emoji', emoji: { name: 'heart' } }]
       expect(convertContentToHTML(content)).toBe(':heart:')

@@ -52,6 +52,8 @@
 // (cases/groupAuthored.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
+// A server's pins, roles, members' roles and channel order, and the instance staff role on an
+// actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
@@ -114,6 +116,7 @@ import { caseCopyAuthority } from './cases/copyAuthority.ts'
 import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
+import { caseCopyDisplay } from './cases/copyDisplay.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -260,6 +263,8 @@ class Peer {
   extraGet?: (req: http.IncomingMessage, res: http.ServerResponse) => boolean
   // Items a case module adds to the private channel's collection page.
   extraChannelItems: Record<string, unknown>[] = []
+  // Properties a case module sets on the Group document a member is served.
+  extraGroupFields: Record<string, unknown> = {}
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -578,6 +583,7 @@ class Peer {
           { id: this.channelUrl(REMOTE_CHANNEL), localId: REMOTE_CHANNEL, name: 'peer-general', type: 'harmony:TextChannel', channelType: 'text', order: 0 },
           { id: this.channelUrl(REMOTE_CHANNEL_NEW), localId: REMOTE_CHANNEL_NEW, name: 'peer-added', type: 'harmony:TextChannel', channelType: 'text', order: 1 },
         ]
+        Object.assign(group, this.extraGroupFields)
       }
       res.writeHead(200, { 'Content-Type': 'application/activity+json' })
       res.end(JSON.stringify(group))
@@ -2889,6 +2895,15 @@ async function main() {
       ids: {
         alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH,
         remote: REMOTE, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseCopyDisplay({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, carol: CAROL, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, hiddenChannel: PRIV_SECRET,
+        remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
     })
     // Last: suspending the peer's account removes it from servers hosted here.

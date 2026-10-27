@@ -67,11 +67,28 @@ describe('MessageReactions for screen readers', () => {
     expect(parrot.attributes('aria-pressed')).toBe('false')
     expect(parrot.attributes('aria-label')).toBe('messageA11y.reactions.pill')
     expect(parrot.get('img').attributes('alt')).toBe(':party_parrot:')
-    expect(w.get('[role="group"]').attributes('aria-label')).toBe('message.reactions.title')
+    expect(w.get('[role="toolbar"]').attributes('aria-label')).toBe('message.reactions.title')
     expect(w.get('.add-reaction-btn').attributes('aria-label')).toBe('message.reactions.add')
     // Every pill points at the hint that says how to list who reacted.
     const hint = w.get('.sr-only')
     expect(thumbs.attributes('aria-describedby')).toBe(hint.attributes('id'))
+  })
+
+  it('is one Tab stop; Left and Right move between pills and the add button', async () => {
+    const w = mountReactions()
+    const buttons = () => w.findAll('[role="toolbar"] button').map((b) => b.element as HTMLElement)
+    expect(buttons().map((b) => b.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
+    buttons()[0].focus()
+    buttons()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons()[1])
+    expect(buttons().map((b) => b.getAttribute('tabindex'))).toEqual(['-1', '0', '-1'])
+    buttons()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons()[0])
+    // Home/End belong to the message list around the reactions.
+    const end = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
+    buttons()[0].dispatchEvent(end)
+    expect(end.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(buttons()[0])
   })
 
   it('lists who reacted on the ContextMenu key and Shift+F10', async () => {

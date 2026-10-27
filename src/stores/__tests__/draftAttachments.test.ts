@@ -29,6 +29,7 @@ import {
   holdsDraftAttachment,
   localDraftKey,
   openDraftAttachments,
+  removeDraftAttachment,
   resetDraftAttachments,
   setDraftAttachments,
 } from '../draftAttachments'
@@ -118,6 +119,22 @@ describe('draft attachment lists', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:a.png')
     expect(abort).toHaveBeenCalled()
     expect(forgetMessageMediaUpload).toHaveBeenCalledWith('c/a/u/1.png')
+  })
+
+  it('takes one attachment out of the draft holding it, wherever that draft is', () => {
+    const kept = attachment('kept.png')
+    const cancelled = attachment('cancelled.png', { upload: { path: 'c/a/u/2.png', abort: vi.fn() } as never })
+    addDraftAttachments(A, [kept, cancelled])
+    addDraftAttachments(B, [attachment('other.png')])
+
+    removeDraftAttachment(draftAttachments(A)[1])
+
+    expect(draftAttachments(A).map((f) => f.name)).toEqual(['kept.png'])
+    expect(draftAttachments(B).map((f) => f.name)).toEqual(['other.png'])
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:cancelled.png')
+    expect(forgetMessageMediaUpload).toHaveBeenCalledWith('c/a/u/2.png')
+    removeDraftAttachment(cancelled)
+    expect(draftAttachments(A)).toHaveLength(1)
   })
 
   it('gives every composer without a draft a key of its own', () => {

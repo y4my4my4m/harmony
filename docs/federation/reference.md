@@ -110,10 +110,13 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
 | `movedTo` | Target of a completed move |
 | `tag`, `emojis` | Custom emoji of the display name and bio: `Emoji` tags, plus a Misskey-style `emojis` map of shortcode to URL |
 | `harmony:profileColor`, `harmony:customStatus` | See [Extension properties](#extension-properties) |
+| `harmony:instanceRole` | `"admin"` or `"moderator"` for the instance's staff; absent for everyone else |
+
+A receiver stores `harmony:instanceRole` only from the actor's own document or its own `Update`, and shows it as staff of the actor's instance, never of its own. Harmony before 1.9.1 does not publish or read it.
 
 A deleted account answers its actor URL with 410 and a `Tombstone` (`id`, `formerType: "Person"`, `deleted`).
 
-The actor is sent again as an `Update` when the display name, bio, avatar, banner, custom status, profile fields, discoverability, colour, the display name's custom emoji, aliases, move target or follow approval change.
+The actor is sent again as an `Update` when the display name, bio, avatar, banner, custom status, profile fields, discoverability, colour, the display name's custom emoji, aliases, move target, follow approval or instance staff role change.
 
 ### Group (chat server)
 
@@ -131,11 +134,16 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `icon`, `image` | Server icon and banner, omitted when unset |
 | `harmony:memberCount` | Accepted members |
 | `harmony:channels` | The categories and channels the caller may view |
+| `harmony:roles` | The server's roles but the default one, highest position first |
 | `discoverable` | `true` for a public server |
 | `manuallyApprovesFollowers` | `false` |
 | `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
-Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`). A category is listed when it holds a channel the caller may view.
+Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`), and for a text or voice channel `harmony:pins`: `{ "type": "OrderedCollection", "id": "<channel>/pins", "totalItems", "updated" }`, the pins the caller may read and the newest pin's time. A category is listed when it holds a channel the caller may view.
+
+Each `harmony:roles` entry is a `harmony:Role` with `id` (`/servers/<uuid>/roles/<role uuid>`), `name`, `color` (`#rrggbb` or null), `position`, `hoist`, `mentionable` and, when set, `unicodeEmoji`. Permission bits are not sent: a member instance shows the roles, the host enforces them.
+
+A member instance stores the roles on its copy display-only, with no permissions, and deletes a role of the Group the list no longer names; it reads the pins of a channel whose `harmony:pins` differs from what its copy holds. A Group without these properties (Harmony before 1.9.1) leaves the copy's roles and pins as they are.
 
 `GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, and `replies`, the channel's message collection.
 
@@ -160,10 +168,11 @@ Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceC
 | `GET /posts/<uuid>/context` | FEP-7888 context of the thread rooted at the post: `OrderedCollection` of the root and the thread's public and unlisted posts, as ids, oldest first, 20 per page, `attributedTo` the root's author (see [Note (post)](#note-post)). 404 for a reply, a deleted root and a root the caller may not read |
 | `GET /messages/<uuid>` | `Note` of a federated chat or direct message; only with an ActivityPub `Accept`, else 406 |
 | `GET /servers/<uuid>` | `Group` actor |
-| `GET /servers/<uuid>/members` | `OrderedCollection` of member actor ids, 50 per page |
+| `GET /servers/<uuid>/members` | `OrderedCollection` of member actor ids, 500 per page; each page's `harmony:memberRoles` lists `{ member, roles }` for the members on it holding a role, `roles` the `harmony:Role` ids |
 | `GET /servers/<uuid>/outbox` | `OrderedCollection` of `Create` activities from the channels the caller may read, 20 per page |
 | `GET /servers/<uuid>/channels/<channel uuid>` | Channel object |
 | `GET /servers/<uuid>/channels/<channel uuid>/messages` | `OrderedCollection` of the channel's messages as `Note`s, 50 per page; `/outbox` at the same place serves the same collection |
+| `GET /servers/<uuid>/channels/<channel uuid>/pins` | `OrderedCollection` of the channel's pinned messages as `Note`s, newest pin first, each with `harmony:pinnedAt`; one page, under the channel's read rules |
 | `POST /servers/<uuid>/inbox` | Chat server inbox; on a copy of a remote server, its Group's relays (see [Group relay](#group-relay)) |
 | `GET /threads/<uuid>` | `ChatThread` of a thread in a local server's channel; only with an ActivityPub `Accept`, else 406 |
 | `GET /threads/<uuid>/members` | `OrderedCollection` of the thread's member actor ids, 50 per page |
@@ -317,8 +326,10 @@ Chat-server activities:
 | `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
 | `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
-| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
-| `Update` | Group | `Group` | The server's name, description, icon or banner changes | Member instances |
+| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
+| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon or banner changes, or a role is created, changed or deleted | Member instances |
+| `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
+| `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances with a member who can view the channel |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
 | `harmony:VoiceMemberMove` / `harmony:VoiceMemberDisconnect` / `harmony:VoiceMemberState` | Group | The member | A moderator moves, disconnects, server-mutes or server-deafens a member of another instance, or the member leaves voice another way (see [Voice moderation](#voice-moderation)) | The member's instance, at its copy's inbox |
@@ -376,6 +387,8 @@ Shared and personal inboxes:
 | `Undo` | `Like`, `EmojiReact`, `EmojiReaction`, `Follow`, `Announce`, `Block`, embedded or by id | Reverted. The undone activity's actor must be the signer. |
 | `Add` / `Remove` | Post, `target` a `featured` collection | Pin or unpin, by the post's author |
 | `Add` / `Remove` | Channel types, `target` a Group | Channel or category of a mirrored server added or removed |
+| `Add` / `Remove` | Message id, `target` a channel's `/pins`, from that channel's `Group` | Message pinned or unpinned on the copy; a pinned message the copy lacks is read with the channel's pins collection |
+| `Update` | `harmony:MemberRoles`, from a mirrored server's `Group` | The member's roles on the copy replaced |
 | `Remove` | Account, `target` a group conversation | Participant removed |
 | `Remove` | Local account, `target` the `members` of a mirrored server's `Group`, from that `Group` | Membership removed, unless it was made after the `Remove`'s `published`. The account is told why: federation off (`harmony:reason: federation_closed`), or a kick or ban with its `summary`. |
 | `Flag` | Local accounts and posts | A report owned by the sending domain, one per local account named. A Flag naming only posts is filed against their authors. At most 30 reports an hour per domain; a redelivered id is ignored. |
@@ -683,6 +696,12 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:ChatServer` | `Group` in an `Update` | `true` |
 | `harmony:memberCount` | `Group` | Accepted members |
 | `harmony:channels` | `Group` | Channel and category entries |
+| `harmony:roles`, `harmony:Role` | `Group` | The server's roles; see [Group (chat server)](#group-chat-server) |
+| `harmony:pins` | `harmony:channels` entries | The channel's pins collection, its `totalItems` and newest pin time |
+| `harmony:pinnedAt` | `Note` in a pins collection | When the message was pinned |
+| `harmony:memberRoles` | Members collection page | `{ member, roles }` per member holding a role |
+| `harmony:MemberRoles` | `Update` object | `member` and all of its `roles` |
+| `harmony:instanceRole` | `Person` | `"admin"` or `"moderator"` on its own instance |
 | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | Channel entries, `Add`/`Update`/`Remove` objects | Channel and category types |
 | `harmony:inviteCode` | `Join` | Invite code for a private server |
 | `harmony:rawContent` | Channel message `Note` | The message as Harmony message parts (text, mentions, emoji, hashtags, links, files). Receivers re-derive mention locality, drop file storage paths and drop poll parts. Without it, `content` is used. |

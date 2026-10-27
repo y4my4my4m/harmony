@@ -1,6 +1,7 @@
 <template>
   <div
     class="message-display"
+    :class="{ 'touch-actions': isMobile }"
     data-region="messages"
     ref="messageDisplayContainer"
     data-chat-messages
@@ -35,6 +36,26 @@
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
 
+    <!-- A reply's target outside the loaded rows: the list scrolls up to this at once
+         and it stays until the rows around the target replace the list. -->
+    <div v-if="pendingJumpId" class="jump-loading" role="status" data-testid="jump-loading">
+      <div class="jump-loading-label">
+        <LoadingSpinner :size="16" />
+        <span>{{ $t('message.jumpLoading') }}</span>
+      </div>
+      <div v-for="n in 3" :key="`jump-skeleton-${n}`" class="skeleton-message" aria-hidden="true">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-header">
+            <div class="skeleton-username"></div>
+            <div class="skeleton-timestamp"></div>
+          </div>
+          <div class="skeleton-text-line" style="width: 85%;"></div>
+          <div class="skeleton-text-line" style="width: 60%;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading older messages indicator. The zero-height sticky wrapper floats it
          over the top of the viewport; showing or hiding it moves nothing below. -->
     <div v-show="isLoadingOlderMessages && messages.length > 0" class="loading-older-anchor">
@@ -58,7 +79,7 @@
     </div>
     
     <!-- Virtual scrolled message list. Each virtual row is a listitem; the
-         article inside it is the focusable row (keyboard model: onListKeydown). -->
+         article inside it is the focusable row (keyboard model: roving). -->
     <div
       v-if="displayItems.length > 0"
       ref="virtualListRef"
@@ -66,7 +87,7 @@
       :aria-label="listLabel"
       :aria-busy="isLoadingOlderMessages ? 'true' : undefined"
       :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }"
-      @keydown="onListKeydown"
+      @keydown="roving.onKeydown"
       @focusin="onListFocusIn"
       @focusout="onListFocusOut"
     >
@@ -203,7 +224,7 @@
           <!-- System message: an authorless event, rendered from metadata -->
           <div v-if="item.message.is_system" class="system-message">
             <div class="system-message-content">
-              <AppTimestamp class="system-timestamp" :value="item.message.created_at">
+              <AppTimestamp class="system-timestamp" :value="item.message.created_at" speak="time">
                 <template v-for="(line, lineIndex) in systemTimestampLines(item.message.created_at)" :key="lineIndex"><br v-if="lineIndex > 0" />{{ line }}</template>
               </AppTimestamp>
               <div :id="`msg-body-${item.message.id}`" class="system-content">
@@ -220,17 +241,17 @@
             </div>
             
             <!-- Message actions for system messages (hover or focus within the row); on mobile with tap use floating popup -->
-            <div
+            <AppToolbar
               v-if="showsActionBar(item.message.id)"
               class="message-actions"
-              role="group"
-              :aria-label="t('messageA11y.actions.label')"
+              :label="t('messageA11y.actions.label')"
+              :home-end="false"
               :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
             >
               <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
               <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
               <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
-            </div>
+            </AppToolbar>
             
             <!-- Reactions for system messages -->
             <MessageReactions
@@ -276,19 +297,21 @@
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
-                <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance admin">
+                <span
+                  v-if="getInstanceBadge(item.message).value"
+                  class="instance-badge"
+                  :class="getInstanceBadge(item.message).value!.kind"
+                  :title="instanceBadgeTitle(getInstanceBadge(item.message).value!)"
+                  data-testid="message-staff-badge"
+                >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  ADMIN
-                </span>
-                <span v-else-if="getInstanceBadge(item.message).value === 'mod'" class="instance-badge mod" title="Instance moderator">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  MOD
+                  {{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </button>
               <!-- Pin and encryption state are spoken in the row name (rowMeta). -->
               <span class="timestamp">
-                <AppTimestamp :value="item.message.created_at" :short="formatTimestamp(item.message.created_at)" />
+                <AppTimestamp :value="item.message.created_at" :short="formatTimestamp(item.message.created_at)" speak="time" />
                 <span
                   v-if="item.message.is_pinned"
                   class="pin-indicator"
@@ -350,7 +373,7 @@
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
           <div class="message-gutter">
-            <AppTimestamp class="message-gutter-time" :value="item.message.created_at" :short="formatTimeOnly(item.message.created_at)" />
+            <AppTimestamp class="message-gutter-time" :value="item.message.created_at" :short="formatTimeOnly(item.message.created_at)" speak="time" />
           </div>
           <div class="message-main">
             <UnifiedMessageContent 
@@ -399,11 +422,11 @@
         </div>
 
         <!-- Message actions on hover or focus within the row; on mobile with tap use floating popup -->
-        <div
+        <AppToolbar
           v-if="!item.message.failed && showsActionBar(item.message.id)"
           class="message-actions"
-          role="group"
-          :aria-label="t('messageA11y.actions.label')"
+          :label="t('messageA11y.actions.label')"
+          :home-end="false"
           :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
         >
           <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
@@ -412,7 +435,7 @@
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="deleteActionLabel(item.message)" :title="deleteActionLabel(item.message)" @click="deleteMessage(item.message.id, $event)"><Icon v-if="isInstanceHide(item.message)" name="eye-off" :size="18" /><DeleteIcon v-else/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
-        </div>
+        </AppToolbar>
         
         <!-- Reactions -->
         <MessageReactions
@@ -616,7 +639,7 @@ import { useOutboxStore } from '@/stores/useOutbox';
 import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { showInstanceStaffBadge } from '@/utils/instanceBadge';
+import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
 import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -685,10 +708,10 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';
-import { useRovingTabindex } from '@/composables/useRovingTabindex';
-import { isContextMenuKey } from '@/composables/useMenu';
+import { PARKED_ATTR, useRovingTabindex } from '@/composables/useRovingTabindex';
 import { createNewMessageAnnouncer } from '@/composables/useNewMessageAnnouncer';
 import { messageSpeechText } from '@/utils/a11y/messageSpeech';
 import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
@@ -1020,6 +1043,7 @@ type DisplayItem =
       key: string;
       groupId: string;
       count: number;
+      messageIds: string[];
     }
   | {
       type: 'reported';
@@ -1070,7 +1094,8 @@ const displayItems = computed((): DisplayItem[] => {
           type: 'blocked-group',
           key: `blocked-${groupId}`,
           groupId: groupId,
-          count: groupMessages.length
+          count: groupMessages.length,
+          messageIds: groupMessages.map(m => m.id),
         });
       }
     } else if (reportedMessageIds.value.has(message.id) && !revealedReportedIds.value.has(message.id)) {
@@ -1292,18 +1317,22 @@ const getDiscordUserInfo = (message: Message): { username: string; display_name:
   return message.metadata?.discord_user || null;
 };
 
-const getInstanceBadge = (message: Message): ComputedRef<'admin' | 'mod' | null> => {
+// This instance's staff flags do not surface inside a federated server; a remote author's role on
+// its own instance does (instanceBadge.ts).
+const getInstanceBadge = (message: Message): ComputedRef<InstanceStaffBadge | null> => {
   return computed(() => {
     const userId = message.user_id;
     if (!userId) return null;
-    // Global instance staff flags must not surface inside a federated server.
-    if (!showInstanceStaffBadge(serverChannelStore.currentServer)) return null;
-    const profile = getUserProfile(userId).value;
-    if (profile?.is_admin) return 'admin';
-    if (profile?.is_moderator) return 'mod';
-    return null;
+    return instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer);
   });
 };
+
+function instanceBadgeTitle(badge: InstanceStaffBadge): string {
+  if (badge.domain) {
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
+  }
+  return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+}
 
 // Helper functions for bot display
 const getBotDisplayName = (botId: string): ComputedRef<string> => {
@@ -1707,6 +1736,9 @@ const applyScroll = (el: HTMLElement) => {
 // value; a newer jump to a message or to the present ends them.
 let seatGeneration = 0;
 
+// Reply target being loaded from outside the list; the placeholder shows meanwhile.
+const pendingJumpId = ref<string | null>(null);
+
 const measureEnd = () => {
   const el = messageDisplayContainer.value;
   if (!el) return;
@@ -1940,34 +1972,38 @@ const listLabel = computed(() => {
   return name ? t('messageA11y.list.channel', { name }) : t('messageA11y.list.generic');
 });
 
-const spokenTimeFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long', timeStyle: 'short' }));
-const spokenTime = (value: Date | string): string => {
-  const date = new Date(value);
-  return isValid(date) ? spokenTimeFormat.value.format(date) : '';
-};
+const spokenClockFormat = computed(() => new Intl.DateTimeFormat(locale.value, { timeStyle: 'short' }));
+const spokenDateFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long' }));
 
 const isSendingRow = (message: Message): boolean =>
   !message.failed && (!!message.sending || !!message.id?.startsWith('temp-'));
 
-/** Time and state, read after the row's content in its accessible name. */
+/**
+ * Time of day, state, then the date: "6:10 PM, edited, October 23, 2026", read
+ * after the row's content in its accessible name. Every row carries its own
+ * date, last, independent of the rows loaded around it.
+ */
 const rowMeta = (message: Message): string => {
-  const parts = [spokenTime(message.created_at)];
+  const date = new Date(message.created_at);
+  const dated = isValid(date);
+  const parts = [dated ? spokenClockFormat.value.format(date) : ''];
   if (isMessageEdited(message)) parts.push(t('messageA11y.row.edited'));
   if (mentionsMe(message)) parts.push(t('messageA11y.row.mentionsYou'));
   if (message.is_pinned) parts.push(t('messageA11y.row.pinned'));
   if (message.decrypted) parts.push(t('messageA11y.row.encrypted'));
   if (message.failed) parts.push(t('messageA11y.row.failed'));
   else if (isSendingRow(message)) parts.push(t('messageA11y.row.sending'));
+  if (dated) parts.push(spokenDateFormat.value.format(date));
   return parts.filter(Boolean).join(', ');
 };
 
-/** Author, reply reference, content, then time and state. */
+/** Author, content, the message replied to, then time, state and date. */
 const rowLabelledBy = (message: Message): string => {
   const id = message.id;
   if (message.is_system) return `msg-body-${id} msg-meta-${id}`;
-  const parts = [`msg-head-${id}`];
+  const parts = [`msg-head-${id}`, `msg-body-${id}`];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
-  parts.push(`msg-body-${id}`, `msg-meta-${id}`);
+  parts.push(`msg-meta-${id}`);
   return parts.join(' ');
 };
 
@@ -2029,8 +2065,12 @@ const onDocumentFocusIn = (event: FocusEvent) => {
   focusMessageId.value = null;
 };
 
-// Row moves use the roving helper while the target row is mounted; a row off
-// the rendered range is scrolled to first and focused once it mounts.
+// Keyboard model: useRovingTabindex over every display item, rendered or not.
+// Up/Down/PageUp/PageDown/Home/End move between rows from the row or from a
+// control inside it; Escape on such a control returns to its row; Enter, the
+// ContextMenu key and Shift+F10 on a row open its menu. Up past the oldest
+// loaded row loads the previous page. A row off the rendered range is scrolled
+// to first and focused once it mounts.
 const roving = useRovingTabindex(virtualListRef, {
   itemSelector: ROW_SELECTOR,
   loop: false,
@@ -2039,6 +2079,17 @@ const roving = useRovingTabindex(virtualListRef, {
     const at = items.findIndex(el => el.dataset.rowKey === tabStopKey.value);
     return at >= 0 ? at : items.length - 1;
   },
+  virtual: {
+    count: () => displayItems.value.length,
+    indexOf: (el) => displayItems.value.findIndex(item => item.key === el.dataset.rowKey),
+    focusIndex: (index) => focusRowIndex(index),
+  },
+  pageSize: () => pageStep(),
+  onBoundary: (direction) => {
+    if (direction < 0 && !isAllMessagesLoaded.value) props.loadMoreMessages?.();
+  },
+  onEnter: (row) => activateRowElement(row),
+  onContextMenu: (row) => activateRowElement(row),
 });
 
 /** Keeps a focused row inside the viewport; a row taller than it aligns by its top. */
@@ -2105,37 +2156,15 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
   showContextMenu(item.message, box.left + 56, box.top + Math.min(box.height, 24), row);
 };
 
-const onListKeydown = (event: KeyboardEvent) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement) || !target.matches(ROW_SELECTOR) || event.altKey || event.metaKey) return;
-  const items = displayItems.value;
-  const index = items.findIndex(item => item.key === target.dataset.rowKey);
-  if (index < 0) return;
-  if (isContextMenuKey(event) || (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey)) {
-    event.preventDefault();
-    activateRow(items[index], target);
-    return;
-  }
-  let next: number;
-  switch (event.key) {
-    case 'ArrowUp': next = index - 1; break;
-    case 'ArrowDown': next = index + 1; break;
-    case 'PageUp': next = index - pageStep(); break;
-    case 'PageDown': next = index + pageStep(); break;
-    case 'Home': next = 0; break;
-    case 'End': next = items.length - 1; break;
-    default: return;
-  }
-  event.preventDefault();
-  if (next < 0 && !isAllMessagesLoaded.value) props.loadMoreMessages?.();
-  next = Math.max(0, Math.min(items.length - 1, next));
-  if (next !== index) focusRowIndex(next);
+const activateRowElement = (row: HTMLElement) => {
+  const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
+  if (item) activateRow(item, row);
 };
 
 // Interactive content of rows other than the tab stop row leaves the Tab
 // sequence: Tab from a row walks that row's controls, then leaves the list.
-// The original tabindex is kept in data-roving-muted and restored when the
-// row becomes the tab stop or takes focus.
+// The original tabindex is kept in PARKED_ATTR and restored when the row
+// becomes the tab stop or takes focus.
 const ROW_INNER_FOCUSABLE = 'a[href], button, input, select, textarea, iframe, audio[controls], video[controls], [contenteditable="true"], [tabindex]';
 
 const muteInactiveRows = () => {
@@ -2145,14 +2174,14 @@ const muteInactiveRows = () => {
   for (const row of Array.from(list.querySelectorAll<HTMLElement>(ROW_SELECTOR))) {
     const live = row.dataset.rowKey === tabStopKey.value || (!!active && row.contains(active));
     for (const el of Array.from(row.querySelectorAll<HTMLElement>(ROW_INNER_FOCUSABLE))) {
-      const muted = el.getAttribute('data-roving-muted');
+      const muted = el.getAttribute(PARKED_ATTR);
       if (live) {
         if (muted === null) continue;
-        el.removeAttribute('data-roving-muted');
+        el.removeAttribute(PARKED_ATTR);
         if (muted === '') el.removeAttribute('tabindex');
         else el.setAttribute('tabindex', muted);
       } else if (muted === null) {
-        el.setAttribute('data-roving-muted', el.getAttribute('tabindex') ?? '');
+        el.setAttribute(PARKED_ATTR, el.getAttribute('tabindex') ?? '');
         el.setAttribute('tabindex', '-1');
       }
     }
@@ -2848,6 +2877,7 @@ const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
 watch(() => [props.channelId, props.conversationId, props.threadId], () => {
   void readMarkers.flush();
   observedMessages.clear();
+  pendingJumpId.value = null;
 });
 
 // Opening a channel with unread state reads it: its newest messages may have been
@@ -2952,7 +2982,7 @@ const setupTopSentinelObserver = () => {
   topSentinelObserver = new IntersectionObserver(
     (entries) => {
       const entry = entries[0];
-      if (entry?.isIntersecting && hasInitiallyScrolled && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
+      if (entry?.isIntersecting && hasInitiallyScrolled && !pendingJumpId.value && !isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
         debug.log('Top sentinel visible (prefetch zone) - auto-loading older messages');
         props.loadMoreMessages?.();
       }
@@ -3034,6 +3064,21 @@ watch(isLoadingNewerMessages, (loading, wasLoading) => {
   if (wasLoading && !loading) setTimeout(maybeLoadNewer, 300);
 });
 
+// The row a message is shown in: its own, or the blocked or reported placeholder
+// standing for it, where a jump to it lands.
+const rowIndexOf = (messageId: string) => displayItems.value.findIndex(item =>
+  item.type === 'blocked-group' ? item.messageIds.includes(messageId) : item.message.id === messageId
+);
+const isRowLoaded = (messageId: string) => rowIndexOf(messageId) >= 0;
+
+const rowElement = (messageId: string): HTMLElement | null => {
+  const own = document.getElementById(`message-${messageId}`);
+  if (own) return own;
+  const item = displayItems.value[rowIndexOf(messageId)];
+  if (!item) return null;
+  return messageDisplayContainer.value?.querySelector<HTMLElement>(`[data-row-key="${item.key}"]`) ?? null;
+};
+
 // The message a jump landed on. Bound in the template, so it survives the row
 // leaving the rendered range.
 const highlightedRowId = ref<string | null>(null);
@@ -3054,10 +3099,9 @@ const highlightRow = (messageId: string) => {
 // position is re-seated from the row's DOM box while rows above it settle. A row
 // taller than the view is aligned by its top instead.
 const jumpToMessageRow = (messageId: string): boolean => {
-  const indexOf = () => displayItems.value.findIndex(
-    item => item.type === 'message' && item.message?.id === messageId
-  );
+  const indexOf = () => rowIndexOf(messageId);
   if (indexOf() < 0) return false;
+  pendingJumpId.value = null;
   setPinned(false);
   openFollowBottomUntil = 0;
   highlightRow(messageId);
@@ -3072,7 +3116,7 @@ const jumpToMessageRow = (messageId: string): boolean => {
     requestAnimationFrame(() => {
       if (generation !== seatGeneration) return;
       const c = messageDisplayContainer.value;
-      const el = document.getElementById(`message-${messageId}`);
+      const el = rowElement(messageId);
       if (c && el) {
         const box = styleRect(el);
         const view = styleRect(c);
@@ -3180,7 +3224,7 @@ const handleScrollThrottled = throttle(() => {
   isAtTop.value = scrollTop === 0;
 
   // Prefetch when near top (within 400px)
-  if (scrollTop < 400 && hasScrollbar.value) {
+  if (scrollTop < 400 && hasScrollbar.value && !pendingJumpId.value) {
     if (!isAllMessagesLoaded.value && !isLoadingOlderMessages.value && props.loadMoreMessages) {
       props.loadMoreMessages();
     }
@@ -3681,19 +3725,68 @@ const replyTo = (message: Message) => {
   hoveredMessageId.value = null;
 };
 
+// Where the reply jump that scrolled the list toward its top started.
+let jumpOrigin: { messageId: string; context: string; scrollTop: number; pinned: boolean } | null = null;
+
+// The list moves toward its top at once, where the placeholder shows, rather than
+// waiting on the window load. The list's own older-page loads hold off meanwhile:
+// the window replaces the list.
+const startPendingJump = (messageId: string) => {
+  const c = messageDisplayContainer.value;
+  jumpOrigin = { messageId, context: contextKey(), scrollTop: c?.scrollTop ?? 0, pinned: pinState.pinned };
+  pendingJumpId.value = messageId;
+  ++seatGeneration;
+  setPinned(false);
+  openFollowBottomUntil = 0;
+  if (!c) return;
+  const instant = document.documentElement.getAttribute('data-reduce-motion') === 'true'
+    || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  c.scrollTo({ top: 0, behavior: instant ? 'auto' : 'smooth' });
+};
+
+const endPendingJump = (messageId: string) => {
+  if (pendingJumpId.value === messageId) pendingJumpId.value = null;
+};
+
+// A jump that cannot land leaves the list where it was read: at the end when pinned,
+// else at the same offset. The list is unchanged: a failed window load replaces nothing.
+const returnFromJump = (messageId: string) => {
+  const origin = jumpOrigin;
+  jumpOrigin = null;
+  const c = messageDisplayContainer.value;
+  if (!c || origin?.messageId !== messageId || origin.context !== contextKey()) return;
+  ++seatGeneration;
+  if (origin.pinned) {
+    seatAtEnd();
+    return;
+  }
+  c.scrollTo({ top: origin.scrollTop, behavior: 'auto' });
+};
+
 const handleReplyClick = async (replyMessageId: string) => {
   // A thread view's rows are its own; the channel's list is not on screen.
   if (props.threadId) {
     if (!jumpToMessageRow(replyMessageId)) debug.warn(`Reply target is not in this thread: ${replyMessageId}`);
     return;
   }
-  if (props.channelId && chatStore.currentChannelId) {
-    const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
-    if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
-  } else if (props.conversationId) {
-    const success = await dmStore.jumpToMessage(replyMessageId);
-    if (!success) debug.warn(`Could not jump to DM message: ${replyMessageId}`);
+  const inChannel = !!(props.channelId && chatStore.currentChannelId);
+  if (!inChannel && !props.conversationId) return;
+  if (!isRowLoaded(replyMessageId)) startPendingJump(replyMessageId);
+  const success = inChannel
+    ? await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId!)
+    : await dmStore.jumpToMessage(replyMessageId);
+  if (!success) {
+    debug.warn(`Could not jump to message: ${replyMessageId}`);
+    if (pendingJumpId.value === replyMessageId) {
+      toast.error(t('message.jumpFailed'));
+      returnFromJump(replyMessageId);
+    }
+    endPendingJump(replyMessageId);
+    return;
   }
+  // The store lands on the row shortly after the list changes; jumpToMessageRow ends the
+  // placeholder there. This bounds it should the landing not run.
+  setTimeout(() => endPendingJump(replyMessageId), 1000);
 };
 
 // Thread Logic
@@ -4151,6 +4244,22 @@ defineExpose({ editLastOwnMessage });
   contain: layout paint;
 }
 
+/* Phone layout on a touch screen: a long press opens the message action bar, as
+   Discord's opens its action sheet, and starts no text selection: the selection
+   handles and the system copy menu land on the bar. Copy text is in the bar's More
+   menu. Editors (inline edit) keep selection, and the Android tap-to-caret handling
+   that relies on it. A narrow window with a mouse selects text as on a desktop. */
+@media (hover: none) and (pointer: coarse) {
+  .message-display.touch-actions :deep(*) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .message-display.touch-actions :deep(:is(.rich-text-editor, .rich-text-editor *, input, textarea)) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Individual message item */
 .message-item {
   position: relative;
@@ -4602,6 +4711,20 @@ defineExpose({ editLastOwnMessage });
 /* Loading skeletons */
 .loading-skeleton {
   padding: 16px;
+}
+
+.jump-loading {
+  padding: 8px 16px 16px;
+}
+
+.jump-loading-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .skeleton-message {

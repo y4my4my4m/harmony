@@ -85,8 +85,18 @@ describe('drive link route', () => {
     rpc.mockResolvedValue({ data: [{ bucket: 'message_media', path: 'u/x.mp4', name: 'clip.mp4' }], error: null })
     storage.mockResolvedValue(stored(200, { 'content-type': 'video/mp4', 'content-disposition': 'attachment; filename="clip.mp4"' }))
     const res = await supertest(app).get(`/drive/link/${TOKEN}?download=1`)
-    expect(sign).toHaveBeenCalledWith('message_media', 'u/x.mp4', 300, { download: 'clip.mp4' })
+    expect(sign).toHaveBeenCalledWith('message_media', 'u/x.mp4', 300, undefined)
+    expect(storage.mock.calls[0][0]).toBe(`${SIGNED}&download=clip.mp4`)
     expect(res.headers['content-disposition']).toBe('attachment; filename="clip.mp4"')
+  })
+
+  it('percent-encodes the whole Drive name: & # + quotes, spaces and non-ASCII survive', async () => {
+    const name = 'a&b #1 + "q" ünï.zip'
+    rpc.mockResolvedValue({ data: [{ bucket: 'message_media', path: 'u/x.zip', name }], error: null })
+    await supertest(app).get(`/drive/link/${TOKEN}?download=1`)
+    const url = new URL(storage.mock.calls[0][0] as string)
+    expect(url.searchParams.get('download')).toBe(name)
+    expect(url.searchParams.get('token')).toBe('t')
   })
 
   it('signs a render of a raster image with thumb=1', async () => {

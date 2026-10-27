@@ -13,6 +13,7 @@
 
 import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
 import type { Message, MessagePart } from '@/types'
+import { shownLinkLabel } from '@/utils/maskedLinks'
 
 export interface LocalSearchOptions {
   /** Minimum query length to trigger search (default: 2) */
@@ -51,7 +52,8 @@ function extractTextFromContent(content: MessagePart[]): string {
         case 'mention':
           return (part as any).mention || part.username || ''
         case 'url':
-          return part.url || ''
+          // A masked link is found by its label and by its URL.
+          return [shownLinkLabel(part), part.url].filter(Boolean).join(' ')
         case 'emoji':
           return part.emoji?.name ? `:${part.emoji.name}:` : ''
         case 'hashtag':

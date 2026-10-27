@@ -19,7 +19,7 @@
           type="search"
           class="cyber-input emoji-search"
           :placeholder="searchPlaceholder"
-          :aria-label="searchPlaceholder"
+          :aria-label="t('admin.instanceEmojis.searchLabel')"
         />
         <select v-model="source" class="cyber-select compact" :aria-label="t('admin.instanceEmojis.source.label')">
           <option value="all">{{ t('admin.instanceEmojis.source.all') }}</option>
@@ -129,7 +129,7 @@ const editName = ref('')
 const renameInput = ref<HTMLInputElement[] | null>(null)
 
 const searchPlaceholder = computed(() =>
-  source.value === 'user' ? t('admin.instanceEmojis.searchPlaceholderUser') : t('admin.instanceEmojis.searchPlaceholder'),
+  source.value === 'user' ? t('admin.instanceEmojis.searchHintUser') : t('admin.instanceEmojis.searchHint'),
 )
 
 /** Audit details naming the owner of a user-scope emoji. */

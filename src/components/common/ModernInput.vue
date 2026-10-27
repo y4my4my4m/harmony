@@ -11,10 +11,9 @@
           :id="inputId"
           :type="type"
           :value="modelValue"
-          :placeholder="placeholder"
+          :placeholder="placeholder || ' '"
           :required="required"
           :disabled="disabled"
-          :maxlength="maxLength"
           class="modern-input"
           @input="handleInput"
           @focus="handleFocus"
@@ -94,11 +93,16 @@ const inputRef = ref<HTMLInputElement>()
 const isFocused = ref(false)
 const inputId = `input-${Math.random().toString(36).substr(2, 9)}`
 
-const currentLength = computed(() => props.modelValue?.length || 0)
+// maxLength counts code points, as the database's char_length does; the native maxlength
+// attribute counts UTF-16 units and would cut a name of astral characters (emoji) at half.
+const currentLength = computed(() => [...(props.modelValue || '')].length)
 const hasError = computed(() => !!props.errorMessage)
 
 const handleInput = (event: Event) => {
   const target = event.target as HTMLInputElement
+  if (props.maxLength && [...target.value].length > props.maxLength) {
+    target.value = [...target.value].slice(0, props.maxLength).join('')
+  }
   emit('update:modelValue', target.value)
 }
 
@@ -217,7 +221,8 @@ defineExpose({
   box-shadow: 0 0 0 1px var(--error);
 }
 
-/* Success state */
+/* Success state. :placeholder-shown marks an empty field; without a placeholder
+   prop the input carries a blank one so it still matches. */
 .input-group:not(.has-error) .modern-input:valid:not(:placeholder-shown) {
   border-color: var(--success);
 }

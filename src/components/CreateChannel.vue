@@ -11,7 +11,7 @@
         v-model="newChannelName"
         :label="$t('channel.channelName')"
         :placeholder="$t('channel.placeholders.channelName')"
-        :max-length="100"
+        :max-length="NAME_MAX_LENGTH"
         :show-char-count="true"
         :error-message="channelNameError"
         :hint="channelNameHint"
@@ -143,6 +143,62 @@
         <Icon name="alert-triangle" :size="14" />
         <span>{{ $t('channelEncryption.create.integrationWarning') }}</span>
       </div>
+      <div v-if="offersHistory" class="encryption-option" data-testid="create-history-visibility">
+        <div class="encryption-option-text">
+          <label :for="`${optionsId}-history`" class="section-label">{{ $t('channelEncryption.settings.historyLabel') }}</label>
+          <span class="encryption-option-hint">{{ historyHint }}</span>
+        </div>
+        <select :id="`${optionsId}-history`" v-model="historyVisibility" class="option-select">
+          <option value="all">{{ $t('channelEncryption.settings.historyAll') }}</option>
+          <option value="pinned">{{ $t('channelEncryption.settings.historyPinned') }}</option>
+          <option value="none">{{ $t('channelEncryption.settings.historyNone') }}</option>
+        </select>
+      </div>
+
+      <div v-if="createOptions" class="more-options">
+        <button
+          type="button"
+          class="more-options-toggle"
+          :aria-expanded="moreOpen ? 'true' : 'false'"
+          :aria-controls="`${optionsId}-more`"
+          data-testid="create-channel-more"
+          @click="moreOpen = !moreOpen"
+        >
+          <Icon :name="moreOpen ? 'chevron-down' : 'chevron-right'" :size="16" />
+          <span>{{ $t('channel.createOptions.more') }}</span>
+        </button>
+        <div v-show="moreOpen" :id="`${optionsId}-more`" class="more-options-body">
+          <div class="option-field">
+            <label :for="`${optionsId}-description`" class="section-label">{{ $t('channel.edit.description') }}</label>
+            <textarea
+              :id="`${optionsId}-description`"
+              v-model="description"
+              class="option-textarea"
+              :placeholder="$t('channel.edit.descriptionPlaceholder')"
+              maxlength="1024"
+              rows="2"
+            />
+          </div>
+          <div v-if="channelType === 0" class="option-field">
+            <label :for="`${optionsId}-slowmode`" class="section-label">{{ $t('channel.edit.slowmode') }}</label>
+            <div class="slowmode-control">
+              <input
+                :id="`${optionsId}-slowmode`"
+                v-model.number="slowmodeIndex"
+                type="range"
+                min="0"
+                :max="SLOWMODE_STEPS.length - 1"
+                step="1"
+                class="slowmode-slider"
+                :aria-valuetext="formatSlowmode(t, slowmodeSeconds, 'long')"
+                :aria-describedby="`${optionsId}-slowmode-hint`"
+              />
+              <span class="slowmode-value" aria-hidden="true">{{ formatSlowmode(t, slowmodeSeconds, 'short') }}</span>
+            </div>
+            <span :id="`${optionsId}-slowmode-hint`" class="encryption-option-hint">{{ $t('channel.edit.slowmodeHint') }}</span>
+          </div>
+        </div>
+      </div>
 
       <div v-if="categoryId" class="category-info">
         <div class="info-badge">
@@ -198,7 +254,10 @@ import {
   type ServerEncryptionMode,
   type VoiceEncryptionMode,
 } from '@/utils/channelEncryption'
-import { formatChannelNameInput, finalizeChannelName } from '@/utils/channelName'
+import { NAME_MAX_LENGTH, finalizeChannelNameFor, formatChannelNameFor, nameLength, namesKeepSpaces } from '@/utils/channelName'
+import { SLOWMODE_STEPS, formatSlowmode } from '@/utils/slowmode'
+import { hasCapability } from '@/services/instanceCapabilities'
+import type { HistoryVisibility } from '@/utils/channelEncryption'
 import { uid } from '@/utils/a11y/focus'
 
 // Max channels per server
@@ -225,6 +284,16 @@ const serverChannelStore = useServerChannelStore()
 const newChannelName = ref('')
 const channelType = ref(0) // Default to text channel
 const typeGroupName = uid('channel-type')
+const optionsId = uid('channel-options')
+
+// Description, slowmode and encryption go in the create_channel call. An instance before 1.9.1
+// takes the six arguments of 1.9.0 and encryption afterwards, and More options stays hidden.
+const createOptions = computed(() => hasCapability('channel-create-options'))
+const moreOpen = ref(false)
+const description = ref('')
+const slowmodeIndex = ref(0)
+const slowmodeSeconds = computed(() => SLOWMODE_STEPS[slowmodeIndex.value] ?? 0)
+const historyVisibility = ref<HistoryVisibility>('all')
 
 // Private: @everyone loses View Channel; the chosen roles keep it (create_channel).
 const isPrivate = ref(false)
@@ -253,6 +322,17 @@ const encryptionRequired = computed(() => isRequiredMode(encryptionPolicy.value)
 const voiceEncryptionMode = ref<VoiceEncryptionMode>('disabled')
 const encryptVoiceOnCreate = ref(false)
 const voiceEncryptionRequired = computed(() => voiceEncryptionMode.value === 'required')
+
+// Messages encrypted from creation, chosen under 'optional' or fixed on by a required mode.
+const offersHistory = computed(() =>
+  createOptions.value && hasCapability('encrypted-history') && encryptionPolicy.value !== 'disabled' && encryptOnCreate.value)
+const historyHint = computed(() => {
+  switch (historyVisibility.value) {
+    case 'pinned': return t('channelEncryption.settings.historyPinnedHint')
+    case 'none': return t('channelEncryption.settings.historyNoneHint')
+    default: return t('channelEncryption.settings.historyAllHint')
+  }
+})
 
 const toggleEncryptOnCreate = () => {
   if (!encryptionRequired.value) encryptOnCreate.value = !encryptOnCreate.value
@@ -337,16 +417,16 @@ const isAtChannelLimit = computed(() => currentChannelCount.value >= MAX_CHANNEL
 const canCreate = computed(() => {
   return newChannelName.value.trim().length > 0 && 
          !channelNameError.value && 
-         newChannelName.value.trim().length <= 100 &&
+         nameLength(newChannelName.value.trim()) <= NAME_MAX_LENGTH &&
          !isAtChannelLimit.value &&
          !isCheckingLimit.value
 })
 
 const channelNameHint = computed(() => {
   if (newChannelName.value.length === 0) {
-    return channelType.value === 0 
-      ? t('chatNav.create.textHint')
-      : t('chatNav.create.voiceHint')
+    return namesKeepSpaces(channelType.value)
+      ? t('chatNav.create.voiceHint')
+      : t('chatNav.create.textHint')
   }
   
   if (channelNameError.value) {
@@ -356,33 +436,23 @@ const channelNameHint = computed(() => {
   return t('chatNav.create.looksGood')
 })
 
+const finalName = () => finalizeChannelNameFor(channelType.value, newChannelName.value)
+
 const validateChannelName = () => {
-  // Text channel names format as typed: a trailing separator must survive the keystroke.
-  if (channelType.value === 0) {
-    newChannelName.value = formatChannelNameInput(newChannelName.value)
-  }
-  const name = channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim()
-  
+  // Names format as typed: a trailing separator must survive the keystroke.
+  newChannelName.value = formatChannelNameFor(channelType.value, newChannelName.value)
+  const name = finalName()
+
   if (!name) {
     channelNameError.value = t('chatNav.create.nameRequired')
     return
   }
-  
-  if (name.length < 1) {
-    channelNameError.value = t('chatNav.create.nameRequired')
-    return
-  }
-  
-  if (name.length > 100) {
+
+  if (nameLength(name) > NAME_MAX_LENGTH) {
     channelNameError.value = t('chatNav.create.nameTooLong')
     return
   }
-  
-  if (channelType.value !== 0 && !/^[a-zA-Z0-9\s\-_.,!?()[\]]+$/.test(name)) {
-    channelNameError.value = t('chatNav.create.voiceInvalid')
-    return
-  }
-  
+
   channelNameError.value = ''
 }
 
@@ -418,18 +488,6 @@ const createChannel = async () => {
       return
     }
 
-    const { data, error } = await supabase.rpc('create_channel', {
-      p_server_id: props.serverId,
-      p_name: channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim(),
-      p_type: channelType.value,
-      // p_category is a uuid: an empty string is refused (22P02), not read as no category.
-      p_category: props.categoryId || null,
-      p_private: isPrivate.value,
-      p_allowed_role_ids: isPrivate.value ? allowedRoleIds.value : [],
-    })
-
-    if (error) throw error
-
     // A new channel starts at the server floor: messages off under 'optional', voice off unless
     // the server requires it.
     const encryption: ChannelEncryptionChange = {}
@@ -437,7 +495,31 @@ const createChannel = async () => {
     if (channelType.value === 1 && encryptVoiceOnCreate.value && !voiceEncryptionRequired.value) {
       encryption.voiceEncrypted = true
     }
-    if (Object.keys(encryption).length > 0) {
+    if (offersHistory.value && historyVisibility.value !== 'all') encryption.historyVisibility = historyVisibility.value
+
+    const args: Record<string, unknown> = {
+      p_server_id: props.serverId,
+      p_name: finalName(),
+      p_type: channelType.value,
+      // p_category is a uuid: an empty string is refused (22P02), not read as no category.
+      p_category: props.categoryId || null,
+      p_private: isPrivate.value,
+      p_allowed_role_ids: isPrivate.value ? allowedRoleIds.value : [],
+    }
+    if (createOptions.value) {
+      Object.assign(args, {
+        p_description: description.value.trim() || null,
+        p_slowmode_seconds: channelType.value === 0 && slowmodeSeconds.value > 0 ? slowmodeSeconds.value : null,
+        p_messages_encrypted: encryption.messagesEncrypted ?? null,
+        p_voice_encrypted: encryption.voiceEncrypted ?? null,
+        p_history_visibility: encryption.historyVisibility ?? null,
+      })
+    }
+    const { data, error } = await supabase.rpc('create_channel', args)
+
+    if (error) throw error
+
+    if (!createOptions.value && Object.keys(encryption).length > 0) {
       try {
         await setChannelEncryption(data.id, encryption)
       } catch (encryptionError: any) {
@@ -479,6 +561,10 @@ const closeForm = () => {
   formError.value = ''
   isPrivate.value = false
   allowedRoleIds.value = []
+  moreOpen.value = false
+  description.value = ''
+  slowmodeIndex.value = 0
+  historyVisibility.value = 'all'
   encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
   encryptVoiceOnCreate.value = voiceEncryptionRequired.value
   emit('close')
@@ -672,6 +758,92 @@ const closeForm = () => {
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 10%, transparent);
   border-radius: var(--radius-base);
+}
+
+.option-select {
+  flex-shrink: 0;
+  max-width: 50%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.more-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.more-options-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.more-options-toggle:hover {
+  color: var(--text-primary);
+}
+
+.more-options-toggle:focus-visible,
+.option-textarea:focus-visible,
+.option-select:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: 2px;
+}
+
+.more-options-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.option-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-base);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}
+
+.slowmode-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slowmode-slider {
+  flex: 1;
+  accent-color: var(--harmony-primary);
+}
+
+.slowmode-value {
+  min-width: 3em;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .form-error {

@@ -25,7 +25,7 @@
             v-model="query"
             type="search"
             class="share-search"
-            :placeholder="t('share.search')"
+            :placeholder="t('share.searchHint')"
             :aria-label="t('share.search')"
             data-testid="share-search"
           />

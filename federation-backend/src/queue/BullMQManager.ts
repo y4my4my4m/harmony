@@ -19,6 +19,8 @@ import { handleDMJob } from './handlers/dmHandler.js';
 import { handleChannelMessageJob, handleChannelMessageEditJob, handleChannelMessageDeleteJob } from './handlers/channelMessageHandler.js';
 import { handleChannelReactionJob } from './handlers/channelReactionHandler.js';
 import { handleChannelCrudJob, handleCategoryCrudJob, handleServerUpdateJob } from './handlers/serverStructureHandler.js';
+import { handleChannelPinJob, handleMemberRolesJob } from './handlers/copyMirrorHandler.js';
+import { handleCopyMemberSyncJob } from './handlers/copyMemberSyncHandler.js';
 import { handleMessageReactionJob } from './handlers/messageReactionHandler.js';
 import { handleBlockJob } from './handlers/blockHandler.js';
 import { handleReportJob } from './handlers/reportHandler.js';
@@ -55,6 +57,9 @@ export type JobType =
   | 'federate-channel-crud'
   | 'federate-category-crud'
   | 'federate-server-update'
+  | 'federate-channel-pin'
+  | 'federate-member-roles'
+  | 'copy-member-sync'
   | 'federate-block'
   | 'federate-report'
   | 'federate-poll-vote'
@@ -102,6 +107,9 @@ const JOB_TYPES: JobType[] = [
   'federate-channel-crud',
   'federate-category-crud',
   'federate-server-update',
+  'federate-channel-pin',
+  'federate-member-roles',
+  'copy-member-sync',
   'federate-block',
   'federate-report',
   'federate-poll-vote',
@@ -129,6 +137,12 @@ const JOB_TYPES: JobType[] = [
 ];
 
 type HandlerFn = (data: FederationJobData) => Promise<void>;
+
+export interface AddJobOptions {
+  delayMs?: number;
+  dedupeId?: string;
+  attempts?: number;
+}
 
 class BullMQManagerService {
   private queues = new Map<string, Queue>();
@@ -230,6 +244,9 @@ class BullMQManagerService {
     this.handlerMap.set('federate-channel-crud', handleChannelCrudJob);
     this.handlerMap.set('federate-category-crud', handleCategoryCrudJob);
     this.handlerMap.set('federate-server-update', handleServerUpdateJob);
+    this.handlerMap.set('federate-channel-pin', handleChannelPinJob);
+    this.handlerMap.set('federate-member-roles', handleMemberRolesJob);
+    this.handlerMap.set('copy-member-sync', handleCopyMemberSyncJob);
     this.handlerMap.set('federate-block', handleBlockJob);
     this.handlerMap.set('federate-report', handleReportJob);
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
@@ -333,18 +350,24 @@ class BullMQManagerService {
     return producer;
   }
 
-  /** `delayMs` holds the job back that long before a worker takes it. */
-  async addJob(jobType: JobType | string, data: FederationJobData, delayMs?: number): Promise<string | undefined> {
+  /**
+   * A number is `delayMs`: the job is held back that long before a worker takes it. `dedupeId`:
+   * while a job added with the same id waits, is delayed or runs, another add returns that job's
+   * id and queues nothing (BullMQ deduplication, no ttl).
+   */
+  async addJob(jobType: JobType | string, data: FederationJobData, opts?: number | AddJobOptions): Promise<string | undefined> {
     const queue = this.queueFor(jobType);
     if (!queue) {
       logger.warn(`No queue for job type "${jobType}"`);
       return undefined;
     }
+    const { delayMs, dedupeId, attempts } = typeof opts === 'number' ? { delayMs: opts } as AddJobOptions : opts ?? {};
 
     const job = await queue.add(jobType, data, {
-      attempts: 5,
+      attempts: attempts ?? 5,
       backoff: { type: 'exponential', delay: 5000 },
       ...(delayMs && delayMs > 0 ? { delay: delayMs } : {}),
+      ...(dedupeId ? { deduplication: { id: dedupeId } } : {}),
     });
 
     logger.debug(`Queued ${jobType} job: ${job.id}`);

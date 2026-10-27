@@ -171,6 +171,7 @@ import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useLightbox, type LightboxMedia } from '@/composables/useLightbox';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
+import { storageDownloadUrl } from '@/utils/storageDownloadUrl';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
 import { uid } from '@/utils/a11y/focus';
 
@@ -211,8 +212,16 @@ function mediaName(media: MediaAttachment): string {
   return t('activitypub.mediaA11y.imageNoDescription');
 }
 
+/**
+ * File name of an attachment. A post of this instance stores the picked file's name in `name`
+ * (useActivityPub uploadMedia); on a remote post `name` is the description.
+ */
 function fileName(media: MediaAttachment): string {
-  return media.filename || filenameFromUrl(media.url, media.type || 'media');
+  if (media.filename) return media.filename;
+  const raw = (media as unknown as { name?: unknown }).name;
+  const stored = typeof raw === 'string' ? raw.trim() : '';
+  if (stored && /\.[A-Za-z0-9]{1,8}$/.test(stored) && storageDownloadUrl(media.url, stored)) return stored;
+  return filenameFromUrl(media.url, media.type || 'media');
 }
 const showAltText = ref(false);
 
@@ -248,8 +257,7 @@ function canDownloadMedia(media: MediaAttachment): boolean {
 
 async function downloadMedia(media: MediaAttachment) {
   if (!media.url) return;
-  const filename = media.filename || filenameFromUrl(media.url, media.type || 'media');
-  await downloadMediaFromUrl(media.url, filename);
+  await downloadMediaFromUrl(media.url, fileName(media));
 }
 
 // Methods

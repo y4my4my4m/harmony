@@ -9,6 +9,7 @@
 
 import config from '../config/index.js';
 import { stripTrackingParameters } from '../utils/urlTrackerStripper.js';
+import { shownLinkLabel, urlPartPlainText } from '../utils/maskedLinks.js';
 import { escapeHtml, originalStorageUrl, resolveStorageUrl } from '../utils/html.js';
 import { plainDisplayName } from '../utils/plainDisplayName.js';
 import { storedFocalPoint } from '../utils/focalPoint.js';
@@ -96,7 +97,8 @@ function extractPlainText(content: any): string {
       if (item.type === 'link') return item.text || item.url || '';
       if (item.type === 'url') {
         const url = typeof item.url === 'string' ? item.url : '';
-        return url ? stripTrackingParameters(url) : '';
+        if (!url) return '';
+        return shownLinkLabel(item) ? urlPartPlainText({ ...item, url }) : stripTrackingParameters(url);
       }
       if (item.type === 'embed') {
         return typeof item.url === 'string' ? item.url : '';
@@ -183,6 +185,10 @@ function extractContentHtml(content: any, galleryUrls: Set<string> = new Set()):
         const safeUrl = safeAttrUrl(cleaned);
         if (!safeUrl) {
           return `<span class="url-link url-link--unsafe">${escapeHtml(cleaned)}</span>`;
+        }
+        const label = item.type === 'url' ? shownLinkLabel(item) : null;
+        if (label) {
+          return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank" title="${escapeHtml(cleaned)}">${escapeHtml(label)}</a>`;
         }
         return `<a href="${escapeHtml(safeUrl)}" rel="nofollow noopener" target="_blank">${escapeHtml(cleaned)}</a>`;
       }

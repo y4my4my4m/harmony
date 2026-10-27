@@ -111,7 +111,7 @@
     </div>
 
     <footer v-if="file.state !== 'gone'" class="drive-details__actions">
-      <button type="button" class="drive-btn drive-btn--secondary" @click="emit('download', file)">
+      <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-details-download" @click="emit('download', file)">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
       <button type="button" class="drive-btn drive-btn--secondary" data-testid="drive-details-copy-link" @click="copyLink(file.link_token)">

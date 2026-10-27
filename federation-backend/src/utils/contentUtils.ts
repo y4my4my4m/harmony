@@ -8,6 +8,8 @@
  */
 
 import config from '../config/index.js';
+import { shownLinkLabel } from './maskedLinks.js';
+import { safeAttrUrlOutbound } from '../activitypub/converters/toActivityPub.js';
 
 /**
  * Escape HTML entities to prevent XSS
@@ -69,15 +71,22 @@ export function convertContentToHTML(content: any): string {
           const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
           const isLocalMention = !part.domain || part.domain === config.INSTANCE_DOMAIN;
           const mentionDisplay = isLocalMention ? `@${part.username}` : `@${part.username}@${part.domain}`;
-          return `<span class="h-card"><a href="https://${mentionDomain}/users/${part.username}" class="u-url mention">${mentionDisplay}</a></span>`;
+          const href = `https://${mentionDomain}/users/${part.username}`;
+          return `<span class="h-card"><a href="${escapeHtml(href)}" class="u-url mention">${escapeHtml(mentionDisplay)}</a></span>`;
         }
 
         // @everyone, @here and roles: the name, as text. harmony:rawContent carries the part.
         case 'role_mention':
           return escapeHtml(`@${String(part.roleName || 'role').replace(/^@/, '')}`);
 
+        // Schemes as toActivityPub: http(s), mailto, tel or none; any other URL is text.
         case 'url': {
-          const url = escapeHtml(part.url || '');
+          const safe = safeAttrUrlOutbound(part.url || '');
+          if (!safe) return escapeHtml(part.url || '');
+          const url = escapeHtml(safe);
+          // A masked link: utils/maskedLinks names the outbound form.
+          const label = shownLinkLabel(part);
+          if (label) return `<a href="${url}">${escapeHtml(label)}</a><span class="invisible"> (${url})</span>`;
           return `<a href="${url}">${url}</a>`;
         }
 
@@ -109,9 +118,9 @@ export function convertContentToHTML(content: any): string {
           return `<del>${escapeHtml(part.text || '')}</del>`;
 
         case 'link': {
-          const href = escapeHtml(part.url || part.href || '');
+          const safe = safeAttrUrlOutbound(part.url || part.href || '');
           const linkText = escapeHtml(part.text || part.url || '');
-          return `<a href="${href}">${linkText}</a>`;
+          return safe ? `<a href="${escapeHtml(safe)}">${linkText}</a>` : linkText;
         }
           
         case 'linebreak':

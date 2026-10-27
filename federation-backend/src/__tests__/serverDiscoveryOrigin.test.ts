@@ -38,6 +38,7 @@ vi.mock('../config/supabase.js', () => ({
         update: (rows: any) => { writes.push({ table, op: 'update', rows }); return c },
         insert: (rows: any) => { writes.push({ table, op: 'insert', rows }); return Promise.resolve({ error: null }) },
         single: () => Promise.resolve({ data: table === 'servers' ? server : null, error: null }),
+        maybeSingle: () => Promise.resolve({ data: table === 'servers' ? server : null, error: null }),
         upsert: (rows: any) => { writes.push({ table, op: 'upsert', rows }); return Promise.resolve({ error: null }) },
         then: (resolve: any) => resolve({ data: [], error: null }),
       }

@@ -26,6 +26,7 @@ import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
+import { isImeKeyEvent } from '@/utils/editorShortcuts';
 
 export { clearBridgedUsersCache };
 
@@ -911,6 +912,8 @@ export function useAutoSuggest(
     if (!state.value.isActive || suggestions.value.length === 0) {
       return false;
     }
+    // Arrows pick IME candidates and Enter commits them while a composition is open.
+    if (isImeKeyEvent(event)) return false;
 
     switch (event.key) {
       case 'ArrowUp':

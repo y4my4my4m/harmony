@@ -8,7 +8,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
 
 [package]
 name = "app"
-version = "1.9.0"
+version = "1.9.1"
 description = "Harmony desktop client"
 authors = ["Knowmad"]
 license = "AGPL-3.0"
@@ -64,6 +64,7 @@ minisign-verify = "0.2"
 sysinfo = "0.30"
 # non-grabbing global input observation for push-to-talk (X11/Windows/macOS; no Wayland)
 rdev = "0.5"
+harmony-download = { path = "crates/harmony-download" }
 
 # Same objc2 and block2 as wry's WKWebView bindings.
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]

@@ -87,7 +87,7 @@ describe('UserEmojiService', () => {
     const file = new File(['png'], 'party.png', { type: 'image/png' })
     const row = await uploadMyEmoji('me', file)
     expect(pipeline.prepareEmojiImage).toHaveBeenCalledWith(file)
-    expect(pipeline.storeEmojiImage).toHaveBeenCalledWith(PATH, expect.objectContaining({ extension: 'png' }))
+    expect(pipeline.storeEmojiImage).toHaveBeenCalledWith(PATH, expect.objectContaining({ extension: 'png' }), { label: 'party.png' })
     expect(rpc).toHaveBeenCalledWith('create_my_emoji', { p_name: 'party', p_path: PATH, p_url: URL_ })
     expect(row).toMatchObject({ id: 'n1', name: 'party', is_ai_generated: false, file_size: 900 })
     expect(remove).not.toHaveBeenCalled()

@@ -5,6 +5,7 @@ import {
   emojiNameFromFile,
   prepareEmojiImage,
   storeEmojiImage,
+  type EmojiUploadOptions,
 } from '@/services/emojiService'
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
@@ -51,10 +52,10 @@ export async function listMyEmojis(profileId: string): Promise<MyEmoji[]> {
  * PERSONAL_EMOJI_LIMIT (23514), a bad path or url (22023), a file already recorded (23505).
  * Throws UploadRejectedError for a file outside the bucket limits.
  */
-export async function uploadMyEmoji(profileId: string, file: File): Promise<MyEmoji> {
+export async function uploadMyEmoji(profileId: string, file: File, options: EmojiUploadOptions = {}): Promise<MyEmoji> {
   const prepared = await prepareEmojiImage(file)
   const path = `${profileId}/${uuidv4()}.${prepared.extension}`
-  const url = await storeEmojiImage(path, prepared)
+  const url = await storeEmojiImage(path, prepared, { label: file.name, ...options })
   const { data, error } = await supabase.rpc('create_my_emoji', {
     p_name: emojiNameFromFile(file.name),
     p_path: path,

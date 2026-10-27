@@ -30,7 +30,6 @@
           type="text"
           class="form-input"
           :class="{ 'read-only': !permissions.canChangeServerName }"
-          :placeholder="$t('server.enterServerName')"
           :disabled="loading || !permissions.canChangeServerName"
           :readonly="!permissions.canChangeServerName"
           maxlength="28"

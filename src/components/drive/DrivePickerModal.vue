@@ -11,7 +11,7 @@
       <div class="drive-picker__bar">
         <div class="drive-picker__search">
           <Icon name="search" :size="15" class="drive-picker__search-icon" aria-hidden="true" />
-          <input v-model="query" type="search" class="drive-input" :placeholder="t('drive.search.placeholder')" :aria-label="t('drive.search.placeholder')" data-testid="drive-picker-search" />
+          <input v-model="query" type="search" class="drive-input" :placeholder="t('drive.search.hint')" :aria-label="t('drive.search.label')" data-testid="drive-picker-search" />
         </div>
         <select v-model="folder" class="drive-select" :aria-label="t('drive.picker.folder')">
           <option :value="ALL">{{ t('drive.picker.everything') }}</option>

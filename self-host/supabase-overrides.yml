@@ -39,8 +39,28 @@ services:
   # <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in supabase/.env. The provider's
   # callback URL is API_EXTERNAL_URL/auth/v1/callback (https://db.DOMAIN/...).
   # Admin, Instance, OAuth chooses which buttons the sign-in page shows.
+  #
+  # Sign-in with the instance's own OAuth 2.0 / OIDC providers: `harmony auth
+  # add-provider`. GoTrue keeps them in auth.custom_oauth_providers.
+  # Image: GOTRUE_IMAGE in supabase/.env, which configure.sh sets to the stack's
+  # own image from v2.196.0 on and to v2.196.0 below it (the pinned upstream
+  # stack runs v2.177.0); custom providers exist from 2.187.0, issuers with a
+  # trailing slash (Authentik) work from 2.190.0, and JWKS with keys of other
+  # algorithms from 2.196.0. Its own migrations bring the auth schema forward on
+  # start.
+  # GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: base of the custom providers' callback
+  # (+ /callback); GoTrue defaults it to API_EXTERNAL_URL, which lacks Kong's
+  # /auth/v1 prefix here.
+  # PROVIDER_LINKING_DOMAINS in supabase/.env: provider=domain pairs, comma-separated.
+  # A provider named there joins only accounts of its own domain, never an
+  # account by email address; add-provider writes custom:ID=custom:ID. A value
+  # GoTrue cannot parse stops it from starting.
   auth:
+    image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.196.0}
     environment:
+      GOTRUE_CUSTOM_OAUTH_ENABLED: "true"
+      GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: ${API_EXTERNAL_URL}/auth/v1
+      GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS: ${PROVIDER_LINKING_DOMAINS:-}
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_SECRET:-}

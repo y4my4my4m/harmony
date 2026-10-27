@@ -6,6 +6,7 @@ import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils'
 import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import type { FileContent } from '@/types'
 import { driveAvailable, getDriveFileStatus } from '@/services/drive/driveService'
+import { uploadStorageObject } from '@/services/uploads/storageUpload'
 
 /**
  * Chat attachments in the private `message_media` bucket.
@@ -474,6 +475,14 @@ export function localMediaSource(path: string | null | undefined): string | unde
   return path ? localSources.get(path) : undefined
 }
 
+/** Object name whose local source is `url`. */
+export function localMediaPathOf(url: string): string | undefined {
+  for (const [path, source] of localSources) {
+    if (source === url) return path
+  }
+  return undefined
+}
+
 /** Drops every mapping; sign-out. The registrants revoke their object URLs. */
 export function clearLocalMediaSources(): void {
   localSources.clear()
@@ -579,9 +588,11 @@ export async function uploadMessageMedia(
 ): Promise<UploadedMessageMedia> {
   if (!mediaRoomOfPath(`${room}/`)) throw new Error('Attachments need a channel or conversation')
   const path = messageMediaPath(room, uploaderId, options.fileName ?? (file as File).name)
-  const { error } = await supabase.storage
-    .from(MESSAGE_MEDIA_BUCKET)
-    .upload(path, file, { upsert: false, ...(options.contentType ? { contentType: options.contentType } : {}) })
+  const { error } = await uploadStorageObject(MESSAGE_MEDIA_BUCKET, path, file, {
+    upsert: false,
+    label: options.fileName ?? ((file as File).name || undefined),
+    ...(options.contentType ? { contentType: options.contentType } : {}),
+  })
   if (error) throw error
   return { path, url: await compatUrlFor(path) }
 }

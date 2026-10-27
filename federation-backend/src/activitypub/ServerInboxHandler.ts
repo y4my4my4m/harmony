@@ -34,6 +34,7 @@ import {
   THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
 import { HARMONY_CONTEXT } from './harmonyContext.js';
+import { parseChannelPosition } from './copyMirror.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -1157,7 +1158,7 @@ async function processUpdateActivity(
         .from('channel_categories')
         .update({
           name: object.name,
-          order: object.position || object.order,
+          order: parseChannelPosition(object),
         })
         .eq('id', catUuid);
       logger.info(`Updated remote category: ${object.name}`);
@@ -1166,7 +1167,7 @@ async function processUpdateActivity(
         id: catUuid,
         server_id: serverId,
         name: object.name,
-        order: object.position || object.order || 0,
+        order: parseChannelPosition(object) ?? 0,
       });
       if (error) {
         logger.error(`Failed to auto-create category ${object.name}:`, error);
@@ -1205,7 +1206,7 @@ async function processUpdateActivity(
         .update({
           name: object.name,
           description: object.description,
-          order: object.position || object.order,
+          order: parseChannelPosition(object),
           category: categoryId,
         })
         .eq('id', channel.id);
@@ -1218,7 +1219,7 @@ async function processUpdateActivity(
         name: object.name,
         description: object.description,
         type: channelType,
-        order: object.position || object.order || 0,
+        order: parseChannelPosition(object) ?? 0,
         ap_id: object.id,
         is_remote: true,
         category: categoryId,
@@ -1609,7 +1610,7 @@ async function processAddActivity(
     const catInsertData: any = {
       server_id: serverId,
       name: object.name,
-      order: object.position || object.order || 0,
+      order: parseChannelPosition(object) ?? 0,
     };
 
     // Reuse the remote UUID as the local primary key.
@@ -1661,7 +1662,7 @@ async function processAddActivity(
       name: object.name,
       description: object.description,
       type: channelType,
-      order: object.position || object.order || 0,
+      order: parseChannelPosition(object) ?? 0,
       ap_id: object.id,
       is_remote: true,
       category: categoryId,

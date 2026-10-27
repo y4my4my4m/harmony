@@ -32,22 +32,26 @@
         />
       </label>
 
-      <div v-if="progress.total > 0" class="upload-progress">
+      <div v-if="progress.total > 0" class="upload-progress" data-testid="emoji-upload-progress">
         <div class="progress-header">
           <span :id="`${uid}-progress-label`" class="progress-text">
-            {{ t('server.uploadingEmojis', { current: progress.current, total: progress.total }) }}
+            <template v-if="progress.total === 1">{{ t('server.uploadingEmoji', { name: progress.name }) }}</template>
+            <template v-else>{{ t('server.uploadingEmojis', { current: progress.current, total: progress.total }) }}</template>
           </span>
-          <span class="progress-count" aria-hidden="true">{{ progress.completed }}/{{ progress.total }}</span>
+          <span class="progress-count" aria-hidden="true">
+            <template v-if="progress.total === 1">{{ progressPercent }}%</template>
+            <template v-else>{{ progress.completed }}/{{ progress.total }}</template>
+          </span>
         </div>
         <div
           class="progress-bar"
           role="progressbar"
           :aria-labelledby="`${uid}-progress-label`"
           aria-valuemin="0"
-          :aria-valuemax="progress.total"
-          :aria-valuenow="progress.completed"
+          aria-valuemax="100"
+          :aria-valuenow="progressPercent"
         >
-          <div class="progress-fill" :style="{ width: (progress.completed / progress.total * 100) + '%' }"></div>
+          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
         </div>
       </div>
     </div>
@@ -274,7 +278,16 @@ const uid = `elm-${useId()}`
 
 const isDragOver = ref(false)
 const uploading = ref(false)
-const progress = ref({ total: 0, current: 0, completed: 0 })
+/** Files of the running upload; `fraction` is the share of the current file sent. */
+const IDLE = { total: 0, current: 0, completed: 0, fraction: 0, name: '' }
+const progress = ref({ ...IDLE })
+const progressPercent = computed(() => {
+  const { total, completed, fraction } = progress.value
+  return total > 0 ? Math.round(((completed + fraction) / total) * 100) : 0
+})
+const onProgress = (fraction: number) => {
+  progress.value.fraction = fraction
+}
 const deletingId = ref<string | null>(null)
 const selectionMode = ref(false)
 const selected = ref<string[]>([])
@@ -331,8 +344,9 @@ async function uploadOne(file: File) {
     return
   }
   uploading.value = true
+  progress.value = { total: 1, current: 1, completed: 0, fraction: 0, name: file.name }
   try {
-    const emoji = await props.adapter.upload(file)
+    const emoji = await props.adapter.upload(file, { onProgress })
     if (!emoji) {
       toast.error(t('server.failedToUploadEmoji'))
       return
@@ -344,6 +358,7 @@ async function uploadOne(file: File) {
     toast.error(describe('upload', error, t('server.failedToUploadEmoji')))
   } finally {
     uploading.value = false
+    progress.value = { ...IDLE }
   }
 }
 
@@ -361,14 +376,17 @@ async function uploadMany(picked: File[]) {
   }
 
   uploading.value = true
-  progress.value = { total: files.length, current: 0, completed: 0 }
+  progress.value = { total: files.length, current: 0, completed: 0, fraction: 0, name: '' }
   let failed = 0
   let reason: string | null = null
   try {
     for (const [i, file] of files.entries()) {
       progress.value.current = i + 1
+      progress.value.fraction = 0
+      progress.value.name = file.name
       try {
-        const emoji = await props.adapter.upload(file)
+        const emoji = await props.adapter.upload(file, { onProgress })
+        progress.value.fraction = 0
         if (emoji) {
           emit('uploaded', emoji)
           progress.value.completed++
@@ -387,7 +405,7 @@ async function uploadMany(picked: File[]) {
     if (reason) toast.error(reason)
   } finally {
     uploading.value = false
-    progress.value = { total: 0, current: 0, completed: 0 }
+    progress.value = { ...IDLE }
   }
 }
 

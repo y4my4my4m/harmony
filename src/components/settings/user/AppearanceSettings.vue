@@ -355,7 +355,7 @@
             v-model="savedThemeName"
             type="text"
             class="theme-name-input"
-            :placeholder="$t('settings.appearance.savedThemeName')"
+            :placeholder="$t('settings.appearance.savedThemeNameHint')"
             @keyup.enter="saveCurrentTheme"
           />
           <button type="button" class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
@@ -524,17 +524,20 @@
           v-for="option in activeSkinOptions"
           :key="option.id"
           class="setting-item skin-option-item"
+          :class="{ unavailable: !skinOptionAvailable(option) }"
+          :data-skin-option="option.id"
         >
           <div class="setting-info">
-            <h4 class="setting-label">{{ option.label }}</h4>
-            <p v-if="option.description" class="setting-description">
-              {{ option.description }}
+            <h4 class="setting-label">{{ skinOptionLabel(option) }}</h4>
+            <p v-if="option.description || option.descriptionKey" class="setting-description">
+              {{ option.descriptionKey ? t(option.descriptionKey) : option.description }}
             </p>
           </div>
           <div class="setting-control">
             <ToggleSwitch
-              :label="option.label"
+              :label="skinOptionLabel(option)"
               :model-value="getActiveSkinOptionValue(option.id)"
+              :disabled="!skinOptionAvailable(option)"
               @update:model-value="(v: boolean) => onSkinOptionToggle(option.id, v)"
             />
           </div>
@@ -1009,6 +1012,7 @@ import {
   BUILTIN_SKINS,
   type ThemePreset,
 } from '@/composables/useVisualTheme'
+import type { SkinOption } from '@/composables/skins'
 import { useAppearanceDraft } from '@/composables/useAppearanceDraft'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
 import { useRouter } from 'vue-router'
@@ -1482,6 +1486,13 @@ const getActiveSkinOptionValue = (optionId: string): boolean => {
   const stored = settings.value.skinOptions?.[skinId]?.[optionId]
   return stored ?? activeSkinOptions.value.find((o) => o.id === optionId)?.default ?? false
 }
+
+const skinOptionLabel = (option: SkinOption): string =>
+  option.labelKey ? t(option.labelKey) : option.label
+
+// An option that `requires` another applies only while that one is on.
+const skinOptionAvailable = (option: SkinOption): boolean =>
+  !option.requires || getActiveSkinOptionValue(option.requires)
 
 const onSkinOptionToggle = (optionId: string, value: boolean) => {
   const skinId = settings.value.activeSkinId
@@ -2061,6 +2072,10 @@ onBeforeUnmount(() => {
 .skin-option-item:last-child {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.skin-option-item.unavailable .setting-info {
+  opacity: 0.6;
 }
 
 /* Font family picker */

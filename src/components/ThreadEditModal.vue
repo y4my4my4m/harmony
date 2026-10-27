@@ -19,7 +19,6 @@
               v-model="editedName"
               type="text"
               class="form-input"
-              placeholder="Enter thread name"
               maxlength="100"
               @keydown.enter="saveChanges"
               @keydown.escape="closeModal"

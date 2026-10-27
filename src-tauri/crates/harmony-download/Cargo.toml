@@ -1,0 +1,20 @@
+[package]
+name = "harmony-download"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+publish = false
+description = "Downloads to a folder with Range resume, for the Harmony desktop app"
+
+[dependencies]
+# Same reqwest and rustls tauri-plugin-updater links; the ring provider is installed here.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tokio = { workspace = true, features = ["time"] }
+
+# setxattr for com.apple.quarantine; the app links the same libc.
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time", "rt-multi-thread", "macros"] }

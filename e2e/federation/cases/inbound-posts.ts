@@ -4,6 +4,7 @@
 // Question no local row holds yet. Everything else arrives signed at the shared inbox and
 // is read back through PostgREST.
 //
+//   - an anchor whose text is not its URL is stored as a url part with that text as its label;
 //   - a Create(Note) of 3000 characters is stored intact, and an Update growing a stored
 //     note past max_post_length (500) applies;
 //   - a media-only Note (empty content, one image) keeps its attachment, in the content and
@@ -135,6 +136,22 @@ export async function caseInboundPosts(ctx: InboundPostsContext) {
       assert(!error && purged >= 1, 'purge_processed_ap_activities deletes completed rows past 30 days', error?.message ?? purged)
       eq((await db.from('ap_activities').select('id').eq('id', activity?.id).maybeSingle()).data, null,
         'the 31-day-old completed Create is gone')
+    }
+
+    console.log('\ninbound link text -> a url part with the label; a link showing its URL or another host -> none')
+    {
+      const id = `${peer.base}/notes/linktext-${crypto.randomUUID()}`
+      eq(await deliver(create(note(id, peer.actorUrl, {
+        content: '<p>read <a href="https://example.com/docs" rel="nofollow">the docs</a> or '
+          + '<a href="https://example.com/a/long/path"><span class="invisible">https://</span>'
+          + '<span class="ellipsis">example.com/a/lo</span><span class="invisible">ng/path</span></a> or '
+          + '<a href="https://evil.example/x">paypal.com</a></p>',
+      }))), 202, 'the Create with links is accepted (202)')
+      const urls = ((await postByApId(id))?.content as Array<{ type: string; url?: string; label?: string }> ?? [])
+        .filter((p) => p.type === 'url')
+      eq(urls.map((p) => `${p.url} ${p.label ?? '(no label)'}`).join(', '),
+        'https://example.com/docs the docs, https://example.com/a/long/path (no label)',
+        'link text is the label; a shortened URL and a label naming another host are not')
     }
 
     console.log('\ninbound media-only and sensitive Notes -> attachments in content and media_attachments')

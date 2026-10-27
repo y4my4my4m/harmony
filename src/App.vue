@@ -116,6 +116,9 @@
 
   <!-- Media viewer opened through openLightbox -->
   <MediaLightboxHost />
+
+  <!-- Uploads and downloads, on every page until they settle -->
+  <TransfersIndicator v-if="!isAuthRoute" />
 </template>
 
 <script setup lang="ts">
@@ -152,6 +155,7 @@ import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationMod
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import MediaLightboxHost from '@/components/common/MediaLightboxHost.vue'
+import TransfersIndicator from '@/components/common/TransfersIndicator.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'
 import { needsInstanceSelection, getStoredInstance, isTauriRuntime } from '@/services/instanceConfig'

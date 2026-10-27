@@ -74,7 +74,7 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 | `kong`, `analytics` | No host ports; Caddy reaches Kong as `supabase-kong:8000` |
 | `rest` | `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
 | `imgproxy` | `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images |
-| `auth` | Google, GitHub and Twitch sign-in from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
+| `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.196.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
 
 ### Networks and volumes
 

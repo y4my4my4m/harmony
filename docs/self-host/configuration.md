@@ -56,6 +56,7 @@ Some settings exist both as a variable and in the database:
 | Instance name | `INSTANCE_NAME` | `instance_config.instance_name` | `bootstrap.sh` copies the variable into a new database; afterwards the admin panel's name applies. The web app shows the variable until the instance settings load. The federation backend reports the variable in `/health` and `/instance-info`, and uses it in NodeInfo only when the database has no name |
 | Domain | `DOMAIN` | `instance_config.domain` | Both must be the same. `bootstrap.sh` sets the database value on a new database; `harmony doctor` fails when they differ |
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
+| Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
@@ -272,6 +273,23 @@ values.
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME` | from the email answers | Outgoing email. See [Email (SMTP)](/self-host/email) |
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
+| `PROVIDER_LINKING_DOMAINS` | `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Your own sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`). A value that is not such pairs stops the sign-in service from starting. See [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.196.0` on, otherwise `supabase/gotrue:v2.196.0`. A newer image set by hand stays |
+
+### Sign-in service version
+
+`supabase-overrides.yml` runs the sign-in service (`auth`) on
+`GOTRUE_IMAGE` from `supabase/.env`. `configure.sh` (and so `harmony update`)
+sets it to `supabase/gotrue:v2.196.0` while the Supabase stack's own image is
+older, as the pinned upstream stack's `v2.177.0` is: sign-in through your own
+identity provider needs it. From `v2.196.0` on, the stack's own image runs, so
+a newer stack is never downgraded. On start the sign-in service carries the
+`auth` schema forward with its own migrations, which add tables and nullable
+columns. `supabase-overrides.yml` also sets
+`GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL` to `API_EXTERNAL_URL/auth/v1`, the base of
+those providers' callback. The providers themselves are not configuration
+files: `harmony auth add-provider` stores them in the sign-in service. See
+[Your own identity provider](/self-host/oauth#your-own-identity-provider).
 
 ## Web app
 

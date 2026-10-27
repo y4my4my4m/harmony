@@ -137,7 +137,7 @@ A message's content is an array of parts. These are the part types a bot sends; 
 | `type` | Fields | Notes |
 |---|---|---|
 | `text` | `text` | Plain text. Markdown in it is rendered by the app. |
-| `url` | `url`, `preview` | A link. Unless `preview` is `false`, the instance fetches a link preview card for it, except for links to the instance itself. A link inside a `text` part gets no card. |
+| `url` | `url`, `preview`, optional `label` | A link. Unless `preview` is `false`, the instance fetches a link preview card for it, except for links to the instance itself. A link inside a `text` part gets no card. With `label`, the app shows the label in place of the URL, as a masked link `[label](url)` typed in the app; apps before 1.9.1 show the URL. A label that names another host than the URL's shows the URL instead. |
 | `mention` | `userId`, `username`, `domain`, `isLocal` | A member mention. |
 | `role_mention` | `roleId`, `roleName`, `roleColor` | A role mention; `roleId` `here` is @here. See [Mentions](#mentions). |
 | `channel_mention` | `channelId`, `name`, optional `messageId` | A channel link. The server fills in `serverId` and the stored name. |
@@ -450,13 +450,15 @@ Returns every channel of the server, ordered by `order`, including channels the 
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Required. Trimmed and cut to 100 characters. |
+| `name` | string | Required. Trimmed and cut to 100 characters, then stored under the channel naming rule below. |
 | `type` | integer | `1` creates a voice channel; any other value a text channel. |
 | `category_id` | UUID or `null` | |
 | `description` | string | Cut to 1024 characters. |
 | `order` | integer | Default `0`. |
 
-Returns `201` with the [channel object](#list-channels), whose `type` is in Discord's numbering: `2` for a voice channel. `400` `name is required`; `403` `Missing permission: manage_channels`.
+Channel names follow Discord's rule. A text channel's name is lowercased, each space becomes `-`, ASCII punctuation other than `-` and `_` is dropped, and repeated or edge `-` go: `Release Notes!` is stored as `release-notes`. Letters outside ASCII and emoji stay. A voice channel keeps its spaces and letter case; runs of spaces become one. The returned object carries the stored name.
+
+Returns `201` with the [channel object](#list-channels), whose `type` is in Discord's numbering: `2` for a voice channel. `400` `name is required`, or a name the rule leaves empty; `403` `Missing permission: manage_channels`.
 
 ### Edit channel
 

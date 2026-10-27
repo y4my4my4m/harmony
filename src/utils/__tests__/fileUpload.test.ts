@@ -6,6 +6,12 @@ vi.mock('@/utils/imageResize', async importOriginal => ({
   prepareImageUpload: prepare,
 }))
 
+vi.mock('@/services/uploads/storageUpload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/uploads/storageUpload')>()),
+  uploadStorageObject: async (...args: Parameters<typeof import('../../../tests/helpers/storageUploadMock').uploadThroughStorageMock>) =>
+    (await import('../../../tests/helpers/storageUploadMock')).uploadThroughStorageMock(...args),
+}))
+
 import { supabase } from '@/supabase'
 import { waitForInitialLocale } from '@/i18n'
 import { uploadAvatar } from '@/utils/fileUpload'

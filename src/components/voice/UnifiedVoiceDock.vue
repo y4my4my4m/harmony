@@ -85,7 +85,7 @@
         </div>
       </div>
 
-      <div class="voice-controls" @mousedown.stop @touchstart.stop>
+      <AppToolbar class="voice-controls" :label="t('voice.toolbar.controls')" @mousedown.stop @touchstart.stop>
         <button
           @click="voiceStore.toggleMute()"
           :class="['control-btn', 'mic-btn', {
@@ -234,7 +234,7 @@
         >
           <Icon :name="popoutActive ? 'log-in' : 'external-link'" />
         </button>
-      </div>
+      </AppToolbar>
 
       <!-- On-screen PTT for touch devices -->
       <PushToTalkButton
@@ -272,7 +272,7 @@
         </div>
       </div>
 
-      <div class="action-controls" @mousedown.stop @touchstart.stop>
+      <AppToolbar class="action-controls" :label="t('voice.toolbar.call')" @mousedown.stop @touchstart.stop>
         <button
           @click.stop="toggleParticipantsDropdown"
           class="control-btn participants-btn"
@@ -315,7 +315,7 @@
         >
           <Icon name="phone-off" />
         </button>
-      </div>
+      </AppToolbar>
     </div>
 
     <!-- Minimized mode: tiny dock in channel sidebar -->
@@ -582,6 +582,7 @@ import { useKeybinds } from '@/composables/useKeybinds';
 import { useViewport } from '@/composables/useViewport';
 import { userStorage } from '@/utils/userScopedStorage';
 import Icon from '@/components/common/Icon.vue';
+import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import HeadphonesIcon from '@/components/icons/Headphones.vue';

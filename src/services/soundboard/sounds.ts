@@ -292,11 +292,17 @@ export async function createServerSound(
   file: Blob,
   checked: CheckedSoundFile,
   input: SoundInput,
+  onProgress?: (fraction: number) => void,
 ): Promise<SoundboardSound> {
   const path = `${serverId}/${crypto.randomUUID()}.${checked.type.ext}`;
-  const { error: uploadError } = await supabase.storage
-    .from(SOUNDBOARD_BUCKET)
-    .upload(path, file, { contentType: checked.type.mime, cacheControl: IMMUTABLE_CACHE_SECONDS, upsert: false });
+  const { uploadStorageObject } = await import('@/services/uploads/storageUpload');
+  const { error: uploadError } = await uploadStorageObject(SOUNDBOARD_BUCKET, path, file, {
+    contentType: checked.type.mime,
+    cacheControl: IMMUTABLE_CACHE_SECONDS,
+    upsert: false,
+    label: (file as File).name || input.name.trim(),
+    onProgress,
+  });
   if (uploadError) throw uploadError;
 
   const { data, error } = await supabase

@@ -18,6 +18,7 @@ import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShor
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
+import { shownLinkLabel } from '@/utils/maskedLinks';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -509,7 +510,11 @@ export function useContentRenderer(
           // Display text uses the (escaped) cleaned URL so the user sees the
           // stripped form. If sanitizeUrl rejected the scheme, fall back to
           // the raw URL so the inert text doesn't go blank.
-          const safeDisplayText = escapeHtml(cleanUrl || url);
+          // A masked link shows its label, the destination in its title (utils/maskedLinks).
+          const label = shownLinkLabel(part);
+          const safeDisplayText = escapeHtml(label ?? (cleanUrl || url));
+          const titleAttr = label ? ` title="${safeUrl}"` : '';
+          const labelLink = label ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>` : '';
 
           // If the URL was rejected by sanitizeUrl, render it as inert text instead
           // of a clickable anchor (a `href=""` link would navigate to the current page).
@@ -518,24 +523,24 @@ export function useContentRenderer(
           }
 
           if (renderOptions.mode === 'preview') {
-            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>`;
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>`;
           }
           
           // Check for media URLs
           if (renderOptions.showImages && isImageUrl(url)) {
-            return `<div class="media-container image-container">
+            return `${labelLink}<div class="media-container image-container">
               <img src="${safeUrl}" alt="Image" class="content-image" loading="lazy" draggable="false" />
             </div>`;
           }
           
           if (renderOptions.showVideos && isVideoUrl(url)) {
-            return `<div class="media-container video-container">
+            return `${labelLink}<div class="media-container video-container">
               <video src="${safeUrl}" controls class="content-video"></video>
             </div>`;
           }
           
           if (renderOptions.showVideos && isAudioUrl(url)) {
-            return `<div class="media-container audio-container">
+            return `${labelLink}<div class="media-container audio-container">
               <audio src="${safeUrl}" controls preload="metadata" class="content-audio"></audio>
             </div>`;
           }
@@ -547,7 +552,7 @@ export function useContentRenderer(
               const playerSrc = buildYouTubePlayerSrc(parsed);
               if (playerSrc) {
                 const safeEmbedUrl = escapeHtml(sanitizeUrl(playerSrc));
-                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>
+                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>
                   <div class="media-container video-container youtube-embed">
                     <iframe src="${safeEmbedUrl}" frameborder="0" allowfullscreen
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -557,7 +562,7 @@ export function useContentRenderer(
             }
           }
           
-          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>`;
+          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>`;
         }
         
         case 'file': {

@@ -1,7 +1,10 @@
 // Journey: links to X posts a user sends go out on fixupx.com, the embed-fixer mirror other
 // apps preview with the post's media; Harmony still shows the post. Appearance turns the
 // rewrite off per site, the choice is stored on the profile, and a link sent then stays as
-// typed.
+// typed. Share trackers (Instagram's igsh and mdxt, utm_*) leave a sent link, typed on a
+// mirror or rewritten to one, and the cleaned link still shows the post. A masked link and a
+// `<url>` link keep their host: a mirror is for the preview other apps draw, and a label naming
+// x.com no longer matched a link stored on fixupx.com.
 //
 // The stack runs no federation backend and no realtime: the preview is written into the
 // message metadata as the backend's enrichment writes it, keyed by the stored link, and the
@@ -99,6 +102,18 @@ test('a sent X post link is stored on fixupx.com and still shows the post', asyn
   })
 })
 
+test('a masked link and a link without preview keep their host', async ({ page }) => {
+  await signIn(page, user)
+  await openChannel(page, server.id, server.generalChannelId)
+  await dismissAnnouncements(page)
+  const label = POST.replace('https://', '')
+  expect(await send(page, 'maskedx', `[${label}](${POST}?utm_source=share)`)).toEqual([POST])
+  const masked = messageList(page).locator('.message-item').filter({ hasText: 'maskedx ' }).last().locator('a.url-link')
+  await expect(masked).toHaveText(label)
+  await expect(masked).toHaveAttribute('href', POST)
+  expect(await send(page, 'angledx', `<${OTHER_POST}>`)).toEqual([OTHER_POST])
+})
+
 test('with the X mirror turned off in Appearance, a sent link stays as typed', async ({ page }) => {
   test.setTimeout(120_000)
   await signIn(page, user)
@@ -124,4 +139,68 @@ test('with the X mirror turned off in Appearance, a sent link stays as typed', a
 
   await openChannel(page, server.id, server.generalChannelId)
   expect(await send(page, 'mirroroff', OTHER_POST)).toEqual([OTHER_POST])
+})
+
+test.describe('share trackers on mirror links', () => {
+  let sharer: SpecUser
+  let room: SeededServer
+
+  const REEL = 'https://kkinstagram.com/reel/De-YBL8zRXm/'
+  const REEL_IMAGE = 'https://scontent.cdninstagram.test/v/reel-cover.jpg'
+
+  test.beforeAll(async () => {
+    sharer = await createUser(admin, 'mirrorig')
+    room = await seedServer(admin, sharer, `Mirror trackers ${sharer.username}`)
+    const { error } = await admin.from('profiles')
+      .update({ appearance_settings: { linkMirrors: { instagram: { enabled: true } } } })
+      .eq('id', sharer.id)
+    if (error) throw new Error(`appearance: ${error.message}`)
+  })
+
+  test.afterAll(async () => {
+    await deleteUser(admin, sharer)
+  })
+
+  test('a sent Instagram mirror link is stored without its share trackers and still shows the post', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.route('https://scontent.cdninstagram.test/**', (route) => route.fulfill({
+      status: 200, contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280"><rect width="720" height="1280" fill="#0ea5e9"/></svg>',
+    }))
+    await signIn(page, sharer)
+    await openChannel(page, room.id, room.generalChannelId)
+    await dismissAnnouncements(page)
+
+    expect(await send(page, 'mirrormdxt', `${REEL}?mdxt=MXN0Z2w5YWF3c2U1eg==`)).toEqual([REEL])
+    expect(await send(page, 'instamdxt',
+      'https://www.instagram.com/reel/De-YBL8zRXm/?utm_source=ig_web_copy_link&igsh=MXN0Z2w5YWF3c2U1eg==&mdxt=MXN0Z2w5YWF3c2U1eg=='))
+      .toEqual([REEL])
+
+    await test.step('the preview the backend stores for the cleaned link shows the reel', async () => {
+      const { data: stored } = await admin.from('messages').select('id').eq('channel_id', room.generalChannelId)
+        .eq('user_id', sharer.id).order('created_at', { ascending: true }).limit(1).single()
+      const now = Date.now()
+      const { error } = await admin.from('messages').update({
+        metadata: {
+          embeds: {
+            [REEL]: {
+              cacheKey: `instagram:${REEL}`, url: REEL, normalizedUrl: REEL, provider: 'instagram',
+              title: 'NASA (@nasa)', description: 'Liftoff', siteName: 'Instagram', image: REEL_IMAGE,
+              media: [{ type: 'image', url: REEL_IMAGE, width: 720, height: 1280 }],
+              social: { platform: 'instagram', url: 'https://www.instagram.com/reel/De-YBL8zRXm/', author: { name: 'NASA', handle: '@nasa' }, text: 'Liftoff' },
+              fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now + 86_400_000).toISOString(),
+            },
+          },
+        },
+      }).eq('id', stored!.id)
+      if (error) throw new Error(`embeds: ${error.message}`)
+      await openChannel(page, room.id, room.generalChannelId)
+      const message = messageList(page).locator('.message-item').filter({ hasText: 'mirrormdxt ' })
+      await expect(message.locator('a.url-link')).toHaveAttribute('href', REEL)
+      const card = message.locator('[data-testid="social-embed"]')
+      await expect(card).toBeVisible({ timeout: 30000 })
+      await expect(card).toHaveAttribute('data-platform', 'instagram')
+      await expect(card.getByTestId('social-embed-text')).toHaveText('Liftoff')
+    })
+  })
 })
