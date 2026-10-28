@@ -152,7 +152,7 @@ import {
   RotateCw, ZoomIn, ZoomOut, Crop, Crosshair, Waves,
   Folder, FolderOpen, FolderPlus, FolderInput, HardDrive, Film, Hourglass, CirclePlay, Pause,
   SkipForward, ListMusic, Tv, Radio, Disc3, CloudUpload, ArrowUpDown, ListVideo, Popcorn, Undo2,
-  FileArchive, FileAudio, FileVideo, FileImage, Crown,
+  FileArchive, FileAudio, FileVideo, FileImage, Crown, ImageOff, Sticker, MapPin, MapPinOff,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -190,6 +190,8 @@ const ICON_MAP: Record<string, Component> = {
   'minimize-2': Minimize2,
   'user': User,
   'map': Map,
+  'map-pin': MapPin,
+  'map-pin-off': MapPinOff,
   'refresh': RefreshCw,
   'shuffle': Shuffle,
   'check-circle': CheckCircle2,
@@ -245,6 +247,8 @@ const ICON_MAP: Record<string, Component> = {
   'chevron-up': ChevronUp,
   'chevron-down': ChevronDown,
   'image': Image,
+  'image-off': ImageOff,
+  'sticker': Sticker,
   'smile': Smile,
   'alert-triangle': TriangleAlert,
   'home': Home,

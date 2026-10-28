@@ -267,9 +267,8 @@ SELECT is(pg_temp.uc_dm('22222222-0000-0000-0000-000000000002'), '2/2',
 
 -- timeline fan-out ------------------------------------------------------------
 -- create_comprehensive_timeline_entries writes one home entry per follower plus
--- the author, and one public entry per local profile. Home is the feed that
--- leaks: an over-broad fan-out puts a stranger's post in your feed and reads as
--- an algorithm rather than a bug.
+-- the author. Home is the feed that leaks: an over-broad fan-out puts a
+-- stranger's post in your feed and reads as an algorithm rather than a bug.
 INSERT INTO public.profiles (id, username, is_local) VALUES
   ('c5000000-0000-0000-0000-0000000000e1', 'trg_tl_author',   true),
   ('c5000000-0000-0000-0000-0000000000e2', 'trg_tl_follower', true),
@@ -295,13 +294,11 @@ SELECT set_eq(
     'the home fan-out reaches the author and their local followers, and no one else');
 
 -- The set above is the whole home fan-out, so the stranger's absence from it
--- needs no assertion of its own. Their public entry is a separate arm of the
--- trigger and is not implied by it.
+-- needs no assertion of its own. No entry of another type is written for anyone.
 SELECT is((SELECT count(*)::int FROM public.timeline_entries
             WHERE post_id = 'c5000000-0000-0000-0000-0000000000e9'
-              AND user_id = 'c5000000-0000-0000-0000-0000000000e3'
-              AND timeline_type = 'public'), 1,
-          'the same non-follower does get the public entry, so the fan-out did run for them');
+              AND timeline_type IS DISTINCT FROM 'home'), 0,
+          'a public post writes no entry but home, for the non-follower or anyone else');
 
 -- reply notifications ---------------------------------------------------------
 -- Two guards stand between a user and a notification about their own typing:

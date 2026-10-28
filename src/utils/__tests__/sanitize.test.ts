@@ -119,6 +119,26 @@ describe('sanitizeMessageHtml', () => {
   });
 });
 
+describe('backslash hrefs', () => {
+  const hrefOf = (html: string) => {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    return box.querySelector('a')?.getAttribute('href') ?? null;
+  };
+
+  it.each([sanitizeMessageHtml, sanitizeFormattedHtml])('%o drops an href the URL parser reads as another host', (sanitize) => {
+    expect(hrefOf(sanitize('<p><a href="\\\\evil.example/x">a</a></p>'))).toBeNull();
+    expect(hrefOf(sanitize('<p><a href="/\\evil.example/x">a</a></p>'))).toBeNull();
+    expect(hrefOf(sanitize('<p><a href="\\/evil.example/x">a</a></p>'))).toBeNull();
+  });
+
+  it.each([sanitizeMessageHtml, sanitizeFormattedHtml])('%o keeps paths, fragments and https', (sanitize) => {
+    expect(hrefOf(sanitize('<p><a href="/channels/1">a</a></p>'))).toBe('/channels/1');
+    expect(hrefOf(sanitize('<p><a href="#top">a</a></p>'))).toBe('#top');
+    expect(hrefOf(sanitize('<p><a href="https://example.com/">a</a></p>'))).toBe('https://example.com/');
+  });
+});
+
 describe('sanitizeFormattedHtml', () => {
   it('allows the wider tag set the HTML-mode renderer emits', () => {
     // formattedHTML emits <div> for media grids, <video>/<audio> for media,
@@ -206,6 +226,17 @@ describe('sanitizeUrl', () => {
 
   it('allows scheme-less relative paths', () => {
     expect(sanitizeUrl('/foo/bar')).toBe('/foo/bar');
-    expect(sanitizeUrl('//example.com/path')).toBe('//example.com/path');
+    expect(sanitizeUrl('foo/bar?x=1#y')).toBe('foo/bar?x=1#y');
+  });
+
+  it('rejects a backslash reference: under http(s) it names another host', () => {
+    for (const url of ['\\\\evil.com/x', '/\\evil.com/x', '\\/evil.com/x', '\\evil.com', ' \t\\\\evil.com']) {
+      expect(sanitizeUrl(url), url).toBe('');
+    }
+  });
+
+  it('keeps a protocol-relative URL on this host only', () => {
+    expect(sanitizeUrl('//example.com/path')).toBe('');
+    expect(sanitizeUrl(`//${window.location.host}/path`)).toBe(`//${window.location.host}/path`);
   });
 });

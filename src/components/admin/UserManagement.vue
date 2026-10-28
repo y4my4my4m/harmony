@@ -43,6 +43,7 @@
           </div>
           <div class="user-meta">
             {{ user.handle }}
+            <CopyIdButton :id="user.id" kind="user" :target="user.handle" />
             <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
             <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
               - {{ user.suspension_reason }}
@@ -61,6 +62,18 @@
             {{ user.serverCount }} {{ user.serverCount === 1 ? 'server' : 'servers' }}
           </button>
           <span v-else class="user-stat">federated</span>
+        </div>
+        <div v-if="user.is_local" class="user-actions">
+          <button
+            type="button"
+            class="mod-btn"
+            :title="t('uploadLimits.user.open', { name: user.display_name || user.username })"
+            :aria-label="t('uploadLimits.user.open', { name: user.display_name || user.username })"
+            data-testid="user-upload-limit"
+            @click="openUploadLimit(user)"
+          >
+            <Icon name="upload" :size="16" />
+          </button>
         </div>
         <div v-if="canModerate(user)" class="user-actions">
           <button
@@ -181,6 +194,7 @@
               <div class="server-name">
                 {{ server.name }}
                 <span v-if="server.is_owner" class="badge owner">Owner</span>
+                <CopyIdButton :id="server.id" kind="server" :target="server.name" />
               </div>
               <div class="server-meta">
                 <span class="member-count">
@@ -207,6 +221,12 @@
     </div>
   </div>
   </Teleport>
+  <UploadLimitDialog
+    :show="uploadLimitUser !== null"
+    :profile-id="uploadLimitUser?.id ?? null"
+    :name="uploadLimitUser?.display_name || uploadLimitUser?.username || ''"
+    @close="uploadLimitUser = null"
+  />
   </div>
 </template>
 
@@ -222,12 +242,15 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import { adminService, type AdminUser } from '@/services/AdminService'
 import { userDataService } from '@/services/userDataService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { useT } from '@/composables/useT'
+import UploadLimitDialog from './UploadLimitDialog.vue'
 
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
@@ -237,6 +260,9 @@ const canModerate = (user: any): boolean =>
   user.id !== profileStore.profile?.id && (isAdmin.value || (!user.is_admin && !user.is_moderator))
 const router = useRouter()
 const toast = useToast()
+const { t } = useT()
+const uploadLimitUser = ref<AdminUser | null>(null)
+const openUploadLimit = (user: AdminUser) => { uploadLimitUser.value = user }
 const { confirm, prompt } = useConfirmDialog()
 
 const userSearch = ref('')

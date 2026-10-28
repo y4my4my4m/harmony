@@ -18,7 +18,9 @@ import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShor
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
-import { shownLinkLabel } from '@/utils/maskedLinks';
+import { isMaskedUrlPart, shownLinkLabel } from '@/utils/maskedLinks';
+import { MASKED_LINK_CLASS } from '@/utils/outsideLinks';
+import { isMassMentionWord } from '@/utils/massMentions';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -195,6 +197,8 @@ export function useContentRenderer(
     
     // For local users: show @username
     // For remote users: show @username@domain
+    // A local user named everyone or here shows the host, unlike the mass mention.
+    if (isLocal && isMassMentionWord(username)) return `@${username}@${domain || currentDomain}`;
     return isLocal ? `@${username}` : `@${username}@${domain}`;
   };
 
@@ -514,7 +518,8 @@ export function useContentRenderer(
           const label = shownLinkLabel(part);
           const safeDisplayText = escapeHtml(label ?? (cleanUrl || url));
           const titleAttr = label ? ` title="${safeUrl}"` : '';
-          const labelLink = label ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>` : '';
+          const linkClass = isMaskedUrlPart(part) ? `url-link ${MASKED_LINK_CLASS}` : 'url-link';
+          const labelLink = label ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${linkClass}"${titleAttr}>${safeDisplayText}</a>` : '';
 
           // If the URL was rejected by sanitizeUrl, render it as inert text instead
           // of a clickable anchor (a `href=""` link would navigate to the current page).
@@ -523,7 +528,7 @@ export function useContentRenderer(
           }
 
           if (renderOptions.mode === 'preview') {
-            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>`;
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${linkClass}"${titleAttr}>${safeDisplayText}</a>`;
           }
           
           // Check for media URLs
@@ -552,7 +557,7 @@ export function useContentRenderer(
               const playerSrc = buildYouTubePlayerSrc(parsed);
               if (playerSrc) {
                 const safeEmbedUrl = escapeHtml(sanitizeUrl(playerSrc));
-                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>
+                return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${linkClass}"${titleAttr}>${safeDisplayText}</a>
                   <div class="media-container video-container youtube-embed">
                     <iframe src="${safeEmbedUrl}" frameborder="0" allowfullscreen
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -562,7 +567,7 @@ export function useContentRenderer(
             }
           }
           
-          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link"${titleAttr}>${safeDisplayText}</a>`;
+          return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${linkClass}"${titleAttr}>${safeDisplayText}</a>`;
         }
         
         case 'file': {

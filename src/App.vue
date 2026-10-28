@@ -99,6 +99,11 @@
     @close="handleClosePublicServers"
   />
 
+  <!-- "Leaving Harmony": masked links, and every outside link when the account asks for it.
+       The second host shows links held from the call pop-out, in its window. -->
+  <OutsideLinkDialog />
+  <OutsideLinkDialog v-if="callPopout.root" :key="callPopout.generation" :portal="callPopout.root" />
+
   <!-- Clicked invite link from another (compatible) instance -->
   <JoinFederatedServer
     v-if="remoteInviteUrl && !isAuthRoute"
@@ -117,6 +122,9 @@
   <!-- Media viewer opened through openLightbox -->
   <MediaLightboxHost />
 
+  <!-- Emoji info card opened through openEmojiInfo / hoverEmojiInfo -->
+  <EmojiInfoHost v-if="!isAuthRoute" />
+
   <!-- Uploads and downloads, on every page until they settle -->
   <TransfersIndicator v-if="!isAuthRoute" />
 </template>
@@ -128,6 +136,9 @@ import { warmLazyUi } from '@/utils/warmLazyUi'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
+import { installOutsideLinks } from '@/services/outsideLinks'
+import OutsideLinkDialog from '@/components/OutsideLinkDialog.vue'
+import { callPopout } from '@/components/voice/callPopout'
 import { installInterfaceSounds } from '@/utils/interfaceSounds'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
@@ -155,6 +166,7 @@ import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationMod
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import MediaLightboxHost from '@/components/common/MediaLightboxHost.vue'
+import EmojiInfoHost from '@/components/emoji/EmojiInfoHost.vue'
 import TransfersIndicator from '@/components/common/TransfersIndicator.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'
@@ -289,6 +301,7 @@ onMounted(() => {
   // Same-instance links (e.g. invite URLs) navigate in-app instead of opening
   // a new PWA window / external browser
   uninstallLinkInterceptor = installInternalLinkInterceptor(router)
+  installOutsideLinks()
   uninstallInterfaceSounds = installInterfaceSounds()
 })
 

@@ -37,17 +37,10 @@ async function remoteAccount(name: string) {
   return { id: data.id as string, username, actor }
 }
 
-/**
- * Inserts posts as the service role. A public post is entered on every local profile's
- * public timeline (create_comprehensive_timeline_entries); a parallel spec deleting its
- * users meanwhile fails the insert with 23503, and the insert is repeated.
- */
 async function insertPosts(rows: Record<string, unknown>[]): Promise<string[]> {
-  for (let attempt = 0; ; attempt++) {
-    const { data, error } = await admin.from('posts').insert(rows).select('id')
-    if (!error && data) return data.map((row) => row.id as string)
-    if (error?.code !== '23503' || attempt >= 4) throw new Error(`posts: ${error?.message}`)
-  }
+  const { data, error } = await admin.from('posts').insert(rows).select('id')
+  if (error || !data) throw new Error(`posts: ${error?.message}`)
+  return data.map((row) => row.id as string)
 }
 
 /** A remote post as federation stores one; `fetchedAgoMs` sets replies_fetched_at that long ago. */

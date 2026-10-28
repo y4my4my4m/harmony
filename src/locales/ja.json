@@ -974,6 +974,7 @@
       "progress": "アップロード中 {percent}%",
       "failed": "アップロード失敗",
       "failedToast": "{name} をアップロードできませんでした: {reason}",
+      "originalGone": "元のファイルはこの端末にもうありません。もう一度添付してください。",
       "removeFailed": "アップロードに失敗した添付ファイルを削除してから送信してください。",
       "sendWhenDone": "アップロード完了後に送信します。",
       "voiceFailed": "ボイスメッセージをアップロードできませんでした。",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}、{count} 件のリアクション",
       "pillYou": "{emoji}、あなたを含む {count} 件のリアクション",
-      "hint": "コンテキストメニューキーまたは Shift+F10 でリアクションした人を表示します。",
+      "hint": "コンテキストメニューキーまたは Shift+F10 で絵文字とリアクションした人を表示します。",
       "removed": "リアクションを取り消しました: {emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "動画",
       "audio": "音声",
       "file": "ファイル {name}",
-      "poll": "投票: {question}"
+      "poll": "投票: {question}",
+      "sticker": "スタンプ {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "最近の検索",
     "clearRecent": "クリア",
-    "encryptedNote": "暗号化されたメッセージは、このデバイスで読み込み済みのメッセージのみが検索対象です。",
-    "onThisDevice": "暗号化、このデバイス上",
+    "encryptedNote": "暗号化されたメッセージはこのデバイスで検索されます。あなたの鍵で履歴を読み込み、保護されたインデックスをこのデバイスに保存します。",
+    "encryptedSearching": "暗号化されたメッセージを検索中…",
+    "encryptedSearchedBack": "暗号化されたメッセージを検索中…（{date} まで検索済み）",
+    "encryptedStopped": "暗号化されたメッセージの検索を停止しました。",
+    "encryptedStoppedAt": "暗号化されたメッセージを {date} まで検索しました。",
+    "encryptedDone": "読める暗号化メッセージをすべて検索しました。",
+    "encryptedError": "古い暗号化メッセージを読み込めませんでした。",
+    "encryptedLocked": "暗号化メッセージを検索するには、暗号化のロックを解除してください。",
+    "encryptedStop": "停止",
+    "encryptedSearchOlder": "さらに古いメッセージを検索",
+    "encryptedUnreadable": "このデバイスで読めないメッセージ：{count} 件 | このデバイスで読めないメッセージ：{count} 件",
     "searching": "検索中…",
     "results": "結果なし | {count} 件の結果 | {count} 件の結果",
     "resultsCapped": "{count} 件以上の結果",
@@ -1183,6 +1194,7 @@
     "error": "検索に失敗しました",
     "empty": "結果なし",
     "emptyHint": "別の語句を試すか、フィルターを減らしてください。",
+    "similar": "完全に一致する結果はありません。似た結果を表示しています。",
     "unknownChannel": "不明なチャンネル",
     "threadIn": "{channel} のスレッド",
     "pages": "結果ページ",
@@ -2967,6 +2979,37 @@
     "aiQuotaUser": "本日の残り生成回数：{remaining} / {total}",
     "aiQuotaInstance": "本日のインスタンス全体の残り生成回数：{remaining} / {total}"
   },
+  "emojiInfo": {
+    "dialog": "絵文字",
+    "loading": "出どころを確認しています…",
+    "default": "標準の絵文字です。どこでも使えます。",
+    "thisServer": "このサーバーの絵文字です。",
+    "yourServer": "参加中のサーバー「{server}」の絵文字です。",
+    "publicServer": "公開サーバー「{server}」の絵文字です。参加するとどこでも使えます。",
+    "remoteServer": "{domain} のサーバー「{server}」の絵文字です。",
+    "personalYours": "あなたの個人用絵文字です。どこでも使えます。",
+    "personalOf": "{name} の個人用絵文字です。",
+    "personalUnknown": "個人用絵文字です。",
+    "instance": "このインスタンスの絵文字です。",
+    "remote": "別のインスタンスの絵文字です: {domain}",
+    "discord": "Discord から連携された Discord の絵文字です。",
+    "unavailable": "非公開か、もう利用できないサーバーの絵文字です。",
+    "members": "メンバー {count} 人",
+    "publicLabel": "公開サーバー",
+    "privateLabel": "招待制サーバー",
+    "moreEmoji": "このサーバーのほかの絵文字",
+    "joined": "{server} に参加しました",
+    "reactedBy": "{names} がリアクションしました",
+    "reactedByOthers": "{names} ほか {count} 人がリアクションしました",
+    "reactionCount": "リアクション {count} 件",
+    "nameSeparator": "、",
+    "allReactions": "すべてのリアクション",
+    "copy": "コピー",
+    "copied": "{text} をコピーしました",
+    "copyFailed": "コピーできませんでした",
+    "copyLink": "画像のリンクをコピー",
+    "linkCopied": "画像のリンクをコピーしました"
+  },
   "inbox": {
     "title": "通知",
     "bellLabel": "通知",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle} は利用可能です",
     "usernameTaken": "このユーザー名は使用されています。",
     "usernameTooShort": "{min} 文字以上にしてください。",
+    "usernameReserved": "このユーザー名は予約されています。別の名前を選んでください。",
     "usernameCheckFailed": "利用可能か確認できませんでした。もう一度お試しください。",
     "bio": "自己紹介",
     "optional": "（任意）",
@@ -4375,7 +4419,8 @@
       "invite": "招待",
       "emoji": "絵文字",
       "sound": "サウンド",
-      "bot": "BOT"
+      "bot": "BOT",
+      "sticker": "スタンプ"
     },
     "actions": {
       "channel_create": "{actor}がチャンネル{target}を作成しました",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor}がBOT{target}を削除しました",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor}がサーバーを停止しました",
-      "server_unsuspend": "{actor}がサーバーの停止を解除しました"
+      "server_unsuspend": "{actor}がサーバーの停止を解除しました",
+      "sticker_create": "{actor} がスタンプ {target} を追加しました",
+      "sticker_update": "{actor} がスタンプ {target} を編集しました",
+      "sticker_delete": "{actor} がスタンプ {target} を削除しました"
     },
     "fields": {
       "name": "名前",
@@ -4686,6 +4734,7 @@
       "changeDescription": "パスワードを変更すると、他のすべてのデバイスからサインアウトされます。",
       "providerDescription": "あなたのアカウントは {providers} でサインインしています。パスワードを設定すると、メールアドレスでもサインインできます。",
       "externalProvider": "外部プロバイダー",
+      "providerManaged": "あなたのアカウントは {providers} でのみサインインします。パスワードはなく、設定することもできません。",
       "hint": "8文字以上。関連のない単語をいくつか組み合わせたパスフレーズがおすすめです。",
       "saving": "保存中…",
       "setPassword": "パスワードを設定",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "このセッションはサインアウトされました。再度サインインしてください。",
       "codeMismatch": "コードが一致しませんでした。アプリの最新のコードを使用し、デバイスの時刻が自動設定になっているか確認してください。",
       "challengeExpired": "確認の有効期限が切れました。新しいコードを入力してください。",
+      "providerManaged": "このアカウントはサインインプロバイダー経由でのみサインインするため、パスワードとメールアドレスは変更できません。",
       "rateLimited": "試行回数が多すぎます。少し待ってからもう一度お試しください。",
       "mfaNotEnabled": "二要素認証が有効になっていません。"
     },
@@ -5089,7 +5139,13 @@
         "reason": "理由（アカウントに記録されます）："
       },
       "confirmAction": "{action}を実行しますか？この報告は解決済みになります。",
-      "actionDone": "{action}：完了"
+      "actionDone": "{action}：完了",
+      "ids": {
+        "title": "ID",
+        "reporter": "報告者",
+        "reported": "報告されたユーザー",
+        "server": "サーバー"
+      }
     },
     "federation": {
       "limited": "制限中",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
       "customOAuthEmpty": "まだありません。",
       "customOAuthCallback": "プロバイダーに登録するリダイレクト（コールバック）URL：",
-      "customOAuthManage": "サーバー上の Harmony フォルダーで："
+      "customOAuthManage": "サーバー上の Harmony フォルダーで：",
+      "maxStickersPerServer": "サーバーごとのスタンプ数",
+      "maxStickersPerServerHint": "0〜100。0 でサーバーのスタンプを無効にします。",
+      "maxInstanceStickers": "インスタンスのスタンプ数",
+      "maxInstanceStickersHint": "0〜500。すべてのローカルアカウントがインスタンスのスタンプを送信できます。0 で無効にします。",
+      "maxPersonalStickers": "ユーザーごとの個人スタンプ数",
+      "maxPersonalStickersHint": "0〜100。既定の 0 で個人スタンプを無効にします。"
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数",
-        "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数"
+        "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数",
+        "maxStickersPerServer": "サーバーごとのスタンプ数",
+        "maxInstanceStickers": "インスタンスのスタンプ数",
+        "maxPersonalStickersPerUser": "ユーザーごとの個人スタンプ数"
       },
       "staff": {
         "someServer": "あるサーバー",
@@ -5275,11 +5340,32 @@
         "delete": "絵文字を削除できませんでした。",
         "invalidName": "名前は英数字、_、- の 2〜64 文字です。",
         "nameTaken": "その名前は別のインスタンス絵文字で使われています。",
-        "nameTakenUser": "所有者はすでに同じ名前の絵文字を持っています。"
+        "nameTakenUser": "所有者はすでに同じ名前の絵文字を持っています。",
+        "notAdmin": "インスタンス絵文字をアップロードできるのはインスタンス管理者だけです。",
+        "duplicateFile": "そのファイルはすでにインスタンス絵文字です。"
       },
       "searchLabel": "絵文字を検索",
       "searchHint": "名前またはドメイン",
-      "searchHintUser": "名前またはオーナー"
+      "searchHintUser": "名前またはオーナー",
+      "browseTitle": "このインスタンスのすべての絵文字",
+      "loading": "絵文字を読み込み中",
+      "library": {
+        "description": "ローカルユーザー全員が、絵文字ピッカーのこのインスタンス名の下で使えます。",
+        "listLabel": "ローカルのインスタンス絵文字",
+        "empty": "インスタンス絵文字はまだありません",
+        "emptyHint": "上からアップロードしてください。ローカルユーザー全員が使えます。",
+        "loading": "インスタンス絵文字を読み込み中",
+        "retry": "再試行"
+      }
+    },
+    "copyId": {
+      "user": "ユーザーIDをコピー",
+      "server": "サーバーIDをコピー",
+      "named": "{action}：{target}",
+      "userCopied": "ユーザーIDをコピーしました",
+      "serverCopied": "サーバーIDをコピーしました",
+      "userFailed": "ユーザーIDをコピーできませんでした",
+      "serverFailed": "サーバーIDをコピーできませんでした"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "{site} で再生",
     "playInX": "X のプレーヤーで再生"
   },
+  "outsideLink": {
+    "title": "Harmonyから移動します",
+    "lead": "このリンクはHarmonyの外部のサイトに移動します。開く前にアドレスを確認してください。",
+    "maskedLead": "このリンクの表示テキストは、実際の移動先と異なる場合があります。開く前にアドレスを確認してください。",
+    "trust": "今後は{host}を信頼する",
+    "copy": "リンクをコピー",
+    "open": "リンクを開く",
+    "copied": "リンクをコピーしました",
+    "copyFailed": "リンクをコピーできませんでした",
+    "trustFailed": "{host}を信頼済みとして保存できませんでした",
+    "settings": {
+      "title": "外部リンク",
+      "askEvery": "外部リンクを開く前に毎回確認する",
+      "askEveryDescription": "他のサイトへのすべてのリンクで「Harmonyから移動します」の確認を表示します。表示テキストとアドレスが異なる可能性があるマスクリンクは、常に確認します。",
+      "trusted": "信頼済みサイト",
+      "trustedDescription": "これらのサイトへのリンクは確認なしで開きます。",
+      "trustedEmpty": "信頼済みサイトはありません。「Harmonyから移動します」の確認で「信頼する」にチェックすると追加されます。",
+      "remove": "削除",
+      "removeLabel": "{host}を信頼済みサイトから削除",
+      "saveFailed": "変更を保存できませんでした"
+    }
+  },
+  "photoDetails": {
+    "keep": "写真の詳細を保持（位置情報、カメラ）",
+    "locationRemoved": "位置情報を削除済み",
+    "locationKept": "位置情報を含む",
+    "originalGone": "元のファイルはこの端末にもうありません。詳細を保持するには、もう一度添付してください。",
+    "settings": {
+      "keepByDefault": "写真の詳細をデフォルトで保持",
+      "keepByDefaultDescription": "添付する写真や動画は「写真の詳細を保持」がオンの状態で始まり、位置情報やカメラなどの情報も一緒にアップロードされます。オフの場合、Harmony はアップロード前に端末上でそれらを削除します。プロフィール画像、バナー、アイコン、絵文字、スタンプでは常に削除されます。",
+      "saveFailed": "写真の詳細の設定を保存できませんでした。"
+    },
+    "drive": {
+      "title": "写真と動画の詳細",
+      "intro": "これらの写真や動画には、撮影場所やカメラなどの情報が含まれています。保持を選ばない限り、Harmony はそれらを削除します。",
+      "upload": "アップロード"
+    }
+  },
   "threadCreate": {
     "button": "新しいスレッド",
     "nameLabel": "スレッド名",
@@ -6741,7 +6865,15 @@
     "reportFiles": "添付ファイル",
     "removeFile": "ファイルを削除",
     "removeAndBlock": "削除して再アップロードをブロック",
-    "removed": "削除しました"
+    "removed": "削除しました",
+    "searchLabel": "アカウントを検索",
+    "searchHint": "名前または{'@'}ハンドル",
+    "loading": "アカウントを読み込み中",
+    "noMatch": "一致するアカウントはありません。",
+    "pages": "アカウントのページ",
+    "previous": "前へ",
+    "next": "次へ",
+    "range": "{from}–{to} / {total}"
   },
   "share": {
     "title": "Harmonyで共有",
@@ -7474,5 +7606,128 @@
     "showInFolder": "フォルダーで表示",
     "downloadStarted": "{name} をダウンロード中",
     "downloadFailed": "ダウンロードに失敗しました: {reason}"
+  },
+  "stickers": {
+    "alt": "スタンプ {name}: {description}",
+    "goneLabel": "スタンプ {name}(利用できなくなりました): {description}",
+    "removed": "スタンプは削除されました",
+    "unavailable": "スタンプを表示できません",
+    "preview": "スタンプ: {name}",
+    "pickLabel": "スタンプ {name} を送信: {description}",
+    "picker": {
+      "server": "このサーバー",
+      "instance": "インスタンスのスタンプ",
+      "mine": "マイスタンプ"
+    },
+    "errors": {
+      "type": "スタンプは PNG、APNG、WebP、GIF 画像です。",
+      "size": "このスタンプは {size} です。上限は {max} です。",
+      "dimensions": "このスタンプは {width}×{height} ピクセルです。上限は {max}×{max} です。アニメーションスタンプは縮小されません。",
+      "duration": "このアニメーションは {seconds} 秒です。上限は {max} 秒です。",
+      "dimensionsGeneric": "スタンプは最大 {max}×{max} ピクセルです。",
+      "durationGeneric": "アニメーションスタンプは最大 {max} 秒です。",
+      "nameLength": "スタンプ名は {min}〜{max} 文字です。",
+      "descriptionMissing": "見ることができない人のために、スタンプの説明を入力してください。",
+      "descriptionLength": "説明は最大 {max} 文字です。",
+      "limit": "スタンプの上限に達しました ({max})。",
+      "off": "このインスタンスではこれらのスタンプは無効です。",
+      "nameTaken": "その名前のスタンプはすでにあります。",
+      "forbidden": "これらのスタンプを管理する権限がありません。",
+      "notFound": "そのスタンプはもう存在しません。",
+      "generic": "スタンプを保存できませんでした。"
+    },
+    "manage": {
+      "navLabel": "スタンプ",
+      "serverTitle": "スタンプ",
+      "serverDescription": "メンバーがこのサーバーのチャンネルとスレッドで送信できるスタンプです。「表現の管理」を持つメンバーが追加・編集・削除します。",
+      "instanceTitle": "インスタンスのスタンプ",
+      "instanceDescription": "このインスタンスのすべてのアカウントが、どのサーバーや会話でも送信できるスタンプです。",
+      "myTitle": "マイスタンプ",
+      "myDescription": "あなただけが、どのサーバーや会話でも送信できるスタンプです。",
+      "upload": "スタンプを追加",
+      "limits": "PNG、APNG、WebP、GIF。{size} まで、{side}×{side} ピクセルまで。アニメーションは {seconds} 秒まで。大きい静止画は縮小されます。",
+      "file": "画像",
+      "name": "名前",
+      "description": "説明",
+      "descriptionHint": "スクリーンリーダーで読み上げられ、画像を読み込めないときに表示されます。必須です。",
+      "uploading": "アップロード中…",
+      "uploadButton": "スタンプをアップロード",
+      "uploaded": "スタンプ「{name}」を追加しました",
+      "saved": "スタンプ「{name}」を保存しました",
+      "deleted": "スタンプ「{name}」を削除しました",
+      "listTitle": "スタンプ",
+      "empty": "スタンプはまだありません。",
+      "editLabel": "スタンプ {name} を編集",
+      "deleteLabel": "スタンプ {name} を削除",
+      "deleteTitle": "スタンプを削除",
+      "deleteConfirm": "「{name}」を削除しますか?送信済みのメッセージには代わりにプレースホルダーが表示されます。",
+      "loading": "スタンプを読み込み中",
+      "loadFailed": "スタンプを読み込めませんでした。",
+      "off": {
+        "server": "このインスタンスではサーバーのスタンプは無効です。",
+        "instance": "インスタンスのスタンプは無効です。管理 → Config で上限を上げてください。",
+        "user": "このインスタンスでは個人スタンプは無効です。管理者が許可できます。"
+      }
+    },
+    "report": {
+      "menu": "スタンプを通報",
+      "proof": "通報されたスタンプ",
+      "remove": "スタンプを削除",
+      "removeConfirm": "このスタンプを全員から削除しますか?送信済みのメッセージには代わりにプレースホルダーが表示されます。",
+      "removed": "スタンプは削除されました",
+      "scope": {
+        "server": "{server} のスタンプ",
+        "instance": "インスタンスのスタンプ",
+        "user": "個人スタンプ"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "「{name}」は {size} で、アップロード上限 {limit} を超えています。",
+    "tooLargeFile": "このファイルは {size} で、アップロード上限 {limit} を超えています。",
+    "title": "アップロード",
+    "hint": "各アカウントがチャンネル、スレッド、ダイレクトメッセージ、投稿に添付したり、ドライブに保存したりできる最大のファイルサイズです。プロフィール画像、バナー、サーバーアイコン、絵文字、サウンドには別の上限があります。",
+    "tier": {
+      "user": "アカウントごとの最大ファイル",
+      "moderator": "インスタンスモデレーターごとの最大ファイル",
+      "admin": "インスタンス管理者ごとの最大ファイル"
+    },
+    "tierName": {
+      "user": "アカウント",
+      "moderator": "インスタンスモデレーター",
+      "admin": "インスタンス管理者"
+    },
+    "aboveCeiling": "上限 {limit} を超えています",
+    "ceiling": "サーバー運用者が設定した上限",
+    "ceilingHint": "これより大きいアップロード上限は設定できません。運用者はサーバーで harmony config --upload-ceiling を使って引き上げます。",
+    "driveNote": "最大ファイルサイズはドライブの容量とは別です。アカウントの容量を超えるアップロードは一時ファイルとして保存されます。",
+    "readOnly": "アップロード上限を変更できるのはインスタンス管理者だけです。",
+    "save": "保存",
+    "saved": "保存しました",
+    "loadFailed": "アップロード上限を読み込めませんでした。",
+    "saveFailed": "アップロード上限を保存できませんでした。",
+    "user": {
+      "open": "{name} のアップロード上限",
+      "title": "{name} のアップロード上限",
+      "tier": "区分: {tier}、{limit}",
+      "effective": "現在の最大ファイル: {limit}",
+      "choice": "上限",
+      "useTier": "区分の上限を使う",
+      "custom": "個別の上限",
+      "customLabel": "{name} のアップロード上限 (MB)",
+      "ceiling": "上限: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "役割",
+    "roleOption": "{name}、役割",
+    "memberOption": "{name}、メンバー、{handle}",
+    "rolePill": "{'@'}{name}、役割",
+    "roleCard": {
+      "label": "役割 {name}",
+      "members": "{count} メンバー",
+      "here": "オンラインでチャンネルを見られるメンバー",
+      "unknown": "このサーバーの役割ではありません"
+    }
   }
 }

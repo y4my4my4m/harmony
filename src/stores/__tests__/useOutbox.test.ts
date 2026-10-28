@@ -582,6 +582,86 @@ describe('outbox cancel', () => {
   })
 })
 
+describe('outbox attachments without bytes on the device', () => {
+  /** A Drive photo or restored draft: a 0-byte placeholder for a stored object. */
+  const SOURCE = `u/${UID}/beach.jpg`
+  const ORIGINAL = new Uint8Array(2058).fill(7)
+  const placeholder = (sourcePath?: string): OutboxAttachment => ({
+    file: new File([], 'beach.jpg', { type: 'image/jpeg' }),
+    name: 'beach.jpg',
+    type: 'image/jpeg',
+    size: ORIGINAL.length,
+    previewUrl: 'blob:preview-beach.jpg',
+    ...(sourcePath ? { sourcePath } : {}),
+  })
+  const fetched = vi.fn(async () => new Response(ORIGINAL))
+  const sentBytes = (path: string) => (xhrFor(path).body?.get('') as File | null)?.size
+
+  beforeEach(() => {
+    fetched.mockClear()
+    vi.stubGlobal('fetch', fetched)
+  })
+
+  it('retries a failed upload from the stored object, not the placeholder', async () => {
+    const outbox = useOutboxStore()
+    const composerUpload = startMessageMediaUpload(`c/${CHANNEL}/${UID}/beach.jpg`, new File([ORIGINAL], 'beach.jpg', { type: 'image/jpeg' }))
+    await flushPromises()
+    const id = outbox.enqueue({
+      target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [],
+      attachments: [{ ...placeholder(SOURCE), upload: composerUpload }],
+    })
+    xhrFor(composerUpload.path).respond(500, { statusCode: '500', message: 'network down' })
+    await flushPromises()
+    expect(outbox.rowsFor(CHANNEL_KEY)[0]).toMatchObject({ id, failed: true })
+
+    outbox.retry(id)
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2))
+    const [retried] = filePaths(outbox.rowsFor(CHANNEL_KEY)[0])
+    expect(fetched).toHaveBeenCalledWith(`https://signed/${SOURCE}`, expect.anything())
+    expect(sentBytes(retried)).toBe(ORIGINAL.length)
+
+    xhrFor(retried).respond(200)
+    await flushPromises()
+    expect(chatStore.sendMessage.mock.calls[0][3]).toEqual([expect.objectContaining({ path: retried, fileSize: ORIGINAL.length })])
+  })
+
+  it('re-uploads a composer upload it cannot adopt from the stored object', async () => {
+    const outbox = useOutboxStore()
+    const elsewhere = startMessageMediaUpload(`c/${OTHER_CHANNEL}/${UID}/beach.jpg`, new File([ORIGINAL], 'beach.jpg', { type: 'image/jpeg' }))
+    await flushPromises()
+    outbox.enqueue({
+      target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [],
+      attachments: [{ ...placeholder(SOURCE), upload: elsewhere }],
+    })
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2))
+    const [path] = filePaths(outbox.rowsFor(CHANNEL_KEY)[0])
+    expect(path).toMatch(new RegExp(`^c/${CHANNEL}/${UID}/`))
+    expect(sentBytes(path)).toBe(ORIGINAL.length)
+  })
+
+  it('fails a placeholder with no stored object instead of uploading it empty', async () => {
+    const outbox = useOutboxStore()
+    const id = outbox.enqueue({ target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [], attachments: [placeholder()] })
+    await flushPromises()
+    expect(FakeXHR.instances).toHaveLength(0)
+    expect(outbox.rowsFor(CHANNEL_KEY)[0]).toMatchObject({ id, failed: true })
+    expect(outbox.jobs[0].files[0]).toMatchObject({ status: 'error', error: 'message.upload.originalGone' })
+    expect(toast.error).toHaveBeenCalledWith('message.upload.failedToast')
+    expect(chatStore.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('uploads a file that is empty as is', async () => {
+    const outbox = useOutboxStore()
+    const empty = new File([], 'empty.txt', { type: 'text/plain' })
+    outbox.enqueue({
+      target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [],
+      attachments: [{ file: empty, name: 'empty.txt', type: 'text/plain', size: 0 }],
+    })
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
+    expect(fetched).not.toHaveBeenCalled()
+  })
+})
+
 describe('outbox slowmode', () => {
   const slowmode = (seconds: number) => Object.assign(
     new Error(`Slowmode is on - you can send again in ${seconds}s`),

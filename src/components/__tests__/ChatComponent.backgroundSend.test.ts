@@ -104,7 +104,7 @@ vi.mock('@/utils/unifiedContentProcessing', () => ({
   resolveEmojisData: vi.fn(async () => ({})),
   resolveRoleMentionsData: vi.fn(async () => ({})),
 }))
-vi.mock('@/utils/chatParseOptions', () => ({ buildChatParseOptions: () => ({}) }))
+vi.mock('@/utils/chatParseOptions', () => ({ buildChatParseOptions: () => ({}), resolveChatMassMentions: async () => undefined }))
 vi.mock('@/services/emojiService', () => ({ recordEmojiUsage: vi.fn() }))
 vi.mock('@/services/emojiShortcodeResolver', () => ({ getEmojiShortcodeForInsert: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }))
@@ -272,6 +272,23 @@ describe('ChatComponent send with uploads running', () => {
     const [row] = displayed(wrapper)
     expect(row.metadata).toMatchObject({ voice_message: { duration: 2, waveform: [3] } })
     expect(row.content).toEqual([expect.objectContaining({ type: 'file', fileType: 'audio', fileName: 'Voice message' })])
+  })
+})
+
+describe('ChatComponent send of an attachment without bytes on the device', () => {
+  it('queues a Drive photo with the stored object its upload reads', async () => {
+    const source = `u/${UID}/beach.jpg`
+    const fetched = vi.fn(async () => new Response(new Uint8Array(2058).fill(7)))
+    vi.stubGlobal('fetch', fetched)
+    const wrapper = mountChat()
+    const placeholder: FilePreviewData = {
+      file: new File([], 'beach.jpg', { type: 'image/jpeg' }), name: 'beach.jpg', size: 2058, type: 'image/jpeg',
+      uploadStatus: 'pending', driveSource: source, sourcePath: source,
+    }
+    wrapper.findComponent({ name: 'MessageInput' }).vm.$emit('sendMessage', '', [placeholder], undefined)
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
+    expect(fetched).toHaveBeenCalledWith(`https://signed/${source}`, expect.anything())
+    expect(displayed(wrapper)[0]).toMatchObject({ sending: true, failed: false })
   })
 })
 

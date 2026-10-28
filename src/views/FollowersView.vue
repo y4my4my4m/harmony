@@ -1,14 +1,11 @@
 <template>
   <div class="followers-view" ref="scrollContainerRef">
-    <div class="view-header">
-      <div class="header-content">
-        <h1 class="page-title">
-          <Icon name="users" />
-          {{ viewTitle }}
-        </h1>
-        <p class="page-subtitle">{{ viewSubtitle }}</p>
-      </div>
-      
+    <!-- The tab bar is the page's visible header: each tab names its list and count. The h1 and
+         the count sentence stay for screen readers' heading and page navigation. -->
+    <header class="view-header">
+      <h1 class="sr-only">{{ viewTitle }}</h1>
+      <p class="sr-only">{{ viewSubtitle }}</p>
+
       <!-- WAI-ARIA tabs, manual activation. -->
       <div
         class="view-toggle"
@@ -29,12 +26,12 @@
           @click="currentView = tab.id"
           :class="['toggle-btn', { active: currentView === tab.id }]"
         >
-          <Icon :name="tab.icon" />
-          {{ tab.label }}
+          <Icon :name="tab.icon" :size="16" class="toggle-icon" />
+          <span class="toggle-label">{{ tab.label }}</span>
           <span class="count" :class="{ 'count-pending': tab.id === 'requests' && requestsCount > 0 }">{{ tab.count }}</span>
         </button>
       </div>
-    </div>
+    </header>
 
     <div
       id="follow-tabpanel"
@@ -521,54 +518,39 @@ onUnmounted(() => {
 }
 
 .view-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  margin: -20px -20px 16px;
+  padding: 20px 20px 0;
+  background: var(--background-primary);
   border-bottom: 1px solid var(--border-color);
+  container-type: inline-size;
 }
 
-.header-content {
-  flex: 1;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 28px;
-  font-weight: var(--font-weight-bold);
-  margin: 0 0 8px 0;
-  color: var(--text-primary);
-}
-
-.page-subtitle {
-  color: var(--text-secondary);
-  margin: 0;
-  font-size: var(--font-size-base);
-}
-
+/* Underline tabs, one per list, filling the column. */
 .view-toggle {
   display: flex;
-  gap: 8px;
-  background: var(--background-secondary);
-  border-radius: var(--radius-md);
-  padding: 4px;
+  gap: 4px;
 }
 
 .toggle-btn {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 12px 8px 14px;
   background: none;
   border: none;
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-base) var(--radius-base) 0 0;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .toggle-btn:hover {
@@ -577,27 +559,52 @@ onUnmounted(() => {
 }
 
 .toggle-btn.active {
-  background: var(--harmony-primary-fill);
-  color: var(--text-on-primary);
-}
-
-.count {
-  background: var(--background-tertiary);
-  color: var(--text-secondary);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
+  color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
 }
 
-.toggle-btn.active .count {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-on-primary);
+.toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--harmony-primary);
 }
 
-.count-pending {
+.toggle-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.toggle-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.toggle-btn.active .count {
+  color: var(--text-secondary);
+}
+
+/* Pending requests: a filled badge, the one count that asks for action. */
+.count-pending,
+.toggle-btn.active .count-pending {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
   background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
+  text-align: center;
 }
 
 .request-actions {
@@ -728,21 +735,18 @@ onUnmounted(() => {
   .followers-view {
     padding: 16px;
   }
-  
+
   .view-header {
-    flex-direction: column;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  
-  .view-toggle {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .toggle-btn {
-    flex: 1;
-    justify-content: center;
+    top: -16px;
+    margin: -16px -16px 12px;
+    padding: 8px 8px 0;
   }
 }
-</style> 
+
+/* The social column is often narrower than the window: icons go before labels truncate. */
+@container (max-width: 520px) {
+  .toggle-icon {
+    display: none;
+  }
+}
+</style>

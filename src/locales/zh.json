@@ -974,6 +974,7 @@
       "progress": "正在上传 {percent}%",
       "failed": "上传失败",
       "failedToast": "{name} 上传失败：{reason}",
+      "originalGone": "原始文件已不在此设备上。请重新附加。",
       "removeFailed": "请移除上传失败的附件后再发送。",
       "sendWhenDone": "上传完成后将发送。",
       "voiceFailed": "语音消息上传失败。",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}，{count} 个回应",
       "pillYou": "{emoji}，{count} 个回应，包括你",
-      "hint": "按上下文菜单键或 Shift+F10 查看谁做了回应。",
+      "hint": "按上下文菜单键或 Shift+F10 查看表情和谁做了回应。",
       "removed": "已取消回应：{emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "视频",
       "audio": "音频",
       "file": "文件 {name}",
-      "poll": "投票：{question}"
+      "poll": "投票：{question}",
+      "sticker": "贴纸 {name}:{description}"
     },
     "announce": {
       "one": "{name}：{text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "最近搜索",
     "clearRecent": "清除",
-    "encryptedNote": "加密消息仅在此设备上、在已加载的消息中搜索。",
-    "onThisDevice": "已加密，仅限此设备",
+    "encryptedNote": "加密消息在此设备上搜索：用你的密钥读取历史记录，并在此保存受保护的索引。",
+    "encryptedSearching": "正在搜索加密消息…",
+    "encryptedSearchedBack": "正在搜索加密消息，目前已搜索到 {date}…",
+    "encryptedStopped": "已停止搜索加密消息。",
+    "encryptedStoppedAt": "已搜索加密消息至 {date}。",
+    "encryptedDone": "已搜索你能读取的所有加密消息。",
+    "encryptedError": "无法加载更早的加密消息。",
+    "encryptedLocked": "解锁加密后才能搜索加密消息。",
+    "encryptedStop": "停止",
+    "encryptedSearchOlder": "搜索更早的消息",
+    "encryptedUnreadable": "此设备无法读取的消息：{count} 条 | 此设备无法读取的消息：{count} 条",
     "searching": "搜索中…",
     "results": "无结果 | {count} 条结果 | {count} 条结果",
     "resultsCapped": "超过 {count} 条结果",
@@ -1183,6 +1194,7 @@
     "error": "搜索失败",
     "empty": "无结果",
     "emptyHint": "请尝试其他词语或减少筛选条件。",
+    "similar": "没有完全匹配的结果，正在显示相似结果。",
     "unknownChannel": "未知频道",
     "threadIn": "{channel} 中的子区",
     "pages": "结果页",
@@ -2986,6 +2998,37 @@
     "custom": "自定义",
     "noResults": "未找到表情"
   },
+  "emojiInfo": {
+    "dialog": "表情",
+    "loading": "正在查找来源…",
+    "default": "默认表情，随处可用。",
+    "thisServer": "来自本服务器。",
+    "yourServer": "来自你加入的服务器 {server}。",
+    "publicServer": "来自公开服务器 {server}。加入后即可随处使用此表情。",
+    "remoteServer": "来自 {domain} 上的服务器 {server}。",
+    "personalYours": "你的个人表情，随处可用。",
+    "personalOf": "{name} 的个人表情。",
+    "personalUnknown": "个人表情。",
+    "instance": "本实例的表情。",
+    "remote": "来自其他实例：{domain}。",
+    "discord": "Discord 表情，由 Discord 桥接而来。",
+    "unavailable": "来自私密或已不可用的服务器。",
+    "members": "{count} 名成员",
+    "publicLabel": "公开服务器",
+    "privateLabel": "仅限邀请的服务器",
+    "moreEmoji": "此服务器的更多表情",
+    "joined": "已加入 {server}",
+    "reactedBy": "{names} 做了回应",
+    "reactedByOthers": "{names} 等 {count} 人做了回应",
+    "reactionCount": "{count} 个回应",
+    "nameSeparator": "、",
+    "allReactions": "全部回应",
+    "copy": "复制",
+    "copied": "已复制 {text}",
+    "copyFailed": "无法复制",
+    "copyLink": "复制图片链接",
+    "linkCopied": "已复制图片链接"
+  },
   "inbox": {
     "title": "通知",
     "bellLabel": "通知",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle} 可用",
     "usernameTaken": "该用户名已被占用。",
     "usernameTooShort": "至少使用 {min} 个字符。",
+    "usernameReserved": "该用户名已被保留，请换一个。",
     "usernameCheckFailed": "无法检查是否可用。请重试。",
     "bio": "关于您",
     "optional": "（可选）",
@@ -4375,7 +4419,8 @@
       "invite": "邀请",
       "emoji": "表情",
       "sound": "音效",
-      "bot": "机器人"
+      "bot": "机器人",
+      "sticker": "贴纸"
     },
     "actions": {
       "channel_create": "{actor} 创建了频道 {target}",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor} 移除了机器人 {target}",
       "unknown": "{actor}：{action}",
       "server_suspend": "{actor} 停用了服务器",
-      "server_unsuspend": "{actor} 解除了服务器的停用"
+      "server_unsuspend": "{actor} 解除了服务器的停用",
+      "sticker_create": "{actor} 添加了贴纸 {target}",
+      "sticker_update": "{actor} 编辑了贴纸 {target}",
+      "sticker_delete": "{actor} 删除了贴纸 {target}"
     },
     "fields": {
       "name": "名称",
@@ -4686,6 +4734,7 @@
       "changeDescription": "更改密码会使其他所有设备退出登录。",
       "providerDescription": "您的账户通过 {providers} 登录。设置密码后，您也可以使用电子邮件登录。",
       "externalProvider": "外部提供商",
+      "providerManaged": "您的账户只能通过 {providers} 登录。它没有密码，也无法设置密码。",
       "hint": "至少 8 个字符。由几个不相关的词组成的密码短语效果很好。",
       "saving": "正在保存…",
       "setPassword": "设置密码",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "此会话已退出登录。请重新登录。",
       "codeMismatch": "验证码不匹配。请使用应用中最新的验证码，并检查设备时钟是否设为自动。",
       "challengeExpired": "验证已过期。请输入新的验证码。",
+      "providerManaged": "此账户只能通过其登录提供商登录，因此无法更改密码和电子邮件地址。",
       "rateLimited": "尝试次数过多。请稍等片刻后重试。",
       "mfaNotEnabled": "未启用双重验证。"
     },
@@ -5089,7 +5139,13 @@
         "reason": "原因（随账户保存）："
       },
       "confirmAction": "{action}？这将解决此举报。",
-      "actionDone": "{action}：已完成"
+      "actionDone": "{action}：已完成",
+      "ids": {
+        "title": "ID",
+        "reporter": "举报者",
+        "reported": "被举报用户",
+        "server": "服务器"
+      }
     },
     "federation": {
       "limited": "已限制",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
       "customOAuthCallback": "在提供方登记的重定向（回调）URL：",
-      "customOAuthManage": "在服务器上的 Harmony 目录中："
+      "customOAuthManage": "在服务器上的 Harmony 目录中：",
+      "maxStickersPerServer": "每个服务器的贴纸数",
+      "maxStickersPerServerHint": "0 到 100。0 表示关闭服务器贴纸。",
+      "maxInstanceStickers": "实例贴纸数",
+      "maxInstanceStickersHint": "0 到 500。所有本地账号都可以发送实例贴纸。0 表示关闭。",
+      "maxPersonalStickers": "每位用户的个人贴纸数",
+      "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。"
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "每人对一条帖子的最大反应数",
-        "maxPersonalEmojisPerUser": "每位用户的个人表情数"
+        "maxPersonalEmojisPerUser": "每位用户的个人表情数",
+        "maxStickersPerServer": "每个服务器的贴纸数",
+        "maxInstanceStickers": "实例贴纸数",
+        "maxPersonalStickersPerUser": "每位用户的个人贴纸数"
       },
       "staff": {
         "someServer": "某个服务器",
@@ -5275,11 +5340,32 @@
         "delete": "无法删除表情。",
         "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
         "nameTaken": "另一个实例表情已使用该名称。",
-        "nameTakenUser": "所有者已有同名的表情。"
+        "nameTakenUser": "所有者已有同名的表情。",
+        "notAdmin": "只有实例管理员可以上传实例表情。",
+        "duplicateFile": "该文件已是实例表情。"
       },
       "searchLabel": "搜索表情",
       "searchHint": "名称或域名",
-      "searchHintUser": "名称或所有者"
+      "searchHintUser": "名称或所有者",
+      "browseTitle": "本实例的所有表情",
+      "loading": "正在加载表情",
+      "library": {
+        "description": "所有本地用户都能在表情选择器中以本实例的名称找到它们。",
+        "listLabel": "本地实例表情",
+        "empty": "还没有实例表情",
+        "emptyHint": "在上方上传。所有本地用户都可以使用。",
+        "loading": "正在加载实例表情",
+        "retry": "重试"
+      }
+    },
+    "copyId": {
+      "user": "复制用户 ID",
+      "server": "复制服务器 ID",
+      "named": "{action}：{target}",
+      "userCopied": "已复制用户 ID",
+      "serverCopied": "已复制服务器 ID",
+      "userFailed": "无法复制用户 ID",
+      "serverFailed": "无法复制服务器 ID"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "在 {site} 上播放",
     "playInX": "在 X 播放器中播放"
   },
+  "outsideLink": {
+    "title": "即将离开 Harmony",
+    "lead": "此链接指向 Harmony 之外的网站。打开前请确认地址。",
+    "maskedLead": "此链接的文字可能与其实际去向不符。打开前请确认地址。",
+    "trust": "今后信任 {host}",
+    "copy": "复制链接",
+    "open": "打开链接",
+    "copied": "链接已复制",
+    "copyFailed": "无法复制链接",
+    "trustFailed": "无法将 {host} 保存为受信任的网站",
+    "settings": {
+      "title": "外部链接",
+      "askEvery": "打开任何外部链接前先询问",
+      "askEveryDescription": "对每个指向其他网站的链接显示“即将离开 Harmony”确认。文字可能与地址不符的隐藏链接始终会询问。",
+      "trusted": "受信任的网站",
+      "trustedDescription": "指向这些网站的链接将直接打开，不再询问。",
+      "trustedEmpty": "没有受信任的网站。在“即将离开 Harmony”确认中勾选“信任”即可添加。",
+      "remove": "移除",
+      "removeLabel": "从受信任的网站中移除 {host}",
+      "saveFailed": "无法保存更改"
+    }
+  },
+  "photoDetails": {
+    "keep": "保留照片详细信息（位置、相机）",
+    "locationRemoved": "已移除位置",
+    "locationKept": "包含位置",
+    "originalGone": "原始文件已不在此设备上。如需保留其详细信息，请重新附加。",
+    "settings": {
+      "keepByDefault": "默认保留照片详细信息",
+      "keepByDefaultDescription": "你附加的照片和视频默认开启“保留照片详细信息”，其位置、相机等信息会一起上传。关闭时，Harmony 会在上传前于你的设备上移除这些信息。头像、横幅、图标、表情和贴纸始终会移除这些信息。",
+      "saveFailed": "无法保存照片详细信息设置。"
+    },
+    "drive": {
+      "title": "照片和视频详细信息",
+      "intro": "这些照片和视频包含拍摄地点和相机等信息。除非你选择保留，否则 Harmony 会将其移除。",
+      "upload": "上传"
+    }
+  },
   "threadCreate": {
     "button": "新建话题",
     "nameLabel": "话题名称",
@@ -6741,7 +6865,15 @@
     "reportFiles": "附件",
     "removeFile": "移除文件",
     "removeAndBlock": "移除并屏蔽重新上传",
-    "removed": "已移除"
+    "removed": "已移除",
+    "searchLabel": "搜索账户",
+    "searchHint": "名称或 {'@'}用户名",
+    "loading": "正在加载账户",
+    "noMatch": "没有匹配的账户。",
+    "pages": "账户分页",
+    "previous": "上一页",
+    "next": "下一页",
+    "range": "{from}–{to}，共 {total}"
   },
   "share": {
     "title": "分享到 Harmony",
@@ -7474,5 +7606,128 @@
     "showInFolder": "在文件夹中显示",
     "downloadStarted": "正在下载 {name}",
     "downloadFailed": "下载失败：{reason}"
+  },
+  "stickers": {
+    "alt": "贴纸 {name}:{description}",
+    "goneLabel": "贴纸 {name},已不可用:{description}",
+    "removed": "贴纸已删除",
+    "unavailable": "贴纸不可用",
+    "preview": "贴纸:{name}",
+    "pickLabel": "发送贴纸 {name}:{description}",
+    "picker": {
+      "server": "此服务器",
+      "instance": "实例贴纸",
+      "mine": "我的贴纸"
+    },
+    "errors": {
+      "type": "贴纸是 PNG、APNG、WebP 或 GIF 图片。",
+      "size": "该贴纸为 {size};上限为 {max}。",
+      "dimensions": "该贴纸为 {width}×{height} 像素;上限为 {max}×{max}。动态贴纸不会缩小。",
+      "duration": "该动画时长 {seconds} 秒;上限为 {max} 秒。",
+      "dimensionsGeneric": "贴纸最大为 {max}×{max} 像素。",
+      "durationGeneric": "动态贴纸最长 {max} 秒。",
+      "nameLength": "贴纸名称为 {min} 到 {max} 个字符。",
+      "descriptionMissing": "请为无法看到图片的人描述这个贴纸。",
+      "descriptionLength": "描述最多 {max} 个字符。",
+      "limit": "已达到贴纸上限({max})。",
+      "off": "此实例已关闭这类贴纸。",
+      "nameTaken": "这里已有同名贴纸。",
+      "forbidden": "你无法管理这些贴纸。",
+      "notFound": "该贴纸已不存在。",
+      "generic": "无法保存贴纸。"
+    },
+    "manage": {
+      "navLabel": "贴纸",
+      "serverTitle": "贴纸",
+      "serverDescription": "成员可在此服务器的频道和话题中发送的贴纸。拥有\"管理表情\"权限的成员可以添加、编辑和删除它们。",
+      "instanceTitle": "实例贴纸",
+      "instanceDescription": "此实例的每个账号都可以在任意服务器或对话中发送的贴纸。",
+      "myTitle": "我的贴纸",
+      "myDescription": "只有你可以发送的贴纸,可用于任意服务器或对话。",
+      "upload": "添加贴纸",
+      "limits": "PNG、APNG、WebP 或 GIF,最大 {size}、{side}×{side} 像素;动画最长 {seconds} 秒。更大的静态图片会被缩小。",
+      "file": "图片",
+      "name": "名称",
+      "description": "描述",
+      "descriptionHint": "由屏幕阅读器朗读,并在图片无法加载时显示。必填。",
+      "uploading": "正在上传…",
+      "uploadButton": "上传贴纸",
+      "uploaded": "已添加贴纸\"{name}\"",
+      "saved": "已保存贴纸\"{name}\"",
+      "deleted": "已删除贴纸\"{name}\"",
+      "listTitle": "贴纸",
+      "empty": "还没有贴纸。",
+      "editLabel": "编辑贴纸 {name}",
+      "deleteLabel": "删除贴纸 {name}",
+      "deleteTitle": "删除贴纸",
+      "deleteConfirm": "删除\"{name}\"?发送过它的消息将改为显示占位符。",
+      "loading": "正在加载贴纸",
+      "loadFailed": "无法加载贴纸。",
+      "off": {
+        "server": "此实例已关闭服务器贴纸。",
+        "instance": "实例贴纸已关闭。请在 管理 → Config 中提高上限。",
+        "user": "此实例已关闭个人贴纸。管理员可以开启。"
+      }
+    },
+    "report": {
+      "menu": "举报贴纸",
+      "proof": "被举报的贴纸",
+      "remove": "删除贴纸",
+      "removeConfirm": "为所有人删除此贴纸?发送过它的消息将改为显示占位符。",
+      "removed": "贴纸已删除",
+      "scope": {
+        "server": "{server} 的贴纸",
+        "instance": "实例贴纸",
+        "user": "个人贴纸"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "“{name}”大小为 {size}，超过了你的上传上限 {limit}。",
+    "tooLargeFile": "此文件大小为 {size}，超过了你的上传上限 {limit}。",
+    "title": "上传",
+    "hint": "每个账号可在频道、话题、私信和帖子中附加或保存在云盘中的最大文件。头像、横幅、服务器图标、表情和音效有各自的上限。",
+    "tier": {
+      "user": "每个账号的最大文件",
+      "moderator": "每位实例版主的最大文件",
+      "admin": "每位实例管理员的最大文件"
+    },
+    "tierName": {
+      "user": "账号",
+      "moderator": "实例版主",
+      "admin": "实例管理员"
+    },
+    "aboveCeiling": "超过上限 {limit}",
+    "ceiling": "服务器运营者设定的上限",
+    "ceilingHint": "任何上传上限都不能高于此值。运营者在服务器上用 harmony config --upload-ceiling 提高它。",
+    "driveNote": "最大文件与云盘存储空间不同：会让账号超出其存储空间的上传将作为临时文件保留。",
+    "readOnly": "只有实例管理员可以更改上传上限。",
+    "save": "保存",
+    "saved": "已保存",
+    "loadFailed": "无法加载上传上限。",
+    "saveFailed": "无法保存上传上限。",
+    "user": {
+      "open": "{name} 的上传上限",
+      "title": "{name} 的上传上限",
+      "tier": "等级：{tier}，{limit}",
+      "effective": "当前最大文件：{limit}",
+      "choice": "上限",
+      "useTier": "使用等级上限",
+      "custom": "自定义上限",
+      "customLabel": "{name} 的上传上限（MB）",
+      "ceiling": "上限：{limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "角色",
+    "roleOption": "{name}，角色",
+    "memberOption": "{name}，成员，{handle}",
+    "rolePill": "{'@'}{name}，角色",
+    "roleCard": {
+      "label": "角色 {name}",
+      "members": "{count} 名成员",
+      "here": "在线且能看到该频道的成员",
+      "unknown": "不是此服务器的角色"
+    }
   }
 }

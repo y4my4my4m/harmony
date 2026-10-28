@@ -974,6 +974,7 @@
       "progress": "Wird hochgeladen, {percent} %",
       "failed": "Upload fehlgeschlagen",
       "failedToast": "{name} konnte nicht hochgeladen werden: {reason}",
+      "originalGone": "Die Originaldatei ist nicht mehr auf diesem Gerät. Hänge sie erneut an.",
       "removeFailed": "Entferne die Anhänge, deren Upload fehlgeschlagen ist, und sende erneut.",
       "sendWhenDone": "Wird gesendet, sobald die Uploads abgeschlossen sind.",
       "voiceFailed": "Die Sprachnachricht konnte nicht hochgeladen werden.",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
       "pillYou": "{emoji}, {count} Reaktion, auch von dir | {emoji}, {count} Reaktionen, auch von dir",
-      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt, wer reagiert hat.",
+      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt das Emoji und wer reagiert hat.",
       "removed": "Reaktion entfernt: {emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "Video",
       "audio": "Audio",
       "file": "Datei {name}",
-      "poll": "Umfrage: {question}"
+      "poll": "Umfrage: {question}",
+      "sticker": "Sticker {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "Letzte Suchen",
     "clearRecent": "Leeren",
-    "encryptedNote": "Verschlüsselte Nachrichten werden nur auf diesem Gerät durchsucht, unter den bereits geladenen Nachrichten.",
-    "onThisDevice": "Verschlüsselt, auf diesem Gerät",
+    "encryptedNote": "Verschlüsselte Nachrichten werden auf diesem Gerät durchsucht: Es liest ihren Verlauf mit deinen Schlüsseln und speichert hier einen geschützten Index.",
+    "encryptedSearching": "Verschlüsselte Nachrichten werden durchsucht…",
+    "encryptedSearchedBack": "Verschlüsselte Nachrichten werden durchsucht, bisher zurück bis {date}…",
+    "encryptedStopped": "Suche in verschlüsselten Nachrichten angehalten.",
+    "encryptedStoppedAt": "Verschlüsselte Nachrichten durchsucht bis zurück zum {date}.",
+    "encryptedDone": "Alle verschlüsselten Nachrichten, die du lesen kannst, wurden durchsucht.",
+    "encryptedError": "Ältere verschlüsselte Nachrichten konnten nicht geladen werden.",
+    "encryptedLocked": "Entsperre die Verschlüsselung, um verschlüsselte Nachrichten zu durchsuchen.",
+    "encryptedStop": "Anhalten",
+    "encryptedSearchOlder": "Ältere Nachrichten durchsuchen",
+    "encryptedUnreadable": "{count} Nachricht, die dieses Gerät nicht lesen kann | {count} Nachrichten, die dieses Gerät nicht lesen kann",
     "searching": "Suche läuft…",
     "results": "Keine Ergebnisse | {count} Ergebnis | {count} Ergebnisse",
     "resultsCapped": "Mehr als {count} Ergebnisse",
@@ -1183,6 +1194,7 @@
     "error": "Suche fehlgeschlagen",
     "empty": "Keine Ergebnisse",
     "emptyHint": "Versuche andere Begriffe oder weniger Filter.",
+    "similar": "Keine exakten Treffer. Ähnliche Ergebnisse werden angezeigt.",
     "unknownChannel": "unbekannter Kanal",
     "threadIn": "Thread in {channel}",
     "pages": "Ergebnisseiten",
@@ -2986,6 +2998,37 @@
     "custom": "Benutzerdefiniert",
     "noResults": "Kein Emoji gefunden"
   },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Herkunft wird gesucht…",
+    "default": "Ein Standard-Emoji. Überall verwendbar.",
+    "thisServer": "Von diesem Server.",
+    "yourServer": "Von {server}, einem deiner Server.",
+    "publicServer": "Von {server}, einem öffentlichen Server. Tritt bei, um dieses Emoji überall zu verwenden.",
+    "remoteServer": "Von {server} auf {domain}.",
+    "personalYours": "Dein persönliches Emoji. Überall verwendbar.",
+    "personalOf": "Ein persönliches Emoji von {name}.",
+    "personalUnknown": "Ein persönliches Emoji.",
+    "instance": "Ein Emoji dieser Instanz.",
+    "remote": "Von einer anderen Instanz: {domain}.",
+    "discord": "Ein Discord-Emoji, von Discord übertragen.",
+    "unavailable": "Von einem Server, der privat oder nicht mehr verfügbar ist.",
+    "members": "{count} Mitglied | {count} Mitglieder",
+    "publicLabel": "Öffentlicher Server",
+    "privateLabel": "Server nur auf Einladung",
+    "moreEmoji": "Weitere Emoji dieses Servers",
+    "joined": "Du bist {server} beigetreten",
+    "reactedBy": "Reaktion von {names}",
+    "reactedByOthers": "Reaktion von {names} und {count} weiteren Person | Reaktion von {names} und {count} weiteren Personen",
+    "reactionCount": "{count} Reaktion | {count} Reaktionen",
+    "nameSeparator": ", ",
+    "allReactions": "Alle Reaktionen",
+    "copy": "Kopieren",
+    "copied": "{text} kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "copyLink": "Bildlink kopieren",
+    "linkCopied": "Bildlink kopiert"
+  },
   "inbox": {
     "title": "Benachrichtigungen",
     "bellLabel": "Benachrichtigungen",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle} ist verfügbar",
     "usernameTaken": "Dieser Benutzername ist vergeben.",
     "usernameTooShort": "Verwende mindestens {min} Zeichen.",
+    "usernameReserved": "Dieser Benutzername ist reserviert. Wähle einen anderen.",
     "usernameCheckFailed": "Verfügbarkeit konnte nicht geprüft werden. Versuche es erneut.",
     "bio": "Über dich",
     "optional": "(optional)",
@@ -4375,7 +4419,8 @@
       "invite": "Einladungen",
       "emoji": "Emojis",
       "sound": "Sounds",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Sticker"
     },
     "actions": {
       "channel_create": "{actor} hat den Kanal {target} erstellt",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor} hat den Bot {target} entfernt",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor} hat den Server suspendiert",
-      "server_unsuspend": "{actor} hat die Suspendierung des Servers aufgehoben"
+      "server_unsuspend": "{actor} hat die Suspendierung des Servers aufgehoben",
+      "sticker_create": "{actor} hat den Sticker {target} hinzugefügt",
+      "sticker_update": "{actor} hat den Sticker {target} bearbeitet",
+      "sticker_delete": "{actor} hat den Sticker {target} entfernt"
     },
     "fields": {
       "name": "Name",
@@ -4686,6 +4734,7 @@
       "changeDescription": "Wenn du dein Passwort änderst, werden alle anderen Geräte abgemeldet.",
       "providerDescription": "Dein Konto meldet sich über {providers} an. Mit einem Passwort kannst du dich auch mit deiner E-Mail anmelden.",
       "externalProvider": "einen externen Anbieter",
+      "providerManaged": "Dein Konto meldet sich nur über {providers} an. Es hat kein Passwort, und es lässt sich keines festlegen.",
       "hint": "Mindestens 8 Zeichen. Eine Passphrase aus ein paar zusammenhanglosen Wörtern eignet sich gut.",
       "saving": "Wird gespeichert…",
       "setPassword": "Passwort festlegen",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "Diese Sitzung wurde abgemeldet. Melde dich erneut an.",
       "codeMismatch": "Dieser Code passt nicht. Verwende den neuesten Code aus deiner App und prüfe, ob die Uhr deines Geräts automatisch eingestellt wird.",
       "challengeExpired": "Die Überprüfung ist abgelaufen. Gib einen neuen Code ein.",
+      "providerManaged": "Dieses Konto meldet sich nur über seinen Anmeldeanbieter an. Passwort und E-Mail-Adresse lassen sich daher nicht ändern.",
       "rateLimited": "Zu viele Versuche. Warte einen Moment und versuche es erneut.",
       "mfaNotEnabled": "Die Zwei-Faktor-Authentifizierung ist nicht aktiviert."
     },
@@ -5089,7 +5139,13 @@
         "reason": "Grund (wird beim Konto gespeichert):"
       },
       "confirmAction": "{action}? Damit wird die Meldung erledigt.",
-      "actionDone": "{action}: erledigt"
+      "actionDone": "{action}: erledigt",
+      "ids": {
+        "title": "IDs",
+        "reporter": "Meldende Person",
+        "reported": "Gemeldete Person",
+        "server": "Server"
+      }
     },
     "federation": {
       "limited": "Eingeschränkt",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
       "customOAuthEmpty": "Noch keine.",
       "customOAuthCallback": "Weiterleitungs-URL (Callback), die beim Anbieter eingetragen wird:",
-      "customOAuthManage": "Auf dem Server, im Harmony-Ordner:"
+      "customOAuthManage": "Auf dem Server, im Harmony-Ordner:",
+      "maxStickersPerServer": "Sticker pro Server",
+      "maxStickersPerServerHint": "0 bis 100. 0 schaltet Server-Sticker aus.",
+      "maxInstanceStickers": "Instanz-Sticker",
+      "maxInstanceStickersHint": "0 bis 500. Jedes lokale Konto kann Instanz-Sticker senden. 0 schaltet sie aus.",
+      "maxPersonalStickers": "Persönliche Sticker pro Person",
+      "maxPersonalStickersHint": "0 bis 100. 0, der Standard, schaltet persönliche Sticker aus."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag",
-        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person"
+        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person",
+        "maxStickersPerServer": "Sticker pro Server",
+        "maxInstanceStickers": "Instanz-Sticker",
+        "maxPersonalStickersPerUser": "Persönliche Sticker pro Person"
       },
       "staff": {
         "someServer": "ein Server",
@@ -5275,11 +5340,32 @@
         "delete": "Das Emoji konnte nicht gelöscht werden.",
         "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
         "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits.",
-        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen."
+        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen.",
+        "notAdmin": "Nur Instanz-Admins können Instanz-Emojis hochladen.",
+        "duplicateFile": "Diese Datei ist bereits ein Instanz-Emoji."
       },
       "searchLabel": "Emoji durchsuchen",
       "searchHint": "Name oder Domain",
-      "searchHintUser": "Name oder Besitzer"
+      "searchHintUser": "Name oder Besitzer",
+      "browseTitle": "Alle Emojis dieser Instanz",
+      "loading": "Emojis werden geladen",
+      "library": {
+        "description": "Alle lokalen Nutzer finden diese Emojis in der Emoji-Auswahl unter dem Namen dieser Instanz.",
+        "listLabel": "Lokale Instanz-Emojis",
+        "empty": "Noch keine Instanz-Emojis",
+        "emptyHint": "Lade oben eines hoch. Alle lokalen Nutzer können es verwenden.",
+        "loading": "Instanz-Emojis werden geladen",
+        "retry": "Erneut versuchen"
+      }
+    },
+    "copyId": {
+      "user": "Nutzer-ID kopieren",
+      "server": "Server-ID kopieren",
+      "named": "{action}: {target}",
+      "userCopied": "Nutzer-ID kopiert",
+      "serverCopied": "Server-ID kopiert",
+      "userFailed": "Nutzer-ID konnte nicht kopiert werden",
+      "serverFailed": "Server-ID konnte nicht kopiert werden"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "Auf {site} abspielen",
     "playInX": "Im Player von X abspielen"
   },
+  "outsideLink": {
+    "title": "Harmony verlassen",
+    "lead": "Dieser Link führt zu einer Seite außerhalb von Harmony. Prüfe die Adresse, bevor du ihn öffnest.",
+    "maskedLead": "Der Text dieses Links kann verbergen, wohin er wirklich führt. Prüfe die Adresse, bevor du ihn öffnest.",
+    "trust": "{host} ab jetzt vertrauen",
+    "copy": "Link kopieren",
+    "open": "Link öffnen",
+    "copied": "Link kopiert",
+    "copyFailed": "Der Link konnte nicht kopiert werden",
+    "trustFailed": "{host} konnte nicht als vertrauenswürdig gespeichert werden",
+    "settings": {
+      "title": "Externe Links",
+      "askEvery": "Vor dem Öffnen jedes externen Links fragen",
+      "askEveryDescription": "Zeigt die Abfrage „Harmony verlassen“ für jeden Link zu einer anderen Seite. Maskierte Links, deren Text von ihrer Adresse abweichen kann, fragen immer.",
+      "trusted": "Vertrauenswürdige Seiten",
+      "trustedDescription": "Links zu diesen Seiten öffnen sich ohne Nachfrage.",
+      "trustedEmpty": "Keine vertrauenswürdigen Seiten. Setze in der Abfrage „Harmony verlassen“ den Haken bei „vertrauen“, um eine hinzuzufügen.",
+      "remove": "Entfernen",
+      "removeLabel": "{host} aus den vertrauenswürdigen Seiten entfernen",
+      "saveFailed": "Die Änderung konnte nicht gespeichert werden"
+    }
+  },
+  "photoDetails": {
+    "keep": "Fotodetails behalten (Standort, Kamera)",
+    "locationRemoved": "Standort entfernt",
+    "locationKept": "Enthält Standort",
+    "originalGone": "Das Original ist nicht mehr auf diesem Gerät. Hänge es erneut an, um seine Details zu behalten.",
+    "settings": {
+      "keepByDefault": "Fotodetails standardmäßig behalten",
+      "keepByDefaultDescription": "Angehängte Fotos und Videos beginnen mit eingeschaltetem „Fotodetails behalten“: Standort, Kamera und weitere Angaben werden mit hochgeladen. Aus: Harmony entfernt diese Angaben vor dem Hochladen auf deinem Gerät. Profilbilder, Banner, Symbole, Emojis und Sticker behalten sie nie.",
+      "saveFailed": "Die Einstellung für Fotodetails konnte nicht gespeichert werden."
+    },
+    "drive": {
+      "title": "Foto- und Videodetails",
+      "intro": "Diese Fotos und Videos enthalten Angaben wie den Aufnahmeort und die Kamera. Harmony entfernt sie, außer du behältst sie.",
+      "upload": "Hochladen"
+    }
+  },
   "threadCreate": {
     "button": "Neuer Thread",
     "nameLabel": "Thread-Name",
@@ -6741,7 +6865,15 @@
     "reportFiles": "Angehängte Dateien",
     "removeFile": "Datei entfernen",
     "removeAndBlock": "Entfernen und erneutes Hochladen blockieren",
-    "removed": "Entfernt"
+    "removed": "Entfernt",
+    "searchLabel": "Konten durchsuchen",
+    "searchHint": "Name oder {'@'}Handle",
+    "loading": "Konten werden geladen",
+    "noMatch": "Kein Konto passt.",
+    "pages": "Kontoseiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "range": "{from}–{to} von {total}"
   },
   "share": {
     "title": "In Harmony teilen",
@@ -7474,5 +7606,128 @@
     "showInFolder": "Im Ordner anzeigen",
     "downloadStarted": "{name} wird heruntergeladen",
     "downloadFailed": "Download fehlgeschlagen: {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name}: {description}",
+    "goneLabel": "Sticker {name}, nicht mehr verfügbar: {description}",
+    "removed": "Sticker entfernt",
+    "unavailable": "Sticker nicht verfügbar",
+    "preview": "Sticker: {name}",
+    "pickLabel": "Sticker {name} senden: {description}",
+    "picker": {
+      "server": "Dieser Server",
+      "instance": "Instanz-Sticker",
+      "mine": "Meine Sticker"
+    },
+    "errors": {
+      "type": "Ein Sticker ist ein PNG-, APNG-, WebP- oder GIF-Bild.",
+      "size": "Dieser Sticker ist {size} groß; das Limit ist {max}.",
+      "dimensions": "Dieser Sticker hat {width}×{height} Pixel; das Limit ist {max}×{max}. Animierte Sticker werden nicht verkleinert.",
+      "duration": "Diese Animation läuft {seconds} s; das Limit ist {max} s.",
+      "dimensionsGeneric": "Ein Sticker hat höchstens {max}×{max} Pixel.",
+      "durationGeneric": "Ein animierter Sticker läuft höchstens {max} Sekunden.",
+      "nameLength": "Ein Stickername hat {min} bis {max} Zeichen.",
+      "descriptionMissing": "Beschreibe den Sticker für Menschen, die ihn nicht sehen können.",
+      "descriptionLength": "Eine Beschreibung hat höchstens {max} Zeichen.",
+      "limit": "Sticker-Limit erreicht ({max}).",
+      "off": "Diese Sticker sind auf dieser Instanz ausgeschaltet.",
+      "nameTaken": "Ein Sticker hier hat diesen Namen bereits.",
+      "forbidden": "Du kannst diese Sticker nicht verwalten.",
+      "notFound": "Diesen Sticker gibt es nicht mehr.",
+      "generic": "Der Sticker konnte nicht gespeichert werden."
+    },
+    "manage": {
+      "navLabel": "Sticker",
+      "serverTitle": "Sticker",
+      "serverDescription": "Sticker, die Mitglieder in den Kanälen und Threads dieses Servers senden können. Mitglieder mit „Ausdrücke verwalten“ fügen sie hinzu, bearbeiten und entfernen sie.",
+      "instanceTitle": "Instanz-Sticker",
+      "instanceDescription": "Sticker, die jedes Konto dieser Instanz in jedem Server und jeder Unterhaltung senden kann.",
+      "myTitle": "Meine Sticker",
+      "myDescription": "Sticker, die nur du senden kannst, in jedem Server und jeder Unterhaltung.",
+      "upload": "Sticker hinzufügen",
+      "limits": "PNG, APNG, WebP oder GIF, bis {size} und {side}×{side} Pixel; Animationen bis {seconds} Sekunden. Größere Standbilder werden verkleinert.",
+      "file": "Bild",
+      "name": "Name",
+      "description": "Beschreibung",
+      "descriptionHint": "Wird von Screenreadern vorgelesen und angezeigt, wenn das Bild nicht lädt. Pflichtfeld.",
+      "uploading": "Wird hochgeladen…",
+      "uploadButton": "Sticker hochladen",
+      "uploaded": "Sticker „{name}“ hinzugefügt",
+      "saved": "Sticker „{name}“ gespeichert",
+      "deleted": "Sticker „{name}“ entfernt",
+      "listTitle": "Sticker",
+      "empty": "Noch keine Sticker.",
+      "editLabel": "Sticker {name} bearbeiten",
+      "deleteLabel": "Sticker {name} löschen",
+      "deleteTitle": "Sticker entfernen",
+      "deleteConfirm": "„{name}“ entfernen? Nachrichten, die ihn gesendet haben, zeigen stattdessen einen Platzhalter.",
+      "loading": "Sticker werden geladen",
+      "loadFailed": "Sticker konnten nicht geladen werden.",
+      "off": {
+        "server": "Server-Sticker sind auf dieser Instanz ausgeschaltet.",
+        "instance": "Instanz-Sticker sind ausgeschaltet. Erhöhe das Limit unter Admin → Config.",
+        "user": "Persönliche Sticker sind auf dieser Instanz ausgeschaltet. Ein Admin kann sie erlauben."
+      }
+    },
+    "report": {
+      "menu": "Sticker melden",
+      "proof": "Gemeldeter Sticker",
+      "remove": "Sticker entfernen",
+      "removeConfirm": "Diesen Sticker für alle entfernen? Nachrichten, die ihn gesendet haben, zeigen stattdessen einen Platzhalter.",
+      "removed": "Sticker entfernt",
+      "scope": {
+        "server": "Sticker von {server}",
+        "instance": "Instanz-Sticker",
+        "user": "Persönlicher Sticker"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "„{name}“ ist {size} groß und überschreitet dein Upload-Limit von {limit}.",
+    "tooLargeFile": "Diese Datei ist {size} groß und überschreitet dein Upload-Limit von {limit}.",
+    "title": "Uploads",
+    "hint": "Die größte Datei, die ein Konto in Kanälen, Threads, Direktnachrichten und Beiträgen anhängen oder in Drive ablegen darf. Profilbilder, Banner, Server-Icons, Emoji und Sounds haben eigene Limits.",
+    "tier": {
+      "user": "Größte Datei pro Konto",
+      "moderator": "Größte Datei pro Instanz-Moderator",
+      "admin": "Größte Datei pro Instanz-Admin"
+    },
+    "tierName": {
+      "user": "Konto",
+      "moderator": "Instanz-Moderator",
+      "admin": "Instanz-Admin"
+    },
+    "aboveCeiling": "Über der Obergrenze von {limit}",
+    "ceiling": "Obergrenze des Server-Betreibers",
+    "ceilingHint": "Kein Upload-Limit kann höher sein. Der Betreiber hebt sie auf dem Server mit harmony config --upload-ceiling an.",
+    "driveNote": "Die größte Datei ist nicht der Drive-Speicher: Ein Upload, der ein Konto über seinen Speicher bringen würde, wird als temporäre Datei behalten.",
+    "readOnly": "Nur Instanz-Admins ändern Upload-Limits.",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "loadFailed": "Die Upload-Limits konnten nicht geladen werden.",
+    "saveFailed": "Die Upload-Limits konnten nicht gespeichert werden.",
+    "user": {
+      "open": "Upload-Limit von {name}",
+      "title": "Upload-Limit von {name}",
+      "tier": "Stufe: {tier}, {limit}",
+      "effective": "Größte Datei derzeit: {limit}",
+      "choice": "Limit",
+      "useTier": "Limit der Stufe verwenden",
+      "custom": "Eigenes Limit",
+      "customLabel": "Upload-Limit von {name}, MB",
+      "ceiling": "Obergrenze: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Rolle",
+    "roleOption": "{name}, Rolle",
+    "memberOption": "{name}, Mitglied, {handle}",
+    "rolePill": "{'@'}{name}, Rolle",
+    "roleCard": {
+      "label": "Rolle {name}",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "here": "Mitglieder, die online sind und den Kanal sehen",
+      "unknown": "Keine Rolle dieses Servers"
+    }
   }
 }

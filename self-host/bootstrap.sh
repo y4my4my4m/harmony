@@ -48,6 +48,14 @@ val() {
 			print v; exit
 		}' "$1"
 }
+# Origin of public object URLs: the web app's SUPABASE_URL, https://${DB_DOMAIN:-db.$DOMAIN}
+# (docker-compose.yml), host lower-cased. Empty without a usable host.
+storage_origin_for() {
+	local host="${1:-}"
+	if [[ -z "$host" && -n "${2:-}" ]]; then host="db.$2"; fi
+	host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+	if [[ "$host" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?$ ]]; then printf 'https://%s\n' "$host"; fi
+}
 PG_PW="$(val "$SCRIPT_DIR/supabase/.env" POSTGRES_PASSWORD)"
 LISTENER_PW="$(val "$SCRIPT_DIR/federation.env" __LISTENER_PW)"
 DOMAIN="$(val "$SCRIPT_DIR/.env" DOMAIN)"
@@ -223,6 +231,43 @@ done
 docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 [[ $failed -eq 0 ]] || die "migration failed - database is at the last migration that succeeded"
 if [[ $pending -eq 0 ]]; then ok "Migrations up to date"; else ok "Applied $pending migration(s)"; fi
+
+# --- upload ceiling ------------------------------------------------------------
+# instance_config.upload_ceiling_bytes follows FILE_SIZE_LIMIT in supabase/.env,
+# the largest object storage accepts (supabase-overrides.yml).
+ceiling="$(val "$SCRIPT_DIR/supabase/.env" FILE_SIZE_LIMIT)"
+ceiling="${ceiling:-52428800}"
+if [[ ! "$ceiling" =~ ^[0-9]{1,15}$ ]]; then
+	info "FILE_SIZE_LIMIT in supabase/.env is not a number of bytes; upload ceiling left as it is"
+elif psql_exec -q -v bytes="$ceiling" >/dev/null 2>&1 <<'SQL'
+INSERT INTO public.instance_config (config_key, config_value, description)
+VALUES ('upload_ceiling_bytes', to_jsonb(:'bytes'::bigint), 'storage-api FILE_SIZE_LIMIT, bytes; set by the instance operator')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now()
+ WHERE instance_config.config_value IS DISTINCT FROM EXCLUDED.config_value;
+SQL
+then
+	ok "Upload ceiling: $ceiling bytes"
+else
+	info "Upload ceiling not written to public.instance_config; harmony config --upload-ceiling $ceiling writes it"
+fi
+
+# --- storage origin ------------------------------------------------------------
+# instance_config.storage_origin follows the origin clients build public object URLs from;
+# create_sticker, create_my_emoji and create_instance_emoji refuse a URL under any other.
+storage_origin="$(storage_origin_for "$(val "$SCRIPT_DIR/.env" DB_DOMAIN)" "$DOMAIN")"
+if [[ -z "$storage_origin" ]]; then
+	info "No usable DB_DOMAIN or DOMAIN in .env; storage origin left as it is"
+elif psql_exec -q -v origin="$storage_origin" >/dev/null 2>&1 <<'SQL'
+INSERT INTO public.instance_config (config_key, config_value, description)
+VALUES ('storage_origin', to_jsonb(:'origin'::text), 'Public origin of storage, as clients build object URLs (https://db.example.com). Sticker and emoji upload URLs must start with it; empty accepts any http(s) origin.')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now()
+ WHERE instance_config.config_value IS DISTINCT FROM EXCLUDED.config_value;
+SQL
+then
+	ok "Storage origin: $storage_origin"
+else
+	info "Storage origin not written to public.instance_config; bash bootstrap.sh --migrations-only writes it"
+fi
 
 if ! $MIGRATIONS_ONLY; then
 	# --- least-privilege listener role -----------------------------------------

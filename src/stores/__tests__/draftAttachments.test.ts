@@ -245,4 +245,36 @@ describe('storage for a reload', () => {
 
     expect(stored()[A][0].savedAt).toBe(savedAt)
   })
+
+  it('keeps what a photo carried, the keep choice and its Drive source across a reload', async () => {
+    openDraftAttachments(A)
+    addDraftAttachments(A, [
+      completed('IMG.jpg', 'c/a/u/IMG.jpg', { photoDetails: { container: 'jpeg', location: true, details: true }, keepDetails: false }),
+      completed('beach.jpg', 'u/u/beach.jpg', {
+        fromDrive: true, driveSource: 'u/u/beach.jpg', photoDetails: { container: null, location: true, details: true }, keepDetails: true,
+      }),
+      completed('plain.png', 'c/a/u/plain.png'),
+    ])
+    await flushPromises()
+    vi.advanceTimersByTime(600)
+    expect(stored()[A].map((e: Record<string, unknown>) => [e.photo, e.keepDetails, e.driveSource])).toEqual([
+      [{ location: true, details: true }, false, undefined],
+      [{ location: true, details: true }, true, 'u/u/beach.jpg'],
+      [undefined, undefined, undefined],
+    ])
+
+    resetDraftAttachments()
+    userStorage.setItem(STORED, JSON.stringify({
+      ...stored(),
+      [B]: [{ name: 'odd.jpg', type: 'image/jpeg', size: 1, path: 'c/b/u/odd.jpg', savedAt: Date.now(), photo: { location: 'yes' }, keepDetails: 'no' }],
+    }))
+    openDraftAttachments(A)
+    expect(draftAttachments(A).map((f) => [f.photoDetails, f.keepDetails, f.driveSource])).toEqual([
+      [{ container: null, location: true, details: true }, false, undefined],
+      [{ container: null, location: true, details: true }, true, 'u/u/beach.jpg'],
+      [undefined, undefined, undefined],
+    ])
+    expect(draftAttachments(B)[0]).not.toHaveProperty('photoDetails')
+    expect(draftAttachments(B)[0]).not.toHaveProperty('keepDetails')
+  })
 })

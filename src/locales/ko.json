@@ -974,6 +974,7 @@
       "progress": "업로드 중 {percent}%",
       "failed": "업로드 실패",
       "failedToast": "{name}을(를) 업로드하지 못했습니다: {reason}",
+      "originalGone": "원본 파일이 더 이상 이 기기에 없습니다. 다시 첨부하세요.",
       "removeFailed": "업로드에 실패한 첨부 파일을 제거한 후 다시 보내세요.",
       "sendWhenDone": "업로드가 끝나면 전송합니다.",
       "voiceFailed": "음성 메시지를 업로드하지 못했습니다.",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}, 반응 {count}개",
       "pillYou": "{emoji}, 나를 포함한 반응 {count}개",
-      "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 반응한 사람을 볼 수 있습니다.",
+      "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 이모지와 반응한 사람을 볼 수 있습니다.",
       "removed": "반응을 취소했습니다: {emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "동영상",
       "audio": "오디오",
       "file": "파일 {name}",
-      "poll": "투표: {question}"
+      "poll": "투표: {question}",
+      "sticker": "스티커 {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "최근 검색",
     "clearRecent": "지우기",
-    "encryptedNote": "암호화된 메시지는 이 기기에서 이미 불러온 메시지 중에서만 검색됩니다.",
-    "onThisDevice": "암호화됨, 이 기기에서",
+    "encryptedNote": "암호화된 메시지는 이 기기에서 검색됩니다. 내 키로 기록을 읽고 보호된 색인을 이 기기에 보관합니다.",
+    "encryptedSearching": "암호화된 메시지 검색 중…",
+    "encryptedSearchedBack": "암호화된 메시지 검색 중… ({date}까지 검색함)",
+    "encryptedStopped": "암호화된 메시지 검색을 중지했습니다.",
+    "encryptedStoppedAt": "암호화된 메시지를 {date}까지 검색했습니다.",
+    "encryptedDone": "읽을 수 있는 암호화된 메시지를 모두 검색했습니다.",
+    "encryptedError": "이전 암호화된 메시지를 불러오지 못했습니다.",
+    "encryptedLocked": "암호화된 메시지를 검색하려면 암호화 잠금을 해제하세요.",
+    "encryptedStop": "중지",
+    "encryptedSearchOlder": "이전 메시지 검색",
+    "encryptedUnreadable": "이 기기에서 읽을 수 없는 메시지 {count}개 | 이 기기에서 읽을 수 없는 메시지 {count}개",
     "searching": "검색 중…",
     "results": "결과 없음 | 결과 {count}개 | 결과 {count}개",
     "resultsCapped": "결과 {count}개 이상",
@@ -1183,6 +1194,7 @@
     "error": "검색에 실패했습니다",
     "empty": "결과 없음",
     "emptyHint": "다른 단어를 쓰거나 필터를 줄여 보세요.",
+    "similar": "정확히 일치하는 결과가 없습니다. 비슷한 결과를 표시합니다.",
     "unknownChannel": "알 수 없는 채널",
     "threadIn": "{channel}의 스레드",
     "pages": "결과 페이지",
@@ -2986,6 +2998,37 @@
     "custom": "사용자 지정",
     "noResults": "이모지를 찾을 수 없습니다"
   },
+  "emojiInfo": {
+    "dialog": "이모지",
+    "loading": "출처를 찾는 중…",
+    "default": "기본 이모지입니다. 어디서나 쓸 수 있습니다.",
+    "thisServer": "이 서버의 이모지입니다.",
+    "yourServer": "참가 중인 서버 {server}의 이모지입니다.",
+    "publicServer": "공개 서버 {server}의 이모지입니다. 참가하면 어디서나 쓸 수 있습니다.",
+    "remoteServer": "{domain}의 서버 {server}의 이모지입니다.",
+    "personalYours": "내 개인 이모지입니다. 어디서나 쓸 수 있습니다.",
+    "personalOf": "{name}님의 개인 이모지입니다.",
+    "personalUnknown": "개인 이모지입니다.",
+    "instance": "이 인스턴스의 이모지입니다.",
+    "remote": "다른 인스턴스의 이모지입니다: {domain}",
+    "discord": "Discord에서 연동된 Discord 이모지입니다.",
+    "unavailable": "비공개이거나 더 이상 이용할 수 없는 서버의 이모지입니다.",
+    "members": "멤버 {count}명",
+    "publicLabel": "공개 서버",
+    "privateLabel": "초대 전용 서버",
+    "moreEmoji": "이 서버의 다른 이모지",
+    "joined": "{server}에 참가했습니다",
+    "reactedBy": "{names}님이 반응했습니다",
+    "reactedByOthers": "{names}님 외 {count}명이 반응했습니다",
+    "reactionCount": "반응 {count}개",
+    "nameSeparator": ", ",
+    "allReactions": "모든 반응",
+    "copy": "복사",
+    "copied": "{text} 복사됨",
+    "copyFailed": "복사하지 못했습니다",
+    "copyLink": "이미지 링크 복사",
+    "linkCopied": "이미지 링크를 복사했습니다"
+  },
   "inbox": {
     "title": "알림",
     "bellLabel": "알림",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle}은(는) 사용할 수 있습니다",
     "usernameTaken": "이미 사용 중인 사용자 이름입니다.",
     "usernameTooShort": "{min}자 이상 입력하세요.",
+    "usernameReserved": "예약된 사용자 이름입니다. 다른 이름을 선택하세요.",
     "usernameCheckFailed": "사용 가능 여부를 확인하지 못했습니다. 다시 시도하세요.",
     "bio": "자기소개",
     "optional": "(선택사항)",
@@ -4375,7 +4419,8 @@
       "invite": "초대",
       "emoji": "이모지",
       "sound": "사운드",
-      "bot": "봇"
+      "bot": "봇",
+      "sticker": "스티커"
     },
     "actions": {
       "channel_create": "{actor}님이 채널 {target}을(를) 만들었습니다",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor}님이 봇 {target}을(를) 제거했습니다",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor}님이 서버를 정지했습니다",
-      "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다"
+      "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다",
+      "sticker_create": "{actor} 님이 스티커 {target}을(를) 추가했습니다",
+      "sticker_update": "{actor} 님이 스티커 {target}을(를) 편집했습니다",
+      "sticker_delete": "{actor} 님이 스티커 {target}을(를) 삭제했습니다"
     },
     "fields": {
       "name": "이름",
@@ -4686,6 +4734,7 @@
       "changeDescription": "비밀번호를 변경하면 다른 모든 기기에서 로그아웃됩니다.",
       "providerDescription": "내 계정은 {providers}을(를) 통해 로그인합니다. 비밀번호를 설정하면 이메일로도 로그인할 수 있습니다.",
       "externalProvider": "외부 제공자",
+      "providerManaged": "내 계정은 {providers}을(를) 통해서만 로그인합니다. 비밀번호가 없으며 설정할 수도 없습니다.",
       "hint": "8자 이상. 서로 관련 없는 몇 개의 단어로 된 암호 문구가 좋습니다.",
       "saving": "저장 중…",
       "setPassword": "비밀번호 설정",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "이 세션은 로그아웃되었습니다. 다시 로그인하세요.",
       "codeMismatch": "코드가 일치하지 않습니다. 앱의 최신 코드를 사용하고 기기 시계가 자동으로 설정되어 있는지 확인하세요.",
       "challengeExpired": "인증이 만료되었습니다. 새 코드를 입력하세요.",
+      "providerManaged": "이 계정은 로그인 제공자를 통해서만 로그인하므로 비밀번호와 이메일 주소를 변경할 수 없습니다.",
       "rateLimited": "시도가 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
       "mfaNotEnabled": "2단계 인증이 활성화되어 있지 않습니다."
     },
@@ -5089,7 +5139,13 @@
         "reason": "사유(계정 기록에 보관됨):"
       },
       "confirmAction": "{action}을(를) 실행할까요? 신고가 해결 처리됩니다.",
-      "actionDone": "{action}: 완료"
+      "actionDone": "{action}: 완료",
+      "ids": {
+        "title": "ID",
+        "reporter": "신고자",
+        "reported": "신고된 사용자",
+        "server": "서버"
+      }
     },
     "federation": {
       "limited": "제한됨",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "이 인스턴스가 신뢰하는 OpenID Connect 또는 OAuth 2.0 제공자(Authentik, Keycloak, Better Auth 등)입니다. 로그인 페이지에서 위 버튼들 다음에 표시됩니다. 클라이언트 시크릿은 서버에 남으므로 추가와 삭제는 서버에서 합니다.",
       "customOAuthEmpty": "아직 없습니다.",
       "customOAuthCallback": "제공자에 등록할 리디렉션(콜백) URL:",
-      "customOAuthManage": "서버의 Harmony 폴더에서:"
+      "customOAuthManage": "서버의 Harmony 폴더에서:",
+      "maxStickersPerServer": "서버당 스티커 수",
+      "maxStickersPerServerHint": "0~100. 0이면 서버 스티커가 꺼집니다.",
+      "maxInstanceStickers": "인스턴스 스티커 수",
+      "maxInstanceStickersHint": "0~500. 모든 로컬 계정이 인스턴스 스티커를 보낼 수 있습니다. 0이면 꺼집니다.",
+      "maxPersonalStickers": "사용자당 개인 스티커 수",
+      "maxPersonalStickersHint": "0~100. 기본값 0이면 개인 스티커가 꺼집니다."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수",
-        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수"
+        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수",
+        "maxStickersPerServer": "서버당 스티커 수",
+        "maxInstanceStickers": "인스턴스 스티커 수",
+        "maxPersonalStickersPerUser": "사용자당 개인 스티커 수"
       },
       "staff": {
         "someServer": "어떤 서버",
@@ -5275,11 +5340,32 @@
         "delete": "이모지를 삭제하지 못했습니다.",
         "invalidName": "이름은 영문자, 숫자, _ 또는 - 로 2~64자입니다.",
         "nameTaken": "다른 인스턴스 이모지가 이미 그 이름을 사용합니다.",
-        "nameTakenUser": "소유자에게 같은 이름의 이모지가 이미 있습니다."
+        "nameTakenUser": "소유자에게 같은 이름의 이모지가 이미 있습니다.",
+        "notAdmin": "인스턴스 관리자만 인스턴스 이모지를 업로드할 수 있습니다.",
+        "duplicateFile": "그 파일은 이미 인스턴스 이모지입니다."
       },
       "searchLabel": "이모지 검색",
       "searchHint": "이름 또는 도메인",
-      "searchHintUser": "이름 또는 소유자"
+      "searchHintUser": "이름 또는 소유자",
+      "browseTitle": "이 인스턴스의 모든 이모지",
+      "loading": "이모지를 불러오는 중",
+      "library": {
+        "description": "모든 로컬 사용자가 이모지 선택기에서 이 인스턴스 이름 아래에서 찾을 수 있습니다.",
+        "listLabel": "로컬 인스턴스 이모지",
+        "empty": "아직 인스턴스 이모지가 없습니다",
+        "emptyHint": "위에서 업로드하세요. 모든 로컬 사용자가 사용할 수 있습니다.",
+        "loading": "인스턴스 이모지를 불러오는 중",
+        "retry": "다시 시도"
+      }
+    },
+    "copyId": {
+      "user": "사용자 ID 복사",
+      "server": "서버 ID 복사",
+      "named": "{action}: {target}",
+      "userCopied": "사용자 ID를 복사했습니다",
+      "serverCopied": "서버 ID를 복사했습니다",
+      "userFailed": "사용자 ID를 복사하지 못했습니다",
+      "serverFailed": "서버 ID를 복사하지 못했습니다"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "{site}에서 재생",
     "playInX": "X 플레이어에서 재생"
   },
+  "outsideLink": {
+    "title": "Harmony를 떠납니다",
+    "lead": "이 링크는 Harmony 외부 사이트로 이동합니다. 열기 전에 주소를 확인하세요.",
+    "maskedLead": "이 링크의 텍스트는 실제로 이동하는 곳과 다를 수 있습니다. 열기 전에 주소를 확인하세요.",
+    "trust": "앞으로 {host} 신뢰하기",
+    "copy": "링크 복사",
+    "open": "링크 열기",
+    "copied": "링크를 복사했습니다",
+    "copyFailed": "링크를 복사하지 못했습니다",
+    "trustFailed": "{host}을(를) 신뢰하는 사이트로 저장하지 못했습니다",
+    "settings": {
+      "title": "외부 링크",
+      "askEvery": "외부 링크를 열기 전에 항상 묻기",
+      "askEveryDescription": "다른 사이트로 가는 모든 링크에 'Harmony를 떠납니다' 확인을 표시합니다. 텍스트가 주소와 다를 수 있는 마스크 링크는 항상 묻습니다.",
+      "trusted": "신뢰하는 사이트",
+      "trustedDescription": "이 사이트로 가는 링크는 묻지 않고 열립니다.",
+      "trustedEmpty": "신뢰하는 사이트가 없습니다. 'Harmony를 떠납니다' 확인에서 '신뢰하기'를 선택하면 추가됩니다.",
+      "remove": "제거",
+      "removeLabel": "신뢰하는 사이트에서 {host} 제거",
+      "saveFailed": "변경 사항을 저장하지 못했습니다"
+    }
+  },
+  "photoDetails": {
+    "keep": "사진 세부 정보 유지 (위치, 카메라)",
+    "locationRemoved": "위치 제거됨",
+    "locationKept": "위치 포함",
+    "originalGone": "원본이 더 이상 이 기기에 없습니다. 세부 정보를 유지하려면 다시 첨부하세요.",
+    "settings": {
+      "keepByDefault": "기본적으로 사진 세부 정보 유지",
+      "keepByDefaultDescription": "첨부하는 사진과 동영상은 '사진 세부 정보 유지'가 켜진 상태로 시작되며, 위치와 카메라 등의 정보가 함께 업로드됩니다. 끄면 Harmony가 업로드 전에 기기에서 이 정보를 제거합니다. 프로필 사진, 배너, 아이콘, 이모지, 스티커에는 항상 남기지 않습니다.",
+      "saveFailed": "사진 세부 정보 설정을 저장하지 못했습니다."
+    },
+    "drive": {
+      "title": "사진 및 동영상 세부 정보",
+      "intro": "이 사진과 동영상에는 촬영 위치와 카메라 같은 정보가 들어 있습니다. 유지를 선택하지 않으면 Harmony가 제거합니다.",
+      "upload": "업로드"
+    }
+  },
   "threadCreate": {
     "button": "새 스레드",
     "nameLabel": "스레드 이름",
@@ -6741,7 +6865,15 @@
     "reportFiles": "첨부 파일",
     "removeFile": "파일 삭제",
     "removeAndBlock": "삭제하고 재업로드 차단",
-    "removed": "삭제됨"
+    "removed": "삭제됨",
+    "searchLabel": "계정 검색",
+    "searchHint": "이름 또는 {'@'}핸들",
+    "loading": "계정을 불러오는 중",
+    "noMatch": "일치하는 계정이 없습니다.",
+    "pages": "계정 페이지",
+    "previous": "이전",
+    "next": "다음",
+    "range": "{from}–{to} / {total}"
   },
   "share": {
     "title": "Harmony로 공유",
@@ -7474,5 +7606,128 @@
     "showInFolder": "폴더에서 보기",
     "downloadStarted": "{name} 다운로드 중",
     "downloadFailed": "다운로드 실패: {reason}"
+  },
+  "stickers": {
+    "alt": "스티커 {name}: {description}",
+    "goneLabel": "스티커 {name}, 더 이상 사용할 수 없음: {description}",
+    "removed": "삭제된 스티커",
+    "unavailable": "스티커를 표시할 수 없음",
+    "preview": "스티커: {name}",
+    "pickLabel": "스티커 {name} 보내기: {description}",
+    "picker": {
+      "server": "이 서버",
+      "instance": "인스턴스 스티커",
+      "mine": "내 스티커"
+    },
+    "errors": {
+      "type": "스티커는 PNG, APNG, WebP 또는 GIF 이미지입니다.",
+      "size": "이 스티커는 {size}입니다. 한도는 {max}입니다.",
+      "dimensions": "이 스티커는 {width}×{height}픽셀입니다. 한도는 {max}×{max}입니다. 움직이는 스티커는 크기를 줄이지 않습니다.",
+      "duration": "이 애니메이션은 {seconds}초입니다. 한도는 {max}초입니다.",
+      "dimensionsGeneric": "스티커는 최대 {max}×{max}픽셀입니다.",
+      "durationGeneric": "움직이는 스티커는 최대 {max}초입니다.",
+      "nameLength": "스티커 이름은 {min}~{max}자입니다.",
+      "descriptionMissing": "볼 수 없는 사람을 위해 스티커를 설명해 주세요.",
+      "descriptionLength": "설명은 최대 {max}자입니다.",
+      "limit": "스티커 한도에 도달했습니다 ({max}).",
+      "off": "이 인스턴스에서는 이 스티커가 꺼져 있습니다.",
+      "nameTaken": "같은 이름의 스티커가 이미 있습니다.",
+      "forbidden": "이 스티커를 관리할 수 없습니다.",
+      "notFound": "해당 스티커가 더 이상 없습니다.",
+      "generic": "스티커를 저장하지 못했습니다."
+    },
+    "manage": {
+      "navLabel": "스티커",
+      "serverTitle": "스티커",
+      "serverDescription": "멤버가 이 서버의 채널과 스레드에서 보낼 수 있는 스티커입니다. 표현 관리 권한이 있는 멤버가 추가, 편집, 삭제합니다.",
+      "instanceTitle": "인스턴스 스티커",
+      "instanceDescription": "이 인스턴스의 모든 계정이 어느 서버나 대화에서든 보낼 수 있는 스티커입니다.",
+      "myTitle": "내 스티커",
+      "myDescription": "나만 보낼 수 있는 스티커로, 어느 서버나 대화에서든 쓸 수 있습니다.",
+      "upload": "스티커 추가",
+      "limits": "PNG, APNG, WebP 또는 GIF, 최대 {size}, {side}×{side}픽셀. 애니메이션은 최대 {seconds}초. 더 큰 정지 이미지는 크기를 줄입니다.",
+      "file": "이미지",
+      "name": "이름",
+      "description": "설명",
+      "descriptionHint": "스크린 리더가 읽어 주고 이미지를 불러오지 못할 때 표시됩니다. 필수입니다.",
+      "uploading": "업로드 중…",
+      "uploadButton": "스티커 업로드",
+      "uploaded": "스티커 \"{name}\"을(를) 추가했습니다",
+      "saved": "스티커 \"{name}\"을(를) 저장했습니다",
+      "deleted": "스티커 \"{name}\"을(를) 삭제했습니다",
+      "listTitle": "스티커",
+      "empty": "아직 스티커가 없습니다.",
+      "editLabel": "스티커 {name} 편집",
+      "deleteLabel": "스티커 {name} 삭제",
+      "deleteTitle": "스티커 삭제",
+      "deleteConfirm": "\"{name}\"을(를) 삭제할까요? 이 스티커를 보낸 메시지에는 대신 자리 표시가 나타납니다.",
+      "loading": "스티커 불러오는 중",
+      "loadFailed": "스티커를 불러오지 못했습니다.",
+      "off": {
+        "server": "이 인스턴스에서는 서버 스티커가 꺼져 있습니다.",
+        "instance": "인스턴스 스티커가 꺼져 있습니다. 관리 → Config에서 한도를 올리세요.",
+        "user": "이 인스턴스에서는 개인 스티커가 꺼져 있습니다. 관리자가 허용할 수 있습니다."
+      }
+    },
+    "report": {
+      "menu": "스티커 신고",
+      "proof": "신고된 스티커",
+      "remove": "스티커 삭제",
+      "removeConfirm": "이 스티커를 모두에게서 삭제할까요? 이 스티커를 보낸 메시지에는 대신 자리 표시가 나타납니다.",
+      "removed": "삭제된 스티커",
+      "scope": {
+        "server": "{server}의 스티커",
+        "instance": "인스턴스 스티커",
+        "user": "개인 스티커"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "“{name}”의 크기는 {size}(으)로 업로드 한도 {limit}을(를) 넘습니다.",
+    "tooLargeFile": "이 파일의 크기는 {size}(으)로 업로드 한도 {limit}을(를) 넘습니다.",
+    "title": "업로드",
+    "hint": "각 계정이 채널, 스레드, 다이렉트 메시지, 게시물에 첨부하거나 드라이브에 보관할 수 있는 가장 큰 파일입니다. 프로필 사진, 배너, 서버 아이콘, 이모지, 사운드에는 별도의 한도가 있습니다.",
+    "tier": {
+      "user": "계정별 최대 파일",
+      "moderator": "인스턴스 모더레이터별 최대 파일",
+      "admin": "인스턴스 관리자별 최대 파일"
+    },
+    "tierName": {
+      "user": "계정",
+      "moderator": "인스턴스 모더레이터",
+      "admin": "인스턴스 관리자"
+    },
+    "aboveCeiling": "상한 {limit}을(를) 넘습니다",
+    "ceiling": "서버 운영자가 정한 상한",
+    "ceilingHint": "어떤 업로드 한도도 이보다 클 수 없습니다. 운영자는 서버에서 harmony config --upload-ceiling으로 올립니다.",
+    "driveNote": "최대 파일은 드라이브 저장 공간과 다릅니다. 계정의 저장 공간을 넘게 되는 업로드는 임시 파일로 보관됩니다.",
+    "readOnly": "업로드 한도는 인스턴스 관리자만 바꿀 수 있습니다.",
+    "save": "저장",
+    "saved": "저장됨",
+    "loadFailed": "업로드 한도를 불러오지 못했습니다.",
+    "saveFailed": "업로드 한도를 저장하지 못했습니다.",
+    "user": {
+      "open": "{name}의 업로드 한도",
+      "title": "{name}의 업로드 한도",
+      "tier": "등급: {tier}, {limit}",
+      "effective": "현재 최대 파일: {limit}",
+      "choice": "한도",
+      "useTier": "등급 한도 사용",
+      "custom": "개별 한도",
+      "customLabel": "{name}의 업로드 한도, MB",
+      "ceiling": "상한: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "역할",
+    "roleOption": "{name}, 역할",
+    "memberOption": "{name}, 멤버, {handle}",
+    "rolePill": "{'@'}{name}, 역할",
+    "roleCard": {
+      "label": "역할 {name}",
+      "members": "멤버 {count}명",
+      "here": "온라인 상태이며 채널을 볼 수 있는 멤버",
+      "unknown": "이 서버의 역할이 아닙니다"
+    }
   }
 }

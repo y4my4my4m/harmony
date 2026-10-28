@@ -153,6 +153,19 @@
         <Icon name="flag" size="sm" />
         <span>Report message</span>
       </button>
+
+      <button
+        v-if="reportableSticker"
+        type="button"
+        role="menuitem"
+        class="context-menu-item destructive-item"
+        aria-haspopup="dialog"
+        data-testid="context-menu-report-sticker"
+        @click="reportSticker"
+      >
+        <Icon name="sticker" size="sm" />
+        <span>{{ t('stickers.report.menu') }}</span>
+      </button>
     </template>
 
     <template v-if="developerToolsEnabled">
@@ -185,7 +198,9 @@ import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { resolveMediaPartUrl } from '@/services/privateMedia';
 import { getMessageShareUrl } from '@/utils/messageShareUrl';
 import { getInstanceDomain } from '@/services/instanceConfig';
-import type { Message } from '@/types';
+import type { Message, MessagePart, StickerContent } from '@/types';
+import { messageSticker } from '@/utils/stickerParts';
+import { hasCapability } from '@/services/instanceCapabilities';
 import Icon from '@/components/common/Icon.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
@@ -239,6 +254,7 @@ const emit = defineEmits<{
   'open-emoji-picker': [position: { x: number; y: number }]
   'pin-changed': []
   report: [message: Message]
+  'report-sticker': [sticker: StickerContent, message: Message]
   'view-reactions': [message: Message]
   reply: [message: Message]
   edit: [message: Message]
@@ -532,6 +548,19 @@ const togglePin = () => {
 const reportMessage = () => {
   if (!props.message) return;
   emit('report', props.message);
+  emit('close');
+};
+
+// A sticker of this instance; another instance's is reported through its message.
+const reportableSticker = computed(() => {
+  if (!hasCapability('custom-stickers')) return null;
+  const sticker = props.message && !props.message.is_system ? messageSticker(props.message.content as MessagePart[]) : null;
+  return sticker && !sticker.domain ? sticker : null;
+});
+
+const reportSticker = () => {
+  if (!reportableSticker.value || !props.message) return;
+  emit('report-sticker', reportableSticker.value, props.message);
   emit('close');
 };
 

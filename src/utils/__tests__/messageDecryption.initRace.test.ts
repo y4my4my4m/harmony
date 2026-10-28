@@ -100,3 +100,11 @@ describe('processMessageDecryption during auto-unlock', () => {
     expect(svc.service.whenInitSettled).not.toHaveBeenCalled()
   })
 })
+
+describe('processMessageDecryption options', () => {
+  it('passes heldKeysOnly to every decrypt', async () => {
+    svc.unlock()
+    await processMessageDecryption([encryptedRow()], { index: false, heldKeysOnly: true })
+    expect(svc.service.decryptMessage).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }), { heldKeysOnly: true })
+  })
+})

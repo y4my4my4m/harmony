@@ -6,7 +6,8 @@ import { reactive, shallowReactive } from 'vue'
  * across route changes until it settles.
  *
  * An entry is listed TRANSFER_SHOW_DELAY_MS after it starts, so a transfer that settles sooner
- * never flashes up. A completed one stays TRANSFER_DONE_LINGER_MS; a failed one until dismissed;
+ * never flashes up. One with an `origin` is listed only away from that page, which shows its
+ * progress itself (the composer's attachment row, the voice recorder). A completed one stays TRANSFER_DONE_LINGER_MS; a failed one until dismissed;
  * an aborted one leaves at once.
  */
 
@@ -29,6 +30,8 @@ export interface TransferEntry {
   readonly direction: TransferDirection
   readonly name: string
   readonly progress: TransferProgress
+  /** Route path of the page that shows this transfer's progress itself. */
+  readonly origin?: string
   /** Where a finished download was saved (Tauri desktop). */
   savedPath?: string
   cancel?: () => void
@@ -71,6 +74,7 @@ export function registerTransfer(init: {
   name: string
   progress: TransferProgress
   cancel?: () => void
+  origin?: string
 }): TransferEntry {
   const entry = reactive<TransferEntry>({ ...init, shown: false }) as TransferEntry
   entries.push(entry)

@@ -3,6 +3,9 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/supabase'
 import { i18n } from '@/i18n'
 import { humanizeUploadError } from '@/utils/uploadValidation'
 import { registerTransfer, settleTransfer, type TransferEntry, type TransferProgress } from '@/services/transfers'
+import { immutableUploadOptions, type PreparedImage } from '@/utils/imageResize'
+import { checkUploadLimit, limitRefusal } from '@/services/uploads/uploadLimit'
+import { stripMediaMetadata } from '@/utils/stripMetadata'
 
 /**
  * Every storage upload of the app: progress, abort, the transfers indicator, and resumable
@@ -28,6 +31,10 @@ import { registerTransfer, settleTransfer, type TransferEntry, type TransferProg
  * Deviation from tus-js-client: the PATCH and HEAD URL is SUPABASE_URL plus the upload id, the
  * last segment of the creation Location. storage-api builds Location from forwarded headers;
  * behind nginx and Kong it can carry Kong's port or lack the /storage/v1 prefix.
+ *
+ * A file over the account's upload limit (uploadLimit.ts) in message_media or user_media fails
+ * before its first byte with UploadLimitError, listed in the transfers indicator like any failed
+ * upload. A refusal from storage of a file over the limit as read again fails the same way.
  *
  * An upload given a `resumeKey` records its TUS upload in localStorage until it settles. The same
  * file uploaded again under the same key, after a reload within RESUME_TTL_MS, continues that
@@ -64,11 +71,18 @@ export interface StorageUploadOptions {
   metadata?: Record<string, unknown>
   /** Name in the transfers indicator; without one the upload is not listed. */
   label?: string
+  /** The starting page shows this upload's progress: the indicator lists it only on other pages. */
+  ownProgress?: boolean
   onProgress?: (fraction: number) => void
   /** Scope within which an interrupted upload of the same file is continued. */
   resumeKey?: string
   /** State to write instead of a new one. */
   state?: UploadState
+  /**
+   * Photo and video metadata (location, camera) goes up as picked; removed on the device first
+   * otherwise (utils/stripMetadata.ts).
+   */
+  keepMetadata?: boolean
 }
 
 export interface StorageUploadResult {
@@ -399,6 +413,8 @@ function fingerprint(options: StorageUploadOptions): string | null {
     file.lastModified ?? '',
     options.contentType ?? file.type ?? '',
     JSON.stringify(options.metadata ?? {}),
+    // A stripped HEIF or MP4 keeps the original's name, size and lastModified.
+    options.keepMetadata ? 'kept' : 'stripped',
   ].join('|')
 }
 
@@ -710,10 +726,11 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
       name: options.label,
       progress: view,
       cancel: () => (state.cancel ? state.cancel() : upload.abort()),
+      origin: options.ownProgress && typeof window !== 'undefined' ? window.location.pathname : undefined,
     })
   }
 
-  const transfer = async (): Promise<string> => {
+  const send = async (): Promise<string> => {
     if (options.file.size > TUS_THRESHOLD_BYTES && !tusUnavailable) {
       state.transport = 'tus'
       try {
@@ -726,6 +743,27 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
     state.transport = 'multipart'
     await sendWhole(link, options, options.path, report)
     return options.path
+  }
+
+  const transfer = async (): Promise<string> => {
+    if (!options.keepMetadata) {
+      const file = await stripMediaMetadata(options.file)
+      if (file !== options.file) {
+        options = { ...options, file }
+        state.total = file.size
+      }
+      if (link.aborted) throw new UploadAbortedError()
+    }
+    await checkUploadLimit(options.bucket, options.file, options.label)
+    try {
+      return await send()
+    } catch (error) {
+      if (error instanceof StorageUploadError && error.status < 500) {
+        const limited = await limitRefusal(options.bucket, options.file, options.label)
+        if (limited) throw limited
+      }
+      throw error
+    }
   }
 
   const result = transfer().then(
@@ -766,6 +804,18 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
   return upload
 }
 
+/** An upload refused before its first byte, listed as a failed transfer under `name`. */
+export function listRefusedUpload(name: string | undefined, size: number, message: string): void {
+  if (!name) return
+  const entry = registerTransfer({
+    id: `upload:refused:${Math.random().toString(36).slice(2)}`,
+    direction: 'upload',
+    name,
+    progress: { loaded: 0, total: size, status: 'error', error: message, reconnecting: false },
+  })
+  settleTransfer(entry)
+}
+
 export type StorageErrorLike = Error & { statusCode?: string; status?: number }
 
 /**
@@ -790,6 +840,29 @@ export async function uploadStorageObject(
     }
     return { data: null, error: error instanceof Error ? error : new Error(String(error)) }
   }
+}
+
+export interface PublicImageUploadOptions {
+  /** Name in the transfers indicator; the prepared file's name by default. */
+  label?: string
+  /** Fraction of the image sent, 0 to 1. */
+  onProgress?: (fraction: number) => void
+}
+
+/** A prepared image written under a fresh name in a public bucket; returns its public URL. */
+export async function storePublicImage(
+  bucket: string,
+  path: string,
+  prepared: PreparedImage,
+  options: PublicImageUploadOptions = {},
+): Promise<string> {
+  const { error } = await uploadStorageObject(bucket, path, prepared.file, {
+    ...immutableUploadOptions(prepared),
+    label: options.label ?? prepared.file.name,
+    onProgress: options.onProgress,
+  })
+  if (error) throw error
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 }
 
 /** Test hook: the TUS endpoint is tried again and no upload is in flight. */

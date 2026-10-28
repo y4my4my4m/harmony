@@ -165,7 +165,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { uploadAvatar, downloadAndUploadImage } from '@/utils/fileUpload';
 import { consumePostAuthRedirect, peekPostAuthRedirect } from '@/utils/postAuthRedirect';
-import { normalizeUsernameInput, USERNAME_MIN_LENGTH } from '@/utils/usernameRules';
+import { isReservedUsername, normalizeUsernameInput, USERNAME_MIN_LENGTH } from '@/utils/usernameRules';
 import { isOAuthIdentityProvider } from '@/utils/customOAuthProviders';
 import { supabase } from '@/supabase';
 import Icon from '@/components/common/Icon.vue';
@@ -335,6 +335,11 @@ function setUsername(value: string) {
     checkingUsername.value = false;
     return;
   }
+  if (isReservedUsername(value, instanceDomain.value)) {
+    usernameError.value = t('onboarding.usernameReserved');
+    checkingUsername.value = false;
+    return;
+  }
 
   usernameError.value = '';
   checkingUsername.value = true;
@@ -366,6 +371,12 @@ async function checkUsernameAvailability(candidate: string) {
 
 async function signOut() {
   await authStore.logout();
+}
+
+// guard_local_username (20261031900001_reserved_usernames.sql).
+function isReservedRefusal(error: any): boolean {
+  const db = error?.details?.code ? error.details : error;
+  return db?.code === '23514' && /is reserved/i.test(String(db?.message ?? ''));
 }
 
 function isUniqueViolation(error: any): boolean {
@@ -431,6 +442,13 @@ async function createProfile() {
       }
       usernameAvailable.value = false;
       usernameError.value = t('onboarding.usernameTaken');
+      document.getElementById('np-username')?.focus();
+      return;
+    }
+
+    if (isReservedRefusal(error)) {
+      usernameAvailable.value = false;
+      usernameError.value = t('onboarding.usernameReserved');
       document.getElementById('np-username')?.focus();
       return;
     }

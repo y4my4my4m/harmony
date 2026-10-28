@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { openLink } from '@/services/tauriLinks'
+import { openLink } from '@/services/outsideLinks'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

@@ -228,6 +228,8 @@
       v-if="mediaPickerOpen"
       @click.stop
       @sendGif="handleSendGif"
+      @sendSticker="handleSendSticker"
+      custom-stickers
       @sendEmoji="handleSendEmojiToInput"
       :closePopup="closeMediaPicker"
       :position="'above'"
@@ -263,13 +265,14 @@ import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import { useMessageReactionLimit } from '@/composables/useReactionLimits'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
+import { stickerMessageParts, type StickerPartSource } from '@/utils/stickerParts'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
-import { buildChatParseOptions } from '@/utils/chatParseOptions'
+import { buildChatParseOptions, resolveChatMassMentions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
@@ -625,7 +628,9 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   
   debug.log('Emoji data map size:', Object.keys(emojiDataMap).length)
   
-  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
+  const massMentions = await resolveChatMassMentions(input, props.serverId, thread.value?.channel_id)
+  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {},
+    { ...buildChatParseOptions(false), massMentions })
   
   debug.log('Final parsed message parts:', result)
   return result
@@ -825,19 +830,21 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
   }
 }
 
-const handleSendGif = async (gif: Gif) => {
+const handleSendGif = (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url
+  return sendPickedMedia([{ type: 'file', url: gifUrl, fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image' }])
+}
+
+const handleSendSticker = (sticker: StickerPartSource) => sendPickedMedia(stickerMessageParts(sticker))
+
+/** A GIF or a sticker from the media picker, sent alone. */
+const sendPickedMedia = async (messageParts: MessagePart[]) => {
   closeMediaPicker()
   
   if (!thread.value) return
   
   const turn = takeSendTurn(threadOrderKey())
   try {
-    const messageParts: MessagePart[] = [{
-      type: 'file',
-      url: gifUrl,
-      fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image'
-    }]
     
     const targetThreadId = thread.value.id
     const sendResult = await runWithEncryptionFallback(

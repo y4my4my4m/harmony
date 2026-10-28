@@ -11,7 +11,7 @@ This section is for people who own or help run a server (a community with its ow
 
 - Create a server, from scratch or from a template, and lay it out in text and voice channels grouped into categories.
 - Invite people, and list the server publicly so others can find it.
-- Add custom emoji and soundboard sounds.
+- Add custom emoji, stickers and soundboard sounds.
 - Create roles, give them permissions, and change those permissions per channel.
 - Moderate: AutoMod rules, reports, timeouts, kicks, bans and an audit log of what changed.
 - Let other services post through channel webhooks, and add bots.
@@ -39,5 +39,6 @@ The instance's own administrators and moderators are a separate group, set by wh
 | [Setting up a server](/run/setup) | Templates, channels, categories, invites, custom emoji, soundboard sounds and the server settings |
 | [Roles and permissions](/run/roles-permissions) | Roles, the role hierarchy, channel overrides, and every permission |
 | [Moderation](/run/moderation) | AutoMod, reports, timeouts, kicks, bans and the audit log |
+| [Server stickers](/run/stickers) | Adding, describing and removing the server's stickers |
 | [Webhooks](/run/webhooks) | Creating and managing channel webhooks |
 | [Discord bridge](/run/discord-bridge) | Linking the server to a Discord server |

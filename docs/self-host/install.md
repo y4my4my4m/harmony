@@ -96,7 +96,7 @@ In order:
 |---|---|---|
 | Domain for your instance | The domain from the DNS records, such as `chat.example.com`. Handles look like `@you@chat.example.com`, and other servers keep it in your ids: choose it once | the current one on a re-run |
 | Admin email | Your login. Also the contact Let's Encrypt and push services see | the current one on a re-run |
-| Admin username | Your handle: 3 to 24 characters of `a-z`, `0-9` and `_`. Not asked when an admin exists | the email's local part, reduced to those characters; `admin` when that leaves fewer than 3 |
+| Admin username | Your handle: 3 to 24 characters of `a-z`, `0-9` and `_`, not a [reserved name](/use/getting-started#set-up-your-profile). Not asked when an admin exists | the email's local part, reduced to those characters; `owner` when that leaves fewer than 3 or a reserved name |
 | Admin password | 8 characters or more, asked twice. Not asked when an admin exists | Enter generates one, shown once after the summary |
 | Instance name | Shown in the app. It cannot contain `$`, `#`, `"`, `\` or a backtick, or start with a quote; the admin panel accepts any name later | `Harmony` |
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
@@ -167,9 +167,10 @@ Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
 **Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
-**Webhooks**, **Content**, **Emojis**, **Config**, **Funding**, **Drive**
-and **Tools**. The instance name, description, rules, icon and legal links
-are under **Config** → **Branding**. **Webhooks** sets who may create
+**Webhooks**, **Content**, **Emojis**, **Stickers**, **Config**, **Funding**,
+**Drive** and **Tools**. The instance name, description, rules, icon and legal links
+are under **Config** → **Branding**, the largest file each account may upload
+under **Config** → **Uploads**. **Webhooks** sets who may create
 [outgoing webhooks](/build/outgoing-webhooks), their rates, the cap per
 person and blocked destinations, turns incoming webhooks off, and lists every
 outgoing webhook with its destination and last day's deliveries.

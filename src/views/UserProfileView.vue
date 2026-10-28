@@ -400,6 +400,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
+import { markMaskedAnchors } from '@/utils/outsideLinks';
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
@@ -766,8 +767,9 @@ const formatFieldValue = (value: string): string => {
   });
   // rel/target are forced onto links: external profile links open in a new tab
   // and must not leak window.opener. A regex pass suffices because the input
-  // is already sanitized.
-  return sanitized.replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"');
+  // is already sanitized. A link whose text is a label asks before opening
+  // (services/outsideLinks).
+  return markMaskedAnchors(sanitized.replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"'));
 };
 
 // Methods

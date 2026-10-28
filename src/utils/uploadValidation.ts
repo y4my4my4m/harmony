@@ -33,8 +33,11 @@ export const BUCKET_LIMITS: Record<string, BucketLimitConfig> = {
   'group-icons': { maxBytes: 5 * 1024 * 1024, allowedMime: IMAGE_MIME, label: 'group icon' },
   // Emoji excludes SVG: SVG carries scriptable markup.
   emojis: { maxBytes: 1 * 1024 * 1024, allowedMime: ['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/jpeg'], label: 'emoji' },
-  user_media: { maxBytes: 50 * 1024 * 1024, allowedMime: null, label: 'file' },
-  message_media: { maxBytes: 50 * 1024 * 1024, allowedMime: null, label: 'file' },
+  // Stickers: 20261031200001_custom_stickers.sql; no JPEG, no SVG, no video.
+  stickers: { maxBytes: 512 * 1024, allowedMime: ['image/png', 'image/apng', 'image/webp', 'image/gif'], label: 'sticker' },
+  // No bucket limit: the account's upload limit applies (services/uploads/uploadLimit.ts).
+  user_media: { maxBytes: 0, allowedMime: null, label: 'file' },
+  message_media: { maxBytes: 0, allowedMime: null, label: 'file' },
 }
 
 const FRIENDLY_MIME: Record<string, string> = {

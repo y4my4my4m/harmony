@@ -13,6 +13,8 @@
 #            [--email-optional | --require-email] [--no-pkce | --pkce]
 #            [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 #   bash admin.sh auth remove-provider ID
+#   bash admin.sh auth linking PROVIDER (--separate-accounts |
+#            --link-existing-accounts [--provider-verifies-email])
 #   bash admin.sh has-admin           exit 0 when a local admin exists
 #
 # create makes an instance admin the way the app makes any account: GoTrue's
@@ -42,7 +44,7 @@
 # remove-provider keep in step.
 #
 # A new provider is kept apart: PROVIDER_LINKING_DOMAINS in supabase/.env gains
-# custom:ID=custom:ID (lib.sh, linking_*), so its first sign-in never joins an existing
+# custom:ID=custom:ID (linking.sh), so its first sign-in never joins an existing
 # account by address. GoTrue reads that value at start: a change recreates the auth
 # service, and the provider is saved only once the running service has the value.
 # --link-existing-accounts drops the pair. With ENABLE_EMAIL_AUTOCONFIRM=true GoTrue takes
@@ -50,12 +52,19 @@
 # --provider-verifies-email states the provider only hands out addresses it has checked.
 # An update without either option keeps the provider's mode. remove-provider drops the pair
 # after the provider.
+#
+# linking sets the mode of a GoTrue provider of its own (github, google, twitch, ...):
+# PROVIDER=PROVIDER keeps it apart, PROVIDER=default joins existing accounts by address.
+# configure.sh writes PROVIDER=PROVIDER for each built-in provider without a pair when
+# ENABLE_EMAIL_AUTOCONFIRM is or was true, and leaves a pair present alone. GoTrue's GitHub
+# provider passes every address of the GitHub account, unverified ones included, so linking
+# GitHub is refused under ENABLE_EMAIL_AUTOCONFIRM=true, --provider-verifies-email or not.
 # =============================================================================
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-usage() { sed -n '2,53p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,62p' "${BASH_SOURCE[0]}"; }
 
 # Node program run in federation-server. PARAMS is a JSON object whose values
 # are base64, so any byte of a password survives the trip.
@@ -412,11 +421,12 @@ create() {
 	valid_email "$email" || die "'$email' is not an email address"
 	if [[ -z "$username" ]]; then
 		username="$(printf '%s' "${email%%@*}" | lower | tr -cd 'a-z0-9_' | cut -c1-24)"
-		[[ ${#username} -ge 3 ]] || username=admin
+		if [[ ${#username} -lt 3 ]] || reserved_username "$username" "$(env_get "$ENV_FILE" DOMAIN)"; then username=owner; fi
 		ask username "Admin username (3-24 of a-z, 0-9, _)" "$username"
 	fi
 	username="$(printf '%s' "$username" | lower)"
 	valid_username "$username" || die "the username must be 3-24 characters of a-z, 0-9 and _"
+	if reserved_username "$username" "$(env_get "$ENV_FILE" DOMAIN)"; then die "the username $username is reserved; choose another"; fi
 	if [[ -z "$password" ]] && interactive; then
 		ask_secret password "Admin password (empty generates one)"
 		if [[ -n "$password" ]]; then
@@ -562,6 +572,10 @@ need_https() { [[ -z "$2" || "$2" =~ ^https://[^[:space:]]+$ ]] || die "$1 must 
 linking_value() { env_get "$SB_ENV" PROVIDER_LINKING_DOMAINS; }
 autoconfirm_on() { truthy "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"; }
 
+refuse_autoconfirm_link() {
+	die "ENABLE_EMAIL_AUTOCONFIRM=true in supabase/.env: the auth service counts every address a provider sends as verified, so whoever sets an address at the provider signs in to the Harmony account that has it, the admin's included. --provider-verifies-email states the provider hands out only addresses it has checked; otherwise configure SMTP first (harmony config)"
+}
+
 # linking_checked: PROVIDER_LINKING_DOMAINS, or a stop when GoTrue would not parse it.
 linking_checked() {
 	local value
@@ -600,6 +614,31 @@ say_linking() {
 	esac
 }
 
+# auth_builtin_providers VALUE: GoTrue's own providers, the built-in ones and any other the
+# auth service has on, with their mode; warns about one on that links by address while
+# addresses are confirmed automatically.
+auth_builtin_providers() {
+	local value="$1" on pid state mode list rows="" open=""
+	on=" $(oauth_enabled) "
+	list="$BUILTIN_OAUTH_PROVIDERS"
+	for pid in $on; do
+		[[ " $list " == *" $pid "* ]] || list+=" $pid"
+	done
+	for pid in $list; do
+		mode="$(linking_mode "$value" "$pid")"
+		state=off
+		if [[ "$on" == *" $pid "* ]]; then
+			state=on
+			[[ "$mode" != "by address" ]] || open+="${open:+ }$pid"
+		fi
+		rows+="$pid"$'\t'"$state"$'\t'"$mode"$'\n'
+	done
+	printf 'PROVIDER\tAUTH SERVICE\tEXISTING ACCOUNTS\n%s' "$rows" | align_tabs
+	if [[ -n "$open" ]] && autoconfirm_on; then
+		warn "$open join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address they send as verified (harmony auth linking ID --separate-accounts keeps them apart)"
+	fi
+}
+
 auth_providers() {
 	local res rows stale value pid pname ptype pstate pwhere ids="" orphans="" open=""
 	node_call res "$NODE_PROVIDER_LIB$NODE_PROVIDER_LIST"
@@ -609,6 +648,8 @@ auth_providers() {
 		warn "PROVIDER_LINKING_DOMAINS in supabase/.env is not provider=domain pairs ('$value'); the auth service does not start with it"
 		value=""
 	fi
+	auth_builtin_providers "$value"
+	echo
 	if [[ -z "$rows" ]]; then
 		info "No custom sign-in providers (harmony auth add-provider adds one)"
 	else
@@ -617,7 +658,7 @@ auth_providers() {
 			while IFS=$'\t' read -r pid pname ptype pstate pwhere; do
 				printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" "$pwhere"
 			done <<<"$rows"
-		} | column -t -s $'\t'
+		} | align_tabs
 		while IFS=$'\t' read -r pid _; do
 			[[ "$(linking_mode "$value" "$pid")" != "by address" ]] || open+="${open:+ }$pid"
 			ids+=" $pid "
@@ -665,7 +706,7 @@ auth_add_provider() {
 	done
 	[[ $vouch -eq 0 || "$link" == 1 ]] || die "--provider-verifies-email goes with --link-existing-accounts"
 	if [[ "$link" == 1 ]] && autoconfirm_on && [[ $vouch -eq 0 ]]; then
-		die "ENABLE_EMAIL_AUTOCONFIRM=true in supabase/.env: the auth service counts every address a provider sends as verified, so whoever sets an address at the provider signs in to the Harmony account that has it, the admin's included. --provider-verifies-email states the provider hands out only addresses it has checked; otherwise configure SMTP first (harmony config)"
+		refuse_autoconfirm_link
 	fi
 	[[ -n "$id" ]] || die "usage: harmony auth add-provider ID --name NAME --issuer URL --client-id ID [options] (harmony help)"
 	id="$(provider_id "$id")"
@@ -748,6 +789,41 @@ auth_remove_provider() {
 	fi
 }
 
+auth_linking() {
+	local id="${1:-}" link="" vouch=0 linking want domain
+	[[ $# -gt 0 ]] && shift
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--separate-accounts) [[ "$link" != 1 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=0 ;;
+			--link-existing-accounts) [[ "$link" != 0 ]] || die "--separate-accounts and --link-existing-accounts exclude each other"; link=1 ;;
+			--provider-verifies-email) vouch=1 ;;
+			*) die "unknown argument: $1 (harmony help)" ;;
+		esac
+		shift
+	done
+	id="$(printf '%s' "$id" | lower)"
+	[[ -n "$id" && -n "$link" ]] ||
+		die "usage: harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])"
+	[[ "$id" != custom:* ]] ||
+		die "$id is your own provider: harmony auth add-provider ${id#custom:} --separate-accounts (or --link-existing-accounts)"
+	[[ " $GOTRUE_OAUTH_PROVIDERS " == *" $id "* ]] || die "the auth service has no provider $id (it has: $GOTRUE_OAUTH_PROVIDERS)"
+	[[ $vouch -eq 0 || "$link" == 1 ]] || die "--provider-verifies-email goes with --link-existing-accounts"
+	if [[ "$link" == 1 ]] && autoconfirm_on; then
+		[[ "$id" != github ]] ||
+			die "ENABLE_EMAIL_AUTOCONFIRM=true in supabase/.env: GitHub hands the auth service every address of the GitHub account, unverified ones included, so whoever adds an address there signs in to the Harmony account that has it, the admin's included. Configure SMTP first (harmony config)"
+		[[ $vouch -eq 1 ]] || refuse_autoconfirm_link
+	fi
+
+	# default, not no pair: configure.sh adds a pair to a built-in provider that has none.
+	if [[ "$link" == 1 ]]; then domain=default; else domain="$id"; fi
+	linking="$(linking_checked)"
+	want="$linking"
+	[[ "$(linking_domain "$linking" "$id")" == "$domain" ]] || want="$(linking_set "$linking" "$id" "$domain")"
+	[[ "$want" == "$linking" ]] || apply_linking "$want"
+	say_linking "$id" "$want"
+	[[ " $(oauth_enabled) " == *" $id "* ]] || info "$id is off in the auth service; this applies once it is on"
+}
+
 auth_cmd() {
 	local sub="${1:-}"
 	[[ $# -gt 0 ]] && shift
@@ -755,7 +831,8 @@ auth_cmd() {
 		providers) auth_providers ;;
 		add-provider) auth_add_provider "$@" ;;
 		remove-provider) auth_remove_provider "$@" ;;
-		*) die "usage: harmony auth providers | add-provider | remove-provider" ;;
+		linking) auth_linking "$@" ;;
+		*) die "usage: harmony auth providers | add-provider | remove-provider | linking" ;;
 	esac
 }
 

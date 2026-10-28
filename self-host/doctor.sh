@@ -299,6 +299,31 @@ check_database() {
 		fi
 	fi
 
+	# Upload limits: storage's FILE_SIZE_LIMIT (the ceiling) and instance_config.upload_ceiling_bytes
+	# are one number; storage_upload_limit enforces each account's limit under it.
+	local ul_env ul_run ul_db ul_trig ul_sid ul_mig="" ul_fix
+	ul_env="$(upload_ceiling)"
+	ul_sid="$(svc_id storage)"
+	ul_run=""
+	[[ -z "$ul_sid" ]] || ul_run="$(docker exec "$ul_sid" printenv FILE_SIZE_LIMIT 2>/dev/null || true)"
+	ul_db="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'upload_ceiling_bytes'" 2>/dev/null || true)"
+	ul_trig="$(db_sql -c "SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass('storage.objects') AND tgname = 'storage_upload_limit'" 2>/dev/null || true)"
+	for p in "$REPO_DIR"/db_schema/migrations/20261031100001_*.sql; do [[ -f "$p" ]] && ul_mig="$p"; done
+	ul_fix="harmony update"
+	[[ -n "$ul_mig" ]] &&
+		ul_fix="in self-host/: docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/$(basename "$ul_mig")"
+	if [[ -z "$ul_db" || "$ul_trig" != 1 ]]; then
+		report FAIL upload-limits "storage.objects lacks the storage_upload_limit trigger or its settings: per-account upload limits are not enforced" "$ul_fix"
+	elif [[ -n "$ul_run" && "$ul_run" != "$ul_env" ]]; then
+		report WARN upload-limits "storage runs with FILE_SIZE_LIMIT=$ul_run, supabase/.env has $ul_env" "harmony config --upload-ceiling $ul_env"
+	elif [[ "$ul_db" != "$ul_env" ]]; then
+		report WARN upload-limits "the admin panel's ceiling is $ul_db bytes, storage's FILE_SIZE_LIMIT $ul_env: uploads between the two fail at storage, or limits stop short of it" "harmony config --upload-ceiling $ul_env"
+	else
+		report OK upload-limits "ceiling $(human_size "$ul_env") in storage and the admin panel; per-account limits enforced"
+	fi
+
+	check_storage_origin
+
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
 	if [[ "$cfg_domain" == "$DOMAIN" ]]; then
@@ -546,37 +571,69 @@ check_services() {
 	fi
 }
 
-# PROVIDER_LINKING_DOMAINS (lib.sh, linking_*): a value GoTrue cannot parse stops the auth
-# service. A custom provider in the default linking domain joins existing accounts by address,
-# and ENABLE_EMAIL_AUTOCONFIRM=true makes every address it sends verified.
+# instance_config.storage_origin against https://DB_DOMAIN, the web app's SUPABASE_URL and so the
+# origin of every public object URL. Sticker and emoji uploads under another origin are refused;
+# empty, any origin is accepted.
+check_storage_origin() {
+	local want have
+	want="$(printf 'https://%s' "$DB_DOMAIN" | tr '[:upper:]' '[:lower:]')"
+	have="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'storage_origin'" 2>/dev/null || true)"
+	have="$(printf '%s' "${have%/}" | tr '[:upper:]' '[:lower:]')"
+	if [[ "$have" == "$want" ]]; then
+		report OK storage-origin "instance_config.storage_origin = $want"
+	elif [[ -z "$have" ]]; then
+		report WARN storage-origin "instance_config.storage_origin is empty: sticker and emoji uploads accept a file URL on any host" "bash bootstrap.sh --migrations-only"
+	else
+		report WARN storage-origin "instance_config.storage_origin is $have, files are served from $want: sticker and emoji uploads are refused" "bash bootstrap.sh --migrations-only"
+	fi
+}
+
+# PROVIDER_LINKING_DOMAINS (linking.sh): a value GoTrue cannot parse stops the auth service. A
+# provider in the default linking domain joins existing accounts by address, and
+# ENABLE_EMAIL_AUTOCONFIRM=true makes every address it sends verified. One of GoTrue's own
+# providers counts once the auth service has it on, with a sign-in button or without:
+# /auth/v1/authorize takes any of them.
 check_auth_linking() {
-	local value running ids id open=()
+	local value env running on ids="" id builtin="" custom="" autoconfirm=false
 	value="$(env_get "$SB_ENV" PROVIDER_LINKING_DOMAINS)"
 	if ! linking_valid "$value"; then
 		report FAIL "auth linking" "PROVIDER_LINKING_DOMAINS in supabase/.env is not comma-separated provider=domain pairs; the auth service does not start with it" \
 			"correct it in supabase/.env (e.g. custom:authentik=custom:authentik), then docker compose up -d auth"
 		return
 	fi
-	running="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(svc_id auth)" 2>/dev/null |
-		sed -n 's/^GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=//p')"
-	if [[ -n "$(svc_id auth)" && "$running" != "$value" ]]; then
+	env="$(auth_env)"
+	running="$(printf '%s\n' "$env" | sed -n 's/^GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=//p')"
+	if [[ -n "$env" && "$running" != "$value" ]]; then
 		report WARN "auth linking" "the auth service runs with an older PROVIDER_LINKING_DOMAINS than supabase/.env" "docker compose up -d auth"
 		return
 	fi
-	db_ready || return 0
-	ids="$(db_sql -c "SELECT string_agg(e ->> 'id', ' ' ORDER BY e ->> 'id')
-		FROM public.instance_config c,
-		     jsonb_array_elements(CASE WHEN jsonb_typeof(c.config_value) = 'array' THEN c.config_value ELSE '[]'::jsonb END) e
-		WHERE c.config_key = 'custom_oauth_providers'" 2>/dev/null)"
-	[[ -n "$ids" ]] || return 0
-	for id in $ids; do
-		[[ "$(linking_mode "$value" "$id")" != "by address" ]] || open+=("$id")
+	truthy "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)" && autoconfirm=true
+	on="$(oauth_enabled "$env")"
+	for id in $on; do
+		[[ "$(linking_mode "$value" "$id")" != "by address" ]] || builtin+="${builtin:+ }$id"
 	done
-	if [[ ${#open[@]} -gt 0 ]] && truthy "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"; then
-		report WARN "auth linking" "${open[*]} join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address as verified: whoever sets an address at the provider signs in to the Harmony account that has it" \
+	if db_ready; then
+		ids="$(db_sql -c "SELECT string_agg(e ->> 'id', ' ' ORDER BY e ->> 'id')
+			FROM public.instance_config c,
+			     jsonb_array_elements(CASE WHEN jsonb_typeof(c.config_value) = 'array' THEN c.config_value ELSE '[]'::jsonb END) e
+			WHERE c.config_key = 'custom_oauth_providers'" 2>/dev/null)"
+		for id in $ids; do
+			[[ "$(linking_mode "$value" "$id")" != "by address" ]] || custom+="${custom:+ }$id"
+		done
+	fi
+	[[ -n "$ids$on" ]] || return 0
+	if $autoconfirm && [[ -n "$builtin" ]]; then
+		report WARN "auth linking" "$builtin join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address as verified: whoever adds an address to their account there signs in to the Harmony account that has it" \
+			"harmony auth linking ID --separate-accounts, for each"
+	fi
+	if $autoconfirm && [[ -n "$custom" ]]; then
+		report WARN "auth linking" "$custom join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address as verified: whoever sets an address at the provider signs in to the Harmony account that has it" \
 			"harmony auth add-provider ID --separate-accounts, for each"
-	elif [[ ${#open[@]} -gt 0 ]]; then
-		report OK "auth linking" "${open[*]} join existing accounts by verified address; the others are kept apart"
+	fi
+	if $autoconfirm && [[ -n "$builtin$custom" ]]; then
+		return
+	elif [[ -n "$builtin$custom" ]]; then
+		report OK "auth linking" "$builtin${builtin:+${custom:+ }}$custom join existing accounts by verified address; the others are kept apart"
 	else
 		report OK "auth linking" "your sign-in providers keep their accounts apart"
 	fi

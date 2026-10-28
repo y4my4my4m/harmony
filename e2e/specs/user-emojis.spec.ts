@@ -136,7 +136,8 @@ test('the owner renames and deletes an AI emoji by keyboard; the picker follows'
   await page.keyboard.type(newName)
   await page.keyboard.press('Enter')
   await expect(row.locator('.emoji-name')).toHaveText(`:${newName}:`)
-  await expect(live).toHaveText(`Renamed :${aiName}: to :${newName}:`, { timeout: 5000 })
+  // The route's late title announcement for /settings/emojis can share the flush.
+  await expect(live).toContainText(`Renamed :${aiName}: to :${newName}:`, { timeout: 5000 })
   await expect(section.getByRole('button', { name: `Rename :${newName}:` })).toBeFocused()
   await expect
     .poll(async () => (await admin.from('emojis').select('name').eq('id', ownerEmojiId).single()).data?.name)

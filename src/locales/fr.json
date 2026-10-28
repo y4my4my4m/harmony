@@ -974,6 +974,7 @@
       "progress": "Téléversement, {percent} %",
       "failed": "Échec du téléversement",
       "failedToast": "Impossible de téléverser {name} : {reason}",
+      "originalGone": "Le fichier original n’est plus sur cet appareil. Joignez-le à nouveau.",
       "removeFailed": "Retirez les pièces jointes dont le téléversement a échoué, puis renvoyez.",
       "sendWhenDone": "Envoi dès la fin des téléversements.",
       "voiceFailed": "Impossible de téléverser le message vocal.",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}, {count} réaction | {emoji}, {count} réactions",
       "pillYou": "{emoji}, {count} réaction, dont la vôtre | {emoji}, {count} réactions, dont la vôtre",
-      "hint": "La touche menu contextuel ou Maj+F10 affiche qui a réagi.",
+      "hint": "La touche menu contextuel ou Maj+F10 affiche l’emoji et qui a réagi.",
       "removed": "Réaction retirée : {emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "vidéo",
       "audio": "audio",
       "file": "fichier {name}",
-      "poll": "sondage : {question}"
+      "poll": "sondage : {question}",
+      "sticker": "sticker {name} : {description}"
     },
     "announce": {
       "one": "{name} : {text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "Recherches récentes",
     "clearRecent": "Effacer",
-    "encryptedNote": "Les messages chiffrés sont recherchés uniquement sur cet appareil, parmi les messages déjà chargés.",
-    "onThisDevice": "Chiffré, sur cet appareil",
+    "encryptedNote": "Les messages chiffrés sont recherchés sur cet appareil : il lit leur historique avec tes clés et garde ici un index protégé.",
+    "encryptedSearching": "Recherche dans les messages chiffrés…",
+    "encryptedSearchedBack": "Recherche dans les messages chiffrés, jusqu’au {date} pour l’instant…",
+    "encryptedStopped": "Recherche dans les messages chiffrés arrêtée.",
+    "encryptedStoppedAt": "Messages chiffrés recherchés jusqu’au {date}.",
+    "encryptedDone": "Tous les messages chiffrés que tu peux lire ont été recherchés.",
+    "encryptedError": "Impossible de charger les messages chiffrés plus anciens.",
+    "encryptedLocked": "Déverrouille le chiffrement pour rechercher dans les messages chiffrés.",
+    "encryptedStop": "Arrêter",
+    "encryptedSearchOlder": "Rechercher les messages plus anciens",
+    "encryptedUnreadable": "{count} message que cet appareil ne peut pas lire | {count} messages que cet appareil ne peut pas lire",
     "searching": "Recherche…",
     "results": "Aucun résultat | {count} résultat | {count} résultats",
     "resultsCapped": "Plus de {count} résultats",
@@ -1183,6 +1194,7 @@
     "error": "La recherche a échoué",
     "empty": "Aucun résultat",
     "emptyHint": "Essayez d'autres mots ou moins de filtres.",
+    "similar": "Aucune correspondance exacte. Résultats similaires affichés.",
     "unknownChannel": "canal inconnu",
     "threadIn": "Fil dans {channel}",
     "pages": "Pages de résultats",
@@ -2986,6 +2998,37 @@
     "custom": "Personnalisés",
     "noResults": "Aucun émoji trouvé"
   },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Recherche de sa provenance…",
+    "default": "Un emoji par défaut. Utilisable partout.",
+    "thisServer": "De ce serveur.",
+    "yourServer": "De {server}, l’un de vos serveurs.",
+    "publicServer": "De {server}, un serveur public. Rejoignez-le pour utiliser cet emoji partout.",
+    "remoteServer": "De {server} sur {domain}.",
+    "personalYours": "Votre emoji personnel. Utilisable partout.",
+    "personalOf": "Un emoji personnel de {name}.",
+    "personalUnknown": "Un emoji personnel.",
+    "instance": "Un emoji de cette instance.",
+    "remote": "D’une autre instance : {domain}.",
+    "discord": "Un emoji Discord, relayé depuis Discord.",
+    "unavailable": "D’un serveur privé ou qui n’est plus disponible.",
+    "members": "{count} membre | {count} membres",
+    "publicLabel": "Serveur public",
+    "privateLabel": "Serveur sur invitation",
+    "moreEmoji": "Autres emoji de ce serveur",
+    "joined": "Vous avez rejoint {server}",
+    "reactedBy": "Réaction de {names}",
+    "reactedByOthers": "Réaction de {names} et {count} autre | Réaction de {names} et {count} autres",
+    "reactionCount": "{count} réaction | {count} réactions",
+    "nameSeparator": ", ",
+    "allReactions": "Toutes les réactions",
+    "copy": "Copier",
+    "copied": "{text} copié",
+    "copyFailed": "Copie impossible",
+    "copyLink": "Copier le lien de l’image",
+    "linkCopied": "Lien de l’image copié"
+  },
   "inbox": {
     "title": "Notifications",
     "bellLabel": "Notifications",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle} est disponible",
     "usernameTaken": "Ce nom d'utilisateur est déjà pris.",
     "usernameTooShort": "Utilisez au moins {min} caractères.",
+    "usernameReserved": "Ce nom d'utilisateur est réservé. Choisissez-en un autre.",
     "usernameCheckFailed": "Impossible de vérifier la disponibilité. Réessayez.",
     "bio": "À propos de vous",
     "optional": "(facultatif)",
@@ -4375,7 +4419,8 @@
       "invite": "Invitations",
       "emoji": "Émojis",
       "sound": "Sons",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Stickers"
     },
     "actions": {
       "channel_create": "{actor} a créé le canal {target}",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor} a retiré le bot {target}",
       "unknown": "{actor} : {action}",
       "server_suspend": "{actor} a suspendu le serveur",
-      "server_unsuspend": "{actor} a levé la suspension du serveur"
+      "server_unsuspend": "{actor} a levé la suspension du serveur",
+      "sticker_create": "{actor} a ajouté le sticker {target}",
+      "sticker_update": "{actor} a modifié le sticker {target}",
+      "sticker_delete": "{actor} a supprimé le sticker {target}"
     },
     "fields": {
       "name": "Nom",
@@ -4686,6 +4734,7 @@
       "changeDescription": "Changer votre mot de passe déconnecte tous les autres appareils.",
       "providerDescription": "Votre compte se connecte via {providers}. Un mot de passe vous permet aussi de vous connecter avec votre e-mail.",
       "externalProvider": "un fournisseur externe",
+      "providerManaged": "Votre compte se connecte uniquement via {providers}. Il n'a pas de mot de passe et ne peut pas en avoir.",
       "hint": "Au moins 8 caractères. Une phrase de passe de quelques mots sans rapport fonctionne bien.",
       "saving": "Enregistrement…",
       "setPassword": "Définir le mot de passe",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "Cette session a été déconnectée. Reconnectez-vous.",
       "codeMismatch": "Ce code ne correspond pas. Utilisez le code le plus récent de votre application et vérifiez que l'horloge de votre appareil est réglée automatiquement.",
       "challengeExpired": "La vérification a expiré. Saisissez un nouveau code.",
+      "providerManaged": "Ce compte se connecte uniquement via son fournisseur de connexion : son mot de passe et son adresse e-mail ne peuvent pas être modifiés.",
       "rateLimited": "Trop de tentatives. Patientez un instant et réessayez.",
       "mfaNotEnabled": "L'authentification à deux facteurs n'est pas activée."
     },
@@ -5089,7 +5139,13 @@
         "reason": "Raison (conservée avec le compte) :"
       },
       "confirmAction": "{action} ? Cela résout le signalement.",
-      "actionDone": "{action} : terminé"
+      "actionDone": "{action} : terminé",
+      "ids": {
+        "title": "Identifiants",
+        "reporter": "Auteur du signalement",
+        "reported": "Utilisateur signalé",
+        "server": "Serveur"
+      }
     },
     "federation": {
       "limited": "Limité",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "Fournisseurs OpenID Connect ou OAuth 2.0 auxquels cette instance fait confiance, comme Authentik, Keycloak ou Better Auth. Leurs boutons suivent ceux ci-dessus sur la page de connexion. Leurs secrets client restent sur le serveur : on les ajoute et on les retire là-bas.",
       "customOAuthEmpty": "Aucun pour l’instant.",
       "customOAuthCallback": "URL de redirection (callback) à enregistrer chez le fournisseur :",
-      "customOAuthManage": "Sur le serveur, depuis le dossier de Harmony :"
+      "customOAuthManage": "Sur le serveur, depuis le dossier de Harmony :",
+      "maxStickersPerServer": "Stickers par serveur",
+      "maxStickersPerServerHint": "De 0 à 100. 0 désactive les stickers de serveur.",
+      "maxInstanceStickers": "Stickers de l'instance",
+      "maxInstanceStickersHint": "De 0 à 500. Chaque compte local peut envoyer les stickers de l'instance. 0 les désactive.",
+      "maxPersonalStickers": "Stickers personnels par utilisateur",
+      "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Réactions max. par personne sur une publication",
-        "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur"
+        "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur",
+        "maxStickersPerServer": "Stickers par serveur",
+        "maxInstanceStickers": "Stickers de l'instance",
+        "maxPersonalStickersPerUser": "Stickers personnels par utilisateur"
       },
       "staff": {
         "someServer": "un serveur",
@@ -5275,11 +5340,32 @@
         "delete": "Impossible de supprimer l'emoji.",
         "invalidName": "Les noms comptent de 2 à 64 lettres, chiffres, _ ou -.",
         "nameTaken": "Un autre emoji de l'instance utilise déjà ce nom.",
-        "nameTakenUser": "Le propriétaire a déjà un emoji portant ce nom."
+        "nameTakenUser": "Le propriétaire a déjà un emoji portant ce nom.",
+        "notAdmin": "Seuls les administrateurs de l'instance peuvent téléverser des emojis d'instance.",
+        "duplicateFile": "Ce fichier est déjà un emoji d'instance."
       },
       "searchLabel": "Rechercher des emoji",
       "searchHint": "Nom ou domaine",
-      "searchHintUser": "Nom ou propriétaire"
+      "searchHintUser": "Nom ou propriétaire",
+      "browseTitle": "Tous les emojis de cette instance",
+      "loading": "Chargement des emojis",
+      "library": {
+        "description": "Tous les utilisateurs locaux les trouvent dans le sélecteur d'emojis sous le nom de cette instance.",
+        "listLabel": "Emojis locaux de l'instance",
+        "empty": "Aucun emoji d'instance pour l'instant",
+        "emptyHint": "Téléversez-en un ci-dessus. Tous les utilisateurs locaux peuvent l'utiliser.",
+        "loading": "Chargement des emojis de l'instance",
+        "retry": "Réessayer"
+      }
+    },
+    "copyId": {
+      "user": "Copier l'ID de l'utilisateur",
+      "server": "Copier l'ID du serveur",
+      "named": "{action} : {target}",
+      "userCopied": "ID de l'utilisateur copié",
+      "serverCopied": "ID du serveur copié",
+      "userFailed": "Impossible de copier l'ID de l'utilisateur",
+      "serverFailed": "Impossible de copier l'ID du serveur"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "Lire sur {site}",
     "playInX": "Lire dans le lecteur de X"
   },
+  "outsideLink": {
+    "title": "Vous quittez Harmony",
+    "lead": "Ce lien mène à un site extérieur à Harmony. Vérifiez l'adresse avant de l'ouvrir.",
+    "maskedLead": "Le texte de ce lien peut masquer sa véritable destination. Vérifiez l'adresse avant de l'ouvrir.",
+    "trust": "Faire confiance à {host} désormais",
+    "copy": "Copier le lien",
+    "open": "Ouvrir le lien",
+    "copied": "Lien copié",
+    "copyFailed": "Impossible de copier le lien",
+    "trustFailed": "Impossible d'enregistrer {host} comme site de confiance",
+    "settings": {
+      "title": "Liens externes",
+      "askEvery": "Demander avant d'ouvrir tout lien externe",
+      "askEveryDescription": "Affiche l'avertissement « Vous quittez Harmony » pour chaque lien vers un autre site. Les liens masqués, dont le texte peut différer de leur adresse, demandent toujours.",
+      "trusted": "Sites de confiance",
+      "trustedDescription": "Les liens vers ces sites s'ouvrent sans confirmation.",
+      "trustedEmpty": "Aucun site de confiance. Cochez « Faire confiance » dans l'avertissement « Vous quittez Harmony » pour en ajouter un.",
+      "remove": "Retirer",
+      "removeLabel": "Retirer {host} des sites de confiance",
+      "saveFailed": "Impossible d'enregistrer la modification"
+    }
+  },
+  "photoDetails": {
+    "keep": "Conserver les détails de la photo (lieu, appareil)",
+    "locationRemoved": "Lieu supprimé",
+    "locationKept": "Contient le lieu",
+    "originalGone": "L’original n’est plus sur cet appareil. Joignez-le à nouveau pour conserver ses détails.",
+    "settings": {
+      "keepByDefault": "Conserver les détails des photos par défaut",
+      "keepByDefaultDescription": "Les photos et vidéos que vous joignez commencent avec « Conserver les détails de la photo » activé : leur lieu, leur appareil et d’autres informations sont envoyés avec elles. Désactivé : Harmony supprime ces informations sur votre appareil avant l’envoi. Les photos de profil, bannières, icônes, emojis et stickers ne les conservent jamais.",
+      "saveFailed": "Impossible d’enregistrer le réglage des détails des photos."
+    },
+    "drive": {
+      "title": "Détails des photos et vidéos",
+      "intro": "Ces photos et vidéos contiennent des informations comme le lieu de prise de vue et l’appareil. Harmony les supprime, sauf si vous les conservez.",
+      "upload": "Envoyer"
+    }
+  },
   "threadCreate": {
     "button": "Nouveau fil",
     "nameLabel": "Nom du fil",
@@ -6741,7 +6865,15 @@
     "reportFiles": "Fichiers joints",
     "removeFile": "Retirer le fichier",
     "removeAndBlock": "Retirer et bloquer la remise en ligne",
-    "removed": "Retiré"
+    "removed": "Retiré",
+    "searchLabel": "Rechercher des comptes",
+    "searchHint": "Nom ou {'@'}identifiant",
+    "loading": "Chargement des comptes",
+    "noMatch": "Aucun compte ne correspond.",
+    "pages": "Pages des comptes",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "range": "{from}–{to} sur {total}"
   },
   "share": {
     "title": "Partager sur Harmony",
@@ -7474,5 +7606,128 @@
     "showInFolder": "Afficher dans le dossier",
     "downloadStarted": "Téléchargement de {name}",
     "downloadFailed": "Échec du téléchargement : {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name} : {description}",
+    "goneLabel": "Sticker {name}, plus disponible : {description}",
+    "removed": "Sticker supprimé",
+    "unavailable": "Sticker indisponible",
+    "preview": "Sticker : {name}",
+    "pickLabel": "Envoyer le sticker {name} : {description}",
+    "picker": {
+      "server": "Ce serveur",
+      "instance": "Stickers de l'instance",
+      "mine": "Mes stickers"
+    },
+    "errors": {
+      "type": "Un sticker est une image PNG, APNG, WebP ou GIF.",
+      "size": "Ce sticker pèse {size} ; la limite est de {max}.",
+      "dimensions": "Ce sticker mesure {width}×{height} pixels ; la limite est de {max}×{max}. Les stickers animés ne sont pas redimensionnés.",
+      "duration": "Cette animation dure {seconds} s ; la limite est de {max} s.",
+      "dimensionsGeneric": "Un sticker mesure au plus {max}×{max} pixels.",
+      "durationGeneric": "Un sticker animé dure au plus {max} secondes.",
+      "nameLength": "Le nom d'un sticker compte de {min} à {max} caractères.",
+      "descriptionMissing": "Décrivez le sticker pour les personnes qui ne peuvent pas le voir.",
+      "descriptionLength": "Une description compte au plus {max} caractères.",
+      "limit": "Limite de stickers atteinte ({max}).",
+      "off": "Ces stickers sont désactivés sur cette instance.",
+      "nameTaken": "Un sticker porte déjà ce nom ici.",
+      "forbidden": "Vous ne pouvez pas gérer ces stickers.",
+      "notFound": "Ce sticker n'existe plus.",
+      "generic": "Le sticker n'a pas pu être enregistré."
+    },
+    "manage": {
+      "navLabel": "Stickers",
+      "serverTitle": "Stickers",
+      "serverDescription": "Stickers que les membres peuvent envoyer dans les salons et fils de ce serveur. Les membres ayant Gérer les expressions les ajoutent, les modifient et les suppriment.",
+      "instanceTitle": "Stickers de l'instance",
+      "instanceDescription": "Stickers que chaque compte de cette instance peut envoyer dans n'importe quel serveur ou conversation.",
+      "myTitle": "Mes stickers",
+      "myDescription": "Stickers que vous seul pouvez envoyer, dans n'importe quel serveur ou conversation.",
+      "upload": "Ajouter un sticker",
+      "limits": "PNG, APNG, WebP ou GIF, jusqu'à {size} et {side}×{side} pixels ; animations jusqu'à {seconds} secondes. Les images fixes plus grandes sont redimensionnées.",
+      "file": "Image",
+      "name": "Nom",
+      "description": "Description",
+      "descriptionHint": "Lue par les lecteurs d'écran et affichée quand l'image ne charge pas. Obligatoire.",
+      "uploading": "Envoi…",
+      "uploadButton": "Téléverser le sticker",
+      "uploaded": "Sticker « {name} » ajouté",
+      "saved": "Sticker « {name} » enregistré",
+      "deleted": "Sticker « {name} » supprimé",
+      "listTitle": "Stickers",
+      "empty": "Aucun sticker pour le moment.",
+      "editLabel": "Modifier le sticker {name}",
+      "deleteLabel": "Supprimer le sticker {name}",
+      "deleteTitle": "Supprimer le sticker",
+      "deleteConfirm": "Supprimer « {name} » ? Les messages qui l’ont envoyé affichent un espace réservé à la place.",
+      "loading": "Chargement des stickers",
+      "loadFailed": "Les stickers n'ont pas pu être chargés.",
+      "off": {
+        "server": "Les stickers de serveur sont désactivés sur cette instance.",
+        "instance": "Les stickers de l'instance sont désactivés. Augmentez la limite dans Admin → Config.",
+        "user": "Les stickers personnels sont désactivés sur cette instance. Un administrateur peut les autoriser."
+      }
+    },
+    "report": {
+      "menu": "Signaler le sticker",
+      "proof": "Sticker signalé",
+      "remove": "Supprimer le sticker",
+      "removeConfirm": "Supprimer ce sticker pour tout le monde ? Les messages qui l’ont envoyé affichent un espace réservé à la place.",
+      "removed": "Sticker supprimé",
+      "scope": {
+        "server": "Sticker de {server}",
+        "instance": "Sticker de l'instance",
+        "user": "Sticker personnel"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "« {name} » fait {size}, au-delà de votre limite d’envoi de {limit}.",
+    "tooLargeFile": "Ce fichier fait {size}, au-delà de votre limite d’envoi de {limit}.",
+    "title": "Envois",
+    "hint": "Le plus gros fichier que chaque compte peut joindre dans les salons, fils, messages privés et publications, ou garder dans Drive. Photos de profil, bannières, icônes de serveur, emoji et sons ont leurs propres limites.",
+    "tier": {
+      "user": "Plus gros fichier par compte",
+      "moderator": "Plus gros fichier par modérateur de l’instance",
+      "admin": "Plus gros fichier par administrateur de l’instance"
+    },
+    "tierName": {
+      "user": "compte",
+      "moderator": "modérateur de l’instance",
+      "admin": "administrateur de l’instance"
+    },
+    "aboveCeiling": "Au-delà du plafond de {limit}",
+    "ceiling": "Plafond fixé par l’opérateur du serveur",
+    "ceilingHint": "Aucune limite d’envoi ne peut le dépasser. L’opérateur le relève sur le serveur avec harmony config --upload-ceiling.",
+    "driveNote": "Le plus gros fichier n’est pas le stockage Drive : un envoi qui ferait dépasser son stockage à un compte est gardé comme fichier temporaire.",
+    "readOnly": "Seuls les administrateurs de l’instance modifient les limites d’envoi.",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "loadFailed": "Impossible de charger les limites d’envoi.",
+    "saveFailed": "Impossible d’enregistrer les limites d’envoi.",
+    "user": {
+      "open": "Limite d’envoi de {name}",
+      "title": "Limite d’envoi de {name}",
+      "tier": "Niveau : {tier}, {limit}",
+      "effective": "Plus gros fichier actuel : {limit}",
+      "choice": "Limite",
+      "useTier": "Celle du niveau",
+      "custom": "Limite personnalisée",
+      "customLabel": "Limite d’envoi de {name}, Mo",
+      "ceiling": "Plafond : {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Rôle",
+    "roleOption": "{name}, rôle",
+    "memberOption": "{name}, membre, {handle}",
+    "rolePill": "{'@'}{name}, rôle",
+    "roleCard": {
+      "label": "Rôle {name}",
+      "members": "{count} membre | {count} membres",
+      "here": "Membres en ligne qui voient le salon",
+      "unknown": "Ce n'est pas un rôle de ce serveur"
+    }
   }
 }

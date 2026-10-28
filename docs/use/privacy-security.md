@@ -53,6 +53,8 @@ A few actions ask for a fresh code even in a signed-in session:
 
 Changing your password asks for your current password, not a code. It signs out every other device.
 
+Some accounts have no password and cannot get one: on a self-hosted instance without email, a first sign-in through Google, GitHub, Twitch or the instance's own provider can make an account that signs in only through that provider. **Security** says so after the first attempt to set a password.
+
 ### Turn off two-factor authentication
 
 1. Open **User settings** → **Security** → **Two-factor authentication**.
@@ -212,6 +214,30 @@ Right-click a member and choose **Block** or **Mute user**. Profiles and the men
 A block is also sent to other instances as an ActivityPub block. A block does not stop the other person reading what you post in servers you share.
 
 To undo either, open **User settings** → **Privacy & safety** and click **Unblock** under **Blocked users** or **Unmute** under **Muted users**.
+
+## Links to other sites
+
+A masked link shows its own text in place of its address: `[text](https://…)` typed in a message or post, or a link from another instance whose text is not its address. Opening one shows **Leaving Harmony** first, with the whole address and its site in bold, **Copy link**, **Cancel** and **Open link**. A link that shows its address opens at once. Links to your own instance (invites, posts, profiles, Drive links) never ask.
+
+- Tick **Trust _site_ from now on** before **Open link**, and links to that site open without asking on every device you sign in to. Its subdomains and other ports still ask.
+- **User settings** → **Privacy & safety** → **Outside links** lists your trusted sites; **Remove** takes one off.
+- **Ask before opening any outside link** shows the check for every link to another site. Off by default.
+- In a browser, a middle click or Ctrl/⌘-click on a masked link shows the check too, and **Open link** opens a new tab. The browser's own right-click **Open link in new tab** does not ask.
+
+## Photo and video details
+
+Photos and videos usually carry details the camera wrote into the file: where they were taken (GPS), the camera or phone model, its serial number, and editing software. Harmony removes these on your device, before the file is uploaded, for every photo and video you attach to a message, a direct message, a thread or a post, and for files you upload to Drive. Encrypted conversations are no exception: the attachment itself is not encrypted, so its details are removed the same way.
+
+- An attachment that carries details shows **Keep photo details (location, camera)**, off by default. Tick it to upload the file as it is.
+- A file that carries a location also shows **Location removed**, or **Includes location** while **Keep photo details** is ticked.
+- In Drive, uploading photos or videos that carry details first lists them, each with its own **Keep photo details**, before **Upload**.
+- A Drive file kept with its details shows the same box when you attach it to a message or post it. Unless you tick it there too, Harmony sends a copy without the details; the file in your Drive stays as it is. Files uploaded to Drive before Harmony 1.9.2 are checked when you attach them.
+- Bots and bridges cannot keep details either: files the instance copies for them are stored without.
+- **User settings** → **Privacy & safety** → **Keep photo details by default** ticks the box for every new attachment. It follows your account to every device. Off by default.
+- Profile pictures, banners, server and group icons, emoji and stickers never keep their details.
+- Photos stay upright: their orientation is kept.
+
+Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the preview thumbnail a JPEG can carry of the unedited photo; location, camera and other metadata boxes from MP4 and MOV. Nothing is re-encoded. Audio files (MP3, M4A) keep their tags, cover and chapters. Other formats are uploaded as they are.
 
 ## Other privacy settings
 

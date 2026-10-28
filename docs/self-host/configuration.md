@@ -45,9 +45,10 @@ saves them with the database.
 
 The admin panel is **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its **Config** tab has the sub-tabs
-**General**, **Federation**, **Branding**, **Authentication** and
-**Voice & video**. Their values live in `public.instance_config`, except
-those of **Voice & video**, which live in `public.instance_webrtc_settings`.
+**General**, **Federation**, **Branding**, **Authentication**,
+**Voice & video** and **Uploads**. Their values live in
+`public.instance_config`, except those of **Voice & video**, which live in
+`public.instance_webrtc_settings`.
 
 Some settings exist both as a variable and in the database:
 
@@ -60,6 +61,8 @@ Some settings exist both as a variable and in the database:
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
+| Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
+| Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
 
 ### Drive storage
 
@@ -92,6 +95,76 @@ The federation worker hashes new files, deletes temporary files whose days
 have passed and trash older than 30 days, and removes the stored bytes of
 deleted files. It sweeps every 10 minutes.
 
+### Upload limits
+
+**Config** → **Uploads** sets the largest file an account may upload into
+channels, threads, direct and group conversations and posts, or keep in
+Drive. Profile pictures (5 MB), banners (10 MB), server and group icons
+(5 MB), emoji (1 MB) and soundboard sounds (512 KB) keep their own limits.
+
+| Setting | Key | Default | Meaning |
+|---|---|---|---|
+| **Largest file per account** | `upload_limit_user_mb` | `50` | An account that is neither instance admin nor moderator, in MB |
+| **Largest file per instance moderator** | `upload_limit_moderator_mb` | `50` | An instance moderator, in MB |
+| **Largest file per instance admin** | `upload_limit_admin_mb` | `50` | An instance admin, in MB |
+| **Ceiling set by the server operator** | `upload_ceiling_bytes` | `52428800` | Read-only in the admin panel: storage's `FILE_SIZE_LIMIT`, in bytes. See [Raise the ceiling](#raise-the-ceiling) |
+
+A MB is 1,048,576 bytes. **Save** refuses a limit above the ceiling; a limit
+left above a ceiling lowered later counts as the ceiling. An instance updated
+from 1.9.1 starts every limit at the larger of the two upload buckets' limits
+(`message_media`, `user_media`), 50 MB unless you had changed them. A bucket
+without a limit of its own was bounded by `FILE_SIZE_LIMIT` alone; if that is
+larger, raise the limits in **Config** → **Uploads** after updating.
+
+In **Users**, the upload button of a local account opens that account's
+limit: its role's limit, the limit that applies now, and **Use the tier** or
+**Custom limit** in MB. A custom limit applies instead of the role's, above
+or below it, and never above the ceiling. Instance moderators see the
+**Users** limits read-only; only instance admins change them. Each change is
+in the activity log.
+
+The limit is the size of the file as stored. The web app refuses a larger
+file before sending a byte and says what the limit is, on the attachment and
+in the transfers list. The database refuses it as well, so no other client
+or direct call to the storage API passes it: the `storage_upload_limit`
+trigger on `storage.objects` refuses a resumable upload when it is created,
+from the size it declares, and a single-request upload once its bytes reach
+storage, which then deletes them. Storage answers such a refusal as it
+answers a permission refusal: `403`, `new row violates row-level security
+policy`. Uploads made with the service role key (the Discord bridge's
+mirrored attachments, the federation backend) have no per-account limit;
+the ceiling still applies.
+
+A file limit is not [Drive storage](#drive-storage). Storage counts every
+file an account keeps; an upload within the file limit that would take an
+account past its storage is kept as a temporary file.
+
+#### Raise the ceiling
+
+```bash
+harmony config --upload-ceiling 2GB
+```
+
+This writes `FILE_SIZE_LIMIT` in `supabase/.env`, recreates the storage
+container with it, and writes the same number into
+`instance_config.upload_ceiling_bytes`. Then raise the limits in
+**Config** → **Uploads**. A size is a number of bytes, or a number followed
+by `MB` or `GB`, from 1 MB to 5 TB. `harmony config --upload-ceiling` alone
+prints the current ceiling. It warns about limits above a lowered ceiling.
+`harmony doctor` warns when storage, `supabase/.env` and the database
+disagree.
+
+The web app sends a file over 6 MB in 6 MB pieces through storage's
+resumable (TUS) endpoint, so Caddy's 50 MB request body limit and
+Cloudflare's 100 MB do not bound the size of a file.
+
+Larger files cost storage. On the file backend they fill the disk under
+`supabase/volumes/storage`. On Cloudflare R2 or another S3-compatible store
+every stored byte is billed per GB-month, and each 6 MB piece of a resumable
+upload is one multipart part request (a Class A operation on R2); R2 charges
+no egress. Drive storage per account bounds what each account keeps, and
+temporary files count until they expire.
+
 ### Emoji limits
 
 **Config** → **Federation** holds the emoji limits. They live in
@@ -101,6 +174,12 @@ deleted files. It sweeps every 10 minutes.
 |---|---|---|---|
 | **Max custom emojis per server** | `max_custom_emojis_per_server` | `50` | Custom emoji a server holds, checked by the web app. `0` is no limit |
 | **Personal emojis per user** | `max_personal_emojis_per_user` | `50` | Emoji each person keeps in **User settings** → **My emojis**, uploads and AI-generated together, `0` to `1000`. `0` turns personal emoji off. The database refuses an emoji past the limit; emoji already past a lowered limit stay |
+
+### Sticker limits
+
+**Config** → **Federation** also holds the sticker caps: `max_stickers_per_server` (`15`),
+`max_instance_stickers` (`50`) and `max_personal_stickers_per_user` (`0`, personal stickers
+off). [Stickers](/self-host/stickers) describes them with the file limits.
 
 ## Change a setting
 
@@ -273,7 +352,8 @@ values.
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME` | from the email answers | Outgoing email. See [Email (SMTP)](/self-host/email) |
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
-| `PROVIDER_LINKING_DOMAINS` | `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Your own sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`). A value that is not such pairs stops the sign-in service from starting. See [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `PROVIDER_LINKING_DOMAINS` | `github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
+| `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.196.0` on, otherwise `supabase/gotrue:v2.196.0`. A newer image set by hand stays |
 
 ### Sign-in service version

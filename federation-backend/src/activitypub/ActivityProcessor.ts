@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
-import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
-import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
+import { mergeQuestionPoll, questionPollMetadata } from '../utils/polls.js';
+import { actorHostname } from '../utils/mentionParts.js';
+import { inboundRawContent, urlFormEmojis } from '../utils/inboundContent.js';
+import { withInboundSticker } from '../utils/stickers.js';
 import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
@@ -4409,7 +4410,7 @@ export class ActivityProcessor {
   private static async channelMessageContent(object: any, actorUrl: string): Promise<any> {
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
+      content = inboundRawContent(object['harmony:rawContent'], actorHostname(actorUrl));
     } else if (typeof object.content === 'string') {
       content = noteToContent(object);
     } else if (Array.isArray(object.content)) {
@@ -4424,26 +4425,7 @@ export class ActivityProcessor {
       content = await resolveMentionUserIds(content);
     }
     
-    // Remote emoji UUIDs do not exist locally, so emojis are rewritten to the
-    // URL-based form used by the Discord bridge.
-    const instanceDomain = new URL(actorUrl).hostname;
-    if (Array.isArray(content)) {
-      content = content.map((item: any) => {
-        if (item.type === 'emoji' && item.emoji) {
-          return {
-            type: 'emoji',
-            emoji: {
-              name: item.emoji.name || 'emoji',
-              url: item.emoji.url,
-              domain: instanceDomain,
-              is_remote: true,
-            }
-          };
-        }
-        return item;
-      });
-    }
-    return content;
+    return urlFormEmojis(content, new URL(actorUrl).hostname);
   }
 
   /**
@@ -4579,7 +4561,7 @@ export class ActivityProcessor {
       .insert({
         user_id: authorId,
         conversation_id: conversationId,
-        content,
+        content: withInboundSticker(content, object['harmony:sticker'], metadata.from_domain),
         metadata,
         encrypted: object['harmony:encrypted'] === true,
         created_at: dmTimestamp,

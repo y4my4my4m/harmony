@@ -19,20 +19,31 @@ interface SearchRow {
   created_at: string
   server_id: string | null
   total_count: number | null
+  fuzzy: boolean | null
 }
 
 export interface MessageSearchPage {
   results: Message[]
   /** Match count up to 10,000; 10,001 stands for more. Null when the page came back empty past the end. */
   total: number | null
+  /** No row matched the words; the rows are similar ones (search_messages' typo fallback). */
+  fuzzy: boolean
+  /** With `lead`: created_at of the match just before the page; null on the first page. */
+  before?: Date | null
 }
 
 /** search_messages counts at most this many matches exactly. */
 export const SEARCH_TOTAL_CAP = 10000
 
 export class SearchService {
-  async searchMessages(params: SearchRpcParams, options: { signal?: AbortSignal } = {}): Promise<MessageSearchPage> {
-    let request = supabase.rpc('search_messages', { ...params })
+  /**
+   * `lead` reads one match more, the one before the page, for its created_at: encrypted
+   * results found on the device go between the pages by time (utils/searchMerge.ts).
+   */
+  async searchMessages(params: SearchRpcParams, options: { signal?: AbortSignal; lead?: boolean } = {}): Promise<MessageSearchPage> {
+    const lead = !!options.lead && params.p_offset > 0
+    const sent = lead ? { ...params, p_offset: params.p_offset - 1, p_limit: params.p_limit + 1 } : params
+    let request = supabase.rpc('search_messages', { ...sent })
     if (options.signal) request = request.abortSignal(options.signal)
     const { data, error } = await request
     if (error) {
@@ -40,12 +51,15 @@ export class SearchService {
       throw new Error(error.message)
     }
 
-    const rows = (data || []) as SearchRow[]
+    const all = (data || []) as SearchRow[]
+    const rows = lead ? all.slice(1) : all
     const messages = await this.loadMessagesByIds(rows.map(r => r.message_id))
     const byId = new Map(messages.map(m => [m.id, m]))
     return {
       results: rows.map(r => byId.get(r.message_id)).filter((m): m is Message => m !== undefined),
-      total: rows.length > 0 ? Number(rows[0].total_count ?? 0) : null,
+      total: all.length > 0 ? Number(all[0].total_count ?? 0) : null,
+      fuzzy: all.some(r => r.fuzzy === true),
+      ...(options.lead ? { before: lead && all.length > 0 ? new Date(all[0].created_at) : null } : {}),
     }
   }
 

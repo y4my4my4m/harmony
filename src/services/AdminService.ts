@@ -4,6 +4,7 @@ import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
+import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
@@ -455,8 +456,10 @@ class AdminService {
         }
       }
 
+      // id breaks created_at ties; without it offset pages repeat and skip rows.
       const { data, error, count: total } = await query
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error) throw error;
@@ -881,6 +884,9 @@ class AdminService {
       let retryAttempts = 3
       let maxCustomEmojisPerServer = 50
       let maxPersonalEmojisPerUser = DEFAULT_PERSONAL_EMOJIS_PER_USER
+      let maxStickersPerServer = DEFAULT_STICKER_CAPS.server
+      let maxInstanceStickers = DEFAULT_STICKER_CAPS.instance
+      let maxPersonalStickersPerUser = DEFAULT_STICKER_CAPS.user
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
@@ -894,7 +900,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -1002,6 +1008,15 @@ class AdminService {
                 case 'max_personal_emojis_per_user':
                   maxPersonalEmojisPerUser = parsePersonalEmojiLimit(value)
                   break
+                case 'max_stickers_per_server':
+                  maxStickersPerServer = parseStickerCap('server', value)
+                  break
+                case 'max_instance_stickers':
+                  maxInstanceStickers = parseStickerCap('instance', value)
+                  break
+                case 'max_personal_stickers_per_user':
+                  maxPersonalStickersPerUser = parseStickerCap('user', value)
+                  break
                 case 'custom_emoji_transform_quality': {
                   const q = typeof value === 'number' ? value : parseInt(String(value), 10)
                   if (!Number.isNaN(q)) {
@@ -1078,6 +1093,9 @@ class AdminService {
           retryAttempts,
           maxCustomEmojisPerServer,
           maxPersonalEmojisPerUser,
+          maxStickersPerServer,
+          maxInstanceStickers,
+          maxPersonalStickersPerUser,
           customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
           maxPostReactionsPerUser,
@@ -2089,6 +2107,47 @@ class AdminService {
       debug.error('Failed to get public servers for admin:', error);
       return [];
     }
+  }
+
+  /** One page of public local servers, featured first; total is the exact match count. */
+  async pagePublicServersForAdmin(limit = 50, offset = 0): Promise<{
+    servers: Awaited<ReturnType<AdminService['getPublicServersForAdmin']>>;
+    total: number;
+  }> {
+    const { data, error, count } = await supabase
+      .from('servers')
+      .select('id, name, description, icon, is_featured, featured_order', { count: 'exact' })
+      .eq('public', true)
+      .neq('is_local_server', false)
+      .order('is_featured', { ascending: false })
+      .order('featured_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    const list = data || [];
+    if (list.length === 0) return { servers: [], total: count ?? 0 };
+    const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+      p_server_ids: list.map((s) => s.id),
+    });
+    const countMap = new Map<string, number>();
+    for (const row of (countRows ?? []) as { server_id: string; member_count: string }[]) {
+      countMap.set(row.server_id, Number(row.member_count) || 0);
+    }
+    return { servers: list.map((s) => ({ ...s, member_count: countMap.get(s.id) ?? 0 })), total: count ?? 0 };
+  }
+
+  /** One past the highest featured_order, at least 1. */
+  async nextFeaturedOrder(): Promise<number> {
+    const { data, error } = await supabase
+      .from('servers')
+      .select('featured_order')
+      .eq('is_featured', true)
+      .order('featured_order', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error) throw error;
+    const top = data?.[0]?.featured_order;
+    return Math.max(0, typeof top === 'number' ? top : 0) + 1;
   }
 
   /**

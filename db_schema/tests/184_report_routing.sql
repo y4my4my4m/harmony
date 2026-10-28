@@ -63,8 +63,8 @@ CREATE TEMP TABLE ids (k text PRIMARY KEY, v uuid) ON COMMIT DROP;
 GRANT ALL ON ids TO PUBLIC;
 
 -- Surface ---------------------------------------------------------------------------
-SELECT ok(has_function_privilege('authenticated', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean)', 'EXECUTE')
-          AND NOT has_function_privilege('anon', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean)', 'EXECUTE'),
+SELECT ok(has_function_privilege('authenticated', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean, uuid)', 'EXECUTE')
+          AND NOT has_function_privilege('anon', 'public.create_report(text, uuid, uuid, uuid, uuid, text, text, text, boolean, text, boolean, uuid)', 'EXECUTE'),
           'create_report takes p_forward_to_server, for signed-in callers');
 SELECT is((SELECT count(*)::int FROM pg_proc WHERE proname = 'create_report' AND pronamespace = 'public'::regnamespace),
           1, 'one create_report: the ten-argument form is gone');

@@ -78,6 +78,7 @@ export function securityErrorMessage(error: unknown, fallback?: string): string 
     return t('security.errors.codeMismatch')
   }
   if (code === 'mfa_challenge_expired') return t('security.errors.challengeExpired')
+  if (code === 'user_sso_managed') return t('security.errors.providerManaged')
   if (code === 'over_request_rate_limit' || err.status === 429) {
     return t('security.errors.rateLimited')
   }

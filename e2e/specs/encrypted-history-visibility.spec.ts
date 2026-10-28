@@ -18,7 +18,6 @@ import {
   channelRow,
   dismissAnnouncements,
   messageList,
-  openChannel,
   sendMessage,
   signIn,
   type SpecUser,
@@ -212,10 +211,12 @@ test('switching a live channel from none to all answers a waiting newcomer; swit
     expect((await requestsOf(admin, h.cleo)).every((r) => r.status === 'pending')).toBe(true)
   })
 
-  const avaPage = await h.avaProfile.newPage()
+  // Ava's own unlock sweep lists requests before the switch. Listed after it, the request is
+  // hers to answer as the session's sender, and Ben's sweep finds it answered.
+  const avaPage = await comeBack(h.avaProfile, `/chat/${h.server.id}/${h.server.generalChannelId}`)
 
   await test.step('Ava turns the channel to all messages in its settings', async () => {
-    await openChannel(avaPage, h.server.id, h.server.generalChannelId)
+    await expect(messageList(avaPage)).toBeVisible({ timeout: 30000 })
     const dialog = await openChannelSettings(avaPage, 'general')
     const select = dialog.getByTestId('channel-history-visibility')
     await expect(select).toHaveValue('none', { timeout: 15000 })

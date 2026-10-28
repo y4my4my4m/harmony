@@ -1203,6 +1203,11 @@ export class MegolmService {
     return this.initialized
   }
 
+  /** The key sealing sessions at rest, while unlocked. Seals the search index key too. */
+  storageKey(): CryptoKey | null {
+    return this.initialized ? this.encryptionKey : null
+  }
+
   close(): void {
     if (this.db) {
       this.db.close()

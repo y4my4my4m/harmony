@@ -62,8 +62,33 @@ const jpegWithOrientation = (orientation: number, order: 'II' | 'MM' = 'MM') => 
 }
 const JPEG_NO_EXIF = bytes([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x4a, 0x46], [0xff, 0xda, 0x00, 0x02], [0xff, 0xd9])
 
+/**
+ * `data` grown by about `extra` bytes inside its image data, where metadata removal keeps them:
+ * a further IDAT ahead of IEND, entropy-coded bytes ahead of EOI, a plain text extension ahead
+ * of the GIF trailer, a VP8 chunk. Other formats get the bytes appended.
+ */
+function grown(data: Uint8Array, extra: number): Uint8Array {
+  switch (sniffImageFormat(data)) {
+    case 'png':
+      return bytes(data.subarray(0, data.length - 12), pngChunk('IDAT', Array(Math.max(0, extra - 12)).fill(0)), data.subarray(data.length - 12))
+    case 'jpeg':
+      return bytes(data.subarray(0, data.length - 2), padding(extra), data.subarray(data.length - 2))
+    case 'gif': {
+      const blocks: number[] = [0x21, 0x01]
+      for (let left = extra; left > 0; left -= 255) blocks.push(Math.min(255, left), ...Array(Math.min(255, left)).fill(0x20))
+      return bytes(data.subarray(0, data.length - 1), blocks, [0x00, 0x3b])
+    }
+    case 'webp': {
+      const chunk = webpChunk('VP8 ', Array(extra).fill(0))
+      return bytes('RIFF', le32(data.length - 8 + chunk.length), data.subarray(8), chunk)
+    }
+    default:
+      return bytes(data, padding(extra))
+  }
+}
+
 const fileOf = (data: Uint8Array, name: string, type: string, extra = 4000) =>
-  new File([bytes(data, padding(extra))], name, { type })
+  new File([grown(data, extra)], name, { type })
 
 interface FakeCodecOptions {
   width: number
@@ -127,6 +152,7 @@ describe('fitWithin', () => {
     expect(IMAGE_SHRINK_BOUNDS.server_icon.maxWidth).toBe(1024)
     expect(IMAGE_SHRINK_BOUNDS.group_icon.maxWidth).toBe(1024)
     expect(IMAGE_SHRINK_BOUNDS.emoji).toEqual({ maxWidth: 256, maxHeight: 256 })
+    expect(IMAGE_SHRINK_BOUNDS.sticker).toEqual({ maxWidth: 320, maxHeight: 320 })
   })
 })
 
@@ -209,6 +235,21 @@ describe('orientation', () => {
     expect(decode).not.toHaveBeenCalled()
   })
 
+  it('removes metadata from an original that fits, keeping its orientation', async () => {
+    const { codec, decode } = fakeCodec({ width: 4000, height: 3000, rotates: false })
+    const packet = bytes('http://ns.adobe.com/xap/1.0/', [0], 'GPSLatitude="1,2N"')
+    const xmp = bytes([0xff, 0xe1, (packet.length + 2) >> 8, (packet.length + 2) & 255], packet)
+    const tagged = jpegWithOrientation(6)
+    const original = fileOf(bytes(tagged.subarray(0, 2), xmp, tagged.subarray(2)), 'photo.jpg', 'image/jpeg')
+    const result = await prepareImageUpload(original, 'avatar', budget(original.size), codec)
+    const stored = new Uint8Array(await result.file.arrayBuffer())
+    expect(result.reencoded).toBe(false)
+    expect(stored.length).toBe(original.size - xmp.length)
+    expect(String.fromCharCode(...stored)).not.toContain('GPSLatitude')
+    expect(readJpegOrientation(stored)).toBe(6)
+    expect(decode).not.toHaveBeenCalled()
+  })
+
   it('draws EXIF rotation itself when the decoder does not', async () => {
     const { codec, renders } = fakeCodec({ width: 4000, height: 3000, rotates: false, sizes: { 'image/jpeg': 900 } })
     const result = await prepareImageUpload(fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg'), 'avatar', budget(1000), codec)
@@ -249,6 +290,22 @@ describe('prepareImageUpload', () => {
       .toMatchObject({ extension: 'png', contentType: 'image/png' })
     const overLimit = await prepareImageUpload(fileOf(apng(4), 'spin.apng', 'image/apng'), 'emoji', budget(100), codec)
     expect(overLimit).toMatchObject({ extension: 'apng', contentType: 'image/png', reencoded: false })
+  })
+
+  it('redraws a still image over maxSide within the kind bounds, though its bytes fit', async () => {
+    const { codec, renders } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/png': 900 } })
+    const original = fileOf(png(), 'wide.png', 'image/png')
+    const result = await prepareImageUpload(original, 'sticker', { ...budget(original.size), maxSide: 320 }, codec)
+    expect(renders[0]).toEqual({ width: 320, height: 107, orientation: 1 })
+    expect(result).toMatchObject({ extension: 'png', reencoded: true })
+  })
+
+  it('keeps an animated original over maxSide: animation is never redrawn', async () => {
+    const { codec, decode } = fakeCodec({ width: 3000, height: 1000 })
+    const animated = fileOf(apng(3), 'wide.png', 'image/png')
+    const result = await prepareImageUpload(animated, 'sticker', { ...budget(animated.size), maxSide: 320 }, codec)
+    expect(result).toEqual({ file: animated, extension: 'apng', contentType: 'image/png', reencoded: false })
+    expect(decode).not.toHaveBeenCalled()
   })
 
   it('relabels a file whose type the bytes contradict and keeps its bytes', async () => {

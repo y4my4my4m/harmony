@@ -8,9 +8,9 @@ import { debug } from '@/utils/debug'
 import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
 import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
-import { immutableUploadOptions, isAnimatedImage, prepareImageUpload, type PreparedImage } from '@/utils/imageResize';
+import { isAnimatedImage, prepareImageUpload, type PreparedImage } from '@/utils/imageResize';
 import { UploadRejectedError, getBucketLimits, imageSourceError, validateImageUpload } from '@/utils/uploadValidation';
-import { uploadStorageObject } from '@/services/uploads/storageUpload';
+import { storePublicImage, type PublicImageUploadOptions } from '@/services/uploads/storageUpload';
 
 const cleanFileName = (originalName: string) => {
     let name = originalName.replace(/[^\w\s.-]/gi, '').trim();
@@ -239,22 +239,11 @@ async function prepareEmojiImage(file: File): Promise<PreparedImage> {
     return prepared;
 }
 
-export interface EmojiUploadOptions {
-    /** Name in the transfers indicator; the picked file's name by default. */
-    label?: string;
-    /** Fraction of the image sent, 0 to 1. */
-    onProgress?: (fraction: number) => void;
-}
+export type EmojiUploadOptions = PublicImageUploadOptions;
 
 /** Emoji upload, step 3: writes the object; returns its public URL. */
-async function storeEmojiImage(path: string, prepared: PreparedImage, options: EmojiUploadOptions = {}): Promise<string> {
-    const { error } = await uploadStorageObject('emojis', path, prepared.file, {
-        ...immutableUploadOptions(prepared),
-        label: options.label ?? prepared.file.name,
-        onProgress: options.onProgress,
-    });
-    if (error) throw error;
-    return supabase.storage.from('emojis').getPublicUrl(path).data.publicUrl;
+function storeEmojiImage(path: string, prepared: PreparedImage, options: EmojiUploadOptions = {}): Promise<string> {
+    return storePublicImage('emojis', path, prepared, options);
 }
 
 // Uploads a server emoji at <server>/<uploader>/<uuid>.<ext> and invalidates the cache.

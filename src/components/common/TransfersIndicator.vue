@@ -74,6 +74,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import { useT } from '@/composables/useT'
 import { dismissTransfer, transferFraction, transfers, type TransferEntry } from '@/services/transfers'
@@ -81,7 +82,9 @@ import { debug } from '@/utils/debug'
 
 const { t } = useT()
 
-const shown = computed(() => transfers().filter((entry) => entry.shown))
+const route = useRoute()
+// A transfer whose own page shows its progress is listed only elsewhere.
+const shown = computed(() => transfers().filter((entry) => entry.shown && (!entry.origin || entry.origin !== route?.path)))
 const running = (direction: TransferEntry['direction']) =>
   shown.value.filter((entry) => entry.direction === direction && entry.progress.status === 'running').length
 

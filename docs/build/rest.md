@@ -147,6 +147,10 @@ A message's content is an array of parts. These are the part types a bot sends; 
 
 The server drops `system` parts a bot sends, and removes `path` from every part on create and edit: a bot names attachments by URL.
 
+### Photo and video metadata
+
+Every photo or video the instance stores on a bot's behalf (a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
+
 The text parts of a message may hold at most the instance's message length limit, 2000 characters unless the operator changed it. A longer message fails with `500` and an error such as `Message text exceeds the instance limit of 2000 characters (got 2417)`.
 
 ### Mentions
@@ -156,6 +160,7 @@ Before storing, the server checks `role_mention` and `channel_mention` parts aga
 - A `role_mention` naming a role of that server keeps its part, with the stored role name and color. A `channel_mention` naming a channel of that server keeps its part, with the stored name and the server's ID. Any other such part becomes the text `@roleName` or `#name`.
 - @everyone (the server's default role) and @here (`{ "type": "role_mention", "roleId": "here" }`) stay mentions only when the installation has `mention_everyone`; otherwise they become the text `@everyone` or `@here`. @here notifies the members who are online and can view the channel.
 - Another role notifies its members when it is mentionable, or when the installation has `mention_everyone`.
+- `content` sent as a string reads `@everyone` and `@here` as Discord does: outside code and links, the lowercase words become those mentions when the installation has `mention_everyone`, and stay text otherwise. Text parts are never read for mentions, and neither is relayed content (metadata naming a relayed author), whose author's right the bot does not carry.
 
 Edits and silent content patches apply the same check.
 
@@ -184,7 +189,7 @@ Edits and silent content patches apply the same check.
 
 `metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds` and `webhook`. `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel; see [Relayed authors](/build/bridges#relayed-authors). The server then sets `bot: true` and `created_via: "bot_api"`.
 
-When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments).
+When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments). Photos and videos copied this way lose their location, camera and other metadata; see [Photo and video metadata](#photo-and-video-metadata).
 
 Returns `201` with the [message object](#message-object). The instance then fetches link previews for the message's `url` parts.
 
@@ -627,7 +632,7 @@ Only the bot of the server's Discord bridge.
 |---|---|---|
 | `existing` | `200` | The Discord emoji was already imported into this server. |
 | `linked` | `200` | A server emoji with the same name (ignoring case) and no Discord link now carries this Discord ID. |
-| `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB) and created a server emoji. |
+| `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB), removed its metadata and created a server emoji. |
 
 The response is `{ "status", "id", "name", "url", "discord_emoji_id" }`. Importing the same Discord emoji again never creates a second row. `403` `Bot is not the Discord bridge of this server`; `502` when the image cannot be downloaded or stored.
 

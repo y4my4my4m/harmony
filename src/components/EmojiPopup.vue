@@ -1367,10 +1367,11 @@ watch(
 </style>
 
 <style>
+/* Above the reaction picker (.emoji-popup, 99999): the menu opens over the popup it came from. */
 .emoji-ctx-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 100000;
 }
 
 .emoji-ctx-menu {
@@ -1381,7 +1382,7 @@ watch(
   padding: 4px 0;
   min-width: 180px;
   box-shadow: var(--shadow-large);
-  z-index: 10000;
+  z-index: 100001;
 }
 
 .emoji-ctx-item {

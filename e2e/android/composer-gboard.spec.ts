@@ -2,7 +2,9 @@
 // on-screen keyboard:
 // - words typed beside markdown keep their letters; Gboard's Enter key adds a line; the send
 //   button sends what was typed;
-// - the composer asks Gboard for autocorrection, and sends what the composer shows.
+// - the composer asks Gboard for autocorrection, and sends what the composer shows;
+// - with the keyboard down, a tap on a word the spellchecker underlines raises the keyboard and
+//   opens no spelling menu, after the reaction picker's search and with the composer focused.
 //
 // Runs on an emulator or device with the app installed and Gboard as its keyboard, not in CI:
 // HARMONY_ANDROID=1, an adb device, the e2e stack up (npm run e2e:up) and a dev server of this
@@ -109,14 +111,20 @@ async function uiDump(): Promise<string> {
   return (await device.shell('cat /sdcard/ui.xml')).toString()
 }
 
-/** Taps an element as a finger does: the soft keyboard opens only for a real touch. */
-async function touch(page: Page, selector: string) {
-  const box = await page.locator(selector).boundingBox()
-  if (!box) throw new Error(`${selector} is not on screen`)
+/** Screen pixels of a point in the WebView's viewport (CSS px). */
+async function screenPoint(page: Page, x: number, y: number): Promise<[number, number]> {
   const dpr = await page.evaluate(() => window.devicePixelRatio)
   const view = /class="android\.webkit\.WebView"[^>]*bounds="\[(\d+),(\d+)\]/.exec(await uiDump())
   const [left, top] = view ? [Number(view[1]), Number(view[2])] : [0, 0]
-  await device.shell(`input tap ${Math.round(left + (box.x + box.width / 2) * dpr)} ${Math.round(top + (box.y + box.height / 2) * dpr)}`)
+  return [Math.round(left + x * dpr), Math.round(top + y * dpr)]
+}
+
+/** Taps an element as a finger does: the soft keyboard opens only for a real touch. */
+async function touch(page: Page, selector: string, holdMs = 0) {
+  const box = await page.locator(selector).first().boundingBox()
+  if (!box) throw new Error(`${selector} is not on screen`)
+  const [x, y] = await screenPoint(page, box.x + box.width / 2, box.y + box.height / 2)
+  await device.shell(holdMs ? `input swipe ${x} ${y} ${x} ${y} ${holdMs}` : `input tap ${x} ${y}`)
 }
 
 interface Key { label: string; x: number; y: number; top: number }
@@ -215,3 +223,71 @@ test('the composer asks the keyboard for autocorrection and sends what it shows'
   expect(await lastText()).toBe(shown)
 })
 
+/** Whether the soft keyboard is up, as the input method service has it. */
+async function keyboardShown(): Promise<boolean> {
+  return /mInputShown=true/.test((await device.shell('dumpsys input_method')).toString())
+}
+
+test('with the keyboard down, a tap on an underlined word raises the keyboard and opens no spelling menu', async () => {
+  test.setTimeout(300_000)
+  const { error } = await admin.from('messages').insert({
+    channel_id: channel, user_id: user.id, content: [{ type: 'text', text: 'react to this one' }],
+  })
+  if (error) throw new Error(`message: ${error.message}`)
+  const page = await openApp()
+  const selector = '[data-testid="message-input"] .rich-text-editor'
+  const editor = page.locator(selector)
+  await touch(page, selector)
+  await expect.poll(keyboardShown, { timeout: 30_000 }).toBe(true)
+  await page.keyboard.insertText('this is a misspeled word ')
+
+  // The reaction picker: long press, React, a search typed on Gboard, the first result.
+  await touch(page, '.message-item:has-text("react to this one")', 800)
+  await touch(page, '[data-testid="msg-action-react"]:visible')
+  await expect(page.locator('.emoji-popup .search-input')).toBeFocused({ timeout: 15_000 })
+  await expect.poll(async () => (await keyboardKeys()).size, { timeout: 30_000 }).toBeGreaterThan(20)
+  await gboardType('smile')
+  await touch(page, '.emoji-popup .emoji-item')
+  await expect(page.locator('.emoji-popup')).toHaveCount(0)
+  // Focus went back to the picker's opener; the search's keyboard went down with the picker.
+  await expect.poll(keyboardShown, { timeout: 15_000 }).toBe(false)
+  await expect(editor).not.toBeFocused()
+
+  const word = () => editor.evaluate((el) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let node: Node | null
+    while ((node = walker.nextNode()) && !node.textContent!.includes('misspeled'));
+    const at = node!.textContent!.indexOf('misspeled')
+    const range = document.createRange()
+    range.setStart(node!, at + 3)
+    range.setEnd(node!, at + 4)
+    const rect = range.getBoundingClientRect()
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+  })
+  const tapWord = async () => {
+    const { x, y } = await word()
+    const [sx, sy] = await screenPoint(page, x, y)
+    await device.shell(`input tap ${sx} ${sy}`)
+  }
+  const caret = () => page.evaluate(() => getSelection()!.anchorOffset)
+  // Read once the tap has settled: without the fix the keyboard can show for a moment before the
+  // menu opens. The menu (TextSuggestionHost) lists these under its suggestions.
+  const settled = async () => {
+    await page.waitForTimeout(1500)
+    return { keyboard: await keyboardShown(), menu: /text="(Add to dictionary|Delete)"/.test(await uiDump()) }
+  }
+
+  await tapWord()
+  expect(await settled()).toEqual({ keyboard: true, menu: false })
+  await expect(editor).toBeFocused()
+  expect(await caret()).toBeGreaterThanOrEqual(10)
+  expect(await caret()).toBeLessThanOrEqual(19)
+
+  // Back takes the keyboard down and leaves the composer focused.
+  await device.shell('input keyevent 4')
+  await expect.poll(keyboardShown, { timeout: 15_000 }).toBe(false)
+  await expect(editor).toBeFocused()
+  await page.waitForTimeout(500)
+  await tapWord()
+  expect(await settled()).toEqual({ keyboard: true, menu: false })
+})

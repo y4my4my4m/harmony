@@ -1,6 +1,9 @@
 import type { MessagePart, MentionContent } from '@/types';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
+import { withoutStickerFallbacks } from '@/utils/stickerParts';
+import { isMassMentionWord } from '@/utils/massMentions';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
@@ -71,6 +74,12 @@ export function assertMessageTextWithinLimit(
   }
 }
 
+/** A user named everyone or here, written with the host: bare, the parser reads the mass mention. */
+function massWordHandle(part: { username?: string; domain?: string }): string {
+  const domain = part.domain || (runtimeConfig.domain as string) || '';
+  return domain ? `@${part.username}@${domain}` : `@${part.username}`;
+}
+
 /**
  * Convert MessagePart[] to markdown text for rendering with MarkdownContent.
  *
@@ -102,7 +111,9 @@ export function messagePartsToMarkdown(
       case 'mention':
         // `MentionContent` has `username` / `displayName`, not `mention`; this
         // is a legacy field name kept around for back-compat by some code paths.
-        return (part as any).mention || (part.username ? `@${part.username}` : '');
+        if ((part as any).mention) return (part as any).mention;
+        if (part.username && isMassMentionWord(part.username) && !(part as any).isBridged) return massWordHandle(part);
+        return part.username ? `@${part.username}` : '';
 
       case 'role_mention':
         return part.roleId ? `@role:${part.roleId}` : '';
@@ -173,7 +184,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
     return '';
   }
 
-  return parts.map(part => {
+  return withoutStickerFallbacks(parts).map(part => {
     if (!part || typeof part !== 'object') {
       return '';
     }
@@ -196,6 +207,9 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
       
       case 'file':
         return '[file]';
+
+      case 'sticker':
+        return `[sticker: ${part.name}]`;
       
       default:
         return '';
@@ -216,6 +230,7 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
       case 'url': return part.url ? urlPartSource(part) : '';
       case 'mention': {
         if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
+        if (isMassMentionWord(part.username) && !part.isBridged) return massWordHandle(part);
         return `@${part.username}`;
       }
       case 'emoji': return discordEmojiPartText(part.emoji) ?? `:${part.emoji?.name || 'emoji'}:`;

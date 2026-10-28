@@ -94,6 +94,27 @@ describe('noteToContent mentions from a subdomain instance', () => {
   })
 })
 
+describe('noteToContent and a user named everyone', () => {
+  const EV = 'https://a.example/users/everyone'
+
+  it('gives the tag the token written with its host, leaving a bare @everyone text', () => {
+    const parts = noteToContent({
+      content: `<p>@everyone ask <span class="h-card"><a href="${EV}" class="u-url mention">@everyone@a.example</a></span></p>`,
+      tag: [{ type: 'Mention', href: EV, name: '@everyone@a.example' }],
+    })
+    expect(mentions(parts)).toEqual([expect.objectContaining({ username: 'everyone', domain: 'a.example', userId: EV })])
+    expect(plain(parts)).toBe('@everyone ask <everyone@a.example>')
+  })
+
+  it('still matches the Mastodon short form when no token carries the host', () => {
+    const parts = noteToContent({
+      content: `<p>hi <span class="h-card"><a href="https://a.example/@everyone" class="u-url mention">@<span>everyone</span></a></span></p>`,
+      tag: [{ type: 'Mention', href: EV, name: '@everyone@a.example' }],
+    })
+    expect(plain(parts)).toBe('hi <everyone@a.example>')
+  })
+})
+
 describe('outbound mentions of a subdomain user', () => {
   const author = { id: 'u1', username: 'owner', display_name: 'Owner', domain: 'har.mony.lol' } as any
 

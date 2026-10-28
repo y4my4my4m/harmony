@@ -242,6 +242,13 @@
       </button>
     </ChatMenu>
 
+    <DrivePhotoDetailsDialog
+      v-if="pendingUpload"
+      :items="pendingUpload.items"
+      @set-keep="(index, keep) => { pendingUpload!.items[index].keep = keep }"
+      @confirm="confirmPendingUpload"
+      @cancel="pendingUpload = null"
+    />
     <DriveNameDialog
       v-if="newFolderOpen"
       :title="t('drive.folder.newTitle')"
@@ -339,12 +346,15 @@ import DriveMoveDialog from '@/components/drive/DriveMoveDialog.vue'
 import DriveShareDialog from '@/components/drive/DriveShareDialog.vue'
 import DrivePreview from '@/components/drive/DrivePreview.vue'
 import DriveNameDialog from '@/components/drive/DriveNameDialog.vue'
+import DrivePhotoDetailsDialog, { type DrivePhotoDetailsItem } from '@/components/drive/DrivePhotoDetailsDialog.vue'
 import '@/components/drive/drive.css'
 import { saveFile } from '@/services/downloads'
 import { useT } from '@/composables/useT'
 import { useDriveUsage } from '@/composables/useDriveUsage'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
 import { useDriveStore, type DriveLocation } from '@/stores/drive'
+import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings'
+import { isPhotoOrVideo, readMediaDetails } from '@/utils/stripMetadata'
 import { useProfileStore } from '@/stores/useProfile'
 import {
   driveDownloadUrl,
@@ -505,11 +515,36 @@ async function attempt<T>(work: () => Promise<T>): Promise<T | undefined> {
 
 const uploadFolder = () => (drive.location.view === 'folder' ? drive.location.id : null)
 
+const photoDetailsSettings = usePhotoDetailsSettingsStore()
+/** Picked files held while "Keep photo details" is chosen for those that carry metadata. */
+const pendingUpload = ref<{ list: File[]; folder: string | null; items: DrivePhotoDetailsItem[] } | null>(null)
+
+/** Uploads `list` into the open folder; photos and videos with metadata are reviewed first. */
+async function uploadPicked(list: File[]): Promise<void> {
+  const folder = uploadFolder()
+  await photoDetailsSettings.ready()
+  const items: DrivePhotoDetailsItem[] = []
+  for (const file of list) {
+    if (!isPhotoOrVideo(file)) continue
+    const details = await readMediaDetails(file)
+    if (details.details) items.push({ file, details, keep: photoDetailsSettings.keepByDefault })
+  }
+  if (items.length) pendingUpload.value = { list, folder, items }
+  else drive.uploadFiles(list, folder)
+}
+
+function confirmPendingUpload(): void {
+  const pending = pendingUpload.value
+  pendingUpload.value = null
+  if (!pending) return
+  drive.uploadFiles(pending.list, pending.folder, new Set(pending.items.filter((item) => item.keep).map((item) => item.file)))
+}
+
 function onPickFiles(event: Event): void {
   const input = event.target as HTMLInputElement
   const list = Array.from(input.files ?? [])
   input.value = ''
-  if (list.length) drive.uploadFiles(list, uploadFolder())
+  if (list.length) void uploadPicked(list)
 }
 
 function openPreview(entry: DriveListEntry): void {
@@ -645,7 +680,7 @@ function onPageDrop(event: DragEvent): void {
   dragDepth = 0
   pageDrop.value = false
   const list = Array.from(event.dataTransfer?.files ?? [])
-  if (list.length) drive.uploadFiles(list, uploadFolder())
+  if (list.length) void uploadPicked(list)
 }
 
 function onKeydown(event: KeyboardEvent): void {

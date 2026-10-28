@@ -312,11 +312,16 @@ questions() {
 		ok "An admin account exists; it is left as is"
 	else
 		cur="${HARMONY_ADMIN_USERNAME:-$(printf '%s' "${ADMIN_EMAIL%%@*}" | lower | tr -cd 'a-z0-9_' | cut -c1-24)}"
-		[[ ${#cur} -ge 3 ]] || cur=admin
+		if [[ ${#cur} -lt 3 ]] || reserved_username "$cur" "$DOMAIN"; then cur=owner; fi
 		while :; do
 			ask ADMIN_USERNAME "Admin username (3-24 of a-z 0-9 _)" "$cur"
 			ADMIN_USERNAME="$(printf '%s' "$ADMIN_USERNAME" | lower)"
-			[[ "$ADMIN_USERNAME" =~ ^[a-z0-9_]{3,24}$ ]] && break
+			if [[ "$ADMIN_USERNAME" =~ ^[a-z0-9_]{3,24}$ ]]; then
+				reserved_username "$ADMIN_USERNAME" "$DOMAIN" || break
+				interactive || die "HARMONY_ADMIN_USERNAME $ADMIN_USERNAME is reserved; choose another"
+				warn "$ADMIN_USERNAME is reserved"; cur=""
+				continue
+			fi
 			interactive || die "HARMONY_ADMIN_USERNAME must be 3-24 characters of a-z, 0-9 and _"
 			warn "3-24 characters of a-z, 0-9 and _"; cur=""
 		done

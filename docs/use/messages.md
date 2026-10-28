@@ -23,11 +23,12 @@ Type in the composer at the bottom of the channel and send:
 
 ## Attach files, GIFs and stickers
 
-- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to 50 MB unless the instance sets another limit.
+- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to your upload limit, which the instance's admins set (50 MB unless they change it); a larger file is refused before it is sent, with the limit named.
 - **From Drive**, in the same menu, attaches files already in your [Drive](/use/drive) without uploading them again.
 - Attached files appear above the composer. Each one has buttons to describe it ([Describe an image](#describe-an-image)), mark it as a spoiler ([Spoilers](#spoilers)) and remove it. The placeholder changes to **Add a comment...** for text sent with the files.
+- Location, camera and other details are removed from photos and videos before they are uploaded. **Keep photo details (location, camera)** on an attachment sends it as it is. See [Photo and video details](/use/privacy-security#photo-and-video-details).
 - Every file you send is kept in your Drive and counts toward your storage. The clock button on an attachment makes it temporary instead: it is deleted after a number of days the instance sets, 30 by default. When your Drive is full, every upload is temporary. See [Storage and temporary files](/use/drive#storage-and-temporary-files).
-- **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. **Emoji picker**, beside it, inserts emoji into your message.
+- **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. The **Stickers** tab also lists the server's, the instance's and your own custom stickers above KLIPY's; see [Stickers](/use/stickers). **Emoji picker**, beside it, inserts emoji into your message.
 
 ## Music links
 
@@ -199,18 +200,22 @@ The attachment shows an **ALT** badge once it has a description. An image sent w
 
 ## Mentions
 
-Type `@` to open suggestions, then pick a person or a role. Roles are listed first.
+Type `@` to open suggestions, then pick a person or a role. Roles, `@everyone` and `@here` are listed above people, and the first entry is selected, so <kbd>Enter</kbd> or <kbd>Tab</kbd> on a name that a role and a person share picks the role. Each entry is marked **Role** or shows the person's picture, and screen readers announce it as a role or a member.
 
 | Mention | How to write it | Who is notified |
 |---|---|---|
 | A person on your instance | `@username`, or pick from the list | That person. |
 | A person on another instance | `@username@instance.example`, or pick from the list | That person. A typed handle works when your instance already knows the account. |
 | A role | Pick it from the list | Members holding the role. |
-| `@everyone` | Pick it from the list | Every member who can see the channel. |
-| `@here` | Pick it from the list | Members who can see the channel and are online, **Idle** or **Do not disturb**. Members shown as **Invisible** or offline are left out. |
+| `@everyone` | `@everyone`, or pick it from the list | Every member who can see the channel. |
+| `@here` | `@here`, or pick it from the list | Members who can see the channel and are online, **Idle** or **Do not disturb**. Members shown as **Invisible** or offline are left out. |
 | A channel | `#channel-name`, or pick after typing `#` | Nobody. It becomes a link to the channel. Server channels only. |
 
-`@everyone`, `@here`, and roles not marked as mentionable require the **Mention @everyone** permission in the channel. Without it they are left out of the suggestions; written anyway, they show in the message but notify nobody. Any member can mention a role marked as mentionable.
+`@everyone`, `@here`, and roles not marked as mentionable require the **Mention @everyone** permission in the channel. Without it they are left out of the suggestions, and a typed `@everyone` or `@here` is sent as plain text. Any member can mention a role marked as mentionable.
+
+`@everyone` and `@here` never name a person. Someone called `everyone` on another instance is `@everyone@instance.example`. A person whose display name reads `everyone` or `here` shows as their @username, so the mention never looks like the server-wide one.
+
+A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour with a dot before it, and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
 
 - In server channels, a message that mentions you, a role you hold, `@everyone` or `@here` is highlighted.
 - A message notifies each person once, even when it names them in several ways.
@@ -271,12 +276,13 @@ Messages use Discord-style markdown. The composer keeps the markers as you type;
 | `:shortcode:` | An emoji by name. Type `:` and part of a name for suggestions. |
 | `https://example.com` | A link, with a preview card when the site provides one. |
 | `<https://example.com>` | A link without a preview. |
+| `[text](https://example.com)` | The text, linked to the address; text naming another site shows the address instead. Opening it asks first: see [Links to other sites](/use/privacy-security#links-to-other-sites). |
 
 Rules worth knowing:
 
 - `>` needs a space after it to quote; `>` followed directly by text is greentext, or plain text with **Greentext** off. `>>>` also needs a space and some text after it.
 - Single `_underscores_` italicise only at word boundaries, so `snake_case_names` stay as typed. A single `*` next to a letter or digit, as in `2*3*4`, stays as typed.
-- Headings (`#`), lists, tables and `[text](url)` links are not formatted; they show as typed, with the URL linked.
+- Headings (`#`), lists and tables are not formatted; they show as typed.
 
 ### Code blocks
 

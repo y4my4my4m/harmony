@@ -34,7 +34,9 @@ harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --to
                              [--client-id C] [--client-secret-file FILE|-] [options]
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
+harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
 harmony config
+harmony config --upload-ceiling [SIZE]
 harmony version
 harmony help
 ```
@@ -154,6 +156,7 @@ certificates, Federation, Services, Security, Versions.
 | `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
 | `security-notices` | The new-sign-in and second-factor triggers exist on `auth.sessions` and `auth.mfa_factors` | FAIL when one is missing: no security notice for a new sign-in or a changed second factor | Run `db_schema/migrations/20261025100003_auth_triggers_converge.sql` as printed (safe to re-run; `harmony update` runs it once) |
 | `storage-policies` | The message media, soundboard, personal emoji and Drive policies on `storage.objects` and `storage.buckets`, the `message_media` and `soundboard` buckets and the Drive triggers on `storage.objects` exist | FAIL when one is missing: the uploads and reads that depend on it fail; a missing `storage_objects_session_aal` lets a session short of its second factor reach storage. FAIL when `storage.objects` or `storage.buckets` is missing | Run `db_schema/migrations/20261025100004_storage_converge.sql` as printed: it creates what is missing, replaces a superseded policy definition and keeps a bucket's configured limits. `harmony update` runs it once. With a table missing, `harmony logs storage` first |
+| `upload-limits` | The `storage_upload_limit` trigger exists on `storage.objects` with its settings; the storage container's `FILE_SIZE_LIMIT`, the one in `supabase/.env` and `instance_config.upload_ceiling_bytes` agree | FAIL when the trigger or the settings are missing: per-account upload limits are not enforced. WARN when storage runs another `FILE_SIZE_LIMIT` than `supabase/.env`, or the database holds another ceiling | Run `db_schema/migrations/20261031100001_upload_limits.sql` as printed (safe to re-run); for a WARN, `harmony config --upload-ceiling SIZE` |
 | `domain` | `instance_config.domain` equals `DOMAIN` in `.env` | FAIL when unset or still `localhost`; FAIL when the two differ, since handles and ActivityPub ids disagree | `bash bootstrap.sh`; for a difference, see [Domain mismatch](/self-host/troubleshooting#domain-mismatch) |
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
 | `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
@@ -206,7 +209,7 @@ server's own port only.
 | `push` | always | `VAPID_PUBLIC_KEY` (87 characters), `VAPID_PRIVATE_KEY` (43) and `VAPID_SUBJECT` in `federation.env`, and the backend serving the public key at `/api/federation/push/vapid-key` | FAIL when missing: `bash configure.sh --non-interactive`, then `docker compose up -d`. FAIL when not served: `docker compose up -d federation-server`; `harmony logs federation-server` |
 | `email` | always | `SMTP_HOST` in `supabase/.env` is set and accepts a TCP connection on `SMTP_PORT` (default 587) | WARN with no SMTP server: `harmony config`. WARN when unreachable: check the host and port; many VPS providers block outgoing 25 and 587 until asked |
 | `auth` | always | `https://db.DOMAIN/auth/v1/health` answers 200 | FAIL: `harmony logs auth`; `harmony logs kong` |
-| `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and no provider on the sign-in page joins accounts by address while `ENABLE_EMAIL_AUTOCONFIRM=true` | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth add-provider ID --separate-accounts` |
+| `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and while `ENABLE_EMAIL_AUTOCONFIRM=true` no provider joins accounts by address: neither one of your own on the sign-in page nor a built-in one the auth service has on (`GOTRUE_EXTERNAL_<ID>_ENABLED`, with a button or without) | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth linking ID --separate-accounts` for a built-in one, `harmony auth add-provider ID --separate-accounts` for your own |
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
@@ -331,7 +334,7 @@ existing account becomes an admin.
 | Option | Effect | When absent |
 |---|---|---|
 | `--email E` | The account's email | `HARMONY_ADMIN_EMAIL`, else asks (default: `ADMIN_EMAIL` in `.env`) |
-| `--username U` | 3 to 24 characters of `a-z`, `0-9`, `_` | `HARMONY_ADMIN_USERNAME`, else asks (default: the email's local part, or `admin`) |
+| `--username U` | 3 to 24 characters of `a-z`, `0-9`, `_`, not a [reserved name](/use/getting-started#set-up-your-profile) | `HARMONY_ADMIN_USERNAME`, else asks (default: the email's local part, or `owner` when that is shorter than 3 or reserved) |
 | `--password P` | 8 characters or more | `HARMONY_ADMIN_PASSWORD`, else asks twice; empty generates one |
 | `--display-name N` | The profile's display name | the username |
 
@@ -342,7 +345,7 @@ existing account becomes an admin.
 | Account exists, profile never created | Takes the given or generated password, gets its profile, made an admin |
 
 It fails with `the username U belongs to another account` when another local
-profile has the username, and needs the `federation-server` container running
+profile has the username, with `the username U is reserved` for a reserved name, and needs the `federation-server` container running
 and the instance domain set (`bash bootstrap.sh`).
 
 ## harmony admin reset-password
@@ -413,19 +416,22 @@ harmony auth add-provider ID [--name N] (--issuer URL [--discovery-url URL] |
                              [--icon URL] [--email-optional | --require-email] [--no-pkce | --pkce]
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
+harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
 ```
 
 Sign-in through an OpenID Connect or OAuth 2.0 provider you run, such as
 Authentik or Keycloak. [OAuth sign-in](/self-host/oauth#your-own-identity-provider)
 walks through it.
 
-`providers` lists the providers the auth service knows, whether the sign-in
-page shows them, what a first sign-in does with an existing account that has
-the same address (**EXISTING ACCOUNTS**: `separate`, `by address`, or
-`shared: NAME`), and the redirect (callback) URL to register with them,
+`providers` lists the built-in providers (`github`, `google`, `twitch`, and
+any other the auth service has on), whether the auth service has each on, and
+what a first sign-in does with an existing account that has the same address
+(**EXISTING ACCOUNTS**: `separate`, `by address`, or `shared: NAME`). Then it
+lists your own providers the same way, with whether the sign-in page shows
+them, and the redirect (callback) URL to register with them,
 `API_EXTERNAL_URL/auth/v1/callback`. It warns about buttons whose provider the
-auth service no longer has, and about providers that join accounts by address
-while `ENABLE_EMAIL_AUTOCONFIRM=true`.
+auth service no longer has, and about providers on that join accounts by
+address while `ENABLE_EMAIL_AUTOCONFIRM=true`.
 
 `add-provider` creates the provider `custom:ID`, or updates it when it exists,
 and puts its button on the sign-in page. `ID` is 1 to 43 characters of `a-z`,
@@ -462,7 +468,22 @@ keeps the provider's setting. See
 
 `remove-provider` deletes the provider and its button, then its entry in
 `PROVIDER_LINKING_DOMAINS`. An account that signed in only through it has no
-way in until it gets a password (`harmony admin reset-password`).
+way in: one the provider joined by address gets a password with
+`harmony admin reset-password`; one it kept apart signs in only through the
+provider, so adding the provider back under the same id restores it.
+
+`linking` sets what a first sign-in through a built-in provider (`github`,
+`google`, `twitch`, or another the auth service supports) does with an
+existing account that has the same address. `--separate-accounts` writes
+`PROVIDER=PROVIDER` to `PROVIDER_LINKING_DOMAINS`: a new account every time.
+`--link-existing-accounts` writes `PROVIDER=default`: the account with the
+same verified address is joined. It is refused while
+`ENABLE_EMAIL_AUTOCONFIRM=true` unless `--provider-verifies-email` is given,
+and for `github` it is refused even then: GitHub hands the auth service every
+address on the account, unverified ones included. A change recreates the auth
+service. `configure.sh` keeps the built-in providers apart while addresses
+are confirmed automatically and leaves an entry written here alone; see
+[Existing accounts](/self-host/oauth#existing-accounts).
 
 Messages from the auth service come through as they are, for example
 `adding the provider failed (HTTP 400: URL cannot resolve to private network
@@ -506,6 +527,25 @@ docker compose up -d
 harmony registration
 ```
 
+### Upload ceiling
+
+```text
+harmony config --upload-ceiling [SIZE]
+```
+
+Sets the largest file storage accepts, the ceiling of every upload limit in
+**Config** → **Uploads**: writes `FILE_SIZE_LIMIT` in `supabase/.env`, runs
+`docker compose up -d storage` so storage restarts with it, and writes the
+same number into `instance_config.upload_ceiling_bytes`. `SIZE` is bytes, or a
+number followed by `MB` or `GB` (1 MB is 1,048,576 bytes), from 1 MB to 5 TB.
+Without `SIZE` it prints the current ceiling. Upload limits above a lowered
+ceiling are named in a warning; they count as the ceiling until changed. It
+needs no terminal. See [Upload limits](/self-host/configuration#upload-limits).
+
+```bash
+harmony config --upload-ceiling 2GB
+```
+
 ## harmony version
 
 ```text
@@ -534,7 +574,7 @@ there (`cd /opt/harmony/self-host`) for steps the command does not expose.
 | `admin.sh` | `harmony admin`, `harmony registration` | also `bash admin.sh has-admin`: exit status 0 when a local admin exists |
 | `configure.sh` | `harmony config`, and every install, update and restore | see below |
 | `bootstrap.sh` | install, update and restore | see below |
-| `lib.sh` | | Shared helpers; sourced, never run |
+| `lib.sh`, `linking.sh` | | Shared helpers; sourced, never run |
 
 ### configure.sh
 
@@ -551,6 +591,9 @@ Re-running merges: a key already present keeps its value and a missing key
 is added. Secrets of an existing install are never regenerated; values
 derived from the domain are rewritten only when the domain changes. A new
 `supabase/.env` has sign-up disabled until `harmony registration` runs.
+While `ENABLE_EMAIL_AUTOCONFIRM=true`, and on the run that sets up SMTP, each
+built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
+`PROVIDER=PROVIDER`; see [Existing accounts](/self-host/oauth#existing-accounts).
 
 | Option | Effect |
 |---|---|
@@ -579,6 +622,9 @@ Supabase CLI also reads. A failing file is not recorded and stops the run,
 leaving the database at the last file that succeeded. It then removes the
 JWT secret from the database settings (`app.settings.jwt_secret`) unless a
 function reads it, and reloads PostgREST's schema cache.
+
+On every run it also copies `FILE_SIZE_LIMIT` from `supabase/.env`
+(`52428800` when absent) into `instance_config.upload_ceiling_bytes`.
 
 Without `--migrations-only` it also creates or updates the
 `harmony_listener` role from `__LISTENER_PW` in `federation.env`, and on a

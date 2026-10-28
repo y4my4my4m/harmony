@@ -61,6 +61,7 @@ import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
 import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { linkPasteText } from '@/utils/maskedLinks';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
+import { isMassMentionWord } from '@/utils/massMentions';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
 import { attachTapToCaret, isAndroidUserAgent } from '@/utils/tapToCaret';
@@ -332,6 +333,9 @@ const processMentionsInText = (text: string): DocumentFragment => {
       if (matchEnd === text.length) {
         fragment.appendChild(document.createTextNode(editorSpaces(match[0])));
         lastIndex = matchStart; // Held back so the trailing-text branch emits it
+      } else if (!match[5] && isMassMentionWord(match[4])) {
+        // Bare @everyone and @here name no user; the send path decides ping or text.
+        fragment.appendChild(document.createTextNode(match[0]));
       } else {
         const username = match[4];
         const domain = match[5]?.toLowerCase();
@@ -372,7 +376,8 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
   }
   
   // Display text uses the @ separator regardless of what the user typed.
-  const normalizedDisplayText = isLocal 
+  // A local @everyone or @here keeps its host: bare, it is the mass mention.
+  const normalizedDisplayText = isLocal && !isMassMentionWord(username)
     ? `@${username}` 
     : (domain ? `@${username}@${domain}` : `@${username}`);
   

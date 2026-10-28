@@ -8,22 +8,24 @@ import { hereMentionPart, isHereMention, mentionsViewer } from '@/utils/hereMent
 
 const ROLE = '00000000-0000-4000-8000-0000000000c0'
 const HERE = { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }
+// An author holding MENTION_EVERYONE in the channel.
+const ALLOWED = { massMentions: { allowed: true, everyoneRole: null } }
 
 describe('@here parts', () => {
   it('parses @role:here into the @here part', async () => {
-    const parts = await parseContentToMessageParts('@role:here standup in 5')
+    const parts = await parseContentToMessageParts('@role:here standup in 5', {}, {}, {}, {}, ALLOWED)
     expect(parts[0]).toEqual(HERE)
     expect(parts.slice(1).map(p => (p.type === 'text' ? p.text : p.type)).join('')).toBe(' standup in 5')
   })
 
   it('takes @role:here only as a whole word', async () => {
-    const parts = await parseContentToMessageParts('@role:hereafter')
+    const parts = await parseContentToMessageParts('@role:hereafter', {}, {}, {}, {}, ALLOWED)
     expect(parts.some(p => p.type === 'role_mention')).toBe(false)
   })
 
   it('keeps @role:UUID a role mention, named from the role data', async () => {
     const parts = await parseContentToMessageParts(`@role:${ROLE} @role:here`, {}, {}, {},
-      { [ROLE]: { name: 'crew', color: '#00ff00' } })
+      { [ROLE]: { name: 'crew', color: '#00ff00' } }, ALLOWED)
     expect(parts.filter(p => p.type === 'role_mention')).toEqual([
       { type: 'role_mention', roleId: ROLE, roleName: 'crew', roleColor: '#00ff00' },
       HERE,
@@ -32,7 +34,16 @@ describe('@here parts', () => {
 
   it('round-trips through the editor text', async () => {
     expect(messagePartsToMarkdown([hereMentionPart(), { type: 'text', text: ' hi' }])).toBe('@role:here hi')
-    expect((await parseContentToMessageParts('@role:here hi'))[0]).toEqual(hereMentionPart())
+    expect((await parseContentToMessageParts('@role:here hi', {}, {}, {}, {}, ALLOWED))[0]).toEqual(hereMentionPart())
+  })
+
+  it('reads @role:here as the text @here without the right', async () => {
+    const refused = { massMentions: { allowed: false, everyoneRole: null } }
+    for (const options of [refused, {}]) {
+      const parts = await parseContentToMessageParts('@role:here hi', {}, {}, {}, {}, options)
+      expect(parts.some(p => p.type === 'role_mention')).toBe(false)
+      expect(parts.map(p => (p.type === 'text' ? p.text : p.type)).join('')).toBe('@here hi')
+    }
   })
 
   it('tells @here from roles', () => {

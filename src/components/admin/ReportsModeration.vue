@@ -81,7 +81,24 @@
         </div>
       </div>
 
-      <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
+      <div v-if="expandedReportId === report.id" class="report-detail" @click.stop="onDetailClick">
+        <div v-if="report.reporter_id || report.reported_user_id || reportServerId(report)" class="report-ids" data-testid="report-ids">
+          <span class="report-ids-title">{{ t('admin.reports.ids.title') }}</span>
+          <dl>
+            <div v-if="report.reporter_id">
+              <dt>{{ t('admin.reports.ids.reporter') }}</dt>
+              <dd><code>{{ report.reporter_id }}</code><CopyIdButton :id="report.reporter_id" kind="user" :target="t('admin.reports.ids.reporter')" /></dd>
+            </div>
+            <div v-if="report.reported_user_id">
+              <dt>{{ t('admin.reports.ids.reported') }}</dt>
+              <dd><code>{{ report.reported_user_id }}</code><CopyIdButton :id="report.reported_user_id" kind="user" :target="t('admin.reports.ids.reported')" /></dd>
+            </div>
+            <div v-if="reportServerId(report)">
+              <dt>{{ t('admin.reports.ids.server') }}</dt>
+              <dd><code>{{ reportServerId(report) }}</code><CopyIdButton :id="reportServerId(report)!" kind="server" :target="t('admin.reports.ids.server')" /></dd>
+            </div>
+          </dl>
+        </div>
         <div v-if="report.comment" class="report-comment">
           <label>{{ report.source === 'federation' ? t('admin.reports.commentFrom', { instance: report.source_instance }) : "Reporter's comment" }}</label>
           <p>{{ report.comment }}</p>
@@ -108,6 +125,27 @@
               </template>
             </li>
           </ul>
+        </div>
+
+        <div v-if="report.report_type === 'sticker' && reportedSticker(report)" class="report-proof" data-testid="report-sticker">
+          <label>{{ t('stickers.report.proof') }}</label>
+          <div class="report-sticker">
+            <img :src="reportedSticker(report)!.url" :alt="reportedSticker(report)!.description" class="report-sticker-img" />
+            <div class="report-sticker-text">
+              <strong>{{ reportedSticker(report)!.name }}</strong>
+              <span>{{ reportedSticker(report)!.description }}</span>
+              <span class="report-sticker-scope">{{ t(`stickers.report.scope.${reportedSticker(report)!.scope}`, { server: reportedSticker(report)!.server_name ?? '' }) }}</span>
+            </div>
+          </div>
+          <span v-if="removedStickers[reportedSticker(report)!.id]" class="report-file-done" data-testid="report-sticker-removed">{{ t('stickers.report.removed') }}</span>
+          <button
+            v-else-if="!serverId && isInstanceModerator"
+            class="report-link-btn"
+            data-testid="report-remove-sticker"
+            @click.stop="removeReportedSticker(reportedSticker(report)!.id)"
+          >
+            <Icon name="trash-2" :size="14" /> {{ t('stickers.report.remove') }}
+          </button>
         </div>
 
         <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
@@ -139,7 +177,7 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 class="report-link-btn"
-                @click.stop
+                @click.stop="activateStoppedLink"
               >
                 <Icon name="external-link" :size="14" /> View on remote instance
               </a>
@@ -224,12 +262,14 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
+import { activateStoppedLink, handleOutsideLinkActivation } from '@/services/outsideLinks'
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import { adminService } from '@/services/AdminService'
 import { reportService, type ReportWithDetails } from '@/services/ReportService'
 import { userDataService } from '@/services/userDataService'
@@ -237,6 +277,8 @@ import { supabase } from '@/supabase'
 import { MESSAGE_MEDIA_BUCKET, mediaPartSource, storageObjectFromUrl } from '@/services/privateMedia'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { deleteSticker, stickerErrorMessage } from '@/services/stickerService'
+import { useStickersStore } from '@/stores/useStickers'
 import {
   ACTIONS_WITH_REASON,
   DESTRUCTIVE_ACTIONS,
@@ -294,6 +336,48 @@ const removeReportedFile = async (report: { reason?: string | null }, path: stri
   removedFiles.value = { ...removedFiles.value, [path]: true }
 }
 const { t } = useI18n()
+
+/** The reported server, or the server a message report was filed in. */
+const reportServerId = (report: ReportWithDetails): string | null =>
+  report.reported_server_id ?? report.scope_server_id ?? null
+
+interface ReportedSticker {
+  id: string
+  scope: 'server' | 'instance' | 'user'
+  server_name?: string | null
+  name: string
+  description: string
+  url: string
+}
+
+/** content_snapshot.sticker of a sticker report (create_report). */
+const reportedSticker = (report: ReportWithDetails): ReportedSticker | null => {
+  const sticker = (report.content_snapshot as { sticker?: ReportedSticker } | null)?.sticker
+  return sticker && typeof sticker.id === 'string' && typeof sticker.url === 'string' ? sticker : null
+}
+
+const removedStickers = ref<Record<string, boolean>>({})
+const removeReportedSticker = async (id: string) => {
+  const ok = await confirm({
+    title: t('stickers.manage.deleteTitle'),
+    message: t('stickers.report.removeConfirm'),
+    confirmButtonText: t('common.delete'),
+    dangerAction: true,
+  })
+  if (!ok) return
+  try {
+    await deleteSticker(id)
+    useStickersStore().markRemoved(id)
+    removedStickers.value = { ...removedStickers.value, [id]: true }
+  } catch (error) {
+    // The row is already gone when another moderator removed it.
+    if ((error as { code?: string })?.code === 'P0002') {
+      removedStickers.value = { ...removedStickers.value, [id]: true }
+      return
+    }
+    toast.error(stickerErrorMessage(error))
+  }
+}
 
 const PAGE = 50
 
@@ -495,11 +579,18 @@ const reportLinkHref = (escapedUrl: string): string => {
   return escapeHtml(mediaPartSource({ url, path: object.path }) ?? url)
 }
 
+// The detail's clicks stop before the document (the row toggles on click): links inside it
+// open here.
+const onDetailClick = (event: MouseEvent) => {
+  const anchor = (event.target as Element | null)?.closest?.<HTMLAnchorElement>('a[href]')
+  if (anchor) handleOutsideLinkActivation(event, anchor)
+}
+
 const linkifyReportPreview = (text: string): string => {
   const escaped = escapeHtml(text)
   return escaped.replace(
     /(https?:\/\/[^\s\]]+)/g,
-    (url) => `<a href="${reportLinkHref(url)}" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">${url}</a>`
+    (url) => `<a href="${reportLinkHref(url)}" target="_blank" rel="noopener noreferrer" class="report-link">${url}</a>`
   )
 }
 
@@ -579,6 +670,30 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.report-sticker {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.report-sticker-img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.report-sticker-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.report-sticker-scope {
+  color: var(--text-secondary);
+}
+
 .report-files {
   display: flex;
   flex-direction: column;
@@ -1017,6 +1132,49 @@ onMounted(async () => {
   margin: 0;
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.report-ids-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.report-ids dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+}
+
+.report-ids dl > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.report-ids dt {
+  color: var(--text-secondary);
+}
+
+.report-ids dd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.report-ids code {
+  font-family: var(--font-mono, monospace);
+  overflow-wrap: anywhere;
 }
 
 

@@ -210,6 +210,15 @@
             @emojis-bulk-deleted="handleEmojisBulkDeleted"
           />
 
+          <StickerSettings
+            v-if="activeSection === 'stickers' && hasCapability('custom-stickers')"
+            scope="server"
+            :server-id="serverId"
+            :can-manage="permissions.canManageSoundboard"
+            :title="t('stickers.manage.serverTitle')"
+            :description="t('stickers.manage.serverDescription')"
+          />
+
           <ServerSoundboardManagement
             v-if="activeSection === 'soundboard'"
             :server-id="serverId"
@@ -316,6 +325,7 @@ import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
 import ServerAuditLog from '@/components/settings/server/ServerAuditLog.vue'
 import ServerSoundboardManagement from '@/components/settings/server/ServerSoundboardManagement.vue'
+import StickerSettings from '@/components/stickers/StickerSettings.vue'
 import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
 import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue'
 import { useLeaveServer } from '@/composables/useLeaveServer'
@@ -456,6 +466,10 @@ const availableSections = computed(() => {
       ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
       : []),
     { id: 'emoji', label: t('server.emoji') },
+    // Stickers of local servers only; MANAGE_EMOJIS manages them (can_manage_server_stickers).
+    ...(server.value.is_local_server !== false && hasCapability('custom-stickers')
+      ? [{ id: 'stickers', label: t('stickers.manage.navLabel') }]
+      : []),
     // server_sounds holds local servers' sounds only.
     ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },

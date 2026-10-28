@@ -974,6 +974,7 @@
       "progress": "Subiendo, {percent} %",
       "failed": "Error al subir",
       "failedToast": "No se pudo subir {name}: {reason}",
+      "originalGone": "El archivo original ya no está en este dispositivo. Adjúntalo de nuevo.",
       "removeFailed": "Quita los archivos adjuntos que no se pudieron subir y vuelve a enviar.",
       "sendWhenDone": "Se enviará cuando terminen las subidas.",
       "voiceFailed": "No se pudo subir el mensaje de voz.",
@@ -1052,7 +1053,7 @@
     "reactions": {
       "pill": "{emoji}, {count} reacción | {emoji}, {count} reacciones",
       "pillYou": "{emoji}, {count} reacción, incluida la tuya | {emoji}, {count} reacciones, incluida la tuya",
-      "hint": "La tecla de menú contextual o Mayús+F10 muestra quién reaccionó.",
+      "hint": "La tecla de menú contextual o Mayús+F10 muestra el emoji y quién reaccionó.",
       "removed": "Reacción quitada: {emoji}"
     },
     "emoji": {
@@ -1116,7 +1117,8 @@
       "video": "vídeo",
       "audio": "audio",
       "file": "archivo {name}",
-      "poll": "encuesta: {question}"
+      "poll": "encuesta: {question}",
+      "sticker": "sticker {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -1171,8 +1173,17 @@
     },
     "recent": "Búsquedas recientes",
     "clearRecent": "Borrar",
-    "encryptedNote": "Los mensajes cifrados solo se buscan en este dispositivo, entre los mensajes ya cargados.",
-    "onThisDevice": "Cifrado, en este dispositivo",
+    "encryptedNote": "Los mensajes cifrados se buscan en este dispositivo: lee su historial con tus claves y guarda aquí un índice protegido.",
+    "encryptedSearching": "Buscando en mensajes cifrados…",
+    "encryptedSearchedBack": "Buscando en mensajes cifrados, hasta el {date} por ahora…",
+    "encryptedStopped": "Búsqueda en mensajes cifrados detenida.",
+    "encryptedStoppedAt": "Mensajes cifrados buscados hasta el {date}.",
+    "encryptedDone": "Se buscó en todos los mensajes cifrados que puedes leer.",
+    "encryptedError": "No se pudieron cargar los mensajes cifrados más antiguos.",
+    "encryptedLocked": "Desbloquea el cifrado para buscar en mensajes cifrados.",
+    "encryptedStop": "Detener",
+    "encryptedSearchOlder": "Buscar mensajes más antiguos",
+    "encryptedUnreadable": "{count} mensaje que este dispositivo no puede leer | {count} mensajes que este dispositivo no puede leer",
     "searching": "Buscando…",
     "results": "Sin resultados | {count} resultado | {count} resultados",
     "resultsCapped": "Más de {count} resultados",
@@ -1183,6 +1194,7 @@
     "error": "La búsqueda falló",
     "empty": "Sin resultados",
     "emptyHint": "Prueba otras palabras o menos filtros.",
+    "similar": "No hay coincidencias exactas. Se muestran resultados similares.",
     "unknownChannel": "canal desconocido",
     "threadIn": "Hilo en {channel}",
     "pages": "Páginas de resultados",
@@ -2967,6 +2979,37 @@
     "aiQuotaUser": "Te quedan {remaining} de {total} generaciones hoy",
     "aiQuotaInstance": "Quedan {remaining} de {total} generaciones de la instancia hoy"
   },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Buscando de dónde viene…",
+    "default": "Un emoji predeterminado. Úsalo en cualquier lugar.",
+    "thisServer": "De este servidor.",
+    "yourServer": "De {server}, uno de tus servidores.",
+    "publicServer": "De {server}, un servidor público. Únete para usar este emoji en cualquier lugar.",
+    "remoteServer": "De {server} en {domain}.",
+    "personalYours": "Tu emoji personal. Úsalo en cualquier lugar.",
+    "personalOf": "Un emoji personal de {name}.",
+    "personalUnknown": "Un emoji personal.",
+    "instance": "Un emoji de esta instancia.",
+    "remote": "De otra instancia: {domain}.",
+    "discord": "Un emoji de Discord, traído desde Discord.",
+    "unavailable": "De un servidor privado o que ya no está disponible.",
+    "members": "{count} miembro | {count} miembros",
+    "publicLabel": "Servidor público",
+    "privateLabel": "Servidor solo por invitación",
+    "moreEmoji": "Más emoji de este servidor",
+    "joined": "Te uniste a {server}",
+    "reactedBy": "Reaccionó {names}",
+    "reactedByOthers": "Reaccionaron {names} y {count} más | Reaccionaron {names} y {count} más",
+    "reactionCount": "{count} reacción | {count} reacciones",
+    "nameSeparator": ", ",
+    "allReactions": "Todas las reacciones",
+    "copy": "Copiar",
+    "copied": "{text} copiado",
+    "copyFailed": "No se pudo copiar",
+    "copyLink": "Copiar enlace de la imagen",
+    "linkCopied": "Enlace de la imagen copiado"
+  },
   "inbox": {
     "title": "Notificaciones",
     "bellLabel": "Notificaciones",
@@ -3459,6 +3502,7 @@
     "usernameAvailable": "{handle} está disponible",
     "usernameTaken": "Ese nombre de usuario ya está en uso.",
     "usernameTooShort": "Usa al menos {min} caracteres.",
+    "usernameReserved": "Ese nombre de usuario está reservado. Elige otro.",
     "usernameCheckFailed": "No se pudo comprobar la disponibilidad. Inténtalo de nuevo.",
     "bio": "Sobre ti",
     "optional": "(opcional)",
@@ -4375,7 +4419,8 @@
       "invite": "Invitaciones",
       "emoji": "Emojis",
       "sound": "Sonidos",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Stickers"
     },
     "actions": {
       "channel_create": "{actor} creó el canal {target}",
@@ -4422,7 +4467,10 @@
       "bot_remove": "{actor} quitó el bot {target}",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor} suspendió el servidor",
-      "server_unsuspend": "{actor} levantó la suspensión del servidor"
+      "server_unsuspend": "{actor} levantó la suspensión del servidor",
+      "sticker_create": "{actor} añadió el sticker {target}",
+      "sticker_update": "{actor} editó el sticker {target}",
+      "sticker_delete": "{actor} eliminó el sticker {target}"
     },
     "fields": {
       "name": "Nombre",
@@ -4686,6 +4734,7 @@
       "changeDescription": "Cambiar tu contraseña cierra la sesión en todos los demás dispositivos.",
       "providerDescription": "Tu cuenta inicia sesión a través de {providers}. Una contraseña te permite iniciar sesión también con tu correo.",
       "externalProvider": "un proveedor externo",
+      "providerManaged": "Tu cuenta solo inicia sesión a través de {providers}. No tiene contraseña y no se puede establecer ninguna.",
       "hint": "Al menos 8 caracteres. Una frase de contraseña con unas cuantas palabras sin relación funciona bien.",
       "saving": "Guardando…",
       "setPassword": "Establecer contraseña",
@@ -4890,6 +4939,7 @@
       "sessionRevoked": "Se cerró esta sesión. Vuelve a iniciar sesión.",
       "codeMismatch": "Ese código no coincide. Usa el código más reciente de tu aplicación y comprueba que el reloj de tu dispositivo se ajusta automáticamente.",
       "challengeExpired": "La verificación caducó. Introduce un código nuevo.",
+      "providerManaged": "Esta cuenta solo inicia sesión a través de su proveedor, así que no se pueden cambiar su contraseña ni su correo.",
       "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
       "mfaNotEnabled": "La autenticación de dos factores no está activada."
     },
@@ -5089,7 +5139,13 @@
         "reason": "Motivo (se guarda con la cuenta):"
       },
       "confirmAction": "¿{action}? Esto resuelve el reporte.",
-      "actionDone": "{action}: hecho"
+      "actionDone": "{action}: hecho",
+      "ids": {
+        "title": "IDs",
+        "reporter": "Autor del reporte",
+        "reported": "Usuario reportado",
+        "server": "Servidor"
+      }
     },
     "federation": {
       "limited": "Limitado",
@@ -5128,12 +5184,21 @@
       "customOAuthHint": "Proveedores OpenID Connect u OAuth 2.0 en los que confía esta instancia, como Authentik, Keycloak o Better Auth. Sus botones aparecen en la página de inicio de sesión después de los anteriores. Sus secretos de cliente permanecen en el servidor, así que se añaden y se quitan allí.",
       "customOAuthEmpty": "Ninguno todavía.",
       "customOAuthCallback": "URL de redirección (callback) que se registra en el proveedor:",
-      "customOAuthManage": "En el servidor, desde la carpeta de Harmony:"
+      "customOAuthManage": "En el servidor, desde la carpeta de Harmony:",
+      "maxStickersPerServer": "Stickers por servidor",
+      "maxStickersPerServerHint": "De 0 a 100. 0 desactiva los stickers de servidor.",
+      "maxInstanceStickers": "Stickers de la instancia",
+      "maxInstanceStickersHint": "De 0 a 500. Todas las cuentas locales pueden enviar stickers de la instancia. 0 los desactiva.",
+      "maxPersonalStickers": "Stickers personales por usuario",
+      "maxPersonalStickersHint": "De 0 a 100. 0, el valor predeterminado, desactiva los stickers personales."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Máximo de reacciones por persona en una publicación",
-        "maxPersonalEmojisPerUser": "Emojis personales por usuario"
+        "maxPersonalEmojisPerUser": "Emojis personales por usuario",
+        "maxStickersPerServer": "Stickers por servidor",
+        "maxInstanceStickers": "Stickers de la instancia",
+        "maxPersonalStickersPerUser": "Stickers personales por usuario"
       },
       "staff": {
         "someServer": "un servidor",
@@ -5275,11 +5340,32 @@
         "delete": "No se pudo eliminar el emoji.",
         "invalidName": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
         "nameTaken": "Otro emoji de la instancia ya usa ese nombre.",
-        "nameTakenUser": "El propietario ya tiene un emoji con ese nombre."
+        "nameTakenUser": "El propietario ya tiene un emoji con ese nombre.",
+        "notAdmin": "Solo los administradores de la instancia pueden subir emojis de la instancia.",
+        "duplicateFile": "Ese archivo ya es un emoji de la instancia."
       },
       "searchLabel": "Buscar emoji",
       "searchHint": "Nombre o dominio",
-      "searchHintUser": "Nombre o propietario"
+      "searchHintUser": "Nombre o propietario",
+      "browseTitle": "Todos los emojis de esta instancia",
+      "loading": "Cargando emojis",
+      "library": {
+        "description": "Todos los usuarios locales los encuentran en el selector de emojis con el nombre de esta instancia.",
+        "listLabel": "Emojis locales de la instancia",
+        "empty": "Aún no hay emojis de la instancia",
+        "emptyHint": "Sube uno arriba. Todos los usuarios locales pueden usarlo.",
+        "loading": "Cargando emojis de la instancia",
+        "retry": "Reintentar"
+      }
+    },
+    "copyId": {
+      "user": "Copiar ID del usuario",
+      "server": "Copiar ID del servidor",
+      "named": "{action}: {target}",
+      "userCopied": "ID del usuario copiado",
+      "serverCopied": "ID del servidor copiado",
+      "userFailed": "No se pudo copiar el ID del usuario",
+      "serverFailed": "No se pudo copiar el ID del servidor"
     }
   },
   "discordBridge": {
@@ -6150,6 +6236,44 @@
     "playOnSite": "Reproducir en {site}",
     "playInX": "Reproducir en el reproductor de X"
   },
+  "outsideLink": {
+    "title": "Saliendo de Harmony",
+    "lead": "Este enlace lleva a un sitio fuera de Harmony. Comprueba la dirección antes de abrirlo.",
+    "maskedLead": "El texto de este enlace puede ocultar adónde lleva realmente. Comprueba la dirección antes de abrirlo.",
+    "trust": "Confiar en {host} a partir de ahora",
+    "copy": "Copiar enlace",
+    "open": "Abrir enlace",
+    "copied": "Enlace copiado",
+    "copyFailed": "No se pudo copiar el enlace",
+    "trustFailed": "No se pudo guardar {host} como sitio de confianza",
+    "settings": {
+      "title": "Enlaces externos",
+      "askEvery": "Preguntar antes de abrir cualquier enlace externo",
+      "askEveryDescription": "Muestra el aviso «Saliendo de Harmony» para cada enlace a otro sitio. Los enlaces enmascarados, cuyo texto puede no coincidir con su dirección, siempre preguntan.",
+      "trusted": "Sitios de confianza",
+      "trustedDescription": "Los enlaces a estos sitios se abren sin preguntar.",
+      "trustedEmpty": "No hay sitios de confianza. Marca «Confiar» en el aviso «Saliendo de Harmony» para añadir uno.",
+      "remove": "Quitar",
+      "removeLabel": "Quitar {host} de los sitios de confianza",
+      "saveFailed": "No se pudo guardar el cambio"
+    }
+  },
+  "photoDetails": {
+    "keep": "Conservar detalles de la foto (ubicación, cámara)",
+    "locationRemoved": "Ubicación eliminada",
+    "locationKept": "Incluye la ubicación",
+    "originalGone": "El original ya no está en este dispositivo. Adjúntalo de nuevo para conservar sus detalles.",
+    "settings": {
+      "keepByDefault": "Conservar detalles de las fotos por defecto",
+      "keepByDefaultDescription": "Las fotos y los vídeos que adjuntes empiezan con «Conservar detalles de la foto» activado: su ubicación, cámara y otros datos se suben con ellos. Desactivado: Harmony elimina esos datos en tu dispositivo antes de subirlos. Las fotos de perfil, banners, iconos, emojis y stickers nunca los conservan.",
+      "saveFailed": "No se pudo guardar el ajuste de detalles de las fotos."
+    },
+    "drive": {
+      "title": "Detalles de fotos y vídeos",
+      "intro": "Estas fotos y vídeos contienen datos como el lugar donde se tomaron y la cámara. Harmony los elimina salvo que los conserves.",
+      "upload": "Subir"
+    }
+  },
   "threadCreate": {
     "button": "Nuevo hilo",
     "nameLabel": "Nombre del hilo",
@@ -6741,7 +6865,15 @@
     "reportFiles": "Archivos adjuntos",
     "removeFile": "Eliminar archivo",
     "removeAndBlock": "Eliminar y bloquear nuevas subidas",
-    "removed": "Eliminado"
+    "removed": "Eliminado",
+    "searchLabel": "Buscar cuentas",
+    "searchHint": "Nombre o {'@'}usuario",
+    "loading": "Cargando cuentas",
+    "noMatch": "Ninguna cuenta coincide.",
+    "pages": "Páginas de cuentas",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "range": "{from}–{to} de {total}"
   },
   "share": {
     "title": "Compartir en Harmony",
@@ -7474,5 +7606,128 @@
     "showInFolder": "Mostrar en la carpeta",
     "downloadStarted": "Descargando {name}",
     "downloadFailed": "Error en la descarga: {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name}: {description}",
+    "goneLabel": "Sticker {name}, ya no disponible: {description}",
+    "removed": "Sticker eliminado",
+    "unavailable": "Sticker no disponible",
+    "preview": "Sticker: {name}",
+    "pickLabel": "Enviar el sticker {name}: {description}",
+    "picker": {
+      "server": "Este servidor",
+      "instance": "Stickers de la instancia",
+      "mine": "Mis stickers"
+    },
+    "errors": {
+      "type": "Un sticker es una imagen PNG, APNG, WebP o GIF.",
+      "size": "Ese sticker ocupa {size}; el límite es {max}.",
+      "dimensions": "Ese sticker mide {width}×{height} píxeles; el límite es {max}×{max}. Los stickers animados no se redimensionan.",
+      "duration": "Esa animación dura {seconds} s; el límite es {max} s.",
+      "dimensionsGeneric": "Un sticker mide como máximo {max}×{max} píxeles.",
+      "durationGeneric": "Un sticker animado dura como máximo {max} segundos.",
+      "nameLength": "El nombre de un sticker tiene de {min} a {max} caracteres.",
+      "descriptionMissing": "Describe el sticker para quienes no pueden verlo.",
+      "descriptionLength": "Una descripción tiene como máximo {max} caracteres.",
+      "limit": "Se alcanzó el límite de stickers ({max}).",
+      "off": "Estos stickers están desactivados en esta instancia.",
+      "nameTaken": "Ya hay un sticker con ese nombre aquí.",
+      "forbidden": "No puedes gestionar estos stickers.",
+      "notFound": "Ese sticker ya no existe.",
+      "generic": "No se pudo guardar el sticker."
+    },
+    "manage": {
+      "navLabel": "Stickers",
+      "serverTitle": "Stickers",
+      "serverDescription": "Stickers que los miembros pueden enviar en los canales e hilos de este servidor. Los miembros con Gestionar expresiones los añaden, editan y eliminan.",
+      "instanceTitle": "Stickers de la instancia",
+      "instanceDescription": "Stickers que cualquier cuenta de esta instancia puede enviar en cualquier servidor o conversación.",
+      "myTitle": "Mis stickers",
+      "myDescription": "Stickers que solo tú puedes enviar, en cualquier servidor o conversación.",
+      "upload": "Añadir un sticker",
+      "limits": "PNG, APNG, WebP o GIF, hasta {size} y {side}×{side} píxeles; animaciones de hasta {seconds} segundos. Las imágenes fijas más grandes se redimensionan.",
+      "file": "Imagen",
+      "name": "Nombre",
+      "description": "Descripción",
+      "descriptionHint": "La leen los lectores de pantalla y se muestra cuando la imagen no carga. Obligatoria.",
+      "uploading": "Subiendo…",
+      "uploadButton": "Subir sticker",
+      "uploaded": "Sticker «{name}» añadido",
+      "saved": "Sticker «{name}» guardado",
+      "deleted": "Sticker «{name}» eliminado",
+      "listTitle": "Stickers",
+      "empty": "Todavía no hay stickers.",
+      "editLabel": "Editar el sticker {name}",
+      "deleteLabel": "Eliminar el sticker {name}",
+      "deleteTitle": "Eliminar sticker",
+      "deleteConfirm": "¿Eliminar «{name}»? Los mensajes que lo enviaron mostrarán un marcador en su lugar.",
+      "loading": "Cargando stickers",
+      "loadFailed": "No se pudieron cargar los stickers.",
+      "off": {
+        "server": "Los stickers de servidor están desactivados en esta instancia.",
+        "instance": "Los stickers de la instancia están desactivados. Sube el límite en Admin → Config.",
+        "user": "Los stickers personales están desactivados en esta instancia. Un administrador puede permitirlos."
+      }
+    },
+    "report": {
+      "menu": "Denunciar sticker",
+      "proof": "Sticker denunciado",
+      "remove": "Eliminar sticker",
+      "removeConfirm": "¿Eliminar este sticker para todos? Los mensajes que lo enviaron mostrarán un marcador en su lugar.",
+      "removed": "Sticker eliminado",
+      "scope": {
+        "server": "Sticker de {server}",
+        "instance": "Sticker de la instancia",
+        "user": "Sticker personal"
+      }
+    }
+  },
+  "uploadLimits": {
+    "tooLarge": "«{name}» pesa {size} y supera tu límite de subida de {limit}.",
+    "tooLargeFile": "Este archivo pesa {size} y supera tu límite de subida de {limit}.",
+    "title": "Subidas",
+    "hint": "El archivo más grande que cada cuenta puede adjuntar en canales, hilos, mensajes directos y publicaciones, o guardar en Drive. Las fotos de perfil, banners, iconos de servidor, emojis y sonidos tienen sus propios límites.",
+    "tier": {
+      "user": "Archivo más grande por cuenta",
+      "moderator": "Archivo más grande por moderador de la instancia",
+      "admin": "Archivo más grande por administrador de la instancia"
+    },
+    "tierName": {
+      "user": "cuenta",
+      "moderator": "moderador de la instancia",
+      "admin": "administrador de la instancia"
+    },
+    "aboveCeiling": "Supera el tope de {limit}",
+    "ceiling": "Tope fijado por el operador del servidor",
+    "ceilingHint": "Ningún límite de subida puede ser mayor. El operador lo sube en el servidor con harmony config --upload-ceiling.",
+    "driveNote": "El archivo más grande no es el almacenamiento de Drive: una subida que llevaría una cuenta por encima de su almacenamiento se guarda como archivo temporal.",
+    "readOnly": "Solo los administradores de la instancia cambian los límites de subida.",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "loadFailed": "No se pudieron cargar los límites de subida.",
+    "saveFailed": "No se pudieron guardar los límites de subida.",
+    "user": {
+      "open": "Límite de subida de {name}",
+      "title": "Límite de subida de {name}",
+      "tier": "Nivel: {tier}, {limit}",
+      "effective": "Archivo más grande ahora: {limit}",
+      "choice": "Límite",
+      "useTier": "Usar el del nivel",
+      "custom": "Límite propio",
+      "customLabel": "Límite de subida de {name}, MB",
+      "ceiling": "Tope: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Rol",
+    "roleOption": "{name}, rol",
+    "memberOption": "{name}, miembro, {handle}",
+    "rolePill": "{'@'}{name}, rol",
+    "roleCard": {
+      "label": "Rol {name}",
+      "members": "{count} miembro | {count} miembros",
+      "here": "Miembros conectados que pueden ver el canal",
+      "unknown": "No es un rol de este servidor"
+    }
   }
 }

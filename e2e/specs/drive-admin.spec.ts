@@ -9,6 +9,7 @@
 // service role, with the hash of the bytes the offender uploaded.
 
 import crypto from 'node:crypto'
+import zlib from 'node:zlib'
 import { test, expect } from '@playwright/test'
 import {
   addMember,
@@ -24,12 +25,24 @@ import {
   type SpecUser,
 } from './harness'
 
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
-  'base64',
-)
-// Bytes no other spec uploads, so the block touches nothing else on the stack.
-const BYTES = Buffer.concat([PNG, Buffer.from(`drive-admin ${Date.now()} ${Math.random()}`)])
+function pngChunk(type: string, data: Buffer): Buffer {
+  const head = Buffer.from(type, 'ascii')
+  const len = Buffer.alloc(4)
+  len.writeUInt32BE(data.length)
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32BE(zlib.crc32(Buffer.concat([head, data])))
+  return Buffer.concat([len, head, data, crc])
+}
+// 16x1 8-bit greyscale with random pixels: bytes no other spec uploads, so the block touches
+// nothing else on the stack. No ancillary chunk and nothing after IEND, so the composer's
+// metadata strip leaves them as they are and hashes the same bytes.
+const IHDR = Buffer.from([0, 0, 0, 16, 0, 0, 0, 1, 8, 0, 0, 0, 0])
+const BYTES = Buffer.concat([
+  Buffer.from('89504e470d0a1a0a', 'hex'),
+  pngChunk('IHDR', IHDR),
+  pngChunk('IDAT', zlib.deflateSync(Buffer.concat([Buffer.from([0]), crypto.randomBytes(16)]))),
+  pngChunk('IEND', Buffer.alloc(0)),
+])
 const SHA = crypto.createHash('sha256').update(BYTES).digest('hex')
 
 const admin = adminClient()

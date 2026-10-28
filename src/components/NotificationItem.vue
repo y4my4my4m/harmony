@@ -189,6 +189,7 @@ function partsText(content: any): string | null {
       if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
       if (part.type === 'hashtag') return `#${part.name}`
       if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''
+      if (part.type === 'sticker') return t('stickers.preview', { name: part.name || '' })
       return ''
     })
     .join(' ')

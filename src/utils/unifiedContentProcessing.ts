@@ -14,7 +14,8 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
 import { convertEmoticons } from '@/utils/emoticons'
-import { HERE_ROLE_ID, hereMentionPart } from '@/utils/hereMention'
+import { HERE_ROLE_ID } from '@/utils/hereMention'
+import { isMassMentionWord, typedMassMentionPart, type MassMentionOptions } from '@/utils/massMentions'
 import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
 import { escapeHtml } from '@/utils/sanitize'
 
@@ -105,6 +106,8 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   MENTION_REGEX.lastIndex = 0;
   while ((match = MENTION_REGEX.exec(content)) !== null) {
     if (isOpaque(match.index)) continue;
+    // A bare @everyone or @here names no user (utils/massMentions).
+    if (!match[2] && isMassMentionWord(match[1])) continue;
     uniqueUsernames.add(mentionKey(match[1], match[2]?.toLowerCase()));
   }
   
@@ -483,15 +486,25 @@ async function parseContentSegment(
     }
     
     if (match[1]) {
-      // Role mention: @role:UUID, or @role:here
+      // Role mention: @role:UUID, or @role:here. @role:here and the default role's token follow
+      // parseOptions.massMentions as typed @here and @everyone do, as the text `@here` or
+      // `@<role name>` when not allowed (20261031900001 enforce_message_role_mentions).
       const roleId = match[2];
-      const roleData = roleDataMap[roleId];
-      parts.push(roleId === HERE_ROLE_ID ? hereMentionPart() : {
-        type: 'role_mention',
-        roleId,
-        roleName: roleData?.name || 'Unknown Role',
-        roleColor: roleData?.color || null,
-      } as MessagePart);
+      const massMentions = parseOptions.massMentions;
+      const everyoneRole = massMentions?.everyoneRole;
+      if (roleId === HERE_ROLE_ID) {
+        parts.push(typedMassMentionPart(HERE_ROLE_ID, `@${HERE_ROLE_ID}`, massMentions));
+      } else if (everyoneRole && roleId === everyoneRole.id) {
+        parts.push(typedMassMentionPart('everyone', `@${everyoneRole.name.replace(/^@/, '')}`, massMentions));
+      } else {
+        const roleData = roleDataMap[roleId];
+        parts.push({
+          type: 'role_mention',
+          roleId,
+          roleName: roleData?.name || 'Unknown Role',
+          roleColor: roleData?.color || null,
+        } as MessagePart);
+      }
     } else if (match[3]) {
       // Discord bridged mention: @d!ID:username (compact format)
       const discordId = match[4];
@@ -513,6 +526,11 @@ async function parseContentSegment(
       // to a remote handle.
       const username = match[7];
       const typedDomain = match[8]?.toLowerCase();
+      if (!typedDomain && isMassMentionWord(username)) {
+        parts.push(typedMassMentionPart(username, match[0], parseOptions.massMentions));
+        lastIndex = match.index + match[0].length;
+        continue;
+      }
       const currentDomain = localDomain();
       const isLocalHandle = !typedDomain || typedDomain === currentDomain;
       const userData = usernameToUserDataMap[mentionKey(username, typedDomain)];
@@ -601,6 +619,12 @@ export interface ContentParseOptions {
   channelDataMap?: Record<string, { id: string; serverId: string; name: string }>;
   /** Replace standalone text emoticons with emoji before parsing (utils/emoticons). */
   convertEmoticons?: boolean;
+  /**
+   * Server chat: what a typed bare @everyone or @here, `@role:here` and the default role's
+   * `@role:<uuid>` become. Absent, the words and `@role:here` are text and a `@role:<uuid>` is
+   * the role.
+   */
+  massMentions?: MassMentionOptions;
 }
 
 export async function parseContentToMessageParts(

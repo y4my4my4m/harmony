@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isCustomOAuthProviderId,
   isOAuthIdentityProvider,
+  oauthProviderLabel,
   parseCustomOAuthProviders,
 } from '../customOAuthProviders'
 
@@ -78,5 +79,20 @@ describe('provider ids', () => {
     expect(isOAuthIdentityProvider('custom:authentik')).toBe(true)
     expect(isOAuthIdentityProvider('email')).toBe(false)
     expect(isOAuthIdentityProvider(undefined)).toBe(false)
+  })
+})
+
+describe('oauthProviderLabel', () => {
+  const custom = [{ id: 'custom:authentik', name: 'Example SSO', icon: null }]
+
+  it('names built-in providers by brand and custom ones by their button name', () => {
+    expect(oauthProviderLabel('github')).toBe('GitHub')
+    expect(oauthProviderLabel('google', custom)).toBe('Google')
+    expect(oauthProviderLabel('custom:authentik', custom)).toBe('Example SSO')
+  })
+
+  it('falls back to the id without its prefix, or capitalised', () => {
+    expect(oauthProviderLabel('custom:authentik')).toBe('authentik')
+    expect(oauthProviderLabel('discord')).toBe('Discord')
   })
 })

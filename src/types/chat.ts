@@ -469,6 +469,30 @@ export interface FileContent {
   /** Description for people who cannot see the image or video; never the file name.
       Remote ActivityPub parts carry the attachment's `name` here. */
   altText?: string;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  /** The sticker part this image stands in for; clients that render stickers hide it. */
+  stickerId?: string;
+}
+
+/**
+ * A custom sticker, at most one per message. It travels beside a FileContent image with the
+ * same url and `stickerId` = `id`, which clients before 1.9.2 and non-Harmony software render.
+ */
+export interface StickerContent {
+  type: 'sticker';
+  /** stickers.id on the sender's instance. */
+  id: string;
+  url: string;
+  name: string;
+  /** Alt text; required. */
+  description: string;
+  width?: number;
+  height?: number;
+  mimeType?: string;
+  /** Host of a sticker from another instance; absent for this instance's own. */
+  domain?: string;
 }
 
 export interface SystemContent {
@@ -519,7 +543,7 @@ export interface MessageRemoteAuthor {
   avatar_url: string | null;
 }
 
-export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent | PollContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent;
 
 export interface Reaction {
   id: string;

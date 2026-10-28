@@ -13,7 +13,7 @@
 // Requires the stack from e2e/stack.sh and a dev server pointed at it.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 export const PASSWORD = 'e2e-spec-password-12345'
@@ -261,13 +261,108 @@ export async function addChannel(
   return data.id
 }
 
+// Chromium fails every request in flight with ERR_NETWORK_CHANGED when a host interface
+// gains or loses an address: a container starting on the same host, a veth's IPv6
+// link-local address. A dev-server page load is some 630 module requests; one lost import
+// leaves main.ts unevaluated and the page blank. A failed module stays failed in the
+// document's module map, so a lost lazy route import breaks that route until a reload.
+const NETWORK_CHANGED = 'net::ERR_NETWORK_CHANGED'
+// Time the app gets to show `ready` after a lost request, and the watch waits before a reload, ms.
+const NETWORK_CHANGED_GRACE_MS = 3000
+// Watch reloads per page; one stack start changes host addresses for some 20 s.
+const NETWORK_CHANGED_RELOADS = 5
+
+interface NetworkWatch {
+  /** Time of the first request lost to a network change; 0 for none. */
+  lostAt: number
+  /** A load with its own recovery is in progress; the watch does not reload. */
+  driven: boolean
+  reloads: number
+  checking: boolean
+  /** Main-frame document requests started. */
+  navigations: number
+}
+
+const watches = new WeakMap<Page, NetworkWatch>()
+
+/**
+ * Watches `page` for requests lost to a host network change. A page that lost its document
+ * or one of the app's scripts is reloaded after the grace, unless another navigation
+ * started meanwhile. A signed-in reload of /login moves on to /chat.
+ */
+export function watchNetworkChanges(page: Page): NetworkWatch {
+  const known = watches.get(page)
+  if (known) return known
+  const watch: NetworkWatch = { lostAt: 0, driven: false, reloads: 0, checking: false, navigations: 0 }
+  watches.set(page, watch)
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) watch.navigations++
+  })
+  page.on('requestfailed', (request) => {
+    if (request.failure()?.errorText !== NETWORK_CHANGED) return
+    if (!watch.lostAt) watch.lostAt = Date.now()
+    if (watch.driven || watch.checking || watch.reloads >= NETWORK_CHANGED_RELOADS) return
+    const mainDocument = request.isNavigationRequest() && request.frame() === page.mainFrame()
+    const appScript = request.resourceType() === 'script' && new URL(request.url()).origin === new URL(page.url()).origin
+    if (!mainDocument && !appScript) return
+    watch.checking = true
+    const navigation = watch.navigations
+    setTimeout(() => {
+      // Cleared first: a request lost during the reload schedules the next one.
+      watch.checking = false
+      if (watch.driven || watch.navigations !== navigation) return
+      watch.reloads++
+      page.reload().catch(() => {
+        // Page closed, or navigated during the reload.
+      })
+    }, NETWORK_CHANGED_GRACE_MS)
+  })
+  return watch
+}
+
+/**
+ * page.goto(url), then waits up to `timeout` for `ready`. A load that lost a request to a
+ * host network change and does not show `ready` within the grace is loaded again; reloads
+ * start within twice `timeout`. Any other failure to show `ready` fails as toBeVisible does.
+ */
+export async function loadApp(page: Page, url: string, ready: Locator, timeout = 30000): Promise<void> {
+  const watch = watchNetworkChanges(page)
+  const budget = Date.now() + 2 * timeout
+  watch.driven = true
+  try {
+    for (;;) {
+      watch.lostAt = 0
+      try {
+        await page.goto(url)
+      } catch (error) {
+        if (Date.now() < budget && String(error).includes(NETWORK_CHANGED)) continue
+        throw error
+      }
+      const deadline = Date.now() + timeout
+      let lost = false
+      while (Date.now() < deadline) {
+        if (await ready.isVisible().catch(() => false)) return
+        if (watch.lostAt && Date.now() - watch.lostAt > NETWORK_CHANGED_GRACE_MS && Date.now() < budget) {
+          lost = true
+          break
+        }
+        await page.waitForTimeout(200)
+      }
+      if (!lost) break
+    }
+  } finally {
+    watch.driven = false
+  }
+  await expect(ready).toBeVisible({ timeout: 1000 })
+}
+
 export const messageList = (page: Page) => page.locator('[data-testid="message-list"]')
 export const composer = (page: Page) =>
   page.locator('[data-testid="message-input"] .rich-text-editor')
 
 /** Opens a channel by URL and waits for its message list. */
 export async function openChannel(page: Page, serverId: string, channelId: string): Promise<void> {
-  await page.goto(`/chat/${serverId}/${channelId}`)
+  await loadApp(page, `/chat/${serverId}/${channelId}`, messageList(page))
   await dismissAnnouncements(page)
   await expect(messageList(page)).toBeVisible({ timeout: 30000 })
 }
@@ -342,8 +437,7 @@ export async function dismissAnnouncements(page: Page): Promise<void> {
 
 /** Signs in through the real login form and waits for the app shell. */
 export async function signIn(page: Page, user: SpecUser): Promise<void> {
-  await page.goto('/login')
-  await expect(page.locator('[data-testid="auth-email"]')).toBeVisible({ timeout: 30000 })
+  await loadApp(page, '/login', page.locator('[data-testid="auth-email"]'))
   await page.locator('[data-testid="auth-email"]').fill(user.email)
   await page.locator('[data-testid="auth-password"]').fill(user.password)
   await page.locator('[data-testid="auth-submit"]').click()

@@ -91,12 +91,16 @@ describe('MessageReactions for screen readers', () => {
     expect(document.activeElement).toBe(buttons()[0])
   })
 
-  it('lists who reacted on the ContextMenu key and Shift+F10', async () => {
+  it('opens the emoji info card on the ContextMenu key and Shift+F10', async () => {
     const w = mountReactions()
     const pill = w.get(`button.reaction[data-emoji-key="${customId}"]`)
+    expect(pill.attributes('aria-haspopup')).toBe('dialog')
     await pill.trigger('keydown', { key: 'ContextMenu' })
     await pill.trigger('keydown', { key: 'F10', shiftKey: true })
-    expect(w.emitted('open-reactions')).toEqual([['m1', customId], ['m1', customId]])
+    expect(w.emitted('reaction-info')).toEqual([
+      ['m1', customId, pill.element, 'keyboard'],
+      ['m1', customId, pill.element, 'keyboard'],
+    ])
   })
 
   it('toggles from the keyboard through the store', async () => {

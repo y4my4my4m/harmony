@@ -9,7 +9,7 @@ export type AuditTranslate = (key: string, named?: Record<string, unknown>, plur
 /** Filter choices; get_server_audit_log matches a kind against the action's prefix. */
 export const AUDIT_KINDS = [
   'channel', 'category', 'override', 'role', 'member', 'message',
-  'server', 'settings', 'invite', 'emoji', 'sound', 'bot',
+  'server', 'settings', 'invite', 'emoji', 'sticker', 'sound', 'bot',
 ] as const
 
 const KNOWN_ACTIONS = new Set([
@@ -25,6 +25,7 @@ const KNOWN_ACTIONS = new Set([
   'server.update', 'server.suspend', 'server.unsuspend', 'settings.update',
   'invite.create', 'invite.delete',
   'emoji.create', 'emoji.update', 'emoji.delete',
+  'sticker.create', 'sticker.update', 'sticker.delete',
   'sound.create', 'sound.update', 'sound.delete',
   'bot.add', 'bot.update', 'bot.remove',
 ])

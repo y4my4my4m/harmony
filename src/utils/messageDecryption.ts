@@ -27,9 +27,14 @@ export function getLastDecryptionError(): string | null {
 }
 
 /**
- * Process messages and attempt to decrypt encrypted ones
+ * Process messages and attempt to decrypt encrypted ones.
+ * `index: false` leaves the search index alone. `heldKeysOnly` decrypts with the keys this
+ * device holds and asks nobody for a missing one (MegolmMessageEncryptionService DecryptOptions).
  */
-export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
+export async function processMessageDecryption(
+  messages: Message[],
+  options: { index?: boolean; heldKeysOnly?: boolean } = {},
+): Promise<Message[]> {
   // FIRST: bail before touching the encryption stack at all. Previously the
   // encrypted-page check sat BELOW the lazy service initialization, so even a
   // fully plaintext channel load awaited encryption boot (auto-unlock, key
@@ -136,10 +141,11 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     identityEpochMs = await encryptionService.getIdentityCreatedAt?.()
   } catch { /* unknown epoch → treat all failures as retryable */ }
 
+  const decryptOptions = { heldKeysOnly: options.heldKeysOnly === true }
   const decryptedResults = await Promise.all(
     encryptedMessages.map(async (message) => {
       try {
-        const decrypted = await encryptionService.decryptMessage(message)
+        const decrypted = await encryptionService.decryptMessage(message, decryptOptions)
         lastDecryptionError = null
 
         // decryptMessage returns { content, senderVerified } for v2-aware
@@ -197,6 +203,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       }
     })
   )
+
+  // The search crawl indexes its own pages and waits for the writes.
+  if (options.index !== false) void import('@/services/search/encryptedSearchIndex')
+    .then(({ noteDecryption }) => noteDecryption(
+      decryptedResults.filter(m => m.decrypted),
+      decryptedResults.filter(m => !m.decrypted),
+    ))
+    .catch(() => {})
 
   // Rebuild the message list preserving original order
   const decryptedMap = new Map(decryptedResults.map(m => [m.id, m]))

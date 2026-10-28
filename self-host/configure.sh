@@ -112,6 +112,8 @@ version_ge "${compose_version:-0}" "$COMPOSE_MIN" ||
 rand_hex() { openssl rand -hex "$1"; }
 rand_b64() { openssl rand -base64 "$1" | tr -d '\n'; }
 b64url()   { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
+# hex_bytes HEX: the bytes HEX spells, NUL included.
+hex_bytes() { printf '%b' "$(printf '%s' "$1" | sed 's/../\\x&/g')"; }
 b64url_decode() {
 	local s
 	s="$(tr '_-' '/+')"
@@ -119,6 +121,8 @@ b64url_decode() {
 	printf '%s' "$s" | openssl base64 -d -A
 }
 lower() { tr '[:upper:]' '[:lower:]'; }
+# shellcheck source=linking.sh
+source "$SCRIPT_DIR/linking.sh"
 
 # HS256 JWT for a Supabase role, valid for 10 years.
 sign_jwt() {
@@ -148,12 +152,16 @@ jwt_valid() {
 # private key is 30 77 02 01 01 04 20 <32-byte scalar> ...; the SPKI public key
 # ends with the 65-byte uncompressed point.
 gen_vapid() {
-	local pem
+	local pem priv pub
 	pem="$(openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null)" || die "openssl could not generate a P-256 key"
-	[[ "$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | od -An -tx1 -N7 | tr -d ' \n')" == 30770201010420 ]] ||
+	# Hex of the whole DER, read to its end: a reader that stops early (head -c, od -N) can leave
+	# openssl or tail writing into a closed pipe, and SIGPIPE under pipefail ends this script (141).
+	priv="$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | od -An -tx1 -v | tr -d ' \n')"
+	pub="$(printf '%s\n' "$pem" | openssl ec -pubout -outform DER 2>/dev/null | od -An -tx1 -v | tr -d ' \n')"
+	[[ "${priv:0:14}" == 30770201010420 && ${#pub} -ge 130 ]] ||
 		die "unexpected EC key encoding from $(openssl version); generate VAPID keys with 'npx web-push generate-vapid-keys' and set them in federation.env"
-	VAPID_PRIVATE_KEY="$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | tail -c +8 | head -c 32 | b64url)"
-	VAPID_PUBLIC_KEY="$(printf '%s\n' "$pem" | openssl ec -pubout -outform DER 2>/dev/null | tail -c 65 | b64url)"
+	VAPID_PRIVATE_KEY="$(hex_bytes "${priv:14:64}" | b64url)"
+	VAPID_PUBLIC_KEY="$(hex_bytes "${pub: -130}" | b64url)"
 	[[ ${#VAPID_PRIVATE_KEY} -eq 43 && ${#VAPID_PUBLIC_KEY} -eq 87 ]] || die "VAPID key generation produced unexpected lengths"
 }
 
@@ -233,6 +241,7 @@ BOTS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_BOTS)"
 DISCORD_DEFAULT="$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)"
 REGISTRATION_DEFAULT="$(env_get "$ENV_FILE" REGISTRATION)"
 OLD_SMTP_HOST="$(env_get "$SB_ENV" SMTP_HOST)"
+OLD_AUTOCONFIRM="$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"
 
 if [[ "$OLD_TLS" == internal ]]; then TLS_DEFAULT=n; else TLS_DEFAULT=y; fi
 case "${HARMONY_TLS:-}" in
@@ -531,6 +540,24 @@ if $SMTP_SET; then
 	# SMTP host flips it, so a hand edit stays.
 	smtp_configured "$OLD_SMTP_HOST" || env_set "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM false
 fi
+# Under ENABLE_EMAIL_AUTOCONFIRM=true GoTrue counts every address a provider sends as verified
+# (models.DetermineAccountLinking), and accounts are made without proving theirs. Each built-in
+# provider without a PROVIDER_LINKING_DOMAINS pair gets a domain of its own (linking.sh), also
+# on the run that configures SMTP: accounts made before it keep unproven addresses. A pair
+# present stays.
+if [[ "$(yes_no "$OLD_AUTOCONFIRM")" == true || "$(yes_no "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)")" == true ]]; then
+	linking="$(env_get "$SB_ENV" PROVIDER_LINKING_DOMAINS)"
+	if ! linking_valid "$linking"; then
+		warn "supabase/.env: PROVIDER_LINKING_DOMAINS is not comma-separated provider=domain pairs; the auth service does not start with it, and the built-in sign-in providers are not kept apart. Correct it and re-run configure.sh"
+	else
+		# shellcheck disable=SC2086
+		want="$(linking_isolate "$linking" $BUILTIN_OAUTH_PROVIDERS)"
+		if [[ "$want" != "$linking" ]]; then
+			env_set "$SB_ENV" PROVIDER_LINKING_DOMAINS "$want"
+			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub or Twitch makes a new account instead of joining the one with its address (harmony auth linking)"
+		fi
+	fi
+fi
 # gotrue_image_for STACK_COMPOSE CURRENT: GOTRUE_IMAGE, the auth image supabase-overrides.yml
 # runs. The stack's own supabase/gotrue image from GOTRUE_MIN on, otherwise GOTRUE_MIN; a
 # CURRENT image at least as new stays, so the override never downgrades.
@@ -724,6 +751,7 @@ echo
 if [[ -d "$DB_DATA_DIR" ]]; then
 	info "Existing install: 'docker compose up -d' applies configuration changes; 'harmony update' also updates the code."
 	$LISTENER_NEW && warn "a new harmony_listener password was generated; run 'bash bootstrap.sh' once to set it"
+	$DOMAIN_CHANGED && warn "files are now served from https://$DB_DOMAIN; once the stack is up, 'bash bootstrap.sh --migrations-only' moves instance_config.storage_origin there, and sticker and emoji uploads are refused until it does"
 	$VAPID_NEW && info "Push notifications use a new VAPID key; restart the federation services (update.sh does)."
 else
 	info "Next steps (in self-host/):"

@@ -177,15 +177,28 @@
     </div>
 
     <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
-      <InstanceEmojiAdmin />
+      <!-- Both lists hold rows of the emojis table: a change in one, or an import, reloads the other. -->
+      <InstanceEmojiLibrary ref="emojiLibrary" @changed="emojiBrowse?.load()" />
+      <InstanceEmojiAdmin ref="emojiBrowse" @changed="emojiLibrary?.refresh()" />
       <div class="admin-module emoji-module">
         <div class="module-header">
           <Icon name="emoji" :size="20" />
           <h2>Remote emoji importer</h2>
         </div>
         <div class="emoji-content">
-          <EmojiImporter />
+          <EmojiImporter @imported="emojiLibrary?.refresh(); emojiBrowse?.load()" />
         </div>
+      </div>
+    </div>
+
+    <div v-else-if="activeAdminTab === 'stickers'" class="admin-grid single">
+      <div class="admin-module">
+        <StickerSettings
+          scope="instance"
+          can-manage
+          :title="t('stickers.manage.instanceTitle')"
+          :description="t('stickers.manage.instanceDescription')"
+        />
       </div>
     </div>
 
@@ -218,6 +231,7 @@ import ActivityLog from '@/components/admin/ActivityLog.vue'
 // Modules load lazily per tab so opening the panel only fetches Overview.
 const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/EmojiImporter.vue'))
 const InstanceEmojiAdmin = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiAdmin.vue'))
+const InstanceEmojiLibrary = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiLibrary.vue'))
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))
@@ -233,8 +247,12 @@ const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 const DriveAdmin = defineAsyncComponent(() => import('@/components/admin/DriveAdmin.vue'))
+const StickerSettings = defineAsyncComponent(() => import('@/components/stickers/StickerSettings.vue'))
 import { adminService } from '@/services/AdminService'
 import { useProfileStore } from '@/stores/useProfile'
+
+const emojiLibrary = ref<{ refresh: () => Promise<void> } | null>(null)
+const emojiBrowse = ref<{ load: () => Promise<void> } | null>(null)
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -253,6 +271,7 @@ const adminTabs = [
   { key: 'webhooks', label: t('adminWebhooks.tab'), icon: 'link' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
+  { key: 'stickers', label: t('stickers.manage.navLabel'), icon: 'sticker' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },
   { key: 'drive', label: t('drive.title'), icon: 'hard-drive' },
@@ -267,7 +286,8 @@ const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam', 'webhooks']
 const visibleTabs = computed(() =>
   (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
-    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks')))
+    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks'))
+    .filter(tab => tab.key !== 'stickers' || hasCapability('custom-stickers')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))

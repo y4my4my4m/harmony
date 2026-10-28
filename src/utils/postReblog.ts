@@ -27,6 +27,8 @@
  */
 
 import type { TimelinePost, ActivityPubPost, FederatedUser } from '@/types';
+import { isMassMentionWord } from '@/utils/massMentions';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 /**
  * Content without the lone "@" a text part ends with right before a mention part. Remote
@@ -249,7 +251,9 @@ export function replyMentionPrefill(
   const seen = new Set<string>();
   const add = (id: string | undefined, username: string | undefined, domain: string | undefined, isLocal: boolean) => {
     if (!username || isViewer(id, username, isLocal)) return;
-    const handle = !isLocal && domain ? `@${username}@${domain}` : `@${username}`;
+    // A local account named everyone or here keeps its host: bare, the word is the mass mention.
+    const host = domain || (isLocal ? (runtimeConfig.domain as string) : '');
+    const handle = (!isLocal || isMassMentionWord(username)) && host ? `@${username}@${host}` : `@${username}`;
     const key = handle.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);

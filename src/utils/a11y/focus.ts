@@ -105,7 +105,8 @@ let tracking = false
 
 // Time of the last Tab or F6 keydown (performance.now()). Text fields match
 // :focus-visible on any focus, programmatic included; a ring drawn from this
-// marks only focus the keyboard moved.
+// marks only focus the keyboard moved. Any other key or a pointer press ends the
+// window: focus the app moves after Enter on a channel link is not Tab's.
 let navKeyAt = -Infinity
 let trackingNavKeys = false
 const NAV_KEY_WINDOW_MS = 400
@@ -117,12 +118,14 @@ export function trackNavigationKeys(): void {
     'keydown',
     (event) => {
       if (event.key === 'Tab' || event.key === 'F6') navKeyAt = performance.now()
+      else navKeyAt = -Infinity
     },
     true,
   )
+  document.addEventListener('pointerdown', () => { navKeyAt = -Infinity }, true)
 }
 
-/** True when the focus happening now follows a Tab or F6 keydown. */
+/** True when the focus happening now follows a Tab or F6 keydown and no other input. */
 export function focusFromNavigationKey(): boolean {
   return performance.now() - navKeyAt < NAV_KEY_WINDOW_MS
 }

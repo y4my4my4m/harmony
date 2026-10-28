@@ -451,6 +451,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
+import { markMaskedAnchors } from '@/utils/outsideLinks'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -481,6 +482,7 @@ import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
 import { useMovedAccount } from '@/composables/useMovedAccount'
 import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { isMassMentionWord } from '@/utils/massMentions'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
 
@@ -798,8 +800,9 @@ const displayHandle = computed(() => {
     if (username && domain) return `@${username}@${domain}`
   }
 
-  // Local users: @username
+  // Local users: @username; one named everyone or here with the host, unlike the mass mention.
   const username = u.username || getUser(props.user.id).value?.username
+  if (username && isMassMentionWord(username) && currentDomain) return `@${username}@${currentDomain}`
   if (username && username !== 'Unknown' && username !== 'unknown') return `@${username}`
   return '@unknown'
 })
@@ -1037,12 +1040,14 @@ const formatFieldValue = (value: any) => {
   // corrupting `<a>` tags produced by the storage encoder.
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(text)
   const html = looksLikeHtml ? text : escapeHtml(text).replace(/\n/g, '<br>')
-  return DOMPurify.sanitize(html, {
+  const sanitized = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['a', 'br', 'span', 'em', 'strong', 'b', 'i'],
     ALLOWED_ATTR: ['href', 'title'],
     ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
     ALLOW_DATA_ATTR: false,
   }).replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"')
+  // A link whose text is a label asks before opening (services/outsideLinks).
+  return markMaskedAnchors(sanitized)
 }
 
 const copyUserId = async () => {
@@ -1188,7 +1193,7 @@ const mentionUser = () => {
     const handle = props.user.handle || `@${username}${props.user.domain ? '@' + props.user.domain : ''}`
     mentionHandle = handle.startsWith('@') ? handle : `@${handle}`
   } else {
-    mentionHandle = `@${username}`
+    mentionHandle = isMassMentionWord(username) && currentDomain ? `@${username}@${currentDomain}` : `@${username}`
   }
 
   // Context-dependent:
@@ -1208,7 +1213,7 @@ const mentionUser = () => {
   router.push('/social/home')
   emit('close')
   if (!isFederatedUser(props.user)) {
-    emit('mention', username)
+    emit('mention', mentionHandle.replace(/^@/, ''))
   }
 }
 

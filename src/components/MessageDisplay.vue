@@ -256,10 +256,9 @@
             <!-- Reactions for system messages -->
             <MessageReactions
               :message="item.message"
-              @show-reaction-tooltip="showTooltip"
-              @hide-reaction-tooltip="hideTooltip"
+              @reaction-info="openReactionInfo"
+              @reaction-info-leave="leaveEmojiInfo"
               @open-emoji-picker="handleOpenEmojiPicker"
-              @open-reactions="openReactionsModal"
               @layout-change="handleReactionsLayoutChange"
             />
           </div>
@@ -440,10 +439,9 @@
         <!-- Reactions -->
         <MessageReactions
           :message="item.message"
-          @show-reaction-tooltip="showTooltip"
-          @hide-reaction-tooltip="hideTooltip"
+          @reaction-info="openReactionInfo"
+          @reaction-info-leave="leaveEmojiInfo"
           @open-emoji-picker="handleOpenEmojiPicker"
-          @open-reactions="openReactionsModal"
           @layout-change="handleReactionsLayoutChange"
         />
         
@@ -522,14 +520,6 @@
     @close="closeInviteModal"
   />
 
-  <ReactionTooltip
-    :visible="tooltip.visible"
-    :x="tooltip.x"
-    :y="tooltip.y"
-    :emoji="tooltip.emoji"
-    :users="tooltip.content"
-  />
-
   <ReactionsModal
     v-if="reactionsModal"
     :message-id="reactionsModal.messageId"
@@ -577,6 +567,7 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
+    @report-sticker="(sticker: StickerContent, message: Message) => (stickerReport = { sticker, messageId: message.id })"
     @view-reactions="(message: Message) => openReactionsModal(message.id, null)"
     @reply="replyTo"
     @edit="startEdit"
@@ -595,6 +586,14 @@
     :target-server="reportTargetServer"
     @close="showReportModal = false"
     @hide="handleHideReportedContent"
+  />
+
+  <ReportModal
+    v-if="stickerReport"
+    report-type="sticker"
+    :target-sticker="stickerReport.sticker"
+    :target-message-id="stickerReport.messageId"
+    @close="stickerReport = null"
   />
 
   <!-- Delete Message Confirmation Modal -->
@@ -622,7 +621,7 @@ import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailu
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
+import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, StickerContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
@@ -648,7 +647,6 @@ import { isModerationRejectionCode } from '@/services/AutoModService';
 import { useToast } from 'vue-toastification';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
-import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden';
@@ -676,15 +674,26 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ConversationBeginning from '@/components/ConversationBeginning.vue';
-import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import ReactionsModal from '@/components/messages/ReactionsModal.vue';
 import {
   formatUserHandle,
+  reactionGroupKey,
   reactionProfileIds,
   toReactionUsers,
   type ReactionUser,
   type ReactionUserResolvers,
 } from '@/utils/reactionUsers';
+import { emojiInfoTargetFromReaction, type EmojiResolver } from '@/utils/emojiInfoTarget';
+import {
+  closeEmojiInfo,
+  dismissHoverEmojiInfo,
+  hoverEmojiInfo,
+  leaveEmojiInfo,
+  openEmojiInfo,
+  type EmojiInfoReactions,
+  type ReactionInfoVia,
+} from '@/composables/useEmojiInfo';
+import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue';
 import SystemEventBody from '@/components/messages/SystemEventBody.vue';
@@ -721,7 +730,7 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { mentionsViewer } from '@/utils/hereMention';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
-import { buildChatParseOptions } from '@/utils/chatParseOptions';
+import { buildChatParseOptions, resolveChatMassMentions } from '@/utils/chatParseOptions';
 import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -1509,14 +1518,6 @@ const topSentinelRef = ref<HTMLDivElement | null>(null);
 const virtualListRef = ref<HTMLDivElement | null>(null);
 const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
-const tooltip = ref({
-  visible: false,
-  content: [] as ReactionUser[],
-  x: 0,
-  y: 0,
-  emoji: null as Emoji | null,
-});
-const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 const editableMessageId = ref<string | null>(null);
 const editableMessageContent = ref('');
 const hoveredMessageId = ref<string | null>(null);
@@ -2768,9 +2769,7 @@ watch(isLoadingOlderMessages, (loading, wasLoading) => {
 // of it was redundant work on every message mutation.
 watch(() => props.messages.map(msg => msg.reactions?.length), () => {
   const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
-  if (!hasVisibleReactions && tooltip.value.visible) {
-    hideTooltip();
-  }
+  if (!hasVisibleReactions) dismissHoverEmojiInfo();
 });
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
@@ -2964,9 +2963,7 @@ onUnmounted(() => {
     resizeObserver = null;
   }
   observedMessages.clear();
-  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  tooltipTimer.value = null;
-  tooltip.value.visible = false;
+  dismissHoverEmojiInfo();
 });
 
 
@@ -3175,35 +3172,43 @@ onUnmounted(() => {
 
 // --- METHODS ---
 
-// Tooltip Handling
-// Generation counter: a hide during the profile preload drops the pending show.
-let tooltipGeneration = 0;
-
-const showTooltip = async (event: MouseEvent, reaction: ReactionGroup) => {
-  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  const generation = ++tooltipGeneration;
-  // currentTarget is null once dispatch ends; the anchor is read before the await.
-  const anchor = getReactionTooltipAnchor(event);
-
-  const profileIds = reactionProfileIds(reaction.reactions);
-  if (profileIds.length > 0) {
-    await ensureProfilesAvailable(profileIds).catch(error =>
-      debug.error("Error ensuring profiles for tooltip:", error)
-    );
-  }
-  if (generation !== tooltipGeneration) return;
-
-  const usersDetails = toReactionUsers(reaction.reactions, reactionUserResolvers);
-  tooltipTimer.value = setTimeout(() => {
-    tooltip.value = { visible: true, content: usersDetails, x: anchor.x, y: anchor.y, emoji: reaction.emoji };
-  }, 500);
+// Reaction pill info card (components/emoji/EmojiInfoHost.vue). The group is read from the
+// store on every access, so the card follows toggles and realtime updates.
+const { resolveEmoji: resolveUnifiedEmoji } = useUnifiedEmoji();
+const resolveForInfo: EmojiResolver = (input) => {
+  const resolved = resolveUnifiedEmoji(input);
+  return {
+    unicode: resolved.unicode,
+    shortcode: resolved.shortcode,
+    imageUrl: resolved.display.type === 'svg' ? resolved.display.content : null,
+  };
 };
 
-const hideTooltip = () => {
-  tooltipGeneration++;
-  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  tooltipTimer.value = null;
-  tooltip.value.visible = false;
+const openReactionInfo = (messageId: string, emojiKey: string, anchor: HTMLElement, via: ReactionInfoVia) => {
+  const groupOf = (): ReactionGroup | undefined =>
+    reactionsStore.getMessageReactions(messageId).find(group => reactionGroupKey(group) === emojiKey);
+  const group = groupOf();
+  if (!group) return;
+  const target = emojiInfoTargetFromReaction(group, resolveForInfo);
+  if (!target) return;
+  reactionUserResolvers.preload?.(group.reactions);
+  const reactions: EmojiInfoReactions = {
+    count: () => groupOf()?.count ?? 0,
+    users: () => {
+      const current = groupOf();
+      return current ? toReactionUsers(current.reactions, reactionUserResolvers) : [];
+    },
+    // The list opens after the card has closed and returned focus to the pill, so the
+    // list takes the pill as its opener.
+    onShowAll: isOptimisticId(messageId)
+      ? undefined
+      : () => {
+          closeEmojiInfo();
+          void nextTick(() => openReactionsModal(messageId, emojiKey));
+        },
+  };
+  if (via === 'hover') hoverEmojiInfo(anchor, target, reactions);
+  else openEmojiInfo(anchor, target, { via, reactions });
 };
 
 // Scroll & UI State
@@ -3430,7 +3435,7 @@ const editFailureMessage = (error: any): string => {
   return t('message.editNotSaved', { reason: error?.message || '' });
 };
 
-const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
+const saveEdit = async (messageId: string, newContent?: string, retainedFiles: MessagePart[] = []) => {
   if (!editableMessageId.value) return;
   const textContent = newContent ?? editableMessageContent.value;
   // Allow saving a message that has no text as long as at least one attachment
@@ -3443,12 +3448,14 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
   // The editor closes at once; the row shows the edit while it is saved.
   cancelEdit();
   try {
-    const [userDataMap, emojiDataMap, roleDataMap] = await Promise.all([
+    const [userDataMap, emojiDataMap, roleDataMap, massMentions] = await Promise.all([
       resolveMentionsUserData(textContent),
       resolveEmojisData(textContent),
       resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined),
+      props.channelId ? resolveChatMassMentions(textContent, serverChannelStore.currentServerId, props.channelId) : undefined,
     ]);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(!!props.conversationId));
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap,
+      { ...buildChatParseOptions(!!props.conversationId), massMentions });
     // Re-append the attachments the user kept, so editing text never drops media.
     await saveStoredEdit(messageId, [...parsedContent, ...retainedFiles]);
   } catch (error: any) {
@@ -3614,7 +3621,7 @@ const openEmojiReactor = (message: Message, event: MouseEvent) => {
 const shakingMessages = ref<Set<string>>(new Set());
 
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {
-  if (tooltip.value.visible) hideTooltip();
+  dismissHoverEmojiInfo();
   
   const message = props.messages.find(m => m.id === messageId);
   if (message && isMessageFromBlockedUser(message)) {
@@ -3638,7 +3645,7 @@ const isMessageShaking = (messageId: string): boolean => {
 };
 
 const handleOpenEmojiPicker = (messageId: string, event: MouseEvent) => {
-  hideTooltip();
+  dismissHoverEmojiInfo();
   
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
@@ -3672,6 +3679,8 @@ const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
 
   emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
+
+const stickerReport = ref<{ sticker: StickerContent; messageId: string } | null>(null);
 
 const handleReportMessage = (message: Message) => {
   const authorId = message.user_id || (message as any).author_id;
@@ -4051,7 +4060,7 @@ const reactionsModal = ref<{ messageId: string; emojiKey: string | null } | null
 
 const openReactionsModal = (messageId: string, emojiKey: string | null) => {
   if (isOptimisticId(messageId)) return;
-  hideTooltip();
+  dismissHoverEmojiInfo();
   if (isMobile.value) {
     hoveredMessageId.value = null;
     mobileActionTapPosition.value = null;

@@ -5,6 +5,8 @@
 import type { MessagePart } from '@/types'
 import { customEmojiLabel } from './emojiNames'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import { withoutStickerFallbacks } from '@/utils/stickerParts'
+import { isMassMentionWord } from '@/utils/massMentions'
 
 export type Translate = (key: string, params?: Record<string, unknown>, plural?: number) => string
 
@@ -27,7 +29,7 @@ export function messageSpeechText(
   if (options.encrypted) return t('messageA11y.speech.encrypted')
   if (!Array.isArray(parts)) return ''
   const pieces: string[] = []
-  for (const part of parts) {
+  for (const part of withoutStickerFallbacks(parts)) {
     if (!part || typeof part !== 'object') continue
     const p = part as MessagePart & Record<string, any>
     switch (p.type) {
@@ -38,10 +40,12 @@ export function messageSpeechText(
         pieces.push(customEmojiLabel(p.emoji?.name))
         break
       case 'mention':
-        pieces.push(`@${p.username ?? ''}`)
+        // A user named everyone or here is read with the host, unlike the mass mention.
+        pieces.push(isMassMentionWord(p.username) && p.domain ? `@${p.username}@${p.domain}` : `@${p.username ?? ''}`)
         break
       case 'role_mention':
-        pieces.push(`@${String(p.roleName ?? '').replace(/^@/, '')}`)
+        // Read as a role: a member of the same name is read as @name alone.
+        pieces.push(t('mentionLabels.rolePill', { name: String(p.roleName ?? '').replace(/^@/, '') }))
         break
       case 'channel_mention':
         pieces.push(`#${p.name ?? ''}`)
@@ -62,6 +66,9 @@ export function messageSpeechText(
       }
       case 'poll':
         pieces.push(t('messageA11y.speech.poll', { question: p.question ?? '' }))
+        break
+      case 'sticker':
+        pieces.push(t('messageA11y.speech.sticker', { name: p.name ?? '', description: p.description ?? '' }))
         break
     }
   }

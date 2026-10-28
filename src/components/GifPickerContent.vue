@@ -199,6 +199,13 @@
 
       <!-- Trending/Search Results -->
       <template v-else>
+        <!-- Custom stickers of the server, the instance and the user, above KLIPY's. -->
+        <StickerPickerSection
+          v-if="mediaType === 'stickers' && customStickers"
+          :query="searchQuery"
+          :channel-id="channelId ?? null"
+          @send="emit('sendSticker', $event)"
+        />
         <EmptyState
           v-if="items.length === 0 && !isLoading && loadError"
           size="sm"
@@ -306,6 +313,8 @@ import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephe
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import GifAdSlot from '@/components/GifAdSlot.vue';
+import StickerPickerSection from '@/components/stickers/StickerPickerSection.vue';
+import type { Sticker } from '@/services/stickerService';
 import { debug } from '@/utils/debug';
 import { gifService, type FavoriteGif } from '@/services/GifService';
 import { gifProvider, type GifMediaType } from '@/services/gifProviderService';
@@ -321,6 +330,10 @@ interface Props {
   showFavorites: boolean;
   initialSearchQuery?: string;
   mediaType?: GifMediaType;
+  /** Server channel a pick goes to; null in a DM. */
+  channelId?: string | null;
+  /** Custom stickers above KLIPY's on the Stickers tab. */
+  customStickers?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -329,6 +342,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface Emits {
   (e: 'sendGif', gif: Gif): void;
+  (e: 'sendSticker', sticker: Sticker): void;
   (e: 'sendEmoji', emoji: Emoji): void;
   (e: 'update:showFavorites', value: boolean): void;
 }

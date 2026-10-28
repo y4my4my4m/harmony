@@ -21,6 +21,7 @@
       :key="getSuggestionKey(suggestion)"
       :id="'suggest-' + index"
       role="option"
+      :aria-label="optionLabel(suggestion)"
       :aria-selected="index === props.selectedIndex"
       class="suggest-item"
       :class="{ 'selected': index === props.selectedIndex }"
@@ -42,9 +43,7 @@
             class="suggest-icon role-icon"
             :style="{ backgroundColor: suggestion.roleColor || '#99AAB5' }"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-            </svg>
+            <Icon name="shield" :size="14" aria-hidden="true" />
           </div>
           <Avatar
             v-else-if="suggestion.avatar"
@@ -90,8 +89,8 @@
                 </span>
                 <DisplayName v-else-if="!suggestion.emoji && suggestion.id" class="suggest-name" :userId="suggestion.id" :fallback="suggestion.display_name || suggestion.name" :truncate="true" />
                 <span class="suggest-name" v-else>:{{ suggestion.emoji.name || suggestion.name }}:</span>
-                <span v-if="suggestion.isRole" class="bridge-badge role-badge" title="Role">
-                  Role
+                <span v-if="suggestion.isRole" class="bridge-badge role-badge" aria-hidden="true">
+                  {{ t('mentionLabels.role') }}
                 </span>
                 <span v-else-if="suggestion.isBridged && suggestion.bridgeSource === 'discord'" class="bridge-badge discord" title="Discord user">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -112,7 +111,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Avatar from '@/components/common/Avatar.vue';
+import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { usePortalTarget } from '@/composables/usePortalTarget';
 
@@ -184,6 +185,20 @@ const positionStyle = computed(() => ({
 // METHODS
 const selectSuggestion = (suggestion: SuggestionItem) => {
   emit('select', suggestion);
+};
+
+const { t } = useI18n();
+
+/**
+ * Accessible name of a mention option: a role and a member of the same name read differently.
+ * Other options keep their text content.
+ */
+const optionLabel = (suggestion: SuggestionItem): string | undefined => {
+  const name = (suggestion.display_name || suggestion.name || suggestion.username || '').replace(/^@/, '');
+  if (suggestion.isRole) return t('mentionLabels.roleOption', { name });
+  if (suggestion.isCommand || suggestion.emoji || suggestion.isChannel || !suggestion.username) return undefined;
+  const handle = suggestion.display_text || `@${suggestion.username}`;
+  return t('mentionLabels.memberOption', { name: name || suggestion.username, handle });
 };
 
 const getSuggestionKey = (suggestion: SuggestionItem): string => {

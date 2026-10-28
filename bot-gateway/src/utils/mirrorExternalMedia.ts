@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { supabase } from '../config/supabase.js'
 import { MESSAGE_MEDIA_BUCKET, signMessageMediaPaths } from './messageMedia.js'
+import { stripMediaBytes } from './stripMetadata.js'
 
 const MAX_BYTES = 50 * 1024 * 1024
 
@@ -89,10 +90,12 @@ export async function mirrorExternalMediaToStorage(
     throw new Error(`Download failed (${response.status})`)
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer())
-  if (buffer.byteLength > MAX_BYTES) {
-    throw new Error(`Attachment too large (${buffer.byteLength} bytes)`)
+  const downloaded = Buffer.from(await response.arrayBuffer())
+  if (downloaded.byteLength > MAX_BYTES) {
+    throw new Error(`Attachment too large (${downloaded.byteLength} bytes)`)
   }
+  // Location and camera metadata never reach storage from a bot (utils/stripMetadata.ts).
+  const buffer = Buffer.from(await stripMediaBytes(downloaded))
 
   // An APNG stored as .png is served as a static thumbnail: clients downscale .png only.
   const animatedPng = isAnimatedPng(buffer)

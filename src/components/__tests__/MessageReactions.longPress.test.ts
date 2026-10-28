@@ -1,7 +1,7 @@
 /**
- * A reaction pill opens the reactions list on long-press (touch) and on
- * right-click, on that pill's emoji. A short tap still toggles the reaction.
- * Right-click stays on the pill; the message row's own menu never sees it.
+ * A reaction pill opens its emoji info card on long-press (touch, as a sheet), on
+ * right-click and on Shift+F10, anchored on that pill. A short tap still toggles the
+ * reaction. Right-click stays on the pill; the message row's own menu never sees it.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,6 +41,13 @@ const pill = (wrapper: ReturnType<typeof mountReactions>, key: string) =>
 
 const touch = (x: number, y: number) => ({ touches: [{ clientX: x, clientY: y }] })
 
+/** reaction-info emits as [messageId, emojiKey, via], the anchor checked to be the pill. */
+const infos = (wrapper: ReturnType<typeof mountReactions>) =>
+  (wrapper.emitted('reaction-info') as unknown[][] | undefined)?.map(([id, key, anchor, via]) => {
+    expect((anchor as HTMLElement).classList.contains('reaction')).toBe(true)
+    return [id, key, via]
+  })
+
 beforeEach(() => {
   vi.useFakeTimers()
   state.toggleReaction = vi.fn(async () => ({ success: true }))
@@ -55,13 +62,13 @@ afterEach(() => {
 })
 
 describe('MessageReactions pill gestures', () => {
-  it('opens the reactions list on the long-pressed emoji', async () => {
+  it('opens the info sheet on the long-pressed emoji', async () => {
     const wrapper = mountReactions()
     await pill(wrapper, customId).trigger('touchstart', touch(20, 20))
     vi.advanceTimersByTime(449)
-    expect(wrapper.emitted('open-reactions')).toBeUndefined()
+    expect(infos(wrapper)).toBeUndefined()
     vi.advanceTimersByTime(1)
-    expect(wrapper.emitted('open-reactions')).toEqual([['m1', customId]])
+    expect(infos(wrapper)).toEqual([['m1', customId, 'press']])
 
     const end = new TouchEvent('touchend', { bubbles: true, cancelable: true })
     pill(wrapper, customId).element.dispatchEvent(end)
@@ -75,16 +82,16 @@ describe('MessageReactions pill gestures', () => {
     await target.trigger('touchstart', touch(20, 20))
     await target.trigger('touchmove', touch(26, 27))
     vi.advanceTimersByTime(450)
-    expect(wrapper.emitted('open-reactions')).toEqual([['m1', '👍']])
+    expect(infos(wrapper)).toEqual([['m1', '👍', 'press']])
     await target.trigger('touchend')
 
     await target.trigger('touchstart', touch(20, 20))
     await target.trigger('touchmove', touch(20, 40))
     vi.advanceTimersByTime(1000)
-    expect(wrapper.emitted('open-reactions')).toHaveLength(1)
+    expect(infos(wrapper)).toHaveLength(1)
   })
 
-  it('toggles on a short tap without opening the list', async () => {
+  it('toggles on a short tap without opening the card', async () => {
     const wrapper = mountReactions()
     const target = pill(wrapper, '👍')
     await target.trigger('touchstart', touch(20, 20))
@@ -94,24 +101,39 @@ describe('MessageReactions pill gestures', () => {
     expect(end.defaultPrevented).toBe(false)
     await target.trigger('click')
     vi.advanceTimersByTime(1000)
-    expect(wrapper.emitted('open-reactions')).toBeUndefined()
+    expect(infos(wrapper)).toBeUndefined()
     expect(state.toggleReaction).toHaveBeenCalledWith('m1', '👍', 'me', expect.anything())
   })
 
-  it('opens the list on right-click and keeps the event from the message row', async () => {
+  it('opens the card on right-click and keeps the event from the message row', async () => {
     const rowContextMenu = vi.fn()
     const opened = vi.fn()
     const wrapper = mount({
       render: () => h('div', { class: 'message-item', onContextmenu: rowContextMenu }, [
-        h(MessageReactions, { message, onOpenReactions: opened }),
+        h(MessageReactions, { message, onReactionInfo: opened }),
       ]),
     }, { global: { stubs: { Icon: true, TransitionGroup: false } } })
 
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-    wrapper.get(`.reaction[data-emoji-key="${customId}"]`).element.dispatchEvent(event)
+    const el = wrapper.get(`.reaction[data-emoji-key="${customId}"]`).element
+    el.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(true)
-    expect(opened).toHaveBeenCalledWith('m1', customId)
+    expect(opened).toHaveBeenCalledWith('m1', customId, el, 'click')
     expect(rowContextMenu).not.toHaveBeenCalled()
+  })
+
+  it('opens the card from the keyboard with Shift+F10', async () => {
+    const wrapper = mountReactions()
+    await pill(wrapper, customId).trigger('keydown', { key: 'F10', shiftKey: true })
+    expect(infos(wrapper)).toEqual([['m1', customId, 'keyboard']])
+  })
+
+  it('asks for a hover card on pointer rest and lets go on leave', async () => {
+    const wrapper = mountReactions()
+    await pill(wrapper, '👍').trigger('mouseenter')
+    expect(infos(wrapper)).toEqual([['m1', '👍', 'hover']])
+    await pill(wrapper, '👍').trigger('mouseleave')
+    expect(wrapper.emitted('reaction-info-leave')).toHaveLength(1)
   })
 
   it('opens once when the browser fires contextmenu during a long-press', async () => {
@@ -121,7 +143,7 @@ describe('MessageReactions pill gestures', () => {
     vi.advanceTimersByTime(400)
     await target.trigger('contextmenu')
     vi.advanceTimersByTime(500)
-    expect(wrapper.emitted('open-reactions')).toEqual([['m1', '👍']])
+    expect(infos(wrapper)).toEqual([['m1', '👍', 'press']])
 
     const end = new TouchEvent('touchend', { bubbles: true, cancelable: true })
     target.element.dispatchEvent(end)

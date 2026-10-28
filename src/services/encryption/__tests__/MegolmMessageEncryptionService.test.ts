@@ -7,7 +7,7 @@ import { RecoveryKeyService } from '../RecoveryKeyService'
 import { MegolmMessageEncryptionService } from '../MegolmMessageEncryptionService'
 import { megolmKeyBackupService } from '../MegolmKeyBackupService'
 import { deviceIdentityService } from '../DeviceIdentityService'
-import { deviceKeyStore, signingKeyStore } from '../SecureSessionKeyStore'
+import { deviceKeyStore, secureSessionKeyStore, signingKeyStore } from '../SecureSessionKeyStore'
 import {
   generateSigningKeyPair,
   exportPublicSigningKey,
@@ -871,6 +871,192 @@ describe('MegolmMessageEncryptionService', () => {
       expect(megolm.getMessageKey(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, encrypted.messageIndex)).toBeUndefined()
     })
 
+    describe('while an unlock catches up', () => {
+      const missed = () => ({
+        content: [{ type: 'text' as const, text: encrypted.ciphertext }],
+        encryption_metadata: {
+          session_id: encrypted.sessionId,
+          message_index: encrypted.messageIndex,
+          sender_user_id: OTHER_SENDER,
+        },
+      })
+
+      let request: ReturnType<typeof vi.spyOn>
+      let recover: ReturnType<typeof vi.spyOn>
+      let sweep: ReturnType<typeof vi.spyOn>
+      let endSweep: (takeIn: () => Promise<void> | void) => Promise<void>
+      let openIdentity: () => void
+      let fulfilled: Array<{ room_id: string; session_id: string }>
+      let storedKeys: Awaited<ReturnType<RecoveryKeyService['deriveKeysFromMnemonic']>>
+
+      const requested = () => [{ room_id: TEST_ROOM_ID, session_id: encrypted.sessionId }]
+
+      /** 'decrypted', 'asked' (rejected) or 'waiting' after `ms`. */
+      async function outcome(decrypting: Promise<unknown>, ms = 200): Promise<string> {
+        return Promise.race([
+          decrypting.then(() => 'decrypted', () => 'asked'),
+          new Promise<string>(resolve => setTimeout(() => resolve('waiting'), ms)),
+        ])
+      }
+
+      function miss(options?: { heldKeysOnly?: boolean }): Promise<MessagePart[]> {
+        const decrypting = (messageService as any).decryptMegolmMessage(missed(), TEST_ROOM_ID, undefined, options) as Promise<MessagePart[]>
+        decrypting.catch(() => {})
+        return decrypting
+      }
+
+      beforeEach(async () => {
+        offer()
+        recover = vi.spyOn(messageService as any, 'recoverMissingSession').mockResolvedValue(false)
+        request = vi.spyOn(megolmKeyBackupService, 'createKeyRequest').mockResolvedValue('req')
+        let resolveSweep!: (count: number) => void
+        sweep = vi.spyOn(megolmKeyBackupService, 'processMyFulfilledRequests').mockImplementation(
+          () => new Promise<number>(resolve => { resolveSweep = resolve }),
+        )
+        endSweep = async (takeIn) => {
+          await takeIn()
+          resolveSweep(1)
+        }
+        vi.spyOn(megolmKeyBackupService, 'processPendingRequestsToMe').mockResolvedValue(0)
+        vi.spyOn(megolmKeyBackupService, 'restoreFromBackup').mockResolvedValue({ outboundCount: 0, inboundCount: 0 } as never)
+        vi.spyOn(messageService, 'claimPendingSessionShares').mockResolvedValue(0)
+        vi.spyOn(messageService as any, 'ensureSigningKeyPair').mockResolvedValue(undefined)
+        const identity = new Promise<void>(resolve => { openIdentity = resolve })
+        vi.spyOn(messageService as any, 'ensureIdentityKeyPair').mockImplementation(() => identity)
+        storedKeys = await recovery.deriveKeysFromMnemonic(TEST_MNEMONIC)
+        vi.spyOn(secureSessionKeyStore, 'load').mockResolvedValue(storedKeys)
+        vi.spyOn(secureSessionKeyStore, 'loadPairingCopy').mockResolvedValue(null)
+        vi.spyOn(secureSessionKeyStore, 'store').mockResolvedValue()
+        vi.spyOn(deviceIdentityService, 'getThisDeviceState').mockResolvedValue('active')
+
+        fulfilled = []
+        const harness = (supabase.from as any).getMockImplementation()
+        ;(supabase.from as any).mockImplementation((table: string) => {
+          if (table !== 'megolm_key_requests') return harness(table)
+          const builder: any = {
+            select: () => builder,
+            eq: () => builder,
+            not: () => builder,
+            then: (resolve: (v: unknown) => void) => resolve({ data: fulfilled, error: null }),
+          }
+          return builder
+        })
+        megolm.close()
+      })
+
+      afterEach(() => {
+        openIdentity()
+        ;(messageService as any).dropCatchUp()
+      })
+
+      // Auto-unlock held at ensureIdentityKeyPair: megolmService is initialized, the sweep not started.
+      async function unlockToGap(unlock: () => Promise<unknown> = () => (messageService as any).tryAutoUnlock()) {
+        const unlocking = unlock()
+        await vi.waitFor(() => expect(messageService.isUnlocked()).toBe(true))
+        expect(sweep).not.toHaveBeenCalled()
+        return { unlocking }
+      }
+
+      it('a miss after megolmService.initialize and before the sweep starts waits for the sweep', async () => {
+        fulfilled = requested()
+        const { unlocking } = await unlockToGap()
+        const decrypting = miss()
+        expect(await outcome(decrypting)).toBe('waiting')
+        expect(request).not.toHaveBeenCalled()
+
+        openIdentity()
+        await vi.waitFor(() => expect(sweep).toHaveBeenCalled())
+        await endSweep(() => megolm.importInboundSession(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, sessionKey, 0))
+        expect(await decrypting).toEqual(content)
+        expect(request).not.toHaveBeenCalled()
+        await unlocking
+      })
+
+      it('the same gap of a recovery-phrase unlock', async () => {
+        fulfilled = requested()
+        const { unlocking } = await unlockToGap(() => messageService.initializeWithRecoveryKey(TEST_MNEMONIC))
+        const decrypting = miss()
+        expect(await outcome(decrypting)).toBe('waiting')
+
+        openIdentity()
+        await vi.waitFor(() => expect(sweep).toHaveBeenCalled())
+        await endSweep(() => offer(relayed(sessionKey, 'r1')))
+        expect(await decrypting).toEqual(content)
+        expect(request).not.toHaveBeenCalled()
+        await unlocking
+      })
+
+      it('a miss reads the message through the relayed key the sweep holds', async () => {
+        fulfilled = requested()
+        const unlocking = (messageService as any).tryAutoUnlock()
+        openIdentity()
+        await vi.waitFor(() => expect(sweep).toHaveBeenCalled())
+        const decrypting = miss()
+        expect(await outcome(decrypting)).toBe('waiting')
+        await endSweep(() => offer(relayed(sessionKey, 'r1')))
+        expect(await decrypting).toEqual(content)
+        expect(settle).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'r1' }), true)
+        expect(request).not.toHaveBeenCalled()
+        await unlocking
+      })
+
+      it('a miss of a session the sweep holds no request for asks at once', async () => {
+        fulfilled = [{ room_id: TEST_ROOM_ID, session_id: 'another-session' }]
+        const { unlocking } = await unlockToGap()
+        const decrypting = miss()
+        expect(await outcome(decrypting)).toBe('asked')
+        await expect(decrypting).rejects.toThrow(/key request sent/)
+        expect(request).toHaveBeenCalledTimes(1)
+        openIdentity()
+        await unlocking
+      })
+
+      it('a miss of a requested session the sweep does not answer asks once the sweep ends', async () => {
+        fulfilled = requested()
+        const unlocking = (messageService as any).tryAutoUnlock()
+        openIdentity()
+        await vi.waitFor(() => expect(sweep).toHaveBeenCalled())
+        const decrypting = miss()
+        expect(await outcome(decrypting)).toBe('waiting')
+        expect(request).not.toHaveBeenCalled()
+        await endSweep(() => {})
+        await expect(decrypting).rejects.toThrow(/key request sent/)
+        expect(request).toHaveBeenCalledTimes(1)
+        await unlocking
+      })
+
+      it('a miss after the sweep ended asks at once', async () => {
+        fulfilled = requested()
+        const unlocking = (messageService as any).tryAutoUnlock()
+        openIdentity()
+        await vi.waitFor(() => expect(sweep).toHaveBeenCalled())
+        await endSweep(() => {})
+        await unlocking
+        await new Promise(resolve => setTimeout(resolve, 0))
+        expect(await outcome(miss())).toBe('asked')
+        expect(request).toHaveBeenCalledTimes(1)
+      })
+
+      it('held keys only: a miss neither waits, fetches shares nor asks anyone', async () => {
+        fulfilled = requested()
+        const { unlocking } = await unlockToGap()
+        const decrypting = miss({ heldKeysOnly: true })
+        expect(await outcome(decrypting)).toBe('asked')
+        await expect(decrypting).rejects.toThrow(/No inbound session/)
+        expect(recover).not.toHaveBeenCalled()
+        expect(request).not.toHaveBeenCalled()
+        openIdentity()
+        await unlocking
+      })
+
+      it('held keys only: a relayed key this device holds reads the message', async () => {
+        await megolm.initialize(TEST_USER_ID, storedKeys.encryptionKey)
+        offer(relayed(sessionKey, 'r1'))
+        expect(await miss({ heldKeysOnly: true })).toEqual(content)
+        expect(request).not.toHaveBeenCalled()
+      })
+    })
+
     it('a decrypt miss names the message and its pin in the key request', async () => {
       offer()
       vi.spyOn(messageService as any, 'recoverMissingSession').mockResolvedValue(false)
@@ -886,6 +1072,151 @@ describe('MegolmMessageEncryptionService', () => {
         },
       }, TEST_ROOM_ID)).rejects.toThrow(/key request sent/)
       expect(request).toHaveBeenCalledWith(TEST_ROOM_ID, encrypted.sessionId, OTHER_SENDER, { id: 'm1', pinned: true })
+    })
+  })
+
+  // ─── Role mentions inside the ciphertext ─────────────────
+
+  describe('role mentions of a decrypted channel message', () => {
+    const EVERYONE_ROLE = 'dddddddd-1111-2222-3333-444444444444'
+    const MOD_ROLE = 'dddddddd-5555-6666-7777-888888888888'
+    const sent: MessagePart[] = [
+      { type: 'text', text: 'hi ' },
+      { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+      { type: 'text', text: ' ' },
+      { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: '@everyone', roleColor: null },
+      { type: 'text', text: ' ' },
+      { type: 'role_mention', roleId: MOD_ROLE, roleName: 'mods', roleColor: '#ff0000' },
+    ]
+    const stored = (ciphertext: MessagePart, ...roleIds: string[]): MessagePart[] =>
+      [ciphertext, ...roleIds.map(roleId => ({ type: 'role_mention', roleId }) as unknown as MessagePart)]
+
+    it('renders as text a role mention the stored mention parts lack', async () => {
+      const encrypted = await messageService.encryptMessage(sent, TEST_ROOM_ID, [])
+      // enforce_message_role_mentions dropped @here and @everyone: the author lacks MENTION_EVERYONE.
+      const { content } = await messageService.decryptMessage({
+        content: stored(encrypted.content[0], MOD_ROLE),
+        channel_id: TEST_ROOM_ID,
+        encryption_metadata: encrypted.encryption_metadata,
+      })
+      expect(content).toEqual([
+        { type: 'text', text: 'hi ' },
+        { type: 'text', text: '@here' },
+        { type: 'text', text: ' ' },
+        { type: 'text', text: '@everyone' },
+        { type: 'text', text: ' ' },
+        { type: 'role_mention', roleId: MOD_ROLE, roleName: 'mods', roleColor: '#ff0000' },
+      ])
+    })
+
+    it('keeps the role mentions the stored mention parts carry', async () => {
+      const encrypted = await messageService.encryptMessage(sent, TEST_ROOM_ID, [])
+      const { content } = await messageService.decryptMessage({
+        content: stored(encrypted.content[0], 'here', EVERYONE_ROLE, MOD_ROLE),
+        channel_id: TEST_ROOM_ID,
+        encryption_metadata: encrypted.encryption_metadata,
+      })
+      expect(content).toEqual(sent)
+    })
+
+    it('a page decrypt shows the same parts', async () => {
+      const encrypted = await messageService.encryptMessage(sent, TEST_ROOM_ID, [])
+      const { processMessageDecryption } = await import('@/utils/messageDecryption')
+      const [row] = await processMessageDecryption([{
+        id: 'eeeeeeee-0000-4000-8000-000000000001',
+        channel_id: TEST_ROOM_ID,
+        user_id: TEST_USER_ID,
+        created_at: new Date(),
+        content: stored(encrypted.content[0], MOD_ROLE),
+        encrypted: true,
+        encryption_metadata: encrypted.encryption_metadata,
+        reactions: [],
+      } as any], { index: false })
+      expect(row.decrypted).toBe(true)
+      expect(row.content.filter(p => p.type === 'role_mention').map(p => (p as { roleId: string }).roleId)).toEqual([MOD_ROLE])
+    })
+
+    it('leaves a conversation message as decrypted', async () => {
+      const encrypted = await messageService.encryptMessage(sent, TEST_ROOM_ID, [])
+      const { content } = await messageService.decryptMessage({
+        content: encrypted.content,
+        conversation_id: TEST_ROOM_ID,
+        encryption_metadata: encrypted.encryption_metadata,
+      })
+      expect(content).toEqual(sent)
+    })
+  })
+
+  // ─── History crawl for search ─────────────────────────────
+
+  describe('a page of the search crawl', () => {
+    it('asks nobody for a session key this device does not hold', async () => {
+      const content: MessagePart[] = [{ type: 'text', text: 'sent before this device' }]
+      const sent = await messageService.encryptMessage(content, TEST_ROOM_ID, [])
+      // The device holds no session: a fresh megolm store.
+      megolm.close()
+      await new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase(`harmony_megolm_sessions_${TEST_USER_ID}`)
+        req.onsuccess = () => resolve()
+        req.onerror = () => resolve()
+      })
+      await megolm.initialize(TEST_USER_ID, (await recovery.deriveKeysFromMnemonic(TEST_MNEMONIC)).encryptionKey)
+
+      const row = {
+        id: 'cccccccc-1111-2222-3333-444444444444',
+        channel_id: TEST_ROOM_ID,
+        user_id: TEST_USER_ID,
+        created_at: '2026-10-01T00:00:00.000000+00:00',
+        content: sent.content,
+        encrypted: true,
+        encryption_metadata: sent.encryption_metadata,
+      }
+      const tables: string[] = []
+      const harness = (supabase.from as any).getMockImplementation()
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        tables.push(table)
+        if (table !== 'messages') return harness(table)
+        const builder: any = {}
+        for (const name of ['select', 'not', 'order', 'limit', 'eq', 'gte', 'or', 'lt', 'gt']) builder[name] = () => builder
+        builder.then = (resolve: (v: unknown) => void) => resolve({ data: [row], error: null })
+        return builder
+      })
+      ;(supabase.rpc as any).mockClear()
+      const request = vi.spyOn(megolmKeyBackupService, 'createKeyRequest')
+      // Reached only past signature verification, on the session miss.
+      const heldTried = vi.spyOn(messageService as any, 'decryptWithRelayedKey')
+
+      const { loadHistoryPage } = await import('@/services/search/encryptedHistoryScan')
+      const [page] = await loadHistoryPage({ room: TEST_ROOM_ID, kind: 'channel' }, null, 100)
+
+      expect(page.decrypted).toBeFalsy()
+      expect(page.encrypted).toBe(true)
+      expect(heldTried).toHaveBeenCalledTimes(1)
+      expect(request).not.toHaveBeenCalled()
+      expect(tables).not.toContain('megolm_key_requests')
+      expect(tables).not.toContain('megolm_session_shares')
+      const rpcs = (supabase.rpc as any).mock.calls.map((c: unknown[]) => c[0])
+      expect(rpcs).not.toContain('get_unclaimed_session_shares')
+      expect(rpcs).not.toContain('claim_session_share')
+    })
+  })
+
+  // ─── Sign-out ─────────────────────────────────────────────
+
+  describe('lockEncryption and the search index', () => {
+    it('a decrypt landing while the lock runs opens no search index', async () => {
+      const { accountSearchIndex, INDEX_DB_PREFIX } = await import('@/services/search/encryptedSearchIndex')
+      expect(await accountSearchIndex()).not.toBeNull()
+
+      let reopened: unknown = 'not reached'
+      vi.spyOn(secureSessionKeyStore, 'clear').mockImplementation(async () => {
+        reopened = await accountSearchIndex()
+      })
+      await messageService.lockEncryption()
+
+      expect(reopened).toBeNull()
+      const names = (await indexedDB.databases()).map(d => d.name ?? '')
+      expect(names.filter(name => name.startsWith(INDEX_DB_PREFIX))).toEqual([])
     })
   })
 })

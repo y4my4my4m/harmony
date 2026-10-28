@@ -14,7 +14,7 @@ export { REPORT_REASONS }
 export type { ReportAction, ReportCategory, ReportReason }
 
 export type ReportStatus = 'pending' | 'investigating' | 'resolved' | 'dismissed'
-export type ReportType = 'user' | 'post' | 'message' | 'server'
+export type ReportType = 'user' | 'post' | 'message' | 'server' | 'sticker'
 
 /** A reporter's own report: the columns the reports column grant exposes (getMyReports). */
 export interface Report {
@@ -117,6 +117,7 @@ export interface CreateReportParams {
   reported_post_id?: string
   reported_message_id?: string
   reported_server_id?: string
+  reported_sticker_id?: string
   reason: ReportReason | string
   category?: ReportCategory
   comment?: string
@@ -147,6 +148,7 @@ class ReportService {
       p_reported_post_id: params.reported_post_id ?? null,
       p_reported_message_id: params.reported_message_id ?? null,
       p_reported_server_id: params.reported_server_id ?? null,
+      p_reported_sticker_id: params.reported_sticker_id ?? null,
       p_reason: params.reason,
       p_category: params.category ?? null,
       p_comment: params.comment?.trim() || null,

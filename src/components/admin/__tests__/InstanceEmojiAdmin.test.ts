@@ -3,11 +3,13 @@
  * first page, renames through admin_rename_instance_emoji and deletes through
  * admin_delete_instance_emoji after a confirmation naming the reactions it removes.
  * The User emojis source lists personal emojis with their owner and the AI flag; actions
- * on them are audited as user_emoji_rename and user_emoji_delete.
+ * on them are audited as user_emoji_rename and user_emoji_delete. A rename or delete emits
+ * `changed` so the admin panel reloads the library beside it; `load` reloads from outside.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, ref } from 'vue'
 import { supabase } from '@/supabase'
 import InstanceEmojiAdmin from '../InstanceEmojiAdmin.vue'
 
@@ -290,5 +292,35 @@ describe('InstanceEmojiAdmin', () => {
     await flushPromises()
     expect(listCalls().slice(calls).map((a: any) => a.p_offset)).toEqual([50, 0])
     expect(w.findAll('.emoji-row')).toHaveLength(1)
+  })
+
+  it('emits changed after a rename and a delete, not after a failed one', async () => {
+    const w = await render()
+    await w.findAll('.emoji-row')[1].findAll('.emoji-actions .action-btn')[0].trigger('click')
+    await w.find('.rename-input').setValue('party_parrot')
+    await w.find('.rename-form').trigger('submit')
+    await flushPromises()
+    expect(w.emitted('changed')).toHaveLength(1)
+
+    confirm.mockResolvedValueOnce(true)
+    await w.findAll('.emoji-row')[1].find('.action-btn.danger').trigger('click')
+    await flushPromises()
+    expect(w.emitted('changed')).toHaveLength(2)
+
+    renameResult = { data: null, error: { code: '23505', message: 'exists' } }
+    await w.findAll('.emoji-row')[0].findAll('.emoji-actions .action-btn')[0].trigger('click')
+    await w.find('.rename-input').setValue('emoji_2')
+    await w.find('.rename-form').trigger('submit')
+    await flushPromises()
+    expect(w.emitted('changed')).toHaveLength(2)
+  })
+
+  it('reloads the current page through its template ref', async () => {
+    const browse = ref<{ load: () => Promise<void> } | null>(null)
+    mount(defineComponent({ setup: () => () => h(InstanceEmojiAdmin, { ref: browse }) }))
+    await flushPromises()
+    expect(listCalls()).toHaveLength(1)
+    await browse.value!.load()
+    expect(listCalls()).toHaveLength(2)
   })
 })

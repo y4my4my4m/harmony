@@ -14,7 +14,9 @@ import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
 import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
 import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
+import { storedObjectSource } from '@/services/privateMedia';
 import { uploadStorageObject } from '@/services/uploads/storageUpload';
+import { UploadLimitError, checkUploadLimit } from '@/services/uploads/uploadLimit';
 import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
@@ -2130,19 +2132,30 @@ export const useActivityPubStore = defineStore('activitypub', {
       const uploadPromises = attachments.map(async (attachment) => {
         const description = typeof attachment?.description === 'string' ? attachment.description.trim() : '';
         const focus = attachment instanceof File ? null : attachmentFocus(attachment);
+        let file: File;
         if (typeof attachment?.drivePath === 'string' && !(attachment.file instanceof File)) {
-          const url = await copyDriveFileToPostMedia(attachment.drivePath, authUserId);
-          return withMediaEdits({
-            type: attachment.type === 'video' ? 'Video' : attachment.type === 'audio' ? 'Audio' : 'Image',
-            url,
-            mediaType: attachment.mime_type,
-            name: attachment.filename,
-          }, description, focus);
-        }
-        if (isStoredMedia(attachment)) {
+          // A Drive photo that carries details not kept here is read, stripped and uploaded;
+          // anything else is copied server-side.
+          if (attachment.photoDetails?.details !== true || attachment.keepDetails === true) {
+            if (typeof attachment.size === 'number') {
+              await checkUploadLimit('user_media', { size: attachment.size }, attachment.filename);
+            }
+            const url = await copyDriveFileToPostMedia(attachment.drivePath, authUserId);
+            return withMediaEdits({
+              type: attachment.type === 'video' ? 'Video' : attachment.type === 'audio' ? 'Audio' : 'Image',
+              url,
+              mediaType: attachment.mime_type,
+              name: attachment.filename,
+            }, description, focus);
+          }
+          const name = attachment.filename || attachment.drivePath.split('/').pop() || 'file';
+          file = await storedObjectSource(attachment.drivePath, name, attachment.mime_type || '', attachment.size ?? 0)
+            .fetch(new AbortController().signal);
+        } else if (isStoredMedia(attachment)) {
           return withMediaEdits(attachment.stored ?? { type: attachment.type, url: attachment.url }, description, focus);
+        } else {
+          file = await this.convertMediaAttachmentToFile(attachment);
         }
-        const file = await this.convertMediaAttachmentToFile(attachment);
 
         const fileExt = file.name.split('.').pop() || 'bin';
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
@@ -2153,16 +2166,18 @@ export const useActivityPubStore = defineStore('activitypub', {
             cacheControl: '3600',
             upsert: false,
             label: file.name,
+            keepMetadata: !(attachment instanceof File) && attachment?.keepDetails === true,
           });
 
           if (error || !data) {
             debug.error('Upload error:', error);
             if (!error) throw new Error(`Failed to upload "${file.name}"`);
+            if (error instanceof UploadLimitError) throw error;
             if (error.message?.includes('row-level security') || error.message?.includes('Unauthorized')) {
               throw new Error('Media upload failed: storage permission denied. Please try again or contact your instance admin.');
             }
             if (error.message?.includes('413') || error.message?.includes('too large')) {
-              throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);
+              throw new Error(`File "${file.name}" is too large.`);
             }
             if (error.message?.includes('CORS')) {
               throw new Error('CORS error: Please check Supabase storage CORS configuration.');

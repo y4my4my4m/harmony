@@ -28,6 +28,20 @@ export function isCustomOAuthProviderId(value: unknown): value is string {
   return typeof value === 'string' && IDENTIFIER.test(value)
 }
 
+const BUILT_IN_LABELS: Record<string, string> = { google: 'Google', twitch: 'Twitch', github: 'GitHub' }
+
+/**
+ * Display name of a sign-in provider id: the built-in brand names, a custom provider's name from
+ * CUSTOM, else the id after `custom:` or with its first letter capitalised.
+ */
+export function oauthProviderLabel(id: string, custom: CustomOAuthProvider[] = []): string {
+  if (BUILT_IN_LABELS[id]) return BUILT_IN_LABELS[id]
+  const own = custom.find((provider) => provider.id === id)
+  if (own) return own.name
+  if (id.startsWith('custom:')) return id.slice('custom:'.length)
+  return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
 /** An identity of a provider whose profile prefills the profile form (NewProfile.vue). */
 export function isOAuthIdentityProvider(provider: string | null | undefined): boolean {
   if (!provider) return false
