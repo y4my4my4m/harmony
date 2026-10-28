@@ -44,7 +44,10 @@
           :title="getMentionTooltip(part)"
           @click="handleMentionClick(part)"
         >
-          <template v-if="part.userId">
+          <template v-if="part.userId && readsAsMassMention(part)">
+            <span class="mention-at">@</span>{{ part.username }}<span v-if="mentionSuffixOrLocal(part)" class="mention-domain">@{{ mentionSuffixOrLocal(part) }}</span>
+          </template>
+          <template v-else-if="part.userId">
             <span class="mention-at">@</span>
             <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
             <!-- Show @domain suffix for federated users so the handle is unambiguous -->
@@ -216,6 +219,7 @@ import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { isMassMentionWord } from '@/utils/massMentions';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -342,7 +346,7 @@ const handleMentionClick = (mention: MessagePart) => {
 
 const currentDomain = runtimeConfig.domain as string;
 
-const { getUser } = useUserData();
+const { getUser, getUserDisplayName } = useUserData();
 const mentionSuffix = (part: MessagePart): string | null => {
   if (part.type !== 'mention') return null;
   const user = part.userId ? getUser(part.userId).value : null;
@@ -351,12 +355,24 @@ const mentionSuffix = (part: MessagePart): string | null => {
 
 const isFederatedMention = (part: MessagePart): boolean => !!mentionSuffix(part);
 
+/** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
+const readsAsMassMention = (part: MessagePart): boolean => {
+  if (part.type !== 'mention' || part.domain === 'discord.com') return false;
+  return isMassMentionWord(part.userId ? getUserDisplayName(part.userId).value : (part.displayName || part.username));
+};
+
+/** Host after the handle: the remote one, or this instance's for a local everyone or here. */
+const mentionSuffixOrLocal = (part: MessagePart): string | null => {
+  if (part.type !== 'mention') return null;
+  return mentionSuffix(part) ?? (isMassMentionWord(part.username) ? currentDomain || null : null);
+};
+
 const getMentionTooltip = (part: MessagePart): string => {
   if (part.type !== 'mention') return '';
   if (part.domain === 'discord.com') {
     return `Discord user: ${part.displayName || part.username}`;
   }
-  const suffix = mentionSuffix(part);
+  const suffix = mentionSuffix(part) ?? (readsAsMassMention(part) ? currentDomain : null);
   if (suffix) {
     return `@${part.username}@${suffix}`;
   }

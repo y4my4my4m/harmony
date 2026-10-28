@@ -215,15 +215,18 @@
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
-          <span class="mention-at">@</span>
-          <template v-if="part.userId">
-            <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+          <template v-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
+          <template v-else>
+            <span class="mention-at">@</span>
+            <template v-if="part.userId">
+              <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+            </template>
+            <template v-else>{{ part.username }}</template>
+            <span
+              v-if="mentionSuffix(part)"
+              class="mention-domain"
+            >@{{ mentionSuffix(part) }}</span>
           </template>
-          <template v-else>{{ part.username }}</template>
-          <span
-            v-if="mentionSuffix(part)"
-            class="mention-domain"
-          >@{{ mentionSuffix(part) }}</span>
         </button></InlineMarks>
 
         <!-- Role mentions -->
@@ -882,6 +885,7 @@ import {
   parseKlipyKind,
 } from '@/utils/klipyAttribution';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { isMassMentionWord } from '@/utils/massMentions';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useViewport } from '@/composables/useViewport';
 import { focusElement } from '@/utils/a11y/focus';
@@ -1892,7 +1896,7 @@ export default defineComponent({
       return part?.isBridged || part?.domain === 'discord.com';
     };
     
-    const { getUser } = useUserData();
+    const { getUser, getUserDisplayName } = useUserData();
     const mentionSuffix = (part: any): string | null => {
       const user = part?.userId ? getUser(part.userId).value : null;
       return mentionDisplayDomain(
@@ -1902,9 +1906,23 @@ export default defineComponent({
       );
     };
 
+    /** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
+    const readsAsMassMention = (part: any): boolean => {
+      if (!part?.userId || isBridgedMention(part)) return false;
+      return isMassMentionWord(getUserDisplayName(part.userId).value);
+    };
+
+    /** Host after such a handle: the remote one, or this instance's for a local everyone or here. */
+    const massMentionHost = (part: any): string | null =>
+      mentionSuffix(part) ?? (isMassMentionWord(part?.username) ? (runtimeConfig.domain as string) || null : null);
+
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
+      }
+      if (readsAsMassMention(part)) {
+        const host = massMentionHost(part);
+        return host ? `@${part.username}@${host}` : `@${part.username}`;
       }
       const suffix = mentionSuffix(part);
       if (suffix) {
@@ -2071,6 +2089,8 @@ export default defineComponent({
       handleMentionClick,
       isBridgedMention,
       mentionSuffix,
+      readsAsMassMention,
+      massMentionHost,
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,

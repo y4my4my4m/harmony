@@ -481,6 +481,7 @@ import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
 import { useMovedAccount } from '@/composables/useMovedAccount'
 import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { isMassMentionWord } from '@/utils/massMentions'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
 
@@ -798,8 +799,9 @@ const displayHandle = computed(() => {
     if (username && domain) return `@${username}@${domain}`
   }
 
-  // Local users: @username
+  // Local users: @username; one named everyone or here with the host, unlike the mass mention.
   const username = u.username || getUser(props.user.id).value?.username
+  if (username && isMassMentionWord(username) && currentDomain) return `@${username}@${currentDomain}`
   if (username && username !== 'Unknown' && username !== 'unknown') return `@${username}`
   return '@unknown'
 })
@@ -1188,7 +1190,7 @@ const mentionUser = () => {
     const handle = props.user.handle || `@${username}${props.user.domain ? '@' + props.user.domain : ''}`
     mentionHandle = handle.startsWith('@') ? handle : `@${handle}`
   } else {
-    mentionHandle = `@${username}`
+    mentionHandle = isMassMentionWord(username) && currentDomain ? `@${username}@${currentDomain}` : `@${username}`
   }
 
   // Context-dependent:
@@ -1208,7 +1210,7 @@ const mentionUser = () => {
   router.push('/social/home')
   emit('close')
   if (!isFederatedUser(props.user)) {
-    emit('mention', username)
+    emit('mention', mentionHandle.replace(/^@/, ''))
   }
 }
 

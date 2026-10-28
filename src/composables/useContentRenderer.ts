@@ -20,6 +20,7 @@ import { runtimeConfig } from '@/services/runtimeConfig';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
 import { isMaskedUrlPart, shownLinkLabel } from '@/utils/maskedLinks';
 import { MASKED_LINK_CLASS } from '@/utils/outsideLinks';
+import { isMassMentionWord } from '@/utils/massMentions';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -196,6 +197,8 @@ export function useContentRenderer(
     
     // For local users: show @username
     // For remote users: show @username@domain
+    // A local user named everyone or here shows the host, unlike the mass mention.
+    if (isLocal && isMassMentionWord(username)) return `@${username}@${domain || currentDomain}`;
     return isLocal ? `@${username}` : `@${username}@${domain}`;
   };
 
