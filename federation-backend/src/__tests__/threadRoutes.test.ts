@@ -154,14 +154,21 @@ function query(table: string) {
   let head = false
   let selectStr = '*'
   let window: [number, number] | null = null
+  const sorts: Array<[string, boolean]> = []
+  const compare = (a: any, b: any) => {
+    for (const [col, asc] of sorts) {
+      if (a[col] !== b[col]) return (a[col] < b[col] ? -1 : 1) * (asc ? 1 : -1)
+    }
+    return 0
+  }
   const rows = () => {
-    const all = (db[table] || []).filter((r) => filters.every((f) => f(r)))
+    const all = (db[table] || []).filter((r) => filters.every((f) => f(r))).sort(compare)
     return (window ? all.slice(window[0], window[1] + 1) : all).map((r) => withEmbeds(table, selectStr, r))
   }
   const q: any = {
     select: (cols?: string, opts?: any) => { selectStr = cols ?? '*'; if (opts?.head) head = true; return q },
     eq: (col: string, val: unknown) => { filters.push((r) => r[col] === val); return q },
-    order: () => q,
+    order: (col: string, opts?: { ascending?: boolean }) => { sorts.push([col, opts?.ascending !== false]); return q },
     range: (from: number, to: number) => { window = [from, to]; return q },
     maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
     then: (resolve: any, reject: any) =>
@@ -302,6 +309,19 @@ describe('GET /threads/:id/members', () => {
 
   it('answers a malformed page as hidden', async () => {
     expectHidden(await get(`/threads/${THREAD_IN[PUB_OPEN]}/members?page=0`, 'unsigned'))
+  })
+
+  it('orders members who joined at the same instant by user id', async () => {
+    const threadId = THREAD_IN[PUB_OPEN]
+    const saved = db.thread_members
+    db.thread_members = saved.filter((m) => m.thread_id === threadId).reverse()
+      .map((m) => ({ ...m, joined_at: '2026-01-01T00:00:00Z' }))
+    try {
+      const page = await get(`/threads/${threadId}/members?page=1`, 'unsigned')
+      expect(page.body.orderedItems).toEqual(['https://harmony.test/users/alice', ACTORS.vip])
+    } finally {
+      db.thread_members = saved
+    }
   })
 })
 

@@ -192,7 +192,10 @@ router.get(
       .from('thread_members')
       .select('user_id, joined_at, profile:profiles!thread_members_user_id_fkey(username, federated_id, is_local)')
       .eq('thread_id', thread.id)
+      // user_id breaks joined_at ties (rows inserted in one statement share now()); OFFSET
+      // paging over a non-unique key repeats and skips rows between pages.
       .order('joined_at', { ascending: true })
+      .order('user_id', { ascending: true })
       .range(offset, offset + MEMBERS_PER_PAGE - 1);
     const rows = (members ?? []) as any[];
     const items = rows
@@ -248,6 +251,7 @@ router.get(
       .select(THREAD_COLUMNS)
       .eq('channel_id', channel.id)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(offset, offset + THREADS_PER_PAGE - 1);
     const rows = (threads ?? []) as any[];
 
