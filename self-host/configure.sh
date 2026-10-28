@@ -112,6 +112,8 @@ version_ge "${compose_version:-0}" "$COMPOSE_MIN" ||
 rand_hex() { openssl rand -hex "$1"; }
 rand_b64() { openssl rand -base64 "$1" | tr -d '\n'; }
 b64url()   { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
+# hex_bytes HEX: the bytes HEX spells, NUL included.
+hex_bytes() { printf '%b' "$(printf '%s' "$1" | sed 's/../\\x&/g')"; }
 b64url_decode() {
 	local s
 	s="$(tr '_-' '/+')"
@@ -150,12 +152,16 @@ jwt_valid() {
 # private key is 30 77 02 01 01 04 20 <32-byte scalar> ...; the SPKI public key
 # ends with the 65-byte uncompressed point.
 gen_vapid() {
-	local pem
+	local pem priv pub
 	pem="$(openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null)" || die "openssl could not generate a P-256 key"
-	[[ "$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | od -An -tx1 -N7 | tr -d ' \n')" == 30770201010420 ]] ||
+	# Hex of the whole DER, read to its end: a reader that stops early (head -c, od -N) can leave
+	# openssl or tail writing into a closed pipe, and SIGPIPE under pipefail ends this script (141).
+	priv="$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | od -An -tx1 -v | tr -d ' \n')"
+	pub="$(printf '%s\n' "$pem" | openssl ec -pubout -outform DER 2>/dev/null | od -An -tx1 -v | tr -d ' \n')"
+	[[ "${priv:0:14}" == 30770201010420 && ${#pub} -ge 130 ]] ||
 		die "unexpected EC key encoding from $(openssl version); generate VAPID keys with 'npx web-push generate-vapid-keys' and set them in federation.env"
-	VAPID_PRIVATE_KEY="$(printf '%s\n' "$pem" | openssl ec -outform DER 2>/dev/null | tail -c +8 | head -c 32 | b64url)"
-	VAPID_PUBLIC_KEY="$(printf '%s\n' "$pem" | openssl ec -pubout -outform DER 2>/dev/null | tail -c 65 | b64url)"
+	VAPID_PRIVATE_KEY="$(hex_bytes "${priv:14:64}" | b64url)"
+	VAPID_PUBLIC_KEY="$(hex_bytes "${pub: -130}" | b64url)"
 	[[ ${#VAPID_PRIVATE_KEY} -eq 43 && ${#VAPID_PUBLIC_KEY} -eq 87 ]] || die "VAPID key generation produced unexpected lengths"
 }
 

@@ -73,6 +73,12 @@ reserved_username() {
 	for label in "${labels[@]}"; do [[ "$name" == "$label" ]] && return 0; done
 	return 1
 }
+# align_tabs: tab-separated lines as columns two spaces apart (column -t -s TAB; util-linux's
+# column is absent from minimal Debian and Ubuntu images).
+align_tabs() {
+	awk -F'\t' '{ for (i = 1; i <= NF; i++) { cell[NR, i] = $i; if (length($i) > w[i]) w[i] = length($i) } n[NR] = NF }
+		END { for (r = 1; r <= NR; r++) { line = ""; for (i = 1; i <= n[r]; i++) line = line (i < n[r] ? sprintf("%-" w[i] "s  ", cell[r, i]) : cell[r, i]); print line } }'
+}
 truthy() { case "$(printf '%s' "${1:-}" | lower)" in y|yes|true|1|on) return 0 ;; *) return 1 ;; esac; }
 
 # version_ge A B: A >= B for dotted numeric versions.

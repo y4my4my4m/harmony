@@ -633,7 +633,7 @@ auth_builtin_providers() {
 		fi
 		rows+="$pid"$'\t'"$state"$'\t'"$mode"$'\n'
 	done
-	printf 'PROVIDER\tAUTH SERVICE\tEXISTING ACCOUNTS\n%s' "$rows" | column -t -s $'\t'
+	printf 'PROVIDER\tAUTH SERVICE\tEXISTING ACCOUNTS\n%s' "$rows" | align_tabs
 	if [[ -n "$open" ]] && autoconfirm_on; then
 		warn "$open join existing accounts by address, and ENABLE_EMAIL_AUTOCONFIRM=true counts every address they send as verified (harmony auth linking ID --separate-accounts keeps them apart)"
 	fi
@@ -658,7 +658,7 @@ auth_providers() {
 			while IFS=$'\t' read -r pid pname ptype pstate pwhere; do
 				printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$pname" "$ptype" "$pstate" "$(linking_mode "$value" "$pid")" "$pwhere"
 			done <<<"$rows"
-		} | column -t -s $'\t'
+		} | align_tabs
 		while IFS=$'\t' read -r pid _; do
 			[[ "$(linking_mode "$value" "$pid")" != "by address" ]] || open+="${open:+ }$pid"
 			ids+=" $pid "
