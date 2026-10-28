@@ -23,7 +23,7 @@ Type in the composer at the bottom of the channel and send:
 
 ## Attach files, GIFs and stickers
 
-- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to 50 MB unless the instance sets another limit.
+- Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to your upload limit, which the instance's admins set (50 MB unless they change it); a larger file is refused before it is sent, with the limit named.
 - **From Drive**, in the same menu, attaches files already in your [Drive](/use/drive) without uploading them again.
 - Attached files appear above the composer. Each one has buttons to describe it ([Describe an image](#describe-an-image)), mark it as a spoiler ([Spoilers](#spoilers)) and remove it. The placeholder changes to **Add a comment...** for text sent with the files.
 - Every file you send is kept in your Drive and counts toward your storage. The clock button on an attachment makes it temporary instead: it is deleted after a number of days the instance sets, 30 by default. When your Drive is full, every upload is temporary. See [Storage and temporary files](/use/drive#storage-and-temporary-files).

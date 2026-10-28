@@ -15,6 +15,7 @@ import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
 import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
 import { uploadStorageObject } from '@/services/uploads/storageUpload';
+import { UploadLimitError, checkUploadLimit } from '@/services/uploads/uploadLimit';
 import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
@@ -2131,6 +2132,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         const description = typeof attachment?.description === 'string' ? attachment.description.trim() : '';
         const focus = attachment instanceof File ? null : attachmentFocus(attachment);
         if (typeof attachment?.drivePath === 'string' && !(attachment.file instanceof File)) {
+          if (typeof attachment.size === 'number') {
+            await checkUploadLimit('user_media', { size: attachment.size }, attachment.filename);
+          }
           const url = await copyDriveFileToPostMedia(attachment.drivePath, authUserId);
           return withMediaEdits({
             type: attachment.type === 'video' ? 'Video' : attachment.type === 'audio' ? 'Audio' : 'Image',
@@ -2158,11 +2162,12 @@ export const useActivityPubStore = defineStore('activitypub', {
           if (error || !data) {
             debug.error('Upload error:', error);
             if (!error) throw new Error(`Failed to upload "${file.name}"`);
+            if (error instanceof UploadLimitError) throw error;
             if (error.message?.includes('row-level security') || error.message?.includes('Unauthorized')) {
               throw new Error('Media upload failed: storage permission denied. Please try again or contact your instance admin.');
             }
             if (error.message?.includes('413') || error.message?.includes('too large')) {
-              throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);
+              throw new Error(`File "${file.name}" is too large.`);
             }
             if (error.message?.includes('CORS')) {
               throw new Error('CORS error: Please check Supabase storage CORS configuration.');

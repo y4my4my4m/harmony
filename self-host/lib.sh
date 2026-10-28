@@ -159,6 +159,45 @@ linking_mode() {
 	}'
 }
 
+# --- upload ceiling -----------------------------------------------------------
+# FILE_SIZE_LIMIT in supabase/.env: the largest object storage-api accepts, bytes,
+# TUS included (supabase-overrides.yml). instance_config.upload_ceiling_bytes
+# holds the same number; no upload limit of the admin panel goes above it
+# (db_schema/migrations/20261031100001_upload_limits.sql). MB is 1048576 bytes,
+# as the admin panel counts.
+UPLOAD_CEILING_DEFAULT=52428800
+# S3's largest object, 5 TiB.
+UPLOAD_CEILING_MAX=5497558138880
+
+# parse_size SIZE: bytes of N, N MB or N GB (also M, G, MiB, GiB; any case);
+# status 1 when SIZE does not parse or lies outside 1 MB .. 5 TiB.
+parse_size() {
+	local v n unit bytes
+	v="$(printf '%s' "$1" | tr -d ' ' | lower)"
+	[[ "$v" =~ ^([0-9]+)(b|m|mb|mib|g|gb|gib)?$ ]] || return 1
+	n="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[2]}"
+	[[ ${#n} -le 13 ]] || return 1
+	case "$unit" in
+		""|b) bytes=$((10#$n)) ;;
+		m|mb|mib) bytes=$((10#$n * 1048576)) ;;
+		g|gb|gib) bytes=$((10#$n * 1073741824)) ;;
+	esac
+	((bytes >= 1048576 && bytes <= UPLOAD_CEILING_MAX)) || return 1
+	printf '%s' "$bytes"
+}
+
+# human_size BYTES: N GB or N MB when whole, else N bytes.
+human_size() {
+	if (($1 % 1073741824 == 0)); then printf '%s GB' $(($1 / 1073741824))
+	elif (($1 % 1048576 == 0)); then printf '%s MB' $(($1 / 1048576))
+	else printf '%s bytes' "$1"; fi
+}
+
+upload_ceiling() {
+	local v; v="$(env_get "$SB_ENV" FILE_SIZE_LIMIT)"
+	printf '%s' "${v:-$UPLOAD_CEILING_DEFAULT}"
+}
+
 # docker compose in self-host/, so .env, COMPOSE_FILE and COMPOSE_PROFILES apply.
 compose() { ( cd "$SELF_HOST_DIR" && docker compose "$@" ); }
 

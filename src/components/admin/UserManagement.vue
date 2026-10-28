@@ -63,6 +63,18 @@
           </button>
           <span v-else class="user-stat">federated</span>
         </div>
+        <div v-if="user.is_local" class="user-actions">
+          <button
+            type="button"
+            class="mod-btn"
+            :title="t('uploadLimits.user.open', { name: user.display_name || user.username })"
+            :aria-label="t('uploadLimits.user.open', { name: user.display_name || user.username })"
+            data-testid="user-upload-limit"
+            @click="openUploadLimit(user)"
+          >
+            <Icon name="upload" :size="16" />
+          </button>
+        </div>
         <div v-if="canModerate(user)" class="user-actions">
           <button
             v-if="isAdmin && !user.is_admin && user.is_local"
@@ -209,6 +221,12 @@
     </div>
   </div>
   </Teleport>
+  <UploadLimitDialog
+    :show="uploadLimitUser !== null"
+    :profile-id="uploadLimitUser?.id ?? null"
+    :name="uploadLimitUser?.display_name || uploadLimitUser?.username || ''"
+    @close="uploadLimitUser = null"
+  />
   </div>
 </template>
 
@@ -231,6 +249,8 @@ import { getServerIconUrl } from '@/utils/serverUtils'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { useT } from '@/composables/useT'
+import UploadLimitDialog from './UploadLimitDialog.vue'
 
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
@@ -240,6 +260,9 @@ const canModerate = (user: any): boolean =>
   user.id !== profileStore.profile?.id && (isAdmin.value || (!user.is_admin && !user.is_moderator))
 const router = useRouter()
 const toast = useToast()
+const { t } = useT()
+const uploadLimitUser = ref<AdminUser | null>(null)
+const openUploadLimit = (user: AdminUser) => { uploadLimitUser.value = user }
 const { confirm, prompt } = useConfirmDialog()
 
 const userSearch = ref('')

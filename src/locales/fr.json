@@ -7651,5 +7651,41 @@
         "user": "Sticker personnel"
       }
     }
+  },
+  "uploadLimits": {
+    "tooLarge": "« {name} » fait {size}, au-delà de votre limite d’envoi de {limit}.",
+    "tooLargeFile": "Ce fichier fait {size}, au-delà de votre limite d’envoi de {limit}.",
+    "title": "Envois",
+    "hint": "Le plus gros fichier que chaque compte peut joindre dans les salons, fils, messages privés et publications, ou garder dans Drive. Photos de profil, bannières, icônes de serveur, emoji et sons ont leurs propres limites.",
+    "tier": {
+      "user": "Plus gros fichier par compte",
+      "moderator": "Plus gros fichier par modérateur de l’instance",
+      "admin": "Plus gros fichier par administrateur de l’instance"
+    },
+    "tierName": {
+      "user": "compte",
+      "moderator": "modérateur de l’instance",
+      "admin": "administrateur de l’instance"
+    },
+    "aboveCeiling": "Au-delà du plafond de {limit}",
+    "ceiling": "Plafond fixé par l’opérateur du serveur",
+    "ceilingHint": "Aucune limite d’envoi ne peut le dépasser. L’opérateur le relève sur le serveur avec harmony config --upload-ceiling.",
+    "driveNote": "Le plus gros fichier n’est pas le stockage Drive : un envoi qui ferait dépasser son stockage à un compte est gardé comme fichier temporaire.",
+    "readOnly": "Seuls les administrateurs de l’instance modifient les limites d’envoi.",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "loadFailed": "Impossible de charger les limites d’envoi.",
+    "saveFailed": "Impossible d’enregistrer les limites d’envoi.",
+    "user": {
+      "open": "Limite d’envoi de {name}",
+      "title": "Limite d’envoi de {name}",
+      "tier": "Niveau : {tier}, {limit}",
+      "effective": "Plus gros fichier actuel : {limit}",
+      "choice": "Limite",
+      "useTier": "Celle du niveau",
+      "custom": "Limite personnalisée",
+      "customLabel": "Limite d’envoi de {name}, Mo",
+      "ceiling": "Plafond : {limit}"
+    }
   }
 }

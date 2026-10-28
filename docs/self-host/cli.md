@@ -35,6 +35,7 @@ harmony auth add-provider ID [--name N] (--issuer URL | --authorize-url URL --to
                              [--separate-accounts | --link-existing-accounts [--provider-verifies-email]]
 harmony auth remove-provider ID
 harmony config
+harmony config --upload-ceiling [SIZE]
 harmony version
 harmony help
 ```
@@ -154,6 +155,7 @@ certificates, Federation, Services, Security, Versions.
 | `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
 | `security-notices` | The new-sign-in and second-factor triggers exist on `auth.sessions` and `auth.mfa_factors` | FAIL when one is missing: no security notice for a new sign-in or a changed second factor | Run `db_schema/migrations/20261025100003_auth_triggers_converge.sql` as printed (safe to re-run; `harmony update` runs it once) |
 | `storage-policies` | The message media, soundboard, personal emoji and Drive policies on `storage.objects` and `storage.buckets`, the `message_media` and `soundboard` buckets and the Drive triggers on `storage.objects` exist | FAIL when one is missing: the uploads and reads that depend on it fail; a missing `storage_objects_session_aal` lets a session short of its second factor reach storage. FAIL when `storage.objects` or `storage.buckets` is missing | Run `db_schema/migrations/20261025100004_storage_converge.sql` as printed: it creates what is missing, replaces a superseded policy definition and keeps a bucket's configured limits. `harmony update` runs it once. With a table missing, `harmony logs storage` first |
+| `upload-limits` | The `storage_upload_limit` trigger exists on `storage.objects` with its settings; the storage container's `FILE_SIZE_LIMIT`, the one in `supabase/.env` and `instance_config.upload_ceiling_bytes` agree | FAIL when the trigger or the settings are missing: per-account upload limits are not enforced. WARN when storage runs another `FILE_SIZE_LIMIT` than `supabase/.env`, or the database holds another ceiling | Run `db_schema/migrations/20261031100001_upload_limits.sql` as printed (safe to re-run); for a WARN, `harmony config --upload-ceiling SIZE` |
 | `domain` | `instance_config.domain` equals `DOMAIN` in `.env` | FAIL when unset or still `localhost`; FAIL when the two differ, since handles and ActivityPub ids disagree | `bash bootstrap.sh`; for a difference, see [Domain mismatch](/self-host/troubleshooting#domain-mismatch) |
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
 | `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
@@ -506,6 +508,25 @@ docker compose up -d
 harmony registration
 ```
 
+### Upload ceiling
+
+```text
+harmony config --upload-ceiling [SIZE]
+```
+
+Sets the largest file storage accepts, the ceiling of every upload limit in
+**Config** → **Uploads**: writes `FILE_SIZE_LIMIT` in `supabase/.env`, runs
+`docker compose up -d storage` so storage restarts with it, and writes the
+same number into `instance_config.upload_ceiling_bytes`. `SIZE` is bytes, or a
+number followed by `MB` or `GB` (1 MB is 1,048,576 bytes), from 1 MB to 5 TB.
+Without `SIZE` it prints the current ceiling. Upload limits above a lowered
+ceiling are named in a warning; they count as the ceiling until changed. It
+needs no terminal. See [Upload limits](/self-host/configuration#upload-limits).
+
+```bash
+harmony config --upload-ceiling 2GB
+```
+
 ## harmony version
 
 ```text
@@ -579,6 +600,9 @@ Supabase CLI also reads. A failing file is not recorded and stops the run,
 leaving the database at the last file that succeeded. It then removes the
 JWT secret from the database settings (`app.settings.jwt_secret`) unless a
 function reads it, and reloads PostgREST's schema cache.
+
+On every run it also copies `FILE_SIZE_LIMIT` from `supabase/.env`
+(`52428800` when absent) into `instance_config.upload_ceiling_bytes`.
 
 Without `--migrations-only` it also creates or updates the
 `harmony_listener` role from `__LISTENER_PW` in `federation.env`, and on a

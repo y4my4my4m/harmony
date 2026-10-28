@@ -24,6 +24,9 @@
 #                                   unless --link-existing-accounts
 #   harmony auth remove-provider ID
 #   harmony config                  change the answers (configure.sh), apply
+#   harmony config --upload-ceiling [SIZE]
+#                                   largest file storage accepts (500MB, 2GB);
+#                                   the admin panel's upload limits stay under it
 #   harmony version
 #
 # Each command is a thin layer over the scripts beside this file.
@@ -34,7 +37,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,29p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,32p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 
@@ -92,8 +95,45 @@ cmd_logs() {
 	compose logs ${opts[@]+"${opts[@]}"} --tail "$tail" ${svcs[@]+"${svcs[@]}"}
 }
 
+# FILE_SIZE_LIMIT in supabase/.env, storage recreated with it, and the same number in
+# instance_config.upload_ceiling_bytes (lib.sh, upload ceiling).
+cmd_upload_ceiling() {
+	need_config
+	local size="${1:-}" bytes over
+	if [[ -z "$size" ]]; then
+		bytes="$(upload_ceiling)"
+		printf 'Upload ceiling: %s (FILE_SIZE_LIMIT=%s in supabase/.env)\n' "$(human_size "$bytes")" "$bytes"
+		return
+	fi
+	bytes="$(parse_size "$size")" || die "upload ceiling: '$size' is not a size from 1MB to 5TB (500MB, 2GB, or bytes)"
+	env_set "$SB_ENV" FILE_SIZE_LIMIT "$bytes"
+	info "Recreating storage with FILE_SIZE_LIMIT=$bytes..."
+	compose up -d storage
+	db_sql -v bytes="$bytes" >/dev/null <<'SQL' || die "storage runs with FILE_SIZE_LIMIT=$bytes, but instance_config.upload_ceiling_bytes was not written; run this again once the database is up"
+INSERT INTO public.instance_config (config_key, config_value, description)
+VALUES ('upload_ceiling_bytes', to_jsonb(:'bytes'::bigint), 'storage-api FILE_SIZE_LIMIT, bytes; set by the instance operator')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now();
+SQL
+	over="$(db_sql -v bytes="$bytes" <<'SQL' || true
+SELECT string_agg(config_key || ' = ' || (config_value #>> '{}') || ' MB', ', ' ORDER BY config_key)
+  FROM public.instance_config
+ WHERE config_key IN ('upload_limit_user_mb', 'upload_limit_moderator_mb', 'upload_limit_admin_mb')
+   AND jsonb_typeof(config_value) = 'number'
+   AND (config_value #>> '{}')::numeric * 1048576 > :'bytes'::bigint;
+SQL
+)"
+	[[ -z "$over" ]] || warn "above the new ceiling, so held to it: $over"
+	ok "Upload ceiling: $(human_size "$bytes"). Admins set upload limits up to it in Admin, Config, Uploads."
+}
+
 cmd_config() {
 	need_config
+	case "${1:-}" in
+		--upload-ceiling) shift; cmd_upload_ceiling "$@"; return ;;
+		--upload-ceiling=*) cmd_upload_ceiling "${1#--upload-ceiling=}"; return ;;
+		"") ;;
+		*) die "unknown argument: $1 (harmony help)" ;;
+	esac
 	interactive || die "harmony config asks questions; for scripted changes run: HARMONY_...=... bash configure.sh --non-interactive"
 	local before_profiles after_profiles svc profile
 	before_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
@@ -135,7 +175,7 @@ case "$cmd" in
 		esac ;;
 	registration) need_config; exec bash "$SELF_HOST_DIR/admin.sh" registration "$@" ;;
 	auth) need_config; exec bash "$SELF_HOST_DIR/admin.sh" auth "$@" ;;
-	config) cmd_config ;;
+	config) cmd_config "$@" ;;
 	version) git -C "$REPO_DIR" describe --tags --always 2>/dev/null; env_get "$ENV_FILE" HARMONY_VERSION ;;
 	-h|--help|help|"") usage ;;
 	*) die "unknown command: $cmd (harmony help)" ;;

@@ -18,11 +18,13 @@ import {
   DEFAULT_CACHE_CONTROL,
   StorageUploadError,
   UploadAbortedError,
+  listRefusedUpload,
   newUploadState,
   startStorageUpload,
   type StorageUpload,
   type UploadState,
 } from '@/services/uploads/storageUpload'
+import { UploadLimitError, checkUploadLimit, getUploadLimit } from '@/services/uploads/uploadLimit'
 
 export { UPLOAD_STALL_MS, UploadAbortedError } from '@/services/uploads/storageUpload'
 
@@ -91,6 +93,7 @@ export function forgetMessageMediaUpload(path: string | null | undefined): void 
  */
 export function prepareMessageMediaUploads(): void {
   void getBucketLimits(MESSAGE_MEDIA_BUCKET).catch(() => {})
+  void getUploadLimit().catch(() => {})
   void driveAvailable()
 }
 
@@ -128,11 +131,20 @@ export function startMessageMediaUpload(
   let inner: StorageUpload | null = null
   let aborted = false
 
+  const label = options.label ?? options.name ?? ((file as File).name || undefined)
+
   const transfer = async (): Promise<{ path: string; reused: boolean }> => {
     if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
     // Validation (bucket limits) and the Drive probe are independent reads, once per session each.
     const drive = driveAvailable()
     if (options.validate) await validateChatUpload(file)
+    // Before the hash: a file over the account's limit is not read.
+    try {
+      await checkUploadLimit(MESSAGE_MEDIA_BUCKET, file, label)
+    } catch (error) {
+      if (error instanceof UploadLimitError) listRefusedUpload(label, file.size, error.message)
+      throw error
+    }
     const metadata: DriveUploadMetadata = {}
     if (await drive) {
       metadata.sha256 = await sha256OfBlob(file)
@@ -153,7 +165,7 @@ export function startMessageMediaUpload(
       file,
       cacheControl: DEFAULT_CACHE_CONTROL,
       metadata: metadata as Record<string, unknown>,
-      label: options.label ?? options.name ?? ((file as File).name || undefined),
+      label,
       onProgress: options.onProgress,
       resumeKey: options.resumeKey,
       ownProgress: options.ownProgress,

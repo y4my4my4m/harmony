@@ -13,6 +13,7 @@
         { key: 'branding', label: 'Branding', icon: 'image' },
         { key: 'oauth', label: 'Authentication', icon: 'shield' },
         { key: 'webrtc', label: 'Voice & video', icon: 'mic' },
+        { key: 'uploads', label: $t('uploadLimits.title'), icon: 'upload' },
       ]"
       :key="tab.key"
       :class="['config-tab-btn', { active: configTab === tab.key }]"
@@ -672,6 +673,10 @@ harmony auth remove-provider authentik</code></pre>
     </div>
 
     <!-- WebRTC / Voice Settings -->
+    <div v-if="configTab === 'uploads'" class="config-section">
+      <UploadLimitsAdmin />
+    </div>
+
     <div v-if="configTab === 'webrtc'" class="config-section">
       <h3>WebRTC / voice settings</h3>
       <div class="setting-group">
@@ -739,6 +744,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
+import UploadLimitsAdmin from '@/components/admin/UploadLimitsAdmin.vue'
 import BridgeAdminSection from '@/components/settings/discord-bridge/BridgeAdminSection.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
@@ -777,7 +783,7 @@ const refreshTrendingPosts = async () => {
 const configChanged = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
-const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'>('general')
+const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc' | 'uploads'>('general')
 // Instance configuration
 const instanceConfig = ref({
   name: 'Harmony Instance',

@@ -28,6 +28,14 @@ services:
     environment:
       PGRST_APP_SETTINGS_JWT_SECRET: !reset null
 
+  # Largest object storage-api accepts, bytes, TUS included: the upload ceiling.
+  # `harmony config --upload-ceiling SIZE` sets FILE_SIZE_LIMIT in supabase/.env,
+  # recreates storage and writes the same number into
+  # instance_config.upload_ceiling_bytes, above which no upload limit goes.
+  storage:
+    environment:
+      FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
+
   # Animated emoji and large images: frames count toward the source resolution
   # limit (megapixels).
   imgproxy:

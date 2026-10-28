@@ -224,6 +224,25 @@ docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 [[ $failed -eq 0 ]] || die "migration failed - database is at the last migration that succeeded"
 if [[ $pending -eq 0 ]]; then ok "Migrations up to date"; else ok "Applied $pending migration(s)"; fi
 
+# --- upload ceiling ------------------------------------------------------------
+# instance_config.upload_ceiling_bytes follows FILE_SIZE_LIMIT in supabase/.env,
+# the largest object storage accepts (supabase-overrides.yml).
+ceiling="$(val "$SCRIPT_DIR/supabase/.env" FILE_SIZE_LIMIT)"
+ceiling="${ceiling:-52428800}"
+if [[ ! "$ceiling" =~ ^[0-9]{1,15}$ ]]; then
+	info "FILE_SIZE_LIMIT in supabase/.env is not a number of bytes; upload ceiling left as it is"
+elif psql_exec -q -v bytes="$ceiling" >/dev/null 2>&1 <<'SQL'
+INSERT INTO public.instance_config (config_key, config_value, description)
+VALUES ('upload_ceiling_bytes', to_jsonb(:'bytes'::bigint), 'storage-api FILE_SIZE_LIMIT, bytes; set by the instance operator')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = now()
+ WHERE instance_config.config_value IS DISTINCT FROM EXCLUDED.config_value;
+SQL
+then
+	ok "Upload ceiling: $ceiling bytes"
+else
+	info "Upload ceiling not written to public.instance_config; harmony config --upload-ceiling $ceiling writes it"
+fi
+
 if ! $MIGRATIONS_ONLY; then
 	# --- least-privilege listener role -----------------------------------------
 	if [[ -z "$LISTENER_PW" ]]; then

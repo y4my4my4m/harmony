@@ -81,6 +81,8 @@ An instance admin can set a different limit for one account.
 
 Files kept in your Drive and files in the trash count toward the limit. Files whose contents are identical count once, after the server has checked their contents. Temporary files do not count. Profile pictures and banners, server icons and banners, group chat icons, emoji and soundboard sounds are stored apart from Drive and do not count either.
 
+Apart from storage, each file has a size limit: your upload limit, 50 MB unless the instance's admins set another one by role or for your account. A larger file is refused before it is sent, in Drive as in the composer, with the limit named; see [Upload limits](/self-host/configuration#upload-limits).
+
 ### Temporary files
 
 A temporary file is deleted a number of days after it was uploaded or marked temporary: 30 unless the instance sets another number. An upload is temporary when:

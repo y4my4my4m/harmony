@@ -299,6 +299,29 @@ check_database() {
 		fi
 	fi
 
+	# Upload limits: storage's FILE_SIZE_LIMIT (the ceiling) and instance_config.upload_ceiling_bytes
+	# are one number; storage_upload_limit enforces each account's limit under it.
+	local ul_env ul_run ul_db ul_trig ul_sid ul_mig="" ul_fix
+	ul_env="$(upload_ceiling)"
+	ul_sid="$(svc_id storage)"
+	ul_run=""
+	[[ -z "$ul_sid" ]] || ul_run="$(docker exec "$ul_sid" printenv FILE_SIZE_LIMIT 2>/dev/null || true)"
+	ul_db="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'upload_ceiling_bytes'" 2>/dev/null || true)"
+	ul_trig="$(db_sql -c "SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass('storage.objects') AND tgname = 'storage_upload_limit'" 2>/dev/null || true)"
+	for p in "$REPO_DIR"/db_schema/migrations/20261031100001_*.sql; do [[ -f "$p" ]] && ul_mig="$p"; done
+	ul_fix="harmony update"
+	[[ -n "$ul_mig" ]] &&
+		ul_fix="in self-host/: docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/$(basename "$ul_mig")"
+	if [[ -z "$ul_db" || "$ul_trig" != 1 ]]; then
+		report FAIL upload-limits "storage.objects lacks the storage_upload_limit trigger or its settings: per-account upload limits are not enforced" "$ul_fix"
+	elif [[ -n "$ul_run" && "$ul_run" != "$ul_env" ]]; then
+		report WARN upload-limits "storage runs with FILE_SIZE_LIMIT=$ul_run, supabase/.env has $ul_env" "harmony config --upload-ceiling $ul_env"
+	elif [[ "$ul_db" != "$ul_env" ]]; then
+		report WARN upload-limits "the admin panel's ceiling is $ul_db bytes, storage's FILE_SIZE_LIMIT $ul_env: uploads between the two fail at storage, or limits stop short of it" "harmony config --upload-ceiling $ul_env"
+	else
+		report OK upload-limits "ceiling $(human_size "$ul_env") in storage and the admin panel; per-account limits enforced"
+	fi
+
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
 	if [[ "$cfg_domain" == "$DOMAIN" ]]; then

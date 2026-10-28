@@ -7651,5 +7651,41 @@
         "user": "个人贴纸"
       }
     }
+  },
+  "uploadLimits": {
+    "tooLarge": "“{name}”大小为 {size}，超过了你的上传上限 {limit}。",
+    "tooLargeFile": "此文件大小为 {size}，超过了你的上传上限 {limit}。",
+    "title": "上传",
+    "hint": "每个账号可在频道、话题、私信和帖子中附加或保存在云盘中的最大文件。头像、横幅、服务器图标、表情和音效有各自的上限。",
+    "tier": {
+      "user": "每个账号的最大文件",
+      "moderator": "每位实例版主的最大文件",
+      "admin": "每位实例管理员的最大文件"
+    },
+    "tierName": {
+      "user": "账号",
+      "moderator": "实例版主",
+      "admin": "实例管理员"
+    },
+    "aboveCeiling": "超过上限 {limit}",
+    "ceiling": "服务器运营者设定的上限",
+    "ceilingHint": "任何上传上限都不能高于此值。运营者在服务器上用 harmony config --upload-ceiling 提高它。",
+    "driveNote": "最大文件与云盘存储空间不同：会让账号超出其存储空间的上传将作为临时文件保留。",
+    "readOnly": "只有实例管理员可以更改上传上限。",
+    "save": "保存",
+    "saved": "已保存",
+    "loadFailed": "无法加载上传上限。",
+    "saveFailed": "无法保存上传上限。",
+    "user": {
+      "open": "{name} 的上传上限",
+      "title": "{name} 的上传上限",
+      "tier": "等级：{tier}，{limit}",
+      "effective": "当前最大文件：{limit}",
+      "choice": "上限",
+      "useTier": "使用等级上限",
+      "custom": "自定义上限",
+      "customLabel": "{name} 的上传上限（MB）",
+      "ceiling": "上限：{limit}"
+    }
   }
 }

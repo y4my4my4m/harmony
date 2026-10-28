@@ -4,6 +4,7 @@ import { i18n } from '@/i18n'
 import { humanizeUploadError } from '@/utils/uploadValidation'
 import { registerTransfer, settleTransfer, type TransferEntry, type TransferProgress } from '@/services/transfers'
 import { immutableUploadOptions, type PreparedImage } from '@/utils/imageResize'
+import { checkUploadLimit, limitRefusal } from '@/services/uploads/uploadLimit'
 
 /**
  * Every storage upload of the app: progress, abort, the transfers indicator, and resumable
@@ -29,6 +30,10 @@ import { immutableUploadOptions, type PreparedImage } from '@/utils/imageResize'
  * Deviation from tus-js-client: the PATCH and HEAD URL is SUPABASE_URL plus the upload id, the
  * last segment of the creation Location. storage-api builds Location from forwarded headers;
  * behind nginx and Kong it can carry Kong's port or lack the /storage/v1 prefix.
+ *
+ * A file over the account's upload limit (uploadLimit.ts) in message_media or user_media fails
+ * before its first byte with UploadLimitError, listed in the transfers indicator like any failed
+ * upload. A refusal from storage of a file over the limit as read again fails the same way.
  *
  * An upload given a `resumeKey` records its TUS upload in localStorage until it settles. The same
  * file uploaded again under the same key, after a reload within RESUME_TTL_MS, continues that
@@ -717,7 +722,7 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
     })
   }
 
-  const transfer = async (): Promise<string> => {
+  const send = async (): Promise<string> => {
     if (options.file.size > TUS_THRESHOLD_BYTES && !tusUnavailable) {
       state.transport = 'tus'
       try {
@@ -730,6 +735,19 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
     state.transport = 'multipart'
     await sendWhole(link, options, options.path, report)
     return options.path
+  }
+
+  const transfer = async (): Promise<string> => {
+    await checkUploadLimit(options.bucket, options.file, options.label)
+    try {
+      return await send()
+    } catch (error) {
+      if (error instanceof StorageUploadError && error.status < 500) {
+        const limited = await limitRefusal(options.bucket, options.file, options.label)
+        if (limited) throw limited
+      }
+      throw error
+    }
   }
 
   const result = transfer().then(
@@ -768,6 +786,18 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
     },
   }
   return upload
+}
+
+/** An upload refused before its first byte, listed as a failed transfer under `name`. */
+export function listRefusedUpload(name: string | undefined, size: number, message: string): void {
+  if (!name) return
+  const entry = registerTransfer({
+    id: `upload:refused:${Math.random().toString(36).slice(2)}`,
+    direction: 'upload',
+    name,
+    progress: { loaded: 0, total: size, status: 'error', error: message, reconnecting: false },
+  })
+  settleTransfer(entry)
 }
 
 export type StorageErrorLike = Error & { statusCode?: string; status?: number }

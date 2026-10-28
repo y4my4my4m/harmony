@@ -206,9 +206,10 @@ BEGIN
         RAISE NOTICE 'bucket link-preview-images left in place: 20261024100001 removes it with its objects';
     END IF;
 
+    -- message_media has no bucket limit: per-account upload limits (20261031100001).
     FOR r IN
         WITH want (id, public, file_size_limit, allowed_mime_types) AS (VALUES
-            ('message_media', false, 52428800::bigint, ARRAY[
+            ('message_media', false, NULL::bigint, ARRAY[
                 'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/avif',
                 'image/apng', 'image/bmp', 'image/heic', 'image/heif', 'image/tiff',
                 'video/*', 'audio/*',

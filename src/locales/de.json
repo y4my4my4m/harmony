@@ -7651,5 +7651,41 @@
         "user": "Persönlicher Sticker"
       }
     }
+  },
+  "uploadLimits": {
+    "tooLarge": "„{name}“ ist {size} groß und überschreitet dein Upload-Limit von {limit}.",
+    "tooLargeFile": "Diese Datei ist {size} groß und überschreitet dein Upload-Limit von {limit}.",
+    "title": "Uploads",
+    "hint": "Die größte Datei, die ein Konto in Kanälen, Threads, Direktnachrichten und Beiträgen anhängen oder in Drive ablegen darf. Profilbilder, Banner, Server-Icons, Emoji und Sounds haben eigene Limits.",
+    "tier": {
+      "user": "Größte Datei pro Konto",
+      "moderator": "Größte Datei pro Instanz-Moderator",
+      "admin": "Größte Datei pro Instanz-Admin"
+    },
+    "tierName": {
+      "user": "Konto",
+      "moderator": "Instanz-Moderator",
+      "admin": "Instanz-Admin"
+    },
+    "aboveCeiling": "Über der Obergrenze von {limit}",
+    "ceiling": "Obergrenze des Server-Betreibers",
+    "ceilingHint": "Kein Upload-Limit kann höher sein. Der Betreiber hebt sie auf dem Server mit harmony config --upload-ceiling an.",
+    "driveNote": "Die größte Datei ist nicht der Drive-Speicher: Ein Upload, der ein Konto über seinen Speicher bringen würde, wird als temporäre Datei behalten.",
+    "readOnly": "Nur Instanz-Admins ändern Upload-Limits.",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "loadFailed": "Die Upload-Limits konnten nicht geladen werden.",
+    "saveFailed": "Die Upload-Limits konnten nicht gespeichert werden.",
+    "user": {
+      "open": "Upload-Limit von {name}",
+      "title": "Upload-Limit von {name}",
+      "tier": "Stufe: {tier}, {limit}",
+      "effective": "Größte Datei derzeit: {limit}",
+      "choice": "Limit",
+      "useTier": "Limit der Stufe verwenden",
+      "custom": "Eigenes Limit",
+      "customLabel": "Upload-Limit von {name}, MB",
+      "ceiling": "Obergrenze: {limit}"
+    }
   }
 }
