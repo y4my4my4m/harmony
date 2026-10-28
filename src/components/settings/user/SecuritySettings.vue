@@ -8,15 +8,22 @@
     <section class="sec-card" aria-labelledby="password-title">
       <header class="sec-card-header">
         <div>
-          <h3 id="password-title" class="sec-card-title">{{ hasPassword ? $t('auth.password') : $t('security.password.setTitle') }}</h3>
-          <p class="sec-card-description">
+          <h3 id="password-title" class="sec-card-title">{{ hasPassword || providerManaged ? $t('auth.password') : $t('security.password.setTitle') }}</h3>
+          <p
+            v-if="providerManaged"
+            ref="managedNote"
+            class="sec-card-description"
+            data-testid="password-provider-managed"
+            tabindex="-1"
+          >{{ $t('security.password.providerManaged', { providers: providerNames }) }}</p>
+          <p v-else class="sec-card-description">
             <template v-if="hasPassword">{{ $t('security.password.changeDescription') }}</template>
             <template v-else>{{ $t('security.password.providerDescription', { providers: providerNames }) }}</template>
           </p>
         </div>
       </header>
 
-      <form class="sec-form" autocomplete="on" @submit.prevent="changePassword">
+      <form v-if="!providerManaged" class="sec-form" autocomplete="on" @submit.prevent="changePassword">
         <input type="email" class="sec-visually-hidden" autocomplete="username" :value="email" tabindex="-1" aria-hidden="true" readonly />
         <div v-if="hasPassword" class="sec-field">
           <label class="sec-label" for="current-password">{{ $t('auth.currentPassword') }}</label>
@@ -88,13 +95,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { debug } from '@/utils/debug'
 import { accountSecurityService, securityErrorMessage } from '@/services/AccountSecurityService'
+import { oauthProviderLabel, parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
+import { isProviderManagedError, knownProviderManaged, rememberProviderManaged } from '@/utils/providerManagedAccount'
 import TwoFactorSettings from './TwoFactorSettings.vue'
 import SessionsPanel from './SessionsPanel.vue'
 import './securitySettings.css'
@@ -110,10 +119,22 @@ const providers = computed<string[]>(() => {
   return Array.isArray(list) ? list : []
 })
 const hasPassword = computed(() => providers.value.length === 0 || providers.value.includes('email'))
+const customProviders = ref<CustomOAuthProvider[]>([])
 const providerNames = computed(() => providers.value
   .filter((p) => p !== 'email')
-  .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+  .map((p) => oauthProviderLabel(p, customProviders.value))
   .join(', ') || t('security.password.externalProvider'))
+const userId = computed(() => authStore.session?.user?.id ?? null)
+const refusedHere = ref(false)
+const providerManaged = computed(() => refusedHere.value || knownProviderManaged(userId.value))
+const managedNote = ref<HTMLElement | null>(null)
+
+onMounted(async () => {
+  if (!providers.value.some((p) => p.startsWith('custom:'))) return
+  const { data } = await supabase.from('instance_config').select('config_value')
+    .eq('config_key', 'custom_oauth_providers').maybeSingle()
+  customProviders.value = parseCustomOAuthProviders(data?.config_value)
+})
 const email = computed(() => authStore.session?.user?.email ?? '')
 
 const currentPassword = ref('')
@@ -138,6 +159,16 @@ const passwordFormReady = computed(() =>
   (!hasPassword.value || currentPassword.value.length > 0) &&
   newPassword.value.length > 0 &&
   confirmPassword.value.length > 0)
+
+/** The account signs in only through its provider: the form gives way to a note that says so. */
+function showProviderManaged() {
+  rememberProviderManaged(userId.value)
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+  refusedHere.value = true
+  void nextTick(() => managedNote.value?.focus())
+}
 
 async function changePassword() {
   if (passwordBusy.value) return
@@ -165,6 +196,10 @@ async function changePassword() {
     }
     const { error } = await supabase.auth.updateUser({ password: newPassword.value })
     if (error) {
+      if (isProviderManagedError(error)) {
+        showProviderManaged()
+        return
+      }
       if (/different from the old password|same/i.test(error.message)) {
         errors.value.next = t('security.password.errors.sameAsCurrent')
       } else if (/at least|weak|characters/i.test(error.message)) {

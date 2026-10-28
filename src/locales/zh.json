@@ -4722,6 +4722,7 @@
       "changeDescription": "更改密码会使其他所有设备退出登录。",
       "providerDescription": "您的账户通过 {providers} 登录。设置密码后，您也可以使用电子邮件登录。",
       "externalProvider": "外部提供商",
+      "providerManaged": "您的账户只能通过 {providers} 登录。它没有密码，也无法设置密码。",
       "hint": "至少 8 个字符。由几个不相关的词组成的密码短语效果很好。",
       "saving": "正在保存…",
       "setPassword": "设置密码",
@@ -4926,6 +4927,7 @@
       "sessionRevoked": "此会话已退出登录。请重新登录。",
       "codeMismatch": "验证码不匹配。请使用应用中最新的验证码，并检查设备时钟是否设为自动。",
       "challengeExpired": "验证已过期。请输入新的验证码。",
+      "providerManaged": "此账户只能通过其登录提供商登录，因此无法更改密码和电子邮件地址。",
       "rateLimited": "尝试次数过多。请稍等片刻后重试。",
       "mfaNotEnabled": "未启用双重验证。"
     },

@@ -53,6 +53,8 @@ A few actions ask for a fresh code even in a signed-in session:
 
 Changing your password asks for your current password, not a code. It signs out every other device.
 
+Some accounts have no password and cannot get one: on a self-hosted instance without email, a first sign-in through Google, GitHub, Twitch or the instance's own provider can make an account that signs in only through that provider. **Security** says so after the first attempt to set a password.
+
 ### Turn off two-factor authentication
 
 1. Open **User settings** → **Security** → **Two-factor authentication**.

@@ -26,6 +26,16 @@ describe('securityErrorMessage', () => {
     expect(securityErrorMessage({ code: 'PT403', message: 'step_up_required' })).toMatch(/authenticator app first/)
   })
 
+  it('says an account managed by its sign-in provider has no password or address to change', () => {
+    const refusal = {
+      code: 'user_sso_managed',
+      status: 422,
+      message: 'Updating email, phone, password of a SSO account only possible via SSO',
+    }
+    expect(securityErrorMessage(refusal)).toBe(
+      'This account signs in only through its sign-in provider, so its password and email address cannot be changed.')
+  })
+
   it('falls back to the auth message for anything else', () => {
     expect(securityErrorMessage({ message: 'Something odd' })).toBe('Something odd')
     expect(securityErrorMessage({}, 'Fallback')).toBe('Fallback')

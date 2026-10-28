@@ -4722,6 +4722,7 @@
       "changeDescription": "Cambiar tu contraseña cierra la sesión en todos los demás dispositivos.",
       "providerDescription": "Tu cuenta inicia sesión a través de {providers}. Una contraseña te permite iniciar sesión también con tu correo.",
       "externalProvider": "un proveedor externo",
+      "providerManaged": "Tu cuenta solo inicia sesión a través de {providers}. No tiene contraseña y no se puede establecer ninguna.",
       "hint": "Al menos 8 caracteres. Una frase de contraseña con unas cuantas palabras sin relación funciona bien.",
       "saving": "Guardando…",
       "setPassword": "Establecer contraseña",
@@ -4926,6 +4927,7 @@
       "sessionRevoked": "Se cerró esta sesión. Vuelve a iniciar sesión.",
       "codeMismatch": "Ese código no coincide. Usa el código más reciente de tu aplicación y comprueba que el reloj de tu dispositivo se ajusta automáticamente.",
       "challengeExpired": "La verificación caducó. Introduce un código nuevo.",
+      "providerManaged": "Esta cuenta solo inicia sesión a través de su proveedor, así que no se pueden cambiar su contraseña ni su correo.",
       "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
       "mfaNotEnabled": "La autenticación de dos factores no está activada."
     },
