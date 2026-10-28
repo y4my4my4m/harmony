@@ -32,12 +32,64 @@ import { deviceIdentityService } from './DeviceIdentityService'
 import { roomEpochService } from './RoomEpochService'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
+import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 // Session recovery result reuse, ms (see sessionRecoveryAttempts).
 const RECOVERY_HIT_TTL_MS = 30_000
 const RECOVERY_MISS_TTL_MS = 2_000
-// Longest wait of a decrypt miss for the unlock sweep of fulfilled key requests, ms.
+// Longest wait of a decrypt miss for the unlock catch-up, ms.
 const FULFILLED_SWEEP_WAIT_MS = 4_000
+
+export interface DecryptOptions {
+  /**
+   * Keys this device holds only: a missing session key is neither waited for, fetched from
+   * the server nor requested from other members.
+   */
+  heldKeysOnly?: boolean
+}
+
+/**
+ * One unlock, from before megolmService.initialize until its sweep of fulfilled key
+ * requests ends. A key the sweep takes in after a page's decrypt missed it reaches that
+ * message only through megolm-key-received, which a page still loading does not act on.
+ */
+interface UnlockCatchUp {
+  /** `${roomId}:${sessionId}` of this user's fulfilled key requests; null when unread. */
+  sessions: Promise<Set<string> | null>
+  /** Resolves when the sweep ends, or when the unlock stops before starting it. */
+  settled: Promise<void>
+  /** Ends the catch-up with the sweep, or at once without one. Later calls do nothing. */
+  end(sweep?: Promise<unknown>): void
+}
+
+/**
+ * Decrypted role mentions of a channel message, as the server stored them. The server reads only
+ * the plaintext mention parts after the ciphertext (utils/channelEncryption withPlaintextMentions):
+ * enforce_message_role_mentions (20261031900001) drops @here and @everyone without
+ * MENTION_EVERYONE, and role ids naming no role of the server, from them, and
+ * handle_role_mention_notifications notifies from them. A decrypted role_mention whose roleId
+ * they lack renders as its text, `@here` or `@<role name>`. Conversations have no roles.
+ */
+export function storedRoleMentionsOnly(
+  decrypted: MessagePart[],
+  stored: readonly MessagePart[] | null | undefined,
+  inChannel: boolean,
+): MessagePart[] {
+  if (!inChannel || !Array.isArray(decrypted)) return decrypted
+  const kept = new Set<string>()
+  for (const part of (Array.isArray(stored) ? stored.slice(1) : []) as Array<{ type?: unknown; roleId?: unknown }>) {
+    if (part?.type === 'role_mention' && typeof part.roleId === 'string') kept.add(part.roleId.toLowerCase())
+  }
+  return decrypted.map((part) => {
+    if (part?.type !== 'role_mention') return part
+    const roleId = typeof part.roleId === 'string' ? part.roleId : ''
+    if (roleId && kept.has(roleId.toLowerCase())) return part
+    const name = roleId === HERE_ROLE_ID
+      ? HERE_ROLE_ID
+      : (typeof part.roleName === 'string' ? part.roleName.replace(/^@+/, '') : '') || 'role'
+    return { type: 'text', text: `@${name}` } as MessagePart
+  })
+}
 
 export interface MegolmEncryptionStatus {
   enabled: boolean
@@ -124,6 +176,8 @@ export class MegolmMessageEncryptionService {
   // Extractable keys this device keeps for QR pairing (SecureSessionKeyStore pairingCopy).
   private pairingCopy: PairingKeyCopy | null = null
 
+  private catchUp: UnlockCatchUp | null = null
+
   private constructor() {}
 
   static getInstance(): MegolmMessageEncryptionService {
@@ -159,6 +213,78 @@ export class MegolmMessageEncryptionService {
       new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs) }),
     ])
     if (timer !== undefined) clearTimeout(timer)
+  }
+
+  /** Opens the catch-up of an unlock about to initialize megolmService. */
+  private beginCatchUp(): UnlockCatchUp {
+    this.dropCatchUp()
+    let resolve!: () => void
+    let ended = false
+    const catchUp: UnlockCatchUp = {
+      sessions: this.fulfilledRequestSessions(),
+      settled: new Promise<void>(r => { resolve = r }),
+      end: (sweep) => {
+        if (ended) return
+        ended = true
+        const finish = () => {
+          resolve()
+          if (this.catchUp === catchUp) this.catchUp = null
+        }
+        if (sweep) void sweep.then(finish, finish)
+        else finish()
+      },
+    }
+    this.catchUp = catchUp
+    return catchUp
+  }
+
+  private dropCatchUp(): void {
+    const catchUp = this.catchUp
+    this.catchUp = null
+    catchUp?.end()
+  }
+
+  /**
+   * Sessions of this user's fulfilled key requests: the rows the unlock sweep imports
+   * (MegolmKeyBackupService.sweepMyFulfilledRequests), read without the wrapped keys. Needs
+   * no unlocked key, so it is known while the unlock still runs.
+   */
+  private async fulfilledRequestSessions(): Promise<Set<string> | null> {
+    if (!this.currentUserId) return null
+    try {
+      const { data, error } = await supabase
+        .from('megolm_key_requests')
+        .select('room_id, session_id')
+        .eq('requester_user_id', this.currentUserId)
+        .eq('status', 'fulfilled')
+        .not('encrypted_key', 'is', null)
+      if (error) return null
+      return new Set((data ?? []).map((r: { room_id: string; session_id: string }) => `${r.room_id}:${r.session_id}`))
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Waits for the unlock catch-up when its sweep holds a fulfilled request for the session,
+   * or before that is known; at most FULFILLED_SWEEP_WAIT_MS. True when it waited.
+   */
+  private async whenCaughtUp(roomId: string, sessionId: string): Promise<boolean> {
+    const catchUp = this.catchUp
+    if (!catchUp) return false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>(resolve => {
+      timer = setTimeout(() => resolve('timeout'), FULFILLED_SWEEP_WAIT_MS)
+    })
+    try {
+      const sessions = await Promise.race([catchUp.sessions, timeout])
+      if (sessions === 'timeout') return true
+      if (sessions && !sessions.has(`${roomId}:${sessionId}`)) return false
+      await Promise.race([catchUp.settled, timeout])
+      return true
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   private async initializeInner(authUserId: string): Promise<void> {
@@ -217,45 +343,54 @@ export class MegolmMessageEncryptionService {
         recoveryKeyService.setDerivedKeys(storedKeys)
         this.pairingCopy = await secureSessionKeyStore.loadPairingCopy(this.currentUserId).catch(() => null)
 
-        await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
-        await this.ensureIdentityKeyPair()
-        // Ensure the per-user signing key exists. Legacy users (created
-        // before the signing-key migration) get one minted lazily here so
-        // their next message is fully signed.
-        await this.ensureSigningKeyPair().catch(err =>
-          debug.warn('Failed to ensure signing key on auto-unlock:', err),
-        )
-        await deviceIdentityService.ensureRegistered(this.currentUserId).catch(err =>
-          debug.warn('Failed to register device on auto-unlock:', err),
-        )
-
+        // isUnlocked() turns true inside megolmService.initialize, several
+        // round trips before the sweep below starts.
+        const catchUp = this.beginCatchUp()
         try {
-          const result = await megolmKeyBackupService.restoreFromBackup()
-          if (result.outboundCount + result.inboundCount > 0) {
-            debug.log(`Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
-          }
-        } catch { /* ignore */ }
+          await megolmService.initialize(this.currentUserId, storedKeys.encryptionKey)
+          await this.ensureIdentityKeyPair()
+          // Ensure the per-user signing key exists. Legacy users (created
+          // before the signing-key migration) get one minted lazily here so
+          // their next message is fully signed.
+          await this.ensureSigningKeyPair().catch(err =>
+            debug.warn('Failed to ensure signing key on auto-unlock:', err),
+          )
+          await deviceIdentityService.ensureRegistered(this.currentUserId).catch(err =>
+            debug.warn('Failed to register device on auto-unlock:', err),
+          )
 
-        // Parity with initializeWithRecoveryKey: sweep shares delivered while
-        // this device was offline so first render doesn't fall into the
-        // per-message slow path.
-        try {
-          const claimedCount = await this.claimPendingSessionShares()
-          if (claimedCount > 0) {
-            debug.log(`Claimed ${claimedCount} pending session shares on auto-unlock`)
-          }
-        } catch { /* ignore */ }
+          try {
+            const result = await megolmKeyBackupService.restoreFromBackup()
+            if (result.outboundCount + result.inboundCount > 0) {
+              debug.log(`Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+            }
+          } catch { /* ignore */ }
 
-        // Offline catch-up sweeps run in the BACKGROUND. Awaiting them puts
-        // their per-row work on the critical path of initialize(), which
-        // processMessageDecryption awaits, stalling the first message load
-        // (measured: ~170 stale fulfilled key-request rows = ~30s cold
-        // load). Late-arriving keys fire keyReceivedCallbacks /
-        // megolm-key-received, which re-decrypt anything already painted.
-        // After the claim: a session this device holds only through a share
-        // claimed at this unlock can be relayed.
-        void megolmKeyBackupService.processPendingRequestsToMe().catch(() => {})
-        void megolmKeyBackupService.processMyFulfilledRequests().catch(() => {})
+          // Parity with initializeWithRecoveryKey: sweep shares delivered while
+          // this device was offline so first render doesn't fall into the
+          // per-message slow path.
+          try {
+            const claimedCount = await this.claimPendingSessionShares()
+            if (claimedCount > 0) {
+              debug.log(`Claimed ${claimedCount} pending session shares on auto-unlock`)
+            }
+          } catch { /* ignore */ }
+
+          // Offline catch-up sweeps run in the BACKGROUND. Awaiting them puts
+          // their per-row work on the critical path of initialize(), which
+          // processMessageDecryption awaits, stalling the first message load
+          // (measured: ~170 stale fulfilled key-request rows = ~30s cold
+          // load). Late-arriving keys fire keyReceivedCallbacks /
+          // megolm-key-received, which re-decrypt anything already painted.
+          // After the claim: a session this device holds only through a share
+          // claimed at this unlock can be relayed.
+          void megolmKeyBackupService.processPendingRequestsToMe().catch(() => {})
+          const sweep = megolmKeyBackupService.processMyFulfilledRequests()
+          catchUp.end(sweep)
+          void sweep.catch(() => {})
+        } finally {
+          catchUp.end()
+        }
 
         debug.log('Auto-unlocked encryption from IndexedDB keys')
 
@@ -297,8 +432,19 @@ export class MegolmMessageEncryptionService {
     sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
   }
 
+  /**
+   * Closes megolmService, which nulls its storageKey(): accountSearchIndex
+   * (services/search/encryptedSearchIndex) opens no index without it, so a
+   * decrypt still in flight cannot recreate the index deleted next.
+   */
+  private closeBeforeDroppingIndex(): void {
+    this.dropCatchUp()
+    megolmService.close()
+  }
+
   /** Clears the stored session keys and the search index; every account's when no user is known. */
   async lockEncryption(): Promise<void> {
+    this.closeBeforeDroppingIndex()
     await dropSearchIndex(this.currentUserId)
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
@@ -310,7 +456,6 @@ export class MegolmMessageEncryptionService {
       await identityKeyStore.clearAll().catch(() => {})
       await signingKeyStore.clearAll().catch(() => {})
     }
-    megolmService.close()
     recoveryKeyService.clear()
     this.pairingCopy = null
     this.signingKeyCache.clear()
@@ -432,44 +577,50 @@ export class MegolmMessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
-
-    // Ensure identity key pair (ECDH) and signing key pair (ECDSA) both exist
-    await this.ensureIdentityKeyPair()
-    await this.ensureSigningKeyPair()
-    // Recovery-key unlock implies L2 (history-unlock capable) trust for this device.
-    await deviceIdentityService.ensureRegistered(this.currentUserId, 'recovery').catch(err =>
-      debug.warn('Failed to register device after recovery unlock:', err),
-    )
-
+    const catchUp = this.beginCatchUp()
     try {
-      const result = await megolmKeyBackupService.restoreFromBackup()
-      debug.log(`Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
-    } catch (error) {
-      debug.error('Backup restore failed during recovery unlock:', error)
-    }
+      await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
 
-    try {
-      const claimedCount = await this.claimPendingSessionShares()
-      if (claimedCount > 0) {
-        debug.log(`Claimed ${claimedCount} pending session shares`)
+      // Ensure identity key pair (ECDH) and signing key pair (ECDSA) both exist
+      await this.ensureIdentityKeyPair()
+      await this.ensureSigningKeyPair()
+      // Recovery-key unlock implies L2 (history-unlock capable) trust for this device.
+      await deviceIdentityService.ensureRegistered(this.currentUserId, 'recovery').catch(err =>
+        debug.warn('Failed to register device after recovery unlock:', err),
+      )
+
+      try {
+        const result = await megolmKeyBackupService.restoreFromBackup()
+        debug.log(`Restored ${result.outboundCount + result.inboundCount} sessions from backup`)
+      } catch (error) {
+        debug.error('Backup restore failed during recovery unlock:', error)
       }
-    } catch (error) {
-      debug.warn('Failed to claim pending session shares:', error)
-    }
 
-    // Offline catch-up sweeps (fulfilling inbound requests; importing keys
-    // fulfilled for this user while offline - the key_fulfilled broadcast is
-    // ephemeral) run in the BACKGROUND so the unlock UI isn't blocked on
-    // per-row work. Each imported key fires keyReceivedCallbacks, and the
-    // megolm-key-received event below re-decrypts what's already on screen.
-    void megolmKeyBackupService.processPendingRequestsToMe()
-      .then(fulfilledCount => {
-        if (fulfilledCount > 0) debug.log(`Fulfilled ${fulfilledCount} pending key requests`)
-      })
-      .catch(error => debug.warn('Failed to process pending key requests:', error))
-    void megolmKeyBackupService.processMyFulfilledRequests()
-      .catch(error => debug.warn('Failed to import fulfilled key requests:', error))
+      try {
+        const claimedCount = await this.claimPendingSessionShares()
+        if (claimedCount > 0) {
+          debug.log(`Claimed ${claimedCount} pending session shares`)
+        }
+      } catch (error) {
+        debug.warn('Failed to claim pending session shares:', error)
+      }
+
+      // Offline catch-up sweeps (fulfilling inbound requests; importing keys
+      // fulfilled for this user while offline - the key_fulfilled broadcast is
+      // ephemeral) run in the BACKGROUND so the unlock UI isn't blocked on
+      // per-row work. Each imported key fires keyReceivedCallbacks, and the
+      // megolm-key-received event below re-decrypts what's already on screen.
+      void megolmKeyBackupService.processPendingRequestsToMe()
+        .then(fulfilledCount => {
+          if (fulfilledCount > 0) debug.log(`Fulfilled ${fulfilledCount} pending key requests`)
+        })
+        .catch(error => debug.warn('Failed to process pending key requests:', error))
+      const sweep = megolmKeyBackupService.processMyFulfilledRequests()
+      catchUp.end(sweep)
+      void sweep.catch(error => debug.warn('Failed to import fulfilled key requests:', error))
+    } finally {
+      catchUp.end()
+    }
 
     await this.storeSessionKeys(derivedKeys)
     this.clearLegacyStorage()
@@ -1247,7 +1398,8 @@ export class MegolmMessageEncryptionService {
         sender_key_id?: string
         iv?: string
       }
-    }
+    },
+    options: DecryptOptions = {},
   ): Promise<{ content: MessagePart[]; senderVerified: boolean }> {
     if (!this.currentUserId) {
       throw new Error('Not initialized')
@@ -1259,6 +1411,7 @@ export class MegolmMessageEncryptionService {
     }
 
     const roomId = message.channel_id || message.conversation_id || ''
+    const inChannel = !!message.channel_id && !message.conversation_id
 
     if (metadata.algorithm === 'megolm_v3') {
       // v3: device-signed, epoch-bound, AAD-protected. Verify the device
@@ -1269,8 +1422,8 @@ export class MegolmMessageEncryptionService {
         throw new Error('Sender signature invalid - refusing to display tampered message')
       }
       const aadBytes = this.buildAadForMessage(message, roomId)
-      const content = await this.decryptMegolmMessage(message, roomId, aadBytes)
-      return { content, senderVerified: true }
+      const content = await this.decryptMegolmMessage(message, roomId, aadBytes, options)
+      return { content: storedRoleMentionsOnly(content, message.content, inChannel), senderVerified: true }
     }
 
     if (metadata.algorithm === 'megolm_v2_signed') {
@@ -1282,8 +1435,8 @@ export class MegolmMessageEncryptionService {
       if (!senderVerified) {
         throw new Error('Sender signature invalid - refusing to display tampered message')
       }
-      const content = await this.decryptMegolmMessage(message, roomId)
-      return { content, senderVerified: true }
+      const content = await this.decryptMegolmMessage(message, roomId, undefined, options)
+      return { content: storedRoleMentionsOnly(content, message.content, inChannel), senderVerified: true }
     }
 
     if (metadata.algorithm === 'megolm_v1') {
@@ -1505,7 +1658,8 @@ export class MegolmMessageEncryptionService {
       }
     },
     roomId: string,
-    additionalData?: Uint8Array
+    additionalData?: Uint8Array,
+    options: DecryptOptions = {},
   ): Promise<MessagePart[]> {
     if (!megolmService.isInitialized()) {
       throw new Error('Encryption not unlocked - enter your recovery key first')
@@ -1540,13 +1694,15 @@ export class MegolmMessageEncryptionService {
       // SLOW PATH: key not in memory, fetch from server
       const errMsg = error?.message || String(error)
       if (errMsg.includes('No inbound session') || errMsg.includes('No outbound session')) {
+        if (options.heldKeysOnly) {
+          const held = await this.decryptWithRelayedKey(roomId, senderId, encryptedMessage, additionalData, message.id)
+          if (held !== null) return JSON.parse(held) as MessagePart[]
+          throw error
+        }
+
         debug.log(`ℹMissing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
 
-        // The unlock sweep of fulfilled key requests runs beside the first page
-        // decrypt. A key it takes in after this miss reaches the message only
-        // through megolm-key-received, which a page still loading does not act
-        // on: the message stays encrypted and a relayed key is never tried.
-        if (await megolmKeyBackupService.whenFulfilledSwept(FULFILLED_SWEEP_WAIT_MS)) {
+        if (await this.whenCaughtUp(roomId, sessionId)) {
           try {
             return JSON.parse(await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)) as MessagePart[]
           } catch {
@@ -2514,6 +2670,7 @@ export class MegolmMessageEncryptionService {
 
     // Identity, signing, and session keys. Leaving signing behind leaves a
     // stale cached signing key after reset.
+    this.closeBeforeDroppingIndex()
     await dropSearchIndex(this.currentUserId)
     await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
     await identityKeyStore.clear(this.currentUserId).catch(() => {})
@@ -2543,8 +2700,6 @@ export class MegolmMessageEncryptionService {
         .or(`sender_user_id.eq.${this.currentUserId},recipient_user_id.eq.${this.currentUserId}`)
     }
 
-    megolmService.close()
-
     recoveryKeyService.clear()
 
     debug.log('Encryption reset complete')
@@ -2552,6 +2707,7 @@ export class MegolmMessageEncryptionService {
 
   /** Called on logout. */
   async cleanup(): Promise<void> {
+    this.closeBeforeDroppingIndex()
     await dropSearchIndex(this.currentUserId)
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
@@ -2559,7 +2715,6 @@ export class MegolmMessageEncryptionService {
       await signingKeyStore.clear(this.currentUserId).catch(() => {})
       this.clearLegacyStorage()
     }
-    megolmService.close()
     recoveryKeyService.clear()
     this.signingKeyCache.clear()
     this.backedUpSessionIds.clear()

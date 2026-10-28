@@ -27,11 +27,13 @@ export function getLastDecryptionError(): string | null {
 }
 
 /**
- * Process messages and attempt to decrypt encrypted ones
+ * Process messages and attempt to decrypt encrypted ones.
+ * `index: false` leaves the search index alone. `heldKeysOnly` decrypts with the keys this
+ * device holds and asks nobody for a missing one (MegolmMessageEncryptionService DecryptOptions).
  */
 export async function processMessageDecryption(
   messages: Message[],
-  options: { index?: boolean } = {},
+  options: { index?: boolean; heldKeysOnly?: boolean } = {},
 ): Promise<Message[]> {
   // FIRST: bail before touching the encryption stack at all. Previously the
   // encrypted-page check sat BELOW the lazy service initialization, so even a
@@ -139,10 +141,11 @@ export async function processMessageDecryption(
     identityEpochMs = await encryptionService.getIdentityCreatedAt?.()
   } catch { /* unknown epoch → treat all failures as retryable */ }
 
+  const decryptOptions = { heldKeysOnly: options.heldKeysOnly === true }
   const decryptedResults = await Promise.all(
     encryptedMessages.map(async (message) => {
       try {
-        const decrypted = await encryptionService.decryptMessage(message)
+        const decrypted = await encryptionService.decryptMessage(message, decryptOptions)
         lastDecryptionError = null
 
         // decryptMessage returns { content, senderVerified } for v2-aware

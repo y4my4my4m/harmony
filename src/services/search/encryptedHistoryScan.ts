@@ -13,6 +13,12 @@
  *
  * One request at a time, PAGE_INTERVAL_MS apart; failures back off 1, 2, 4 and 8 s before the
  * crawl gives up. Rooms advance together: the next page goes to the room whose crawl is newest.
+ * A page ends at the newest read span below it, so a crawl with nothing new reads no rows.
+ *
+ * Pages decrypt with the keys this device holds and request none: a crawl of a late joiner's
+ * history would otherwise ask other members for every session in it. Messages left unreadable
+ * are read again when a key arrives for their room (megolm-key-received) and on the first crawl
+ * of each index this page session.
  */
 
 import { supabase } from '@/supabase'
@@ -46,10 +52,15 @@ export type ScanOutcome = 'done' | 'stopped' | 'error'
 
 export interface ScanDeps {
   index: EncryptedSearchIndex
-  /** Decrypted rows before `before` (exclusive), newest first, at or after `floor`. */
-  loadPage(room: ScanRoom, before: SpanEdge | null, limit: number): Promise<Message[]>
+  /**
+   * Decrypted rows before `before` and after `after` (both exclusive), newest first, at or
+   * after `floor`.
+   */
+  loadPage(room: ScanRoom, before: SpanEdge | null, limit: number, after?: SpanEdge): Promise<Message[]>
   /** Decrypted pinned rows before the floor. */
   loadPinnedBefore(room: ScanRoom, floor: number): Promise<Message[]>
+  /** Decrypted rows of the room by id; an id left out is deleted or no longer visible. */
+  loadMessages?(room: ScanRoom, ids: string[]): Promise<Message[]>
   /** Indexes decrypted rows and records the rest as unreadable. */
   record(index: EncryptedSearchIndex, messages: Message[]): Promise<void>
   sleep(ms: number, signal?: AbortSignal): Promise<void>
@@ -96,6 +107,45 @@ interface RoomState {
   cursor: SpanEdge | null
   started: boolean
   finished: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Key arrivals
+// ---------------------------------------------------------------------------
+
+// megolm-key-received events counted; the count at the last one per room, and at the last
+// one for every room (roomId '*').
+let keyArrivals = 0
+let everyRoomArrival = 0
+const roomArrivals = new Map<string, number>()
+// keyArrivals when each room's unreadable messages were last read again, per index.
+const retriedAt = new WeakMap<EncryptedSearchIndex, Map<string, number>>()
+
+/** Counts a key arrival for the room; every room without one or with '*'. */
+function noteKeyArrival(roomId?: string): void {
+  keyArrivals++
+  if (!roomId || roomId === '*') everyRoomArrival = keyArrivals
+  else roomArrivals.set(roomId, keyArrivals)
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('megolm-key-received', (event) => {
+    noteKeyArrival((event as CustomEvent<{ roomId?: string } | undefined>).detail?.roomId)
+  })
+}
+
+function retriedFor(index: EncryptedSearchIndex): Map<string, number> {
+  let map = retriedAt.get(index)
+  if (!map) {
+    map = new Map()
+    retriedAt.set(index, map)
+  }
+  return map
+}
+
+function needsRetry(index: EncryptedSearchIndex, room: string): boolean {
+  const at = retriedAt.get(index)?.get(room)
+  return at === undefined || Math.max(everyRoomArrival, roomArrivals.get(room) ?? 0) > at
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -147,6 +197,44 @@ export async function scanHistory(
     state.finished = true
   }
 
+  /**
+   * Reads the unreadable messages of rooms with a key arrival since their last retry again,
+   * PAGE_SIZE ids per request, paced as pages. False when stopped.
+   */
+  const retryUnreadable = async (): Promise<boolean> => {
+    const load = deps.loadMessages
+    if (!load) return true
+    for (const state of states) {
+      const room = state.room.room
+      if (!needsRetry(deps.index, room)) continue
+      retriedFor(deps.index).set(room, keyArrivals)
+      // Pinned messages before the floor are read too.
+      const floor = state.room.floor !== undefined && !state.room.pinnedBeforeFloor ? state.room.floor / 1000 : undefined
+      const ids = (await deps.index.unreadable([room], { [room]: floor })).map(u => u.id)
+      for (let i = 0; i < ids.length; i += PAGE_SIZE) {
+        const wait = last + PAGE_INTERVAL_MS - Date.now()
+        if (wait > 0) await deps.sleep(wait, signal)
+        if (signal?.aborted) return false
+        const batch = ids.slice(i, i + PAGE_SIZE)
+        let rows: Message[]
+        try {
+          last = Date.now()
+          rows = await load(state.room, batch)
+        } catch (error) {
+          debug.warn('Search crawl could not read unreadable messages again:', error)
+          retriedFor(deps.index).delete(room)
+          break
+        }
+        await deps.record(deps.index, rows)
+        const found = new Set(rows.map(m => m.id))
+        const gone = batch.filter(id => !found.has(id))
+        if (gone.length) await deps.index.remove(gone)
+        options.onPage?.()
+      }
+    }
+    return true
+  }
+
   /** Moves a cursor inside a read span to the span's lower end. True when nothing is left below. */
   const skipRead = (state: RoomState): boolean => {
     if (!state.cursor) return false
@@ -163,9 +251,10 @@ export async function scanHistory(
   }
 
   progress()
+  if (!(await retryUnreadable())) return 'stopped'
   while (!signal?.aborted) {
     const open = states.filter(s => !s.finished)
-    if (open.length === 0) return 'done'
+    if (open.length === 0) return (await retryUnreadable()) ? 'done' : 'stopped'
     const state = open.reduce((a, b) => {
       if (!a.started) return a
       if (!b.started) return b
@@ -182,11 +271,16 @@ export async function scanHistory(
     if (wait > 0) await deps.sleep(wait, signal)
     if (signal?.aborted) break
 
+    const cursor = state.cursor
+    const floor = state.room.floor
+    // The newest read span below the cursor and above the floor; the page ends at it.
+    const below = state.spans.find(s => (!cursor || before(s.hi, cursor)) && (floor === undefined || s.hi.at >= floor))
+
     let page: Message[] | null = null
     for (let attempt = 0; page === null; attempt++) {
       try {
         last = Date.now()
-        page = await deps.loadPage(state.room, state.cursor, PAGE_SIZE)
+        page = await deps.loadPage(state.room, cursor, PAGE_SIZE, below?.hi)
       } catch (error) {
         debug.warn('Search crawl page failed:', error)
         if (attempt >= RETRY_DELAYS_MS.length) return 'error'
@@ -197,27 +291,21 @@ export async function scanHistory(
     if (signal?.aborted) break
     pages++
 
-    const cursor = state.cursor
-    // The newest read span below the cursor: rows inside it are read already.
-    const below = state.spans.find(s => !cursor || before(s.hi, cursor))
-    const fresh = below ? page.filter(m => before(below.hi, messageEdge(m))) : page
-    await deps.record(deps.index, fresh)
+    await deps.record(deps.index, page)
     state.started = true
 
     const top = cursor ?? (page.length ? messageEdge(page[0]) : null)
-    if (page.length === 0) {
-      await finish(state, top)
-    } else if (below && fresh.length < page.length) {
-      // Nothing between the cursor and the span below: a span to it. Without a cursor and
-      // nothing newer, there is nothing new to record.
-      if (cursor || fresh.length) await remember(state, { lo: below.hi, hi: top! })
-      state.cursor = below.hi
-    } else if (page.length < PAGE_SIZE) {
-      await finish(state, top)
-    } else {
+    if (page.length >= PAGE_SIZE) {
       const oldest = messageEdge(page[page.length - 1])
       await remember(state, { lo: oldest, hi: top! })
       state.cursor = oldest
+    } else if (below) {
+      // Every row between the cursor and the span below is read. Without a cursor and
+      // nothing newer, there is nothing new to record.
+      if (top) await remember(state, { lo: below.hi, hi: top })
+      state.cursor = below.hi
+    } else {
+      await finish(state, top)
     }
     options.onPage?.()
     progress()
@@ -231,10 +319,10 @@ export async function scanHistory(
 
 async function decrypt(rows: Message[]): Promise<Message[]> {
   const { processMessageDecryption } = await import('@/utils/messageDecryption')
-  return processMessageDecryption(rows, { index: false })
+  return processMessageDecryption(rows, { index: false, heldKeysOnly: true })
 }
 
-export async function loadHistoryPage(room: ScanRoom, cursor: SpanEdge | null, limit: number): Promise<Message[]> {
+export async function loadHistoryPage(room: ScanRoom, cursor: SpanEdge | null, limit: number, after?: SpanEdge): Promise<Message[]> {
   let query = supabase
     .from('messages')
     .select('*')
@@ -250,6 +338,24 @@ export async function loadHistoryPage(room: ScanRoom, cursor: SpanEdge | null, l
       ? query.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${cursor.id})`)
       : query.lt('created_at', at)
   }
+  if (after) {
+    const at = microsIso(after.at)
+    query = after.id
+      ? query.or(`created_at.gt.${at},and(created_at.eq.${at},id.gt.${after.id})`)
+      : query.gte('created_at', at)
+  }
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  return decrypt((data ?? []) as Message[])
+}
+
+export async function loadMessagesById(room: ScanRoom, ids: string[]): Promise<Message[]> {
+  let query = supabase
+    .from('messages')
+    .select('*')
+    .in('id', ids)
+    .not('is_deleted', 'is', true)
+  query = room.kind === 'channel' ? query.eq('channel_id', room.room) : query.eq('conversation_id', room.room)
   const { data, error } = await query
   if (error) throw new Error(error.message)
   return decrypt((data ?? []) as Message[])
@@ -279,12 +385,40 @@ export async function recordPage(index: EncryptedSearchIndex, messages: Message[
 }
 
 export function databaseScanDeps(index: EncryptedSearchIndex): ScanDeps {
-  return { index, loadPage: loadHistoryPage, loadPinnedBefore, record: recordPage, sleep }
+  return { index, loadPage: loadHistoryPage, loadPinnedBefore, loadMessages: loadMessagesById, record: recordPage, sleep }
 }
 
 // ---------------------------------------------------------------------------
 // Readable start of a room
 // ---------------------------------------------------------------------------
+
+/** Lifetime of a server join lookup, ms: the channels of one server share it. */
+const JOIN_CACHE_MS = 30_000
+const serverJoins = new Map<string, { at: number; joined: Promise<string | undefined> }>()
+
+/** When the member joined the server, the owner when it was created; undefined when neither. */
+function serverJoinedAt(serverId: string, profileId: string): Promise<string | undefined> {
+  const key = `${serverId}:${profileId}`
+  const cached = serverJoins.get(key)
+  if (cached && Date.now() - cached.at < JOIN_CACHE_MS) return cached.joined
+  const joined = (async () => {
+    const { data: membership } = await supabase
+      .from('user_servers')
+      .select('created_at')
+      .eq('server_id', serverId)
+      .eq('user_id', profileId)
+      .eq('status', 'accepted')
+      .maybeSingle()
+    if (membership?.created_at) return membership.created_at as string
+    const { data: server } = await supabase.from('servers').select('owner, created_at').eq('id', serverId).maybeSingle()
+    return server?.owner === profileId ? server.created_at as string : undefined
+  })()
+  serverJoins.set(key, { at: Date.now(), joined })
+  joined.catch(() => {
+    if (serverJoins.get(key)?.joined === joined) serverJoins.delete(key)
+  })
+  return joined
+}
 
 /**
  * Where this member's readable history of a room starts, microseconds; undefined: the room's
@@ -319,18 +453,7 @@ export async function readableFloor(
 
     const cutoff = target.cutoff && target.cutoff !== 'infinity' ? timeMicros(target.cutoff) : undefined
     if (target.visibility === 'all' || !target.serverId) return cutoff !== undefined ? { floor: cutoff } : {}
-    const { data: membership } = await supabase
-      .from('user_servers')
-      .select('created_at')
-      .eq('server_id', target.serverId)
-      .eq('user_id', target.profileId)
-      .eq('status', 'accepted')
-      .maybeSingle()
-    let joined = membership?.created_at as string | undefined
-    if (!joined) {
-      const { data: server } = await supabase.from('servers').select('owner, created_at').eq('id', target.serverId).maybeSingle()
-      if (server?.owner === target.profileId) joined = server.created_at
-    }
+    const joined = await serverJoinedAt(target.serverId, target.profileId)
     const join = joined ? timeMicros(joined) : undefined
     const floor = join !== undefined && cutoff !== undefined ? Math.max(join, cutoff) : join ?? cutoff
     return {

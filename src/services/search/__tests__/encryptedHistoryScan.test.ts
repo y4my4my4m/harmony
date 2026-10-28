@@ -7,6 +7,7 @@ import {
   RETRY_DELAYS_MS,
   messageEdge,
   microsIso,
+  readableFloor,
   recordPage,
   scanHistory,
   timeMicros,
@@ -15,6 +16,10 @@ import {
 } from '../encryptedHistoryScan'
 import { parseIndexQuery } from '@/utils/searchTokens'
 import type { Message } from '@/types'
+
+vi.mock('@/utils/messageDecryption', () => ({
+  processMessageDecryption: vi.fn(async (rows: unknown[]) => rows),
+}))
 
 const PROFILE = 'aaaaaaaa-0000-4000-8000-000000000009'
 const DM = 'bbbbbbbb-0000-4000-8000-000000000001'
@@ -36,7 +41,8 @@ function row(room: string, i: number, text: string, unreadable = false): Message
 
 class History {
   rows = new Map<string, Message[]>()
-  calls: Array<{ room: string; cursor: SpanEdge | null }> = []
+  calls: Array<{ room: string; cursor: SpanEdge | null; after?: SpanEdge; rows: number }> = []
+  byId: Array<{ room: string; ids: string[] }> = []
   failures = 0
 
   add(room: string, count: number, text: (i: number) => string, unreadable: (i: number) => boolean = () => false) {
@@ -46,27 +52,40 @@ class History {
     this.rows.set(room, list)
   }
 
+  /** Keys for every row arrive: they read as decrypted from now on. */
+  readAll(room: string) {
+    this.rows.set(room, (this.rows.get(room) ?? []).map(m => ({ ...m, encrypted: false, decrypted: true })))
+  }
+
   deps(index: EncryptedSearchIndex, sleep = vi.fn(async () => {})): ScanDeps & { sleep: typeof sleep } {
     return {
       index,
       sleep,
       record: recordPage,
       loadPinnedBefore: async () => [],
-      loadPage: async (room: ScanRoom, cursor: SpanEdge | null, limit: number) => {
-        this.calls.push({ room: room.room, cursor })
+      loadPage: async (room: ScanRoom, cursor: SpanEdge | null, limit: number, after?: SpanEdge) => {
         if (this.failures > 0) {
+          this.calls.push({ room: room.room, cursor, after, rows: 0 })
           this.failures--
           throw new Error('503')
         }
         const all = [...(this.rows.get(room.room) ?? [])].reverse()
-        return all
+        const page = all
           .filter(m => {
             const e = messageEdge(m)
             if (room.floor !== undefined && e.at < room.floor) return false
+            if (after && !(e.at > after.at || (e.at === after.at && e.id > after.id))) return false
             if (!cursor) return true
             return e.at < cursor.at || (cursor.id !== '' && e.at === cursor.at && e.id < cursor.id)
           })
           .slice(0, limit)
+        this.calls.push({ room: room.room, cursor, after, rows: page.length })
+        return page
+      },
+      loadMessages: async (room: ScanRoom, ids: string[]) => {
+        this.byId.push({ room: room.room, ids })
+        const wanted = new Set(ids)
+        return (this.rows.get(room.room) ?? []).filter(m => wanted.has(m.id))
       },
     }
   }
@@ -115,13 +134,14 @@ describe('scanHistory', () => {
     expect([...dates].sort((a, b) => b - a)).toEqual(dates)
   })
 
-  it('a second crawl reads one page and nothing older', async () => {
+  it('a second crawl reads one empty page above the read span and nothing older', async () => {
     history.add(DM, 350, i => `filler ${i}`)
     await scanHistory([dm], history.deps(index))
     history.calls = []
     expect(await scanHistory([dm], history.deps(index))).toBe('done')
-    expect(history.calls).toHaveLength(1)
-    expect(history.calls[0].cursor).toBeNull()
+    expect(history.calls).toEqual([
+      { room: DM, cursor: null, after: messageEdge(history.rows.get(DM)![349]), rows: 0 },
+    ])
   })
 
   it('a later crawl reads the new messages and stops at the read span', async () => {
@@ -130,8 +150,9 @@ describe('scanHistory', () => {
     history.add(DM, 150, i => (i === 300 ? 'fresh needle' : `new ${i}`))
     history.calls = []
     expect(await scanHistory([dm], history.deps(index))).toBe('done')
-    // 150 new rows: two pages, the second reaching into the old span.
-    expect(history.calls).toHaveLength(2)
+    // 150 new rows: two pages, the second ending at the old span.
+    expect(history.calls.map(c => c.rows)).toEqual([PAGE_SIZE, 50])
+    expect(history.calls.every(c => c.after?.id === history.rows.get(DM)![249].id)).toBe(true)
     expect(await texts(index, 'needle')).toEqual(['fresh needle'])
   })
 
@@ -145,8 +166,8 @@ describe('scanHistory', () => {
 
     history.calls = []
     expect(await scanHistory([dm], history.deps(index))).toBe('done')
-    // The newest page again (nothing new), then from where the first crawl stopped.
-    expect(history.calls[0].cursor).toBeNull()
+    // Nothing newer than the read span, then from where the first crawl stopped.
+    expect(history.calls[0]).toMatchObject({ cursor: null, rows: 0 })
     expect(history.calls[1].cursor).toEqual(messageEdge(history.rows.get(DM)![500 - PAGE_SIZE]))
     // 400 older rows fill four pages; an empty fifth ends the history.
     expect(history.calls).toHaveLength(1 + (500 - PAGE_SIZE) / PAGE_SIZE + 1)
@@ -195,12 +216,88 @@ describe('scanHistory', () => {
     expect((await texts(index, 'message')).length).toBe(108)
   })
 
+  it('reads unreadable messages again once a key arrives for their room', async () => {
+    history.add(DM, 120, i => `message ${i}`, i => i % 10 === 0)
+    await scanHistory([dm], history.deps(index))
+    expect(await index.unreadable([DM])).toHaveLength(12)
+
+    // No key arrived: nothing is read again.
+    history.byId = []
+    history.readAll(DM)
+    await scanHistory([dm], history.deps(index))
+    expect(history.byId).toEqual([])
+    expect(await index.unreadable([DM])).toHaveLength(12)
+
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: DM, sessionId: 's' } }))
+    const onPage = vi.fn()
+    expect(await scanHistory([dm], history.deps(index), { onPage })).toBe('done')
+    expect(history.byId).toHaveLength(1)
+    expect(history.byId[0].ids).toHaveLength(12)
+    expect(onPage).toHaveBeenCalled()
+    expect(await index.unreadable([DM])).toHaveLength(0)
+    expect((await texts(index, 'message')).length).toBe(120)
+  })
+
+  it('a key arriving during a crawl is tried before the crawl ends', async () => {
+    history.add(DM, 50, i => `message ${i}`, i => i < 5)
+    const deps = history.deps(index)
+    const load = deps.loadPage
+    deps.loadPage = async (...args) => {
+      const page = await load(...args)
+      history.readAll(DM)
+      window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: DM, sessionId: 's' } }))
+      return page
+    }
+    expect(await scanHistory([dm], deps)).toBe('done')
+    expect(await index.unreadable([DM])).toHaveLength(0)
+  })
+
+  it('a key for another room leaves this room alone', async () => {
+    history.add(DM, 20, i => `message ${i}`, i => i < 5)
+    await scanHistory([dm], history.deps(index))
+    history.byId = []
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: CHANNEL, sessionId: 's' } }))
+    await scanHistory([dm], history.deps(index))
+    expect(history.byId).toEqual([])
+  })
+
+  it('drops unreadable messages the server no longer returns', async () => {
+    history.add(DM, 20, i => `message ${i}`, i => i < 5)
+    await scanHistory([dm], history.deps(index))
+    history.rows.set(DM, history.rows.get(DM)!.slice(2))
+    window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
+    await scanHistory([dm], history.deps(index))
+    expect(await index.unreadable([DM])).toHaveLength(3)
+  })
+
   it('advances rooms together, newest crawl first', async () => {
     history.add(DM, 150, i => `dm ${i}`)
     history.add(CHANNEL, 150, i => `channel ${i}`)
     const rooms: ScanRoom[] = [dm, { room: CHANNEL, kind: 'channel' }]
     expect(await scanHistory(rooms, history.deps(index))).toBe('done')
     expect(history.calls.map(c => c.room)).toEqual([DM, CHANNEL, DM, CHANNEL])
+  })
+})
+
+describe('readableFloor', () => {
+  it('looks up the join once for the channels of one server', async () => {
+    const SERVER = 'dddddddd-0000-4000-8000-000000000001'
+    const tables: string[] = []
+    const { supabase } = await import('@/supabase')
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      tables.push(table)
+      const chain: Record<string, unknown> = {}
+      for (const name of ['select', 'eq']) chain[name] = () => chain
+      chain.maybeSingle = async () => ({ data: { created_at: '2026-01-02T03:04:05.678901+00:00' }, error: null })
+      return chain as never
+    })
+    const channel = (room: string) => readableFloor({ kind: 'channel', room, profileId: PROFILE, serverId: SERVER, visibility: 'none' })
+
+    const floors = await Promise.all(['c1', 'c2', 'c3'].map(channel))
+    const later = await channel('c4')
+
+    expect(tables).toEqual(['user_servers'])
+    for (const floor of [...floors, later]) expect(floor).toEqual({ floor: timeMicros('2026-01-02T03:04:05.678901+00:00') })
   })
 })
 
@@ -228,5 +325,33 @@ describe('loadHistoryPage', () => {
     expect(calls).toContainEqual(['gte', 'created_at', '2025-01-01T00:00:00.000000Z'])
     expect(calls).toContainEqual(['or', `created_at.lt.2025-02-03T04:05:06.789012Z,and(created_at.eq.2025-02-03T04:05:06.789012Z,id.lt.${cursor.id})`])
     expect(calls).toContainEqual(['limit', PAGE_SIZE])
+  })
+
+  it('ends at a read span and decrypts with held keys only', async () => {
+    const calls: Array<[string, ...unknown[]]> = []
+    const chain: Record<string, unknown> = {}
+    for (const name of ['select', 'not', 'order', 'limit', 'eq', 'gte', 'or', 'lt', 'in']) {
+      chain[name] = (...args: unknown[]) => {
+        calls.push([name, ...args])
+        return chain
+      }
+    }
+    const rows = [row(DM, 1, 'x', true)]
+    chain.then = (resolve: (v: unknown) => void) => resolve({ data: rows, error: null })
+    const { supabase } = await import('@/supabase')
+    vi.mocked(supabase.from).mockReturnValue(chain as never)
+    const { processMessageDecryption } = await import('@/utils/messageDecryption')
+    const { loadHistoryPage, loadMessagesById } = await import('../encryptedHistoryScan')
+    const after = { at: timeMicros('2025-02-03T04:05:06.789012+00:00'), id: 'cccccccc-0000-4000-8000-000000000002' }
+
+    await loadHistoryPage({ room: DM, kind: 'conversation' }, null, PAGE_SIZE, after)
+    expect(calls).toContainEqual(['or', `created_at.gt.2025-02-03T04:05:06.789012Z,and(created_at.eq.2025-02-03T04:05:06.789012Z,id.gt.${after.id})`])
+    expect(processMessageDecryption).toHaveBeenLastCalledWith(rows, { index: false, heldKeysOnly: true })
+
+    calls.length = 0
+    await loadMessagesById({ room: CHANNEL, kind: 'channel' }, ['a', 'b'])
+    expect(calls).toContainEqual(['in', 'id', ['a', 'b']])
+    expect(calls).toContainEqual(['eq', 'channel_id', CHANNEL])
+    expect(processMessageDecryption).toHaveBeenLastCalledWith(rows, { index: false, heldKeysOnly: true })
   })
 })
