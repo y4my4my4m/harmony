@@ -1,6 +1,12 @@
 import DOMPurify from 'dompurify';
 import { youtubeRelayOrigin, YOUTUBE_RELAY_PATH } from '@/utils/embedDetection';
 
+/**
+ * Same scheme set as `SAFE_URL_SCHEMES`; relative and fragment refs pass. A leading `\` or `/\`
+ * is refused: the URL parser reads it as `//`, another host.
+ */
+const SAFE_URI_REGEXP = /^(?:(?:https?|mailto|tel|blob):|(?!\/\\)[^a-z\\]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
+
 const escapeMap: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -84,9 +90,7 @@ export function sanitizeMessageHtml(html: string): string {
     // extensions. Messages never render data-* attributes.
     ALLOW_DATA_ATTR: false,
     // Strip unknown protocols in href/src, redundant with `sanitizeUrl`.
-    // Regex matches absolute safe-scheme URLs; relative/hash refs pass by
-    // default.
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOWED_URI_REGEXP: SAFE_URI_REGEXP,
     // Forbid even if they end up in ALLOWED_ATTR via aliasing
     FORBID_ATTR: [
       'onerror',
@@ -177,8 +181,6 @@ export function isAllowedEmbedFrameSrc(src: string | null | undefined): boolean 
   return url.origin === youtubeRelayOrigin() && url.pathname === YOUTUBE_RELAY_PATH;
 }
 
-/** Same scheme set as `SAFE_URL_SCHEMES`; relative and fragment refs pass. */
-const SAFE_URI_REGEXP = /^(?:(?:https?|mailto|tel|blob):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
 // Separate instance: hooks on the default export would apply to every sanitizer.
 const formattedPurifier: typeof DOMPurify =

@@ -119,6 +119,26 @@ describe('sanitizeMessageHtml', () => {
   });
 });
 
+describe('backslash hrefs', () => {
+  const hrefOf = (html: string) => {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    return box.querySelector('a')?.getAttribute('href') ?? null;
+  };
+
+  it.each([sanitizeMessageHtml, sanitizeFormattedHtml])('%o drops an href the URL parser reads as another host', (sanitize) => {
+    expect(hrefOf(sanitize('<p><a href="\\\\evil.example/x">a</a></p>'))).toBeNull();
+    expect(hrefOf(sanitize('<p><a href="/\\evil.example/x">a</a></p>'))).toBeNull();
+    expect(hrefOf(sanitize('<p><a href="\\/evil.example/x">a</a></p>'))).toBeNull();
+  });
+
+  it.each([sanitizeMessageHtml, sanitizeFormattedHtml])('%o keeps paths, fragments and https', (sanitize) => {
+    expect(hrefOf(sanitize('<p><a href="/channels/1">a</a></p>'))).toBe('/channels/1');
+    expect(hrefOf(sanitize('<p><a href="#top">a</a></p>'))).toBe('#top');
+    expect(hrefOf(sanitize('<p><a href="https://example.com/">a</a></p>'))).toBe('https://example.com/');
+  });
+});
+
 describe('sanitizeFormattedHtml', () => {
   it('allows the wider tag set the HTML-mode renderer emits', () => {
     // formattedHTML emits <div> for media grids, <video>/<audio> for media,
