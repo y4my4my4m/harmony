@@ -55,7 +55,10 @@ export function sanitizeSticker(raw: unknown, senderHost: string | null): Sticke
     return null;
   }
   const claimed = typeof raw.domain === 'string' && HOSTNAME.test(raw.domain) ? raw.domain.toLowerCase() : null;
-  const domain = claimed ?? senderHost?.toLowerCase() ?? null;
+  const ours = config.INSTANCE_DOMAIN.toLowerCase();
+  const sender = senderHost?.toLowerCase() ?? null;
+  // Another host cannot make a sticker local: a claim of this domain from elsewhere stays theirs.
+  const domain = sender && sender !== ours && claimed === ours ? sender : claimed ?? sender;
   const width = side(raw.width);
   const height = side(raw.height);
   const mimeType = typeof raw.mimeType === 'string' && /^image\/[a-z0-9.+-]+$/i.test(raw.mimeType)
@@ -73,7 +76,7 @@ export function sanitizeSticker(raw: unknown, senderHost: string | null): Sticke
     ...(height ? { height } : {}),
     ...(mimeType ? { mimeType } : {}),
     // A sticker of this instance, echoed back by a host, is looked up here again.
-    ...(domain && domain !== config.INSTANCE_DOMAIN.toLowerCase() ? { domain } : {}),
+    ...(domain && domain !== ours ? { domain } : {}),
   };
 }
 

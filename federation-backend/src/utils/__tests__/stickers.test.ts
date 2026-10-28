@@ -34,9 +34,14 @@ describe('sanitizeSticker', () => {
     expect(sanitizeSticker(sticker(), 'peer.test')).toEqual({ ...sticker(), domain: 'peer.test' })
   })
 
-  it('keeps a claimed domain, and drops one naming this instance', () => {
+  it('keeps a claimed domain; another host claiming this instance keeps its own', () => {
     expect(sanitizeSticker(sticker({ domain: 'third.test' }), 'peer.test')?.domain).toBe('third.test')
-    expect(sanitizeSticker(sticker({ domain: 'harmony.test' }), 'peer.test')).not.toHaveProperty('domain')
+    // A remote sender cannot make its sticker read as one of this instance's.
+    expect(sanitizeSticker(sticker({ domain: 'harmony.test' }), 'peer.test')?.domain).toBe('peer.test')
+    expect(sanitizeSticker(sticker({ domain: 'HARMONY.test' }), 'peer.test')?.domain).toBe('peer.test')
+    // This instance's own sticker, from this instance, stays local.
+    expect(sanitizeSticker(sticker({ domain: 'harmony.test' }), 'harmony.test')).not.toHaveProperty('domain')
+    expect(sanitizeSticker(sticker({ domain: 'harmony.test' }), null)).not.toHaveProperty('domain')
   })
 
   it('cuts name and description to 30 and 300 characters', () => {
