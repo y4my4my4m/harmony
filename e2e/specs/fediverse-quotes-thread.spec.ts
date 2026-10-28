@@ -27,12 +27,9 @@ let mentionPostId = ''
 const at = (secondsAgo: number) => new Date(Date.now() - secondsAgo * 1000).toISOString()
 
 async function insertPosts(rows: Record<string, unknown>[]): Promise<string[]> {
-  for (let attempt = 0; ; attempt++) {
-    const { data, error } = await admin.from('posts').insert(rows).select('id')
-    if (!error) return (data ?? []).map((r) => r.id as string)
-    if (attempt < 4 && error.message.includes('timeline_entries_user_id_fkey')) continue
-    throw new Error(`posts: ${error.message}`)
-  }
+  const { data, error } = await admin.from('posts').insert(rows).select('id')
+  if (error) throw new Error(`posts: ${error.message}`)
+  return (data ?? []).map((r) => r.id as string)
 }
 
 test.beforeAll(async () => {

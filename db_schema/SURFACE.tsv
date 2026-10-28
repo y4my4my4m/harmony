@@ -209,7 +209,7 @@ create_bot	p_username text, p_display_name text, p_bio text, p_bot_type text, p_
 create_channel	p_server_id uuid, p_name text, p_type integer, p_category uuid, p_private boolean, p_allowed_role_ids uuid[], p_description text, p_slowmode_seconds integer, p_messages_encrypted boolean, p_voice_encrypted boolean, p_history_visibility text	channels	invoker	public, pg_temp	authenticated+service_role	client
 create_channel_thread	p_channel_id uuid, p_name text, p_auto_archive_duration integer	uuid	definer	public, pg_temp	authenticated+service_role	client
 create_channel_webhook	p_channel_id uuid, p_name text, p_avatar_url text	jsonb	definer	public, pg_temp	authenticated+service_role	client
-create_comprehensive_timeline_entries		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+create_comprehensive_timeline_entries		trigger	definer	public, extensions, pg_temp	service_role	trigger
 create_default_notification_preferences	p_user_id uuid	void	definer	public, pg_temp	service_role	unreferenced
 create_default_server_role		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 create_default_server_structure	p_server_id uuid	void	definer	public, extensions, pg_temp	service_role	unreferenced
