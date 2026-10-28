@@ -214,6 +214,8 @@ interface RemoteEmoji {
   is_animated: boolean;
 }
 
+const emit = defineEmits<{ (e: 'imported'): void }>();
+
 // State
 const emojis = ref<RemoteEmoji[]>([]);
 // Remote images that failed to load: drawn as the broken-emoji icon, never refetched. A
@@ -391,6 +393,7 @@ const confirmImport = async () => {
     
     importedCount.value++;
     closeImportModal();
+    emit('imported');
     
   } catch (error) {
     debug.error('Error importing emoji:', error);

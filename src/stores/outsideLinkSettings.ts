@@ -50,6 +50,10 @@ export const useOutsideLinkSettingsStore = defineStore('outsideLinkSettings', ()
   const trustedHosts = computed(() => new Set(hosts.value))
   const signedIn = computed(() => !!accountId.value)
 
+  // Bumped by every local change: a fetch started before one does not overwrite that field.
+  let askEdits = 0
+  let hostEdits = 0
+
   const persistCache = () => {
     if (accountId.value) writeCache(accountId.value, { askEveryLink: askEveryLink.value, trustedHosts: hosts.value })
   }
@@ -61,15 +65,17 @@ export const useOutsideLinkSettingsStore = defineStore('outsideLinkSettings', ()
     askEveryLink.value = cached?.askEveryLink ?? false
     hosts.value = cached?.trustedHosts ?? []
     if (!id) return
+    const askAt = askEdits
+    const hostsAt = hostEdits
     const [settings, trusted] = await Promise.all([
       supabase.from('outside_link_settings').select('ask_every_link').maybeSingle(),
       supabase.from('trusted_link_hosts').select('host').order('host'),
     ])
     if (accountId.value !== id) return
     if (settings.error) debug.warn('[outsideLinks] settings fetch failed:', settings.error)
-    else askEveryLink.value = settings.data?.ask_every_link === true
+    else if (askEdits === askAt) askEveryLink.value = settings.data?.ask_every_link === true
     if (trusted.error) debug.warn('[outsideLinks] trusted hosts fetch failed:', trusted.error)
-    else hosts.value = (trusted.data ?? []).map((row: { host: string }) => row.host)
+    else if (hostEdits === hostsAt) hosts.value = (trusted.data ?? []).map((row: { host: string }) => row.host)
     loaded.value = !settings.error && !trusted.error
     persistCache()
   }
@@ -85,11 +91,13 @@ export const useOutsideLinkSettingsStore = defineStore('outsideLinkSettings', ()
   /** Adds `host` (trustHostOf form). Rejects with the database error, the list unchanged. */
   async function trust(host: string): Promise<void> {
     if (!accountId.value || hosts.value.includes(host)) return
+    hostEdits++
     hosts.value = [...hosts.value, host].sort()
     persistCache()
     const { error } = await supabase.from('trusted_link_hosts').insert({ host })
     // 23505: already trusted from another device.
     if (error && error.code !== '23505') {
+      hostEdits++
       hosts.value = hosts.value.filter((h) => h !== host)
       persistCache()
       throw error
@@ -99,10 +107,12 @@ export const useOutsideLinkSettingsStore = defineStore('outsideLinkSettings', ()
   async function untrust(host: string): Promise<void> {
     if (!accountId.value || !hosts.value.includes(host)) return
     const before = hosts.value
+    hostEdits++
     hosts.value = before.filter((h) => h !== host)
     persistCache()
     const { error } = await supabase.from('trusted_link_hosts').delete().eq('host', host)
     if (error) {
+      hostEdits++
       hosts.value = before
       persistCache()
       throw error
@@ -112,12 +122,14 @@ export const useOutsideLinkSettingsStore = defineStore('outsideLinkSettings', ()
   async function setAskEveryLink(on: boolean): Promise<void> {
     if (!accountId.value) return
     const before = askEveryLink.value
+    askEdits++
     askEveryLink.value = on
     persistCache()
     const { error } = await supabase
       .from('outside_link_settings')
       .upsert({ ask_every_link: on, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
     if (error) {
+      askEdits++
       askEveryLink.value = before
       persistCache()
       throw error

@@ -282,7 +282,12 @@ export function sanitizeInlineHtml(html: string): string {
  * - Returns `""` for `null`/`undefined`/empty input.
  * - Returns `""` for URLs whose scheme is not in `SAFE_URL_SCHEMES`.
  * - Returns the (trimmed) input unchanged for safe absolute URLs and for
- *   scheme-less URLs (relative paths, protocol-relative `//host/...`).
+ *   scheme-less URLs (relative paths, protocol-relative `//host/...` on this
+ *   origin's host).
+ * - Returns `""` for a scheme-less URL that leaves this origin: a leading
+ *   backslash (the URL parser reads `\\host`, `/\host` and `\/host` as
+ *   `//host` under http(s)) or a protocol-relative URL to another host, which
+ *   takes the app's own scheme (tauri://host in the macOS and Linux apps).
  * - Strips ASCII control characters (incl. tabs/newlines); browsers ignore
  *   them when parsing the scheme, a known XSS bypass vector
  *   (`java\tscript:`, `java\nscript:`).
@@ -298,10 +303,14 @@ export function sanitizeUrl(url: string | null | undefined): string {
   const cleaned = String(url).replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
 
-  // Scheme-less (relative path, protocol-relative, fragment, query-only) -> allow.
-  // A scheme requires `[a-z][a-z0-9+.-]*:` per RFC 3986.
+  // Scheme-less (relative path, fragment, query-only, protocol-relative to this
+  // host) -> allow. A scheme requires `[a-z][a-z0-9+.-]*:` per RFC 3986.
   const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
-  if (!schemeMatch) return cleaned;
+  if (!schemeMatch) {
+    if (/^\/?\\/.test(cleaned)) return '';
+    if (cleaned.startsWith('//')) return isOwnHostReference(cleaned) ? cleaned : '';
+    return cleaned;
+  }
 
   const scheme = schemeMatch[1].toLowerCase() + ':';
   if (!SAFE_URL_SCHEMES.has(scheme)) return '';
@@ -315,6 +324,15 @@ export function sanitizeUrl(url: string | null | undefined): string {
     return '';
   }
   return cleaned;
+}
+
+function isOwnHostReference(url: string): boolean {
+  if (typeof window === 'undefined' || !window.location?.host) return false;
+  try {
+    return new URL(url, window.location.href).host === window.location.host;
+  } catch {
+    return false;
+  }
 }
 
 /** `sanitizeUrl` for a `:href` binding: undefined drops the attribute. */

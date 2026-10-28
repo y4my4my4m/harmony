@@ -2,10 +2,12 @@
  * InstanceEmojiLibrary.vue: lists every local instance emoji through admin_list_instance_emojis
  * past one 200-row page and hands EmojiLibraryManager an adapter that uploads through
  * uploadInstanceEmoji, renames and deletes through the admin RPCs, audits, and refreshes the picker.
+ * `refresh` reloads the rows in place for a change made elsewhere on the page.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, ref } from 'vue'
 import { supabase } from '@/supabase'
 import InstanceEmojiLibrary from '../InstanceEmojiLibrary.vue'
 import type { EmojiLibraryAdapter, EmojiLibraryTexts } from '@/components/settings/emojiLibrary'
@@ -85,6 +87,7 @@ const row = (n: number, total: number, extra: Partial<InstanceEmojiRow> = {}): I
 })
 
 const TOTAL = 205
+const TOTAL_NOW = { value: TOTAL }
 
 beforeEach(() => {
   rpc.mockReset()
@@ -93,11 +96,13 @@ beforeEach(() => {
   invalidate.mockReset()
   expirePersonalEmojis.mockReset()
   manager.props = null
+  TOTAL_NOW.value = TOTAL
   rpc.mockImplementation(async (fn: string, args: Record<string, number>) => {
     if (fn === 'admin_list_instance_emojis') {
+      const total = TOTAL_NOW.value
       const rows = []
-      for (let n = args.p_offset + 1; n <= Math.min(args.p_offset + args.p_limit, TOTAL); n++) {
-        rows.push(row(n, TOTAL, n === 3 ? { reaction_count: 2 } : {}))
+      for (let n = args.p_offset + 1; n <= Math.min(args.p_offset + args.p_limit, total); n++) {
+        rows.push(row(n, total, n === 3 ? { reaction_count: 2 } : {}))
       }
       return { data: rows, error: null }
     }
@@ -174,5 +179,19 @@ describe('InstanceEmojiLibrary', () => {
     await w.get('button').trigger('click')
     await flushPromises()
     expect(w.find('.manager-stub').exists()).toBe(true)
+  })
+
+  it('refreshes the rows in place through its template ref, keeping the manager mounted', async () => {
+    const library = ref<{ refresh: () => Promise<void> } | null>(null)
+    const w = mount(defineComponent({ setup: () => () => h(InstanceEmojiLibrary, { ref: library }) }))
+    await flushPromises()
+    const first = w.findComponent({ name: 'EmojiLibraryManager' }).vm
+    TOTAL_NOW.value = 3
+    const done = library.value!.refresh()
+    expect(w.find('.manager-stub').exists()).toBe(true)
+    await done
+    await flushPromises()
+    expect(manager.props!.emojis.map((e) => e.name)).toEqual(['emoji_1', 'emoji_2', 'emoji_3'])
+    expect(w.findComponent({ name: 'EmojiLibraryManager' }).vm).toBe(first)
   })
 })

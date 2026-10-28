@@ -99,8 +99,10 @@
     @close="handleClosePublicServers"
   />
 
-  <!-- "Leaving Harmony": masked links, and every outside link when the account asks for it. -->
+  <!-- "Leaving Harmony": masked links, and every outside link when the account asks for it.
+       The second host shows links held from the call pop-out, in its window. -->
   <OutsideLinkDialog />
+  <OutsideLinkDialog v-if="callPopout.root" :key="callPopout.generation" :portal="callPopout.root" />
 
   <!-- Clicked invite link from another (compatible) instance -->
   <JoinFederatedServer
@@ -136,6 +138,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
 import { installOutsideLinks } from '@/services/outsideLinks'
 import OutsideLinkDialog from '@/components/OutsideLinkDialog.vue'
+import { callPopout } from '@/components/voice/callPopout'
 import { installInterfaceSounds } from '@/utils/interfaceSounds'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import JoinFederatedServer from '@/components/JoinFederatedServer.vue'

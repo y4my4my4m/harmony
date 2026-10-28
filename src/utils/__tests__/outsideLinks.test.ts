@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { outsideLinkAction, splitUrlForDisplay, trustHostOf, type OutsideLinkContext } from '../outsideLinks'
+import {
+  isDeceptiveAnchorText,
+  markMaskedAnchors,
+  outsideLinkAction,
+  resolveLinkHref,
+  splitUrlForDisplay,
+  trustHostOf,
+  type OutsideLinkContext,
+} from '../outsideLinks'
 import { isMaskedUrlPart, maskedUrlsIn } from '../maskedLinks'
 
 const OWN = 'har.mony.lol'
@@ -10,6 +18,7 @@ function ctx(over: Partial<OutsideLinkContext> = {}): OutsideLinkContext {
     trustedHosts: new Set<string>(),
     askEveryLink: false,
     isOwnHost: (host) => host === OWN || host === 'localhost:5173',
+    base: `https://${OWN}/channels/1`,
     ...over,
   }
 }
@@ -59,6 +68,33 @@ describe('outsideLinkAction', () => {
     expect(outsideLinkAction(`//${OWN}/x`, ctx({ masked: true }))).toBe('own')
   })
 
+  it('reads a backslash href as the browser does: another host', () => {
+    for (const href of ['\\\\evil.example/x', '/\\evil.example/x', '\\/evil.example/x', ' \\\\evil.example']) {
+      expect(outsideLinkAction(href, ctx({ masked: true })), href).toBe('confirm')
+      expect(outsideLinkAction(href, ctx({ askEveryLink: true })), href).toBe('confirm')
+      expect(outsideLinkAction(href, ctx()), href).toBe('open')
+      expect(resolveLinkHref(href, ctx().base)?.host, href).toBe('evil.example')
+    }
+  })
+
+  it('keeps only same-origin references as own', () => {
+    expect(outsideLinkAction('?q=1', ctx({ askEveryLink: true }))).toBe('own')
+    expect(outsideLinkAction('../x', ctx({ askEveryLink: true }))).toBe('own')
+    expect(outsideLinkAction('\\channels', ctx({ askEveryLink: true }))).toBe('own')
+  })
+
+  it('opens a scheme-relative link over https from the macOS and Linux app', () => {
+    const native = { base: 'tauri://localhost/channels/1' }
+    expect(resolveLinkHref('//evil.example/x', native.base)?.href).toBe('https://evil.example/x')
+    expect(resolveLinkHref('\\\\evil.example/x', native.base)?.href).toBe('https://evil.example/x')
+    expect(outsideLinkAction('//evil.example/x', ctx({ ...native, masked: true }))).toBe('confirm')
+    expect(outsideLinkAction('/channels/2', ctx({ ...native, askEveryLink: true }))).toBe('own')
+  })
+
+  it('refuses a scheme hidden by control characters', () => {
+    expect(outsideLinkAction('java\tscript:alert(1)', ctx())).toBe('refuse')
+  })
+
   it('leaves mailto and tel to the platform, never asking', () => {
     expect(outsideLinkAction('mailto:a@example.com', ctx({ masked: true, askEveryLink: true }))).toBe('native')
     expect(outsideLinkAction('TEL:+15551234', ctx({ askEveryLink: true }))).toBe('native')
@@ -72,6 +108,39 @@ describe('outsideLinkAction', () => {
 
   it('refuses an http URL without a host', () => {
     expect(outsideLinkAction('https://', ctx())).toBe('refuse')
+  })
+})
+
+describe('isDeceptiveAnchorText', () => {
+  it('is text naming another host than the href', () => {
+    expect(isDeceptiveAnchorText('https://github.com/me', 'https://evil.example/')).toBe(true)
+    expect(isDeceptiveAnchorText('  paypal.com  ', 'https://evil.example/')).toBe(true)
+    expect(isDeceptiveAnchorText('github.com\u200b/me', 'https://evil.example/')).toBe(true)
+  })
+
+  it('is not the URL itself, a label naming no host, or a non-http href', () => {
+    expect(isDeceptiveAnchorText('https://github.com/me', 'https://github.com/me')).toBe(false)
+    expect(isDeceptiveAnchorText('github.com/me…', 'https://www.github.com/me/repo')).toBe(false)
+    expect(isDeceptiveAnchorText('my blog', 'https://evil.example/')).toBe(false)
+    expect(isDeceptiveAnchorText('@alice@mastodon.social', 'https://mastodon.social/@alice')).toBe(false)
+    expect(isDeceptiveAnchorText('', 'https://evil.example/')).toBe(false)
+    expect(isDeceptiveAnchorText('example.com', 'mailto:a@evil.example')).toBe(false)
+  })
+})
+
+describe('markMaskedAnchors', () => {
+  it('classes http(s) anchors whose text is a label or names another host', () => {
+    const html = markMaskedAnchors(
+      '<a href="https://evil.example/">https://github.com/me</a> <a href="https://a.example/x">docs</a> ' +
+        '<a href="https://a.example/x">a.example/x</a> <a href="mailto:me@a.example">mail me</a>',
+    )
+    const box = document.createElement('div')
+    box.innerHTML = html
+    expect(Array.from(box.querySelectorAll('a'), (a) => a.classList.contains('masked-link'))).toEqual([true, true, false, false])
+  })
+
+  it('returns HTML without anchors untouched', () => {
+    expect(markMaskedAnchors('plain <b>text</b>')).toBe('plain <b>text</b>')
   })
 })
 

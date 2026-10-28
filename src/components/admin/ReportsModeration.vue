@@ -81,7 +81,7 @@
         </div>
       </div>
 
-      <div v-if="expandedReportId === report.id" class="report-detail" @click.stop>
+      <div v-if="expandedReportId === report.id" class="report-detail" @click.stop="onDetailClick">
         <div v-if="report.reporter_id || report.reported_user_id || reportServerId(report)" class="report-ids" data-testid="report-ids">
           <span class="report-ids-title">{{ t('admin.reports.ids.title') }}</span>
           <dl>
@@ -262,7 +262,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
-import { activateStoppedLink } from '@/services/outsideLinks'
+import { activateStoppedLink, handleOutsideLinkActivation } from '@/services/outsideLinks'
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
@@ -579,11 +579,18 @@ const reportLinkHref = (escapedUrl: string): string => {
   return escapeHtml(mediaPartSource({ url, path: object.path }) ?? url)
 }
 
+// The detail's clicks stop before the document (the row toggles on click): links inside it
+// open here.
+const onDetailClick = (event: MouseEvent) => {
+  const anchor = (event.target as Element | null)?.closest?.<HTMLAnchorElement>('a[href]')
+  if (anchor) handleOutsideLinkActivation(event, anchor)
+}
+
 const linkifyReportPreview = (text: string): string => {
   const escaped = escapeHtml(text)
   return escaped.replace(
     /(https?:\/\/[^\s\]]+)/g,
-    (url) => `<a href="${reportLinkHref(url)}" target="_blank" rel="noopener noreferrer" class="report-link" onclick="event.stopPropagation()">${url}</a>`
+    (url) => `<a href="${reportLinkHref(url)}" target="_blank" rel="noopener noreferrer" class="report-link">${url}</a>`
   )
 }
 

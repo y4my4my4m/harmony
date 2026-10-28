@@ -138,6 +138,8 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 300
 
+const emit = defineEmits<{ (e: 'changed'): void }>()
+
 const { t } = useI18n()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
@@ -246,6 +248,7 @@ async function saveRename(emoji: InstanceEmojiRow) {
     })
     emoji.name = name
     cancelRename()
+    emit('changed')
     toast.success(t('admin.instanceEmojis.renamed'))
   } catch (err: any) {
     const taken = emoji.scope === 'user' ? t('admin.instanceEmojis.errors.nameTakenUser') : t('admin.instanceEmojis.errors.nameTaken')
@@ -286,6 +289,7 @@ async function remove(emoji: InstanceEmojiRow) {
         : { name: emoji.name, domain: emoji.domain, url: emoji.url },
     })
     toast.success(t('admin.instanceEmojis.deleted'))
+    emit('changed')
     await load()
   } catch (err: any) {
     toast.error(err?.message || t('admin.instanceEmojis.errors.delete'))
@@ -293,6 +297,8 @@ async function remove(emoji: InstanceEmojiRow) {
     busy.value.delete(emoji.id)
   }
 }
+
+defineExpose({ load })
 
 onMounted(load)
 </script>

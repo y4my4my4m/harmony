@@ -9,7 +9,8 @@
  * - activateStoppedLink: anchors whose click stops before the document.
  *
  * Each asks utils/outsideLinks what to do. "confirm" holds the link in useOutsideLinkPrompt
- * until the dialog opens or cancels it.
+ * until the dialog opens or cancels it. The held link names the document of its opener: the
+ * dialog shows in that window, the call pop-out's included (App.vue hosts one per window).
  *
  * Web: a link that needs no confirmation keeps the browser's behaviour, modifiers and middle
  * click included. A link that needs one is stopped whatever opens it (click, Ctrl/Cmd/Shift
@@ -21,12 +22,19 @@
  * the page inside it on Android), so every http(s) link not handled elsewhere opens here.
  */
 
-import { readonly, ref } from 'vue'
+import { computed, shallowRef } from 'vue'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import { useOutsideLinkSettingsStore } from '@/stores/outsideLinkSettings'
 import { debug } from '@/utils/debug'
 import { isInstanceHost } from '@/utils/internalLinks'
-import { MASKED_LINK_CLASS, outsideLinkAction, trustHostOf, type OutsideLinkAction } from '@/utils/outsideLinks'
+import {
+  MASKED_LINK_CLASS,
+  isDeceptiveAnchorText,
+  outsideLinkAction,
+  resolveLinkHref,
+  trustHostOf,
+  type OutsideLinkAction,
+} from '@/utils/outsideLinks'
 
 const HTTP = /^https?:\/\//i
 
@@ -57,34 +65,56 @@ function launch(url: string): void {
 }
 
 export interface PendingOutsideLink {
+  /** The resolved URL: what Open opens. */
   url: string
   /** trustHostOf(url): what "Trust" stores. */
   host: string | null
   masked: boolean
+  /** Document of the window the dialog shows in: its opener's. */
+  document: Document
 }
 
-const pending = ref<PendingOutsideLink | null>(null)
+// Shallow: `document` is compared by identity.
+const pending = shallowRef<PendingOutsideLink | null>(null)
 
-function decide(url: string, masked: boolean): OutsideLinkAction {
+/**
+ * Base an href of `doc` resolves against. The native webview's scheme (tauri://localhost,
+ * http://tauri.localhost) is no web scheme: a scheme-relative link opens over https.
+ */
+function linkBase(doc: Document): string {
+  const base = doc.baseURI
+  return isTauriRuntime() ? base.replace(/^[a-z][a-z0-9+.-]*:/i, 'https:') : base
+}
+
+interface Decision {
+  action: OutsideLinkAction
+  /** The resolved URL; empty when it does not parse. */
+  url: string
+}
+
+function decide(href: string, masked: boolean, base: string): Decision {
   const settings = useOutsideLinkSettingsStore()
-  return outsideLinkAction(url, {
+  const action = outsideLinkAction(href, {
     masked,
     trustedHosts: settings.trustedHosts,
     askEveryLink: settings.askEveryLink,
     isOwnHost: isInstanceHost,
+    base,
   })
+  return { action, url: resolveLinkHref(href, base)?.href ?? '' }
 }
 
 // The dialog returns focus to the element focused when it opens; a link clicked with the
 // mouse is not focused in Safari, so it is focused here first.
 function ask(url: string, masked: boolean, opener: HTMLElement | null): void {
-  if (opener?.isConnected && document.activeElement !== opener) opener.focus({ preventScroll: true })
-  pending.value = { url, host: trustHostOf(url), masked }
+  const doc = opener?.ownerDocument ?? document
+  if (opener?.isConnected && doc.activeElement !== opener) opener.focus({ preventScroll: true })
+  pending.value = { url, host: trustHostOf(url), masked, document: doc }
 }
 
 export function useOutsideLinkPrompt() {
   return {
-    pending: readonly(pending),
+    pending: computed(() => pending.value),
     /** Opens the held link; with `trust`, its host opens without asking from now on. */
     proceed(trust: boolean): Promise<void> {
       const link = pending.value
@@ -109,55 +139,92 @@ export interface OpenLinkOptions {
 /** Opens an http(s) URL from code: asks first when the link needs it. Other schemes never open. */
 export function openLink(url: string, options: OpenLinkOptions = {}): void {
   const masked = !!options.masked
-  const action = decide(url, masked)
-  if (action === 'native' || action === 'refuse') return
-  if (action === 'confirm') {
-    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    ask(url, masked, options.opener ?? focused)
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const opener = options.opener ?? focused
+  const decision = decide(url, masked, linkBase(opener?.ownerDocument ?? document))
+  if (decision.action === 'native' || decision.action === 'refuse') return
+  if (decision.action === 'confirm') {
+    ask(decision.url, masked, opener)
     return
   }
-  launch(url)
+  launch(decision.url)
 }
 
-/** Activation of `anchor` (a click with the primary or middle button). */
+/**
+ * Activation of `anchor` (a click with the primary or middle button). Masked: the masked-link
+ * class, or text naming another host than the href's.
+ */
 export function handleOutsideLinkActivation(event: MouseEvent, anchor: HTMLAnchorElement): void {
   if (event.defaultPrevented || anchor.hasAttribute('download')) return
   const href = anchor.getAttribute('href')
-  if (!href || href.startsWith('#')) return
-  const masked = anchor.classList.contains(MASKED_LINK_CLASS)
-  const action = decide(href, masked)
-  if (action === 'native') return
-  if (action === 'refuse') {
+  if (!href || href.trim().startsWith('#')) return
+  const base = linkBase(anchor.ownerDocument)
+  const resolved = resolveLinkHref(href, base)?.href ?? ''
+  const masked = anchor.classList.contains(MASKED_LINK_CLASS) || isDeceptiveAnchorText(anchor.textContent ?? '', resolved)
+  const decision = decide(href, masked, base)
+  if (decision.action === 'native') return
+  if (decision.action === 'refuse') {
     event.preventDefault()
     return
   }
-  if (action === 'confirm') {
+  if (decision.action === 'confirm') {
     event.preventDefault()
-    ask(anchor.href, masked, anchor)
+    ask(decision.url, masked, anchor)
     return
   }
-  // A relative href resolves against tauri.localhost: the router's, never the OS browser's.
-  if (isTauriRuntime() && (HTTP.test(href) || href.startsWith('//'))) {
+  // Native app: an outside link, or a link to this instance on another origin than the
+  // webview's that the router left (modified or middle click), opens in the OS browser.
+  if (isTauriRuntime() && HTTP.test(decision.url) && originOf(decision.url) !== originOf(base)) {
     event.preventDefault()
-    void openExternalUrl(anchor.href)
+    void openExternalUrl(decision.url)
   }
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin
+  } catch {
+    return null
+  }
+}
+
+// Nodes in the call pop-out can belong to its realm, where instanceof against this realm fails.
+function isAnchor(node: EventTarget | null): node is HTMLAnchorElement {
+  return !!node && (node as Element).localName === 'a' && typeof (node as Element).getAttribute === 'function'
 }
 
 /** Click listener for an anchor whose click stops before the document (@click.stop). */
 export function activateStoppedLink(event: MouseEvent): void {
-  if (event.currentTarget instanceof HTMLAnchorElement) handleOutsideLinkActivation(event, event.currentTarget)
+  if (isAnchor(event.currentTarget)) handleOutsideLinkActivation(event, event.currentTarget)
 }
+
+// One middle press can arrive as both a click with button 1 and an auxclick: the second
+// follows the first's decision. Ms between them.
+const MIDDLE_PRESS_MS = 100
 
 let installed = false
 
 export function installOutsideLinks(): void {
   if (installed) return
   installed = true
+  let lastMiddle: { anchor: Element; at: number; prevented: boolean } | null = null
   const onActivate = (event: MouseEvent) => {
-    if (event.button !== (event.type === 'auxclick' ? 1 : 0)) return
-    const target = event.target instanceof Element ? event.target : null
-    const anchor = target?.closest<HTMLAnchorElement>('a[href]')
-    if (anchor) handleOutsideLinkActivation(event, anchor)
+    if (event.button !== 0 && event.button !== 1) return
+    if (event.type === 'auxclick' && event.button !== 1) return
+    const target = event.target as Element | null
+    const anchor = typeof target?.closest === 'function' ? target.closest('a[href]') : null
+    if (!isAnchor(anchor)) return
+    if (event.button !== 1) {
+      handleOutsideLinkActivation(event, anchor)
+      return
+    }
+    const first = lastMiddle
+    if (first && first.anchor === anchor && event.timeStamp - first.at < MIDDLE_PRESS_MS) {
+      if (first.prevented) event.preventDefault()
+      return
+    }
+    handleOutsideLinkActivation(event, anchor)
+    lastMiddle = { anchor, at: event.timeStamp, prevented: event.defaultPrevented }
   }
   document.addEventListener('click', onActivate)
   document.addEventListener('auxclick', onActivate)

@@ -71,6 +71,15 @@ async function load() {
   }
 }
 
+/** Rows again without the loading state: the manager, its selection and focus stay. */
+async function refresh() {
+  try {
+    emojis.value = await listLocalInstanceEmojis()
+  } catch (err) {
+    debug.error('Failed to refresh local instance emojis:', err)
+  }
+}
+
 /** The picker's instance group and :name: lookups refetch on next open. */
 function refreshPicker() {
   invalidateEmojiResolverCache()
@@ -152,7 +161,7 @@ function onDeleted(ids: string[]) {
   refreshPicker()
 }
 
-defineExpose({ load })
+defineExpose({ load, refresh })
 
 onMounted(load)
 </script>

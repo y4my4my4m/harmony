@@ -206,6 +206,17 @@ describe('sanitizeUrl', () => {
 
   it('allows scheme-less relative paths', () => {
     expect(sanitizeUrl('/foo/bar')).toBe('/foo/bar');
-    expect(sanitizeUrl('//example.com/path')).toBe('//example.com/path');
+    expect(sanitizeUrl('foo/bar?x=1#y')).toBe('foo/bar?x=1#y');
+  });
+
+  it('rejects a backslash reference: under http(s) it names another host', () => {
+    for (const url of ['\\\\evil.com/x', '/\\evil.com/x', '\\/evil.com/x', '\\evil.com', ' \t\\\\evil.com']) {
+      expect(sanitizeUrl(url), url).toBe('');
+    }
+  });
+
+  it('keeps a protocol-relative URL on this host only', () => {
+    expect(sanitizeUrl('//example.com/path')).toBe('');
+    expect(sanitizeUrl(`//${window.location.host}/path`)).toBe(`//${window.location.host}/path`);
   });
 });

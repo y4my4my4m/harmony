@@ -3,6 +3,10 @@
   address with the host in bold, and Copy link, Cancel, Open. Signed in, "Trust <host>" makes
   that host open without asking from now on. An alertdialog: the address is its description,
   read on opening; Cancel takes focus; Escape and the overlay cancel; focus returns to the link.
+
+  One host per window: without `portal` it shows links held from the main document; with
+  `portal` (a container in the call pop-out) it mounts there and shows links held from that
+  container's document, cancelling the one it shows when it unmounts.
 -->
 <template>
   <AppDialog
@@ -45,24 +49,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import AppDialog from '@/components/a11y/AppDialog.vue'
 import Icon from '@/components/common/Icon.vue'
+import { providePortalTarget } from '@/composables/usePortalTarget'
 import { useOutsideLinkPrompt } from '@/services/outsideLinks'
 import { useOutsideLinkSettingsStore } from '@/stores/outsideLinkSettings'
 import { uid } from '@/utils/a11y/focus'
 import { debug } from '@/utils/debug'
 import { splitUrlForDisplay } from '@/utils/outsideLinks'
 
+const props = defineProps<{
+  /** Container in another window's document; the dialog mounts in it. */
+  portal?: HTMLElement | null
+}>()
+
 const { t } = useI18n()
 const toast = useToast()
 const prompt = useOutsideLinkPrompt()
 const settings = useOutsideLinkSettingsStore()
 
+providePortalTarget(() => props.portal ?? null)
+
+const hostDocument = computed(() => props.portal?.ownerDocument ?? document)
 const descriptionId = uid('outside-link-desc')
-const link = computed(() => prompt.pending.value)
+const link = computed(() => {
+  const held = prompt.pending.value
+  return held && held.document === hostDocument.value ? held : null
+})
 const parts = computed(() => (link.value && splitUrlForDisplay(link.value.url)) || { before: link.value?.url ?? '', host: '', after: '' })
 const canTrust = computed(() => settings.signedIn && !!link.value?.host)
 const trust = ref(false)
@@ -74,6 +90,10 @@ watch(link, () => {
 function cancel(): void {
   prompt.cancel()
 }
+
+onBeforeUnmount(() => {
+  if (props.portal && link.value) prompt.cancel()
+})
 
 function open(): void {
   const host = link.value?.host

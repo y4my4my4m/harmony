@@ -70,7 +70,7 @@ describe('document link activation', () => {
     const a = anchor('https://evil.example/login', true)
     const event = click(a)
     expect(event.defaultPrevented).toBe(true)
-    expect(prompt.pending.value).toEqual({ url: 'https://evil.example/login', host: 'evil.example', masked: true })
+    expect(prompt.pending.value).toEqual({ url: 'https://evil.example/login', host: 'evil.example', masked: true, document })
     expect(document.activeElement).toBe(a)
   })
 
@@ -151,6 +151,13 @@ describe('document link activation', () => {
     expect(openUrl).toHaveBeenCalledTimes(1)
   })
 
+  it('opens a link to this instance the router left in the system browser from the native app', async () => {
+    runtime.tauri = true
+    expect(click(anchor('https://har.mony.lol/invite/abcd1234'), { ctrlKey: true }).defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://har.mony.lol/invite/abcd1234'))
+    expect(prompt.pending.value).toBeNull()
+  })
+
   it('holds a masked link in the native app too', () => {
     runtime.tauri = true
     expect(click(anchor('https://evil.example/', true)).defaultPrevented).toBe(true)
@@ -170,6 +177,105 @@ describe('document link activation', () => {
     click(a)
     expect(prevented).toBe(true)
     expect(prompt.pending.value?.url).toBe('https://evil.example/')
+  })
+})
+
+describe('hrefs the browser reads as another host', () => {
+  function raw(href: string, text = 'docs'): HTMLAnchorElement {
+    const a = document.createElement('a')
+    a.setAttribute('href', href)
+    a.textContent = text
+    document.body.appendChild(a)
+    return a
+  }
+
+  it('holds a masked backslash link for the dialog, with the URL it opens', () => {
+    for (const href of ['\\\\evil.example/x', '/\\evil.example/x', '\\/evil.example/x']) {
+      const a = raw(href)
+      a.className = 'url-link masked-link'
+      expect(click(a).defaultPrevented, href).toBe(true)
+      expect(prompt.pending.value?.url, href).toBe(new URL('//evil.example/x', document.baseURI).href)
+      prompt.cancel()
+    }
+  })
+
+  it('holds a backslash link with ask-every-link on', () => {
+    settings.askEveryLink = true
+    expect(click(raw('\\\\evil.example/x')).defaultPrevented).toBe(true)
+    expect(prompt.pending.value?.host).toBe('evil.example')
+  })
+
+  it('opens a scheme-relative link over https in the macOS and Linux app', async () => {
+    runtime.tauri = true
+    const base = document.createElement('base')
+    base.href = 'tauri://localhost/'
+    document.head.appendChild(base)
+    try {
+      expect(click(raw('//evil.example/x', '//evil.example/x')).defaultPrevented).toBe(true)
+      await vi.waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://evil.example/x'))
+    } finally {
+      base.remove()
+    }
+  })
+})
+
+describe('anchor text naming another host', () => {
+  it('holds an unclassed anchor whose text is another URL', () => {
+    const a = document.createElement('a')
+    a.href = 'https://evil.example/'
+    a.target = '_blank'
+    a.innerHTML = '<span>https://</span><span>github.com/me</span>'
+    document.body.appendChild(a)
+    expect(click(a).defaultPrevented).toBe(true)
+    expect(prompt.pending.value).toMatchObject({ url: 'https://evil.example/', masked: true })
+  })
+
+  it('leaves an anchor whose text is its own URL, or names no host', () => {
+    expect(click(anchor('https://github.com/me')).defaultPrevented).toBe(false)
+    const named = anchor('https://example.com/')
+    named.textContent = 'Report a bug'
+    expect(click(named).defaultPrevented).toBe(false)
+    expect(prompt.pending.value).toBeNull()
+  })
+})
+
+describe('a link in the call pop-out', () => {
+  it('holds the link for the dialog of its own window', () => {
+    const popout = document.implementation.createHTMLDocument('call')
+    const a = popout.createElement('a')
+    a.setAttribute('href', 'https://evil.example/')
+    a.className = 'masked-link'
+    a.textContent = 'label'
+    popout.body.appendChild(a)
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    a.addEventListener('click', (e) => activateStoppedLink(e as MouseEvent), { once: true })
+    a.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(prompt.pending.value?.document).toBe(popout)
+  })
+})
+
+describe('middle click', () => {
+  it('holds a masked link reported as a click with button 1', () => {
+    expect(click(anchor('https://evil.example/', true), { button: 1 }).defaultPrevented).toBe(true)
+    expect(prompt.pending.value?.url).toBe('https://evil.example/')
+  })
+
+  it('opens once when one press arrives as a click and an auxclick', async () => {
+    runtime.tauri = true
+    const a = anchor('https://example.com/')
+    const at = performance.now()
+    const press = (type: string) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 1 })
+      Object.defineProperty(event, 'timeStamp', { value: at })
+      a.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(press('click')).toBe(true)
+    await vi.waitFor(() => expect(openUrl).toHaveBeenCalledTimes(1))
+    expect(press('auxclick')).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(openUrl).toHaveBeenCalledTimes(1)
   })
 })
 

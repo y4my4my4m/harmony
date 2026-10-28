@@ -451,6 +451,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
+import { markMaskedAnchors } from '@/utils/outsideLinks'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -1039,12 +1040,14 @@ const formatFieldValue = (value: any) => {
   // corrupting `<a>` tags produced by the storage encoder.
   const looksLikeHtml = /<[a-z][\s\S]*>/i.test(text)
   const html = looksLikeHtml ? text : escapeHtml(text).replace(/\n/g, '<br>')
-  return DOMPurify.sanitize(html, {
+  const sanitized = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['a', 'br', 'span', 'em', 'strong', 'b', 'i'],
     ALLOWED_ATTR: ['href', 'title'],
     ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
     ALLOW_DATA_ATTR: false,
   }).replace(/<a\b(?![^>]*\btarget=)/gi, '<a target="_blank" rel="noopener noreferrer nofollow"')
+  // A link whose text is a label asks before opening (services/outsideLinks).
+  return markMaskedAnchors(sanitized)
 }
 
 const copyUserId = async () => {

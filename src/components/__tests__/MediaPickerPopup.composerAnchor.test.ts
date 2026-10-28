@@ -268,3 +268,17 @@ describe('MediaPickerPopup desktop', () => {
     expect(composer.spy).not.toHaveBeenCalled()
   })
 })
+
+describe('MediaPickerPopup and the composer under it', () => {
+  // A tap on inert text targets the nearest live ancestor: utils/tapToCaret never sees it and
+  // its click closes the picker (Chromium, Pixel 7 emulation).
+  it('holds the composer inert while open', async () => {
+    setViewport(390, 844)
+    const composer = element({ top: 700, left: 0, width: 390, height: 144 })
+    const w = await open({ composerElement: composer.el })
+    expect(composer.el.hasAttribute('inert')).toBe(true)
+    w.unmount()
+    wrapper = null
+    expect(composer.el.hasAttribute('inert')).toBe(false)
+  })
+})

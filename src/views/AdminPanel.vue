@@ -177,15 +177,16 @@
     </div>
 
     <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
-      <InstanceEmojiLibrary />
-      <InstanceEmojiAdmin />
+      <!-- Both lists hold rows of the emojis table: a change in one, or an import, reloads the other. -->
+      <InstanceEmojiLibrary ref="emojiLibrary" @changed="emojiBrowse?.load()" />
+      <InstanceEmojiAdmin ref="emojiBrowse" @changed="emojiLibrary?.refresh()" />
       <div class="admin-module emoji-module">
         <div class="module-header">
           <Icon name="emoji" :size="20" />
           <h2>Remote emoji importer</h2>
         </div>
         <div class="emoji-content">
-          <EmojiImporter />
+          <EmojiImporter @imported="emojiLibrary?.refresh(); emojiBrowse?.load()" />
         </div>
       </div>
     </div>
@@ -249,6 +250,9 @@ const DriveAdmin = defineAsyncComponent(() => import('@/components/admin/DriveAd
 const StickerSettings = defineAsyncComponent(() => import('@/components/stickers/StickerSettings.vue'))
 import { adminService } from '@/services/AdminService'
 import { useProfileStore } from '@/stores/useProfile'
+
+const emojiLibrary = ref<{ refresh: () => Promise<void> } | null>(null)
+const emojiBrowse = ref<{ load: () => Promise<void> } | null>(null)
 
 const authStore = useAuthStore()
 const router = useRouter()
