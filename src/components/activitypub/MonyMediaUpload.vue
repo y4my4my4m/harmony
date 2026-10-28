@@ -29,13 +29,20 @@
           </div>
 
           <div class="media-info">
-            <div class="media-name">{{ attachment.filename || fallbackName(attachment.type) }}</div>
+            <div :id="`${idBase}-name-${index}`" class="media-name">{{ attachment.filename || fallbackName(attachment.type) }}</div>
             <div class="media-meta">
               <span v-if="attachment.size">{{ formatFileSize(attachment.size) }}</span>
               <span v-if="supportsAlt(attachment) && !attachment.description" :id="`${idBase}-missing-${index}`" class="alt-missing">
                 {{ t('activitypub.altTextMissing') }}
               </span>
             </div>
+            <PhotoDetailsControl
+              v-if="attachment.file"
+              :details="attachment.photoDetails"
+              :keep="!!attachment.keepDetails"
+              :describedby="`${idBase}-name-${index}`"
+              @update:keep="(keep) => emit('set-keep-details', index, keep)"
+            />
           </div>
 
           <button
@@ -112,10 +119,12 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
+import PhotoDetailsControl from '@/components/common/PhotoDetailsControl.vue';
 import MediaEditDialog from './MediaEditDialog.vue';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
 import { uid } from '@/utils/a11y/focus';
 import type { EditableMedia, MediaEdit } from '@/utils/mediaEdit';
+import type { MediaDetails } from '@/utils/stripMetadata';
 
 type UploadAttachment = EditableMedia & {
   id?: string;
@@ -123,6 +132,9 @@ type UploadAttachment = EditableMedia & {
   size?: number;
   uploading?: boolean;
   progress?: number;
+  file?: File;
+  photoDetails?: MediaDetails;
+  keepDetails?: boolean;
 };
 
 interface Props {
@@ -134,6 +146,7 @@ defineProps<Props>();
 const emit = defineEmits<{
   remove: [index: number];
   edit: [index: number, edit: MediaEdit];
+  'set-keep-details': [index: number, keep: boolean];
 }>();
 
 const { t } = useI18n();

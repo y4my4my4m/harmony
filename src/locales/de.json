@@ -6244,6 +6244,21 @@
       "saveFailed": "Die Änderung konnte nicht gespeichert werden"
     }
   },
+  "photoDetails": {
+    "keep": "Fotodetails behalten (Standort, Kamera)",
+    "locationRemoved": "Standort entfernt",
+    "locationKept": "Enthält Standort",
+    "settings": {
+      "keepByDefault": "Fotodetails standardmäßig behalten",
+      "keepByDefaultDescription": "Angehängte Fotos und Videos beginnen mit eingeschaltetem „Fotodetails behalten“: Standort, Kamera und weitere Angaben werden mit hochgeladen. Aus: Harmony entfernt diese Angaben vor dem Hochladen auf deinem Gerät. Profilbilder, Banner, Symbole, Emojis und Sticker behalten sie nie.",
+      "saveFailed": "Die Einstellung für Fotodetails konnte nicht gespeichert werden."
+    },
+    "drive": {
+      "title": "Foto- und Videodetails",
+      "intro": "Diese Fotos und Videos enthalten Angaben wie den Aufnahmeort und die Kamera. Harmony entfernt sie, außer du behältst sie.",
+      "upload": "Hochladen"
+    }
+  },
   "threadCreate": {
     "button": "Neuer Thread",
     "nameLabel": "Thread-Name",

@@ -176,6 +176,7 @@
               :attachments="mediaAttachments"
               @remove="removeMediaAttachment"
               @edit="applyMediaEdit"
+              @set-keep-details="setMediaKeepDetails"
             />
 
             <div class="compose-options">
@@ -411,6 +412,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { getOriginalPost, getOriginalPostId, replyMentionPrefill, replyVisibility } from '@/utils/postReblog';
 import { attachmentFocus } from '@/utils/focalPoint';
 import type { MediaEdit } from '@/utils/mediaEdit';
+import { readMediaDetails } from '@/utils/stripMetadata';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
 import MonyContent from './MonyContent.vue';
@@ -848,7 +850,16 @@ const applyMediaEdit = (index: number, edit: MediaEdit) => {
     media.preview_url = url;
     media.filename = edit.file.name;
     media.size = edit.file.size;
+    const file = edit.file;
+    void readMediaDetails(file).then((details) => {
+      if (media.file === file) media.photoDetails = details;
+    });
   }
+};
+
+const setMediaKeepDetails = (index: number, keep: boolean) => {
+  const media = mediaAttachments.value[index];
+  if (media) media.keepDetails = keep;
 };
 
 const removeMediaAttachment = (index: number) => {

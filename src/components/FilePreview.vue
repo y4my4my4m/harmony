@@ -54,7 +54,7 @@
         </div>
         
         <div class="file-info">
-          <div class="file-name" :title="file.name">{{ file.name }}</div>
+          <div :id="`${idBase}-name-${index}`" class="file-name" :title="file.name">{{ file.name }}</div>
           <div class="file-size-status">
             <span class="file-size">{{ formatFileSize(file.size) }}</span>
             <span v-if="file.uploadStatus === 'uploading'" class="status-text uploading">• Uploading</span>
@@ -66,6 +66,13 @@
           </div>
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
           <div v-if="isImage(file) && file.altText" class="file-alt-text">{{ file.altText }}</div>
+          <PhotoDetailsControl
+            v-if="!file.fromDrive && !file.recorded"
+            :details="file.photoDetails"
+            :keep="!!file.keepDetails"
+            :describedby="`${idBase}-name-${index}`"
+            @update:keep="(keep) => emit('set-keep-details', index, keep)"
+          />
         </div>
 
         <button
@@ -139,7 +146,10 @@ import type { MessageMediaUpload } from '@/services/messageMediaUpload';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import Icon from '@/components/common/Icon.vue';
 import AltTextDialog from '@/components/messages/AltTextDialog.vue';
+import PhotoDetailsControl from '@/components/common/PhotoDetailsControl.vue';
 import { useT } from '@/composables/useT';
+import { uid } from '@/utils/a11y/focus';
+import type { MediaDetails } from '@/utils/stripMetadata';
 
 export interface FilePreviewData {
   file: File;
@@ -166,6 +176,10 @@ export interface FilePreviewData {
   fromDrive?: boolean;
   /** Recorded in the composer: new bytes, so Drive holds no copy to look up. */
   recorded?: boolean;
+  /** What the picked file carries; read after it is attached. */
+  photoDetails?: MediaDetails;
+  /** Upload the file with its location, camera and other metadata. */
+  keepDetails?: boolean;
 }
 
 interface Props {
@@ -184,10 +198,12 @@ interface Emits {
   (e: 'toggle-temporary', index: number): void;
   (e: 'toggle-spoiler', index: number): void;
   (e: 'update-alt', index: number, altText: string): void;
+  (e: 'set-keep-details', index: number, keep: boolean): void;
 }
 
 const emit = defineEmits<Emits>();
 const { t } = useT();
+const idBase = uid('file-preview');
 
 /** Index of the attachment whose description is being edited. */
 const altIndex = ref<number | null>(null);

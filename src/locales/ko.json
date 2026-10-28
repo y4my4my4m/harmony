@@ -6244,6 +6244,21 @@
       "saveFailed": "변경 사항을 저장하지 못했습니다"
     }
   },
+  "photoDetails": {
+    "keep": "사진 세부 정보 유지 (위치, 카메라)",
+    "locationRemoved": "위치 제거됨",
+    "locationKept": "위치 포함",
+    "settings": {
+      "keepByDefault": "기본적으로 사진 세부 정보 유지",
+      "keepByDefaultDescription": "첨부하는 사진과 동영상은 '사진 세부 정보 유지'가 켜진 상태로 시작되며, 위치와 카메라 등의 정보가 함께 업로드됩니다. 끄면 Harmony가 업로드 전에 기기에서 이 정보를 제거합니다. 프로필 사진, 배너, 아이콘, 이모지, 스티커에는 항상 남기지 않습니다.",
+      "saveFailed": "사진 세부 정보 설정을 저장하지 못했습니다."
+    },
+    "drive": {
+      "title": "사진 및 동영상 세부 정보",
+      "intro": "이 사진과 동영상에는 촬영 위치와 카메라 같은 정보가 들어 있습니다. 유지를 선택하지 않으면 Harmony가 제거합니다.",
+      "upload": "업로드"
+    }
+  },
   "threadCreate": {
     "button": "새 스레드",
     "nameLabel": "스레드 이름",

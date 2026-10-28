@@ -6244,6 +6244,21 @@
       "saveFailed": "无法保存更改"
     }
   },
+  "photoDetails": {
+    "keep": "保留照片详细信息（位置、相机）",
+    "locationRemoved": "已移除位置",
+    "locationKept": "包含位置",
+    "settings": {
+      "keepByDefault": "默认保留照片详细信息",
+      "keepByDefaultDescription": "你附加的照片和视频默认开启“保留照片详细信息”，其位置、相机等信息会一起上传。关闭时，Harmony 会在上传前于你的设备上移除这些信息。头像、横幅、图标、表情和贴纸始终会移除这些信息。",
+      "saveFailed": "无法保存照片详细信息设置。"
+    },
+    "drive": {
+      "title": "照片和视频详细信息",
+      "intro": "这些照片和视频包含拍摄地点和相机等信息。除非你选择保留，否则 Harmony 会将其移除。",
+      "upload": "上传"
+    }
+  },
   "threadCreate": {
     "button": "新建话题",
     "nameLabel": "话题名称",

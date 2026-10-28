@@ -6240,6 +6240,21 @@
       "saveFailed": "Could not save the change"
     }
   },
+  "photoDetails": {
+    "keep": "Keep photo details (location, camera)",
+    "locationRemoved": "Location removed",
+    "locationKept": "Includes location",
+    "settings": {
+      "keepByDefault": "Keep photo details by default",
+      "keepByDefaultDescription": "New photos and videos you attach start with “Keep photo details” on, and their location, camera and other details are uploaded with them. Off: Harmony removes these details on your device before upload. Profile pictures, banners, icons, emoji and stickers never keep them.",
+      "saveFailed": "Couldn't save your photo details setting."
+    },
+    "drive": {
+      "title": "Photo and video details",
+      "intro": "These photos and videos carry details such as where they were taken and the camera used. Harmony removes them unless you keep them.",
+      "upload": "Upload"
+    }
+  },
   "threadCreate": {
     "button": "New thread",
     "nameLabel": "Thread name",

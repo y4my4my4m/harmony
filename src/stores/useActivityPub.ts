@@ -2157,6 +2157,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             cacheControl: '3600',
             upsert: false,
             label: file.name,
+            keepMetadata: !(attachment instanceof File) && attachment?.keepDetails === true,
           });
 
           if (error || !data) {

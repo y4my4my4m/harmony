@@ -17,6 +17,7 @@
       @toggle-spoiler="toggleFileSpoiler"
       @update-alt="setFileAltText"
       @toggle-temporary="toggleFileTemporary"
+      @set-keep-details="setFileKeepDetails"
     />
     <DriveShareOffer
       v-if="driveShareOffer.offer.value"
@@ -330,7 +331,9 @@ import {
   MESSAGE_TEXT_HARD_CEILING,
 } from '@/utils/messageContentUtils';
 import { mediaRoom as roomOf, messageMediaPath, uploadMessageMedia } from '@/services/privateMedia';
-import { forgetMessageMediaUpload, prepareMessageMediaUploads, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
+import { discardMessageMediaUpload, forgetMessageMediaUpload, prepareMessageMediaUploads, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
+import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings';
+import { isPhotoOrVideo, readMediaDetails } from '@/utils/stripMetadata';
 import {
   addDraftAttachments,
   discardDraftAttachments,
@@ -442,6 +445,7 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
+const photoDetailsSettings = usePhotoDetailsSettingsStore();
 const toast = useToast();
 const { t } = useI18n();
 
@@ -1119,6 +1123,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         const url = URL.createObjectURL(file);
         fileData.preview = url;
       }
+      if (isPhotoOrVideo(file)) {
+        // A fresh session's first attachment waits for the account's default.
+        await photoDetailsSettings.ready();
+        fileData.keepDetails = photoDetailsSettings.keepByDefault;
+        // Reads through the draft's proxy reach every composer showing the draft.
+        void readMediaDetails(file).then((details) => { reactive(fileData).photoDetails = details; });
+      }
 
       return fileData;
     };
@@ -1148,8 +1159,9 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           ephemeral: sentTemporary,
           resumeKey: `${room}/${uploaderId}`,
           ownProgress: true,
+          keepMetadata: !!fileData.keepDetails,
           onProgress: (fraction) => {
-            if (!holdsDraftAttachment(fileData)) return;
+            if (!holdsDraftAttachment(fileData) || fileData.upload !== upload) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
             fileData.uploadProgress = fraction * 100;
             const after = Math.floor(fileData.uploadProgress / 25);
@@ -1165,6 +1177,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       upload.result.then(
         (uploaded) => {
+          // Replaced by an upload of the other keep-details choice.
+          if (fileData.upload !== upload) return;
           fileData.uploadStatus = 'completed';
           fileData.uploadedUrl = uploaded.url;
           fileData.uploadedPath = uploaded.path;
@@ -1177,6 +1191,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           if (draftAttachmentShown(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
+          if (fileData.upload !== upload) return;
           // Cancelled in the transfers indicator: the draft lets go of the file. A removal
           // from the draft aborts after the draft has let go.
           if (error instanceof UploadAbortedError) {
@@ -1262,6 +1277,30 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       file.temporary = !file.temporary;
       polite(file.temporary ? t('drive.composer.markedTemporary', { name: file.name }) : t('drive.composer.markedKept', { name: file.name }));
       if (file.uploadStatus === 'completed') void applyTemporary(file);
+    };
+
+    /**
+     * The other keep-details choice uploads the file again; the object of the first choice is
+     * deleted (a Drive file found by hash is not this upload's and stays).
+     */
+    const setFileKeepDetails = (index: number, keep: boolean) => {
+      const attachment = attachedFiles.value[index];
+      if (!attachment || attachment.fromDrive || !!attachment.keepDetails === keep) return;
+      const fileData = reactive(attachment);
+      fileData.keepDetails = keep;
+      if (fileData.uploadStatus === 'pending' || !fileData.upload) return;
+      const previous = fileData.upload;
+      const stored = fileData.uploadStatus === 'completed' && !fileData.reused ? fileData.uploadedPath : undefined;
+      fileData.upload = undefined;
+      previous.abort();
+      forgetMessageMediaUpload(previous.path);
+      if (stored) void discardMessageMediaUpload(stored);
+      fileData.uploadStatus = 'pending';
+      fileData.uploadedUrl = undefined;
+      fileData.uploadedPath = undefined;
+      fileData.uploadError = undefined;
+      fileData.reused = false;
+      startBackgroundUpload(fileData);
     };
 
     const openDrivePicker = () => {
