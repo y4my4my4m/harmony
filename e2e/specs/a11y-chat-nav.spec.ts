@@ -256,6 +256,10 @@ test('channel list: names say type and state; one Tab stop, arrows, Space and En
     await page.keyboard.press('Enter')
     await page.waitForURL(new RegExp(`/chat/${server.id}/${channel.news}$`), { timeout: 15000 })
     await expect(announcer(page)).toHaveText(`#news – ${server.name}`, { timeout: 5000 })
+    // Enter comes milliseconds after the previous step's Tab; the focus the switch moves draws no ring.
+    const composer = page.locator('[data-testid="message-input"] .rich-text-editor')
+    await expect(composer).toBeFocused()
+    await expect(composer).toHaveCSS('outline-style', 'none')
   })
 
   await test.step('Enter on a thread opens it as the current page', async () => {
