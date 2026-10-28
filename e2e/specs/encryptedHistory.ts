@@ -26,6 +26,7 @@ import {
   sendMessage,
   signIn,
   userClient,
+  watchNetworkChanges,
   type SeededServer,
   type SpecUser,
 } from './harness'
@@ -219,9 +220,13 @@ export async function historyBeforeJoin(
 const swept = (page: Page) =>
   page.waitForResponse((r) => r.url().includes('/rpc/get_relayable_key_requests'), { timeout: 60000 })
 
-/** Opens the user's app again in their profile; resolves once its unlock sweep has listed requests. */
+/**
+ * Opens the user's app again in their profile; resolves once its unlock sweep has listed
+ * requests. A load blanked by a host network change is reloaded (watchNetworkChanges).
+ */
 export async function comeBack(profile: BrowserContext, path = '/chat'): Promise<Page> {
   const page = await profile.newPage()
+  watchNetworkChanges(page)
   const listed = swept(page)
   await page.goto(path)
   await dismissAnnouncements(page)
@@ -231,6 +236,7 @@ export async function comeBack(profile: BrowserContext, path = '/chat'): Promise
 
 /** Reloads an open app; resolves once its unlock sweep has listed requests. */
 export async function sweepAgain(page: Page): Promise<void> {
+  watchNetworkChanges(page)
   const listed = swept(page)
   await page.reload()
   await dismissAnnouncements(page)
