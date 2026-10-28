@@ -147,8 +147,9 @@ can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, pol
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_manage_outgoing_webhooks	definer	boolean	service_role	client	called by create_outgoing_webhook, list_outgoing_webhooks, lock_managed_outgoing_webhook
 can_manage_server_sounds	definer	boolean	authenticated+service_role	client, policy	policy public.server_sounds DELETE on server_sounds_delete_manager, public.server_sounds INSERT on server_sounds_insert_manager, public.server_sounds UPDATE on server_sounds_update_manager, +3
-can_manage_server_stickers	invoker	boolean	authenticated+service_role	client, policy	called by can_manage_sticker, can_write_sticker_object, create_sticker
+can_manage_server_stickers	invoker	boolean	authenticated+service_role	client, policy	called by can_manage_sticker, can_see_sticker, can_write_sticker_object, +1
 can_manage_sticker	definer	boolean	service_role	client	called by delete_sticker, update_sticker
+can_see_sticker	definer	boolean	anon+authenticated+service_role	policy	policy public.stickers SELECT on stickers_select_visible
 can_send_to_topic	definer	boolean	authenticated+service_role	policy	policy realtime.messages INSERT on authenticated_users_can_send
 can_subscribe_to_topic	definer	boolean	anon+authenticated+service_role	policy	policy realtime.messages SELECT on authenticated_users_can_receive
 can_view_channel	definer	boolean	service_role	client, policy, trigger	called by bot_create_thread, can_manage_channel_webhooks, create_channel_thread, +30
@@ -175,7 +176,7 @@ check_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger public.p
 check_encryption_policy	invoker	jsonb	service_role	service key	nothing references it
 check_key_consistency	definer	TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)	service_role	client	rpc in federation-backend/src/queue/handlers/maintenanceHandler.ts, federation-backend/src/routes/health.ts
 check_message_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_check_message_emoji_reaction_limit)
-check_message_sticker_parts	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (check_message_sticker_parts)
+check_message_sticker_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (check_message_sticker_parts)
 claim_ap_activity	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 claim_device_recovery_trust	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
@@ -368,6 +369,7 @@ enforce_message_attach_files	invoker	trigger	service_role	trigger	trigger public
 enforce_message_content_permissions	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_content_permissions)
 enforce_message_length	invoker	trigger	anon+authenticated+service_role	client, trigger	named in src/utils/messageContentUtils.ts; trigger public.messages BEFORE INSERT/UPDATE (trg_enforce_message_length)
 enforce_message_reply_scope	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_reply_scope)
+enforce_message_role_mentions	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (trg_role_mention_permission)
 enforce_personal_emoji_limit	definer	trigger	service_role	trigger	trigger public.emojis BEFORE INSERT (enforce_personal_emoji_limit)
 enforce_post_length	invoker	trigger	service_role	client, trigger	named in src/utils/messageContentUtils.ts; trigger public.posts BEFORE INSERT/UPDATE (trg_enforce_post_length)
 enforce_reaction_add_permission	invoker	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT (a_reactions_add_permission)
@@ -379,6 +381,7 @@ enforce_sticker_limit	definer	trigger	service_role	trigger	trigger public.sticke
 enqueue_outgoing_webhook_event	definer	integer	service_role	client	rpc in bot-gateway/src/gateway/outgoingWebhooks.ts
 ensure_realtime_partitions	definer	integer	-	cron	cron 5 * * * * (realtime-partitions)
 execute_channel_webhook	definer	jsonb	service_role	client	rpc in federation-backend/src/routes/webhooks/channelWebhooks.ts
+existing_sticker_ids	definer	TABLE(id uuid, url text)	anon+authenticated+service_role	client	rpc in src/services/stickerService.ts
 export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 export_server_template	definer	jsonb	authenticated+service_role	client	rpc in src/services/serverTemplateService.ts
 external_emoji_keys	definer	text[]	service_role	trigger	called by enforce_message_content_permissions, enforce_reaction_external_emoji
@@ -425,8 +428,8 @@ get_db_size	definer	text	anon+authenticated+service_role	client	rpc in src/servi
 get_default_channel	definer	uuid	anon+authenticated+service_role	client, trigger	called by ban_server_member, handle_member_join_system_message, handle_member_leave_system_message, +2
 get_device_signing_key	definer	TABLE(device_signing_public_key text, revoked_at timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 get_emoji_metadata_bulk	invoker	TABLE(server_id uuid, last_modified timestamp with time zone, emoji_count integer)	anon+authenticated+service_role	client	rpc in src/stores/useEmojiCache.ts
-get_emoji_source	definer	jsonb	authenticated+service_role	client	rpc in src/services/emojiSourceService.ts
-get_emoji_source_by_url	definer	jsonb	authenticated+service_role	client	rpc in src/services/emojiSourceService.ts
+get_emoji_source	definer	jsonb	authenticated+service_role	client	named in src/services/__tests__/emojiSourceService.test.ts, src/services/emojiSourceService.ts
+get_emoji_source_by_url	definer	jsonb	authenticated+service_role	client	named in src/services/__tests__/emojiSourceService.test.ts, src/services/emojiSourceService.ts
 get_emoji_usage_analytics	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, usage_count bigint, last_used timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 get_enhanced_timeline_posts	invoker	TABLE(id text, created_at timestamp with time zone, updated_at timestamp with time zone, content jsonb, content_warning text, language text, author_id text, ap_id text, ap_type text, url text, reply_context jsonb, conversation_id text, visibility text, is_local boolean, is_federated boolean, replies_count integer, reblogs_count integer, favorites_count integer, media_attachments jsonb, metadata jsonb, is_sensitive boolean, is_deleted boolean, deleted_at timestamp with time zone, author jsonb, is_favorited boolean, is_reblogged boolean, is_bookmarked boolean, reblog jsonb, reblog_author jsonb)	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 get_federated_instance_connection_counts	definer	TABLE(domain text, connection_count bigint)	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/TrendingService.ts
@@ -591,6 +594,7 @@ is_heart_reaction	invoker	boolean	anon+authenticated+service_role	client, trigge
 is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	called by is_encrypted_channel_content
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update, public.room_epoch_state SELECT on room_epoch_state_select; rpc in src/services/encryption/MegolmKeyBackupService.ts
+is_storage_public_url	invoker	boolean	service_role	client	called by create_instance_emoji, create_my_emoji, create_sticker
 is_user_viewing_context	definer	boolean	service_role	client, trigger	called by is_user_viewing_push_context, send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_bridge_issue_token, rotate_bot_token
@@ -788,6 +792,7 @@ search_fold	invoker	text	service_role	client, declarative, trigger	index idx_mes
 search_local_users	definer	TABLE(id uuid, username text, display_name text, avatar_url text)	authenticated+service_role	client	rpc in src/composables/useUserSearch.ts
 search_messages	definer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint, fuzzy boolean)	authenticated+service_role	client	rpc in src/services/SearchService.ts
 search_tsquery	invoker	tsquery	service_role	client	called by search_messages
+search_typo_distance	invoker	integer	service_role	client	called by search_messages
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +3
@@ -870,7 +875,8 @@ staff_server_messages	definer	TABLE(id uuid, channel_id uuid, channel_name text,
 staff_set_server_suspended	definer	jsonb	authenticated+service_role	client	rpc in src/services/HostedServerStaffService.ts
 start_dm_call_message	definer	uuid	authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 sticker_check_text	invoker	void	service_role	client	called by create_sticker, update_sticker
-sticker_limit	invoker	integer	anon+authenticated+service_role	policy, trigger	called by can_write_sticker_object, enforce_sticker_limit
+sticker_folder_has_room	definer	boolean	service_role	policy	called by can_write_sticker_object
+sticker_limit	invoker	integer	anon+authenticated+service_role	policy, trigger	called by enforce_sticker_limit, sticker_folder_has_room
 storage_upload_limit	definer	trigger	service_role	trigger	trigger storage.objects BEFORE INSERT/UPDATE (storage_upload_limit)
 sync_avg_latency	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.performance_metrics_hourly BEFORE INSERT/UPDATE (trigger_sync_avg_latency)
 sync_channel_permissions	definer	boolean	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
