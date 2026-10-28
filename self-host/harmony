@@ -137,10 +137,12 @@ cmd_config() {
 		*) die "unknown argument: $1 (harmony help)" ;;
 	esac
 	interactive || die "harmony config asks questions; for scripted changes run: HARMONY_...=... bash configure.sh --non-interactive"
-	local before_profiles after_profiles svc profile
+	local before_profiles after_profiles before_hosts after_hosts svc profile
 	before_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	before_hosts="$(env_get "$ENV_FILE" DOMAIN) $(env_get "$ENV_FILE" DB_DOMAIN)"
 	bash "$SELF_HOST_DIR/configure.sh" < /dev/tty
 	after_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	after_hosts="$(env_get "$ENV_FILE" DOMAIN) $(env_get "$ENV_FILE" DB_DOMAIN)"
 	# A disabled profile's container outlives `up -d`; remove it.
 	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord; do
 		svc="${pair%%:*}"; profile="${pair##*:}"
@@ -152,6 +154,10 @@ cmd_config() {
 	info "Applying..."
 	compose pull --quiet --ignore-pull-failures >/dev/null 2>&1 || true
 	compose up -d
+	# instance_config.storage_origin follows DB_DOMAIN.
+	if [[ "$before_hosts" != "$after_hosts" ]]; then
+		bash "$SELF_HOST_DIR/bootstrap.sh" --migrations-only
+	fi
 	if bash "$SELF_HOST_DIR/admin.sh" has-admin; then
 		bash "$SELF_HOST_DIR/admin.sh" registration
 	fi

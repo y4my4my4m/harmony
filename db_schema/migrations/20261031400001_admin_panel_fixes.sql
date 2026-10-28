@@ -15,8 +15,10 @@
 --
 -- create_instance_emoji(name, path, url) records an uploaded file as a local instance emoji
 -- (scope 'instance', no server, no domain). Errors: 42501 not an admin; 22023 bad path, url or
--- missing object; 23505 the file is already an instance emoji. The name is the sanitised
--- base, suffixed _1, _2, ... past a case-insensitive clash among local instance-level emojis.
+-- missing object; 23505 the file is already an instance emoji. The url passes
+-- is_storage_public_url (20261031200001_custom_stickers.sql): instance_config storage_origin,
+-- when set, is its only origin. The name is the sanitised base, suffixed _1, _2, ... past a
+-- case-insensitive clash among local instance-level emojis.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 
@@ -89,7 +91,6 @@ AS $$
 DECLARE
     v_me uuid := public.get_current_profile_id();
     v_suffix text;
-    v_origin text;
     v_size text;
     v_base text;
     v_name text;
@@ -106,14 +107,10 @@ BEGIN
             USING ERRCODE = '22023';
     END IF;
 
+    IF NOT public.is_storage_public_url(p_url, 'emojis', p_path) THEN
+        RAISE EXCEPTION 'EMOJI_URL: the url is not the public URL of %', p_path USING ERRCODE = '22023';
+    END IF;
     v_suffix := '/storage/v1/object/public/emojis/' || p_path;
-    IF p_url IS NULL OR char_length(p_url) > 2048 OR right(p_url, char_length(v_suffix)) <> v_suffix THEN
-        RAISE EXCEPTION 'EMOJI_URL: the url is not the public URL of %', p_path USING ERRCODE = '22023';
-    END IF;
-    v_origin := left(p_url, char_length(p_url) - char_length(v_suffix));
-    IF v_origin !~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$' THEN
-        RAISE EXCEPTION 'EMOJI_URL: the url is not the public URL of %', p_path USING ERRCODE = '22023';
-    END IF;
 
     SELECT o.metadata ->> 'size' INTO v_size
       FROM storage.objects o

@@ -62,6 +62,7 @@ Some settings exist both as a variable and in the database:
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
 | Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
+| Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
 
 ### Drive storage
 

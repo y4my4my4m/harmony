@@ -86,7 +86,7 @@ VALUES
     ('max_personal_stickers_per_user', '0'::jsonb,
      'Personal stickers one account can hold (0-100). 0 turns personal stickers off.'),
     ('storage_origin', '""'::jsonb,
-     'Public origin of storage, as clients build object URLs (https://db.example.com). Sticker and personal emoji URLs must start with it; empty accepts any http(s) origin.')
+     'Public origin of storage, as clients build object URLs (https://db.example.com). Sticker and emoji upload URLs must start with it; empty accepts any http(s) origin.')
 ON CONFLICT (config_key) DO NOTHING;
 
 -- p_url is the public URL of object p_path of bucket p_bucket:

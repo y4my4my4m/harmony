@@ -751,6 +751,7 @@ echo
 if [[ -d "$DB_DATA_DIR" ]]; then
 	info "Existing install: 'docker compose up -d' applies configuration changes; 'harmony update' also updates the code."
 	$LISTENER_NEW && warn "a new harmony_listener password was generated; run 'bash bootstrap.sh' once to set it"
+	$DOMAIN_CHANGED && warn "files are now served from https://$DB_DOMAIN; once the stack is up, 'bash bootstrap.sh --migrations-only' moves instance_config.storage_origin there, and sticker and emoji uploads are refused until it does"
 	$VAPID_NEW && info "Push notifications use a new VAPID key; restart the federation services (update.sh does)."
 else
 	info "Next steps (in self-host/):"

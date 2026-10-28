@@ -322,6 +322,8 @@ check_database() {
 		report OK upload-limits "ceiling $(human_size "$ul_env") in storage and the admin panel; per-account limits enforced"
 	fi
 
+	check_storage_origin
+
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
 	if [[ "$cfg_domain" == "$DOMAIN" ]]; then
@@ -566,6 +568,23 @@ check_services() {
 
 	if $VOICE; then
 		check_voice
+	fi
+}
+
+# instance_config.storage_origin against https://DB_DOMAIN, the web app's SUPABASE_URL and so the
+# origin of every public object URL. Sticker and emoji uploads under another origin are refused;
+# empty, any origin is accepted.
+check_storage_origin() {
+	local want have
+	want="$(printf 'https://%s' "$DB_DOMAIN" | tr '[:upper:]' '[:lower:]')"
+	have="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'storage_origin'" 2>/dev/null || true)"
+	have="$(printf '%s' "${have%/}" | tr '[:upper:]' '[:lower:]')"
+	if [[ "$have" == "$want" ]]; then
+		report OK storage-origin "instance_config.storage_origin = $want"
+	elif [[ -z "$have" ]]; then
+		report WARN storage-origin "instance_config.storage_origin is empty: sticker and emoji uploads accept a file URL on any host" "bash bootstrap.sh --migrations-only"
+	else
+		report WARN storage-origin "instance_config.storage_origin is $have, files are served from $want: sticker and emoji uploads are refused" "bash bootstrap.sh --migrations-only"
 	fi
 }
 

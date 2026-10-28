@@ -1,5 +1,6 @@
 -- 20261031400001_admin_panel_fixes.sql: paged admin_drive_usage, create_instance_emoji and the
--- instance emoji folder in bucket emojis.
+-- instance emoji folder in bucket emojis; create_instance_emoji takes only the storage_origin
+-- origin once it is set.
 --
 --   alice    instance admin for this file
 --   bob      not an admin
@@ -8,7 +9,7 @@
 --   drv_none        no files, no override
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(40);
+SELECT plan(42);
 
 UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
 
@@ -45,6 +46,7 @@ INSERT INTO public.emojis (id, name, url, scope, domain, server_id) VALUES
 INSERT INTO storage.objects (bucket_id, name, metadata) VALUES
   ('emojis', '00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000001.png', '{"size": "4321"}'),
   ('emojis', '00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000002.gif', '{"size": "99"}'),
+  ('emojis', '00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png', '{"size": "12"}'),
   ('emojis', '11111111-0000-0000-0000-000000000001/209e0000-0000-4000-8000-000000000003.png', '{"size": "10"}');
 
 CREATE FUNCTION pg_temp.drive_page(p_search text, p_limit int, p_offset int)
@@ -170,6 +172,22 @@ SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT ok(EXISTS (SELECT 1 FROM public.emojis
                    WHERE scope = 'instance' AND domain IS NULL AND name = 'BLOB_1'),
           'a regular user reads the new instance emoji');
+RESET ROLE;
+SELECT tests.clear_authentication();
+
+-- storage_origin. ----------------------------------------------------------------------
+INSERT INTO public.instance_config (config_key, config_value) VALUES ('storage_origin', '"http://localhost:54321"')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_ok($q$SELECT public.create_instance_emoji('pinned',
+                      '00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png',
+                      'https://har.example/storage/v1/object/public/emojis/00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png')$q$,
+                 '22023', 'EMOJI_URL: the url is not the public URL of 00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png',
+                 'with storage_origin set, a url on another origin is refused');
+SELECT lives_ok($q$SELECT public.create_instance_emoji('pinned',
+                     '00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png',
+                     'http://localhost:54321/storage/v1/object/public/emojis/00000000-0000-0000-0000-000000000000/209e0000-0000-4000-8000-000000000004.png')$q$,
+                'and a url on storage_origin is accepted');
 RESET ROLE;
 SELECT tests.clear_authentication();
 
