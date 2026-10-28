@@ -44,7 +44,8 @@ export function messageSpeechText(
         pieces.push(isMassMentionWord(p.username) && p.domain ? `@${p.username}@${p.domain}` : `@${p.username ?? ''}`)
         break
       case 'role_mention':
-        pieces.push(`@${String(p.roleName ?? '').replace(/^@/, '')}`)
+        // Read as a role: a member of the same name is read as @name alone.
+        pieces.push(t('mentionLabels.rolePill', { name: String(p.roleName ?? '').replace(/^@/, '') }))
         break
       case 'channel_mention':
         pieces.push(`#${p.name ?? ''}`)

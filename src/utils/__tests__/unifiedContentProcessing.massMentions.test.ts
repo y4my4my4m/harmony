@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// profiles: local accounts named everyone and here (from before 20261031900001), and alice.
+// profiles: local accounts named everyone and here (from before 20261031900001), alice, and crew,
+// named like a role.
 // The vitest VITE_DOMAIN is harmony.test.
 const EVERYONE_USER = '00000000-0000-4000-8000-0000000e0e0e'
 const HERE_USER = '00000000-0000-4000-8000-00000000e4e4'
+const CREW_USER = '00000000-0000-4000-8000-00000000c4e5'
 const profiles = [
   { id: EVERYONE_USER, username: 'everyone', domain: 'harmony.test', display_name: 'Everyone', is_local: true },
   { id: HERE_USER, username: 'here', domain: 'harmony.test', display_name: 'Here', is_local: true },
   { id: '00000000-0000-4000-8000-00000000a11c', username: 'alice', domain: 'harmony.test', display_name: 'Alice', is_local: true },
+  { id: CREW_USER, username: 'crew', domain: 'harmony.test', display_name: 'Crew', is_local: true },
 ]
 const lookedUp: string[][] = []
 
@@ -129,5 +132,28 @@ describe('a user named everyone', () => {
     expect(parts.filter((p: any) => p.type === 'mention')).toEqual([
       expect.objectContaining({ username: 'everyone', domain: 'other.test', isLocal: false }),
     ])
+  })
+})
+
+describe('a role and a member of the same name', () => {
+  const CREW_ROLE = '00000000-0000-4000-8000-0000000000c1'
+  const RESERVE_ROLE = '00000000-0000-4000-8000-0000000000c2'
+  const roles = { [CREW_ROLE]: { name: 'crew', color: '#00ff00' }, [RESERVE_ROLE]: { name: 'reserve', color: null } }
+  const parseWithRoles = async (text: string) =>
+    parseContentToMessageParts(text, await resolveMentionsUserData(text), {}, {}, roles, { massMentions: ALLOWED } as any)
+
+  it('reads a typed @crew as the member and only the picked @role:<uuid> token as the role', async () => {
+    const parts = await parseWithRoles(`@crew and @role:${CREW_ROLE}`)
+    expect(kinds(parts)).toEqual([
+      expect.objectContaining({ type: 'mention', userId: CREW_USER, username: 'crew' }),
+      { type: 'role_mention', roleId: CREW_ROLE, roleName: 'crew', roleColor: '#00ff00' },
+    ])
+  })
+
+  it('never reads a typed role name as the role, with or without a member of that name', async () => {
+    const parts = await parseWithRoles('@crew @reserve')
+    expect(parts.some((p: any) => p.type === 'role_mention')).toBe(false)
+    expect(parts.filter((p: any) => p.type === 'mention').map((p: any) => p.userId))
+      .toEqual([CREW_USER, 'unresolved-reserve'])
   })
 })

@@ -7688,5 +7688,17 @@
       "customLabel": "{name} のアップロード上限 (MB)",
       "ceiling": "上限: {limit}"
     }
+  },
+  "mentionLabels": {
+    "role": "役割",
+    "roleOption": "{name}、役割",
+    "memberOption": "{name}、メンバー、{handle}",
+    "rolePill": "{'@'}{name}、役割",
+    "roleCard": {
+      "label": "役割 {name}",
+      "members": "{count} メンバー",
+      "here": "オンラインでチャンネルを見られるメンバー",
+      "unknown": "このサーバーの役割ではありません"
+    }
   }
 }

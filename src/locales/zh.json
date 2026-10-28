@@ -7688,5 +7688,17 @@
       "customLabel": "{name} 的上传上限（MB）",
       "ceiling": "上限：{limit}"
     }
+  },
+  "mentionLabels": {
+    "role": "角色",
+    "roleOption": "{name}，角色",
+    "memberOption": "{name}，成员，{handle}",
+    "rolePill": "{'@'}{name}，角色",
+    "roleCard": {
+      "label": "角色 {name}",
+      "members": "{count} 名成员",
+      "here": "在线且能看到该频道的成员",
+      "unknown": "不是此服务器的角色"
+    }
   }
 }

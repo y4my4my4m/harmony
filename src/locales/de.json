@@ -7688,5 +7688,17 @@
       "customLabel": "Upload-Limit von {name}, MB",
       "ceiling": "Obergrenze: {limit}"
     }
+  },
+  "mentionLabels": {
+    "role": "Rolle",
+    "roleOption": "{name}, Rolle",
+    "memberOption": "{name}, Mitglied, {handle}",
+    "rolePill": "{'@'}{name}, Rolle",
+    "roleCard": {
+      "label": "Rolle {name}",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "here": "Mitglieder, die online sind und den Kanal sehen",
+      "unknown": "Keine Rolle dieses Servers"
+    }
   }
 }

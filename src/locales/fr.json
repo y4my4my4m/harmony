@@ -7688,5 +7688,17 @@
       "customLabel": "Limite d’envoi de {name}, Mo",
       "ceiling": "Plafond : {limit}"
     }
+  },
+  "mentionLabels": {
+    "role": "Rôle",
+    "roleOption": "{name}, rôle",
+    "memberOption": "{name}, membre, {handle}",
+    "rolePill": "{'@'}{name}, rôle",
+    "roleCard": {
+      "label": "Rôle {name}",
+      "members": "{count} membre | {count} membres",
+      "here": "Membres en ligne qui voient le salon",
+      "unknown": "Ce n'est pas un rôle de ce serveur"
+    }
   }
 }

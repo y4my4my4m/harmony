@@ -233,10 +233,16 @@
         <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'role_mention'"
           :marks="marksAt(partIndex)"
-        ><span
+        ><button
+          type="button"
           class="mention role-mention"
-          :style="part.roleColor ? { color: part.roleColor, backgroundColor: part.roleColor + '1a' } : {}"
-        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span></InlineMarks>
+          :style="roleMentionStyle(part)"
+          :aria-label="t('mentionLabels.rolePill', { name: roleMentionName(part) })"
+          :title="t('mentionLabels.rolePill', { name: roleMentionName(part) })"
+          aria-haspopup="dialog"
+          :aria-expanded="openRoleCard?.part === part"
+          @click="toggleRoleCard(part, $event)"
+        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ roleMentionName(part) }}</button></InlineMarks>
         
         <!-- Hashtags -->
         <InlineMarks
@@ -801,6 +807,14 @@
       @close="cancelRemoveAttachment"
       @confirm="confirmRemoveAttachment"
     />
+    <RoleMentionCard
+      v-if="openRoleCard"
+      :role-id="openRoleCard.part.roleId"
+      :role-name="roleMentionName(openRoleCard.part)"
+      :role-color="openRoleCard.part.roleColor"
+      :anchor="openRoleCard.anchor"
+      @close="closeRoleCard"
+    />
   </div>
 </template>
 
@@ -831,6 +845,8 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
+import RoleMentionCard from '@/components/messages/RoleMentionCard.vue';
+import { roleMentionColor } from '@/utils/roleMentions';
 import VideoControls from '@/components/common/VideoControls.vue';
 import InlineMarks from '@/components/common/InlineMarks';
 import { activateStoppedLink } from '@/services/outsideLinks';
@@ -906,6 +922,7 @@ export default defineComponent({
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
+    RoleMentionCard,
     PollCard,
     StickerView,
     VideoControls,
@@ -1916,6 +1933,31 @@ export default defineComponent({
     const massMentionHost = (part: any): string | null =>
       mentionSuffix(part) ?? (isMassMentionWord(part?.username) ? (runtimeConfig.domain as string) || null : null);
 
+    const roleMentionName = (part: any): string => String(part?.roleName || 'Unknown Role').replace(/^@/, '');
+
+    /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
+    const roleMentionStyle = (part: any) => {
+      const color = roleMentionColor(part?.roleColor);
+      return { '--role-color': color, color, backgroundColor: color + '1a' };
+    };
+
+    const openRoleCard = ref<{ part: any; anchor: { left: number; top: number; bottom: number }; pill: HTMLElement } | null>(null);
+    const closeRoleCard = () => {
+      const pill = openRoleCard.value?.pill;
+      openRoleCard.value = null;
+      pill?.focus();
+    };
+    const toggleRoleCard = (part: any, event: MouseEvent) => {
+      event.stopPropagation();
+      if (openRoleCard.value?.part === part) {
+        closeRoleCard();
+        return;
+      }
+      const pill = event.currentTarget as HTMLElement;
+      const box = pill.getBoundingClientRect();
+      openRoleCard.value = { part, anchor: { left: box.left, top: box.top, bottom: box.bottom }, pill };
+    };
+
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
@@ -2091,6 +2133,11 @@ export default defineComponent({
       mentionSuffix,
       readsAsMassMention,
       massMentionHost,
+      roleMentionName,
+      roleMentionStyle,
+      openRoleCard,
+      closeRoleCard,
+      toggleRoleCard,
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,
@@ -2374,12 +2421,22 @@ a.channel-mention {
 
 .role-mention {
   font-weight: 600;
-  cursor: default;
+  cursor: pointer;
 }
 
 .role-mention:hover {
   filter: brightness(1.15);
-  background-color: unset;
+}
+
+/* Role marker: a dot of the role's colour, absent from a person's pill. */
+.role-mention .role-mention-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin: 0 0.25em 0.1em 0.1em;
+  border-radius: 50%;
+  background-color: var(--role-color);
+  vertical-align: middle;
 }
 
 /* Hashtag styling */

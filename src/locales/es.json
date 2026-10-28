@@ -7688,5 +7688,17 @@
       "customLabel": "Límite de subida de {name}, MB",
       "ceiling": "Tope: {limit}"
     }
+  },
+  "mentionLabels": {
+    "role": "Rol",
+    "roleOption": "{name}, rol",
+    "memberOption": "{name}, miembro, {handle}",
+    "rolePill": "{'@'}{name}, rol",
+    "roleCard": {
+      "label": "Rol {name}",
+      "members": "{count} miembro | {count} miembros",
+      "here": "Miembros conectados que pueden ver el canal",
+      "unknown": "No es un rol de este servidor"
+    }
   }
 }

@@ -60,8 +60,10 @@
         <span
           v-else-if="part && part.type === 'role_mention'"
           class="mention role-mention"
-          :style="part.roleColor ? { '--role-color': part.roleColor, color: part.roleColor, background: part.roleColor + '1a' } : {}"
-        >@{{ part.roleName?.replace(/^@/, '') }}</span>
+          :style="roleMentionStyle(part.roleColor)"
+          :aria-label="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
+          :title="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
+        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ part.roleName?.replace(/^@/, '') }}</span>
         
         <!-- Emojis (custom server or unified pack) -->
         <template v-else-if="part && part.type === 'emoji'">
@@ -205,6 +207,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessagePart } from '@/types';
 import { useContentRenderer, type ContentRenderOptions } from '@/composables/useContentRenderer';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -220,6 +223,7 @@ import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { isMassMentionWord } from '@/utils/massMentions';
+import { roleMentionColor } from '@/utils/roleMentions';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -354,6 +358,14 @@ const mentionSuffix = (part: MessagePart): string | null => {
 };
 
 const isFederatedMention = (part: MessagePart): boolean => !!mentionSuffix(part);
+
+const { t } = useI18n();
+
+/** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
+const roleMentionStyle = (roleColor: string | null | undefined) => {
+  const color = roleMentionColor(roleColor);
+  return { '--role-color': color, color, background: color + '1a' };
+};
 
 /** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
 const readsAsMassMention = (part: MessagePart): boolean => {
@@ -641,6 +653,17 @@ const formatFileSize = (bytes: number): string => {
 
 .role-mention {
   cursor: default;
+}
+
+/* Role marker: a dot of the role's colour, absent from a person's pill. */
+.role-mention .role-mention-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin: 0 0.25em 0.1em 0.1em;
+  border-radius: 50%;
+  background-color: var(--role-color);
+  vertical-align: middle;
 }
 .role-mention:hover {
   filter: brightness(1.15);
