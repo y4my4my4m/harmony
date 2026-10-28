@@ -52,6 +52,7 @@ IDP_PASSWORD="e2e-idp-password-12345"
 IDP_PASSWORD_HASH='$2a$10$bHxt7zb62lwgA4jIKGqG5eoZkbH8AJYZY7nf1pD1UxwZ/ioCol.ee'
 IDP_NEW_EMAIL="oidc-new@e2e.harmony.local"
 IDP_LINK_EMAIL="oidc-link@e2e.harmony.local"
+IDP_APART_EMAIL="oidc-apart@e2e.harmony.local"
 
 log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[32mok \033[0m %s\n' "$*"; }
@@ -117,6 +118,7 @@ E2E_IDP_CLIENT_SECRET=$IDP_CLIENT_SECRET
 E2E_IDP_PASSWORD=$IDP_PASSWORD
 E2E_IDP_NEW_EMAIL=$IDP_NEW_EMAIL
 E2E_IDP_LINK_EMAIL=$IDP_LINK_EMAIL
+E2E_IDP_APART_EMAIL=$IDP_APART_EMAIL
 EOF
   ok "wrote e2e/stack.env"
 }
@@ -166,6 +168,10 @@ staticPasswords:
     hash: "$IDP_PASSWORD_HASH"
     username: Linked Oidc
     userID: 0b0d1d6e-0000-4000-8000-000000000002
+  - email: $IDP_APART_EMAIL
+    hash: "$IDP_PASSWORD_HASH"
+    username: Apart Oidc
+    userID: 0b0d1d6e-0000-4000-8000-000000000003
 EOF
   ok "wrote e2e/idp/ (issuer $IDP_ISSUER)"
 }

@@ -56,6 +56,7 @@ env_set() {
 }
 
 lower() { tr '[:upper:]' '[:lower:]'; }
+upper() { tr '[:lower:]' '[:upper:]'; }
 truthy() { case "$(printf '%s' "${1:-}" | lower)" in y|yes|true|1|on) return 0 ;; *) return 1 ;; esac; }
 
 # version_ge A B: A >= B for dotted numeric versions.
@@ -78,86 +79,8 @@ stack_gotrue_image() {
 	{ grep -oE 'supabase/gotrue:v[0-9]+\.[0-9]+\.[0-9]+' "$SELF_HOST_DIR/supabase/docker-compose.yml" 2>/dev/null || true; } | head -1
 }
 
-# --- account linking of sign-in providers ---------------------------------------
-# PROVIDER_LINKING_DOMAINS in supabase/.env (GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS):
-# comma-separated provider=domain pairs, parsed as GoTrue 2.196.0's
-# conf.ProviderLinkingDomains.Decode does (split on ',', then on the first '=', both sides
-# trimmed and non-empty; a later pair for the same provider wins). A provider without a pair
-# is in the "default" domain: its first sign-in joins the existing account that has its
-# address, the address counting as verified when GoTrue autoconfirms (ENABLE_EMAIL_AUTOCONFIRM).
-# A value that does not parse stops GoTrue from starting.
-
-# linking_valid VALUE: status 0 when GoTrue parses VALUE; empty parses.
-linking_valid() {
-	LD="$1" awk 'BEGIN {
-		v = ENVIRON["LD"]; gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", v)
-		if (v == "") exit 0
-		n = split(v, pairs, ",")
-		for (i = 1; i <= n; i++) {
-			eq = index(pairs[i], "=")
-			if (eq == 0) exit 1
-			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
-			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
-			if (p == "" || d == "") exit 1
-		}
-		exit 0
-	}'
-}
-
-# linking_domain VALUE PROVIDER: PROVIDER's linking domain; empty for the default domain.
-# VALUE must parse (linking_valid).
-linking_domain() {
-	LD="$1" LP="$2" awk 'BEGIN {
-		n = split(ENVIRON["LD"], pairs, ",")
-		for (i = 1; i <= n; i++) {
-			eq = index(pairs[i], "=")
-			if (eq == 0) continue
-			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
-			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
-			if (p == ENVIRON["LP"]) found = d
-		}
-		printf "%s", found
-	}'
-}
-
-# linking_set VALUE PROVIDER [DOMAIN]: VALUE without PROVIDER's pairs, then PROVIDER=DOMAIN
-# appended when DOMAIN is given. Other pairs keep their order, trimmed. VALUE must parse.
-linking_set() {
-	LD="$1" LP="$2" LV="${3:-}" awk 'BEGIN {
-		n = split(ENVIRON["LD"], pairs, ",")
-		for (i = 1; i <= n; i++) {
-			eq = index(pairs[i], "=")
-			if (eq == 0) continue
-			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
-			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
-			if (p == ENVIRON["LP"]) continue
-			out = out (out == "" ? "" : ",") p "=" d
-		}
-		if (ENVIRON["LV"] != "") out = out (out == "" ? "" : ",") ENVIRON["LP"] "=" ENVIRON["LV"]
-		printf "%s", out
-	}'
-}
-
-# linking_mode VALUE PROVIDER: how PROVIDER's first sign-in treats an existing account with its
-# address. "by address": no pair, or the domain named default, which is GoTrue's pool of every
-# provider without one: it joins the account. "separate": a domain no other provider has.
-# "shared: DOMAIN": joins only accounts of the providers mapped to DOMAIN. VALUE must parse.
-linking_mode() {
-	LD="$1" LP="$2" awk 'BEGIN {
-		n = split(ENVIRON["LD"], pairs, ",")
-		for (i = 1; i <= n; i++) {
-			eq = index(pairs[i], "=")
-			if (eq == 0) continue
-			p = substr(pairs[i], 1, eq - 1); d = substr(pairs[i], eq + 1)
-			gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", p); gsub(/^[ \t\r\n\v\f]+|[ \t\r\n\v\f]+$/, "", d)
-			dom[p] = d
-		}
-		me = ENVIRON["LP"]
-		if (!(me in dom) || dom[me] == "default") { printf "by address"; exit }
-		for (p in dom) if (p != me && dom[p] == dom[me]) { printf "shared: %s", dom[me]; exit }
-		printf "separate"
-	}'
-}
+# shellcheck source=linking.sh
+source "$SELF_HOST_DIR/linking.sh"
 
 # --- upload ceiling -----------------------------------------------------------
 # FILE_SIZE_LIMIT in supabase/.env: the largest object storage-api accepts, bytes,
@@ -203,6 +126,30 @@ compose() { ( cd "$SELF_HOST_DIR" && docker compose "$@" ); }
 
 # Container id of a running compose service; empty when it is not running.
 svc_id() { compose ps -q --status running "$1" 2>/dev/null | head -1; }
+
+# Environment of the running auth service, one VAR=value per line; empty when it is not running.
+auth_env() {
+	local id; id="$(svc_id auth)"
+	[[ -z "$id" ]] || docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null || true
+}
+
+# oauth_enabled [ENV]: the GoTrue OAuth providers that are on, space-separated. ENV (auth_env)
+# names them by GOTRUE_EXTERNAL_<ID>_ENABLED; empty ENV falls back to supabase/.env's
+# <ID>_ENABLED of the built-in providers.
+oauth_enabled() {
+	local env="${1-$(auth_env)}" p v out=""
+	if [[ -n "$env" ]]; then
+		for p in $GOTRUE_OAUTH_PROVIDERS; do
+			v="$(printf '%s\n' "$env" | sed -n "s/^GOTRUE_EXTERNAL_$(printf '%s' "$p" | upper)_ENABLED=//p" | head -1)"
+			if truthy "$v"; then out+="${out:+ }$p"; fi
+		done
+	else
+		for p in $BUILTIN_OAUTH_PROVIDERS; do
+			if truthy "$(env_get "$SB_ENV" "$(printf '%s' "$p" | upper)_ENABLED")"; then out+="${out:+ }$p"; fi
+		done
+	fi
+	printf '%s' "$out"
+}
 
 # Postgres container: SUPABASE_DB_CONTAINER, else the compose `db` service.
 db_container() {

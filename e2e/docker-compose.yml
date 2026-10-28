@@ -46,6 +46,9 @@ services:
       # Callback of custom providers: this URL + /callback. API_EXTERNAL_URL lacks
       # the gateway's /auth/v1 prefix.
       GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: http://localhost:${E2E_PORT:-54480}/auth/v1
+      # custom:e2e-dex-apart in a linking domain of its own, as self-host/linking.sh keeps a
+      # provider apart; custom:e2e-dex stays in the default domain.
+      GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS: custom:e2e-dex-apart=custom:e2e-dex-apart
       GOTRUE_API_HOST: 0.0.0.0
       PORT: "9999"
       API_EXTERNAL_URL: http://localhost:${E2E_PORT:-54480}

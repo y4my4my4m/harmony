@@ -1,12 +1,13 @@
 /**
- * self-host account linking of custom sign-in providers (admin.sh auth, lib.sh linking_*) and the
- * auth image choice (configure.sh gotrue_image_for).
+ * self-host account linking of sign-in providers (admin.sh auth, linking.sh, configure.sh,
+ * doctor.sh check_auth_linking) and the auth image choice (configure.sh gotrue_image_for).
  *
  * GoTrue 2.196.0 puts a provider without a PROVIDER_LINKING_DOMAINS pair in the "default" domain,
  * where a first sign-in joins the existing account with the same address; with
  * ENABLE_EMAIL_AUTOCONFIRM=true every address counts as verified. admin.sh runs here against a
  * stand-in `docker` that records each auth recreation and each provider write with the linking
- * value the running auth service had at that moment.
+ * value the running auth service had at that moment; configure.sh runs whole against one that
+ * answers only its version and config checks.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -46,6 +47,27 @@ describe('lib.sh linking_*', () => {
     expect(lib(`linking_mode '${v}' custom:z`).out).toBe('by address')
     expect(lib(`linking_mode '${v}' custom:e`).out).toBe('separate')
   })
+
+  it('gives each provider without a pair a domain of its own and leaves a pair present, default included', () => {
+    expect(lib(`linking_isolate '' github google twitch`).out).toBe('github=github,google=google,twitch=twitch')
+    expect(lib(`linking_isolate 'custom:a=custom:a, github=default,google=staff' github google twitch`).out)
+      .toBe('custom:a=custom:a,github=default,google=staff,twitch=twitch')
+    expect(lib(`linking_isolate 'github=github,google=google,twitch=twitch' github google twitch`).out)
+      .toBe('github=github,google=google,twitch=twitch')
+  })
+
+  it('names the providers the auth service has on, from its environment or from supabase/.env', () => {
+    const env = 'GOTRUE_EXTERNAL_GITHUB_ENABLED=true\nGOTRUE_EXTERNAL_LINKEDIN_OIDC_ENABLED=1\n' +
+      'GOTRUE_EXTERNAL_EMAIL_ENABLED=true\nGOTRUE_EXTERNAL_TWITCH_ENABLED=false\nGOTRUE_EXTERNAL_GOOGLE_ENABLED='
+    expect(lib(`oauth_enabled "$(printf '${env}')"`).out).toBe('github linkedin_oidc')
+    const dir = mkdtempSync(join(tmpdir(), 'oauth-enabled-'))
+    try {
+      writeFileSync(join(dir, '.env'), 'GOOGLE_ENABLED=true\nGITHUB_ENABLED=false\nDISCORD_ENABLED=true\n')
+      expect(lib(`SB_ENV='${join(dir, '.env')}'; oauth_enabled ''`).out).toBe('google')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('configure.sh gotrue_image_for', () => {
@@ -80,8 +102,104 @@ describe('configure.sh gotrue_image_for', () => {
   })
 })
 
+describe('configure.sh and the built-in providers', () => {
+  const ref = /^SUPABASE_REF_DEFAULT=(.+)$/m.exec(readFileSync(join(SELF_HOST, 'configure.sh'), 'utf8'))?.[1] ?? ''
+  let root: string
+  let sbEnv: string
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'harmony-configure-'))
+    const sb = join(root, 'self-host', 'supabase')
+    mkdirSync(sb, { recursive: true })
+    mkdirSync(join(root, 'bin'))
+    for (const f of ['configure.sh', 'linking.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
+    writeFileSync(join(root, 'bin', 'docker'), '#!/usr/bin/env bash\n[ "$*" != "compose version --short" ] || echo 2.30.0\n')
+    chmodSync(join(root, 'bin', 'docker'), 0o755)
+    writeFileSync(join(sb, 'docker-compose.yml'), 'services:\n  auth:\n    image: supabase/gotrue:v2.196.0\n')
+    writeFileSync(join(sb, '.env.example'), 'ENABLE_EMAIL_AUTOCONFIRM=false\n')
+    writeFileSync(join(sb, '.harmony-supabase-ref'), `${ref}\n`)
+    sbEnv = join(sb, '.env')
+  })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  const configure = (extra: Record<string, string> = {}) => spawnSync('bash', [join(root, 'self-host', 'configure.sh'), '--non-interactive'], {
+    cwd: root,
+    encoding: 'utf8',
+    input: '',
+    env: {
+      ...process.env,
+      PATH: `${join(root, 'bin')}:${process.env.PATH}`,
+      HARMONY_DOMAIN: 'chat.test',
+      HARMONY_ADMIN_EMAIL: 'admin@chat.test',
+      HARMONY_TLS: 'internal',
+      HARMONY_VOICE: 'n',
+      HARMONY_BOTS: 'n',
+      HARMONY_REGISTRATION: 'open',
+      ...extra,
+    },
+  })
+  const value = (key: string) => new RegExp(`^${key}=(.*)$`, 'm').exec(readFileSync(sbEnv, 'utf8'))?.[1]
+  const SMTP = { HARMONY_SMTP_HOST: 'smtp.chat.test', HARMONY_SMTP_USER: 'harmony', HARMONY_SMTP_PASS: 'p4ss' }
+
+  it('keeps each built-in provider apart on an install without SMTP, once', () => {
+    writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=custom:a=custom:a\n')
+    let r = configure()
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,github=github,google=google,twitch=twitch')
+    expect(r.stdout).toContain('PROVIDER_LINKING_DOMAINS=custom:a=custom:a,github=github')
+    r = configure()
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a,github=github,google=google,twitch=twitch')
+    expect(r.stdout).not.toContain('PROVIDER_LINKING_DOMAINS')
+  })
+
+  it('leaves a pair present, a provider set to default included', () => {
+    writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=google=default,twitch=social\n')
+    expect(configure().status).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('google=default,twitch=social,github=github')
+  })
+
+  it('keeps them apart on the run that configures SMTP: earlier accounts never proved their address', () => {
+    writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\n')
+    const r = configure(SMTP)
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('ENABLE_EMAIL_AUTOCONFIRM')).toBe('false')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('github=github,google=google,twitch=twitch')
+  })
+
+  it('keeps them apart on a new install without SMTP, not on one with it', () => {
+    expect(configure().status).toBe(0)
+    expect(value('ENABLE_EMAIL_AUTOCONFIRM')).toBe('true')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('github=github,google=google,twitch=twitch')
+
+    rmSync(sbEnv)
+    expect(configure(SMTP).status).toBe(0)
+    expect(value('ENABLE_EMAIL_AUTOCONFIRM')).toBe('false')
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBeUndefined()
+  })
+
+  it('control: an install that confirms addresses by email keeps linking by verified address', () => {
+    writeFileSync(sbEnv, 'SMTP_HOST=smtp.chat.test\nENABLE_EMAIL_AUTOCONFIRM=false\nPROVIDER_LINKING_DOMAINS=custom:a=custom:a\n')
+    let r = configure()
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a')
+    r = configure(SMTP)
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a=custom:a')
+  })
+
+  it('leaves a value GoTrue cannot parse as it is, and says so', () => {
+    writeFileSync(sbEnv, 'ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=custom:a\n')
+    const r = configure()
+    expect(r.status, r.stderr).toBe(0)
+    expect(value('PROVIDER_LINKING_DOMAINS')).toBe('custom:a')
+    expect(r.stderr).toContain('not kept apart')
+  })
+})
+
 // Stand-in for docker as admin.sh and lib.sh call it. $FAKE_STATE/events gets one line per auth
-// recreation and per provider write, with the linking value the running auth service has.
+// recreation and per provider write, with the linking value the running auth service has;
+// $FAKE_STATE/auth_extra holds the rest of its environment.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bash
 state="$FAKE_STATE"
 printf '%s\n' "$*" >> "$state/calls"
@@ -97,7 +215,9 @@ compose)
 inspect)
 	case "$*" in
 	*State.Health*) echo healthy ;;
-	*Config.Env*) printf 'GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=%s\n' "$(cat "$state/auth_env" 2>/dev/null)" ;;
+	*Config.Env*)
+		printf 'GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=%s\n' "$(cat "$state/auth_env" 2>/dev/null)"
+		cat "$state/auth_extra" 2>/dev/null || true ;;
 	esac ;;
 exec)
 	prog="$(cat)"
@@ -137,7 +257,7 @@ describe('harmony auth and account linking', () => {
     mkdirSync(state)
     mkdirSync(join(root, 'bin'))
     mkdirSync(join(root, 'self-host', 'supabase'), { recursive: true })
-    for (const f of ['admin.sh', 'lib.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
+    for (const f of ['admin.sh', 'lib.sh', 'linking.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
     writeFileSync(join(root, 'bin', 'docker'), FAKE_DOCKER)
     chmodSync(join(root, 'bin', 'docker'), 0o755)
     sbEnv = join(root, 'self-host', 'supabase', '.env')
@@ -248,10 +368,138 @@ describe('harmony auth and account linking', () => {
     expect(r.stderr).toContain('custom:open join existing accounts by address')
     expect(r.stdout).toContain('custom:gone')
   })
+
+  it('keeps a built-in provider apart, and links it only once its addresses can be trusted', () => {
+    let r = harmony('linking', 'google', '--separate-accounts')
+    expect(r.status, r.stderr).toBe(0)
+    expect(linking()).toBe('custom:other=staff,google=google')
+    expect(events()).toEqual(['recreate auth=custom:other=staff,google=google'])
+    expect(r.stdout).toContain('kept apart')
+    expect(harmony('linking', 'google', '--separate-accounts').status).toBe(0)
+    expect(events()).toHaveLength(1)
+
+    r = harmony('linking', 'google', '--link-existing-accounts')
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('ENABLE_EMAIL_AUTOCONFIRM=true')
+    expect(linking()).toBe('custom:other=staff,google=google')
+
+    r = harmony('linking', 'google', '--link-existing-accounts', '--provider-verifies-email')
+    expect(r.status, r.stderr).toBe(0)
+    expect(linking()).toBe('custom:other=staff,google=default')
+    expect(events().at(-1)).toBe('recreate auth=custom:other=staff,google=default')
+  })
+
+  it('never links GitHub under automatic confirmation; with SMTP it does', () => {
+    let r = harmony('linking', 'github', '--link-existing-accounts', '--provider-verifies-email')
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('unverified ones included')
+    expect(events()).toEqual([])
+    setAutoconfirm(false)
+    r = harmony('linking', 'github', '--link-existing-accounts')
+    expect(r.status, r.stderr).toBe(0)
+    expect(linking()).toBe('custom:other=staff,github=default')
+  })
+
+  it('refuses a provider GoTrue lacks or no mode, and points a custom provider at add-provider', () => {
+    expect(harmony('linking', 'myspace', '--separate-accounts').status).not.toBe(0)
+    expect(harmony('linking', 'github').status).not.toBe(0)
+    const r = harmony('linking', 'custom:authentik', '--separate-accounts')
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('add-provider authentik')
+    expect(events()).toEqual([])
+  })
+
+  it('lists the built-in providers and any other on, and warns about one on that links by address', () => {
+    writeFileSync(sbEnv, readFileSync(sbEnv, 'utf8').replace(/^PROVIDER_LINKING_DOMAINS=.*$/m,
+      'PROVIDER_LINKING_DOMAINS=custom:other=staff,github=github'))
+    writeFileSync(join(state, 'auth_env'), 'custom:other=staff,github=github')
+    writeFileSync(join(state, 'auth_extra'),
+      'GOTRUE_EXTERNAL_GITHUB_ENABLED=true\nGOTRUE_EXTERNAL_DISCORD_ENABLED=true\nGOTRUE_EXTERNAL_TWITCH_ENABLED=false\n')
+    let r = harmony('providers')
+    expect(r.status, r.stderr).toBe(0)
+    expect(r.stdout).toMatch(/github\s+on\s+separate/)
+    expect(r.stdout).toMatch(/google\s+off\s+by address/)
+    expect(r.stdout).toMatch(/twitch\s+off\s+by address/)
+    expect(r.stdout).toMatch(/discord\s+on\s+by address/)
+    expect(r.stderr).toContain('discord join existing accounts by address')
+    expect(r.stderr).not.toMatch(/github|google|twitch/)
+
+    setAutoconfirm(false)
+    r = harmony('providers')
+    expect(r.status, r.stderr).toBe(0)
+    expect(r.stdout).toMatch(/discord\s+on\s+by address/)
+    expect(r.stderr).not.toContain('join existing accounts')
+  })
+})
+
+describe('doctor.sh check_auth_linking', () => {
+  const doctor = readFileSync(join(SELF_HOST, 'doctor.sh'), 'utf8')
+  const fn = /^check_auth_linking\(\) \{\n[\s\S]*?\n\}\n/m.exec(doctor)?.[0] ?? ''
+  let dir: string
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'doctor-linking-')) })
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+
+  // One report per line: LEVEL|detail|fix. AUTH is the running auth service's environment, empty
+  // when it is not running; CUSTOM the ids of instance_config.custom_oauth_providers.
+  const check = (sbEnv: string, auth: string, custom = '') => {
+    writeFileSync(join(dir, 'sb.env'), sbEnv)
+    writeFileSync(join(dir, 'auth.env'), auth)
+    writeFileSync(join(dir, 'custom'), custom)
+    const r = lib(`SB_ENV='${join(dir, 'sb.env')}'
+report() { printf '%s|%s|%s\\n' "$1" "$3" "\${4:-}"; }
+auth_env() { cat '${join(dir, 'auth.env')}'; }
+db_ready() { true; }
+db_sql() { cat '${join(dir, 'custom')}'; }
+${fn}
+check_auth_linking`)
+    expect(r.status).toBe(0)
+    return r.out.trim().split('\n').filter(Boolean)
+  }
+  const running = (linking: string, ...on: string[]) =>
+    [`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS=${linking}`, ...on.map((p) => `GOTRUE_EXTERNAL_${p}_ENABLED=true`)].join('\n') + '\n'
+
+  it('is defined', () => expect(fn).not.toBe(''))
+
+  it('warns about a built-in provider on that links by address under automatic confirmation', () => {
+    const out = check('ENABLE_EMAIL_AUTOCONFIRM=true\n', running('', 'GITHUB'))
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatch(/^WARN\|github join existing accounts by address/)
+    expect(out[0]).toContain('harmony auth linking ID --separate-accounts')
+  })
+
+  it('counts a provider on without a sign-in button, and reads supabase/.env when auth is down', () => {
+    expect(check('ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=github=github\n',
+      running('github=github', 'GITHUB', 'DISCORD'))[0]).toMatch(/^WARN\|discord join/)
+    expect(check('ENABLE_EMAIL_AUTOCONFIRM=true\nTWITCH_ENABLED=true\n', '')[0]).toMatch(/^WARN\|twitch join/)
+  })
+
+  it('warns about built-in and custom providers apart, each with its own fix', () => {
+    const out = check('ENABLE_EMAIL_AUTOCONFIRM=true\n', running('', 'GOOGLE'), 'custom:authentik')
+    expect(out).toHaveLength(2)
+    expect(out[0]).toMatch(/^WARN\|google join.*\|harmony auth linking/)
+    expect(out[1]).toMatch(/^WARN\|custom:authentik join.*\|harmony auth add-provider/)
+  })
+
+  it('passes once each is apart, and says nothing without a provider on', () => {
+    const v = 'github=github,google=google,twitch=twitch'
+    expect(check(`ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=${v}\n`, running(v, 'GITHUB', 'GOOGLE')))
+      .toEqual(['OK|your sign-in providers keep their accounts apart|'])
+    expect(check('ENABLE_EMAIL_AUTOCONFIRM=true\n', running(''))).toEqual([])
+  })
+
+  it('control: with addresses confirmed by email, linking by address is fine', () => {
+    expect(check('ENABLE_EMAIL_AUTOCONFIRM=false\n', running('', 'GITHUB'), 'custom:authentik'))
+      .toEqual(['OK|github custom:authentik join existing accounts by verified address; the others are kept apart|'])
+  })
+
+  it('reports a running value older than supabase/.env before anything else', () => {
+    expect(check('ENABLE_EMAIL_AUTOCONFIRM=true\nPROVIDER_LINKING_DOMAINS=github=github\n', running('', 'GITHUB')))
+      .toEqual(['WARN|the auth service runs with an older PROVIDER_LINKING_DOMAINS than supabase/.env|docker compose up -d auth'])
+  })
 })
 
 describe('the shell scripts parse', () => {
-  it.each(['admin.sh', 'lib.sh', 'configure.sh', 'doctor.sh', 'update.sh', 'harmony'])('%s', (f) => {
+  it.each(['admin.sh', 'lib.sh', 'linking.sh', 'configure.sh', 'doctor.sh', 'update.sh', 'harmony'])('%s', (f) => {
     expect(() => execFileSync('bash', ['-n', join(SELF_HOST, f)])).not.toThrow()
   })
 })

@@ -25,6 +25,9 @@ Without SMTP the instance works, with these differences:
   server with `harmony admin reset-password --email user@example.com`.
 - `harmony admin invite` prints the invitation link for you to send;
   `--send` refuses to run.
+- A first sign-in through Google, GitHub or Twitch makes a new account even
+  when an account has the same address
+  ([Existing accounts](/self-host/oauth#existing-accounts)).
 
 Accounts made with `harmony admin create` are confirmed at creation and need
 no email.
@@ -61,7 +64,9 @@ instance can have email from the start.
 The first time SMTP is configured, `configure.sh` also sets
 `ENABLE_EMAIL_AUTOCONFIRM=false`: from then on, new accounts confirm their
 address. Changing the SMTP settings later leaves that value alone, so a hand
-edit of it stays.
+edit of it stays. The built-in sign-in providers stay apart from existing
+accounts, since those made before never confirmed theirs;
+`harmony auth linking` changes that per provider.
 
 ### Without prompts
 
