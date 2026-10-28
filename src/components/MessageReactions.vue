@@ -16,10 +16,11 @@
         :aria-pressed="reactionGroup.current_user_reacted ? 'true' : 'false'"
         :aria-label="reactionLabel(reactionGroup)"
         :aria-describedby="hintId"
+        aria-haspopup="dialog"
         @click="handleReactionClick(reactionGroup, $event)"
         @keydown="handlePillKeydown(reactionGroup, $event)"
-        @mouseenter="showTooltip($event, reactionGroup)"
-        @mouseleave="hideTooltip"
+        @mouseenter="showInfo($event, reactionGroup)"
+        @mouseleave="leaveInfo"
         @contextmenu="handlePillContextMenu(reactionGroup, $event)"
         @touchstart.passive="handlePillTouchStart(reactionGroup, $event)"
         @touchmove.passive="handlePillTouchMove"
@@ -100,6 +101,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer';
 import { isContextMenuKey } from '@/composables/useMenu';
 import { customEmojiLabel, humanizeEmojiName, spokenEmojiName } from '@/utils/a11y/emojiNames';
 import { focusElement, uid } from '@/utils/a11y/focus';
+import { dismissHoverEmojiInfo, type ReactionInfoVia } from '@/composables/useEmojiInfo';
 
 interface Props {
   message: Message;
@@ -107,10 +109,9 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
-  (e: 'hide-reaction-tooltip'): void;
+  (e: 'reaction-info', messageId: string, emojiKey: string, anchor: HTMLElement, via: ReactionInfoVia): void;
+  (e: 'reaction-info-leave'): void;
   (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
-  (e: 'open-reactions', messageId: string, emojiKey: string): void;
   (e: 'layout-change', messageId: string): void;
 }
 
@@ -180,8 +181,8 @@ const handleReactionClick = async (reactionGroup: ReactionGroup, event?: MouseEv
   const hadFocus = !!pill && document.activeElement === pill;
   const row = pill?.closest<HTMLElement>('[data-message-row]') ?? null;
   
-  // Dismiss tooltip immediately so it doesn't linger if the chip is removed from DOM
-  emit('hide-reaction-tooltip');
+  // A hover card closes at once: the pill may leave the DOM.
+  dismissHoverEmojiInfo();
   
   themeStore.playAudio('reaction');
   triggerReaction();
@@ -207,29 +208,30 @@ const handleReactionClick = async (reactionGroup: ReactionGroup, event?: MouseEv
   else focusElement(row);
 };
 
-// The ContextMenu key and Shift+F10 open the list of who reacted.
+// The ContextMenu key and Shift+F10 open the emoji's info card with who reacted.
 const handlePillKeydown = (reactionGroup: ReactionGroup, event: KeyboardEvent) => {
   if (!isContextMenuKey(event)) return;
   event.preventDefault();
   event.stopPropagation();
-  openReactions(reactionGroup);
+  if (event.currentTarget instanceof HTMLElement) openInfo(reactionGroup, event.currentTarget, 'keyboard');
 };
 
-const showTooltip = (event: MouseEvent, reactionGroup: any) => {
-  emit('show-reaction-tooltip', event, reactionGroup);
+const showInfo = (event: MouseEvent, reactionGroup: ReactionGroup) => {
+  if (event.currentTarget instanceof HTMLElement) openInfo(reactionGroup, event.currentTarget, 'hover');
 };
 
-const hideTooltip = () => {
-  emit('hide-reaction-tooltip');
+const leaveInfo = () => {
+  emit('reaction-info-leave');
 };
 
-// Long-press on a pill opens the reactions list; 450ms, under the message
+// Long-press on a pill opens the info card as a sheet; 450ms, under the message
 // row's 500ms long-press.
 const PILL_LONG_PRESS_MS = 450;
 const PILL_MOVE_TOLERANCE_PX = 10;
 let pillPressTimer: ReturnType<typeof setTimeout> | null = null;
 let pillPressStart: { x: number; y: number } | null = null;
 let pillPressFired = false;
+let pillPressTarget: HTMLElement | null = null;
 
 const cancelPillPress = () => {
   if (pillPressTimer) {
@@ -239,22 +241,22 @@ const cancelPillPress = () => {
   pillPressStart = null;
 };
 
-const openReactions = (reactionGroup: any) => {
-  emit('hide-reaction-tooltip');
-  emit('open-reactions', props.message.id, getReactionKey(reactionGroup));
+const openInfo = (reactionGroup: ReactionGroup, anchor: HTMLElement, via: ReactionInfoVia) => {
+  emit('reaction-info', props.message.id, getReactionKey(reactionGroup), anchor, via);
 };
 
-const handlePillTouchStart = (reactionGroup: any, event: TouchEvent) => {
+const handlePillTouchStart = (reactionGroup: ReactionGroup, event: TouchEvent) => {
   cancelPillPress();
   pillPressFired = false;
   const touch = event.touches[0];
   if (!touch || event.touches.length > 1) return;
   pillPressStart = { x: touch.clientX, y: touch.clientY };
+  pillPressTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
   pillPressTimer = setTimeout(() => {
     pillPressTimer = null;
     pillPressFired = true;
     triggerInteraction();
-    openReactions(reactionGroup);
+    if (pillPressTarget) openInfo(reactionGroup, pillPressTarget, 'press');
   }, PILL_LONG_PRESS_MS);
 };
 
@@ -276,16 +278,18 @@ const handlePillTouchEnd = (event: TouchEvent) => {
 };
 
 // Right-click, and the contextmenu Android fires during a long-press. Stopped
-// here so the message row does not open its own menu over the list.
-const handlePillContextMenu = (reactionGroup: any, event: MouseEvent) => {
+// here so the message row does not open its own menu over the card.
+const handlePillContextMenu = (reactionGroup: ReactionGroup, event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
   if (pillPressFired) return;
-  if (pillPressStart) {
+  const pill = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  const pressing = !!pillPressStart;
+  if (pressing) {
     cancelPillPress();
     pillPressFired = true;
   }
-  openReactions(reactionGroup);
+  if (pill) openInfo(reactionGroup, pill, pressing ? 'press' : 'click');
 };
 
 onBeforeUnmount(cancelPillPress);

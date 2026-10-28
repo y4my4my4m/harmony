@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}，{count} 个回应",
       "pillYou": "{emoji}，{count} 个回应，包括你",
-      "hint": "按上下文菜单键或 Shift+F10 查看谁做了回应。",
+      "hint": "按上下文菜单键或 Shift+F10 查看表情和谁做了回应。",
       "removed": "已取消回应：{emoji}"
     },
     "emoji": {
@@ -2985,6 +2985,37 @@
     "flags": "旗帜",
     "custom": "自定义",
     "noResults": "未找到表情"
+  },
+  "emojiInfo": {
+    "dialog": "表情",
+    "loading": "正在查找来源…",
+    "default": "默认表情，随处可用。",
+    "thisServer": "来自本服务器。",
+    "yourServer": "来自你加入的服务器 {server}。",
+    "publicServer": "来自公开服务器 {server}。加入后即可随处使用此表情。",
+    "remoteServer": "来自 {domain} 上的服务器 {server}。",
+    "personalYours": "你的个人表情，随处可用。",
+    "personalOf": "{name} 的个人表情。",
+    "personalUnknown": "个人表情。",
+    "instance": "本实例的表情。",
+    "remote": "来自其他实例：{domain}。",
+    "discord": "Discord 表情，由 Discord 桥接而来。",
+    "unavailable": "来自私密或已不可用的服务器。",
+    "members": "{count} 名成员",
+    "publicLabel": "公开服务器",
+    "privateLabel": "仅限邀请的服务器",
+    "moreEmoji": "此服务器的更多表情",
+    "joined": "已加入 {server}",
+    "reactedBy": "{names} 做了回应",
+    "reactedByOthers": "{names} 等 {count} 人做了回应",
+    "reactionCount": "{count} 个回应",
+    "nameSeparator": "、",
+    "allReactions": "全部回应",
+    "copy": "复制",
+    "copied": "已复制 {text}",
+    "copyFailed": "无法复制",
+    "copyLink": "复制图片链接",
+    "linkCopied": "已复制图片链接"
   },
   "inbox": {
     "title": "通知",

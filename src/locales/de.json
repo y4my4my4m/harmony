@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
       "pillYou": "{emoji}, {count} Reaktion, auch von dir | {emoji}, {count} Reaktionen, auch von dir",
-      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt, wer reagiert hat.",
+      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt das Emoji und wer reagiert hat.",
       "removed": "Reaktion entfernt: {emoji}"
     },
     "emoji": {
@@ -2985,6 +2985,37 @@
     "flags": "Flaggen",
     "custom": "Benutzerdefiniert",
     "noResults": "Kein Emoji gefunden"
+  },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Herkunft wird gesucht…",
+    "default": "Ein Standard-Emoji. Überall verwendbar.",
+    "thisServer": "Von diesem Server.",
+    "yourServer": "Von {server}, einem deiner Server.",
+    "publicServer": "Von {server}, einem öffentlichen Server. Tritt bei, um dieses Emoji überall zu verwenden.",
+    "remoteServer": "Von {server} auf {domain}.",
+    "personalYours": "Dein persönliches Emoji. Überall verwendbar.",
+    "personalOf": "Ein persönliches Emoji von {name}.",
+    "personalUnknown": "Ein persönliches Emoji.",
+    "instance": "Ein Emoji dieser Instanz.",
+    "remote": "Von einer anderen Instanz: {domain}.",
+    "discord": "Ein Discord-Emoji, von Discord übertragen.",
+    "unavailable": "Von einem Server, der privat oder nicht mehr verfügbar ist.",
+    "members": "{count} Mitglied | {count} Mitglieder",
+    "publicLabel": "Öffentlicher Server",
+    "privateLabel": "Server nur auf Einladung",
+    "moreEmoji": "Weitere Emoji dieses Servers",
+    "joined": "Du bist {server} beigetreten",
+    "reactedBy": "Reaktion von {names}",
+    "reactedByOthers": "Reaktion von {names} und {count} weiteren Person | Reaktion von {names} und {count} weiteren Personen",
+    "reactionCount": "{count} Reaktion | {count} Reaktionen",
+    "nameSeparator": ", ",
+    "allReactions": "Alle Reaktionen",
+    "copy": "Kopieren",
+    "copied": "{text} kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "copyLink": "Bildlink kopieren",
+    "linkCopied": "Bildlink kopiert"
   },
   "inbox": {
     "title": "Benachrichtigungen",

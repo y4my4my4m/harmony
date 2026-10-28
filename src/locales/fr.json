@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}, {count} réaction | {emoji}, {count} réactions",
       "pillYou": "{emoji}, {count} réaction, dont la vôtre | {emoji}, {count} réactions, dont la vôtre",
-      "hint": "La touche menu contextuel ou Maj+F10 affiche qui a réagi.",
+      "hint": "La touche menu contextuel ou Maj+F10 affiche l’emoji et qui a réagi.",
       "removed": "Réaction retirée : {emoji}"
     },
     "emoji": {
@@ -2985,6 +2985,37 @@
     "flags": "Drapeaux",
     "custom": "Personnalisés",
     "noResults": "Aucun émoji trouvé"
+  },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Recherche de sa provenance…",
+    "default": "Un emoji par défaut. Utilisable partout.",
+    "thisServer": "De ce serveur.",
+    "yourServer": "De {server}, l’un de vos serveurs.",
+    "publicServer": "De {server}, un serveur public. Rejoignez-le pour utiliser cet emoji partout.",
+    "remoteServer": "De {server} sur {domain}.",
+    "personalYours": "Votre emoji personnel. Utilisable partout.",
+    "personalOf": "Un emoji personnel de {name}.",
+    "personalUnknown": "Un emoji personnel.",
+    "instance": "Un emoji de cette instance.",
+    "remote": "D’une autre instance : {domain}.",
+    "discord": "Un emoji Discord, relayé depuis Discord.",
+    "unavailable": "D’un serveur privé ou qui n’est plus disponible.",
+    "members": "{count} membre | {count} membres",
+    "publicLabel": "Serveur public",
+    "privateLabel": "Serveur sur invitation",
+    "moreEmoji": "Autres emoji de ce serveur",
+    "joined": "Vous avez rejoint {server}",
+    "reactedBy": "Réaction de {names}",
+    "reactedByOthers": "Réaction de {names} et {count} autre | Réaction de {names} et {count} autres",
+    "reactionCount": "{count} réaction | {count} réactions",
+    "nameSeparator": ", ",
+    "allReactions": "Toutes les réactions",
+    "copy": "Copier",
+    "copied": "{text} copié",
+    "copyFailed": "Copie impossible",
+    "copyLink": "Copier le lien de l’image",
+    "linkCopied": "Lien de l’image copié"
   },
   "inbox": {
     "title": "Notifications",

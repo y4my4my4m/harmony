@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}、{count} 件のリアクション",
       "pillYou": "{emoji}、あなたを含む {count} 件のリアクション",
-      "hint": "コンテキストメニューキーまたは Shift+F10 でリアクションした人を表示します。",
+      "hint": "コンテキストメニューキーまたは Shift+F10 で絵文字とリアクションした人を表示します。",
       "removed": "リアクションを取り消しました: {emoji}"
     },
     "emoji": {
@@ -2966,6 +2966,37 @@
     "aiGenerateEmptyHint": "上のプロンプトを使って最初の絵文字を作成しましょう。",
     "aiQuotaUser": "本日の残り生成回数：{remaining} / {total}",
     "aiQuotaInstance": "本日のインスタンス全体の残り生成回数：{remaining} / {total}"
+  },
+  "emojiInfo": {
+    "dialog": "絵文字",
+    "loading": "出どころを確認しています…",
+    "default": "標準の絵文字です。どこでも使えます。",
+    "thisServer": "このサーバーの絵文字です。",
+    "yourServer": "参加中のサーバー「{server}」の絵文字です。",
+    "publicServer": "公開サーバー「{server}」の絵文字です。参加するとどこでも使えます。",
+    "remoteServer": "{domain} のサーバー「{server}」の絵文字です。",
+    "personalYours": "あなたの個人用絵文字です。どこでも使えます。",
+    "personalOf": "{name} の個人用絵文字です。",
+    "personalUnknown": "個人用絵文字です。",
+    "instance": "このインスタンスの絵文字です。",
+    "remote": "別のインスタンスの絵文字です: {domain}",
+    "discord": "Discord から連携された Discord の絵文字です。",
+    "unavailable": "非公開か、もう利用できないサーバーの絵文字です。",
+    "members": "メンバー {count} 人",
+    "publicLabel": "公開サーバー",
+    "privateLabel": "招待制サーバー",
+    "moreEmoji": "このサーバーのほかの絵文字",
+    "joined": "{server} に参加しました",
+    "reactedBy": "{names} がリアクションしました",
+    "reactedByOthers": "{names} ほか {count} 人がリアクションしました",
+    "reactionCount": "リアクション {count} 件",
+    "nameSeparator": "、",
+    "allReactions": "すべてのリアクション",
+    "copy": "コピー",
+    "copied": "{text} をコピーしました",
+    "copyFailed": "コピーできませんでした",
+    "copyLink": "画像のリンクをコピー",
+    "linkCopied": "画像のリンクをコピーしました"
   },
   "inbox": {
     "title": "通知",

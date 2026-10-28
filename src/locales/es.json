@@ -1052,7 +1052,7 @@
     "reactions": {
       "pill": "{emoji}, {count} reacción | {emoji}, {count} reacciones",
       "pillYou": "{emoji}, {count} reacción, incluida la tuya | {emoji}, {count} reacciones, incluida la tuya",
-      "hint": "La tecla de menú contextual o Mayús+F10 muestra quién reaccionó.",
+      "hint": "La tecla de menú contextual o Mayús+F10 muestra el emoji y quién reaccionó.",
       "removed": "Reacción quitada: {emoji}"
     },
     "emoji": {
@@ -2966,6 +2966,37 @@
     "aiGenerateEmptyHint": "Usa la indicación de arriba para crear el primero.",
     "aiQuotaUser": "Te quedan {remaining} de {total} generaciones hoy",
     "aiQuotaInstance": "Quedan {remaining} de {total} generaciones de la instancia hoy"
+  },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Buscando de dónde viene…",
+    "default": "Un emoji predeterminado. Úsalo en cualquier lugar.",
+    "thisServer": "De este servidor.",
+    "yourServer": "De {server}, uno de tus servidores.",
+    "publicServer": "De {server}, un servidor público. Únete para usar este emoji en cualquier lugar.",
+    "remoteServer": "De {server} en {domain}.",
+    "personalYours": "Tu emoji personal. Úsalo en cualquier lugar.",
+    "personalOf": "Un emoji personal de {name}.",
+    "personalUnknown": "Un emoji personal.",
+    "instance": "Un emoji de esta instancia.",
+    "remote": "De otra instancia: {domain}.",
+    "discord": "Un emoji de Discord, traído desde Discord.",
+    "unavailable": "De un servidor privado o que ya no está disponible.",
+    "members": "{count} miembro | {count} miembros",
+    "publicLabel": "Servidor público",
+    "privateLabel": "Servidor solo por invitación",
+    "moreEmoji": "Más emoji de este servidor",
+    "joined": "Te uniste a {server}",
+    "reactedBy": "Reaccionó {names}",
+    "reactedByOthers": "Reaccionaron {names} y {count} más | Reaccionaron {names} y {count} más",
+    "reactionCount": "{count} reacción | {count} reacciones",
+    "nameSeparator": ", ",
+    "allReactions": "Todas las reacciones",
+    "copy": "Copiar",
+    "copied": "{text} copiado",
+    "copyFailed": "No se pudo copiar",
+    "copyLink": "Copiar enlace de la imagen",
+    "linkCopied": "Enlace de la imagen copiado"
   },
   "inbox": {
     "title": "Notificaciones",

@@ -1099,7 +1099,7 @@
     "reactions": {
       "pill": "{emoji}, {count} reaction | {emoji}, {count} reactions",
       "pillYou": "{emoji}, {count} reaction, including you | {emoji}, {count} reactions, including you",
-      "hint": "The context menu key or Shift+F10 lists who reacted.",
+      "hint": "The context menu key or Shift+F10 shows the emoji and who reacted.",
       "removed": "Reaction removed: {emoji}"
     },
     "emoji": {
@@ -3039,6 +3039,37 @@
     "flags": "Flags",
     "custom": "Custom",
     "noResults": "No emoji found"
+  },
+  "emojiInfo": {
+    "dialog": "Emoji",
+    "loading": "Looking up where it comes from…",
+    "default": "A default emoji. Use it anywhere.",
+    "thisServer": "From this server.",
+    "yourServer": "From {server}, one of your servers.",
+    "publicServer": "From {server}, a public server. Join it to use this emoji anywhere.",
+    "remoteServer": "From {server} on {domain}.",
+    "personalYours": "Your personal emoji. Use it anywhere.",
+    "personalOf": "A personal emoji of {name}.",
+    "personalUnknown": "A personal emoji.",
+    "instance": "An emoji of this instance.",
+    "remote": "From another instance: {domain}.",
+    "discord": "A Discord emoji, bridged from Discord.",
+    "unavailable": "From a server that is private or no longer available.",
+    "members": "{count} member | {count} members",
+    "publicLabel": "Public server",
+    "privateLabel": "Invite-only server",
+    "moreEmoji": "More emoji from this server",
+    "joined": "You joined {server}",
+    "reactedBy": "Reacted by {names}",
+    "reactedByOthers": "Reacted by {names} and {count} other | Reacted by {names} and {count} others",
+    "reactionCount": "{count} reaction | {count} reactions",
+    "nameSeparator": ", ",
+    "allReactions": "All reactions",
+    "copy": "Copy",
+    "copied": "Copied {text}",
+    "copyFailed": "Couldn't copy",
+    "copyLink": "Copy image link",
+    "linkCopied": "Image link copied"
   },
   "inbox": {
     "title": "Notifications",
