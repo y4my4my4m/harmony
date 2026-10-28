@@ -1,7 +1,8 @@
 /**
  * get_emoji_source answers parse defensively: anything that is not a well-formed revealed
- * source reads as 'unavailable'. A uuid asks by id, anything else by url; failures read as
- * 'unavailable' and are not kept.
+ * source reads as 'unavailable'. A uuid asks by id with the url it was seen with, and by url
+ * when the id answers 'unavailable'; anything else asks by url. Failures read as 'unavailable'
+ * and are not kept.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,34 +62,47 @@ describe('parseEmojiSource', () => {
 })
 
 describe('fetchEmojiSource', () => {
-  it('asks by id for a uuid and by url otherwise', async () => {
+  it('asks by id with the url for a uuid and by url otherwise', async () => {
     rpc.mockResolvedValue({ data: { kind: 'instance' }, error: null })
     await fetchEmojiSource({ id: ID, url: 'https://x/a.png', name: 'a' })
-    expect(rpc).toHaveBeenLastCalledWith('get_emoji_source', { p_emoji_id: ID })
+    expect(rpc).toHaveBeenLastCalledWith('get_emoji_source', { p_emoji_id: ID, p_url: 'https://x/a.png' })
     await fetchEmojiSource({ id: 'remote:blob', url: 'https://fedi.example/b.png', name: 'blob' })
     expect(rpc).toHaveBeenLastCalledWith('get_emoji_source_by_url', { p_url: 'https://fedi.example/b.png', p_name: 'blob' })
   })
 
-  it('keeps an answer and asks again after invalidation', async () => {
+  it('asks an unavailable id again by its url, as a federated emoji keeps its origin\'s id', async () => {
+    rpc.mockResolvedValueOnce({ data: { kind: 'unavailable' }, error: null })
+    rpc.mockResolvedValueOnce({ data: { kind: 'remote', domain: 'fedi.example' }, error: null })
+    expect(await fetchEmojiSource({ id: ID, url: 'https://fedi.example/b.png', name: 'blob' }))
+      .toEqual({ kind: 'remote', domain: 'fedi.example' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'get_emoji_source', { p_emoji_id: ID, p_url: 'https://fedi.example/b.png' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'get_emoji_source_by_url', { p_url: 'https://fedi.example/b.png', p_name: 'blob' })
+  })
+
+  it('keeps an answer per id and url, and asks again after invalidation', async () => {
     rpc.mockResolvedValue({ data: { kind: 'instance' }, error: null })
-    await fetchEmojiSource({ id: ID })
-    await fetchEmojiSource({ id: ID })
+    await fetchEmojiSource({ id: ID, url: 'https://x/a.png' })
+    await fetchEmojiSource({ id: ID, url: 'https://x/a.png' })
     expect(rpc).toHaveBeenCalledTimes(1)
-    invalidateEmojiSources()
-    await fetchEmojiSource({ id: ID })
+    await fetchEmojiSource({ id: ID, url: 'https://evil.test/a.png' })
     expect(rpc).toHaveBeenCalledTimes(2)
+    invalidateEmojiSources()
+    await fetchEmojiSource({ id: ID, url: 'https://x/a.png' })
+    expect(rpc).toHaveBeenCalledTimes(3)
   })
 
   it('reads a failure as unavailable and does not keep it', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
-    expect(await fetchEmojiSource({ id: ID })).toEqual({ kind: 'unavailable' })
+    expect(await fetchEmojiSource({ id: ID, url: 'https://x/a.png' })).toEqual({ kind: 'unavailable' })
     rpc.mockResolvedValueOnce({ data: { kind: 'instance' }, error: null })
-    expect(await fetchEmojiSource({ id: ID })).toEqual({ kind: 'instance' })
+    expect(await fetchEmojiSource({ id: ID, url: 'https://x/a.png' })).toEqual({ kind: 'instance' })
   })
 
-  it('asks nothing without an id or url', async () => {
+  it('asks nothing without a url', async () => {
     expect(emojiSourceKey({ name: 'x' })).toBeNull()
+    expect(emojiSourceKey({ id: ID })).toBeNull()
     expect(await fetchEmojiSource({ name: 'x' })).toEqual({ kind: 'unavailable' })
+    expect(await fetchEmojiSource({ id: ID })).toEqual({ kind: 'unavailable' })
     expect(rpc).not.toHaveBeenCalled()
   })
 })

@@ -567,7 +567,7 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
-    @report-sticker="(sticker: StickerContent) => (stickerReport = sticker)"
+    @report-sticker="(sticker: StickerContent, message: Message) => (stickerReport = { sticker, messageId: message.id })"
     @view-reactions="(message: Message) => openReactionsModal(message.id, null)"
     @reply="replyTo"
     @edit="startEdit"
@@ -591,7 +591,8 @@
   <ReportModal
     v-if="stickerReport"
     report-type="sticker"
-    :target-sticker="stickerReport"
+    :target-sticker="stickerReport.sticker"
+    :target-message-id="stickerReport.messageId"
     @close="stickerReport = null"
   />
 
@@ -3679,7 +3680,7 @@ const handleContextMenuEmojiPicker = (position?: { x: number; y: number }) => {
   emit('toggleEmojiList', true, contextMenuMessage.value, anchor);
 };
 
-const stickerReport = ref<StickerContent | null>(null);
+const stickerReport = ref<{ sticker: StickerContent; messageId: string } | null>(null);
 
 const handleReportMessage = (message: Message) => {
   const authorId = message.user_id || (message as any).author_id;

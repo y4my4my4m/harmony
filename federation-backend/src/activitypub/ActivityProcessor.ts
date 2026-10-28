@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { mergeQuestionPoll, questionPollMetadata } from '../utils/polls.js';
 import { actorHostname } from '../utils/mentionParts.js';
-import { inboundRawContent } from '../utils/inboundContent.js';
+import { inboundRawContent, urlFormEmojis } from '../utils/inboundContent.js';
 import { withInboundSticker } from '../utils/stickers.js';
 import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
@@ -4425,26 +4425,7 @@ export class ActivityProcessor {
       content = await resolveMentionUserIds(content);
     }
     
-    // Remote emoji UUIDs do not exist locally, so emojis are rewritten to the
-    // URL-based form used by the Discord bridge.
-    const instanceDomain = new URL(actorUrl).hostname;
-    if (Array.isArray(content)) {
-      content = content.map((item: any) => {
-        if (item.type === 'emoji' && item.emoji) {
-          return {
-            type: 'emoji',
-            emoji: {
-              name: item.emoji.name || 'emoji',
-              url: item.emoji.url,
-              domain: instanceDomain,
-              is_remote: true,
-            }
-          };
-        }
-        return item;
-      });
-    }
-    return content;
+    return urlFormEmojis(content, new URL(actorUrl).hostname);
   }
 
   /**

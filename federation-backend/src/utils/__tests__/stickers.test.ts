@@ -50,6 +50,12 @@ describe('sanitizeSticker', () => {
     expect(cut?.description).toHaveLength(300)
   })
 
+  it('lower-cases the url scheme, which the database matches case-sensitively', () => {
+    expect(sanitizeSticker(sticker({ url: 'HTTPS://peer.test/storage/v1/object/public/stickers/server/a/1.png' }), 'peer.test')?.url)
+      .toBe(URL_A)
+    expect(sanitizeSticker(sticker({ url: 'HtTp://peer.test/s.png' }), 'peer.test')?.url).toBe('http://peer.test/s.png')
+  })
+
   it('refuses a sticker without a description, an http(s) url or an id', () => {
     expect(sanitizeSticker(sticker({ description: '  ' }), 'peer.test')).toBeNull()
     expect(sanitizeSticker(sticker({ url: 'javascript:alert(1)' }), 'peer.test')).toBeNull()
@@ -69,6 +75,15 @@ describe('normalizeInboundStickers', () => {
       fallback(),
       { type: 'file', fileType: 'image', url: URL_B, fileName: 'Cat wave', altText: 'A cat waving' },
     ])
+  })
+
+  it('keeps a fallback only when it is an image at the sticker\'s url', () => {
+    const other = 'https://peer.test/hidden.png'
+    expect(normalizeInboundStickers([sticker(), fallback({ url: other })], 'peer.test'))
+      .toEqual([{ ...sticker(), domain: 'peer.test' }, { type: 'file', fileType: 'image', url: other, fileName: 'Cat wave', altText: 'A cat waving' }])
+    expect(normalizeInboundStickers([sticker(), fallback({ fileType: 'video' })], 'peer.test')[1]).not.toHaveProperty('stickerId')
+    const upper = normalizeInboundStickers([sticker({ url: URL_A.replace('https', 'HTTPS') }), fallback({ url: URL_A.replace('https', 'HTTPS') })], 'peer.test')
+    expect(upper).toEqual([{ ...sticker(), domain: 'peer.test' }, fallback()])
   })
 
   it('turns the fallback of a malformed sticker into a plain image', () => {
@@ -98,6 +113,17 @@ describe('DM stickers', () => {
       { type: 'text', text: 'look' },
       { ...sticker(), domain: 'peer.test' },
       { type: 'file', fileType: 'image', url: URL_A, altText: 'A cat waving', stickerId: 's1' },
+    ])
+  })
+
+  it('takes only an image attachment at the sticker\'s url, scheme case aside, as its fallback', () => {
+    const ext = stickerNoteExtension([sticker()])
+    const video = [{ type: 'file', fileType: 'video', url: URL_A }]
+    expect(withInboundSticker(video, ext, 'peer.test')).toBe(video)
+    const upper = [{ type: 'file', fileType: 'image', url: URL_A.replace('https', 'HTTPS') }]
+    expect(withInboundSticker(upper, ext, 'peer.test')).toEqual([
+      { ...sticker(), domain: 'peer.test' },
+      { type: 'file', fileType: 'image', url: URL_A, stickerId: 's1' },
     ])
   })
 

@@ -21,6 +21,16 @@
 --               and 100. enforce_sticker_limit, a BEFORE INSERT trigger for every writer,
 --               raises STICKER_LIMIT (23514) under the advisory lock
 --               'stickers:<scope>:<server or owner>'. Rows past a lowered cap stay.
+--   folders     an upload is refused once its folder holds cap + 2 objects: one per sticker,
+--               one upload awaiting create_sticker, one left by a failed removal.
+--   url         <origin>/storage/v1/object/public/stickers/<path>. instance_config
+--               storage_origin (e.g. "https://db.example.com") pins the origin; empty, the
+--               origin is checked for shape only (is_storage_public_url).
+--
+-- Reads. Rows are visible to: everyone for instance stickers; the owner for personal ones;
+-- accepted members, managers, and everyone when the server is public and not suspended, for
+-- server ones; instance admins and moderators for all (can_see_sticker). uploader is not
+-- granted to clients. existing_sticker_ids(ids) answers id and url of any existing sticker.
 --
 -- Writers. Server stickers: can_manage_server_stickers (the soundboard rule: owner, instance
 -- admin, or a member holding MANAGE_EMOJIS on a local server). Instance stickers: instance
@@ -29,12 +39,18 @@
 -- instance moderators, for any scope, and returns the object path for the caller to remove.
 --
 -- Messages. A sticker travels as one {type:'sticker', id, url, name, description, width,
--- height, mimeType} part beside an image {type:'file', stickerId, ...} part with the same url,
--- which clients before 1.9.2 and non-Harmony software render. check_message_sticker_parts
--- refuses a second sticker part and malformed ones.
+-- height, mimeType, domain?} part beside an image {type:'file', fileType:'image', stickerId,
+-- url, ...} part with the same url, which clients before 1.9.2 and non-Harmony software
+-- render. `domain` names another instance's sticker; only the service role writes it.
+-- check_message_sticker_parts refuses a second sticker part, malformed ones, and a file part
+-- naming the sticker that is not an image at its url. A part without domain that is new or
+-- changed against OLD must name a stickers row by id with that row's url; its id, name,
+-- description, width, height and mimeType are rewritten from the row.
 --
--- Reports. report_type 'sticker' names reported_sticker_id; content_snapshot.sticker keeps
--- the sticker as reported. reported_user_id is the owner of a personal sticker, else NULL.
+-- Reports. report_type 'sticker' names reported_sticker_id and optionally the message it was
+-- seen in (reported_message_id: visible to the reporter, carrying that sticker unless
+-- encrypted); content_snapshot.sticker keeps the sticker as reported. reported_user_id is the
+-- owner of a personal sticker, else NULL.
 
 BEGIN;
 
@@ -68,8 +84,40 @@ VALUES
     ('max_instance_stickers', '50'::jsonb,
      'Instance stickers, available to every local account (0-500). 0 turns them off.'),
     ('max_personal_stickers_per_user', '0'::jsonb,
-     'Personal stickers one account can hold (0-100). 0 turns personal stickers off.')
+     'Personal stickers one account can hold (0-100). 0 turns personal stickers off.'),
+    ('storage_origin', '""'::jsonb,
+     'Public origin of storage, as clients build object URLs (https://db.example.com). Sticker and personal emoji URLs must start with it; empty accepts any http(s) origin.')
 ON CONFLICT (config_key) DO NOTHING;
+
+-- p_url is the public URL of object p_path of bucket p_bucket:
+-- <origin>/storage/v1/object/public/<bucket>/<path>, at most 2048 characters. A non-empty
+-- instance_config storage_origin is the only origin accepted (host case-insensitive);
+-- otherwise the origin is http(s), a host, an optional port and path prefix, without userinfo,
+-- query or fragment.
+CREATE OR REPLACE FUNCTION public.is_storage_public_url(p_url text, p_bucket text, p_path text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT COALESCE(
+        p_url IS NOT NULL AND p_bucket IS NOT NULL AND p_path IS NOT NULL
+        AND char_length(p_url) <= 2048
+        AND char_length(p_url) > char_length(s.suffix)
+        AND right(p_url, char_length(s.suffix)) = s.suffix
+        AND CASE
+                WHEN o.pinned IS NOT NULL THEN lower(left(p_url, char_length(p_url) - char_length(s.suffix))) = lower(o.pinned)
+                ELSE left(p_url, char_length(p_url) - char_length(s.suffix))
+                     ~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$'
+            END,
+        false)
+      FROM (SELECT '/storage/v1/object/public/' || p_bucket || '/' || p_path AS suffix) s
+      CROSS JOIN (SELECT NULLIF(rtrim(btrim((SELECT ic.config_value #>> '{}' FROM public.instance_config ic
+                                              WHERE ic.config_key = 'storage_origin')), '/'), '') AS pinned) o;
+$$;
+
+COMMENT ON FUNCTION public.is_storage_public_url(text, text, text) IS
+'p_url is <origin>/storage/v1/object/public/<bucket>/<path>; instance_config storage_origin, when set, is the only origin.';
 
 -- 'server' | 'instance' | 'user': the cap for that scope; 0 is off; unknown scopes read 0.
 CREATE OR REPLACE FUNCTION public.sticker_limit(p_scope text)
@@ -147,15 +195,6 @@ COMMENT ON TABLE public.stickers IS
 
 ALTER TABLE public.stickers ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS stickers_select_all ON public.stickers;
-CREATE POLICY stickers_select_all ON public.stickers
-    FOR SELECT TO anon, authenticated
-    USING (true);
-
-REVOKE ALL ON public.stickers FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.stickers TO anon, authenticated;
-GRANT ALL ON public.stickers TO service_role;
-
 -- ---------------------------------------------------------------------------
 -- Writers
 -- ---------------------------------------------------------------------------
@@ -170,6 +209,31 @@ AS $$
     SELECT COALESCE(public.can_manage_server_sounds(p_server_id), false);
 $$;
 
+-- The folder of object p_name (everything up to its last '/') holds fewer than the scope's
+-- cap + 2 objects, and the cap is above 0. plpgsql: storage.objects may be absent at creation.
+CREATE OR REPLACE FUNCTION public.sticker_folder_has_room(p_name text, p_scope text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_cap integer := public.sticker_limit(p_scope);
+    v_folder text := substring(p_name from '^(.*/)');
+    v_held bigint;
+BEGIN
+    IF v_cap <= 0 OR v_folder IS NULL THEN
+        RETURN false;
+    END IF;
+    SELECT count(*) INTO v_held
+      FROM storage.objects o
+     WHERE o.bucket_id = 'stickers'
+       AND starts_with(o.name, v_folder);
+    RETURN v_held < v_cap + 2;
+END;
+$$;
+
 -- The caller may write (p_create) or remove the object p_name of bucket stickers.
 CREATE OR REPLACE FUNCTION public.can_write_sticker_object(p_name text, p_create boolean)
 RETURNS boolean
@@ -181,13 +245,13 @@ AS $$
     SELECT CASE
         WHEN p_name ~ ('^server/' || c.re || '/' || c.re || c.ext) THEN
             public.can_manage_server_stickers(split_part(p_name, '/', 2)::uuid)
-            AND (NOT p_create OR public.sticker_limit('server') > 0)
+            AND (NOT p_create OR public.sticker_folder_has_room(p_name, 'server'))
         WHEN p_name ~ ('^instance/' || c.re || c.ext) THEN
             public.is_current_user_admin()
-            AND (NOT p_create OR public.sticker_limit('instance') > 0)
+            AND (NOT p_create OR public.sticker_folder_has_room(p_name, 'instance'))
         WHEN p_name ~ ('^user/' || c.re || '/' || c.re || c.ext) THEN
             split_part(p_name, '/', 2) = public.get_current_profile_id()::text
-            AND (NOT p_create OR public.sticker_limit('user') > 0)
+            AND (NOT p_create OR public.sticker_folder_has_room(p_name, 'user'))
         ELSE false
     END
       FROM (SELECT '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'::text AS re,
@@ -208,6 +272,59 @@ AS $$
         WHEN 'user' THEN p_sticker.owner_id = public.get_current_profile_id()
         ELSE false
     END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Reads
+-- ---------------------------------------------------------------------------
+-- Instance stickers to everyone; personal ones to their owner; server ones to accepted
+-- members and managers, and to everyone while the server is public and not suspended
+-- (discovery's rule); all to instance admins and moderators.
+CREATE OR REPLACE FUNCTION public.can_see_sticker(p_scope text, p_server_id uuid, p_owner_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    SELECT COALESCE(CASE p_scope
+               WHEN 'instance' THEN true
+               WHEN 'user' THEN p_owner_id = v.me
+               WHEN 'server' THEN
+                   EXISTS (SELECT 1 FROM public.servers s
+                            WHERE s.id = p_server_id AND s.public IS TRUE AND s.suspended_at IS NULL)
+                   OR (v.me IS NOT NULL AND EXISTS (
+                           SELECT 1 FROM public.user_servers us
+                            WHERE us.server_id = p_server_id AND us.user_id = v.me AND us.status = 'accepted'))
+                   OR (v.me IS NOT NULL AND public.can_manage_server_stickers(p_server_id))
+           END, false)
+        OR (v.me IS NOT NULL AND public.is_current_user_admin_or_mod())
+      FROM (SELECT public.get_current_profile_id() AS me) v;
+$$;
+
+DROP POLICY IF EXISTS stickers_select_all ON public.stickers;
+DROP POLICY IF EXISTS stickers_select_visible ON public.stickers;
+CREATE POLICY stickers_select_visible ON public.stickers
+    FOR SELECT TO anon, authenticated
+    USING (public.can_see_sticker(scope, server_id, owner_id));
+
+REVOKE ALL ON public.stickers FROM PUBLIC, anon, authenticated;
+GRANT SELECT (id, created_at, updated_at, scope, server_id, owner_id, name, description, path, url,
+              mime_type, file_size, width, height, duration_ms)
+    ON public.stickers TO anon, authenticated;
+GRANT ALL ON public.stickers TO service_role;
+
+-- Of p_ids (at most 500), those naming a stickers row, with its url, whoever may see the row.
+CREATE OR REPLACE FUNCTION public.existing_sticker_ids(p_ids uuid[])
+RETURNS TABLE (id uuid, url text)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    SELECT s.id, s.url
+      FROM public.stickers s
+     WHERE s.id = ANY (p_ids[1:500]);
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -273,9 +390,8 @@ END;
 $$;
 
 -- p_scope 'server' takes p_server_id; 'instance' and 'user' take NULL. p_path is the caller's
--- upload in bucket stickers under the scope's folder; p_url is
--- <origin>/storage/v1/object/public/stickers/<path>, its origin checked for shape as in
--- create_my_emoji. p_duration_ms is NULL for a still image.
+-- upload in bucket stickers under the scope's folder; p_url is its public URL
+-- (is_storage_public_url). p_duration_ms is NULL for a still image.
 CREATE OR REPLACE FUNCTION public.create_sticker(
     p_scope text,
     p_server_id uuid,
@@ -295,8 +411,6 @@ AS $$
 DECLARE
     v_me uuid := public.get_current_profile_id();
     v_prefix text;
-    v_suffix text;
-    v_origin text;
     v_meta jsonb;
     v_size text;
     v_mime text;
@@ -334,12 +448,7 @@ BEGIN
             USING ERRCODE = '22023';
     END IF;
 
-    v_suffix := '/storage/v1/object/public/stickers/' || p_path;
-    IF p_url IS NULL OR char_length(p_url) > 2048 OR right(p_url, char_length(v_suffix)) <> v_suffix THEN
-        RAISE EXCEPTION 'STICKER_URL: the url is not the public URL of %', p_path USING ERRCODE = '22023';
-    END IF;
-    v_origin := left(p_url, char_length(p_url) - char_length(v_suffix));
-    IF v_origin !~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$' THEN
+    IF NOT public.is_storage_public_url(p_url, 'stickers', p_path) THEN
         RAISE EXCEPTION 'STICKER_URL: the url is not the public URL of %', p_path USING ERRCODE = '22023';
     END IF;
 
@@ -462,25 +571,35 @@ $$;
 -- Message parts
 -- ---------------------------------------------------------------------------
 
--- At most one sticker part; each with string id (1-200), http(s) url (at most 2048), name
--- (1-30) and description (1-300).
+-- At most one sticker part; each with string id (1-200), http(s) url (any scheme case, at most
+-- 2048), name (1-30), description (1-300) and an optional string domain. A file part naming the
+-- sticker (stickerId) is an image at the sticker's url. A part without a domain that is new or
+-- changed against OLD names a stickers row by id with the row's url, and takes the row's id
+-- text, name, description, width, height and mimeType. Clients (role anon or authenticated)
+-- write no domain.
+-- SECURITY DEFINER: the row is read whoever may see it.
 CREATE OR REPLACE FUNCTION public.check_message_sticker_parts()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_count integer;
     v_bad boolean;
+    v_part jsonb;
+    v_at integer;
+    v_row public.stickers;
 BEGIN
     SELECT count(*),
            bool_or(NOT COALESCE(
                jsonb_typeof(e -> 'id') = 'string' AND char_length(e ->> 'id') BETWEEN 1 AND 200
                AND jsonb_typeof(e -> 'url') = 'string' AND char_length(e ->> 'url') <= 2048
-               AND e ->> 'url' ~ '^https?://'
+               AND e ->> 'url' ~* '^https?://'
                AND jsonb_typeof(e -> 'name') = 'string' AND char_length(btrim(e ->> 'name')) BETWEEN 1 AND 30
                AND jsonb_typeof(e -> 'description') = 'string'
-               AND char_length(btrim(e ->> 'description')) BETWEEN 1 AND 300, false))
+               AND char_length(btrim(e ->> 'description')) BETWEEN 1 AND 300
+               AND (NOT e ? 'domain' OR jsonb_typeof(e -> 'domain') = 'string'), false))
       INTO v_count, v_bad
       FROM jsonb_array_elements(NEW.content) e
      WHERE e ->> 'type' = 'sticker';
@@ -491,6 +610,43 @@ BEGIN
     IF v_bad THEN
         RAISE EXCEPTION 'STICKER_PART: a sticker part has id, url, name and description' USING ERRCODE = '22023';
     END IF;
+
+    SELECT a.e, a.n::integer INTO v_part, v_at
+      FROM jsonb_array_elements(NEW.content) WITH ORDINALITY a(e, n)
+     WHERE a.e ->> 'type' = 'sticker';
+
+    IF EXISTS (
+        SELECT 1 FROM jsonb_array_elements(NEW.content) f
+         WHERE f ->> 'type' = 'file'
+           AND f ->> 'stickerId' = v_part ->> 'id'
+           AND (f ->> 'url' IS DISTINCT FROM v_part ->> 'url' OR f ->> 'fileType' IS DISTINCT FROM 'image')) THEN
+        RAISE EXCEPTION 'STICKER_FALLBACK: the file part of a sticker is an image at its url' USING ERRCODE = '22023';
+    END IF;
+
+    IF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.content) = 'array' AND OLD.content @> jsonb_build_array(v_part) THEN
+        RETURN NEW;
+    END IF;
+
+    IF NULLIF(btrim(v_part ->> 'domain'), '') IS NOT NULL THEN
+        IF COALESCE(current_setting('role', true), '') IN ('anon', 'authenticated') THEN
+            RAISE EXCEPTION 'STICKER_DOMAIN: a sticker of another instance arrives by federation only'
+                USING ERRCODE = '42501';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF v_part ->> 'id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        SELECT * INTO v_row FROM public.stickers s WHERE s.id = (v_part ->> 'id')::uuid;
+    END IF;
+    IF v_row.id IS NULL OR v_row.url IS DISTINCT FROM v_part ->> 'url' THEN
+        RAISE EXCEPTION 'STICKER_UNKNOWN: a sticker part names a sticker of this instance by id and url'
+            USING ERRCODE = '22023';
+    END IF;
+
+    NEW.content := jsonb_set(NEW.content, ARRAY[(v_at - 1)::text],
+        v_part || jsonb_build_object('id', v_row.id::text, 'name', v_row.name, 'description', v_row.description,
+                                     'width', v_row.width, 'height', v_row.height,
+                                     'mimeType', v_row.mime_type));
     RETURN NEW;
 END;
 $$;
@@ -559,7 +715,8 @@ DROP FUNCTION IF EXISTS public.create_report(text, uuid, uuid, uuid, uuid, text,
 -- p_category defaults from p_reason. p_forward applies when the reported account is remote.
 -- p_forward_to_server applies to a message in a server hosted elsewhere; NULL is true.
 -- p_evidence_text is kept only for an encrypted message, as the reporter's plaintext.
--- p_reported_sticker_id names the sticker of a 'sticker' report.
+-- p_reported_sticker_id names the sticker of a 'sticker' report; p_reported_message_id, when
+-- given with it, the message it was seen in.
 -- Returns the new report, or the caller's open report on the same target.
 CREATE FUNCTION public.create_report(
     p_report_type text,
@@ -720,8 +877,7 @@ BEGIN
         v_target := NULL;
 
     ELSIF p_report_type = 'sticker' THEN
-        IF p_reported_sticker_id IS NULL OR p_reported_post_id IS NOT NULL
-           OR p_reported_message_id IS NOT NULL OR p_reported_server_id IS NOT NULL THEN
+        IF p_reported_sticker_id IS NULL OR p_reported_post_id IS NOT NULL OR p_reported_server_id IS NOT NULL THEN
             RAISE EXCEPTION 'A sticker report names one sticker' USING ERRCODE = '22023';
         END IF;
         SELECT st.* INTO v_sticker FROM public.stickers st WHERE st.id = p_reported_sticker_id;
@@ -733,6 +889,29 @@ BEGIN
         END IF;
         v_target := v_sticker.owner_id;
         v_sticker_id := v_sticker.id;
+        -- The message the sticker was seen in: visible to the reporter and, unless encrypted,
+        -- carrying this sticker as a part of this instance.
+        IF p_reported_message_id IS NOT NULL THEN
+            SELECT m.channel_id, m.conversation_id INTO v_channel, v_conversation
+              FROM public.messages m
+             WHERE m.id = p_reported_message_id
+               AND NOT COALESCE(m.is_deleted, false)
+               AND (COALESCE(m.encrypted, false) OR EXISTS (
+                       SELECT 1 FROM jsonb_array_elements(
+                                         CASE WHEN jsonb_typeof(m.content) = 'array' THEN m.content ELSE '[]'::jsonb END) e
+                        WHERE e ->> 'type' = 'sticker'
+                          AND e ->> 'id' = v_sticker.id::text
+                          AND NULLIF(btrim(e ->> 'domain'), '') IS NULL));
+            IF NOT FOUND OR NOT (
+                (v_channel IS NOT NULL AND public.can_view_channel(v_caller, v_channel))
+                OR (v_conversation IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM public.conversation_participants cp
+                         WHERE cp.conversation_id = v_conversation AND cp.user_id = v_caller))
+            ) THEN
+                RAISE EXCEPTION 'Message not found' USING ERRCODE = 'P0002';
+            END IF;
+            v_message_id := p_reported_message_id;
+        END IF;
 
     ELSE
         RAISE EXCEPTION 'Invalid report type: %', p_report_type USING ERRCODE = '22023';
@@ -861,8 +1040,21 @@ GRANT EXECUTE ON FUNCTION public.can_manage_server_stickers(uuid) TO authenticat
 REVOKE ALL ON FUNCTION public.can_write_sticker_object(text, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.can_write_sticker_object(text, boolean) TO authenticated, service_role;
 
+REVOKE ALL ON FUNCTION public.sticker_folder_has_room(text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.sticker_folder_has_room(text, text) TO service_role;
+
+REVOKE ALL ON FUNCTION public.is_storage_public_url(text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_storage_public_url(text, text, text) TO service_role;
+
 REVOKE ALL ON FUNCTION public.can_manage_sticker(public.stickers) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.can_manage_sticker(public.stickers) TO service_role;
+
+-- The stickers SELECT policy evaluates it as the reading role.
+REVOKE ALL ON FUNCTION public.can_see_sticker(text, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.can_see_sticker(text, uuid, uuid) TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.existing_sticker_ids(uuid[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.existing_sticker_ids(uuid[]) TO anon, authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.sticker_check_text(text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sticker_check_text(text, text) TO service_role;

@@ -57,12 +57,15 @@ export function stickerMessageParts(sticker: StickerPartSource): [StickerContent
   ]
 }
 
-/** A file part standing in for a sticker part of the same message. */
+/**
+ * A file part standing in for a sticker part of the same message: an image at the sticker's
+ * url naming it. Any other file part renders, so no image hides behind a sticker.
+ */
 export function isStickerFallback(part: unknown, parts: readonly MessagePart[]): boolean {
   if (!part || typeof part !== 'object') return false
   const file = part as Partial<FileContent>
-  if (file.type !== 'file' || typeof file.stickerId !== 'string') return false
-  return parts.some((p) => isStickerPart(p) && p.id === file.stickerId)
+  if (file.type !== 'file' || file.fileType !== 'image' || typeof file.stickerId !== 'string') return false
+  return parts.some((p) => isStickerPart(p) && p.id === file.stickerId && p.url === file.url)
 }
 
 /**

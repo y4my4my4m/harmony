@@ -27,7 +27,7 @@ import StickerLibraryManager from '../StickerLibraryManager.vue'
 import type { StickerLibraryAdapter } from '../stickerLibrary'
 
 const sticker = (over: Record<string, unknown> = {}) => ({
-  id: 's1', scope: 'server', server_id: 'srv', owner_id: null, uploader: 'me', name: 'Cat wave',
+  id: 's1', scope: 'server', server_id: 'srv', owner_id: null, name: 'Cat wave',
   description: 'A cat waving', url: 'https://h.test/s.png', path: 'server/srv/x.png', mime_type: 'image/png',
   file_size: 10, width: 10, height: 10, duration_ms: null, created_at: '2026-10-27T00:00:00Z', ...over,
 })

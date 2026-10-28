@@ -254,7 +254,7 @@ const emit = defineEmits<{
   'open-emoji-picker': [position: { x: number; y: number }]
   'pin-changed': []
   report: [message: Message]
-  'report-sticker': [sticker: StickerContent]
+  'report-sticker': [sticker: StickerContent, message: Message]
   'view-reactions': [message: Message]
   reply: [message: Message]
   edit: [message: Message]
@@ -559,8 +559,8 @@ const reportableSticker = computed(() => {
 });
 
 const reportSticker = () => {
-  if (!reportableSticker.value) return;
-  emit('report-sticker', reportableSticker.value);
+  if (!reportableSticker.value || !props.message) return;
+  emit('report-sticker', reportableSticker.value, props.message);
   emit('close');
 };
 

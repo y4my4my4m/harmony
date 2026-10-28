@@ -8,8 +8,10 @@
  * rawContent: their Note names the sticker in harmony:sticker beside the attachment.
  *
  * Inbound limits mirror check_message_sticker_parts (20261031200001_custom_stickers.sql): one
- * sticker per message; id 1-200 characters, http(s) url up to 2048, name 1-30 and description
- * 1-300 characters after trimming. `domain` names the sticker's instance; absent means this one.
+ * sticker per message; id 1-200 characters, http(s) url up to 2048 with its scheme lower-cased,
+ * name 1-30 and description 1-300 characters after trimming. `domain` names the sticker's
+ * instance; absent means this one. A fallback is an image at the sticker's url; any other file
+ * part naming the sticker loses `stickerId` and renders as itself.
  */
 import config from '../config/index.js';
 
@@ -40,6 +42,11 @@ function cut(text: string, max: number): string {
   return [...text.trim()].slice(0, max).join('').trim();
 }
 
+/** `url` with its http(s) scheme lower-cased; the trigger's url equality is case-sensitive. */
+function lowerScheme(url: string): string {
+  return url.replace(/^https?:/i, (scheme) => scheme.toLowerCase());
+}
+
 function side(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= SIDE_MAX ? value : undefined;
 }
@@ -48,7 +55,7 @@ function side(value: unknown): number | undefined {
 export function sanitizeSticker(raw: unknown, senderHost: string | null): StickerPart | null {
   if (!isRecord(raw)) return null;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
-  const url = typeof raw.url === 'string' ? raw.url.trim() : '';
+  const url = typeof raw.url === 'string' ? lowerScheme(raw.url.trim()) : '';
   const name = typeof raw.name === 'string' ? cut(raw.name, NAME_MAX) : '';
   const description = typeof raw.description === 'string' ? cut(raw.description, DESCRIPTION_MAX) : '';
   if (!id || id.length > ID_MAX || !/^https?:\/\//i.test(url) || url.length > URL_MAX || !name || !description) {
@@ -84,6 +91,12 @@ function isStickerPart(part: unknown): boolean {
   return isRecord(part) && part.type === 'sticker';
 }
 
+/** A file part that may stand in for `sticker`: an image at its url, scheme case aside. */
+function fitsSticker(part: unknown, sticker: StickerPart): boolean {
+  return isRecord(part) && part.type === 'file' && part.fileType === 'image'
+    && typeof part.url === 'string' && lowerScheme(part.url.trim()) === sticker.url;
+}
+
 /**
  * Incoming rawContent: the first well-formed sticker part kept, with its `domain`; any other
  * sticker part dropped, and the image fallbacks of dropped stickers left as plain images.
@@ -105,7 +118,7 @@ export function normalizeInboundStickers(content: any[], senderHost: string | nu
   }
   return out.map((part) => {
     if (!isRecord(part) || part.type !== 'file' || typeof part.stickerId !== 'string') return part;
-    if (kept && part.stickerId === kept.id) return part;
+    if (kept && part.stickerId === kept.id && fitsSticker(part, kept)) return { ...part, url: kept.url };
     const { stickerId: _stickerId, ...rest } = part;
     return rest;
   });
@@ -142,8 +155,8 @@ export function withInboundSticker(content: any[], extension: unknown, senderHos
   if (!Array.isArray(content) || content.some(isStickerPart)) return content;
   const sticker = sanitizeSticker(extension, senderHost);
   if (!sticker) return content;
-  const at = content.findIndex((part) => isRecord(part) && part.type === 'file' && part.url === sticker.url);
+  const at = content.findIndex((part) => fitsSticker(part, sticker));
   if (at < 0) return content;
-  const fallback = { ...content[at], stickerId: sticker.id };
+  const fallback = { ...content[at], url: sticker.url, stickerId: sticker.id };
   return [...content.slice(0, at), sticker, fallback, ...content.slice(at + 1)];
 }

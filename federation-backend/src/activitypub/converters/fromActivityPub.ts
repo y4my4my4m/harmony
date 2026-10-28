@@ -357,10 +357,12 @@ export function noteToContent(note: any): any[] {
       if (emojiName.startsWith(':')) emojiName = emojiName.slice(1);
       if (emojiName.endsWith(':')) emojiName = emojiName.slice(0, -1);
       
+      // An IRI tag id is kept; anything else, a sender's emojis.id among them, names no row here.
+      const tagId = typeof tagPos.tag.id === 'string' && /^https?:\/\//i.test(tagPos.tag.id) ? tagPos.tag.id : null;
       parts.push({
         type: 'emoji',
         emoji: {
-          id: tagPos.tag.id || `remote-${emojiName}`,
+          id: tagId || `remote:${emojiName}`,
           name: emojiName,
           url: tagPos.tag.icon?.url || tagPos.tag.icon,
           server_id: 'remote'

@@ -131,12 +131,15 @@ describe('deleteSticker', () => {
 })
 
 describe('existingStickerIds', () => {
-  it('looks up uuids only, once each', async () => {
+  it('asks existing_sticker_ids for uuids only, once each, and answers each row\'s url', async () => {
     const a = '2060e000-0000-4000-8000-00000000000a'
-    db.select.mockResolvedValue({ data: [{ id: a }], error: null })
-    expect(await existingStickerIds([a, a, 'remote-id'])).toEqual(new Set([a]))
-    expect(db.select).toHaveBeenCalledWith('id', [a])
-    expect(await existingStickerIds(['remote-id'])).toEqual(new Set())
+    db.rpc.mockResolvedValue({ data: [{ id: a, url: 'https://db.test/storage/v1/object/public/stickers/a.png' }], error: null })
+    expect(await existingStickerIds([a, a.toUpperCase(), 'remote-id']))
+      .toEqual(new Map([[a, 'https://db.test/storage/v1/object/public/stickers/a.png']]))
+    expect(db.rpc).toHaveBeenCalledWith('existing_sticker_ids', { p_ids: [a] })
+    db.rpc.mockClear()
+    expect(await existingStickerIds(['remote-id'])).toEqual(new Map())
+    expect(db.rpc).not.toHaveBeenCalled()
   })
 })
 

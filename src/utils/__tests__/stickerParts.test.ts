@@ -44,6 +44,15 @@ describe('withoutStickerFallbacks', () => {
     expect(isStickerFallback(parts[2], edited)).toBe(false)
   })
 
+  it('shows a file part naming the sticker that is not its image: another url, or not an image', () => {
+    const other = { ...parts[2], url: 'https://elsewhere.test/hidden.png' } as MessagePart
+    const video = { ...parts[2], fileType: 'video' } as MessagePart
+    const forged = [parts[0], parts[1], other, video]
+    expect(isStickerFallback(other, forged)).toBe(false)
+    expect(isStickerFallback(video, forged)).toBe(false)
+    expect(withoutStickerFallbacks(forged).map((p) => p.type)).toEqual(['text', 'sticker', 'file', 'file'])
+  })
+
   it('returns content without stickers unchanged', () => {
     const plain = [{ type: 'text', text: 'x' } as MessagePart]
     expect(withoutStickerFallbacks(plain)).toBe(plain)

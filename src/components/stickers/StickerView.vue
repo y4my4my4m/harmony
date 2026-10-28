@@ -6,8 +6,8 @@
     :data-sticker-id="sticker.id"
   >
     <img
-      v-if="!gone"
-      :src="sticker.url"
+      v-if="!gone && src"
+      :src="src"
       :alt="t('stickers.alt', { name: sticker.name, description: sticker.description })"
       :width="displaySize.width"
       :height="displaySize.height"
@@ -15,6 +15,13 @@
       draggable="false"
       loading="lazy"
       @error="failed = true"
+    />
+    <span
+      v-else-if="!gone"
+      class="sticker-view-pending"
+      :style="{ width: `${displaySize.width}px`, height: `${displaySize.height}px` }"
+      aria-hidden="true"
+      data-testid="message-sticker-pending"
     />
     <div
       v-else
@@ -44,10 +51,14 @@ const { t } = useI18n()
 const stickers = useStickersStore()
 const failed = ref(false)
 
-/** Only this instance's stickers are looked up; another instance's go by their file alone. */
+/**
+ * This instance's stickers are drawn from their row's url, looked up by id, so a part naming a
+ * real sticker beside another image shows the sticker; another instance's go by their file.
+ */
 const local = computed(() => !props.sticker.domain)
 const removed = computed(() => local.value && stickers.isRemoved(props.sticker.id))
-const gone = computed(() => removed.value || failed.value)
+const src = computed(() => (local.value ? stickers.urlOf(props.sticker.id) : props.sticker.url))
+const gone = computed(() => removed.value || failed.value || (local.value && stickers.lookupFailed(props.sticker.id)))
 
 const displaySize = computed(() => {
   const w = props.sticker.width ?? DISPLAY_SIDE
@@ -79,6 +90,12 @@ watch(() => props.sticker.id, check)
   max-height: 160px;
   object-fit: contain;
   user-select: none;
+}
+
+.sticker-view-pending {
+  display: block;
+  max-width: 160px;
+  max-height: 160px;
 }
 
 .sticker-view-placeholder {

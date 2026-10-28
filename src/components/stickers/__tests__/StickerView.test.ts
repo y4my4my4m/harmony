@@ -1,6 +1,7 @@
 /**
- * A sticker part renders large with its description as alt text; one of this instance whose
- * row is gone, or whose file fails, renders a placeholder that still names it.
+ * A sticker part renders large with its description as alt text. One of this instance is drawn
+ * from its row's url, looked up by id; one whose row is gone, whose lookup fails, or whose file
+ * fails renders a placeholder that still names it.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -31,6 +32,7 @@ vi.mock('@/services/stickerService', () => ({
 import StickerView from '../StickerView.vue'
 
 const LOCAL_ID = '2060e000-0000-4000-8000-000000000001'
+const ROW_URL = 'https://db.test/storage/v1/object/public/stickers/server/a/1.png'
 const part = (over: Record<string, unknown> = {}) => ({
   type: 'sticker' as const,
   id: LOCAL_ID,
@@ -49,21 +51,42 @@ beforeEach(() => {
 })
 
 describe('StickerView', () => {
-  it('draws the sticker at 160 px with its name and description as alt text', async () => {
-    lookup.existingStickerIds.mockResolvedValue(new Set([LOCAL_ID]))
+  it('draws the sticker at 160 px from its row\'s url, with its name and description as alt text', async () => {
+    lookup.existingStickerIds.mockResolvedValue(new Map([[LOCAL_ID, ROW_URL]]))
     const wrapper = mount(StickerView, { props: { sticker: part() } })
-    const img = wrapper.get('img')
-    expect(img.attributes('alt')).toBe('Sticker Cat wave: A cat waving')
-    expect(img.attributes('width')).toBe('160')
-    expect(img.attributes('height')).toBe('80')
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="message-sticker-pending"]').attributes('style')).toContain('width: 160px')
     await vi.advanceTimersByTimeAsync(60)
     await flushPromises()
     expect(lookup.existingStickerIds).toHaveBeenCalledWith([LOCAL_ID])
+    const img = wrapper.get('img')
+    expect(img.attributes('src')).toBe(ROW_URL)
+    expect(img.attributes('alt')).toBe('Sticker Cat wave: A cat waving')
+    expect(img.attributes('width')).toBe('160')
+    expect(img.attributes('height')).toBe('80')
     expect(wrapper.find('[data-testid="message-sticker-gone"]').exists()).toBe(false)
   })
 
+  it('never draws the url of a part naming a real sticker beside another image', async () => {
+    lookup.existingStickerIds.mockResolvedValue(new Map([[LOCAL_ID, ROW_URL]]))
+    const wrapper = mount(StickerView, { props: { sticker: part({ url: 'https://evil.test/other.png' }) } })
+    await vi.advanceTimersByTimeAsync(60)
+    await flushPromises()
+    expect(wrapper.get('img').attributes('src')).toBe(ROW_URL)
+    expect(wrapper.html()).not.toContain('evil.test')
+  })
+
+  it('shows the unavailable placeholder when the lookup fails', async () => {
+    lookup.existingStickerIds.mockRejectedValue(new Error('offline'))
+    const wrapper = mount(StickerView, { props: { sticker: part() } })
+    await vi.advanceTimersByTimeAsync(60)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="message-sticker-gone"]').text()).toContain('Sticker unavailable')
+    expect(wrapper.find('img').exists()).toBe(false)
+  })
+
   it('shows a placeholder once the sticker is removed', async () => {
-    lookup.existingStickerIds.mockResolvedValue(new Set())
+    lookup.existingStickerIds.mockResolvedValue(new Map())
     const wrapper = mount(StickerView, { props: { sticker: part() } })
     await vi.advanceTimersByTimeAsync(60)
     await flushPromises()

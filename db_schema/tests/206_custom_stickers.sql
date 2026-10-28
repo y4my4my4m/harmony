@@ -1,5 +1,6 @@
 -- 20261031200001_custom_stickers.sql: caps, create/update/delete_sticker, bucket stickers and
--- its policies, the one-sticker message rule, sticker reports and the server audit log.
+-- its policies, the storage origin, row visibility, message sticker parts bound to their row,
+-- sticker reports and the server audit log.
 --
 --   alice     owns server_1
 --   bob       member of server_1 without MANAGE_EMOJIS; personal stickers
@@ -13,7 +14,7 @@
 --   instance/05.webp  webp                   user/<bob>/06.apng  apng   user/<bob>/07.gif  gif
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(89);
+SELECT plan(122);
 SELECT set_config('storage.allow_delete_query', 'true', true);
 GRANT USAGE ON SCHEMA tests TO service_role;
 
@@ -44,6 +45,9 @@ SELECT 'stickers', p.name, jsonb_build_object('size', p.size, 'mimetype', p.mime
     ('user/22222222-0000-0000-0000-000000000002/2060e000-0000-4000-8000-000000000007.gif', 3000, 'image/gif')
   ) p(name, size, mime);
 
+INSERT INTO public.instance_config (config_key, config_value) VALUES ('storage_origin', '"https://db.test/"')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
+
 CREATE FUNCTION pg_temp.url(p_path text) RETURNS text LANGUAGE sql IMMUTABLE AS
   $$ SELECT 'https://db.test/storage/v1/object/public/stickers/' || p_path $$;
 CREATE FUNCTION pg_temp.srv(p_n text, p_ext text DEFAULT 'png') RETURNS text LANGUAGE sql IMMUTABLE AS
@@ -73,9 +77,16 @@ SELECT pg_temp.set_cap('max_stickers_per_server', '15');
 SELECT is(public.sticker_limit('other'), 0, 'an unknown scope reads 0');
 
 -- Grants and bucket. --------------------------------------------------------------------
-SELECT ok(has_table_privilege('anon', 'public.stickers', 'SELECT')
-          AND has_table_privilege('authenticated', 'public.stickers', 'SELECT'),
-          'anon and authenticated read stickers');
+SELECT ok(has_column_privilege('anon', 'public.stickers', 'url', 'SELECT')
+          AND has_column_privilege('authenticated', 'public.stickers', 'server_id', 'SELECT')
+          AND has_column_privilege('authenticated', 'public.stickers', 'owner_id', 'SELECT'),
+          'anon and authenticated read sticker columns');
+SELECT ok(NOT has_column_privilege('anon', 'public.stickers', 'uploader', 'SELECT')
+          AND NOT has_column_privilege('authenticated', 'public.stickers', 'uploader', 'SELECT'),
+          'no client reads who uploaded a sticker');
+SELECT ok(has_function_privilege('anon', 'public.existing_sticker_ids(uuid[])', 'EXECUTE')
+          AND has_function_privilege('authenticated', 'public.existing_sticker_ids(uuid[])', 'EXECUTE'),
+          'anon and authenticated look sticker ids up');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.stickers', 'INSERT')
           AND NOT has_table_privilege('authenticated', 'public.stickers', 'UPDATE')
           AND NOT has_table_privilege('authenticated', 'public.stickers', 'DELETE'),
@@ -91,6 +102,19 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.enforce_sticker_li
 SELECT is((SELECT (b.public, b.file_size_limit, b.allowed_mime_types)::text FROM storage.buckets b WHERE b.id = 'stickers'),
           '(t,524288,"{image/png,image/apng,image/webp,image/gif}")',
           'bucket stickers is public, 512 KB, PNG/APNG/WebP/GIF');
+
+-- Storage origin. -----------------------------------------------------------------------
+SELECT ok(public.is_storage_public_url('https://DB.test/storage/v1/object/public/stickers/a/b.png', 'stickers', 'a/b.png'),
+          'the pinned origin is accepted, host case-insensitively');
+SELECT ok(NOT public.is_storage_public_url('https://evil.test/storage/v1/object/public/stickers/a/b.png', 'stickers', 'a/b.png'),
+          'another origin is refused while storage_origin is set');
+SELECT ok(NOT public.is_storage_public_url('https://db.test/storage/v1/object/public/stickers/a/c.png', 'stickers', 'a/b.png'),
+          'a url of another object is refused');
+UPDATE public.instance_config SET config_value = '""' WHERE config_key = 'storage_origin';
+SELECT ok(public.is_storage_public_url('https://evil.test/storage/v1/object/public/stickers/a/b.png', 'stickers', 'a/b.png')
+          AND NOT public.is_storage_public_url('https://u@evil.test/storage/v1/object/public/stickers/a/b.png', 'stickers', 'a/b.png'),
+          'with storage_origin empty, an origin is checked for shape only');
+UPDATE public.instance_config SET config_value = '"https://db.test/"' WHERE config_key = 'storage_origin';
 
 -- create_sticker refusals. --------------------------------------------------------------
 SELECT tests.authenticate_as_anon();
@@ -113,6 +137,11 @@ SELECT throws_ok($q$SELECT public.create_sticker('server', '55555555-0000-0000-0
 SELECT throws_ok($q$SELECT public.create_sticker('server', '55555555-0000-0000-0000-000000000005',
                      pg_temp.srv('01'), pg_temp.url(pg_temp.srv('04')), 'wave', 'x', 64, 64)$q$,
                  '22023', NULL, 'a url of another object is refused');
+SELECT throws_ok($q$SELECT public.create_sticker('server', '55555555-0000-0000-0000-000000000005',
+                     pg_temp.srv('01'), 'https://evil.test/storage/v1/object/public/stickers/' || pg_temp.srv('01'),
+                     'wave', 'x', 64, 64)$q$,
+                 '22023', 'STICKER_URL: the url is not the public URL of ' || pg_temp.srv('01'),
+                 'a url on another origin than storage_origin is refused');
 SELECT throws_ok($q$SELECT public.create_sticker('server', '55555555-0000-0000-0000-000000000005',
                      pg_temp.srv('01', 'svg'), pg_temp.url(pg_temp.srv('01', 'svg')), 'wave', 'x', 64, 64)$q$,
                  '22023', NULL, 'an SVG name is refused');
@@ -178,6 +207,11 @@ SELECT tests.authenticate_as('f2060000-0000-0000-0000-0000000000a1');
 SELECT throws_ok($q$INSERT INTO storage.objects (bucket_id, name) VALUES ('stickers', pg_temp.srv('20'))$q$,
                  '42501', NULL, 'with server stickers off, a manager cannot upload a server sticker file');
 SELECT tests.clear_authentication();
+SELECT pg_temp.set_cap('max_stickers_per_server', '3');
+SELECT tests.authenticate_as('f2060000-0000-0000-0000-0000000000a1');
+SELECT throws_ok($q$INSERT INTO storage.objects (bucket_id, name) VALUES ('stickers', pg_temp.srv('27'))$q$,
+                 '42501', NULL, 'a server folder holding cap + 2 files takes no more uploads');
+SELECT tests.clear_authentication();
 SELECT pg_temp.set_cap('max_stickers_per_server', '15');
 SELECT tests.authenticate_as('f2060000-0000-0000-0000-0000000000a1');
 SELECT is(pg_temp.server_sticker('04', 'second'), 'second', 'a raised cap makes room');
@@ -225,6 +259,8 @@ SELECT throws_ok($q$SELECT public.create_sticker('user', '55555555-0000-0000-000
                  '22023', NULL, 'a personal sticker names no server');
 SELECT lives_ok($q$INSERT INTO storage.objects (bucket_id, name) VALUES ('stickers', pg_temp.bob('24', 'png'))$q$,
                 'a member uploads into their own sticker folder');
+SELECT throws_ok($q$INSERT INTO storage.objects (bucket_id, name) VALUES ('stickers', pg_temp.bob('28', 'png'))$q$,
+                 '42501', NULL, 'a personal folder holding cap + 2 files takes no more uploads');
 SELECT throws_ok($q$INSERT INTO storage.objects (bucket_id, name)
                     VALUES ('stickers', 'user/33333333-0000-0000-0000-000000000003/2060e000-0000-4000-8000-000000000025.png')$q$,
                  '42501', NULL, 'an upload into another account''s sticker folder is refused');
@@ -266,28 +302,75 @@ SELECT is((SELECT (changes -> 'name')::text FROM public.server_audit_log
           '{"new": "Second wave", "old": "second"}', 'a rename writes sticker.update with the change');
 
 -- Message parts. ------------------------------------------------------------------------
-SELECT lives_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES (
-                     '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-                     '[{"type":"text","text":"hi"},
-                       {"type":"sticker","id":"x1","url":"https://db.test/s.png","name":"Cat wave","description":"A cat waving"},
-                       {"type":"file","fileType":"image","url":"https://db.test/s.png","stickerId":"x1","altText":"A cat waving"}]')$q$,
-                'a message holds one sticker beside text and its image fallback');
-SELECT throws_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES (
-                     '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-                     '[{"type":"sticker","id":"x1","url":"https://db.test/s.png","name":"a1","description":"d"},
-                       {"type":"sticker","id":"x2","url":"https://db.test/t.png","name":"a2","description":"d"}]')$q$,
+SELECT set_config('t206.cat', (SELECT id::text FROM public.stickers WHERE name = 'Cat wave'), true);
+SELECT set_config('t206.mine', (SELECT id::text FROM public.stickers WHERE name = 'mine'), true);
+CREATE FUNCTION pg_temp.sticker_msg(p_text text, p_parts jsonb) RETURNS void LANGUAGE sql AS $$
+  INSERT INTO public.messages (channel_id, user_id, content)
+  VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
+          jsonb_build_array(jsonb_build_object('type', 'text', 'text', p_text)) || p_parts)
+$$;
+CREATE FUNCTION pg_temp.cat(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT jsonb_build_object('type', 'sticker', 'id', current_setting('t206.cat'), 'url', pg_temp.url(pg_temp.srv('01')),
+                            'name', 'Cat wave', 'description', 'A cat waving') || p_over
+$$;
+CREATE FUNCTION pg_temp.cat_file(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT jsonb_build_object('type', 'file', 'fileType', 'image', 'url', pg_temp.url(pg_temp.srv('01')),
+                            'stickerId', current_setting('t206.cat'), 'altText', 'A cat waving') || p_over
+$$;
+
+SELECT lives_ok($q$SELECT pg_temp.sticker_msg('sticker 206',
+                     jsonb_build_array(pg_temp.cat('{"name": "Forged", "description": "forged", "width": 4000}'), pg_temp.cat_file()))$q$,
+                'a message holds one sticker of this instance beside text and its image fallback');
+SELECT is((SELECT (e ->> 'name', e ->> 'description', e ->> 'width', e ->> 'height', e ->> 'mimeType')::text
+             FROM public.messages m, jsonb_array_elements(m.content) e
+            WHERE m.content @> '[{"text": "sticker 206"}]' AND e ->> 'type' = 'sticker'),
+          '("Cat wave","A cat waving",160,120,image/png)',
+          'the part takes its name, description, size and type from the row');
+SELECT set_config('t206.msg', (SELECT id::text FROM public.messages WHERE content @> '[{"text": "sticker 206"}]'), true);
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('forged url',
+                     jsonb_build_array(pg_temp.cat('{"url": "https://evil.test/cat.png"}'),
+                                       pg_temp.cat_file('{"url": "https://evil.test/cat.png"}')))$q$,
+                 '22023', 'STICKER_UNKNOWN: a sticker part names a sticker of this instance by id and url',
+                 'a sticker part with a real id and another url is refused');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('unknown id',
+                     jsonb_build_array(pg_temp.cat('{"id": "2060f000-0000-4000-8000-000000000099"}')))$q$,
+                 '22023', 'STICKER_UNKNOWN: a sticker part names a sticker of this instance by id and url',
+                 'a sticker part naming no stickers row is refused');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('not a uuid', jsonb_build_array(pg_temp.cat('{"id": "x1"}')))$q$,
+                 '22023', 'STICKER_UNKNOWN: a sticker part names a sticker of this instance by id and url',
+                 'a sticker part of this instance with a non-uuid id is refused');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('hidden image',
+                     jsonb_build_array(pg_temp.cat(), pg_temp.cat_file('{"url": "https://evil.test/other.png"}')))$q$,
+                 '22023', 'STICKER_FALLBACK: the file part of a sticker is an image at its url',
+                 'a fallback at another url than its sticker is refused');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('video fallback',
+                     jsonb_build_array(pg_temp.cat(), pg_temp.cat_file('{"fileType": "video"}')))$q$,
+                 '22023', 'STICKER_FALLBACK: the file part of a sticker is an image at its url',
+                 'a fallback that is not an image is refused');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('two',
+                     jsonb_build_array(pg_temp.cat(), pg_temp.cat('{"id": "x2"}')))$q$,
                  '23514', 'STICKER_PARTS: a message holds at most one sticker', 'a second sticker part is refused');
-SELECT throws_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES (
-                     '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-                     '[{"type":"sticker","id":"x1","url":"https://db.test/s.png","name":"a1"}]')$q$,
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('no description', jsonb_build_array(pg_temp.cat() - 'description'))$q$,
                  '22023', NULL, 'a sticker part without a description is refused');
-SELECT throws_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES (
-                     '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-                     '[{"type":"sticker","id":"x1","url":"javascript:alert(1)","name":"a1","description":"d"}]')$q$,
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('js', jsonb_build_array(pg_temp.cat('{"url": "javascript:alert(1)"}')))$q$,
                  '22023', NULL, 'a sticker part with a non-http url is refused');
-SELECT throws_ok($q$UPDATE public.messages SET content = content || '[{"type":"sticker","id":"x2","url":"https://db.test/t.png","name":"a2","description":"d"}]'
-                    WHERE content @> '[{"type":"sticker","id":"x1"}]'$q$,
+SELECT lives_ok($q$SELECT pg_temp.sticker_msg('remote 206', jsonb_build_array(
+                     '{"type":"sticker","id":"peer-1","url":"HTTPS://peer.test/s.png","name":"Peer","description":"d","domain":"peer.test"}'::jsonb,
+                     '{"type":"file","fileType":"image","url":"HTTPS://peer.test/s.png","stickerId":"peer-1"}'::jsonb))$q$,
+                'another instance''s sticker, its url scheme in capitals, is stored as federation writes it');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_ok($q$SELECT pg_temp.sticker_msg('client remote', jsonb_build_array(pg_temp.cat('{"domain": "peer.test"}')))$q$,
+                 '42501', 'STICKER_DOMAIN: a sticker of another instance arrives by federation only',
+                 'a client cannot mark a sticker as another instance''s');
+SELECT tests.clear_authentication();
+SELECT throws_ok($q$UPDATE public.messages SET content = content || jsonb_build_array(pg_temp.cat('{"id": "x2"}'))
+                    WHERE id = current_setting('t206.msg')::uuid$q$,
                  '23514', NULL, 'an edit cannot add a second sticker');
+SELECT throws_ok($q$UPDATE public.messages
+                       SET content = jsonb_build_array(pg_temp.cat('{"url": "https://evil.test/cat.png"}'),
+                                                       pg_temp.cat_file('{"url": "https://evil.test/cat.png"}'))
+                     WHERE id = current_setting('t206.msg')::uuid$q$,
+                 '22023', NULL, 'an edit cannot point the sticker at another url');
 SELECT lives_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VALUES (
                      '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
                      '[{"type":"text","text":"no stickers here"}]')$q$,
@@ -295,44 +378,64 @@ SELECT lives_ok($q$INSERT INTO public.messages (channel_id, user_id, content) VA
 
 -- Reports. ------------------------------------------------------------------------------
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT is((SELECT count(*)::int FROM public.stickers WHERE id = current_setting('t206.mine')::uuid), 0,
+          'another member does not read a personal sticker row');
 SELECT ok(set_config('t206.report',
-              public.create_report('sticker', p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'mine'),
+              public.create_report('sticker', p_reported_sticker_id => current_setting('t206.mine')::uuid,
                                    p_reason => 'nsfw')::text, true) IS NOT NULL,
-          'a member reports a personal sticker');
-SELECT is(public.create_report('sticker', p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'mine'))::text,
+          'a member reports a personal sticker by its id');
+SELECT is(public.create_report('sticker', p_reported_sticker_id => current_setting('t206.mine')::uuid)::text,
           current_setting('t206.report'), 'a second report of the same sticker returns the open one');
-SELECT ok(public.create_report('sticker', p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'Cat wave'))
+SELECT ok(public.create_report('sticker', p_reported_sticker_id => current_setting('t206.cat')::uuid)
           IS NOT NULL, 'a server sticker is reported without an account');
-SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'Cat wave'),
-                     p_reported_message_id => '88888888-0000-0000-0000-000000000008')$q$,
-                 '22023', NULL, 'a sticker report names nothing else');
+SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => current_setting('t206.cat')::uuid,
+                     p_reported_server_id => '55555555-0000-0000-0000-000000000005')$q$,
+                 '22023', NULL, 'a sticker report names no server');
+SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => current_setting('t206.cat')::uuid,
+                     p_reported_message_id => current_setting('t206.msg')::uuid)$q$,
+                 'P0002', 'Message not found', 'a sticker report names no message the reporter cannot read');
 SELECT throws_ok($q$SELECT public.create_report('message', p_reported_message_id => '88888888-0000-0000-0000-000000000008',
-                     p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'Cat wave'))$q$,
+                     p_reported_sticker_id => current_setting('t206.cat')::uuid)$q$,
                  '22023', NULL, 'a message report names no sticker');
 SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => '2060f000-0000-4000-8000-000000000099')$q$,
                  'P0002', NULL, 'an unknown sticker is not found');
 SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT ok(set_config('t206.msg_report',
+              public.create_report('sticker', p_reported_sticker_id => current_setting('t206.cat')::uuid,
+                                   p_reported_message_id => current_setting('t206.msg')::uuid)::text, true) IS NOT NULL,
+          'a member reports a sticker with the message it was seen in');
+SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => current_setting('t206.mine')::uuid,
+                     p_reported_message_id => current_setting('t206.msg')::uuid)$q$,
+                 'P0002', 'Message not found', 'the message must carry the reported sticker');
+SELECT tests.clear_authentication();
+SELECT is((SELECT (r.reported_message_id::text = current_setting('t206.msg'), r.reported_sticker_id::text = current_setting('t206.cat'),
+                   r.content_snapshot -> 'message' IS NOT NULL)::text
+             FROM public.reports r WHERE r.id = current_setting('t206.msg_report')::uuid),
+          '(t,t,t)', 'the report keeps the message beside the sticker');
 SELECT is((SELECT (r.report_type, r.reported_user_id, r.content_snapshot -> 'sticker' ->> 'name',
                    r.content_snapshot -> 'sticker' ->> 'description')::text
              FROM public.reports r WHERE r.id = current_setting('t206.report')::uuid),
           '(sticker,22222222-0000-0000-0000-000000000002,mine,"Me, waving")',
           'the report names the owner and keeps the sticker as reported');
 SELECT is((SELECT (r.reported_user_id IS NULL, r.content_snapshot -> 'sticker' ->> 'scope')::text
-             FROM public.reports r WHERE r.report_type = 'sticker' AND r.id <> current_setting('t206.report')::uuid),
+             FROM public.reports r
+            WHERE r.report_type = 'sticker' AND r.reporter_id = '33333333-0000-0000-0000-000000000003'
+              AND r.id <> current_setting('t206.report')::uuid),
           '(t,server)', 'a server sticker report names no account');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => (SELECT id FROM public.stickers WHERE name = 'mine'))$q$,
+SELECT throws_ok($q$SELECT public.create_report('sticker', p_reported_sticker_id => current_setting('t206.mine')::uuid)$q$,
                  '22023', 'Cannot report yourself', 'an owner cannot report their own sticker');
 SELECT tests.clear_authentication();
 
 -- delete_sticker. -----------------------------------------------------------------------
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT throws_ok($q$SELECT public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'mine'))$q$,
+SELECT throws_ok($q$SELECT public.delete_sticker(current_setting('t206.mine')::uuid)$q$,
                  'P0002', NULL, 'another member cannot remove a personal sticker');
 SELECT tests.clear_authentication();
 UPDATE public.profiles SET is_moderator = true WHERE id = '33333333-0000-0000-0000-000000000003';
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT is(public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'mine')), pg_temp.bob('06', 'apng'),
+SELECT is(public.delete_sticker(current_setting('t206.mine')::uuid), pg_temp.bob('06', 'apng'),
           'an instance moderator removes a reported personal sticker and gets its path');
 WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'stickers' AND name = pg_temp.bob('06', 'apng') RETURNING 1)
 SELECT is(count(*)::int, 1, 'an instance moderator removes its file') FROM d;
@@ -342,17 +445,20 @@ SELECT is((SELECT (r.reported_sticker_id IS NULL, r.content_snapshot -> 'sticker
           '(t,mine)', 'the report outlives the sticker with its snapshot');
 
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'Cat wave'))$q$,
+SELECT throws_ok($q$SELECT public.delete_sticker(current_setting('t206.cat')::uuid)$q$,
                  'P0002', NULL, 'a member without MANAGE_EMOJIS cannot remove a server sticker');
 WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'stickers' AND name = pg_temp.srv('01') RETURNING 1)
 SELECT is(count(*)::int, 0, 'nor its file') FROM d;
 SELECT tests.clear_authentication();
 
 SELECT tests.authenticate_as('f2060000-0000-0000-0000-0000000000a1');
-SELECT is(public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'Cat wave')), pg_temp.srv('01'),
+SELECT is(public.delete_sticker(current_setting('t206.cat')::uuid), pg_temp.srv('01'),
           'a manager removes a server sticker');
 WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'stickers' AND name = pg_temp.srv('01') RETURNING 1)
 SELECT is(count(*)::int, 1, 'and its file') FROM d;
+SELECT lives_ok($q$UPDATE public.messages SET content = jsonb_set(content, '{0,text}', '"edited 206"')
+                    WHERE id = current_setting('t206.msg')::uuid$q$,
+                'a message whose sticker is gone is still edited');
 SELECT throws_ok($q$SELECT public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'Party'))$q$,
                  'P0002', NULL, 'a server manager cannot remove an instance sticker');
 SELECT tests.clear_authentication();
@@ -369,15 +475,45 @@ SELECT is(public.delete_sticker((SELECT id FROM public.stickers WHERE name = 'Pa
 SELECT tests.clear_authentication();
 
 -- Reads. --------------------------------------------------------------------------------
+SELECT set_config('t206.second', (SELECT id::text FROM public.stickers WHERE name = 'Second wave'), true);
+UPDATE public.profiles SET is_moderator = false WHERE id = '33333333-0000-0000-0000-000000000003';
 SELECT tests.authenticate_as_anon();
-SELECT is((SELECT array_agg(name ORDER BY name) FROM public.stickers), ARRAY['Second wave'],
-          'anon reads the remaining sticker');
+SELECT is((SELECT count(*)::int FROM public.stickers), 0, 'anon reads no sticker of a private server');
+SELECT is((SELECT array_agg(e.url) FROM public.existing_sticker_ids(
+              ARRAY[current_setting('t206.second')::uuid, '2060f000-0000-4000-8000-000000000099'::uuid]) e),
+          ARRAY[pg_temp.url(pg_temp.srv('04'))],
+          'existing_sticker_ids answers the url of an existing sticker whoever reads it, nothing for an unknown id');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT is((SELECT count(*)::int FROM public.stickers), 0, 'a non-member reads no sticker of a private server');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is((SELECT array_agg(name) FROM public.stickers), ARRAY['Second wave'], 'a member reads the server''s stickers');
+SELECT throws_ok($q$SELECT uploader FROM public.stickers$q$, '42501', NULL, 'a member does not read who uploaded a sticker');
+SELECT tests.clear_authentication();
+UPDATE public.servers SET public = true WHERE id = '55555555-0000-0000-0000-000000000005';
+SELECT tests.authenticate_as_anon();
+SELECT is((SELECT array_agg(name) FROM public.stickers), ARRAY['Second wave'], 'anon reads the stickers of a public server');
+SELECT tests.clear_authentication();
+UPDATE public.servers SET public = false WHERE id = '55555555-0000-0000-0000-000000000005';
+
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is((SELECT name FROM public.create_sticker('user', NULL, pg_temp.bob('07', 'gif'), pg_temp.url(pg_temp.bob('07', 'gif')),
+                                                  'mine2', 'Second', 64, 64)),
+          'mine2', 'a member creates another personal sticker');
+SELECT is((SELECT count(*)::int FROM public.stickers WHERE scope = 'user'), 1, 'the owner reads a personal sticker');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT is((SELECT count(*)::int FROM public.stickers WHERE scope = 'user'), 0, 'another account does not');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('f2060000-0000-0000-0000-0000000000a2');
+SELECT is((SELECT count(*)::int FROM public.stickers WHERE scope = 'user'), 1, 'an instance admin does');
 SELECT tests.clear_authentication();
 
 -- Server deletion. ----------------------------------------------------------------------
 SELECT lives_ok($q$DELETE FROM public.servers WHERE id = '55555555-0000-0000-0000-000000000005'$q$,
                 'a server with stickers is deleted');
-SELECT is((SELECT count(*)::int FROM public.stickers), 0, 'its stickers go with it');
+SELECT is((SELECT count(*)::int FROM public.stickers WHERE scope = 'server'), 0, 'its stickers go with it');
 
 SELECT * FROM finish();
 ROLLBACK;

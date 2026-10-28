@@ -70,6 +70,13 @@ export async function caseStickers(ctx: StickersContext): Promise<void> {
   const sticker = { type: 'sticker', id: stickerId, url, name: 'Cat wave', description: 'A cat waving', width: 160, height: 120, mimeType: 'image/png' }
   const fallback = { type: 'file', fileType: 'image', url, fileName: 'Cat wave', altText: 'A cat waving', stickerId, width: 160, height: 120, mimeType: 'image/png' }
 
+  // A sticker part of this instance names a stickers row by id and url (check_message_sticker_parts).
+  const row = await db.from('stickers').insert({
+    id: stickerId, scope: 'server', server_id: ids.hostedServer, name: 'Cat wave', description: 'A cat waving',
+    path: `server/${ids.hostedServer}/${stickerId}.png`, url, mime_type: 'image/png', file_size: 1000, width: 160, height: 120,
+  })
+  assert(!row.error, 'the hosted server holds the sticker', row.error?.message)
+
   // Out: the hosted channel's history page, as the peer's member reads it.
   const sent = await db.from('messages').insert({
     channel_id: ids.hostedChannel, user_id: ids.alice, content: [{ type: 'text', text: 'sticker from alice' }, sticker, fallback],
@@ -182,4 +189,6 @@ export async function caseStickers(ctx: StickersContext): Promise<void> {
   const plain = await dmIn(undefined)
   eq(JSON.stringify((plain ?? []).filter((p) => p.type !== 'text').map((p) => [p.type, p.stickerId ?? null])), JSON.stringify([['file', null]]),
     'a DM without harmony:sticker, as Mastodon sends it, stays an image')
+
+  await db.from('stickers').delete().eq('id', stickerId)
 }

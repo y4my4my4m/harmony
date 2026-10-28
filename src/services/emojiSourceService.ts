@@ -3,6 +3,11 @@
  * (20261031300001_emoji_source.sql) answer it for the signed-in viewer. Server
  * details come only from these calls; a private server the viewer is not in
  * reads as 'unavailable', the same as a deleted one.
+ *
+ * An id is asked with the url it was seen with: a row whose url differs answers
+ * 'unavailable', so a part pairing another emoji's id with its own image is not
+ * credited to that emoji. An 'unavailable' id is asked again by url, which names
+ * the instance of a federated emoji stored with its origin's id.
  */
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -44,7 +49,7 @@ export type EmojiSource =
   | { kind: 'unavailable' }
 
 export interface EmojiSourceRef {
-  /** emojis.id; a non-uuid id is ignored. */
+  /** emojis.id; a non-uuid id, or one without a url, is ignored. */
   id?: string | null
   url?: string | null
   name?: string | null
@@ -124,18 +129,15 @@ export function parseEmojiSource(raw: unknown): EmojiSource {
 
 /** Cache key of a ref; null when there is nothing to ask about. */
 export function emojiSourceKey(ref: EmojiSourceRef): string | null {
-  if (ref.id && UUID_RE.test(ref.id)) return `id:${ref.id.toLowerCase()}`
-  if (ref.url) return `url:${ref.url}\n${ref.name ?? ''}`
-  return null
+  if (!ref.url) return null
+  if (ref.id && UUID_RE.test(ref.id)) return `id:${ref.id.toLowerCase()}\n${ref.url}\n${ref.name ?? ''}`
+  return `url:${ref.url}\n${ref.name ?? ''}`
 }
 
 const cache = new Map<string, { at: number; value: Promise<EmojiSource> }>()
 
-async function request(ref: EmojiSourceRef): Promise<EmojiSource> {
-  const byId = !!ref.id && UUID_RE.test(ref.id)
-  const { data, error } = byId
-    ? await supabase.rpc('get_emoji_source', { p_emoji_id: ref.id })
-    : await supabase.rpc('get_emoji_source_by_url', { p_url: ref.url, p_name: ref.name || null })
+async function call(fn: string, args: Record<string, unknown>): Promise<EmojiSource> {
+  const { data, error } = await supabase.rpc(fn, args)
   if (error) {
     debug.warn('[emojiSource] lookup failed:', error.message)
     throw error
@@ -143,13 +145,20 @@ async function request(ref: EmojiSourceRef): Promise<EmojiSource> {
   return parseEmojiSource(data)
 }
 
+async function request(ref: EmojiSourceRef & { url: string }): Promise<EmojiSource> {
+  const byUrl = () => call('get_emoji_source_by_url', { p_url: ref.url, p_name: ref.name || null })
+  if (!ref.id || !UUID_RE.test(ref.id)) return byUrl()
+  const answer = await call('get_emoji_source', { p_emoji_id: ref.id, p_url: ref.url })
+  return answer.kind === 'unavailable' ? byUrl() : answer
+}
+
 /** Source of an emoji; 'unavailable' on any failure. Answers are kept for a minute. */
 export function fetchEmojiSource(ref: EmojiSourceRef): Promise<EmojiSource> {
   const key = emojiSourceKey(ref)
-  if (!key) return Promise.resolve(UNAVAILABLE)
+  if (!key || !ref.url) return Promise.resolve(UNAVAILABLE)
   const hit = cache.get(key)
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value
-  const value = request(ref).catch(() => {
+  const value = request({ ...ref, url: ref.url }).catch(() => {
     cache.delete(key)
     return UNAVAILABLE
   })

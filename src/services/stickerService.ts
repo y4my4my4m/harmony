@@ -1,8 +1,9 @@
 /**
  * Custom stickers: the stickers table and bucket (20261031200001_custom_stickers.sql).
  *
- * Rows are read directly (stickers_select_all) and written through create_sticker,
- * update_sticker and delete_sticker. Objects live in bucket stickers at
+ * Rows are read directly where stickers_select_visible shows them (uploader is not granted) and
+ * written through create_sticker, update_sticker and delete_sticker; existing_sticker_ids
+ * answers any sticker's url by id. Objects live in bucket stickers at
  * server/<server id>/<uuid>.<ext>, instance/<uuid>.<ext> or user/<profile id>/<uuid>.<ext>.
  */
 import { v4 as uuidv4 } from 'uuid'
@@ -44,7 +45,6 @@ export interface Sticker {
   scope: StickerScope
   server_id: string | null
   owner_id: string | null
-  uploader: string | null
   name: string
   description: string
   url: string
@@ -58,7 +58,7 @@ export interface Sticker {
 }
 
 const COLUMNS =
-  'id, scope, server_id, owner_id, uploader, name, description, url, path, mime_type, file_size, width, height, duration_ms, created_at'
+  'id, scope, server_id, owner_id, name, description, url, path, mime_type, file_size, width, height, duration_ms, created_at'
 
 const STICKER_EXTENSIONS = new Set(['png', 'apng', 'webp', 'gif'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -95,13 +95,22 @@ export async function listMyStickers(profileId: string): Promise<Sticker[]> {
   return ((data ?? []) as Sticker[]).sort(byName)
 }
 
-/** Of `ids`, those still in the stickers table; ids that are not uuids are left out. */
-export async function existingStickerIds(ids: readonly string[]): Promise<Set<string>> {
-  const wanted = [...new Set(ids)].filter((id) => UUID.test(id))
-  if (!wanted.length) return new Set()
-  const { data, error } = await supabase.from('stickers').select('id').in('id', wanted)
-  if (error) throw error
-  return new Set((data ?? []).map((row: { id: string }) => row.id))
+/** existing_sticker_ids takes at most this many ids per call. */
+const EXISTING_BATCH = 500
+
+/**
+ * Of `ids`, those naming a stickers row, each with the row's url; ids that are not uuids are
+ * left out. Answers whether or not the caller may read the row.
+ */
+export async function existingStickerIds(ids: readonly string[]): Promise<Map<string, string>> {
+  const wanted = [...new Set(ids.map((id) => id.toLowerCase()))].filter((id) => UUID.test(id))
+  const found = new Map<string, string>()
+  for (let i = 0; i < wanted.length; i += EXISTING_BATCH) {
+    const { data, error } = await supabase.rpc('existing_sticker_ids', { p_ids: wanted.slice(i, i + EXISTING_BATCH) })
+    if (error) throw error
+    for (const row of (data ?? []) as Array<{ id: string; url: string }>) found.set(row.id, row.url)
+  }
+  return found
 }
 
 function fileProblemText(problem: StickerFileProblem, info: StickerImageInfo | null, size: number): string {
