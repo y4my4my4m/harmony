@@ -8,6 +8,7 @@
  */
 
 import { mimeAllowed } from './mimeMatch'
+import { readStickerImageInfo } from './stickerImage'
 export type ImageUploadKind =
   | 'avatar'
   | 'profile_banner'
@@ -15,6 +16,7 @@ export type ImageUploadKind =
   | 'server_banner'
   | 'group_icon'
   | 'emoji'
+  | 'sticker'
 
 /** Largest output size per kind, used only when a file must shrink. */
 export const IMAGE_SHRINK_BOUNDS: Record<ImageUploadKind, { maxWidth: number; maxHeight: number }> = {
@@ -24,12 +26,15 @@ export const IMAGE_SHRINK_BOUNDS: Record<ImageUploadKind, { maxWidth: number; ma
   profile_banner: { maxWidth: 2560, maxHeight: 2560 },
   server_banner: { maxWidth: 2560, maxHeight: 2560 },
   emoji: { maxWidth: 256, maxHeight: 256 },
+  sticker: { maxWidth: 320, maxHeight: 320 },
 }
 
 /** What the target bucket accepts; maxBytes <= 0 and allowedMime null mean no limit. */
 export interface UploadBudget {
   maxBytes: number
   allowedMime: string[] | null
+  /** A PNG, GIF or WebP original wider or taller than this, in pixels, does not fit. */
+  maxSide?: number
 }
 
 /** Redraw in the source format. */
@@ -465,6 +470,12 @@ function fits(budget: UploadBudget, type: string, size: number): boolean {
   return accepts(budget, type) && (budget.maxBytes <= 0 || size <= budget.maxBytes)
 }
 
+function withinSide(budget: UploadBudget, bytes: Uint8Array): boolean {
+  if (!budget.maxSide) return true
+  const info = readStickerImageInfo(bytes)
+  return !info || (info.width <= budget.maxSide && info.height <= budget.maxSide)
+}
+
 /**
  * The file to upload for `kind` into a bucket with `budget`. The original
  * when the bucket accepts it as is, when it is animated, or when it cannot be
@@ -486,7 +497,7 @@ export async function prepareImageUpload(
   }
   const format = sniffImageFormat(bytes)
   const original = keepOriginal(file, format, format === 'png' && isAnimatedPng(bytes))
-  if (fits(budget, original.contentType, file.size)) return original
+  if (fits(budget, original.contentType, file.size) && withinSide(budget, bytes)) return original
   if (!format || isAnimatedImage(bytes)) return original
 
   const decoded = await codec.decode(file).catch(() => null)

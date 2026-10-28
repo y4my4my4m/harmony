@@ -1116,7 +1116,8 @@
       "video": "视频",
       "audio": "音频",
       "file": "文件 {name}",
-      "poll": "投票：{question}"
+      "poll": "投票：{question}",
+      "sticker": "贴纸 {name}:{description}"
     },
     "announce": {
       "one": "{name}：{text}",
@@ -4406,7 +4407,8 @@
       "invite": "邀请",
       "emoji": "表情",
       "sound": "音效",
-      "bot": "机器人"
+      "bot": "机器人",
+      "sticker": "贴纸"
     },
     "actions": {
       "channel_create": "{actor} 创建了频道 {target}",
@@ -4453,7 +4455,10 @@
       "bot_remove": "{actor} 移除了机器人 {target}",
       "unknown": "{actor}：{action}",
       "server_suspend": "{actor} 停用了服务器",
-      "server_unsuspend": "{actor} 解除了服务器的停用"
+      "server_unsuspend": "{actor} 解除了服务器的停用",
+      "sticker_create": "{actor} 添加了贴纸 {target}",
+      "sticker_update": "{actor} 编辑了贴纸 {target}",
+      "sticker_delete": "{actor} 删除了贴纸 {target}"
     },
     "fields": {
       "name": "名称",
@@ -5165,12 +5170,21 @@
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
       "customOAuthCallback": "在提供方登记的重定向（回调）URL：",
-      "customOAuthManage": "在服务器上的 Harmony 目录中："
+      "customOAuthManage": "在服务器上的 Harmony 目录中：",
+      "maxStickersPerServer": "每个服务器的贴纸数",
+      "maxStickersPerServerHint": "0 到 100。0 表示关闭服务器贴纸。",
+      "maxInstanceStickers": "实例贴纸数",
+      "maxInstanceStickersHint": "0 到 500。所有本地账号都可以发送实例贴纸。0 表示关闭。",
+      "maxPersonalStickers": "每位用户的个人贴纸数",
+      "maxPersonalStickersHint": "0 到 100。默认值 0 表示关闭个人贴纸。"
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "每人对一条帖子的最大反应数",
-        "maxPersonalEmojisPerUser": "每位用户的个人表情数"
+        "maxPersonalEmojisPerUser": "每位用户的个人表情数",
+        "maxStickersPerServer": "每个服务器的贴纸数",
+        "maxInstanceStickers": "实例贴纸数",
+        "maxPersonalStickersPerUser": "每位用户的个人贴纸数"
       },
       "staff": {
         "someServer": "某个服务器",
@@ -7562,5 +7576,80 @@
     "showInFolder": "在文件夹中显示",
     "downloadStarted": "正在下载 {name}",
     "downloadFailed": "下载失败：{reason}"
+  },
+  "stickers": {
+    "alt": "贴纸 {name}:{description}",
+    "goneLabel": "贴纸 {name},已不可用:{description}",
+    "removed": "贴纸已删除",
+    "unavailable": "贴纸不可用",
+    "preview": "贴纸:{name}",
+    "pickLabel": "发送贴纸 {name}:{description}",
+    "picker": {
+      "server": "此服务器",
+      "instance": "实例贴纸",
+      "mine": "我的贴纸"
+    },
+    "errors": {
+      "type": "贴纸是 PNG、APNG、WebP 或 GIF 图片。",
+      "size": "该贴纸为 {size};上限为 {max}。",
+      "dimensions": "该贴纸为 {width}×{height} 像素;上限为 {max}×{max}。动态贴纸不会缩小。",
+      "duration": "该动画时长 {seconds} 秒;上限为 {max} 秒。",
+      "dimensionsGeneric": "贴纸最大为 {max}×{max} 像素。",
+      "durationGeneric": "动态贴纸最长 {max} 秒。",
+      "nameLength": "贴纸名称为 {min} 到 {max} 个字符。",
+      "descriptionMissing": "请为无法看到图片的人描述这个贴纸。",
+      "descriptionLength": "描述最多 {max} 个字符。",
+      "limit": "已达到贴纸上限({max})。",
+      "off": "此实例已关闭这类贴纸。",
+      "nameTaken": "这里已有同名贴纸。",
+      "forbidden": "你无法管理这些贴纸。",
+      "notFound": "该贴纸已不存在。",
+      "generic": "无法保存贴纸。"
+    },
+    "manage": {
+      "navLabel": "贴纸",
+      "serverTitle": "贴纸",
+      "serverDescription": "成员可在此服务器的频道和话题中发送的贴纸。拥有\"管理表情\"权限的成员可以添加、编辑和删除它们。",
+      "instanceTitle": "实例贴纸",
+      "instanceDescription": "此实例的每个账号都可以在任意服务器或对话中发送的贴纸。",
+      "myTitle": "我的贴纸",
+      "myDescription": "只有你可以发送的贴纸,可用于任意服务器或对话。",
+      "upload": "添加贴纸",
+      "limits": "PNG、APNG、WebP 或 GIF,最大 {size}、{side}×{side} 像素;动画最长 {seconds} 秒。更大的静态图片会被缩小。",
+      "file": "图片",
+      "name": "名称",
+      "description": "描述",
+      "descriptionHint": "由屏幕阅读器朗读,并在图片无法加载时显示。必填。",
+      "uploading": "正在上传…",
+      "uploadButton": "上传贴纸",
+      "uploaded": "已添加贴纸\"{name}\"",
+      "saved": "已保存贴纸\"{name}\"",
+      "deleted": "已删除贴纸\"{name}\"",
+      "listTitle": "贴纸",
+      "empty": "还没有贴纸。",
+      "editLabel": "编辑贴纸 {name}",
+      "deleteLabel": "删除贴纸 {name}",
+      "deleteTitle": "删除贴纸",
+      "deleteConfirm": "删除\"{name}\"?发送过它的消息将改为显示占位符。",
+      "loading": "正在加载贴纸",
+      "loadFailed": "无法加载贴纸。",
+      "off": {
+        "server": "此实例已关闭服务器贴纸。",
+        "instance": "实例贴纸已关闭。请在 管理 → Config 中提高上限。",
+        "user": "此实例已关闭个人贴纸。管理员可以开启。"
+      }
+    },
+    "report": {
+      "menu": "举报贴纸",
+      "proof": "被举报的贴纸",
+      "remove": "删除贴纸",
+      "removeConfirm": "为所有人删除此贴纸?发送过它的消息将改为显示占位符。",
+      "removed": "贴纸已删除",
+      "scope": {
+        "server": "{server} 的贴纸",
+        "instance": "实例贴纸",
+        "user": "个人贴纸"
+      }
+    }
   }
 }

@@ -1516,6 +1516,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       return true;
     };
 
+    /** Empties the text field; attachments stay. */
+    const clearText = () => {
+      emit('update:modelValue', '');
+      richEditorRef.value?.clear?.();
+    };
+
     defineExpose({
       composerRef,
       gifTriggerRef,
@@ -1523,7 +1529,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       flashRejection,
       restoreAttachments,
       focusEditor,
-      insertAtCaret
+      insertAtCaret,
+      clearText
     });
 
 

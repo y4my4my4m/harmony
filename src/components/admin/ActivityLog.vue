@@ -116,6 +116,9 @@ const CONFIG_KEY_LABELS: Record<string, string> = {
 const CONFIG_KEY_I18N: Record<string, string> = {
   max_post_reactions_per_user: 'admin.activityLog.configKeys.maxPostReactionsPerUser',
   max_personal_emojis_per_user: 'admin.activityLog.configKeys.maxPersonalEmojisPerUser',
+  max_stickers_per_server: 'admin.activityLog.configKeys.maxStickersPerServer',
+  max_instance_stickers: 'admin.activityLog.configKeys.maxInstanceStickers',
+  max_personal_stickers_per_user: 'admin.activityLog.configKeys.maxPersonalStickersPerUser',
 }
 
 const formatConfigValue = (v: unknown): string => {

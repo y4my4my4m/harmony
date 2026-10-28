@@ -3,6 +3,7 @@ import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/supabase'
 import { i18n } from '@/i18n'
 import { humanizeUploadError } from '@/utils/uploadValidation'
 import { registerTransfer, settleTransfer, type TransferEntry, type TransferProgress } from '@/services/transfers'
+import { immutableUploadOptions, type PreparedImage } from '@/utils/imageResize'
 
 /**
  * Every storage upload of the app: progress, abort, the transfers indicator, and resumable
@@ -793,6 +794,29 @@ export async function uploadStorageObject(
     }
     return { data: null, error: error instanceof Error ? error : new Error(String(error)) }
   }
+}
+
+export interface PublicImageUploadOptions {
+  /** Name in the transfers indicator; the prepared file's name by default. */
+  label?: string
+  /** Fraction of the image sent, 0 to 1. */
+  onProgress?: (fraction: number) => void
+}
+
+/** A prepared image written under a fresh name in a public bucket; returns its public URL. */
+export async function storePublicImage(
+  bucket: string,
+  path: string,
+  prepared: PreparedImage,
+  options: PublicImageUploadOptions = {},
+): Promise<string> {
+  const { error } = await uploadStorageObject(bucket, path, prepared.file, {
+    ...immutableUploadOptions(prepared),
+    label: options.label ?? prepared.file.name,
+    onProgress: options.onProgress,
+  })
+  if (error) throw error
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 }
 
 /** Test hook: the TUS endpoint is tried again and no upload is in flight. */

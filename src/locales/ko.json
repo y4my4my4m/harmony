@@ -1116,7 +1116,8 @@
       "video": "동영상",
       "audio": "오디오",
       "file": "파일 {name}",
-      "poll": "투표: {question}"
+      "poll": "투표: {question}",
+      "sticker": "스티커 {name}: {description}"
     },
     "announce": {
       "one": "{name}: {text}",
@@ -4406,7 +4407,8 @@
       "invite": "초대",
       "emoji": "이모지",
       "sound": "사운드",
-      "bot": "봇"
+      "bot": "봇",
+      "sticker": "스티커"
     },
     "actions": {
       "channel_create": "{actor}님이 채널 {target}을(를) 만들었습니다",
@@ -4453,7 +4455,10 @@
       "bot_remove": "{actor}님이 봇 {target}을(를) 제거했습니다",
       "unknown": "{actor}: {action}",
       "server_suspend": "{actor}님이 서버를 정지했습니다",
-      "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다"
+      "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다",
+      "sticker_create": "{actor} 님이 스티커 {target}을(를) 추가했습니다",
+      "sticker_update": "{actor} 님이 스티커 {target}을(를) 편집했습니다",
+      "sticker_delete": "{actor} 님이 스티커 {target}을(를) 삭제했습니다"
     },
     "fields": {
       "name": "이름",
@@ -5165,12 +5170,21 @@
       "customOAuthHint": "이 인스턴스가 신뢰하는 OpenID Connect 또는 OAuth 2.0 제공자(Authentik, Keycloak, Better Auth 등)입니다. 로그인 페이지에서 위 버튼들 다음에 표시됩니다. 클라이언트 시크릿은 서버에 남으므로 추가와 삭제는 서버에서 합니다.",
       "customOAuthEmpty": "아직 없습니다.",
       "customOAuthCallback": "제공자에 등록할 리디렉션(콜백) URL:",
-      "customOAuthManage": "서버의 Harmony 폴더에서:"
+      "customOAuthManage": "서버의 Harmony 폴더에서:",
+      "maxStickersPerServer": "서버당 스티커 수",
+      "maxStickersPerServerHint": "0~100. 0이면 서버 스티커가 꺼집니다.",
+      "maxInstanceStickers": "인스턴스 스티커 수",
+      "maxInstanceStickersHint": "0~500. 모든 로컬 계정이 인스턴스 스티커를 보낼 수 있습니다. 0이면 꺼집니다.",
+      "maxPersonalStickers": "사용자당 개인 스티커 수",
+      "maxPersonalStickersHint": "0~100. 기본값 0이면 개인 스티커가 꺼집니다."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수",
-        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수"
+        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수",
+        "maxStickersPerServer": "서버당 스티커 수",
+        "maxInstanceStickers": "인스턴스 스티커 수",
+        "maxPersonalStickersPerUser": "사용자당 개인 스티커 수"
       },
       "staff": {
         "someServer": "어떤 서버",
@@ -7562,5 +7576,80 @@
     "showInFolder": "폴더에서 보기",
     "downloadStarted": "{name} 다운로드 중",
     "downloadFailed": "다운로드 실패: {reason}"
+  },
+  "stickers": {
+    "alt": "스티커 {name}: {description}",
+    "goneLabel": "스티커 {name}, 더 이상 사용할 수 없음: {description}",
+    "removed": "삭제된 스티커",
+    "unavailable": "스티커를 표시할 수 없음",
+    "preview": "스티커: {name}",
+    "pickLabel": "스티커 {name} 보내기: {description}",
+    "picker": {
+      "server": "이 서버",
+      "instance": "인스턴스 스티커",
+      "mine": "내 스티커"
+    },
+    "errors": {
+      "type": "스티커는 PNG, APNG, WebP 또는 GIF 이미지입니다.",
+      "size": "이 스티커는 {size}입니다. 한도는 {max}입니다.",
+      "dimensions": "이 스티커는 {width}×{height}픽셀입니다. 한도는 {max}×{max}입니다. 움직이는 스티커는 크기를 줄이지 않습니다.",
+      "duration": "이 애니메이션은 {seconds}초입니다. 한도는 {max}초입니다.",
+      "dimensionsGeneric": "스티커는 최대 {max}×{max}픽셀입니다.",
+      "durationGeneric": "움직이는 스티커는 최대 {max}초입니다.",
+      "nameLength": "스티커 이름은 {min}~{max}자입니다.",
+      "descriptionMissing": "볼 수 없는 사람을 위해 스티커를 설명해 주세요.",
+      "descriptionLength": "설명은 최대 {max}자입니다.",
+      "limit": "스티커 한도에 도달했습니다 ({max}).",
+      "off": "이 인스턴스에서는 이 스티커가 꺼져 있습니다.",
+      "nameTaken": "같은 이름의 스티커가 이미 있습니다.",
+      "forbidden": "이 스티커를 관리할 수 없습니다.",
+      "notFound": "해당 스티커가 더 이상 없습니다.",
+      "generic": "스티커를 저장하지 못했습니다."
+    },
+    "manage": {
+      "navLabel": "스티커",
+      "serverTitle": "스티커",
+      "serverDescription": "멤버가 이 서버의 채널과 스레드에서 보낼 수 있는 스티커입니다. 표현 관리 권한이 있는 멤버가 추가, 편집, 삭제합니다.",
+      "instanceTitle": "인스턴스 스티커",
+      "instanceDescription": "이 인스턴스의 모든 계정이 어느 서버나 대화에서든 보낼 수 있는 스티커입니다.",
+      "myTitle": "내 스티커",
+      "myDescription": "나만 보낼 수 있는 스티커로, 어느 서버나 대화에서든 쓸 수 있습니다.",
+      "upload": "스티커 추가",
+      "limits": "PNG, APNG, WebP 또는 GIF, 최대 {size}, {side}×{side}픽셀. 애니메이션은 최대 {seconds}초. 더 큰 정지 이미지는 크기를 줄입니다.",
+      "file": "이미지",
+      "name": "이름",
+      "description": "설명",
+      "descriptionHint": "스크린 리더가 읽어 주고 이미지를 불러오지 못할 때 표시됩니다. 필수입니다.",
+      "uploading": "업로드 중…",
+      "uploadButton": "스티커 업로드",
+      "uploaded": "스티커 \"{name}\"을(를) 추가했습니다",
+      "saved": "스티커 \"{name}\"을(를) 저장했습니다",
+      "deleted": "스티커 \"{name}\"을(를) 삭제했습니다",
+      "listTitle": "스티커",
+      "empty": "아직 스티커가 없습니다.",
+      "editLabel": "스티커 {name} 편집",
+      "deleteLabel": "스티커 {name} 삭제",
+      "deleteTitle": "스티커 삭제",
+      "deleteConfirm": "\"{name}\"을(를) 삭제할까요? 이 스티커를 보낸 메시지에는 대신 자리 표시가 나타납니다.",
+      "loading": "스티커 불러오는 중",
+      "loadFailed": "스티커를 불러오지 못했습니다.",
+      "off": {
+        "server": "이 인스턴스에서는 서버 스티커가 꺼져 있습니다.",
+        "instance": "인스턴스 스티커가 꺼져 있습니다. 관리 → Config에서 한도를 올리세요.",
+        "user": "이 인스턴스에서는 개인 스티커가 꺼져 있습니다. 관리자가 허용할 수 있습니다."
+      }
+    },
+    "report": {
+      "menu": "스티커 신고",
+      "proof": "신고된 스티커",
+      "remove": "스티커 삭제",
+      "removeConfirm": "이 스티커를 모두에게서 삭제할까요? 이 스티커를 보낸 메시지에는 대신 자리 표시가 나타납니다.",
+      "removed": "삭제된 스티커",
+      "scope": {
+        "server": "{server}의 스티커",
+        "instance": "인스턴스 스티커",
+        "user": "개인 스티커"
+      }
+    }
   }
 }

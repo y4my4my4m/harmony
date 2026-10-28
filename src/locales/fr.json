@@ -1116,7 +1116,8 @@
       "video": "vidéo",
       "audio": "audio",
       "file": "fichier {name}",
-      "poll": "sondage : {question}"
+      "poll": "sondage : {question}",
+      "sticker": "sticker {name} : {description}"
     },
     "announce": {
       "one": "{name} : {text}",
@@ -4406,7 +4407,8 @@
       "invite": "Invitations",
       "emoji": "Émojis",
       "sound": "Sons",
-      "bot": "Bots"
+      "bot": "Bots",
+      "sticker": "Stickers"
     },
     "actions": {
       "channel_create": "{actor} a créé le canal {target}",
@@ -4453,7 +4455,10 @@
       "bot_remove": "{actor} a retiré le bot {target}",
       "unknown": "{actor} : {action}",
       "server_suspend": "{actor} a suspendu le serveur",
-      "server_unsuspend": "{actor} a levé la suspension du serveur"
+      "server_unsuspend": "{actor} a levé la suspension du serveur",
+      "sticker_create": "{actor} a ajouté le sticker {target}",
+      "sticker_update": "{actor} a modifié le sticker {target}",
+      "sticker_delete": "{actor} a supprimé le sticker {target}"
     },
     "fields": {
       "name": "Nom",
@@ -5165,12 +5170,21 @@
       "customOAuthHint": "Fournisseurs OpenID Connect ou OAuth 2.0 auxquels cette instance fait confiance, comme Authentik, Keycloak ou Better Auth. Leurs boutons suivent ceux ci-dessus sur la page de connexion. Leurs secrets client restent sur le serveur : on les ajoute et on les retire là-bas.",
       "customOAuthEmpty": "Aucun pour l’instant.",
       "customOAuthCallback": "URL de redirection (callback) à enregistrer chez le fournisseur :",
-      "customOAuthManage": "Sur le serveur, depuis le dossier de Harmony :"
+      "customOAuthManage": "Sur le serveur, depuis le dossier de Harmony :",
+      "maxStickersPerServer": "Stickers par serveur",
+      "maxStickersPerServerHint": "De 0 à 100. 0 désactive les stickers de serveur.",
+      "maxInstanceStickers": "Stickers de l'instance",
+      "maxInstanceStickersHint": "De 0 à 500. Chaque compte local peut envoyer les stickers de l'instance. 0 les désactive.",
+      "maxPersonalStickers": "Stickers personnels par utilisateur",
+      "maxPersonalStickersHint": "De 0 à 100. 0, la valeur par défaut, désactive les stickers personnels."
     },
     "activityLog": {
       "configKeys": {
         "maxPostReactionsPerUser": "Réactions max. par personne sur une publication",
-        "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur"
+        "maxPersonalEmojisPerUser": "Emojis personnels par utilisateur",
+        "maxStickersPerServer": "Stickers par serveur",
+        "maxInstanceStickers": "Stickers de l'instance",
+        "maxPersonalStickersPerUser": "Stickers personnels par utilisateur"
       },
       "staff": {
         "someServer": "un serveur",
@@ -7562,5 +7576,80 @@
     "showInFolder": "Afficher dans le dossier",
     "downloadStarted": "Téléchargement de {name}",
     "downloadFailed": "Échec du téléchargement : {reason}"
+  },
+  "stickers": {
+    "alt": "Sticker {name} : {description}",
+    "goneLabel": "Sticker {name}, plus disponible : {description}",
+    "removed": "Sticker supprimé",
+    "unavailable": "Sticker indisponible",
+    "preview": "Sticker : {name}",
+    "pickLabel": "Envoyer le sticker {name} : {description}",
+    "picker": {
+      "server": "Ce serveur",
+      "instance": "Stickers de l'instance",
+      "mine": "Mes stickers"
+    },
+    "errors": {
+      "type": "Un sticker est une image PNG, APNG, WebP ou GIF.",
+      "size": "Ce sticker pèse {size} ; la limite est de {max}.",
+      "dimensions": "Ce sticker mesure {width}×{height} pixels ; la limite est de {max}×{max}. Les stickers animés ne sont pas redimensionnés.",
+      "duration": "Cette animation dure {seconds} s ; la limite est de {max} s.",
+      "dimensionsGeneric": "Un sticker mesure au plus {max}×{max} pixels.",
+      "durationGeneric": "Un sticker animé dure au plus {max} secondes.",
+      "nameLength": "Le nom d'un sticker compte de {min} à {max} caractères.",
+      "descriptionMissing": "Décrivez le sticker pour les personnes qui ne peuvent pas le voir.",
+      "descriptionLength": "Une description compte au plus {max} caractères.",
+      "limit": "Limite de stickers atteinte ({max}).",
+      "off": "Ces stickers sont désactivés sur cette instance.",
+      "nameTaken": "Un sticker porte déjà ce nom ici.",
+      "forbidden": "Vous ne pouvez pas gérer ces stickers.",
+      "notFound": "Ce sticker n'existe plus.",
+      "generic": "Le sticker n'a pas pu être enregistré."
+    },
+    "manage": {
+      "navLabel": "Stickers",
+      "serverTitle": "Stickers",
+      "serverDescription": "Stickers que les membres peuvent envoyer dans les salons et fils de ce serveur. Les membres ayant Gérer les expressions les ajoutent, les modifient et les suppriment.",
+      "instanceTitle": "Stickers de l'instance",
+      "instanceDescription": "Stickers que chaque compte de cette instance peut envoyer dans n'importe quel serveur ou conversation.",
+      "myTitle": "Mes stickers",
+      "myDescription": "Stickers que vous seul pouvez envoyer, dans n'importe quel serveur ou conversation.",
+      "upload": "Ajouter un sticker",
+      "limits": "PNG, APNG, WebP ou GIF, jusqu'à {size} et {side}×{side} pixels ; animations jusqu'à {seconds} secondes. Les images fixes plus grandes sont redimensionnées.",
+      "file": "Image",
+      "name": "Nom",
+      "description": "Description",
+      "descriptionHint": "Lue par les lecteurs d'écran et affichée quand l'image ne charge pas. Obligatoire.",
+      "uploading": "Envoi…",
+      "uploadButton": "Téléverser le sticker",
+      "uploaded": "Sticker « {name} » ajouté",
+      "saved": "Sticker « {name} » enregistré",
+      "deleted": "Sticker « {name} » supprimé",
+      "listTitle": "Stickers",
+      "empty": "Aucun sticker pour le moment.",
+      "editLabel": "Modifier le sticker {name}",
+      "deleteLabel": "Supprimer le sticker {name}",
+      "deleteTitle": "Supprimer le sticker",
+      "deleteConfirm": "Supprimer « {name} » ? Les messages qui l’ont envoyé affichent un espace réservé à la place.",
+      "loading": "Chargement des stickers",
+      "loadFailed": "Les stickers n'ont pas pu être chargés.",
+      "off": {
+        "server": "Les stickers de serveur sont désactivés sur cette instance.",
+        "instance": "Les stickers de l'instance sont désactivés. Augmentez la limite dans Admin → Config.",
+        "user": "Les stickers personnels sont désactivés sur cette instance. Un administrateur peut les autoriser."
+      }
+    },
+    "report": {
+      "menu": "Signaler le sticker",
+      "proof": "Sticker signalé",
+      "remove": "Supprimer le sticker",
+      "removeConfirm": "Supprimer ce sticker pour tout le monde ? Les messages qui l’ont envoyé affichent un espace réservé à la place.",
+      "removed": "Sticker supprimé",
+      "scope": {
+        "server": "Sticker de {server}",
+        "instance": "Sticker de l'instance",
+        "user": "Sticker personnel"
+      }
+    }
   }
 }

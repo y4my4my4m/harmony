@@ -135,11 +135,15 @@ export function fileAttachmentsToAp(content: unknown, audience: string): any[] {
       ? federatedMediaUrl(part.path, audience)
       : (typeof part.url === 'string' && /^https?:\/\//i.test(part.url) ? part.url : null);
     if (!url) continue;
+    // A sticker's image is named by its description: Mastodon reads `name` as alt text.
+    const name = typeof part.stickerId === 'string' && typeof part.altText === 'string'
+      ? part.altText
+      : typeof part.fileName === 'string' ? part.fileName : null;
     out.push({
       type: 'Document',
       mediaType: mediaTypeOf(part, url),
       url,
-      name: typeof part.fileName === 'string' ? part.fileName : null,
+      name,
     });
   }
   return out;

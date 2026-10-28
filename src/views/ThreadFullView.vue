@@ -228,6 +228,8 @@
       v-if="mediaPickerOpen"
       @click.stop
       @sendGif="handleSendGif"
+      @sendSticker="handleSendSticker"
+      custom-stickers
       @sendEmoji="handleSendEmojiToInput"
       :closePopup="closeMediaPicker"
       :position="'above'"
@@ -263,6 +265,7 @@ import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import { useMessageReactionLimit } from '@/composables/useReactionLimits'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
+import { stickerMessageParts, type StickerPartSource } from '@/utils/stickerParts'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -825,19 +828,21 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
   }
 }
 
-const handleSendGif = async (gif: Gif) => {
+const handleSendGif = (gif: Gif) => {
   const gifUrl = gif.media_formats.gif.url
+  return sendPickedMedia([{ type: 'file', url: gifUrl, fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image' }])
+}
+
+const handleSendSticker = (sticker: StickerPartSource) => sendPickedMedia(stickerMessageParts(sticker))
+
+/** A GIF or a sticker from the media picker, sent alone. */
+const sendPickedMedia = async (messageParts: MessagePart[]) => {
   closeMediaPicker()
   
   if (!thread.value) return
   
   const turn = takeSendTurn(threadOrderKey())
   try {
-    const messageParts: MessagePart[] = [{
-      type: 'file',
-      url: gifUrl,
-      fileType: isVideoMessageUrl(gifUrl) ? 'video' : 'image'
-    }]
     
     const targetThreadId = thread.value.id
     const sendResult = await runWithEncryptionFallback(

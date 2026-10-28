@@ -190,6 +190,17 @@
       </div>
     </div>
 
+    <div v-else-if="activeAdminTab === 'stickers'" class="admin-grid single">
+      <div class="admin-module">
+        <StickerSettings
+          scope="instance"
+          can-manage
+          :title="t('stickers.manage.instanceTitle')"
+          :description="t('stickers.manage.instanceDescription')"
+        />
+      </div>
+    </div>
+
     <div v-else-if="activeAdminTab === 'tools'" class="admin-grid">
       <!-- Performance Monitoring -->
       <div class="admin-module performance-module">
@@ -235,6 +246,7 @@ const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 const DriveAdmin = defineAsyncComponent(() => import('@/components/admin/DriveAdmin.vue'))
+const StickerSettings = defineAsyncComponent(() => import('@/components/stickers/StickerSettings.vue'))
 import { adminService } from '@/services/AdminService'
 import { useProfileStore } from '@/stores/useProfile'
 
@@ -255,6 +267,7 @@ const adminTabs = [
   { key: 'webhooks', label: t('adminWebhooks.tab'), icon: 'link' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
+  { key: 'stickers', label: t('stickers.manage.navLabel'), icon: 'sticker' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },
   { key: 'drive', label: t('drive.title'), icon: 'hard-drive' },
@@ -269,7 +282,8 @@ const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam', 'webhooks']
 const visibleTabs = computed(() =>
   (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
-    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks')))
+    .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks'))
+    .filter(tab => tab.key !== 'stickers' || hasCapability('custom-stickers')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))

@@ -61,6 +61,7 @@ describe('ReportService', () => {
       p_reported_post_id: null,
       p_reported_message_id: null,
       p_reported_server_id: null,
+      p_reported_sticker_id: null,
       p_reason: 'spam',
       p_category: null,
       p_comment: null,
@@ -68,5 +69,15 @@ describe('ReportService', () => {
       p_evidence_text: null,
       p_forward_to_server: false,
     })
+  })
+
+  it('names the sticker of a sticker report', async () => {
+    rpc.mockResolvedValue({ data: 'new-id', error: null } as never)
+    await reportService.createReport({ report_type: 'sticker', reported_sticker_id: 's1', reason: 'nsfw' })
+    expect(rpc).toHaveBeenCalledWith('create_report', expect.objectContaining({
+      p_report_type: 'sticker',
+      p_reported_sticker_id: 's1',
+      p_reported_user_id: null,
+    }))
   })
 })

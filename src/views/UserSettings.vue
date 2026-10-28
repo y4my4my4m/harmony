@@ -145,6 +145,14 @@
 
           <MyEmojisSettings v-else-if="activeSection === 'emojis'" />
 
+          <StickerSettings
+            v-else-if="activeSection === 'stickers'"
+            scope="user"
+            :can-manage="true"
+            :title="t('stickers.manage.myTitle')"
+            :description="t('stickers.manage.myDescription')"
+          />
+
           <!-- Appearance Section -->
           <AppearanceSettings 
             v-else-if="activeSection === 'appearance'"
@@ -245,6 +253,7 @@ import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
 import MyEmojisSettings from '@/components/settings/user/MyEmojisSettings.vue'
+import StickerSettings from '@/components/stickers/StickerSettings.vue'
 import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
 import SettingsBuildFooter from '@/components/settings/user/SettingsBuildFooter.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
@@ -268,6 +277,8 @@ import GlobeIcon from '@/components/icons/Globe.vue'
 import CogIcon from '@/components/icons/Cog.vue'
 import RobotIcon from '@/components/icons/Robot.vue'
 import EmojiIcon from '@/components/icons/EmojiIcon.vue'
+import StickerIcon from '@/components/icons/StickerIcon.vue'
+import { hasCapability } from '@/services/instanceCapabilities'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
@@ -360,7 +371,8 @@ const userSections = computed(() => [
   { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
   { id: 'bots', label: 'settings.myBots', icon: RobotIcon },
-  { id: 'emojis', label: 'settings.myEmojis.title', icon: EmojiIcon }
+  { id: 'emojis', label: 'settings.myEmojis.title', icon: EmojiIcon },
+  ...(hasCapability('custom-stickers') ? [{ id: 'stickers', label: 'stickers.manage.myTitle', icon: StickerIcon }] : [])
 ])
 
 const appSections = computed(() => [

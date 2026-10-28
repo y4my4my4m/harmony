@@ -14,6 +14,7 @@ Harmony is a chat app you reach through an instance: a Harmony deployment at its
 |---|---|
 | [Getting started](/use/getting-started) | Picking an instance, creating an account, joining servers with invites or the directory, and a tour of the interface. |
 | [Messages and threads](/use/messages) | Sending, editing and deleting messages; replies, threads, polls, reactions, spoilers, image descriptions, mentions and the markdown reference. |
+| [Stickers](/use/stickers) | Sending server, instance and personal stickers, their limits, and reporting one. |
 | [Drive](/use/drive) | The files you send and upload: folders, temporary files, storage limits, attaching from Drive and sharing. |
 | [Voice and video](/use/voice-video) | Voice channels, direct message calls, screen sharing, watching or listening together, the soundboard and voice messages. |
 | [Notifications and apps](/use/notifications-apps) | Notification levels for servers, categories and channels; the desktop app, the Android app and the installable web app. |

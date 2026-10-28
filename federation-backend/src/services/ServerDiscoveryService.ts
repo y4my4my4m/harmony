@@ -7,9 +7,8 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
-import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
-import { withoutPollParts } from '../utils/polls.js';
-import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
+import { actorHostname } from '../utils/mentionParts.js';
+import { inboundRawContent } from '../utils/inboundContent.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
@@ -1041,7 +1040,7 @@ export async function cacheChannelItems(
     if (thread && thread.status !== 'found') return null;
     const messageUuid = note.id?.match(/\/messages\/([a-f0-9-]{36})$/i)?.[1];
     const content = Array.isArray(note['harmony:rawContent'])
-      ? normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(groupUrl))
+      ? inboundRawContent(note['harmony:rawContent'], actorHostname(groupUrl))
       : [{ type: 'text', text: noteContentText(note.content) }];
     const createdAt = note.published || new Date().toISOString();
     const metadata = { ap_id: note.id, is_remote: true, federated: true, ...remoteAuthorMetadata(groupAuthor) };
@@ -1153,7 +1152,7 @@ export async function cacheChannelItems(
 
       // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
       if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
-        cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
+        cachedContent = inboundRawContent(note['harmony:rawContent'], actorHostname(authorUrl));
       } else if (note.content) {
         cachedContent = [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }];
       } else {

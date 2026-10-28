@@ -17,6 +17,9 @@ export const CAPABILITIES = [
   // profiles.instance_role, the staff role of a remote account on its own instance
   // (20261030100001).
   'instance-staff-roles',
+  // The stickers table and bucket, create_sticker, update_sticker, delete_sticker and
+  // create_report's p_reported_sticker_id (20261031200001).
+  'custom-stickers',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

@@ -779,6 +779,11 @@
           :poll="part"
           :message-id="messageId"
         />
+
+        <StickerView
+          v-else-if="part && typeof part === 'object' && part.type === 'sticker'"
+          :sticker="part"
+        />
       </template>
       </InlineMarks>
       </template>
@@ -831,6 +836,8 @@ import { withMediaHidden } from '@/utils/hiddenMedia';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
+import StickerView from '@/components/stickers/StickerView.vue';
+import { isStickerFallback, isStickerPart, withoutStickerFallbacks } from '@/utils/stickerParts';
 import { groupMediaGalleryParts, type DisplayPart } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
@@ -896,6 +903,7 @@ export default defineComponent({
     EncryptedGlyphPreview,
     Icon,
     PollCard,
+    StickerView,
     VideoControls,
     InlineMarks,
   },
@@ -986,6 +994,8 @@ export default defineComponent({
     // Attachments retained while editing. Seeded from the message's file parts
     // when edit mode opens, removable individually, merged back on save.
     const editableFiles = ref<FileContent[]>([]);
+    // The sticker and its image fallback; an edit keeps both.
+    const editableSticker = ref<MessagePart[]>([]);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
     const { t } = useI18n();
     const { isMobileViewport, isTouchOnly } = useViewport();
@@ -1434,13 +1444,13 @@ export default defineComponent({
         : pollPartOf(props.content)
         ? props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll')
         : props.mediaHidden
-        ? withMediaHidden(props.content)
+        ? withMediaHidden(withoutStickerFallbacks(props.content))
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
               embedsSuppressed.value
-                ? props.content.map((part) =>
+                ? withoutStickerFallbacks(props.content).map((part) =>
                     part && typeof part === 'object' && part.type === 'url' ? { ...part, preview: false } : part)
-                : props.content,
+                : withoutStickerFallbacks(props.content),
               (url) => isImageUrl(url) || isVideoUrl(url),
             ),
           ),
@@ -1746,7 +1756,8 @@ export default defineComponent({
     watch(() => props.editableMessageId, (newVal) => {
       if (newVal === props.messageId) {
         // Snapshot the message's current attachments into the editable list.
-        editableFiles.value = extractFileParts(props.content);
+        editableFiles.value = extractFileParts(withoutStickerFallbacks(props.content));
+        editableSticker.value = props.content.filter((p) => isStickerPart(p) || isStickerFallback(p, props.content));
         setTimeout(() => {
           const r = editRichEditorRef.value;
           if (r) {
@@ -1758,6 +1769,7 @@ export default defineComponent({
         }, 0);
       } else {
         editableFiles.value = [];
+        editableSticker.value = [];
       }
     });
 
@@ -1834,13 +1846,13 @@ export default defineComponent({
       const content = localEditableContent.value.trim();
 
       // File-only messages are valid. Cancel only when nothing would remain.
-      if (!content && editableFiles.value.length === 0) {
+      if (!content && editableFiles.value.length === 0 && editableSticker.value.length === 0) {
         handleCancelEdit();
         return;
       }
       
       try {
-        emit('update:message', props.messageId, content, [...editableFiles.value]);
+        emit('update:message', props.messageId, content, [...editableSticker.value, ...editableFiles.value]);
       } catch (e) {
         debug.error('Error in handleSaveEdit:', e);
       }

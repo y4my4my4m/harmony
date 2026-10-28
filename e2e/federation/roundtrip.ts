@@ -52,6 +52,8 @@
 // (cases/groupAuthored.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
+// A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
+// copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
 // actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
 // A member's activities reach the other member instances as the Group's
@@ -117,6 +119,7 @@ import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
+import { caseStickers } from './cases/stickers.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2821,6 +2824,14 @@ async function main() {
     await caseChannelPermissions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
+    })
+    await caseStickers({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,
+      handleNewDM: backend.handleNewDM, assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, remote: REMOTE, conversation: CONVERSATION,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
     })
     await casePrivateCategories({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, get, signedGetHeaders, assert, eq,

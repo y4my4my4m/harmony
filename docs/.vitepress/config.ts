@@ -25,6 +25,7 @@ const sidebar: DefaultTheme.Sidebar = {
       text: 'Guides',
       items: [
         { text: 'Messages and threads', link: '/use/messages' },
+        { text: 'Stickers', link: '/use/stickers' },
         { text: 'Drive', link: '/use/drive' },
         { text: 'Voice and video', link: '/use/voice-video' },
         { text: 'Notifications and apps', link: '/use/notifications-apps' },
@@ -52,6 +53,7 @@ const sidebar: DefaultTheme.Sidebar = {
       items: [
         { text: 'Roles and permissions', link: '/run/roles-permissions' },
         { text: 'Moderation', link: '/run/moderation' },
+        { text: 'Server stickers', link: '/run/stickers' },
         { text: 'Webhooks', link: '/run/webhooks' },
         { text: 'Discord bridge', link: '/run/discord-bridge' },
       ],
@@ -75,6 +77,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Voice and video', link: '/self-host/voice' },
         { text: 'Push notifications', link: '/self-host/push' },
         { text: 'Discord bridges', link: '/self-host/discord-bridges' },
+        { text: 'Stickers', link: '/self-host/stickers' },
       ],
     },
     {

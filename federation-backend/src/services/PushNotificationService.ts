@@ -945,6 +945,7 @@ class PushNotificationServiceClass {
             if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`;
             if (part.type === 'url') return typeof part.url === 'string' ? urlPartPlainText(part) : '';
             if (part.type === 'hashtag') return `#${part.name}`;
+            if (part.type === 'sticker' && typeof part.name === 'string') return `[${part.name}]`;
             return '';
           })
           .join('')

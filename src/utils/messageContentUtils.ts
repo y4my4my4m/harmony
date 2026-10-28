@@ -1,6 +1,7 @@
 import type { MessagePart, MentionContent } from '@/types';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
+import { withoutStickerFallbacks } from '@/utils/stickerParts';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
@@ -173,7 +174,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
     return '';
   }
 
-  return parts.map(part => {
+  return withoutStickerFallbacks(parts).map(part => {
     if (!part || typeof part !== 'object') {
       return '';
     }
@@ -196,6 +197,9 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
       
       case 'file':
         return '[file]';
+
+      case 'sticker':
+        return `[sticker: ${part.name}]`;
       
       default:
         return '';

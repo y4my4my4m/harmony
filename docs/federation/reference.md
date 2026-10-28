@@ -521,7 +521,7 @@ Inbound, visibility is read the same way: Public in `to` is public, Public in `c
 }
 ```
 
-`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted` and `harmony:voiceMessage`. Attachment URLs are capability links issued for the receiving instance:
+`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted` and `harmony:voiceMessage`. A sticker is a `sticker` part in `harmony:rawContent` followed by its image as a `file` part with `stickerId`; see [Stickers](#stickers). Attachment URLs are capability links issued for the receiving instance:
 
 ```text
 https://<domain>/api/federation/media/<path>?to=<receiving domain>&sig=<HMAC>
@@ -570,6 +570,23 @@ The channel collection serves these Notes, and the Group delivers each live as i
 ### Direct message Note
 
 A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group.
+
+### Stickers
+
+A message holds at most one sticker. In `harmony:rawContent` it is two parts:
+
+```json
+[
+  { "type": "sticker", "id": "<sticker uuid>", "url": "https://<storage>/stickers/server/<server>/<uuid>.png",
+    "name": "Cat wave", "description": "A cat waving", "width": 160, "height": 120, "mimeType": "image/png" },
+  { "type": "file", "fileType": "image", "url": "<the same url>", "fileName": "Cat wave",
+    "altText": "A cat waving", "stickerId": "<sticker uuid>", "width": 160, "height": 120, "mimeType": "image/png" }
+]
+```
+
+The image part is also a `Document` attachment whose `name` is the description. Harmony before 1.9.2 stores both parts and shows the image; non-Harmony software reads the attachment. A direct message `Note`, which has no `harmony:rawContent`, names the sticker in `harmony:sticker` (`id`, `url`, `name`, `description`, `width`, `height`, `mediaType`) beside the attachment, and a receiver on 1.9.2 or later rebuilds the two parts from the attachment at that `url`.
+
+Inbound, a receiver keeps the first well-formed sticker part (string `id` of 1 to 200 characters, `http` or `https` `url` of at most 2048, `name` cut to 30 and `description` to 300 characters, neither empty), marks it with `domain`, the sender's host unless the part names another, and turns the image of any other sticker into a plain image. A sticker part without its image renders nothing on Harmony before 1.9.2.
 
 ### ChatThread
 
@@ -704,12 +721,13 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:instanceRole` | `Person` | `"admin"` or `"moderator"` on its own instance |
 | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | Channel entries, `Add`/`Update`/`Remove` objects | Channel and category types |
 | `harmony:inviteCode` | `Join` | Invite code for a private server |
-| `harmony:rawContent` | Channel message `Note` | The message as Harmony message parts (text, mentions, emoji, hashtags, links, files). Receivers re-derive mention locality, drop file storage paths and drop poll parts. Without it, `content` is used. |
+| `harmony:rawContent` | Channel message `Note` | The message as Harmony message parts (text, mentions, emoji, hashtags, links, files, stickers). Receivers re-derive mention locality, drop file storage paths and drop poll parts. Without it, `content` is used. |
 | `harmony:channelName`, `harmony:channelType` | Channel message `Note` | Channel name; `"text"` |
 | `harmony:serverId`, `harmony:serverName` | Channel message `Note`, `ChatThread` | The host's server UUID; server name |
 | `harmony:threadId`, `harmony:parentMessageId` | Channel message `Note` | The thread's id and the thread's parent message id, for a message in a thread |
 | `harmony:encrypted` | Channel message and direct message `Note` | `true` for end-to-end encrypted content, which receivers cannot decrypt |
 | `harmony:voiceMessage` | Channel message `Note` | `{ duration, waveform }` of a voice message |
+| `harmony:sticker` | Direct message `Note` | The message's sticker; see [Stickers](#stickers) |
 | `harmony:system` | System notice `Note` | `{ type, subject, actor, actorName, reason, thread, threadName }`; see [System notice Note](#system-notice-note) |
 | `harmony:author` | Bot, webhook and bridged message `Note` | `{ kind, id, name, icon, source }`; see [Bot, webhook and bridged message Note](#bot-webhook-and-bridged-message-note) |
 | `harmony:conversationType`, `harmony:conversationId` | Direct message `Note`, group conversation object | `"group"`; the sender's conversation UUID |

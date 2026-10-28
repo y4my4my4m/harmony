@@ -5,6 +5,7 @@
 import type { MessagePart } from '@/types'
 import { customEmojiLabel } from './emojiNames'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import { withoutStickerFallbacks } from '@/utils/stickerParts'
 
 export type Translate = (key: string, params?: Record<string, unknown>, plural?: number) => string
 
@@ -27,7 +28,7 @@ export function messageSpeechText(
   if (options.encrypted) return t('messageA11y.speech.encrypted')
   if (!Array.isArray(parts)) return ''
   const pieces: string[] = []
-  for (const part of parts) {
+  for (const part of withoutStickerFallbacks(parts)) {
     if (!part || typeof part !== 'object') continue
     const p = part as MessagePart & Record<string, any>
     switch (p.type) {
@@ -62,6 +63,9 @@ export function messageSpeechText(
       }
       case 'poll':
         pieces.push(t('messageA11y.speech.poll', { question: p.question ?? '' }))
+        break
+      case 'sticker':
+        pieces.push(t('messageA11y.speech.sticker', { name: p.name ?? '', description: p.description ?? '' }))
         break
     }
   }

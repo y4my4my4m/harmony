@@ -225,7 +225,7 @@ In **Server settings** → **AutoMod**, the **Timed-out members** card lists act
 
 The audit log records changes to the server and moderators' actions for the last 90 days. Open **Server settings** → **Audit log**. It needs **View Audit Log** and covers servers hosted on your own instance.
 
-Filter by **Action** (**All actions**, **Channels**, **Categories**, **Permission overrides**, **Roles**, **Members**, **Messages**, **Server**, **Settings**, **Invites**, **Emojis**, **Sounds**, **Bots**) and by **Member** (who did it). Use **Load more** for older entries. Each entry names who did it: a member, a bot (marked **Bot**), **AutoMod**, or **System** for changes made by the instance's services.
+Filter by **Action** (**All actions**, **Channels**, **Categories**, **Permission overrides**, **Roles**, **Members**, **Messages**, **Server**, **Settings**, **Invites**, **Emojis**, **Stickers**, **Sounds**, **Bots**) and by **Member** (who did it). Use **Load more** for older entries. Each entry names who did it: a member, a bot (marked **Bot**), **AutoMod**, or **System** for changes made by the instance's services.
 
 | Action | Shown as |
 |---|---|
@@ -244,6 +244,7 @@ Filter by **Action** (**All actions**, **Channels**, **Categories**, **Permissio
 | `settings.update` | "… updated the server settings" (system messages, newcomer alerts, sound sharing and other stored settings) |
 | `invite.create`, `invite.delete` | "… created invite …", "… revoked invite …" |
 | `emoji.create`, `emoji.update`, `emoji.delete` | "… added emoji …", "… renamed emoji …", "… removed emoji …" |
+| `sticker.create`, `sticker.update`, `sticker.delete` | "… added sticker …", "… edited sticker …", "… removed sticker …" |
 | `sound.create`, `sound.update`, `sound.delete` | "… added sound …", "… edited sound …", "… removed sound …" |
 | `bot.add`, `bot.update`, `bot.remove` | "… added the bot …", "… changed the permissions of the bot …", "… removed the bot …" |
 
