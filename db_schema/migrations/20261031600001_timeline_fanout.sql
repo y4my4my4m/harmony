@@ -12,6 +12,12 @@
 -- range. Inside a transaction block (deploy-master.sh dry run, psql -1) a procedure cannot
 -- COMMIT; there the first range is deleted and the rest left for an autocommit run. A second run
 -- deletes nothing.
+--
+-- Deleting writes about one full-page image of WAL per 81 rows. Above 4M rows (pg_class estimate,
+-- all types) the deletion is left to an operator with disk and WAL headroom in view, outside a
+-- transaction block:
+--   CALL public.delete_unread_timeline_entries(256);
+--   VACUUM (ANALYZE) public.timeline_entries;
 BEGIN;
 
 SET LOCAL lock_timeout = '5s';
@@ -67,7 +73,7 @@ COMMIT;
 
 -- No SET clause and no SECURITY DEFINER: either forbids COMMIT in a procedure.
 -- transaction_timestamp() equals statement_timestamp() only when CALL opened its own transaction.
-CREATE PROCEDURE pg_temp.delete_unread_timeline_entries(p_blocks integer)
+CREATE OR REPLACE PROCEDURE public.delete_unread_timeline_entries(p_blocks integer)
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -103,11 +109,28 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON PROCEDURE public.delete_unread_timeline_entries(integer) FROM PUBLIC, anon, authenticated, service_role;
+
 -- A range blocked by another writer's row lock fails the CALL instead of queueing writers behind it.
 SET lock_timeout = '10s';
 
-CALL pg_temp.delete_unread_timeline_entries(256);
+-- reltuples is -1 before the first ANALYZE; pages x 81 stands in.
+DO $$
+DECLARE
+    v_rows double precision;
+BEGIN
+    SELECT CASE WHEN c.reltuples >= 0 THEN c.reltuples
+                ELSE pg_relation_size(c.oid) / current_setting('block_size')::bigint * 81 END
+      INTO v_rows
+      FROM pg_class c
+     WHERE c.oid = 'public.timeline_entries'::regclass;
+    IF v_rows > 4000000 THEN
+        RAISE NOTICE 'timeline_entries holds about % rows; unread rows left in place. Outside a transaction block: CALL public.delete_unread_timeline_entries(256); VACUUM (ANALYZE) public.timeline_entries;',
+            v_rows::bigint;
+    ELSE
+        CALL public.delete_unread_timeline_entries(256);
+    END IF;
+END;
+$$;
 
 RESET lock_timeout;
-
-DROP PROCEDURE pg_temp.delete_unread_timeline_entries(integer);
