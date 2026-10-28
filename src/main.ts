@@ -217,7 +217,6 @@ if (windowRole?.get('overlay') === '1') {
 } else {
   initializeApp()
   import('@/services/nativePresence').then(m => m.initRichPresence()).catch(() => {})
-  import('@/services/tauriLinks').then(m => m.installTauriExternalLinks()).catch(() => {})
   import('@/utils/shareTarget').then(m => m.installShareLaunchConsumer(router)).catch(() => {})
   import('@/services/desktopUpdater').then(m => m.initDesktopUpdater()).catch(() => {})
   import('@/utils/videoPoster').then(m => m.installVideoPosters()).catch(() => {})

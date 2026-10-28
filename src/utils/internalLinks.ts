@@ -42,6 +42,11 @@ function instanceHosts(): Set<string> {
   return hosts
 }
 
+/** True for a host (URL.host, lower case) this instance serves. */
+export function isInstanceHost(host: string): boolean {
+  return instanceHosts().has(host.toLowerCase())
+}
+
 function parseHttpUrl(href: string): URL | null {
   let url: URL
   try {

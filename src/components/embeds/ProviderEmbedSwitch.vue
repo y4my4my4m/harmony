@@ -40,7 +40,7 @@
         type="button"
         :title="t('embeds.open')"
         :aria-label="t('embeds.open')"
-        @click="openPage"
+        @click="openPage($event)"
       >
         <Icon name="external-link" :size="15" />
       </button>
@@ -169,7 +169,7 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
-import { openLink } from '@/services/tauriLinks';
+import { openLink } from '@/services/outsideLinks';
 import { isEmbedHidden, setEmbedHidden } from '@/utils/hiddenEmbeds';
 import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
@@ -195,6 +195,8 @@ import { runtimeConfig } from '@/services/runtimeConfig';
 const props = defineProps<{
   payload: EmbedPayload;
   messageId?: string;
+  /** The preview is of a masked link: Open asks first, as the link does. */
+  masked?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -570,8 +572,11 @@ function toggleCollapse() {
   setEmbedHidden(props.messageId, props.payload?.url, collapsed.value);
 }
 
-function openPage() {
-  openLink(props.payload.url);
+function openPage(event: MouseEvent) {
+  openLink(props.payload.url, {
+    masked: props.masked,
+    opener: event.currentTarget instanceof HTMLElement ? event.currentTarget : null,
+  });
 }
 </script>
 

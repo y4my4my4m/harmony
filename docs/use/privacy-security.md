@@ -213,6 +213,15 @@ A block is also sent to other instances as an ActivityPub block. A block does no
 
 To undo either, open **User settings** → **Privacy & safety** and click **Unblock** under **Blocked users** or **Unmute** under **Muted users**.
 
+## Links to other sites
+
+A masked link shows its own text in place of its address: `[text](https://…)` typed in a message or post, or a link from another instance whose text is not its address. Opening one shows **Leaving Harmony** first, with the whole address and its site in bold, **Copy link**, **Cancel** and **Open link**. A link that shows its address opens at once. Links to your own instance (invites, posts, profiles, Drive links) never ask.
+
+- Tick **Trust _site_ from now on** before **Open link**, and links to that site open without asking on every device you sign in to. Its subdomains and other ports still ask.
+- **User settings** → **Privacy & safety** → **Outside links** lists your trusted sites; **Remove** takes one off.
+- **Ask before opening any outside link** shows the check for every link to another site. Off by default.
+- In a browser, a middle click or Ctrl/⌘-click on a masked link shows the check too, and **Open link** opens a new tab. The browser's own right-click **Open link in new tab** does not ask.
+
 ## Other privacy settings
 
 **User settings** → **Privacy & safety** also has:

@@ -6208,6 +6208,28 @@
     "playOnSite": "Lire sur {site}",
     "playInX": "Lire dans le lecteur de X"
   },
+  "outsideLink": {
+    "title": "Vous quittez Harmony",
+    "lead": "Ce lien mène à un site extérieur à Harmony. Vérifiez l'adresse avant de l'ouvrir.",
+    "maskedLead": "Le texte de ce lien peut masquer sa véritable destination. Vérifiez l'adresse avant de l'ouvrir.",
+    "trust": "Faire confiance à {host} désormais",
+    "copy": "Copier le lien",
+    "open": "Ouvrir le lien",
+    "copied": "Lien copié",
+    "copyFailed": "Impossible de copier le lien",
+    "trustFailed": "Impossible d'enregistrer {host} comme site de confiance",
+    "settings": {
+      "title": "Liens externes",
+      "askEvery": "Demander avant d'ouvrir tout lien externe",
+      "askEveryDescription": "Affiche l'avertissement « Vous quittez Harmony » pour chaque lien vers un autre site. Les liens masqués, dont le texte peut différer de leur adresse, demandent toujours.",
+      "trusted": "Sites de confiance",
+      "trustedDescription": "Les liens vers ces sites s'ouvrent sans confirmation.",
+      "trustedEmpty": "Aucun site de confiance. Cochez « Faire confiance » dans l'avertissement « Vous quittez Harmony » pour en ajouter un.",
+      "remove": "Retirer",
+      "removeLabel": "Retirer {host} des sites de confiance",
+      "saveFailed": "Impossible d'enregistrer la modification"
+    }
+  },
   "threadCreate": {
     "button": "Nouveau fil",
     "nameLabel": "Nom du fil",

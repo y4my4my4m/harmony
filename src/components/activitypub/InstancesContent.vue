@@ -138,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { openLink } from '@/services/tauriLinks';
+import { openLink } from '@/services/outsideLinks';
 import { ref, computed, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';

@@ -6204,6 +6204,28 @@
     "playOnSite": "Play on {site}",
     "playInX": "Play in X's player"
   },
+  "outsideLink": {
+    "title": "Leaving Harmony",
+    "lead": "This link goes to a site outside Harmony. Check the address before you open it.",
+    "maskedLead": "This link's text can hide where it really goes. Check the address before you open it.",
+    "trust": "Trust {host} from now on",
+    "copy": "Copy link",
+    "open": "Open link",
+    "copied": "Link copied",
+    "copyFailed": "Could not copy the link",
+    "trustFailed": "Could not save {host} as trusted",
+    "settings": {
+      "title": "Outside links",
+      "askEvery": "Ask before opening any outside link",
+      "askEveryDescription": "Show the Leaving Harmony check for every link to another site. Masked links, whose text can differ from their address, always ask.",
+      "trusted": "Trusted sites",
+      "trustedDescription": "Links to these sites open without asking.",
+      "trustedEmpty": "No trusted sites. Tick \"Trust\" in the Leaving Harmony check to add one.",
+      "remove": "Remove",
+      "removeLabel": "Remove {host} from trusted sites",
+      "saveFailed": "Could not save the change"
+    }
+  },
   "threadCreate": {
     "button": "New thread",
     "nameLabel": "Thread name",

@@ -156,7 +156,7 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 class="report-link-btn"
-                @click.stop
+                @click.stop="activateStoppedLink"
               >
                 <Icon name="external-link" :size="14" /> View on remote instance
               </a>
@@ -241,6 +241,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
+import { activateStoppedLink } from '@/services/outsideLinks'
 import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'

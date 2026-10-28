@@ -6208,6 +6208,28 @@
     "playOnSite": "Auf {site} abspielen",
     "playInX": "Im Player von X abspielen"
   },
+  "outsideLink": {
+    "title": "Harmony verlassen",
+    "lead": "Dieser Link führt zu einer Seite außerhalb von Harmony. Prüfe die Adresse, bevor du ihn öffnest.",
+    "maskedLead": "Der Text dieses Links kann verbergen, wohin er wirklich führt. Prüfe die Adresse, bevor du ihn öffnest.",
+    "trust": "{host} ab jetzt vertrauen",
+    "copy": "Link kopieren",
+    "open": "Link öffnen",
+    "copied": "Link kopiert",
+    "copyFailed": "Der Link konnte nicht kopiert werden",
+    "trustFailed": "{host} konnte nicht als vertrauenswürdig gespeichert werden",
+    "settings": {
+      "title": "Externe Links",
+      "askEvery": "Vor dem Öffnen jedes externen Links fragen",
+      "askEveryDescription": "Zeigt die Abfrage „Harmony verlassen“ für jeden Link zu einer anderen Seite. Maskierte Links, deren Text von ihrer Adresse abweichen kann, fragen immer.",
+      "trusted": "Vertrauenswürdige Seiten",
+      "trustedDescription": "Links zu diesen Seiten öffnen sich ohne Nachfrage.",
+      "trustedEmpty": "Keine vertrauenswürdigen Seiten. Setze in der Abfrage „Harmony verlassen“ den Haken bei „vertrauen“, um eine hinzuzufügen.",
+      "remove": "Entfernen",
+      "removeLabel": "{host} aus den vertrauenswürdigen Seiten entfernen",
+      "saveFailed": "Die Änderung konnte nicht gespeichert werden"
+    }
+  },
   "threadCreate": {
     "button": "Neuer Thread",
     "nameLabel": "Thread-Name",

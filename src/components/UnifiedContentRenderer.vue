@@ -123,6 +123,7 @@
             target="_blank" 
             rel="noopener noreferrer"
             class="url-link"
+            :class="{ 'masked-link': isMaskedUrlPart(part) }"
             :title="shownLinkLabel(part) ? part.url : undefined"
             :dir="shownLinkLabel(part) ? 'auto' : undefined"
             @click="handleLinkClick(part.url, $event)"
@@ -206,10 +207,8 @@ import { useContentRenderer, type ContentRenderOptions } from '@/composables/use
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { escapeHtml, sanitizeMessageHtml, safeHref } from '@/utils/sanitize';
-import { isTauriRuntime } from '@/services/instanceConfig';
-import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
-import { shownLinkLabel } from '@/utils/maskedLinks';
+import { isMaskedUrlPart, shownLinkLabel } from '@/utils/maskedLinks';
 import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useUserData } from '@/composables/useUserData';
@@ -320,15 +319,7 @@ const handleContentClick = (event: Event) => {
   const anchor = target.closest('a') as HTMLAnchorElement | null;
   if (anchor) {
     const url = anchor.getAttribute('href');
-    if (url && /^https?:\/\//i.test(url)) {
-      // target="_blank" is a no-op in the Tauri webview; route through the shell
-      // plugin there instead. On web/PWA leave the native anchor behavior alone.
-      if (isTauriRuntime()) {
-        event.preventDefault();
-        openExternalUrl(url);
-      }
-      emit('link-click', url, event);
-    }
+    if (url && /^https?:\/\//i.test(url)) emit('link-click', url, event);
     return;
   }
 };

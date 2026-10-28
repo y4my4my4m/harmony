@@ -6208,6 +6208,28 @@
     "playOnSite": "{site} で再生",
     "playInX": "X のプレーヤーで再生"
   },
+  "outsideLink": {
+    "title": "Harmonyから移動します",
+    "lead": "このリンクはHarmonyの外部のサイトに移動します。開く前にアドレスを確認してください。",
+    "maskedLead": "このリンクの表示テキストは、実際の移動先と異なる場合があります。開く前にアドレスを確認してください。",
+    "trust": "今後は{host}を信頼する",
+    "copy": "リンクをコピー",
+    "open": "リンクを開く",
+    "copied": "リンクをコピーしました",
+    "copyFailed": "リンクをコピーできませんでした",
+    "trustFailed": "{host}を信頼済みとして保存できませんでした",
+    "settings": {
+      "title": "外部リンク",
+      "askEvery": "外部リンクを開く前に毎回確認する",
+      "askEveryDescription": "他のサイトへのすべてのリンクで「Harmonyから移動します」の確認を表示します。表示テキストとアドレスが異なる可能性があるマスクリンクは、常に確認します。",
+      "trusted": "信頼済みサイト",
+      "trustedDescription": "これらのサイトへのリンクは確認なしで開きます。",
+      "trustedEmpty": "信頼済みサイトはありません。「Harmonyから移動します」の確認で「信頼する」にチェックすると追加されます。",
+      "remove": "削除",
+      "removeLabel": "{host}を信頼済みサイトから削除",
+      "saveFailed": "変更を保存できませんでした"
+    }
+  },
   "threadCreate": {
     "button": "新しいスレッド",
     "nameLabel": "スレッド名",

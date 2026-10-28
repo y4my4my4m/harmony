@@ -285,3 +285,21 @@ export function urlPartPlainText(part: UrlPartLike & { url: string }, options: {
   const host = linkHost(part.url)
   return host ? `${shown.text} (${host})` : shown.text
 }
+
+/**
+ * True for a url part with a label, shown or not: its text may not be its destination, and
+ * opening it asks first (utils/outsideLinks). A label of invisible characters alone is none.
+ */
+export function isMaskedUrlPart(part: UrlPartLike | null | undefined): boolean {
+  return !!part && part.type === 'url' && typeof part.label === 'string' && cleanLinkLabel(part.label) !== ''
+}
+
+/** URLs of the masked url parts in `parts`; empty for content that is not a part list. */
+export function maskedUrlsIn(parts: unknown): Set<string> {
+  const out = new Set<string>()
+  if (!Array.isArray(parts)) return out
+  for (const part of parts as UrlPartLike[]) {
+    if (isMaskedUrlPart(part) && typeof part.url === 'string') out.add(part.url)
+  }
+  return out
+}

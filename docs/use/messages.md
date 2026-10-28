@@ -271,12 +271,13 @@ Messages use Discord-style markdown. The composer keeps the markers as you type;
 | `:shortcode:` | An emoji by name. Type `:` and part of a name for suggestions. |
 | `https://example.com` | A link, with a preview card when the site provides one. |
 | `<https://example.com>` | A link without a preview. |
+| `[text](https://example.com)` | The text, linked to the address; text naming another site shows the address instead. Opening it asks first: see [Links to other sites](/use/privacy-security#links-to-other-sites). |
 
 Rules worth knowing:
 
 - `>` needs a space after it to quote; `>` followed directly by text is greentext, or plain text with **Greentext** off. `>>>` also needs a space and some text after it.
 - Single `_underscores_` italicise only at word boundaries, so `snake_case_names` stay as typed. A single `*` next to a letter or digit, as in `2*3*4`, stays as typed.
-- Headings (`#`), lists, tables and `[text](url)` links are not formatted; they show as typed, with the URL linked.
+- Headings (`#`), lists and tables are not formatted; they show as typed.
 
 ### Code blocks
 
