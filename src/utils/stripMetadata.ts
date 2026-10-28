@@ -46,6 +46,9 @@ const RASTER_READ_SLOTS = 2
 /** Byte range of the source, or literal bytes. */
 type Part = readonly [number, number] | Uint8Array
 
+/** BlobPart, which Node's lib (no DOM) does not name. */
+type BlobInput = NonNullable<ConstructorParameters<typeof Blob>[0]>[number]
+
 interface Plan extends MediaDetails {
   /** Null: the output equals the input. */
   parts: Part[] | null
@@ -264,7 +267,7 @@ const PNG_KEEP = new Set([
 async function inflate(b: Uint8Array): Promise<Uint8Array | null> {
   if (typeof DecompressionStream === 'undefined') return null
   try {
-    const stream = new Blob([b as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))
+    const stream = new Blob([b as BlobInput]).stream().pipeThrough(new DecompressionStream('deflate'))
     return new Uint8Array(await new Response(stream).arrayBuffer())
   } catch {
     return null
@@ -496,16 +499,23 @@ function neutralize(copy: Uint8Array, box: Box, base: number): void {
   copy.fill(0, at + header, box.end - base)
 }
 
-async function readRange(file: Blob, start: number, end: number): Promise<Uint8Array> {
-  return new Uint8Array(await file.slice(start, end).arrayBuffer())
+/** Random access to a file's bytes: a Blob, or a stored object read by HTTP range. */
+export interface ByteSource {
+  readonly size: number
+  /** Bytes [start, end). */
+  read(start: number, end: number): Promise<Uint8Array>
+}
+
+export function blobSource(blob: Blob): ByteSource {
+  return { size: blob.size, read: async (start, end) => new Uint8Array(await blob.slice(start, end).arrayBuffer()) }
 }
 
 /** Top-level boxes, from a 32-byte read per header; null when a size runs past the file. */
-async function topLevelBoxes(file: Blob): Promise<Box[] | null> {
+async function topLevelBoxes(file: ByteSource): Promise<Box[] | null> {
   const boxes: Box[] = []
   let p = 0
   while (p + 8 <= file.size) {
-    const head = await readRange(file, p, Math.min(file.size, p + 32))
+    const head = await file.read(p, Math.min(file.size, p + 32))
     let size = u32be(head, 0)
     let header = 8
     if (size === 1) {
@@ -649,13 +659,13 @@ function heifMetadataExtents(meta: Uint8Array, box: Box): Array<{ start: number;
   return spans
 }
 
-async function planIsoBmff(file: Blob): Promise<Plan | null> {
+async function planIsoBmff(file: ByteSource): Promise<Plan | null> {
   const top = await topLevelBoxes(file)
   if (!top?.length) return null
   const ftyp = top.find((box) => box.type === 'ftyp')
   let heif = false
   if (ftyp && ftyp.end - ftyp.start <= 4096) {
-    const f = await readRange(file, ftyp.body, ftyp.end)
+    const f = await file.read(ftyp.body, ftyp.end)
     for (let i = 0; i + 4 <= f.length; i += 4) if (i !== 4 && HEIF_BRANDS.has(ascii(f, i, 4))) heif = true
   }
   const report = { location: false }
@@ -663,13 +673,13 @@ async function planIsoBmff(file: Blob): Promise<Plan | null> {
   for (const box of top) {
     if (box.type === 'moov' || box.type === 'meta') {
       if (box.end - box.start > BOX_MAX_BYTES) return null
-      const copy = await readRange(file, box.start, box.end)
+      const copy = await file.read(box.start, box.end)
       if (box.type === 'meta' && (heif || metaHandler(copy, box) === 'pict')) {
         const spans = heifMetadataExtents(copy, box)
         if (!spans) return null
         for (const span of spans) {
           if (span.end > file.size || span.end - span.start > BOX_MAX_BYTES) return null
-          const data = await readRange(file, span.start, span.end)
+          const data = await file.read(span.start, span.end)
           if (data.every((x) => x === 0)) continue
           // Exif item payload: 4-byte exif_tiff_header_offset, then TIFF.
           report.location ||= span.exif ? readTiff(data, 4 + u32be(data, 0)).gps : textHasLocation(data)
@@ -684,7 +694,7 @@ async function planIsoBmff(file: Blob): Promise<Plan | null> {
       }
     } else if (box.type === 'uuid' && box.uuid && METADATA_UUIDS.has(box.uuid)) {
       if (box.end - box.start > BOX_MAX_BYTES) return null
-      const copy = await readRange(file, box.start, box.end)
+      const copy = await file.read(box.start, box.end)
       report.location ||= textHasLocation(copy)
       neutralize(copy, box, box.start)
       patches.push({ start: box.start, bytes: copy })
@@ -717,9 +727,9 @@ async function inRasterSlot<T>(read: () => Promise<T>): Promise<T> {
   }
 }
 
-async function plan(file: Blob): Promise<Plan> {
+async function plan(file: ByteSource): Promise<Plan> {
   if (file.size < 8) return NOTHING
-  const head = await readRange(file, 0, 16)
+  const head = await file.read(0, Math.min(file.size, 16))
   const raster = head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff ? 'jpeg'
     : head[0] === 0x89 && ascii(head, 1, 3) === 'PNG' ? 'png'
       : startsWith(head, 0, 'RIFF') && startsWith(head, 8, 'WEBP') ? 'webp'
@@ -729,7 +739,7 @@ async function plan(file: Blob): Promise<Plan> {
     if (raster) {
       if (file.size > IMAGE_MAX_BYTES) return { ...NOTHING, container: raster }
       const result = await inRasterSlot(async () => {
-        const b = new Uint8Array(await file.arrayBuffer())
+        const b = await file.read(0, file.size)
         return raster === 'jpeg' ? planJpeg(b)
           : raster === 'png' ? await planPng(b)
             : raster === 'webp' ? planWebp(b)
@@ -750,7 +760,7 @@ const outputs = new WeakMap<Blob, Promise<Blob>>()
 function planOf(file: Blob): Promise<Plan> {
   let pending = plans.get(file)
   if (!pending) {
-    pending = plan(file)
+    pending = plan(blobSource(file))
     plans.set(file, pending)
   }
   return pending
@@ -759,6 +769,12 @@ function planOf(file: Blob): Promise<Plan> {
 /** What the file carries: read once per Blob. */
 export async function readMediaDetails(file: Blob): Promise<MediaDetails> {
   const { container, location, details } = await planOf(file)
+  return { container, location, details }
+}
+
+/** What a file read through `source` carries; a video reads its box headers and moov only. */
+export async function readSourceDetails(source: ByteSource): Promise<MediaDetails> {
+  const { container, location, details } = await plan(source)
   return { container, location, details }
 }
 
@@ -772,9 +788,11 @@ export function stripMediaMetadata<T extends Blob>(file: T): Promise<T> {
     pending = planOf(file).then((result) => {
       if (!result.parts) return file
       const parts = result.parts.map((part) => (part instanceof Uint8Array ? part : file.slice(part[0], part[1])))
-      const blob = file instanceof File
-        ? new File(parts as BlobPart[], file.name, { type: file.type, lastModified: file.lastModified })
-        : new Blob(parts as BlobPart[], { type: file.type })
+      const whole = new Blob(parts as BlobInput[], { type: file.type })
+      // Node 18 has no global File.
+      const blob = typeof File !== 'undefined' && file instanceof File
+        ? new File([whole], file.name, { type: file.type, lastModified: file.lastModified })
+        : whole
       plans.set(blob, Promise.resolve({ container: result.container, location: false, details: false, parts: null }))
       outputs.set(blob, Promise.resolve(blob))
       return blob
@@ -782,6 +800,13 @@ export function stripMediaMetadata<T extends Blob>(file: T): Promise<T> {
     outputs.set(file, pending)
   }
   return pending as Promise<T>
+}
+
+/** `bytes` without their metadata; the same array when there is none. */
+export async function stripMediaBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const blob = new Blob([bytes as BlobInput])
+  const out = await stripMediaMetadata(blob)
+  return out === blob ? bytes : new Uint8Array(await out.arrayBuffer())
 }
 
 /** Image or video by type or name: the files the keep-details choice applies to. */

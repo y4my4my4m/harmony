@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js'
 import { absoluteEmojiUrl } from './emojiUrl.js'
+import { stripMediaBytes } from './stripMetadata.js'
 
 export const EMOJI_BUCKET = 'emojis'
 /** Discord caps custom emoji at 256 KiB; the margin covers re-encoding on their CDN. */
@@ -31,10 +32,11 @@ export async function storeDiscordEmojiImage(
   if (!response.ok) throw new Error(`Discord CDN answered ${response.status}`)
   const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   if (!type.startsWith('image/')) throw new Error(`Discord CDN answered ${type || 'no content type'}`)
-  const buffer = Buffer.from(await response.arrayBuffer())
-  if (buffer.byteLength === 0 || buffer.byteLength > MAX_DISCORD_EMOJI_BYTES) {
-    throw new Error(`emoji image is ${buffer.byteLength} bytes`)
+  const downloaded = Buffer.from(await response.arrayBuffer())
+  if (downloaded.byteLength === 0 || downloaded.byteLength > MAX_DISCORD_EMOJI_BYTES) {
+    throw new Error(`emoji image is ${downloaded.byteLength} bytes`)
   }
+  const buffer = Buffer.from(await stripMediaBytes(downloaded))
 
   const path = discordEmojiStoragePath(serverId, discordEmojiId, animated)
   const { error } = await supabase.storage.from(EMOJI_BUCKET).upload(path, buffer, {

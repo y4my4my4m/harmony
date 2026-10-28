@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -224,6 +226,22 @@ describe('bridge mirror', () => {
     const [path, , options] = mocks.upload.mock.calls[0]
     expect(path).toMatch(/\.png$/)
     expect(options).toMatchObject({ contentType: 'image/png' })
+  })
+
+  it('stores a mirrored photo without its location and camera details', async () => {
+    mirrorMode()
+    mocks.upload.mockResolvedValue({ data: {}, error: null })
+    const photo = readFileSync(resolve(__dirname, '../../../../tests/fixtures/media-metadata/gps-rotated.jpg'))
+    expect(photo.toString('latin1')).toContain('HarmonyCam')
+    serve(new Uint8Array(photo), 'image/jpeg')
+
+    await applyBridgeAttachmentPolicy(
+      [{ type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/IMG_0420.jpg?ex=1' }], BOT, CHANNEL)
+
+    const stored = Buffer.from(mocks.upload.mock.calls[0][1] as Uint8Array)
+    expect(stored.length).toBeLessThan(photo.length)
+    for (const marker of ['HarmonyCam', 'GPSLatitude', 'Tokyo', 'TRAILER']) expect(stored.toString('latin1')).not.toContain(marker)
+    expect(stored.subarray(0, 2).toString('hex')).toBe('ffd8')
   })
 
   it('copies a Discord attachment into the channel room and names it by path', async () => {

@@ -33,6 +33,7 @@ import { logger } from '../utils/logger.js';
 import { isKlipyAdEligibleUserAgent } from '../utils/klipyAdEligibility.js';
 import { resolveClientUserAgent } from '../utils/clientUserAgent.js';
 import { personalEmojiLimitMessage, personalEmojiLimitOf } from '../utils/personalEmojiLimit.js';
+import { stripMediaBytes } from '../utils/stripMetadata.js';
 
 const router = Router();
 
@@ -541,7 +542,7 @@ async function personalEmojiRoom(profileId: string): Promise<{ limit: number; he
  * emoji row. A refusal carries the user-facing reason: the personal emoji limit,
  * or GEN_SAVE_FAILED on validation/IO failure.
  */
-async function hostAndCreateEmoji(
+export async function hostAndCreateEmoji(
   profileId: string,
   prompt: string,
   image: GeneratedEmoji,
@@ -558,9 +559,11 @@ async function hostAndCreateEmoji(
 
   const supabase = getSupabaseClient();
   const path = `ai/${profileId}/${randomUUID()}.${ext}`;
+  // Stored emoji never keep metadata (utils/stripMetadata.ts).
+  const bytes = Buffer.from(await stripMediaBytes(image.buffer));
   const { error: uploadError } = await supabase.storage
     .from(GEN_BUCKET)
-    .upload(path, image.buffer, { contentType: image.mimeType, upsert: false });
+    .upload(path, bytes, { contentType: image.mimeType, upsert: false });
   if (uploadError) {
     logger.error('Failed to store generated emoji:', uploadError.message);
     return { error: GEN_SAVE_FAILED };
@@ -581,7 +584,7 @@ async function hostAndCreateEmoji(
       scope: 'user',
       uploader: profileId,
       is_ai_generated: true,
-      file_size: image.buffer.length,
+      file_size: bytes.length,
       domain: null,
     })
     .select('id, name, url')
