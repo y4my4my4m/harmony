@@ -26,6 +26,7 @@ import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
+import { isMassMentionWord } from '@/utils/massMentions';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 
 export { clearBridgedUsersCache };
@@ -400,7 +401,9 @@ export function useAutoSuggest(
           const isLocal = userData.isLocal;
           const currentDomain = runtimeConfig.domain as string;
           const userDomain = userData.domain || currentDomain;
-          const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
+          // A bare @everyone or @here is the mass mention; a user of that name keeps the host.
+          const bare = isLocal && !isMassMentionWord(userData.username);
+          const displayText = bare ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           
           const mentionText = `@${userData.id}@${userDomain}`;
 

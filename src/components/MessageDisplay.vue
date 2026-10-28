@@ -729,7 +729,7 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { mentionsViewer } from '@/utils/hereMention';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
-import { buildChatParseOptions } from '@/utils/chatParseOptions';
+import { buildChatParseOptions, resolveChatMassMentions } from '@/utils/chatParseOptions';
 import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
 import { useReactionsStore } from '@/stores/useReactions';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -3447,12 +3447,14 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: M
   // The editor closes at once; the row shows the edit while it is saved.
   cancelEdit();
   try {
-    const [userDataMap, emojiDataMap, roleDataMap] = await Promise.all([
+    const [userDataMap, emojiDataMap, roleDataMap, massMentions] = await Promise.all([
       resolveMentionsUserData(textContent),
       resolveEmojisData(textContent),
       resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined),
+      props.channelId ? resolveChatMassMentions(textContent, serverChannelStore.currentServerId, props.channelId) : undefined,
     ]);
-    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(!!props.conversationId));
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap,
+      { ...buildChatParseOptions(!!props.conversationId), massMentions });
     // Re-append the attachments the user kept, so editing text never drops media.
     await saveStoredEdit(messageId, [...parsedContent, ...retainedFiles]);
   } catch (error: any) {

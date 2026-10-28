@@ -206,11 +206,13 @@ Type `@` to open suggestions, then pick a person or a role. Roles are listed fir
 | A person on your instance | `@username`, or pick from the list | That person. |
 | A person on another instance | `@username@instance.example`, or pick from the list | That person. A typed handle works when your instance already knows the account. |
 | A role | Pick it from the list | Members holding the role. |
-| `@everyone` | Pick it from the list | Every member who can see the channel. |
-| `@here` | Pick it from the list | Members who can see the channel and are online, **Idle** or **Do not disturb**. Members shown as **Invisible** or offline are left out. |
+| `@everyone` | `@everyone`, or pick it from the list | Every member who can see the channel. |
+| `@here` | `@here`, or pick it from the list | Members who can see the channel and are online, **Idle** or **Do not disturb**. Members shown as **Invisible** or offline are left out. |
 | A channel | `#channel-name`, or pick after typing `#` | Nobody. It becomes a link to the channel. Server channels only. |
 
-`@everyone`, `@here`, and roles not marked as mentionable require the **Mention @everyone** permission in the channel. Without it they are left out of the suggestions; written anyway, they show in the message but notify nobody. Any member can mention a role marked as mentionable.
+`@everyone`, `@here`, and roles not marked as mentionable require the **Mention @everyone** permission in the channel. Without it they are left out of the suggestions, and a typed `@everyone` or `@here` is sent as plain text. Any member can mention a role marked as mentionable.
+
+`@everyone` and `@here` never name a person. Someone called `everyone` on another instance is `@everyone@instance.example`. A person whose display name reads `everyone` or `here` shows as their @username, so the mention never looks like the server-wide one.
 
 - In server channels, a message that mentions you, a role you hold, `@everyone` or `@here` is highlighted.
 - A message notifies each person once, even when it names them in several ways.

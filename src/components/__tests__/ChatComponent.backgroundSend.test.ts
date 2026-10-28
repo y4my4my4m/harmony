@@ -104,7 +104,7 @@ vi.mock('@/utils/unifiedContentProcessing', () => ({
   resolveEmojisData: vi.fn(async () => ({})),
   resolveRoleMentionsData: vi.fn(async () => ({})),
 }))
-vi.mock('@/utils/chatParseOptions', () => ({ buildChatParseOptions: () => ({}) }))
+vi.mock('@/utils/chatParseOptions', () => ({ buildChatParseOptions: () => ({}), resolveChatMassMentions: async () => undefined }))
 vi.mock('@/services/emojiService', () => ({ recordEmojiUsage: vi.fn() }))
 vi.mock('@/services/emojiShortcodeResolver', () => ({ getEmojiShortcodeForInsert: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }))

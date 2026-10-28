@@ -271,6 +271,45 @@ describe('role and channel mention parts', () => {
       ])
     })
 
+    const typed = 'standup @everyone, `@here` https://x.test/@here @Everyone @everyone@other.test @here!'
+
+    it('reads typed words in string content as pings for a bot holding mention_everyone', async () => {
+      seed()
+      mentionEveryone(true)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: typed })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([
+        { type: 'text', text: 'standup ' },
+        { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null },
+        { type: 'text', text: ', `@here` https://x.test/@here @Everyone @everyone@other.test ' },
+        { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+        { type: 'text', text: '!' },
+      ])
+    })
+
+    it('keeps typed words text for a bot without it', async () => {
+      seed()
+      mentionEveryone(false)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: typed })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([{ type: 'text', text: typed }])
+    })
+
+    it('keeps typed words text in relayed content and in text parts', async () => {
+      seed()
+      mentionEveryone(true)
+      await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+        .send({ content: '@everyone', metadata: { discord_user: { id: '42', username: 'alice' }, bridge_source: 'discord' } })
+      await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+        .send({ content: [{ type: 'text', text: '@everyone' }] })
+
+      const inserts = db.writesTo('messages', 'insert')
+      expect(inserts[0].rows[0].content).toEqual([{ type: 'text', text: '@everyone' }])
+      expect(inserts[1].rows[0].content).toEqual([{ type: 'text', text: '@everyone' }])
+    })
+
     it('asks nothing when the message pings no one', async () => {
       seed()
       const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)

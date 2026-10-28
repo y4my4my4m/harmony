@@ -15,6 +15,7 @@ import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
 import { convertEmoticons } from '@/utils/emoticons'
 import { HERE_ROLE_ID, hereMentionPart } from '@/utils/hereMention'
+import { isMassMentionWord, typedMassMentionPart, type MassMentionOptions } from '@/utils/massMentions'
 import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
 import { escapeHtml } from '@/utils/sanitize'
 
@@ -105,6 +106,8 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   MENTION_REGEX.lastIndex = 0;
   while ((match = MENTION_REGEX.exec(content)) !== null) {
     if (isOpaque(match.index)) continue;
+    // A bare @everyone or @here names no user (utils/massMentions).
+    if (!match[2] && isMassMentionWord(match[1])) continue;
     uniqueUsernames.add(mentionKey(match[1], match[2]?.toLowerCase()));
   }
   
@@ -513,6 +516,11 @@ async function parseContentSegment(
       // to a remote handle.
       const username = match[7];
       const typedDomain = match[8]?.toLowerCase();
+      if (!typedDomain && isMassMentionWord(username)) {
+        parts.push(typedMassMentionPart(username, match[0], parseOptions.massMentions));
+        lastIndex = match.index + match[0].length;
+        continue;
+      }
       const currentDomain = localDomain();
       const isLocalHandle = !typedDomain || typedDomain === currentDomain;
       const userData = usernameToUserDataMap[mentionKey(username, typedDomain)];
@@ -601,6 +609,8 @@ export interface ContentParseOptions {
   channelDataMap?: Record<string, { id: string; serverId: string; name: string }>;
   /** Replace standalone text emoticons with emoji before parsing (utils/emoticons). */
   convertEmoticons?: boolean;
+  /** Server chat: what a typed bare @everyone or @here becomes; absent, both stay text. */
+  massMentions?: MassMentionOptions;
 }
 
 export async function parseContentToMessageParts(
