@@ -304,10 +304,13 @@ export function noteToContent(note: any): any[] {
       const info = mentionTagInfo(tag);
       if (!info) continue;
       const user = info.username.toLowerCase();
-      const idx = handleTokens.findIndex((h, i) =>
-        !claimed.has(i) &&
-        h.username.toLowerCase() === user &&
-        (!h.domain || h.domain === info.domain || h.domain === info.hrefHost));
+      const unclaimedOfUser = (i: number) => !claimed.has(i) && handleTokens[i].username.toLowerCase() === user;
+      // A token written with the tag's host first, then a bare one: in "@everyone, ask
+      // @everyone@a.example", a tag for everyone@a.example names the second token, and the bare
+      // @everyone (a Harmony mass mention sent as text) stays text.
+      let idx = handleTokens.findIndex((h, i) =>
+        unclaimedOfUser(i) && !!h.domain && (h.domain === info.domain || h.domain === info.hrefHost));
+      if (idx === -1) idx = handleTokens.findIndex((h, i) => unclaimedOfUser(i) && !h.domain);
       if (idx === -1) continue;
       claimed.add(idx);
       const token = handleTokens[idx];

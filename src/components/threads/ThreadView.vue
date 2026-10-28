@@ -320,7 +320,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
-import { buildChatParseOptions } from '@/utils/chatParseOptions'
+import { buildChatParseOptions, resolveChatMassMentions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
@@ -907,7 +907,9 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
   
   debug.log('Emoji data map size:', Object.keys(emojiDataMap).length)
   
-  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {}, buildChatParseOptions(false))
+  const massMentions = await resolveChatMassMentions(input, serverChannelStore.currentServerId, threadChannelId.value)
+  const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap, {}, {},
+    { ...buildChatParseOptions(false), massMentions })
   
   debug.log('Final parsed message parts:', result)
   return result

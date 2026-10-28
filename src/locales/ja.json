@@ -3501,6 +3501,7 @@
     "usernameAvailable": "{handle} は利用可能です",
     "usernameTaken": "このユーザー名は使用されています。",
     "usernameTooShort": "{min} 文字以上にしてください。",
+    "usernameReserved": "このユーザー名は予約されています。別の名前を選んでください。",
     "usernameCheckFailed": "利用可能か確認できませんでした。もう一度お試しください。",
     "bio": "自己紹介",
     "optional": "（任意）",
@@ -7698,6 +7699,18 @@
       "custom": "個別の上限",
       "customLabel": "{name} のアップロード上限 (MB)",
       "ceiling": "上限: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "役割",
+    "roleOption": "{name}、役割",
+    "memberOption": "{name}、メンバー、{handle}",
+    "rolePill": "{'@'}{name}、役割",
+    "roleCard": {
+      "label": "役割 {name}",
+      "members": "{count} メンバー",
+      "here": "オンラインでチャンネルを見られるメンバー",
+      "unknown": "このサーバーの役割ではありません"
     }
   }
 }

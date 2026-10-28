@@ -57,6 +57,22 @@ env_set() {
 
 lower() { tr '[:upper:]' '[:lower:]'; }
 upper() { tr '[:lower:]' '[:upper:]'; }
+
+# reserved_username NAME DOMAIN: guard_local_username's reserved names
+# (20261031900001_reserved_usernames.sql, src/utils/usernameRules.ts), and the labels of DOMAIN
+# before its last, port dropped.
+reserved_username() {
+	local name="$1" host labels label
+	case "$name" in
+		everyone|here|system|harmony|admin|admins|administrator|mod|mods|moderator|moderators|staff|root) return 0 ;;
+	esac
+	host="$(printf '%s' "${2%%:*}" | lower)"
+	[[ -n "$host" ]] || return 1
+	IFS=. read -ra labels <<<"$host"
+	(( ${#labels[@]} > 1 )) && unset 'labels[-1]'
+	for label in "${labels[@]}"; do [[ "$name" == "$label" ]] && return 0; done
+	return 1
+}
 truthy() { case "$(printf '%s' "${1:-}" | lower)" in y|yes|true|1|on) return 0 ;; *) return 1 ;; esac; }
 
 # version_ge A B: A >= B for dotted numeric versions.

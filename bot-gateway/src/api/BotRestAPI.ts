@@ -163,6 +163,36 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 // role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
 const HERE_ROLE_ID = 'here'
 
+// src/utils/massMentions.ts TYPED_MASS_MENTION: the handle grammar's boundaries, no host.
+const TYPED_MASS_MENTION = /(?<![\p{L}\p{N}_@/])@(everyone|here)(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}_-])/u
+// Fenced code, inline code and URLs hold no mention (src/utils/unifiedContentProcessing opaqueRanges).
+const OPAQUE_TEXT = /```[\s\S]*?```|`[^`\n]+`|\bhttps?:\/\/\S+/g
+
+/**
+ * Text content with each typed bare @everyone or @here outside code and URLs as its role_mention
+ * part: `everyoneRoleId` (the server's default role) and roleId `here`. Discord pings the
+ * lowercase words only; any other spelling, and @everyone without a default role, stays text.
+ */
+export function typedMassMentionParts(text: string, everyoneRoleId: string | null): any[] {
+  const opaque: Array<[number, number]> = []
+  for (const m of text.matchAll(OPAQUE_TEXT)) opaque.push([m.index!, m.index! + m[0].length])
+  const parts: any[] = []
+  let last = 0
+  for (const m of text.matchAll(new RegExp(TYPED_MASS_MENTION, 'gu'))) {
+    const at = m.index!
+    if (opaque.some(([start, end]) => at >= start && at < end)) continue
+    const here = m[1] === HERE_ROLE_ID
+    if (!here && !everyoneRoleId) continue
+    if (at > last) parts.push({ type: 'text', text: text.slice(last, at) })
+    parts.push(here
+      ? { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }
+      : { type: 'role_mention', roleId: everyoneRoleId, roleName: 'everyone', roleColor: null })
+    last = at + m[0].length
+  }
+  if (last < text.length) parts.push({ type: 'text', text: text.slice(last) })
+  return parts
+}
+
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
 export function reactionMetadata(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input || null
@@ -561,8 +591,10 @@ export class BotRestAPI {
       
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
+      const typed = claimsBridgeAuthor(metadata) ? this.formatContent(content, embeds)
+        : await this.typedMassMentions(this.formatContent(content, embeds), content, channelId, botId)
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content, embeds), channelId, botId),
+        await this.resolveMentionParts(typed, channelId, botId),
         botId,
         channelId,
       )
@@ -851,7 +883,7 @@ export class BotRestAPI {
       
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, bot_id, channel_id')
+        .select('user_id, bot_id, channel_id, metadata')
         .eq('id', messageId)
         .single()
       
@@ -869,8 +901,10 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
       
+      const typed = claimsBridgeAuthor(message.metadata) ? this.formatContent(content)
+        : await this.typedMassMentions(this.formatContent(content), content, message.channel_id, botId)
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content), message.channel_id, botId),
+        await this.resolveMentionParts(typed, message.channel_id, botId),
         botId,
         message.channel_id,
       )
@@ -2106,6 +2140,26 @@ export class BotRestAPI {
     return absoluteAvatarUrl(avatarPath)
   }
   
+  /**
+   * Discord's reading of string content: a typed @everyone or @here pings for a bot holding
+   * mention_everyone in the channel's server (typedMassMentionParts on the text part
+   * formatContent made of it) and stays text otherwise. Content sent as parts and relayed
+   * content keep their text parts: a relaying bot's right is not its author's.
+   */
+  private async typedMassMentions(parts: any[], content: unknown, channelId: string, botId: string): Promise<any[]> {
+    if (typeof content !== 'string' || parts[0]?.type !== 'text' || parts[0].text !== content) return parts
+    if (!TYPED_MASS_MENTION.test(content)) return parts
+    const serverId = await this.channelServerId(channelId)
+    if (!serverId || !(await this.checkServerPermission(botId, serverId, 'mention_everyone'))) return parts
+    const { data: role } = await supabase
+      .from('server_roles')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('is_default', true)
+      .maybeSingle()
+    return [...typedMassMentionParts(content, (role as { id?: string } | null)?.id ?? null), ...parts.slice(1)]
+  }
+
   /**
    * role_mention and channel_mention parts against the channel's server: a role or channel of
    * that server keeps its part, carrying the stored name (and the role's color); any other part

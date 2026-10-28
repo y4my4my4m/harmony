@@ -215,25 +215,34 @@
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
-          <span class="mention-at">@</span>
-          <template v-if="part.userId">
-            <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+          <template v-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
+          <template v-else>
+            <span class="mention-at">@</span>
+            <template v-if="part.userId">
+              <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
+            </template>
+            <template v-else>{{ part.username }}</template>
+            <span
+              v-if="mentionSuffix(part)"
+              class="mention-domain"
+            >@{{ mentionSuffix(part) }}</span>
           </template>
-          <template v-else>{{ part.username }}</template>
-          <span
-            v-if="mentionSuffix(part)"
-            class="mention-domain"
-          >@{{ mentionSuffix(part) }}</span>
         </button></InlineMarks>
 
         <!-- Role mentions -->
         <InlineMarks
           v-else-if="part && typeof part === 'object' && part.type === 'role_mention'"
           :marks="marksAt(partIndex)"
-        ><span
+        ><button
+          type="button"
           class="mention role-mention"
-          :style="part.roleColor ? { color: part.roleColor, backgroundColor: part.roleColor + '1a' } : {}"
-        >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span></InlineMarks>
+          :style="roleMentionStyle(part)"
+          :aria-label="t('mentionLabels.rolePill', { name: roleMentionName(part) })"
+          :title="t('mentionLabels.rolePill', { name: roleMentionName(part) })"
+          aria-haspopup="dialog"
+          :aria-expanded="openRoleCard?.part === part"
+          @click="toggleRoleCard(part, $event)"
+        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ roleMentionName(part) }}</button></InlineMarks>
         
         <!-- Hashtags -->
         <InlineMarks
@@ -798,6 +807,14 @@
       @close="cancelRemoveAttachment"
       @confirm="confirmRemoveAttachment"
     />
+    <RoleMentionCard
+      v-if="openRoleCard"
+      :role-id="openRoleCard.part.roleId"
+      :role-name="roleMentionName(openRoleCard.part)"
+      :role-color="openRoleCard.part.roleColor"
+      :anchor="openRoleCard.anchor"
+      @close="closeRoleCard"
+    />
   </div>
 </template>
 
@@ -828,6 +845,8 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
+import RoleMentionCard from '@/components/messages/RoleMentionCard.vue';
+import { roleMentionColor } from '@/utils/roleMentions';
 import VideoControls from '@/components/common/VideoControls.vue';
 import InlineMarks from '@/components/common/InlineMarks';
 import { activateStoppedLink } from '@/services/outsideLinks';
@@ -882,6 +901,7 @@ import {
   parseKlipyKind,
 } from '@/utils/klipyAttribution';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { isMassMentionWord } from '@/utils/massMentions';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useViewport } from '@/composables/useViewport';
 import { focusElement } from '@/utils/a11y/focus';
@@ -902,6 +922,7 @@ export default defineComponent({
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
+    RoleMentionCard,
     PollCard,
     StickerView,
     VideoControls,
@@ -1892,7 +1913,7 @@ export default defineComponent({
       return part?.isBridged || part?.domain === 'discord.com';
     };
     
-    const { getUser } = useUserData();
+    const { getUser, getUserDisplayName } = useUserData();
     const mentionSuffix = (part: any): string | null => {
       const user = part?.userId ? getUser(part.userId).value : null;
       return mentionDisplayDomain(
@@ -1902,9 +1923,48 @@ export default defineComponent({
       );
     };
 
+    /** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
+    const readsAsMassMention = (part: any): boolean => {
+      if (!part?.userId || isBridgedMention(part)) return false;
+      return isMassMentionWord(getUserDisplayName(part.userId).value);
+    };
+
+    /** Host after such a handle: the remote one, or this instance's for a local everyone or here. */
+    const massMentionHost = (part: any): string | null =>
+      mentionSuffix(part) ?? (isMassMentionWord(part?.username) ? (runtimeConfig.domain as string) || null : null);
+
+    const roleMentionName = (part: any): string => String(part?.roleName || 'Unknown Role').replace(/^@/, '');
+
+    /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
+    const roleMentionStyle = (part: any) => {
+      const color = roleMentionColor(part?.roleColor);
+      return { '--role-color': color, color, backgroundColor: color + '1a' };
+    };
+
+    const openRoleCard = ref<{ part: any; anchor: { left: number; top: number; bottom: number }; pill: HTMLElement } | null>(null);
+    const closeRoleCard = () => {
+      const pill = openRoleCard.value?.pill;
+      openRoleCard.value = null;
+      pill?.focus();
+    };
+    const toggleRoleCard = (part: any, event: MouseEvent) => {
+      event.stopPropagation();
+      if (openRoleCard.value?.part === part) {
+        closeRoleCard();
+        return;
+      }
+      const pill = event.currentTarget as HTMLElement;
+      const box = pill.getBoundingClientRect();
+      openRoleCard.value = { part, anchor: { left: box.left, top: box.top, bottom: box.bottom }, pill };
+    };
+
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
+      }
+      if (readsAsMassMention(part)) {
+        const host = massMentionHost(part);
+        return host ? `@${part.username}@${host}` : `@${part.username}`;
       }
       const suffix = mentionSuffix(part);
       if (suffix) {
@@ -2071,6 +2131,13 @@ export default defineComponent({
       handleMentionClick,
       isBridgedMention,
       mentionSuffix,
+      readsAsMassMention,
+      massMentionHost,
+      roleMentionName,
+      roleMentionStyle,
+      openRoleCard,
+      closeRoleCard,
+      toggleRoleCard,
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,
@@ -2354,12 +2421,22 @@ a.channel-mention {
 
 .role-mention {
   font-weight: 600;
-  cursor: default;
+  cursor: pointer;
 }
 
 .role-mention:hover {
   filter: brightness(1.15);
-  background-color: unset;
+}
+
+/* Role marker: a dot of the role's colour, absent from a person's pill. */
+.role-mention .role-mention-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin: 0 0.25em 0.1em 0.1em;
+  border-radius: 50%;
+  background-color: var(--role-color);
+  vertical-align: middle;
 }
 
 /* Hashtag styling */

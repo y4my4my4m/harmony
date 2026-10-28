@@ -334,7 +334,7 @@ existing account becomes an admin.
 | Option | Effect | When absent |
 |---|---|---|
 | `--email E` | The account's email | `HARMONY_ADMIN_EMAIL`, else asks (default: `ADMIN_EMAIL` in `.env`) |
-| `--username U` | 3 to 24 characters of `a-z`, `0-9`, `_` | `HARMONY_ADMIN_USERNAME`, else asks (default: the email's local part, or `admin`) |
+| `--username U` | 3 to 24 characters of `a-z`, `0-9`, `_`, not a [reserved name](/use/getting-started#set-up-your-profile) | `HARMONY_ADMIN_USERNAME`, else asks (default: the email's local part, or `owner` when that is shorter than 3 or reserved) |
 | `--password P` | 8 characters or more | `HARMONY_ADMIN_PASSWORD`, else asks twice; empty generates one |
 | `--display-name N` | The profile's display name | the username |
 
@@ -345,7 +345,7 @@ existing account becomes an admin.
 | Account exists, profile never created | Takes the given or generated password, gets its profile, made an admin |
 
 It fails with `the username U belongs to another account` when another local
-profile has the username, and needs the `federation-server` container running
+profile has the username, with `the username U is reserved` for a reserved name, and needs the `federation-server` container running
 and the instance domain set (`bash bootstrap.sh`).
 
 ## harmony admin reset-password

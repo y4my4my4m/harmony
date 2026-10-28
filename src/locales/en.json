@@ -3501,6 +3501,7 @@
     "usernameAvailable": "{handle} is available",
     "usernameTaken": "That username is taken.",
     "usernameTooShort": "Use at least {min} characters.",
+    "usernameReserved": "That username is reserved. Choose another.",
     "usernameCheckFailed": "Couldn't check availability. Try again.",
     "bio": "About you",
     "optional": "(optional)",
@@ -7694,6 +7695,18 @@
       "custom": "Custom limit",
       "customLabel": "Upload limit of {name}, MB",
       "ceiling": "Ceiling: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Role",
+    "roleOption": "{name}, role",
+    "memberOption": "{name}, member, {handle}",
+    "rolePill": "{'@'}{name}, role",
+    "roleCard": {
+      "label": "Role {name}",
+      "members": "{count} member | {count} members",
+      "here": "Members who are online and can see the channel",
+      "unknown": "Not a role of this server"
     }
   }
 }

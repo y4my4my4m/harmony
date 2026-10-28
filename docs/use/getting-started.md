@@ -61,7 +61,7 @@ The first time you sign in, Harmony shows **Set up your profile**:
 |---|---|
 | **Profile picture** | Optional. You crop the image after picking it, and you can change it later. |
 | **Display name** | Required, up to 50 characters. This is the name shown in chats; you can change it any time. |
-| **Username** | Required, 3 to 24 characters: lowercase letters, digits and underscores. Capitals are lowered and other characters are dropped as you type. The form tells you whether the name is free. It cannot be changed later. |
+| **Username** | Required, 3 to 24 characters: lowercase letters, digits and underscores. Capitals are lowered and other characters are dropped as you type. The form tells you whether the name is free. Some names are reserved: `everyone`, `here`, `system`, `harmony`, `admin`, `admins`, `administrator`, `mod`, `mods`, `moderator`, `moderators`, `staff`, `root`, and the parts of the instance's domain before the last (`har` and `mony` on `har.mony.lol`). It cannot be changed later. |
 | **About you** | Optional, up to 500 characters. |
 
 Select **Continue**. The line at the bottom of the form shows which email address you are signed in with, and **Sign out** leaves without creating the profile.

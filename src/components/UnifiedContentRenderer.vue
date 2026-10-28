@@ -44,7 +44,10 @@
           :title="getMentionTooltip(part)"
           @click="handleMentionClick(part)"
         >
-          <template v-if="part.userId">
+          <template v-if="part.userId && readsAsMassMention(part)">
+            <span class="mention-at">@</span>{{ part.username }}<span v-if="mentionSuffixOrLocal(part)" class="mention-domain">@{{ mentionSuffixOrLocal(part) }}</span>
+          </template>
+          <template v-else-if="part.userId">
             <span class="mention-at">@</span>
             <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
             <!-- Show @domain suffix for federated users so the handle is unambiguous -->
@@ -57,8 +60,10 @@
         <span
           v-else-if="part && part.type === 'role_mention'"
           class="mention role-mention"
-          :style="part.roleColor ? { '--role-color': part.roleColor, color: part.roleColor, background: part.roleColor + '1a' } : {}"
-        >@{{ part.roleName?.replace(/^@/, '') }}</span>
+          :style="roleMentionStyle(part.roleColor)"
+          :aria-label="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
+          :title="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
+        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ part.roleName?.replace(/^@/, '') }}</span>
         
         <!-- Emojis (custom server or unified pack) -->
         <template v-else-if="part && part.type === 'emoji'">
@@ -202,6 +207,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessagePart } from '@/types';
 import { useContentRenderer, type ContentRenderOptions } from '@/composables/useContentRenderer';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -216,6 +222,8 @@ import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { isMassMentionWord } from '@/utils/massMentions';
+import { roleMentionColor } from '@/utils/roleMentions';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -342,7 +350,7 @@ const handleMentionClick = (mention: MessagePart) => {
 
 const currentDomain = runtimeConfig.domain as string;
 
-const { getUser } = useUserData();
+const { getUser, getUserDisplayName } = useUserData();
 const mentionSuffix = (part: MessagePart): string | null => {
   if (part.type !== 'mention') return null;
   const user = part.userId ? getUser(part.userId).value : null;
@@ -351,12 +359,32 @@ const mentionSuffix = (part: MessagePart): string | null => {
 
 const isFederatedMention = (part: MessagePart): boolean => !!mentionSuffix(part);
 
+const { t } = useI18n();
+
+/** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
+const roleMentionStyle = (roleColor: string | null | undefined) => {
+  const color = roleMentionColor(roleColor);
+  return { '--role-color': color, color, background: color + '1a' };
+};
+
+/** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
+const readsAsMassMention = (part: MessagePart): boolean => {
+  if (part.type !== 'mention' || part.domain === 'discord.com') return false;
+  return isMassMentionWord(part.userId ? getUserDisplayName(part.userId).value : (part.displayName || part.username));
+};
+
+/** Host after the handle: the remote one, or this instance's for a local everyone or here. */
+const mentionSuffixOrLocal = (part: MessagePart): string | null => {
+  if (part.type !== 'mention') return null;
+  return mentionSuffix(part) ?? (isMassMentionWord(part.username) ? currentDomain || null : null);
+};
+
 const getMentionTooltip = (part: MessagePart): string => {
   if (part.type !== 'mention') return '';
   if (part.domain === 'discord.com') {
     return `Discord user: ${part.displayName || part.username}`;
   }
-  const suffix = mentionSuffix(part);
+  const suffix = mentionSuffix(part) ?? (readsAsMassMention(part) ? currentDomain : null);
   if (suffix) {
     return `@${part.username}@${suffix}`;
   }
@@ -625,6 +653,17 @@ const formatFileSize = (bytes: number): string => {
 
 .role-mention {
   cursor: default;
+}
+
+/* Role marker: a dot of the role's colour, absent from a person's pill. */
+.role-mention .role-mention-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin: 0 0.25em 0.1em 0.1em;
+  border-radius: 50%;
+  background-color: var(--role-color);
+  vertical-align: middle;
 }
 .role-mention:hover {
   filter: brightness(1.15);

@@ -213,7 +213,7 @@
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
-  import { buildChatParseOptions } from '@/utils/chatParseOptions';
+  import { buildChatParseOptions, resolveChatMassMentions } from '@/utils/chatParseOptions';
   import { threadService } from '@/services/ThreadService';
 import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useThreadsStore } from '@/stores/useThreads';
@@ -924,18 +924,21 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         }
       };
 
-      const parseMessageInput = async (input: string, serverId?: string): Promise<MessagePart[]> => {
+      const parseMessageInput = async (input: string, target: MessageTarget): Promise<MessagePart[]> => {
         debug.log('Using unified content parsing for:', input);
+        const serverId = target.kind === 'channel' ? target.serverId : undefined;
+        const channelId = target.kind === 'channel' ? target.channelId : undefined;
 
         // Independent lookups; each issues a request only when the text names its kind.
-        const [userDataMap, emojiDataMap, roleDataMap] = await Promise.all([
+        const [userDataMap, emojiDataMap, roleDataMap, massMentions] = await Promise.all([
           resolveMentionsUserData(input),
           resolveEmojisData(input),
           resolveRoleMentionsData(input, serverId),
+          resolveChatMassMentions(input, serverId, channelId),
         ]);
 
         const result = await parseContentToMessageParts(
-          input, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(props.isDM));
+          input, userDataMap, emojiDataMap, {}, roleDataMap, { ...buildChatParseOptions(props.isDM), massMentions });
 
         debug.log('Final parsed message parts:', result);
         return result;
@@ -999,7 +1002,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             uploaderId,
             replyTo: replyMessageId,
             textParts: hasText ? [{ type: 'text', text: content }] : [],
-            parsedTextParts: hasText ? parseMessageInput(content, targetServerId(target)) : undefined,
+            parsedTextParts: hasText ? parseMessageInput(content, target) : undefined,
             attachments: files.map((file) => {
               const raw = toRaw(file);
               const completed = raw.uploadStatus === 'completed';
@@ -1058,7 +1061,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         const turn = takeSendTurn(targetOrderKey(target));
         try {
           const messageParts: MessagePart[] = content.trim()
-            ? await parseMessageInput(content, targetServerId(target))
+            ? await parseMessageInput(content, target)
             : [];
 
           if (messageParts.length > 0) {
@@ -1266,7 +1269,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         messageInputRef.value?.clearText();
         let sent = false;
         try {
-          const textParts = text.trim() ? await parseMessageInput(text, targetServerId(target)) : [];
+          const textParts = text.trim() ? await parseMessageInput(text, target) : [];
           const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
             target,
             [...textParts, ...stickerMessageParts(sticker)],

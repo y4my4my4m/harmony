@@ -3501,6 +3501,7 @@
     "usernameAvailable": "{handle} ist verfügbar",
     "usernameTaken": "Dieser Benutzername ist vergeben.",
     "usernameTooShort": "Verwende mindestens {min} Zeichen.",
+    "usernameReserved": "Dieser Benutzername ist reserviert. Wähle einen anderen.",
     "usernameCheckFailed": "Verfügbarkeit konnte nicht geprüft werden. Versuche es erneut.",
     "bio": "Über dich",
     "optional": "(optional)",
@@ -7698,6 +7699,18 @@
       "custom": "Eigenes Limit",
       "customLabel": "Upload-Limit von {name}, MB",
       "ceiling": "Obergrenze: {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Rolle",
+    "roleOption": "{name}, Rolle",
+    "memberOption": "{name}, Mitglied, {handle}",
+    "rolePill": "{'@'}{name}, Rolle",
+    "roleCard": {
+      "label": "Rolle {name}",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "here": "Mitglieder, die online sind und den Kanal sehen",
+      "unknown": "Keine Rolle dieses Servers"
     }
   }
 }

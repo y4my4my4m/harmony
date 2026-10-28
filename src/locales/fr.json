@@ -3501,6 +3501,7 @@
     "usernameAvailable": "{handle} est disponible",
     "usernameTaken": "Ce nom d'utilisateur est déjà pris.",
     "usernameTooShort": "Utilisez au moins {min} caractères.",
+    "usernameReserved": "Ce nom d'utilisateur est réservé. Choisissez-en un autre.",
     "usernameCheckFailed": "Impossible de vérifier la disponibilité. Réessayez.",
     "bio": "À propos de vous",
     "optional": "(facultatif)",
@@ -7698,6 +7699,18 @@
       "custom": "Limite personnalisée",
       "customLabel": "Limite d’envoi de {name}, Mo",
       "ceiling": "Plafond : {limit}"
+    }
+  },
+  "mentionLabels": {
+    "role": "Rôle",
+    "roleOption": "{name}, rôle",
+    "memberOption": "{name}, membre, {handle}",
+    "rolePill": "{'@'}{name}, rôle",
+    "roleCard": {
+      "label": "Rôle {name}",
+      "members": "{count} membre | {count} membres",
+      "here": "Membres en ligne qui voient le salon",
+      "unknown": "Ce n'est pas un rôle de ce serveur"
     }
   }
 }

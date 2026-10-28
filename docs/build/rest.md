@@ -156,6 +156,7 @@ Before storing, the server checks `role_mention` and `channel_mention` parts aga
 - A `role_mention` naming a role of that server keeps its part, with the stored role name and color. A `channel_mention` naming a channel of that server keeps its part, with the stored name and the server's ID. Any other such part becomes the text `@roleName` or `#name`.
 - @everyone (the server's default role) and @here (`{ "type": "role_mention", "roleId": "here" }`) stay mentions only when the installation has `mention_everyone`; otherwise they become the text `@everyone` or `@here`. @here notifies the members who are online and can view the channel.
 - Another role notifies its members when it is mentionable, or when the installation has `mention_everyone`.
+- `content` sent as a string reads `@everyone` and `@here` as Discord does: outside code and links, the lowercase words become those mentions when the installation has `mention_everyone`, and stay text otherwise. Text parts are never read for mentions, and neither is relayed content (metadata naming a relayed author), whose author's right the bot does not carry.
 
 Edits and silent content patches apply the same check.
 

@@ -94,3 +94,14 @@ describe('summarizeIncoming', () => {
     expect(summarizeIncoming([], t)).toBe('')
   })
 })
+
+describe('mentions', () => {
+  it('reads a role as a role, and a member of the same name as a handle', () => {
+    const parts = [
+      { type: 'mention', userId: 'u1', username: 'crew', domain: 'harmony.test', isLocal: true },
+      { type: 'text', text: ' and ' },
+      { type: 'role_mention', roleId: 'r1', roleName: 'crew', roleColor: null },
+    ] as MessagePart[]
+    expect(messageSpeechText(parts, t)).toBe('@crew and mentionLabels.rolePill(name=crew)')
+  })
+})
