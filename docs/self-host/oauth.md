@@ -30,9 +30,10 @@ sequenceDiagram
 ```
 
 A person signing in with a provider for the first time gets a new account and
-then picks a username, as after a normal registration. Registration set to
-`invite` or `closed` (`harmony registration`) stops these new accounts too:
-the sign-in service refuses every new account while sign-up is disabled.
+then picks a username, as after a normal registration; when an account already
+has their address, see [Existing accounts](#existing-accounts). Registration
+set to `invite` or `closed` (`harmony registration`) stops these new accounts
+too: the sign-in service refuses every new account while sign-up is disabled.
 
 ## Create the provider application
 
@@ -120,6 +121,80 @@ as well.
 - An error after the provider's page sends you back comes from the sign-in
   service: `harmony logs auth` shows it. A provider whose `_ENABLED` key is
   not `true` is refused there.
+
+## Existing accounts
+
+A first sign-in through Google, GitHub or Twitch either joins the account that
+already has the person's address, or makes a new one. Which of the two is safe
+depends on whether the instance confirms addresses by email.
+
+Without SMTP the sign-in service confirms addresses automatically
+(`ENABLE_EMAIL_AUTOCONFIRM=true`), and it then counts every address a provider
+sends as verified, whether the provider checked it or not. Joining by address
+would let anyone in:
+
+- GitHub sends every address on the GitHub account, unverified ones included.
+  Whoever adds your address to their GitHub account would sign in to your
+  Harmony account, the admin's included.
+- Google's `email_verified` is ignored the same way, and the sign-in service
+  takes the address Twitch sends as verified in every case.
+- The other way round: whoever registers here with someone else's address,
+  which nobody checks, would receive that person's first sign-in through any
+  provider.
+
+So the built-in providers are kept apart while addresses are confirmed
+automatically. `configure.sh`, which `harmony install`, `harmony config` and
+`harmony update` run, adds an entry per built-in provider to
+`PROVIDER_LINKING_DOMAINS` in `self-host/supabase/.env`, also on the run that
+sets up SMTP, since the accounts made before it never proved their address:
+
+```bash
+PROVIDER_LINKING_DOMAINS=github=github,google=google,twitch=twitch
+```
+
+An entry already there stays, so a choice made with `harmony auth linking`
+holds across updates. An instance that sends email from the start gets no
+entries and joins by verified address.
+
+| The person | Kept apart (without SMTP) | Joined by address |
+|---|---|---|
+| Signed in with this provider before | Signed in to that account | Signed in to that account |
+| New, and no account has their address | A new account | A new account |
+| New, and an account has their address | A new, separate account with the same address | Linked to that account when the provider marks the address verified |
+
+People who signed in through the provider before keep their accounts, those
+it joined by address included. Only first sign-ins change.
+
+An account made by a first sign-in through a provider that is kept apart
+belongs to that provider: the sign-in service lets it in only through the
+provider. It cannot set a password, change its address, reset a password by
+email or add a passkey, and `harmony admin reset-password` cannot give it a
+password. The account that already had the address keeps its password.
+
+Set it per provider:
+
+```bash
+harmony auth linking github --separate-accounts          # the default without SMTP
+harmony auth linking google --link-existing-accounts     # with SMTP configured
+harmony auth linking google --link-existing-accounts --provider-verifies-email
+```
+
+`--link-existing-accounts` writes `PROVIDER=default`. It is refused while
+`ENABLE_EMAIL_AUTOCONFIRM=true` unless `--provider-verifies-email` states that
+the provider hands out only addresses it has checked, and for GitHub it is
+refused even then. `harmony auth providers` lists each provider under
+**EXISTING ACCOUNTS**, and `harmony doctor` warns about a provider the sign-in
+service has on that joins by address under automatic confirmation. A provider
+counts once its `_ENABLED` key is `true`, button or not:
+`/auth/v1/authorize` takes it without one.
+
+An instance that ran without SMTP and set it up before 1.9.2 still holds the
+accounts it made without it, whose addresses nobody checked. Keep its
+providers apart with `harmony auth linking ID --separate-accounts`.
+
+With SMTP, the sign-in service still takes the address Twitch sends as
+verified in every case: Twitch documents it as verified, nothing here checks
+it. Keep Twitch apart unless you rely on that.
 
 ## Your own identity provider
 
@@ -317,7 +392,8 @@ harmony auth add-provider authentik --separate-accounts                  # back 
 Each runs on an existing provider too and changes only this setting.
 `harmony auth providers` shows it per provider under **EXISTING ACCOUNTS**,
 and `harmony doctor` warns about a provider that links by address under
-automatic confirmation.
+automatic confirmation. An account a provider kept apart signs in only
+through it, as for the [built-in providers](#existing-accounts).
 
 `PROVIDER_LINKING_DOMAINS` takes comma-separated `provider=domain` pairs:
 providers that share the name after `=` link to each other and to nothing
@@ -339,8 +415,11 @@ harmony auth providers                   # the providers, whether the sign-in pa
 harmony auth remove-provider authentik   # removes the provider, its button and its linking entry
 ```
 
-An account that signed in only through a removed provider has no way in
-until it gets a password: `harmony admin reset-password --email ADDRESS`.
+An account that signed in only through a removed provider has no way in.
+One the provider joined by address gets back in with a password:
+`harmony admin reset-password --username NAME`. One it kept apart signs in
+only through the provider; adding the provider back under the same id lets it
+in again.
 
 The client secret is in the database, so it is in every backup
 (`harmony backup`), like the rest of the `auth` schema.

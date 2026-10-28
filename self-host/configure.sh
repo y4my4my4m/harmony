@@ -119,6 +119,8 @@ b64url_decode() {
 	printf '%s' "$s" | openssl base64 -d -A
 }
 lower() { tr '[:upper:]' '[:lower:]'; }
+# shellcheck source=linking.sh
+source "$SCRIPT_DIR/linking.sh"
 
 # HS256 JWT for a Supabase role, valid for 10 years.
 sign_jwt() {
@@ -233,6 +235,7 @@ BOTS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_BOTS)"
 DISCORD_DEFAULT="$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)"
 REGISTRATION_DEFAULT="$(env_get "$ENV_FILE" REGISTRATION)"
 OLD_SMTP_HOST="$(env_get "$SB_ENV" SMTP_HOST)"
+OLD_AUTOCONFIRM="$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"
 
 if [[ "$OLD_TLS" == internal ]]; then TLS_DEFAULT=n; else TLS_DEFAULT=y; fi
 case "${HARMONY_TLS:-}" in
@@ -530,6 +533,24 @@ if $SMTP_SET; then
 	# Addresses are confirmed by email once mail can be sent; only a change of
 	# SMTP host flips it, so a hand edit stays.
 	smtp_configured "$OLD_SMTP_HOST" || env_set "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM false
+fi
+# Under ENABLE_EMAIL_AUTOCONFIRM=true GoTrue counts every address a provider sends as verified
+# (models.DetermineAccountLinking), and accounts are made without proving theirs. Each built-in
+# provider without a PROVIDER_LINKING_DOMAINS pair gets a domain of its own (linking.sh), also
+# on the run that configures SMTP: accounts made before it keep unproven addresses. A pair
+# present stays.
+if [[ "$(yes_no "$OLD_AUTOCONFIRM")" == true || "$(yes_no "$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)")" == true ]]; then
+	linking="$(env_get "$SB_ENV" PROVIDER_LINKING_DOMAINS)"
+	if ! linking_valid "$linking"; then
+		warn "supabase/.env: PROVIDER_LINKING_DOMAINS is not comma-separated provider=domain pairs; the auth service does not start with it, and the built-in sign-in providers are not kept apart. Correct it and re-run configure.sh"
+	else
+		# shellcheck disable=SC2086
+		want="$(linking_isolate "$linking" $BUILTIN_OAUTH_PROVIDERS)"
+		if [[ "$want" != "$linking" ]]; then
+			env_set "$SB_ENV" PROVIDER_LINKING_DOMAINS "$want"
+			info "supabase/.env: PROVIDER_LINKING_DOMAINS=$want: a first sign-in through Google, GitHub or Twitch makes a new account instead of joining the one with its address (harmony auth linking)"
+		fi
+	fi
 fi
 # gotrue_image_for STACK_COMPOSE CURRENT: GOTRUE_IMAGE, the auth image supabase-overrides.yml
 # runs. The stack's own supabase/gotrue image from GOTRUE_MIN on, otherwise GOTRUE_MIN; a

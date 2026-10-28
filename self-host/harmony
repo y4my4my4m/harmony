@@ -16,13 +16,15 @@
 #   harmony admin reset-password (--email E | --username U) [--password P]
 #   harmony admin invite <email> [--send]
 #   harmony registration [open | invite | closed]
-#   harmony auth providers          sign-in providers the instance runs itself
+#   harmony auth providers          sign-in providers and how each treats existing accounts
 #   harmony auth add-provider ID --name N --issuer URL --client-id C [...]
 #                                   add or update one (OIDC; OAuth 2.0 takes
 #                                   --authorize-url, --token-url, --userinfo-url);
 #                                   its accounts stay apart from existing ones
 #                                   unless --link-existing-accounts
 #   harmony auth remove-provider ID
+#   harmony auth linking PROVIDER --separate-accounts | --link-existing-accounts
+#                                   how github, google, twitch, ... treat existing accounts
 #   harmony config                  change the answers (configure.sh), apply
 #   harmony version
 #
@@ -34,7 +36,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,29p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,31p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 

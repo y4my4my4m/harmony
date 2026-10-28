@@ -50,7 +50,7 @@ when installed as root):
 | `harmony` | | the operator command |
 | `configure.sh` | | writes the configuration files below; merge-safe |
 | `bootstrap.sh` | | applies `db_schema/migrations/`, creates `harmony_listener`, sets `instance_config.domain` |
-| `update.sh`, `backup.sh`, `admin.sh`, `doctor.sh`, `lib.sh` | | behind `harmony update`, `backup`/`restore`, `admin`/`registration`, `doctor` |
+| `update.sh`, `backup.sh`, `admin.sh`, `doctor.sh`, `lib.sh`, `linking.sh` | | behind `harmony update`, `backup`/`restore`, `admin`/`registration`/`auth`, `doctor` |
 | `docker-compose.yml` | | the stack; `include:`s Supabase |
 | `docker-compose.build.yml` | | builds Harmony's images from the checkout (`HARMONY_BUILD=1`) |
 | `supabase-overrides.yml` | | Harmony's changes to the upstream Supabase stack |
