@@ -1,13 +1,18 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { crc32 } from 'node:zlib'
-import { describe, expect, it } from 'vitest'
+import { constants, crc32, deflateRawSync, deflateSync } from 'node:zlib'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  IMAGE_MAX_BYTES,
+  INFLATE_CHUNK_MAX_BYTES,
+  TOP_LEVEL_BOX_MAX,
   orientationSegment,
   readMediaDetails,
+  readSourceDetails,
   readTiff,
   stripMediaBytes,
   stripMediaMetadata,
+  type ByteSource,
 } from '@/utils/stripMetadata'
 import { isAnimatedImage, readJpegOrientation } from '@/utils/imageResize'
 
@@ -179,10 +184,12 @@ describe('stripMediaMetadata: JPEG', () => {
     expect(await stripMediaMetadata(file)).toBe(file)
   })
 
-  it('leaves a truncated JPEG unchanged', async () => {
+  it('drops an Exif segment cut short by the end of the file', async () => {
     const before = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+    // SOI, JFIF APP0 (18 bytes), then 20 of the Exif APP1's 258.
     const file = new File([before.subarray(0, 40)], 'cut.jpg', { type: 'image/jpeg' })
-    expect(await stripMediaMetadata(file)).toBe(file)
+    expect(await readMediaDetails(file)).toEqual({ container: 'jpeg', location: false, details: true })
+    expect(await bytesOf(await stripMediaMetadata(file))).toEqual(before.subarray(0, 20))
   })
 })
 
@@ -332,4 +339,312 @@ describe('malformed HEIF', () => {
     expect(performance.now() - started).toBeLessThan(1000)
     expect([...out]).toEqual([...input])
   }, 5000)
+})
+
+// ---------------------------------------------------------------------------
+// Crafted inputs
+// ---------------------------------------------------------------------------
+
+const ascii = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0))
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0))
+  let o = 0
+  for (const part of parts) {
+    out.set(part, o)
+    o += part.length
+  }
+  return out
+}
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const chunk = new Uint8Array(12 + data.length)
+  const view = new DataView(chunk.buffer)
+  view.setUint32(0, data.length)
+  chunk.set(ascii(type), 4)
+  chunk.set(data, 8)
+  view.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)))
+  return chunk
+}
+
+/** 1×1 greyscale PNG with `extra` between IHDR and IDAT. */
+function png(...extra: Uint8Array[]): Uint8Array {
+  const signature = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+  const ihdr = Uint8Array.of(0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0, 0, 0)
+  const idat = new Uint8Array(deflateSync(Uint8Array.of(0, 0)))
+  return concat(signature, pngChunk('IHDR', ihdr), ...extra, pngChunk('IDAT', idat), pngChunk('IEND', new Uint8Array(0)))
+}
+
+/**
+ * zlib data inflating to `prefix` then `mib` MiB of zeros, about 1 KiB per MiB: one raw deflate
+ * run per MiB (Z_SYNC_FLUSH ends each byte-aligned and not final), a final empty fixed-Huffman
+ * block (03 00), then the Adler-32.
+ */
+function zlibBomb(prefix: Uint8Array, mib: number): Uint8Array {
+  const zeros = Buffer.alloc(1 << 20)
+  const sync = { finishFlush: constants.Z_SYNC_FLUSH }
+  const first = new Uint8Array(deflateRawSync(concat(prefix, zeros), sync))
+  const next = new Uint8Array(deflateRawSync(zeros, sync))
+  let a = 1
+  let b = 0
+  for (const x of prefix) {
+    a = (a + x) % 65521
+    b = (b + a) % 65521
+  }
+  // Each zero byte adds `a` to `b`.
+  b = (b + a * ((mib * (1 << 20)) % 65521)) % 65521
+  const adler = Uint8Array.of(b >>> 8, b & 0xff, a >>> 8, a & 0xff)
+  return concat(Uint8Array.of(0x78, 0x9c), first, ...new Array<Uint8Array>(mib - 1).fill(next), Uint8Array.of(0x03, 0x00), adler)
+}
+
+/** DecompressionStream stand-in that counts the streams made and the bytes they inflate. */
+function countInflation(): { streams: number; bytes: number } {
+  const Real = globalThis.DecompressionStream
+  const counter = { streams: 0, bytes: 0 }
+  vi.stubGlobal('DecompressionStream', class {
+    readonly writable: WritableStream
+    readonly readable: ReadableStream
+    constructor(format: 'deflate') {
+      counter.streams++
+      const inner = new Real(format)
+      this.writable = inner.writable
+      this.readable = inner.readable.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          counter.bytes += chunk.byteLength
+          controller.enqueue(chunk)
+        },
+      }))
+    }
+  })
+  return counter
+}
+
+/** The fixture's Exif TIFF: orientation 6, a GPS IFD, make HarmonyCam. */
+async function exifTiff(): Promise<Uint8Array> {
+  const jpeg = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+  const [, start, end] = jpegSegments(jpeg).find(([m, s]) => m === 0xe1 && latin1(jpeg.subarray(s + 4, s + 10)) === 'Exif\0\0')!
+  return jpeg.slice(start + 10, end)
+}
+
+function jpegSegment(marker: number, body: Uint8Array): Uint8Array {
+  const length = body.length + 2
+  return concat(Uint8Array.of(0xff, marker, length >>> 8, length & 0xff), body)
+}
+
+describe('PNG compressed text', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reads a location from compressed XMP', async () => {
+    const xmp = ascii('<x:xmpmeta><rdf:Description exif:GPSLatitude="35,40.57N"/></x:xmpmeta>')
+    // keyword\0, compression flag 1, method 0, empty language\0, empty translated keyword\0.
+    const itxt = concat(ascii('XML:com.adobe.xmp'), Uint8Array.of(0, 1, 0, 0, 0), new Uint8Array(deflateSync(xmp)))
+    const file = new File([png(pngChunk('iTXt', itxt))], 'xmp.png', { type: 'image/png' })
+    expect(await readMediaDetails(file)).toEqual({ container: 'png', location: true, details: true })
+  })
+
+  it('inflates a zTXt bomb only to INFLATE_CHUNK_MAX_BYTES, and finds the location ahead of it', async () => {
+    const counter = countInflation()
+    const bomb = zlibBomb(ascii('exif:GPSLatitude="35,40.57N" '), 256)
+    const input = png(pngChunk('zTXt', concat(ascii('Comment'), Uint8Array.of(0, 0), bomb)))
+    expect(input.length).toBeLessThan(400 * 1024)
+    const file = new File([input], 'bomb.png', { type: 'image/png' })
+    const started = performance.now()
+    expect(await readMediaDetails(file)).toEqual({ container: 'png', location: true, details: true })
+    expect(performance.now() - started).toBeLessThan(2000)
+    expect(counter.streams).toBe(1)
+    expect(counter.bytes).toBeLessThanOrEqual(2 * INFLATE_CHUNK_MAX_BYTES)
+    const after = await bytesOf(await stripMediaMetadata(file))
+    expect(pngChunks(after).map((c) => c.type)).toEqual(['IHDR', 'IDAT', 'IEND'])
+  }, 30000)
+
+  it('stripMediaBytes drops compressed text without inflating it', async () => {
+    const counter = countInflation()
+    const input = png(pngChunk('zTXt', concat(ascii('Comment'), Uint8Array.of(0, 0), zlibBomb(ascii('GPSLatitude '), 64))))
+    const out = await stripMediaBytes(input)
+    expect(counter.streams).toBe(0)
+    expect(pngChunks(out).map((c) => c.type)).toEqual(['IHDR', 'IDAT', 'IEND'])
+  }, 30000)
+})
+
+describe('PNG orientation', () => {
+  it('keeps an eXIf orientation as an eXIf holding it alone, in place of the original', async () => {
+    const tiff = await exifTiff()
+    expect(readTiff(tiff, 0)).toEqual({ orientation: 6, gps: true })
+    const input = new File([png(pngChunk('eXIf', tiff), pngChunk('tEXt', ascii('Comment\0fixture comment')))], 'rotated.png', { type: 'image/png', lastModified: LAST_MODIFIED })
+    const { after } = await expectStripped(input, 'png')
+    const chunks = pngChunks(after)
+    expect(chunks.map((c) => c.type)).toEqual(['IHDR', 'eXIf', 'IDAT', 'IEND'])
+    expect(chunks[1].data.length).toBe(26)
+    expect(chunks[1].data).toEqual(orientationSegment(6).subarray(10))
+    expect(readTiff(chunks[1].data, 0)).toEqual({ orientation: 6, gps: false })
+    expect(await stripMediaBytes(after)).toBe(after)
+  })
+})
+
+describe('JPEG thumbnails', () => {
+  it('cuts JFIF APP0 to its 16-byte form and drops JFXX APP0', async () => {
+    const jpeg = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+    // JFIF 1.02, dots per inch, 72×72, a 2×1 RGB thumbnail.
+    const jfifHead = concat(ascii('JFIF\0'), Uint8Array.of(1, 2, 1, 0, 72, 0, 72))
+    const jfif = jpegSegment(0xe0, concat(jfifHead, Uint8Array.of(2, 1), ascii('THUMB!')))
+    // JFXX extension 0x10: a JPEG thumbnail.
+    const jfxx = jpegSegment(0xe0, concat(ascii('JFXX\0'), Uint8Array.of(0x10), ascii('JFXX THUMBNAIL')))
+    const input = new File([jpeg.subarray(0, 2), jfif, jfxx, jpeg.subarray(20)], 'thumb.jpg', { type: 'image/jpeg' })
+    expect(await readMediaDetails(input)).toEqual({ container: 'jpeg', location: true, details: true })
+
+    const after = await bytesOf(await stripMediaMetadata(input))
+    expect(latin1(after)).not.toContain('THUMB')
+    expect(after.subarray(2, 20)).toEqual(jpegSegment(0xe0, concat(jfifHead, Uint8Array.of(0, 0))))
+    expect(after.subarray(20, 56)).toEqual(orientationSegment(6))
+    expect(jpegSegments(after).filter(([m]) => m === 0xe0)).toHaveLength(1)
+    const again = new File([after], 'again.jpg', { type: 'image/jpeg' })
+    expect(await stripMediaMetadata(again)).toBe(again)
+  })
+})
+
+describe('irregular files', () => {
+  it('skips bytes between JPEG segments as libjpeg next_marker() does', async () => {
+    const jpeg = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+    // After the JFIF APP0: a stray 00; FF 00, a stray 12 and a fill FF.
+    for (const junk of [Uint8Array.of(0), Uint8Array.of(0xff, 0x00, 0x12, 0xff)]) {
+      const input = new File([jpeg.subarray(0, 20), junk, jpeg.subarray(20)], 'pad.jpg', { type: 'image/jpeg' })
+      expect(await readMediaDetails(input)).toEqual({ container: 'jpeg', location: true, details: true })
+      const after = await bytesOf(await stripMediaMetadata(input))
+      expect(markersIn(after)).toEqual([])
+      expect(readJpegOrientation(after)).toBe(6)
+    }
+  })
+
+  it('strips an MP4 whose last box runs past the end of the file', async () => {
+    const mp4 = await bytesOf(fixture('gps.mp4', 'video/mp4'))
+    // moov is last; its udta ends the file.
+    const cut = new File([mp4.subarray(0, mp4.length - 10)], 'cut.mp4', { type: 'video/mp4' })
+    expect(await readMediaDetails(cut)).toEqual({ container: 'isobmff', location: true, details: true })
+    const after = await bytesOf(await stripMediaMetadata(cut))
+    expect(after.length).toBe(mp4.length - 10)
+    expect(markersIn(after)).toEqual([])
+  })
+
+  it('strips a PNG without IEND', async () => {
+    const before = await bytesOf(fixture('gps.png', 'image/png'))
+    const cut = new File([before.subarray(0, before.length - 12)], 'cut.png', { type: 'image/png' })
+    expect(await readMediaDetails(cut)).toEqual({ container: 'png', location: true, details: true })
+    const after = await bytesOf(await stripMediaMetadata(cut))
+    expect(markersIn(after)).toEqual([])
+    expect(pngChunks(after).map((c) => c.type)).toEqual(['IHDR', 'iCCP', 'pHYs', 'IDAT'])
+  })
+
+  it('drops a WebP chunk cut short by the end of the file', async () => {
+    const before = await bytesOf(fixture('gps.webp', 'image/webp'))
+    // XMP is last.
+    const cut = new File([before.subarray(0, before.length - 5)], 'cut.webp', { type: 'image/webp' })
+    expect(await readMediaDetails(cut)).toEqual({ container: 'webp', location: true, details: true })
+    const after = await bytesOf(await stripMediaMetadata(cut))
+    expect(markersIn(after)).toEqual([])
+    expect(webpChunks(after).map((c) => c.type)).toEqual(['VP8X', 'ICCP', 'VP8 '])
+  })
+
+  it('accepts a GIF without trailer, and ends a GIF at a block that is not image, extension or trailer', async () => {
+    const gif = await bytesOf(fixture('anim.gif', 'image/gif'))
+    expect(gif.at(-1)).toBe(0x3b)
+    const body = gif.subarray(0, gif.length - 1)
+    const cut = new File([body], 'cut.gif', { type: 'image/gif' })
+    expect(await readMediaDetails(cut)).toEqual({ container: 'gif', location: true, details: true })
+    expect(markersIn(await bytesOf(await stripMediaMetadata(cut)))).toEqual([])
+
+    const junk = new File([body, Uint8Array.of(0x99), ascii('AFTER THE STREAM'), Uint8Array.of(0x3b)], 'junk.gif', { type: 'image/gif' })
+    const after = latin1(await bytesOf(await stripMediaMetadata(junk)))
+    expect(after).not.toContain('AFTER THE STREAM')
+    expect(after).toContain('NETSCAPE2.0')
+  })
+
+  it('reports unknown details for an MP4 box it cannot walk past, and strips what precedes it', async () => {
+    const mp4 = await bytesOf(fixture('gps-faststart.mp4', 'video/mp4'))
+    // ftyp 32, moov 909, free 8, mdat 995: the free box claims 4 bytes, less than its header.
+    const free = 32 + 909
+    expect(latin1(mp4.subarray(free + 4, free + 8))).toBe('free')
+    const broken = mp4.slice()
+    new DataView(broken.buffer).setUint32(free, 4)
+    const input = new File([broken], 'broken.mp4', { type: 'video/mp4' })
+    expect(await readMediaDetails(input)).toEqual({ container: 'isobmff', location: true, details: true, unknown: true })
+    const output = await stripMediaMetadata(input)
+    expect(markersIn(await bytesOf(output))).toEqual([])
+    // The bytes past the broken box were not read: the result's details stay unknown.
+    expect(await readMediaDetails(output)).toEqual({ container: 'isobmff', location: false, details: true, unknown: true })
+  })
+
+  it('reads top-level boxes past the first few through 64 KiB windows, and stops at TOP_LEVEL_BOX_MAX', async () => {
+    const mp4 = await bytesOf(fixture('gps.mp4', 'video/mp4'))
+    const free = Uint8Array.of(0, 0, 0, 8, ...ascii('free'))
+    // ftyp, TOP_LEVEL_BOX_MAX empty free boxes, then the movie: its moov lies past the limit.
+    const input = concat(mp4.subarray(0, 32), ...new Array<Uint8Array>(TOP_LEVEL_BOX_MAX).fill(free), mp4.subarray(32))
+    let reads = 0
+    const source: ByteSource = { size: input.length, read: async (start, end) => (reads++, input.slice(start, end)) }
+    expect(await readSourceDetails(source)).toEqual({ container: 'isobmff', location: false, details: true, unknown: true })
+    expect(reads).toBeLessThan(20)
+    expect(await stripMediaBytes(input)).toBe(input)
+  })
+
+  it('reports unknown details when a read fails', async () => {
+    const mp4 = await bytesOf(fixture('gps.mp4', 'video/mp4'))
+    const source: ByteSource = {
+      size: mp4.length,
+      read: async (start, end) => {
+        if (start > 0) throw new Error('HTTP 500')
+        return mp4.slice(start, end)
+      },
+    }
+    expect(await readSourceDetails(source)).toEqual({ container: 'isobmff', location: false, details: true, unknown: true })
+  })
+
+  it('reports unknown details for a raster over IMAGE_MAX_BYTES', async () => {
+    const jpeg = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+    const source: ByteSource = { size: IMAGE_MAX_BYTES + 1, read: async (start, end) => jpeg.slice(start, end) }
+    expect(await readSourceDetails(source)).toEqual({ container: 'jpeg', location: false, details: true, unknown: true })
+  })
+
+  it('reads an APPn or COM length under 2 as libjpeg does, and reports unknown details at any other', async () => {
+    const jpeg = await bytesOf(fixture('gps-rotated.jpg', 'image/jpeg'))
+    // After the JFIF APP0, ahead of the Exif APP1: a COM of length 0, taken as its length bytes.
+    const com = new File([jpeg.subarray(0, 20), Uint8Array.of(0xff, 0xfe, 0, 0), jpeg.subarray(20)], 'com.jpg', { type: 'image/jpeg' })
+    expect(await readMediaDetails(com)).toEqual({ container: 'jpeg', location: true, details: true })
+    expect(markersIn(await bytesOf(await stripMediaMetadata(com)))).toEqual([])
+    // A DQT of length 0: JERR_BAD_LENGTH.
+    const dqt = new File([jpeg.subarray(0, 20), Uint8Array.of(0xff, 0xdb, 0, 0), jpeg.subarray(20)], 'dqt.jpg', { type: 'image/jpeg' })
+    expect(await readMediaDetails(dqt)).toEqual({ container: 'jpeg', location: false, details: true, unknown: true })
+  })
+
+  it('reports unknown details at a PNG chunk type libpng rejects, and strips what precedes it', async () => {
+    // Length 0, type 01 02 03 04, CRC: the eXIf after it is never reached.
+    const junk = concat(Uint8Array.of(0, 0, 0, 0, 1, 2, 3, 4), new Uint8Array(4))
+    const exif = pngChunk('eXIf', await exifTiff())
+    const bare = new File([png(junk, exif)], 'junk.png', { type: 'image/png' })
+    expect(await readMediaDetails(bare)).toEqual({ container: 'png', location: false, details: true, unknown: true })
+    expect(await stripMediaMetadata(bare)).toBe(bare)
+
+    const input = new File([png(pngChunk('tEXt', ascii('Comment\0before')), junk, exif)], 'junk.png', { type: 'image/png' })
+    expect(await readMediaDetails(input)).toEqual({ container: 'png', location: false, details: true, unknown: true })
+    const after = await bytesOf(await stripMediaMetadata(input))
+    expect(latin1(after)).not.toContain('Comment')
+  })
+})
+
+describe('audio', () => {
+  it('leaves an M4A unchanged, tags and all', async () => {
+    const m4a = (await bytesOf(fixture('gps.mp4', 'video/mp4'))).slice()
+    // ftyp major brand.
+    m4a.set(ascii('M4A '), 8)
+    for (const type of ['audio/mp4', 'audio/x-m4a', '']) {
+      const file = new File([m4a], 'song.m4a', { type })
+      expect(await readMediaDetails(file)).toEqual({ container: null, location: false, details: false })
+      expect(await stripMediaMetadata(file)).toBe(file)
+    }
+    expect(await stripMediaBytes(m4a)).toBe(m4a)
+  })
+
+  it('leaves an audio/* file unchanged whatever its brand', async () => {
+    const file = new File([readFileSync(resolve(FIXTURES, 'gps.mp4'))], 'voice.m4a', { type: 'audio/mp4' })
+    expect(await readMediaDetails(file)).toEqual({ container: null, location: false, details: false })
+    expect(await stripMediaMetadata(file)).toBe(file)
+  })
 })

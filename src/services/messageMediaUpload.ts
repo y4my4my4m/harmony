@@ -185,7 +185,8 @@ export function startMessageMediaUpload(
       if (options.ephemeral) metadata.ephemeral = true
       if (options.folder) metadata.folder = options.folder
       const photo = await readMediaDetails(original)
-      if (photo.container) {
+      // A stripped file not read through is not recorded (photo_details NULL): its details are unknown.
+      if (photo.container && (options.keepMetadata || !photo.unknown)) {
         metadata.details = !photo.details ? 'none' : options.keepMetadata ? 'kept' : 'removed'
         if (options.keepMetadata && photo.location) metadata.location = true
       }

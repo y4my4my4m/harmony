@@ -598,18 +598,24 @@ export function storedObjectSource(path: string, name: string, type: string, siz
   }
 }
 
+/** Range requests one storedObjectBytes source makes; 0.2–0.6 s each from the prod origin. */
+export const STORED_RANGE_READS = 32
+
 /**
  * A message_media object read by HTTP range through a signed URL; a server that ignores Range
- * answers the whole object, which later reads slice.
+ * answers the whole object, which later reads slice. A read past STORED_RANGE_READS requests
+ * throws.
  */
 export function storedObjectBytes(path: string, size: number): ByteSource {
   let url: Promise<string> | null = null
   let whole: Uint8Array | null = null
+  let requests = 0
   return {
     size,
     async read(start, end) {
       if (whole) return whole.subarray(start, end)
       if (end <= start) return new Uint8Array(0)
+      if (++requests > STORED_RANGE_READS) throw new Error(`More than ${STORED_RANGE_READS} range reads`)
       url ??= compatUrlFor(path)
       const response = await fetch(await url, { headers: { Range: `bytes=${start}-${end - 1}` }, cache: 'no-store' })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)

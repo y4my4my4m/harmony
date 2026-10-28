@@ -237,7 +237,7 @@ Photos and videos usually carry details the camera wrote into the file: where th
 - Profile pictures, banners, server and group icons, emoji and stickers never keep their details.
 - Photos stay upright: their orientation is kept.
 
-Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF; location, camera and other metadata boxes from MP4 and MOV. Nothing is re-encoded. Other formats are uploaded as they are.
+Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the preview thumbnail a JPEG can carry of the unedited photo; location, camera and other metadata boxes from MP4 and MOV. Nothing is re-encoded. Audio files (MP3, M4A) keep their tags, cover and chapters. Other formats are uploaded as they are.
 
 ## Other privacy settings
 

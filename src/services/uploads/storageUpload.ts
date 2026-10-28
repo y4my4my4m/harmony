@@ -413,6 +413,8 @@ function fingerprint(options: StorageUploadOptions): string | null {
     file.lastModified ?? '',
     options.contentType ?? file.type ?? '',
     JSON.stringify(options.metadata ?? {}),
+    // A stripped HEIF or MP4 keeps the original's name, size and lastModified.
+    options.keepMetadata ? 'kept' : 'stripped',
   ].join('|')
 }
 
