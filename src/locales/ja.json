@@ -3491,6 +3491,7 @@
     "usernameAvailable": "{handle} は利用可能です",
     "usernameTaken": "このユーザー名は使用されています。",
     "usernameTooShort": "{min} 文字以上にしてください。",
+    "usernameReserved": "このユーザー名は予約されています。別の名前を選んでください。",
     "usernameCheckFailed": "利用可能か確認できませんでした。もう一度お試しください。",
     "bio": "自己紹介",
     "optional": "（任意）",

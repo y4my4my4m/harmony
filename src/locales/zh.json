@@ -3491,6 +3491,7 @@
     "usernameAvailable": "{handle} 可用",
     "usernameTaken": "该用户名已被占用。",
     "usernameTooShort": "至少使用 {min} 个字符。",
+    "usernameReserved": "该用户名已被保留，请换一个。",
     "usernameCheckFailed": "无法检查是否可用。请重试。",
     "bio": "关于您",
     "optional": "（可选）",

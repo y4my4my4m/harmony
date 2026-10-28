@@ -512,7 +512,7 @@ guard_instance_config_operator_keys		trigger	invoker	public, pg_temp	service_rol
 guard_integration_bot_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_integration_install_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_invite_client_write		trigger	invoker	public, pg_temp	service_role	trigger
-guard_local_username		trigger	invoker	public, pg_temp	service_role	trigger
+guard_local_username		trigger	definer	public, pg_temp	service_role	trigger
 guard_megolm_key_request		trigger	definer	public, pg_temp	service_role	trigger
 guard_message_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_message_media_paths		trigger	invoker	public, pg_temp	service_role	trigger

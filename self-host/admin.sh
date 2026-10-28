@@ -412,11 +412,12 @@ create() {
 	valid_email "$email" || die "'$email' is not an email address"
 	if [[ -z "$username" ]]; then
 		username="$(printf '%s' "${email%%@*}" | lower | tr -cd 'a-z0-9_' | cut -c1-24)"
-		[[ ${#username} -ge 3 ]] || username=admin
+		if [[ ${#username} -lt 3 ]] || reserved_username "$username" "$(env_get "$ENV_FILE" DOMAIN)"; then username=owner; fi
 		ask username "Admin username (3-24 of a-z, 0-9, _)" "$username"
 	fi
 	username="$(printf '%s' "$username" | lower)"
 	valid_username "$username" || die "the username must be 3-24 characters of a-z, 0-9 and _"
+	if reserved_username "$username" "$(env_get "$ENV_FILE" DOMAIN)"; then die "the username $username is reserved; choose another"; fi
 	if [[ -z "$password" ]] && interactive; then
 		ask_secret password "Admin password (empty generates one)"
 		if [[ -n "$password" ]]; then

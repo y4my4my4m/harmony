@@ -3491,6 +3491,7 @@
     "usernameAvailable": "{handle} is available",
     "usernameTaken": "That username is taken.",
     "usernameTooShort": "Use at least {min} characters.",
+    "usernameReserved": "That username is reserved. Choose another.",
     "usernameCheckFailed": "Couldn't check availability. Try again.",
     "bio": "About you",
     "optional": "(optional)",

@@ -3491,6 +3491,7 @@
     "usernameAvailable": "{handle} está disponible",
     "usernameTaken": "Ese nombre de usuario ya está en uso.",
     "usernameTooShort": "Usa al menos {min} caracteres.",
+    "usernameReserved": "Ese nombre de usuario está reservado. Elige otro.",
     "usernameCheckFailed": "No se pudo comprobar la disponibilidad. Inténtalo de nuevo.",
     "bio": "Sobre ti",
     "optional": "(opcional)",

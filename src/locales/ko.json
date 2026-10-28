@@ -3491,6 +3491,7 @@
     "usernameAvailable": "{handle}은(는) 사용할 수 있습니다",
     "usernameTaken": "이미 사용 중인 사용자 이름입니다.",
     "usernameTooShort": "{min}자 이상 입력하세요.",
+    "usernameReserved": "예약된 사용자 이름입니다. 다른 이름을 선택하세요.",
     "usernameCheckFailed": "사용 가능 여부를 확인하지 못했습니다. 다시 시도하세요.",
     "bio": "자기소개",
     "optional": "(선택사항)",
