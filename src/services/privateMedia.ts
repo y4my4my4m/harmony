@@ -7,6 +7,8 @@ import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import type { FileContent } from '@/types'
 import { driveAvailable, getDriveFileStatus } from '@/services/drive/driveService'
 import { uploadStorageObject } from '@/services/uploads/storageUpload'
+import type { StoredSource } from '@/services/messageMediaUpload'
+import type { ByteSource } from '@/utils/stripMetadata'
 
 /**
  * Chat attachments in the private `message_media` bucket.
@@ -576,6 +578,46 @@ export async function compatUrlFor(path: string): Promise<string> {
   } catch (error) {
     debug.warn('Signing a compat URL failed', error)
     return messageMediaReferenceUrl(path)
+  }
+}
+
+/**
+ * A message_media object's bytes, fetched through a signed URL when an upload starts. Reads skip
+ * the HTTP cache: the attachment's <img> preview of the same URL leaves a response without CORS
+ * headers there, which a CORS fetch rejects ("Failed to fetch").
+ */
+export function storedObjectSource(path: string, name: string, type: string, size: number): StoredSource {
+  return {
+    name,
+    size,
+    async fetch(signal) {
+      const response = await fetch(await compatUrlFor(path), { signal, cache: 'no-store' })
+      if (!response.ok) throw new Error(`Reading ${name} failed (HTTP ${response.status})`)
+      return new File([await response.blob()], name, { type })
+    },
+  }
+}
+
+/**
+ * A message_media object read by HTTP range through a signed URL; a server that ignores Range
+ * answers the whole object, which later reads slice.
+ */
+export function storedObjectBytes(path: string, size: number): ByteSource {
+  let url: Promise<string> | null = null
+  let whole: Uint8Array | null = null
+  return {
+    size,
+    async read(start, end) {
+      if (whole) return whole.subarray(start, end)
+      if (end <= start) return new Uint8Array(0)
+      url ??= compatUrlFor(path)
+      const response = await fetch(await url, { headers: { Range: `bytes=${start}-${end - 1}` }, cache: 'no-store' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      if (response.status === 206) return bytes
+      whole = bytes
+      return bytes.subarray(start, end)
+    },
   }
 }
 

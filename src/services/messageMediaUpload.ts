@@ -27,7 +27,7 @@ import {
   type UploadState,
 } from '@/services/uploads/storageUpload'
 import { UploadLimitError, checkUploadLimit, getUploadLimit } from '@/services/uploads/uploadLimit'
-import { stripMediaMetadata } from '@/utils/stripMetadata'
+import { readMediaDetails, stripMediaMetadata } from '@/utils/stripMetadata'
 
 export { UPLOAD_STALL_MS, UploadAbortedError } from '@/services/uploads/storageUpload'
 
@@ -75,6 +75,13 @@ export interface MessageMediaUploadOptions {
   ownProgress?: boolean
   /** Upload the photo or video with its location, camera and other metadata. */
   keepMetadata?: boolean
+}
+
+/** Bytes of an object already stored, fetched when the upload starts. */
+export interface StoredSource {
+  name: string
+  size: number
+  fetch(signal: AbortSignal): Promise<File>
 }
 
 export interface MessageMediaUpload {
@@ -144,21 +151,25 @@ export async function validateChatUpload(file: Blob): Promise<void> {
  */
 export function startMessageMediaUpload(
   path: string,
-  file: Blob,
+  file: Blob | StoredSource,
   options: MessageMediaUploadOptions = {},
 ): MessageMediaUpload {
-  const state = newUploadState(file.size)
+  const stored = file instanceof Blob ? null : file
+  const state = newUploadState(stored ? stored.size : (file as Blob).size)
   states.set(path, state)
   let inner: StorageUpload | null = null
   let aborted = false
+  const fetching = new AbortController()
 
-  const label = options.label ?? options.name ?? ((file as File).name || undefined)
+  const label = options.label ?? options.name ?? (stored ? stored.name : ((file as File).name || undefined))
 
   const transfer = async (): Promise<{ path: string; reused: boolean }> => {
     if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
     // Validation (bucket limits) and the Drive probe are independent reads, once per session each.
     const drive = driveAvailable()
-    const source = options.keepMetadata ? file : await stripMediaMetadata(file)
+    const original = stored ? await stored.fetch(fetching.signal) : file as Blob
+    if (aborted) throw new UploadAbortedError()
+    const source = options.keepMetadata ? original : await stripMediaMetadata(original)
     if (options.validate) await validateChatUpload(source)
     // Before the hash: a file over the account's limit is not read.
     try {
@@ -173,6 +184,11 @@ export function startMessageMediaUpload(
       if (options.name) metadata.name = options.name
       if (options.ephemeral) metadata.ephemeral = true
       if (options.folder) metadata.folder = options.folder
+      const photo = await readMediaDetails(original)
+      if (photo.container) {
+        metadata.details = !photo.details ? 'none' : options.keepMetadata ? 'kept' : 'removed'
+        if (options.keepMetadata && photo.location) metadata.location = true
+      }
       if (options.reuse !== false) {
         const existing = (await findDriveFilesByHash(metadata.sha256).catch(() => []))
           .find((f) => f.bucket === MESSAGE_MEDIA_BUCKET && f.state === 'drive' && f.size_bytes === source.size)
@@ -239,6 +255,7 @@ export function startMessageMediaUpload(
     abort() {
       if (aborted || state.status === 'completed') return
       aborted = true
+      fetching.abort()
       inner?.abort()
     },
   }

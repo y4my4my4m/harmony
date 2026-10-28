@@ -229,6 +229,8 @@ Photos and videos usually carry details the camera wrote into the file: where th
 - An attachment that carries details shows **Keep photo details (location, camera)**, off by default. Tick it to upload the file as it is.
 - A file that carries a location also shows **Location removed**, or **Includes location** while **Keep photo details** is ticked.
 - In Drive, uploading photos or videos that carry details first lists them, each with its own **Keep photo details**, before **Upload**.
+- A Drive file kept with its details shows the same box when you attach it to a message or post it. Unless you tick it there too, Harmony sends a copy without the details; the file in your Drive stays as it is. Files uploaded to Drive before Harmony 1.9.2 are checked when you attach them.
+- Bots and bridges cannot keep details either: files the instance copies for them are stored without.
 - **User settings** → **Privacy & safety** → **Keep photo details by default** ticks the box for every new attachment. It follows your account to every device. Off by default.
 - Profile pictures, banners, server and group icons, emoji and stickers never keep their details.
 - Photos stay upright: their orientation is kept.

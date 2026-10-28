@@ -39,4 +39,13 @@ describe('PhotoDetailsControl', () => {
     await wrapper.get('[data-testid="keep-photo-details"]').setValue(true)
     expect(wrapper.emitted('update:keep')).toEqual([[true]])
   })
+
+  it('locks the box and says why when the original bytes are gone', () => {
+    const wrapper = mountControl({ details: { location: true, details: true }, keep: false, locked: true, describedby: 'name-1' })
+    const box = wrapper.get<HTMLInputElement>('[data-testid="keep-photo-details"]')
+    expect(box.element.disabled).toBe(true)
+    const note = wrapper.get('[data-testid="photo-details-gone"]')
+    expect(note.text()).toBe('photoDetails.originalGone')
+    expect(box.attributes('aria-describedby')!.split(' ')).toContain(note.attributes('id'))
+  })
 })

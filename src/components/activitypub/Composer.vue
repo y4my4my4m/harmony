@@ -413,6 +413,8 @@ import { getOriginalPost, getOriginalPostId, replyMentionPrefill, replyVisibilit
 import { attachmentFocus } from '@/utils/focalPoint';
 import type { MediaEdit } from '@/utils/mediaEdit';
 import { readMediaDetails } from '@/utils/stripMetadata';
+import { driveFileDetails } from '@/services/drive/drivePhotoDetails';
+import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
 import MonyContent from './MonyContent.vue';
@@ -587,14 +589,19 @@ const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttac
 
 const driveEnabled = ref(false);
 const drivePickerOpen = ref(false);
+const photoDetailsSettings = usePhotoDetailsSettingsStore();
 void driveAvailable().then((ok) => { driveEnabled.value = ok; });
 
-/** Post media from Drive is reused as is; a chat file is copied into post media when the post is sent. */
+/**
+ * Post media from Drive is reused as is; a chat file is copied into post media when the post is
+ * sent, or, when it carries photo details that are not kept, read, stripped and uploaded.
+ */
 async function attachFromDrive(files: DriveFile[]): Promise<void> {
   drivePickerOpen.value = false;
   const room = Math.max(0, maxMediaAttachments.value - mediaAttachments.value.length);
+  await photoDetailsSettings.ready();
   for (const file of files.slice(0, room)) {
-    const url = await driveViewUrl(file).catch(() => null);
+    const [url, details] = await Promise.all([driveViewUrl(file).catch(() => null), driveFileDetails(file)]);
     if (!url) continue;
     const type = file.kind === 'video' ? 'video' : 'image';
     const name = file.name ?? undefined;
@@ -603,7 +610,8 @@ async function attachFromDrive(files: DriveFile[]): Promise<void> {
           mime_type: file.mime_type ?? undefined,
           stored: { type: type === 'video' ? 'Video' : 'Image', url, mediaType: file.mime_type, name } } as any
       : { id: `drive_${file.id}`, type, url, preview_url: url, filename: name, size: file.size_bytes,
-          mime_type: file.mime_type ?? undefined, drivePath: file.path });
+          mime_type: file.mime_type ?? undefined, drivePath: file.path,
+          ...(details ? { photoDetails: details, keepDetails: details.details && photoDetailsSettings.keepByDefault } : {}) });
   }
 }
 

@@ -37,7 +37,7 @@
               </span>
             </div>
             <PhotoDetailsControl
-              v-if="attachment.file"
+              v-if="attachment.file || attachment.drivePath"
               :details="attachment.photoDetails"
               :keep="!!attachment.keepDetails"
               :describedby="`${idBase}-name-${index}`"
@@ -133,6 +133,7 @@ type UploadAttachment = EditableMedia & {
   uploading?: boolean;
   progress?: number;
   file?: File;
+  drivePath?: string;
   photoDetails?: MediaDetails;
   keepDetails?: boolean;
 };

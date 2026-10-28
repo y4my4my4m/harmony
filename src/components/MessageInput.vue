@@ -330,7 +330,8 @@ import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
 } from '@/utils/messageContentUtils';
-import { mediaRoom as roomOf, messageMediaPath, uploadMessageMedia } from '@/services/privateMedia';
+import { mediaRoom as roomOf, messageMediaPath, storedObjectSource, uploadMessageMedia } from '@/services/privateMedia';
+import { driveFileDetails } from '@/services/drive/drivePhotoDetails';
 import { discardMessageMediaUpload, forgetMessageMediaUpload, prepareMessageMediaUploads, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
 import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings';
 import { isPhotoOrVideo, readMediaDetails } from '@/utils/stripMetadata';
@@ -1137,7 +1138,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     // An upload outlives the composer that started it: it reports to its draft wherever that
     // is shown. After a backgroundSend hand-off it belongs to the parent and the draft no
     // longer holds the file.
-    const startBackgroundUpload = (attachment: FilePreviewData, room: string | null = uploadRoom.value) => {
+    /**
+     * `replaces`: an object this attachment uploaded before, deleted once the new one is stored.
+     * Without the picked bytes on the device (a Drive file, a restored draft) the upload reads
+     * them from `sourcePath`.
+     */
+    const startBackgroundUpload = (attachment: FilePreviewData, room: string | null = uploadRoom.value, replaces?: string) => {
       const uploaderId = authStore.session?.user?.id;
       if (!uploaderId) return;
       // Writes through the proxy reach every composer showing the draft.
@@ -1149,9 +1155,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       }
 
       const sentTemporary = !!fileData.temporary;
+      const sourcePath = fileData.file.size === 0 ? fileData.sourcePath : undefined;
+      const source = sourcePath
+        ? storedObjectSource(sourcePath, fileData.file.name || fileData.name, fileData.type, fileData.size)
+        : fileData.file;
       const upload = markRaw(startMessageMediaUpload(
-        messageMediaPath(room, uploaderId, fileData.file.name),
-        fileData.file,
+        messageMediaPath(room, uploaderId, fileData.file.name || fileData.name),
+        source,
         {
           validate: true,
           name: props.encryptedRoom ? undefined : fileData.name,
@@ -1179,6 +1189,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         (uploaded) => {
           // Replaced by an upload of the other keep-details choice.
           if (fileData.upload !== upload) return;
+          if (replaces && replaces !== uploaded.path) void discardMessageMediaUpload(replaces);
           fileData.uploadStatus = 'completed';
           fileData.uploadedUrl = uploaded.url;
           fileData.uploadedPath = uploaded.path;
@@ -1279,28 +1290,46 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (file.uploadStatus === 'completed') void applyTemporary(file);
     };
 
+    /** Whether "Keep photo details" can still be ticked: the original bytes are reachable. */
+    const canKeepDetails = (file: FilePreviewData) => file.file.size > 0 || !!file.driveSource;
+
     /**
-     * The other keep-details choice uploads the file again; the object of the first choice is
-     * deleted (a Drive file found by hash is not this upload's and stays).
+     * The other keep-details choice: a kept Drive file is sent as the Drive object itself;
+     * otherwise the file goes up again, from the picked bytes or from the stored object that
+     * holds them, and the object of the first choice is deleted once the new one is stored.
      */
-    const setFileKeepDetails = (index: number, keep: boolean) => {
+    const setFileKeepDetails = async (index: number, keep: boolean) => {
       const attachment = attachedFiles.value[index];
-      if (!attachment || attachment.fromDrive || !!attachment.keepDetails === keep) return;
+      if (!attachment || attachment.recorded || !!attachment.keepDetails === keep) return;
+      if (keep && !canKeepDetails(attachment)) return;
       const fileData = reactive(attachment);
       fileData.keepDetails = keep;
-      if (fileData.uploadStatus === 'pending' || !fileData.upload) return;
+      // A picked file whose upload has not started reads the choice when it starts.
+      if (!fileData.upload && fileData.uploadStatus !== 'completed') return;
       const previous = fileData.upload;
-      const stored = fileData.uploadStatus === 'completed' && !fileData.reused ? fileData.uploadedPath : undefined;
+      const own = fileData.uploadStatus === 'completed' && !fileData.reused && !fileData.fromDrive
+        ? fileData.uploadedPath : undefined;
       fileData.upload = undefined;
-      previous.abort();
-      forgetMessageMediaUpload(previous.path);
-      if (stored) void discardMessageMediaUpload(stored);
+      previous?.abort();
+      forgetMessageMediaUpload(previous?.path);
+      fileData.uploadError = undefined;
+      fileData.reused = false;
+      if (keep && fileData.driveSource) {
+        fileData.fromDrive = true;
+        fileData.uploadedPath = fileData.driveSource;
+        fileData.uploadedUrl = await compatUrlFor(fileData.driveSource);
+        fileData.uploadStatus = 'completed';
+        fileData.uploadProgress = 100;
+        if (own) void discardMessageMediaUpload(own);
+        return;
+      }
+      // A restored draft keeps no picked bytes: its own kept object is the source.
+      fileData.sourcePath = fileData.driveSource ?? (fileData.file.size === 0 ? own : undefined);
+      fileData.fromDrive = false;
       fileData.uploadStatus = 'pending';
       fileData.uploadedUrl = undefined;
       fileData.uploadedPath = undefined;
-      fileData.uploadError = undefined;
-      fileData.reused = false;
-      startBackgroundUpload(fileData);
+      startBackgroundUpload(fileData, uploadRoom.value, own);
     };
 
     const openDrivePicker = () => {
@@ -1313,11 +1342,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       const key = attachmentKey.value;
       const capacity = Math.max(0, maxMediaAttachments.value - attachedFiles.value.length);
       const picked = files.filter((f) => f.bucket === 'message_media').slice(0, capacity);
+      // Details are known before the files are shown: a Drive photo that carries them is never
+      // sent as the Drive object unless it is kept.
+      await photoDetailsSettings.ready();
       const entries = await Promise.all(picked.map(async (f): Promise<FilePreviewData> => {
         const name = f.name || f.path.split('/').pop() || 'file';
         const type = f.mime_type || 'application/octet-stream';
-        const url = await compatUrlFor(f.path);
-        return {
+        const [url, details] = await Promise.all([compatUrlFor(f.path), driveFileDetails(f)]);
+        const entry: FilePreviewData = {
           file: new File([], name, { type }),
           name,
           size: f.size_bytes,
@@ -1329,10 +1361,28 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           uploadedPath: f.path,
           fromDrive: true,
         };
+        if (details) {
+          entry.photoDetails = details;
+          entry.driveSource = f.path;
+          entry.keepDetails = details.details ? photoDetailsSettings.keepByDefault : false;
+        }
+        return entry;
       }));
       if (entries.length === 0) return;
+      for (const entry of entries) {
+        if (!entry.photoDetails?.details || entry.keepDetails) continue;
+        entry.fromDrive = false;
+        entry.uploadStatus = 'pending';
+        entry.uploadedPath = undefined;
+        entry.uploadedUrl = undefined;
+        entry.sourcePath = entry.driveSource;
+      }
       addDraftAttachments(key, entries);
       polite(t('messageA11y.upload.attached', { count: entries.length }, entries.length));
+      const room = uploadRoom.value;
+      for (const entry of entries) {
+        if (entry.uploadStatus === 'pending') startBackgroundUpload(entry, room);
+      }
     };
 
     onMounted(() => {

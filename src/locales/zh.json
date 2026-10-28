@@ -6248,6 +6248,7 @@
     "keep": "保留照片详细信息（位置、相机）",
     "locationRemoved": "已移除位置",
     "locationKept": "包含位置",
+    "originalGone": "原始文件已不在此设备上。如需保留其详细信息，请重新附加。",
     "settings": {
       "keepByDefault": "默认保留照片详细信息",
       "keepByDefaultDescription": "你附加的照片和视频默认开启“保留照片详细信息”，其位置、相机等信息会一起上传。关闭时，Harmony 会在上传前于你的设备上移除这些信息。头像、横幅、图标、表情和贴纸始终会移除这些信息。",

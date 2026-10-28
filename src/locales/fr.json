@@ -6248,6 +6248,7 @@
     "keep": "Conserver les détails de la photo (lieu, appareil)",
     "locationRemoved": "Lieu supprimé",
     "locationKept": "Contient le lieu",
+    "originalGone": "L’original n’est plus sur cet appareil. Joignez-le à nouveau pour conserver ses détails.",
     "settings": {
       "keepByDefault": "Conserver les détails des photos par défaut",
       "keepByDefaultDescription": "Les photos et vidéos que vous joignez commencent avec « Conserver les détails de la photo » activé : leur lieu, leur appareil et d’autres informations sont envoyés avec elles. Désactivé : Harmony supprime ces informations sur votre appareil avant l’envoi. Les photos de profil, bannières, icônes, emojis et stickers ne les conservent jamais.",

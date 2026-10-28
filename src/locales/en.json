@@ -6244,6 +6244,7 @@
     "keep": "Keep photo details (location, camera)",
     "locationRemoved": "Location removed",
     "locationKept": "Includes location",
+    "originalGone": "The original is no longer on this device. Attach it again to keep its details.",
     "settings": {
       "keepByDefault": "Keep photo details by default",
       "keepByDefaultDescription": "New photos and videos you attach start with “Keep photo details” on, and their location, camera and other details are uploaded with them. Off: Harmony removes these details on your device before upload. Profile pictures, banners, icons, emoji and stickers never keep them.",

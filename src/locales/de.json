@@ -6248,6 +6248,7 @@
     "keep": "Fotodetails behalten (Standort, Kamera)",
     "locationRemoved": "Standort entfernt",
     "locationKept": "Enthält Standort",
+    "originalGone": "Das Original ist nicht mehr auf diesem Gerät. Hänge es erneut an, um seine Details zu behalten.",
     "settings": {
       "keepByDefault": "Fotodetails standardmäßig behalten",
       "keepByDefaultDescription": "Angehängte Fotos und Videos beginnen mit eingeschaltetem „Fotodetails behalten“: Standort, Kamera und weitere Angaben werden mit hochgeladen. Aus: Harmony entfernt diese Angaben vor dem Hochladen auf deinem Gerät. Profilbilder, Banner, Symbole, Emojis und Sticker behalten sie nie.",

@@ -6248,6 +6248,7 @@
     "keep": "Conservar detalles de la foto (ubicación, cámara)",
     "locationRemoved": "Ubicación eliminada",
     "locationKept": "Incluye la ubicación",
+    "originalGone": "El original ya no está en este dispositivo. Adjúntalo de nuevo para conservar sus detalles.",
     "settings": {
       "keepByDefault": "Conservar detalles de las fotos por defecto",
       "keepByDefaultDescription": "Las fotos y los vídeos que adjuntes empiezan con «Conservar detalles de la foto» activado: su ubicación, cámara y otros datos se suben con ellos. Desactivado: Harmony elimina esos datos en tu dispositivo antes de subirlos. Las fotos de perfil, banners, iconos, emojis y stickers nunca los conservan.",

@@ -118,6 +118,47 @@ describe('message media upload', () => {
   })
 })
 
+describe('Drive record of photo details', () => {
+  const metadata = () => JSON.parse(String(FakeXHR.last!.body!.get('metadata')))
+
+  it('records a stripped photo as removed, without location', async () => {
+    const upload = startMessageMediaUpload(PATH, photo(), { name: 'photo.jpg' })
+    await sentBytes()
+    expect(metadata()).toMatchObject({ details: 'removed' })
+    expect(metadata()).not.toHaveProperty('location')
+    upload.abort()
+  })
+
+  it('records a kept photo with its location', async () => {
+    const upload = startMessageMediaUpload(PATH, photo(), { name: 'photo.jpg', keepMetadata: true })
+    await sentBytes()
+    expect(metadata()).toMatchObject({ details: 'kept', location: true })
+    upload.abort()
+  })
+
+  it('records none for a photo without details, and nothing for other files', async () => {
+    const png = new File([Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82])], 'a.png', { type: 'image/png' })
+    let upload = startMessageMediaUpload(PATH, png, { name: 'a.png' })
+    await sentBytes()
+    expect(metadata()).toMatchObject({ details: 'none' })
+    upload.abort()
+    FakeXHR.last = null
+    upload = startMessageMediaUpload(PATH, new File(['notes'], 'a.txt', { type: 'text/plain' }), { name: 'a.txt' })
+    await sentBytes()
+    expect(metadata()).not.toHaveProperty('details')
+    upload.abort()
+  })
+
+  it('uploads a stored object fetched when the upload starts, stripped', async () => {
+    const fetchStored = vi.fn(async () => photo())
+    const upload = startMessageMediaUpload(PATH, { name: 'photo.jpg', size: JPEG.length, fetch: fetchStored }, { name: 'photo.jpg' })
+    expect(upload.state.total).toBe(JPEG.length)
+    expect(hasDetails(await sentBytes())).toBe(false)
+    expect(fetchStored).toHaveBeenCalledTimes(1)
+    upload.abort()
+  })
+})
+
 describe('profile, server and emoji images', () => {
   it('strips a small photo the bucket accepts as is', async () => {
     const prepared = await prepareImageUpload(photo(), 'avatar', { maxBytes: 5 * 1024 * 1024, allowedMime: ['image/jpeg'] })

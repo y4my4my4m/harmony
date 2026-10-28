@@ -67,9 +67,10 @@
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
           <div v-if="isImage(file) && file.altText" class="file-alt-text">{{ file.altText }}</div>
           <PhotoDetailsControl
-            v-if="!file.fromDrive && !file.recorded"
+            v-if="!file.recorded"
             :details="file.photoDetails"
             :keep="!!file.keepDetails"
+            :locked="!file.keepDetails && file.file.size === 0 && !file.driveSource"
             :describedby="`${idBase}-name-${index}`"
             @update:keep="(keep) => emit('set-keep-details', index, keep)"
           />
@@ -180,6 +181,10 @@ export interface FilePreviewData {
   photoDetails?: MediaDetails;
   /** Upload the file with its location, camera and other metadata. */
   keepDetails?: boolean;
+  /** Drive object of a photo attached from Drive: sent as is while its details are kept. */
+  driveSource?: string;
+  /** Stored object an upload reads its bytes from when `file` holds none (Drive, restored draft). */
+  sourcePath?: string;
 }
 
 interface Props {
