@@ -871,6 +871,68 @@ describe('MegolmMessageEncryptionService', () => {
       expect(megolm.getMessageKey(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, encrypted.messageIndex)).toBeUndefined()
     })
 
+    describe('while the unlock sweep of fulfilled requests runs', () => {
+      const missed = () => ({
+        content: [{ type: 'text' as const, text: encrypted.ciphertext }],
+        encryption_metadata: {
+          session_id: encrypted.sessionId,
+          message_index: encrypted.messageIndex,
+          sender_user_id: OTHER_SENDER,
+        },
+      })
+
+      let request: ReturnType<typeof vi.spyOn>
+      let endSweep: (takeIn: () => Promise<void> | void) => Promise<void>
+
+      beforeEach(() => {
+        offer()
+        vi.spyOn(messageService as any, 'recoverMissingSession').mockResolvedValue(false)
+        request = vi.spyOn(megolmKeyBackupService, 'createKeyRequest').mockResolvedValue('req')
+        let resolveSweep!: (count: number) => void
+        vi.spyOn(megolmKeyBackupService as any, 'sweepMyFulfilledRequests').mockImplementation(
+          () => new Promise<number>(resolve => { resolveSweep = resolve }),
+        )
+        endSweep = async (takeIn) => {
+          await takeIn()
+          resolveSweep(1)
+        }
+      })
+
+      // The miss reaches its key request before the sweep takes the key in.
+      async function missDuringSweep() {
+        const fastPath = vi.spyOn(megolm, 'decryptMessage')
+        void megolmKeyBackupService.processMyFulfilledRequests()
+        const decrypting = (messageService as any).decryptMegolmMessage(missed(), TEST_ROOM_ID) as Promise<MessagePart[]>
+        decrypting.catch(() => {})
+        await vi.waitFor(() => expect(fastPath).toHaveBeenCalled())
+        await new Promise(resolve => setTimeout(resolve, 0))
+        return { decrypting }
+      }
+
+      it('a miss reads the message through the relayed key the sweep holds', async () => {
+        const { decrypting } = await missDuringSweep()
+        await endSweep(() => offer(relayed(sessionKey, 'r1')))
+        expect(await decrypting).toEqual(content)
+        expect(settle).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'r1' }), true)
+        expect(request).not.toHaveBeenCalled()
+      })
+
+      it("a miss reads the message through the sender's key the sweep imports", async () => {
+        const { decrypting } = await missDuringSweep()
+        await endSweep(() => megolm.importInboundSession(TEST_ROOM_ID, OTHER_SENDER, encrypted.sessionId, sessionKey, 0))
+        expect(await decrypting).toEqual(content)
+        expect(request).not.toHaveBeenCalled()
+      })
+
+      it('a miss the sweep does not answer asks for the key once the sweep ends', async () => {
+        const { decrypting } = await missDuringSweep()
+        expect(request).not.toHaveBeenCalled()
+        await endSweep(() => {})
+        await expect(decrypting).rejects.toThrow(/key request sent/)
+        expect(request).toHaveBeenCalledTimes(1)
+      })
+    })
+
     it('a decrypt miss names the message and its pin in the key request', async () => {
       offer()
       vi.spyOn(messageService as any, 'recoverMissingSession').mockResolvedValue(false)

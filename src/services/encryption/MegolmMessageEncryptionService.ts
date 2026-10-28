@@ -36,6 +36,8 @@ import { debug } from '@/utils/debug'
 // Session recovery result reuse, ms (see sessionRecoveryAttempts).
 const RECOVERY_HIT_TTL_MS = 30_000
 const RECOVERY_MISS_TTL_MS = 2_000
+// Longest wait of a decrypt miss for the unlock sweep of fulfilled key requests, ms.
+const FULFILLED_SWEEP_WAIT_MS = 4_000
 
 export interface MegolmEncryptionStatus {
   enabled: boolean
@@ -1538,6 +1540,18 @@ export class MegolmMessageEncryptionService {
       const errMsg = error?.message || String(error)
       if (errMsg.includes('No inbound session') || errMsg.includes('No outbound session')) {
         debug.log(`ℹMissing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
+
+        // The unlock sweep of fulfilled key requests runs beside the first page
+        // decrypt. A key it takes in after this miss reaches the message only
+        // through megolm-key-received, which a page still loading does not act
+        // on: the message stays encrypted and a relayed key is never tried.
+        if (await megolmKeyBackupService.whenFulfilledSwept(FULFILLED_SWEEP_WAIT_MS)) {
+          try {
+            return JSON.parse(await megolmService.decryptMessage(roomId, senderId, encryptedMessage, additionalData)) as MessagePart[]
+          } catch {
+            // Not imported by the sweep.
+          }
+        }
 
         const relayed = await this.decryptWithRelayedKey(roomId, senderId, encryptedMessage, additionalData, message.id)
         if (relayed !== null) return JSON.parse(relayed) as MessagePart[]
