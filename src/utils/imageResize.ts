@@ -1,14 +1,15 @@
 /**
  * Upload preparation for profile, server and emoji images.
  *
- * A file the bucket accepts is uploaded byte for byte. A static image over the
- * bucket's size limit, or in a format the bucket refuses, is redrawn within
- * the kind's bounds: first in its own format, then as WebP, then smaller,
- * until it fits. Animated and undecodable files are never redrawn.
+ * Metadata is always removed (stripMetadata.ts). A file the bucket accepts is then uploaded
+ * byte for byte. A static image over the bucket's size limit, or in a format the bucket
+ * refuses, is redrawn within the kind's bounds: first in its own format, then as WebP, then
+ * smaller, until it fits. Animated and undecodable files are never redrawn.
  */
 
 import { mimeAllowed } from './mimeMatch'
 import { readStickerImageInfo } from './stickerImage'
+import { stripMediaMetadata } from './stripMetadata'
 export type ImageUploadKind =
   | 'avatar'
   | 'profile_banner'
@@ -477,18 +478,19 @@ function withinSide(budget: UploadBudget, bytes: Uint8Array): boolean {
 }
 
 /**
- * The file to upload for `kind` into a bucket with `budget`. The original
- * when the bucket accepts it as is, when it is animated, or when it cannot be
- * decoded; otherwise the first redraw that fits (see the module comment). An
- * original that never fits is returned unchanged for the bucket check to refuse.
+ * The file to upload for `kind` into a bucket with `budget`. The original without
+ * its metadata when the bucket accepts it as is, when it is animated, or when it
+ * cannot be decoded; otherwise the first redraw that fits (see the module
+ * comment). An original that never fits is returned for the bucket check to refuse.
  */
 export async function prepareImageUpload(
-  file: File,
+  picked: File,
   kind: ImageUploadKind,
   budget: UploadBudget,
   codec: ImageCodec = browserImageCodec,
 ): Promise<PreparedImage> {
-  if (file.size > MAX_IMAGE_SOURCE_BYTES) return keepOriginal(file, null)
+  if (picked.size > MAX_IMAGE_SOURCE_BYTES) return keepOriginal(picked, null)
+  const file = await stripMediaMetadata(picked)
   let bytes: Uint8Array
   try {
     bytes = new Uint8Array(await file.arrayBuffer())
