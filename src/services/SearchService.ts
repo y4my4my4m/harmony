@@ -19,12 +19,15 @@ interface SearchRow {
   created_at: string
   server_id: string | null
   total_count: number | null
+  fuzzy: boolean | null
 }
 
 export interface MessageSearchPage {
   results: Message[]
   /** Match count up to 10,000; 10,001 stands for more. Null when the page came back empty past the end. */
   total: number | null
+  /** No row matched the words; the rows are similar ones (search_messages' typo fallback). */
+  fuzzy: boolean
 }
 
 /** search_messages counts at most this many matches exactly. */
@@ -46,6 +49,7 @@ export class SearchService {
     return {
       results: rows.map(r => byId.get(r.message_id)).filter((m): m is Message => m !== undefined),
       total: rows.length > 0 ? Number(rows[0].total_count ?? 0) : null,
+      fuzzy: rows.some(r => r.fuzzy === true),
     }
   }
 

@@ -1184,6 +1184,7 @@
     "error": "搜索失败",
     "empty": "无结果",
     "emptyHint": "请尝试其他词语或减少筛选条件。",
+    "similar": "没有完全匹配的结果，正在显示相似结果。",
     "unknownChannel": "未知频道",
     "threadIn": "{channel} 中的子区",
     "pages": "结果页",

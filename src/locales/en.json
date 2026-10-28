@@ -1231,6 +1231,7 @@
     "error": "Search failed",
     "empty": "No results",
     "emptyHint": "Try other words or fewer filters.",
+    "similar": "No exact matches. Showing similar results.",
     "unknownChannel": "unknown channel",
     "threadIn": "Thread in {channel}",
     "pages": "Result pages",

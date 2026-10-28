@@ -1184,6 +1184,7 @@
     "error": "검색에 실패했습니다",
     "empty": "결과 없음",
     "emptyHint": "다른 단어를 쓰거나 필터를 줄여 보세요.",
+    "similar": "정확히 일치하는 결과가 없습니다. 비슷한 결과를 표시합니다.",
     "unknownChannel": "알 수 없는 채널",
     "threadIn": "{channel}의 스레드",
     "pages": "결과 페이지",

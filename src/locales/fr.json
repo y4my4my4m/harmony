@@ -1184,6 +1184,7 @@
     "error": "La recherche a échoué",
     "empty": "Aucun résultat",
     "emptyHint": "Essayez d'autres mots ou moins de filtres.",
+    "similar": "Aucune correspondance exacte. Résultats similaires affichés.",
     "unknownChannel": "canal inconnu",
     "threadIn": "Fil dans {channel}",
     "pages": "Pages de résultats",
