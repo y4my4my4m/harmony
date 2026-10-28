@@ -455,8 +455,10 @@ class AdminService {
         }
       }
 
+      // id breaks created_at ties; without it offset pages repeat and skip rows.
       const { data, error, count: total } = await query
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error) throw error;
@@ -2089,6 +2091,47 @@ class AdminService {
       debug.error('Failed to get public servers for admin:', error);
       return [];
     }
+  }
+
+  /** One page of public local servers, featured first; total is the exact match count. */
+  async pagePublicServersForAdmin(limit = 50, offset = 0): Promise<{
+    servers: Awaited<ReturnType<AdminService['getPublicServersForAdmin']>>;
+    total: number;
+  }> {
+    const { data, error, count } = await supabase
+      .from('servers')
+      .select('id, name, description, icon, is_featured, featured_order', { count: 'exact' })
+      .eq('public', true)
+      .neq('is_local_server', false)
+      .order('is_featured', { ascending: false })
+      .order('featured_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    const list = data || [];
+    if (list.length === 0) return { servers: [], total: count ?? 0 };
+    const { data: countRows } = await supabase.rpc('get_server_member_counts', {
+      p_server_ids: list.map((s) => s.id),
+    });
+    const countMap = new Map<string, number>();
+    for (const row of (countRows ?? []) as { server_id: string; member_count: string }[]) {
+      countMap.set(row.server_id, Number(row.member_count) || 0);
+    }
+    return { servers: list.map((s) => ({ ...s, member_count: countMap.get(s.id) ?? 0 })), total: count ?? 0 };
+  }
+
+  /** One past the highest featured_order, at least 1. */
+  async nextFeaturedOrder(): Promise<number> {
+    const { data, error } = await supabase
+      .from('servers')
+      .select('featured_order')
+      .eq('is_featured', true)
+      .order('featured_order', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error) throw error;
+    const top = data?.[0]?.featured_order;
+    return Math.max(0, typeof top === 'number' ? top : 0) + 1;
   }
 
   /**

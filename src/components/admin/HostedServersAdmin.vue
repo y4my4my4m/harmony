@@ -69,6 +69,7 @@
             <div class="hosted-name">
               <span>{{ server.name }}</span>
               <span v-if="server.suspended_at" class="badge suspended">{{ t('hostStaff.suspendedBadge') }}</span>
+              <CopyIdButton :id="server.id" kind="server" :target="server.name" />
             </div>
             <div class="hosted-meta">
               <span>
@@ -76,6 +77,7 @@
                 <template v-if="server.owner_id">
                   {{ server.owner_display_name || server.owner_username }}
                   <span class="hosted-handle">@{{ server.owner_username }}</span>
+                  <CopyIdButton :id="server.owner_id" kind="user" :target="`@${server.owner_username}`" />
                 </template>
                 <template v-else>{{ t('hostStaff.noOwner') }}</template>
               </span>
@@ -156,6 +158,7 @@ import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import HostedServerDetail from './HostedServerDetail.vue'
 import StaffActionDialog from './StaffActionDialog.vue'
 import { useT } from '@/composables/useT'

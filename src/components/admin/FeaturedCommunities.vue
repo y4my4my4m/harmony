@@ -33,7 +33,10 @@
         </span>
       </div>
       <div class="server-details">
-        <div class="server-name">{{ server.name }}</div>
+        <div class="server-name">
+          {{ server.name }}
+          <CopyIdButton :id="server.id" kind="server" :target="server.name" />
+        </div>
         <div class="server-meta">
           {{ server.member_count ?? 0 }} members
           <span v-if="server.is_featured" class="featured-order">#{{ server.featured_order }}</span>
@@ -58,6 +61,11 @@
       :description="$t('empty.admin.featured.description')"
     />
   </div>
+  <div v-if="featuredTotal > FEATURED_PAGE" class="pagination" data-testid="featured-pagination">
+    <button class="pagination-btn" :disabled="featuredOffset === 0 || loadingStates.featuredServers" @click="pageFeatured(-1)">{{ $t('admin.instanceEmojis.previous') }}</button>
+    <span class="pagination-info">{{ $t('driveAdmin.range', { from: featuredOffset + 1, to: Math.min(featuredOffset + FEATURED_PAGE, featuredTotal), total: featuredTotal }) }}</span>
+    <button class="pagination-btn" :disabled="featuredOffset + FEATURED_PAGE >= featuredTotal || loadingStates.featuredServers" @click="pageFeatured(1)">{{ $t('admin.instanceEmojis.next') }}</button>
+  </div>
 </div>
 
 
@@ -77,6 +85,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import CopyIdButton from './CopyIdButton.vue'
 import { adminService } from '@/services/AdminService'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { getServerIconUrl } from '@/utils/serverUtils'
@@ -99,10 +108,20 @@ const featuredServersList = ref<Array<{
 }>>([])
 const featuredServerToggling = ref<Set<string>>(new Set())
 
-const loadFeaturedServers = async () => {
+const FEATURED_PAGE = 50
+const featuredOffset = ref(0)
+const featuredTotal = ref(0)
+
+const loadFeaturedServers = async (): Promise<void> => {
   loadingStates.value.featuredServers = true
   try {
-    featuredServersList.value = await adminService.getPublicServersForAdmin()
+    const page = await adminService.pagePublicServersForAdmin(FEATURED_PAGE, featuredOffset.value)
+    if (page.servers.length === 0 && featuredOffset.value > 0) {
+      featuredOffset.value = Math.max(0, featuredOffset.value - FEATURED_PAGE)
+      return loadFeaturedServers()
+    }
+    featuredServersList.value = page.servers
+    featuredTotal.value = page.total
   } catch (error) {
     debug.error('Failed to load featured servers:', error)
     featuredServersList.value = []
@@ -111,14 +130,17 @@ const loadFeaturedServers = async () => {
   }
 }
 
+const pageFeatured = (step: number) => {
+  featuredOffset.value = Math.max(0, featuredOffset.value + step * FEATURED_PAGE)
+  void loadFeaturedServers()
+}
+
 const toggleFeaturedServer = async (server: { id: string; name: string; is_featured: boolean; featured_order: number }) => {
   if (featuredServerToggling.value.has(server.id)) return
   featuredServerToggling.value = new Set([...featuredServerToggling.value, server.id])
   try {
     const newFeatured = !server.is_featured
-    const order = newFeatured
-      ? Math.max(0, ...featuredServersList.value.filter(s => s.is_featured).map(s => s.featured_order), -1) + 1
-      : 0
+    const order = newFeatured ? await adminService.nextFeaturedOrder() : 0
     await adminService.setServerFeatured(server.id, newFeatured, order)
     toast.success(newFeatured ? `Featured "${server.name}"` : `Removed "${server.name}" from featured`)
     await loadFeaturedServers()

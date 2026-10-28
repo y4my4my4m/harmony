@@ -1,10 +1,6 @@
 <template>
   <div class="emoji-importer">
     <div class="importer-header">
-      <h2>
-        <Icon name="package-import" />
-        Remote emoji importer
-      </h2>
       <p class="description">
         Browse custom emojis encountered from remote instances. Import the ones you like to make them available locally.
       </p>
@@ -443,14 +439,6 @@ onMounted(() => {
   margin-bottom: 1.5rem;
 }
 
-.importer-header h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.5rem;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
 
 .description {
   color: var(--text-secondary);

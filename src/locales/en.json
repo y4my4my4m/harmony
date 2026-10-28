@@ -5085,7 +5085,13 @@
         "reason": "Reason (kept with the account):"
       },
       "confirmAction": "{action}? This resolves the report.",
-      "actionDone": "{action}: done"
+      "actionDone": "{action}: done",
+      "ids": {
+        "title": "IDs",
+        "reporter": "Reporter",
+        "reported": "Reported user",
+        "server": "Server"
+      }
     },
     "federation": {
       "limited": "Limited",
@@ -5271,11 +5277,32 @@
         "delete": "Could not delete the emoji.",
         "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
         "nameTaken": "Another instance emoji already uses that name.",
-        "nameTakenUser": "The owner already has an emoji with that name."
+        "nameTakenUser": "The owner already has an emoji with that name.",
+        "notAdmin": "Only instance admins can upload instance emojis.",
+        "duplicateFile": "That file is already an instance emoji."
       },
       "searchLabel": "Search emoji",
       "searchHint": "Name or domain",
-      "searchHintUser": "Name or owner"
+      "searchHintUser": "Name or owner",
+      "browseTitle": "All emojis on this instance",
+      "loading": "Loading emojis",
+      "library": {
+        "description": "Every local user finds these in the emoji picker under this instance's name.",
+        "listLabel": "Local instance emojis",
+        "empty": "No instance emojis yet",
+        "emptyHint": "Upload one above. Every local user can use it.",
+        "loading": "Loading instance emojis",
+        "retry": "Try again"
+      }
+    },
+    "copyId": {
+      "user": "Copy user ID",
+      "server": "Copy server ID",
+      "named": "{action}: {target}",
+      "userCopied": "User ID copied",
+      "serverCopied": "Server ID copied",
+      "userFailed": "Couldn't copy the user ID",
+      "serverFailed": "Couldn't copy the server ID"
     }
   },
   "discordBridge": {
@@ -7066,7 +7093,15 @@
     "reportFiles": "Attached files",
     "removeFile": "Remove file",
     "removeAndBlock": "Remove and block re-uploads",
-    "removed": "Removed"
+    "removed": "Removed",
+    "searchLabel": "Search accounts",
+    "searchHint": "Name or {'@'}handle",
+    "loading": "Loading accounts",
+    "noMatch": "No account matches.",
+    "pages": "Account pages",
+    "previous": "Previous",
+    "next": "Next",
+    "range": "{from}–{to} of {total}"
   },
   "authorizeInteraction": {
     "title": "Remote interaction",

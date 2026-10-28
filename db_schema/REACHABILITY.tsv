@@ -20,7 +20,7 @@ admin_delete_instance_emoji	definer	void	authenticated+service_role	client	rpc i
 admin_delete_outgoing_webhook	definer	void	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_drive_remove_file	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/ReportsModeration.vue
 admin_drive_unblock_hash	definer	boolean	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
-admin_drive_usage	definer	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint)	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
+admin_drive_usage	definer	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint, total_count bigint)	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
 admin_get_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_list_instance_emojis	definer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint, is_ai_generated boolean)	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 admin_list_outgoing_webhooks	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
@@ -211,6 +211,7 @@ create_federated_profile	definer	uuid	authenticated+service_role	client	rpc in s
 create_federated_report	definer	jsonb	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 create_federated_server_report	definer	jsonb	service_role	client	rpc in federation-backend/src/activitypub/ServerInboxHandler.ts
 create_group_conversation	definer	uuid	anon+authenticated+service_role	client	rpc in src/stores/useDM.ts
+create_instance_emoji	definer	emojis	authenticated+service_role	client	rpc in src/services/instanceEmojiUpload.ts
 create_message_poll	invoker	jsonb	authenticated+service_role	client	rpc in src/services/MessagePollService.ts
 create_my_emoji	definer	emojis	authenticated+service_role	client	rpc in src/services/UserEmojiService.ts
 create_notification_preferences	definer	trigger	anon+authenticated+service_role	trigger	trigger public.profiles AFTER INSERT (create_notification_preferences_trigger)
@@ -566,7 +567,7 @@ is_active_instance_staff	definer	boolean	service_role	client	called by admin_get
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
-is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +44
+is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +46
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.drive_blocked_hashes SELECT on drive_blocked_hashes_select_staff, public.drive_pending_blocks SELECT on drive_pending_blocks_select_staff, public.instance_server_blocks SELECT on instance_server_blocks_select_staff, +2
 is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
@@ -591,7 +592,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_delete_outgoing_webhook, admin_drive_remove_file, admin_moderate_post, +23
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_outgoing_webhook, admin_drive_remove_file, admin_moderate_post, +24
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts

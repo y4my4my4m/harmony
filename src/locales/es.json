@@ -5089,7 +5089,13 @@
         "reason": "Motivo (se guarda con la cuenta):"
       },
       "confirmAction": "¿{action}? Esto resuelve el reporte.",
-      "actionDone": "{action}: hecho"
+      "actionDone": "{action}: hecho",
+      "ids": {
+        "title": "IDs",
+        "reporter": "Autor del reporte",
+        "reported": "Usuario reportado",
+        "server": "Servidor"
+      }
     },
     "federation": {
       "limited": "Limitado",
@@ -5275,11 +5281,32 @@
         "delete": "No se pudo eliminar el emoji.",
         "invalidName": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
         "nameTaken": "Otro emoji de la instancia ya usa ese nombre.",
-        "nameTakenUser": "El propietario ya tiene un emoji con ese nombre."
+        "nameTakenUser": "El propietario ya tiene un emoji con ese nombre.",
+        "notAdmin": "Solo los administradores de la instancia pueden subir emojis de la instancia.",
+        "duplicateFile": "Ese archivo ya es un emoji de la instancia."
       },
       "searchLabel": "Buscar emoji",
       "searchHint": "Nombre o dominio",
-      "searchHintUser": "Nombre o propietario"
+      "searchHintUser": "Nombre o propietario",
+      "browseTitle": "Todos los emojis de esta instancia",
+      "loading": "Cargando emojis",
+      "library": {
+        "description": "Todos los usuarios locales los encuentran en el selector de emojis con el nombre de esta instancia.",
+        "listLabel": "Emojis locales de la instancia",
+        "empty": "Aún no hay emojis de la instancia",
+        "emptyHint": "Sube uno arriba. Todos los usuarios locales pueden usarlo.",
+        "loading": "Cargando emojis de la instancia",
+        "retry": "Reintentar"
+      }
+    },
+    "copyId": {
+      "user": "Copiar ID del usuario",
+      "server": "Copiar ID del servidor",
+      "named": "{action}: {target}",
+      "userCopied": "ID del usuario copiado",
+      "serverCopied": "ID del servidor copiado",
+      "userFailed": "No se pudo copiar el ID del usuario",
+      "serverFailed": "No se pudo copiar el ID del servidor"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "Archivos adjuntos",
     "removeFile": "Eliminar archivo",
     "removeAndBlock": "Eliminar y bloquear nuevas subidas",
-    "removed": "Eliminado"
+    "removed": "Eliminado",
+    "searchLabel": "Buscar cuentas",
+    "searchHint": "Nombre o {'@'}usuario",
+    "loading": "Cargando cuentas",
+    "noMatch": "Ninguna cuenta coincide.",
+    "pages": "Páginas de cuentas",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "range": "{from}–{to} de {total}"
   },
   "share": {
     "title": "Compartir en Harmony",

@@ -5089,7 +5089,13 @@
         "reason": "Grund (wird beim Konto gespeichert):"
       },
       "confirmAction": "{action}? Damit wird die Meldung erledigt.",
-      "actionDone": "{action}: erledigt"
+      "actionDone": "{action}: erledigt",
+      "ids": {
+        "title": "IDs",
+        "reporter": "Meldende Person",
+        "reported": "Gemeldete Person",
+        "server": "Server"
+      }
     },
     "federation": {
       "limited": "Eingeschränkt",
@@ -5275,11 +5281,32 @@
         "delete": "Das Emoji konnte nicht gelöscht werden.",
         "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
         "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits.",
-        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen."
+        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen.",
+        "notAdmin": "Nur Instanz-Admins können Instanz-Emojis hochladen.",
+        "duplicateFile": "Diese Datei ist bereits ein Instanz-Emoji."
       },
       "searchLabel": "Emoji durchsuchen",
       "searchHint": "Name oder Domain",
-      "searchHintUser": "Name oder Besitzer"
+      "searchHintUser": "Name oder Besitzer",
+      "browseTitle": "Alle Emojis dieser Instanz",
+      "loading": "Emojis werden geladen",
+      "library": {
+        "description": "Alle lokalen Nutzer finden diese Emojis in der Emoji-Auswahl unter dem Namen dieser Instanz.",
+        "listLabel": "Lokale Instanz-Emojis",
+        "empty": "Noch keine Instanz-Emojis",
+        "emptyHint": "Lade oben eines hoch. Alle lokalen Nutzer können es verwenden.",
+        "loading": "Instanz-Emojis werden geladen",
+        "retry": "Erneut versuchen"
+      }
+    },
+    "copyId": {
+      "user": "Nutzer-ID kopieren",
+      "server": "Server-ID kopieren",
+      "named": "{action}: {target}",
+      "userCopied": "Nutzer-ID kopiert",
+      "serverCopied": "Server-ID kopiert",
+      "userFailed": "Nutzer-ID konnte nicht kopiert werden",
+      "serverFailed": "Server-ID konnte nicht kopiert werden"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "Angehängte Dateien",
     "removeFile": "Datei entfernen",
     "removeAndBlock": "Entfernen und erneutes Hochladen blockieren",
-    "removed": "Entfernt"
+    "removed": "Entfernt",
+    "searchLabel": "Konten durchsuchen",
+    "searchHint": "Name oder {'@'}Handle",
+    "loading": "Konten werden geladen",
+    "noMatch": "Kein Konto passt.",
+    "pages": "Kontoseiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "range": "{from}–{to} von {total}"
   },
   "share": {
     "title": "In Harmony teilen",

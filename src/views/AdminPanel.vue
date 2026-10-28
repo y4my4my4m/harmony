@@ -177,6 +177,7 @@
     </div>
 
     <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
+      <InstanceEmojiLibrary />
       <InstanceEmojiAdmin />
       <div class="admin-module emoji-module">
         <div class="module-header">
@@ -218,6 +219,7 @@ import ActivityLog from '@/components/admin/ActivityLog.vue'
 // Modules load lazily per tab so opening the panel only fetches Overview.
 const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/EmojiImporter.vue'))
 const InstanceEmojiAdmin = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiAdmin.vue'))
+const InstanceEmojiLibrary = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiLibrary.vue'))
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))

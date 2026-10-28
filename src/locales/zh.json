@@ -5089,7 +5089,13 @@
         "reason": "原因（随账户保存）："
       },
       "confirmAction": "{action}？这将解决此举报。",
-      "actionDone": "{action}：已完成"
+      "actionDone": "{action}：已完成",
+      "ids": {
+        "title": "ID",
+        "reporter": "举报者",
+        "reported": "被举报用户",
+        "server": "服务器"
+      }
     },
     "federation": {
       "limited": "已限制",
@@ -5275,11 +5281,32 @@
         "delete": "无法删除表情。",
         "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
         "nameTaken": "另一个实例表情已使用该名称。",
-        "nameTakenUser": "所有者已有同名的表情。"
+        "nameTakenUser": "所有者已有同名的表情。",
+        "notAdmin": "只有实例管理员可以上传实例表情。",
+        "duplicateFile": "该文件已是实例表情。"
       },
       "searchLabel": "搜索表情",
       "searchHint": "名称或域名",
-      "searchHintUser": "名称或所有者"
+      "searchHintUser": "名称或所有者",
+      "browseTitle": "本实例的所有表情",
+      "loading": "正在加载表情",
+      "library": {
+        "description": "所有本地用户都能在表情选择器中以本实例的名称找到它们。",
+        "listLabel": "本地实例表情",
+        "empty": "还没有实例表情",
+        "emptyHint": "在上方上传。所有本地用户都可以使用。",
+        "loading": "正在加载实例表情",
+        "retry": "重试"
+      }
+    },
+    "copyId": {
+      "user": "复制用户 ID",
+      "server": "复制服务器 ID",
+      "named": "{action}：{target}",
+      "userCopied": "已复制用户 ID",
+      "serverCopied": "已复制服务器 ID",
+      "userFailed": "无法复制用户 ID",
+      "serverFailed": "无法复制服务器 ID"
     }
   },
   "discordBridge": {
@@ -6741,7 +6768,15 @@
     "reportFiles": "附件",
     "removeFile": "移除文件",
     "removeAndBlock": "移除并屏蔽重新上传",
-    "removed": "已移除"
+    "removed": "已移除",
+    "searchLabel": "搜索账户",
+    "searchHint": "名称或 {'@'}用户名",
+    "loading": "正在加载账户",
+    "noMatch": "没有匹配的账户。",
+    "pages": "账户分页",
+    "previous": "上一页",
+    "next": "下一页",
+    "range": "{from}–{to}，共 {total}"
   },
   "share": {
     "title": "分享到 Harmony",
