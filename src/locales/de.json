@@ -4686,6 +4686,7 @@
       "changeDescription": "Wenn du dein Passwort änderst, werden alle anderen Geräte abgemeldet.",
       "providerDescription": "Dein Konto meldet sich über {providers} an. Mit einem Passwort kannst du dich auch mit deiner E-Mail anmelden.",
       "externalProvider": "einen externen Anbieter",
+      "providerManaged": "Dein Konto meldet sich nur über {providers} an. Es hat kein Passwort, und es lässt sich keines festlegen.",
       "hint": "Mindestens 8 Zeichen. Eine Passphrase aus ein paar zusammenhanglosen Wörtern eignet sich gut.",
       "saving": "Wird gespeichert…",
       "setPassword": "Passwort festlegen",
@@ -4890,6 +4891,7 @@
       "sessionRevoked": "Diese Sitzung wurde abgemeldet. Melde dich erneut an.",
       "codeMismatch": "Dieser Code passt nicht. Verwende den neuesten Code aus deiner App und prüfe, ob die Uhr deines Geräts automatisch eingestellt wird.",
       "challengeExpired": "Die Überprüfung ist abgelaufen. Gib einen neuen Code ein.",
+      "providerManaged": "Dieses Konto meldet sich nur über seinen Anmeldeanbieter an. Passwort und E-Mail-Adresse lassen sich daher nicht ändern.",
       "rateLimited": "Zu viele Versuche. Warte einen Moment und versuche es erneut.",
       "mfaNotEnabled": "Die Zwei-Faktor-Authentifizierung ist nicht aktiviert."
     },

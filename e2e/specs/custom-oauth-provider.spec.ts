@@ -8,7 +8,7 @@
 // (e2e/docker-compose.yml), as self-host/linking.sh keeps a provider apart. GoTrue confirms
 // addresses automatically here, as on a self-host without SMTP: the account that has the address
 // stays as it is, and the provider's first sign-in makes a separate one that signs in only
-// through the provider.
+// through the provider; Security settings say so after the first refused password.
 //
 // dex answers at E2E_IDP_ISSUER, https://idp.e2e.test:<port>/dex. The browser maps idp.e2e.test
 // to 127.0.0.1 and accepts the stack's throwaway CA; GoTrue reaches dex on the stack network.
@@ -267,6 +267,25 @@ test('a provider kept apart gives the address of an account a separate account',
     })
     expect(res.status).toBe(422)
     expect((await res.json()).error_code).toBe('user_sso_managed')
+  })
+
+  await test.step('Security settings say so instead of offering a password again', async () => {
+    const note = page.getByTestId('password-provider-managed')
+    const expected = `Your account signs in only through ${APART_NAME}. It has no password, and none can be set for it.`
+    await page.goto('/settings/account')
+    await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security' }).click()
+    await expect(page.getByRole('heading', { name: 'Set a password' })).toBeVisible({ timeout: 15000 })
+    await page.locator('#new-password').fill(`${PASSWORD}-other`)
+    await page.locator('#confirm-password').fill(`${PASSWORD}-other`)
+    await page.getByRole('button', { name: 'Set password' }).click()
+    await expect(note).toHaveText(expected, { timeout: 15000 })
+    await expect(note).toBeFocused()
+    await expect(page.locator('#new-password')).toHaveCount(0)
+
+    await page.reload()
+    await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security' }).click()
+    await expect(note).toHaveText(expected, { timeout: 15000 })
+    await expect(page.locator('#new-password')).toHaveCount(0)
   })
 })
 

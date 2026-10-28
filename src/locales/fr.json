@@ -4686,6 +4686,7 @@
       "changeDescription": "Changer votre mot de passe déconnecte tous les autres appareils.",
       "providerDescription": "Votre compte se connecte via {providers}. Un mot de passe vous permet aussi de vous connecter avec votre e-mail.",
       "externalProvider": "un fournisseur externe",
+      "providerManaged": "Votre compte se connecte uniquement via {providers}. Il n'a pas de mot de passe et ne peut pas en avoir.",
       "hint": "Au moins 8 caractères. Une phrase de passe de quelques mots sans rapport fonctionne bien.",
       "saving": "Enregistrement…",
       "setPassword": "Définir le mot de passe",
@@ -4890,6 +4891,7 @@
       "sessionRevoked": "Cette session a été déconnectée. Reconnectez-vous.",
       "codeMismatch": "Ce code ne correspond pas. Utilisez le code le plus récent de votre application et vérifiez que l'horloge de votre appareil est réglée automatiquement.",
       "challengeExpired": "La vérification a expiré. Saisissez un nouveau code.",
+      "providerManaged": "Ce compte se connecte uniquement via son fournisseur de connexion : son mot de passe et son adresse e-mail ne peuvent pas être modifiés.",
       "rateLimited": "Trop de tentatives. Patientez un instant et réessayez.",
       "mfaNotEnabled": "L'authentification à deux facteurs n'est pas activée."
     },

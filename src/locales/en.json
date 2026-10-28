@@ -4682,6 +4682,7 @@
       "changeDescription": "Changing your password signs out every other device.",
       "providerDescription": "Your account signs in through {providers}. A password lets you sign in with your email too.",
       "externalProvider": "an external provider",
+      "providerManaged": "Your account signs in only through {providers}. It has no password, and none can be set for it.",
       "hint": "At least 8 characters. A passphrase of a few unrelated words works well.",
       "saving": "Saving…",
       "setPassword": "Set password",
@@ -4886,6 +4887,7 @@
       "sessionRevoked": "This session was signed out. Sign in again.",
       "codeMismatch": "That code didn't match. Use the newest code from your app and check that your device clock is set automatically.",
       "challengeExpired": "The verification expired. Enter a new code.",
+      "providerManaged": "This account signs in only through its sign-in provider, so its password and email address cannot be changed.",
       "rateLimited": "Too many attempts. Wait a moment and try again.",
       "mfaNotEnabled": "Two-factor authentication is not enabled."
     },
