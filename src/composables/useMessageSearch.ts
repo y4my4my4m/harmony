@@ -1,8 +1,7 @@
 /**
  * Server-side message search: query state, paging and recent searches.
  *
- * The server holds no plaintext for encrypted messages; useLocalMessageSearch covers the
- * decrypted ones already in memory.
+ * The server holds no plaintext for encrypted messages; useEncryptedSearch covers them.
  */
 
 import { computed, ref, shallowRef, toValue, type MaybeRefOrGetter } from 'vue'
@@ -41,6 +40,8 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
   const results = shallowRef<Message[]>([])
   const total = ref<number | null>(null)
   const fuzzy = ref(false)
+  /** created_at of the match before the page on screen; null on the first page. */
+  const before = shallowRef<Date | null>(null)
   const isSearching = ref(false)
   const error = ref<string | null>(null)
   /** Parameters of the search on screen; null before the first search. */
@@ -98,11 +99,12 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
     isSearching.value = true
     error.value = null
     try {
-      const response = await searchService.searchMessages(params, { signal: ctrl.signal })
+      const response = await searchService.searchMessages(params, { signal: ctrl.signal, lead: true })
       if (ctrl.signal.aborted) return true
       ensureMessageEmbeds(response.results)
       results.value = response.results
       fuzzy.value = response.fuzzy
+      before.value = response.before ?? null
       // A page past the end reports no count; keep the one already shown.
       if (response.total !== null || targetPage === 0) total.value = response.total ?? 0
       page.value = targetPage
@@ -134,6 +136,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
     results.value = []
     total.value = null
     fuzzy.value = false
+    before.value = null
     error.value = null
     isSearching.value = false
     lastParams.value = null
@@ -147,6 +150,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
     results,
     total,
     fuzzy,
+    before,
     totalCapped,
     pageCount,
     isSearching,

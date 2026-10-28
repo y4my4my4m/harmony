@@ -297,8 +297,9 @@ export class MegolmMessageEncryptionService {
     sessionStorage.removeItem(`megolm_session_${this.currentUserId}`)
   }
 
-  /** Clears the stored session keys; every account's when no user is known. */
+  /** Clears the stored session keys and the search index; every account's when no user is known. */
   async lockEncryption(): Promise<void> {
+    await dropSearchIndex(this.currentUserId)
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
       await identityKeyStore.clear(this.currentUserId).catch(() => {})
@@ -2513,6 +2514,7 @@ export class MegolmMessageEncryptionService {
 
     // Identity, signing, and session keys. Leaving signing behind leaves a
     // stale cached signing key after reset.
+    await dropSearchIndex(this.currentUserId)
     await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
     await identityKeyStore.clear(this.currentUserId).catch(() => {})
     await signingKeyStore.clear(this.currentUserId).catch(() => {})
@@ -2550,6 +2552,7 @@ export class MegolmMessageEncryptionService {
 
   /** Called on logout. */
   async cleanup(): Promise<void> {
+    await dropSearchIndex(this.currentUserId)
     if (this.currentUserId) {
       await secureSessionKeyStore.clear(this.currentUserId).catch(() => {})
       await identityKeyStore.clear(this.currentUserId).catch(() => {})
@@ -2564,6 +2567,16 @@ export class MegolmMessageEncryptionService {
     this.pairingCopy = null
     this.currentUserId = null
     this.initialized = false
+  }
+}
+
+/** Deletes the on-device search index of decrypted messages (services/search/encryptedSearchIndex). */
+async function dropSearchIndex(profileId: string | null): Promise<void> {
+  try {
+    const { deleteSearchIndex } = await import('@/services/search/encryptedSearchIndex')
+    await deleteSearchIndex(profileId)
+  } catch (error) {
+    debug.warn('Deleting the search index failed:', error)
   }
 }
 

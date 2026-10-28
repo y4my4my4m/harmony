@@ -4,7 +4,7 @@
     tabindex="0"
     :aria-label="t('messageSearch.jumpTo')"
     @click="handleClick"
-    @keydown.enter.self="emit('open', message)"
+    @keydown.enter.self.prevent="emit('open', message)"
   >
     <Avatar :src="avatarUrl" size="sm" class="search-result-avatar" />
     <div class="search-result-main">

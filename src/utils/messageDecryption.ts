@@ -29,7 +29,10 @@ export function getLastDecryptionError(): string | null {
 /**
  * Process messages and attempt to decrypt encrypted ones
  */
-export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
+export async function processMessageDecryption(
+  messages: Message[],
+  options: { index?: boolean } = {},
+): Promise<Message[]> {
   // FIRST: bail before touching the encryption stack at all. Previously the
   // encrypted-page check sat BELOW the lazy service initialization, so even a
   // fully plaintext channel load awaited encryption boot (auto-unlock, key
@@ -197,6 +200,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       }
     })
   )
+
+  // The search crawl indexes its own pages and waits for the writes.
+  if (options.index !== false) void import('@/services/search/encryptedSearchIndex')
+    .then(({ noteDecryption }) => noteDecryption(
+      decryptedResults.filter(m => m.decrypted),
+      decryptedResults.filter(m => !m.decrypted),
+    ))
+    .catch(() => {})
 
   // Rebuild the message list preserving original order
   const decryptedMap = new Map(decryptedResults.map(m => [m.id, m]))

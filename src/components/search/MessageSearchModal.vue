@@ -57,7 +57,7 @@
             <span class="search-count" aria-live="polite">
               <template v-if="isSearching && total === null">{{ t('messageSearch.searching') }}</template>
               <template v-else-if="totalCapped">{{ t('messageSearch.resultsCapped', { count: formatCount(SEARCH_TOTAL_CAP) }) }}</template>
-              <template v-else>{{ t('messageSearch.results', { count: formatCount(total ?? 0) }, total ?? 0) }}</template>
+              <template v-else>{{ t('messageSearch.results', { count: formatCount(resultCount) }, resultCount) }}</template>
             </span>
             <div class="search-sort" role="group" :aria-label="t('messageSearch.sort')">
               <button
@@ -77,19 +77,38 @@
           <p class="search-e2ee"><Icon name="lock" :size="12" />{{ t('messageSearch.encryptedNote') }}</p>
           <p v-if="fuzzy && results.length" class="search-similar" role="status">{{ t('messageSearch.similar') }}</p>
 
-          <section v-if="localResults.length" class="search-group">
-            <h4 class="search-group-title"><Icon name="lock" :size="12" />{{ t('messageSearch.onThisDevice') }}</h4>
-            <SearchResultItem
-              v-for="r in localResults"
-              :key="`local-${r.message.id}`"
-              :message="r.message"
-              :server-id="serverId"
-              :highlight="localHighlight"
-              @open="openMessage"
-            />
-          </section>
+          <div v-if="crawlShown" class="search-crawl" data-testid="encrypted-search-status">
+            <p class="search-crawl-line">
+              <LoadingSpinner v-if="encrypted.state.value === 'running'" :size="14" />
+              <Icon v-else name="lock" :size="12" />
+              <span data-testid="encrypted-search-progress">{{ crawlText }}</span>
+              <button
+                v-if="encrypted.state.value === 'running'"
+                type="button"
+                class="search-link"
+                data-testid="encrypted-search-stop"
+                @click="encrypted.stop()"
+              >
+                {{ t('messageSearch.encryptedStop') }}
+              </button>
+              <button
+                v-else-if="encrypted.state.value === 'stopped' || encrypted.state.value === 'error'"
+                type="button"
+                class="search-link"
+                data-testid="encrypted-search-older"
+                @click="encrypted.searchOlder()"
+              >
+                {{ encrypted.state.value === 'error' ? t('common.retry') : t('messageSearch.encryptedSearchOlder') }}
+              </button>
+            </p>
+            <p v-if="encrypted.unreadable.value > 0" class="search-crawl-line search-crawl-unreadable" data-testid="encrypted-search-unreadable">
+              <Icon name="alert-circle" :size="12" />
+              {{ t('messageSearch.encryptedUnreadable', { count: formatCount(encrypted.unreadable.value) }, encrypted.unreadable.value) }}
+            </p>
+            <span class="sr-only" role="status">{{ crawlAnnouncement }}</span>
+          </div>
 
-          <div v-if="isSearching && results.length === 0" class="search-state">
+          <div v-if="(isSearching || encrypted.isQuerying.value || encrypted.active.value) && merged.messages.length === 0" class="search-state">
             <LoadingSpinner :size="32" />
             <p>{{ t('messageSearch.searching') }}</p>
           </div>
@@ -105,7 +124,7 @@
           />
 
           <EmptyState
-            v-else-if="results.length === 0"
+            v-else-if="merged.messages.length === 0"
             icon="search"
             :title="t('messageSearch.empty')"
             :description="t('messageSearch.emptyHint')"
@@ -126,8 +145,8 @@
               />
             </section>
 
-            <nav v-if="pageCount > 1" class="search-pager" :aria-label="t('messageSearch.pages')">
-              <button type="button" class="search-page" :disabled="page === 0 || isSearching" @click="runSearch(page - 1)">
+            <nav v-if="merged.pageCount > 1" class="search-pager" :aria-label="t('messageSearch.pages')">
+              <button type="button" class="search-page" :disabled="page === 0 || isSearching" @click="goToPage(page - 1)">
                 <Icon name="chevron-left" :size="14" />{{ t('messageSearch.previous') }}
               </button>
               <button
@@ -138,11 +157,11 @@
                 :class="{ active: n === page }"
                 :aria-current="n === page ? 'page' : undefined"
                 :disabled="isSearching"
-                @click="runSearch(n)"
+                @click="goToPage(n)"
               >
                 {{ n + 1 }}
               </button>
-              <button type="button" class="search-page" :disabled="page >= pageCount - 1 || isSearching" @click="runSearch(page + 1)">
+              <button type="button" class="search-page" :disabled="page >= merged.pageCount - 1 || isSearching" @click="goToPage(page + 1)">
                 {{ t('messageSearch.next') }}<Icon name="chevron-right" :size="14" />
               </button>
             </nav>
@@ -162,17 +181,17 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import SearchQueryInput from '@/components/search/SearchQueryInput.vue'
 import SearchResultItem from '@/components/search/SearchResultItem.vue'
-import { useMessageSearch } from '@/composables/useMessageSearch'
-import { useLocalMessageSearch } from '@/composables/useLocalMessageSearch'
+import { SEARCH_PAGE_SIZE, useMessageSearch } from '@/composables/useMessageSearch'
+import { useEncryptedSearch } from '@/composables/useEncryptedSearch'
 import { SEARCH_TOTAL_CAP } from '@/services/SearchService'
+import { mergeSearchPage } from '@/utils/searchMerge'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useProfileStore } from '@/stores/useProfile'
 import {
+  buildSearchParams,
   highlightTerms,
-  messageMatchesParams,
   parseSearchQuery,
   resolveToken,
   type SearchChannel,
@@ -196,7 +215,6 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 const serverChannelStore = useServerChannelStore()
-const chatStore = useChatStore()
 const dmStore = useDMStore()
 const profileStore = useProfileStore()
 
@@ -205,9 +223,11 @@ const scope = computed(() => props.conversationId
   : { serverId: props.serverId ?? undefined })
 
 const {
-  tokens, text, sort, page, results, total, fuzzy, totalCapped, pageCount, isSearching, error, lastParams,
+  tokens, text, sort, page, results, total, fuzzy, before, totalCapped, pageCount, isSearching, error, lastParams,
   recentSearches, execute, reset, clearRecentSearches,
 } = useMessageSearch(scope)
+
+const encrypted = useEncryptedSearch(() => ({ conversationId: props.conversationId, serverId: props.serverId }))
 
 const queryInputRef = ref<InstanceType<typeof SearchQueryInput>>()
 const bodyRef = ref<HTMLElement>()
@@ -259,24 +279,56 @@ const loadMembers = () => {
 }
 
 // ---------------------------------------------------------------------------
-// Encrypted messages already decrypted on this device
+// Encrypted messages, searched on this device
 // ---------------------------------------------------------------------------
 
-const localCandidates = computed<Message[]>(() => {
-  const params = lastParams.value
-  if (!params) return []
-  const loaded = props.conversationId
-    ? (dmStore.currentConversationId === props.conversationId ? dmStore.currentDMMessages : [])
-    : chatStore.messages
-  return loaded.filter(m => m.encrypted && m.decrypted && messageMatchesParams(m, params))
+const crawlShown = computed(() =>
+  encrypted.crawlRooms.value > 0 || encrypted.state.value === 'locked' || encrypted.unreadable.value > 0)
+
+const formatDay = (ms: number) =>
+  new Intl.DateTimeFormat(locale.value, { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(ms))
+
+const crawlText = computed(() => {
+  const reached = encrypted.reachedAt.value
+  switch (encrypted.state.value) {
+    case 'locked':
+      return t('messageSearch.encryptedLocked')
+    case 'running':
+      return reached === null
+        ? t('messageSearch.encryptedSearching')
+        : t('messageSearch.encryptedSearchedBack', { date: formatDay(reached) })
+    case 'stopped':
+      return reached === null
+        ? t('messageSearch.encryptedStopped')
+        : t('messageSearch.encryptedStoppedAt', { date: formatDay(reached) })
+    case 'error':
+      return t('messageSearch.encryptedError')
+    case 'done':
+      return t('messageSearch.encryptedDone')
+    default:
+      return ''
+  }
 })
 
-const localSearch = useLocalMessageSearch(localCandidates)
-const localResults = computed(() => (page.value === 0 ? localSearch.searchResults.value : []))
+/** Announced once per state, not on every page. */
+const crawlAnnouncement = computed(() =>
+  encrypted.state.value === 'running' ? t('messageSearch.encryptedSearching') : crawlText.value)
 
 // ---------------------------------------------------------------------------
 // Results
 // ---------------------------------------------------------------------------
+
+const merged = computed(() => mergeSearchPage({
+  server: results.value,
+  page: page.value,
+  pageSize: SEARCH_PAGE_SIZE,
+  serverPageCount: pageCount.value,
+  sort: sort.value,
+  local: encrypted.results.value,
+  before: before.value,
+}))
+
+const resultCount = computed(() => (total.value ?? 0) + encrypted.results.value.length)
 
 const channelName = (id: string): string =>
   serverChannelStore.channels.find(c => c.id === id)?.name ?? t('messageSearch.unknownChannel')
@@ -284,7 +336,7 @@ const channelName = (id: string): string =>
 /** Consecutive results from one channel share a heading; a conversation needs none. */
 const groups = computed(() => {
   const out: Array<{ key: string; label: string | null; icon: string; messages: Message[] }> = []
-  for (const message of results.value) {
+  for (const message of merged.value.messages) {
     const where = message.thread_id ? `thread:${message.thread_id}` : message.channel_id ?? message.conversation_id ?? ''
     const last = out[out.length - 1]
     if (last && last.key.startsWith(`${where}|`)) {
@@ -302,7 +354,7 @@ const groups = computed(() => {
 })
 
 const pageWindow = computed(() => {
-  const count = pageCount.value
+  const count = merged.value.pageCount
   const first = Math.max(0, Math.min(page.value - 2, count - 5))
   return Array.from({ length: Math.min(5, count) }, (_, i) => first + i)
 })
@@ -312,13 +364,24 @@ const formatCount = (n: number) => new Intl.NumberFormat(locale.value).format(n)
 const highlightWords = (query: string | null | undefined): string[] =>
   query ? highlightTerms(query).split(' ').filter(Boolean) : []
 const resultHighlight = computed(() => highlightWords(lastParams.value?.p_query))
-const localHighlight = computed(() => highlightWords(localSearch.query.value))
 
 const runSearch = async (targetPage: number) => {
   tokens.value = tokens.value.map(tok => resolveToken(tok, { members: members.value, channels: channels.value }))
+  if (targetPage === 0) {
+    void encrypted.search(buildSearchParams({ text: text.value, tokens: tokens.value }, scope.value, { sort: sort.value }), sort.value)
+  }
   await execute(targetPage)
-  if (targetPage === 0) localSearch.setQuery(text.value)
   bodyRef.value?.scrollTo({ top: 0 })
+}
+
+/** Pages of local results alone need no server round trip. */
+const goToPage = (target: number) => {
+  if (pageCount.value === 0) {
+    page.value = target
+    bodyRef.value?.scrollTo({ top: 0 })
+    return
+  }
+  void runSearch(target)
 }
 
 const changeSort = (value: SearchSort) => {
@@ -348,7 +411,7 @@ watch(() => props.show, (open) => {
     loadMembers()
   } else {
     reset()
-    localSearch.clearSearch()
+    encrypted.clear()
   }
 }, { immediate: true })
 
@@ -462,6 +525,27 @@ watch(() => [props.serverId, props.conversationId], () => {
   margin: 0 0 var(--space-3);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.search-crawl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+}
+
+.search-crawl-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.search-crawl-unreadable {
+  color: var(--text-muted);
 }
 
 .search-results {
