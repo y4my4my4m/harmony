@@ -6,6 +6,7 @@ import {
   orientationSegment,
   readMediaDetails,
   readTiff,
+  stripMediaBytes,
   stripMediaMetadata,
 } from '@/utils/stripMetadata'
 import { isAnimatedImage, readJpegOrientation } from '@/utils/imageResize'
@@ -308,4 +309,27 @@ describe('stripMediaMetadata: other files', () => {
     expect(out.type).toBe('image/jpeg')
     expect(markersIn(await bytesOf(out))).toEqual([])
   })
+})
+
+describe('malformed HEIF', () => {
+  const box = (type: string, body: number[]): number[] => {
+    const size = 8 + body.length
+    return [size >>> 24, (size >>> 16) & 255, (size >>> 8) & 255, size & 255, ...[...type].map((c) => c.charCodeAt(0)), ...body]
+  }
+  const text = (s: string) => [...s].map((c) => c.charCodeAt(0))
+
+  it('an iloc item count past its box ends the plan at once, the bytes unchanged', async () => {
+    // iloc version 2: item_count is a u32. 0xFFFFFFFF items with no item bytes in the box.
+    const iloc = box('iloc', [2, 0, 0, 0, 0x44, 0x40, 0xff, 0xff, 0xff, 0xff])
+    const infe = box('infe', [2, 0, 0, 0, 0, 1, 0, 0, ...text('Exif'), 0])
+    const iinf = box('iinf', [0, 0, 0, 0, 0, 1, ...infe])
+    const hdlr = box('hdlr', [0, 0, 0, 0, 0, 0, 0, 0, ...text('pict'), ...new Array(12).fill(0), 0])
+    const meta = box('meta', [0, 0, 0, 0, ...hdlr, ...iinf, ...iloc])
+    const ftyp = box('ftyp', [...text('heic'), 0, 0, 0, 0, ...text('mif1'), ...text('heic')])
+    const input = new Uint8Array([...ftyp, ...meta])
+    const started = performance.now()
+    const out = await stripMediaBytes(input)
+    expect(performance.now() - started).toBeLessThan(1000)
+    expect([...out]).toEqual([...input])
+  }, 5000)
 })

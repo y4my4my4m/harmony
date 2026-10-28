@@ -630,7 +630,11 @@ function heifMetadataExtents(meta: Uint8Array, box: Box): Array<{ start: number;
   const count = version < 2 ? u16be(meta, q) : u32be(meta, q)
   q += version < 2 ? 2 : 4
   const spans: Array<{ start: number; end: number; exif: boolean }> = []
+  // Each item takes at least its fixed fields; the box's size bounds the loop, never `count`
+  // (a u32 from the file: 0xFFFFFFFF items past the box end read zeros, never the inner guard).
+  const itemMin = (version < 2 ? 2 : 4) + (version === 1 || version === 2 ? 2 : 0) + 2 + baseOffsetSize + 2
   for (let i = 0; i < count; i++) {
+    if (q + itemMin > iloc.end - base) return null
     const id = version < 2 ? u16be(meta, q) : u32be(meta, q)
     q += version < 2 ? 2 : 4
     let method = 0
