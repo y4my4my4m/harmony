@@ -781,9 +781,13 @@ sanitize_report_text	invoker	trigger	anon+authenticated+service_role	trigger	tri
 sanitize_server_text	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (sanitize_server_text_trigger)
 sanitize_user_list_text	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_lists BEFORE INSERT/UPDATE (sanitize_user_list_text_trigger)
 save_recovery_codes	definer	void	authenticated+service_role	http authenticated	nothing references it
+search_cjk_grams	invoker	tsvector	service_role	trigger	called by search_document
+search_document	invoker	tsvector	service_role	trigger	called by index_message_row
 search_federated_users	invoker	TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
+search_fold	invoker	text	service_role	client, declarative, trigger	index idx_message_search_fold_trgm on public.message_search_index
 search_local_users	definer	TABLE(id uuid, username text, display_name text, avatar_url text)	authenticated+service_role	client	rpc in src/composables/useUserSearch.ts
-search_messages	definer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint)	authenticated+service_role	client	rpc in src/services/SearchService.ts
+search_messages	definer	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint, fuzzy boolean)	authenticated+service_role	client	rpc in src/services/SearchService.ts
+search_tsquery	invoker	tsquery	service_role	client	called by search_messages
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +3

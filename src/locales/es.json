@@ -1184,6 +1184,7 @@
     "error": "La búsqueda falló",
     "empty": "Sin resultados",
     "emptyHint": "Prueba otras palabras o menos filtros.",
+    "similar": "No hay coincidencias exactas. Se muestran resultados similares.",
     "unknownChannel": "canal desconocido",
     "threadIn": "Hilo en {channel}",
     "pages": "Páginas de resultados",

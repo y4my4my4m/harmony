@@ -26,24 +26,26 @@
           {{ t('messageSearch.jump') }}
         </button>
       </div>
-      <UnifiedMessageContent
-        class="search-result-content"
-        :content="message.content"
-        :message-id="message.id"
-        :embed-payloads="message.metadata?.embeds"
-        :metadata="message.metadata"
-        :encrypted="message.encrypted || false"
-        :decrypted="message.decrypted || false"
-        :unrecoverable="message.decryption_unrecoverable || false"
-        :sender-verified="message.sender_verified"
-        :media-hidden="mediaHidden"
-      />
+      <div ref="contentRef">
+        <UnifiedMessageContent
+          class="search-result-content"
+          :content="message.content"
+          :message-id="message.id"
+          :embed-payloads="message.metadata?.embeds"
+          :metadata="message.metadata"
+          :encrypted="message.encrypted || false"
+          :decrypted="message.decrypted || false"
+          :unrecoverable="message.decryption_unrecoverable || false"
+          :sender-verified="message.sender_verified"
+          :media-hidden="mediaHidden"
+        />
+      </div>
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -53,11 +55,14 @@ import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPresentation'
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden'
 import { formatFullDateTime } from '@/utils/shortRelativeTime'
+import { highlightSearchMatches } from '@/utils/searchHighlight'
 import type { Message } from '@/types'
 
 const props = defineProps<{
   message: Message
   serverId?: string | null
+  /** Words to mark in the content. */
+  highlight?: readonly string[]
 }>()
 
 const emit = defineEmits<{
@@ -76,6 +81,28 @@ const fullTime = computed(() => formatFullDateTime(props.message.created_at, loc
 
 // Links, spoilers, media and buttons inside the content keep their own click.
 const INTERACTIVE = 'a, button, input, textarea, video, audio, summary, [role="button"], [class*="spoiler"], .content-image'
+
+// Ranges follow the rendered text: embeds, decryption and lazy parts re-render after mount.
+const contentRef = ref<HTMLElement>()
+let clearHighlight = () => {}
+let observer: MutationObserver | null = null
+const applyHighlight = () => {
+  clearHighlight()
+  clearHighlight = contentRef.value && props.highlight?.length
+    ? highlightSearchMatches(contentRef.value, props.highlight)
+    : () => {}
+}
+onMounted(() => {
+  applyHighlight()
+  if (!contentRef.value || typeof MutationObserver === 'undefined') return
+  observer = new MutationObserver(applyHighlight)
+  observer.observe(contentRef.value, { subtree: true, childList: true, characterData: true })
+})
+watch(() => props.highlight, applyHighlight)
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  clearHighlight()
+})
 
 const handleClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null
@@ -191,5 +218,13 @@ const handleClick = (event: MouseEvent) => {
   .search-result-jump {
     opacity: 1;
   }
+}
+</style>
+
+<style>
+/* A document-level pseudo-element: a scoped selector cannot match it. */
+::highlight(search-match) {
+  background-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: inherit;
 }
 </style>

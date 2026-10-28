@@ -40,6 +40,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
   const page = ref(0)
   const results = shallowRef<Message[]>([])
   const total = ref<number | null>(null)
+  const fuzzy = ref(false)
   const isSearching = ref(false)
   const error = ref<string | null>(null)
   /** Parameters of the search on screen; null before the first search. */
@@ -86,6 +87,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
       lastParams.value = null
       results.value = []
       total.value = null
+      fuzzy.value = false
       error.value = null
       isSearching.value = false
       return false
@@ -100,6 +102,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
       if (ctrl.signal.aborted) return true
       ensureMessageEmbeds(response.results)
       results.value = response.results
+      fuzzy.value = response.fuzzy
       // A page past the end reports no count; keep the one already shown.
       if (response.total !== null || targetPage === 0) total.value = response.total ?? 0
       page.value = targetPage
@@ -110,6 +113,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
       debug.error('Search error:', err)
       error.value = err instanceof Error ? err.message : String(err)
       results.value = []
+      fuzzy.value = false
       lastParams.value = params
     } finally {
       if (controller === ctrl) {
@@ -129,6 +133,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
     page.value = 0
     results.value = []
     total.value = null
+    fuzzy.value = false
     error.value = null
     isSearching.value = false
     lastParams.value = null
@@ -141,6 +146,7 @@ export function useMessageSearch(scope: MaybeRefOrGetter<SearchScope>) {
     page,
     results,
     total,
+    fuzzy,
     totalCapped,
     pageCount,
     isSearching,

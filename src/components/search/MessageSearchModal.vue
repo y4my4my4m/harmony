@@ -75,6 +75,7 @@
             </div>
           </div>
           <p class="search-e2ee"><Icon name="lock" :size="12" />{{ t('messageSearch.encryptedNote') }}</p>
+          <p v-if="fuzzy && results.length" class="search-similar" role="status">{{ t('messageSearch.similar') }}</p>
 
           <section v-if="localResults.length" class="search-group">
             <h4 class="search-group-title"><Icon name="lock" :size="12" />{{ t('messageSearch.onThisDevice') }}</h4>
@@ -83,6 +84,7 @@
               :key="`local-${r.message.id}`"
               :message="r.message"
               :server-id="serverId"
+              :highlight="localHighlight"
               @open="openMessage"
             />
           </section>
@@ -119,6 +121,7 @@
                 :key="message.id"
                 :message="message"
                 :server-id="serverId"
+                :highlight="fuzzy ? undefined : resultHighlight"
                 @open="openMessage"
               />
             </section>
@@ -202,7 +205,7 @@ const scope = computed(() => props.conversationId
   : { serverId: props.serverId ?? undefined })
 
 const {
-  tokens, text, sort, page, results, total, totalCapped, pageCount, isSearching, error, lastParams,
+  tokens, text, sort, page, results, total, fuzzy, totalCapped, pageCount, isSearching, error, lastParams,
   recentSearches, execute, reset, clearRecentSearches,
 } = useMessageSearch(scope)
 
@@ -305,6 +308,11 @@ const pageWindow = computed(() => {
 })
 
 const formatCount = (n: number) => new Intl.NumberFormat(locale.value).format(n)
+
+const highlightWords = (query: string | null | undefined): string[] =>
+  query ? highlightTerms(query).split(' ').filter(Boolean) : []
+const resultHighlight = computed(() => highlightWords(lastParams.value?.p_query))
+const localHighlight = computed(() => highlightWords(localSearch.query.value))
 
 const runSearch = async (targetPage: number) => {
   tokens.value = tokens.value.map(tok => resolveToken(tok, { members: members.value, channels: channels.value }))
@@ -448,6 +456,12 @@ watch(() => [props.serverId, props.conversationId], () => {
   margin: var(--space-2) 0 var(--space-3);
   color: var(--text-muted);
   font-size: var(--font-size-xs);
+}
+
+.search-similar {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .search-results {

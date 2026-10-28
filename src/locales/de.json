@@ -1184,6 +1184,7 @@
     "error": "Suche fehlgeschlagen",
     "empty": "Keine Ergebnisse",
     "emptyHint": "Versuche andere Begriffe oder weniger Filter.",
+    "similar": "Keine exakten Treffer. Ähnliche Ergebnisse werden angezeigt.",
     "unknownChannel": "unbekannter Kanal",
     "threadIn": "Thread in {channel}",
     "pages": "Ergebnisseiten",
