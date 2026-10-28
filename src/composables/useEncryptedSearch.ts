@@ -4,25 +4,31 @@
  * The server stores no text for encrypted messages, so a text query reads the on-device index
  * (services/search/encryptedSearchIndex) at once, then crawls the history of the encrypted
  * chats in scope (services/search/encryptedHistoryScan) and reads the index again as pages
- * land. A chat is encrypted when encryption is on for it: the conversation's setting, the
- * channel's resolved mode. Queries without text are the server's alone: its filters reach
- * encrypted rows, which load decrypted.
+ * land. The crawl belongs to the scope, not the query: a later search in the same chats reads
+ * the index with its own query while the crawl goes on. A chat is encrypted when encryption is
+ * on for it: the conversation's setting, the channel's resolved mode. Queries without text are
+ * the server's alone: its filters reach encrypted rows, which load decrypted.
+ *
+ * Two reads per refresh: the first LOCAL_RESULT_LIMIT results (`results`, for the count and for
+ * paging by count), and the results inside the page's time window (`windowed`, utils/searchMerge
+ * localWindow), taken from the first read when it covers the window.
  */
 
 import { computed, ref, shallowRef, toValue, type MaybeRefOrGetter } from 'vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { messageMatchesParams, type SearchRpcParams, type SearchSort } from '@/utils/searchQuery'
-import { matchScore, parseIndexQuery, prepareText, searchableText } from '@/utils/searchTokens'
+import { matchScore, parseIndexQuery, prepareText, searchableText, type IndexQuery } from '@/utils/searchTokens'
 import { normalizeHistoryVisibility } from '@/utils/channelEncryption'
+import type { LocalWindow } from '@/utils/searchMerge'
 import type { Message } from '@/types'
-import type { EncryptedSearchIndex } from '@/services/search/encryptedSearchIndex'
+import type { EncryptedSearchIndex, IndexedHit } from '@/services/search/encryptedSearchIndex'
 import type { ScanProgress, ScanRoom } from '@/services/search/encryptedHistoryScan'
 
-/** Most local results kept per search. */
+/** Most local results per read: the first results, and those of one page's window. */
 export const LOCAL_RESULT_LIMIT = 500
 /** Shortest wait between two reads of the index while the crawl runs, ms. */
-const REQUERY_MS = 1000
+export const REQUERY_MS = 1000
 
 export type CrawlState = 'idle' | 'running' | 'stopped' | 'done' | 'error' | 'locked'
 
@@ -31,17 +37,28 @@ export interface EncryptedSearchScope {
   serverId?: string | null
 }
 
-interface Run {
-  params: SearchRpcParams
-  sort: SearchSort
+/** The chats a crawl reads; kept while searches stay in them. */
+interface Scope {
+  key: string
   rooms: string[]
   crawl: ScanRoom[]
   index: EncryptedSearchIndex
 }
 
+interface Run extends Scope {
+  params: SearchRpcParams
+  sort: SearchSort
+  query: IndexQuery
+}
+
+const sameWindow = (a: LocalWindow | null | undefined, b: LocalWindow | null | undefined) =>
+  a === b || (!!a && !!b && a.from === b.from && a.to === b.to)
+
 export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>) {
   const results = shallowRef<Message[]>([])
+  /** More results matched than `results` holds. */
   const capped = ref(false)
+  const windowed = shallowRef<Message[]>([])
   const state = ref<CrawlState>('idle')
   /** Every encrypted chat in scope is searched back to this time, ms. */
   const reachedAt = ref<number | null>(null)
@@ -51,12 +68,28 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
   const isQuerying = ref(false)
 
   let run: Run | null = null
+  let crawlScope: Scope | null = null
   let controller: AbortController | null = null
+  /** Bumps on every search and clear. */
   let generation = 0
-  let lastQuery = 0
-  let pendingQuery: ReturnType<typeof setTimeout> | null = null
+  /** Bumps when the crawl's scope ends. */
+  let crawlGeneration = 0
+  let window: LocalWindow | null | undefined
+  let first: { hits: IndexedHit[]; capped: boolean } | null = null
+  let firstStale = true
+  let inflight: Promise<void> | null = null
+  let dirty = false
+  let deferred = false
+  let lastRead = 0
+  let pendingRead: ReturnType<typeof setTimeout> | null = null
+  const validated = new Set<string>()
 
   const active = computed(() => state.value === 'running')
+
+  const scopeKey = (params: SearchRpcParams, profileId: string) => {
+    const { conversationId, serverId } = toValue(scope)
+    return [profileId, conversationId ?? '', serverId ?? '', [...(params.p_channel_ids ?? [])].sort().join(',')].join('|')
+  }
 
   const roomsInScope = async (params: SearchRpcParams, profileId: string): Promise<{ rooms: string[]; crawl: ScanRoom[] }> => {
     const { conversationId, serverId } = toValue(scope)
@@ -100,56 +133,123 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
     return { rooms: ids, crawl }
   }
 
-  /** Reads the index for the run's query; replaces `results`. */
-  const query = async (current: Run, gen: number): Promise<void> => {
-    lastQuery = Date.now()
-    const parsed = parseIndexQuery(current.params.p_query ?? '')
-    if (parsed.alternatives.length === 0) {
+  /** Reads the index for the run's query: the first results, then the window's. */
+  const read = async (current: Run, gen: number): Promise<void> => {
+    if (current.query.alternatives.length === 0) {
       results.value = []
+      windowed.value = []
       capped.value = false
       return
     }
+    const { params } = current
     const accept = (m: Message) =>
-      messageMatchesParams(m, current.params) && matchScore(parsed, prepareText(searchableText(m.content))) > 0
-    const { hits, capped: more } = await current.index.search(parsed, {
-      rooms: current.rooms,
-      from: current.params.p_from_date ? Date.parse(current.params.p_from_date) : undefined,
-      to: current.params.p_to_date ? Date.parse(current.params.p_to_date) : undefined,
-      ascending: current.sort === 'oldest',
-      accept,
-      limit: LOCAL_RESULT_LIMIT,
-    })
-    if (gen !== generation) return
-    results.value = hits.map(h => h.message)
-    capped.value = more
+      messageMatchesParams(m, params) && matchScore(current.query, prepareText(searchableText(m.content))) > 0
+    const ascending = current.sort === 'oldest'
+    const from = params.p_from_date ? Date.parse(params.p_from_date) : -Infinity
+    const to = params.p_to_date ? Date.parse(params.p_to_date) : Infinity
+    const search = (lo: number, hi: number) =>
+      current.index.search(current.query, { rooms: current.rooms, from: lo, to: hi, ascending, accept, limit: LOCAL_RESULT_LIMIT })
+
+    if (firstStale || !first) {
+      firstStale = false
+      const got = await search(from, to)
+      if (gen !== generation) return
+      first = got
+    }
+    const list = first
+    const w = window
+    let inWindow: Message[] = []
+    if (w === undefined) {
+      inWindow = list.hits.map(h => h.message)
+    } else if (w !== null) {
+      const lo = Math.max(from, w.from ?? -Infinity)
+      const hi = Math.min(to, w.to ?? Infinity)
+      const edge = list.hits.length ? list.hits[list.hits.length - 1].at : null
+      // Results at the edge's time may lie past the limit: strict comparison.
+      const covered = !list.capped || (edge !== null && (ascending ? hi < edge : lo > edge))
+      if (covered) {
+        inWindow = list.hits.filter(h => h.at >= lo && h.at <= hi).map(h => h.message)
+      } else {
+        const got = await search(lo, hi)
+        if (gen !== generation) return
+        inWindow = got.hits.map(h => h.message)
+      }
+    }
+    results.value = list.hits.map(h => h.message)
+    capped.value = list.capped
+    windowed.value = inWindow
   }
 
-  const scheduleQuery = (current: Run, gen: number) => {
-    if (pendingQuery) return
-    const wait = Math.max(0, lastQuery + REQUERY_MS - Date.now())
-    pendingQuery = setTimeout(() => {
-      pendingQuery = null
-      if (gen === generation) void query(current, gen).catch(error => debug.warn('Encrypted search failed:', error))
-    }, wait)
+  /** Reads again once the read in flight ends; never two at once. */
+  const refresh = (): Promise<void> => {
+    dirty = true
+    if (!inflight) {
+      inflight = (async () => {
+        try {
+          while (dirty) {
+            dirty = false
+            const current = run
+            if (!current) break
+            try {
+              await read(current, generation)
+            } catch (error) {
+              debug.warn('Encrypted search failed:', error)
+            }
+          }
+        } finally {
+          inflight = null
+          lastRead = Date.now()
+          if (deferred) {
+            deferred = false
+            scheduleRefresh()
+          }
+        }
+      })()
+    }
+    return inflight
   }
 
-  const countUnreadable = async (current: Run, gen: number) => {
+  /** A crawl page landed: read again, REQUERY_MS after the last read ended. */
+  const scheduleRefresh = () => {
+    firstStale = true
+    if (pendingRead) return
+    if (inflight) {
+      deferred = true
+      return
+    }
+    pendingRead = setTimeout(() => {
+      pendingRead = null
+      void refresh()
+    }, Math.max(0, lastRead + REQUERY_MS - Date.now()))
+  }
+
+  const cancelPendingRead = () => {
+    if (pendingRead) clearTimeout(pendingRead)
+    pendingRead = null
+    deferred = false
+  }
+
+  const countUnreadable = async () => {
+    const current = crawlScope
+    if (!current) return
+    const cg = crawlGeneration
     const floors = Object.fromEntries(current.crawl.map(r => [r.room, r.floor !== undefined ? r.floor / 1000 : undefined]))
     const ids = await current.index.unreadable(current.crawl.map(r => r.room), floors)
-    if (gen === generation) unreadable.value = ids.length
+    if (cg === crawlGeneration) unreadable.value = ids.length
   }
 
   /**
    * Drops results deleted or hidden since they were indexed and indexes edits again: one
-   * id/updated_at read per hundred results.
+   * id/updated_at read per hundred results not yet checked in this search.
    */
-  const validate = async (current: Run, gen: number) => {
-    const shown = results.value
-    if (shown.length === 0) return
+  const validate = async (current: Run, gen: number, shown: Message[]) => {
+    const todo = [...new Map(shown.filter(m => !validated.has(m.id)).map(m => [m.id, m])).values()]
+    if (todo.length === 0) return
+    for (const m of todo) validated.add(m.id)
     const stale: string[] = []
     const gone = new Set<string>()
-    for (let i = 0; i < shown.length; i += 100) {
-      const chunk = shown.slice(i, i + 100)
+    for (let i = 0; i < todo.length; i += 100) {
+      const chunk = todo.slice(i, i + 100)
       const { data, error } = await supabase
         .from('messages')
         .select('id, updated_at')
@@ -167,31 +267,36 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
       const { data } = await supabase.from('messages').select('*').in('id', stale)
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
       const { recordPage } = await import('@/services/search/encryptedHistoryScan')
-      await recordPage(current.index, await processMessageDecryption((data ?? []) as Message[], { index: false }))
+      // A key missing here stays missing: the crawl asks for keys, a check does not.
+      await recordPage(current.index, await processMessageDecryption((data ?? []) as Message[], { index: false, heldKeysOnly: true }))
     }
-    if ((gone.size || stale.length) && gen === generation) await query(current, gen)
+    if ((gone.size || stale.length) && gen === generation) {
+      firstStale = true
+      await refresh()
+    }
   }
 
-  const crawl = async (current: Run, gen: number) => {
+  const crawl = async (current: Scope) => {
     if (current.crawl.length === 0) {
       state.value = 'done'
       return
     }
+    const cg = crawlGeneration
     const ctrl = new AbortController()
     controller = ctrl
     state.value = 'running'
-    const { scanHistory, databaseScanDeps } = await import('@/services/search/encryptedHistoryScan')
     let outcome: 'done' | 'stopped' | 'error'
     try {
+      const { scanHistory, databaseScanDeps } = await import('@/services/search/encryptedHistoryScan')
       outcome = await scanHistory(current.crawl, databaseScanDeps(current.index), {
         signal: ctrl.signal,
         onProgress: (p: ScanProgress) => {
-          if (gen === generation) reachedAt.value = p.reachedAt
+          if (cg === crawlGeneration) reachedAt.value = p.reachedAt
         },
         onPage: () => {
-          if (gen !== generation) return
-          scheduleQuery(current, gen)
-          void countUnreadable(current, gen)
+          if (cg !== crawlGeneration) return
+          scheduleRefresh()
+          void countUnreadable()
         },
       })
     } catch (error) {
@@ -199,21 +304,47 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
       outcome = 'error'
     }
     if (controller === ctrl) controller = null
-    if (gen !== generation) return
+    if (cg !== crawlGeneration) return
     state.value = outcome
-    if (pendingQuery) {
-      clearTimeout(pendingQuery)
-      pendingQuery = null
-    }
-    await query(current, gen)
-    await countUnreadable(current, gen)
+    cancelPendingRead()
+    firstStale = true
+    await refresh()
+    await countUnreadable()
   }
 
-  /** Searches for `params`: the index at once, then the crawl. Text-less queries clear. */
+  /** Ends the crawl and forgets its scope; what it read stays indexed. */
+  const endCrawl = () => {
+    crawlGeneration++
+    controller?.abort()
+    controller = null
+    crawlScope = null
+    state.value = 'idle'
+    reachedAt.value = null
+    unreadable.value = 0
+    crawlRooms.value = 0
+  }
+
+  /**
+   * Searches for `params`: the index at once, then the crawl of the chats in scope, which a
+   * search in the same chats leaves running. Text-less queries clear.
+   */
   const search = async (params: SearchRpcParams | null, sort: SearchSort): Promise<void> => {
-    clear()
+    generation++
     const gen = generation
-    if (!params?.p_query) return
+    run = null
+    first = null
+    firstStale = true
+    window = undefined
+    validated.clear()
+    cancelPendingRead()
+    results.value = []
+    windowed.value = []
+    capped.value = false
+    isQuerying.value = false
+    if (!params?.p_query) {
+      endCrawl()
+      return
+    }
     isQuerying.value = true
     try {
       const [{ accountSearchIndex }, { megolmMessageEncryptionService }, { useProfileStore }] = await Promise.all([
@@ -222,22 +353,35 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
         import('@/stores/useProfile'),
       ])
       const profileId = megolmMessageEncryptionService.getCurrentUserId() ?? useProfileStore().profile?.id
-      if (!profileId) return
-      const [index, { rooms, crawl: crawlTargets }] = await Promise.all([accountSearchIndex(), roomsInScope(params, profileId)])
-      if (gen !== generation) return
-      if (!index) {
-        // Locked keys matter only where a chat in scope is encrypted.
-        if (crawlTargets.length > 0) {
-          crawlRooms.value = crawlTargets.length
-          state.value = 'locked'
-        }
+      if (!profileId) {
+        endCrawl()
         return
       }
-      run = { params, sort, rooms, crawl: crawlTargets, index }
-      crawlRooms.value = crawlTargets.length
-      await query(run, gen)
-      await countUnreadable(run, gen)
-      void validate(run, gen).catch(error => debug.warn('Validating encrypted results failed:', error))
+      const index = await accountSearchIndex()
+      if (gen !== generation) return
+      const key = scopeKey(params, profileId)
+      let current = crawlScope && crawlScope.key === key && crawlScope.index === index ? crawlScope : null
+      if (!current) {
+        const found = await roomsInScope(params, profileId)
+        if (gen !== generation) return
+        endCrawl()
+        if (!index) {
+          // Locked keys matter only where a chat in scope is encrypted.
+          if (found.crawl.length > 0) {
+            crawlRooms.value = found.crawl.length
+            state.value = 'locked'
+          }
+          return
+        }
+        current = { key, index, ...found }
+        crawlScope = current
+        crawlRooms.value = found.crawl.length
+      }
+      run = { ...current, params, sort, query: parseIndexQuery(params.p_query) }
+      await refresh()
+      if (gen !== generation) return
+      await countUnreadable()
+      void validate(run, gen, [...results.value, ...windowed.value]).catch(error => debug.warn('Validating encrypted results failed:', error))
     } catch (error) {
       debug.warn('Encrypted search failed:', error)
       if (gen === generation) state.value = 'error'
@@ -245,7 +389,22 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
     } finally {
       if (gen === generation) isQuerying.value = false
     }
-    if (run && gen === generation) void crawl(run, gen)
+    if (run && gen === generation && crawlScope && state.value === 'idle') void crawl(crawlScope)
+  }
+
+  /**
+   * The page's time window (utils/searchMerge localWindow): undefined reads the first results
+   * alone, null none.
+   */
+  const setWindow = (next: LocalWindow | null | undefined) => {
+    if (sameWindow(next, window)) return
+    window = next
+    if (!run) return
+    const current = run
+    const gen = generation
+    void refresh()
+      .then(() => validate(current, gen, windowed.value))
+      .catch(error => debug.warn('Validating encrypted results failed:', error))
   }
 
   /** Stops the crawl; what it read stays indexed. */
@@ -255,31 +414,28 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
 
   /** Crawls again from where the last one stopped. */
   const searchOlder = () => {
-    if (!run || state.value === 'running') return
-    void crawl(run, generation)
+    if (!crawlScope || state.value === 'running') return
+    void crawl(crawlScope)
   }
 
   const clear = () => {
     generation++
-    controller?.abort()
-    controller = null
-    if (pendingQuery) {
-      clearTimeout(pendingQuery)
-      pendingQuery = null
-    }
+    endCrawl()
+    cancelPendingRead()
     run = null
+    first = null
+    window = undefined
+    validated.clear()
     results.value = []
+    windowed.value = []
     capped.value = false
-    state.value = 'idle'
-    reachedAt.value = null
-    unreadable.value = 0
-    crawlRooms.value = 0
     isQuerying.value = false
   }
 
   return {
     results,
     capped,
+    windowed,
     state,
     active,
     reachedAt,
@@ -287,6 +443,7 @@ export function useEncryptedSearch(scope: MaybeRefOrGetter<EncryptedSearchScope>
     crawlRooms,
     isQuerying,
     search,
+    setWindow,
     stop,
     searchOlder,
     clear,

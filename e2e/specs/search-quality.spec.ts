@@ -1,7 +1,7 @@
 // Journey: server message search matches the last word as a prefix, ignores accents and
 // character width, finds Japanese and Korean inside longer text, falls back to similar words
-// for a typo and says so, and marks the matched text in each result. Each case has a query
-// beside it that must find nothing.
+// for a typo and says so (a near word, not one sharing a prefix), and marks the matched text in
+// each result. Each case has a query beside it that must find nothing.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
@@ -28,6 +28,8 @@ const MESSAGES = [
   'the who played live',
   'who is the drummer',
   'ｶﾞｲﾄﾞ ＡＢＣ',
+  'meet me',
+  'meeting at noon',
 ]
 
 test.beforeAll(async () => {
@@ -127,5 +129,15 @@ test('a typo falls back to similar words and says so', async ({ page }) => {
   await expectNone(page, 'harmoyn -release')
   await expect(notice(page)).toHaveCount(0)
   await expectFound(page, 'harmony', ['Harmony release notes'], ['Harmony'])
+  await expect(notice(page)).toHaveCount(0)
+})
+
+test('a typo needs a near word, not one sharing its first letters', async ({ page }) => {
+  await openSearch(page)
+  await search(page, 'meetnig')
+  await expect(results(page)).toHaveCount(1, { timeout: 15000 })
+  await expect(results(page).filter({ hasText: 'meeting at noon' })).toHaveCount(1)
+  await expect(notice(page)).toHaveText('No exact matches. Showing similar results.')
+  await expectNone(page, 'thw')
   await expect(notice(page)).toHaveCount(0)
 })

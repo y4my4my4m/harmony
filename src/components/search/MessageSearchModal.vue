@@ -56,7 +56,7 @@
           <div class="search-toolbar">
             <span class="search-count" aria-live="polite">
               <template v-if="isSearching && total === null">{{ t('messageSearch.searching') }}</template>
-              <template v-else-if="totalCapped">{{ t('messageSearch.resultsCapped', { count: formatCount(SEARCH_TOTAL_CAP) }) }}</template>
+              <template v-else-if="countCapped">{{ t('messageSearch.resultsCapped', { count: formatCount(resultCount) }) }}</template>
               <template v-else>{{ t('messageSearch.results', { count: formatCount(resultCount) }, resultCount) }}</template>
             </span>
             <div class="search-sort" role="group" :aria-label="t('messageSearch.sort')">
@@ -75,7 +75,7 @@
             </div>
           </div>
           <p class="search-e2ee"><Icon name="lock" :size="12" />{{ t('messageSearch.encryptedNote') }}</p>
-          <p v-if="fuzzy && results.length" class="search-similar" role="status">{{ t('messageSearch.similar') }}</p>
+          <p v-if="merged.similar" class="search-similar" role="status">{{ t('messageSearch.similar') }}</p>
 
           <div v-if="crawlShown" class="search-crawl" data-testid="encrypted-search-status">
             <p class="search-crawl-line">
@@ -140,7 +140,7 @@
                 :key="message.id"
                 :message="message"
                 :server-id="serverId"
-                :highlight="fuzzy ? undefined : resultHighlight"
+                :highlight="merged.similar ? undefined : resultHighlight"
                 @open="openMessage"
               />
             </section>
@@ -184,7 +184,7 @@ import SearchResultItem from '@/components/search/SearchResultItem.vue'
 import { SEARCH_PAGE_SIZE, useMessageSearch } from '@/composables/useMessageSearch'
 import { useEncryptedSearch } from '@/composables/useEncryptedSearch'
 import { SEARCH_TOTAL_CAP } from '@/services/SearchService'
-import { mergeSearchPage } from '@/utils/searchMerge'
+import { localWindow, mergeSearchPage, type PageInput } from '@/utils/searchMerge'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useDMStore } from '@/stores/useDM'
@@ -318,17 +318,36 @@ const crawlAnnouncement = computed(() =>
 // Results
 // ---------------------------------------------------------------------------
 
-const merged = computed(() => mergeSearchPage({
+const pageInput = computed<PageInput>(() => ({
   server: results.value,
   page: page.value,
   pageSize: SEARCH_PAGE_SIZE,
   serverPageCount: pageCount.value,
   sort: sort.value,
-  local: encrypted.results.value,
+  fuzzy: fuzzy.value,
   before: before.value,
 }))
 
-const resultCount = computed(() => (total.value ?? 0) + encrypted.results.value.length)
+watch(() => localWindow(pageInput.value, encrypted.results.value.length), w => encrypted.setWindow(w), { immediate: true })
+
+const merged = computed(() => mergeSearchPage({
+  ...pageInput.value,
+  local: encrypted.results.value,
+  windowed: encrypted.windowed.value,
+}))
+
+/** Similar server rows that gave way to exact local results are not counted. */
+const resultCount = computed(() => {
+  const server = merged.value.serverPageCount > 0 ? Math.min(total.value ?? 0, SEARCH_TOTAL_CAP) : 0
+  return server + encrypted.results.value.length
+})
+const countCapped = computed(() =>
+  (merged.value.serverPageCount > 0 && totalCapped.value) || encrypted.capped.value)
+
+// Similar server rows that give way to local results leave fewer pages: stay on the last.
+watch(() => merged.value.serverPageCount === 0 && page.value > 0 && page.value >= merged.value.pageCount, (past) => {
+  if (past) page.value = Math.max(0, merged.value.pageCount - 1)
+})
 
 const channelName = (id: string): string =>
   serverChannelStore.channels.find(c => c.id === id)?.name ?? t('messageSearch.unknownChannel')
@@ -376,7 +395,7 @@ const runSearch = async (targetPage: number) => {
 
 /** Pages of local results alone need no server round trip. */
 const goToPage = (target: number) => {
-  if (pageCount.value === 0) {
+  if (merged.value.serverPageCount === 0) {
     page.value = target
     bodyRef.value?.scrollTo({ top: 0 })
     return

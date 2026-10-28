@@ -17,6 +17,12 @@
 --                            Q12 bob    2026-02-01  "running fast"
 --                            Q13 alice  2026-02-01  "runs fast"
 --                            Q14 bob                "party 🎉"
+--                            Q15 bob                "this is the thing"
+--                            Q16 alice              "service down"
+--                            Q17 bob                "meet me"
+--                            Q18 alice              "meeting at noon"
+--                            Q19 bob    2026-01-15  "the deployment failed"
+--                            Q20 alice  an hour ago "deploymant done"
 --   #hid213   @everyone denied VIEW_CHANNEL
 --                            H1  alice              "harmony secret 東京"
 --   #hist213  @everyone denied READ_MESSAGE_HISTORY; mallory joined an hour ago
@@ -25,7 +31,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(49);
+SELECT plan(65);
 
 UPDATE public.server_automod_settings SET enabled = false WHERE server_id = '55555555-0000-0000-0000-000000000005';
 INSERT INTO public.user_servers (user_id, server_id, status, created_at)
@@ -61,6 +67,12 @@ INSERT INTO public.messages (id, channel_id, user_id, content, created_at, encry
   ('f2131000-0000-0000-0000-000000000012', 'f2130000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000002', pg_temp.txt('running fast'), '2026-02-01 12:00+00', false),
   ('f2131000-0000-0000-0000-000000000013', 'f2130000-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', pg_temp.txt('runs fast'), '2026-02-01 12:00+00', false),
   ('f2131000-0000-0000-0000-000000000014', 'f2130000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000002', pg_temp.txt('party 🎉'), now() - interval '2 days', false),
+  ('f2131000-0000-0000-0000-000000000015', 'f2130000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000002', pg_temp.txt('this is the thing'), now() - interval '2 days', false),
+  ('f2131000-0000-0000-0000-000000000016', 'f2130000-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', pg_temp.txt('service down'), now() - interval '2 days', false),
+  ('f2131000-0000-0000-0000-000000000017', 'f2130000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000002', pg_temp.txt('meet me'), now() - interval '2 days', false),
+  ('f2131000-0000-0000-0000-000000000018', 'f2130000-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', pg_temp.txt('meeting at noon'), now() - interval '2 days', false),
+  ('f2131000-0000-0000-0000-000000000019', 'f2130000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000002', pg_temp.txt('the deployment failed'), '2026-01-15 12:00+00', false),
+  ('f2131000-0000-0000-0000-000000000020', 'f2130000-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', pg_temp.txt('deploymant done'), now() - interval '1 hour', false),
   ('f2131000-0000-0000-0000-0000000000a1', 'f2130000-0000-0000-0000-0000000000c2', '11111111-0000-0000-0000-000000000001', pg_temp.txt('harmony secret 東京'), now() - interval '2 days', false),
   ('f2131000-0000-0000-0000-0000000000b1', 'f2130000-0000-0000-0000-0000000000c3', '11111111-0000-0000-0000-000000000001', pg_temp.txt('harmony archive 東京'), now() - interval '1 day', false),
   ('f2131000-0000-0000-0000-0000000000b2', 'f2130000-0000-0000-0000-0000000000c3', '33333333-0000-0000-0000-000000000003', pg_temp.txt('harmonic mallory'), now() - interval '3 days', false);
@@ -82,6 +94,7 @@ SELECT ok((SELECT x.indisvalid FROM pg_index x WHERE x.indexrelid = 'public.idx_
           'the trigram index exists and is valid');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.search_tsquery(text)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.search_document(text)', 'EXECUTE')
+          AND NOT has_function_privilege('authenticated', 'public.search_typo_distance(text[], text)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.search_cjk_grams(text)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.search_fold(text)', 'EXECUTE'),
           'clients cannot call the search helpers');
@@ -91,6 +104,23 @@ SELECT ok(NOT has_function_privilege('anon',
     AND has_function_privilege('authenticated',
     'public.search_messages(text, uuid, uuid[], uuid, uuid, uuid, boolean, boolean, timestamp with time zone, timestamp with time zone, integer, integer, uuid[], uuid[], boolean, boolean, boolean, boolean, boolean, text, boolean)',
     'EXECUTE'), 'search_messages: authenticated yes, anon no');
+
+-- TYPO DISTANCE --------------------------------------------------------------------------
+-- Prefix-sharing words pg_trgm scores as typos; the distance refuses them.
+SELECT ok(extensions.word_similarity('thw', 'this is the thing') >= 0.45
+          AND extensions.word_similarity('meetnig', 'meet me') >= 0.45
+          AND extensions.word_similarity('serer', 'service down') >= 0.45
+          AND extensions.strict_word_similarity('meetnig', 'meet me') > extensions.strict_word_similarity('meetnig', 'meeting at noon'),
+          'trigram similarity takes a shared prefix for a typo');
+SELECT is(public.search_typo_distance(ARRAY['meetnig'], 'meet me'), NULL, 'a row word the query word begins with is not near');
+SELECT is(public.search_typo_distance(ARRAY['serer'], 'service down'), NULL, 'nor a word sharing its first letters');
+SELECT is(public.search_typo_distance(ARRAY['meetnig'], 'meeting at noon'), 1, 'a transposition is one edit');
+SELECT is(public.search_typo_distance(ARRAY['deploymnet'], 'deploymant done'), 2, 'two edits in a long word');
+SELECT is(public.search_typo_distance(ARRAY['serer'], 'seven'), NULL, 'two edits in a five-letter word are too many');
+SELECT is(public.search_typo_distance(ARRAY['harmo'], 'harmony'), 1, 'a row word beginning with the query word is one away');
+SELECT is(public.search_typo_distance(ARRAY['harmony', 'notse'], 'harmony server notes'), 1, 'distances add up over the words');
+SELECT is(public.search_typo_distance(ARRAY['harmony'], repeat('x', 300) || ' harmony'), 0,
+          'a row word over levenshtein''s 255 characters is passed over');
 
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 
@@ -130,15 +160,23 @@ SELECT is(pg_temp.hits('하모니'), ARRAY['05'], 'a hangul word inside a longer
 SELECT is(pg_temp.hits('모하'), '{}'::text[], 'hangul out of order does not match');
 
 -- TYPO FALLBACK --------------------------------------------------------------------------
-SELECT is(pg_temp.hits('harmoyn'), ARRAY['01~', '08~', '11~'], 'a swapped letter falls back to similar words');
+SELECT is(pg_temp.hits('harmoyn'), ARRAY['01~', '08~'], 'a swapped letter falls back to similar words');
 SELECT is(pg_temp.hits('hamony'), ARRAY['01~', '08~'], 'a dropped letter');
+SELECT is(pg_temp.hits('meetnig'), ARRAY['18~'], 'meetnig finds meeting, not meet');
+SELECT is(pg_temp.hits('serer'), ARRAY['01~', '08~'], 'serer finds server, not service');
+SELECT is(pg_temp.hits('server notse'), ARRAY['01~', '08~'], 'a transposition in a five-letter word');
+SELECT is(pg_temp.hits('thw'), '{}'::text[], 'a three-letter word has no fallback');
+SELECT results_eq(
+    $q$SELECT right(message_id::text, 2) FROM public.search_messages(p_query => 'deploymnet',
+          p_channel_ids => ARRAY['f2130000-0000-0000-0000-0000000000c1'::uuid], p_sort => 'newest')$q$,
+    $q$VALUES ('19'), ('20')$q$, 'similar rows sort nearest first, whatever the sort');
 SELECT is(pg_temp.hits('harmony'), ARRAY['01', '08'], 'an exact match is not fuzzy');
 SELECT is(pg_temp.hits('harmoyn -lessons'), '{}'::text[], 'a query with an exclusion has no fallback');
 SELECT is(pg_temp.hits('qzxv'), '{}'::text[], 'a word like nothing finds nothing');
 SELECT is(pg_temp.hits('zq'), '{}'::text[], 'two letters are too short for the fallback');
 SELECT is((SELECT max(total_count) FROM public.search_messages(p_query => 'harmoyn',
               p_channel_ids => ARRAY['f2130000-0000-0000-0000-0000000000c1'::uuid], p_with_total => true)),
-          3::bigint, 'total_count counts the fallback rows');
+          2::bigint, 'total_count counts the fallback rows');
 SELECT is(current_setting('pg_trgm.word_similarity_threshold'), '0.6',
           'the similarity threshold is restored after the fallback');
 
@@ -188,6 +226,15 @@ SELECT is(pg_temp.hits('東京', 'f2130000-0000-0000-0000-0000000000c3'), '{}'::
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(pg_temp.hits('archvie', 'f2130000-0000-0000-0000-0000000000c3'), ARRAY['b1~'],
           'the same fallback finds it for a member who reads history');
+
+-- NO VALID TRIGRAM INDEX -----------------------------------------------------------------
+-- 20261031800002 builds the index after 20261031800001; a failed concurrent build leaves it
+-- invalid. Without it every candidate row would be read.
+SELECT tests.clear_authentication();
+DROP INDEX public.idx_message_search_fold_trgm;
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(pg_temp.hits('hamony'), '{}'::text[], 'without the trigram index there is no typo fallback');
+SELECT is(pg_temp.hits('harmony'), ARRAY['01', '08'], 'exact matches do not use it');
 
 SELECT * FROM finish();
 ROLLBACK;

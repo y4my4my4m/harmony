@@ -14,9 +14,19 @@
  *                 recovery-phrase key that also seals megolm sessions, MegolmService.storageKey),
  *                 AAD `harmony-search-index:v1:<profileId>`. Bytes 0-31: HMAC-SHA-256 term key;
  *                 32-63: AES-256-GCM content key. Imported non-extractable.
- *   postings      t = base64url(HMAC(term))[0..16] (96 bits) -> d = doc numbers.
- *   docs          n (auto), id, room, at (created_at ms), terms (hashes), iv + blob =
- *                 AES-GCM(JSON of the decrypted fields), AAD = message id.
+ *   meta['seq']   last batch number.
+ *   rooms         r (auto) <-> room id.
+ *   postings      t = base64url(HMAC(term))[0..16] (96 bits). One row per batch, room and
+ *                 first character of t, keyed [t[0], r, s]: { t: [n, at, n, at, ...] } for the
+ *                 batch's messages. A batch of new messages writes at most 64 rows per room
+ *                 and reads none; a search reads the rows of its terms' buckets and opens only
+ *                 the messages it returns. Indexing 100 more messages beside 10,000 (src/locales
+ *                 strings: 2,100 postings, 1,417 terms), Chromium 1248 headless: 4 ms; a row
+ *                 per term and batch 490 ms, a list per term (version 1) 634 ms, a row per term
+ *                 and message 860 ms.
+ *   docs          n (auto), id, room, r, s (batch), at (created_at ms), terms (hashes), ph
+ *                 (payload hash), iv + blob = AES-GCM(JSON of the decrypted fields), AAD =
+ *                 message id. A message indexed again unchanged writes nothing.
  *   spans         room -> history ranges the crawl read in full, newest first.
  *   unreadable    message ids the crawl could not decrypt, with room and time.
  * Plain text, words and terms never reach IndexedDB. Room ids, message ids, authors' ids and
@@ -29,7 +39,8 @@ import { indexTerms, type IndexQuery } from '@/utils/searchTokens'
 import type { Message, MessagePart } from '@/types'
 
 export const INDEX_DB_PREFIX = 'harmony_search_index_'
-const DB_VERSION = 1
+/** 2: posting rows per batch, rooms. Version 1 stores are dropped, not converted. */
+const DB_VERSION = 2
 const KEY_INFO = 'harmony-search-index:v1:'
 const HASH_CHARS = 16
 const HASH_CACHE_MAX = 50000
@@ -60,8 +71,12 @@ interface DocRecord {
   n?: number
   id: string
   room: string
+  r?: number
+  s?: number
   at: number
   terms: string[]
+  /** HMAC of the payload; terms are 'w:' or 'c:', the payload 'p:'. */
+  ph: string
   iv: Uint8Array
   blob: ArrayBuffer
 }
@@ -141,20 +156,39 @@ function base64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/** Posting row key: first character of its term hashes, room number, batch number. */
+type RowKey = [string, number, number]
+/** Term hash -> doc numbers and created_at ms, interleaved. */
+type PostingRow = Record<string, number[]>
+/** Doc numbers to take out of posting rows, by row and term hash. */
+type Drops = Map<string, { key: RowKey; terms: Map<string, Set<number>> }>
+
+const rowId = (key: RowKey) => key.join('|')
+
 function openDb(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, DB_VERSION)
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error('Search index open blocked'))
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result
+      // Spans name history whose messages are indexed: they go with the docs.
+      if (event.oldVersion < 2) {
+        for (const store of ['docs', 'postings', 'spans', 'unreadable']) {
+          if (db.objectStoreNames.contains(store)) db.deleteObjectStore(store)
+        }
+      }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'k' })
       if (!db.objectStoreNames.contains('docs')) {
         const docs = db.createObjectStore('docs', { keyPath: 'n', autoIncrement: true })
         docs.createIndex('id', 'id', { unique: true })
         docs.createIndex('room_at', ['room', 'at'])
       }
-      if (!db.objectStoreNames.contains('postings')) db.createObjectStore('postings', { keyPath: 't' })
+      if (!db.objectStoreNames.contains('rooms')) {
+        const rooms = db.createObjectStore('rooms', { keyPath: 'r', autoIncrement: true })
+        rooms.createIndex('room', 'room', { unique: true })
+      }
+      if (!db.objectStoreNames.contains('postings')) db.createObjectStore('postings')
       if (!db.objectStoreNames.contains('spans')) db.createObjectStore('spans', { keyPath: 'room' })
       if (!db.objectStoreNames.contains('unreadable')) {
         const unreadable = db.createObjectStore('unreadable', { keyPath: 'id' })
@@ -207,6 +241,8 @@ async function sealedKeys(db: IDBDatabase, profileId: string, storageKey: Crypto
 
 export class EncryptedSearchIndex {
   private hashCache = new Map<string, string>()
+  /** Committed room numbers; an assignment never changes once committed. */
+  private roomCache = new Map<string, number>()
   private writes: Promise<void> = Promise.resolve()
   private closed = false
 
@@ -252,6 +288,7 @@ export class EncryptedSearchIndex {
     if (this.closed) return
     this.closed = true
     this.hashCache.clear()
+    this.roomCache.clear()
     try { this.db.close() } catch { /* already closed */ }
   }
 
@@ -279,18 +316,19 @@ export class EncryptedSearchIndex {
       sender_verified: message.sender_verified,
       metadata: message.metadata,
     }
+    const json = JSON.stringify(payload)
     const iv = crypto.getRandomValues(new Uint8Array(12))
-    const blob = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv, additionalData: utf8(message.id) },
-      this.keys.aes,
-      utf8(JSON.stringify(payload)),
-    )
-    const terms = await Promise.all([...indexTerms(text)].map(t => this.hash(t)))
+    const [blob, mac, terms] = await Promise.all([
+      crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: utf8(message.id) }, this.keys.aes, utf8(json)),
+      crypto.subtle.sign('HMAC', this.keys.hmac, utf8(`p:${json}`)),
+      Promise.all([...indexTerms(text)].map(t => this.hash(t))),
+    ])
     return {
       id: message.id,
       room: message.channel_id || message.conversation_id || '',
       at: new Date(message.created_at).getTime(),
       terms: [...new Set(terms)],
+      ph: base64url(new Uint8Array(mac)).slice(0, HASH_CHARS),
       iv,
       blob,
     }
@@ -326,7 +364,7 @@ export class EncryptedSearchIndex {
     }
   }
 
-  /** Serializes writes: two batches never read-modify-write the same posting list at once. */
+  /** Serializes writes: a batch reads the docs it replaces before it writes them. */
   private queue(work: () => Promise<void>): Promise<void> {
     const next = this.writes.then(work, work)
     this.writes = next.catch((error) => debug.warn('Search index write failed:', error))
@@ -334,55 +372,133 @@ export class EncryptedSearchIndex {
   }
 
   /**
+   * Room numbers of `rooms` within `tx`, which spans 'rooms'. Unknown rooms are left out, or
+   * numbered when `assign` is given; it collects those numbers, which enter the cache once the
+   * transaction commits (an aborted transaction rolls the key generator back).
+   */
+  private async roomNumbers(
+    tx: IDBTransaction,
+    rooms: string[],
+    assign: Map<string, number> | null,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    const store = tx.objectStore('rooms')
+    await Promise.all(rooms.map(async (room) => {
+      const cached = this.roomCache.get(room)
+      if (cached !== undefined) {
+        out.set(room, cached)
+        return
+      }
+      const row = await req(store.index('room').get(room)) as { r: number } | undefined
+      if (row) {
+        this.roomCache.set(room, row.r)
+        out.set(room, row.r)
+      } else if (assign) {
+        const r = await req(store.add({ room })) as number
+        assign.set(room, r)
+        out.set(room, r)
+      }
+    }))
+    return out
+  }
+
+  /** Adds the postings of `prior` (its terms, room and batch) to `drops`. */
+  private static notePriorRows(drops: Drops, prior: DocRecord): void {
+    if (prior.n === undefined || prior.r === undefined || prior.s === undefined) return
+    for (const t of prior.terms) {
+      const key: RowKey = [t[0], prior.r, prior.s]
+      const id = rowId(key)
+      let row = drops.get(id)
+      if (!row) drops.set(id, row = { key, terms: new Map() })
+      let ns = row.terms.get(t)
+      if (!ns) row.terms.set(t, ns = new Set())
+      ns.add(prior.n)
+    }
+  }
+
+  private static async dropPostings(postings: IDBObjectStore, drops: Drops): Promise<void> {
+    await Promise.all([...drops.values()].map(async ({ key, terms }) => {
+      const row = await req(postings.get(key)) as PostingRow | undefined
+      if (!row) return
+      for (const [t, ns] of terms) {
+        const list = row[t]
+        if (!list) continue
+        const kept: number[] = []
+        for (let i = 0; i < list.length; i += 2) if (!ns.has(list[i])) kept.push(list[i], list[i + 1])
+        if (kept.length) row[t] = kept
+        else delete row[t]
+      }
+      if (Object.keys(row).length) postings.put(row, key)
+      else postings.delete(key)
+    }))
+  }
+
+  /**
    * Adds or replaces decrypted messages. `texts` holds each message's searchable text
    * (utils/searchTokens searchableText). An indexed message no longer unreadable leaves that list.
+   * New messages write their batch's posting rows and read none; a message indexed again with
+   * the same terms writes no posting.
    */
   add(entries: Array<{ message: Message; text: string }>): Promise<void> {
     if (this.closed || entries.length === 0) return Promise.resolve()
     return this.queue(async () => {
-      const records = await Promise.all(entries.map(e => this.seal(e.message, e.text)))
-      if (this.closed) return
-      const tx = this.db.transaction(['docs', 'postings', 'unreadable'], 'readwrite')
+      const sealed = await Promise.all(entries.map(e => this.seal(e.message, e.text)))
+      // One record per id: two adds of an id in one transaction violate the unique index.
+      const records = [...new Map(sealed.map(r => [r.id, r])).values()]
+      if (this.closed || records.length === 0) return
+      const tx = this.db.transaction(['docs', 'postings', 'unreadable', 'rooms', 'meta'], 'readwrite')
       const docs = tx.objectStore('docs')
       const postings = tx.objectStore('postings')
       const unreadable = tx.objectStore('unreadable')
+      const meta = tx.objectStore('meta')
       const finished = done(tx)
 
-      const existing = await Promise.all(records.map(r => req(docs.index('id').get(r.id)) as Promise<DocRecord | undefined>))
-      const added = new Map<string, number[]>()
-      const removed = new Map<string, number[]>()
-      const push = (map: Map<string, number[]>, t: string, n: number) => {
-        const list = map.get(t)
-        if (list) list.push(n)
-        else map.set(t, [n])
-      }
-      await Promise.all(records.map((record, i) => {
-        const prior = existing[i]
-        unreadable.delete(record.id)
-        if (prior?.n !== undefined) {
-          const n = prior.n
-          const next = new Set(record.terms)
-          const before = new Set(prior.terms)
-          for (const t of prior.terms) if (!next.has(t)) push(removed, t, n)
-          for (const t of record.terms) if (!before.has(t)) push(added, t, n)
-          return req(docs.put({ ...record, n })).then(() => n)
+      const assigned = new Map<string, number>()
+      const [numbers, last, existing] = await Promise.all([
+        this.roomNumbers(tx, [...new Set(records.map(r => r.room))], assigned),
+        req(meta.get('seq')) as Promise<{ v: number } | undefined>,
+        Promise.all(records.map(r => req(docs.index('id').get(r.id)) as Promise<DocRecord | undefined>)),
+      ])
+      const s = (last?.v ?? 0) + 1
+      let batched = false
+      const rows = new Map<string, { key: RowKey; row: PostingRow }>()
+      const drops: Drops = new Map()
+      const post = (record: DocRecord, r: number, n: number) => {
+        batched = true
+        for (const t of record.terms) {
+          const key: RowKey = [t[0], r, s]
+          const id = rowId(key)
+          let entry = rows.get(id)
+          if (!entry) rows.set(id, entry = { key, row: {} })
+          ;(entry.row[t] ??= []).push(n, record.at)
         }
-        return req(docs.add(record)).then((n) => {
-          for (const t of record.terms) push(added, t, n as number)
-          return n as number
-        })
-      }))
+      }
 
-      const touched = [...new Set([...added.keys(), ...removed.keys()])]
-      const lists = await Promise.all(touched.map(t => req(postings.get(t)) as Promise<{ t: string; d: number[] } | undefined>))
-      touched.forEach((t, i) => {
-        const set = new Set(lists[i]?.d ?? [])
-        for (const n of added.get(t) ?? []) set.add(n)
-        for (const n of removed.get(t) ?? []) set.delete(n)
-        if (set.size === 0) postings.delete(t)
-        else postings.put({ t, d: [...set] })
-      })
+      await Promise.all(records.map(async (record, i) => {
+        const prior = existing[i]
+        const r = numbers.get(record.room)!
+        if (prior?.n !== undefined) {
+          const terms = new Set(prior.terms)
+          const same = prior.r === r && prior.at === record.at && prior.s !== undefined
+            && prior.terms.length === record.terms.length && record.terms.every(t => terms.has(t))
+          if (same) {
+            if (prior.ph !== record.ph) docs.put({ ...record, r, s: prior.s, n: prior.n })
+            return
+          }
+          EncryptedSearchIndex.notePriorRows(drops, prior)
+          docs.put({ ...record, r, s, n: prior.n })
+          post(record, r, prior.n)
+          return
+        }
+        unreadable.delete(record.id)
+        const n = await req(docs.add({ ...record, r, s })) as number
+        post(record, r, n)
+      }))
+      await EncryptedSearchIndex.dropPostings(postings, drops)
+      if (batched) meta.put({ k: 'seq', v: s })
+      for (const { key, row } of rows.values()) postings.add(row, key)
       await finished
+      for (const [room, r] of assigned) this.roomCache.set(room, r)
     })
   }
 
@@ -392,28 +508,16 @@ export class EncryptedSearchIndex {
     return this.queue(async () => {
       const tx = this.db.transaction(['docs', 'postings', 'unreadable'], 'readwrite')
       const docs = tx.objectStore('docs')
-      const postings = tx.objectStore('postings')
       const finished = done(tx)
       const found = await Promise.all(messageIds.map(id => req(docs.index('id').get(id)) as Promise<DocRecord | undefined>))
-      const removed = new Map<string, number[]>()
+      const drops: Drops = new Map()
       for (const record of found) {
         if (record?.n === undefined) continue
         docs.delete(record.n)
-        for (const t of record.terms) {
-          const list = removed.get(t)
-          if (list) list.push(record.n)
-          else removed.set(t, [record.n])
-        }
+        EncryptedSearchIndex.notePriorRows(drops, record)
       }
       for (const id of messageIds) tx.objectStore('unreadable').delete(id)
-      const touched = [...removed.keys()]
-      const lists = await Promise.all(touched.map(t => req(postings.get(t)) as Promise<{ t: string; d: number[] } | undefined>))
-      touched.forEach((t, i) => {
-        const drop = new Set(removed.get(t))
-        const d = (lists[i]?.d ?? []).filter(n => !drop.has(n))
-        if (d.length === 0) postings.delete(t)
-        else postings.put({ t, d })
-      })
+      await EncryptedSearchIndex.dropPostings(tx.objectStore('postings'), drops)
       await finished
     })
   }
@@ -467,30 +571,38 @@ export class EncryptedSearchIndex {
     })
   }
 
-  /** Doc numbers holding every term of the alternative. */
-  private async candidates(lookups: string[]): Promise<Set<number> | null> {
-    const hashes = await Promise.all(lookups.map(t => this.hash(t)))
-    const store = this.db.transaction('postings', 'readonly').objectStore('postings')
-    const lists = await Promise.all(hashes.map(h => req(store.get(h)) as Promise<{ d: number[] } | undefined>))
-    let out: Set<number> | null = null
-    for (const list of lists.sort((a, b) => (a?.d.length ?? 0) - (b?.d.length ?? 0))) {
-      if (!list) return new Set()
-      if (out === null) {
-        out = new Set(list.d)
-        continue
+  /**
+   * Doc numbers and times of the room's messages in [from, to] holding every hashed term of
+   * the alternative; `rows` holds the room's posting rows by bucket.
+   */
+  private static candidates(
+    rows: Map<string, PostingRow[]>,
+    hashes: string[],
+    from: number,
+    to: number,
+    out: Map<number, number>,
+  ): void {
+    const lists = hashes.map((h) => {
+      const found = new Map<number, number>()
+      for (const row of rows.get(h[0]) ?? []) {
+        const list = row[h]
+        if (!list) continue
+        for (let i = 0; i < list.length; i += 2) {
+          if (list[i + 1] >= from && list[i + 1] <= to) found.set(list[i], list[i + 1])
+        }
       }
-      const next = new Set<number>()
-      for (const n of list.d) if (out.has(n)) next.add(n)
-      out = next
-      if (out.size === 0) return out
+      return found
+    }).sort((a, b) => a.size - b.size)
+    for (const [n, at] of lists[0]) {
+      if (lists.every(l => l.has(n))) out.set(n, at)
     }
-    return out
   }
 
   /**
    * Indexed messages of `rooms` in [from, to] ms whose terms cover the query, newest first
    * (oldest first with `ascending`), decrypted, at most `limit`. A query without terms lists
-   * the rooms' messages. The caller matches the decrypted text: terms only narrow.
+   * the rooms' messages. The caller matches the decrypted text: terms only narrow. `capped`:
+   * candidates remained unopened at the limit.
    */
   async search(
     query: IndexQuery,
@@ -505,38 +617,49 @@ export class EncryptedSearchIndex {
   ): Promise<{ hits: IndexedHit[]; capped: boolean }> {
     if (this.closed) return { hits: [], capped: false }
     await this.writes
-    const rooms = new Set(options.rooms)
     const from = options.from ?? -Infinity
     const to = options.to ?? Infinity
+    if (from > to) return { hits: [], capped: false }
 
-    let records: DocRecord[]
+    let order: Array<{ n: number; at: number }>
     const lookups = query.alternatives.map(a => [...new Set(a.terms.flatMap(t => t.lookup))]).filter(l => l.length)
     if (lookups.length === 0) {
       const store = this.db.transaction('docs', 'readonly').objectStore('docs').index('room_at')
-      const lists = await Promise.all([...rooms].map(room =>
+      const lists = await Promise.all(options.rooms.map(room =>
         req(store.getAll(IDBKeyRange.bound([room, from], [room, to]))) as Promise<DocRecord[]>))
-      records = lists.flat()
+      order = lists.flat().map(d => ({ n: d.n!, at: d.at }))
     } else {
-      const numbers = new Set<number>()
-      for (const lookup of lookups) {
-        const found = await this.candidates(lookup)
-        for (const n of found ?? []) numbers.add(n)
-      }
-      const store = this.db.transaction('docs', 'readonly').objectStore('docs')
-      const found = await Promise.all([...numbers].map(n => req(store.get(n)) as Promise<DocRecord | undefined>))
-      records = found.filter((r): r is DocRecord => !!r && rooms.has(r.room) && r.at >= from && r.at <= to)
+      // Hashing awaits WebCrypto, which would end a transaction left open across it.
+      const hashed = await Promise.all(lookups.map(lookup => Promise.all(lookup.map(t => this.hash(t)))))
+      const buckets = [...new Set(hashed.flat().map(h => h[0]))]
+      const tx = this.db.transaction(['postings', 'rooms'], 'readonly')
+      const postings = tx.objectStore('postings')
+      const numbers = [...(await this.roomNumbers(tx, options.rooms, null)).values()]
+      const found = new Map<number, number>()
+      await Promise.all(numbers.map(async (r) => {
+        const rows = new Map<string, PostingRow[]>()
+        await Promise.all(buckets.map(async (b) => {
+          rows.set(b, await req(postings.getAll(IDBKeyRange.bound([b, r, -Infinity], [b, r, Infinity]))) as PostingRow[])
+        }))
+        for (const hashes of hashed) EncryptedSearchIndex.candidates(rows, hashes, from, to, found)
+      }))
+      order = [...found].map(([n, at]) => ({ n, at }))
     }
 
-    records.sort((a, b) => (options.ascending ? a.at - b.at : b.at - a.at))
+    order.sort(options.ascending ? (a, b) => a.at - b.at || a.n - b.n : (a, b) => b.at - a.at || b.n - a.n)
     const hits: IndexedHit[] = []
     const BATCH = 50
-    for (let i = 0; i < records.length; i += BATCH) {
-      const opened = await Promise.all(records.slice(i, i + BATCH).map(r => this.open(r)))
+    for (let i = 0; i < order.length; i += BATCH) {
+      if (this.closed) break
+      const slice = order.slice(i, i + BATCH)
+      const store = this.db.transaction('docs', 'readonly').objectStore('docs')
+      const records = await Promise.all(slice.map(c => req(store.get(c.n)) as Promise<DocRecord | undefined>))
+      const opened = await Promise.all(records.map(r => (r ? this.open(r) : Promise.resolve(null))))
       for (let j = 0; j < opened.length; j++) {
         const message = opened[j]
         if (!message || !options.accept(message)) continue
-        hits.push({ message, at: records[i + j].at })
-        if (hits.length >= options.limit) return { hits, capped: i + j + 1 < records.length }
+        hits.push({ message, at: slice[j].at })
+        if (hits.length >= options.limit) return { hits, capped: i + j + 1 < order.length }
       }
     }
     return { hits, capped: false }

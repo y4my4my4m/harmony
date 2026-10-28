@@ -15,16 +15,31 @@
 -- lexeme (emoji, symbols).
 --
 -- Typo fallback: when no row matches and the query is words only (no CJK, "phrase",
--- -exclusion or or; three letters or more), rows match on trigram word similarity of
--- search_fold(content_text) above 0.45 and fuzzy is true. The threshold is
--- pg_trgm.word_similarity_threshold, set for the fallback's queries and restored; a
--- function-level SET of it fails CREATE FUNCTION for a non-superuser while pg_trgm is not
--- loaded. 0.45 admits one dropped or swapped letter in a 6-7 letter word (hamony 0.50,
--- harmoyn 0.63) and refuses recieve/receive (0.38).
+-- -exclusion or or), its words of 4 to 64 characters match by edit distance and fuzzy is
+-- true. search_typo_distance(): each such word needs a word of the row within its bound, 1
+-- for 4-5 characters and 2 for longer (Elasticsearch's AUTO fuzziness). Distance is 0 for
+-- the same word, 1 for a row word that begins with it or one adjacent transposition away,
+-- else Levenshtein (fuzzystrmatch). A row word that is a prefix of the query word or shares
+-- only its first letters does not match. pg_trgm similarity, word or strict, scores those
+-- above real typos:
+--                       word_similarity   strict_word_similarity   distance
+--   meetnig  meeting    0.50              0.33                     1
+--   meetnig  meet me    0.50              0.44                     none
+--   archvie  archive    0.50              0.33                     1
+--   archvie  arch       0.50              0.44                     none
+--   serer    service    0.50              0.27                     none
+-- Candidates come through idx_message_search_fold_trgm: word_similarity of the fallback's
+-- words above 0.45 (pg_trgm.word_similarity_threshold, set for the fallback's queries and
+-- restored; a function-level SET of it fails CREATE FUNCTION for a non-superuser while pg_trgm
+-- is not loaded). A swap in a 4-5 letter word keeps few trigrams (wierd/weird 0.20) and is
+-- not found. The fallback runs only while that index exists and is valid; 20261031800002
+-- builds it. Similar rows sort by total distance, then word similarity, then newest,
+-- whatever the sort asked for, over the newest 1,000; total_count counts to 1,000.
+-- 300,000 rows of src/locales strings (en, de, es, fr; 35 characters average), postgres 16:
+-- the distance check adds 10-18 us per in-scope candidate to the trigram recheck's 7-17 us.
 --
 -- Relevance: ts_rank_cd(v, q, 1|32) * (0.7 + 0.3 / (1 + age / 30 days)) over the newest
--- 10,000 matches, or word similarity times the same factor over the newest 1,000 similar
--- rows; total_count counts to 10,001.
+-- 10,000 matches; total_count counts to 10,001.
 --
 -- search_messages gains the result column fuzzy and is recreated.
 --
@@ -49,6 +64,7 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 
 CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA extensions;
 
 -- unaccent() is STABLE because its rules file can change, and normalize() follows the
 -- server's Unicode tables; the index on search_fold() assumes neither changes. A changed rules
@@ -218,6 +234,66 @@ BEGIN
 END;
 $$;
 
+-- Sum over p_words of the distance to the nearest word of p_fold; NULL when a word has none
+-- within its bound. p_words: distinct, folded, 4-64 characters. A row word whose length
+-- differs by more than the bound gets no levenshtein() call, which refuses strings over 255
+-- characters.
+CREATE OR REPLACE FUNCTION public.search_typo_distance(p_words text[], p_fold text)
+RETURNS integer
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+COST 200
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+    v_row text[] := regexp_split_to_array(p_fold, '\W+');
+    v_q text;
+    v_w text;
+    v_len int;
+    v_k int;
+    v_best int;
+    v_d int;
+    v_total int := 0;
+BEGIN
+    FOREACH v_q IN ARRAY p_words LOOP
+        v_len := length(v_q);
+        v_k := CASE WHEN v_len <= 5 THEN 1 ELSE 2 END;
+        v_best := v_k + 1;
+        FOREACH v_w IN ARRAY v_row LOOP
+            IF v_w = v_q THEN
+                v_best := 0;
+                EXIT;
+            END IF;
+            CONTINUE WHEN v_best = 1;
+            IF starts_with(v_w, v_q) THEN
+                v_best := 1;
+                CONTINUE;
+            END IF;
+            CONTINUE WHEN abs(length(v_w) - v_len) > v_k;
+            v_d := extensions.levenshtein_less_equal(v_q, v_w, 2);
+            IF v_d = 2 AND length(v_w) = v_len THEN
+                FOR i IN 1 .. v_len - 1 LOOP
+                    IF v_w = overlay(v_q PLACING substr(v_q, i + 1, 1) || substr(v_q, i, 1) FROM i FOR 2) THEN
+                        v_d := 1;
+                        EXIT;
+                    END IF;
+                END LOOP;
+            END IF;
+            IF v_d < v_best THEN
+                v_best := v_d;
+            END IF;
+        END LOOP;
+        IF v_best > v_k THEN
+            RETURN NULL;
+        END IF;
+        v_total := v_total + v_best;
+    END LOOP;
+    RETURN v_total;
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.search_fold(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.search_fold(text) TO service_role;
 REVOKE ALL ON FUNCTION public.search_cjk_grams(text) FROM PUBLIC, anon, authenticated;
@@ -226,6 +302,8 @@ REVOKE ALL ON FUNCTION public.search_document(text) FROM PUBLIC, anon, authentic
 GRANT EXECUTE ON FUNCTION public.search_document(text) TO service_role;
 REVOKE ALL ON FUNCTION public.search_tsquery(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.search_tsquery(text) TO service_role;
+REVOKE ALL ON FUNCTION public.search_typo_distance(text[], text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.search_typo_distance(text[], text) TO service_role;
 
 -- As 20261026100001 (index_message_row); the vector is search_document().
 CREATE OR REPLACE FUNCTION public.index_message_row(p_message public.messages)
@@ -290,7 +368,8 @@ DROP FUNCTION IF EXISTS public.search_messages(text, uuid, uuid[], uuid, uuid, u
 
 -- As 20261017100001 (search_messages). Text goes through search_tsquery() with the typo
 -- fallback; relevance ranks the newest 10,000 matches with ts_rank_cd and an age factor.
--- Parameters $16 (fold of the fuzzy text) and $17 (fuzzy) are new.
+-- Parameters $16 (the fallback's words, joined), $17 (fuzzy) and $18 (the fallback's words)
+-- are new.
 CREATE FUNCTION public.search_messages(
     p_query text DEFAULT NULL::text,
     p_channel_id uuid DEFAULT NULL::uuid,
@@ -326,6 +405,7 @@ DECLARE
     v_query text := left(nullif(btrim(p_query), ''), 512);
     v_tsq tsquery;
     v_pattern text;
+    v_fuzzy_words text[];
     v_fuzzy_text text;
     v_fuzzy boolean := false;
     v_channels uuid[] := '{}';
@@ -338,7 +418,6 @@ DECLARE
     v_rank text;
     v_total bigint;
     v_threshold text;
-    v_ranked int := 10000;
     -- 2592000 s = 30 days.
     v_age constant text := '(0.7 + 0.3 / (1 + extract(epoch FROM now() - COALESCE(i.created_at, now())) / 2592000))';
 BEGIN
@@ -429,10 +508,16 @@ BEGIN
         IF v_tsq IS NOT NULL THEN
             v_match := ' AND i.content_tsvector @@ $5';
             v_rank := 'ts_rank_cd(i.content_tsvector, $5, 33)';
-            IF v_query !~* '(^|\s)(-|or(\s|$))|"' AND v_query !~ '[々〆ぁ-ヿ㐀-䶿一-鿿豈-﫿가-힯]' THEN
-                v_fuzzy_text := btrim(regexp_replace(public.search_fold(v_query), '\s+', ' ', 'g'));
-                IF length(regexp_replace(v_fuzzy_text, '\W', '', 'g')) < 3 THEN
-                    v_fuzzy_text := NULL;
+            IF v_query !~* '(^|\s)(-|or(\s|$))|"' AND v_query !~ '[々〆ぁ-ヿ㐀-䶿一-鿿豈-﫿가-힯]'
+               AND EXISTS (SELECT 1 FROM pg_index x
+                            WHERE x.indexrelid = to_regclass('public.idx_message_search_fold_trgm')
+                              AND x.indisvalid) THEN
+                v_fuzzy_words := ARRAY(
+                    SELECT DISTINCT w
+                      FROM regexp_split_to_table(public.search_fold(v_query), '\W+') w
+                     WHERE length(w) BETWEEN 4 AND 64);
+                IF cardinality(v_fuzzy_words) > 0 THEN
+                    v_fuzzy_text := array_to_string(v_fuzzy_words, ' ');
                 END IF;
             END IF;
         ELSE
@@ -468,29 +553,43 @@ BEGIN
         PERFORM extensions.word_similarity('', '');
         v_threshold := current_setting('pg_trgm.word_similarity_threshold');
         PERFORM set_config('pg_trgm.word_similarity_threshold', '0.45', true);
-        v_match := ' AND public.search_fold(i.content_text) OPERATOR(extensions.%>) $16';
-        v_rank := 'extensions.word_similarity($16, public.search_fold(i.content_text))';
-        -- word_similarity() costs ~18 us a row; the %> recheck stops at the threshold.
-        v_ranked := 1000;
+        -- The %> recheck runs before the costlier distance; IS NOT NULL keeps the planner's
+        -- row estimate of %> alone.
+        v_match := ' AND public.search_fold(i.content_text) OPERATOR(extensions.%>) $16'
+                || ' AND public.search_typo_distance($18, public.search_fold(i.content_text)) IS NOT NULL';
         IF p_with_total THEN
             EXECUTE 'SELECT count(*) FROM (SELECT 1 FROM message_search_index i WHERE ' || v_where || v_match
-                    || ' LIMIT 10001) s'
+                    || ' LIMIT 1000) s'
                INTO v_total
               USING v_channels, v_conversations, p_server_id, p_conversation_id, v_tsq, v_pattern,
                     v_users, p_mentioned_user_ids, p_from_date, p_to_date, NULL::bigint, NULL::integer,
-                    NULL::integer, v_me, v_cutoffs, v_fuzzy_text;
+                    NULL::integer, v_me, v_cutoffs, v_fuzzy_text, NULL::boolean, v_fuzzy_words;
         END IF;
     END IF;
 
     v_where := v_where || v_match;
     v_sort := coalesce(p_sort, CASE WHEN v_rank IS NOT NULL THEN 'relevance' ELSE 'newest' END);
 
-    IF v_sort = 'relevance' AND v_rank IS NOT NULL THEN
+    IF v_fuzzy THEN
+        RETURN QUERY EXECUTE
+            'SELECT i.message_id, (1.0 / (1 + i.d))::real, i.content_text, i.channel_id,'
+            || ' i.conversation_id, i.user_id, i.created_at, i.server_id, $11, $17'
+            || ' FROM (SELECT i.*, public.search_typo_distance($18, public.search_fold(i.content_text)) AS d,'
+            || ' extensions.word_similarity($16, public.search_fold(i.content_text)) AS s'
+            || ' FROM (SELECT i.* FROM message_search_index i WHERE ' || v_where
+            || ' ORDER BY i.created_at DESC LIMIT 1000) i) i'
+            || ' ORDER BY i.d, i.s DESC, i.created_at DESC, i.message_id DESC'
+            || ' LIMIT $12 OFFSET $13'
+          USING v_channels, v_conversations, p_server_id, p_conversation_id, v_tsq, v_pattern,
+                v_users, p_mentioned_user_ids, p_from_date, p_to_date, v_total,
+                least(greatest(coalesce(p_limit, 50), 1), 201), greatest(coalesce(p_offset, 0), 0),
+                v_me, v_cutoffs, v_fuzzy_text, v_fuzzy, v_fuzzy_words;
+    ELSIF v_sort = 'relevance' AND v_rank IS NOT NULL THEN
         RETURN QUERY EXECUTE
             'SELECT i.message_id, (' || v_rank || ' * ' || v_age || ')::real, i.content_text, i.channel_id,'
             || ' i.conversation_id, i.user_id, i.created_at, i.server_id, $11, $17'
             || ' FROM (SELECT i.* FROM message_search_index i WHERE ' || v_where
-            || ' ORDER BY i.created_at DESC LIMIT ' || v_ranked || ') i'
+            || ' ORDER BY i.created_at DESC LIMIT 10000) i'
             || ' ORDER BY 2 DESC, i.created_at DESC, i.message_id DESC'
             || ' LIMIT $12 OFFSET $13'
           USING v_channels, v_conversations, p_server_id, p_conversation_id, v_tsq, v_pattern,

@@ -1,3 +1,5 @@
+-- harmony:no-transaction
+--
 -- Rewrites content_tsvector of rows indexed before 20261031800001 as search_document() and
 -- builds idx_message_search_fold_trgm, the trigram index behind the typo fallback.
 --
@@ -6,9 +8,11 @@
 -- rehearsal of pending migrations must leave this file out.
 --
 -- Rows already holding search_document(content_text) are skipped, so a rerun writes only what
--- an interrupted run left. An interrupted index build leaves an invalid index; it is dropped
--- before the next build. Writes to messages proceed throughout: a batch locks its 2,000 index
--- rows until it commits, and the concurrent build takes no lock that blocks writes.
+-- an interrupted run left. An interrupted or timed-out index build leaves an invalid index;
+-- it is dropped before the next build, and the file fails while the index is not valid.
+-- search_messages runs no typo fallback until it is. Writes to messages proceed throughout: a
+-- batch locks its 2,000 index rows until it commits, and the concurrent build takes no lock
+-- that blocks writes.
 --
 -- Rehearsal, supabase/postgres:15.8.1.060, 1,000,000 rows with the english-only vector and
 -- every index of the table, 20 message inserts a second alongside: 244 s for both steps;
@@ -59,8 +63,25 @@ BEGIN
 END
 $$;
 
--- A concurrent build waits out every transaction open when it starts; no lock_timeout.
-RESET lock_timeout;
+-- A concurrent build waits, at three points, for transactions open before it; lock_timeout
+-- bounds each wait, so a session idle in a transaction fails the build instead of holding the
+-- deploy. postgres 16, a repeatable-read transaction left open: lock_timeout 2s ended the build
+-- after 2.1 s and left the index invalid.
+SET lock_timeout = '10min';
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_message_search_fold_trgm
     ON public.message_search_index USING gin (public.search_fold(content_text) extensions.gin_trgm_ops);
+
+RESET lock_timeout;
+
+-- IF NOT EXISTS passes over an invalid index of that name.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1
+                     FROM pg_index x
+                    WHERE x.indexrelid = to_regclass('public.idx_message_search_fold_trgm')
+                      AND x.indisvalid) THEN
+        RAISE EXCEPTION 'idx_message_search_fold_trgm is not valid; run 20261031800002 again';
+    END IF;
+END
+$$;
