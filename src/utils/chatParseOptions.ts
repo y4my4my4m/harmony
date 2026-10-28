@@ -34,18 +34,22 @@ export function buildChatParseOptions(isDM: boolean): ContentParseOptions {
   return { hashtags: 'channels', channelDataMap, convertEmoticons }
 }
 
+// A composer role token, `@role:here` or `@role:<uuid>` (unifiedContentProcessing).
+const ROLE_TOKEN = /@role:/
+
 /**
  * ContentParseOptions.massMentions for `text` sent by the signed-in user in a server channel:
  * MENTION_EVERYONE there as get_user_permissions resolves it, which
  * handle_role_mention_notifications also reads, and the server's default role. Undefined when the
- * text types neither word or there is no channel; both then stay text.
+ * text holds neither word nor a role token, or there is no channel; the words and `@role:here`
+ * then stay text.
  */
 export async function resolveChatMassMentions(
   text: string,
   serverId: string | null | undefined,
   channelId: string | null | undefined,
 ): Promise<MassMentionOptions | undefined> {
-  if (!serverId || !channelId || !hasTypedMassMention(text)) return undefined
+  if (!serverId || !channelId || !(hasTypedMassMention(text) || ROLE_TOKEN.test(text))) return undefined
   const profileId = useProfileStore().profile?.id
   if (!profileId) return undefined
   const [allowed, roles] = await Promise.all([

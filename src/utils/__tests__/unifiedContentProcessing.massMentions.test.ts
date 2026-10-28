@@ -110,6 +110,35 @@ describe('typed @everyone and @here', () => {
   })
 })
 
+describe('@role:here and the default role\'s @role:<uuid>', () => {
+  const CREW_ROLE = '00000000-0000-4000-8000-0000000000c1'
+  const roles = { [ROLE.id]: { name: ROLE.name, color: null }, [CREW_ROLE]: { name: 'crew', color: '#00ff00' } }
+  const parseTokens = async (text: string, massMentions?: typeof ALLOWED) =>
+    parseContentToMessageParts(text, {}, {}, {}, roles, { massMentions } as any)
+
+  it('are the mass mentions for an author holding MENTION_EVERYONE', async () => {
+    const parts = await parseTokens(`@role:${ROLE.id} and @role:here`, ALLOWED)
+    expect(kinds(parts)).toEqual([EVERYONE_PART, HERE_PART])
+  })
+
+  it('are text for an author without it', async () => {
+    const parts = await parseTokens(`@role:${ROLE.id} and @role:here`, REFUSED)
+    expect(kinds(parts)).toEqual([])
+    expect(plain(parts)).toBe('@everyone and @here')
+  })
+
+  it('leave another role a role for an author without it', async () => {
+    const parts = await parseTokens(`@role:${CREW_ROLE}`, REFUSED)
+    expect(kinds(parts)).toEqual([{ type: 'role_mention', roleId: CREW_ROLE, roleName: 'crew', roleColor: '#00ff00' }])
+  })
+
+  it('make @role:here text where no channel decides', async () => {
+    const parts = await parseTokens('@role:here standup')
+    expect(kinds(parts)).toEqual([])
+    expect(plain(parts)).toBe('@here standup')
+  })
+})
+
 describe('a user named everyone', () => {
   it('is mentioned with the host', async () => {
     const parts = await parse('hi @everyone@harmony.test', ALLOWED)
