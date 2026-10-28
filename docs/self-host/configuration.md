@@ -110,8 +110,10 @@ Drive. Profile pictures (5 MB), banners (10 MB), server and group icons
 
 A MB is 1,048,576 bytes. **Save** refuses a limit above the ceiling; a limit
 left above a ceiling lowered later counts as the ceiling. An instance updated
-from 1.9.1 starts every limit at the size the upload buckets allowed before,
-50 MB unless you had changed them.
+from 1.9.1 starts every limit at the larger of the two upload buckets' limits
+(`message_media`, `user_media`), 50 MB unless you had changed them. A bucket
+without a limit of its own was bounded by `FILE_SIZE_LIMIT` alone; if that is
+larger, raise the limits in **Config** → **Uploads** after updating.
 
 In **Users**, the upload button of a local account opens that account's
 limit: its role's limit, the limit that applies now, and **Use the tier** or

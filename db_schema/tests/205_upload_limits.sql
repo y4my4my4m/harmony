@@ -9,7 +9,7 @@
 -- upload-length in request.headers.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(51);
+SELECT plan(55);
 
 SELECT set_config('storage.allow_delete_query', 'true', true);
 -- The fixtures' first profile is an instance admin.
@@ -158,6 +158,30 @@ SELECT lives_ok(
     $q$INSERT INTO storage.objects (bucket_id, name, owner)
        VALUES ('message_media', 'u/aaaaaaaa-0000-0000-0000-000000000001/no-length.bin', 'aaaaaaaa-0000-0000-0000-000000000001')$q$,
     'unreadable headers declare nothing; completion still checks the size');
+
+-- Single-request upload: storage-api's permission test runs before the body is read.
+SELECT set_config('request.headers', '{"content-length": "2113537"}', true);
+SELECT throws_like(
+    $q$INSERT INTO storage.objects (bucket_id, name, owner)
+       VALUES ('message_media', 'u/aaaaaaaa-0000-0000-0000-000000000001/body.bin', 'aaaaaaaa-0000-0000-0000-000000000001')$q$,
+    'upload_limit_exceeded:%',
+    'a single-request body over the limit plus 16 KiB of framing is refused before it is stored');
+SELECT set_config('request.headers', '{"content-length": "1064960"}', true);
+SELECT lives_ok(
+    $q$INSERT INTO storage.objects (bucket_id, name, owner)
+       VALUES ('message_media', 'u/aaaaaaaa-0000-0000-0000-000000000001/body-framed.bin', 'aaaaaaaa-0000-0000-0000-000000000001')$q$,
+    'a file at the limit inside multipart framing passes');
+SELECT set_config('request.headers', '{"content-length": "2113537", "tus-resumable": "1.0.0"}', true);
+SELECT lives_ok(
+    $q$INSERT INTO storage.objects (bucket_id, name, owner)
+       VALUES ('message_media', 'u/aaaaaaaa-0000-0000-0000-000000000001/tus-patch.bin', 'aaaaaaaa-0000-0000-0000-000000000001')$q$,
+    'a TUS request''s content-length is a chunk and declares nothing');
+SELECT set_config('request.headers', '{"content-length": "4096", "x-amz-decoded-content-length": "2097152"}', true);
+SELECT throws_like(
+    $q$INSERT INTO storage.objects (bucket_id, name, owner)
+       VALUES ('message_media', 'u/aaaaaaaa-0000-0000-0000-000000000001/s3.bin', 'aaaaaaaa-0000-0000-0000-000000000001')$q$,
+    'upload_limit_exceeded: 2097152 bytes, limit 1048576 bytes',
+    'an S3-protocol upload declares its decoded length');
 SELECT set_config('request.headers', '', true);
 
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');

@@ -44,27 +44,29 @@ SET LOCAL lock_timeout = '5s';
 -- Settings
 -- ---------------------------------------------------------------------------
 
--- Seeds: every tier at the lower of the two buckets' present limits, the ceiling at the higher
--- one or 52428800, so the largest upload an account could make before stays the same.
+-- Seeds: every tier at the higher of the two buckets' limits (52428800 when neither has one), the
+-- ceiling at that or 52428800, whichever is larger. A bucket with no limit was bounded by
+-- FILE_SIZE_LIMIT alone, which SQL cannot read: there the tiers start lower than before until
+-- `harmony config --upload-ceiling` and the admin panel raise them.
 DO $$
 DECLARE
-    v_low bigint;
+    v_tier bigint;
     v_high bigint;
 BEGIN
     IF to_regclass('storage.buckets') IS NOT NULL THEN
         BEGIN
-            SELECT min(b.file_size_limit), max(b.file_size_limit) INTO v_low, v_high
+            SELECT max(b.file_size_limit) INTO v_tier
               FROM storage.buckets b
              WHERE b.id IN ('message_media', 'user_media') AND b.file_size_limit > 0;
         EXCEPTION WHEN insufficient_privilege THEN
             NULL;
         END;
     END IF;
-    v_low := coalesce(v_low, 52428800);
-    v_high := greatest(coalesce(v_high, 52428800), 52428800);
+    v_tier := coalesce(v_tier, 52428800);
+    v_high := greatest(v_tier, 52428800);
 
     INSERT INTO public.instance_config (config_key, config_value, description)
-    SELECT k, to_jsonb(trim_scale(round(v_low / 1048576.0, 2))), d
+    SELECT k, to_jsonb(trim_scale(round(v_tier / 1048576.0, 2))), d
       FROM (VALUES
               ('upload_limit_user_mb', 'Largest file an account uploads, MB'),
               ('upload_limit_moderator_mb', 'Largest file an instance moderator uploads, MB'),
@@ -350,6 +352,7 @@ DECLARE
     v_owner text;
     v_profile uuid;
     v_size bigint;
+    v_headers jsonb;
     v_declared text;
     v_limit bigint;
 BEGIN
@@ -373,12 +376,28 @@ BEGIN
         v_size := (NEW.metadata ->> 'size')::bigint;
     ELSIF TG_OP = 'INSERT' THEN
         BEGIN
-            v_declared := nullif(current_setting('request.headers', true), '')::jsonb ->> 'upload-length';
+            v_headers := nullif(current_setting('request.headers', true), '')::jsonb;
         EXCEPTION WHEN others THEN
-            v_declared := NULL;
+            v_headers := NULL;
         END;
-        IF v_declared ~ '^\d{1,18}$' THEN
-            v_size := v_declared::bigint;
+        -- TUS creation: upload-length. A single-request upload (storage-api canUpload, before
+        -- the body is read): content-length less 16 KiB of multipart framing, or the S3
+        -- protocol's x-amz-decoded-content-length. TUS PATCH bodies are chunks, not files.
+        IF jsonb_typeof(v_headers) = 'object' THEN
+            v_declared := v_headers ->> 'upload-length';
+            IF v_declared ~ '^\d{1,18}$' THEN
+                v_size := v_declared::bigint;
+            ELSIF v_headers ->> 'tus-resumable' IS NULL THEN
+                v_declared := v_headers ->> 'x-amz-decoded-content-length';
+                IF v_declared ~ '^\d{1,18}$' THEN
+                    v_size := v_declared::bigint;
+                ELSE
+                    v_declared := v_headers ->> 'content-length';
+                    IF v_declared ~ '^\d{1,18}$' THEN
+                        v_size := greatest(v_declared::bigint - 16384, 0);
+                    END IF;
+                END IF;
+            END IF;
         END IF;
     END IF;
     IF v_size IS NULL THEN
