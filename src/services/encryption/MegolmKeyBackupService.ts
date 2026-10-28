@@ -128,9 +128,6 @@ export class MegolmKeyBackupService {
   // `${roomId}:${senderUserId}:${sessionId}` → relayed keys awaiting a ciphertext.
   private relayedKeys = new Map<string, RelayedKey[]>()
 
-  // Sweeps of fulfilled requests in flight.
-  private fulfilledSweeps = new Set<Promise<number>>()
-
   private constructor() {}
 
   static getInstance(): MegolmKeyBackupService {
@@ -849,7 +846,6 @@ export class MegolmKeyBackupService {
     this.pendingRequests.clear()
     this.refusals.clear()
     this.relayedKeys.clear()
-    this.fulfilledSweeps.clear()
   }
 
   // BACKUP OPERATIONS
@@ -1280,30 +1276,7 @@ export class MegolmKeyBackupService {
    * them. A relayed row stays 'fulfilled' until a decrypt settles its key.
    * Returns the keys imported or held.
    */
-  processMyFulfilledRequests(): Promise<number> {
-    const sweep = this.sweepMyFulfilledRequests()
-    this.fulfilledSweeps.add(sweep)
-    const done = () => { this.fulfilledSweeps.delete(sweep) }
-    sweep.then(done, done)
-    return sweep
-  }
-
-  /**
-   * Resolves once the sweeps of fulfilled requests in flight have ended, or
-   * after `timeoutMs`. True when one was in flight. Never rejects.
-   */
-  async whenFulfilledSwept(timeoutMs: number): Promise<boolean> {
-    if (this.fulfilledSweeps.size === 0) return false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      Promise.allSettled([...this.fulfilledSweeps]),
-      new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs) }),
-    ])
-    if (timer !== undefined) clearTimeout(timer)
-    return true
-  }
-
-  private async sweepMyFulfilledRequests(): Promise<number> {
+  async processMyFulfilledRequests(): Promise<number> {
     if (!this.userId) return 0
 
     const { data, error } = await supabase

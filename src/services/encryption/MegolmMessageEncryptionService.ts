@@ -246,7 +246,7 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Sessions of this user's fulfilled key requests: the rows the unlock sweep imports
-   * (MegolmKeyBackupService.sweepMyFulfilledRequests), read without the wrapped keys. Needs
+   * (MegolmKeyBackupService.processMyFulfilledRequests), read without the wrapped keys. Needs
    * no unlocked key, so it is known while the unlock still runs.
    */
   private async fulfilledRequestSessions(): Promise<Set<string> | null> {

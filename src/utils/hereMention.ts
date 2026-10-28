@@ -28,8 +28,9 @@ export interface MentionViewer {
  * @everyone included. @here and @everyone reach the members who can view the channel, which a
  * viewer of the message can; who is notified is decided by handle_role_mention_notifications.
  * Parts are read as stored. enforce_message_role_mentions (20261031900001) stores @here and
- * @everyone only for an author holding MENTION_EVERYONE; rows written before it, and the
- * decrypted parts of an encrypted message, are as the author's client wrote them.
+ * @everyone only for an author holding MENTION_EVERYONE; rows written before it are as the
+ * author's client wrote them. A decrypted channel message keeps only the role mentions among its
+ * stored plaintext mention parts (MegolmMessageEncryptionService storedRoleMentionsOnly).
  */
 export function mentionsViewer(content: readonly MessagePart[] | null | undefined, viewer: MentionViewer): boolean {
   if (!Array.isArray(content)) return false

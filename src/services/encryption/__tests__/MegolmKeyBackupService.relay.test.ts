@@ -591,44 +591,4 @@ describe('receiving a fulfilled key', () => {
     expect(megolm.hasInboundSession(ROOM, SENDER, OTHER_SESSION)).toBe(true)
     expect(megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)).toHaveLength(1)
   })
-
-  describe('waiting for the unlock sweep', () => {
-    let open: () => void
-
-    beforeEach(async () => {
-      fulfilledRows = [fulfilled({ encrypted_key: await wrapAs(RELAY, ME, SESSION_KEY), fulfilled_by_user_id: RELAY })]
-      const gate = new Promise<void>(resolve => { open = resolve })
-      ;(supabase.from as any).mockImplementation((table: string) => {
-        const builder = fromMock(table)
-        if (table !== 'megolm_key_requests') return builder
-        const then = builder.then
-        builder.then = (resolve: any, reject: any) => gate.then(() => then(resolve, reject))
-        return builder
-      })
-    })
-
-    afterEach(() => open())
-
-    it('returns at once with no sweep in flight', async () => {
-      expect(await megolmKeyBackupService.whenFulfilledSwept(60_000)).toBe(false)
-    })
-
-    it('ends once the sweep has taken its keys in', async () => {
-      const sweep = megolmKeyBackupService.processMyFulfilledRequests()
-      const waited = megolmKeyBackupService.whenFulfilledSwept(60_000)
-      open()
-      expect(await waited).toBe(true)
-      expect(megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)).toHaveLength(1)
-      expect(await sweep).toBe(1)
-      expect(await megolmKeyBackupService.whenFulfilledSwept(60_000)).toBe(false)
-    })
-
-    it('gives up after its timeout', async () => {
-      const sweep = megolmKeyBackupService.processMyFulfilledRequests()
-      expect(await megolmKeyBackupService.whenFulfilledSwept(20)).toBe(true)
-      expect(megolmKeyBackupService.relayedKeysFor(ROOM, SENDER, SESSION)).toHaveLength(0)
-      open()
-      await sweep
-    })
-  })
 })
