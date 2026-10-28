@@ -33,6 +33,7 @@ const actions = vi.hoisted(() => ({
   handleFileUpload: vi.fn(),
 }))
 vi.mock('@/composables/useComposerActions', () => ({ useComposerActions: () => actions }))
+vi.mock('@/stores/photoDetailsSettings', () => ({ usePhotoDetailsSettingsStore: () => ({ keepByDefault: false, ready: async () => {} }) }))
 vi.mock('@/composables/useAutoSuggest', () => ({
   useAutoSuggest: () => ({
     state: ref({ isActive: false, position: { top: 0, left: 0 }, selectedIndex: 0 }),

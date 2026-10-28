@@ -53,6 +53,7 @@ vi.mock('@/composables/useTypingIndicator', async () => {
 vi.mock('@/composables/useFrequentEmojis', () => ({ useFrequentEmojis: () => ({ recordEmojiUsage: vi.fn() }) }))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserDisplayName: () => ({ value: 'Unknown User' }) }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: null }) }))
+vi.mock('@/stores/photoDetailsSettings', () => ({ usePhotoDetailsSettingsStore: () => ({ keepByDefault: false, ready: async () => {} }) }))
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => serverChannelStore }))
 vi.mock('@/stores/useInstanceSettings', () => ({
   useInstanceSettingsStore: () => ({ settings: { maxMessageLength: 100, maxMediaAttachmentsPerPost: 20 } }),

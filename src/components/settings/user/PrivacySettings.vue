@@ -66,6 +66,21 @@
         </div>
       </div>
 
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-t4`">{{ $t('photoDetails.settings.keepByDefault') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t4-desc`">{{ $t('photoDetails.settings.keepByDefaultDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch :labelledby="`${a11yId}-t4`" :describedby="`${a11yId}-t4-desc`"
+            :model-value="photoDetails.keepByDefault"
+            :disabled="!photoDetails.signedIn"
+            data-testid="keep-photo-details-default-toggle"
+            @change="onKeepPhotoDetailsChange"
+          />
+        </div>
+      </div>
+
     </div>
 
     <div class="settings-section" data-testid="outside-link-settings">
@@ -187,6 +202,7 @@ import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 import { useOutsideLinkSettingsStore } from '@/stores/outsideLinkSettings'
+import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -233,6 +249,19 @@ const onUrlStripChange = () => {
 
 // Outside links (stores/outsideLinkSettings): saved per account as they change.
 const outsideLinks = useOutsideLinkSettingsStore()
+
+// Photo details (stores/photoDetailsSettings): saved per account as it changes.
+const photoDetails = usePhotoDetailsSettingsStore()
+
+const onKeepPhotoDetailsChange = async (value: boolean) => {
+  try {
+    await photoDetails.setKeepByDefault(value)
+    toast.success(t('settings.toasts.privacyUpdated'))
+  } catch (error) {
+    debug.error('Failed to save keep-photo-details:', error)
+    toast.error(t('photoDetails.settings.saveFailed'))
+  }
+}
 
 const onAskEveryLinkChange = async (value: boolean) => {
   try {
@@ -336,6 +365,7 @@ onMounted(async () => {
   stripUrlTrackers.value = isUrlTrackingStrippingEnabled()
   // Another device may have trusted a host since this one loaded.
   void outsideLinks.reload()
+  void photoDetails.reload()
 
   const profileId = props.profile?.id
   if (profileId && Date.now() - blocksMutesLastFetchedAt > CACHE_TTL_MS) {

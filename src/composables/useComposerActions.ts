@@ -14,6 +14,8 @@ import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import { i18n } from '@/i18n'
 import { emoticonPreferences } from '@/composables/useVisualTheme'
+import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings'
+import { readMediaDetails } from '@/utils/stripMetadata'
 
 export interface ComposerActionsOptions {
   content: Ref<string>;
@@ -94,6 +96,23 @@ export function useComposerActions(options: ComposerActionsOptions) {
     });
   };
 
+  const photoDetailsSettings = usePhotoDetailsSettingsStore();
+
+  /**
+   * Adds a picked photo or video with the account's keep-details default, once a load of that
+   * default in flight has landed; its details follow.
+   */
+  const addMediaAttachment = async (attachment: MediaAttachment, file: File) => {
+    await photoDetailsSettings.ready();
+    if (!options.canAddMedia.value) return;
+    attachment.keepDetails = photoDetailsSettings.keepByDefault;
+    options.mediaAttachments.value.push(attachment);
+    const added = options.mediaAttachments.value[options.mediaAttachments.value.length - 1];
+    void readMediaDetails(file).then((details) => {
+      if (added.file === file) added.photoDetails = details;
+    });
+  };
+
   /**
    * Handle file selection and create media attachments
    */
@@ -120,7 +139,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
           file: file
         };
 
-        options.mediaAttachments.value.push(attachment);
+        await addMediaAttachment(attachment, file);
       }
     }
 
@@ -176,7 +195,7 @@ export function useComposerActions(options: ComposerActionsOptions) {
           file: file
         };
 
-        options.mediaAttachments.value.push(attachment);
+        void addMediaAttachment(attachment, file);
       }
     }
   };

@@ -73,6 +73,8 @@ export interface OutboxAttachment {
   driveName?: string
   /** False for new bytes (a recording): the upload skips the Drive hash lookup. */
   reuse?: boolean
+  /** An upload the outbox starts keeps the photo's or video's metadata. */
+  keepMetadata?: boolean
 }
 
 export interface OutboxRequest {
@@ -96,6 +98,7 @@ export interface OutboxFile {
   temporary?: boolean
   driveName?: string
   reuse?: boolean
+  keepMetadata?: boolean
   name: string
   /** Name the object name's extension derives from. */
   sourceName: string
@@ -273,6 +276,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       ...(attachment.temporary ? { temporary: true } : {}),
       ...(attachment.driveName ? { driveName: attachment.driveName } : {}),
       ...(attachment.reuse === false ? { reuse: false } : {}),
+      ...(attachment.keepMetadata ? { keepMetadata: true } : {}),
     }
     const handle = attachment.upload
     if (attachment.uploadedPath && attachment.uploadedUrl) {
@@ -340,6 +344,7 @@ export const useOutboxStore = defineStore('outbox', () => {
         name: file.driveName,
         ephemeral: file.temporary,
         reuse: file.reuse,
+        keepMetadata: file.keepMetadata,
       }))
       const id = job.id
       file.upload.state.cancel = () => discard(id)

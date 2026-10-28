@@ -38,7 +38,13 @@ export interface DriveFile {
   updated_at: string
   /** The file's /d/ address token (driveTokenUrl). */
   link_token: string
+  /** What the uploading client did with a photo's metadata; null: unknown (older uploads). */
+  photo_details?: PhotoDetailsRecord | null
+  /** A kept photo carries a GPS position. */
+  photo_location?: boolean | null
 }
+
+export type PhotoDetailsRecord = 'none' | 'removed' | 'kept'
 
 export interface DriveOwner {
   id: string
@@ -192,6 +198,10 @@ export interface DriveUploadMetadata {
   name?: string
   ephemeral?: boolean
   folder?: string
+  /** Photos and videos: drive_files.photo_details (20261101100002_drive_photo_details.sql). */
+  details?: PhotoDetailsRecord
+  /** The kept bytes carry a GPS position. */
+  location?: boolean
 }
 
 export interface DriveListQuery {

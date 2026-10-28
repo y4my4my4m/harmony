@@ -17,6 +17,12 @@ const outsideLinks = vi.hoisted(() => ({
   setAskEveryLink: vi.fn(async (_on: boolean) => {}),
   untrust: vi.fn(async (_host: string) => {}),
 }))
+const photoDetails = vi.hoisted(() => ({
+  keepByDefault: false,
+  signedIn: true,
+  reload: vi.fn(async () => {}),
+  setKeepByDefault: vi.fn(async (_on: boolean) => {}),
+}))
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -28,6 +34,11 @@ vi.mock('@/stores/outsideLinkSettings', async () => {
   const { reactive } = await import('vue')
   const store = reactive(outsideLinks)
   return { useOutsideLinkSettingsStore: () => store }
+})
+vi.mock('@/stores/photoDetailsSettings', async () => {
+  const { reactive } = await import('vue')
+  const store = reactive(photoDetails)
+  return { usePhotoDetailsSettingsStore: () => store }
 })
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerToggle: vi.fn() }) }))
 vi.mock('@/utils/urlTrackerStripper', () => ({
@@ -90,6 +101,7 @@ beforeEach(() => {
   updates = []
   failUpdate = false
   outsideLinks.askEveryLink = false
+  photoDetails.keepByDefault = false
   outsideLinks.hostList = []
   ;(supabase.from as any).mockImplementation(query)
 })
@@ -191,5 +203,28 @@ describe('PrivacySettings outside links', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="trusted-sites-empty"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="trusted-sites"]').exists()).toBe(false)
+  })
+})
+
+describe('PrivacySettings photo details', () => {
+  it('saves keep-photo-details-by-default on change and confirms it', async () => {
+    const wrapper = mountSettings()
+    await flushPromises()
+    expect(photoDetails.reload).toHaveBeenCalled()
+    const toggle = wrapper.get('[data-testid="keep-photo-details-default-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(photoDetails.setKeepByDefault).toHaveBeenCalledWith(true)
+    expect(toast.success).toHaveBeenCalledWith('settings.toasts.privacyUpdated')
+  })
+
+  it('says when the setting could not be saved', async () => {
+    photoDetails.setKeepByDefault.mockRejectedValueOnce(new Error('denied'))
+    const wrapper = mountSettings()
+    await flushPromises()
+    await wrapper.get('[data-testid="keep-photo-details-default-toggle"]').trigger('click')
+    await flushPromises()
+    expect(toast.error).toHaveBeenCalledWith('photoDetails.settings.saveFailed')
   })
 })

@@ -1,5 +1,6 @@
 // Split out of the former monolithic src/types.ts. Import via '@/types'.
 import type { MessagePart, Profile, DisplayNamePart } from './chat'
+import type { MediaDetails } from '@/utils/stripMetadata'
 
 // ACTIVITYPUB / MONYVERSE FEDERATION TYPES
 
@@ -88,6 +89,10 @@ export interface MediaAttachment {
   file?: File; // Original File reference for reliable uploads
   /** A private Drive chat file; posting copies it into public post media. */
   drivePath?: string;
+  /** What `file` carries; read after it is attached. */
+  photoDetails?: MediaDetails;
+  /** Upload `file` with its location, camera and other metadata. */
+  keepDetails?: boolean;
 }
 
 export interface ActivityPubFollow {

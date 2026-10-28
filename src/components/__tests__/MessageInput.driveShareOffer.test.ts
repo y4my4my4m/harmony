@@ -46,6 +46,7 @@ vi.mock('@/composables/useTypingIndicator', async () => {
 })
 vi.mock('@/composables/useFrequentEmojis', () => ({ useFrequentEmojis: () => ({ recordEmojiUsage: vi.fn() }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'uid-1' } } }) }))
+vi.mock('@/stores/photoDetailsSettings', () => ({ usePhotoDetailsSettingsStore: () => ({ keepByDefault: false, ready: async () => {} }) }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ channels: [], currentServerId: null, currentChannelId: null }),
 }))

@@ -8,8 +8,8 @@ import { userStorage } from '@/utils/userScopedStorage'
  * Attachments of unsent message drafts, per account and draft key (drafts.ts makeKey).
  *
  * A composer shows the list of its draft key. The list outlives the composer: previews,
- * alt text, spoiler and temporary flags and running uploads stay with the draft through a
- * view change, as its text does. Module state for the session; File and Blob objects do
+ * alt text, spoiler, temporary and keep-photo-details flags and running uploads stay with the
+ * draft through a view change, as its text does. Module state for the session; File and Blob objects do
  * not serialize.
  *
  * Completed uploads are also kept in user-scoped storage by object name. A reload restores
@@ -35,6 +35,10 @@ interface StoredAttachment {
   temporary?: boolean
   reused?: boolean
   fromDrive?: boolean
+  /** What the picked file carried (stripMetadata readMediaDetails). */
+  photo?: { location: boolean; details: boolean }
+  keepDetails?: boolean
+  driveSource?: string
 }
 
 const EMPTY = Object.freeze([]) as unknown as FilePreviewData[]
@@ -159,6 +163,11 @@ export function openDraftAttachments(key: string): () => void {
   }
 }
 
+function isStoredPhoto(value: unknown): value is { location: boolean; details: boolean } {
+  const v = value as { location?: unknown; details?: unknown } | null
+  return !!v && typeof v.location === 'boolean' && typeof v.details === 'boolean'
+}
+
 function isStoredAttachment(value: unknown): value is StoredAttachment {
   const v = value as StoredAttachment
   return !!v && typeof v.name === 'string' && typeof v.type === 'string' && typeof v.size === 'number'
@@ -198,6 +207,11 @@ function restoreStored(who: string): void {
           ...(entry.temporary ? { temporary: true } : {}),
           ...(entry.reused ? { reused: true } : {}),
           ...(entry.fromDrive ? { fromDrive: true } : {}),
+          ...(isStoredPhoto(entry.photo)
+            ? { photoDetails: { container: null, location: entry.photo.location, details: entry.photo.details } }
+            : {}),
+          ...(typeof entry.keepDetails === 'boolean' ? { keepDetails: entry.keepDetails } : {}),
+          ...(typeof entry.driveSource === 'string' && entry.driveSource ? { driveSource: entry.driveSource } : {}),
         }
         savedAt.set(file, entry.savedAt)
         return file
@@ -244,6 +258,9 @@ function storable(who: string, stamp?: (file: FilePreviewData) => number): Recor
         ...(file.temporary ? { temporary: true } : {}),
         ...(file.reused ? { reused: true } : {}),
         ...(file.fromDrive ? { fromDrive: true } : {}),
+        ...(file.photoDetails ? { photo: { location: file.photoDetails.location, details: file.photoDetails.details } } : {}),
+        ...(typeof file.keepDetails === 'boolean' ? { keepDetails: file.keepDetails } : {}),
+        ...(file.driveSource ? { driveSource: file.driveSource } : {}),
       }))
     if (kept.length > 0) record[key] = kept
   }

@@ -222,9 +222,9 @@ export const useDriveStore = defineStore('drive', () => {
 
   /**
    * Uploads files into Drive itself (u/<auth uid>/...), into `folderId`. Progress shows in the
-   * transfers indicator, on any page.
+   * transfers indicator, on any page. Files in `keepDetails` keep their photo and video metadata.
    */
-  function uploadFiles(list: File[], folderId: string | null): MessageMediaUpload[] {
+  function uploadFiles(list: File[], folderId: string | null, keepDetails?: ReadonlySet<File>): MessageMediaUpload[] {
     const uid = useAuthStore().session?.user?.id
     if (!uid) return []
     return list.map((file) => {
@@ -235,6 +235,7 @@ export const useDriveStore = defineStore('drive', () => {
         reuse: false,
         folder: folderId,
         resumeKey: `u/${uid}`,
+        keepMetadata: keepDetails?.has(file) ?? false,
       }))
       upload.result.catch(() => {}).finally(() => {
         void loadFiles()

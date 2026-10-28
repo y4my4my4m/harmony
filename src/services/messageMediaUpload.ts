@@ -1,5 +1,7 @@
 import { shallowReactive } from 'vue'
 import { i18n } from '@/i18n'
+import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 import { getBucketLimits, validateImageUpload } from '@/utils/uploadValidation'
 import {
   MESSAGE_MEDIA_BUCKET,
@@ -25,6 +27,7 @@ import {
   type UploadState,
 } from '@/services/uploads/storageUpload'
 import { UploadLimitError, checkUploadLimit, getUploadLimit } from '@/services/uploads/uploadLimit'
+import { readMediaDetails, stripMediaMetadata } from '@/utils/stripMetadata'
 
 export { UPLOAD_STALL_MS, UploadAbortedError } from '@/services/uploads/storageUpload'
 
@@ -36,6 +39,9 @@ export { UPLOAD_STALL_MS, UploadAbortedError } from '@/services/uploads/storageU
  * On an instance with Drive the upload carries its SHA-256 and name (none for encrypted
  * rooms), and a file the account already keeps in Drive with the same SHA-256 is not sent
  * again: the result names that object (`reused`).
+ *
+ * Photo and video metadata is removed before the hash unless `keepMetadata`: the SHA-256 and
+ * size describe the bytes stored.
  *
  * Upload state is kept per object name and is reactive, so any render of a part
  * naming the object reads its progress.
@@ -67,6 +73,15 @@ export interface MessageMediaUploadOptions {
   resumeKey?: string
   /** The starting page shows the progress (storageUpload.ts ownProgress). */
   ownProgress?: boolean
+  /** Upload the photo or video with its location, camera and other metadata. */
+  keepMetadata?: boolean
+}
+
+/** Bytes of an object already stored, fetched when the upload starts. */
+export interface StoredSource {
+  name: string
+  size: number
+  fetch(signal: AbortSignal): Promise<File>
 }
 
 export interface MessageMediaUpload {
@@ -97,6 +112,19 @@ export function prepareMessageMediaUploads(): void {
   void driveAvailable()
 }
 
+/**
+ * Deletes a completed upload no message names. A refused delete leaves the object to the
+ * unreferenced-object sweep.
+ */
+export async function discardMessageMediaUpload(path: string): Promise<void> {
+  try {
+    const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).remove([path])
+    if (error) throw error
+  } catch (error) {
+    debug.warn('Deleting a replaced upload failed', error)
+  }
+}
+
 /** Drops every upload state; sign-out. Running requests are aborted by their owners. */
 export function resetMessageMediaUploads(): void {
   states.clear()
@@ -123,37 +151,47 @@ export async function validateChatUpload(file: Blob): Promise<void> {
  */
 export function startMessageMediaUpload(
   path: string,
-  file: Blob,
+  file: Blob | StoredSource,
   options: MessageMediaUploadOptions = {},
 ): MessageMediaUpload {
-  const state = newUploadState(file.size)
+  const stored = file instanceof Blob ? null : file
+  const state = newUploadState(stored ? stored.size : (file as Blob).size)
   states.set(path, state)
   let inner: StorageUpload | null = null
   let aborted = false
+  const fetching = new AbortController()
 
-  const label = options.label ?? options.name ?? ((file as File).name || undefined)
+  const label = options.label ?? options.name ?? (stored ? stored.name : ((file as File).name || undefined))
 
   const transfer = async (): Promise<{ path: string; reused: boolean }> => {
     if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
     // Validation (bucket limits) and the Drive probe are independent reads, once per session each.
     const drive = driveAvailable()
-    if (options.validate) await validateChatUpload(file)
+    const original = stored ? await stored.fetch(fetching.signal) : file as Blob
+    if (aborted) throw new UploadAbortedError()
+    const source = options.keepMetadata ? original : await stripMediaMetadata(original)
+    if (options.validate) await validateChatUpload(source)
     // Before the hash: a file over the account's limit is not read.
     try {
-      await checkUploadLimit(MESSAGE_MEDIA_BUCKET, file, label)
+      await checkUploadLimit(MESSAGE_MEDIA_BUCKET, source, label)
     } catch (error) {
-      if (error instanceof UploadLimitError) listRefusedUpload(label, file.size, error.message)
+      if (error instanceof UploadLimitError) listRefusedUpload(label, source.size, error.message)
       throw error
     }
     const metadata: DriveUploadMetadata = {}
     if (await drive) {
-      metadata.sha256 = await sha256OfBlob(file)
+      metadata.sha256 = await sha256OfBlob(source)
       if (options.name) metadata.name = options.name
       if (options.ephemeral) metadata.ephemeral = true
       if (options.folder) metadata.folder = options.folder
+      const photo = await readMediaDetails(original)
+      if (photo.container) {
+        metadata.details = !photo.details ? 'none' : options.keepMetadata ? 'kept' : 'removed'
+        if (options.keepMetadata && photo.location) metadata.location = true
+      }
       if (options.reuse !== false) {
         const existing = (await findDriveFilesByHash(metadata.sha256).catch(() => []))
-          .find((f) => f.bucket === MESSAGE_MEDIA_BUCKET && f.state === 'drive' && f.size_bytes === file.size)
+          .find((f) => f.bucket === MESSAGE_MEDIA_BUCKET && f.state === 'drive' && f.size_bytes === source.size)
         if (existing) return { path: existing.path, reused: true }
       }
     }
@@ -162,7 +200,8 @@ export function startMessageMediaUpload(
     inner = startStorageUpload({
       bucket: MESSAGE_MEDIA_BUCKET,
       path,
-      file,
+      file: source,
+      keepMetadata: options.keepMetadata,
       cacheControl: DEFAULT_CACHE_CONTROL,
       metadata: metadata as Record<string, unknown>,
       label,
@@ -216,6 +255,7 @@ export function startMessageMediaUpload(
     abort() {
       if (aborted || state.status === 'completed') return
       aborted = true
+      fetching.abort()
       inner?.abort()
     },
   }

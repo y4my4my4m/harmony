@@ -5,6 +5,7 @@ import { humanizeUploadError } from '@/utils/uploadValidation'
 import { registerTransfer, settleTransfer, type TransferEntry, type TransferProgress } from '@/services/transfers'
 import { immutableUploadOptions, type PreparedImage } from '@/utils/imageResize'
 import { checkUploadLimit, limitRefusal } from '@/services/uploads/uploadLimit'
+import { stripMediaMetadata } from '@/utils/stripMetadata'
 
 /**
  * Every storage upload of the app: progress, abort, the transfers indicator, and resumable
@@ -77,6 +78,11 @@ export interface StorageUploadOptions {
   resumeKey?: string
   /** State to write instead of a new one. */
   state?: UploadState
+  /**
+   * Photo and video metadata (location, camera) goes up as picked; removed on the device first
+   * otherwise (utils/stripMetadata.ts).
+   */
+  keepMetadata?: boolean
 }
 
 export interface StorageUploadResult {
@@ -738,6 +744,14 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
   }
 
   const transfer = async (): Promise<string> => {
+    if (!options.keepMetadata) {
+      const file = await stripMediaMetadata(options.file)
+      if (file !== options.file) {
+        options = { ...options, file }
+        state.total = file.size
+      }
+      if (link.aborted) throw new UploadAbortedError()
+    }
     await checkUploadLimit(options.bucket, options.file, options.label)
     try {
       return await send()

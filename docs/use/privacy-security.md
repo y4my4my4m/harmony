@@ -224,6 +224,21 @@ A masked link shows its own text in place of its address: `[text](https://…)` 
 - **Ask before opening any outside link** shows the check for every link to another site. Off by default.
 - In a browser, a middle click or Ctrl/⌘-click on a masked link shows the check too, and **Open link** opens a new tab. The browser's own right-click **Open link in new tab** does not ask.
 
+## Photo and video details
+
+Photos and videos usually carry details the camera wrote into the file: where they were taken (GPS), the camera or phone model, its serial number, and editing software. Harmony removes these on your device, before the file is uploaded, for every photo and video you attach to a message, a direct message, a thread or a post, and for files you upload to Drive. Encrypted conversations are no exception: the attachment itself is not encrypted, so its details are removed the same way.
+
+- An attachment that carries details shows **Keep photo details (location, camera)**, off by default. Tick it to upload the file as it is.
+- A file that carries a location also shows **Location removed**, or **Includes location** while **Keep photo details** is ticked.
+- In Drive, uploading photos or videos that carry details first lists them, each with its own **Keep photo details**, before **Upload**.
+- A Drive file kept with its details shows the same box when you attach it to a message or post it. Unless you tick it there too, Harmony sends a copy without the details; the file in your Drive stays as it is. Files uploaded to Drive before Harmony 1.9.2 are checked when you attach them.
+- Bots and bridges cannot keep details either: files the instance copies for them are stored without.
+- **User settings** → **Privacy & safety** → **Keep photo details by default** ticks the box for every new attachment. It follows your account to every device. Off by default.
+- Profile pictures, banners, server and group icons, emoji and stickers never keep their details.
+- Photos stay upright: their orientation is kept.
+
+Removed: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF; location, camera and other metadata boxes from MP4 and MOV. Nothing is re-encoded. Other formats are uploaded as they are.
+
 ## Other privacy settings
 
 **User settings** → **Privacy & safety** also has:
