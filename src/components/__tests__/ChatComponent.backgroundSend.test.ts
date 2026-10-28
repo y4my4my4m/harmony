@@ -275,6 +275,23 @@ describe('ChatComponent send with uploads running', () => {
   })
 })
 
+describe('ChatComponent send of an attachment without bytes on the device', () => {
+  it('queues a Drive photo with the stored object its upload reads', async () => {
+    const source = `u/${UID}/beach.jpg`
+    const fetched = vi.fn(async () => new Response(new Uint8Array(2058).fill(7)))
+    vi.stubGlobal('fetch', fetched)
+    const wrapper = mountChat()
+    const placeholder: FilePreviewData = {
+      file: new File([], 'beach.jpg', { type: 'image/jpeg' }), name: 'beach.jpg', size: 2058, type: 'image/jpeg',
+      uploadStatus: 'pending', driveSource: source, sourcePath: source,
+    }
+    wrapper.findComponent({ name: 'MessageInput' }).vm.$emit('sendMessage', '', [placeholder], undefined)
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
+    expect(fetched).toHaveBeenCalledWith(`https://signed/${source}`, expect.anything())
+    expect(displayed(wrapper)[0]).toMatchObject({ sending: true, failed: false })
+  })
+})
+
 describe('ChatComponent with a failed outbox row', () => {
   it('discards the outbox job when the row is deleted', async () => {
     const wrapper = mountChat()

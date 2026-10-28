@@ -974,6 +974,7 @@
       "progress": "Wird hochgeladen, {percent} %",
       "failed": "Upload fehlgeschlagen",
       "failedToast": "{name} konnte nicht hochgeladen werden: {reason}",
+      "originalGone": "Die Originaldatei ist nicht mehr auf diesem Gerät. Hänge sie erneut an.",
       "removeFailed": "Entferne die Anhänge, deren Upload fehlgeschlagen ist, und sende erneut.",
       "sendWhenDone": "Wird gesendet, sobald die Uploads abgeschlossen sind.",
       "voiceFailed": "Die Sprachnachricht konnte nicht hochgeladen werden.",

@@ -19,9 +19,9 @@ const handles: Array<{
   source: unknown
   options: { keepMetadata?: boolean }
   state: { progress: number; status: string; error: string | null }
-  result: Promise<{ path: string; url: string }>
+  result: Promise<{ path: string; url: string; reused?: boolean }>
   abort: ReturnType<typeof vi.fn>
-  resolve: (value: { path: string; url: string }) => void
+  resolve: (value: { path: string; url: string; reused?: boolean }) => void
   reject: (error: Error) => void
 }> = []
 
@@ -82,9 +82,9 @@ vi.mock('@/services/messageMediaUpload', async () => {
     forgetMessageMediaUpload: vi.fn(),
     prepareMessageMediaUploads: vi.fn(),
     startMessageMediaUpload: vi.fn((path: string, source: unknown, options: { keepMetadata?: boolean }) => {
-      let resolve!: (value: { path: string; url: string }) => void
+      let resolve!: (value: { path: string; url: string; reused?: boolean }) => void
       let reject!: (error: Error) => void
-      const result = new Promise<{ path: string; url: string }>((res, rej) => { resolve = res; reject = rej })
+      const result = new Promise<{ path: string; url: string; reused?: boolean }>((res, rej) => { resolve = res; reject = rej })
       result.catch(() => {})
       const handle = { path, source, options, state: vueReactive({ progress: 0, status: 'uploading', error: null }), result, abort: vi.fn(), resolve, reject }
       handles.push(handle)
@@ -138,6 +138,7 @@ vi.mock('@/components/RichTextEditor.vue', async () => {
 
 import MessageInput from '../MessageInput.vue'
 import type { FilePreviewData } from '../FilePreview.vue'
+import { draftAttachments, resetDraftAttachments, setDraftAttachments } from '@/stores/draftAttachments'
 
 const JPEG = readFileSync(resolve(__dirname, '../../../tests/fixtures/media-metadata/gps-rotated.jpg'))
 
@@ -264,6 +265,29 @@ describe('MessageInput photo details', () => {
       wrapper.unmount()
     })
 
+    it('strips a kept upload that matched a Drive file from that file and deletes nothing', async () => {
+      settings.keepByDefault = true
+      const wrapper = mountInput()
+      await attach(wrapper, photo())
+      handles[0].resolve({ path: 'u/uid-1/existing.jpg', url: 'https://signed/existing', reused: true })
+      await flushPromises()
+      const [file] = previews(wrapper)
+      expect(file).toMatchObject({ reused: true, uploadedPath: 'u/uid-1/existing.jpg' })
+      file.file = new File([], file.name, { type: file.type })
+
+      wrapper.findComponent({ name: 'FilePreview' }).vm.$emit('set-keep-details', 0, false)
+      await flushPromises()
+      expect(handles).toHaveLength(2)
+      expect(handles[1].options.keepMetadata).toBe(false)
+      expect(handles[1].source).toMatchObject({ storedPath: 'u/uid-1/existing.jpg' })
+      handles[1].resolve({ path: handles[1].path, url: 'https://signed/second' })
+      await flushPromises()
+      expect(previews(wrapper)[0]).toMatchObject({ uploadStatus: 'completed', uploadedPath: handles[1].path })
+      // The matched Drive file is the user's.
+      expect(discarded).toEqual([])
+      wrapper.unmount()
+    })
+
     it('cannot keep details its stripped upload no longer has', async () => {
       const wrapper = mountInput()
       await attach(wrapper, photo())
@@ -274,6 +298,24 @@ describe('MessageInput photo details', () => {
       expect(handles).toHaveLength(1)
       wrapper.unmount()
     })
+  })
+
+  it('fails a placeholder with no stored object instead of uploading it empty', async () => {
+    resetDraftAttachments()
+    setDraftAttachments('d1', [{
+      file: new File([], 'beach.jpg', { type: 'image/jpeg' }), name: 'beach.jpg', size: 2058, type: 'image/jpeg', uploadStatus: 'pending',
+    }])
+    const wrapper = mount(MessageInput, {
+      props: { modelValue: '', channelId: '66666666-0000-4000-8000-000000000006', draftKey: 'd1' },
+      global: { mocks: { $t: (key: string) => key } },
+    })
+    wrapper.findComponent({ name: 'RichTextEditor' }).vm.$emit('keydown', new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(handles).toHaveLength(0)
+    expect(draftAttachments('d1')[0]).toMatchObject({ uploadStatus: 'error', uploadError: 'message.upload.originalGone' })
+    expect(wrapper.emitted('sendMessage')).toBeUndefined()
+    wrapper.unmount()
+    resetDraftAttachments()
   })
 
   describe('from Drive', () => {

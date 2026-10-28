@@ -974,6 +974,7 @@
       "progress": "Téléversement, {percent} %",
       "failed": "Échec du téléversement",
       "failedToast": "Impossible de téléverser {name} : {reason}",
+      "originalGone": "Le fichier original n’est plus sur cet appareil. Joignez-le à nouveau.",
       "removeFailed": "Retirez les pièces jointes dont le téléversement a échoué, puis renvoyez.",
       "sendWhenDone": "Envoi dès la fin des téléversements.",
       "voiceFailed": "Impossible de téléverser le message vocal.",

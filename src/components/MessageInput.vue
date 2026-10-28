@@ -1156,6 +1156,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       const sentTemporary = !!fileData.temporary;
       const sourcePath = fileData.file.size === 0 ? fileData.sourcePath : undefined;
+      // A 0-byte placeholder uploaded as is stores an empty object under the original's size.
+      if (fileData.file.size === 0 && fileData.size > 0 && !sourcePath) {
+        fileData.uploadStatus = 'error';
+        fileData.uploadError = t('message.upload.originalGone');
+        fileData.uploadProgress = 0;
+        if (draftAttachmentShown(fileData)) assertive(t('message.upload.failedToast', { name: fileData.name, reason: fileData.uploadError }));
+        return;
+      }
       const source = sourcePath
         ? storedObjectSource(sourcePath, fileData.file.name || fileData.name, fileData.type, fileData.size)
         : fileData.file;
@@ -1307,8 +1315,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       // A picked file whose upload has not started reads the choice when it starts.
       if (!fileData.upload && fileData.uploadStatus !== 'completed') return;
       const previous = fileData.upload;
-      const own = fileData.uploadStatus === 'completed' && !fileData.reused && !fileData.fromDrive
-        ? fileData.uploadedPath : undefined;
+      const completed = fileData.uploadStatus === 'completed';
+      // Deleted once replaced; a Drive file the attachment names is the user's and stays.
+      const own = completed && !fileData.reused && !fileData.fromDrive ? fileData.uploadedPath : undefined;
+      // Bytes of a placeholder: the stored object, else the object the running upload reads.
+      const stored = completed ? fileData.uploadedPath : fileData.sourcePath;
       fileData.upload = undefined;
       previous?.abort();
       forgetMessageMediaUpload(previous?.path);
@@ -1323,8 +1334,8 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         if (own) void discardMessageMediaUpload(own);
         return;
       }
-      // A restored draft keeps no picked bytes: its own kept object is the source.
-      fileData.sourcePath = fileData.driveSource ?? (fileData.file.size === 0 ? own : undefined);
+      // A restored draft keeps no picked bytes: its kept object, reused or not, is the source.
+      fileData.sourcePath = fileData.driveSource ?? (fileData.file.size === 0 ? stored : undefined);
       fileData.fromDrive = false;
       fileData.uploadStatus = 'pending';
       fileData.uploadedUrl = undefined;

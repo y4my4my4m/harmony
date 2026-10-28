@@ -4,6 +4,8 @@
 //               kept again; the Drive file stays as it is
 //   drive old   a Drive photo without an upload record (before 1.9.2) is read when attached and
 //               sent without its details
+//   drive retry such a photo sent while it uploads, whose upload then fails, goes up again from
+//               the Drive file on Retry
 //   bot         a bridge bot's Discord attachment, mirrored by the gateway, is stored without
 //               them (the "Discord CDN" is a local HTTPS server reached through a CONNECT proxy,
 //               NODE_USE_ENV_PROXY, with a test CA in NODE_EXTRA_CA_CERTS)
@@ -22,9 +24,11 @@ import path from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import {
   adminClient,
+  composer,
   createUser,
   deleteUser,
   dismissAnnouncements,
+  messageList,
   openChannel,
   seedServer,
   signIn,
@@ -164,6 +168,57 @@ test('a Drive photo from before 1.9.2 is read when attached and sent without its
   await expect(item(page, 'old.jpg').getByTestId('photo-location-chip')).toHaveText('Location removed', { timeout: 20000 })
   await sendAttached(page, `old drive photo ${owner.username}`, 'old.jpg')
   expectStripped((await storedObject({ channel_id: server.generalChannelId })).bytes)
+})
+
+test('a Drive photo whose upload fails after Enter goes up from the Drive file on Retry', async ({ page }) => {
+  test.setTimeout(150_000)
+  const owner = await user('phdr')
+  const server = await seedServer(admin, owner, `Drive retry ${owner.username}`)
+  const db = await userClient(owner)
+  const { error } = await db.storage.from('message_media').upload(`u/${owner.id}/old.jpg`, PHOTO, {
+    contentType: 'image/jpeg', metadata: { name: 'old.jpg' },
+  })
+  if (error) throw new Error(`old upload: ${error.message}`)
+  await expect.poll(async () => (await driveRow(owner, 'old.jpg')).photo_details).toBeNull()
+
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+
+  // The first upload into the channel is held until the message is queued, then dropped.
+  const uploads = `**/storage/v1/object/message_media/c/${server.generalChannelId}/**`
+  let posts = 0
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  await page.route(uploads, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    posts++
+    if (posts > 1) return route.fallback()
+    await released
+    await route.abort('failed')
+  })
+
+  const text = `retried drive photo ${owner.username}`
+  const row = messageList(page).locator('.message-item').filter({ hasText: text })
+
+  await test.step('Enter queues the message while the upload hangs; the dropped upload fails it', async () => {
+    await attachFromDrive(page, 'old.jpg')
+    await expect(item(page, 'old.jpg').getByTestId('photo-location-chip')).toHaveText('Location removed', { timeout: 20000 })
+    await expect.poll(() => posts, { timeout: 20000 }).toBe(1)
+    await composer(page).click()
+    await composer(page).pressSequentially(text, { delay: 10 })
+    await page.keyboard.press('Enter')
+    await expect(row).toHaveAttribute('data-message-id', /^temp-/, { timeout: 10000 })
+    release()
+    await expect(row.locator('.failed-message-bar .retry-btn')).toBeVisible({ timeout: 30000 })
+  })
+
+  await test.step('Retry uploads a stripped copy read from the Drive file', async () => {
+    await row.locator('.failed-message-bar .retry-btn').click()
+    await expect(row).not.toHaveAttribute('data-message-id', /^temp-/, { timeout: 30000 })
+    expect(posts).toBe(2)
+    expectStripped((await storedObject({ channel_id: server.generalChannelId })).bytes)
+  })
+  await page.unroute(uploads)
 })
 
 /** A local HTTPS "cdn.discordapp.com" behind a CONNECT proxy, with its own CA. */

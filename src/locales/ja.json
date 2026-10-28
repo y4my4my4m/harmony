@@ -974,6 +974,7 @@
       "progress": "アップロード中 {percent}%",
       "failed": "アップロード失敗",
       "failedToast": "{name} をアップロードできませんでした: {reason}",
+      "originalGone": "元のファイルはこの端末にもうありません。もう一度添付してください。",
       "removeFailed": "アップロードに失敗した添付ファイルを削除してから送信してください。",
       "sendWhenDone": "アップロード完了後に送信します。",
       "voiceFailed": "ボイスメッセージをアップロードできませんでした。",

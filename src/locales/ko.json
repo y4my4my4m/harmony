@@ -974,6 +974,7 @@
       "progress": "업로드 중 {percent}%",
       "failed": "업로드 실패",
       "failedToast": "{name}을(를) 업로드하지 못했습니다: {reason}",
+      "originalGone": "원본 파일이 더 이상 이 기기에 없습니다. 다시 첨부하세요.",
       "removeFailed": "업로드에 실패한 첨부 파일을 제거한 후 다시 보내세요.",
       "sendWhenDone": "업로드가 끝나면 전송합니다.",
       "voiceFailed": "음성 메시지를 업로드하지 못했습니다.",

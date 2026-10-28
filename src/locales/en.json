@@ -1021,6 +1021,7 @@
       "progress": "Uploading, {percent}%",
       "failed": "Upload failed",
       "failedToast": "{name} failed to upload: {reason}",
+      "originalGone": "The original file is no longer on this device. Attach it again.",
       "removeFailed": "Remove the attachments that failed to upload, then send again.",
       "sendWhenDone": "Sending once the uploads finish.",
       "voiceFailed": "The voice message failed to upload.",

@@ -974,6 +974,7 @@
       "progress": "Subiendo, {percent} %",
       "failed": "Error al subir",
       "failedToast": "No se pudo subir {name}: {reason}",
+      "originalGone": "El archivo original ya no está en este dispositivo. Adjúntalo de nuevo.",
       "removeFailed": "Quita los archivos adjuntos que no se pudieron subir y vuelve a enviar.",
       "sendWhenDone": "Se enviará cuando terminen las subidas.",
       "voiceFailed": "No se pudo subir el mensaje de voz.",

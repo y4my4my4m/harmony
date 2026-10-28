@@ -15,6 +15,7 @@ import {
   preloadRemoteImageSource,
   registerLocalMediaSource,
   releaseLocalMediaSource,
+  storedObjectSource,
 } from '@/services/privateMedia'
 import {
   UploadAbortedError,
@@ -22,6 +23,7 @@ import {
   resetMessageMediaUploads,
   startMessageMediaUpload,
   type MessageMediaUpload,
+  type StoredSource,
 } from '@/services/messageMediaUpload'
 import { createTempMessageId, getRandomId } from '@/stores/shared/optimisticMessages'
 import { sendToTarget, targetKey, targetMediaRoom, type MessageTarget } from '@/stores/shared/sendToTarget'
@@ -75,6 +77,11 @@ export interface OutboxAttachment {
   reuse?: boolean
   /** An upload the outbox starts keeps the photo's or video's metadata. */
   keepMetadata?: boolean
+  /**
+   * message_media object holding the bytes when `file` is a 0-byte placeholder (a Drive file,
+   * a restored draft): an upload the outbox starts reads them from it.
+   */
+  sourcePath?: string
 }
 
 export interface OutboxRequest {
@@ -99,6 +106,7 @@ export interface OutboxFile {
   driveName?: string
   reuse?: boolean
   keepMetadata?: boolean
+  sourcePath?: string
   name: string
   /** Name the object name's extension derives from. */
   sourceName: string
@@ -212,6 +220,16 @@ export function withPendingRows(messages: Message[], rows: readonly Message[]): 
   return extra.length > 0 ? [...messages, ...extra] : messages
 }
 
+/**
+ * Bytes of an upload the outbox starts. A 0-byte placeholder standing for a larger file reads
+ * its stored object; null when it has none, since uploading the placeholder stores an empty
+ * object under the original's size.
+ */
+function uploadSource(file: OutboxFile): Blob | StoredSource | null {
+  if (file.file.size > 0 || file.size === 0) return file.file
+  return file.sourcePath ? storedObjectSource(file.sourcePath, file.sourceName, file.type, file.size) : null
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -277,6 +295,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       ...(attachment.driveName ? { driveName: attachment.driveName } : {}),
       ...(attachment.reuse === false ? { reuse: false } : {}),
       ...(attachment.keepMetadata ? { keepMetadata: true } : {}),
+      ...(attachment.sourcePath ? { sourcePath: attachment.sourcePath } : {}),
     }
     const handle = attachment.upload
     if (attachment.uploadedPath && attachment.uploadedUrl) {
@@ -339,7 +358,14 @@ export const useOutboxStore = defineStore('outbox', () => {
   async function uploadFile(job: OutboxJob, file: OutboxFile): Promise<boolean> {
     if (file.status === 'completed') return true
     if (!file.upload) {
-      file.upload = markRaw(startMessageMediaUpload(file.path, file.file, {
+      const source = uploadSource(file)
+      if (!source) {
+        file.status = 'error'
+        file.error = t('message.upload.originalGone')
+        useToast().error(t('message.upload.failedToast', { name: file.name, reason: file.error }))
+        return false
+      }
+      file.upload = markRaw(startMessageMediaUpload(file.path, source, {
         validate: true,
         name: file.driveName,
         ephemeral: file.temporary,
