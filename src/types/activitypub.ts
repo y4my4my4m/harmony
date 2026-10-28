@@ -114,16 +114,6 @@ export interface PostInteraction {
   metadata: Record<string, any>;
 }
 
-export interface TimelineEntry {
-  id: string;
-  created_at: string;
-  user_id: string;
-  post_id: string;
-  timeline_type: 'home' | 'public' | 'local' | 'notifications';
-  position: number;
-  metadata: Record<string, any>;
-}
-
 export interface ActivityPubActivity {
   id: string;
   created_at: string;

@@ -24,12 +24,9 @@ const tag = `fediapps${marker}`
 const ids = { quoted: '', quote: '', parent: '', reply: '' }
 
 async function insertPost(row: Record<string, unknown>): Promise<string> {
-  for (let attempt = 0; ; attempt++) {
-    const { data, error } = await admin.from('posts').insert(row).select('id').single()
-    if (!error && data) return data.id as string
-    if (attempt < 4 && error?.message.includes('timeline_entries_user_id_fkey')) continue
-    throw new Error(`posts: ${error?.message}`)
-  }
+  const { data, error } = await admin.from('posts').insert(row).select('id').single()
+  if (error || !data) throw new Error(`posts: ${error?.message}`)
+  return data.id as string
 }
 
 const remoteProfile = (p: { id: string; username: string; domain: string }, displayName: string) => ({

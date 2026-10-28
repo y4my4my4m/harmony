@@ -201,7 +201,7 @@ create_bot	definer	jsonb	authenticated+service_role	client	rpc in src/components
 create_channel	invoker	channels	authenticated+service_role	client	rpc in src/components/CreateChannel.vue
 create_channel_thread	definer	uuid	authenticated+service_role	client	rpc in src/services/ThreadService.ts
 create_channel_webhook	definer	jsonb	authenticated+service_role	client	rpc in src/services/channelWebhookService.ts
-create_comprehensive_timeline_entries	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (create_comprehensive_timeline_entries_trigger)
+create_comprehensive_timeline_entries	definer	trigger	service_role	trigger	trigger public.posts AFTER INSERT (create_comprehensive_timeline_entries_trigger)
 create_default_notification_preferences	definer	void	service_role	service key	nothing references it
 create_default_server_role	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER INSERT (trigger_create_default_role)
 create_default_server_structure	definer	void	service_role	trigger	called by trigger_create_default_server_structure

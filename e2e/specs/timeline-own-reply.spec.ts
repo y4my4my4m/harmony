@@ -14,18 +14,9 @@ let reader: SpecUser
 let author: SpecUser
 const label = (n: number) => `anchor post ${String(n).padStart(2, '0')}`
 
-/**
- * create_comprehensive_timeline_entries fans a public post out to every local profile,
- * which races a profile another spec deletes meanwhile (timeline_entries_user_id_fkey);
- * the insert is atomic and is retried.
- */
 async function insertPosts(rows: Record<string, unknown>[]) {
-  for (let attempt = 0; ; attempt++) {
-    const { error } = await admin.from('posts').insert(rows)
-    if (!error) return
-    if (attempt < 4 && error.message.includes('timeline_entries_user_id_fkey')) continue
-    throw new Error(`posts: ${error.message}`)
-  }
+  const { error } = await admin.from('posts').insert(rows)
+  if (error) throw new Error(`posts: ${error.message}`)
 }
 
 test.beforeAll(async () => {

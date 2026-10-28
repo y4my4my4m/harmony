@@ -105,38 +105,6 @@ export class ActivityPubService {
   // NOTE: post creation lives in CorePostService/PostService; call
   // services.posts.createPost().
 
-  async getTimeline(
-    timelineType: 'home' | 'public' | 'local' = 'home',
-    options: TimelineOptions = {}
-  ): Promise<TimelinePost[]> {
-    // timeline_entries.user_id FKs to profiles(id)
-    const userId = await this.getCurrentProfileId();
-
-    const limit = options.limit || 20;
-
-    let query = supabase
-      .from('timeline_entries')
-      .select(`
-        posts (
-          *,
-          ${POST_AUTHOR_EMBED}
-        )
-      `)
-      .eq('user_id', userId)
-      .eq('timeline_type', timelineType)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (options.before) {
-      query = query.lt('created_at', options.before);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    return (data?.map((entry: any) => entry.posts).filter(Boolean) || []) as unknown as TimelinePost[];
-  }
-
   // public + unlisted, newest first.
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     // post_interactions.user_id FKs to profiles(id)
