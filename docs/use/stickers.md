@@ -22,9 +22,9 @@ A sticker shows at up to 160 pixels. Screen readers read it as "Sticker", its na
 
 Personal stickers are yours alone: you can send them in any server or conversation, and nobody else can. Manage them in **User settings** → **My stickers**.
 
-Personal stickers are off unless your instance allows them. While they are off, the page says so and shows no upload form. Once an admin sets a limit, the count beside the list shows yours against it.
+Personal stickers are off unless your instance allows them. While they are off, **User settings** has no **My stickers** page. If you still have personal stickers from before they were turned off, the page stays, lists them and says personal stickers are turned off, so you can remove them. Once an admin sets a limit, the count beside the list shows yours against it.
 
-To add one, choose an **Image**, check the **Name** (filled in from the file name), write a **Description**, and select **Upload sticker**. **Edit** changes the name and description; **Delete** removes the sticker.
+To add one, select **Choose an image or drop it here**, or drop a file on it; check the **Name** (filled in from the file name), write a **Description**, and select **Upload sticker**. **Edit** changes the name and description; **Delete** removes the sticker.
 
 ## Limits
 

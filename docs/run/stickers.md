@@ -15,12 +15,12 @@ Adding, editing and removing stickers takes the **Manage Expressions** permissio
 
 ## Add a sticker
 
-1. Under **Add a sticker**, choose an **Image**: PNG, APNG, WebP or GIF, up to 512 KB and 320 × 320 pixels, animations up to 5 seconds. A larger still image is scaled down before upload; an animated one is refused.
+1. Under **Add a sticker**, select **Choose an image or drop it here**, or drop a file on it: PNG, APNG, WebP or GIF, up to 512 KB and 320 × 320 pixels, animations up to 5 seconds. A larger still image is scaled down before upload; an animated one is refused.
 2. Check the **Name**, 2 to 30 characters, filled in from the file name. Two stickers of one server cannot share a name, ignoring case.
 3. Write a **Description** of up to 300 characters. It is required: screen readers read it, and other apps show it as the image's alt text.
 4. Select **Upload sticker**.
 
-The count beside the list shows the server's stickers against the instance's limit, 15 unless the instance changes it. At the limit the form is replaced by **Sticker limit reached**. When the instance sets the limit to 0, server stickers are off and the section says so.
+The count beside the list shows the server's stickers against the instance's limit, 15 unless the instance changes it. At the limit the form is replaced by **Sticker limit reached**. When the instance sets the limit to 0, server stickers are off and **Server settings** has no **Stickers** section. A server that still has stickers keeps the section, which lists them and says server stickers are turned off, so they can be removed.
 
 ## Edit or remove a sticker
 

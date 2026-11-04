@@ -8,7 +8,7 @@ This page is for people using Harmony. Drive is your account's file storage on t
 
 ## Open Drive
 
-Select **Drive** in the server rail, below **Fediverse**. On a phone, **Open Drive navigation** shows the sidebar.
+Select **Drive** in the server rail, below **Fediverse**. On a phone, **Navigation menu** in the Drive header, or a swipe in from the left edge, opens the server rail and the Drive sidebar together, as in a server. Picking a view, tapping outside or Back closes them.
 
 The sidebar lists these views:
 

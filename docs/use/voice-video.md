@@ -90,9 +90,11 @@ On Linux the floating panel is a plain rectangle, since the window cannot be see
 
 Click **Chat** at the top of the full call view to open the call's text chat on the right: the voice channel's messages, or the conversation in a direct message call. Drag its edge, or use the arrow keys on it, to change its width. A dot on **Chat** shows new messages while it is closed. Harmony remembers whether you left it open. On a narrow screen the chat covers the call until you close it.
 
-Opening the chat shows the call's channel in the main window too. When the main window shows another chat, the panel offers **Show the call's chat**.
+Opening the chat leaves the main window on the chat it shows. When the main window shows the call's own channel or conversation, the side chat takes over its messages, and the main window reads "This chat is open beside the call." with **Show chat here**, which closes the side chat.
 
-**Pop out call** moves the whole call view, chat included, into its own window, so you can keep the call and its chat beside other windows while you browse Harmony. The call stays connected while it moves. In Chrome and Edge the window stays on top of other windows; elsewhere it is a normal window, a native one in the desktop app. While the call is popped out, the call bar in the main window offers **Show call window** and **Return call to the app**. Closing the window also returns the call. Leaving the call closes it. If your browser blocks pop-ups, allow them for Harmony. Popping out is not available on phones.
+Minimize the call view with the chat open, and the chat docks beside the main window's chat, in windows at least 1200 px wide. **Chat** in the call bar opens and closes it there, with a dot for new messages. The docked chat stays on the call's channel or conversation as you move to other channels and direct messages, and gives way while the main window shows the call's own chat.
+
+**Pop out call** moves the whole call view, chat included, into its own window, so you can keep the call and its chat beside other windows while you browse Harmony. The call stays connected while it moves. In Chrome and Edge the window stays on top of other windows; elsewhere it is a normal window, a native one in the desktop app. While the call is popped out, the call bar in the main window offers **Show call window** and **Return call to the app**. Closing the window also returns the call. Leaving the call closes it. The call window's chat stays on the call's channel or conversation while the main window moves. Video plays in the call window only: the main window's call bar shows none, and a stream's floating player waits until the call returns. In the call window, tiles offer no **Full screen** and streams no **Pop out**. If your browser blocks pop-ups, allow them for Harmony. Popping out is not available on phones.
 
 ## Change how loud someone is
 
@@ -117,7 +119,7 @@ In a direct message, **Start video call** starts a call with your camera on.
 3. Pick the **Stream audio** bitrate: 64, 96, 128, 192 or 256 kbps. The default is 128 kbps.
 4. Click **Go live**. Your browser or operating system asks what to share.
 
-To change quality while live, click **Share screen** again; the panel reads **Stream settings**. Click **Stop streaming** to end the stream.
+To change quality while live, click **Share screen** again; the panel reads **Stream settings**. Click **Stop streaming** to end the stream, there or on your own stream's tile in the call view.
 
 Higher settings need more upload bandwidth.
 
@@ -313,6 +315,11 @@ Open **User settings** → **Voice & video**, or click **Voice settings** in the
 | | **Frame rate**: 15, 30 or 60 FPS | 30 FPS |
 
 Double-click a volume slider to reset it.
+
+A device select never shows an empty box:
+
+- With no device of its kind, it reads **None** and is disabled.
+- Until Harmony may use your microphone, the browser hides device names. The input and output selects offer **Default**, the system's device, and **Allow microphone** asks for access. The camera select offers **No camera**, with **Allow camera**. Once allowed, the selects list the devices by name. A refusal says to allow access in the browser or system settings.
 
 ### Keep background noise out of the call
 

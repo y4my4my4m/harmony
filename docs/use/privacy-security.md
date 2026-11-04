@@ -61,6 +61,8 @@ Some accounts have no password and cannot get one: on a self-hosted instance wit
 2. Next to **Turn off two-factor authentication**, click **Turn off**.
 3. Enter a code from your authenticator, or click **Lost your authenticator? Use a recovery code** and enter one. Click **Turn off**.
 
+A recovery code turns two-factor off in one step: the code is spent, and your authenticator and the remaining codes are removed with it. A wrong code changes nothing. The security notice then asks you to set two-factor up again.
+
 ## Signed-in devices
 
 **User settings** → **Security** → **Devices** lists every place your account is signed in. Each entry shows the browser or app, the IP address the sign-in came from, when it was last active and when it signed in. **This device** marks the one you are using, and **Push** marks devices that receive push notifications.

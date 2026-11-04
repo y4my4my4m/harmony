@@ -45,6 +45,7 @@ A chat server lives on one instance, the one where it was created. That instance
 ### Joining
 
 - A **public** server with federation enabled can be found by its handle, `slug@host`, shown in **Server settings** → **Privacy settings** → **Server handle**. The handle resolves through WebFinger.
+- A public, federated server whose owner turns on **Discoverable across federation** is listed in its host's server directory, an ActivityPub collection that NodeInfo names (see [Server directory](/federation/reference#server-directory)). People on other Harmony instances browse it under **Discover communities** → **Other instances** and join from there; their own instance reads the directory for them.
 - A **private** server needs an invite link. The joining instance first checks that the invite's server is a genuine `Group` on the same host as the link. The `Join` it sends carries the invite code, and the host checks the code (expiry, use count, revocation) before it accepts.
 - The host refuses a `Join` from a suspended account, from a banned account, and from an account that moved from a banned account.
 
@@ -138,7 +139,7 @@ Every Harmony post advertises who may quote it, and Harmony answers quote reques
 | Followers only | The author's accepted followers |
 | Direct | Nobody but the author |
 
-When someone on another instance quotes a Harmony post, their instance sends a `QuoteRequest`. Harmony answers automatically under the table above: an `Accept` carrying a quote authorization, or a `Reject`. Once the quoted post is deleted, its authorizations are no longer served.
+When someone on another instance quotes a Harmony post, their instance sends a `QuoteRequest`. Harmony answers automatically under the table above: an `Accept` carrying a quote authorization, or a `Reject`. Once the quoted post is deleted, its authorizations are no longer served. The quote itself, delivered as a `Create`, notifies the quoted author (see [Quote posts](/federation/reference#quote-posts)).
 
 When you quote a post from another instance, Harmony publishes the quote and sends the quoted author a `QuoteRequest`. If they accept, Harmony sends your quote again with the authorization attached. If they reject, Harmony records the refusal and your quote stays on Harmony. Quoting another account on your own instance needs no request; Harmony issues the authorization itself under the same rules.
 
@@ -197,6 +198,8 @@ Harmony has no allowlist mode: every instance that is not blocked can federate.
 - **Send to other instances** off: nothing is delivered to other instances, and members cannot join servers hosted elsewhere.
 - **Receive from other instances** off: every inbox answers 403, federated call tokens are refused, and signed reads from other instances are served as if unsigned. Profiles, WebFinger and a server's public profile stay readable.
 - Both off closes federation, after a confirmation. Every server here turns its federation off as its owner turning it off does: members from other instances are removed and told. Every member here leaves the servers hosted elsewhere they belonged to, and is told why. No server's federation turns back on while closed, and a server created then starts with it off. The Removes and Leaves of the closing are the only deliveries a closed instance makes.
+
+While either switch is off, the instance's server directory lists no server, and its members cannot browse other instances' directories.
 
 Turning either switch back on turns federation on again for the servers the closing turned off. Nobody removed comes back; they rejoin with an invite.
 

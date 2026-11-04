@@ -58,8 +58,57 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 | `protocols` | `["activitypub"]` |
 | `usage` | `users.total`, `users.activeMonth`, `users.activeHalfyear`, `localPosts`. Users are local accounts; suspended and deleted accounts and bots are not counted. Active users signed in, refreshed a session, posted or sent a message in the past 30 or 180 days. Recomputed at most every 10 minutes. |
 | `openRegistrations` | The instance's registration setting |
-| `metadata` | `nodeName`, `nodeDescription`; `icon`, `banner`, `themeColor` and `maintainer` (`name`, `email`) when set |
-| `metadata.features` (2.1 only) | `discord_like_servers`, `voice_chat`, `video_chat`, `emoji_reactions`, `mastodon_compatible`, `misskey_compatible` |
+| `metadata` | `nodeName`, `nodeDescription`, `serverDirectory` (the [server directory](#server-directory) URL); `icon`, `banner`, `themeColor` and `maintainer` (`name`, `email`) when set |
+| `metadata.features` (2.1 only) | `discord_like_servers`, `voice_chat`, `video_chat`, `emoji_reactions`, `mastodon_compatible`, `misskey_compatible`, `server_directory` |
+
+### Server directory
+
+`GET /servers/directory` lists the chat servers the instance offers to other instances, as an `OrderedCollection` of `Group` summaries. NodeInfo names it in `metadata.serverDirectory`, and the [instance actor](#actors) in `streams` and `harmony:directory`. Responses carry `Cache-Control: no-cache`.
+
+A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner turned on **Discoverable across federation**; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
+
+| Request | Answer |
+|---|---|
+| `GET /servers/directory` | `OrderedCollection` with `totalItems` and `first` (`?page=1`) |
+| `GET /servers/directory?page=<n>` | `OrderedCollectionPage` with `partOf`, `totalItems`, up to 20 `Group`s in `orderedItems`, and `next` and `prev` where those pages exist |
+
+`n` runs from 1 to 500: a malformed `n` answers 400, a larger one 404. An unreadable listing answers 503.
+
+The `@context` is ActivityStreams plus `toot`, `discoverable` (`toot:discoverable`) and the `harmony` prefix. Each item is the public part of the server's [Group](#group-chat-server):
+
+```json
+{
+  "id": "https://chat.example.com/servers/<uuid>",
+  "type": "Group",
+  "preferredUsername": "book-club",
+  "name": "Book Club",
+  "summary": "Monthly reads",
+  "inbox": "https://chat.example.com/servers/<uuid>/inbox",
+  "outbox": "https://chat.example.com/servers/<uuid>/outbox",
+  "icon": { "type": "Image", "url": "https://chat.example.com/...", "mediaType": "image/webp" },
+  "published": "2026-10-01T12:00:00Z",
+  "updated": "2026-11-02T09:30:00Z",
+  "discoverable": true,
+  "harmony:public": true,
+  "harmony:federationEnabled": true,
+  "harmony:memberCount": 42,
+  "harmony:category": "community"
+}
+```
+
+`preferredUsername` (the slug), `icon` and `harmony:category` are omitted when unset. `summary` is `""` without a description, and `updated` is the creation time for a server never updated. `harmony:memberCount` counts accepted members. `harmony:category` is one of `gaming`, `technology`, `art_design`, `music`, `education`, `entertainment`, `community`, `science`, `sports` and `other`.
+
+Harmony reads another instance's directory as follows, and other consumers should validate the same way:
+
+- It fetches `/.well-known/nodeinfo`, follows the schema 2.1 link, else 2.0, and takes `metadata.serverDirectory` only when it is an `https` URL on that instance's domain.
+- It fetches the collection and its pages signed by its instance actor, for instances that require signed fetches. A document counts only when both its final URL and its `id` are on that domain. A collection may embed its items (`orderedItems` or `items`), embed `first`, or link `first`; `next` is followed only on that domain.
+- It keeps an item only when it is a `Group` whose `id` is on that domain and whose `discoverable` is `true`, and drops it when `harmony:public` or `harmony:federationEnabled` is `false` or `harmony:suspended` is set. `name` and `summary` are reduced to plain text, at most 100 and 500 characters.
+- It reads nothing from a blocked instance, and leaves out Groups it blocks.
+- A join goes through the Group's own document and inbox, as for any server joined by URL.
+
+Pages are cached for 2 minutes, a domain's directory URL for 10 minutes. The directory is read for a signed-in local user only, and not at all while either of the reading instance's federation switches is off.
+
+An instance that serves the directory lists `server-directory` in the `capabilities` of `GET /api/federation/instance-info`. Harmony's apps show **Discoverable across federation** and **Other instances** only on such an instance.
 
 ## Actors
 
@@ -71,7 +120,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 Keys are 2048-bit RSA, published as PEM in `publicKey.publicKeyPem` with `owner` set to the actor id. A key pair is generated on an account's first signed request or first actor fetch, and on a chat server's first activity or first `Group` fetch.
 
-Usernames match `[a-zA-Z0-9_]`, so no account can take `instance.actor`. The instance actor signs forwarded reports and the instance's own fetches. Its outbox is an empty collection, and it has `manuallyApprovesFollowers: true` and `discoverable: false`.
+Usernames match `[a-zA-Z0-9_]`, so no account can take `instance.actor`. The instance actor signs forwarded reports and the instance's own fetches. Its outbox is an empty collection, and it has `manuallyApprovesFollowers: true` and `discoverable: false`. Its `streams` lists the [server directory](#server-directory), which `harmony:directory` (`@type: @id`) also names.
 
 ### Person
 
@@ -135,8 +184,10 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `harmony:memberCount` | Accepted members |
 | `harmony:channels` | The categories and channels the caller may view |
 | `harmony:roles` | The server's roles but the default one, highest position first |
-| `discoverable` | `true` for a public server |
-| `harmony:polls` | `true`: polls in the server's channels federate (1.9.3). A member instance offers polls in its copy only then. |
+| `discoverable` | `toot:discoverable`: `true` while the server is listed in the [server directory](#server-directory), `false` for a private server, absent for a public server that is not listed |
+| `harmony:public` | `true` for a public server, which anyone may join without an invite; `false` for a private one |
+| `harmony:federationEnabled` | Whether the server accepts members from other instances |
+| `harmony:polls` | `true`: polls in the server's channels federate. A member instance offers polls in its copy only then |
 | `manuallyApprovesFollowers` | `false` |
 | `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
@@ -145,6 +196,8 @@ Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceC
 Each `harmony:roles` entry is a `harmony:Role` with `id` (`/servers/<uuid>/roles/<role uuid>`), `name`, `color` (`#rrggbb` or null), `position`, `hoist`, `mentionable` and, when set, `unicodeEmoji`. Permission bits are not sent: a member instance shows the roles, the host enforces them.
 
 A member instance stores the roles on its copy display-only, with no permissions, and deletes a role of the Group the list no longer names; it reads the pins of a channel whose `harmony:pins` differs from what its copy holds. A Group without these properties (Harmony before 1.9.1) leaves the copy's roles and pins as they are.
+
+A receiver reads whether a server is public from `harmony:public`. Without it, `discoverable: false` means private and anything else public, as Harmony before 1.9.3 wrote `discoverable`; a public Group that is not listed omits `discoverable`, so both readings agree. The Group's `Update` carries the same `discoverable` and `harmony:public`.
 
 `GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, and `replies`, the channel's message collection.
 
@@ -168,6 +221,7 @@ A member instance stores the roles on its copy display-only, with no permissions
 | `GET /posts/<uuid>/replies` | `OrderedCollection` of public and unlisted reply ids, 20 per page |
 | `GET /posts/<uuid>/context` | FEP-7888 context of the thread rooted at the post: `OrderedCollection` of the root and the thread's public and unlisted posts, as ids, oldest first, 20 per page, `attributedTo` the root's author (see [Note (post)](#note-post)). 404 for a reply, a deleted root and a root the caller may not read |
 | `GET /messages/<uuid>` | `Note` of a federated chat or direct message; only with an ActivityPub `Accept`, else 406 |
+| `GET /servers/directory` | `OrderedCollection` of the servers listed across federation (see [Server directory](#server-directory)) |
 | `GET /servers/<uuid>` | `Group` actor |
 | `GET /servers/<uuid>/members` | `OrderedCollection` of member actor ids, 500 per page; each page's `harmony:memberRoles` lists `{ member, roles }` for the members on it holding a role, `roles` the `harmony:Role` ids |
 | `GET /servers/<uuid>/outbox` | `OrderedCollection` of `Create` activities from the channels the caller may read, 20 per page |
@@ -330,7 +384,7 @@ Chat-server activities:
 | `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
 | `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
-| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon or banner changes, or a role is created, changed or deleted | Member instances |
+| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon, banner, public setting or **Discoverable across federation** setting changes, or a role is created, changed or deleted | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
 | `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances with a member who can view the channel |
 | `Update` | Message author | `Question` with `closed` | The author ends their poll, which the host holds | Group inbox |
@@ -646,6 +700,7 @@ Inbound, a receiver keeps the first well-formed sticker part (string `id` of 1 t
 Harmony implements FEP-044f in both directions.
 
 - **Quoted side.** A `QuoteRequest` names the quoted post as `object` and the quoting post as `instrument`. When `instrument` is embedded, its `attributedTo` must be the request's actor. The answer comes from the quoted post's author and is automatic, by the `canQuote` policy. Public and unlisted posts: anyone. Followers-only: accepted followers. Direct: nobody but the author. An account the author blocks: never. An `Accept` embeds the request and carries `result`, the stamp URL; a `Reject` embeds the request.
+- **Notification.** A stored quote of a local account's post notifies that account: a quote written here, or one received in a `Create` whose object names the post in `quote`, `quoteUrl`, `quoteUri` or `_misskey_quote`. A `QuoteRequest` alone notifies nobody. Not notified: a self-quote, a direct quote, a quote that replies to the quoted post or mentions its author (the reply or mention notifies instead), and a followers-only quote by an account the quoted author does not follow.
 - **Quoting side.** A quote of another account's remote post is sent as a `Create`, followed by a `QuoteRequest` with id `<note id>#quote-request` to the quoted author's inbox. An `Accept` whose `result` is on the responder's host is stored, and the quote is sent again as `Update` with `quoteAuthorization`. A quote of a local post by another account carries a stamp issued locally. A self-quote carries none.
 
 ## Account moves
@@ -748,7 +803,11 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:customStatus` | `Person` | Custom status: `text`, `emoji`, `emoji_url` (absolute), `expires_at` |
 | `harmony:type` | `Group` | `"ChatServer"` for a chat server, `"harmony:GroupConversation"` for a group conversation object |
 | `harmony:ChatServer` | `Group` in an `Update` | `true` |
-| `harmony:memberCount` | `Group` | Accepted members |
+| `harmony:memberCount` | `Group`, directory items | Accepted members |
+| `harmony:public` | `Group`, `Group` in an `Update`, directory items | `true` for a server anyone may join without an invite |
+| `harmony:federationEnabled` | `Group`, directory items | Whether the server accepts members from other instances |
+| `harmony:category` | Directory items | The server's Discover category |
+| `harmony:directory` | Instance actor (`Application`) | The [server directory](#server-directory) URL, `@type: @id` |
 | `harmony:channels` | `Group` | Channel and category entries |
 | `harmony:roles`, `harmony:Role` | `Group` | The server's roles; see [Group (chat server)](#group-chat-server) |
 | `harmony:pins` | `harmony:channels` entries | The channel's pins collection, its `totalItems` and newest pin time |

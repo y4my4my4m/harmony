@@ -27,6 +27,8 @@ Other views:
 - A hashtag page: select a hashtag in a post.
 - A profile: select a name or avatar.
 
+A reply in a feed shows the post it answers above its own text: that post's avatar, author and the start of its text, at most two lines. A content warning shows in place of the text, and a post without text names its attachments. Select the preview to open that post's page, with the reply highlighted. A deleted post, a post you may not see and a post this instance has not stored each read as one line; the last links to the post on its own server.
+
 ## Write a post
 
 1. Select **New post** in the header. The **Create a post** dialog opens.
@@ -82,7 +84,7 @@ The buttons under each post:
 
 | Button | What it does |
 |---|---|
-| Reply | Opens a reply box under the post. The reply starts with mentions of the author and of everyone the post mentions, except you. The number beside it opens the post with its replies. |
+| Reply | Opens a reply box under the post. The reply starts with mentions of the author and of everyone the post mentions, except you. The number beside it opens the post with its replies. In a feed it counts direct replies; on the post's own page it counts every reply below the post that you can see, replies to replies included. |
 | **Boost** | Opens a menu with **Boost**, which shares the post with your followers, and **Quote**. Select the button again to undo a boost. **Followers only** and **Mentioned people only** posts cannot be boosted or quoted. |
 | **Favorite** | Favorites the post. Removing the favorite also removes your emoji reactions on that post. |
 | **Add reaction** | Reacts with an emoji. A heart reaction counts as the favorite. The instance limits how many different emoji one person can put on a post. |
@@ -96,6 +98,8 @@ For a post from another server, **More options** also has **Fetch reactions** an
 1. Select **Boost** under a public or unlisted post, then **Quote**.
 2. The **Quote post** dialog shows the post under **Quoting**. Write your comment.
 3. Select **Quote**.
+
+When your post is quoted, here or on another server, you are notified; the **Quotes** switches in [your notification settings](/use/notifications-apps#choose-which-alerts-you-get) control it.
 
 Quote approval follows FEP-044f, the scheme Mastodon uses:
 
