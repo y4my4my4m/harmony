@@ -1419,8 +1419,6 @@
       "region": "Chat de {name}",
       "close": "Fermer le chat",
       "resize": "Redimensionner le chat",
-      "awayText": "La fenêtre principale affiche une autre discussion.",
-      "awayAction": "Afficher le chat de l'appel",
       "elsewhereText": "Ce chat est ouvert à côté de l'appel.",
       "elsewhereAction": "Afficher le chat ici"
     },

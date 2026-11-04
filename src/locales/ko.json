@@ -1419,8 +1419,6 @@
       "region": "{name} 채팅",
       "close": "채팅 닫기",
       "resize": "채팅 너비 조절",
-      "awayText": "기본 창에 다른 채팅이 표시되어 있습니다.",
-      "awayAction": "통화 채팅 보기",
       "elsewhereText": "이 채팅은 통화 옆에 열려 있습니다.",
       "elsewhereAction": "여기에 채팅 표시"
     },

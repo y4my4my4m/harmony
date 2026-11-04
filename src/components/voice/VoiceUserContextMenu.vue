@@ -174,6 +174,7 @@ import { NO_VOICE_CAPABILITIES, useVoiceModerationStore, type VoiceModerationCap
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
 import { usePortalTarget } from '@/composables/usePortalTarget';
+import { callPopoutActive } from './callPopout';
 
 const portalTarget = usePortalTarget();
 
@@ -367,6 +368,7 @@ const model = computed(() => buildVoiceMenu({
   isFocused: isFocused.value,
   isPoppedOut: isPoppedOut.value,
   canFullscreen: props.canFullscreen,
+  canPopOut: !callPopoutActive.value,
 }));
 
 const menuStyle = computed(() => ({ left: `${position.value.x}px`, top: `${position.value.y}px` }));
@@ -393,7 +395,7 @@ function actionIcon(action: VoiceMenuAction): string {
     case 'fullscreen': return 'maximize';
     case 'pop-out': return 'picture-in-picture';
     case 'close-pop-out': return 'x';
-    case 'stop-streaming': return 'screen-share';
+    case 'stop-streaming': return 'screen-share-off';
     case 'self-mute': return localMuted.value ? 'mic-off' : 'mic';
     case 'self-deafen': return localDeafened.value ? 'headphones-off' : 'headphones';
   }

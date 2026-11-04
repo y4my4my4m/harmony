@@ -41,6 +41,11 @@ describe('buildVoiceMenu', () => {
     expect(m.actions).toEqual(['stop-watching', 'exit-focus', 'fullscreen', 'close-pop-out']);
   });
 
+  it('drops pop out while the call is in its own window', () => {
+    const m = buildVoiceMenu({ ...remote, isStreaming: true, watching: true, canFullscreen: false, canPopOut: false });
+    expect(m.actions).toEqual(['stop-watching', 'focus']);
+  });
+
   it('drops full screen where the host cannot do it', () => {
     const m = buildVoiceMenu({ ...remote, hasCamera: true, canFullscreen: false });
     expect(m.actions).toEqual(['focus']);

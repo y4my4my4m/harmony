@@ -100,6 +100,16 @@
             />
           </main>
 
+          <!-- The call's chat beside the routed one while the call view is hidden -->
+          <CallSideChat
+            v-if="callChat.docked.value"
+            :id="dockedCallChatId"
+            class="docked-call-chat"
+            :style="{ width: `${callChat.width.value}px` }"
+            data-testid="docked-call-chat"
+            @close="closeDockedCallChat"
+          />
+
           <aside
             v-if="!isDM" 
             id="app-member-panel"
@@ -175,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
@@ -201,6 +211,11 @@ import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
 import type { Message } from '@/types'
+import { setCallChatOpen, useCallChat } from '@/components/voice/callChat'
+import { restoreFocusIfLost } from '@/components/voice/voiceFocus'
+import { uid } from '@/utils/a11y/focus'
+
+const CallSideChat = defineAsyncComponent(() => import('@/components/voice/CallSideChat.vue'))
 
 interface Props {
   leftSidebarOpen: boolean
@@ -229,6 +244,15 @@ const props = withDefaults(defineProps<Props>(), {
   leftSidebarDragOffset: 0,
   rightSidebarDragOffset: 0
 })
+
+const callChat = useCallChat()
+const dockedCallChatId = uid('docked-call-chat')
+
+// Focus returns to the dock's Chat button, which opened the panel.
+const closeDockedCallChat = () => {
+  setCallChatOpen(false)
+  void nextTick(() => restoreFocusIfLost(document.querySelector<HTMLElement>('[data-testid="dock-chat-toggle"]')))
+}
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
@@ -669,6 +693,13 @@ onMounted(() => {
 .chat-content-area {
   flex: 1;
   overflow: hidden;
+}
+
+/* The resize handle sets the width; the routed chat keeps the larger share of the row. */
+.docked-call-chat {
+  flex-shrink: 0;
+  max-width: 40%;
+  min-height: 0;
 }
 
 .right-sidebar-container {

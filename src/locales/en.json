@@ -1466,8 +1466,6 @@
       "region": "{name} chat",
       "close": "Close chat",
       "resize": "Resize chat",
-      "awayText": "The main window shows another chat.",
-      "awayAction": "Show the call's chat",
       "elsewhereText": "This chat is open beside the call.",
       "elsewhereAction": "Show chat here"
     },

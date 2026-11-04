@@ -127,7 +127,7 @@
 <script lang="ts">
 import { defineComponent, computed, type Component } from 'vue';
 import {
-  Calendar, Copy, Ban, Camera, CameraOff, Video, VideoOff, Send, BellOff, ScreenShare,
+  Calendar, Copy, Ban, Camera, CameraOff, Video, VideoOff, Send, BellOff, ScreenShare, ScreenShareOff,
   Headphones, Phone, PhoneOff, Smartphone, Tablet,
   Monitor, Laptop, MonitorSmartphone, Settings, Volume2, VolumeOff,
   Maximize2, X, LayoutGrid, List, Keyboard, Maximize, Minimize,
@@ -168,6 +168,7 @@ const ICON_MAP: Record<string, Component> = {
   'send': Send,
   'bell-off': BellOff,
   'screen-share': ScreenShare,
+  'screen-share-off': ScreenShareOff,
   'headphones': Headphones,
   'phone': Phone,
   'phone-off': PhoneOff,

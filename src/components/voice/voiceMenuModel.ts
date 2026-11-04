@@ -30,6 +30,8 @@ export interface VoiceMenuInput {
   isPoppedOut: boolean;
   /** The host can take a tile to browser full screen. */
   canFullscreen: boolean;
+  /** The in-app picture-in-picture frame can show; absent counts as true. */
+  canPopOut?: boolean;
 }
 
 export interface VoiceMenuModel {
@@ -60,7 +62,7 @@ export function buildVoiceMenu(input: VoiceMenuInput): VoiceMenuModel {
     actions.push(input.isFocused ? 'exit-focus' : 'focus');
     if (input.canFullscreen) actions.push('fullscreen');
   }
-  if (streamVisible) {
+  if (streamVisible && input.canPopOut !== false) {
     actions.push(input.isPoppedOut ? 'close-pop-out' : 'pop-out');
   }
   return { volumes, showQuality: false, actions };

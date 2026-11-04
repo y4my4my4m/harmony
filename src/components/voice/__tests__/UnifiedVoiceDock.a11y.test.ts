@@ -25,6 +25,14 @@ vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name
 vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
 vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('../callChat', async () => {
+  const { computed } = await import('vue')
+  return {
+    setCallChatOpen: vi.fn(),
+    useCallChat: () => ({ dockable: computed(() => false), docked: computed(() => false) }),
+    useCallChatUnread: () => computed(() => false),
+  }
+})
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/spatialAudio', () => ({
   useSpatialAudioStore: () => ({ isPanelVisible: false, settings: { enabled: false }, togglePanel: vi.fn() }),

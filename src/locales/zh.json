@@ -1419,8 +1419,6 @@
       "region": "{name} 的聊天",
       "close": "关闭聊天",
       "resize": "调整聊天宽度",
-      "awayText": "主窗口正在显示其他聊天。",
-      "awayAction": "显示通话的聊天",
       "elsewhereText": "此聊天已在通话旁打开。",
       "elsewhereAction": "在此处显示聊天"
     },

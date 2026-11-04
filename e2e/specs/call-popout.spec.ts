@@ -1,9 +1,10 @@
 // Journey: the call's side chat and the call pop-out.
 //
 // In a server call the call view's Chat button opens the voice channel's text chat beside the
-// call, as Discord shows it: the channel's messages and a working composer, the routed view
-// yielding its list meanwhile. A message from someone else while the chat is closed puts a dot
-// on the button; the open state survives a reload.
+// call, as Discord shows it: the channel's messages and a working composer, the main window
+// staying on the chat it shows. Showing the voice channel's chat, the routed view yields its
+// list to the side chat. A message from someone else while the chat is closed puts a dot on the
+// button; the open state survives a reload.
 //
 // Pop out moves the call view, its side chat included, into a second window of the same page
 // without rejoining: the same <video> element keeps playing there, the stylesheets and <html>
@@ -158,10 +159,10 @@ test('side chat: the voice channel chat beside the call, unread dot, remembered,
     await expect(panel).toBeVisible()
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
     await expect(toggle).toHaveAttribute('aria-controls', (await panel.getAttribute('id'))!)
-    await expect(page).toHaveURL(new RegExp(`/chat/${server.id}/${loungeId}$`))
+    // The main window stays on #general; the side chat holds the lounge's list.
+    await expect(page).toHaveURL(new RegExp(`/chat/${server.id}/${server.generalChannelId}$`))
     await expect(panel.locator('[data-testid="message-list"] .message-item').filter({ hasText: 'Lounge hello' })).toBeVisible({ timeout: 30000 })
-    // The routed view yields its list while the side chat shows it.
-    await expect(page.getByTestId('call-chat-elsewhere')).toHaveCount(1)
+    await expect(page.getByTestId('call-chat-elsewhere')).toHaveCount(0)
   })
 
   await test.step('a message sent from the side chat lands in the channel', async () => {
@@ -189,6 +190,12 @@ test('side chat: the voice channel chat beside the call, unread dot, remembered,
   })
 
   await test.step('a message from someone else while closed puts a dot on Chat', async () => {
+    // The stack has no realtime unread counts: the main window shows the lounge, whose list
+    // takes the insert.
+    await view.getByRole('button', { name: 'Minimize call view' }).click()
+    await page.getByRole('button', { name: 'Open chat in lounge' }).click()
+    await expect(page).toHaveURL(new RegExp(`/chat/${server.id}/${loungeId}$`))
+    view = await openCallView(page)
     await expect(view.getByTestId('call-chat-unread')).toHaveCount(0)
     await receiveMessage(page, member.id, 'Are you watching?')
     await expect(view.getByTestId('call-chat-unread')).toBeVisible()
@@ -290,8 +297,9 @@ test('pop-out: the call view moves to its own window and back without rejoining'
     const posted = panel.locator('.message-item').filter({ hasText: 'Typed in the pop-out' }).last()
     await expect(posted).toBeVisible({ timeout: 30000 })
     await expect(posted).not.toHaveAttribute('data-message-id', /^temp-/, { timeout: 30000 })
-    // The main window, routed to the lounge, points at the chat beside the call.
-    await expect(page.getByTestId('call-chat-elsewhere')).toBeVisible()
+    // The main window stays on #general.
+    await expect(page).toHaveURL(new RegExp(`/chat/${server.id}/${server.generalChannelId}$`))
+    await expect(page.getByTestId('call-chat-elsewhere')).toHaveCount(0)
     await expectNoAxeViolations(popup, { include: '[data-testid="voice-overlay"]', label: 'popped-out call view' })
   })
 

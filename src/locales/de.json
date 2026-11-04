@@ -1419,8 +1419,6 @@
       "region": "Chat von {name}",
       "close": "Chat schließen",
       "resize": "Chatbreite ändern",
-      "awayText": "Das Hauptfenster zeigt einen anderen Chat.",
-      "awayAction": "Chat des Anrufs anzeigen",
       "elsewhereText": "Dieser Chat ist neben dem Anruf geöffnet.",
       "elsewhereAction": "Chat hier anzeigen"
     },

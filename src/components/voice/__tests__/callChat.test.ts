@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, reactive, ref, type EffectScope } from 'vue'
 
 // The call's side chat: which chat a call has, whether this user can read it
-// here, when the routed view yields its list, the per-user open state and
-// width, and the unread mark while the chat is hidden.
+// here, when the routed view yields its list, when it docks beside the main
+// window's chat, the per-user open state and width, and the unread mark while
+// the chat is hidden.
 
 const h = vi.hoisted(() => ({
   voice: null as any,
@@ -14,6 +15,7 @@ const h = vi.hoisted(() => ({
   route: null as any,
   push: null as any,
   popped: null as any,
+  width: null as any,
   user: 'u0',
   storage: new Map<string, string>(),
 }))
@@ -42,12 +44,11 @@ vi.mock('@/utils/userScopedStorage', () => ({
 vi.mock('vue-router', () => ({
   useRouter: () => ({ currentRoute: h.route, push: h.push }),
 }))
-vi.mock('../callPopout', async () => {
-  const { computed } = await import('vue')
-  return { callPopoutActive: computed(() => h.popped.value) }
-})
+// A getter, not a computed: each test replaces h.popped, and a computed would keep the first ref.
+vi.mock('../callPopout', () => ({ callPopoutActive: { get value() { return h.popped.value } } }))
+vi.mock('@/composables/useViewport', () => ({ useViewport: () => ({ viewportWidth: h.width }) }))
 
-import { CALL_CHAT_WIDTH, clampCallChatWidth, setCallChatOpen, setCallChatWidth, useCallChat, useCallChatUnread } from '../callChat'
+import { CALL_CHAT_DOCK_MIN_VIEWPORT, CALL_CHAT_WIDTH, clampCallChatWidth, setCallChatOpen, setCallChatWidth, useCallChat, useCallChatUnread } from '../callChat'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 
 const CONV = '11111111-2222-3333-4444-555555555555'
@@ -64,6 +65,7 @@ beforeEach(() => {
   h.route = ref({ name: 'ChatChannel', params: { serverId: 's1', channelId: 'lounge' } })
   h.push = vi.fn(async () => {})
   h.popped = ref(false)
+  h.width = ref(1440)
   scope = effectScope()
 })
 
@@ -137,21 +139,37 @@ describe('useCallChat placement', () => {
     expect(chat.hosts({ conversationId: CONV })).toBe(false)
   })
 
-  it("routes the main window to the call's chat only when it shows another", () => {
+  it("docks beside the main window's chat while the call view is hidden, unless that chat is the call's", () => {
     const chat = inScope(useCallChat)
+    setCallChatOpen(true)
+    h.voice.isOverlayVisible = false
     expect(chat.routed.value).toBe(true)
-    chat.showTarget()
-    expect(h.push).not.toHaveBeenCalled()
+    expect(chat.docked.value).toBe(false)
 
     h.route.value = { name: 'ChatChannel', params: { serverId: 's1', channelId: 'general' } }
     expect(chat.routed.value).toBe(false)
-    chat.showTarget()
-    expect(h.push).toHaveBeenCalledWith({ name: 'ChatChannel', params: { serverId: 's1', channelId: 'lounge' } })
+    expect(chat.docked.value).toBe(true)
+    // The main window stays where it is.
+    expect(h.push).not.toHaveBeenCalled()
+
+    // The call view takes the chat back, in the app or popped out.
+    h.popped.value = true
+    expect(chat.docked.value).toBe(false)
+    expect(chat.shown.value).toBe(true)
+    h.popped.value = false
+    expect(chat.docked.value).toBe(true)
 
     h.voice.currentServerId = 'dm'
     h.voice.currentChannelId = `dm-${CONV}`
-    chat.showTarget()
-    expect(h.push).toHaveBeenLastCalledWith({ name: 'DMConversation', params: { conversationId: CONV } })
+    expect(chat.docked.value).toBe(true)
+    h.route.value = { name: 'DMConversation', params: { conversationId: CONV } }
+    expect(chat.docked.value).toBe(false)
+    h.route.value = { name: 'ChatChannel', params: { serverId: 's1', channelId: 'general' } }
+
+    // A narrow window has no room beside the chat.
+    h.width.value = CALL_CHAT_DOCK_MIN_VIEWPORT - 1
+    expect(chat.dockable.value).toBe(false)
+    expect(chat.docked.value).toBe(false)
   })
 })
 

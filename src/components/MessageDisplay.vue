@@ -786,6 +786,13 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
+  // A list the routed chat stores do not hold: paging state comes from here, the list
+  // is never detached from the present, and reply jumps and highlights stay within its
+  // loaded rows.
+  listState: {
+    type: Object as PropType<{ loadingOlder: boolean; allLoaded: boolean } | null>,
+    default: null
+  },
 });
 
 const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser', 'retry-message', 'discard-message']);
@@ -1467,12 +1474,14 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
 
 // Unified computed properties that work for both chat and DMs
 const isLoadingOlderMessages = computed(() => {
+  if (props.listState) return props.listState.loadingOlder;
   if (props.conversationId) return dmStore.loadingMessages;
   if (props.channelId) return chatStore.loadingOlderMessages;
   return false;
 });
 
 const isAllMessagesLoaded = computed(() => {
+  if (props.listState) return props.listState.allLoaded;
   if (props.conversationId) return dmStore.allMessagesLoaded;
   if (props.channelId) return chatStore.allMessagesLoaded;
   return false;
@@ -1481,12 +1490,14 @@ const isAllMessagesLoaded = computed(() => {
 // A jump detached the list from the present: it ends before the newest message.
 // Thread views carry their parent channel's id but not its list.
 const isDetached = computed(() => {
+  if (props.listState) return false;
   if (props.conversationId) return dmStore.hasNewerMessages;
   if (props.channelId && !props.threadId) return chatStore.hasNewerMessages;
   return false;
 });
 
 const isLoadingNewerMessages = computed(() => {
+  if (props.listState) return false;
   if (props.conversationId) return dmStore.loadingNewerMessages;
   if (props.channelId && !props.threadId) return chatStore.loadingNewerMessages;
   return false;
@@ -1494,6 +1505,7 @@ const isLoadingNewerMessages = computed(() => {
 
 // Messages from others that arrived while detached.
 const detachedUnseen = computed(() => {
+  if (props.listState) return 0;
   if (props.conversationId) return dmStore.unseenWhileDetached;
   if (props.channelId && !props.threadId) return chatStore.unseenWhileDetached;
   return 0;
@@ -3234,13 +3246,13 @@ onMounted(() => {
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
   document.addEventListener('focusin', onDocumentFocusIn);
-  // A thread view shares the channel id but not the channel's list.
-  if (!props.threadId) chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
+  // A thread view shares the channel id but not the channel's list; nor does a list the stores do not hold.
+  if (!props.threadId && !props.listState) chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
 // Watch for DM highlight requests (reply jump in DMs)
 watch(() => dmStore.highlightedMessageId, (messageId) => {
-  if (!messageId || !props.conversationId) return;
+  if (!messageId || !props.conversationId || props.listState) return;
   jumpToMessageRow(messageId);
   dmStore.highlightedMessageId = null;
 });
@@ -3256,7 +3268,7 @@ onUnmounted(() => {
     clearTimeout(longPressTimer.value);
   }
   clearReadDivider();
-  if (!props.threadId) chatStore.highlightMessage = (_messageId: string) => {};
+  if (!props.threadId && !props.listState) chatStore.highlightMessage = (_messageId: string) => {};
   if (highlightTimer) clearTimeout(highlightTimer);
 });
 
@@ -3863,8 +3875,8 @@ const returnFromJump = (messageId: string) => {
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
-  // A thread view's rows are its own; the channel's list is not on screen.
-  if (props.threadId) {
+  // A thread view's rows are its own, as are those of a list the stores do not hold.
+  if (props.threadId || props.listState) {
     if (!jumpToMessageRow(replyMessageId)) debug.warn(`Reply target is not in this thread: ${replyMessageId}`);
     return;
   }

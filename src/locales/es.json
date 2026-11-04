@@ -1419,8 +1419,6 @@
       "region": "Chat de {name}",
       "close": "Cerrar chat",
       "resize": "Cambiar el ancho del chat",
-      "awayText": "La ventana principal muestra otro chat.",
-      "awayAction": "Mostrar el chat de la llamada",
       "elsewhereText": "Este chat está abierto junto a la llamada.",
       "elsewhereAction": "Mostrar el chat aquí"
     },

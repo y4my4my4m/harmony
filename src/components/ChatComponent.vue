@@ -12,6 +12,7 @@
       :loadMoreMessages="props.loadMoreMessages"
       :channelId="props.channelId"
       :conversationId="props.conversationId"
+      :listState="props.listState"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
@@ -60,7 +61,7 @@
       :channel-id="props.channelId"
       :conversation-id="props.conversationId"
       :media-room="composerMediaRoom"
-      :server-id="serverChannelStore.currentServerId ?? undefined"
+      :server-id="props.serverId ?? serverChannelStore.currentServerId ?? undefined"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
@@ -243,11 +244,17 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     conversationId?: string;
     channelName?: string;
     dmUsername?: string;
+    /** Server of the channel when it is not the routed server's. */
+    serverId?: string;
+    /** Paging state of a list the routed stores do not hold (MessageDisplay). */
+    listState?: { loadingOlder: boolean; allLoaded: boolean } | null;
   }
 
   const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
     isDM: false,
+    serverId: undefined,
+    listState: null,
   });
 
   interface Emits {
@@ -287,7 +294,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       return conversationId ? { kind: 'dm', conversationId } : null;
     }
     const channelId = props.channelId || serverChannelStore.currentChannelId;
-    const serverId = serverChannelStore.channels.find(ch => ch.id === channelId)?.server_id
+    const serverId = props.serverId
+      ?? serverChannelStore.channels.find(ch => ch.id === channelId)?.server_id
       ?? serverChannelStore.currentServerId;
     return channelId && serverId ? { kind: 'channel', serverId, channelId } : null;
   };
@@ -309,7 +317,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
   const welcomeStore = useServerWelcomeStore();
   const rulesPromptServerId = computed(() => {
-    const serverId = serverChannelStore.currentServerId;
+    const serverId = props.serverId ?? serverChannelStore.currentServerId;
     return !props.isDM && serverId && welcomeStore.mustAccept(serverId) ? serverId : null;
   });
 

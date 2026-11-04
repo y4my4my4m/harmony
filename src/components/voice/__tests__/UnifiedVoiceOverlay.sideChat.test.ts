@@ -75,7 +75,6 @@ vi.mock('../callChat', async () => {
   const state = r({ available: true, open: false, unread: false })
   h.chat = {
     state,
-    showTarget: vi.fn(),
     setCallChatOpen: vi.fn((next: boolean) => { state.open = next }),
   }
   return {
@@ -87,7 +86,8 @@ vi.mock('../callChat', async () => {
       width: ref(360),
       shown: computed(() => state.open && state.available && (h.store.isOverlayVisible || h.popout.active)),
       routed: computed(() => true),
-      showTarget: h.chat.showTarget,
+      dockable: computed(() => false),
+      docked: computed(() => false),
       hosts: () => false,
     }),
     useCallChatUnread: () => computed(() => state.unread && !state.open),
@@ -162,7 +162,6 @@ beforeEach(() => {
   h.popout.root = null
   vi.mocked(openCallPopout).mockClear()
   vi.mocked(closeCallPopout).mockClear()
-  h.chat.showTarget.mockClear()
 })
 
 afterEach(() => {
@@ -199,7 +198,6 @@ describe('call view side chat', () => {
     button.click()
     await flushPromises()
     expect(h.chat.setCallChatOpen).toHaveBeenCalledWith(true)
-    expect(h.chat.showTarget).toHaveBeenCalledTimes(1)
     const panel = view.querySelector<HTMLElement>('[data-testid="call-side-chat"]')!
     expect(panel).not.toBeNull()
     expect(button.getAttribute('aria-expanded')).toBe('true')
