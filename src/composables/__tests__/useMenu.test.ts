@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import AppMenu from '@/components/a11y/AppMenu.vue'
-import { isContextMenuKey, useMenuButton } from '../useMenu'
+import { isContextMenuKey, toggleSubmenu, useMenuButton } from '../useMenu'
 import { resetLayersForTests } from '@/utils/a11y/layers'
 
 enableAutoUnmount(afterEach)
@@ -31,10 +31,17 @@ const Host = defineComponent({
               h('button', { role: 'menuitem', onClick: () => { picked.value = 'invite'; open.value = false } }, 'Invite people'),
               h('button', { role: 'menuitem', disabled: true }, 'Disabled'),
               h('div', { class: 'menu-sub', role: 'none' }, [
-                h('button', { role: 'menuitem', 'aria-haspopup': 'menu' }, 'Mute'),
+                h('button', { role: 'menuitem', 'aria-haspopup': 'menu', 'aria-expanded': 'false', onClick: (e: MouseEvent) => toggleSubmenu(e.currentTarget as HTMLElement) }, 'Mute'),
                 h('div', { role: 'menu', 'aria-label': 'Mute' }, [
                   h('button', { role: 'menuitem' }, 'For 1 hour'),
                   h('button', { role: 'menuitem' }, 'Until I turn it back on'),
+                ]),
+              ]),
+              h('div', { class: 'menu-sub', role: 'none' }, [
+                h('button', { role: 'menuitem', 'aria-haspopup': 'menu', 'aria-expanded': 'false', onClick: (e: MouseEvent) => toggleSubmenu(e.currentTarget as HTMLElement) }, 'Notify'),
+                h('div', { role: 'menu', 'aria-label': 'Notify' }, [
+                  h('button', { role: 'menuitemradio', 'aria-checked': 'true' }, 'All'),
+                  h('button', { role: 'menuitemradio', 'aria-checked': 'false' }, 'Nothing'),
                 ]),
               ]),
               h('div', { role: 'menuitemcheckbox', 'aria-checked': 'false', tabindex: '-1', onClick: () => (picked.value = 'check') }, 'Leave'),
@@ -88,6 +95,8 @@ describe('AppMenu / useMenu', () => {
     key('ArrowDown')
     expect(text()).toContain('Mute')
     key('ArrowDown')
+    expect(text()).toContain('Notify')
+    key('ArrowDown')
     expect(text()).toBe('Leave')
     key('ArrowDown')
     expect(text()).toBe('Invite people')
@@ -109,6 +118,38 @@ describe('AppMenu / useMenu', () => {
     key('Escape')
     expect(text()).toContain('Mute')
     expect(document.querySelector('[role="menu"][aria-label="Server options"]')).not.toBeNull()
+  })
+
+  it('opens a submenu from its owner\'s click (Enter, Space, a tap) and closes it on the next', async () => {
+    await openWith()
+    key('ArrowDown')
+    const mute = document.activeElement as HTMLElement
+    mute.click()
+    expect(text()).toBe('For 1 hour')
+    expect(mute.getAttribute('aria-expanded')).toBe('true')
+    expect(mute.parentElement!.classList.contains('open')).toBe(true)
+    key('ArrowDown')
+    expect(text()).toBe('Until I turn it back on')
+    key('ArrowDown')
+    expect(text()).toBe('For 1 hour')
+    mute.click()
+    expect(document.activeElement).toBe(mute)
+    expect(mute.getAttribute('aria-expanded')).toBe('false')
+    expect(mute.parentElement!.classList.contains('open')).toBe(false)
+  })
+
+  it('opening one submenu closes another of the same menu', async () => {
+    await openWith()
+    const [mute, notify] = Array.from(document.querySelectorAll<HTMLElement>('[role="menu"] [aria-haspopup="menu"]'))
+    mute.click()
+    notify.click()
+    expect(text()).toBe('All')
+    expect(mute.getAttribute('aria-expanded')).toBe('false')
+    expect(mute.parentElement!.classList.contains('open')).toBe(false)
+    expect(notify.getAttribute('aria-expanded')).toBe('true')
+    key('ArrowLeft')
+    expect(document.activeElement).toBe(notify)
+    expect(notify.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('Escape closes and returns focus to the trigger', async () => {

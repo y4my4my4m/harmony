@@ -1073,6 +1073,13 @@
       "label": "Message actions",
       "thread": "Create thread"
     },
+    "shortcuts": {
+      "replying": "Replying to {name}",
+      "pinned": "Message pinned",
+      "unpinned": "Message unpinned",
+      "copied": "Message text copied",
+      "copyFailed": "Could not copy the message text"
+    },
     "failed": {
       "label": "Failed to send",
       "retry": "Retry",
@@ -1101,7 +1108,8 @@
       "pill": "{emoji}, {count} reaction | {emoji}, {count} reactions",
       "pillYou": "{emoji}, {count} reaction, including you | {emoji}, {count} reactions, including you",
       "hint": "The context menu key or Shift+F10 shows the emoji and who reacted.",
-      "removed": "Reaction removed: {emoji}"
+      "removed": "Reaction removed: {emoji}",
+      "summary": "Reactions: {list}"
     },
     "emoji": {
       "reactionDialog": "Add reaction",
@@ -6496,7 +6504,10 @@
       "unmuteChannel": "Unmute channel",
       "unmuteCategory": "Unmute category",
       "level": "Notification level",
-      "default": "Default ({level})"
+      "default": "Default ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} muted",
+      "unmuted": "{name} unmuted"
     },
     "notification": {
       "action": " sent a message in #{channel}",
@@ -6700,7 +6711,29 @@
       "skip": "Skip to content: the first Tab stop on every page",
       "skipKeys": "Tab",
       "escape": "Close the open dialog, menu or drawer; focus returns to where it was",
-      "escapeKeys": "Escape"
+      "escapeKeys": "Escape",
+      "messages": {
+        "title": "Message list",
+        "note": "These keys act on the message that has focus.",
+        "moveKeys": "↑ / ↓",
+        "move": "Previous or next message; Home and End go to the first and last",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "Message options",
+        "editKeys": "E",
+        "edit": "Edit your message",
+        "replyKeys": "R",
+        "reply": "Reply",
+        "reactKeys": "+",
+        "react": "Add a reaction",
+        "pinKeys": "P",
+        "pin": "Pin or unpin",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "Delete; with Shift, without asking first",
+        "copyKeys": "C",
+        "copy": "Copy the text",
+        "threadKeys": "T",
+        "thread": "Create or open a thread"
+      }
     },
     "unsavedChanges": "Unsaved changes"
   },

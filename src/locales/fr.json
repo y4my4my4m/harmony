@@ -1026,6 +1026,13 @@
       "label": "Actions du message",
       "thread": "Créer un fil"
     },
+    "shortcuts": {
+      "replying": "En réponse à {name}",
+      "pinned": "Message épinglé",
+      "unpinned": "Message désépinglé",
+      "copied": "Texte du message copié",
+      "copyFailed": "Impossible de copier le texte du message"
+    },
     "failed": {
       "label": "Échec de l'envoi",
       "retry": "Réessayer",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}, {count} réaction | {emoji}, {count} réactions",
       "pillYou": "{emoji}, {count} réaction, dont la vôtre | {emoji}, {count} réactions, dont la vôtre",
       "hint": "La touche menu contextuel ou Maj+F10 affiche l’emoji et qui a réagi.",
-      "removed": "Réaction retirée : {emoji}"
+      "removed": "Réaction retirée : {emoji}",
+      "summary": "Réactions : {list}"
     },
     "emoji": {
       "reactionDialog": "Ajouter une réaction",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "Réactiver le salon",
       "unmuteCategory": "Réactiver la catégorie",
       "level": "Niveau de notification",
-      "default": "Par défaut ({level})"
+      "default": "Par défaut ({level})",
+      "levelSet": "{name} : {level}",
+      "muted": "{name} en sourdine",
+      "unmuted": "{name} n’est plus en sourdine"
     },
     "notification": {
       "action": " a envoyé un message dans #{channel}",
@@ -6704,7 +6715,29 @@
       "skip": "Aller au contenu : le premier arrêt de Tab sur chaque page",
       "skipKeys": "Tab",
       "escape": "Fermer la boîte de dialogue, le menu ou le panneau ouvert ; le focus revient là où il était",
-      "escapeKeys": "Échap"
+      "escapeKeys": "Échap",
+      "messages": {
+        "title": "Liste des messages",
+        "note": "Ces touches agissent sur le message qui a le focus.",
+        "moveKeys": "↑ / ↓",
+        "move": "Message précédent ou suivant ; Début et Fin vont au premier et au dernier",
+        "menuKeys": "Entrée / Maj+F10",
+        "menu": "Options du message",
+        "editKeys": "E",
+        "edit": "Modifier votre message",
+        "replyKeys": "R",
+        "reply": "Répondre",
+        "reactKeys": "+",
+        "react": "Ajouter une réaction",
+        "pinKeys": "P",
+        "pin": "Épingler ou désépingler",
+        "deleteKeys": "Retour arrière / Suppr",
+        "delete": "Supprimer ; avec Maj, sans confirmation",
+        "copyKeys": "C",
+        "copy": "Copier le texte",
+        "threadKeys": "T",
+        "thread": "Créer ou ouvrir un fil"
+      }
     },
     "unsavedChanges": "Modifications non enregistrées"
   },

@@ -1026,6 +1026,13 @@
       "label": "消息操作",
       "thread": "创建讨论串"
     },
+    "shortcuts": {
+      "replying": "回复 {name}",
+      "pinned": "消息已置顶",
+      "unpinned": "已取消置顶",
+      "copied": "已复制消息文本",
+      "copyFailed": "无法复制消息文本"
+    },
     "failed": {
       "label": "发送失败",
       "retry": "重试",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}，{count} 个回应",
       "pillYou": "{emoji}，{count} 个回应，包括你",
       "hint": "按上下文菜单键或 Shift+F10 查看表情和谁做了回应。",
-      "removed": "已取消回应：{emoji}"
+      "removed": "已取消回应：{emoji}",
+      "summary": "反应：{list}"
     },
     "emoji": {
       "reactionDialog": "添加回应",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "取消静音频道",
       "unmuteCategory": "取消静音分类",
       "level": "通知级别",
-      "default": "默认（{level}）"
+      "default": "默认（{level}）",
+      "levelSet": "{name}：{level}",
+      "muted": "{name} 已静音",
+      "unmuted": "{name} 已取消静音"
     },
     "notification": {
       "action": " 在 #{channel} 发送了一条消息",
@@ -6704,7 +6715,29 @@
       "skip": "跳到内容：每个页面上第一个 Tab 位置",
       "skipKeys": "Tab",
       "escape": "关闭打开的对话框、菜单或面板，焦点回到原处",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "消息列表",
+        "note": "这些按键作用于当前获得焦点的消息。",
+        "moveKeys": "↑ / ↓",
+        "move": "上一条或下一条消息；Home 和 End 跳到第一条和最后一条",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "消息选项",
+        "editKeys": "E",
+        "edit": "编辑你的消息",
+        "replyKeys": "R",
+        "reply": "回复",
+        "reactKeys": "+",
+        "react": "添加反应",
+        "pinKeys": "P",
+        "pin": "置顶或取消置顶",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "删除；按住 Shift 则不再确认",
+        "copyKeys": "C",
+        "copy": "复制文本",
+        "threadKeys": "T",
+        "thread": "创建或打开讨论串"
+      }
     },
     "unsavedChanges": "未保存的更改"
   },

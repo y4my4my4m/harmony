@@ -17,6 +17,10 @@ const shared = vi.hoisted(() => ({
   quickReactEnabled: true,
   roles: [] as Array<{ id: string }>,
   divider: null as string | null,
+  setPinned: vi.fn(async (_message: unknown, _pinned: boolean) => true),
+  reactions: {} as Record<string, unknown[]>,
+  canCreateThreads: false,
+  canPinMessages: false,
 }))
 
 /** A store double: named fields as given, any other member an async no-op. */
@@ -48,7 +52,10 @@ vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => loose({
 vi.mock('@/stores/useActivityPub', () => ({
   useActivityPubStore: () => loose({ blockedUsers: new Set(), isBlocked: () => false }),
 }))
-vi.mock('@/stores/useReactions', () => ({ useReactionsStore: () => loose({ getMessageReactions: () => [] }) }))
+vi.mock('@/composables/usePinActions', () => ({ usePinActions: () => ({ setPinned: shared.setPinned }) }))
+vi.mock('@/stores/useReactions', () => ({
+  useReactionsStore: () => loose({ getMessageReactions: (id: string) => shared.reactions[id] ?? [] }),
+}))
 vi.mock('@/stores/postReactions', () => ({ usePostReactionsStore: () => loose({}) }))
 vi.mock('@/stores/useThreads', () => ({
   useThreadsStore: () => loose({ threadForMessage: () => null, threadsForChannel: () => [] }),
@@ -57,7 +64,15 @@ vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({
     isCurrentUserServerOwner: ref(false),
     canManageMessages: ref(false),
+    isLocalServer: ref(true),
     getCurrentUserRole: computed(() => ({ roles: shared.roles })),
+  }),
+}))
+vi.mock('@/composables/useChannelMessagePermissions', () => ({
+  useChannelMessagePermissions: () => ({
+    canManageMessages: computed(() => false),
+    canCreateThreads: computed(() => shared.canCreateThreads),
+    canPinMessages: computed(() => shared.canPinMessages),
   }),
 }))
 vi.mock('@/composables/useUserData', () => ({
@@ -144,9 +159,9 @@ const message = (id: string, minutes: number, extra: Partial<Message> = {}): Mes
 
 let wrapper: VueWrapper | null = null
 
-async function mountList(messages: Message[]) {
+async function mountList(messages: Message[], props: Record<string, unknown> = { channelId: 'chan-1' }) {
   wrapper = shallowMount(MessageDisplay, {
-    props: { messages, currentUserId: 'me', channelId: 'chan-1' },
+    props: { messages, currentUserId: 'me', ...props },
     global: { mocks: { $t: (key: string) => key }, stubs: { AppToolbar: false, AppTimestamp: false } },
     attachTo: document.body,
   })
@@ -164,6 +179,10 @@ beforeEach(() => {
   resetAnnouncer()
   shared.roles = []
   shared.divider = null
+  shared.reactions = {}
+  shared.canCreateThreads = false
+  shared.canPinMessages = false
+  shared.setPinned.mockClear()
 })
 
 afterEach(() => {
@@ -199,6 +218,19 @@ describe('MessageDisplay rows', () => {
   it('names a reply by its own text first, then the message it replies to', async () => {
     await mountList([message('m1', 0), message('m2', 1, { reply_to: 'm1' })])
     expect(rows()[1].attributes('aria-labelledby')).toBe('msg-head-m2 msg-body-m2 msg-reply-m2 msg-meta-m2')
+  })
+
+  it('reads reactions after the content, before the message replied to and the time', async () => {
+    shared.reactions = { m2: [{ emoji_id: '👍', emoji: { id: '👍', name: '👍', content: '👍' }, count: 2, current_user_reacted: true, reactions: [] }] }
+    await mountList([message('m1', 0), message('m2', 1, { reply_to: 'm1' })])
+    expect(rows()[1].attributes('aria-labelledby')).toBe('msg-head-m2 msg-body-m2 msg-reactions-m2 msg-reply-m2 msg-meta-m2')
+    const part = wrapper!.get('#msg-reactions-m2')
+    expect(part.text()).toBe('messageA11y.reactions.summary')
+    expect(part.classes()).toContain('sr-only')
+    expect(part.attributes('aria-hidden')).toBe('true')
+    // No reactions, no part.
+    expect(rows()[0].attributes('aria-labelledby')).toBe('msg-head-m1 msg-body-m1 msg-meta-m1')
+    expect(wrapper!.find('#msg-reactions-m1').exists()).toBe(false)
   })
 
   it('leads the time part with the time of day; the date comes last, after the state', async () => {
@@ -369,6 +401,141 @@ describe('MessageDisplay keyboard', () => {
       await nextTick()
       expect(menu().props('isVisible')).toBe(false)
     }
+  })
+})
+
+describe('MessageDisplay row shortcuts', () => {
+  const spoken = async () => {
+    vi.advanceTimersByTime(500)
+    return politeText.value
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  it('E edits an own message only', async () => {
+    await mountList([message('m1', 0), message('m2', 1, { user_id: 'me' })])
+    const [other, own] = rows().map((r) => r.element as HTMLElement)
+    const editing = () => wrapper!.findAllComponents({ name: 'UnifiedMessageContent' }).map((c) => c.props('editableMessageId'))
+    other.focus()
+    const refused = new KeyboardEvent('keydown', { key: 'e', bubbles: true, cancelable: true })
+    other.dispatchEvent(refused)
+    await nextTick()
+    expect(refused.defaultPrevented).toBe(false)
+    expect(editing().every((id) => !id)).toBe(true)
+    own.focus()
+    await press(own, 'e')
+    expect(editing()).toContain('m2')
+  })
+
+  it('R replies and says so; + opens the reaction picker anchored on the row', async () => {
+    await mountList([message('m1', 0), message('m2', 1)])
+    const row = rows()[0].element as HTMLElement
+    row.focus()
+    await press(row, 'r')
+    expect(wrapper!.emitted('replyingTo')).toEqual([['m1']])
+    expect(await spoken()).toBe('messageA11y.shortcuts.replying')
+    await press(row, '+')
+    const [[isReaction, target, anchor]] = wrapper!.emitted('toggleEmojiList') as [[boolean, Message, HTMLElement]]
+    expect(isReaction).toBe(true)
+    expect(target.id).toBe('m1')
+    expect(anchor).toBe(row)
+  })
+
+  it('T opens a thread only where threads may be created', async () => {
+    await mountList([message('m1', 0)])
+    const row = rows()[0].element as HTMLElement
+    row.focus()
+    await press(row, 't')
+    expect(wrapper!.emitted('createThread')).toBeUndefined()
+    wrapper!.unmount()
+    shared.canCreateThreads = true
+    await mountList([message('m1', 0)])
+    const allowed = rows()[0].element as HTMLElement
+    allowed.focus()
+    await press(allowed, 't')
+    expect(wrapper!.emitted('createThread')).toHaveLength(1)
+  })
+
+  it('P pins and unpins where the viewer may pin, and says which', async () => {
+    await mountList([message('m1', 0), message('m2', 1, { is_pinned: true })])
+    const first = rows()[0].element as HTMLElement
+    first.focus()
+    await press(first, 'p')
+    expect(shared.setPinned).not.toHaveBeenCalled()
+    wrapper!.unmount()
+
+    await mountList([message('m1', 0), message('m2', 1, { is_pinned: true })], { conversationId: 'conv-1' })
+    const [a, b] = rows().map((r) => r.element as HTMLElement)
+    a.focus()
+    await press(a, 'p')
+    await flushPromises()
+    expect(shared.setPinned).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'm1' }), true)
+    expect(await spoken()).toBe('messageA11y.shortcuts.pinned')
+    b.focus()
+    await press(b, 'p')
+    await flushPromises()
+    expect(shared.setPinned).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'm2' }), false)
+    expect(await spoken()).toBe('messageA11y.shortcuts.unpinned')
+  })
+
+  it('Backspace and Delete ask first; with Shift they delete at once; never another member\'s message', async () => {
+    await mountList([message('m1', 0), message('m2', 1, { user_id: 'me' }), message('m3', 2, { user_id: 'me' })])
+    const [other, own, last] = rows().map((r) => r.element as HTMLElement)
+    const confirm = () => wrapper!.findComponent({ name: 'ConfirmationModal' })
+    other.focus()
+    await press(other, 'Backspace')
+    expect(confirm().props('show')).toBe(false)
+    own.focus()
+    await press(own, 'Delete')
+    expect(confirm().props('show')).toBe(true)
+    confirm().vm.$emit('close')
+    await nextTick()
+    expect(confirm().props('show')).toBe(false)
+    last.focus()
+    await press(last, 'Backspace', { shiftKey: true })
+    await flushPromises()
+    expect(confirm().props('show')).toBe(false)
+    expect(await spoken()).toBe('messageA11y.deleted')
+  })
+
+  it('C copies the text and says so; a message without text copies nothing', async () => {
+    const writeText = vi.fn(async (_text: string) => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await mountList([message('m1', 0), message('m2', 1, { content: [] as never })])
+    const [withText, empty] = rows().map((r) => r.element as HTMLElement)
+    empty.focus()
+    await press(empty, 'c')
+    expect(writeText).not.toHaveBeenCalled()
+    withText.focus()
+    await press(withText, 'c')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith('text of m1')
+    expect(await spoken()).toBe('messageA11y.shortcuts.copied')
+  })
+
+  it('acts on the row only: not from a control inside it, with Ctrl, Alt or Meta, or on an unsent row', async () => {
+    await mountList([message('m1', 0), message('temp-1', 1, { user_id: 'me', sending: true })])
+    const [row, unsent] = rows().map((r) => r.element as HTMLElement)
+    const inner = document.createElement('button')
+    row.appendChild(inner)
+    const attempts: Array<[HTMLElement, KeyboardEventInit]> = [
+      [inner, { key: 'r' }],
+      [row, { key: 'r', ctrlKey: true }],
+      [row, { key: 'r', altKey: true }],
+      [row, { key: 'r', metaKey: true }],
+      [row, { key: 'r', isComposing: true }],
+      [unsent, { key: 'r' }],
+    ]
+    for (const [target, init] of attempts) {
+      target.focus()
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+      target.dispatchEvent(event)
+      await nextTick()
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(wrapper!.emitted('replyingTo')).toBeUndefined()
   })
 })
 

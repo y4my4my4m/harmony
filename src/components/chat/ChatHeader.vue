@@ -196,14 +196,10 @@ import { uid } from '@/utils/a11y/focus'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useI18n } from 'vue-i18n'
 import { useAppDrawers } from '@/composables/useLayoutState'
-import { useNotificationStore } from '@/stores/useNotification'
-import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
-import { findOverride, inheritedLevel, isMuteActive, type NotificationLevel } from '@/services/notificationSettings'
-import { authContextService } from '@/services/AuthContextService'
-import { markChannelRead } from '@/services/readState'
+import type { NotificationLevel } from '@/services/notificationSettings'
+import { useChannelNotificationMenu } from '@/composables/useChannelNotificationMenu'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
-import { debug } from '@/utils/debug'
 
 // Props
 interface Props {
@@ -247,38 +243,18 @@ const levelLabelId = uid('channel-level')
 
 const { t } = useI18n()
 const { leftDrawerToggle, rightDrawerToggle } = useAppDrawers()
-const notificationSettings = useServerNotificationSettingsStore()
-const serverId = computed(() => props.server?.id ?? props.channel?.server_id ?? null)
-const settings = computed(() => notificationSettings.settingsFor(serverId.value))
-const ownOverride = computed(() =>
-  props.channel?.id ? findOverride(settings.value, { channelId: props.channel.id }) : null,
-)
-const categoryMuted = computed(() => {
-  const categoryId = props.channel?.category
-  return !!categoryId && isMuteActive(findOverride(settings.value, { categoryId }))
-})
-const ownMuted = computed(() => isMuteActive(ownOverride.value))
-const isChannelMuted = computed(() => ownMuted.value || categoryMuted.value)
-const muteLabelKey = computed(() => {
-  if (ownMuted.value) return 'notificationSettings.header.unmuteChannel'
-  if (categoryMuted.value) return 'notificationSettings.header.unmuteCategory'
-  return 'notificationSettings.header.muteChannel'
-})
-/** The channel's own level; null follows its category and the server. */
-const channelLevel = computed<NotificationLevel | null>(() => ownOverride.value?.level ?? null)
-const levelOptions = computed(() => {
-  const inherited = settings.value ? inheritedLevel(settings.value, props.channel?.category) : 'mentions'
-  return [
-    {
-      value: null,
-      icon: 'bell',
-      label: t('notificationSettings.header.default', { level: t(`notificationSettings.levels.${inherited}`) }),
-    },
-    { value: 'all' as const, icon: 'bell', label: t('notificationSettings.levels.all') },
-    { value: 'mentions' as const, icon: 'at-sign', label: t('notificationSettings.levels.mentions') },
-    { value: 'none' as const, icon: 'bell-off', label: t('notificationSettings.levels.none') },
-  ]
-})
+const {
+  serverId,
+  isMuted: isChannelMuted,
+  muteLabelKey,
+  level: channelLevel,
+  levelOptions,
+  load: loadMuteState,
+  setLevel,
+  toggleMute,
+  openSettings,
+  markRead,
+} = useChannelNotificationMenu(() => props.channel, () => props.server?.id)
 
 // Methods
 // Cached count renders at once; the fetch revalidates it. Realtime rows and
@@ -288,19 +264,14 @@ const loadPinnedCount = () => {
   void pinsStore.loadCount(props.channel.id, null, { entering: true })
 }
 
-const loadMuteState = () => {
-  if (serverId.value) void notificationSettings.load(serverId.value)
-}
-
 const setNotificationLevel = (level: NotificationLevel | null) => {
   showOptionsMenu.value = false
-  if (!props.channel?.id || !serverId.value) return
-  void notificationSettings.updateOverride(serverId.value, { channelId: props.channel.id }, { level })
+  void setLevel(level)
 }
 
 const openServerNotificationSettings = () => {
   showOptionsMenu.value = false
-  if (serverId.value) notificationSettings.openModal(serverId.value)
+  openSettings()
 }
 
 const handlePinnedClick = () => {
@@ -334,41 +305,9 @@ const handleMoreClick = () => {
   showOptionsMenu.value = !showOptionsMenu.value
 }
 
-const handleMarkAsRead = async () => {
+const handleMarkAsRead = () => {
   showOptionsMenu.value = false
-  if (!props.channel?.id) return
-
-  try {
-    const ctx = await authContextService.getCurrentContext()
-    if (!ctx.isAuthenticated) return
-
-    try {
-      await markChannelRead(props.channel.id)
-    } catch (error) {
-      debug.error('Failed to clear channel unread counts:', error)
-      return
-    }
-
-    // Mark all notifications for this channel as read.
-    // Filter on every supported location path used by NotificationFormatter so
-    // notifications stored under data.location.* are also cleared.
-    const notificationStore = useNotificationStore()
-    const channelId = props.channel.id
-    const channelNotifications = notificationStore.notifications.filter(n =>
-      !n.is_read && (
-        n.data?.channel_id === channelId ||
-        n.data?.message?.channel_id === channelId ||
-        n.data?.location?.channel_id === channelId
-      )
-    )
-    if (channelNotifications.length > 0) {
-      await Promise.all(channelNotifications.map(n => notificationStore.markAsRead(n.id)))
-    }
-
-    debug.log('Marked channel as read:', props.channel.name)
-  } catch (error) {
-    debug.error('Failed to mark channel as read:', error)
-  }
+  void markRead()
 }
 
 const handleEditChannel = () => {
@@ -378,16 +317,9 @@ const handleEditChannel = () => {
   }
 }
 
-// A channel muted through its category unmutes the category, as Discord's menu does.
 const handleToggleMute = () => {
   showOptionsMenu.value = false
-  const channelId = props.channel?.id
-  if (!channelId || !serverId.value) return
-  if (!ownMuted.value && categoryMuted.value && props.channel.category) {
-    void notificationSettings.updateOverride(serverId.value, { categoryId: props.channel.category }, { muted: false })
-    return
-  }
-  void notificationSettings.updateOverride(serverId.value, { channelId }, { muted: !ownMuted.value })
+  void toggleMute()
 }
 
 watch(() => [props.channel?.id, serverId.value], () => {

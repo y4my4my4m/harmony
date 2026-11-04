@@ -1026,6 +1026,13 @@
       "label": "메시지 작업",
       "thread": "스레드 만들기"
     },
+    "shortcuts": {
+      "replying": "{name}님에게 답장",
+      "pinned": "메시지를 고정했습니다",
+      "unpinned": "고정을 해제했습니다",
+      "copied": "메시지 텍스트를 복사했습니다",
+      "copyFailed": "메시지 텍스트를 복사하지 못했습니다"
+    },
     "failed": {
       "label": "전송 실패",
       "retry": "다시 시도",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}, 반응 {count}개",
       "pillYou": "{emoji}, 나를 포함한 반응 {count}개",
       "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 이모지와 반응한 사람을 볼 수 있습니다.",
-      "removed": "반응을 취소했습니다: {emoji}"
+      "removed": "반응을 취소했습니다: {emoji}",
+      "summary": "반응: {list}"
     },
     "emoji": {
       "reactionDialog": "반응 추가",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "채널 음소거 해제",
       "unmuteCategory": "카테고리 음소거 해제",
       "level": "알림 수준",
-      "default": "기본값 ({level})"
+      "default": "기본값 ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} 음소거됨",
+      "unmuted": "{name} 음소거 해제됨"
     },
     "notification": {
       "action": "님이 #{channel}에 메시지를 보냈습니다",
@@ -6704,7 +6715,29 @@
       "skip": "본문으로 건너뛰기: 모든 페이지의 첫 번째 Tab 위치",
       "skipKeys": "Tab",
       "escape": "열린 대화 상자, 메뉴 또는 패널을 닫고 포커스를 원래 위치로 되돌립니다",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "메시지 목록",
+        "note": "이 키는 포커스가 있는 메시지에 적용됩니다.",
+        "moveKeys": "↑ / ↓",
+        "move": "이전 또는 다음 메시지. Home과 End는 처음과 마지막으로 이동",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "메시지 옵션",
+        "editKeys": "E",
+        "edit": "내 메시지 편집",
+        "replyKeys": "R",
+        "reply": "답장",
+        "reactKeys": "+",
+        "react": "반응 추가",
+        "pinKeys": "P",
+        "pin": "고정 또는 고정 해제",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "삭제 (Shift를 누르면 확인 없이)",
+        "copyKeys": "C",
+        "copy": "텍스트 복사",
+        "threadKeys": "T",
+        "thread": "스레드 만들기 또는 열기"
+      }
     },
     "unsavedChanges": "저장되지 않은 변경 사항"
   },

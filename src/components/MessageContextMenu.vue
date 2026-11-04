@@ -188,12 +188,13 @@ import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { usePinActions } from '@/composables/usePinActions';
+import { canPinMessage } from '@/utils/pinPermission';
 import { embedsSuppressed, hasEmbeddableParts, setEmbedsSuppressed } from '@/services/messageEmbeds';
 import { useToast } from 'vue-toastification';
 import { i18n } from '@/i18n';
 import { useReactionsStore } from '@/stores/useReactions';
 import { getEmojiUrl } from '@/utils/emojiUtils';
-import { messagePartsToPlainText } from '@/utils/messageContentUtils';
+import { hasCopyableText, messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { resolveMediaPartUrl } from '@/services/privateMedia';
 import { getMessageShareUrl } from '@/utils/messageShareUrl';
@@ -279,11 +280,11 @@ const isPinned = computed(() => props.message?.is_pinned || false);
 const hasReactions = computed(() =>
   !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
 );
-// A system notice is neither pinned nor reported: it has no author. Any participant pins in a
-// conversation (pin_message); a copy's pins are the host's.
-const canPin = computed(() =>
-  !props.message?.is_system
-  && (!!props.conversationId || (isLocalServer.value && canPinInChannel.value)));
+const canPin = computed(() => canPinMessage(props.message, {
+  inConversation: !!props.conversationId,
+  isLocalServer: isLocalServer.value,
+  canPinInChannel: canPinInChannel.value,
+}));
 const toast = useToast();
 
 // The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed). An author
@@ -437,16 +438,7 @@ const hasMediaURL = computed(() => {
   return false;
 });
 
-const hasTextContent = computed(() => {
-  if (!props.message || !Array.isArray(props.message.content)) return false;
-  return props.message.content.some(part => {
-    if (part.type === 'text' && (part.text || '').trim().length > 0) return true;
-    if (part.type === 'mention' || part.type === 'role_mention') return true;
-    if (part.type === 'emoji') return true;
-    if (part.type === 'url') return true;
-    return false;
-  });
-});
+const hasTextContent = computed(() => hasCopyableText(props.message?.content));
 
 // Show "Copy Media URL" when the message has a file attachment, otherwise
 // "Copy Link URL" for plain URLs. Matches Discord's wording: media files

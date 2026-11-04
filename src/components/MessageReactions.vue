@@ -99,7 +99,8 @@ import type { Message, Emoji, ReactionGroup } from '@/types';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { isContextMenuKey } from '@/composables/useMenu';
-import { customEmojiLabel, humanizeEmojiName, spokenEmojiName } from '@/utils/a11y/emojiNames';
+import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
+import { reactionEmojiIdentifier, reactionEmojiSpoken, reactionPillLabel } from '@/utils/a11y/reactionLabels';
 import { focusElement, uid } from '@/utils/a11y/focus';
 import { dismissHoverEmojiInfo, type ReactionInfoVia } from '@/composables/useEmojiInfo';
 
@@ -154,21 +155,9 @@ const isLoadingReactions = computed(() =>
 // when optimistic state reconciles).
 const currentUserId = computed(() => profileStore.profileId);
 
-/** Spoken emoji of a pill: :name: for a custom emoji, the shortcode in words otherwise. */
-const emojiSpoken = (reactionGroup: ReactionGroup): string => {
-  const emoji = reactionGroup.emoji as (Emoji & { is_native?: boolean; content?: string }) | undefined;
-  if (emoji?.url && !emoji.is_native) return customEmojiLabel(emoji.name);
-  const resolved = getResolvedEmoji(reactionGroup);
-  return spokenEmojiName({ shortcode: resolved?.shortcode, name: emoji?.name, native: emoji?.content }) || reactionGroup.emoji_id || '';
-};
+const emojiSpoken = (reactionGroup: ReactionGroup): string => reactionEmojiSpoken(reactionGroup, resolveEmoji);
 
-/** "thumbs up, 3 reactions, including you". */
-const reactionLabel = (reactionGroup: ReactionGroup): string => {
-  const params = { emoji: emojiSpoken(reactionGroup), count: reactionGroup.count };
-  return reactionGroup.current_user_reacted
-    ? t('messageA11y.reactions.pillYou', params, reactionGroup.count)
-    : t('messageA11y.reactions.pill', params, reactionGroup.count);
-};
+const reactionLabel = (reactionGroup: ReactionGroup): string => reactionPillLabel(reactionGroup, t, resolveEmoji);
 
 const handleReactionClick = async (reactionGroup: ReactionGroup, event?: MouseEvent) => {
   const emoji = reactionGroup.emoji as Emoji;
@@ -305,11 +294,8 @@ const handleEmojiError = (emoji: Emoji) => {
  * Resolve emoji for display using the unified emoji service
  * Handles: unicode, shortcodes
  */
-const getResolvedEmoji = (reactionGroup: any) => {
-  const emoji = reactionGroup.emoji;
-  if (!emoji) return null;
-  
-  const identifier = emoji.content || emoji.name || emoji.id || reactionGroup.emoji_id;
+const getResolvedEmoji = (reactionGroup: ReactionGroup) => {
+  const identifier = reactionEmojiIdentifier(reactionGroup);
   if (!identifier) return null;
   
   try {

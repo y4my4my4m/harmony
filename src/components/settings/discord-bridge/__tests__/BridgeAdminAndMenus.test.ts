@@ -4,6 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import BridgeHostingAdmin from '../BridgeHostingAdmin.vue'
 import BridgeBotGuide from '../../BridgeBotGuide.vue'
 import ChannelContextMenu from '@/components/ChannelContextMenu.vue'
@@ -156,7 +157,7 @@ describe('ChannelContextMenu — Copy channel ID', () => {
   function mountMenu() {
     return mount(ChannelContextMenu, {
       props: { isVisible: true, position: { x: 10, y: 10 }, channel },
-      global: { plugins: [makeI18n()], stubs: { teleport: true } },
+      global: { plugins: [makeI18n(), createPinia()], stubs: { teleport: true } },
     })
   }
 

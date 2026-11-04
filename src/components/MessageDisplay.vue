@@ -87,7 +87,7 @@
       :aria-label="listLabel"
       :aria-busy="isLoadingOlderMessages ? 'true' : undefined"
       :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }"
-      @keydown="roving.onKeydown"
+      @keydown="onListKeydown"
       @focusin="onListFocusIn"
       @focusout="onListFocusOut"
     >
@@ -209,6 +209,12 @@
             :aria-hidden="shouldShowHeader(item.message, item.index) ? 'true' : undefined"
           >{{ getAuthorDisplayName(item.message).value }}</span>
           <span v-if="mentionsMe(item.message)" class="sr-only">{{ t('messageA11y.row.mentionsYou') }}</span>
+          <span
+            v-if="rowReactions(item.message)"
+            :id="`msg-reactions-${item.message.id}`"
+            class="sr-only"
+            aria-hidden="true"
+          >{{ rowReactions(item.message) }}</span>
           <span :id="`msg-meta-${item.message.id}`" class="sr-only" aria-hidden="true">{{ rowMeta(item.message) }}</span>
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
@@ -622,7 +628,7 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, StickerContent } from '@/types';
-import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
+import { hasCopyableText, hasSubstantiveMessageContent, messagePartsToPlainText, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
 import { remoteServerHost } from '@/utils/serverUtils';
@@ -649,6 +655,8 @@ import { supabase } from '@/supabase';
 import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
+import { usePinActions } from '@/composables/usePinActions';
+import { canPinMessage } from '@/utils/pinPermission';
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -723,6 +731,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer';
 import { PARKED_ATTR, useRovingTabindex } from '@/composables/useRovingTabindex';
 import { createNewMessageAnnouncer } from '@/composables/useNewMessageAnnouncer';
 import { messageSpeechText } from '@/utils/a11y/messageSpeech';
+import { reactionsSummary } from '@/utils/a11y/reactionLabels';
 import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
 import { hasOpenLayer, resolveFocusOrigin } from '@/utils/a11y/layers';
 import { useThreadsStore } from '@/stores/useThreads';
@@ -1159,9 +1168,9 @@ const floatingActionsStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
+const { isCurrentUserServerOwner, getCurrentUserRole, isLocalServer } = useServerPermissions();
 // Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
-const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+const { canManageMessages, canCreateThreads, canPinMessages } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
 // create_thread needs CREATE_PUBLIC_THREADS in the channel.
 const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
 // Pictures, videos and files of a server hosted elsewhere whose media this instance hides.
@@ -1998,11 +2007,16 @@ const rowMeta = (message: Message): string => {
   return parts.filter(Boolean).join(', ');
 };
 
-/** Author, content, the message replied to, then time, state and date. */
+/** The reaction buttons' labels joined (utils/a11y/reactionLabels); '' without reactions. */
+const rowReactions = (message: Message): string =>
+  reactionsSummary(reactionsStore.getMessageReactions(message.id), t, resolveUnifiedEmoji);
+
+/** Author, content, reactions, the message replied to, then time, state and date. */
 const rowLabelledBy = (message: Message): string => {
   const id = message.id;
-  if (message.is_system) return `msg-body-${id} msg-meta-${id}`;
-  const parts = [`msg-head-${id}`, `msg-body-${id}`];
+  const reactions = rowReactions(message) ? [`msg-reactions-${id}`] : [];
+  if (message.is_system) return [`msg-body-${id}`, ...reactions, `msg-meta-${id}`].join(' ');
+  const parts = [`msg-head-${id}`, `msg-body-${id}`, ...reactions];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
   parts.push(`msg-meta-${id}`);
   return parts.join(' ');
@@ -2160,6 +2174,82 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
 const activateRowElement = (row: HTMLElement) => {
   const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
   if (item) activateRow(item, row);
+};
+
+// --- ROW SHORTCUTS ---
+// Discord's keys on a focused message row: E edit, R reply, + react, P pin or unpin,
+// Backspace or Delete delete (Shift skips the confirmation), C copy text, T thread. A key
+// acts on the row element itself, never on a control inside it, without Ctrl, Alt or Meta,
+// and only where the row's own controls offer the action. Harmony has no mark-unread or
+// forward: Alt+Enter and F are not bound.
+const { setPinned: setMessagePinned } = usePinActions();
+
+const canPinRow = (message: Message): boolean => canPinMessage(message, {
+  inConversation: !!props.conversationId,
+  isLocalServer: isLocalServer.value,
+  canPinInChannel: canPinMessages.value,
+});
+
+const togglePinFromRow = async (message: Message) => {
+  const pinned = !message.is_pinned;
+  if (await setMessagePinned(message, pinned)) polite(t(pinned ? 'messageA11y.shortcuts.pinned' : 'messageA11y.shortcuts.unpinned'));
+};
+
+const copyRowText = async (message: Message) => {
+  const text = messagePartsToPlainText(message.content);
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    polite(t('messageA11y.shortcuts.copied'));
+  } catch (error) {
+    debug.error('Failed to copy message text:', error);
+    polite(t('messageA11y.shortcuts.copyFailed'));
+  }
+};
+
+/** The action a key takes on the row's message; null where the viewer may not take it. */
+const rowShortcut = (key: string, message: Message, row: HTMLElement, shiftKey: boolean): (() => void) | null => {
+  switch (key.length === 1 ? key.toLowerCase() : key) {
+    case 'e':
+      return canEditMessage(message) ? () => startEdit(message) : null;
+    case 'r':
+      if (message.is_system) return null;
+      return () => {
+        replyTo(message);
+        polite(t('messageA11y.shortcuts.replying', { name: getAuthorDisplayName(message).value }));
+      };
+    case '+':
+      return () => emit('toggleEmojiList', true, message, row);
+    case 'p':
+      return canPinRow(message) ? () => void togglePinFromRow(message) : null;
+    case 'Backspace':
+    case 'Delete':
+      return canDeleteMessage(message) ? () => deleteMessage(message.id, { shiftKey }) : null;
+    case 'c':
+      return hasCopyableText(message.content) ? () => void copyRowText(message) : null;
+    case 't':
+      return !message.is_system && !hideThreadCreate.value ? () => createThread(message) : null;
+    default:
+      return null;
+  }
+};
+
+/** True when the key was a row shortcut and acted. */
+const onRowShortcut = (event: KeyboardEvent): boolean => {
+  if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
+  const row = event.target;
+  if (!(row instanceof HTMLElement) || !row.matches(ROW_SELECTOR)) return false;
+  const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
+  if (!item || item.type !== 'message' || isOptimisticId(item.message.id)) return false;
+  const action = rowShortcut(event.key, item.message, row, event.shiftKey);
+  if (!action) return false;
+  event.preventDefault();
+  action();
+  return true;
+};
+
+const onListKeydown = (event: KeyboardEvent) => {
+  if (!onRowShortcut(event)) roving.onKeydown(event);
 };
 
 // Interactive content of rows other than the tab stop row leaves the Tab
@@ -3540,7 +3630,7 @@ const afterDelete = (focusKey: string | null | undefined) => {
   nextTick(() => focusRowKey(focusKey));
 };
 
-const deleteMessage = (messageId: string, event?: MouseEvent) => {
+const deleteMessage = (messageId: string, event?: { shiftKey?: boolean }) => {
   const bypassConfirm = event?.shiftKey === true;
   hoveredMessageId.value = null;
   // An unsent row has no message to delete: an outbox row is discarded, an

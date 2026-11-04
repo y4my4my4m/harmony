@@ -65,6 +65,7 @@ vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => loose({
 vi.mock('@/stores/useActivityPub', () => ({
   useActivityPubStore: () => loose({ blockedUsers: new Set(), isBlocked: () => false }),
 }))
+vi.mock('@/composables/usePinActions', () => ({ usePinActions: () => ({ setPinned: vi.fn(async () => true) }) }))
 vi.mock('@/stores/useReactions', () => ({ useReactionsStore: () => loose({ getMessageReactions: () => [] }) }))
 vi.mock('@/stores/postReactions', () => ({ usePostReactionsStore: () => loose({}) }))
 vi.mock('@/stores/useThreads', () => ({

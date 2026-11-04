@@ -1026,6 +1026,13 @@
       "label": "Acciones del mensaje",
       "thread": "Crear hilo"
     },
+    "shortcuts": {
+      "replying": "En respuesta a {name}",
+      "pinned": "Mensaje fijado",
+      "unpinned": "Mensaje desfijado",
+      "copied": "Texto del mensaje copiado",
+      "copyFailed": "No se pudo copiar el texto del mensaje"
+    },
     "failed": {
       "label": "No se pudo enviar",
       "retry": "Reintentar",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}, {count} reacción | {emoji}, {count} reacciones",
       "pillYou": "{emoji}, {count} reacción, incluida la tuya | {emoji}, {count} reacciones, incluida la tuya",
       "hint": "La tecla de menú contextual o Mayús+F10 muestra el emoji y quién reaccionó.",
-      "removed": "Reacción quitada: {emoji}"
+      "removed": "Reacción quitada: {emoji}",
+      "summary": "Reacciones: {list}"
     },
     "emoji": {
       "reactionDialog": "Añadir reacción",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "Dejar de silenciar el canal",
       "unmuteCategory": "Dejar de silenciar la categoría",
       "level": "Nivel de notificación",
-      "default": "Predeterminado ({level})"
+      "default": "Predeterminado ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} silenciado",
+      "unmuted": "{name} ya no está silenciado"
     },
     "notification": {
       "action": " envió un mensaje en #{channel}",
@@ -6704,7 +6715,29 @@
       "skip": "Saltar al contenido: la primera parada de Tab en cada página",
       "skipKeys": "Tab",
       "escape": "Cerrar el diálogo, menú o panel abierto; el foco vuelve a donde estaba",
-      "escapeKeys": "Escape"
+      "escapeKeys": "Escape",
+      "messages": {
+        "title": "Lista de mensajes",
+        "note": "Estas teclas actúan sobre el mensaje que tiene el foco.",
+        "moveKeys": "↑ / ↓",
+        "move": "Mensaje anterior o siguiente; Inicio y Fin van al primero y al último",
+        "menuKeys": "Intro / Mayús+F10",
+        "menu": "Opciones del mensaje",
+        "editKeys": "E",
+        "edit": "Editar tu mensaje",
+        "replyKeys": "R",
+        "reply": "Responder",
+        "reactKeys": "+",
+        "react": "Añadir una reacción",
+        "pinKeys": "P",
+        "pin": "Fijar o desfijar",
+        "deleteKeys": "Retroceso / Supr",
+        "delete": "Eliminar; con Mayús, sin preguntar antes",
+        "copyKeys": "C",
+        "copy": "Copiar el texto",
+        "threadKeys": "T",
+        "thread": "Crear o abrir un hilo"
+      }
     },
     "unsavedChanges": "Cambios sin guardar"
   },

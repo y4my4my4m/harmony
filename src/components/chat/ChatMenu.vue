@@ -3,7 +3,9 @@
   category and thread context menus, the chat header's "More options").
   Items: <button type="button" role="menuitem" class="chat-menu-item">; .danger
   for destructive ones; role="menuitemradio" with aria-checked for a choice;
-  .chat-menu-divider (role="separator") and .chat-menu-label between groups.
+  .chat-menu-divider (role="separator") and .chat-menu-label between groups;
+  .chat-menu-sub (role="none") around a submenu's owner item and its role="menu",
+  with toggleSubmenu as the owner's @click; .chat-menu-note for a line of text.
 -->
 <template>
   <AppMenu
@@ -121,6 +123,45 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
   height: 1px;
   margin: 4px;
   background: var(--border-color);
+}
+
+/* Submenu (composables/useMenu.ts wrapper pattern): it expands in place under its owner,
+   since the menu scrolls and would clip a flyout. */
+.chat-menu-sub > [role='menu'] {
+  display: none;
+  margin: 2px 0 4px 16px;
+  padding-left: 4px;
+  border-left: 2px solid var(--border-color);
+}
+
+.chat-menu-sub.open > [role='menu'] {
+  display: block;
+}
+
+.chat-menu-sub > [role='menu'] > .chat-menu-item:not(:has(> svg, > .icon)) {
+  padding-left: 8px;
+}
+
+.chat-menu-item[aria-expanded='true'] .chat-menu-chevron {
+  transform: rotate(90deg);
+}
+
+.chat-menu-item .chat-menu-check {
+  margin-left: auto;
+}
+
+.chat-menu-sub [role='menuitemradio'][aria-checked='true'] {
+  color: var(--text-link);
+}
+
+.chat-menu-sub [role='menuitemradio'][aria-checked='true']:is(:hover, :focus-visible) {
+  color: var(--text-on-primary);
+}
+
+.chat-menu-note {
+  padding: 0 8px 6px 34px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .chat-menu-label {

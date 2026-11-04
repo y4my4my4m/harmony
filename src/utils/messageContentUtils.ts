@@ -176,6 +176,15 @@ export function removeFilePartByUrl(parts: MessagePart[], url: string): MessageP
   });
 }
 
+/** Text, a mention, an emoji or a link among the parts: what Copy text has to copy. */
+export function hasCopyableText(parts: MessagePart[] | null | undefined): boolean {
+  if (!Array.isArray(parts)) return false;
+  return parts.some(part => {
+    if (part.type === 'text' && (part.text || '').trim().length > 0) return true;
+    return part.type === 'mention' || part.type === 'role_mention' || part.type === 'emoji' || part.type === 'url';
+  });
+}
+
 /**
  * Extract plain text from MessagePart[] for previews
  */

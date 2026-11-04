@@ -18,7 +18,8 @@
  *   openers, 'none' to leave it);
  * - Up/Down wrap, Home/End, printable keys jump by label (typeahead);
  * - Right on an item with aria-haspopup="menu" opens its submenu (class `open`
- *   and data-open on the wrapper), Left or Escape inside it closes it;
+ *   and data-open on the wrapper), Left or Escape inside it closes it; an owner
+ *   whose @click is toggleSubmenu opens it with Enter, Space or a tap too;
  * - Enter/Space on an item that is not a <button>/<a> clicks it;
  * - Escape (topmost layer only), Tab, a pointer press outside, window blur or
  *   resize call onClose with 'escape' | 'tab' | 'outside' | 'dismiss';
@@ -83,6 +84,27 @@ function setSubmenuOpen(owner: HTMLElement, open: boolean) {
   if (open) wrapper.setAttribute('data-open', '')
   else wrapper.removeAttribute('data-open')
   owner.setAttribute('aria-expanded', open ? 'true' : 'false')
+}
+
+/**
+ * Click handler of a submenu's owner item (Enter, Space, a click or a tap): opens the
+ * submenu on its first item, closing any other open submenu of the same menu, or
+ * closes it when open.
+ */
+export function toggleSubmenu(owner: HTMLElement): void {
+  const sub = submenuOf(owner)
+  if (!sub) return
+  if (owner.getAttribute('aria-expanded') === 'true') {
+    setSubmenuOpen(owner, false)
+    focusElement(owner)
+    return
+  }
+  const scope = owner.closest('[role="menu"]')
+  scope?.querySelectorAll<HTMLElement>(':scope [aria-haspopup="menu"][aria-expanded="true"]').forEach((other) => {
+    if (other !== owner && other.closest('[role="menu"]') === scope) setSubmenuOpen(other, false)
+  })
+  setSubmenuOpen(owner, true)
+  focusElement(menuItems(sub)[0])
 }
 
 export function useMenu(menuEl: Ref<HTMLElement | null | undefined>, options: UseMenuOptions) {

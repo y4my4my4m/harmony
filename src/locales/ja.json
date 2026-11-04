@@ -1026,6 +1026,13 @@
       "label": "メッセージの操作",
       "thread": "スレッドを作成"
     },
+    "shortcuts": {
+      "replying": "{name} に返信",
+      "pinned": "メッセージをピン留めしました",
+      "unpinned": "ピン留めを外しました",
+      "copied": "メッセージのテキストをコピーしました",
+      "copyFailed": "メッセージのテキストをコピーできませんでした"
+    },
     "failed": {
       "label": "送信できませんでした",
       "retry": "再試行",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}、{count} 件のリアクション",
       "pillYou": "{emoji}、あなたを含む {count} 件のリアクション",
       "hint": "コンテキストメニューキーまたは Shift+F10 で絵文字とリアクションした人を表示します。",
-      "removed": "リアクションを取り消しました: {emoji}"
+      "removed": "リアクションを取り消しました: {emoji}",
+      "summary": "リアクション：{list}"
     },
     "emoji": {
       "reactionDialog": "リアクションを追加",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "チャンネルのミュートを解除",
       "unmuteCategory": "カテゴリーのミュートを解除",
       "level": "通知レベル",
-      "default": "デフォルト（{level}）"
+      "default": "デフォルト（{level}）",
+      "levelSet": "{name}：{level}",
+      "muted": "{name} をミュートしました",
+      "unmuted": "{name} のミュートを解除しました"
     },
     "notification": {
       "action": " が #{channel} にメッセージを送信しました",
@@ -6704,7 +6715,29 @@
       "skip": "コンテンツへスキップ：各ページで最初の Tab 位置",
       "skipKeys": "Tab",
       "escape": "開いているダイアログ、メニュー、パネルを閉じ、フォーカスを元の場所に戻す",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "メッセージ一覧",
+        "note": "これらのキーはフォーカスのあるメッセージに作用します。",
+        "moveKeys": "↑ / ↓",
+        "move": "前または次のメッセージ。Home と End で最初と最後へ",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "メッセージのオプション",
+        "editKeys": "E",
+        "edit": "自分のメッセージを編集",
+        "replyKeys": "R",
+        "reply": "返信",
+        "reactKeys": "+",
+        "react": "リアクションを追加",
+        "pinKeys": "P",
+        "pin": "ピン留めまたは解除",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "削除（Shift を押すと確認なし）",
+        "copyKeys": "C",
+        "copy": "テキストをコピー",
+        "threadKeys": "T",
+        "thread": "スレッドを作成または開く"
+      }
     },
     "unsavedChanges": "未保存の変更"
   },

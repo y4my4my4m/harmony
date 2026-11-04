@@ -1026,6 +1026,13 @@
       "label": "Nachrichtenaktionen",
       "thread": "Thread erstellen"
     },
+    "shortcuts": {
+      "replying": "Antwort auf {name}",
+      "pinned": "Nachricht angeheftet",
+      "unpinned": "Nachricht gelöst",
+      "copied": "Nachrichtentext kopiert",
+      "copyFailed": "Der Nachrichtentext konnte nicht kopiert werden"
+    },
     "failed": {
       "label": "Senden fehlgeschlagen",
       "retry": "Erneut versuchen",
@@ -1054,7 +1061,8 @@
       "pill": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
       "pillYou": "{emoji}, {count} Reaktion, auch von dir | {emoji}, {count} Reaktionen, auch von dir",
       "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt das Emoji und wer reagiert hat.",
-      "removed": "Reaktion entfernt: {emoji}"
+      "removed": "Reaktion entfernt: {emoji}",
+      "summary": "Reaktionen: {list}"
     },
     "emoji": {
       "reactionDialog": "Reaktion hinzufügen",
@@ -6500,7 +6508,10 @@
       "unmuteChannel": "Stummschaltung des Kanals aufheben",
       "unmuteCategory": "Stummschaltung der Kategorie aufheben",
       "level": "Benachrichtigungsstufe",
-      "default": "Standard ({level})"
+      "default": "Standard ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} stummgeschaltet",
+      "unmuted": "Stummschaltung von {name} aufgehoben"
     },
     "notification": {
       "action": " hat eine Nachricht in #{channel} gesendet",
@@ -6704,7 +6715,29 @@
       "skip": "Zum Inhalt springen: der erste Tab-Stopp auf jeder Seite",
       "skipKeys": "Tab",
       "escape": "Geöffneten Dialog, Menü oder Bereich schließen; der Fokus kehrt zurück",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "Nachrichtenliste",
+        "note": "Diese Tasten wirken auf die Nachricht mit dem Fokus.",
+        "moveKeys": "↑ / ↓",
+        "move": "Vorherige oder nächste Nachricht; Pos1 und Ende springen zur ersten und letzten",
+        "menuKeys": "Eingabe / Umschalt+F10",
+        "menu": "Nachrichtenoptionen",
+        "editKeys": "E",
+        "edit": "Eigene Nachricht bearbeiten",
+        "replyKeys": "R",
+        "reply": "Antworten",
+        "reactKeys": "+",
+        "react": "Reaktion hinzufügen",
+        "pinKeys": "P",
+        "pin": "Anheften oder lösen",
+        "deleteKeys": "Rücktaste / Entf",
+        "delete": "Löschen; mit Umschalt ohne Rückfrage",
+        "copyKeys": "C",
+        "copy": "Text kopieren",
+        "threadKeys": "T",
+        "thread": "Thread erstellen oder öffnen"
+      }
     },
     "unsavedChanges": "Ungespeicherte Änderungen"
   },
