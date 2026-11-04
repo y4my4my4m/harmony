@@ -6,7 +6,8 @@ import supertest from 'supertest'
 // found through NodeInfo metadata.serverDirectory, read signed, kept to listed Groups on the
 // domain asked for, never read from a blocked instance or while federation is off, cached.
 
-vi.mock('../config/index.js', () => ({ default: { INSTANCE_DOMAIN: 'harmony.test', NODE_ENV: 'test' } }))
+const cfg = vi.hoisted(() => ({ INSTANCE_DOMAIN: 'harmony.test', NODE_ENV: 'test', DIRECTORY_ALLOW_PORTS: false }))
+vi.mock('../config/index.js', () => ({ default: cfg }))
 vi.mock('../utils/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }))
 vi.mock('../middleware/errorHandler.js', () => ({
   asyncHandler: (fn: any) => (req: any, res: any, next: any) => fn(req, res, next).catch(next),
@@ -267,7 +268,11 @@ describe('GET /directory/peers', () => {
 describe('directory domain and entry', () => {
   it('normalizes a domain or URL to host[:port]', () => {
     expect(normalizeDirectoryDomain(' HTTPS://Har.Mony.lol/explore ')).toBe('har.mony.lol')
+    expect(normalizeDirectoryDomain('198.51.100.1:8443')).toBeNull()
+    expect(normalizeDirectoryDomain('victim.example:6379')).toBeNull()
+    cfg.DIRECTORY_ALLOW_PORTS = true
     expect(normalizeDirectoryDomain('198.51.100.1:8443')).toBe('198.51.100.1:8443')
+    cfg.DIRECTORY_ALLOW_PORTS = false
     expect(normalizeDirectoryDomain('peer.test:443')).toBe('peer.test')
     for (const bad of ['', 'a b', 'user@host.test', '-x.test', 'x..test', 42]) expect(normalizeDirectoryDomain(bad)).toBeNull()
   })

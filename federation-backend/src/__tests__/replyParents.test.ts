@@ -13,13 +13,23 @@ vi.mock('../utils/ssrfProtection.js', () => ({
   },
 }))
 
+// Failures another backend process recorded in Redis.
+const sharedFailures = vi.hoisted(() => new Set<string>())
+const redisSet = vi.hoisted(() => vi.fn(async () => true))
+vi.mock('../services/RedisService.js', () => ({
+  redis: { exists: async (key: string) => sharedFailures.has(key), set: redisSet },
+}))
+
+import type { StoredParent } from '../activitypub/replyParents.js'
+
 const { resolveReplyParents, resetReplyParentFailures, FAILURE_TTL_MS, MAX_REPLY_PARENT_POSTS } =
   await import('../activitypub/replyParents.js')
 
 type Row = { id: string; in_reply_to: string | null; metadata: Record<string, unknown> }
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
-const PARENT = { id: id(900), conversation_root_id: null }
+const PARENT: StoredParent = { id: id(900), conversation_root_id: null, ap_id: null, url: null }
+const parentAt = (url: string) => ({ ...PARENT, ap_id: url })
 
 function reader(rows: Row[]) {
   const reads: string[][] = []
@@ -69,14 +79,18 @@ function writer() {
 
 const orphan = (n: number, url: string): Row => ({ id: id(n), in_reply_to: null, metadata: { in_reply_to_ap_url: url } })
 
-beforeEach(() => resetReplyParentFailures())
+beforeEach(() => {
+  resetReplyParentFailures()
+  sharedFailures.clear()
+  redisSet.mockClear()
+})
 
 describe('resolveReplyParents', () => {
   it('fetches each waiting parent once and links every reply naming it', async () => {
     const url = 'https://remote.example/users/a/statuses/1'
     const r = reader([orphan(1, url), orphan(2, url), { id: id(3), in_reply_to: id(800), metadata: {} }])
     const w = writer()
-    const fetchParent = vi.fn(async () => PARENT)
+    const fetchParent = vi.fn(async (u: string) => parentAt(u))
     const results = await resolveReplyParents([id(1), id(2), id(3), id(4)], r.client, w.client, fetchParent)
 
     expect(fetchParent).toHaveBeenCalledTimes(1)
@@ -88,7 +102,7 @@ describe('resolveReplyParents', () => {
   it('takes the root of a parent that is itself a reply', async () => {
     const r = reader([orphan(1, 'https://remote.example/n/2')])
     const w = writer()
-    await resolveReplyParents([id(1)], r.client, w.client, async () => ({ id: id(901), conversation_root_id: id(902) }))
+    await resolveReplyParents([id(1)], r.client, w.client, async () => ({ id: id(901), conversation_root_id: id(902), ap_id: null, url: 'https://remote.example/@a/2' }))
     expect(w.updates[0].values).toEqual({ in_reply_to: id(901), conversation_root_id: id(902) })
   })
 
@@ -118,6 +132,28 @@ describe('resolveReplyParents', () => {
     expect(results).toEqual({ [id(1)]: 'unavailable', [id(2)]: 'none', [id(3)]: 'none' })
   })
 
+  it('records a failure in Redis and honours one another process recorded', async () => {
+    const gone = 'https://gone.example/users/a/statuses/2'
+    await resolveReplyParents([id(1)], reader([orphan(1, gone)]).client, writer().client, async () => null)
+    expect(redisSet).toHaveBeenCalledWith(`reply-parent-failed:${gone}`, '1', FAILURE_TTL_MS / 1000)
+
+    const elsewhere = 'https://down.example/users/a/statuses/3'
+    sharedFailures.add(`reply-parent-failed:${elsewhere}`)
+    const fetchParent = vi.fn(async (u: string) => parentAt(u))
+    const results = await resolveReplyParents([id(2)], reader([orphan(2, elsewhere)]).client, writer().client, fetchParent)
+    expect(results).toEqual({ [id(2)]: 'unavailable' })
+    expect(fetchParent).not.toHaveBeenCalled()
+  })
+
+  it('links nothing to a parent stored from another host', async () => {
+    const r = reader([orphan(1, 'https://remote.example/users/a/statuses/1')])
+    const w = writer()
+    const results = await resolveReplyParents([id(1)], r.client, w.client,
+      async () => parentAt('https://elsewhere.example/users/b/statuses/9'))
+    expect(results).toEqual({ [id(1)]: 'unavailable' })
+    expect(w.updates).toEqual([])
+  })
+
   it('reads at most MAX_REPLY_PARENT_POSTS valid ids', async () => {
     const r = reader([])
     const ids = Array.from({ length: MAX_REPLY_PARENT_POSTS + 5 }, (_, i) => id(i + 1))
@@ -133,7 +169,7 @@ describe('resolveReplyParents', () => {
     const a = resolveReplyParents([id(1)], reader([orphan(1, url)]).client, writer().client, fetchParent)
     const b = resolveReplyParents([id(2)], reader([orphan(2, url)]).client, writer().client, fetchParent)
     await vi.waitFor(() => expect(fetchParent).toHaveBeenCalledTimes(1))
-    release(PARENT)
+    release(parentAt(url))
     expect(await a).toEqual({ [id(1)]: 'linked' })
     expect(await b).toEqual({ [id(2)]: 'linked' })
     expect(fetchParent).toHaveBeenCalledTimes(1)

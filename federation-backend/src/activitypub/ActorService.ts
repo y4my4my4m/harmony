@@ -668,7 +668,12 @@ router.post(
       postIds,
       reader,
       getSupabaseClient(),
-      (url) => ActivityProcessor.fetchAndCreateRemotePost(url),
+      async (url) => {
+        const parent = await ActivityProcessor.fetchAndCreateRemotePost(url);
+        if (!parent) return null;
+        const { data } = await getSupabaseClient().from('posts').select('ap_id, url').eq('id', parent.id).maybeSingle();
+        return { ...parent, ap_id: data?.ap_id ?? null, url: data?.url ?? null };
+      },
     );
     return res.json({ success: true, results });
   })

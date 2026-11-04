@@ -71,6 +71,16 @@ interface Admin {
   profileId: string;
 }
 
+/** The `aal` claim of a JWT GoTrue has already verified; null when absent or unreadable. */
+export function tokenAal(token: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'));
+    return typeof payload?.aal === 'string' ? payload.aal : null;
+  } catch {
+    return null;
+  }
+}
+
 async function instanceAdmin(req: Request, res: Response): Promise<Admin | null> {
   const token = bearerToken(req.headers.authorization);
   if (!token) {
@@ -80,6 +90,13 @@ async function instanceAdmin(req: Request, res: Response): Promise<Admin | null>
   const { data, error } = await getSupabaseClientWithAuth(token).auth.getUser();
   if (error || !data?.user) {
     res.status(401).json({ error: 'not_authenticated' });
+    return null;
+  }
+  // GoTrue's /user answers aal1 tokens too (the client lists factors mid-challenge); the
+  // service-role calls below bypass the PostgREST pre-request, so the claim is checked here.
+  const verifiedFactor = (data.user.factors ?? []).some((f: { status?: string }) => f.status === 'verified');
+  if (verifiedFactor && tokenAal(token) !== 'aal2') {
+    res.status(403).json({ error: 'insufficient_aal' });
     return null;
   }
   const { data: profile, error: profileError } = await getSupabaseClient()

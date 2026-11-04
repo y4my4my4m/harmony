@@ -6,12 +6,14 @@
  * that holds such an id has it fetched through ActivityProcessor.fetchAndCreateRemotePost, the
  * path /resolve-post and inbound Creates use, which stores the parent and the chain above it.
  * The reply is then linked to the stored parent. A fetch that fails is not repeated for
- * FAILURE_TTL_MS; concurrent requests for one id share one fetch.
+ * FAILURE_TTL_MS, by any backend process sharing Redis; concurrent requests for one id in one
+ * process share one fetch.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger.js';
 import { validateExternalUrl } from '../utils/ssrfProtection.js';
+import { redis } from '../services/RedisService.js';
 
 /** linked: the post's in_reply_to is set. unavailable: its parent could not be fetched.
  *  none: not a reply waiting for its parent, or not readable by the caller. */
@@ -20,6 +22,9 @@ export type ReplyParentResult = 'linked' | 'unavailable' | 'none';
 export interface StoredParent {
   id: string;
   conversation_root_id: string | null;
+  /** The stored post's ActivityPub id and url: one is on the host the reply named. */
+  ap_id: string | null;
+  url: string | null;
 }
 
 export type FetchParent = (url: string) => Promise<StoredParent | null>;
@@ -36,21 +41,35 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const failedUntil = new Map<string, number>();
 const inFlight = new Map<string, Promise<StoredParent | null>>();
 
-function failedRecently(url: string, now: number): boolean {
+const failureKey = (url: string) => `reply-parent-failed:${url}`;
+
+async function failedRecently(url: string, now: number): Promise<boolean> {
   const until = failedUntil.get(url);
-  if (until === undefined) return false;
-  if (until > now) return true;
-  failedUntil.delete(url);
-  return false;
+  if (until !== undefined) {
+    if (until > now) return true;
+    failedUntil.delete(url);
+  }
+  // Without Redis this answers false: the process's own map is the only memory.
+  return redis.exists(failureKey(url));
 }
 
 function noteFailure(url: string, now: number) {
+  void redis.set(failureKey(url), '1', Math.ceil(FAILURE_TTL_MS / 1000));
   failedUntil.delete(url);
   failedUntil.set(url, now + FAILURE_TTL_MS);
   while (failedUntil.size > FAILURE_CACHE_LIMIT) {
     const oldest = failedUntil.keys().next().value;
     if (oldest === undefined) break;
     failedUntil.delete(oldest);
+  }
+}
+
+function hostOf(url: unknown): string | null {
+  if (typeof url !== 'string') return null;
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
   }
 }
 
@@ -116,7 +135,7 @@ export async function resolveReplyParents(
   const urls = [...waiting.keys()];
   const work = async (url: string) => {
     const replies = waiting.get(url)!;
-    if (failedRecently(url, now())) {
+    if (await failedRecently(url, now())) {
       for (const id of replies) results[id] = 'unavailable';
       return;
     }
@@ -126,8 +145,16 @@ export async function resolveReplyParents(
       for (const id of replies) results[id] = 'unavailable';
       return;
     }
+    // A redirect to another host stores a post the reply never named: nothing is linked.
+    const wanted = hostOf(url);
+    if (!wanted || (hostOf(parent.ap_id) !== wanted && hostOf(parent.url) !== wanted)) {
+      logger.warn(`Reply parent ${url} resolved to ${parent.ap_id ?? parent.url ?? parent.id} on another host`);
+      noteFailure(url, now());
+      for (const id of replies) results[id] = 'unavailable';
+      return;
+    }
     // fetchAndCreateRemotePost links replies waiting on the parent's canonical id and url; a
-    // reply naming another form of it (a redirect, a pretty URL) is linked here.
+    // reply naming another form of it on the same host (a pretty URL) is linked here.
     const { error: linkError } = await writer
       .from('posts')
       .update({ in_reply_to: parent.id, conversation_root_id: parent.conversation_root_id || parent.id })

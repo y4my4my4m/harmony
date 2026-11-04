@@ -313,6 +313,12 @@ BEGIN
     IF COALESCE(NEW.metadata->>'reblog_of', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
         RETURN NEW;
     END IF;
+    -- An UPDATE notifies only when it links the quote: a quote stored before its quoted post
+    -- resolved, or first stored without reblog_of.
+    IF TG_OP = 'UPDATE' AND COALESCE(OLD.metadata->>'is_quote', '') = 'true'
+       AND (OLD.metadata->>'reblog_of') IS NOT DISTINCT FROM (NEW.metadata->>'reblog_of') THEN
+        RETURN NEW;
+    END IF;
     v_quoted_id := (NEW.metadata->>'reblog_of')::uuid;
 
     SELECT p.id, p.author_id, p.content
@@ -398,7 +404,7 @@ REVOKE ALL ON FUNCTION public.handle_post_quote_notifications() FROM PUBLIC, ano
 
 DROP TRIGGER IF EXISTS trigger_handle_post_quote_notifications ON public.posts;
 CREATE TRIGGER trigger_handle_post_quote_notifications
-    AFTER INSERT ON public.posts
+    AFTER INSERT OR UPDATE OF metadata ON public.posts
     FOR EACH ROW
     WHEN ((NEW.metadata ->> 'is_quote') = 'true')
     EXECUTE FUNCTION public.handle_post_quote_notifications();

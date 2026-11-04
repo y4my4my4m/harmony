@@ -103,6 +103,18 @@ describe('admin invites: who may call', () => {
     expect(generateLink).not.toHaveBeenCalled()
   })
 
+  it('answers 403 insufficient_aal to an aal1 token of an admin with a verified factor', async () => {
+    const jwt = (aal: string) =>
+      `h.${Buffer.from(JSON.stringify({ sub: 'auth-admin', aal })).toString('base64url')}.s`
+    getUser.mockResolvedValue({ data: { user: { id: 'auth-admin', factors: [{ status: 'verified' }] } }, error: null })
+    const refused = await supertest(app).post('/admin/invites')
+      .set({ Authorization: `Bearer ${jwt('aal1')}` }).send({ email: 'ada@example.org' })
+    expect([refused.status, refused.body.error]).toEqual([403, 'insufficient_aal'])
+    expect(generateLink).not.toHaveBeenCalled()
+    const accepted = await supertest(app).get('/admin/invites').set({ Authorization: `Bearer ${jwt('aal2')}` })
+    expect(accepted.status).not.toBe(403)
+  })
+
   it.each([
     ['a member', { id: 'p-member', is_admin: false, is_suspended: false }],
     ['a suspended admin', { id: 'p-admin', is_admin: true, is_suspended: true }],

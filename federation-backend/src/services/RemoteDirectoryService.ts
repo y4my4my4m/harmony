@@ -94,6 +94,8 @@ export function normalizeDirectoryDomain(input: unknown): string | null {
   raw = raw.replace(/^https?:\/\//, '').split(/[/?#]/)[0].replace(/\.$/, '').replace(/:443$/, '');
   const label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
   if (!new RegExp(`^${label}(?:\\.${label})*(?::\\d{1,5})?$`).test(raw)) return null;
+  // Any other port would let a caller probe arbitrary services of a public host.
+  if (/:\d+$/.test(raw) && !config.DIRECTORY_ALLOW_PORTS) return null;
   return raw.length <= 253 ? raw : null;
 }
 

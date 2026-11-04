@@ -10,7 +10,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(19);
+SELECT plan(22);
 
 INSERT INTO public.profiles (id, username, display_name, domain, is_local)
 VALUES ('f2180000-0000-0000-0000-0000000000a1', 'remote218', 'Remote', 'quotes218.test', false);
@@ -124,6 +124,20 @@ UPDATE public.notification_preferences SET activitypub_quotes = true
  WHERE user_id = '11111111-0000-0000-0000-000000000001';
 SELECT pg_temp.quote('f2180000-0000-0000-0000-000000000114', 'f2180000-0000-0000-0000-0000000000a2');
 SELECT is(pg_temp.quotes_for('f2180000-0000-0000-0000-000000000114'), 1, 'and on again');
+
+-- A quote linked after it was stored. -------------------------------------------------------------
+INSERT INTO public.posts (id, author_id, visibility, is_local, content, metadata)
+VALUES ('f2180000-0000-0000-0000-000000000115', 'f2180000-0000-0000-0000-0000000000a1', 'public', false,
+        '[{"type":"text","text":"look at this"}]', '{"is_quote": true}');
+SELECT is(pg_temp.quotes_for('f2180000-0000-0000-0000-000000000115'), 0, 'a quote stored before its quoted post resolves');
+UPDATE public.posts
+   SET metadata = metadata || '{"reblog_of": "f2180000-0000-0000-0000-000000000001"}'
+ WHERE id = 'f2180000-0000-0000-0000-000000000115';
+SELECT is(pg_temp.quotes_for('f2180000-0000-0000-0000-000000000115'), 1, 'notifies when an update links it');
+UPDATE public.posts
+   SET metadata = metadata || '{"quote_authorization": "https://quotes218.test/stamps/1"}'
+ WHERE id = 'f2180000-0000-0000-0000-000000000115';
+SELECT is(pg_temp.quotes_for('f2180000-0000-0000-0000-000000000115'), 1, 'a later metadata update notifies nothing more');
 
 SELECT * FROM finish();
 ROLLBACK;

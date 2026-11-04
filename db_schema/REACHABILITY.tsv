@@ -563,7 +563,7 @@ handle_pinned_message_delete	invoker	trigger	anon+authenticated+service_role	tri
 handle_post_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_post_federation)
 handle_post_interaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions AFTER INSERT/DELETE (trigger_post_interaction_federation)
 handle_post_mention_notifications	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_mention_notifications)
-handle_post_quote_notifications	definer	trigger	service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_quote_notifications)
+handle_post_quote_notifications	definer	trigger	service_role	trigger	trigger public.posts AFTER INSERT/UPDATE (trigger_handle_post_quote_notifications)
 handle_post_reply_notifications	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_reply_notifications)
 handle_post_soft_delete	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER UPDATE (on_post_soft_delete)
 handle_posts_insert_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.posts BEFORE INSERT (handle_posts_insert_updated_at)

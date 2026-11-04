@@ -116,6 +116,9 @@ const envSchema = z.object({
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),
 
+  // Testing only: server directories on a port other than 443 (GET /directory/remote).
+  DIRECTORY_ALLOW_PORTS: z.string().default('false').transform(v => v === 'true'),
+
   // Testing only: outgoing webhook deliveries to http://localhost and to loopback addresses.
   OUTGOING_WEBHOOKS_ALLOW_LOOPBACK: z.string().default('false').transform(v => v === 'true'),
   
