@@ -16,7 +16,24 @@
       </div>
     </div>
 
-    <p v-if="reactions" class="eic-reactors" data-testid="emoji-info-reactors">{{ reactorsLine }}</p>
+    <p v-if="reactions" class="eic-reactors" data-testid="emoji-info-reactors">
+      <template v-if="!shownReactors.length">{{ t('emojiInfo.reactionCount', { count: reactionCount }, reactionCount) }}</template>
+      <i18n-t
+        v-else
+        :keypath="otherReactors > 0 ? 'emojiInfo.reactedByOthers' : 'emojiInfo.reactedBy'"
+        :plural="otherReactors > 0 ? otherReactors : undefined"
+        scope="global"
+      >
+        <template #names>
+          <template v-for="(user, index) in shownReactors" :key="user.key">
+            <template v-if="index > 0">{{ t('emojiInfo.nameSeparator') }}</template>
+            <DisplayName v-if="user.kind === 'user' && user.id" :user-id="user.id" :fallback="user.displayName" />
+            <template v-else>{{ user.displayName }}</template>
+          </template>
+        </template>
+        <template #count>{{ otherReactors }}</template>
+      </i18n-t>
+    </p>
 
     <div v-if="owner" class="eic-owner" data-testid="emoji-info-owner">
       <Avatar :src="owner.avatarUrl || ''" size="xs" class="eic-owner-avatar" />
@@ -38,14 +55,26 @@
           <span class="eic-server-name" data-testid="emoji-info-server-name">{{ server.name }}</span>
           <span class="eic-server-meta">{{ serverMeta }}</span>
         </div>
+        <button
+          v-if="server.joinable"
+          type="button"
+          class="btn btn-primary eic-join"
+          :disabled="joining"
+          data-testid="emoji-info-join"
+          @click="join"
+        >
+          {{ joining ? t('server.joining') : t('server.join') }}
+        </button>
       </div>
       <ul
-        v-if="server.emojis.length"
+        v-if="shownEmojis.length"
+        ref="moreRef"
         class="eic-more"
+        :style="{ '--eic-columns': moreColumns }"
         :aria-label="t('emojiInfo.moreEmoji')"
         data-testid="emoji-info-more"
       >
-        <li v-for="emoji in server.emojis" :key="emoji.id">
+        <li v-for="emoji in shownEmojis" :key="emoji.id">
           <img
             :src="getEmojiUrl(emoji.url, 48)"
             :alt="`:${emoji.name}:`"
@@ -55,43 +84,46 @@
           />
         </li>
       </ul>
-      <button
-        v-if="server.joinable"
-        type="button"
-        class="btn btn-primary eic-join"
-        :disabled="joining"
-        data-testid="emoji-info-join"
-        @click="join"
-      >
-        {{ joining ? t('server.joining') : t('server.join') }}
-      </button>
     </section>
 
     <div class="eic-actions">
-      <button type="button" class="eic-action" data-testid="emoji-info-copy" @click="copyEmoji">
-        <Icon name="copy" :size="14" aria-hidden="true" />
-        <span>{{ t('emojiInfo.copy') }}</span>
+      <button
+        type="button"
+        class="eic-action eic-action--icon"
+        :aria-label="t('emojiInfo.copy')"
+        :title="t('emojiInfo.copy')"
+        data-testid="emoji-info-copy"
+        @click="copyEmoji"
+      >
+        <Icon name="copy" :size="15" aria-hidden="true" />
       </button>
-      <button v-if="imageLink" type="button" class="eic-action" data-testid="emoji-info-copy-link" @click="copyLink">
-        <Icon name="link" :size="14" aria-hidden="true" />
-        <span>{{ t('emojiInfo.copyLink') }}</span>
+      <button
+        v-if="imageLink"
+        type="button"
+        class="eic-action eic-action--icon"
+        :aria-label="t('emojiInfo.copyLink')"
+        :title="t('emojiInfo.copyLink')"
+        data-testid="emoji-info-copy-link"
+        @click="copyLink"
+      >
+        <Icon name="link" :size="15" aria-hidden="true" />
       </button>
       <button
         v-if="reactions?.onShowAll"
         type="button"
-        class="eic-action"
+        class="eic-action eic-action--all"
         data-testid="emoji-info-all-reactions"
         @click="reactions.onShowAll()"
       >
         <Icon name="users" :size="14" aria-hidden="true" />
-        <span>{{ t('emojiInfo.allReactions') }}</span>
+        <span class="eic-action-label">{{ t('emojiInfo.allReactions') }}</span>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import Avatar from '@/components/common/Avatar.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
@@ -121,6 +153,10 @@ const profileStore = useProfileStore()
 
 /** Names a reaction line lists before "and N others". */
 const REACTOR_NAMES = 3
+/** Preview columns before the row is measured: a 280 px card at 28 px emoji and 4 px gaps. */
+const DEFAULT_MORE_COLUMNS = 7
+/** Preview emoji size when --eic-emoji-size is unset, px. */
+const DEFAULT_EMOJI_SIZE = 28
 
 const source = ref<EmojiSource | null>(null)
 let lookup = 0
@@ -185,6 +221,35 @@ const sourceLine = computed((): string => {
   }
 })
 
+// The preview is one row: its columns are the emoji (--eic-emoji-size, column gap
+// --eic-emoji-gap) the row's width holds, and it lists no more emoji than that.
+const moreRef = ref<HTMLElement | null>(null)
+const moreColumns = ref(DEFAULT_MORE_COLUMNS)
+let moreObserver: ResizeObserver | null = null
+
+function measureMore(el: HTMLElement): void {
+  const width = el.clientWidth
+  if (width <= 0) return
+  const style = getComputedStyle(el)
+  const size = parseFloat(style.getPropertyValue('--eic-emoji-size')) || DEFAULT_EMOJI_SIZE
+  const gap = parseFloat(style.columnGap) || 0
+  moreColumns.value = Math.max(1, Math.floor((width + gap) / (size + gap)))
+}
+
+watch(moreRef, (el) => {
+  moreObserver?.disconnect()
+  moreObserver = null
+  if (!el) return
+  measureMore(el)
+  if (typeof ResizeObserver === 'undefined') return
+  moreObserver = new ResizeObserver(() => measureMore(el))
+  moreObserver.observe(el)
+}, { flush: 'post' })
+
+onBeforeUnmount(() => moreObserver?.disconnect())
+
+const shownEmojis = computed(() => server.value?.emojis.slice(0, moreColumns.value) ?? [])
+
 const serverMeta = computed(() => {
   const s = server.value
   if (!s) return ''
@@ -192,19 +257,10 @@ const serverMeta = computed(() => {
   return `${members} · ${s.public ? t('emojiInfo.publicLabel') : t('emojiInfo.privateLabel')}`
 })
 
-const reactorsLine = computed(() => {
-  const reactions = props.reactions
-  if (!reactions) return ''
-  const users = reactions.users()
-  const names = users.slice(0, REACTOR_NAMES).map((u) => u.displayName).filter(Boolean)
-  const shown = names.join(t('emojiInfo.nameSeparator'))
-  const count = reactions.count()
-  const others = Math.max(0, count - names.length)
-  if (!shown) return t('emojiInfo.reactionCount', { count }, count)
-  return others > 0
-    ? t('emojiInfo.reactedByOthers', { names: shown, count: others }, others)
-    : t('emojiInfo.reactedBy', { names: shown })
-})
+const reactionCount = computed(() => props.reactions?.count() ?? 0)
+const shownReactors = computed(() =>
+  (props.reactions?.users() ?? []).slice(0, REACTOR_NAMES).filter((user) => !!user.displayName))
+const otherReactors = computed(() => Math.max(0, reactionCount.value - shownReactors.value.length))
 
 const imageLink = computed(() => (props.target.kind === 'default' ? null : props.target.url || null))
 
@@ -250,20 +306,20 @@ async function join(): Promise<void> {
 .eic {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .eic-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .eic-glyph {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   object-fit: contain;
   user-select: none;
@@ -271,22 +327,23 @@ async function join(): Promise<void> {
 }
 
 .eic-glyph-char {
-  font-size: 40px;
-  line-height: 48px;
+  font-size: 32px;
+  line-height: 40px;
   text-align: center;
 }
 
 .eic-head-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .eic-name {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
@@ -294,14 +351,14 @@ async function join(): Promise<void> {
 .eic-source,
 .eic-reactors {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   line-height: 1.35;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 
 .eic-reactors {
-  padding-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid var(--border-primary);
 }
 
@@ -310,7 +367,7 @@ async function join(): Promise<void> {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 .eic-owner-name {
@@ -332,8 +389,8 @@ async function join(): Promise<void> {
 .eic-server {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border-radius: var(--radius-md);
   background: var(--background-secondary);
 }
@@ -341,19 +398,21 @@ async function join(): Promise<void> {
 .eic-server-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .eic-server-text {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
 }
 
 .eic-server-name {
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,49 +420,80 @@ async function join(): Promise<void> {
 }
 
 .eic-server-meta {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eic-join {
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
 }
 
 .eic-more {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(var(--eic-columns, 7), minmax(0, 1fr));
+  column-gap: var(--eic-emoji-gap, 4px);
+  justify-items: center;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.eic-more li {
+  display: flex;
+}
+
 .eic-more img {
-  width: 28px;
-  height: 28px;
+  width: var(--eic-emoji-size, 28px);
+  height: var(--eic-emoji-size, 28px);
   object-fit: contain;
   -webkit-user-drag: none;
 }
 
-.eic-join {
-  width: 100%;
-}
-
 .eic-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 .eic-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 28px;
   min-height: 28px;
-  padding: 4px 10px;
+  padding: 0 8px;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   cursor: pointer;
+}
+
+.eic-action--icon {
+  width: 28px;
+  padding: 0;
+}
+
+.eic-action--all {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.eic-action-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .eic-action:hover {
@@ -418,8 +508,13 @@ async function join(): Promise<void> {
 }
 
 @media (pointer: coarse) {
-  .eic-action {
+  .eic-action,
+  .eic-join {
     min-height: 40px;
+  }
+
+  .eic-action--icon {
+    width: 40px;
   }
 }
 </style>

@@ -2746,6 +2746,14 @@ a.channel-mention {
   width: 100%;
 }
 
+/* The message text's size and line height (.unified-content: --message-font-size, 1.375).
+   Two classes outrank RichTextEditor's own .rich-text-editor rule (1rem), whatever order the
+   two stylesheets load in. */
+.edit-container .edit-textarea {
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .edit-textarea {
   width: 100%;
   min-height: 40px;
@@ -2756,8 +2764,6 @@ a.channel-mention {
   background-color: var(--background-secondary-alpha);
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.375;
   resize: none;
   outline: none;
   box-sizing: border-box;

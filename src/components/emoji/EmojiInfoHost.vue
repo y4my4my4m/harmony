@@ -17,7 +17,7 @@
       :data-mode="request.mode"
       :style="sheet ? undefined : { left: `${position.x}px`, top: `${position.y}px` }"
       @mouseenter="hold"
-      @mouseleave="leave"
+      @mouseleave="onCardLeave"
     >
       <div v-if="sheet" class="emoji-info-handle" aria-hidden="true" />
       <EmojiInfoCard
@@ -112,6 +112,15 @@ watch(cardRef, (el) => {
   resizeObserver.observe(el)
 })
 
+// A hover card placed above its emoji grows down over the resting pointer as its source
+// loads, then moves back up; leaving it for its own emoji keeps it open.
+function onCardLeave(event: MouseEvent): void {
+  const anchor = request.value?.anchor
+  const to = event.relatedTarget
+  if (anchor && to instanceof Node && anchor.contains(to)) return
+  leave()
+}
+
 watch(
   () => request.value?.id,
   async (id) => {
@@ -171,11 +180,11 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 10007;
   box-sizing: border-box;
-  width: 300px;
+  width: 280px;
   max-width: calc(100 * var(--app-vw) - 16px);
   max-height: calc(100 * var(--app-vh) - 16px);
   overflow-y: auto;
-  padding: 14px;
+  padding: 10px 12px 12px;
   background: var(--background-floating);
   color: var(--text-primary);
   border: 1px solid var(--border-primary);
@@ -190,18 +199,14 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 
-.emoji-info--hover {
-  padding-right: 14px;
-}
-
 .emoji-info:not(.emoji-info--hover) :deep(.eic-head) {
   padding-right: 24px;
 }
 
 .emoji-info-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -239,20 +244,22 @@ onBeforeUnmount(() => {
   width: auto;
   max-width: none;
   max-height: 80%;
-  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  --eic-emoji-size: 32px;
+  --eic-emoji-gap: 6px;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-bottom: none;
   animation: emoji-info-sheet-in 0.18s ease-out;
 }
 
 .emoji-info--sheet .emoji-info-close {
-  top: 14px;
+  top: 12px;
 }
 
 .emoji-info-handle {
   width: 36px;
   height: 4px;
-  margin: 0 auto 10px;
+  margin: 0 auto 8px;
   border-radius: 2px;
   background: var(--border-primary);
 }
