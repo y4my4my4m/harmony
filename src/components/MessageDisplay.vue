@@ -309,8 +309,9 @@
                   :title="instanceBadgeTitle(getInstanceBadge(item.message).value!)"
                   data-testid="message-staff-badge"
                 >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  {{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  <span aria-hidden="true">{{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}</span>
+                  <span class="sr-only">{{ instanceBadgeTitle(getInstanceBadge(item.message).value!) }}</span>
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </button>
@@ -644,7 +645,8 @@ import { useOutboxStore } from '@/stores/useOutbox';
 import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
+import { contextStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
+import { runtimeConfig } from '@/services/runtimeConfig';
 import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -1342,21 +1344,22 @@ const getDiscordUserInfo = (message: Message): { username: string; display_name:
   return message.metadata?.discord_user || null;
 };
 
-// This instance's staff flags do not surface inside a federated server; a remote author's role on
-// its own instance does (instanceBadge.ts).
+// A conversation is outside every server; currentServer keeps the last server opened.
+const staffBadgeServer = computed(() => (props.conversationId ? null : serverChannelStore.currentServer));
+
 const getInstanceBadge = (message: Message): ComputedRef<InstanceStaffBadge | null> => {
   return computed(() => {
     const userId = message.user_id;
     if (!userId) return null;
-    return instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer);
+    return contextStaffBadge(getUserProfile(userId).value, staffBadgeServer.value, runtimeConfig.domain);
   });
 };
 
 function instanceBadgeTitle(badge: InstanceStaffBadge): string {
   if (badge.domain) {
-    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminBadgeOf' : 'chatNav.members.instanceModBadgeOf', { domain: badge.domain });
   }
-  return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+  return t(badge.kind === 'admin' ? 'activitypub.instanceAdmin' : 'activitypub.instanceModerator');
 }
 
 // Helper functions for bot display

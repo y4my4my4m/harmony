@@ -112,7 +112,7 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
 | `harmony:profileColor`, `harmony:customStatus` | See [Extension properties](#extension-properties) |
 | `harmony:instanceRole` | `"admin"` or `"moderator"` for the instance's staff; absent for everyone else |
 
-A receiver stores `harmony:instanceRole` only from the actor's own document or its own `Update`, and shows it as staff of the actor's instance, never of its own. Harmony before 1.9.1 does not publish or read it.
+A receiver stores `harmony:instanceRole` only from the actor's own document or its own `Update`, and shows it as staff of the actor's instance, never of its own: on the account's profile card everywhere, and as the staff badge beside the name in messages and the member list only in a server that instance hosts. Harmony before 1.9.1 does not publish or read it.
 
 A deleted account answers its actor URL with 410 and a `Tombstone` (`id`, `formerType: "Person"`, `deleted`).
 

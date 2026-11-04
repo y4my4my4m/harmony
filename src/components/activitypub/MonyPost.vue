@@ -855,6 +855,7 @@ import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { messagePartsToRawText } from '@/utils/messageContentUtils'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { contextStaffBadge } from '@/utils/instanceBadge'
 
 // Props
 interface Props {
@@ -1227,10 +1228,7 @@ const authorSupporterBadge = computed(() => {
 const authorInstanceBadge = computed(() => {
   const authorId = displayAuthor.value?.id;
   if (!authorId) return null;
-  const profile = getUserProfile(authorId).value;
-  if (profile?.is_admin) return 'admin';
-  if (profile?.is_moderator) return 'mod';
-  return null;
+  return contextStaffBadge(getUserProfile(authorId).value, null, LOCAL_DOMAIN)?.kind ?? null;
 });
 
 const originalInstanceDomain = computed(() => {

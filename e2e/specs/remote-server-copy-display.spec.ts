@@ -1,6 +1,6 @@
 // Journey: a copy of a server hosted on another instance shows what its host shows: channels and
 // categories in the host's order, the host's roles grouping and colouring the member list, the
-// host's pins, and the staff badge a remote account's own instance gives it. Entering the copy
+// host's pins, and the staff badge the host gives its own staff. Entering the copy
 // asks the federation backend, as the signed-in member, to read it again from its host.
 //
 // The federation backend writes these rows (services/CopyMirrorService.ts, migration
@@ -106,7 +106,7 @@ test.afterAll(async () => {
   await deleteUser(admin, member)
 })
 
-test('a copy shows its host\'s channel order, roles, pins and the staff of other instances', async ({ page }) => {
+test('a copy shows its host\'s channel order, roles, pins and staff', async ({ page }) => {
   test.setTimeout(150_000)
   await page.route('**/servers/*/status', (route) => route.fulfill({ json: { federationClosed: false } }))
   const syncs: { url: string; auth: string | undefined }[] = []
@@ -142,14 +142,14 @@ test('a copy shows its host\'s channel order, roles, pins and the staff of other
     await expect(row(hostOwner.displayName).locator('.user-name')).toHaveCSS('color', 'rgb(241, 196, 15)')
   })
 
-  await test.step('a remote account wears the badge its own instance gives it, naming that instance', async () => {
+  await test.step('the host\'s admin wears the badge the host gives it, naming the host', async () => {
     const badge = row(hostOwner.displayName).getByTestId('member-staff-badge')
     await expect(badge).toHaveClass(/admin/)
-    await expect(badge).toHaveAttribute('title', `admin of ${host}`)
+    await expect(badge).toHaveAttribute('title', `Admin of ${host}`)
     await expect(row(member.displayName).getByTestId('member-staff-badge')).toHaveCount(0)
     const author = messageList(page).locator('.message-header').filter({ hasText: hostOwner.displayName }).first()
-    await expect(author.getByTestId('message-staff-badge')).toHaveText('ADMIN')
-    await expect(author.getByTestId('message-staff-badge')).toHaveAttribute('title', `admin of ${host}`)
+    await expect(author.getByTestId('message-staff-badge')).toContainText('ADMIN')
+    await expect(author.getByTestId('message-staff-badge')).toHaveAttribute('title', `Admin of ${host}`)
   })
 
   await test.step('the pinned list holds the host\'s pins', async () => {
