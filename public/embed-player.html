@@ -17,8 +17,8 @@ body.activity { background: #000; }
 // Players of music and video services, served by the instance over https.
 //
 // ?src=<player url>  Frames one provider player (hosts in PLAYER_HOSTS, https only) and relays
-//                    postMessage both ways. The native apps load from tauri://localhost, which
-//                    sends no Referer; some players refuse such embeds.
+//                    postMessage both ways. The macOS and iOS apps load from tauri://localhost,
+//                    which sends no Referer; some players refuse such embeds.
 // ?activity=1        An activity player. The parent (the Harmony page that frames this one)
 //                    sends {harmonyPlayer: 1, cmd} commands; this page loads the provider's
 //                    official API and answers {harmonyPlayer: 1, ev} events.

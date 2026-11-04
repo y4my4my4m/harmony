@@ -7740,6 +7740,7 @@
       "upload": "Add a sticker",
       "limits": "PNG, APNG, WebP or GIF, up to {size} and {side}×{side} pixels; animations up to {seconds} seconds. Larger still images are resized.",
       "file": "Image",
+      "choose": "Choose an image or drop it here",
       "name": "Name",
       "description": "Description",
       "descriptionHint": "Read aloud by screen readers and shown when the image cannot load. Required.",

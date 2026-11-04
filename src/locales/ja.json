@@ -7744,6 +7744,7 @@
       "upload": "スタンプを追加",
       "limits": "PNG、APNG、WebP、GIF。{size} まで、{side}×{side} ピクセルまで。アニメーションは {seconds} 秒まで。大きい静止画は縮小されます。",
       "file": "画像",
+      "choose": "画像を選択するか、ここにドロップ",
       "name": "名前",
       "description": "説明",
       "descriptionHint": "スクリーンリーダーで読み上げられ、画像を読み込めないときに表示されます。必須です。",

@@ -23,6 +23,17 @@ export function parseStickerCap(scope: StickerScope, value: unknown): number {
   return Math.min(num, MAX_STICKER_CAPS[scope])
 }
 
+/**
+ * Whether a settings page lists a sticker scope: while its cap allows stickers, or while the
+ * scope still holds some, which a manager can then remove. `cap` is null until the instance
+ * settings are read, `held` until the scope's stickers are counted; null while undecided.
+ */
+export function stickerSectionListed(cap: number | null, held: number | null): boolean | null {
+  if (cap !== null && cap > 0) return true
+  if (held !== null && held > 0) return true
+  return cap === null || held === null ? null : false
+}
+
 /** The cap a STICKER_LIMIT refusal (SQLSTATE 23514) names; null for any other error. */
 export function stickerLimitOf(error: unknown): number | null {
   const e = error as { code?: string; message?: string } | null

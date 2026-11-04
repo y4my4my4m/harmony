@@ -57,7 +57,7 @@ export function trustHostOf(href: string): string | null {
 
 /**
  * Base an href resolves against. A base of another scheme (tauri://localhost on macOS and
- * Linux) is read as https on its host: under a non-special scheme "//host" keeps that scheme
+ * iOS) is read as https on its host: under a non-special scheme "//host" keeps that scheme
  * and "\\host" is a path, where the OS browser reads both as https://host.
  */
 function webBase(base: string): URL | null {

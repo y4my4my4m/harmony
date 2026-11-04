@@ -301,6 +301,7 @@ import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import { supabase } from '@/supabase'
 import { fetchConversationEncryption } from '@/services/conversationEncryption'
 import { ensureCanJoinCall } from '@/services/voice/voiceEncryptionGate'
@@ -1062,7 +1063,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     return
   }
 
-  const callerFederatedId = myProfile.federated_id || `https://${window.location.hostname}/users/${myProfile.username}`
+  const callerFederatedId = myProfile.federated_id || `https://${getInstanceDomain()}/users/${myProfile.username}`
 
   ringRefused = false
   const callInfo = await dmCallSignaling.initiateFederatedCall(

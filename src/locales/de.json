@@ -7744,6 +7744,7 @@
       "upload": "Sticker hinzufügen",
       "limits": "PNG, APNG, WebP oder GIF, bis {size} und {side}×{side} Pixel; Animationen bis {seconds} Sekunden. Größere Standbilder werden verkleinert.",
       "file": "Bild",
+      "choose": "Bild auswählen oder hier ablegen",
       "name": "Name",
       "description": "Beschreibung",
       "descriptionHint": "Wird von Screenreadern vorgelesen und angezeigt, wenn das Bild nicht lädt. Pflichtfeld.",

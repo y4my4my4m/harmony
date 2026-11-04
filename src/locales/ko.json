@@ -7744,6 +7744,7 @@
       "upload": "스티커 추가",
       "limits": "PNG, APNG, WebP 또는 GIF, 최대 {size}, {side}×{side}픽셀. 애니메이션은 최대 {seconds}초. 더 큰 정지 이미지는 크기를 줄입니다.",
       "file": "이미지",
+      "choose": "이미지를 선택하거나 여기에 놓으세요",
       "name": "이름",
       "description": "설명",
       "descriptionHint": "스크린 리더가 읽어 주고 이미지를 불러오지 못할 때 표시됩니다. 필수입니다.",

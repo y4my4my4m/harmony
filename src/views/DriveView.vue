@@ -1,25 +1,38 @@
 <template>
   <div
     class="drive-view"
-    :class="{ 'has-details': !!detailEntry, 'nav-open': navOpen }"
+    :class="{ 'has-details': !!detailEntry }"
+    :style="panelWidthVars"
     data-testid="drive-view"
     @dragenter="onPageDragEnter"
     @dragover="onPageDragOver"
     @dragleave="onPageDragLeave"
     @drop="onPageDrop"
   >
+    <!-- The left drawer's panel beside the server rail on a phone, as ChatLayout's channel panel. -->
     <DriveSidebar
+      id="app-drive-panel"
+      ref="driveSidebar"
       class="drive-view__nav"
+      :class="{ 'mobile-open': leftSidebarOpen, 'is-dragging': isDragging && dragDirection === 'left' }"
+      :style="navDragStyle"
       @navigate="navigate"
       @folder-menu="openFolderMenu"
       @drop-items="dropItems"
     />
-    <div v-if="navOpen" class="drive-view__scrim" aria-hidden="true" @click="navOpen = false" />
 
     <section class="drive-view__main" :aria-labelledby="titleId">
       <header class="drive-toolbar">
         <div class="drive-toolbar__top">
-          <button type="button" class="drive-icon-btn drive-view__nav-toggle" :aria-label="t('drive.nav.open')" :aria-expanded="navOpen" @click="navOpen = !navOpen">
+          <button
+            v-if="isMobile"
+            type="button"
+            class="drive-icon-btn drive-view__nav-toggle"
+            :aria-label="t('a11y.drawer.navigation')"
+            v-bind="leftDrawerToggle"
+            data-testid="drive-nav-toggle"
+            @click="emit('toggleLeftSidebar')"
+          >
             <Icon name="menu" :size="18" />
           </button>
           <nav v-if="drive.location.view === 'folder' && !drive.query.trim()" class="drive-crumbs" :aria-label="t('drive.nav.path')">
@@ -356,6 +369,7 @@ import { useDriveStore, type DriveLocation } from '@/stores/drive'
 import { usePhotoDetailsSettingsStore } from '@/stores/photoDetailsSettings'
 import { isPhotoOrVideo, readMediaDetails } from '@/utils/stripMetadata'
 import { useProfileStore } from '@/stores/useProfile'
+import { closeMobileDrawers, useAppDrawers, useDrawerPanel, useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import {
   driveDownloadUrl,
   driveFileDisplayName,
@@ -367,6 +381,23 @@ import {
   type DriveView,
 } from '@/services/drive/driveService'
 import type { DriveDragPayload } from '@/components/drive/driveDrag'
+
+// Layout state from BaseLayout's RouterView, as ChatLayout receives it.
+const props = withDefaults(defineProps<{
+  isMobile?: boolean
+  leftSidebarOpen?: boolean
+  isDragging?: boolean
+  dragDirection?: 'left' | 'right' | null
+  leftSidebarDragOffset?: number
+}>(), {
+  isMobile: false,
+  leftSidebarOpen: false,
+  isDragging: false,
+  dragDirection: null,
+  leftSidebarDragOffset: 0,
+})
+
+const emit = defineEmits<{ toggleLeftSidebar: [] }>()
 
 const { t } = useT()
 const route = useRoute()
@@ -381,7 +412,6 @@ const titleId = useId()
 const fileInput = ref<HTMLInputElement | null>(null)
 const itemsRef = ref<InstanceType<typeof DriveItems> | null>(null)
 const detailsRef = ref<InstanceType<typeof DriveDetails> | null>(null)
-const navOpen = ref(false)
 const searchDraft = ref(drive.query)
 const fileMenu = ref<{ x: number; y: number; entry: DriveListEntry } | null>(null)
 const folderMenu = ref<{ x: number; y: number; folder: DriveFolder } | null>(null)
@@ -400,6 +430,27 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const ownId = computed(() => profileStore.profile?.id ?? null)
 
+// The Drive navigation is the left drawer's panel, sized and dragged as ChatLayout's channel panel.
+const { channelPanelWidth, leftDrawerWidth, SERVER_SIDEBAR_WIDTH } = useLayoutState()
+const driveSidebar = ref<InstanceType<typeof DriveSidebar> | null>(null)
+const navPanelEl = computed(() => (driveSidebar.value?.$el as HTMLElement | undefined) ?? null)
+useSidebarPanel('left', () => true, () => channelPanelWidth.value)
+useDrawerPanel('left', 'app-drive-panel', navPanelEl)
+const { leftDrawerToggle } = useAppDrawers()
+
+const panelWidthVars = computed(() => ({ '--channel-panel-width': `${channelPanelWidth.value}px` }))
+
+const navDragStyle = computed(() => {
+  if (!props.isMobile || !props.isDragging || props.dragDirection !== 'left') return {}
+  const progress = props.leftSidebarDragOffset / leftDrawerWidth.value
+  const closedPosition = -channelPanelWidth.value
+  const openPosition = SERVER_SIDEBAR_WIDTH
+  return {
+    transform: `translateX(${closedPosition + (openPosition - closedPosition) * progress}px)`,
+    transition: 'none',
+  }
+})
+
 const SECTION_VIEWS: Record<string, DriveView> = {
   folder: 'folder', recent: 'recent', temporary: 'ephemeral', shared: 'shared', trash: 'trash',
   dms: 'dms', fediverse: 'fediverse', server: 'server', channel: 'channel', conversation: 'conversation', all: 'all',
@@ -413,12 +464,12 @@ function locationFromRoute(): DriveLocation {
 }
 
 function navigate(location: DriveLocation): void {
-  navOpen.value = false
   const section = VIEW_SECTIONS[location.view]
   const params: Record<string, string> = {}
   if (!(location.view === 'folder' && !location.id)) params.section = section
   if (location.id) params.id = location.id
-  void router.push({ name: 'Drive', params })
+  // Closed after the push: the new route takes the open drawer's history entry (overlayHistory.ts).
+  void router.push({ name: 'Drive', params }).finally(closeMobileDrawers)
 }
 
 watch(() => [route.params.section, route.params.id], () => {
@@ -703,7 +754,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .drive-view {
-  --drive-nav-width: 264px;
+  /* ChatLayout's channel panel width. */
+  --drive-nav-width: 295px;
   --drive-details-width: 320px;
   position: relative;
   display: grid;
@@ -725,9 +777,8 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
-.drive-view__nav-toggle,
-.drive-view__scrim {
-  display: none;
+.drive-view__nav {
+  min-width: 0;
 }
 
 .drive-toolbar {
@@ -1060,38 +1111,33 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 760px) {
+/* The app's mobile layout (useLayoutState isMobile, max-width 768px): ChatLayout's channel panel. */
+@media (max-width: 768px) {
   .drive-view,
   .drive-view.has-details {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .drive-view__nav {
-    position: absolute;
+    position: fixed;
     top: 0;
     bottom: 0;
     left: 0;
-    z-index: 9;
-    width: min(300px, 86%);
-    transform: translateX(-102%);
-    transition: transform 0.2s ease;
+    z-index: 200;
+    width: var(--channel-panel-width, 240px);
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    transform: translateX(calc(-1 * var(--channel-panel-width, 240px)));
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
   }
 
-  .drive-view.nav-open .drive-view__nav {
-    transform: none;
-    box-shadow: 12px 0 32px rgb(0 0 0 / 0.35);
+  .drive-view__nav.mobile-open {
+    transform: translateX(72px);
   }
 
-  .drive-view__nav-toggle {
-    display: inline-flex;
-  }
-
-  .drive-view__scrim {
-    position: absolute;
-    inset: 0;
-    z-index: 8;
-    display: block;
-    background: rgb(0 0 0 / 0.4);
+  .drive-view__nav.is-dragging {
+    transition: none !important;
   }
 
   .drive-toolbar {

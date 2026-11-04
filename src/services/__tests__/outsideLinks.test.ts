@@ -205,7 +205,7 @@ describe('hrefs the browser reads as another host', () => {
     expect(prompt.pending.value?.host).toBe('evil.example')
   })
 
-  it('opens a scheme-relative link over https in the macOS and Linux app', async () => {
+  it('opens a scheme-relative link over https in the macOS and iOS app', async () => {
     runtime.tauri = true
     const base = document.createElement('base')
     base.href = 'tauri://localhost/'

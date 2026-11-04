@@ -36,8 +36,9 @@ pub enum Decision {
   Refuse,
 }
 
-/// The app's own pages: tauri://localhost, http(s)://tauri.localhost (Android, Windows), the asset
-/// and IPC hosts (*.localhost), and the dev server in dev builds.
+/// The app's own pages: tauri://localhost (macOS, iOS), http://tauri.localhost (Windows, Android,
+/// Linux on CEF), the asset and IPC hosts (*.localhost, either scheme), and the dev server in dev
+/// builds.
 pub fn is_app_url(url: &Url) -> bool {
   if url.scheme() == "tauri" {
     return true;

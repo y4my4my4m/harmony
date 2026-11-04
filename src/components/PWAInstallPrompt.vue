@@ -56,6 +56,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { useT } from '@/composables/useT'
 import {
   showInstallFailedToast,
@@ -109,16 +110,17 @@ const dismissPrompt = () => {
 }
 
 const shareApp = async () => {
+  const url = resolveHarmonyBaseUrl()
   const success = await pwaManager.shareContent({
     title: 'Harmony - Secure Chat App',
     text: 'Harmony is a secure, private chat app.',
-    url: window.location.origin
+    url
   })
   
   if (!success) {
     // Fallback to clipboard
     try {
-      await navigator.clipboard.writeText(window.location.origin)
+      await navigator.clipboard.writeText(url)
       debug.log('App URL copied to clipboard')
     } catch (error) {
       debug.error('Failed to share or copy URL:', error)

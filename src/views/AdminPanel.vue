@@ -192,14 +192,13 @@
     </div>
 
     <div v-else-if="activeAdminTab === 'stickers'" class="admin-grid single">
-      <div class="admin-module">
-        <StickerSettings
-          scope="instance"
-          can-manage
-          :title="t('stickers.manage.instanceTitle')"
-          :description="t('stickers.manage.instanceDescription')"
-        />
-      </div>
+      <StickerSettings
+        scope="instance"
+        variant="module"
+        can-manage
+        :title="t('stickers.manage.instanceTitle')"
+        :description="t('stickers.manage.instanceDescription')"
+      />
     </div>
 
     <div v-else-if="activeAdminTab === 'tools'" class="admin-grid">

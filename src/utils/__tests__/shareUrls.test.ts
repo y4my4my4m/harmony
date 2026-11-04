@@ -1,12 +1,19 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 
-// The desktop and Android builds load the app from tauri://localhost or
-// http://tauri.localhost: a link built from the page origin points at the local
-// webview, not the instance. Links people share or receive by email go through
-// resolveHarmonyBaseUrl().
+vi.mock('@/supabase', () => ({ supabase: {} }))
+
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
+import { channelWebhookUrl, instanceWebhookUrl } from '@/services/channelWebhookService'
+import { getInstanceDomain } from '@/services/instanceConfig'
+
+// The native apps load the app from tauri://localhost (macOS, iOS) or
+// http://tauri.localhost (Windows, Android, Linux): a link built from the page origin
+// points at the local webview, not the instance, and a handle built from the page host
+// names tauri.localhost. Links people share or receive by email go through
+// resolveHarmonyBaseUrl(), webhook addresses through webhookOrigin(), handles through
+// getInstanceDomain().
 
 const SRC = join(__dirname, '..', '..')
 
@@ -63,6 +70,14 @@ describe('share URLs', () => {
     expect(found).toEqual([])
   })
 
+  it('builds no handle or address from the page host', () => {
+    const found: string[] = []
+    for (const file of sources(SRC)) {
+      if (/\$\{\s*window\.location\.(host|hostname)\s*\}/.test(readFileSync(file, 'utf-8'))) found.push(relative(SRC, file))
+    }
+    expect(found).toEqual([])
+  })
+
   it('uses the stored instance origin in the desktop app', () => {
     ;(globalThis as any).__TAURI_INTERNALS__ = {}
     localStorage.setItem('harmony.instance', JSON.stringify({
@@ -72,6 +87,20 @@ describe('share URLs', () => {
       supabaseAnonKey: 'anon',
     }))
     expect(resolveHarmonyBaseUrl()).toBe('https://har.mony.lol')
+  })
+
+  it('names the stored instance in webhook addresses and handles in the desktop app', () => {
+    ;(globalThis as any).__TAURI_INTERNALS__ = {}
+    localStorage.setItem('harmony.instance', JSON.stringify({
+      origin: 'https://har.mony.lol',
+      name: 'Harmony',
+      supabaseUrl: 'https://db.mony.lol',
+      supabaseAnonKey: 'anon',
+      domain: 'mony.lol',
+    }))
+    expect(instanceWebhookUrl('/webhooks/kofi')).toBe('https://har.mony.lol/webhooks/kofi')
+    expect(channelWebhookUrl('w1', 'tok')).toBe('https://har.mony.lol/webhooks/channels/w1/tok')
+    expect(getInstanceDomain()).toBe('mony.lol')
   })
 })
 

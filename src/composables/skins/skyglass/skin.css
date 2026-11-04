@@ -1044,8 +1044,8 @@
 }
 
 /* Drive: the navigation column and the main window are glass like the chat
-   columns. Below 760px the navigation is a drawer over the files and takes
-   the window tone. */
+   columns. At 768px and below the navigation is the left drawer's panel and
+   takes the window tone. */
 :root[data-skin="skyglass"] .drive-view {
   background: transparent;
   border-top-left-radius: 18px;
@@ -1076,7 +1076,7 @@
   -webkit-backdrop-filter: var(--sg-blur);
           backdrop-filter: var(--sg-blur);
 }
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   :root[data-skin="skyglass"] .drive-view__nav {
     background: var(--sg-window);
   }

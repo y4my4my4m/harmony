@@ -524,6 +524,15 @@ else
 	done < <(grep -E '^[A-Z0-9_]+=' "$SUPABASE_DIR/.env.example")
 	[[ ${#added[@]} -eq 0 ]] || info "supabase/.env: added ${added[*]}"
 fi
+# GoTrue sends an OAuth redirect_to that is neither on SITE_URL's host nor in this list to
+# SITE_URL. The native apps finish a sign-in on their own origin (federation-backend
+# src/config/nativeOrigins.ts); each is added once, after the entries present.
+NATIVE_REDIRECTS=("tauri://localhost/**" "http://tauri.localhost/**")
+redirects="$(env_get "$SB_ENV" ADDITIONAL_REDIRECT_URLS)"
+for entry in "${NATIVE_REDIRECTS[@]}"; do
+	[[ ",$redirects," == *",$entry,"* ]] || redirects="${redirects:+$redirects,}$entry"
+done
+env_set "$SB_ENV" ADDITIONAL_REDIRECT_URLS "$redirects"
 if $SMTP_SET; then
 	env_set "$SB_ENV" SMTP_HOST "$SMTP_HOST"
 	env_set "$SB_ENV" SMTP_PORT "$SMTP_PORT"

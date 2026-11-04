@@ -346,7 +346,7 @@ values.
 | `SITE_URL` | `https://DOMAIN` | Where links in sign-in emails lead |
 | `API_EXTERNAL_URL` | `https://DB_DOMAIN` | Public API URL; base of the OAuth callback |
 | `SUPABASE_PUBLIC_URL` | `https://DB_DOMAIN` | Upstream's public URL setting |
-| `ADDITIONAL_REDIRECT_URLS` | `https://DOMAIN` | Redirect targets the sign-in service accepts |
+| `ADDITIONAL_REDIRECT_URLS` | `https://DOMAIN`, then `tauri://localhost/**` and `http://tauri.localhost/**` (added on every run when absent) | Redirect targets the sign-in service accepts besides `SITE_URL`. The two `tauri` entries are the desktop and mobile apps' own pages, where their provider sign-in ends |
 | `DISABLE_SIGNUP` | `true` on a new install | `harmony registration` sets it: `false` for `open`, `true` otherwise |
 | `ENABLE_EMAIL_AUTOCONFIRM` | `true` without SMTP, `false` with | `false` makes new accounts confirm their address by email |
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |

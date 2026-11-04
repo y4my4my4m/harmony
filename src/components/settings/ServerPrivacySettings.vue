@@ -288,6 +288,7 @@ import { hasCapability } from '@/services/instanceCapabilities'
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue'
 import type { ServerCategory } from '@/utils/serverDiscovery'
 import { supabase } from '@/supabase'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import { useI18n } from 'vue-i18n'
 import { useDialog } from '@/composables/useDialog'
 
@@ -377,7 +378,8 @@ async function fetchFederatedMemberCount() {
   }
 }
 
-// The server's WebFinger handle ({slug}@{instance}) used for federated discovery.
+// The server's WebFinger handle ({slug}@{instance domain}) used for federated discovery. The page's
+// own host is the native app's (tauri.localhost), or a web app host apart from the handle domain.
 async function fetchServerHandle() {
   serverHandle.value = ''
   if (!props.serverId) return
@@ -388,7 +390,7 @@ async function fetchServerHandle() {
     .maybeSingle()
 
   if (!error && data?.slug) {
-    serverHandle.value = `${data.slug}@${window.location.hostname}`
+    serverHandle.value = `${data.slug}@${getInstanceDomain()}`
   }
 }
 

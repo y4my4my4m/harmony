@@ -83,7 +83,7 @@ describe('outsideLinkAction', () => {
     expect(outsideLinkAction('\\channels', ctx({ askEveryLink: true }))).toBe('own')
   })
 
-  it('opens a scheme-relative link over https from the macOS and Linux app', () => {
+  it('opens a scheme-relative link over https from the macOS and iOS app', () => {
     const native = { base: 'tauri://localhost/channels/1' }
     expect(resolveLinkHref('//evil.example/x', native.base)?.href).toBe('https://evil.example/x')
     expect(resolveLinkHref('\\\\evil.example/x', native.base)?.href).toBe('https://evil.example/x')

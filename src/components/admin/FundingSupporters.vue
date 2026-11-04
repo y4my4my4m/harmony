@@ -555,6 +555,7 @@ import type { Emoji } from '@/types'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { instanceWebhookUrl } from '@/services/channelWebhookService'
 
 const toast = useToast()
 const { confirm } = useConfirmDialog()
@@ -580,13 +581,7 @@ const kofiWebhookToken = ref('')
 let savedKofiWebhookToken = ''
 const kofiAutoAssignTier = ref(true)
 const showKofiToken = ref(false)
-const kofiWebhookUrl = computed(() => {
-  // Federation backend exposes /webhooks/kofi. Prefer explicit federation URL,
-  // fall back to current origin.
-  const base = runtimeConfig.federationUrl
-    || (typeof window !== 'undefined' ? window.location.origin : '')
-  return `${base.replace(/\/$/, '')}/webhooks/kofi`
-})
+const kofiWebhookUrl = computed(() => instanceWebhookUrl('/webhooks/kofi'))
 // Stripe webhook config
 const stripeWebhookSecret = ref('')
 let savedStripeWebhookSecret = ''

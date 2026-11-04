@@ -7744,6 +7744,7 @@
       "upload": "添加贴纸",
       "limits": "PNG、APNG、WebP 或 GIF,最大 {size}、{side}×{side} 像素;动画最长 {seconds} 秒。更大的静态图片会被缩小。",
       "file": "图片",
+      "choose": "选择图片或拖放到此处",
       "name": "名称",
       "description": "描述",
       "descriptionHint": "由屏幕阅读器朗读,并在图片无法加载时显示。必填。",

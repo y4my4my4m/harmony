@@ -15,6 +15,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import config from './config/index.js';
+import { corsOrigins } from './config/nativeOrigins.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { linkPreviewLimiter, pushLimiter, gifLimiter, mediaLimiter, embedMediaLimiter } from './middleware/rateLimit.js';
@@ -66,11 +67,8 @@ export function createApp(): Application {
   app.set('trust proxy', config.TRUST_PROXY.split(',').map((v) => v.trim()).filter(Boolean));
 
   app.use(helmet());
-  // Native (Tauri) clients are cross-origin by construction: the frontend is
-  // served from the app's own origin, not from this instance's domain.
-  const nativeClientOrigins = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost'];
   app.use(cors({
-    origin: [...config.CORS_ORIGIN.split(',').map(o => o.trim()), ...nativeClientOrigins],
+    origin: corsOrigins(config.CORS_ORIGIN),
     credentials: true,
   }));
 
