@@ -4906,7 +4906,7 @@
       "mfaDisabled": {
         "title": "2단계 인증이 꺼졌습니다",
         "message": "이제 계정에서 인증 앱 코드를 요구하지 않습니다.",
-        "messageRecoveryCode": "복구 코드로 로그인했습니다. 2단계 인증을 다시 설정하세요."
+        "messageRecoveryCode": "복구 코드가 사용되었습니다. 2단계 인증을 다시 설정하세요."
       },
       "recoveryCodeUsed": {
         "title": "복구 코드 사용됨",

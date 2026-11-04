@@ -4906,7 +4906,7 @@
       "mfaDisabled": {
         "title": "双重验证已关闭",
         "message": "您的账户不再要求输入验证器验证码。",
-        "messageRecoveryCode": "有人使用恢复码登录。请重新设置双重验证。"
+        "messageRecoveryCode": "有人使用了恢复码。请重新设置双重验证。"
       },
       "recoveryCodeUsed": {
         "title": "恢复码已被使用",

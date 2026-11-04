@@ -730,7 +730,7 @@ record_slow_query	definer	uuid	service_role	client	rpc in federation-backend/src
 recovery_code_owner	invoker	uuid	service_role	client	called by generate_mfa_recovery_codes, save_recovery_codes
 redact_encrypted_notification_preview	definer	trigger	service_role	trigger	trigger public.notifications BEFORE INSERT (trg_redact_encrypted_notification_preview)
 redeem_invite	definer	jsonb	authenticated+service_role	client	rpc in src/services/inviteService.ts
-redeem_recovery_code_and_disable_mfa	definer	boolean	authenticated+service_role	client	rpc in src/stores/auth.ts, src/views/ResetPasswordView.vue
+redeem_recovery_code_and_disable_mfa	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/user/TwoFactorSettings.vue, src/stores/auth.ts, src/views/ResetPasswordView.vue
 refuse_banned_membership	definer	trigger	service_role	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_user_servers_ban_guard)
 refuse_client_system_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_system_part_guard), public.posts BEFORE INSERT/UPDATE (a_posts_system_part_guard), public.profiles BEFORE INSERT/UPDATE (a_profiles_system_part_guard)
 refuse_instance_kept_out_membership	definer	trigger	service_role	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_user_servers_instance_guard)
@@ -978,7 +978,7 @@ upsert_server_automod_rule	definer	jsonb	authenticated+service_role	client	rpc i
 user_has_encryption	invoker	boolean	service_role	service key	called by get_conversation_encryption_status
 verify_bot_token	definer	jsonb	anon+authenticated+service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts, bot-gateway/src/gateway/WebSocketGateway.ts
 verify_my_password	definer	boolean	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
-verify_recovery_code	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/user/TwoFactorSettings.vue
+verify_recovery_code	definer	boolean	authenticated+service_role	http authenticated	nothing references it
 voice_activity_control	definer	jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
 voice_activity_drop_share	definer	void	service_role	client, trigger	called by end_voice_activity_when_empty, voice_activity_control, voice_activity_start, +1
 voice_activity_item	definer	jsonb	service_role	client	called by voice_activity_control, voice_activity_start

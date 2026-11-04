@@ -4906,7 +4906,7 @@
       "mfaDisabled": {
         "title": "二要素認証がオフになりました",
         "message": "アカウントで認証アプリのコードを求められなくなりました。",
-        "messageRecoveryCode": "リカバリーコードを使ってサインインしました。二要素認証を再度設定してください。"
+        "messageRecoveryCode": "リカバリーコードが使用されました。二要素認証を再度設定してください。"
       },
       "recoveryCodeUsed": {
         "title": "リカバリーコードが使用されました",

@@ -4906,7 +4906,7 @@
       "mfaDisabled": {
         "title": "Authentification à deux facteurs désactivée",
         "message": "Votre compte ne demande plus de code d'authentification.",
-        "messageRecoveryCode": "Un code de récupération a été utilisé pour se connecter. Configurez à nouveau l'authentification à deux facteurs."
+        "messageRecoveryCode": "Un code de récupération a été utilisé. Configurez à nouveau l'authentification à deux facteurs."
       },
       "recoveryCodeUsed": {
         "title": "Code de récupération utilisé",

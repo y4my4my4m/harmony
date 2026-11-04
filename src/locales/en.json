@@ -4902,7 +4902,7 @@
       "mfaDisabled": {
         "title": "Two-factor authentication turned off",
         "message": "Your account no longer asks for an authenticator code.",
-        "messageRecoveryCode": "A recovery code was used to sign in. Set up two-factor authentication again."
+        "messageRecoveryCode": "A recovery code was used. Set up two-factor authentication again."
       },
       "recoveryCodeUsed": {
         "title": "Recovery code used",
