@@ -80,7 +80,11 @@ export const PROJECT_FUNDING_FALLBACK: PublicFunding = {
   enabled: true,
   goal: null,
   supporters: 0,
-  links: [{ platform: 'custom', url: 'https://mony.lol/', label: 'Harmony' }],
+  links: [
+    { platform: 'stripe', url: 'https://donate.stripe.com/4gM3cw3e02FX0T3fCWb7y00', label: 'One-time' },
+    { platform: 'stripe', url: 'https://buy.stripe.com/6oU14o01O6Wd6dn1M6b7y01', label: 'Monthly' },
+    { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
+  ],
   messages: [],
 };
 
