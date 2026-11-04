@@ -7272,7 +7272,92 @@
     "yours": "Your support",
     "tierSupporter": "{tier} supporter",
     "active": "Active",
-    "history": "Your support history"
+    "history": "Your support history",
+    "titleShort": "Support",
+    "projectTitle": "Support Harmony",
+    "projectInstanceNote": "{instance} is run by the Harmony project. Support here pays for its servers and for Harmony's development.",
+    "raisedThisMonth": "raised this month",
+    "raisedAllTime": "raised in total",
+    "resets": "Resets {date} (UTC)",
+    "until": "Active until {date}",
+    "instanceOff": "This instance is not asking for support right now.",
+    "thanks": "Thank you! Your support came through.",
+    "tabs": {
+      "label": "Who to support",
+      "instance": "This instance",
+      "project": "Harmony development"
+    },
+    "project": {
+      "title": "Help build Harmony",
+      "lead": "Harmony is free, open-source software. Support here goes to the people building it, not to {instance}.",
+      "paymentNote": "You pay on {project}'s own pages; {instance} never handles the money.",
+      "fallback": "Harmony's funding page could not be reached, so these are its standing links.",
+      "unavailable": "Harmony's funding information is not available right now.",
+      "wall": "Harmony's recent supporters",
+      "wallEmpty": "No messages from Harmony's supporters yet."
+    },
+    "wall": {
+      "title": "Recent supporters",
+      "empty": "No messages yet. Yours could be the first.",
+      "anonymous": "Anonymous",
+      "you": "You",
+      "now": "now",
+      "hide": "Hide",
+      "hideFrom": "Hide the message from {name}",
+      "more": "Show all {count}",
+      "fewer": "Show fewer"
+    },
+    "message": {
+      "title": "Add a public message",
+      "optional": "optional",
+      "label": "Public message",
+      "placeholder": "Say something to the community",
+      "anonymous": "Show as Anonymous",
+      "help": "It goes with your next support within 24 hours, and an admin approves it before others see it. Plain text, up to 50 characters.",
+      "save": "Save message",
+      "saved": "Saved. It goes with your support until {time}.",
+      "remove": "Remove",
+      "status": {
+        "waiting": "Waiting for your support until {time}",
+        "pending": "Waiting for approval",
+        "hidden": "Hidden by an admin"
+      },
+      "errors": {
+        "length": "Up to {max} characters.",
+        "control": "Line breaks and control characters can't be used.",
+        "bidi": "Text direction marks can't be used.",
+        "marks": "Too many accents on one character.",
+        "disabled": "Messages are turned off on this instance.",
+        "failed": "The message couldn't be saved."
+      }
+    },
+    "landing": {
+      "label": "Recent supporters of this instance",
+      "next": "Next supporter message"
+    },
+    "settings": {
+      "title": "Support",
+      "lead": "Help keep this instance running, and Harmony itself.",
+      "project": "Support Harmony's development"
+    },
+    "admin": {
+      "messagesEnabled": "Supporter messages",
+      "messagesPublic": "Show approved messages on the sign-in page",
+      "messagesHint": "Supporters can add a message of up to 50 characters to their support. Nothing shows until you approve it below. Messages shown on the sign-in page are also in this instance's public funding feed.",
+      "queueTitle": "Supporter messages",
+      "queueHint": "A message arrives with a credited donation. Approve it to show it in the Support window and, when that is on, on the sign-in page. Hide it at any time.",
+      "queueEmpty": "No supporter messages yet.",
+      "approve": "Approve",
+      "hide": "Hide",
+      "unhide": "Show again",
+      "anonymousBy": "Anonymous: {name}",
+      "reviewFailed": "The message could not be updated.",
+      "state": {
+        "pending": "Awaiting approval",
+        "approved": "Shown",
+        "hidden": "Hidden"
+      }
+    }
   },
   "driveAdmin": {
     "settings": "Drive storage",

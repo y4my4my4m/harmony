@@ -410,6 +410,15 @@ export const reactionsLimiter = createRateLimiter({
   message: 'Too many reaction fetches, please try again later.',
 });
 
+// Funding feeds (routes/funding.ts): answered from memory, read by other instances every 30
+// minutes and by this instance's clients when they open Support.
+export const fundingLimiter = createRateLimiter({
+  name: 'funding',
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  message: 'Too many funding requests, please try again later.',
+});
+
 // Donation webhooks (Ko-fi, etc.): cadence is naturally low (one webhook per
 // donation). 60/min is far more than any legitimate flow and prevents abuse
 // if the webhook URL leaks.

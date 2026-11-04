@@ -284,111 +284,48 @@
       </div>
     </div>
 
-    <!-- Support -->
-    <div class="settings-section supporter-section">
-      <h3 class="section-title">Support</h3>
-      <p class="section-description">
-        Supporting this instance helps keep it running and contributes to its development.
-        Supporters get a badge displayed next to their name based on their cumulative
-        donations during the current cycle.
-      </p>
+    <!-- Support: status from the funding store; links, history and messages are in the Support window. -->
+    <div class="settings-section supporter-section" data-testid="settings-support">
+      <h3 class="section-title">{{ t('support.settings.title') }}</h3>
+      <p class="section-description">{{ t('support.settings.lead') }}</p>
 
-      <p v-if="fundingLinks.some(isStripeLink)" class="donor-auto-credit">
-        <Icon name="check" :size="14" />
-        <span>Donations through Stripe are credited to your account automatically.</span>
-      </p>
-
-      <div v-if="fundingLinks.length === 0 || needsHandleInMessage(fundingLinks)" class="donor-handle-callout">
-        <p class="donor-handle-callout-title">
-          <Icon name="info" :size="14" /> How to get your supporter badge
-        </p>
-        <p>
-          When donating, include this handle <strong>anywhere</strong> in your message -
-          we'll match it automatically and assign the right tier:
-        </p>
-        <div class="donor-handle-row">
-          <code class="donor-handle-token">@{{ currentUserHandleShort || 'username' }}@{{ supporterInstanceDomain }}</code>
-          <button
-            v-if="currentUserHandleShort"
-            type="button"
-            class="donor-copy-btn"
-            @click="copyCurrentSupportHandle"
-          >
-            <Icon name="copy" :size="12" /> Copy
-          </button>
+      <div v-if="supporterBadge" class="supporter-card">
+        <span
+          class="supporter-badge-preview"
+          :style="supporterBadge.badge_color ? {
+            backgroundColor: supporterBadge.badge_color + '20',
+            borderColor: supporterBadge.badge_color,
+            color: supporterBadge.badge_color
+          } : {}"
+        ><SupporterBadgeIcon :icon="supporterBadge.badge_icon" /></span>
+        <div class="supporter-details">
+          <span class="supporter-tier">{{ t('support.tierSupporter', { tier: supporterBadge.tier_name }) }}</span>
+          <span class="supporter-active">{{ t('support.active') }}</span>
         </div>
-
-        <details class="donor-examples">
-          <summary>See message examples</summary>
-          <ul class="donor-examples-list">
-            <li>
-              <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
-              <span class="example-note">Just the handle - works fine.</span>
-            </li>
-            <li>
-              <code>thanks for the great instance! @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }}</code>
-              <span class="example-note">Handle at the end - works.</span>
-            </li>
-            <li>
-              <code>@{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} keep it up &lt;3</code>
-              <span class="example-note">Handle at the start with a note - works.</span>
-            </li>
-            <li>
-              <code>hey ping me @{{ currentUserHandleShort || 'alice' }}@{{ supporterInstanceDomain }} when the new feature ships</code>
-              <span class="example-note">Handle in the middle - works.</span>
-            </li>
-          </ul>
-        </details>
-
-        <p class="donor-handle-hint">
-          If you forget the handle, your donation isn't lost - it's queued
-          for the admins to review and attribute manually. Auto-matching is
-          just faster.
-        </p>
       </div>
 
-      <div v-if="supporterLoading" class="supporter-loading">Loading...</div>
-      <template v-else>
-        <div v-if="supporterBadge" class="supporter-card">
-          <span
-            class="supporter-badge-preview"
-            :style="supporterBadge.badge_color ? {
-              backgroundColor: supporterBadge.badge_color + '20',
-              borderColor: supporterBadge.badge_color,
-              color: supporterBadge.badge_color
-            } : {}"
-          ><SupporterBadgeIcon :icon="supporterBadge.badge_icon" /></span>
-          <div class="supporter-details">
-            <span class="supporter-tier">{{ supporterBadge.tier_name }} Supporter</span>
-            <span class="supporter-active">Active</span>
-          </div>
-        </div>
-        <div v-else class="supporter-card supporter-inactive">
-          <span class="supporter-inactive-text">Not currently a supporter</span>
-        </div>
-
-        <div v-if="supporterDonations.length > 0" class="supporter-donations">
-          <div v-for="donation in supporterDonations" :key="donation.id" class="supporter-donation-row">
-            <span class="donation-amt">{{ donation.currency }} {{ donation.amount }}</span>
-            <span class="donation-dt">{{ formatDate(donation.donated_at) }}</span>
-            <span v-if="donation.platform" class="donation-plat">{{ donation.platform }}</span>
-          </div>
-        </div>
-
-        <div v-if="fundingLinks.length > 0" class="supporter-links">
-          <a
-            v-for="(link, i) in orderDonationLinks(fundingLinks)"
-            :key="i"
-            :href="safeHref(donationLinkHref(link, { profileId: profile?.id, email: userEmail }))"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="supporter-link"
-          >
-            <PlatformIcon :platform="link.platform" :size="16" :use-brand-color="true" />
-            <span>{{ link.label || link.platform }}</span>
-          </a>
-        </div>
-      </template>
+      <div v-if="instanceFundingOn || showProjectSupport" class="supporter-actions">
+        <button
+          v-if="instanceFundingOn"
+          type="button"
+          class="btn btn-primary"
+          data-testid="settings-support-instance"
+          @click="fundingStore.openModal('instance')"
+        >
+          <Icon name="heart" :size="16" aria-hidden="true" />
+          {{ fundingStore.isProjectInstance ? t('support.projectTitle') : t('activitypub.supportInstance') }}
+        </button>
+        <button
+          v-if="showProjectSupport"
+          type="button"
+          class="btn btn-secondary"
+          data-testid="settings-support-project"
+          @click="fundingStore.openModal('project')"
+        >
+          <Icon name="heart" :size="16" aria-hidden="true" />
+          {{ t('support.settings.project') }}
+        </button>
+      </div>
     </div>
 
     <Transition name="savebar">
@@ -426,7 +363,6 @@
 </template>
 
 <script setup lang="ts">
-import { safeHref } from '@/utils/sanitize';
 import { ref, computed, watch, onMounted, nextTick, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
@@ -443,21 +379,11 @@ import Icon from '@/components/common/Icon.vue'
 import AutoSuggest from '@/components/AutoSuggest.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
-import PlatformIcon from '@/components/common/PlatformIcon.vue'
-import {
-  fundingService,
-  donationLinkHref,
-  isStripeLink,
-  needsHandleInMessage,
-  orderDonationLinks,
-  type SupporterBadge,
-  type DonationRecord,
-  type FundingLink,
-} from '@/services/FundingService'
+import { useFundingStore } from '@/stores/useFunding'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
-import { getInstanceDomain } from '@/services/instanceConfig'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
@@ -925,51 +851,15 @@ watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
   }
 }, { immediate: false })
 
-// Supporter section
-const supporterLoading = ref(true)
-const supporterBadge = ref<SupporterBadge | null>(null)
-const supporterDonations = ref<DonationRecord[]>([])
-const fundingLinks = ref<FundingLink[]>([])
+// Supporter section: the summary the app read at sign-in; no read of its own.
+const fundingStore = useFundingStore()
+const supporterBadge = computed(() => fundingStore.myBadge)
+const instanceFundingOn = computed(() => fundingStore.config?.enabled === true)
+const showProjectSupport = hasCapability('supporter-messages') && fundingStore.isProjectInstance !== true
 
-// Used by the donor-handle callout in the Support section. Pulls from the
-// loaded profile (already passed in via props) so the user sees their own
-// handle pre-filled and can copy with one click.
-const supporterInstanceDomain = computed(() => getInstanceDomain())
-const currentUserHandleShort = computed(() => props.profile?.username ?? '')
-const copyCurrentSupportHandle = async () => {
-  if (!currentUserHandleShort.value) return
-  try {
-    await navigator.clipboard.writeText(
-      `@${currentUserHandleShort.value}@${supporterInstanceDomain.value}`,
-    )
-    toast.success(t('settings.userAccount.handleCopied'))
-  } catch {
-    toast.error(t('settings.userAccount.copyFailed'))
-  }
-}
-
-onMounted(async () => {
+onMounted(() => {
   syncLocalProfile()
-
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      // Supporter and donation rows key on profiles.id, not the auth user id.
-      const profileId = props.profile?.id ?? user.id
-      const [config, badge, donations] = await Promise.all([
-        fundingService.getFundingConfig(),
-        fundingService.getSupporterBadge(profileId),
-        fundingService.getDonationHistory(profileId),
-      ])
-      supporterBadge.value = badge
-      supporterDonations.value = donations
-      if (config?.enabled && config.funding_links) {
-        fundingLinks.value = config.funding_links
-      }
-    }
-  } finally {
-    supporterLoading.value = false
-  }
+  void fundingStore.load()
 })
 </script>
 
@@ -1551,153 +1441,6 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
-.donor-handle-callout {
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: color-mix(in srgb, var(--harmony-primary) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--harmony-primary) 22%, transparent);
-  border-radius: 10px;
-}
-
-.donor-handle-callout-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: var(--font-weight-bold);
-  color: var(--text-link);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.donor-handle-callout p {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.donor-handle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 6px 0 10px;
-  flex-wrap: wrap;
-}
-
-.donor-handle-token {
-  display: inline-block;
-  padding: 6px 10px;
-  background: var(--background-primary);
-  border: 1px dashed var(--harmony-primary);
-  border-radius: var(--radius-base);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-link);
-  user-select: all;
-  word-break: break-all;
-}
-
-.donor-copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 4px 10px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.donor-copy-btn:hover {
-  border-color: var(--harmony-primary);
-  color: var(--text-link);
-}
-
-.donor-auto-credit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.donor-auto-credit .icon-wrap {
-  flex-shrink: 0;
-  color: var(--color-success);
-}
-
-.donor-handle-hint {
-  margin: 8px 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary, var(--text-secondary));
-  font-style: italic;
-  line-height: 1.5;
-}
-
-.donor-examples {
-  margin: 6px 0 10px;
-  font-size: var(--font-size-xs);
-}
-
-.donor-examples summary {
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-weight: var(--font-weight-medium);
-  padding: 4px 0;
-  user-select: none;
-  transition: color 0.15s;
-}
-
-.donor-examples summary:hover {
-  color: var(--text-primary);
-}
-
-.donor-examples-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.donor-examples-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  background: var(--background-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-base);
-}
-
-.donor-examples-list code {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: var(--font-size-xs);
-  color: var(--text-primary);
-  word-break: break-all;
-}
-
-.donor-examples-list .example-note {
-  font-size: 11px;
-  color: var(--text-tertiary, var(--text-secondary));
-  font-style: italic;
-}
-
-.supporter-loading {
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
 .supporter-card {
   display: flex;
   align-items: center;
@@ -1738,60 +1481,15 @@ onMounted(async () => {
   font-weight: var(--font-weight-semibold);
 }
 
-.supporter-inactive-text {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.supporter-donations {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.supporter-donation-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  background: var(--background-secondary);
-  border-radius: var(--radius-base);
-  font-size: 13px;
-}
-
-.donation-amt {
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-}
-
-.donation-dt, .donation-plat {
-  color: var(--text-secondary);
-}
-
-.supporter-links {
+.supporter-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.supporter-link {
+.supporter-actions .btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: var(--radius-base);
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.supporter-link:hover {
-  border-color: var(--harmony-primary);
-  background: var(--background-modifier-hover, var(--background-secondary));
+  gap: var(--space-2);
 }
 </style>

@@ -35,6 +35,23 @@
             Show progress bar
           </label>
         </div>
+        <template v-if="supportsMessages">
+          <div class="setting-row">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="messagesEnabled" data-testid="admin-supporter-messages-enabled" />
+              <span class="toggle-slider"></span>
+              {{ t('support.admin.messagesEnabled') }}
+            </label>
+          </div>
+          <div v-if="messagesEnabled" class="setting-row">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="messagesPublic" data-testid="admin-supporter-messages-public" />
+              <span class="toggle-slider"></span>
+              {{ t('support.admin.messagesPublic') }}
+            </label>
+          </div>
+          <p class="setting-hint">{{ t('support.admin.messagesHint') }}</p>
+        </template>
         <div class="funding-form-row">
           <div class="funding-field">
             <label>Goal amount</label>
@@ -242,6 +259,57 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Supporter messages: attached to a donation, shown once approved -->
+    <div v-if="supportsMessages" class="funding-section" data-testid="admin-supporter-messages">
+      <h3>
+        {{ t('support.admin.queueTitle') }}
+        <span v-if="awaitingCount > 0" class="pending-count-badge" data-testid="admin-supporter-messages-awaiting">{{ awaitingCount }}</span>
+      </h3>
+      <p class="section-description" style="margin-bottom: 12px;">{{ t('support.admin.queueHint') }}</p>
+      <ul v-if="adminMessages.length > 0" class="admin-messages">
+        <li
+          v-for="m in adminMessages"
+          :key="m.id"
+          class="admin-message"
+          :data-review="m.review"
+          data-testid="admin-supporter-message"
+        >
+          <div class="admin-message__text">
+            <p class="admin-message__body" data-testid="admin-supporter-message-body">{{ m.body }}</p>
+            <p class="admin-message__meta">
+              <span class="admin-message__author">{{ messageAuthor(m) }}</span>
+              <span v-if="m.amount != null">{{ m.currency }} {{ m.amount }}</span>
+              <span>{{ formatDate(m.attached_at) }}</span>
+              <span class="admin-message__state">{{ t(`support.admin.state.${m.review}`) }}</span>
+            </p>
+          </div>
+          <div class="admin-message__actions">
+            <button
+              v-if="m.review !== 'approved'"
+              type="button"
+              class="report-action-btn resolve"
+              data-testid="admin-supporter-message-approve"
+              @click="reviewMessage(m, 'approved')"
+            >
+              <Icon name="check" :size="14" />
+              {{ m.review === 'hidden' ? t('support.admin.unhide') : t('support.admin.approve') }}
+            </button>
+            <button
+              v-if="m.review !== 'hidden'"
+              type="button"
+              class="report-action-btn dismiss"
+              data-testid="admin-supporter-message-hide"
+              @click="reviewMessage(m, 'hidden')"
+            >
+              <Icon name="eye-off" :size="14" />
+              {{ t('support.admin.hide') }}
+            </button>
+          </div>
+        </li>
+      </ul>
+      <EmptyState v-else size="sm" icon="message-circle" :title="t('support.admin.queueEmpty')" />
     </div>
 
     <!-- Supporter Tiers -->
@@ -546,7 +614,10 @@ import DisplayName from '@/components/DisplayName.vue'
 import CopyIdButton from './CopyIdButton.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
-import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation } from '@/services/FundingService'
+import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation, type AdminSupporterMessage } from '@/services/FundingService'
+import { hasCapability } from '@/services/instanceCapabilities'
+import { useFundingStore } from '@/stores/useFunding'
+import { useT } from '@/composables/useT'
 import { activityPubService } from '@/services/activityPubService'
 import { adminService } from '@/services/AdminService'
 import { supabase } from '@/supabase'
@@ -575,6 +646,30 @@ const fundingLinks = ref<{ platform: string; url: string; label: string }[]>([])
 const newLinkPlatform = ref('')
 const newLinkUrl = ref('')
 const newLinkLabel = ref('')
+
+// Supporter messages
+const { t } = useT()
+const fundingStore = useFundingStore()
+const supportsMessages = hasCapability('supporter-messages')
+const messagesEnabled = ref(true)
+const messagesPublic = ref(true)
+const adminMessages = ref<AdminSupporterMessage[]>([])
+const awaitingCount = computed(() => adminMessages.value.filter((m) => m.review === 'pending').length)
+
+const messageAuthor = (m: AdminSupporterMessage): string => {
+  const who = m.display_name || m.username || m.user_id
+  const handle = m.username ? ` (@${m.username})` : ''
+  return m.anonymous ? t('support.admin.anonymousBy', { name: `${who}${handle}` }) : `${who}${handle}`
+}
+
+const reviewMessage = async (m: AdminSupporterMessage, review: 'approved' | 'hidden') => {
+  if (await fundingService.adminReviewSupporterMessage(m.id, review)) {
+    m.review = review
+    fundingStore.lastLoadedAt = 0
+  } else {
+    toast.error(t('support.admin.reviewFailed'))
+  }
+}
 
 // Ko-fi webhook config
 const kofiWebhookToken = ref('')
@@ -654,7 +749,7 @@ const editDonationNote = ref('')
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier, messagesEnabled, messagesPublic],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -675,7 +770,10 @@ const loadFundingData = async () => {
     fundingLinks.value = config.funding_links || []
     kofiAutoAssignTier.value = config.kofi_auto_assign_tier !== false
     stripeAutoAssignTier.value = config.stripe_auto_assign_tier !== false
+    messagesEnabled.value = config.supporter_messages_enabled !== false
+    messagesPublic.value = config.supporter_messages_public !== false
   }
+  if (supportsMessages) adminMessages.value = await fundingService.adminListSupporterMessages()
   kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
   savedKofiWebhookToken = kofiWebhookToken.value
   stripeWebhookSecret.value = await fundingService.getStripeWebhookSecret()
@@ -801,6 +899,10 @@ const saveFundingConfig = async () => {
     funding_links: fundingLinks.value,
     kofi_auto_assign_tier: kofiAutoAssignTier.value,
     stripe_auto_assign_tier: stripeAutoAssignTier.value,
+    ...(supportsMessages ? {
+      supporter_messages_enabled: messagesEnabled.value,
+      supporter_messages_public: messagesPublic.value,
+    } : {}),
   } as any)
   const token = kofiWebhookToken.value.trim()
   let tokenSaved = true
@@ -820,6 +922,7 @@ const saveFundingConfig = async () => {
   const success = configSaved && tokenSaved && secretSaved
   if (success) {
     fundingChanged.value = false
+    void fundingStore.refresh()
     toast.success('Funding settings saved')
   } else {
     toast.error(secretMessage ?? 'Failed to save funding settings')
@@ -2499,4 +2602,79 @@ onMounted(() => {
 }
 </style>
 
-<style scoped src="./adminShared.css"></style>
+<style scoped src="./adminShared.css">
+.admin-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.admin-message[data-review='pending'] {
+  border-color: var(--harmony-primary);
+}
+
+.admin-message[data-review='hidden'] {
+  opacity: 0.7;
+}
+
+.admin-message__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-message__body {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  contain: paint;
+}
+
+.admin-message__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 2px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.admin-message__author {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-message__state {
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-message__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+@media (max-width: 600px) {
+  .admin-message {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>

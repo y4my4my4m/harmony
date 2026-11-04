@@ -204,3 +204,12 @@ The user panel sits at the bottom left. Click your status to change it, use the 
 | **User settings** | **My account**, **Security**, **Privacy & safety**, **My bots**, **My emojis** |
 | **Settings** | **Announcements**, **Notifications**, **Appearance**, **Voice & video**, **Keybindings**, **Sounds**, **Language**, **Advanced** |
 | **Administration** | Shown only to instance administrators and moderators. |
+
+### Support your instance and Harmony
+
+When your instance asks for support, a heart shows in the bar above the chat, and at the end of the server rail on a phone. It opens the **Support** window, also under **User settings** → **My account** → **Support**:
+
+- **This instance**: the instance's goal and how much of it this month has raised, its payment links and supporter tiers, and your own supporter status. A Stripe payment from here is credited to your account automatically; for Ko-fi, write your handle in the Ko-fi message.
+- **Harmony development**: support for the Harmony project itself, on every instance. You pay on the project's own pages; your instance never sees the payment. On har.mony.lol the two are the same and the window shows one view.
+
+Before you pay you can add a public message of up to 50 characters, shown with your name or as **Anonymous**. It goes with your next support within 24 hours and appears once an admin approves it, in the Support window and, if the instance shows them, under its sign-in form. You can remove it at any time.

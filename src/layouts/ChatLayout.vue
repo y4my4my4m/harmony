@@ -20,7 +20,7 @@
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
         @toggle-search="handleToggleSearch"
-        @open-funding="showFundingModal = true"
+        @open-funding="fundingStore.openModal()"
       />
     </header>
 
@@ -172,8 +172,6 @@
     />
   </div>
 
-  <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
-
   <ChannelEditModal
     :show="showChannelEditModal"
     :channel="editingChannel"
@@ -209,7 +207,6 @@ import { useT } from '@/composables/useT'
 import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
-import FundingModal from '@/components/FundingModal.vue'
 import type { Message } from '@/types'
 import { setCallChatOpen, useCallChat } from '@/components/voice/callChat'
 import { restoreFocusIfLost } from '@/components/voice/voiceFocus'
@@ -581,11 +578,9 @@ watch(
   { immediate: true }
 )
 
-// Funding config lives in useFundingStore. load() is idempotent and
-// dedup-protected, so calling it on every mount is cheap.
+// load() returns the store's copy while it is fresh: a mount reads nothing.
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
-const showFundingModal = ref(false)
 
 onMounted(() => {
   navigateToDefaultIfNeeded()

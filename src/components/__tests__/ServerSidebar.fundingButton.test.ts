@@ -31,7 +31,7 @@ vi.mock('@/composables/useViewport', () => ({
   }),
 }))
 
-const fundingStore = reactive({ config: null as { enabled: boolean } | null, load: vi.fn() })
+const fundingStore = reactive({ config: null as { enabled: boolean } | null, load: vi.fn(), openModal: vi.fn() })
 vi.mock('@/stores/useFunding', () => ({ useFundingStore: () => fundingStore }))
 
 const updaterReady = ref(false)
@@ -80,7 +80,6 @@ vi.mock('@/components/ServerFolder.vue', () => stub('ServerFolder'))
 vi.mock('@/components/ServerFolderContextMenu.vue', () => stub('ServerFolderContextMenu'))
 vi.mock('@/components/ServerFolderSettingsModal.vue', () => stub('ServerFolderSettingsModal'))
 vi.mock('@/components/InviteModal.vue', () => stub('InviteModal'))
-vi.mock('@/components/FundingModal.vue', () => stub('FundingModal'))
 
 import ServerSidebar from '../ServerSidebar.vue'
 
@@ -165,18 +164,13 @@ describe('ServerSidebar funding heart', () => {
     expect((last.previousElementSibling as HTMLElement).classList.contains('rail-drop-indicator')).toBe(true)
   })
 
-  it('opens and closes the funding modal', async () => {
+  it('opens the Support window on the instance tab', async () => {
     isMobileViewport.value = true
+    fundingStore.openModal.mockClear()
     const wrapper = mountSidebar([server('s1', 'One', 0)])
-    expect(wrapper.findComponent({ name: 'FundingModal' }).exists()).toBe(false)
-
     await wrapper.get('.funding-button').trigger('click')
-    const modal = wrapper.findComponent({ name: 'FundingModal' })
-    expect(modal.exists()).toBe(true)
-
-    modal.vm.$emit('close')
-    await nextTick()
-    expect(wrapper.findComponent({ name: 'FundingModal' }).exists()).toBe(false)
+    expect(fundingStore.openModal).toHaveBeenCalledTimes(1)
+    expect(fundingStore.openModal.mock.calls[0]).toEqual([])
   })
 
   it('is absent on mobile while funding is disabled', () => {

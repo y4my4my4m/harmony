@@ -48,6 +48,8 @@
           <slot />
         </div>
 
+        <SupporterStrip />
+
         <!-- In flow under the card: no window height puts it over the card. -->
         <p class="auth-footer">
           <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
@@ -73,6 +75,7 @@ import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { safeHref } from '@/utils/sanitize'
+import SupporterStrip from '@/components/auth/SupporterStrip.vue'
 
 // public/mascot/<pose>.webp. All four load with the page so a pose change never waits on the network.
 const MASCOT_POSES = ['idle', 'hide', 'peek', 'oops'] as const

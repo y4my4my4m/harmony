@@ -7311,7 +7311,92 @@
     "yours": "Votre soutien",
     "tierSupporter": "Soutien {tier}",
     "active": "Actif",
-    "history": "Historique de votre soutien"
+    "history": "Historique de votre soutien",
+    "titleShort": "Soutenir",
+    "projectTitle": "Soutenir Harmony",
+    "projectInstanceNote": "{instance} est géré par le projet Harmony. Le soutien ici paie ses serveurs et le développement de Harmony.",
+    "raisedThisMonth": "récoltés ce mois-ci",
+    "raisedAllTime": "récoltés au total",
+    "resets": "Remise à zéro le {date} (UTC)",
+    "until": "Actif jusqu'au {date}",
+    "instanceOff": "Cette instance ne demande pas de soutien pour le moment.",
+    "thanks": "Merci ! Votre soutien est bien arrivé.",
+    "tabs": {
+      "label": "Qui soutenir",
+      "instance": "Cette instance",
+      "project": "Développement de Harmony"
+    },
+    "project": {
+      "title": "Aidez à construire Harmony",
+      "lead": "Harmony est un logiciel libre et open source. Le soutien ici va aux personnes qui le construisent, pas à {instance}.",
+      "paymentNote": "Vous payez sur les pages de {project} ; {instance} ne touche jamais l'argent.",
+      "fallback": "La page de financement de Harmony est injoignable ; voici ses liens habituels.",
+      "unavailable": "Les informations de financement de Harmony ne sont pas disponibles pour le moment.",
+      "wall": "Derniers soutiens de Harmony",
+      "wallEmpty": "Pas encore de message des soutiens de Harmony."
+    },
+    "wall": {
+      "title": "Derniers soutiens",
+      "empty": "Pas encore de message. Le vôtre pourrait être le premier.",
+      "anonymous": "Anonyme",
+      "you": "Vous",
+      "now": "maintenant",
+      "hide": "Masquer",
+      "hideFrom": "Masquer le message de {name}",
+      "more": "Tout afficher ({count})",
+      "fewer": "Afficher moins"
+    },
+    "message": {
+      "title": "Ajouter un message public",
+      "optional": "facultatif",
+      "label": "Message public",
+      "placeholder": "Dites quelque chose à la communauté",
+      "anonymous": "Afficher comme Anonyme",
+      "help": "Il accompagne votre prochain soutien dans les 24 heures, et un admin l'approuve avant que d'autres le voient. Texte seul, 50 caractères au plus.",
+      "save": "Enregistrer le message",
+      "saved": "Enregistré. Il accompagne votre soutien jusqu'à {time}.",
+      "remove": "Retirer",
+      "status": {
+        "waiting": "En attente de votre soutien jusqu'à {time}",
+        "pending": "En attente d'approbation",
+        "hidden": "Masqué par un admin"
+      },
+      "errors": {
+        "length": "{max} caractères au plus.",
+        "control": "Les retours à la ligne et caractères de contrôle ne sont pas autorisés.",
+        "bidi": "Les marques de direction du texte ne sont pas autorisées.",
+        "marks": "Trop d'accents sur un même caractère.",
+        "disabled": "Les messages sont désactivés sur cette instance.",
+        "failed": "Le message n'a pas pu être enregistré."
+      }
+    },
+    "landing": {
+      "label": "Derniers soutiens de cette instance",
+      "next": "Message de soutien suivant"
+    },
+    "settings": {
+      "title": "Soutenir",
+      "lead": "Aidez à faire vivre cette instance, et Harmony lui-même.",
+      "project": "Soutenir le développement de Harmony"
+    },
+    "admin": {
+      "messagesEnabled": "Messages de soutien",
+      "messagesPublic": "Afficher les messages approuvés sur la page de connexion",
+      "messagesHint": "Les soutiens peuvent joindre un message de 50 caractères au plus. Rien ne s'affiche avant votre approbation ci-dessous. Les messages affichés sur la page de connexion figurent aussi dans le flux public de financement de cette instance.",
+      "queueTitle": "Messages de soutien",
+      "queueHint": "Un message arrive avec un don crédité. Approuvez-le pour l'afficher dans la fenêtre Soutenir et, si l'option est active, sur la page de connexion. Vous pouvez le masquer à tout moment.",
+      "queueEmpty": "Pas encore de message de soutien.",
+      "approve": "Approuver",
+      "hide": "Masquer",
+      "unhide": "Réafficher",
+      "anonymousBy": "Anonyme : {name}",
+      "reviewFailed": "Le message n'a pas pu être mis à jour.",
+      "state": {
+        "pending": "En attente d'approbation",
+        "approved": "Affiché",
+        "hidden": "Masqué"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "Interaction à distance",

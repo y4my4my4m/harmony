@@ -93,6 +93,7 @@ Private servers, and channels `@everyone` cannot view, are served only to a GET 
 | `/instance-info` | Name, domain, version and public Supabase URL and anon key, for native clients |
 | `/webhooks/kofi` | Ko-fi donations |
 | `/webhooks/stripe` | Stripe Payment Link donations, credited by `client_reference_id` |
+| `/funding` | `GET /public`: this instance's public funding feed, any origin; `GET /project`: the Harmony project's feed (`PROJECT_FUNDING_URL`), cached, for the Support window |
 | `/lookup-user`, `/resolve-post`, `/fetch-posts`, `/fetch-replies`, `/fetch-reactions`, `/refetch-post` | Remote lookups for the client |
 | `/servers/discover`, `/servers/join`, `/servers/leave`, `/invites/:code`, `/instances/probe` | Remote servers, invites, instance probing |
 | `POST /api/activitypub/process-delivery` | Process the delivery queue on demand (admin) |

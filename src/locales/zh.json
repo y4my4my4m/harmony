@@ -7311,7 +7311,92 @@
     "yours": "你的支持",
     "tierSupporter": "{tier} 支持者",
     "active": "生效中",
-    "history": "你的支持记录"
+    "history": "你的支持记录",
+    "titleShort": "支持",
+    "projectTitle": "支持 Harmony",
+    "projectInstanceNote": "{instance} 由 Harmony 项目运营。在这里的支持用于服务器和 Harmony 的开发。",
+    "raisedThisMonth": "本月已筹集",
+    "raisedAllTime": "累计已筹集",
+    "resets": "{date}（UTC）重置",
+    "until": "有效期至 {date}",
+    "instanceOff": "此实例目前没有在寻求支持。",
+    "thanks": "谢谢！你的支持已到账。",
+    "tabs": {
+      "label": "支持对象",
+      "instance": "此实例",
+      "project": "Harmony 开发"
+    },
+    "project": {
+      "title": "帮助构建 Harmony",
+      "lead": "Harmony 是自由开源软件。在这里的支持会交给开发它的人，而不是 {instance}。",
+      "paymentNote": "付款在 {project} 自己的页面上完成；{instance} 不会经手这笔钱。",
+      "fallback": "无法访问 Harmony 的资助页面，以下是它的固定链接。",
+      "unavailable": "目前无法获取 Harmony 的资助信息。",
+      "wall": "Harmony 的最新支持者",
+      "wallEmpty": "Harmony 的支持者还没有留言。"
+    },
+    "wall": {
+      "title": "最新支持者",
+      "empty": "还没有留言。你可以成为第一个。",
+      "anonymous": "匿名",
+      "you": "你",
+      "now": "刚刚",
+      "hide": "隐藏",
+      "hideFrom": "隐藏 {name} 的留言",
+      "more": "显示全部 {count} 条",
+      "fewer": "收起"
+    },
+    "message": {
+      "title": "添加公开留言",
+      "optional": "可选",
+      "label": "公开留言",
+      "placeholder": "对社区说点什么",
+      "anonymous": "以匿名显示",
+      "help": "它会附在你 24 小时内的下一次支持上，并在管理员批准后才对他人显示。仅限纯文本，最多 50 个字符。",
+      "save": "保存留言",
+      "saved": "已保存。它会附在 {time} 之前的支持上。",
+      "remove": "移除",
+      "status": {
+        "waiting": "等待你的支持，截至 {time}",
+        "pending": "等待批准",
+        "hidden": "已被管理员隐藏"
+      },
+      "errors": {
+        "length": "最多 {max} 个字符。",
+        "control": "不能使用换行和控制字符。",
+        "bidi": "不能使用文字方向控制符。",
+        "marks": "一个字符上的附加符号太多。",
+        "disabled": "此实例已关闭留言。",
+        "failed": "无法保存留言。"
+      }
+    },
+    "landing": {
+      "label": "此实例的最新支持者",
+      "next": "下一条支持者留言"
+    },
+    "settings": {
+      "title": "支持",
+      "lead": "帮助此实例和 Harmony 本身持续运行。",
+      "project": "支持 Harmony 的开发"
+    },
+    "admin": {
+      "messagesEnabled": "支持者留言",
+      "messagesPublic": "在登录页面显示已批准的留言",
+      "messagesHint": "支持者可以为支持附上最多 50 个字符的留言。在你于下方批准前不会显示任何内容。登录页面显示的留言也会出现在此实例的公开资助订阅中。",
+      "queueTitle": "支持者留言",
+      "queueHint": "留言会随一笔已入账的捐款到达。批准后它会显示在支持窗口中，若已开启也会显示在登录页面。你可以随时隐藏。",
+      "queueEmpty": "还没有支持者留言。",
+      "approve": "批准",
+      "hide": "隐藏",
+      "unhide": "重新显示",
+      "anonymousBy": "匿名：{name}",
+      "reviewFailed": "无法更新留言。",
+      "state": {
+        "pending": "等待批准",
+        "approved": "已显示",
+        "hidden": "已隐藏"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "远程互动",

@@ -19,6 +19,7 @@ export const KNOWN_CAPABILITIES = [
   'server-directory',
   'instance-invites',
   'federated-polls',
+  'supporter-messages',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

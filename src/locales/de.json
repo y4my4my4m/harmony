@@ -7311,7 +7311,92 @@
     "yours": "Deine Unterstützung",
     "tierSupporter": "{tier}-Unterstützer",
     "active": "Aktiv",
-    "history": "Dein Unterstützungsverlauf"
+    "history": "Dein Unterstützungsverlauf",
+    "titleShort": "Unterstützen",
+    "projectTitle": "Harmony unterstützen",
+    "projectInstanceNote": "{instance} wird vom Harmony-Projekt betrieben. Unterstützung hier bezahlt die Server und die Entwicklung von Harmony.",
+    "raisedThisMonth": "diesen Monat gesammelt",
+    "raisedAllTime": "insgesamt gesammelt",
+    "resets": "Neustart am {date} (UTC)",
+    "until": "Aktiv bis {date}",
+    "instanceOff": "Diese Instanz bittet derzeit nicht um Unterstützung.",
+    "thanks": "Danke! Deine Unterstützung ist angekommen.",
+    "tabs": {
+      "label": "Wen unterstützen",
+      "instance": "Diese Instanz",
+      "project": "Harmony-Entwicklung"
+    },
+    "project": {
+      "title": "Hilf, Harmony zu bauen",
+      "lead": "Harmony ist freie Open-Source-Software. Unterstützung hier geht an die Menschen, die es bauen, nicht an {instance}.",
+      "paymentNote": "Du bezahlst auf den Seiten von {project}; {instance} kommt mit dem Geld nie in Berührung.",
+      "fallback": "Die Finanzierungsseite von Harmony war nicht erreichbar, daher werden die festen Links angezeigt.",
+      "unavailable": "Die Finanzierungsinfos von Harmony sind gerade nicht verfügbar.",
+      "wall": "Neueste Unterstützer von Harmony",
+      "wallEmpty": "Noch keine Nachrichten von Harmonys Unterstützern."
+    },
+    "wall": {
+      "title": "Neueste Unterstützer",
+      "empty": "Noch keine Nachrichten. Deine könnte die erste sein.",
+      "anonymous": "Anonym",
+      "you": "Du",
+      "now": "jetzt",
+      "hide": "Ausblenden",
+      "hideFrom": "Nachricht von {name} ausblenden",
+      "more": "Alle {count} zeigen",
+      "fewer": "Weniger zeigen"
+    },
+    "message": {
+      "title": "Öffentliche Nachricht hinzufügen",
+      "optional": "optional",
+      "label": "Öffentliche Nachricht",
+      "placeholder": "Sag der Community etwas",
+      "anonymous": "Als Anonym anzeigen",
+      "help": "Sie gehört zu deiner nächsten Unterstützung innerhalb von 24 Stunden, und ein Admin gibt sie frei, bevor andere sie sehen. Nur Text, bis zu 50 Zeichen.",
+      "save": "Nachricht speichern",
+      "saved": "Gespeichert. Sie gehört bis {time} zu deiner Unterstützung.",
+      "remove": "Entfernen",
+      "status": {
+        "waiting": "Wartet bis {time} auf deine Unterstützung",
+        "pending": "Wartet auf Freigabe",
+        "hidden": "Von einem Admin ausgeblendet"
+      },
+      "errors": {
+        "length": "Höchstens {max} Zeichen.",
+        "control": "Zeilenumbrüche und Steuerzeichen sind nicht erlaubt.",
+        "bidi": "Textrichtungszeichen sind nicht erlaubt.",
+        "marks": "Zu viele Akzente auf einem Zeichen.",
+        "disabled": "Nachrichten sind auf dieser Instanz ausgeschaltet.",
+        "failed": "Die Nachricht konnte nicht gespeichert werden."
+      }
+    },
+    "landing": {
+      "label": "Neueste Unterstützer dieser Instanz",
+      "next": "Nächste Unterstützer-Nachricht"
+    },
+    "settings": {
+      "title": "Unterstützen",
+      "lead": "Hilf, diese Instanz am Laufen zu halten, und Harmony selbst.",
+      "project": "Harmony-Entwicklung unterstützen"
+    },
+    "admin": {
+      "messagesEnabled": "Unterstützer-Nachrichten",
+      "messagesPublic": "Freigegebene Nachrichten auf der Anmeldeseite zeigen",
+      "messagesHint": "Unterstützer können ihrer Unterstützung eine Nachricht mit bis zu 50 Zeichen beifügen. Nichts wird angezeigt, bevor du es unten freigibst. Auf der Anmeldeseite gezeigte Nachrichten stehen auch im öffentlichen Finanzierungs-Feed dieser Instanz.",
+      "queueTitle": "Unterstützer-Nachrichten",
+      "queueHint": "Eine Nachricht kommt mit einer gutgeschriebenen Spende. Gib sie frei, um sie im Unterstützen-Fenster und, falls eingeschaltet, auf der Anmeldeseite zu zeigen. Du kannst sie jederzeit ausblenden.",
+      "queueEmpty": "Noch keine Unterstützer-Nachrichten.",
+      "approve": "Freigeben",
+      "hide": "Ausblenden",
+      "unhide": "Wieder zeigen",
+      "anonymousBy": "Anonym: {name}",
+      "reviewFailed": "Die Nachricht konnte nicht geändert werden.",
+      "state": {
+        "pending": "Wartet auf Freigabe",
+        "approved": "Sichtbar",
+        "hidden": "Ausgeblendet"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "Externe Interaktion",

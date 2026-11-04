@@ -1,4 +1,6 @@
 import { supabase } from '@/supabase'
+import { apiUrl } from '@/services/instanceConfig'
+import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 
 export interface FundingConfig {
@@ -18,6 +20,10 @@ export interface FundingConfig {
   kofi_auto_assign_tier: boolean
   /** As kofi_auto_assign_tier, for the Stripe webhook. */
   stripe_auto_assign_tier: boolean
+  /** Donors may attach a message; approved ones show in the Support window. */
+  supporter_messages_enabled?: boolean
+  /** Approved messages also show signed out: the sign-in page and the public funding feed. */
+  supporter_messages_public?: boolean
 }
 
 /**
@@ -28,6 +34,7 @@ const FUNDING_CONFIG_COLUMNS =
   'id, enabled, goal_amount, goal_currency, current_amount, funding_period, goal_description, ' +
   'funding_links, show_progress_bar, show_in_context_bar, context_bar_style, thank_you_message, ' +
   'kofi_auto_assign_tier, stripe_auto_assign_tier'
+const MESSAGE_SWITCH_COLUMNS = ', supporter_messages_enabled, supporter_messages_public'
 
 /** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
@@ -53,6 +60,108 @@ export function showsFundingGoal<T extends Pick<FundingConfig, 'enabled' | 'show
   config: T | null | undefined,
 ): config is T & { goal_amount: number } {
   return !!(config?.enabled && config.show_in_context_bar && config.goal_amount)
+}
+
+/** An approved supporter message as members see it. Anonymous: no name, avatar or profile id. */
+export interface SupporterMessage {
+  id: string
+  body: string
+  anonymous: boolean
+  at: string
+  user_id: string | null
+  name: string | null
+  avatar_url: string | null
+}
+
+export type SupporterMessageReview = 'pending' | 'approved' | 'hidden'
+
+/** One of the caller's own messages: unattached until a donation within 24 hours of writing it. */
+export interface MySupporterMessage {
+  id: string
+  body: string
+  anonymous: boolean
+  attached: boolean
+  review: SupporterMessageReview
+  created_at: string
+  attached_at: string | null
+  /** End of the attach window of an unattached message. */
+  expires_at: string | null
+}
+
+export interface MyFunding {
+  profile_id: string
+  badge: (SupporterBadge & { expires_at: string | null }) | null
+  donations: Array<Pick<DonationRecord, 'id' | 'amount' | 'currency' | 'platform' | 'note' | 'donated_at'>>
+  messages: MySupporterMessage[]
+}
+
+/** public.get_funding_summary(): everything the pill, the Support window and settings show. */
+export interface FundingSummary extends FundingConfigWithProgress {
+  /** Start and end of the monthly period, UTC; null for all time. */
+  period_start: string | null
+  period_end: string | null
+  supporter_count: number
+  tiers: SupporterTier[]
+  messages: SupporterMessage[]
+  me: MyFunding | null
+}
+
+/** A message on the sign-in page: no profile id; name null for an anonymous one. */
+export interface PublicSupporterMessage {
+  id: string
+  body: string
+  name: string | null
+  at: string
+}
+
+/** An instance's public funding feed (federation-backend services/projectFunding.ts). */
+export interface PublicFunding {
+  version: number
+  instance: string
+  enabled: boolean
+  goal: {
+    amount: number
+    currency: string
+    period: 'monthly' | 'all'
+    raised: number
+    periodEnd: string | null
+    description: string | null
+  } | null
+  supporters: number
+  links: FundingLink[]
+  messages: PublicSupporterMessage[]
+}
+
+/** GET /funding/project. */
+export type ProjectFundingResponse =
+  | { projectInstance: true }
+  | {
+      projectInstance: false
+      source: 'upstream' | 'stale' | 'fallback'
+      fetchedAt: string | null
+      funding: PublicFunding
+    }
+
+/** An attached message in the admin review queue. */
+export interface AdminSupporterMessage {
+  id: string
+  body: string
+  anonymous: boolean
+  review: SupporterMessageReview
+  attached_at: string
+  reviewed_at: string | null
+  user_id: string
+  username: string | null
+  display_name: string | null
+  amount: number | null
+  currency: string | null
+}
+
+/** set_supporter_message refusal: the rule from the error hint, or 'disabled' / 'failed'. */
+export class SupporterMessageError extends Error {
+  constructor(readonly reason: string) {
+    super(reason)
+  }
 }
 
 export interface FundingLink {
@@ -172,7 +281,8 @@ export interface PendingDonation {
   resolved_user_id: string | null
 }
 
-const BADGE_CACHE_TTL = 5 * 60 * 1000
+// A badge changes when its holder's support does; the holder's own is re-primed from the summary.
+const BADGE_CACHE_TTL = 30 * 60 * 1000
 const badgeCache = new Map<string, { badge: SupporterBadge | null; fetchedAt: number }>()
 
 // Dedup in-flight badge requests so concurrent calls for the same user share one RPC
@@ -278,12 +388,12 @@ class FundingService {
       if (!session) return null
       const { data, error } = await supabase
         .from('instance_funding')
-        .select(FUNDING_CONFIG_COLUMNS)
+        .select(FUNDING_CONFIG_COLUMNS + (hasCapability('supporter-messages') ? MESSAGE_SWITCH_COLUMNS : ''))
         .limit(1)
         .maybeSingle()
 
       if (error) throw error
-      return data as FundingConfig | null
+      return data as unknown as FundingConfig | null
     } catch (error) {
       debug.error('Failed to get funding config:', error)
       return null
@@ -365,6 +475,120 @@ class FundingService {
       ...config,
       displayed_amount: displayedAmount,
     }
+  }
+
+  /**
+   * One read of everything funding shows (get_funding_summary). An instance without the
+   * supporter-messages capability answers through the per-table reads it has.
+   */
+  async getFundingSummary(): Promise<FundingSummary | null> {
+    if (!hasCapability('supporter-messages')) return this.getLegacySummary()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    const { data, error } = await supabase.rpc('get_funding_summary')
+    if (error) throw error
+    if (!data) return null
+    const summary = data as FundingSummary
+    return { ...summary, displayed_amount: Number(summary.displayed_amount ?? 0) }
+  }
+
+  /** As getFundingSummary from the reads of an instance before 1.9.3: no messages. */
+  private async getLegacySummary(): Promise<FundingSummary | null> {
+    const config = await this.getFundingWithProgress()
+    if (!config) return null
+    const { data: { session } } = await supabase.auth.getSession()
+    const profileId = session?.user?.id ?? null
+    const [tiers, count, badge, donations] = await Promise.all([
+      this.getTiers(),
+      this.getActiveSupporterCount(),
+      profileId ? this.getSupporterBadge(profileId) : Promise.resolve(null),
+      profileId ? this.getDonationHistory(profileId) : Promise.resolve([]),
+    ])
+    return {
+      ...config,
+      period_start: null,
+      period_end: null,
+      supporter_count: count,
+      tiers,
+      messages: [],
+      me: profileId ? {
+        profile_id: profileId,
+        badge: badge ? { ...badge, expires_at: null } : null,
+        donations,
+        messages: [],
+      } : null,
+    }
+  }
+
+  /** Writes the caller's message for their next donation; throws SupporterMessageError. */
+  async setSupporterMessage(body: string, anonymous: boolean): Promise<MySupporterMessage> {
+    const { data, error } = await supabase.rpc('set_supporter_message', {
+      p_body: body,
+      p_anonymous: anonymous,
+    })
+    if (error) {
+      debug.warn('set_supporter_message refused:', error)
+      const hint = (error as { hint?: string }).hint
+      throw new SupporterMessageError(error.code === '22023' || error.code === '55000' ? hint || 'failed' : 'failed')
+    }
+    return { ...(data as MySupporterMessage), attached: false, review: 'pending', attached_at: null }
+  }
+
+  async deleteSupporterMessage(id: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('delete_supporter_message', { p_id: id })
+    if (error) {
+      debug.error('Failed to delete supporter message:', error)
+      return false
+    }
+    return data === true
+  }
+
+  /** Approved messages for the sign-in page; empty when the instance does not show them. */
+  async getPublicSupporterMessages(limit = 6): Promise<PublicSupporterMessage[]> {
+    try {
+      if (!hasCapability('supporter-messages')) return []
+      const { data, error } = await supabase.rpc('get_public_supporter_messages', { p_limit: limit })
+      if (error) throw error
+      return Array.isArray(data) ? (data as PublicSupporterMessage[]) : []
+    } catch (error) {
+      debug.warn('Failed to read supporter messages:', error)
+      return []
+    }
+  }
+
+  /** The Harmony project's funding through this instance's backend; null when unavailable. */
+  async getProjectFunding(): Promise<ProjectFundingResponse | null> {
+    if (!hasCapability('supporter-messages')) return null
+    try {
+      const res = await fetch(apiUrl('/api/federation/funding/project'), { headers: { Accept: 'application/json' } })
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      return (await res.json()) as ProjectFundingResponse
+    } catch (error) {
+      debug.warn('Failed to read the project funding:', error)
+      return null
+    }
+  }
+
+  /** Attached messages, awaiting review first. Instance admins only. */
+  async adminListSupporterMessages(): Promise<AdminSupporterMessage[]> {
+    try {
+      const { data, error } = await supabase.rpc('admin_list_supporter_messages')
+      if (error) throw error
+      return Array.isArray(data) ? (data as AdminSupporterMessage[]) : []
+    } catch (error) {
+      debug.error('Failed to list supporter messages:', error)
+      return []
+    }
+  }
+
+  /** Instance admins only. */
+  async adminReviewSupporterMessage(id: string, review: 'approved' | 'hidden'): Promise<boolean> {
+    const { error } = await supabase.rpc('admin_review_supporter_message', { p_id: id, p_review: review })
+    if (error) {
+      debug.error('Failed to review supporter message:', error)
+      return false
+    }
+    return true
   }
 
   async updateFundingConfig(config: Partial<FundingConfig & { funding_period?: 'all' | 'monthly' }>): Promise<boolean> {

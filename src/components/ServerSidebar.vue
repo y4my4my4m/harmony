@@ -157,7 +157,7 @@
             type="button"
             class="funding-button"
             :aria-label="t('a11y.rail.funding')"
-            @click="showFundingModal = true"
+            @click="fundingStore.openModal()"
             @mouseenter="showSidebarTooltip($event, t('a11y.rail.funding'))"
         @focusin="showSidebarTooltip($event, t('a11y.rail.funding'))"
         @focusout="hideSidebarTooltip"
@@ -203,7 +203,6 @@
       </button>
     </div>
 
-    <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
   </div>
   
   <!-- Teleported to body; the sidebar clips overflow -->
@@ -238,7 +237,6 @@ import ServerRail from '@/components/serverRail/ServerRail.vue';
 import { provideRailContext } from '@/components/serverRail/railState';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
-import FundingModal from '@/components/FundingModal.vue';
 import { useFundingStore } from '@/stores/useFunding';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
@@ -260,7 +258,6 @@ const emit = defineEmits<{
   (e: 'switch-to-chat'): void;
 }>();
 
-const showFundingModal = ref(false);
 
 const fundingStore = useFundingStore();
 const { isMobileViewport, isTouchOnly } = useViewport();

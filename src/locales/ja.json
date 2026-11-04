@@ -7311,7 +7311,92 @@
     "yours": "あなたの支援",
     "tierSupporter": "{tier} サポーター",
     "active": "有効",
-    "history": "支援履歴"
+    "history": "支援履歴",
+    "titleShort": "支援",
+    "projectTitle": "Harmony を支援",
+    "projectInstanceNote": "{instance} は Harmony プロジェクトが運営しています。ここでの支援はサーバーと Harmony の開発に使われます。",
+    "raisedThisMonth": "今月集まった額",
+    "raisedAllTime": "これまでに集まった額",
+    "resets": "{date}（UTC）にリセット",
+    "until": "{date} まで有効",
+    "instanceOff": "このインスタンスは現在支援を募集していません。",
+    "thanks": "ありがとうございます！支援が届きました。",
+    "tabs": {
+      "label": "支援先",
+      "instance": "このインスタンス",
+      "project": "Harmony の開発"
+    },
+    "project": {
+      "title": "Harmony の開発を応援",
+      "lead": "Harmony は自由なオープンソースソフトウェアです。ここでの支援は {instance} ではなく、開発している人たちに届きます。",
+      "paymentNote": "支払いは {project} のページで行われます。{instance} がお金を扱うことはありません。",
+      "fallback": "Harmony の支援ページに接続できなかったため、既定のリンクを表示しています。",
+      "unavailable": "現在 Harmony の支援情報を取得できません。",
+      "wall": "Harmony の最近のサポーター",
+      "wallEmpty": "Harmony のサポーターからのメッセージはまだありません。"
+    },
+    "wall": {
+      "title": "最近のサポーター",
+      "empty": "メッセージはまだありません。最初のひとことをどうぞ。",
+      "anonymous": "匿名",
+      "you": "あなた",
+      "now": "今",
+      "hide": "非表示",
+      "hideFrom": "{name} のメッセージを非表示",
+      "more": "すべて表示（{count}）",
+      "fewer": "表示を減らす"
+    },
+    "message": {
+      "title": "公開メッセージを添える",
+      "optional": "任意",
+      "label": "公開メッセージ",
+      "placeholder": "コミュニティにひとこと",
+      "anonymous": "匿名で表示",
+      "help": "24 時間以内の次の支援に添えられ、管理者が承認してから表示されます。テキストのみ、50 文字まで。",
+      "save": "メッセージを保存",
+      "saved": "保存しました。{time} までの支援に添えられます。",
+      "remove": "削除",
+      "status": {
+        "waiting": "{time} まで支援を待っています",
+        "pending": "承認待ち",
+        "hidden": "管理者が非表示にしました"
+      },
+      "errors": {
+        "length": "{max} 文字までです。",
+        "control": "改行や制御文字は使えません。",
+        "bidi": "文字方向の制御記号は使えません。",
+        "marks": "1 文字に付けられる記号が多すぎます。",
+        "disabled": "このインスタンスではメッセージが無効になっています。",
+        "failed": "メッセージを保存できませんでした。"
+      }
+    },
+    "landing": {
+      "label": "このインスタンスの最近のサポーター",
+      "next": "次のサポーターメッセージ"
+    },
+    "settings": {
+      "title": "支援",
+      "lead": "このインスタンスと Harmony 自体の運営を支えましょう。",
+      "project": "Harmony の開発を支援"
+    },
+    "admin": {
+      "messagesEnabled": "サポーターメッセージ",
+      "messagesPublic": "承認したメッセージをログインページに表示",
+      "messagesHint": "サポーターは支援に 50 文字までのメッセージを添えられます。下で承認するまで表示されません。ログインページに表示するメッセージは、このインスタンスの公開支援フィードにも含まれます。",
+      "queueTitle": "サポーターメッセージ",
+      "queueHint": "メッセージは反映された寄付と一緒に届きます。承認すると支援ウィンドウに、有効な場合はログインページにも表示されます。いつでも非表示にできます。",
+      "queueEmpty": "サポーターメッセージはまだありません。",
+      "approve": "承認",
+      "hide": "非表示",
+      "unhide": "再表示",
+      "anonymousBy": "匿名: {name}",
+      "reviewFailed": "メッセージを更新できませんでした。",
+      "state": {
+        "pending": "承認待ち",
+        "approved": "表示中",
+        "hidden": "非表示"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "リモート操作",
