@@ -146,6 +146,26 @@ upload_ceiling() {
 # docker compose in self-host/, so .env, COMPOSE_FILE and COMPOSE_PROFILES apply.
 compose() { ( cd "$SELF_HOST_DIR" && docker compose "$@" ); }
 
+# --- Supabase log collection ----------------------------------------------------
+# Logflare (service analytics) and vector, compose profile `logs` (supabase-overrides.yml),
+# ENABLE_ANALYTICS in .env. ANALYTICS_RAM, as the questions state it (configure.sh repeats it):
+# 0.7 GB idle on a new instance limited to 2 cores, 1.9 GB measured on a production instance.
+# shellcheck disable=SC2034
+ANALYTICS_RAM="0.7-2 GB"
+
+# profiles_with LIST PROFILE on|off: comma-separated LIST with PROFILE present or absent, the
+# others in their order.
+profiles_with() {
+	local out="" p
+	local -a list
+	IFS=, read -ra list <<<"$1"
+	for p in "${list[@]}"; do
+		[[ -n "$p" && "$p" != "$2" ]] && out+="${out:+,}$p"
+	done
+	[[ "$3" == on ]] && out+="${out:+,}$2"
+	printf '%s' "$out"
+}
+
 # Container id of a running compose service; empty when it is not running.
 svc_id() { compose ps -q --status running "$1" 2>/dev/null | head -1; }
 

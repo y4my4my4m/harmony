@@ -119,7 +119,8 @@ them.
 
 Studio, Supabase's database browser, is at `https://db.chat.example.com`:
 user `supabase`, password `DASHBOARD_PASSWORD` from `self-host/supabase/.env`.
-It shows tables, sign-in users, storage, and the Supabase services' logs.
+It shows tables, sign-in users and storage, and, with
+[log collection](/self-host/#log-collection) on, the Supabase services' logs.
 
 ## Queue dashboard
 

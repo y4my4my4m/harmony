@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { STALE_RELOAD_KEY, reloadIfStaleBundle, withoutStaleParam } from '../staleBundle'
+import {
+  PRELOAD_RELOAD_KEY,
+  PRELOAD_RELOAD_WINDOW_MS,
+  STALE_RELOAD_KEY,
+  claimPreloadReload,
+  reloadIfStaleBundle,
+  withoutStaleParam,
+} from '../staleBundle'
 
 function memoryStorage() {
   const data = new Map<string, string>()
@@ -41,5 +48,36 @@ describe('withoutStaleParam', () => {
     expect(withoutStaleParam('http://tauri.localhost/?_v=1.7.4')).toBe('/')
     expect(withoutStaleParam('http://tauri.localhost/chat?a=1&_v=1.7.4#x')).toBe('/chat?a=1#x')
     expect(withoutStaleParam('http://tauri.localhost/chat?a=1')).toBeNull()
+  })
+})
+
+describe('claimPreloadReload', () => {
+  const A = 'https://chat.test/assets/index-AAAAAAAA.js'
+  const B = 'https://chat.test/assets/index-BBBBBBBB.js'
+  const T = 1_800_000_000_000
+
+  it('reloads once per bundle within the window, then lets the error through', () => {
+    const storage = memoryStorage()
+    expect(claimPreloadReload(storage, A, T)).toBe(true)
+    expect(JSON.parse(storage.getItem(PRELOAD_RELOAD_KEY) ?? '')).toEqual({ bundle: A, at: T })
+    expect(claimPreloadReload(storage, A, T + 1000)).toBe(false)
+    expect(claimPreloadReload(storage, A, T + PRELOAD_RELOAD_WINDOW_MS - 1)).toBe(false)
+  })
+
+  it('reloads after an earlier reload of the tab: another bundle, an older one, or the old flag', () => {
+    const storage = memoryStorage()
+    expect(claimPreloadReload(storage, A, T)).toBe(true)
+    expect(claimPreloadReload(storage, B, T + 1000)).toBe(true)
+    expect(claimPreloadReload(storage, B, T + 1000 + PRELOAD_RELOAD_WINDOW_MS)).toBe(true)
+    storage.setItem(PRELOAD_RELOAD_KEY, '1')
+    expect(claimPreloadReload(storage, B, T)).toBe(true)
+    storage.setItem(PRELOAD_RELOAD_KEY, '{not json')
+    expect(claimPreloadReload(storage, B, T + 1)).toBe(true)
+  })
+
+  it('never reloads without storage, or when writing the record fails', () => {
+    expect(claimPreloadReload(null, A, T)).toBe(false)
+    const throwing = { getItem: () => null, setItem: () => { throw new Error('quota') } }
+    expect(claimPreloadReload(throwing, A, T)).toBe(false)
   })
 })

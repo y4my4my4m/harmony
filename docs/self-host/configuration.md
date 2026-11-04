@@ -215,6 +215,7 @@ docker compose up -d
 | `HARMONY_VOICE` | `y` or `n`: LiveKit voice and video |
 | `HARMONY_BOTS` | `y` or `n`: the bot gateway |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on |
+| `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection, Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` |
 | `HARMONY_SMTP_HOST` | SMTP server. Unset keeps the current email settings |
 | `HARMONY_SMTP_PORT` | Default `587` |
@@ -242,7 +243,7 @@ is a mounted file, so a change to it needs `docker compose restart livekit`.
 `configure.sh` runs again on every `harmony config` and `harmony update`. It
 keeps every key it finds, adds missing ones, and never regenerates a secret.
 The answers in `.env` (`DOMAIN`, `INSTANCE_NAME`, `ADMIN_EMAIL`,
-`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `REGISTRATION`,
+`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `ENABLE_ANALYTICS`, `REGISTRATION`,
 `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT`) default to their current values,
 so a hand edit of them stays and takes effect on the next run. The keys below
 are recomputed on every run, and a hand edit of them is lost:
@@ -317,8 +318,9 @@ the sign-in service. A Supabase stack without it needs the
 | `ENABLE_VOICE` | `false` | `true` defines the LiveKit site in Caddy. `configure.sh` adds the `voice` profile and the LiveKit URLs |
 | `ENABLE_BOTS` | `false` | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
 | `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env` |
+| `ENABLE_ANALYTICS` | `false`; `true` on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it |
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
-| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`) `docker compose up -d` starts |
+| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |
 | `HARMONY_VERSION` | `edge` | Tag of the `ghcr.io/y4my4my4m/harmony-*` images. Rewritten by every `configure.sh` run; `harmony update --version` changes it |
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |

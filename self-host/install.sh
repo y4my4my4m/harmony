@@ -27,6 +27,8 @@
 #   HARMONY_VOICE             y|n, default y (LiveKit; live.DOMAIN, 7881/tcp, 7882/udp)
 #   HARMONY_BOTS              y|n, default n (bot gateway)
 #   HARMONY_DISCORD           y|n, default n (Discord bridge hosting; implies bots)
+#   HARMONY_ANALYTICS         y|n, default n (Supabase log collection: Logflare + vector);
+#                             an install configured before the question existed keeps it on
 #   HARMONY_REGISTRATION      open|invite|closed, default open
 #   HARMONY_SMTP_HOST, HARMONY_SMTP_PORT (587), HARMONY_SMTP_USER,
 #   HARMONY_SMTP_PASS, HARMONY_SMTP_SENDER (noreply@DOMAIN)
@@ -190,7 +192,7 @@ check_disk() {
 	while [[ ! -d "$dir" ]]; do dir="$(dirname "$dir")"; done
 	free_kb="$(df -Pk "$dir" | awk 'NR==2 {print $4}')"
 	if (( free_kb < 4 * 1024 * 1024 )); then
-		die "$((free_kb / 1024)) MB free on $(df -P "$dir" | awk 'NR==2 {print $6}'); the images alone take about 4 GB"
+		die "$((free_kb / 1024)) MB free on $(df -P "$dir" | awk 'NR==2 {print $6}'); the images alone take about 5 GB"
 	elif (( free_kb < 10 * 1024 * 1024 )); then
 		warn "$((free_kb / 1048576)) GB free; 10 GB or more leaves room for uploads and backups"
 	else
@@ -360,6 +362,15 @@ questions() {
 	fi
 
 	echo
+	info "Supabase log collection (Logflare + vector) keeps every service's logs in the database"
+	info "for Studio's Logs pages. 'harmony logs' works without it; 'harmony analytics on|off' changes it later."
+	cur="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
+	# An install configured without the key runs it: the upstream stack starts it by default.
+	[[ -n "$cur" ]] || ! $EXISTING || cur=true
+	cur="$(yn "${HARMONY_ANALYTICS:-$cur}" n)"
+	if ask_yn "Run Supabase log collection (about $ANALYTICS_RAM more RAM)?" "$cur"; then ANALYTICS=y; else ANALYTICS=n; fi
+
+	echo
 	info "Email (SMTP) lets Harmony send password resets and address confirmations."
 	info "Without it accounts work, but nobody can reset a forgotten password."
 	local smtp_cur; smtp_cur="$(env_get "$SB_ENV" SMTP_HOST)"
@@ -475,6 +486,7 @@ summary_of_answers() {
 	info "Settings"
 	printf '   %-14s %s\n' "URL" "https://$DOMAIN" "Admin" "${ADMIN_USERNAME:-existing} <$ADMIN_EMAIL>" \
 		"Name" "$INSTANCE_NAME" "Voice" "$VOICE" "Bots" "$BOTS" "Discord host" "$DISCORD" \
+		"Log collection" "$ANALYTICS" \
 		"Email (SMTP)" "$(smtp_shown)" \
 		"Registration" "$REGISTRATION" "TLS" "$( [[ $TLS == internal ]] && echo "internal CA" || echo "Let's Encrypt")" \
 		"Directory" "$REPO_DIR"
@@ -488,6 +500,7 @@ install_stack() {
 	echo
 	export HARMONY_DOMAIN="$DOMAIN" HARMONY_ADMIN_EMAIL="$ADMIN_EMAIL" HARMONY_INSTANCE_NAME="$INSTANCE_NAME" \
 		HARMONY_TLS="$TLS" HARMONY_VOICE="$VOICE" HARMONY_BOTS="$BOTS" HARMONY_DISCORD="$DISCORD" \
+		HARMONY_ANALYTICS="$ANALYTICS" \
 		HARMONY_REGISTRATION="$REGISTRATION" HARMONY_HTTP_PORT="$HTTP_PORT" HARMONY_HTTPS_PORT="$HTTPS_PORT"
 	info "Writing the configuration..."
 	bash "$SELF_HOST_DIR/configure.sh" --non-interactive </dev/null

@@ -29,6 +29,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | The browser shows a certificate error | A record missing or pointing elsewhere, an AAAA record that does not match, or ports 80 and 443 closed to the internet, so Let's Encrypt cannot validate | The DNS and TLS rows of `harmony doctor`, then `harmony logs caddy` |
 | On a LAN install, browsers warn about the certificate | Devices do not trust Caddy's own certificate authority | Install its root certificate on each device; see [Install on a LAN](/self-host/install#install-on-a-lan) |
 | The page loads, sign-in fails | The `db.` record missing or pointing elsewhere, or the auth service down | The `auth` row and the DNS rows of `harmony doctor`; `harmony logs auth` |
+| Right after an update, sign-in or uploads fail with 502 until the stack restarts or 10 minutes pass; `harmony logs kong` shows `connect() failed` to an address the service no longer has | Kong kept the address `auth` or `storage` had before the update recreated it, for the 600 seconds of Docker's DNS answer. The stack's Kong has `KONG_DNS_VALID_TTL: 5`, which bounds that to seconds | `docker compose restart kong` in `self-host/` |
 | Nobody can create an account | Registration is `invite` or `closed`, or no admin exists yet (sign-up stays closed until one does) | `harmony registration open`; `harmony admin create` first when there is no admin |
 | Other servers cannot find your users | Federation endpoints unreachable from outside | The Federation rows of `harmony doctor`; `harmony logs federation` |
 | Messages and posts reach other servers late | No `harmony_listener` role: the worker logs `No listener DB connection set` and picks jobs up through a 60-second sweep | `bash bootstrap.sh && docker compose restart federation-worker` in `self-host/` |
@@ -55,7 +56,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | `the Docker daemon is not running; start it (systemctl start docker) and re-run` | Docker installed but stopped | `systemctl start docker` |
 | `the Docker Compose plugin is missing…` | Docker without `docker compose` | Install `docker-compose-plugin` (Docker's repository) or `docker-compose-v2` (Ubuntu), or reinstall Docker with `https://get.docker.com` |
 | `Docker Compose … is too old; 2.24.4 or later is required (upgrade docker-compose-plugin)` | An old Compose plugin | Upgrade it |
-| `… MB free on …; the images alone take about 4 GB` | Under 4 GB free where Harmony goes | Free space, or install elsewhere with `HARMONY_DIR` |
+| `… MB free on …; the images alone take about 5 GB` | Under 4 GB free where Harmony goes | Free space, or install elsewhere with `HARMONY_DIR` |
 | `not enough disk space for a swap file` | Under 6 GB free on `/` when creating `/swapfile` | Free space, or decline the swap file |
 | `… exists and is not a Harmony checkout; choose another directory: HARMONY_DIR=/path (or --dir)` | `/opt/harmony` holds something else | Choose another directory, or empty it |
 | `cannot write to …: run the installer as root (curl ... \| sudo bash) or set HARMONY_DIR to a directory of yours` | Not root | Run as root, or `HARMONY_DIR` in your home directory |

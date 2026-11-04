@@ -16,15 +16,55 @@ services:
 
   # Caddy reaches Kong as supabase-kong:8000 on the shared network; Logflare
   # has no public role. Only Caddy publishes ports.
+  # Kong caches each upstream's address for the TTL of Docker's DNS answer
+  # (600 s). An update recreates auth, storage and others together, and Docker
+  # can hand them each other's freed addresses; Kong then answers 502 for that
+  # service, sign-in included, until the entry expires: 6 min 42 s measured
+  # after auth moved from .17 to .20. KONG_DNS_VALID_TTL bounds the cache.
   kong:
     ports: !reset []
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
+    environment:
+      KONG_DNS_VALID_TTL: 5
+
+  # Supabase's log collection, Logflare (analytics) and vector, runs only under
+  # the `logs` profile (ENABLE_ANALYTICS in .env, `harmony analytics on|off`).
+  # Measured on a small production instance: Logflare 1.9 GB RSS, 2.78 GB of
+  # logs in _supabase._analytics, and its replication slot holding 832 MB of WAL.
+  # Upstream services wait for it; required: false starts them without it.
+  # Without it, Studio's Logs pages are empty and `harmony logs` (Docker's own
+  # logs) still shows every service.
   analytics:
     ports: !reset []
+    profiles: [logs]
+  vector:
+    profiles: [logs]
+  db:
+    # Parallel VACUUM, CREATE INDEX and hash joins allocate shared memory in
+    # /dev/shm, which Docker caps at 64 MB per container. A parallel VACUUM of a
+    # 1 GB table asked for 67151776 bytes there and failed: "could not resize
+    # shared memory segment ... No space left on device". tmpfs: memory is taken
+    # only while in use.
+    shm_size: 1g
+    depends_on:
+      vector: { condition: service_healthy, required: false }
+  studio:
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
+  meta:
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
+  realtime:
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
 
   # PostgREST copies its app settings into every request transaction; with this
   # one, any SQL run through the API can read the JWT secret as
   # current_setting('app.settings.jwt_secret'). No function reads it.
   rest:
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
     environment:
       PGRST_APP_SETTINGS_JWT_SECRET: !reset null
 
@@ -65,6 +105,8 @@ services:
   # GoTrue cannot parse stops it from starting.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.196.0}
+    depends_on:
+      analytics: { condition: service_healthy, required: false }
     environment:
       GOTRUE_CUSTOM_OAUTH_ENABLED: "true"
       GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: ${API_EXTERNAL_URL}/auth/v1

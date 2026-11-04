@@ -37,6 +37,7 @@ harmony auth remove-provider ID
 harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
 harmony config
 harmony config --upload-ceiling [SIZE]
+harmony analytics [on | off [--delete-logs]]
 harmony version
 harmony help
 ```
@@ -298,7 +299,7 @@ Prints the instance URL, then:
 |---|---|
 | `code` | `git describe` of the checkout and its branch, or `detached` |
 | `images` | `HARMONY_VERSION`, with `(built from this checkout)` when building locally |
-| `profiles` | `COMPOSE_PROFILES`: `voice`, `bots`, `discord`, or `(none)` |
+| `profiles` | `COMPOSE_PROFILES`: `voice`, `bots`, `discord`, `logs`, or `(none)` |
 | `register` | The registration policy |
 | `backup` | The newest backup's directory name, or `none` |
 
@@ -508,11 +509,12 @@ defaults, and applies them:
 | Enable voice/video? | LiveKit; needs the `live.` record, UDP 7882 and TCP 7881 |
 | Enable the bot gateway? | Bots and Discord bridges |
 | Host Discord bridges for your communities? | Asked with bots on |
+| Run Supabase log collection? | Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | Registration | `open`, `invite` or `closed` |
 | Configure outgoing email (SMTP) now? | Then SMTP host, port, username, password (empty keeps the current one) and sender address |
 
 Then it removes the container of each service turned off (`livekit`,
-`bot-gateway`, `discord-bridge-host`), pulls images, runs
+`bot-gateway`, `discord-bridge-host`, `analytics`, `vector`), pulls images, runs
 `docker compose up -d`, and re-applies the registration policy when an admin
 exists. It ends with `Configuration applied. Check it: harmony doctor`.
 
@@ -545,6 +547,27 @@ needs no terminal. See [Upload limits](/self-host/configuration#upload-limits).
 ```bash
 harmony config --upload-ceiling 2GB
 ```
+
+## harmony analytics
+
+```text
+harmony analytics [on | off [--delete-logs]]
+```
+
+Turns Supabase's log collection, Logflare (`analytics`) and `vector`, on or
+off: sets `ENABLE_ANALYTICS` and the `logs` profile in `.env`, then starts
+both containers, or stops and removes them. Without an argument it prints
+whether they run and the size of the logs they stored. It needs no terminal.
+See [Log collection](/self-host/#log-collection) for what it costs.
+
+| Argument or option | Effect |
+|---|---|
+| `on` | `docker compose up -d analytics vector` |
+| `off` | `docker compose --profile logs rm -sf analytics vector`. Removed rather than stopped: a stopped container with a restart policy reads as a failure to monitors |
+| `--delete-logs` | With `off`: empties the `_analytics` schema of the `_supabase` database, where Logflare keeps the logs and its own tables, and drops its publication `logflare_pub`. Logflare recreates both at its next start |
+
+`harmony config` asks the same question; `HARMONY_ANALYTICS=y` or `n` sets
+it for `configure.sh`.
 
 ## harmony version
 
@@ -603,7 +626,7 @@ built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
 
 | Environment variable | Effect |
 |---|---|
-| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_REGISTRATION`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
+| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
 | `HARMONY_VERSION` | Image tag; default from the checkout: `X.Y.Z` at tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout (`docker-compose.build.yml`); `0` returns to published images |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |

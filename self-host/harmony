@@ -29,6 +29,9 @@
 #   harmony config --upload-ceiling [SIZE]
 #                                   largest file storage accepts (500MB, 2GB);
 #                                   the admin panel's upload limits stay under it
+#   harmony analytics [on | off [--delete-logs]]
+#                                   Supabase log collection (Logflare + vector);
+#                                   without an argument, whether it runs
 #   harmony version
 #
 # Each command is a thin layer over the scripts beside this file.
@@ -39,7 +42,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,34p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,37p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 
@@ -144,7 +147,7 @@ cmd_config() {
 	after_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
 	after_hosts="$(env_get "$ENV_FILE" DOMAIN) $(env_get "$ENV_FILE" DB_DOMAIN)"
 	# A disabled profile's container outlives `up -d`; remove it.
-	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord; do
+	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord analytics:logs vector:logs; do
 		svc="${pair%%:*}"; profile="${pair##*:}"
 		if [[ ",$before_profiles," == *",$profile,"* && ",$after_profiles," != *",$profile,"* ]]; then
 			info "Removing $svc (profile $profile turned off)"
@@ -162,6 +165,61 @@ cmd_config() {
 		bash "$SELF_HOST_DIR/admin.sh" registration
 	fi
 	ok "Configuration applied. Check it: harmony doctor"
+}
+
+# Supabase log collection: ENABLE_ANALYTICS and the `logs` profile in .env. Off removes the
+# containers (rm -s): a stopped container with a restart policy reads as a failure to monitors.
+# --delete-logs empties _supabase._analytics, where Logflare keeps the logs and its own tables,
+# and drops its publication logflare_pub: Logflare's migrations recreate both at its next start,
+# and stop at CREATE PUBLICATION when the publication is left behind.
+cmd_analytics() {
+	need_config
+	local want="${1:-}" delete=false profiles size
+	[[ $# -gt 0 ]] && shift
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--delete-logs) delete=true ;;
+			*) die "unknown argument: $1 (harmony help)" ;;
+		esac
+		shift
+	done
+	profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	case "$want" in
+		"")
+			$delete && die "--delete-logs goes with off: harmony analytics off --delete-logs"
+			if [[ ",$profiles," == *",logs,"* ]]; then
+				printf 'Supabase log collection: on (analytics, vector). harmony analytics off frees about %s of RAM.\n' "$ANALYTICS_RAM"
+			else
+				printf 'Supabase log collection: off. harmony analytics on starts it (about %s of RAM).\n' "$ANALYTICS_RAM"
+			fi
+			size="$(db_sql -d _supabase -c "SELECT pg_size_pretty(sum(pg_total_relation_size(c.oid))) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '_analytics' AND c.relkind IN ('r', 'm')" 2>/dev/null || true)"
+			[[ -z "$size" ]] || printf 'Stored logs (_supabase._analytics): %s\n' "$size"
+			;;
+		on)
+			$delete && die "--delete-logs goes with off"
+			env_set "$ENV_FILE" ENABLE_ANALYTICS true
+			env_set "$ENV_FILE" COMPOSE_PROFILES "$(profiles_with "$profiles" logs on)"
+			info "Starting analytics and vector..."
+			compose up -d analytics vector
+			ok "Supabase log collection is on; Studio's Logs pages fill from now on."
+			;;
+		off)
+			env_set "$ENV_FILE" ENABLE_ANALYTICS false
+			env_set "$ENV_FILE" COMPOSE_PROFILES "$(profiles_with "$profiles" logs off)"
+			info "Removing analytics and vector..."
+			compose --profile logs rm -sf analytics vector >/dev/null
+			if $delete; then
+				db_sql -d _supabase >/dev/null <<'SQL' || die "the containers are removed, but the stored logs were not deleted; run this again once the database is up"
+DROP SCHEMA IF EXISTS _analytics CASCADE;
+CREATE SCHEMA _analytics AUTHORIZATION supabase_admin;
+DROP PUBLICATION IF EXISTS logflare_pub;
+SQL
+				ok "Stored logs deleted (_supabase._analytics emptied)."
+			fi
+			ok "Supabase log collection is off. harmony logs shows every service's logs."
+			;;
+		*) die "usage: harmony analytics [on | off [--delete-logs]]" ;;
+	esac
 }
 
 cmd="${1:-}"
@@ -184,6 +242,7 @@ case "$cmd" in
 	registration) need_config; exec bash "$SELF_HOST_DIR/admin.sh" registration "$@" ;;
 	auth) need_config; exec bash "$SELF_HOST_DIR/admin.sh" auth "$@" ;;
 	config) cmd_config "$@" ;;
+	analytics) cmd_analytics "$@" ;;
 	version) git -C "$REPO_DIR" describe --tags --always 2>/dev/null; env_get "$ENV_FILE" HARMONY_VERSION ;;
 	-h|--help|help|"") usage ;;
 	*) die "unknown command: $cmd (harmony help)" ;;
