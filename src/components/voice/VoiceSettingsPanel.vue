@@ -26,19 +26,37 @@
           
           <div class="setting-group">
             <label :for="`${idBase}-input`" class="setting-label">{{ t('settings.voice.inputDevice') }}</label>
-            <select :id="`${idBase}-input`" v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
-              <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
-                {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
-              </option>
+            <select
+              :id="`${idBase}-input`"
+              v-model="inputValue"
+              class="setting-select"
+              :disabled="inputState === 'none'"
+              :aria-describedby="inputState === 'unnamed' ? `${idBase}-input-access` : undefined"
+              @change="updateInputDevice"
+            >
+              <option v-for="option in inputOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
+            <DeviceAccessNote
+              v-if="inputState === 'unnamed'"
+              :id="`${idBase}-input-access`"
+              :text="t('settings.voice.microphoneNamesHidden')"
+              :action="t('settings.voice.allowMicrophone')"
+              :busy="micAccess === 'asking'"
+              :problem="accessProblem('audio')"
+              @allow="allowDevice('audio')"
+            />
           </div>
 
           <div class="setting-group">
             <label :for="`${idBase}-output`" class="setting-label">{{ t('settings.voice.outputDevice') }}</label>
-            <select :id="`${idBase}-output`" v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
-              <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
-                {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
-              </option>
+            <select
+              :id="`${idBase}-output`"
+              v-model="outputValue"
+              class="setting-select"
+              :disabled="outputState === 'none'"
+              @change="updateOutputDevice"
+            >
+              <option v-for="option in outputOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </div>
 
@@ -222,12 +240,24 @@
 
           <div class="setting-group">
             <label :for="`${idBase}-camera`" class="setting-label">{{ t('settings.voice.videoDevice') }}</label>
-            <select :id="`${idBase}-camera`" v-model="selectedVideoDevice" class="setting-select">
-              <option value="">{{ t('settings.voice.noCamera') }}</option>
-              <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
-                {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
-              </option>
+            <select
+              :id="`${idBase}-camera`"
+              v-model="cameraValue"
+              class="setting-select"
+              :disabled="cameraState === 'none'"
+              :aria-describedby="cameraState === 'unnamed' ? `${idBase}-camera-access` : undefined"
+            >
+              <option v-for="option in cameraOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
+            <DeviceAccessNote
+              v-if="cameraState === 'unnamed'"
+              :id="`${idBase}-camera-access`"
+              :text="t('settings.voice.cameraNamesHidden')"
+              :action="t('settings.voice.allowCamera')"
+              :busy="cameraAccess === 'asking'"
+              :problem="accessProblem('video')"
+              @allow="allowDevice('video')"
+            />
           </div>
 
           <div class="setting-group">
@@ -342,11 +372,13 @@ import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
 import VoiceInputModeSettings from './VoiceInputModeSettings.vue';
+import DeviceAccessNote from './DeviceAccessNote.vue';
 import { useSoundboardSettings } from '@/composables/useSoundboardSettings';
+import { deviceListState, useDeviceAccess, useDeviceChoice, useDeviceOptionNames } from '@/composables/useDeviceChoice';
 
 export default defineComponent({
   name: 'VoiceSettingsPanel',
-  components: { Icon, VoiceInputModeSettings },
+  components: { Icon, VoiceInputModeSettings, DeviceAccessNote },
   emits: ['close', 'update-settings'],
   setup(props, { emit }) {
     // Device lists
@@ -358,6 +390,11 @@ export default defineComponent({
     const selectedInputDevice = ref('');
     const selectedOutputDevice = ref('');
     const selectedVideoDevice = ref('');
+
+    const optionNames = useDeviceOptionNames();
+    const { state: inputState, options: inputOptions, value: inputValue } = useDeviceChoice(inputDevices, selectedInputDevice, optionNames.input);
+    const { state: outputState, options: outputOptions, value: outputValue } = useDeviceChoice(outputDevices, selectedOutputDevice, optionNames.output);
+    const { state: cameraState, options: cameraOptions, value: cameraValue } = useDeviceChoice(videoDevices, selectedVideoDevice, optionNames.camera);
 
     // Audio settings
     const { t } = useI18n();
@@ -413,25 +450,35 @@ export default defineComponent({
     const { isMobileViewport, isTouchOnly } = useViewport();
     const isTouchDevice = computed(() => isMobileViewport.value || isTouchOnly);
 
+    const readDevices = async () => {
+      const devices = await enumerateMediaDevices();
+      inputDevices.value = devices.filter(d => d.kind === 'audioinput');
+      outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
+      videoDevices.value = devices.filter(d => d.kind === 'videoinput');
+
+      debug.log('[VoiceSettingsPanel] Enumerated devices:', {
+        inputs: inputDevices.value.length,
+        outputs: outputDevices.value.length,
+        videos: videoDevices.value.length
+      });
+    };
+
     const getDevices = async () => {
       try {
-        const devices = await enumerateMediaDevices();
-        inputDevices.value = devices.filter(d => d.kind === 'audioinput');
-        outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
-        videoDevices.value = devices.filter(d => d.kind === 'videoinput');
-
-        debug.log('[VoiceSettingsPanel] Enumerated devices:', {
-          inputs: inputDevices.value.length,
-          outputs: outputDevices.value.length,
-          videos: videoDevices.value.length
-        });
-
+        await readDevices();
         // Now that we have devices, load and validate stored settings
         await loadStoredSettings();
       } catch (error) {
         debug.error('Error getting devices:', error);
       }
     };
+
+    const {
+      microphone: micAccess,
+      camera: cameraAccess,
+      allow: allowDevice,
+      problem: accessProblem,
+    } = useDeviceAccess(getDevices);
 
     // Load stored settings - called AFTER devices are enumerated
     const loadStoredSettings = async () => {
@@ -449,6 +496,7 @@ export default defineComponent({
         if (settings.frameRate) frameRate.value = settings.frameRate;
         if (settings.audioBitrate) audioBitrate.value = settings.audioBitrate;
         
+        // An unnamed list (no capture permission yet) leaves the stored choice untouched.
         const storedInputDevice = settings.selectedInputDevice;
         const storedOutputDevice = settings.selectedOutputDevice;
         const storedVideoDevice = settings.selectedVideoDevice;
@@ -456,7 +504,7 @@ export default defineComponent({
         if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
           selectedInputDevice.value = storedInputDevice;
           debug.log('[VoiceSettingsPanel] Using stored input device:', storedInputDevice);
-        } else if (inputDevices.value.length > 0) {
+        } else if (deviceListState(inputDevices.value) === 'named') {
           selectedInputDevice.value = inputDevices.value[0].deviceId;
           if (storedInputDevice) {
             debug.warn('[VoiceSettingsPanel] Stored input device not found, using default');
@@ -467,7 +515,7 @@ export default defineComponent({
         if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
           selectedOutputDevice.value = storedOutputDevice;
           debug.log('[VoiceSettingsPanel] Using stored output device:', storedOutputDevice);
-        } else if (outputDevices.value.length > 0) {
+        } else if (deviceListState(outputDevices.value) === 'named') {
           selectedOutputDevice.value = outputDevices.value[0].deviceId;
           if (storedOutputDevice) {
             debug.warn('[VoiceSettingsPanel] Stored output device not found, using default');
@@ -478,7 +526,7 @@ export default defineComponent({
         if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
           selectedVideoDevice.value = storedVideoDevice;
           debug.log('[VoiceSettingsPanel] Using stored video device:', storedVideoDevice);
-        } else if (videoDevices.value.length > 0) {
+        } else if (deviceListState(videoDevices.value) === 'named') {
           selectedVideoDevice.value = videoDevices.value[0].deviceId;
           if (storedVideoDevice) {
             debug.warn('[VoiceSettingsPanel] Stored video device not found, using default');
@@ -641,15 +689,19 @@ export default defineComponent({
     // Watch for device changes
     watch(selectedVideoDevice, updateVideoPreview);
 
+    // A device chosen in another picker; a device this list has not seen is read again.
     const handleExternalDeviceChange = (e: Event) => {
       const { type, deviceId } = (e as CustomEvent).detail || {};
       if (!deviceId) return;
-      if (type === 'input' && deviceId !== selectedInputDevice.value) {
-        selectedInputDevice.value = deviceId;
-      } else if (type === 'output' && deviceId !== selectedOutputDevice.value) {
-        selectedOutputDevice.value = deviceId;
-      } else if (type === 'video' && deviceId !== selectedVideoDevice.value) {
-        selectedVideoDevice.value = deviceId;
+      const pair = type === 'input' ? [selectedInputDevice, inputDevices] as const
+        : type === 'output' ? [selectedOutputDevice, outputDevices] as const
+        : type === 'video' ? [selectedVideoDevice, videoDevices] as const
+        : null;
+      if (!pair) return;
+      const [selected, devices] = pair;
+      selected.value = deviceId;
+      if (!devices.value.some(d => d.deviceId === deviceId)) {
+        readDevices().catch((error) => debug.warn('Re-reading devices failed:', error));
       }
     };
 
@@ -682,6 +734,19 @@ export default defineComponent({
       selectedInputDevice,
       selectedOutputDevice,
       selectedVideoDevice,
+      inputState,
+      inputOptions,
+      inputValue,
+      outputState,
+      outputOptions,
+      outputValue,
+      cameraState,
+      cameraOptions,
+      cameraValue,
+      micAccess,
+      cameraAccess,
+      allowDevice,
+      accessProblem,
       inputVolume,
       outputVolume,
       soundboardVolume,
@@ -829,6 +894,11 @@ export default defineComponent({
   outline: none;
   border-color: var(--harmony-primary);
   background: var(--background-secondary);
+}
+
+.setting-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .setting-hint {

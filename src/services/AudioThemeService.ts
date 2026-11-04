@@ -11,6 +11,27 @@ const PACK_VERSION = 1
 const LEGACY_AUDIO_THEME_HARMONY = 'harmony'
 const DEFAULT_AUDIO_THEME_ID = 'default'
 
+/** Volume of a new account, 0 to 1. */
+export const DEFAULT_AUDIO_VOLUME = 1
+/** Stored-schema revision of audio_theme_settings; see migrateAudioThemeSettings. */
+export const AUDIO_SETTINGS_VERSION = 2
+const V1_DEFAULT_AUDIO_VOLUME = 0.7
+
+/**
+ * Upgrades stored audio theme settings in place. Returns true when they changed.
+ *
+ * v1 -> v2: the default volume moves from 0.7 to 1. Version 1 wrote the volume with every theme
+ * change and its Notifications slider showed 70 whatever was stored, so a stored 0.7 is the
+ * untouched default and becomes 1. Any other value was set by the user and is kept.
+ */
+export function migrateAudioThemeSettings(stored: { volume?: unknown; settingsVersion?: unknown }): boolean {
+  const version = typeof stored.settingsVersion === 'number' ? stored.settingsVersion : 1
+  if (version >= AUDIO_SETTINGS_VERSION) return false
+  if (stored.volume === V1_DEFAULT_AUDIO_VOLUME) stored.volume = DEFAULT_AUDIO_VOLUME
+  stored.settingsVersion = AUDIO_SETTINGS_VERSION
+  return true
+}
+
 function normalizeAudioThemeId(themeId: string | undefined | null): string {
   if (!themeId || themeId === LEGACY_AUDIO_THEME_HARMONY) return DEFAULT_AUDIO_THEME_ID
   return themeId
@@ -87,8 +108,9 @@ export class AudioThemeService {
   private audioQueue = new Map<string, Promise<void>>()
   private settings: AudioThemeSettings = {
     selectedTheme: DEFAULT_AUDIO_THEME_ID,
-    volume: 0.7,
-    lastUpdated: new Date().toISOString()
+    volume: DEFAULT_AUDIO_VOLUME,
+    lastUpdated: new Date().toISOString(),
+    settingsVersion: AUDIO_SETTINGS_VERSION,
   }
   
   // Performance optimizations
@@ -955,12 +977,14 @@ export class AudioThemeService {
       const stored = userStorage.getItem('audio_theme_settings')
       if (stored) {
         const settings = JSON.parse(stored)
+        const migrated = migrateAudioThemeSettings(settings)
         this.settings = {
           selectedTheme: normalizeAudioThemeId(settings.selectedTheme),
-          volume: typeof settings.volume === 'number' ? settings.volume : 0.7,
-          lastUpdated: settings.lastUpdated || new Date().toISOString()
+          volume: typeof settings.volume === 'number' ? Math.max(0, Math.min(1, settings.volume)) : DEFAULT_AUDIO_VOLUME,
+          lastUpdated: settings.lastUpdated || new Date().toISOString(),
+          settingsVersion: AUDIO_SETTINGS_VERSION,
         }
-        if (settings.selectedTheme === LEGACY_AUDIO_THEME_HARMONY) {
+        if (migrated || settings.selectedTheme === LEGACY_AUDIO_THEME_HARMONY) {
           this.saveSettings()
         }
       }

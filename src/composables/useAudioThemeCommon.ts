@@ -14,8 +14,8 @@ export function useAudioThemeCommon() {
   // Local state
   const isLoading = ref(false)
   const pendingTheme = ref<string | null>(null)
-  const localVolume = ref(70)
-  const previousVolume = ref(70)
+  const localVolume = ref(100)
+  const previousVolume = ref(100)
   const isTesting = ref(false)
 
   // Computed
@@ -290,7 +290,7 @@ export function useAudioThemeCommon() {
   const resetToDefaults = async (): Promise<void> => {
     try {
       await themeStore.resetToDefaults()
-      localVolume.value = 70
+      localVolume.value = Math.round(themeStore.audioVolume * 100)
       notificationStore.showToast(
         'ui_success',
         'Settings Reset',

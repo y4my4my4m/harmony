@@ -715,7 +715,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
     const uploaded = await uploadMessageMedia(room, userId, result.blob, {
       fileName: `voice.${ext}`,
       contentType: result.mimeType,
-      ownProgress: true,
+      listed: false,
     })
     debug.log('Voice upload success:', { path: uploaded.path })
 

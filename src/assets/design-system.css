@@ -416,6 +416,12 @@ optgroup {
   font-family: inherit;
 }
 
+/* Fill and thumb of a native range in the accent; unset, the platform's own highlight paints
+   them. Skins set their own accent-color. */
+input[type="range"] {
+  accent-color: var(--harmony-primary);
+}
+
 /*
  * "Disable glass blur" preference (Appearance > Effects). When the user
  * opts out of blur (or the active skin disables it), neutralise every

@@ -19,19 +19,39 @@
       
       <div class="setting-group">
         <label :for="`${idBase}-input`" class="setting-label">{{ t('settings.voice.inputDevice') }}</label>
-        <select :id="`${idBase}-input`" v-model="selectedInputDevice" class="setting-select" data-testid="voice-input-device" @change="updateInputDevice">
-          <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
-            {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
-          </option>
+        <select
+          :id="`${idBase}-input`"
+          v-model="inputValue"
+          class="setting-select"
+          data-testid="voice-input-device"
+          :disabled="inputState === 'none'"
+          :aria-describedby="inputState === 'unnamed' ? `${idBase}-input-access` : undefined"
+          @change="updateInputDevice"
+        >
+          <option v-for="option in inputOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
+        <DeviceAccessNote
+          v-if="inputState === 'unnamed'"
+          :id="`${idBase}-input-access`"
+          :text="t('settings.voice.microphoneNamesHidden')"
+          :action="t('settings.voice.allowMicrophone')"
+          :busy="micAccess === 'asking'"
+          :problem="accessProblem('audio')"
+          @allow="allowDevice('audio')"
+        />
       </div>
 
       <div class="setting-group">
         <label :for="`${idBase}-output`" class="setting-label">{{ t('settings.voice.outputDevice') }}</label>
-        <select :id="`${idBase}-output`" v-model="selectedOutputDevice" class="setting-select" data-testid="voice-output-device" @change="updateOutputDevice">
-          <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
-            {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
-          </option>
+        <select
+          :id="`${idBase}-output`"
+          v-model="outputValue"
+          class="setting-select"
+          data-testid="voice-output-device"
+          :disabled="outputState === 'none'"
+          @change="updateOutputDevice"
+        >
+          <option v-for="option in outputOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </div>
 
@@ -264,12 +284,26 @@
 
       <div class="setting-group">
         <label :for="`${idBase}-camera`" class="setting-label">{{ t('settings.voice.videoDevice') }}</label>
-        <select :id="`${idBase}-camera`" v-model="selectedVideoDevice" class="setting-select" @change="updateVideoSettings">
-          <option value="">{{ t('settings.voice.noCamera') }}</option>
-          <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
-            {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
-          </option>
+        <select
+          :id="`${idBase}-camera`"
+          v-model="cameraValue"
+          class="setting-select"
+          data-testid="voice-camera-device"
+          :disabled="cameraState === 'none'"
+          :aria-describedby="cameraState === 'unnamed' ? `${idBase}-camera-access` : undefined"
+          @change="updateVideoDevice"
+        >
+          <option v-for="option in cameraOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
+        <DeviceAccessNote
+          v-if="cameraState === 'unnamed'"
+          :id="`${idBase}-camera-access`"
+          :text="t('settings.voice.cameraNamesHidden')"
+          :action="t('settings.voice.allowCamera')"
+          :busy="cameraAccess === 'asking'"
+          :problem="accessProblem('video')"
+          @allow="allowDevice('video')"
+        />
       </div>
 
       <div class="setting-group">
@@ -320,9 +354,11 @@ import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService, normalizeInputVolume, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { useMicTest } from '@/composables/useMicTest';
 import { useSoundboardSettings } from '@/composables/useSoundboardSettings';
+import { deviceListState, useDeviceAccess, useDeviceChoice, useDeviceOptionNames } from '@/composables/useDeviceChoice';
 import { uid } from '@/utils/a11y/focus';
 import Icon from '@/components/common/Icon.vue';
 import VoiceInputModeSettings from '@/components/voice/VoiceInputModeSettings.vue';
+import DeviceAccessNote from '@/components/voice/DeviceAccessNote.vue';
 import { useMicTestStatus } from '@/components/voice/useMicTestStatus';
 
 interface Props {
@@ -351,6 +387,11 @@ const selectedInputDevice = ref('');
 const selectedOutputDevice = ref('');
 const selectedVideoDevice = ref('');
 
+const optionNames = useDeviceOptionNames();
+const { state: inputState, options: inputOptions, value: inputValue } = useDeviceChoice(inputDevices, selectedInputDevice, optionNames.input);
+const { state: outputState, options: outputOptions, value: outputValue } = useDeviceChoice(outputDevices, selectedOutputDevice, optionNames.output);
+const { state: cameraState, options: cameraOptions, value: cameraValue } = useDeviceChoice(videoDevices, selectedVideoDevice, optionNames.camera);
+
 // Audio settings
 // Outgoing mic, percent 0-200; 100 sends the capture untouched.
 const inputVolume = ref(100);
@@ -377,25 +418,35 @@ const previewStream = ref<MediaStream | null>(null);
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
 
+const readDevices = async () => {
+  const devices = await enumerateMediaDevices();
+  inputDevices.value = devices.filter(d => d.kind === 'audioinput');
+  outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
+  videoDevices.value = devices.filter(d => d.kind === 'videoinput');
+
+  debug.log('[VoiceSettingsInline] Enumerated devices:', {
+    inputs: inputDevices.value.length,
+    outputs: outputDevices.value.length,
+    videos: videoDevices.value.length
+  });
+};
+
 const getDevices = async () => {
   try {
-    const devices = await enumerateMediaDevices();
-    inputDevices.value = devices.filter(d => d.kind === 'audioinput');
-    outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
-    videoDevices.value = devices.filter(d => d.kind === 'videoinput');
-    
-    debug.log('[VoiceSettingsInline] Enumerated devices:', {
-      inputs: inputDevices.value.length,
-      outputs: outputDevices.value.length,
-      videos: videoDevices.value.length
-    });
-
+    await readDevices();
     // Now that we have devices, load and validate stored settings
     await loadStoredSettings();
   } catch (error) {
     debug.error('Error getting devices:', error);
   }
 };
+
+const {
+  microphone: micAccess,
+  camera: cameraAccess,
+  allow: allowDevice,
+  problem: accessProblem,
+} = useDeviceAccess(getDevices);
 
 // Load stored settings - called AFTER devices are enumerated
 const loadStoredSettings = async () => {
@@ -415,7 +466,8 @@ const loadStoredSettings = async () => {
     if (settings.frameRate) frameRate.value = settings.frameRate;
     
     // Validate and apply device selections
-    // Only select stored device if it exists in current device list
+    // Only select stored device if it exists in current device list. An unnamed list (no
+    // capture permission yet) leaves the stored choice untouched.
     const storedInputDevice = settings.selectedInputDevice;
     const storedOutputDevice = settings.selectedOutputDevice;
     const storedVideoDevice = settings.selectedVideoDevice;
@@ -423,7 +475,7 @@ const loadStoredSettings = async () => {
     if (storedInputDevice && inputDevices.value.some(d => d.deviceId === storedInputDevice)) {
       selectedInputDevice.value = storedInputDevice;
       debug.log('[VoiceSettingsInline] Using stored input device:', storedInputDevice);
-    } else if (inputDevices.value.length > 0) {
+    } else if (deviceListState(inputDevices.value) === 'named') {
       // Fallback to first available device
       selectedInputDevice.value = inputDevices.value[0].deviceId;
       if (storedInputDevice) {
@@ -435,7 +487,7 @@ const loadStoredSettings = async () => {
     if (storedOutputDevice && outputDevices.value.some(d => d.deviceId === storedOutputDevice)) {
       selectedOutputDevice.value = storedOutputDevice;
       debug.log('[VoiceSettingsInline] Using stored output device:', storedOutputDevice);
-    } else if (outputDevices.value.length > 0) {
+    } else if (deviceListState(outputDevices.value) === 'named') {
       // Fallback to first available device
       selectedOutputDevice.value = outputDevices.value[0].deviceId;
       if (storedOutputDevice) {
@@ -447,7 +499,7 @@ const loadStoredSettings = async () => {
     if (storedVideoDevice && videoDevices.value.some(d => d.deviceId === storedVideoDevice)) {
       selectedVideoDevice.value = storedVideoDevice;
       debug.log('[VoiceSettingsInline] Using stored video device:', storedVideoDevice);
-    } else if (videoDevices.value.length > 0) {
+    } else if (deviceListState(videoDevices.value) === 'named') {
       // Fallback to first available device
       selectedVideoDevice.value = videoDevices.value[0].deviceId;
       if (storedVideoDevice) {
@@ -570,6 +622,11 @@ const updateAudioSettings = () => {
   });
 };
 
+const updateVideoDevice = async () => {
+  if (!selectedVideoDevice.value) VoiceSettingsService.setVideoDevice(null);
+  await updateVideoSettings();
+};
+
 const updateVideoSettings = async () => {
   if (selectedVideoDevice.value) {
     try {
@@ -592,10 +649,8 @@ const updateVideoSettings = async () => {
 
 const saveSettings = () => {
   try {
+    // No device fields: an unnamed list shows Default, and writing it would erase the stored choice.
     VoiceSettingsService.updateMany({
-      selectedInputDevice: selectedInputDevice.value || null,
-      selectedOutputDevice: selectedOutputDevice.value || null,
-      selectedVideoDevice: selectedVideoDevice.value || null,
       inputVolume: inputVolume.value,
       outputVolume: outputVolume.value,
       echoCancellation: echoCancellation.value,
@@ -615,15 +670,19 @@ const saveSettings = () => {
 watch(selectedVideoDevice, updateVideoPreview);
 
 // Lifecycle
+// A device chosen in another picker; a device this list has not seen is read again.
 const handleExternalDeviceChange = (e: Event) => {
   const { type, deviceId } = (e as CustomEvent).detail || {}
   if (!deviceId) return
-  if (type === 'input' && deviceId !== selectedInputDevice.value) {
-    selectedInputDevice.value = deviceId
-  } else if (type === 'output' && deviceId !== selectedOutputDevice.value) {
-    selectedOutputDevice.value = deviceId
-  } else if (type === 'video' && deviceId !== selectedVideoDevice.value) {
-    selectedVideoDevice.value = deviceId
+  const pair = type === 'input' ? [selectedInputDevice, inputDevices] as const
+    : type === 'output' ? [selectedOutputDevice, outputDevices] as const
+    : type === 'video' ? [selectedVideoDevice, videoDevices] as const
+    : null
+  if (!pair) return
+  const [selected, devices] = pair
+  selected.value = deviceId
+  if (!devices.value.some(d => d.deviceId === deviceId)) {
+    readDevices().catch((error) => debug.warn('Re-reading devices failed:', error))
   }
 }
 
@@ -897,5 +956,10 @@ onUnmounted(() => {
   margin-top: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.setting-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>

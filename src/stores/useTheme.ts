@@ -277,7 +277,7 @@ export const useThemeStore = defineStore('theme', {
     async resetToDefaults(): Promise<void> {
       try {
         await this.setAudioTheme('default')
-        this.setAudioVolume(0.7)
+        this.setAudioVolume(1.0)
         this.clearError()
         debug.log('Theme settings reset to defaults')
       } catch (error) {

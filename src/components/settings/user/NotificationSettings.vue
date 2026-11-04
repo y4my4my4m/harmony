@@ -261,7 +261,6 @@
               :aria-valuetext="`${soundVolume}%`"
               class="volume-slider"
               data-testid="notification-volume"
-              @input="onVolumeChange"
             />
             <Icon name="volume-2" aria-hidden="true" />
             <span class="volume-value" aria-hidden="true">{{ soundVolume }}%</span>
@@ -654,6 +653,7 @@ import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
+import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
 import type { NotificationPreferences, NotificationType } from '@/types'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -674,6 +674,7 @@ const { t } = useI18n()
 
 // Stores
 const notificationStore = useNotificationStore()
+const themeStore = useThemeStore()
 const toast = useToast()
 const userData = useUserData()
 const pushNotifications = usePushNotifications()
@@ -754,7 +755,11 @@ const hasNotificationPermission = ref(false)
 const isRequestingPermission = ref(false)
 const isTesting = ref(false)
 const isTestingType = ref<string | null>(null)
-const soundVolume = ref(70)
+// Percent of every notification and interface sound: the audio theme volume.
+const soundVolume = computed({
+  get: () => Math.round(themeStore.audioVolume * 100),
+  set: (percent: number) => themeStore.setAudioVolume(percent / 100),
+})
 const isTestingPush = ref(false)
 
 // Notification type configurations. `name` is the label qualified for the
@@ -1043,10 +1048,6 @@ const resetToDefaults = async () => {
   await updatePreferences()
 }
 
-const onVolumeChange = () => {
-  notificationStore.setVolume(soundVolume.value / 100)
-}
-
 const pushStatusClass = computed(() => {
   if (!pushNotifications.isSupported.value) return 'not-supported'
   if (pushNotifications.permission.value === 'denied') return 'denied'
@@ -1179,6 +1180,7 @@ const formatDate = (dateStr: string): string => {
 
 // Check notification permission on mount
 onMounted(async () => {
+  if (!themeStore.isInitialized && !themeStore.isLoading) void themeStore.initialize().catch(() => {})
   if (isNativeClient) {
     try {
       const { isPermissionGranted } = await import('@tauri-apps/plugin-notification')

@@ -1018,7 +1018,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 uploadedUrl: completed ? raw.uploadedUrl : undefined,
                 temporary: raw.temporary,
                 driveName: composerEncrypted.value ? undefined : raw.name,
-                ...(raw.recorded ? { reuse: false } : {}),
+                ...(raw.recorded ? { reuse: false, listed: false } : {}),
                 ...(raw.keepDetails ? { keepMetadata: true } : {}),
                 ...(raw.sourcePath ? { sourcePath: raw.sourcePath } : {}),
               };

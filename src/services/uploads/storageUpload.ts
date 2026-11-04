@@ -73,6 +73,8 @@ export interface StorageUploadOptions {
   label?: string
   /** The starting page shows this upload's progress: the indicator lists it only on other pages. */
   ownProgress?: boolean
+  /** False keeps the upload out of the transfers indicator on every page; `label` still names it in refusals. */
+  listed?: boolean
   onProgress?: (fraction: number) => void
   /** Scope within which an interrupted upload of the same file is continued. */
   resumeKey?: string
@@ -712,7 +714,7 @@ export function startStorageUpload(options: StorageUploadOptions): StorageUpload
   }
 
   let entry: TransferEntry | null = null
-  if (options.label) {
+  if (options.label && options.listed !== false) {
     const view: TransferProgress = {
       get loaded() { return state.loaded },
       get total() { return state.total },
