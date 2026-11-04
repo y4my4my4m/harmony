@@ -215,7 +215,7 @@ Type `@` to open suggestions, then pick a person or a role. Roles, `@everyone` a
 
 `@everyone` and `@here` never name a person. Someone called `everyone` on another instance is `@everyone@instance.example`. A person whose display name reads `everyone` or `here` shows as their @username, so the mention never looks like the server-wide one.
 
-A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour with a dot before it, and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
+A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
 
 - In server channels, a message that mentions you, a role you hold, `@everyone` or `@here` is highlighted.
 - A message notifies each person once, even when it names them in several ways.

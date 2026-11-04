@@ -4,7 +4,7 @@
 // - Typed without picking, @name is the member: only they are notified.
 // - Picked from the list (Enter takes the first entry), it is the role: its holder is notified,
 //   the member is not.
-// - The role pill carries the role's colour and a marker, is announced as a role, and opens a
+// - The role pill carries the role's colour, is announced as a role, and opens a
 //   role card with the member count; the member's pill has none of these.
 
 import { test, expect, type Page } from '@playwright/test'
@@ -128,11 +128,9 @@ test('a role named like a member: typed is the member, picked is the role, and t
     const role = messageList(page).locator(`.message-item[data-message-id="${pickedId}"] .role-mention`)
     await expect(person).toHaveCount(1)
     await expect(person).not.toHaveClass(/role-mention/)
-    await expect(person.locator('.role-mention-dot')).toHaveCount(0)
     await expect(person).not.toHaveAccessibleName(/role/)
 
     await expect(role).toHaveAccessibleName(`@${bob.username}, role`)
-    await expect(role.locator('.role-mention-dot')).toHaveCount(1)
     await expect(role).toHaveCSS('color', 'rgb(233, 30, 99)')
     expect(await person.evaluate((el) => getComputedStyle(el).color)).not.toBe('rgb(233, 30, 99)')
   })
