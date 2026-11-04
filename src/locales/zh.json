@@ -2529,7 +2529,14 @@
     "editedTitle": "此帖子已被编辑",
     "replyToUser": "回复 {name}",
     "replyingTo": "正在回复",
-    "viewThread": "查看对话串",
+    "replyContext": {
+      "contentWarning": "内容警告：{text}",
+      "attachments": "{count} 个附件 | {count} 个附件",
+      "deleted": "回复的帖子已删除",
+      "hidden": "回复了一条你无法查看的帖子",
+      "remote": "回复 {domain} 上的帖子",
+      "loading": "正在加载所回复的帖子"
+    },
     "viewOriginalPost": "查看原帖",
     "viewQuotedPost": "查看被引用的帖子",
     "showMore": "显示更多",

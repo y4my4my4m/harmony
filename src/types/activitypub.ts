@@ -166,20 +166,35 @@ export interface DeliveryQueueItem {
   sender_id?: string;  // Required for signing outgoing requests
 }
 
-// Reply context for conversation threading
+/**
+ * The post a reply answers, as a reply's card previews it (services/replyContext.ts).
+ *   post     the parent is stored and readable: author and content are set
+ *   deleted  the parent is stored and deleted
+ *   hidden   the parent is stored and posts RLS hides it from the reader
+ *   remote   the parent is not stored; `url` is its ActivityPub id
+ * Rows built before `state` existed (get_enhanced_timeline_posts, timeline_posts) read as 'post'.
+ */
+export type ReplyContextState = 'post' | 'deleted' | 'hidden' | 'remote';
+
 export interface ReplyContext {
-  id: string;
-  content_preview: string; // Legacy field - for backward compatibility
-  content: any; // Full JSONB content for proper parsing
-  author: {
+  /** Parent post id; null when the parent is not stored. */
+  id: string | null;
+  state?: ReplyContextState;
+  content_preview?: string;
+  content?: any;
+  content_warning?: string | null;
+  media_attachments?: MediaAttachment[];
+  author?: {
     id: string;
     username: string;
     display_name: string;
     avatar_url?: string;
     domain: string;
+    is_local?: boolean;
   };
-  created_at: string;
-  visibility: 'public' | 'unlisted' | 'followers' | 'direct';
+  created_at?: string;
+  visibility?: 'public' | 'unlisted' | 'followers' | 'direct';
+  url?: string;
 }
 
 // Enhanced Post type with author info for timeline display

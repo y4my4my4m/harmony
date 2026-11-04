@@ -2529,7 +2529,14 @@
     "editedTitle": "Cette publication a été modifiée",
     "replyToUser": "Répondre à {name}",
     "replyingTo": "En réponse à",
-    "viewThread": "Voir le fil",
+    "replyContext": {
+      "contentWarning": "CW : {text}",
+      "attachments": "{count} pièce jointe | {count} pièces jointes",
+      "deleted": "En réponse à une publication supprimée",
+      "hidden": "En réponse à une publication que vous ne pouvez pas voir",
+      "remote": "En réponse à une publication sur {domain}",
+      "loading": "Chargement de la publication à laquelle ceci répond"
+    },
     "viewOriginalPost": "Voir la publication d'origine",
     "viewQuotedPost": "Voir la publication citée",
     "showMore": "Afficher plus",

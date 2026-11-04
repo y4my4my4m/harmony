@@ -2642,7 +2642,14 @@
     "editedTitle": "This post has been edited",
     "replyToUser": "Reply to {name}",
     "replyingTo": "Replying to",
-    "viewThread": "View thread",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "{count} attachment | {count} attachments",
+      "deleted": "Replying to a deleted post",
+      "hidden": "Replying to a post you can't see",
+      "remote": "Replying to a post on {domain}",
+      "loading": "Loading the post this replies to"
+    },
     "viewOriginalPost": "View original post",
     "viewQuotedPost": "View quoted post",
     "showMore": "Show more",

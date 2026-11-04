@@ -153,6 +153,7 @@
               :hide-reply-context="true"
               :detailed="post.id === mainPost?.id"
               :current="post.id === mainPost?.id"
+              :thread-reply-count="post.id === mainPost?.id ? mainReplyCount : undefined"
               :heading-level="2"
               :thread-cue="threadCue(post, index)"
               @reply="handleReply"
@@ -340,6 +341,18 @@ const conversationRoute = computed(() => {
 });
 
 const conversationSize = computed(() => Math.max(threadInfo.value?.totalPosts ?? 0, allPostsInOrder.value.length));
+
+/**
+ * Replies below the opened post that the reader sees, nested ones included. On the top post
+ * this is the header's post count less one: totalPosts walks 50 levels, the descendants list
+ * maxThreadDepth + 1.
+ */
+const mainReplyCount = computed(() => {
+  const below = descendants.value.length;
+  const info = threadInfo.value;
+  const isTop = ancestors.value.length === 0 && !!info && info.rootPostId === mainPost.value?.id;
+  return isTop ? Math.max(below, (info?.totalPosts ?? 1) - 1) : below;
+});
 
 const headerSubtitle = computed(() => {
   const parts: string[] = [];

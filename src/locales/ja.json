@@ -2588,7 +2588,14 @@
     "editedTitle": "この投稿は編集されています",
     "replyToUser": "{name} に返信",
     "replyingTo": "返信先",
-    "viewThread": "スレッドを表示",
+    "replyContext": {
+      "contentWarning": "CW：{text}",
+      "attachments": "{count} 件の添付ファイル | {count} 件の添付ファイル",
+      "deleted": "削除された投稿への返信",
+      "hidden": "表示できない投稿への返信",
+      "remote": "{domain} の投稿への返信",
+      "loading": "返信先の投稿を読み込み中"
+    },
     "viewOriginalPost": "元の投稿を表示",
     "viewQuotedPost": "引用された投稿を表示",
     "showMore": "もっと見る",

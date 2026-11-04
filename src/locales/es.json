@@ -2588,7 +2588,14 @@
     "editedTitle": "Esta publicación ha sido editada",
     "replyToUser": "Responder a {name}",
     "replyingTo": "Respondiendo a",
-    "viewThread": "Ver hilo",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "{count} archivo adjunto | {count} archivos adjuntos",
+      "deleted": "Respondiendo a una publicación eliminada",
+      "hidden": "Respondiendo a una publicación que no puedes ver",
+      "remote": "Respondiendo a una publicación en {domain}",
+      "loading": "Cargando la publicación a la que responde"
+    },
     "viewOriginalPost": "Ver publicación original",
     "viewQuotedPost": "Ver publicación citada",
     "showMore": "Mostrar más",

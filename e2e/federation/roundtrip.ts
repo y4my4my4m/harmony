@@ -47,6 +47,8 @@
 // contexts (FEP-7888) run against a community host of their own (cases/remoteInteractions.ts).
 // A Mastodon quote of a local post, its QuoteRequest and Create in either order, is accepted,
 // stored as a quote and notifies the quoted author once (cases/notif.ts).
+// Reply chains fetched from a second instance, and parents fetched after their replies, are
+// read back as a timeline reads them (cases/social.ts).
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts),
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
@@ -126,6 +128,7 @@ import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
+import { caseSocial } from './cases/social.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2770,6 +2773,15 @@ async function main() {
     })
     await caseInboundPosts({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, env, userToken, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
+    await caseSocial({
+      db, peer, localUrl, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, aliceAuth: ALICE_AUTH },
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)

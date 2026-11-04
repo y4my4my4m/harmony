@@ -2529,7 +2529,14 @@
     "editedTitle": "편집된 게시물입니다",
     "replyToUser": "{name}님에게 답장",
     "replyingTo": "답장 대상",
-    "viewThread": "스레드 보기",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "첨부 파일 {count}개 | 첨부 파일 {count}개",
+      "deleted": "삭제된 게시물에 대한 답장",
+      "hidden": "볼 수 없는 게시물에 대한 답장",
+      "remote": "{domain}의 게시물에 대한 답장",
+      "loading": "답장 대상 게시물을 불러오는 중"
+    },
     "viewOriginalPost": "원본 게시물 보기",
     "viewQuotedPost": "인용된 게시물 보기",
     "showMore": "더 보기",

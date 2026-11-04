@@ -3,8 +3,8 @@
  *
  * The quoted card opens the quoted post on a click anywhere outside its own links and
  * controls; its time is the real link, its author's avatar and name open the profile. A
- * quoted snapshot without a local id resolves its address first. The reply line is one link
- * to the parent post that carries the whole handle in its title.
+ * quoted snapshot without a local id resolves its address first. A reply previews its parent
+ * (ReplyContextPreview) from the context its read embedded, or from its stored remote parent URL.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -86,10 +86,6 @@ vi.mock('@/services/userDataService', () => ({
   },
 }))
 
-vi.mock('@/services/ConversationService', () => ({
-  default: { getConversationNavigationData: vi.fn() },
-}))
-
 vi.mock('@/services/unifiedEmojiService', () => ({
   unicodeToShortcode: () => '',
 }))
@@ -102,8 +98,15 @@ vi.mock('@/services/AdminService', () => ({
   adminService: { refetchRemotePost: vi.fn() },
 }))
 
+const replyContextService = vi.hoisted(() => ({ requestReplyContext: vi.fn() }))
+vi.mock('@/services/replyContext', async () => {
+  const { reactive } = await import('vue')
+  return { replyContextCache: reactive(new Map()), requestReplyContext: replyContextService.requestReplyContext }
+})
+
 import { createPinia } from 'pinia'
 import MonyPost from '../MonyPost.vue'
+import ReplyContextPreview from '../ReplyContextPreview.vue'
 
 const QUOTED_URL = 'https://stats.example/users/apps/statuses/9'
 
@@ -248,8 +251,17 @@ describe('MonyPost quoted card', () => {
   })
 })
 
-describe('MonyPost reply line', () => {
-  const reply = () => reactive({
+describe('MonyPost reply context', () => {
+  const parentContext = {
+    id: 'parent-1',
+    state: 'post',
+    content_preview: 'parent',
+    content: [],
+    author: { id: 'p1', username: 'someone', display_name: 'Someone', domain: 'a.very.long.instance.example' },
+    created_at: '2026-10-19T00:00:00Z',
+    visibility: 'public',
+  }
+  const reply = (extra: Record<string, unknown> = {}) => reactive({
     id: 'reply-1',
     author_id: author.id,
     author,
@@ -263,24 +275,49 @@ describe('MonyPost reply line', () => {
     media_attachments: [],
     metadata: {},
     in_reply_to: 'parent-1',
-    reply_context: {
-      id: 'parent-1',
-      content_preview: 'parent',
-      content: [],
-      author: { id: 'p1', username: 'someone', display_name: 'Someone', domain: 'a.very.long.instance.example' },
-      created_at: '2026-10-19T00:00:00Z',
-      visibility: 'public',
-    },
+    reply_context: parentContext,
+    ...extra,
   }) as any
 
-  it('is one link to the parent post with the whole handle in its title', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('previews the parent its read embedded, with the reply to highlight', () => {
     const wrapper = mountPost(reply())
-    const line = wrapper.getComponent<typeof RouterLink>('[data-testid="post-reply-line"]')
-    expect(line.props('to')).toEqual({ name: 'PostDetail', params: { postId: 'parent-1' } })
-    expect(line.attributes('title')).toBe('activitypub.replyingTo @someone@a.very.long.instance.example')
-    expect(line.text()).toBe('activitypub.replyingTo @someone@a.very.long.instance.example')
-    expect(line.classes()).toContain('reply-line-target')
-    expect(wrapper.get('.reply-line .reply-line-thread').text()).toBe('activitypub.viewThread')
+    const preview = wrapper.getComponent(ReplyContextPreview)
+    expect(preview.props('context')).toEqual(parentContext)
+    expect(preview.props('replyId')).toBe('reply-1')
+    expect(preview.props('loading')).toBe(false)
+    expect(replyContextService.requestReplyContext).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('names the stored remote parent of a reply whose parent is not stored', () => {
+    const url = 'https://meow.example/users/toonie/statuses/7'
+    const wrapper = mountPost(reply({ in_reply_to: null, reply_context: undefined, metadata: { in_reply_to_ap_url: url } }))
+    expect(wrapper.getComponent(ReplyContextPreview).props('context')).toEqual({ id: null, state: 'remote', url })
+    wrapper.unmount()
+  })
+
+  it('shows a reply read without its parent as loading until the batch read lands', () => {
+    const wrapper = mountPost(reply({ reply_context: undefined }))
+    const preview = wrapper.getComponent(ReplyContextPreview)
+    expect(preview.props('context')).toBeNull()
+    expect(preview.props('loading')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('previews nothing inside a thread, where the parent sits above', () => {
+    const wrapper = mount(MonyPost, {
+      props: { post: reply(), isInThread: true, hideReplyContext: true },
+      shallow: true,
+      global: {
+        plugins: [createPinia()],
+        directives: { 'click-outside': {} },
+        stubs: { RouterLink, MonyContent, AppTimestamp: { template: '<time>1d</time>' } },
+      },
+    })
+    expect(wrapper.findComponent(ReplyContextPreview).exists()).toBe(false)
+    expect(replyContextService.requestReplyContext).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

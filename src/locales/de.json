@@ -2529,7 +2529,14 @@
     "editedTitle": "Dieser Beitrag wurde bearbeitet",
     "replyToUser": "{name} antworten",
     "replyingTo": "Antwort an",
-    "viewThread": "Thread anzeigen",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "{count} Anhang | {count} Anhänge",
+      "deleted": "Antwort auf einen gelöschten Beitrag",
+      "hidden": "Antwort auf einen Beitrag, den du nicht sehen kannst",
+      "remote": "Antwort auf einen Beitrag auf {domain}",
+      "loading": "Beitrag wird geladen, auf den dies antwortet"
+    },
     "viewOriginalPost": "Originalbeitrag anzeigen",
     "viewQuotedPost": "Zitierten Beitrag anzeigen",
     "showMore": "Mehr anzeigen",

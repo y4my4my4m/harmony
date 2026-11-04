@@ -4,6 +4,7 @@ import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { trendingService } from './TrendingService';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { REPLY_PARENT_EMBED, withReplyContext } from '@/services/replyContext';
 
 const POST_AUTHOR_COLUMNS = `
     id, username, display_name, avatar_url, color, domain, is_local, is_suspended,
@@ -117,6 +118,7 @@ export class ActivityPubService {
       .select(`
         *,
         ${POST_AUTHOR_EMBED},
+        ${REPLY_PARENT_EMBED},
         my_interactions:post_interactions!left(interaction_type, emoji_id)
       `)
       .eq('my_interactions.user_id', userId)
@@ -138,7 +140,7 @@ export class ActivityPubService {
       .map((post: any) => {
         const interactions = post.my_interactions || [];
         return {
-          ...post,
+          ...withReplyContext(post),
           is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
           is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
           is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
@@ -163,6 +165,7 @@ export class ActivityPubService {
         .select(`
           *,
           ${POST_AUTHOR_EMBED},
+          ${REPLY_PARENT_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -184,7 +187,7 @@ export class ActivityPubService {
         .map((post: any) => {
           const interactions = post.my_interactions || [];
           return {
-            ...post,
+            ...withReplyContext(post),
             is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
             is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
             is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
@@ -473,7 +476,8 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          ${POST_AUTHOR_EMBED}
+          ${POST_AUTHOR_EMBED},
+          ${REPLY_PARENT_EMBED}
         `)
         .textSearch('content', query)
         .eq('visibility', 'public')
@@ -483,7 +487,7 @@ export class ActivityPubService {
 
       if (error) throw error;
       
-      return (data || []).filter(post => !post.author?.is_suspended) as TimelinePost[];
+      return (data || []).filter(post => !post.author?.is_suspended).map(withReplyContext) as TimelinePost[];
     } catch (error) {
       debug.error('Failed to search posts:', error);
       return [];
@@ -525,7 +529,7 @@ export class ActivityPubService {
       // limit + 1 rows: the extra row signals hasMore.
       let query = supabase
         .from('posts')
-        .select(`*, ${POST_AUTHOR_EMBED_INNER}`)
+        .select(`*, ${POST_AUTHOR_EMBED_INNER}, ${REPLY_PARENT_EMBED}`)
         .eq('author.domain', domain)
         .eq('visibility', 'public')
         .eq('is_deleted', false)
@@ -539,7 +543,7 @@ export class ActivityPubService {
       const { data, error } = await query;
       if (error) throw error;
 
-      const posts = (data || []).slice(0, limit) as TimelinePost[];
+      const posts = (data || []).slice(0, limit).map(withReplyContext) as TimelinePost[];
       const hasMore = (data || []).length > limit;
       const nextCursor = hasMore && data && data.length > 1 ? data[data.length - 2].created_at : null;
 
@@ -560,8 +564,8 @@ export class ActivityPubService {
     const currentProfileId = await this.getCurrentProfileId().catch(() => null);
 
     const selectClause = currentProfileId
-      ? `*, ${POST_AUTHOR_EMBED}, my_interactions:post_interactions!left(interaction_type)`
-      : `*, ${POST_AUTHOR_EMBED}`;
+      ? `*, ${POST_AUTHOR_EMBED}, ${REPLY_PARENT_EMBED}, my_interactions:post_interactions!left(interaction_type)`
+      : `*, ${POST_AUTHOR_EMBED}, ${REPLY_PARENT_EMBED}`;
 
     // Followers-only posts reach the author, accepted followers and accounts they
     // mention through posts_select_public; direct posts stay off profiles.
@@ -592,7 +596,7 @@ export class ActivityPubService {
     const posts = (data || []).map((post: any) => {
       const interactions = post.my_interactions || [];
       return {
-        ...post,
+        ...withReplyContext(post),
         is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
         is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
@@ -1619,7 +1623,7 @@ export class ActivityPubService {
           .map((post: any) => {
             const interactions = post.my_interactions || [];
             return {
-              ...post,
+              ...withReplyContext(post),
               is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
               is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
               is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
@@ -1646,6 +1650,7 @@ export class ActivityPubService {
         .select(`
           *,
           ${POST_AUTHOR_EMBED},
+          ${REPLY_PARENT_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -1655,6 +1660,7 @@ export class ActivityPubService {
         .select(`
           *,
           ${POST_AUTHOR_EMBED},
+          ${REPLY_PARENT_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -1665,6 +1671,7 @@ export class ActivityPubService {
         .select(`
           *,
           ${POST_AUTHOR_EMBED},
+          ${REPLY_PARENT_EMBED},
           my_interactions:post_interactions!left(interaction_type, emoji_id)
         `)
         .eq('my_interactions.user_id', userId)
@@ -1690,7 +1697,7 @@ export class ActivityPubService {
       .map((post: any) => {
         const interactions = post.my_interactions || [];
         return {
-          ...post,
+          ...withReplyContext(post),
           is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
           is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
           is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
@@ -1915,13 +1922,15 @@ export class ActivityPubService {
         .from('posts')
         .select(`
           *,
-          author:profiles(*)
+          author:profiles(*),
+          ${REPLY_PARENT_EMBED}
         `)
         .eq('id', postId)
         .single();
 
       if (error) throw error;
       if (!data) return null;
+      const { reply_context: replyContext } = withReplyContext(data);
 
       return {
         id: data.id,
@@ -1934,7 +1943,8 @@ export class ActivityPubService {
         ap_id: data.ap_id,
         ap_type: data.ap_type,
         url: data.url,
-        reply_context: data.reply_context,
+        in_reply_to: data.in_reply_to,
+        reply_context: replyContext,
         conversation_id: data.conversation_id,
         visibility: data.visibility,
         is_local: data.is_local,
