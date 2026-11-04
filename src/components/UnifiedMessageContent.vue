@@ -242,7 +242,7 @@
           aria-haspopup="dialog"
           :aria-expanded="openRoleCard?.part === part"
           @click="toggleRoleCard(part, $event)"
-        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ roleMentionName(part) }}</button></InlineMarks>
+        >@{{ roleMentionName(part) }}</button></InlineMarks>
         
         <!-- Hashtags -->
         <InlineMarks
@@ -1938,7 +1938,7 @@ export default defineComponent({
     /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
     const roleMentionStyle = (part: any) => {
       const color = roleMentionColor(part?.roleColor);
-      return { '--role-color': color, color, backgroundColor: color + '1a' };
+      return { color, backgroundColor: color + '1a' };
     };
 
     const openRoleCard = ref<{ part: any; anchor: { left: number; top: number; bottom: number }; pill: HTMLElement } | null>(null);
@@ -2426,17 +2426,6 @@ a.channel-mention {
 
 .role-mention:hover {
   filter: brightness(1.15);
-}
-
-/* Role marker: a dot of the role's colour, absent from a person's pill. */
-.role-mention .role-mention-dot {
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin: 0 0.25em 0.1em 0.1em;
-  border-radius: 50%;
-  background-color: var(--role-color);
-  vertical-align: middle;
 }
 
 /* Hashtag styling */
