@@ -306,6 +306,73 @@ Authentik's `email` scope sends `email_verified`; see
 [First sign-in and existing accounts](#first-sign-in-and-existing-accounts)
 for when it matters.
 
+### Dex
+
+Dex is the smallest OIDC provider that speaks LDAP, so it is the usual way to
+put an instance's existing directory behind Harmony. Two things are easy to get
+wrong: the client has to exist in Dex's own configuration, and a provider on
+the same machine usually fails the
+[public address](#requirements) requirement.
+
+Register the client in Dex's config (`staticClients`), with the callback from
+[step 1](#1-register-harmony-with-the-provider):
+
+```yaml
+staticClients:
+- id: harmony
+  name: Harmony
+  secret: <a long random string>
+  redirectURIs:
+  - https://db.chat.example.com/auth/v1/callback
+```
+
+```bash
+harmony auth add-provider dex --name Dex \
+  --issuer https://sso.example.com/dex \
+  --client-id harmony
+```
+
+The issuer is where Dex is served, path included, without a trailing slash;
+`curl -s https://sso.example.com/dex/.well-known/openid-configuration | jq -r .issuer`
+prints exactly what `--issuer` wants. Dex signs with RS256 by default, and its
+`email` scope sends `email_verified: true` for a connector that verifies
+passwords.
+
+**YunoHost's packaged Dex.** The `dex` app installs a provider backed by the
+instance's LDAP users and can register Harmony's client during installation, so
+there is no config file to edit:
+
+```bash
+yunohost app install dex -a "domain=nexus.example.com&path=/dex&oidc_name=harmony&oidc_secret=<a long random string>&oidc_callback=db.chat.example.com/auth/v1/callback"
+```
+
+`oidc_callback` takes the callback **without** `https://` — the app prepends the
+scheme. The issuer is then `https://nexus.example.com/dex`. With that app, the
+sign-in service's rules leave `name` as the only claim: no `preferred_username`,
+no picture, so the username on the first sign-in is the local part of the
+address, and the display name is the LDAP name.
+
+#### A provider on the same machine
+
+When the instance and the provider share a host, the provider's name often
+resolves to a LAN address *from inside the `auth` container* even though it is
+public from outside. The sign-in service refuses that, and the message
+(`URL cannot resolve to private network addresses`) names no remedy. Give the
+containers that consult the issuer the public address:
+
+```yaml
+# self-host/docker-compose.override.yml
+services:
+  auth:
+    extra_hosts:
+      - "sso.example.com:203.0.113.10"
+```
+
+`harmony admin.sh auth` runs inside `federation-server`, which checks the issuer
+too, so list it as well if the provider is added that way. Keep this in an
+override: `harmony update` recreates the containers, and a line added to a
+running container's `/etc/hosts` disappears with it.
+
 ### Any other OIDC provider
 
 Keycloak, Zitadel, Better Auth's OAuth provider, Dex, Kanidm and the like
@@ -471,3 +538,4 @@ UPDATE public.instance_config
 | Back on Harmony: `Signups not allowed for this instance` | Registration is `invite` or `closed` | `harmony registration open`, or invite the person first |
 | A JSON page saying `custom provider custom:ID not found` | The button outlived its provider | `harmony auth remove-provider ID` |
 | No button | The provider has no entry in `instance_config` (`harmony auth providers` shows `no button`) | Run `harmony auth add-provider ID` again |
+| `harmony auth providers` answers `HTTP 502: An invalid response was received from the upstream server` after `docker compose up -d` recreated `auth` | The API gateway still points at the container's previous address | `docker compose restart kong` |
