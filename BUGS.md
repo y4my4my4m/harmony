@@ -150,10 +150,15 @@ Also fixed (same pass):
 
 ### Bot infrastructure
 
+The Discord bridge is no longer a directory in this repository: it moved to
+[`harmony-discord-bridge`](https://github.com/y4my4my4m/harmony-discord-bridge) and talks to
+`bot-gateway` over WebSocket + REST (`bot-plugins/README.md`). Rows below that name
+`bot-plugins/discord-bridge/src/` are in that repository now.
+
 | # | Bug | Location |
 |---|-----|----------|
-| H41 | Discord mention resolution can ping wrong user (username-only cache) | `bot-plugins/discord-bridge/src/` |
-| H42 | Unresolved plain-text `@mentions` create bogus Harmony mentions (`unresolved-${username}`) | `bot-plugins/discord-bridge/src/` |
+| H41 | Discord mention resolution can ping wrong user (username-only cache) | [`harmony-discord-bridge`](https://github.com/y4my4my4m/harmony-discord-bridge) — `src/MessageTranslator.ts` takes the lookup as `(username, domain)`, so the cache the runtime passes in is the piece that decides whether two Discord users with the same name can collide |
+| H42 | Unresolved plain-text `@mentions` create bogus Harmony mentions (`unresolved-${username}`) | [`harmony-discord-bridge`](https://github.com/y4my4my4m/harmony-discord-bridge) — `buildHarmonyMentionPart()` writes `unresolved-<username>`, while the composer writes `unresolved-<user>@<host>` (`src/utils/unifiedContentProcessing.ts`) and `MessageDisplay.resolveNonUuidProfile()` only matches the latter (`/^unresolved-([^@]+)@(.+)$/`), so a bridge mention can never resolve |
 
 ### Lifecycle / leaks
 
