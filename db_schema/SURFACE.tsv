@@ -991,7 +991,7 @@ upsert_server_automod_rule	p_server_id uuid, p_rule jsonb	jsonb	definer	public, 
 user_has_encryption	p_user_id uuid	boolean	invoker	public, extensions, pg_temp	service_role	unreferenced
 verify_bot_token	p_token_hash text	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 verify_my_password	p_password text	boolean	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
-verify_recovery_code	p_user_id uuid, p_code text	boolean	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
+verify_recovery_code	p_user_id uuid, p_code text	boolean	definer	pg_catalog, public, pg_temp	authenticated+service_role	unreferenced
 voice_activity_control	p_channel uuid, p_action text, p_value jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
 voice_activity_drop_share	p_share uuid	void	definer	public, pg_temp	service_role	unreferenced
 voice_activity_item	p_source text, p_item jsonb, p_profile uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
