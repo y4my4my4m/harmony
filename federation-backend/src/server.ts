@@ -42,9 +42,11 @@ import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 import threadRouter from './activitypub/threadRoutes.js';
 import instanceActorRouter from './activitypub/InstanceActor.js';
+import serverDirectoryRouter from './activitypub/serverDirectory.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
+import directoryRouter from './routes/directory.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
@@ -165,12 +167,14 @@ export function createApp(): Application {
   app.use('/', publicPagesRouter);
   app.use('/', invitePageRouter);
   app.use('/', driveLinkPageRouter);
-  // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
-  // with groupRouter's /servers/:serverId (which would match serverId='discover')
+  // serverDiscoveryRouter and serverDirectoryRouter before groupRouter: /servers/discover and
+  // /servers/directory must not collide with groupRouter's /servers/:serverId
+  app.use('/', serverDirectoryRouter);
   app.use('/', serverDiscoveryRouter);
   app.use('/', groupRouter);
   app.use('/', threadRouter);
   app.use('/', instanceProbeRouter);
+  app.use('/', directoryRouter);
   app.use('/', actorRouter);
   app.use('/', inboxRouter);
 

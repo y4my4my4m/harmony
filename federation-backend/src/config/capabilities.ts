@@ -20,6 +20,9 @@ export const CAPABILITIES = [
   // The stickers table and bucket, create_sticker, update_sticker, delete_sticker and
   // create_report's p_reported_sticker_id (20261031200001).
   'custom-stickers',
+  // Server directories: servers.federation_discoverable written through update_server,
+  // GET /servers/directory, GET /directory/remote and /directory/peers (20261105100001).
+  'server-directory',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

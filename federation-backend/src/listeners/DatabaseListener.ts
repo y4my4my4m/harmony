@@ -22,6 +22,7 @@ import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberG
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { channelPosition, HARMONY_ROLES } from '../activitypub/copyMirror.js';
 import { loadApRoles } from '../activitypub/GroupService.js';
+import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -369,6 +370,7 @@ export async function startDatabaseListener(): Promise<void> {
              payload.old.icon !== payload.new.icon ||
              payload.old.banner !== payload.new.banner ||
              payload.old.public !== payload.new.public ||
+             payload.old.federation_discoverable !== payload.new.federation_discoverable ||
              payload.old.suspended_at !== payload.new.suspended_at ||
              payload.old.suspended_reason !== payload.new.suspended_reason)) {
           logger.info('Server updated:', {
@@ -941,10 +943,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
     const bannerUrl = getFullServerBannerUrl(server.banner) ?? undefined;
 
     const activity = {
-      '@context': [
-        'https://www.w3.org/ns/activitystreams',
-        HARMONY_CONTEXT,
-      ],
+      '@context': DIRECTORY_CONTEXT,
       id: `${serverUrl}/activities/${crypto.randomUUID()}`,
       type: 'Update',
       actor: serverUrl,
@@ -955,7 +954,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         summary: server.description,
         icon: iconUrl ? { type: 'Image', url: iconUrl } : null,
         image: bannerUrl ? { type: 'Image', url: bannerUrl } : null,
-        discoverable: server.public === true,
+        ...groupDiscoverability(server, await instanceFederationOpen()),
         'harmony:ChatServer': true,
         'harmony:acceptsReports': true,
         'harmony:suspended': server.suspended_at

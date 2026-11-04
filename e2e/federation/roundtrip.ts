@@ -52,6 +52,8 @@
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
 // Bot, webhook and bridged messages are the Group's Notes with harmony:author, each way
 // (cases/groupAuthored.ts).
+// Server directories are published and read, signed, and a listed Group is joined from one
+// (cases/discovery.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
@@ -123,6 +125,7 @@ import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
+import { caseDiscovery } from './cases/discovery.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2920,6 +2923,16 @@ async function main() {
         hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, hiddenChannel: PRIV_SECRET,
         remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
+    })
+    await caseDiscovery({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, get, signedGetHeaders, assert, eq,
+      aliceAuth: ALICE_AUTH,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, pubServer: PUB_SERVER, privServer: PRIV_SERVER },
     })
     // Last: suspending the peer's account removes it from servers hosted here.
     await caseHostStaff({

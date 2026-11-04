@@ -34,6 +34,7 @@ import {
 } from './channelWriteAuthz.js';
 import { HARMONY_CONTEXT } from './harmonyContext.js';
 import { parseChannelPosition } from './copyMirror.js';
+import { groupIsPublic, HARMONY_PUBLIC } from './serverDirectory.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -1272,9 +1273,9 @@ async function processUpdateActivity(
     } else if (object.image === null) {
       updateData.banner = null;
     }
-    // AP 'discoverable' maps to servers.public.
-    if (object.discoverable !== undefined) {
-      updateData.public = object.discoverable;
+    // harmony:public, else `discoverable` as hosts before 1.9.3 wrote it (groupIsPublic).
+    if (typeof object[HARMONY_PUBLIC] === 'boolean' || object.discoverable !== undefined) {
+      updateData.public = groupIsPublic(object);
     }
     
     const { error: updateError } = await supabase

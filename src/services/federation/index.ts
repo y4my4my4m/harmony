@@ -24,5 +24,9 @@ export type {
   InviteInfo,
   JoinServerResult,
   LeaveServerResult,
-  DiscoverServerResult 
+  DiscoverServerResult,
+  DirectoryServer,
+  DirectoryPage,
+  DirectoryPeer,
+  DirectoryRefusal,
 } from './FederationServerService'

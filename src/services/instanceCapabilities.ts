@@ -16,6 +16,7 @@ export const KNOWN_CAPABILITIES = [
   'channel-create-options',
   'instance-staff-roles',
   'custom-stickers',
+  'server-directory',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

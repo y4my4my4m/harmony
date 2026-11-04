@@ -396,6 +396,7 @@ federation_history_cutoffs	definer	jsonb	service_role	client	rpc in federation-b
 federation_media_access	definer	boolean	service_role	client	rpc in federation-backend/src/routes/media.ts
 federation_post_access	definer	boolean	service_role	client	named in federation-backend/src/__tests__/postObjectAccess.test.ts, federation-backend/src/activitypub/postAccess.ts
 federation_room_media_access	definer	boolean	service_role	client	called by federation_media_access
+federation_server_directory	invoker	TABLE(id uuid, slug text, name text, description text, icon text, banner text, category text, created_at timestamp with time zone, updated_at timestamp with time zone, member_count bigint, total_count bigint)	service_role	client	rpc in federation-backend/src/activitypub/serverDirectory.ts
 federation_server_recipients	definer	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	service_role	client	rpc in federation-backend/src/utils/federationUtils.ts
 fetch_link_preview	definer	jsonb	service_role	trigger	called by process_local_link_previews
 finalize_dm_call_message	definer	void	anon+authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
@@ -717,6 +718,7 @@ recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in f
 record_ai_emoji_generation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT (record_ai_emoji_generation)
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 record_instance_branding	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/instanceBranding.ts
+record_instance_directory	definer	boolean	service_role	client	rpc in federation-backend/src/services/RemoteDirectoryService.ts
 record_instance_nodeinfo	definer	text	service_role	client	rpc in federation-backend/src/activitypub/instanceSoftware.ts
 record_instance_software	definer	text	service_role	client	rpc in federation-backend/src/activitypub/instanceSoftware.ts
 record_metric	definer	uuid	service_role	client	called by record_slow_query

@@ -8,35 +8,80 @@
     >
       <PublicServersHeader @close="closeModal" />
 
-      <PublicServersSearch
-        v-model:search-query="searchQuery"
-        v-model:selected-category="selectedCategory"
-        :is-searching="publicServersStore.isSearching"
-        :has-active-filter="publicServersStore.hasActiveFilter"
-        :categories="publicServersStore.categories"
-        :total-servers="publicServersStore.totalServers"
-        :filtered-count="publicServersStore.filteredServers.length"
+      <!-- This instance's public servers, or another instance's server directory. -->
+      <div
+        v-if="remoteDirectoryAvailable"
+        class="discovery-tabs"
+        role="tablist"
+        :aria-label="$t('federation.directory.tabsLabel')"
+        @keydown="onTabKeydown"
+      >
+        <button
+          v-for="tab in TABS"
+          :id="`discovery-tab-${tab}`"
+          :key="tab"
+          :ref="(el) => { tabEls[tab] = el as HTMLButtonElement | null }"
+          type="button"
+          role="tab"
+          class="discovery-tab"
+          :class="{ 'discovery-tab--active': activeTab === tab }"
+          :aria-selected="activeTab === tab"
+          :aria-controls="`discovery-panel-${tab}`"
+          :tabindex="activeTab === tab ? 0 : -1"
+          :data-testid="`discovery-tab-${tab}`"
+          @click="activeTab = tab"
+        >
+          <Icon :name="tab === 'local' ? 'compass' : 'globe'" :size="16" />
+          {{ tab === 'local' ? $t('federation.directory.thisInstance') : $t('federation.directory.otherInstances') }}
+        </button>
+      </div>
+
+      <RemoteDirectory
+        v-if="remoteDirectoryAvailable && activeTab === 'remote'"
+        id="discovery-panel-remote"
+        role="tabpanel"
+        aria-labelledby="discovery-tab-remote"
+        @join="joinFromDirectory"
+        @open="handleOpenServer"
       />
 
-      <PublicServersContent
-        :servers="publicServersStore.filteredServers"
-        :featured-servers="publicServersStore.hasActiveFilter ? [] : publicServersStore.featuredServers"
-        :is-loading="publicServersStore.isInitialLoading"
-        :is-empty="publicServersStore.isEmpty"
-        :is-empty-results="isEmptyResults"
-        :search-query="publicServersStore.searchQuery"
-        :joined-server-ids="joinedServerIds"
-        :loading-server-ids="loadingServerIds"
-        :error="publicServersStore.error"
-        @join-server="handleJoinServer"
-        @open-server="handleOpenServer"
-        @view-owner-profile="handleViewOwnerProfile"
-        @refresh="publicServersStore.retry()"
-      />
+      <div
+        v-else
+        id="discovery-panel-local"
+        class="discovery-panel"
+        :role="remoteDirectoryAvailable ? 'tabpanel' : undefined"
+        :aria-labelledby="remoteDirectoryAvailable ? 'discovery-tab-local' : undefined"
+      >
+        <PublicServersSearch
+          v-model:search-query="searchQuery"
+          v-model:selected-category="selectedCategory"
+          :is-searching="publicServersStore.isSearching"
+          :has-active-filter="publicServersStore.hasActiveFilter"
+          :categories="publicServersStore.categories"
+          :total-servers="publicServersStore.totalServers"
+          :filtered-count="publicServersStore.filteredServers.length"
+        />
+
+        <PublicServersContent
+          :servers="publicServersStore.filteredServers"
+          :featured-servers="publicServersStore.hasActiveFilter ? [] : publicServersStore.featuredServers"
+          :is-loading="publicServersStore.isInitialLoading"
+          :is-empty="publicServersStore.isEmpty"
+          :is-empty-results="isEmptyResults"
+          :search-query="publicServersStore.searchQuery"
+          :joined-server-ids="joinedServerIds"
+          :loading-server-ids="loadingServerIds"
+          :error="publicServersStore.error"
+          @join-server="handleJoinServer"
+          @open-server="handleOpenServer"
+          @view-owner-profile="handleViewOwnerProfile"
+          @refresh="publicServersStore.retry()"
+        />
+      </div>
 
       <PublicServersFooter
         @create-server="showCreateServerForm = true"
-        @join-by-url="showJoinFederatedServer = true"
+        @join-by-url="openJoinFederatedServer()"
       />
     </div>
 
@@ -48,7 +93,8 @@
 
     <JoinFederatedServer
       v-if="showJoinFederatedServer"
-      @close="showJoinFederatedServer = false"
+      :initial-url="joinUrl"
+      @close="closeJoinFederatedServer"
       @joined="closeModal"
     />
 
@@ -81,6 +127,10 @@ import PublicServersFooter from '@/components/PublicServers/PublicServersFooter.
 import CreateServerForm from '@/components/CreateServer.vue'
 import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
+import RemoteDirectory from '@/components/PublicServers/RemoteDirectory.vue'
+import Icon from '@/components/common/Icon.vue'
+import { hasCapability } from '@/services/instanceCapabilities'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 
 interface Emits {
   (e: 'close'): void
@@ -103,6 +153,46 @@ const showJoinFederatedServer = ref(false)
 const loadingServerIds = ref<Set<string>>(new Set())
 const showUserProfile = ref(false)
 const selectedUser = ref<any>(null)
+const joinUrl = ref<string | undefined>(undefined)
+
+const TABS = ['local', 'remote'] as const
+type DiscoveryTab = (typeof TABS)[number]
+const activeTab = ref<DiscoveryTab>('local')
+const tabEls: Record<DiscoveryTab, HTMLButtonElement | null> = { local: null, remote: null }
+const instanceSettings = useInstanceSettingsStore()
+// Another instance's directory is read by this instance's backend, which reads none while either
+// federation switch is off.
+const remoteDirectoryAvailable = computed(() => {
+  const s = instanceSettings.settings
+  return hasCapability('server-directory') && s.federationEnabled && s.federationInboundEnabled && s.federationOutboundEnabled
+})
+
+// Arrow keys, Home and End move between the tabs (WAI-ARIA tabs, automatic activation).
+function onTabKeydown(event: KeyboardEvent) {
+  const index = TABS.indexOf(activeTab.value)
+  let next: number
+  if (event.key === 'ArrowRight') next = (index + 1) % TABS.length
+  else if (event.key === 'ArrowLeft') next = (index - 1 + TABS.length) % TABS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = TABS.length - 1
+  else return
+  event.preventDefault()
+  activeTab.value = TABS[next]
+  tabEls[TABS[next]]?.focus()
+}
+
+function openJoinFederatedServer(url?: string) {
+  joinUrl.value = url
+  showJoinFederatedServer.value = true
+}
+
+function closeJoinFederatedServer() {
+  showJoinFederatedServer.value = false
+  joinUrl.value = undefined
+}
+
+// A Group listed in another instance's directory joins through Join by URL.
+const joinFromDirectory = (groupId: string) => openJoinFederatedServer(groupId)
 
 const joinedServerIds = computed(() => {
   return new Set(serverChannelStore.servers.map((server: any) => server.id))
@@ -254,6 +344,51 @@ onBeforeUnmount(() => {
   to { opacity: 1; }
 }
 
+.discovery-tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-6) 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.discovery-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: -1px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.discovery-tab:hover {
+  color: var(--text-primary);
+}
+
+.discovery-tab:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.discovery-tab--active {
+  color: var(--text-primary);
+  border-bottom-color: var(--harmony-primary);
+}
+
+.discovery-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .public-servers-modal {
   background: var(--background-primary);
   border-radius: var(--radius-xl);
@@ -278,6 +413,10 @@ onBeforeUnmount(() => {
   .public-servers-overlay {
     padding: 0;
     align-items: stretch;
+  }
+
+  .discovery-tabs {
+    padding: var(--space-1) var(--space-4) 0;
   }
 
   .public-servers-modal {

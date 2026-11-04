@@ -47,6 +47,7 @@ import {
   type PinsAdvert,
 } from '../activitypub/copyMirror.js';
 import { CopyMirrorService } from './CopyMirrorService.js';
+import { groupIsPublic } from '../activitypub/serverDirectory.js';
 
 const router = Router();
 
@@ -204,7 +205,8 @@ router.get(
           };
         }),
         inbox: serverData.inbox,
-        discoverable: serverData.discoverable !== false,
+        // Whether anyone may join (groupIsPublic), not the Group's toot:discoverable.
+        discoverable: groupIsPublic(serverData),
         // Null when the Group does not say (instances before 1.8.10) or is this instance's own.
         federationEnabled: !ownInstance && typeof serverData['harmony:federationEnabled'] === 'boolean'
           ? serverData['harmony:federationEnabled']
@@ -667,7 +669,7 @@ router.post(
 
     // Public servers: accept immediately so the user can interact right away.
     // Private servers: stay pending until we get an Accept from the remote.
-    const isPublicServer = localServer.public !== false && remoteServer.discoverable !== false;
+    const isPublicServer = localServer.public !== false && groupIsPublic(remoteServer);
     const initialStatus = isPublicServer ? 'accepted' : 'pending';
 
     const joinActivity = ServerDiscoveryService.createJoinActivity(
@@ -1613,7 +1615,7 @@ export class ServerDiscoveryService {
         federation_inbox_url: remoteServer.inbox,
         is_local_server: false,
         host_domain: hostDomain,
-        public: remoteServer.discoverable !== false,
+        public: groupIsPublic(remoteServer),
         federation_metadata: {
           outbox: remoteServer.outbox,
           members: remoteServer.members,
@@ -1976,7 +1978,7 @@ export class ServerDiscoveryService {
           description: remoteServer.summary,
           icon: remoteServer.icon?.url ?? null,
           banner: remoteServer.image?.url || null,
-          public: remoteServer.discoverable !== false,
+          public: groupIsPublic(remoteServer),
           ...(owner === undefined ? {} : { owner }),
           ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {

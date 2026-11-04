@@ -1,7 +1,8 @@
 import type { Server } from '@/types'
 
 // Columns update_server writes (db_schema/migrations/20261006400001_server_category.sql,
-// sidebar_banner from 20261014100002_server_sidebar_banner.sql); it refuses any other key.
+// sidebar_banner from 20261014100002_server_sidebar_banner.sql, federation_discoverable from
+// 20261105100001_server_federation_directory.sql); it refuses any other key.
 export const SERVER_SETTINGS_KEYS = [
   'name',
   'description',
@@ -13,6 +14,7 @@ export const SERVER_SETTINGS_KEYS = [
   'rules',
   'category',
   'sidebar_banner',
+  'federation_discoverable',
 ] as const
 
 export type ServerSettingsKey = (typeof SERVER_SETTINGS_KEYS)[number]

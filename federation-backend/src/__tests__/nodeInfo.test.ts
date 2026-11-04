@@ -114,6 +114,11 @@ describe('NodeInfo usage', () => {
     })
   })
 
+  it.each(['2.0', '2.1'])('%s names the server directory in metadata', async (version) => {
+    const res = await supertest(app()).get(`/nodeinfo/${version}`)
+    expect(res.body.metadata.serverDirectory).toBe('https://harmony.test/servers/directory')
+  })
+
   it('computes the usage once per 10 minutes', async () => {
     await supertest(app()).get('/nodeinfo/2.0')
     await supertest(app()).get('/nodeinfo/2.1')

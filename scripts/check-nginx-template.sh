@@ -121,6 +121,10 @@ for c in likes shares replies context; do
   expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
 done
 expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+# The server directory (OrderedCollection and pages) and its readers under /api/federation.
+expect "$MASTODON" /servers/directory 'backend /servers/directory'
+expect "$FIREFOX"  '/servers/directory?page=1' 'backend /servers/directory?page=1'
+expect "$FIREFOX"  '/api/federation/directory/remote?domain=a.example' 'backend /directory/remote?domain=a.example'
 THREAD=/threads/00000000-0000-0000-0000-000000000004
 THREADS=/channels/00000000-0000-0000-0000-000000000005/threads
 for p in $THREAD $THREAD/members "$THREAD/members?page=1" $THREADS "$THREADS?page=1"; do

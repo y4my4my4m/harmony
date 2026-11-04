@@ -35,6 +35,7 @@ import {
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote, SYSTEM_NOTE_TYPES } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
+import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.js';
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
 import { groupAuthorOf } from './groupAuthor.js';
 import {
@@ -75,6 +76,7 @@ function serverToGroup(
   hostDomain: string,
   publicKeyPem: string | null,
   display: { roles: ApRole[] | null; pins: Map<string, PinSummary> | null } = { roles: null, pins: null },
+  instanceOpen = false,
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
@@ -86,6 +88,8 @@ function serverToGroup(
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
       {
+        toot: 'http://joinmastodon.org/ns#',
+        discoverable: 'toot:discoverable',
         harmony: HARMONY_NS,
         'ChatServer': 'harmony:ChatServer',
         'TextChannel': 'harmony:TextChannel',
@@ -168,8 +172,8 @@ function serverToGroup(
       };
     }),
     
-    // Discoverability and federation settings
-    discoverable: server.public === true,
+    // Listed across federation, and open to anyone (serverDirectory.ts).
+    ...groupDiscoverability(server, instanceOpen),
     manuallyApprovesFollowers: false, // Auto-accept joins for public servers
     
     // Key of the Group's own activities (ServerActor.ts).
@@ -463,6 +467,7 @@ router.get(
       config.INSTANCE_DOMAIN,
       publicKeyPem,
       { roles: await loadApRoles(supabase, server.id, serverUrl), pins },
+      await instanceFederationOpen(),
     );
 
     res.setHeader('Content-Type', 'application/activity+json');

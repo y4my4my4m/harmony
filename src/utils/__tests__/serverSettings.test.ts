@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { SERVER_SETTINGS_KEYS, diffServerSettings, pickServerSettings } from '../serverSettings'
 
 describe('SERVER_SETTINGS_KEYS', () => {
-  // Mirrors v_writable in update_server, db_schema/migrations/20261006400001_server_category.sql.
+  // Mirrors v_writable in update_server, db_schema/migrations/20261105100001_server_federation_directory.sql.
   it('match the columns update_server writes', () => {
     expect([...SERVER_SETTINGS_KEYS]).toEqual([
       'name', 'description', 'icon', 'banner', 'public', 'federation_enabled',
-      'allow_cross_server_emojis', 'rules', 'category', 'sidebar_banner',
+      'allow_cross_server_emojis', 'rules', 'category', 'sidebar_banner', 'federation_discoverable',
     ])
   })
 })

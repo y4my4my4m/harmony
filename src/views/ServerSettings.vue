@@ -234,6 +234,8 @@
               @update:category="server.category = $event"
               :federationEnabled="server.federation_enabled ?? false"
               @update:federationEnabled="server.federation_enabled = $event"
+              :federationDiscoverable="server.federation_discoverable ?? false"
+              @update:federationDiscoverable="server.federation_discoverable = $event"
               :loading="loading"
               :permissions="permissions"
             />
@@ -519,6 +521,7 @@ const generalHasChanges = computed(() => {
     server.value.public !== originalServer.value.public ||
     (server.value.category ?? null) !== (originalServer.value.category ?? null) ||
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
+    !!server.value.federation_discoverable !== !!originalServer.value.federation_discoverable ||
     !!server.value.sidebar_banner !== !!originalServer.value.sidebar_banner ||
     selectedFile.value !== null ||
     selectedBannerFile.value !== null ||

@@ -18,6 +18,8 @@ export interface Server {
   /** Discovery category id from SERVER_CATEGORIES; null when the owner has not chosen one. */
   category?: string | null;
   federation_enabled?: boolean;
+  /** Listed in this instance's server directory for other instances; meaningful while public and federated. */
+  federation_discoverable?: boolean;
   is_local_server?: boolean;
   /**
    * Domain part of a remote server's ActivityPub identity, e.g. `mony.dev`.
