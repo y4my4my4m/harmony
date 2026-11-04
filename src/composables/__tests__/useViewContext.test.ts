@@ -78,7 +78,7 @@ describe('viewContextForRoute', () => {
     expect(viewContextForRoute(at('AdminPanel', '/admin'))).toEqual({ viewType: 'settings' })
     expect(viewContextForRoute(at('Today', '/today'))).toEqual({ viewType: 'home' })
     expect(viewContextForRoute(at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' })))
-      .toEqual({ viewType: 'home' })
+      .toEqual({ viewType: 'home', threadId: 't1' })
     expect(viewContextForRoute(at('Chat', '/chat'))).toEqual({ viewType: 'home' })
     expect(viewContextForRoute(at('DMHome', '/dm'))).toEqual({ viewType: 'home' })
   })

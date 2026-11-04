@@ -153,6 +153,7 @@ import {
   Folder, FolderOpen, FolderPlus, FolderInput, HardDrive, Film, Hourglass, CirclePlay, Pause,
   SkipForward, ListMusic, Tv, Radio, Disc3, CloudUpload, ArrowUpDown, ListVideo, Popcorn, Undo2,
   FileArchive, FileAudio, FileVideo, FileImage, Crown, ImageOff, Sticker, MapPin, MapPinOff,
+  Quote,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -290,6 +291,7 @@ const ICON_MAP: Record<string, Component> = {
   'pencil': Pencil,
   'thread': MessageSquare,
   'repeat': Repeat,
+  'quote': Quote,
   'trending-up': TrendingUp,
   'trending-down': TrendingDown,
   'compass': Compass,

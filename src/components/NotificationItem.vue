@@ -232,6 +232,7 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   reply: { icon: 'corner-down-right', tone: 'reply' },
   thread_reply: { icon: 'corner-down-right', tone: 'reply' },
   activitypub_reply: { icon: 'corner-down-right', tone: 'reply' },
+  activitypub_quote: { icon: 'quote', tone: 'reply' },
   reaction: { icon: 'smile', tone: 'reaction' },
   activitypub_reaction: { icon: 'smile', tone: 'reaction' },
   activitypub_favorite: { icon: 'heart', tone: 'favorite' },

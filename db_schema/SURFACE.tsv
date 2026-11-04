@@ -550,6 +550,7 @@ handle_pinned_message_delete		trigger	invoker	public, extensions, pg_temp	anon+a
 handle_post_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 handle_post_interaction_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 handle_post_mention_notifications		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+handle_post_quote_notifications		trigger	definer	public, pg_temp	service_role	trigger
 handle_post_reply_notifications		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 handle_post_soft_delete		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 handle_posts_insert_updated_at		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger

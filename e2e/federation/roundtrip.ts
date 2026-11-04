@@ -45,6 +45,8 @@
 //     against that member's published key.
 // Remote follow, votes on remote polls, follows of Lemmy communities (FEP-1b12) and thread
 // contexts (FEP-7888) run against a community host of their own (cases/remoteInteractions.ts).
+// A Mastodon quote of a local post, its QuoteRequest and Create in either order, is accepted,
+// stored as a quote and notifies the quoted author once (cases/notif.ts).
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts),
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
@@ -99,6 +101,7 @@ import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
+import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
@@ -2796,6 +2799,7 @@ async function main() {
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
+    await caseQuoteNotifications({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
     // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
     await caseVoiceModerationFederation({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,

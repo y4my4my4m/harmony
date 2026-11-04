@@ -71,6 +71,13 @@ describe('service worker push while a window is focused', () => {
     expect(showNotification).not.toHaveBeenCalled()
   })
 
+  it('shows a push silent only when the backend says the type\'s sound is off', async () => {
+    const { handlers, showNotification } = load([])
+    await push(handlers, dm)
+    await push(handlers, { ...dm, silent: true, data: { ...dm.data, notification_id: 'n2' } })
+    expect(showNotification.mock.calls.map(([, options]) => (options as { silent: boolean }).silent)).toEqual([false, true])
+  })
+
   it('shows both once no window is focused', async () => {
     const { handlers, showNotification } = load([{ focused: false }])
     await push(handlers, testPush)

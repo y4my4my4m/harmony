@@ -271,6 +271,16 @@ describe('ViewContextTracker', () => {
     })
   })
 
+  describe('a thread shown full page', () => {
+    it('silences replies in that thread only', () => {
+      tracker.updateContext({ view_type: 'home', thread_id: 'th-1' })
+      const here = tracker.shouldShowNotificationUI({ server_id: 's', channel_id: 'c', thread_id: 'th-1', type: 'thread_reply' })
+      const elsewhere = tracker.shouldShowNotificationUI({ server_id: 's', channel_id: 'c', thread_id: 'th-2', type: 'thread_reply' })
+      expect(here.showToast || here.playSound || here.showDesktop).toBe(false)
+      expect(elsewhere.showToast && elsewhere.playSound && elsewhere.showDesktop).toBe(true)
+    })
+  })
+
   describe('reset', () => {
     it('resets context back to home', () => {
       tracker.updateContext({

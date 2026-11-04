@@ -1870,6 +1870,11 @@
           "name": "Fediverse の返信",
           "description": "誰かがあなたの投稿に返信したとき"
         },
+        "apQuotes": {
+          "label": "引用",
+          "name": "Fediverse の引用",
+          "description": "誰かがあなたの投稿を引用したとき"
+        },
         "apFavorites": {
           "label": "お気に入り",
           "name": "Fediverse のお気に入り",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "デバイスを削除しました",
         "deviceRemoveFailed": "デバイスを削除できませんでした"
       },
+      "quoteNotice": {
+        "action": " があなたの投稿を引用しました",
+        "short": "投稿が引用されました",
+        "noPreview": "クリックして引用を表示"
+      },
       "samples": {
         "mention": {
           "title": "テストメンション",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "テスト ActivityPub 返信",
           "message": "Fediverse の投稿に返信がありました"
+        },
+        "apQuote": {
+          "title": "テスト 引用",
+          "message": "Fediverse の投稿が引用されました"
         },
         "apFollowRequest": {
           "title": "テスト ActivityPub フォローリクエスト",

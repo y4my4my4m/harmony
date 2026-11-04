@@ -723,6 +723,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_reblogs: true,
   activitypub_mentions: true,
   activitypub_replies: true,
+  activitypub_quotes: true,
   activitypub_follow_requests: true,
   activitypub_desktop_notifications: true,
   activitypub_desktop_follows: true,
@@ -730,12 +731,14 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_desktop_reblogs: false,
   activitypub_desktop_mentions: true,
   activitypub_desktop_replies: true,
+  activitypub_desktop_quotes: true,
   activitypub_sound_notifications: true,
   activitypub_sound_follows: true,
   activitypub_sound_favorites: false,
   activitypub_sound_reblogs: false,
   activitypub_sound_mentions: true,
   activitypub_sound_replies: true,
+  activitypub_sound_quotes: true,
 }
 
 const preferences = reactive<NotificationPreferences>({
@@ -801,6 +804,7 @@ const activityPubNotificationTypes = computed<NotificationTypeRow[]>(() => [
   typeRow('activitypub_follows', 'apFollows', 'user-plus', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow', true),
   typeRow('activitypub_mentions', 'apMentions', 'at-sign', 'activitypub_desktop_mentions', 'activitypub_sound_mentions', 'activitypub_mention', true),
   typeRow('activitypub_replies', 'apReplies', 'message-circle', 'activitypub_desktop_replies', 'activitypub_sound_replies', 'activitypub_reply', true),
+  typeRow('activitypub_quotes', 'apQuotes', 'quote', 'activitypub_desktop_quotes', 'activitypub_sound_quotes', 'activitypub_quote', true),
   typeRow('activitypub_favorites', 'apFavorites', 'heart', 'activitypub_desktop_favorites', 'activitypub_sound_favorites', 'activitypub_favorite', true),
   typeRow('activitypub_reblogs', 'apReblogs', 'repeat', 'activitypub_desktop_reblogs', 'activitypub_sound_reblogs', 'activitypub_reblog', true),
   typeRow('activitypub_follow_requests', 'apFollowRequests', 'user-check', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow_request', true),
@@ -899,6 +903,7 @@ const requestPermission = async () => {
       hasNotificationPermission.value = permission === 'granted'
     }
 
+    notificationStore.hasPermission = hasNotificationPermission.value
     if (hasNotificationPermission.value) {
       toast.success(t('settings.notifications.toast.permissionGranted'))
     } else {
@@ -990,6 +995,7 @@ const SAMPLE_KEYS: Record<string, string> = {
   activitypub_reblog: 'apReblog',
   activitypub_mention: 'apMention',
   activitypub_reply: 'apReply',
+  activitypub_quote: 'apQuote',
   activitypub_follow_request: 'apFollowRequest',
 }
 const SERVER_SAMPLES = new Set(['server_invite', 'server_update', 'emoji_added'])

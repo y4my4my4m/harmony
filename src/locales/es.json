@@ -1870,6 +1870,11 @@
           "name": "Respuestas del fediverso",
           "description": "Cuando alguien responde a tu publicación"
         },
+        "apQuotes": {
+          "label": "Citas",
+          "name": "Citas del fediverso",
+          "description": "Cuando alguien cita tu publicación"
+        },
         "apFavorites": {
           "label": "Favoritos",
           "name": "Favoritos del fediverso",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "Dispositivo quitado",
         "deviceRemoveFailed": "No se pudo quitar el dispositivo"
       },
+      "quoteNotice": {
+        "action": " citó tu publicación",
+        "short": "Publicación citada",
+        "noPreview": "Haz clic para ver la cita"
+      },
       "samples": {
         "mention": {
           "title": "Mención de prueba",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "Respuesta de ActivityPub de prueba",
           "message": "Alguien respondió a tu publicación del fediverso"
+        },
+        "apQuote": {
+          "title": "Cita de prueba",
+          "message": "Alguien citó tu publicación del fediverso"
         },
         "apFollowRequest": {
           "title": "Solicitud de seguimiento de ActivityPub de prueba",

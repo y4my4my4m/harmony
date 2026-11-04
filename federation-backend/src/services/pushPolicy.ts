@@ -40,6 +40,7 @@ const TYPE_GATES: Record<string, string[]> = {
   voice_channel_activity: ['sound_voice_activity'],
   activitypub_mention: ['push_mentions', 'activitypub_desktop_mentions'],
   activitypub_reply: ['activitypub_desktop_replies'],
+  activitypub_quote: ['activitypub_desktop_quotes'],
   activitypub_follow: ['activitypub_desktop_follows'],
   activitypub_follow_request: ['activitypub_desktop_follows'],
   activitypub_follow_accepted: ['activitypub_desktop_follows'],
@@ -54,6 +55,36 @@ export function pushAllowedForType(type: string, prefs: NotificationPrefs): bool
   if (prefs.push_notifications === false) return false;
   if (type.startsWith('activitypub_') && prefs.activitypub_desktop_notifications === false) return false;
   return (TYPE_GATES[type] ?? []).every((column) => prefs[column] !== false);
+}
+
+// Per-type sound toggles. Mirrors useNotification.shouldPlaySound in src/stores/useNotification.ts.
+const SOUND_GATES: Record<string, string[]> = {
+  mention: ['sound_mentions'],
+  dm: ['sound_dms'],
+  chat_message: ['sound_chat_messages'],
+  channel_message: ['sound_chat_messages'],
+  reaction: ['sound_reactions'],
+  reply: ['sound_replies'],
+  thread_reply: ['sound_replies'],
+  voice_channel_activity: ['sound_voice_activity'],
+  activitypub_follow: ['activitypub_sound_follows'],
+  activitypub_follow_request: ['activitypub_sound_follows'],
+  activitypub_follow_accepted: ['activitypub_sound_follows'],
+  move: ['activitypub_sound_follows'],
+  activitypub_favorite: ['activitypub_sound_favorites'],
+  activitypub_reaction: ['activitypub_sound_favorites'],
+  activitypub_reblog: ['activitypub_sound_reblogs'],
+  activitypub_mention: ['activitypub_sound_mentions'],
+  activitypub_reply: ['activitypub_sound_replies'],
+  activitypub_quote: ['activitypub_sound_quotes'],
+};
+
+/** The push may sound: the sound settings allow the type. A missing column reads as enabled. */
+export function pushSoundAllowed(type: string, prefs: NotificationPrefs): boolean {
+  if (!prefs) return true;
+  if (prefs.sound_notifications === false) return false;
+  if (type.startsWith('activitypub_') && prefs.activitypub_sound_notifications === false) return false;
+  return (SOUND_GATES[type] ?? []).every((column) => prefs[column] !== false);
 }
 
 /**

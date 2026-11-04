@@ -28,6 +28,27 @@ const RINGER_ACTIONS = new Set<AudioAction>([
 ])
 const BUZZ_ACTIONS = new Set<AudioAction>(['mention', 'dm', 'reply', 'call_incoming'])
 
+/**
+ * Decoded as soon as a theme loads: the alert sounds and the call ring. Every other sound of
+ * the theme is fetched then too and decoded on first use; a default theme decoded whole is
+ * 13.8 MB of 48 kHz float samples.
+ */
+const DECODED_AHEAD = new Set<AudioAction>([
+  'mention', 'dm', 'reaction', 'reply', 'server_invite', 'friend_request', 'server_update',
+  'emoji_added', 'voice_channel_activity', 'call_incoming', 'ui_notification', 'ui_success', 'ui_error',
+])
+
+/** A sound whose decode takes longer than this after it was asked for is dropped, not played late. */
+const LATE_SOUND_MS = 1000
+/** How long a play waits for a suspended context to resume before giving up. */
+const RESUME_WAIT_MS = 250
+/** Inputs that count as user activation for the autoplay policy. */
+const UNLOCK_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const
+
+function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([promise, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))])
+}
+
 /** Every action a generated pack (scripts/sound-packs) renders. */
 const GENERATED_PACK_ACTIONS: AudioAction[] = [
   'mention', 'dm', 'reaction', 'reply', 'server_invite', 'friend_request',
@@ -53,6 +74,15 @@ export class AudioThemeService {
   private static instance: AudioThemeService | null = null
   
   // Core state
+  // Web Audio: sound files are fetched and decoded ahead of use and a play starts a buffer
+  // source, with no request. HTMLAudioElement (audioCache) is the path where AudioContext is
+  // absent.
+  private ctx: AudioContext | null = null
+  private ctxFailed = false
+  private unlockBound = false
+  private soundBytes = new Map<string, Promise<ArrayBuffer | null>>()
+  private buffers = new Map<string, AudioBuffer>()
+  private decodes = new Map<string, Promise<AudioBuffer | null>>()
   private audioCache = new Map<string, HTMLAudioElement>()
   private audioQueue = new Map<string, Promise<void>>()
   private settings: AudioThemeSettings = {
@@ -521,7 +551,7 @@ export class AudioThemeService {
       // Preload new theme sounds
       await this.preloadTheme(themeId)
       
-      this.clearCacheForTheme(previousTheme)
+      if (previousTheme !== themeId) this.clearCacheForTheme(previousTheme)
       
       this.emit('themeChanged', { from: previousTheme, to: themeId, theme })
       
@@ -578,40 +608,156 @@ export class AudioThemeService {
         return
       }
     }
-    try {
-      // Fast path: try cached audio first (stays within user gesture window)
-      const soundPath = this.resolveSoundPath(action)
-      if (!soundPath) {
-        debug.warn(`No sound available for action: ${action}`)
-        return
-      }
-
-      const cached = this.audioCache.has(soundPath) ? this.audioCache.get(soundPath)! : null
-      if (cached) {
-        const audioClone = cached.cloneNode() as HTMLAudioElement
-        audioClone.volume = this.settings.volume
-        await audioClone.play()
-        this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
-        return
-      }
-
-      // Not cached - play directly without waiting for canplaythrough
-      // so the browser doesn't expire the user gesture
-      const audio = new Audio(soundPath)
-      audio.volume = this.settings.volume
-      const playPromise = audio.play()
-
-      // Cache in background for next time
-      audio.addEventListener('canplaythrough', () => {
-        this.addToCache(soundPath, audio)
-      }, { once: true })
-
-      await playPromise
-      this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
-    } catch (error) {
-      debug.warn(`Failed to play audio for ${action}:`, error)
-      this.emit('audioError', { action, soundPath: '', error })
+    const soundPath = this.resolveSoundPath(action)
+    if (!soundPath) {
+      debug.warn(`No sound available for action: ${action}`)
+      return
     }
+    if (await this.playPath(soundPath)) {
+      this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
+    } else {
+      this.emit('audioError', { action, soundPath, error: new Error('not played') })
+    }
+  }
+
+  /** Plays one sound file; false when it could not sound now. */
+  private async playPath(soundPath: string): Promise<boolean> {
+    const ctx = this.context()
+    if (!ctx) return this.playElement(soundPath)
+    try {
+      if (ctx.state !== 'running') await within(ctx.resume(), RESUME_WAIT_MS)
+      if (ctx.state !== 'running') {
+        debug.warn(`Audio context ${ctx.state}: no user activation yet`)
+        return false
+      }
+      const buffer = this.buffers.get(soundPath) ?? await within(this.decode(soundPath), LATE_SOUND_MS)
+      if (!buffer) return false
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      const gain = ctx.createGain()
+      gain.gain.value = this.settings.volume
+      source.connect(gain)
+      gain.connect(ctx.destination)
+      source.start()
+      return true
+    } catch (error) {
+      debug.warn(`Failed to play ${soundPath}:`, error)
+      return false
+    }
+  }
+
+  private async playElement(soundPath: string): Promise<boolean> {
+    try {
+      const cached = this.audioCache.get(soundPath)
+      const audio = cached ? (cached.cloneNode() as HTMLAudioElement) : new Audio(soundPath)
+      audio.volume = this.settings.volume
+      if (!cached) audio.addEventListener('canplaythrough', () => this.addToCache(soundPath, audio), { once: true })
+      await audio.play()
+      return true
+    } catch (error) {
+      debug.warn(`Failed to play ${soundPath}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * The shared AudioContext, created on first use. A context created before user activation
+   * starts suspended; every later pointer, key or touch input resumes it while it is not
+   * running (a phone call or the OS can suspend it again).
+   */
+  private context(): AudioContext | null {
+    if (this.ctx || this.ctxFailed) return this.ctx
+    const Ctor: typeof AudioContext | undefined = typeof window !== 'undefined'
+      ? (window.AudioContext || (window as any).webkitAudioContext)
+      : undefined
+    if (!Ctor) {
+      this.ctxFailed = true
+      return null
+    }
+    try {
+      this.ctx = new Ctor()
+    } catch (error) {
+      debug.warn('AudioContext unavailable:', error)
+      this.ctxFailed = true
+      return null
+    }
+    if (!this.unlockBound) {
+      this.unlockBound = true
+      const resume = () => {
+        if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {})
+      }
+      for (const type of UNLOCK_EVENTS) window.addEventListener(type, resume, { capture: true, passive: true })
+    }
+    return this.ctx
+  }
+
+  /**
+   * A sound can start now without waiting on the network or on user activation. Where the page
+   * has no AudioContext the element path is tried, and this answers true.
+   */
+  public canPlayNow(): boolean {
+    const ctx = this.context()
+    return !ctx || ctx.state === 'running'
+  }
+
+  /** Every sound of the theme fetched; the alert sounds decoded. */
+  public preloadSounds(themeId: string): Promise<void> {
+    const theme = this.themes.get(themeId)
+    if (!theme) return Promise.resolve()
+    const defaults = this.themes.get(DEFAULT_AUDIO_THEME_ID)?.sounds ?? {}
+    const work: Promise<unknown>[] = []
+    const seen = new Set<string>()
+    for (const action of new Set([...Object.keys(theme.sounds), ...DECODED_AHEAD]) as Set<AudioAction>) {
+      const path = theme.sounds[action] || defaults[action]
+      if (!path || seen.has(path)) continue
+      seen.add(path)
+      work.push(DECODED_AHEAD.has(action) ? this.decode(path) : this.fetchBytes(path))
+    }
+    return Promise.allSettled(work).then(() => undefined)
+  }
+
+  private fetchBytes(path: string): Promise<ArrayBuffer | null> {
+    let pending = this.soundBytes.get(path)
+    if (!pending) {
+      pending = fetch(path)
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          return response.arrayBuffer()
+        })
+        .catch((error) => {
+          debug.warn(`Failed to fetch sound ${path}:`, error)
+          this.soundBytes.delete(path)
+          return null
+        })
+      this.soundBytes.set(path, pending)
+    }
+    return pending
+  }
+
+  private decode(path: string): Promise<AudioBuffer | null> {
+    const ready = this.buffers.get(path)
+    if (ready) return Promise.resolve(ready)
+    const pending = this.decodes.get(path)
+    if (pending) return pending
+    const ctx = this.context()
+    if (!ctx) return Promise.resolve(null)
+    const decoding = this.fetchBytes(path)
+      // decodeAudioData detaches its argument; the fetched bytes stay whole for a retry.
+      .then((bytes) => (bytes ? ctx.decodeAudioData(bytes.slice(0)) : null))
+      .then((buffer) => {
+        if (buffer) {
+          this.buffers.set(path, buffer)
+          this.soundBytes.delete(path)
+        }
+        return buffer
+      })
+      .catch((error) => {
+        debug.warn(`Failed to decode sound ${path}:`, error)
+        return null
+      })
+      .finally(() => this.decodes.delete(path))
+    this.decodes.set(path, decoding)
+    return decoding
   }
 
   /**
@@ -650,14 +796,10 @@ export class AudioThemeService {
   public async playThemeFeedbackSound(themeId: string): Promise<void> {
     const soundPath = this.resolveThemeFeedbackSoundPath(themeId)
     if (!soundPath) return
-    try {
-      const cached = this.audioCache.get(soundPath)
-      const audio = cached ? (cached.cloneNode() as HTMLAudioElement) : new Audio(soundPath)
-      audio.volume = this.settings.volume
-      await audio.play()
+    if (await this.playPath(soundPath)) {
       this.emit('audioPlayed', { action: 'ui_success', soundPath, theme: themeId })
-    } catch (error) {
-      debug.warn(`Failed to play theme feedback for ${themeId}:`, error)
+    } else {
+      debug.warn(`Failed to play theme feedback for ${themeId}`)
     }
   }
 
@@ -750,22 +892,19 @@ export class AudioThemeService {
     }
 
     debug.log(`Preloading theme: ${theme.name}`)
-    
-    const soundPaths = Object.values(theme.sounds).filter(Boolean) as string[]
-    const preloadPromises = soundPaths.map(path => 
-      this.preloadAudio(path).catch(error => {
-        debug.warn(`Failed to preload sound: ${path}`, error)
-        // Don't fail the entire theme loading for individual sound failures
-      })
-    )
 
-    try {
-      await Promise.allSettled(preloadPromises)
-      this.loadedThemes.add(themeId)
-      this.emit('themePreloaded', { themeId, theme })
-    } catch (error) {
-      debug.warn(`Theme preload completed with some failures: ${themeId}`, error)
+    if (this.context()) {
+      await this.preloadSounds(themeId)
+    } else {
+      const soundPaths = Object.values(theme.sounds).filter(Boolean) as string[]
+      await Promise.allSettled(soundPaths.map(path =>
+        this.preloadAudio(path).catch(error => {
+          debug.warn(`Failed to preload sound: ${path}`, error)
+        })
+      ))
     }
+    this.loadedThemes.add(themeId)
+    this.emit('themePreloaded', { themeId, theme })
   }
 
   /**
@@ -790,9 +929,17 @@ export class AudioThemeService {
     const theme = this.themes.get(themeId)
     if (!theme) return
 
+    // Paths the current theme or the default fallback still play stay loaded.
+    const kept = new Set<string>([
+      ...Object.values(this.getCurrentTheme()?.sounds ?? {}),
+      ...Object.values(this.themes.get(DEFAULT_AUDIO_THEME_ID)?.sounds ?? {}),
+    ].filter(Boolean) as string[])
     const soundPaths = Object.values(theme.sounds).filter(Boolean) as string[]
     for (const path of soundPaths) {
+      if (kept.has(path) && themeId !== this.settings.selectedTheme) continue
       this.audioCache.delete(path)
+      this.buffers.delete(path)
+      this.soundBytes.delete(path)
     }
 
     this.loadedThemes.delete(themeId)
@@ -878,8 +1025,8 @@ export class AudioThemeService {
     maxSize: number
   } {
     return {
-      size: this.audioCache.size,
-      paths: Array.from(this.audioCache.keys()),
+      size: this.buffers.size + this.audioCache.size,
+      paths: [...this.buffers.keys(), ...this.audioCache.keys()],
       loadedThemes: Array.from(this.loadedThemes),
       maxSize: this.MAX_CACHE_SIZE
     }
@@ -890,6 +1037,8 @@ export class AudioThemeService {
    */
   public clearCache(): void {
     this.audioCache.clear()
+    this.buffers.clear()
+    this.soundBytes.clear()
     this.loadedThemes.clear()
     this.emit('cacheCleared')
   }

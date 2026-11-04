@@ -33,6 +33,8 @@ export type NotificationType =
   | 'activitypub_reblog'
   | 'activitypub_mention'
   | 'activitypub_reply'
+  /** A post, local or from another instance, quoting the recipient's post (FEP-044f). */
+  | 'activitypub_quote'
   | 'activitypub_reaction'
   | 'activitypub_follow_request'
   | 'activitypub_follow_accepted'
@@ -139,6 +141,7 @@ export interface NotificationPreferences {
   activitypub_reblogs: boolean;
   activitypub_mentions: boolean;
   activitypub_replies: boolean;
+  activitypub_quotes: boolean;
   activitypub_follow_requests: boolean;
   
   // ActivityPub desktop notifications
@@ -148,6 +151,7 @@ export interface NotificationPreferences {
   activitypub_desktop_reblogs: boolean;
   activitypub_desktop_mentions: boolean;
   activitypub_desktop_replies: boolean;
+  activitypub_desktop_quotes: boolean;
   
   // ActivityPub sound notifications
   activitypub_sound_notifications: boolean;
@@ -156,6 +160,7 @@ export interface NotificationPreferences {
   activitypub_sound_reblogs: boolean;
   activitypub_sound_mentions: boolean;
   activitypub_sound_replies: boolean;
+  activitypub_sound_quotes: boolean;
   
   created_at: string;
   updated_at: string;

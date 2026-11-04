@@ -1997,6 +1997,11 @@
           "name": "Fediverse replies",
           "description": "When someone replies to your post"
         },
+        "apQuotes": {
+          "label": "Quotes",
+          "name": "Fediverse quotes",
+          "description": "When someone quotes your post"
+        },
         "apFavorites": {
           "label": "Favorites",
           "name": "Fediverse favorites",
@@ -2124,6 +2129,11 @@
         "deviceRemoved": "Device removed",
         "deviceRemoveFailed": "Failed to remove device"
       },
+      "quoteNotice": {
+        "action": " quoted your post",
+        "short": "Post quoted",
+        "noPreview": "Click to see the quote"
+      },
       "samples": {
         "mention": {
           "title": "Test mention",
@@ -2180,6 +2190,10 @@
         "apReply": {
           "title": "Test ActivityPub reply",
           "message": "Someone replied to your fediverse post"
+        },
+        "apQuote": {
+          "title": "Test quote",
+          "message": "Someone quoted your fediverse post"
         },
         "apFollowRequest": {
           "title": "Test ActivityPub follow request",

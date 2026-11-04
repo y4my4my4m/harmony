@@ -1870,6 +1870,11 @@
           "name": "Réponses du fédivers",
           "description": "Quand quelqu’un répond à votre publication"
         },
+        "apQuotes": {
+          "label": "Citations",
+          "name": "Citations du fédivers",
+          "description": "Quand quelqu’un cite votre publication"
+        },
         "apFavorites": {
           "label": "Favoris",
           "name": "Favoris du fédivers",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "Appareil retiré",
         "deviceRemoveFailed": "Impossible de retirer l’appareil"
       },
+      "quoteNotice": {
+        "action": " a cité votre publication",
+        "short": "Publication citée",
+        "noPreview": "Cliquez pour voir la citation"
+      },
       "samples": {
         "mention": {
           "title": "Mention de test",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "Réponse ActivityPub de test",
           "message": "Quelqu’un a répondu à votre publication du fédivers"
+        },
+        "apQuote": {
+          "title": "Citation de test",
+          "message": "Quelqu’un a cité votre publication du fédivers"
         },
         "apFollowRequest": {
           "title": "Demande d’abonnement ActivityPub de test",

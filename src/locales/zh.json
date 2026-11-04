@@ -1870,6 +1870,11 @@
           "name": "联邦宇宙回复",
           "description": "有人回复你的帖子时"
         },
+        "apQuotes": {
+          "label": "引用",
+          "name": "联邦宇宙引用",
+          "description": "有人引用你的帖子时"
+        },
         "apFavorites": {
           "label": "收藏",
           "name": "联邦宇宙收藏",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "设备已移除",
         "deviceRemoveFailed": "无法移除设备"
       },
+      "quoteNotice": {
+        "action": " 引用了你的帖子",
+        "short": "帖子被引用",
+        "noPreview": "点击查看引用"
+      },
       "samples": {
         "mention": {
           "title": "测试提及",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "测试 ActivityPub 回复",
           "message": "有人回复了你的联邦宇宙帖子"
+        },
+        "apQuote": {
+          "title": "测试引用",
+          "message": "有人引用了你的联邦宇宙帖子"
         },
         "apFollowRequest": {
           "title": "测试 ActivityPub 关注请求",

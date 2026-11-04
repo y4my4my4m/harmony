@@ -1870,6 +1870,11 @@
           "name": "연합우주 답글",
           "description": "누군가 내 게시물에 답글을 달 때"
         },
+        "apQuotes": {
+          "label": "인용",
+          "name": "연합우주 인용",
+          "description": "누군가 내 게시물을 인용할 때"
+        },
         "apFavorites": {
           "label": "좋아요",
           "name": "연합우주 좋아요",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "기기를 삭제했습니다",
         "deviceRemoveFailed": "기기를 삭제하지 못했습니다"
       },
+      "quoteNotice": {
+        "action": "님이 내 게시물을 인용했습니다",
+        "short": "게시물 인용됨",
+        "noPreview": "클릭하여 인용 보기"
+      },
       "samples": {
         "mention": {
           "title": "테스트 멘션",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "테스트 ActivityPub 답글",
           "message": "누군가 연합우주 게시물에 답글을 달았습니다"
+        },
+        "apQuote": {
+          "title": "테스트 인용",
+          "message": "누군가 연합우주 게시물을 인용했습니다"
         },
         "apFollowRequest": {
           "title": "테스트 ActivityPub 팔로우 요청",

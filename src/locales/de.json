@@ -1870,6 +1870,11 @@
           "name": "Antworten im Fediverse",
           "description": "Wenn jemand auf deinen Beitrag antwortet"
         },
+        "apQuotes": {
+          "label": "Zitate",
+          "name": "Zitate im Fediverse",
+          "description": "Wenn jemand deinen Beitrag zitiert"
+        },
         "apFavorites": {
           "label": "Favoriten",
           "name": "Favoriten im Fediverse",
@@ -1997,6 +2002,11 @@
         "deviceRemoved": "Gerät entfernt",
         "deviceRemoveFailed": "Gerät konnte nicht entfernt werden"
       },
+      "quoteNotice": {
+        "action": " hat deinen Beitrag zitiert",
+        "short": "Beitrag zitiert",
+        "noPreview": "Klicke, um das Zitat zu sehen"
+      },
       "samples": {
         "mention": {
           "title": "Test-Erwähnung",
@@ -2053,6 +2063,10 @@
         "apReply": {
           "title": "Test: ActivityPub-Antwort",
           "message": "Jemand hat auf deinen Fediverse-Beitrag geantwortet"
+        },
+        "apQuote": {
+          "title": "Test: Zitat",
+          "message": "Jemand hat deinen Fediverse-Beitrag zitiert"
         },
         "apFollowRequest": {
           "title": "Test: ActivityPub-Folgeanfrage",

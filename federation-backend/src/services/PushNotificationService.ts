@@ -30,6 +30,7 @@ import {
   isValidFcmToken,
   isWithinQuietHours,
   pushAllowedForType,
+  pushSoundAllowed,
   securityNoticeText,
   moveNoticeText,
   joinRejectedNoticeText,
@@ -57,6 +58,8 @@ export interface PushPayload {
   badge?: string;
   tag?: string;
   requireInteraction?: boolean;
+  /** The service worker shows the notification without sound. */
+  silent?: boolean;
 }
 
 export interface PushSubscriptionData {
@@ -849,6 +852,7 @@ class PushNotificationServiceClass {
       logger.debug(`Final notification.data.reaction: ${JSON.stringify(notification.data.reaction)}`);
 
       const payload = this.buildPayloadFromNotification(notification);
+      if (!pushSoundAllowed(notification.type, prefs)) payload.silent = true;
 
       await this.sendToUser(notification.user_id, payload, () => this.buildAppData(notification, payload));
 
@@ -1083,6 +1087,11 @@ class PushNotificationServiceClass {
       case 'activitypub_reply':
         title = `${senderName}${senderDomain} replied to you`;
         message = this.extractContentPreview({ content_preview: data.post?.content_preview || data.post_content }) || 'New reply to your post';
+        break;
+
+      case 'activitypub_quote':
+        title = `${senderName}${senderDomain} quoted your post`;
+        message = this.extractContentPreview({ content_preview: data.post?.content_preview || data.post_content }) || 'Your post was quoted';
         break;
       
       case 'activitypub_follow_request':

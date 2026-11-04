@@ -386,7 +386,7 @@ export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/se
 export_server_template	definer	jsonb	authenticated+service_role	client	rpc in src/services/serverTemplateService.ts
 external_emoji_keys	definer	text[]	service_role	trigger	called by enforce_message_content_permissions, enforce_reaction_external_emoji
 extract_hashtags_from_content	invoker	text[]	anon+authenticated+service_role	trigger	called by process_post_hashtags
-extract_message_text	invoker	text	anon+authenticated+service_role	trigger	called by handle_channel_message_notifications, handle_local_post_mention_notifications, handle_message_federation, +6
+extract_message_text	invoker	text	anon+authenticated+service_role	trigger	called by handle_channel_message_notifications, handle_local_post_mention_notifications, handle_message_federation, +7
 extract_url_host	invoker	text	anon+authenticated+service_role	trigger	called by detect_embed_provider, process_local_link_previews
 federation_category_recipients	definer	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	service_role	client	rpc in federation-backend/src/utils/federationUtils.ts
 federation_channel_recipients	definer	TABLE(instance text, member_ap_ids text[], member_count integer, shared_inbox text)	service_role	client	rpc in federation-backend/src/utils/federationUtils.ts
@@ -550,6 +550,7 @@ handle_pinned_message_delete	invoker	trigger	anon+authenticated+service_role	tri
 handle_post_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_post_federation)
 handle_post_interaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions AFTER INSERT/DELETE (trigger_post_interaction_federation)
 handle_post_mention_notifications	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_mention_notifications)
+handle_post_quote_notifications	definer	trigger	service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_quote_notifications)
 handle_post_reply_notifications	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_post_reply_notifications)
 handle_post_soft_delete	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER UPDATE (on_post_soft_delete)
 handle_posts_insert_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.posts BEFORE INSERT (handle_posts_insert_updated_at)
@@ -647,8 +648,8 @@ nodeinfo_active_users	definer	bigint	service_role	client	rpc in federation-backe
 normalize_channel_history_visibility	invoker	trigger	service_role	trigger	trigger public.channel_encryption_settings BEFORE INSERT/UPDATE (trg_normalize_channel_history_visibility)
 normalize_embed_url	invoker	text	anon+authenticated+service_role	trigger	called by fetch_link_preview, process_local_link_previews
 normalize_recovery_code	invoker	text	service_role	client	called by hash_recovery_code, redeem_recovery_code_and_disable_mfa, save_recovery_codes
-notification_actor_json(p profiles)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_newcomer_first_message, handle_post_mention_notifications, +3
-notification_actor_json(p_id uuid, p_username text, p_display_name text, p_avatar_url text, p_domain text, p_is_local boolean)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_newcomer_first_message, handle_post_mention_notifications, +3
+notification_actor_json(p profiles)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_newcomer_first_message, handle_post_mention_notifications, +4
+notification_actor_json(p_id uuid, p_username text, p_display_name text, p_avatar_url text, p_domain text, p_is_local boolean)	invoker	jsonb	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_newcomer_first_message, handle_post_mention_notifications, +4
 notification_level_value	invoker	text	service_role	client	called by apply_notification_override, update_server_notification_settings
 notification_mute_value	invoker	record	service_role	client	called by apply_notification_override, update_server_notification_settings
 notification_policy	invoker	TABLE(level text, muted boolean, suppress_everyone boolean, suppress_roles boolean, push_notifications boolean)	service_role	client, trigger	called by send_notification
