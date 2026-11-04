@@ -4,7 +4,9 @@
 //   button sends what was typed;
 // - the composer asks Gboard for autocorrection, and sends what the composer shows;
 // - with the keyboard down, a tap on a word the spellchecker underlines raises the keyboard and
-//   opens no spelling menu, after the reaction picker's search and with the composer focused.
+//   opens no spelling menu, after the reaction picker's search and with the composer focused;
+// - an emoji drawn as Twemoji: words typed after it keep their letters, Gboard's delete key
+//   removes it whole, and the message holds the characters typed.
 //
 // Runs on an emulator or device with the app installed and Gboard as its keyboard, not in CI:
 // HARMONY_ANDROID=1, an adb device, the e2e stack up (npm run e2e:up) and a dev server of this
@@ -290,4 +292,41 @@ test('with the keyboard down, a tap on an underlined word raises the keyboard an
   await page.waitForTimeout(500)
   await tapWord()
   expect(await settled()).toEqual({ keyboard: true, menu: false })
+})
+
+test('a drawn emoji: Gboard types after it and its delete key removes it whole', async () => {
+  test.setTimeout(300_000)
+  const page = await openApp()
+  const selector = '[data-testid="message-input"] .rich-text-editor'
+  const editor = page.locator(selector)
+  await touch(page, selector)
+  await expect.poll(async () => (await keyboardKeys()).size, { timeout: 30_000 }).toBeGreaterThan(20)
+  // The emoji goes in as an emoji keyboard commits it; Gboard types the word after it.
+  await page.keyboard.insertText('hi 👍🏽')
+  await expect(editor.locator('.editor-twemoji[data-unicode="👍🏽"]')).toHaveCount(1, { timeout: 15_000 })
+  await gboardType(' yes')
+  await expect.poll(() => composerText(page), { timeout: 15_000 }).toMatch(/^hi 👍🏽 yes ?$/i)
+  await expect(editor.locator('.editor-twemoji[data-unicode="👍🏽"]')).toHaveCount(1)
+
+  const keys = await keyboardKeys()
+  const del = [...keys.keys()].find((k) => /^(delete|backspace)$/i.test(k))
+  if (!del) throw new Error(`no delete key; keys: ${[...keys.keys()].join(', ')}`)
+  for (let i = 0; i < 12 && !/^hi 👍🏽 ?$/.test(await composerText(page)); i++) {
+    await tapKey(keys, del)
+    await page.waitForTimeout(150)
+  }
+  await expect.poll(() => composerText(page), { timeout: 15_000 }).toMatch(/^hi 👍🏽 ?$/)
+  if ((await composerText(page)).endsWith(' ')) await tapKey(keys, del)
+  await expect.poll(() => composerText(page), { timeout: 15_000 }).toBe('hi 👍🏽')
+  await tapKey(keys, del)
+  await expect.poll(() => composerText(page), { timeout: 15_000 }).toBe('hi ')
+  await expect(editor.locator('.editor-twemoji')).toHaveCount(0)
+
+  await gboardType('ok')
+  await expect.poll(() => composerText(page), { timeout: 15_000 }).toMatch(/^hi ok ?$/i)
+  const shown = (await composerText(page)).trim()
+  const before = await count()
+  await touch(page, '[data-testid="message-send-btn"]')
+  await expect.poll(count, { timeout: 30_000 }).toBeGreaterThan(before)
+  expect(await lastText()).toBe(shown)
 })

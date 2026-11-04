@@ -224,6 +224,7 @@ import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { roleMentionColor } from '@/utils/roleMentions';
+import { emojiSequenceRegex } from '@/utils/unicodeEmoji';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -532,7 +533,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
 
   // Splice in emoji <img>/<span> markup from trusted sources.
   if (!isNativePack.value && emojiServiceLoaded.value) {
-    const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+    const emojiRegex = emojiSequenceRegex();
     rendered = rendered.replace(emojiRegex, (match) => {
       const resolved = resolveEmoji(match);
       if (resolved.display.type === 'svg') {
@@ -543,7 +544,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
       return match;
     });
   } else if (isSingle) {
-    const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+    const emojiRegex = emojiSequenceRegex();
     rendered = rendered.replace(emojiRegex, (match) => {
       return `<span class="native-emoji single">${match}</span>`;
     });

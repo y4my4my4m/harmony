@@ -69,6 +69,14 @@ describe('nodeToTokenText', () => {
   })
 })
 
+describe('nodeToTokenText: unicode emoji', () => {
+  it('reads an emoji image of a tag sequence and a skin tone as its characters', () => {
+    const div = document.createElement('div')
+    div.innerHTML = 'go <img class="inline-emoji" alt="🏴󠁧󠁢󠁥󠁮󠁧󠁿" src="e.svg"> <img class="inline-emoji" alt="👍🏽" src="t.svg">'
+    expect(nodeToTokenText(div)).toEqual({ text: 'go 🏴󠁧󠁢󠁥󠁮󠁧󠁿 👍🏽', tokens: [], emojiCount: 2 })
+  })
+})
+
 describe('tokenTextToHtml', () => {
   it('turns resolvable tokens into token-tagged images and escapes the rest', () => {
     const html = tokenTextToHtml(`<b>a</b> :har_wink: :nope:\n:discord:heh:${ID}:`)

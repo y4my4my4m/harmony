@@ -18,7 +18,8 @@
  *     (data-open-newline, data-close-newline on .editor-codeblock-wrapper);
  *   - " " between a mention pill and an adjacent word, which would otherwise join the
  *     handle (mentionGrammar).
- * An emoji pill reads as `:name:`, a mention pill as its display text.
+ * An emoji pill reads as its unicode sequence (data-unicode) or `:name:`, a mention pill as its
+ * display text.
  *
  * "slot" units hold no text: an empty line's container, or a closing placeholder <br>.
  * They give an empty line a DOM point for the caret.
@@ -46,6 +47,8 @@ function isAtom(el: HTMLElement): boolean {
 
 function atomText(el: HTMLElement): string {
   if (el.classList.contains('editor-emoji')) {
+    const unicode = el.getAttribute('data-unicode')
+    if (unicode) return unicode
     const name = el.getAttribute('data-emoji')
     return name ? `:${name}:` : ''
   }

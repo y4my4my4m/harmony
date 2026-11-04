@@ -20,7 +20,7 @@ export type EmojiInfoTarget =
 export type EmojiResolver = (input: string) => { unicode?: string | null; shortcode?: string | null; imageUrl?: string | null }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const UNICODE_EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|‍|️|⃣|[#*0-9])+$/u
+const UNICODE_EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]|‍|️|⃣|[#*0-9])+$/u
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
