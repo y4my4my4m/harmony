@@ -669,6 +669,9 @@ if $VAPID_NEW; then
 	env_set "$FED_ENV" VAPID_PRIVATE_KEY "$VAPID_PRIVATE_KEY"
 fi
 env_set "$FED_ENV" VAPID_SUBJECT "$ADMIN_EMAIL"
+# Copy of SMTP_HOST in supabase/.env: the admin panel emails invitations only when GoTrue has
+# SMTP (empty or supabase-mail: none).
+env_set "$FED_ENV" GOTRUE_SMTP_HOST "$(env_get "$SB_ENV" SMTP_HOST)"
 env_default "$FED_ENV" LIVEKIT_API_KEY "$LIVEKIT_API_KEY"
 env_default "$FED_ENV" LIVEKIT_API_SECRET "$LIVEKIT_API_SECRET"
 if $ENABLE_VOICE; then

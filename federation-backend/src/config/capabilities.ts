@@ -23,6 +23,9 @@ export const CAPABILITIES = [
   // Server directories: servers.federation_discoverable written through update_server,
   // GET /servers/directory, GET /directory/remote and /directory/peers (20261105100001).
   'server-directory',
+  // The admin panel's invitations: /admin/invites and the admin_* invitation functions
+  // (20261105980001).
+  'instance-invites',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

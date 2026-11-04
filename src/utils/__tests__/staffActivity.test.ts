@@ -65,6 +65,13 @@ describe('staffActivityMessage', () => {
     expect(line('domain_accept_reports', {}, { target_id: 'spam.example' })).toBe('Accepted reports from spam.example again')
   })
 
+  it('reads invitations made, emailed, re-issued and revoked', () => {
+    expect(line('instance_invite_created', { email: 'ada@example.org', delivery: 'link' })).toBe('Invited ada@example.org')
+    expect(line('instance_invite_created', { email: 'ada@example.org', delivery: 'email' })).toBe('Emailed an invitation to ada@example.org')
+    expect(line('instance_invite_reissued', { email: 'ada@example.org', delivery: 'link' })).toBe('Made a new invitation link for ada@example.org')
+    expect(line('instance_invite_revoked', { email: 'ada@example.org' })).toBe('Revoked the invitation for ada@example.org')
+  })
+
   it('leaves any other action to the generic formatter', () => {
     expect(line('user_suspend', { reason: 'x' })).toBeNull()
   })

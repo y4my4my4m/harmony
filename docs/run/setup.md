@@ -100,6 +100,8 @@ Invites are links of the form `https://<instance>/invite/<code>`. Creating them 
 
 Open the server menu and select **Get invite link**, or right-click a text channel or the server's icon and select **Invite people**. "Anyone with the link can join this server." If you have no active link, one is created. Use **Copy** or **Share**.
 
+A server invite does not make an account. Someone without one signs up first; on an instance where sign-up is invite only, an instance admin invites them under **Instance admin** → **Invites** ([Invite someone](/self-host/install#invite-someone)).
+
 ### Link settings
 
 Select **Link settings** to make a link with other limits, then **Create new link**. "Existing links keep working until they expire or you revoke them."

@@ -17,6 +17,7 @@ export const KNOWN_CAPABILITIES = [
   'instance-staff-roles',
   'custom-stickers',
   'server-directory',
+  'instance-invites',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

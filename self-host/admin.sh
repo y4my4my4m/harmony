@@ -228,20 +228,28 @@ await signOut(s.json.access_token);
 out({ ok: true, email: user.email });
 '
 
+# An address with a confirmed account gets 422 email_exists and nothing is made; one already
+# invited gets a new link. The invitation is recorded in instance_invites (source cli), as the
+# admin panel records its own; without that table (database not updated) it is listed there as
+# made outside Harmony.
 NODE_INVITE='
 const email = arg("email").toLowerCase();
 const redirect = arg("redirect");
-if (arg("send") === "1") {
-  const r = await call("POST", `/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { body: { email } });
-  if (!r.ok) fail("sending the invitation failed", r);
-  out({ ok: true, email, sent: true });
-} else {
-  const r = await call("POST", "/auth/v1/admin/generate_link", { body: { type: "invite", email, redirect_to: redirect } });
-  if (!r.ok) fail("creating the invitation failed", r);
-  const link = r.json?.action_link ?? r.json?.properties?.action_link;
-  if (!link) fail("GoTrue returned no invitation link", r);
-  out({ ok: true, email, link });
-}
+const send = arg("send") === "1";
+const r = send
+  ? await call("POST", `/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { body: { email } })
+  : await call("POST", "/auth/v1/admin/generate_link", { body: { type: "invite", email, redirect_to: redirect } });
+if (r.json?.error_code === "email_exists") fail(`an account with the address ${email} exists; nothing was created`);
+if (!r.ok) fail(send ? "sending the invitation failed" : "creating the invitation failed", r);
+const link = send ? null : (r.json?.action_link ?? r.json?.properties?.action_link);
+if (!send && !link) fail("GoTrue returned no invitation link", r);
+const userId = r.json?.id ?? r.json?.user?.id;
+const rec = userId
+  ? await call("POST", "/rest/v1/rpc/admin_record_instance_invite", {
+      body: { p_auth_user_id: userId, p_email: email, p_delivery: send ? "email" : "link", p_action: "create", p_admin_id: null },
+    })
+  : { ok: false };
+out({ ok: true, email, sent: send, link, recorded: rec.ok });
 '
 
 # Custom sign-in providers: GoTrue's admin API (/admin/custom-providers, 2.187.0+) holds the
@@ -510,8 +518,11 @@ invite() {
 		die "--send needs SMTP (harmony config); without it, send the printed link yourself"
 	fi
 	local res
-	# The link signs the person in on /reset-password, where they choose a password.
-	node_call res "$NODE_INVITE" email "$email" redirect "https://$domain/reset-password" send "$send"
+	# The link signs the person in on /reset-password, where they choose a password; the admin
+	# panel's invitations land on the same page.
+	node_call res "$NODE_INVITE" email "$email" redirect "https://$domain/reset-password?invite=1" send "$send"
+	[[ "$(json_field "$res" recorded)" == true ]] ||
+		warn "not recorded in instance_invites (harmony update brings the table); the admin panel lists it as made outside Harmony"
 	if [[ $send == 1 ]]; then
 		ok "Invitation emailed to $email"
 	else

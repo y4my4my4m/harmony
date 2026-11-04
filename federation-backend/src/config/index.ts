@@ -34,6 +34,12 @@ const envSchema = z.object({
   
   // Instance
   INSTANCE_DOMAIN: z.string(),
+  // Origin of the web app; default https://<INSTANCE_DOMAIN>. Invitation links land on its
+  // /reset-password?invite=1, as those of `harmony admin invite` land on https://DOMAIN's.
+  APP_URL: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim().replace(/\/+$/, '') : undefined),
+    z.string().url().optional(),
+  ),
   INSTANCE_NAME: z.string().default('Harmony'),
   INSTANCE_DESCRIPTION: z.string().default('A federated social platform'),
   
@@ -62,6 +68,16 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
   
+  // Copies of GoTrue's own settings, under GoTrue's names. GOTRUE_SMTP_HOST: GoTrue sends
+  // email when it is set and not supabase-mail, the upstream stack's placeholder.
+  // GOTRUE_MAILER_OTP_EXP: seconds an invitation link lives after it is made; GoTrue's default
+  // is 86400 (ApplyDefaults, internal/conf/configuration.go).
+  GOTRUE_SMTP_HOST: z.string().default(''),
+  GOTRUE_MAILER_OTP_EXP: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? Number(v.trim()) : undefined),
+    z.number().int().positive().default(86400),
+  ),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   

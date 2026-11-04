@@ -377,13 +377,23 @@ your shell history; the prompt does not.
 harmony admin invite <email> [--send]
 ```
 
-Creates a single-use invitation for the address. The link signs the person
-in on `https://DOMAIN/reset-password`, where they choose a password.
+Creates a single-use invitation for the address, as **Invites** in the admin
+panel does. The link signs the person in on
+`https://DOMAIN/reset-password?invite=1`, where they choose a password and
+then a username. It expires 24 hours after it is made, unless the sign-in
+service sets `GOTRUE_MAILER_OTP_EXP`.
 
 | Option | Effect |
 |---|---|
 | none | Prints the link; send it yourself |
 | `--send` | Emails the invitation. Needs SMTP; without it, the command stops with `--send needs SMTP (harmony config); without it, send the printed link yourself` |
+
+An address whose account exists stops the command with `an account with the
+address … exists; nothing was created`. An address already invited gets a new
+link, and the one before stops working. The invitation is listed in the admin
+panel under **Invites**, invited by **Command line**; on a database not yet
+updated, the command warns that it was not recorded, and the panel lists it
+as made outside Harmony.
 
 ## harmony registration
 
@@ -398,7 +408,7 @@ Sets who can create an account. Without an argument it applies
 | Policy | Sign-up | `open_registration` |
 |---|---|---|
 | `open` | on (`DISABLE_SIGNUP=false`) | `true` |
-| `invite` | off; invitations through `harmony admin invite` | `false` |
+| `invite` | off; invitations through `harmony admin invite` or the admin panel's **Invites** | `false` |
 | `closed` | off | `false` |
 
 It writes `REGISTRATION` to `.env`, `DISABLE_SIGNUP` to `supabase/.env` and

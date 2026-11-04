@@ -138,6 +138,10 @@
       <UserManagement />
     </div>
 
+    <div v-else-if="activeAdminTab === 'invites'" class="admin-grid single">
+      <InstanceInvites />
+    </div>
+
     <div v-else-if="activeAdminTab === 'retention'" class="admin-grid single">
       <RetentionCohorts />
     </div>
@@ -235,6 +239,7 @@ const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/ad
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
+const InstanceInvites = defineAsyncComponent(() => import('@/components/admin/InstanceInvites.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
@@ -263,6 +268,7 @@ const adminTabs = [
   { key: 'overview', label: 'Overview', icon: 'dashboard' },
   { key: 'federation', label: 'Federation', icon: 'federation' },
   { key: 'users', label: 'Users', icon: 'users' },
+  { key: 'invites', label: t('adminInvites.tab'), icon: 'user-plus' },
   { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
   { key: 'servers', label: t('hostStaff.tab'), icon: 'server' },
@@ -286,7 +292,8 @@ const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports'
 const visibleTabs = computed(() =>
   (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
     .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks'))
-    .filter(tab => tab.key !== 'stickers' || hasCapability('custom-stickers')))
+    .filter(tab => tab.key !== 'stickers' || hasCapability('custom-stickers'))
+    .filter(tab => tab.key !== 'invites' || hasCapability('instance-invites')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))

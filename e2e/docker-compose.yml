@@ -56,7 +56,8 @@ services:
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${E2E_DB_PASSWORD:-unset}@db:5432/postgres?search_path=auth&sslmode=disable
       GOTRUE_SITE_URL: http://localhost:5173
       GOTRUE_URI_ALLOW_LIST: "*"
-      GOTRUE_DISABLE_SIGNUP: "false"
+      # E2E_DISABLE_SIGNUP=true runs the stack as an invite-only instance (instance-invites.spec.ts).
+      GOTRUE_DISABLE_SIGNUP: ${E2E_DISABLE_SIGNUP:-false}
       GOTRUE_JWT_SECRET: ${E2E_JWT_SECRET:-unset}
       GOTRUE_JWT_EXP: "3600"
       GOTRUE_JWT_AUD: authenticated

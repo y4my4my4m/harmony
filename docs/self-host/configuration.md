@@ -59,7 +59,7 @@ Some settings exist both as a variable and in the database:
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
-| Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
+| Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
 | Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
 | Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
@@ -257,6 +257,7 @@ are recomputed on every run, and a hand edit of them is lost:
 | `federation.env` | `INSTANCE_NAME` | `.env` |
 | `federation.env` | `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | `supabase/.env` |
 | `federation.env` | `VAPID_SUBJECT` | `ADMIN_EMAIL` |
+| `federation.env` | `GOTRUE_SMTP_HOST` | `SMTP_HOST` in `supabase/.env` |
 | `federation.env` | `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL` | Removed while voice is off |
 | `bot-gateway.env` | `SUPABASE_SERVICE_ROLE_KEY` | `supabase/.env` |
 | `bot-gateway.env` | `INTERNAL_API_SECRET` | `federation.env` |
@@ -453,6 +454,17 @@ process and names the variable.
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
 | `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address |
 | `VERSION` | the release (`1.8.10`) | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
+| `APP_URL` | `https://INSTANCE_DOMAIN` | Origin of the web app. Invitation links from the admin panel land on its `/reset-password?invite=1` |
+
+### Invitations
+
+The admin panel's **Invites** reads two settings of the sign-in service, which
+the backend cannot see. Set them to the sign-in service's own values.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GOTRUE_SMTP_HOST` | empty | The sign-in service's `GOTRUE_SMTP_HOST`. Empty or `supabase-mail`: no SMTP, and **Send by email** is off. `configure.sh` copies `SMTP_HOST` from `supabase/.env` |
+| `GOTRUE_MAILER_OTP_EXP` | `86400` | The sign-in service's `GOTRUE_MAILER_OTP_EXP`: seconds an invitation link works after it is made. The page shows each link's expiry from it |
 
 ### Queue and database
 

@@ -167,7 +167,7 @@ The installer already ran it once. Each line is OK, WARN or FAIL with a fix;
 Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
-**Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
+**Federation**, **Users**, **Invites**, **Retention**, **Reports**, **Anti-spam**,
 **Webhooks**, **Content**, **Emojis**, **Stickers**, **Config**, **Funding**,
 **Drive** and **Tools**. The instance name, description, rules, icon and legal links
 are under **Config** → **Branding**, the largest file each account may upload
@@ -214,16 +214,41 @@ providers are refused too. NodeInfo advertises the policy to other servers
 
 ### Invite someone
 
-With `invite`, each invitation is a single-use link:
+An invitation makes an account for one email address. It works in every
+registration policy, also while sign-up is off.
+
+In the admin panel, open **Invites**:
+
+1. Enter the address in **Email address**.
+2. Leave **Send by email** off to get a link, or turn it on to have the sign-in
+   service email it. Without SMTP the switch is off, with the reason under it.
+3. Select **Create invitation**. The single-use link appears with **Copy** and
+   the time it expires: 24 hours after it is made, unless the sign-in service
+   sets `GOTRUE_MAILER_OTP_EXP`.
+
+The page states the registration policy in force. **Pending invitations**
+lists each open invitation with who made it, when, whether it went out as a
+link or by email, and when its link expires. **Copy new link** makes and copies
+a new link; the one before stops working. **Revoke** withdraws the invitation:
+the link stops working and the unused account is deleted. An invitation whose
+person has signed in moves to **Accepted and revoked**, with the username they
+chose, and can no longer be revoked. An address that already has an account is
+refused, and nothing is created. Each invitation, new link and revoke appears
+in **Overview** → **Recent Activity**.
+
+From the server:
 
 ```bash
 harmony admin invite friend@example.com           # prints the link; send it yourself
 harmony admin invite friend@example.com --send    # emails it (needs SMTP)
 ```
 
-The link signs the person in on Harmony's password page
-(`/reset-password`), where they choose a password; they then pick a
-username.
+Both open Harmony's password page (`/reset-password?invite=1`), where the
+person chooses a password and stays signed in; they then pick a username.
+The link works once. Someone who opened it and left before choosing a
+password is listed as accepted; they set a password with **Forgot your
+password?** on the sign-in page (needs SMTP), or you set one with
+`harmony admin reset-password`.
 
 ## Install without prompts {#scripted-installs}
 

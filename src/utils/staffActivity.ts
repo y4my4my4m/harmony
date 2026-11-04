@@ -12,6 +12,8 @@
  *   instance_server_member_removed      user      username, server_id, server_name, reason, removed, kept_out
  *   instance_server_keepout_lifted      user      server_id
  *   domain_reject_reports, _accept_     domain    (none) (20261027400001)
+ *   instance_invite_created, _reissued  invite    email, delivery (20261105980001)
+ *   instance_invite_revoked             invite    email
  */
 
 type Translate = (key: string, ...args: unknown[]) => string
@@ -107,6 +109,12 @@ export function staffActivityMessage(entry: StaffActivityEntry, instance: string
       return t(`${K}.reportsRejected`, { domain: entry.target_id ?? '' })
     case 'domain_accept_reports':
       return t(`${K}.reportsAccepted`, { domain: entry.target_id ?? '' })
+    case 'instance_invite_created':
+      return t(`${K}.${d.delivery === 'email' ? 'inviteEmailed' : 'inviteCreated'}`, { email: text(d.email) ?? '' })
+    case 'instance_invite_reissued':
+      return t(`${K}.inviteReissued`, { email: text(d.email) ?? '' })
+    case 'instance_invite_revoked':
+      return t(`${K}.inviteRevoked`, { email: text(d.email) ?? '' })
     default:
       return null
   }

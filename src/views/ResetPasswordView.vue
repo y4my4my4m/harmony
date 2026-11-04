@@ -27,7 +27,7 @@
           <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
-      <h2 ref="stateHeading" class="form-title" tabindex="-1">{{ t('auth.reset.invalidTitle') }}</h2>
+      <h2 ref="stateHeading" class="form-title" tabindex="-1">{{ invalidTitle }}</h2>
       <p class="form-subtitle">
         {{ errorMessage || t('auth.reset.invalidBody') }}
       </p>
@@ -42,9 +42,9 @@
 
     <div v-else-if="isValidToken">
       <div class="form-header">
-        <h2 :id="formTitleId" class="form-title">{{ t('auth.resetYourPassword') }}</h2>
-        <p class="form-subtitle">
-          {{ t('auth.reset.enterNew') }}
+        <h2 :id="formTitleId" class="form-title">{{ isInvite ? t('auth.invite.title') : t('auth.resetYourPassword') }}</h2>
+        <p class="form-subtitle" data-testid="reset-subtitle">
+          {{ isInvite ? t('auth.invite.subtitle', { email: inviteEmail }) : t('auth.reset.enterNew') }}
         </p>
       </div>
 
@@ -131,24 +131,26 @@
           :aria-disabled="isLoading ? 'true' : undefined"
           :aria-busy="isLoading ? 'true' : undefined"
         >
-          <span v-if="!isLoading">{{ t('auth.resetPassword') }}</span>
+          <span v-if="!isLoading">{{ isInvite ? t('auth.invite.submit') : t('auth.resetPassword') }}</span>
           <template v-else>
             <span class="sr-only">{{ t('auth.reset.resetting') }}</span>
             <div class="loading-spinner" aria-hidden="true"></div>
           </template>
         </button>
 
-        <div class="divider">
-          <span>{{ t('auth.reset.remember') }}</span>
-        </div>
+        <template v-if="!isInvite">
+          <div class="divider">
+            <span>{{ t('auth.reset.remember') }}</span>
+          </div>
 
-        <button 
-          type="button" 
-          class="switch-mode-btn"
-          @click="goToLogin"
-        >
-          {{ t('auth.backToLogin') }}
-        </button>
+          <button
+            type="button"
+            class="switch-mode-btn"
+            @click="goToLogin"
+          >
+            {{ t('auth.backToLogin') }}
+          </button>
+        </template>
       </form>
     </div>
 
@@ -254,8 +256,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, useId, watch } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import type { Session } from '@supabase/supabase-js'
 import { signOutAndForget, supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
@@ -267,6 +270,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer'
 import AuthShell, { type MascotPose } from '@/components/auth/AuthShell.vue'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
@@ -304,6 +308,22 @@ const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
 let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
+// An invitation link (admin panel, `harmony admin invite`) redirects to /reset-password?invite=1:
+// the person chooses a first password and stays signed in.
+const isInvite = ref(route.query.invite === '1')
+const inviteEmail = ref('')
+const invalidTitle = computed(() => (isInvite.value ? t('auth.invite.invalidTitle') : t('auth.reset.invalidTitle')))
+
+// A link without ?invite=1 (made before it, or by GoTrue directly) counts as an invitation
+// when the account was invited and has no profile yet.
+async function detectInvite(session: Session | null) {
+  const user = session?.user
+  inviteEmail.value = user?.email ?? ''
+  if (isInvite.value || !user?.invited_at) return
+  const { data } = await supabase.from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle()
+  isInvite.value = !data
+}
+
 const requiresMFA = ref(false)
 const showMFAModal = ref(false)
 const mfaCode = ref('')
@@ -325,7 +345,7 @@ watch([isSuccess, isError], async ([success, failed], [wasSuccess, wasFailed]) =
   if ((success && !wasSuccess) || (failed && !wasFailed)) {
     await nextTick()
     stateHeading.value?.focus()
-    if (failed) assertive(`${t('auth.reset.invalidTitle')}. ${errorMessage.value || t('auth.reset.invalidBody')}`)
+    if (failed) assertive(`${invalidTitle.value}. ${errorMessage.value || t('auth.reset.invalidBody')}`)
   }
 })
 
@@ -390,10 +410,11 @@ onMounted(async () => {
     
     if (!sessionData.session) {
       isError.value = true
-      errorMessage.value = t('auth.reset.linkMissing')
+      errorMessage.value = isInvite.value ? t('auth.invite.invalidBody') : t('auth.reset.linkMissing')
       authStateListener?.subscription.unsubscribe()
       return
     }
+    await detectInvite(sessionData.session)
     isValidToken.value = true
     isPasswordResetMode.value = true
     
@@ -415,6 +436,7 @@ onMounted(async () => {
       errorMessage.value = t('auth.reset.invalidBody')
       authStateListener?.subscription.unsubscribe()
     } else {
+      await detectInvite(sessionData.session)
       isValidToken.value = true
       isPasswordResetMode.value = true
       
@@ -525,7 +547,7 @@ const performPasswordReset = async () => {
       
       if (error.message.includes('expired') || error.message.includes('invalid')) {
         isError.value = true
-        errorMessage.value = t('auth.reset.linkExpired')
+        errorMessage.value = isInvite.value ? t('auth.invite.invalidBody') : t('auth.reset.linkExpired')
       } else if (error.message.includes('Password should be at least')) {
         passwordError.value = error.message
       } else if (error.message.includes('AAL2') || error.message.includes('aal2')) {
@@ -539,6 +561,18 @@ const performPasswordReset = async () => {
     
     // `data` carries the full user record; log the outcome only.
     debug.log('Password reset successful')
+
+    if (isInvite.value) {
+      // The invitation's session stays: the router takes a new account to profile creation.
+      isPasswordResetMode.value = false
+      authStore.clearPasswordResetMode()
+      const { data: current } = await supabase.auth.getSession()
+      if (current.session) await authStore.finalizeSignIn(current.session)
+      toast.success(t('auth.invite.done'))
+      await router.replace('/')
+      return
+    }
+
     isSuccess.value = true
     isPasswordResetMode.value = false
     
