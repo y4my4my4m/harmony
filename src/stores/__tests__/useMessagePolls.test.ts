@@ -25,6 +25,7 @@ const poll = (over: Partial<MessagePollState> = {}): MessagePollState => ({
   ],
   myOptionIds: [],
   isAuthor: false,
+  remote: false,
   ...over,
 })
 

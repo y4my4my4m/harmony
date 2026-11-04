@@ -6479,6 +6479,7 @@
     "post": "投票を投稿",
     "selectOne": "回答を1つ選択",
     "selectMultiple": "回答を1つ以上選択",
+    "voteFinal": "送信した投票は変更できません",
     "votes": "{count} 票",
     "timeLeft": {
       "minutes": "残り {count} 分",
@@ -6502,7 +6503,8 @@
       "voteFailed": "投票を保存できませんでした。",
       "closed": "この投票は終了しています。",
       "endFailed": "投票を終了できませんでした。",
-      "alreadyVoted": "このアンケートにはすでに投票しています。"
+      "alreadyVoted": "このアンケートにはすでに投票しています。",
+      "hostUnsupported": "このサーバーのホストインスタンスはまだアンケートに対応していません。"
     },
     "remote": {
       "voters": "{count} 人が投票",

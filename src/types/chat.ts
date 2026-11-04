@@ -32,6 +32,11 @@ export interface Server {
    * as `federation_domain`.
    */
   federation_inbox_url?: string;
+  /**
+   * A copy's host federates polls in its channels (servers.federation_metadata.message_polls,
+   * from the Group's harmony:polls); null or absent when it does not or the copy was not synced.
+   */
+  host_polls?: boolean | null;
   created_at?: string;
   folder_id?: string | null;
   position?: number;

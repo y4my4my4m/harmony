@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { mergeQuestionPoll, questionPollMetadata } from '../utils/polls.js';
+import { isPollVoteNote, preparePoll, receivePollState, receivePollVote, storeInboundPoll } from './messagePolls.js';
 import { actorHostname } from '../utils/mentionParts.js';
 import { inboundRawContent, urlFormEmojis } from '../utils/inboundContent.js';
 import { withInboundSticker } from '../utils/stickers.js';
@@ -692,10 +693,28 @@ export class ActivityProcessor {
 
     logger.info(`processCreate: object.type=${object?.type}, id=${object?.id?.substring?.(0, 80)}`);
 
-    // Question is a poll; stored as a post carrying poll metadata.
+    // A vote on a direct message poll held here (messagePolls.ts). A vote naming no message
+    // poll here is processed as any Note.
+    if (isPollVoteNote(object)
+        && await receivePollVote(supabase, activity, object, { resolveActor: (url) => this.ensureRemoteUser(url) })) {
+      return;
+    }
+
+    // Question is a poll: a direct one lands in the conversation with its poll, any other is
+    // stored as a post carrying poll metadata.
     if (object.type === 'Question') {
       if (!sameOrigin(object.id, normalizeActor(activity.actor))) {
         logger.warn(`Create rejected: poll ${object.id} is not on the host of actor ${normalizeActor(activity.actor)}`);
+        return;
+      }
+      if (this.determineVisibility(object) === 'direct' && object['harmony:serverId'] === undefined) {
+        await this.ensureRemoteUser(normalizeActor(activity.actor));
+        const author = await resolveProfileByActorUrl(normalizeActor(activity.actor));
+        if (!author) {
+          logger.error('Failed to find author for direct poll');
+          return;
+        }
+        await this.handleDirectMessage(object, author.id, noteToContent(object), activity, options);
         return;
       }
       logger.info(`Processing poll: ${object.id}`);
@@ -1534,7 +1553,7 @@ export class ActivityProcessor {
       
       const { data: existingServer } = await supabase
         .from('servers')
-        .select('id, ap_id')
+        .select('id, ap_id, federation_metadata')
         .eq('id', serverIdMatch[1])
         .eq('is_local_server', false)
         .maybeSingle();
@@ -1569,6 +1588,14 @@ export class ActivityProcessor {
       }
       const { ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js');
       Object.assign(updateData, ServerDiscoveryService.groupSuspension(object) ?? {});
+      // Whether its channels' polls federate (activitypub/messagePolls.ts), as a sync records it.
+      if (typeof object['harmony:polls'] === 'boolean') {
+        const metadata = (existingServer as any).federation_metadata;
+        updateData.federation_metadata = {
+          ...(metadata && typeof metadata === 'object' ? metadata : {}),
+          message_polls: object['harmony:polls'],
+        };
+      }
       
       const { error: updateError } = await supabase
         .from('servers')
@@ -2755,6 +2782,8 @@ export class ActivityProcessor {
       .maybeSingle();
 
     if (!existingPost) {
+      // The holder's counts of a chat message poll copied here (messagePolls.ts).
+      if (await receivePollState(supabase, actorUrl, object)) return;
       logger.warn(`Poll not found for update: ${object.id}`);
       return;
     }
@@ -4026,6 +4055,8 @@ export class ActivityProcessor {
     }
 
     const content = await this.channelMessageContent(object, actorUrl);
+    // A poll whose tally the server's host holds: a copy here (messagePolls.ts).
+    const pollIn = Array.isArray(content) ? preparePoll(object, content) : null;
 
     const { data: existingMessage } = await supabase
       .from('messages')
@@ -4063,7 +4094,7 @@ export class ActivityProcessor {
         id: messageId,
         channel_id: channelId,
         user_id: author.id,
-        content: content,
+        content: pollIn?.content ?? content,
         created_at: notAfterNow(object.published),
         updated_at: object.updated ? notAfterNow(object.updated) : null,
         reply_to: resolvedReplyTo,
@@ -4088,6 +4119,12 @@ export class ActivityProcessor {
     }
 
     logger.info(`Created channel message ${messageId} in #${channelName} from ${author.username}`);
+    if (pollIn) {
+      await storeInboundPoll(supabase, insertedMsg.id, pollIn.pollId, pollIn.poll, {
+        remote: authz.server.is_local_server === false,
+        apId: object.id,
+      });
+    }
 
     // Message names a thread that does not exist yet; create a stub.
     if (threadApIdValue && !resolvedThreadId && insertedMsg) {
@@ -4556,12 +4593,15 @@ export class ActivityProcessor {
     if (object.inReplyTo) metadata.in_reply_to_ap = object.inReplyTo;
 
     const dmTimestamp = object.published || new Date().toISOString();
+    const dmContent = withInboundSticker(content, object['harmony:sticker'], metadata.from_domain);
+    // A poll its author's instance holds: a Question, or harmony:poll on a Note (messagePolls.ts).
+    const pollIn = preparePoll(object, dmContent);
     const { data: insertedDM, error: messageError } = await supabase
       .from('messages')
       .insert({
         user_id: authorId,
         conversation_id: conversationId,
-        content: withInboundSticker(content, object['harmony:sticker'], metadata.from_domain),
+        content: pollIn?.content ?? dmContent,
         metadata,
         encrypted: object['harmony:encrypted'] === true,
         created_at: dmTimestamp,
@@ -4574,6 +4614,9 @@ export class ActivityProcessor {
       logger.error(`Failed to create DM from activity:`, messageError)
     } else {
       logger.info(`Created DM in conversation ${conversationId} from ${object.id}`)
+      if (insertedDM && pollIn) {
+        await storeInboundPoll(supabase, insertedDM.id, pollIn.pollId, pollIn.poll, { remote: true, apId: object.id });
+      }
       if (insertedDM) {
         const { enrichMessageLinkPreviews } = await import('../listeners/DatabaseListener.js');
         enrichMessageLinkPreviews(insertedDM).catch(err =>

@@ -6475,6 +6475,7 @@
     "post": "Post poll",
     "selectOne": "Select one answer",
     "selectMultiple": "Select one or more answers",
+    "voteFinal": "Your vote can't be changed once sent",
     "votes": "{count} vote | {count} votes",
     "timeLeft": {
       "minutes": "{count} minute left | {count} minutes left",
@@ -6498,7 +6499,8 @@
       "voteFailed": "Your vote was not saved.",
       "closed": "This poll has ended.",
       "endFailed": "The poll could not be ended.",
-      "alreadyVoted": "You already voted on this poll."
+      "alreadyVoted": "You already voted on this poll.",
+      "hostUnsupported": "This server's home instance doesn't take polls yet."
     },
     "remote": {
       "voters": "{count} person voted | {count} people voted",

@@ -26,6 +26,10 @@ export const CAPABILITIES = [
   // The admin panel's invitations: /admin/invites and the admin_* invitation functions
   // (20261105980001).
   'instance-invites',
+  // Chat message polls over federation: message_polls.remote, get_message_polls' remote column,
+  // create_message_poll's POLL_HOST_UNSUPPORTED and servers.federation_metadata.message_polls
+  // (20261105990001).
+  'federated-polls',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

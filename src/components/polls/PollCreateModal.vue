@@ -198,6 +198,7 @@ async function describeFailure(err: any): Promise<string> {
   if (code === 'POLL_ENCRYPTED') return t('polls.errors.encrypted')
   if (code === 'POLL_QUESTION_INVALID') return t('polls.errors.question')
   if (code === 'POLL_OPTIONS_INVALID') return t('polls.errors.answers')
+  if (code === 'POLL_HOST_UNSUPPORTED') return t('polls.errors.hostUnsupported')
   const raw = [err?.code, err?.message].filter((v) => typeof v === 'string').join(' ')
   const slowmode = /SLOWMODE_ACTIVE:(\d+)/.exec(raw)
   if (slowmode) {

@@ -6479,6 +6479,7 @@
     "post": "Publicar encuesta",
     "selectOne": "Elige una respuesta",
     "selectMultiple": "Elige una o más respuestas",
+    "voteFinal": "Tu voto no se puede cambiar una vez enviado",
     "votes": "{count} voto | {count} votos",
     "timeLeft": {
       "minutes": "Queda {count} minuto | Quedan {count} minutos",
@@ -6502,7 +6503,8 @@
       "voteFailed": "No se guardó tu voto.",
       "closed": "Esta encuesta ha terminado.",
       "endFailed": "No se pudo terminar la encuesta.",
-      "alreadyVoted": "Ya votaste en esta encuesta."
+      "alreadyVoted": "Ya votaste en esta encuesta.",
+      "hostUnsupported": "La instancia de origen de este servidor aún no admite encuestas."
     },
     "remote": {
       "voters": "{count} persona votó | {count} personas votaron",

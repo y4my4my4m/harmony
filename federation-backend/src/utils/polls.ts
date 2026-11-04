@@ -8,8 +8,9 @@
  *   is_poll, poll_options [{ name, votes }], poll_multiple_choice, poll_end_time,
  *   poll_voters_count, poll_closed
  *
- * Harmony chat polls (message_polls) do not federate: a poll message's `poll` part names a
- * row of this instance only. Its text part spells the poll out for other instances.
+ * Harmony chat polls (message_polls) federate as activitypub/messagePolls.ts describes. A poll
+ * message's `poll` part names a row of the instance storing it and never leaves it; its text
+ * part spells the poll out for readers of text only.
  */
 
 export interface QuestionPollMetadata {

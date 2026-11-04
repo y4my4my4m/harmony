@@ -23,6 +23,11 @@ export interface MessagePollState {
   myOptionIds: string[]
   /** The caller wrote the poll and may end it. */
   isAuthor: boolean
+  /**
+   * Another instance holds the tally (20261105990001_federated_message_polls.sql): the counts
+   * are its, and a vote is final.
+   */
+  remote: boolean
 }
 
 export interface CreateMessagePollInput {
@@ -57,6 +62,7 @@ export function pollStateFromRow(row: any): MessagePollState {
     options,
     myOptionIds: Array.isArray(row?.my_option_ids) ? row.my_option_ids.map(String) : [],
     isAuthor: row?.is_author === true,
+    remote: row?.remote === true,
   }
 }
 
@@ -86,7 +92,7 @@ export async function fetchMessagePolls(pollIds: string[]): Promise<MessagePollS
   return (Array.isArray(data) ? data : []).map(pollStateFromRow)
 }
 
-/** Sets the caller's answers; an empty list removes the vote. */
+/** Sets the caller's answers; an empty list removes the vote. On a remote poll the first vote is final. */
 export async function voteMessagePoll(pollId: string, optionIds: string[]): Promise<MessagePollState | null> {
   const { data, error } = await supabase.rpc('vote_message_poll', { p_poll_id: pollId, p_option_ids: optionIds })
   if (error) throw error
@@ -104,7 +110,8 @@ export async function endMessagePoll(pollId: string): Promise<MessagePollState |
 
 const POLL_ERROR_CODES = [
   'POLL_ENCRYPTED', 'POLL_CLOSED', 'POLL_NOT_FOUND', 'POLL_SINGLE_CHOICE', 'POLL_OPTION_INVALID',
-  'POLL_QUESTION_INVALID', 'POLL_OPTIONS_INVALID', 'POLL_DURATION_INVALID',
+  'POLL_QUESTION_INVALID', 'POLL_OPTIONS_INVALID', 'POLL_DURATION_INVALID', 'POLL_ALREADY_VOTED',
+  'POLL_HOST_UNSUPPORTED',
 ] as const
 export type PollErrorCode = (typeof POLL_ERROR_CODES)[number]
 

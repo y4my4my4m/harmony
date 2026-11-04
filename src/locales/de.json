@@ -6479,6 +6479,7 @@
     "post": "Umfrage posten",
     "selectOne": "Wähle eine Antwort",
     "selectMultiple": "Wähle eine oder mehrere Antworten",
+    "voteFinal": "Deine Stimme lässt sich nach dem Absenden nicht ändern",
     "votes": "{count} Stimme | {count} Stimmen",
     "timeLeft": {
       "minutes": "Noch {count} Minute | Noch {count} Minuten",
@@ -6502,7 +6503,8 @@
       "voteFailed": "Deine Stimme wurde nicht gespeichert.",
       "closed": "Diese Umfrage ist beendet.",
       "endFailed": "Die Umfrage konnte nicht beendet werden.",
-      "alreadyVoted": "Du hast bei dieser Umfrage bereits abgestimmt."
+      "alreadyVoted": "Du hast bei dieser Umfrage bereits abgestimmt.",
+      "hostUnsupported": "Die Heim-Instanz dieses Servers nimmt noch keine Umfragen an."
     },
     "remote": {
       "voters": "{count} Person hat abgestimmt | {count} Personen haben abgestimmt",

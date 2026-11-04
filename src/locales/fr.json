@@ -6479,6 +6479,7 @@
     "post": "Publier le sondage",
     "selectOne": "Choisissez une réponse",
     "selectMultiple": "Choisissez une ou plusieurs réponses",
+    "voteFinal": "Votre vote ne peut plus être modifié une fois envoyé",
     "votes": "{count} vote | {count} votes",
     "timeLeft": {
       "minutes": "{count} minute restante | {count} minutes restantes",
@@ -6502,7 +6503,8 @@
       "voteFailed": "Votre vote n'a pas été enregistré.",
       "closed": "Ce sondage est terminé.",
       "endFailed": "Impossible de terminer le sondage.",
-      "alreadyVoted": "Vous avez déjà voté à ce sondage."
+      "alreadyVoted": "Vous avez déjà voté à ce sondage.",
+      "hostUnsupported": "L'instance d'origine de ce serveur ne prend pas encore en charge les sondages."
     },
     "remote": {
       "voters": "{count} personne a voté | {count} personnes ont voté",

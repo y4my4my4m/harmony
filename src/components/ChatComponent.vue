@@ -232,6 +232,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useToast } from 'vue-toastification';
   import { useAnnouncer } from '@/composables/useAnnouncer';
   import { usePortalTarget } from '@/composables/usePortalTarget';
+  import { hasCapability } from '@/services/instanceCapabilities';
 
   const portalTarget = usePortalTarget();
 
@@ -327,7 +328,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const pollsAllowed = computed(() => {
     if (props.isDM) return !!props.conversationId && !dmEncryptionEnabled.value;
     const channelId = props.channelId || serverChannelStore.currentChannelId;
-    return !!channelId && !channelEncryptionStore.isMessagesEncrypted(channelId);
+    if (!channelId || channelEncryptionStore.isMessagesEncrypted(channelId)) return false;
+    // A copy of a server hosted elsewhere: its host holds the tally (POLL_HOST_UNSUPPORTED).
+    const server = serverChannelStore.currentServer;
+    return server?.is_local_server !== false || server.host_polls === true || !hasCapability('federated-polls');
   });
   const openPollModal = () => {
     if (pollsAllowed.value) showPollModal.value = true;

@@ -14,6 +14,7 @@ import { convertContentToHTML, extractActivityPubTags, extractAttachments } from
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia.js';
 import { withoutPollParts } from '../utils/polls.js';
+import { harmonyPollExtension, type FederatedPoll } from './messagePolls.js';
 import { HARMONY_NS } from './harmonyContext.js';
 import { HARMONY_AUTHOR, type GroupAuthor } from './groupAuthor.js';
 
@@ -46,7 +47,9 @@ export async function withParentObjectIds(supabase: any, rows: any[]): Promise<v
 
 /**
  * `message.reply_to_ap_id` and `message.thread_parent_ap_id`, when the caller loaded them, name
- * the reply's and the thread's parent by messageObjectId.
+ * the reply's and the thread's parent by messageObjectId. `message.poll`, when the caller loaded
+ * it (messagePolls.ts withMessagePolls), goes out as `harmony:poll`; the poll part stays out of
+ * harmony:rawContent, whose text part spells the poll out for Harmony before 1.9.3.
  */
 export function channelMessageActivity(
   message: any,
@@ -116,6 +119,7 @@ export function channelMessageActivity(
   }
 
   const voiceHarmony = harmonyVoiceMessageExtension(message.metadata);
+  const poll: FederatedPoll | undefined = message.poll ?? undefined;
 
   return {
     '@context': [
@@ -131,6 +135,7 @@ export function channelMessageActivity(
         'threadId': 'harmony:threadId',
         'parentMessageId': 'harmony:parentMessageId',
         'voiceMessage': 'harmony:voiceMessage',
+        'poll': 'harmony:poll',
       },
     ],
     id: activityType === 'Update' ? `${activityId}/updates/${Date.now()}` : activityId,
@@ -172,6 +177,8 @@ export function channelMessageActivity(
 
       // Voice message UI (waveform player) - metadata is not inside harmony:rawContent
       ...(voiceHarmony ? { 'harmony:voiceMessage': voiceHarmony } : {}),
+
+      ...(poll ? { 'harmony:poll': harmonyPollExtension(poll) } : {}),
     },
 
     // Addressing - to server members

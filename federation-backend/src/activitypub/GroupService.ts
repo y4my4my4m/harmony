@@ -37,6 +37,7 @@ import { loadSystemPeople, systemNote, SYSTEM_NOTE_TYPES } from './systemNotes.j
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
 import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.js';
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
+import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
 import {
   HARMONY_MEMBER_ROLES,
@@ -124,6 +125,9 @@ function serverToGroup(
     'harmony:federationEnabled': server.federation_enabled === true,
     // Flags naming a message of the server reach its moderators (1.8.12); older hosts drop them.
     'harmony:acceptsReports': true,
+    // Polls in its channels federate (1.9.3, activitypub/messagePolls.ts): a copy's members vote
+    // through this Group. Older hosts keep a poll on the instance it was posted on.
+    'harmony:polls': true,
     'harmony:suspended': server.suspended_at
       ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
       : null,
@@ -561,6 +565,7 @@ async function channelNotes(
 ): Promise<any[]> {
   const hostDomain = config.INSTANCE_DOMAIN;
   await withParentObjectIds(supabase, rows.filter((m: any) => !m.is_system));
+  await withMessagePolls(supabase, rows);
   const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
   const server = await serverNameRow(supabase, ctx.serverId);
   return rows.flatMap((message: any) => {
@@ -940,6 +945,7 @@ router.get(
     }
 
     await withParentObjectIds(supabase, messages.filter((m: any) => !m.is_system));
+    await withMessagePolls(supabase, messages);
     const server = await serverNameRow(supabase, serverId);
     const people = await loadSystemPeople(supabase, messages.filter((m: any) => m.is_system));
     const items = messages.flatMap((message: any) => {

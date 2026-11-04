@@ -31,6 +31,7 @@ import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handlePollVoteJob } from './handlers/pollVoteHandler.js';
+import { handleMessagePollJob } from './handlers/messagePollHandler.js';
 import { handleMemberRemovalJob } from './handlers/memberRemovalHandler.js';
 import { handleInstanceLeaveJob } from './handlers/instanceLeaveHandler.js';
 import { handleOutgoingWebhookJob } from './handlers/outgoingWebhookHandler.js';
@@ -63,6 +64,7 @@ export type JobType =
   | 'federate-block'
   | 'federate-report'
   | 'federate-poll-vote'
+  | 'federate-message-poll'
   | 'federate-member-removal'
   | 'federate-instance-leave'
   | 'deliver-outgoing-webhook'
@@ -113,6 +115,7 @@ const JOB_TYPES: JobType[] = [
   'federate-block',
   'federate-report',
   'federate-poll-vote',
+  'federate-message-poll',
   'federate-member-removal',
   'federate-instance-leave',
   'deliver-outgoing-webhook',
@@ -141,6 +144,8 @@ type HandlerFn = (data: FederationJobData) => Promise<void>;
 export interface AddJobOptions {
   delayMs?: number;
   dedupeId?: string;
+  /** With dedupeId: adds are dropped for this long after the first, whatever that job's state. */
+  dedupeTtlMs?: number;
   attempts?: number;
 }
 
@@ -250,6 +255,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-block', handleBlockJob);
     this.handlerMap.set('federate-report', handleReportJob);
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
+    this.handlerMap.set('federate-message-poll', handleMessagePollJob);
     this.handlerMap.set('federate-member-removal', handleMemberRemovalJob);
     this.handlerMap.set('federate-instance-leave', handleInstanceLeaveJob);
     this.handlerMap.set('deliver-outgoing-webhook', handleOutgoingWebhookJob);
@@ -353,7 +359,8 @@ class BullMQManagerService {
   /**
    * A number is `delayMs`: the job is held back that long before a worker takes it. `dedupeId`:
    * while a job added with the same id waits, is delayed or runs, another add returns that job's
-   * id and queues nothing (BullMQ deduplication, no ttl).
+   * id and queues nothing (BullMQ deduplication, no ttl). With `dedupeTtlMs` as well, the id
+   * holds for that long from the first add instead (throttle mode).
    */
   async addJob(jobType: JobType | string, data: FederationJobData, opts?: number | AddJobOptions): Promise<string | undefined> {
     const queue = this.queueFor(jobType);
@@ -361,13 +368,13 @@ class BullMQManagerService {
       logger.warn(`No queue for job type "${jobType}"`);
       return undefined;
     }
-    const { delayMs, dedupeId, attempts } = typeof opts === 'number' ? { delayMs: opts } as AddJobOptions : opts ?? {};
+    const { delayMs, dedupeId, dedupeTtlMs, attempts } = typeof opts === 'number' ? { delayMs: opts } as AddJobOptions : opts ?? {};
 
     const job = await queue.add(jobType, data, {
       attempts: attempts ?? 5,
       backoff: { type: 'exponential', delay: 5000 },
       ...(delayMs && delayMs > 0 ? { delay: delayMs } : {}),
-      ...(dedupeId ? { deduplication: { id: dedupeId } } : {}),
+      ...(dedupeId ? { deduplication: { id: dedupeId, ...(dedupeTtlMs ? { ttl: dedupeTtlMs } : {}) } } : {}),
     });
 
     logger.debug(`Queued ${jobType} job: ${job.id}`);
@@ -483,6 +490,19 @@ class BullMQManagerService {
     for (const pair of votePairs) {
       const [post_id, user_id] = pair.split('/');
       await this.addJob('federate-poll-vote', { type: 'create', post_id, user_id });
+    }
+
+    // Message poll votes, ends and counts whose notify was lost or whose job gave up; same margin.
+    const { data: pollRows } = await supabase
+      .from('message_poll_outbox')
+      .select('poll_id, kind, user_id')
+      .lt('queued_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .order('queued_at', { ascending: true })
+      .limit(50);
+    for (const row of pollRows ?? []) {
+      await this.addJob('federate-message-poll', {
+        type: 'update', poll_id: row.poll_id, kind: row.kind, user_id: row.user_id, stage: 'send',
+      });
     }
 
     // Removals of remote members whose notify was lost or whose job gave up; same five-minute margin.

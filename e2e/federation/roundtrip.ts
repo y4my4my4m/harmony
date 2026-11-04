@@ -60,6 +60,8 @@
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
+// A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
+// are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
 // actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
 // A member's activities reach the other member instances as the Group's
@@ -129,6 +131,7 @@ import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
 import { caseSocial } from './cases/social.ts'
+import { casePolls } from './cases/polls.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2945,6 +2948,18 @@ async function main() {
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, pubServer: PUB_SERVER, privServer: PRIV_SERVER },
+    })
+    await casePolls({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        conversation: CONVERSATION, callConversation: CALL_CONVERSATION,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
     })
     // Last: suspending the peer's account removes it from servers hosted here.
     await caseHostStaff({

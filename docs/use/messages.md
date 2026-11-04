@@ -165,7 +165,15 @@ Each answer shows the percentage of voters who chose it, and the footer shows th
 
 The author can select **End poll** to close it early. A closed poll shows **Poll closed** and takes no more votes.
 
-Bots, bridges and other instances receive a poll as plain text: the question followed by its numbered answers.
+### Polls on other instances
+
+A poll in a server hosted on another Harmony instance, or in a direct message with someone on another instance, is counted by one instance: the server's, or the poll author's. Members everywhere see the same counts and vote from their own instance.
+
+- Choose your answers, then select **Vote**. A vote on a poll counted elsewhere is final: it cannot be moved or removed, as on Mastodon.
+- In a server whose instance runs a Harmony version without poll support, **Create poll** is not offered.
+- A Mastodon user can answer your poll in a direct message, and a poll a Mastodon user sends you shows as a poll you can vote on.
+
+Bots, bridges and instances without poll support receive a poll as plain text: the question followed by its numbered answers.
 
 ## Reactions
 

@@ -6479,6 +6479,7 @@
     "post": "투표 게시",
     "selectOne": "답변을 하나 선택하세요",
     "selectMultiple": "답변을 하나 이상 선택하세요",
+    "voteFinal": "보낸 투표는 바꿀 수 없습니다",
     "votes": "{count}표",
     "timeLeft": {
       "minutes": "{count}분 남음",
@@ -6502,7 +6503,8 @@
       "voteFailed": "투표를 저장하지 못했습니다.",
       "closed": "이 투표는 종료되었습니다.",
       "endFailed": "투표를 종료하지 못했습니다.",
-      "alreadyVoted": "이미 이 투표에 참여했습니다."
+      "alreadyVoted": "이미 이 투표에 참여했습니다.",
+      "hostUnsupported": "이 서버의 원래 인스턴스는 아직 투표를 지원하지 않습니다."
     },
     "remote": {
       "voters": "{count}명 투표함",

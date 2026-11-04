@@ -34,7 +34,7 @@ Harmony has a social side and a chat side, and they federate differently.
 | Chat servers: channels, messages, reactions, threads, voice messages | Yes | Harmony instances only |
 | Voice channels and direct-message calls | Yes, through the LiveKit server of the instance that hosts the channel or places the call | Harmony instances only |
 | End-to-end encrypted content | No (see [Encryption](#encryption)) | Nobody |
-| Polls in chat messages | No; other instances receive the poll's text | Nobody |
+| Polls in chat messages | Yes: counted by the server's host or the author's instance, voted on from every member instance; a direct message poll reaches other software as a `Question` | Harmony 1.9.3 and later in channels; any software that sends and votes on polls in direct messages. Older Harmony shows the poll's text |
 | Typing indicators and presence | No | Nobody |
 | Role and permission definitions | No; the hosting instance enforces them | Nobody |
 
@@ -121,6 +121,7 @@ Harmony works out the software from the instance's NodeInfo, read again weekly. 
 
 - Chat servers, channels, threads, voice and Harmony's chat extensions only work between Harmony instances. Following a Harmony server from Mastodon does nothing: the server's inbox answers only Harmony membership activities.
 - Harmony posts cannot contain polls. Polls from other software show their answers, vote shares, voter count and closing time, and take votes. A vote is final, as on Mastodon, and the shares update when the poll's instance next reports its counts.
+- A chat poll is counted by one instance: the server's host for a channel, the author's for a direct message. A vote cast on another instance is final, while a vote on the counting instance can still be changed.
 - A Lemmy, PieFed or Mbin community can be followed, by its handle (`community@instance`, or `!community@instance`) or its URL. Its posts and comments arrive; its votes and moderation do not, and a reply written in Harmony reaches the post's author, not the community.
 - Markdown in a Harmony post reaches other software as plain text.
 - Quote approvals are automatic. There is no queue for approving quotes by hand.

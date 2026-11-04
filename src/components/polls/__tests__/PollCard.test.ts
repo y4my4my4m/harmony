@@ -140,6 +140,42 @@ describe('PollCard', () => {
     expect(w.find('[data-testid="poll-end"]').exists()).toBe(false)
   })
 
+  it('takes a remote poll\'s answers with Vote, once', async () => {
+    const remote = (over: Record<string, unknown> = {}) => row({ remote: true, ...over })
+    const w = await render([remote()])
+    expect(w.text()).toContain('polls.voteFinal')
+    expect(w.find('[data-testid="poll-vote"]').attributes('disabled')).toBeDefined()
+
+    rpc.mockResolvedValue({ data: [remote({ total_voters: 4, my_option_ids: ['a'], options: [
+      { id: 'a', position: 0, text: 'Pizza', votes: 3 },
+      { id: 'b', position: 1, text: 'Sushi', votes: 1 },
+    ] })], error: null })
+    await options(w)[1].trigger('click')
+    await options(w)[0].trigger('click')
+    expect(rpc).not.toHaveBeenCalledWith('vote_message_poll', expect.anything())
+    expect(options(w).map((o) => o.attributes('aria-checked'))).toEqual(['true', 'false'])
+
+    await w.find('[data-testid="poll-vote"]').trigger('click')
+    await flushPromises()
+    expect(rpc).toHaveBeenCalledWith('vote_message_poll', { p_poll_id: 'p1', p_option_ids: ['a'] })
+    expect(w.find('[data-testid="poll-voters"]').text()).toBe('polls.votes:4')
+    expect(w.find('[data-testid="poll-vote"]').exists()).toBe(false)
+    expect(w.find('[data-testid="poll-remove-vote"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('polls.voteFinal')
+    expect(options(w).every((o) => o.attributes('disabled') !== undefined)).toBe(true)
+  })
+
+  it('says a remote vote is already cast', async () => {
+    const w = await render([row({ remote: true })])
+    rpc.mockImplementation(async (fn: string) => fn === 'vote_message_poll'
+      ? { data: null, error: { message: 'POLL_ALREADY_VOTED: a vote on this poll is final' } }
+      : { data: [row({ remote: true })], error: null })
+    await options(w)[0].trigger('click')
+    await w.find('[data-testid="poll-vote"]').trigger('click')
+    await flushPromises()
+    expect(toastError).toHaveBeenCalledWith('polls.errors.alreadyVoted')
+  })
+
   it('reads a poll it cannot load, or of another message, as unavailable', async () => {
     const missing = await render([])
     expect(missing.text()).toContain('polls.unavailable')

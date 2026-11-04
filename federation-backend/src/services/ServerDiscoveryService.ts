@@ -30,6 +30,7 @@ import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
+import { applyPagePollState, preparePoll, storeInboundPoll } from '../activitypub/messagePolls.js';
 import { federationSwitches } from './FederationSwitches.js';
 import {
   HARMONY_MEMBER_ROLES,
@@ -1144,6 +1145,7 @@ export async function cacheChannelItems(
     const ownMessage = !!author?.id && !author.is_bridge
       && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
     const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
+    if (ownRowId) await applyPagePollState(supabase, note, channelId);
 
     // Cache message locally for reactions and offline access (only if we have a valid author ID)
     let cachedMsgId: string | null = ownRowId;
@@ -1160,6 +1162,9 @@ export async function cacheChannelItems(
       } else {
         cachedContent = [];
       }
+      // A poll whose tally the host holds: a copy here (messagePolls.ts).
+      const pollIn = preparePoll(note, cachedContent);
+      if (pollIn) cachedContent = pollIn.content;
 
       const messageData: any = {
         channel_id: channelId,
@@ -1191,6 +1196,15 @@ export async function cacheChannelItems(
         // ignoreDuplicates: a row comes back only when this upsert inserted it.
         cachedMsgId = cachedMsg?.id;
         if (cachedMsgId) changed++;
+        if (pollIn && cachedMsgId) {
+          await storeInboundPoll(supabase, cachedMsgId, pollIn.pollId, pollIn.poll, { remote: true, apId: note.id });
+        } else if (pollIn && messageUuid) {
+          // Cached before: the stored content names its poll, which takes the page's counts.
+          const { data: storedRow } = await supabase
+            .from('messages').select('content').eq('id', messageUuid).eq('channel_id', channelId).maybeSingle();
+          if (Array.isArray(storedRow?.content)) cachedContent = storedRow.content;
+          await applyPagePollState(supabase, note, channelId);
+        }
         // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
         // host's page carried text only.
         if (isEncrypted && messageUuid) {
@@ -1622,6 +1636,7 @@ export class ServerDiscoveryService {
           followers: remoteServer.followers,
           attributedTo: remoteServer.attributedTo,
           accepts_reports: remoteServer['harmony:acceptsReports'] === true,
+          message_polls: remoteServer['harmony:polls'] === true,
           fetched_at: new Date().toISOString(),
         },
       };
@@ -1988,6 +2003,7 @@ export class ServerDiscoveryService {
             followers: remoteServer.followers,
             attributedTo: remoteServer.attributedTo,
             accepts_reports: remoteServer['harmony:acceptsReports'] === true,
+            message_polls: remoteServer['harmony:polls'] === true,
             synced_at: new Date().toISOString(),
           },
         })

@@ -136,6 +136,7 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `harmony:channels` | The categories and channels the caller may view |
 | `harmony:roles` | The server's roles but the default one, highest position first |
 | `discoverable` | `true` for a public server |
+| `harmony:polls` | `true`: polls in the server's channels federate (1.9.3). A member instance offers polls in its copy only then. |
 | `manuallyApprovesFollowers` | `false` |
 | `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
@@ -306,6 +307,8 @@ Social activities:
 | `Accept` / `Reject` | The received `QuoteRequest` | Answer to a quote request; an `Accept` has `result`, the `QuoteAuthorization` id | Requester |
 | `Flag` | `[account, post...]`, `content` the comment | A local report is forwarded | The account's instance, shared inbox preferred |
 | `Create` | `Note` with `name` the chosen answer and `inReplyTo` the `Question`, no `content`; one per answer. Ids `https://<domain>/users/<username>#votes/<post uuid>/<answer index>`, the `Create` that id plus `/activity`, as Mastodon's votes | A vote on a remote poll; final, never retracted | The poll's author alone, at its own inbox (shared inbox when it has none) |
+| `Create` | The same vote `Note`, `inReplyTo` the poll's message id, the message's UUID in place of the post's | A vote on a chat poll another instance holds (see [Polls in messages](#polls-in-messages)); final | The holder alone: the server's `Group` inbox for a channel poll, the author's inbox for a direct message poll |
+| `Update` | `Question`: the poll's message id with its counts and end | Votes change the counts of a direct message poll held here, or it ends | Each remote participant |
 | `Create` | `Note`, `directMessage: true` | A direct message | Each remote participant |
 | `Create` | `Note` with `metadata.type: "group_invite"` | A remote account is added to a group direct message | That account |
 | `Update` / `Remove` | Group conversation | A group direct message is renamed or its icon changes / a participant leaves | Remote participants |
@@ -329,6 +332,8 @@ Chat-server activities:
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
 | `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon or banner changes, or a role is created, changed or deleted | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
+| `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances with a member who can view the channel |
+| `Update` | Message author | `Question` with `closed` | The author ends their poll, which the host holds | Group inbox |
 | `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances with a member who can view the channel |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
@@ -373,10 +378,11 @@ Shared and personal inboxes:
 | `Accept` | `Join` | Pending membership of a remote server accepted; the server is synced as the member |
 | `Reject` | `Follow`, `QuoteRequest`, `Join` | Follow removed, quote marked refused, membership removed. A `Join`'s `Reject` removes only the membership that `Join` made, by its id; a membership with no stored `Join` id goes only while pending. |
 | `Create` | `Note`, `Article`, `Page`, `Video` | A post (public, unlisted, followers-only). A direct `Note` becomes a direct message; with several local recipients or `harmony:conversationType: "group"`, a group conversation. A `Note` with `harmony:serverId` is a channel message. The object id must be on the actor's host. See [Inbound posts](#inbound-posts). |
-| `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them |
+| `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them. A direct `Question` (addressed to accounts only) is a direct message holding the poll instead (see [Polls in messages](#polls-in-messages)). |
+| `Create` | Vote `Note` (`name`, `inReplyTo` a message's poll held here, no `content`) | A participant's vote on a direct message poll held here; one answer per `Note`. A vote naming no such poll is processed as any `Note`. |
 | `Create` | `ChatThread` | A thread in a channel of a server this instance mirrors |
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
-| `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. |
+| `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. A `Question` naming a message's poll held elsewhere sets its counts and end, from the poll's holder only. |
 | `Update` | `Group`, channel types, `ChatThread`, group conversation | Mirrored server, channel, thread or group conversation updated |
 | `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. |
 | `Delete` | The actor itself | The remote account is marked deleted, follows in both directions are removed (no `Undo` is sent to it) and its posts soft-deleted. Its later activities are dropped. A local account is never affected. |
@@ -405,8 +411,8 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 | `Join` | Membership. A private server requires `harmony:inviteCode`, checked for expiry, use count and revocation and spent on success. Refused for suspended and banned accounts and accounts that moved from a banned one. Answered with `Accept` or `Reject`. |
 | `Leave` | Membership removed. Accepted even with federation off for the server. |
 | `Follow` | Of the Group: answered with the Group's `Reject`, with federation on or off |
-| `Create` | A `Note` with `context` a channel URL of the server, or a `ChatThread`. The author must be an accepted, unbanned member with **Send Messages** in the channel, or **Send Messages in Threads** for a thread message and **Create Public Threads** or **Create Private Threads** for a new thread. |
-| `Update` | Message edit by its author; thread changes by the thread's rules; channel, category or server changes by a member with **Manage Channels** |
+| `Create` | A `Note` with `context` a channel URL of the server, or a `ChatThread`. The author must be an accepted, unbanned member with **Send Messages** in the channel, or **Send Messages in Threads** for a thread message and **Create Public Threads** or **Create Private Threads** for a new thread. A vote `Note` on a poll in the server's channels is a vote (see [Polls in messages](#polls-in-messages)), never a message, and is not relayed. |
+| `Update` | Message edit by its author; thread changes by the thread's rules; channel, category or server changes by a member with **Manage Channels**; a `Question` with `closed` ends its poll, by the poll's author |
 | `Delete` | Message deleted by its author or by a member with **Manage Messages** |
 | `Like`, `EmojiReact`, `EmojiReaction` | Reaction, by a member with **Add Reactions** |
 | `Add`, `Remove` | Channel or category, by a member with **Manage Channels**. `Remove` of a member: by the member themself, the host, or a member with **Kick Members** whose highest role is above the target's. |
@@ -521,7 +527,7 @@ Inbound, visibility is read the same way: Public in `to` is public, Public in `c
 }
 ```
 
-`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted` and `harmony:voiceMessage`. A sticker is a `sticker` part in `harmony:rawContent` followed by its image as a `file` part with `stickerId`; see [Stickers](#stickers). Attachment URLs are capability links issued for the receiving instance:
+`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted`, `harmony:voiceMessage` and `harmony:poll` (see [Polls in messages](#polls-in-messages)). A sticker is a `sticker` part in `harmony:rawContent` followed by its image as a `file` part with `stickerId`; see [Stickers](#stickers). Attachment URLs are capability links issued for the receiving instance:
 
 ```text
 https://<domain>/api/federation/media/<path>?to=<receiving domain>&sig=<HMAC>
@@ -569,7 +575,38 @@ The channel collection serves these Notes, and the Group delivers each live as i
 
 ### Direct message Note
 
-A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group.
+A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group. A line break in the text is `<br />`.
+
+### Polls in messages
+
+One instance holds a poll's tally: the instance hosting the server for a poll in a channel, the author's instance for a poll in a direct message. The poll's id is its message's id. Every other instance keeps a copy with the holder's counts and its own voters' answers.
+
+A channel message `Note`, and a direct message `Note` to Harmony or to software not known, carries the poll as `harmony:poll`, a `Question`'s poll fields with the question as `name`:
+
+```json
+{
+  "type": "Note",
+  "id": "https://chat.example.com/messages/<message>",
+  "content": "📊 Lunch?<br />1. Pizza<br />2. Soup",
+  "harmony:rawContent": [{ "type": "text", "text": "📊 Lunch?\n1. Pizza\n2. Soup" }],
+  "harmony:poll": {
+    "type": "Question",
+    "name": "Lunch?",
+    "oneOf": [
+      { "type": "Note", "name": "Pizza", "replies": { "type": "Collection", "totalItems": 2 } },
+      { "type": "Note", "name": "Soup", "replies": { "type": "Collection", "totalItems": 1 } }
+    ],
+    "endTime": "2026-11-06T12:00:00.000Z",
+    "votersCount": 3
+  }
+}
+```
+
+`anyOf` replaces `oneOf` for a poll taking several answers; `closed`, the close time, is present once it ended. 2 to 10 answers of at most 100 characters and a question of at most 300; a poll outside these is kept as its text. `content` and `harmony:rawContent` spell the poll out as text, which Harmony before 1.9.3 shows. A direct message to software known not to be Harmony is a `Question` with these fields and the question as `content`, as Mastodon sends a poll.
+
+A vote is Mastodon's: a `Create` of a `Note` with `name` the answer and `inReplyTo` the poll's id, no `content`, one per answer, to the holder alone (the `Group` inbox for a channel poll). It is final: a single-choice poll takes one answer per account, a multiple-choice poll each answer once, and none after the end. The voter views the channel (and its history back to the message), or is a participant of the conversation, and is not blocked by the author. Accepted votes and the end reach the copies as the holder's `Update` of a `Question` with the poll's id and its fields; no document names who voted. The author ends their channel poll held by the host with an `Update` of a `Question` carrying `closed`, to the `Group` inbox.
+
+A copy of a server takes polls only when the `Group` publishes `harmony:polls: true`. Harmony before 1.9.3 keeps a poll on the instance it was posted on, and shows other instances' polls as text.
 
 ### Stickers
 
@@ -722,6 +759,8 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | Channel entries, `Add`/`Update`/`Remove` objects | Channel and category types |
 | `harmony:inviteCode` | `Join` | Invite code for a private server |
 | `harmony:rawContent` | Channel message `Note` | The message as Harmony message parts (text, mentions, emoji, hashtags, links, files, stickers). Receivers re-derive mention locality, drop file storage paths and drop poll parts. Without it, `content` is used. |
+| `harmony:poll` | Channel message and direct message `Note` | The message's poll: `name` and a `Question`'s poll fields; see [Polls in messages](#polls-in-messages) |
+| `harmony:polls` | `Group` | `true` when polls in its channels federate |
 | `harmony:channelName`, `harmony:channelType` | Channel message `Note` | Channel name; `"text"` |
 | `harmony:serverId`, `harmony:serverName` | Channel message `Note`, `ChatThread` | The host's server UUID; server name |
 | `harmony:threadId`, `harmony:parentMessageId` | Channel message `Note` | The thread's id and the thread's parent message id, for a message in a thread |

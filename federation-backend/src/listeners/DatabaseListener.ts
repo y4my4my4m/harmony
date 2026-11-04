@@ -23,6 +23,7 @@ import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { channelPosition, HARMONY_ROLES } from '../activitypub/copyMirror.js';
 import { loadApRoles } from '../activitypub/GroupService.js';
 import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
+import { dmPollQuestion, harmonyPollExtension, hasPollPart, loadMessagePolls, QUESTION_CONTEXT, sendsQuestionTo } from '../activitypub/messagePolls.js';
 
 /** postgres_changes payloads carry `{}` for the side absent from the event. */
 function rowId(row: unknown): unknown {
@@ -957,6 +958,7 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
         ...groupDiscoverability(server, await instanceFederationOpen()),
         'harmony:ChatServer': true,
         'harmony:acceptsReports': true,
+        'harmony:polls': true,
         'harmony:suspended': server.suspended_at
           ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
           : null,
@@ -1237,8 +1239,16 @@ export async function handleNewDM(message: any): Promise<void> {
       }
     }
     
+    // A poll goes to Harmony as harmony:poll on the Note, to other software as a Question
+    // (activitypub/messagePolls.ts).
+    const poll = hasPollPart(message.content)
+      ? (await loadMessagePolls(supabase, [message.id])).get(message.id)
+      : undefined;
+
     const activity = {
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': poll
+        ? ['https://www.w3.org/ns/activitystreams', QUESTION_CONTEXT, HARMONY_CONTEXT]
+        : 'https://www.w3.org/ns/activitystreams',
       id: `${senderUrl}#dm-${message.id}`,
       type: 'Create',
       actor: senderUrl,
@@ -1272,12 +1282,17 @@ export async function handleNewDM(message: any): Promise<void> {
         || profile.shared_inbox_url
         || `https://${profile.domain}/inbox`;
       // Attachment URLs name the recipient's instance.
+      const recipientNote = {
+        ...note,
+        attachment: [...attachments, ...fileAttachmentsToAp(message.content, String(profile.domain).toLowerCase())],
+      };
       const recipientActivity = {
         ...activity,
-        object: {
-          ...note,
-          attachment: [...attachments, ...fileAttachmentsToAp(message.content, String(profile.domain).toLowerCase())],
-        },
+        object: !poll
+          ? recipientNote
+          : await sendsQuestionTo(String(profile.domain))
+            ? dmPollQuestion(recipientNote, poll)
+            : { ...recipientNote, 'harmony:poll': harmonyPollExtension(poll) },
       };
       await DeliveryQueue.enqueue(recipientActivity, inboxUrl, sender.id);
       logger.info(`DM federated to ${profile.username}@${profile.domain}`);

@@ -6479,6 +6479,7 @@
     "post": "发布投票",
     "selectOne": "选择一个选项",
     "selectMultiple": "选择一个或多个选项",
+    "voteFinal": "投票提交后无法更改",
     "votes": "{count} 票",
     "timeLeft": {
       "minutes": "剩余 {count} 分钟",
@@ -6502,7 +6503,8 @@
       "voteFailed": "你的投票未能保存。",
       "closed": "此投票已结束。",
       "endFailed": "无法结束投票。",
-      "alreadyVoted": "你已经在这个投票中投过票了。"
+      "alreadyVoted": "你已经在这个投票中投过票了。",
+      "hostUnsupported": "此服务器所在的实例暂不支持投票。"
     },
     "remote": {
       "voters": "{count} 人已投票",
