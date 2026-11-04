@@ -35,6 +35,13 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 
 5. **Bridge mention resolution.**
     Discord → Harmony bridge currently caches by username only and emits `unresolved-${username}` mentions when it can't match (`BUGS.md` H41, H42). Fix the cache key and drop unresolved parts back to plain text.
+    *Where:* the bridge is its own repository now —
+    [`harmony-discord-bridge`](https://github.com/y4my4my4m/harmony-discord-bridge),
+    `src/MessageTranslator.ts` (`buildHarmonyMentionPart`, `setHarmonyMemberLookup`). Note that
+    `unresolved-<username>` is not the composer's `unresolved-<user>@<host>` form, so the renderer
+    cannot resolve it even after the fact. The composer's own `unresolved-…@domain` parts are a
+    feature, not this bug: `federation-backend/src/activitypub/mentionRecipients.ts` resolves them
+    through WebFinger at delivery.
 
 ## Later (scale & polish)
 
