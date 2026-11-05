@@ -52,18 +52,24 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 9. **Group encryption: forward secrecy and membership changes.**
     Each sender has its own session key, with a distinct key per message, rotated every 100 messages or 7 days. Its gaps are no forward secrecy within a session, no post-compromise security, key distribution over static ECDH, and a re-share to every member on each membership change. See *Interoperable end-to-end encryption* under v2.0.
 
+10. **Compact sign-in providers on phones.**
+    With three or more sign-in providers (Google, Twitch, GitHub and an instance's custom ones), the full-width buttons push the email form and Log in below the fold on a 375×812 screen. Show the built-in providers as one row of icon buttons with accessible names, custom providers one line each, and keep the email form in view.
+
+11. **Project news through the fediverse.**
+    Releases and funding drives are posted by the official Harmony fediverse account, which any user can follow, not pushed into self-hosted instances' announcements. Optionally, a "What's new in Harmony" panel in the admin dashboard for instance admins only.
+
 ## Community features
 
-10. **Forum channels.**
+12. **Forum channels.**
     A channel whose posts are threads, each with a title and tags, listed by activity. Standalone threads (`create_channel_thread`) already give threads a parent of their own; a forum channel type, tag definitions per channel and a post list view remain.
 
-11. **Scheduled events.**
+13. **Scheduled events.**
     Server events with a start time, location (voice channel or text) and RSVPs, with reminders through notifications. Federate as ActivityPub `Event` so Mobilizon and Gancio users can see and join them.
 
-12. **Followable announcement channels.**
+14. **Followable announcement channels.**
     A channel other servers (and fediverse accounts) can follow; its posts are relayed into the follower's chosen channel. The channel is an ActivityPub actor with an outbox, so Mastodon users can follow it directly.
 
-13. **Federated Drive sharing.**
+15. **Federated Drive sharing.**
     "Share with @user@other.instance" sends a direct message carrying the Drive file; the remote server fetches it as it fetches a federated DM attachment (signed fetch, domain admitted by the room rules). Per-user privacy is the remote server's to honour, as for DMs. "Anyone with the link" already reaches fediverse users.
 
 *(Outgoing webhooks, push for the official Android app from any instance and reactions on public post pages shipped in 1.9.0.)*
@@ -76,7 +82,7 @@ Scoped for discussion; nothing here is committed. Each item names the public spe
 - **Bluesky through Bridgy Fed.** A per-account setting, off by default, that opts public posts into [Bridgy Fed](https://fed.brid.gy/docs). Chat, direct messages and non-public posts are never bridged.
 - **Bridges beyond Discord.** Bridge v2 relayed authors generalised beyond Discord, and a per-member opt-out in bridged servers. Then a Matrix bridge (application service) in relay mode.
 - **Account portability.** Import and export of follows, blocks and mutes in Mastodon's CSV formats, and of posts as ActivityStreams. Later, copying posts between servers with [LOLA](https://swicg.github.io/activitypub-data-portability/lola) (W3C Social Web CG draft), which requires Harmony to act as an OAuth authorization server.
-- **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 10), a public feedback forum on a Harmony server that anyone on a federating instance can join.
+- **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 12), a public feedback forum on a Harmony server that anyone on a federating instance can join.
 - **Signed objects, then portable identity.** Ed25519 keys under `assertionMethod` (FEP-521a) and integrity proofs (FEP-8b32) on activities a Group relays. Portable objects with DID-based ids and several gateways ([FEP-ef61](https://codeberg.org/fediverse/fep/src/branch/main/fep/ef61/fep-ef61.md)) remain research, aimed at chat servers that outlive their host instance.
 
 ## Deferred features
