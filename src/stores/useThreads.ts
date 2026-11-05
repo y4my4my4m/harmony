@@ -219,6 +219,26 @@ export const useThreadsStore = defineStore('threads', {
       if (id) this.remove(id)
     },
 
+    /**
+     * Re-reads a thread after one of its messages, or its starter, was deleted: the deletion
+     * that leaves a thread with no message deletes it (migration 20261106200001). An absent row
+     * drops the entry and the thread's caches; a failed read leaves both.
+     */
+    async reconcileAfterMessageDelete(threadId: string): Promise<void> {
+      if (isOptimisticThreadId(threadId)) return
+      try {
+        const row = await threadService.getThreadRow(threadId)
+        if (row) {
+          this.upsert(row)
+          return
+        }
+        this.remove(threadId)
+        threadService.clearThreadCache(threadId)
+      } catch (error) {
+        debug.warn('Thread re-read after a delete failed:', error)
+      }
+    },
+
     patch(threadId: string, fields: Partial<StoredThread>): void {
       const thread = this.byId[threadId]
       if (thread) Object.assign(thread, fields)

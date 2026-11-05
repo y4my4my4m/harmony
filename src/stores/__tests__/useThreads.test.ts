@@ -7,6 +7,7 @@ import { findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 const service = vi.hoisted(() => ({
   getChannelThreads: vi.fn(),
   getThreadRow: vi.fn(),
+  clearThreadCache: vi.fn(),
 }))
 
 vi.mock('@/services/ThreadService', () => ({ threadService: service }))
@@ -52,6 +53,7 @@ describe('useThreadsStore', () => {
     setActivePinia(createPinia())
     service.getChannelThreads.mockReset()
     service.getThreadRow.mockReset()
+    service.clearThreadCache.mockReset()
   })
 
   describe('optimistic create', () => {
@@ -181,6 +183,29 @@ describe('useThreadsStore', () => {
       service.getThreadRow.mockResolvedValueOnce(null)
       await store.applyBroadcast({ type: 'thread:update', restricted: true, new: { id: 't1' } })
       expect(store.byId.t1).toBeUndefined()
+    })
+
+    it('a re-read after a message delete keeps a thread whose row exists and drops one whose row is gone', async () => {
+      const store = useThreadsStore()
+      store.upsert(row('t1', { message_count: 2 }))
+      service.getThreadRow.mockResolvedValueOnce(row('t1', { message_count: 1 }))
+      await store.reconcileAfterMessageDelete('t1')
+      expect(store.byId.t1.message_count).toBe(1)
+
+      service.getThreadRow.mockResolvedValueOnce(null)
+      await store.reconcileAfterMessageDelete('t1')
+      expect(store.byId.t1).toBeUndefined()
+      expect(store.threadForMessage('p-t1')).toBeUndefined()
+      expect(service.clearThreadCache).toHaveBeenCalledWith('t1')
+    })
+
+    it('a failed re-read after a message delete keeps the thread', async () => {
+      const store = useThreadsStore()
+      store.upsert(row('t1'))
+      service.getThreadRow.mockRejectedValueOnce(new Error('offline'))
+      await store.reconcileAfterMessageDelete('t1')
+      expect(store.byId.t1).toBeDefined()
+      expect(service.clearThreadCache).not.toHaveBeenCalled()
     })
 
     it('treats threads past auto-archive expiry as inactive', () => {

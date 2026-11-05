@@ -251,6 +251,7 @@ current_user_server_ids		SETOF uuid	definer	public, extensions, pg_temp	authenti
 current_user_viewable_channel_ids		SETOF uuid	definer	public, pg_temp	anon+authenticated+service_role	policy
 current_user_visible_category_ids		SETOF uuid	definer	public, pg_temp	authenticated+service_role	policy
 delete_channel_webhook	p_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
+delete_emptied_thread		trigger	definer	public, pg_temp	service_role	trigger
 delete_my_account	p_password text	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
 delete_outgoing_webhook	p_webhook_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 delete_push_subscription_by_endpoint	p_endpoint text	void	definer	public, pg_temp	service_role	client
@@ -948,6 +949,7 @@ trigger_queue_report_federation		trigger	definer	public, extensions, pg_temp	ser
 trigger_queue_report_resolution		trigger	definer	public, extensions, pg_temp	service_role	trigger
 trigger_queue_server_roles_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_server_update_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+trigger_queue_thread_delete_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_thread_federation		trigger	definer	public, pg_temp	service_role	trigger
 trigger_queue_voice_channel_join_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 trigger_queue_voice_channel_leave_federation		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger

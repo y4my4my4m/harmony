@@ -933,6 +933,12 @@
     "moreActions": "Weitere Aktionen",
     "editMessage": "Nachricht bearbeiten",
     "deleteMessage": "Nachricht löschen",
+    "deleteWithThread": {
+      "message": "Mit dieser Nachricht begann der Thread „{name}“.",
+      "threadKept": "Der Thread und seine Antworten bleiben; der Thread zeigt diese Nachricht als gelöscht.",
+      "threadDeleted": "Der Thread hat keine Antworten und wird mit dieser Nachricht gelöscht.",
+      "confirmDeleted": "Nachricht und Thread löschen"
+    },
     "copyMessage": "Nachricht kopieren",
     "pinMessage": "Nachricht anheften",
     "unpinMessage": "Nachricht lösen",
@@ -6201,6 +6207,7 @@
       "lock": "Thread sperren",
       "unlock": "Thread entsperren",
       "delete": "Thread löschen",
+      "gone": "Dieser Thread wurde gelöscht.",
       "mute": "Thread stummschalten",
       "unmute": "Stummschaltung des Threads aufheben",
       "copyId": "Thread-ID kopieren",

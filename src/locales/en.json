@@ -986,6 +986,12 @@
     "moreActions": "More actions",
     "editMessage": "Edit message",
     "deleteMessage": "Delete message",
+    "deleteWithThread": {
+      "message": "This message started the thread “{name}”.",
+      "threadKept": "The thread and its replies stay; the thread shows this message as deleted.",
+      "threadDeleted": "The thread has no replies and is deleted with this message.",
+      "confirmDeleted": "Delete message and thread"
+    },
     "copyMessage": "Copy message",
     "pinMessage": "Pin message",
     "unpinMessage": "Unpin message",
@@ -6197,6 +6203,7 @@
       "lock": "Lock thread",
       "unlock": "Unlock thread",
       "delete": "Delete thread",
+      "gone": "This thread was deleted.",
       "mute": "Mute thread",
       "unmute": "Unmute thread",
       "copyId": "Copy thread ID",

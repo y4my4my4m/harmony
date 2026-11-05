@@ -610,9 +610,12 @@
     :title="deleteConfirmConfig.hide ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage')"
     :message="deleteConfirmConfig.hide
       ? t('serverCopy.hide.confirm', { instance: instanceDomain, host: copyHost })
-      : deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
-    :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
-    :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button') : deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
+      : deleteConfirmConfig.hasThread ? t('message.deleteWithThread.message', { name: deleteConfirmConfig.threadName }) : 'Are you sure you want to delete this message? This action cannot be undone.'"
+    :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread
+      ? t(deleteConfirmConfig.threadKept ? 'message.deleteWithThread.threadKept' : 'message.deleteWithThread.threadDeleted')
+      : undefined"
+    :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button')
+      : deleteConfirmConfig.hasThread && !deleteConfirmConfig.threadKept ? t('message.deleteWithThread.confirmDeleted') : 'Delete'"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -1696,7 +1699,7 @@ const selectedBot = ref<(Partial<ServerBot> & { id: string }) | null>(null);
 const showInviteModal = ref(false);
 
 const showDeleteConfirmModal = ref(false);
-const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; focusAfter?: string | null; hide?: boolean }>({
+const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; threadKept?: boolean; focusAfter?: string | null; hide?: boolean }>({
   messageId: '',
   hasThread: false,
   threadName: '',
@@ -3640,6 +3643,18 @@ const neighborRowKey = (messageId: string): string | null => {
   return items[index + 1]?.key ?? items[index - 1]?.key ?? null;
 };
 
+/**
+ * The thread the deleted message was in, and the one it started, are read again: the server
+ * deletes a thread the deletion left with no message (migration 20261106200001).
+ */
+const reconcileThreadsAfterDelete = (messageId: string) => {
+  const ids = new Set<string>();
+  if (props.threadId) ids.add(props.threadId);
+  const started = threadsStore.byParent[messageId];
+  if (started) ids.add(started);
+  for (const id of ids) void threadsStore.reconcileAfterMessageDelete(id);
+};
+
 const afterDelete = (focusKey: string | null | undefined) => {
   polite(t('messageA11y.deleted'));
   nextTick(() => focusRowKey(focusKey));
@@ -3659,10 +3674,12 @@ const deleteMessage = (messageId: string, event?: { shiftKey?: boolean }) => {
   const hide = isInstanceHide(props.messages.find((m) => m.id === messageId));
   
   if (thread) {
+    // A starter's thread outlives it while the thread holds replies (migration 20261106200001).
     deleteConfirmConfig.value = {
       messageId,
       hasThread: true,
       threadName: thread.name || 'this thread',
+      threadKept: (thread.message_count ?? 0) > 0,
       focusAfter,
       hide,
     };
@@ -3672,7 +3689,10 @@ const deleteMessage = (messageId: string, event?: { shiftKey?: boolean }) => {
     const removal = props.channelId
       ? chatStore.deleteMessage(messageId)
       : props.conversationId ? dmStore.deleteMessage(messageId) : null;
-    void removal?.then(() => afterDelete(focusAfter), () => {});
+    void removal?.then(() => {
+      reconcileThreadsAfterDelete(messageId);
+      afterDelete(focusAfter);
+    }, () => {});
   } else {
     deleteConfirmConfig.value = {
       messageId,
@@ -3686,7 +3706,7 @@ const deleteMessage = (messageId: string, event?: { shiftKey?: boolean }) => {
 };
 
 const confirmDeleteMessage = async () => {
-  const { messageId, hasThread, focusAfter } = deleteConfirmConfig.value;
+  const { messageId, focusAfter } = deleteConfirmConfig.value;
   if (outbox.has(messageId)) {
     outbox.discard(messageId);
     showDeleteConfirmModal.value = false;
@@ -3698,12 +3718,9 @@ const confirmDeleteMessage = async () => {
   
   if (props.channelId) {
     await chatStore.deleteMessage(messageId);
+    reconcileThreadsAfterDelete(messageId);
   } else if (props.conversationId) {
     await dmStore.deleteMessage(messageId);
-  }
-  
-  if (hasThread) {
-    threadsStore.removeByParent(messageId);
   }
   
   showDeleteConfirmModal.value = false;

@@ -346,6 +346,7 @@ import { insertMessageSorted, placeStoredRow } from '@/stores/shared/messageCach
 import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
@@ -445,6 +446,13 @@ const composerElement = computed(() => messageInputRef.value?.composerRef || nul
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+// A deleted thread closes the panel, which leaves its channel in view; one opened from a link or
+// notice after its deletion says so.
+const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {
+  if (!props.isVisible) return
+  if (how === 'missing') toast.info(t('chatNav.thread.gone'))
+  close()
+})
 const messages = ref<Message[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -603,6 +611,8 @@ const loadThread = async () => {
     if (details) {
       thread.value = threadsStore.upsert(details)
       isMember.value = details.is_member ?? true
+    } else {
+      void checkThreadMissing(threadId)
     }
     const before = messages.value.length
     messages.value = mergeFreshThreadMessages(messages.value, fresh.messages, {

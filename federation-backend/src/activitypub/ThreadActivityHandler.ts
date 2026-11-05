@@ -11,6 +11,9 @@ import {
 } from './channelWriteAuthz.js';
 import { HARMONY_NS } from './harmonyContext.js';
 
+/** A server's Group actor: https://<host>/servers/<uuid>. */
+const GROUP_ACTOR = /\/servers\/([a-f0-9-]{36})$/i;
+
 type ExistingThread = {
   id: string;
   channel_id: string;
@@ -126,8 +129,9 @@ export function activityPubToThread(
  * `activity.actor` is the verified signer. Create requires attributedTo (when
  * present) to be the signer and the thread id to be on the signer's host; the
  * thread's channel, parent message and any existing row are resolved within one
- * channel, and the write passes authorizeChannelWrite. Update and Delete come
- * from the thread's creator. Add and Remove (thread membership) name the signer
+ * channel, and the write passes authorizeChannelWrite. Update comes from the
+ * thread's creator; Delete from its creator or from the Group of the copy that
+ * holds the thread's channel. Add and Remove (thread membership) name the signer
  * as subject. `opts.serverId` confines a server inbox to its own channels.
  */
 export async function handleThreadActivity(
@@ -177,6 +181,36 @@ export async function handleThreadActivity(
     }
     const authz = await authorizeThreadChannel(thread.channel_id, 'edit');
     if (!authz.ok) return authz;
+    return { ok: true, id: thread.id };
+  };
+
+  // Delete by the Group of a server hosted elsewhere: the thread is found by ap_id in that
+  // server's copy, or, for a thread this instance federated itself (no ap_id), by its id here.
+  const loadGroupThread = async (
+    threadApId: string,
+  ): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
+    const serverId = actorUrl.match(GROUP_ACTOR)?.[1];
+    if (!serverId) return { ok: false, error: 'Signer is not a Group' };
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, ap_id')
+      .eq('id', serverId)
+      .eq('is_local_server', false)
+      .maybeSingle();
+    if (!server?.ap_id || !SignatureService.verifyActorMatch(actorUrl, server.ap_id)) {
+      return { ok: false, error: 'Signer is not the Group of a copy here' };
+    }
+    const ownPrefix = `https://${config.INSTANCE_DOMAIN}/threads/`;
+    const ownId = threadApId.startsWith(ownPrefix) ? threadApId.slice(ownPrefix.length) : null;
+    let query = supabase.from('threads').select('id, channel_id, channel:channels!threads_channel_id_fkey(server_id)');
+    query = ownId && /^[0-9a-f-]{36}$/i.test(ownId)
+      ? query.eq('id', ownId).is('ap_id', null)
+      : query.eq('ap_id', threadApId);
+    const { data: thread } = await query.maybeSingle();
+    if (!thread) return { ok: false, error: 'Thread not found' };
+    if ((thread as any).channel?.server_id !== server.id) {
+      return { ok: false, error: 'Thread is not in the Group\'s server' };
+    }
     return { ok: true, id: thread.id };
   };
 
@@ -466,7 +500,9 @@ export async function handleThreadActivity(
 
       case 'Delete': {
         const threadObject = activity.object as ThreadObject;
-        const owned = await loadOwnedThread(threadObject.id);
+        const owned = threadObject.id && GROUP_ACTOR.test(actorUrl)
+          ? await loadGroupThread(threadObject.id)
+          : await loadOwnedThread(threadObject.id);
         if (!owned.ok) {
           logger.warn(`Rejecting thread Delete from ${actorUrl}: ${owned.error}`);
           return { success: false, error: owned.error };
@@ -632,6 +668,43 @@ export function createThreadActivity(
     published: new Date().toISOString(),
     to: [`${channelApId}/followers`],
     cc: ['https://www.w3.org/ns/activitystreams#Public'],
+  };
+}
+
+/**
+ * Delete of a thread, by `actorApId`: a server's Group for a thread of a server hosted here.
+ * The object is the ChatThread by id; a receiver's processDelete routes on its type.
+ */
+export function createThreadDeleteActivity(
+  threadApId: string,
+  channelApId: string,
+  actorApId: string,
+  serverId: string,
+  channelId: string,
+): ThreadActivity {
+  const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
+  return {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        harmony: HARMONY_NS,
+        ChatThread: 'harmony:ChatThread',
+        serverId: 'harmony:serverId',
+        channelId: 'harmony:channelId',
+      },
+    ],
+    id: `${baseUrl}/activities/${crypto.randomUUID()}`,
+    type: 'Delete',
+    actor: actorApId,
+    object: {
+      type: 'ChatThread',
+      id: threadApId,
+      context: channelApId,
+      'harmony:serverId': serverId,
+      'harmony:channelId': channelId,
+    } as unknown as ThreadObject,
+    published: new Date().toISOString(),
+    to: [`${channelApId}/followers`],
   };
 }
 

@@ -933,6 +933,12 @@
     "moreActions": "Plus d'actions",
     "editMessage": "Modifier le message",
     "deleteMessage": "Supprimer le message",
+    "deleteWithThread": {
+      "message": "Ce message a lancé le fil « {name} ».",
+      "threadKept": "Le fil et ses réponses restent ; le fil affiche ce message comme supprimé.",
+      "threadDeleted": "Le fil n’a aucune réponse et est supprimé avec ce message.",
+      "confirmDeleted": "Supprimer le message et le fil"
+    },
     "copyMessage": "Copier le message",
     "pinMessage": "Épingler le message",
     "unpinMessage": "Désépingler le message",
@@ -6201,6 +6207,7 @@
       "lock": "Verrouiller le fil",
       "unlock": "Déverrouiller le fil",
       "delete": "Supprimer le fil",
+      "gone": "Ce fil a été supprimé.",
       "mute": "Mettre le fil en sourdine",
       "unmute": "Réactiver le son du fil",
       "copyId": "Copier l'identifiant du fil",

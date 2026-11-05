@@ -382,7 +382,8 @@ Chat-server activities:
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
 | `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
-| `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
+| `Create` / `Update` | Thread creator | `ChatThread` | A thread is created or changed | As channel messages |
+| `Delete` | `https://<sending domain>/servers/<uuid>` | `ChatThread` with `id` and `context` | A thread of a server hosted here is deleted: from its menu, or by the deletion of its last message | Each instance with a member who can view the channel |
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
 | `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon, banner, public setting or **Discoverable across federation** setting changes, or a role is created, changed or deleted | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
@@ -438,7 +439,7 @@ Shared and personal inboxes:
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
 | `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. A `Question` naming a message's poll held elsewhere sets its counts and end, from the poll's holder only. |
 | `Update` | `Group`, channel types, `ChatThread`, group conversation | Mirrored server, channel, thread or group conversation updated |
-| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. |
+| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. A `ChatThread` is deleted by its creator, or in a mirrored server by that server's `Group`; a mirrored server's thread is never deleted by this instance on its own. |
 | `Delete` | The actor itself | The remote account is marked deleted, follows in both directions are removed (no `Undo` is sent to it) and its posts soft-deleted. Its later activities are dropped. A local account is never affected. |
 | `Like`, `EmojiReact`, `EmojiReaction` | Post or message | A `Like` with no emoji or a heart (❤, ♥) is a favourite. A `Like` with `_misskey_reaction` or `content`, and an `EmojiReact`, is a reaction and implies the favourite. |
 | `Announce` | Post | Boost; the original is fetched when unknown |

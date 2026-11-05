@@ -1,7 +1,7 @@
 /**
  * Thread Federation Job Handler
- * 
- * Processes federate-thread jobs (thread creation/updates)
+ *
+ * Processes federate-thread jobs (thread creation, updates and deletes)
  * Federates threads to remote instances
  */
 
@@ -10,8 +10,59 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
-import { createThreadActivity } from '../../activitypub/ThreadActivityHandler.js';
+import { createThreadActivity, createThreadDeleteActivity } from '../../activitypub/ThreadActivityHandler.js';
 import { getChannelRecipientGroups } from '../../utils/federationUtils.js';
+
+/**
+ * Delete of a thread of a server hosted here (trigger_queue_thread_delete_federation,
+ * migration 20261106200001). The row is gone; the job carries its ids. The server's Group
+ * signs, as for a message Delete, and delivers to the instances of members who view the
+ * channel.
+ */
+export async function handleThreadDeleteJob(data: FederationJobData): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { thread_id, ap_id, channel_id, server_id } = data;
+  const hostDomain = config.INSTANCE_DOMAIN;
+
+  const { data: server } = await supabase
+    .from('servers')
+    .select('id, federation_enabled, is_local_server')
+    .eq('id', server_id)
+    .maybeSingle();
+  if (!server?.is_local_server || !server.federation_enabled) {
+    logger.info(`Thread ${thread_id} delete: server ${server_id} is not a federated server hosted here`);
+    return;
+  }
+
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('id, ap_id')
+    .eq('id', channel_id)
+    .eq('server_id', server.id)
+    .maybeSingle();
+  if (!channel) {
+    logger.info(`Thread ${thread_id} delete: channel ${channel_id} is gone; its Delete covers the thread`);
+    return;
+  }
+
+  const groups = await getChannelRecipientGroups(channel.id);
+  if (groups.length === 0) return;
+
+  const serverUrl = `https://${hostDomain}/servers/${server.id}`;
+  const activity = createThreadDeleteActivity(
+    ap_id || `https://${hostDomain}/threads/${thread_id}`,
+    channel.ap_id || `${serverUrl}/channels/${channel.id}`,
+    serverUrl,
+    server.id,
+    channel.id,
+  );
+
+  for (const group of groups) {
+    const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+    await DeliveryQueue.enqueue({ ...activity, to: group.member_ap_ids }, inbox, { serverId: server.id }, 5);
+  }
+  logger.info(`Thread ${thread_id} delete federated to ${groups.length} instances`);
+}
 
 export async function handleThreadJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
@@ -19,6 +70,11 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
   const hostDomain = config.INSTANCE_DOMAIN;
 
   logger.info(`Processing thread ${type} job for thread: ${thread_id}, server: ${server_id}`);
+
+  if (type === 'delete') {
+    await handleThreadDeleteJob(data);
+    return;
+  }
 
   try {
     const { data: thread, error: threadError } = await supabase

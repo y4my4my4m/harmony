@@ -287,6 +287,7 @@ import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { insertMessageSorted } from '@/stores/shared/messageCacheUtils'
 import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 
 // Props
 interface Props {
@@ -353,6 +354,13 @@ const composerElement = computed(() => messageInputRef.value?.composerRef || nul
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+// A deleted thread returns the view to its channel; one opened from a link or notice after its
+// deletion says so.
+const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {
+  if (how === 'missing') toast.info(t('chatNav.thread.gone'))
+  if (thread.value?.channel_id) goBack()
+  else router.push({ name: 'Chat' })
+})
 // Thread replies name the thread's channel; so do their attachments.
 const threadMediaRoom = computed(() => mediaRoom({ channelId: thread.value?.channel_id }))
 const messages = ref<Message[]>([])
@@ -414,6 +422,8 @@ const loadThread = async () => {
     if (details) {
       thread.value = threadsStore.upsert(details)
       isMember.value = details.is_member ?? true
+    } else {
+      void checkThreadMissing(threadId)
     }
     const before = messages.value.length
     messages.value = mergeFreshThreadMessages(messages.value, fresh.messages, {

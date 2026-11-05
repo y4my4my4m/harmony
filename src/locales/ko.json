@@ -933,6 +933,12 @@
     "moreActions": "추가 작업",
     "editMessage": "메시지 편집",
     "deleteMessage": "메시지 삭제",
+    "deleteWithThread": {
+      "message": "이 메시지에서 스레드 \"{name}\"이(가) 시작되었습니다.",
+      "threadKept": "스레드와 답글은 남고, 스레드에는 이 메시지가 삭제됨으로 표시됩니다.",
+      "threadDeleted": "스레드에 답글이 없어 이 메시지와 함께 삭제됩니다.",
+      "confirmDeleted": "메시지와 스레드 삭제"
+    },
     "copyMessage": "메시지 복사",
     "pinMessage": "메시지 고정",
     "unpinMessage": "고정 해제",
@@ -6201,6 +6207,7 @@
       "lock": "스레드 잠금",
       "unlock": "스레드 잠금 해제",
       "delete": "스레드 삭제",
+      "gone": "이 스레드는 삭제되었습니다.",
       "mute": "스레드 음소거",
       "unmute": "스레드 음소거 해제",
       "copyId": "스레드 ID 복사",

@@ -82,7 +82,9 @@ An edited message shows **(edited)** after its text. Polls cannot be edited.
 1. Hover the message and select **Delete message**, or right-click it and choose **Delete message**.
 2. Confirm.
 
-Hold Shift while selecting **Delete message** to skip the confirmation. A message that started a thread always asks, because deleting it deletes the thread and all its replies (**Delete message and thread**).
+Hold Shift while selecting **Delete message** to skip the confirmation. A message that started a thread always asks: a thread with replies stays and shows that message as deleted, a thread without replies is deleted with it (**Delete message and thread**).
+
+Deleting the last remaining message of a thread deletes the thread. Anyone who has it open returns to its channel.
 
 You can delete your own messages. In server channels, members with the **Manage Messages** permission and the instance's administrators and moderators can delete anyone's. On a server hosted on another instance you can delete only your own.
 

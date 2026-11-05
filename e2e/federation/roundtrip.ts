@@ -67,6 +67,8 @@
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
+// A thread emptied by a deletion goes with its last message here and leaves as the Group's
+// Delete; a copy's thread waits for its Group's Delete (cases/emptyThread.ts).
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
@@ -116,6 +118,7 @@ import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
+import { caseEmptyThread } from './cases/emptyThread.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
@@ -2871,6 +2874,17 @@ async function main() {
       ids: {
         alice: ALICE, remote: REMOTE, privServer: PRIV_SERVER, privGeneral: PRIV_GENERAL, privSecret: PRIV_SECRET,
         pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL,
+      },
+    })
+    await caseEmptyThread({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
     })
     await caseApConformance({

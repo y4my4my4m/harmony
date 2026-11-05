@@ -933,6 +933,12 @@
     "moreActions": "Más acciones",
     "editMessage": "Editar mensaje",
     "deleteMessage": "Eliminar mensaje",
+    "deleteWithThread": {
+      "message": "Este mensaje inició el hilo «{name}».",
+      "threadKept": "El hilo y sus respuestas se mantienen; el hilo muestra este mensaje como eliminado.",
+      "threadDeleted": "El hilo no tiene respuestas y se elimina con este mensaje.",
+      "confirmDeleted": "Eliminar mensaje e hilo"
+    },
     "copyMessage": "Copiar mensaje",
     "pinMessage": "Fijar mensaje",
     "unpinMessage": "Desfijar mensaje",
@@ -6201,6 +6207,7 @@
       "lock": "Bloquear hilo",
       "unlock": "Desbloquear hilo",
       "delete": "Eliminar hilo",
+      "gone": "Este hilo se eliminó.",
       "mute": "Silenciar hilo",
       "unmute": "Dejar de silenciar hilo",
       "copyId": "Copiar ID del hilo",

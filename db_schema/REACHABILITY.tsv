@@ -251,6 +251,7 @@ current_user_server_ids	definer	SETOF uuid	authenticated+service_role	client, po
 current_user_viewable_channel_ids	definer	SETOF uuid	anon+authenticated+service_role	client, policy, trigger	policy public.channels SELECT on channels_select_member, public.message_heads SELECT on message_heads_select_visible, public.message_search_index SELECT on message_search_index_channel_access, +10
 current_user_visible_category_ids	definer	SETOF uuid	authenticated+service_role	policy	policy public.channel_categories SELECT on channel_categories_select_member, public.channel_category_permission_overrides SELECT on channel_category_permission_overrides_select_member
 delete_channel_webhook	definer	boolean	authenticated+service_role	client	rpc in src/services/channelWebhookService.ts
+delete_emptied_thread	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_empty_thread_delete)
 delete_my_account	definer	jsonb	authenticated+service_role	client	rpc in src/services/AccountDeletionService.ts
 delete_outgoing_webhook	definer	void	authenticated+service_role	client	named in src/components/__tests__/OutgoingWebhooksPanel.test.ts, src/services/outgoingWebhookService.ts
 delete_push_subscription_by_endpoint	definer	void	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
@@ -721,7 +722,7 @@ public_post_page	definer	jsonb	service_role	client	named in federation-backend/s
 public_profile_page	definer	jsonb	service_role	client	named in federation-backend/src/__tests__/publicPagesActivityPub.test.ts, federation-backend/src/__tests__/publicPagesRoutes.test.ts, federation-backend/src/publicPages/routes.ts
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +46
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +47
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_message_poll_federation	definer	void	service_role	client	called by end_federated_message_poll, end_message_poll, record_federated_message_poll_vote, +1
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
@@ -948,6 +949,7 @@ trigger_queue_report_federation	definer	trigger	service_role	trigger	trigger pub
 trigger_queue_report_resolution	definer	trigger	service_role	trigger	trigger public.reports AFTER UPDATE (trigger_federate_report_resolution)
 trigger_queue_server_roles_federation	definer	trigger	service_role	trigger	trigger public.server_roles AFTER INSERT/DELETE/UPDATE (z_server_roles_federation)
 trigger_queue_server_update_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER UPDATE (trigger_federate_server_update)
+trigger_queue_thread_delete_federation	definer	trigger	service_role	trigger	trigger public.threads AFTER DELETE (trigger_federate_thread_delete)
 trigger_queue_thread_federation	definer	trigger	service_role	trigger	trigger public.threads BEFORE INSERT/UPDATE (trigger_federate_thread)
 trigger_queue_voice_channel_join_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT (trigger_federate_voice_channel_join)
 trigger_queue_voice_channel_leave_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants AFTER DELETE (trigger_federate_voice_channel_leave)

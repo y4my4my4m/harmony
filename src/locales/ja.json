@@ -933,6 +933,12 @@
     "moreActions": "その他の操作",
     "editMessage": "メッセージを編集",
     "deleteMessage": "メッセージを削除",
+    "deleteWithThread": {
+      "message": "このメッセージからスレッド「{name}」が始まりました。",
+      "threadKept": "スレッドと返信は残り、このメッセージは削除済みとして表示されます。",
+      "threadDeleted": "スレッドには返信がないため、このメッセージと一緒に削除されます。",
+      "confirmDeleted": "メッセージとスレッドを削除"
+    },
     "copyMessage": "メッセージをコピー",
     "pinMessage": "メッセージをピン留め",
     "unpinMessage": "ピン留めを外す",
@@ -6201,6 +6207,7 @@
       "lock": "スレッドをロック",
       "unlock": "スレッドのロックを解除",
       "delete": "スレッドを削除",
+      "gone": "このスレッドは削除されました。",
       "mute": "スレッドをミュート",
       "unmute": "スレッドのミュートを解除",
       "copyId": "スレッド ID をコピー",

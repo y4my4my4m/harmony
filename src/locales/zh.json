@@ -933,6 +933,12 @@
     "moreActions": "更多操作",
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",
+    "deleteWithThread": {
+      "message": "此消息开启了子区“{name}”。",
+      "threadKept": "子区及其回复会保留；子区中此消息显示为已删除。",
+      "threadDeleted": "该子区没有回复，将随此消息一起删除。",
+      "confirmDeleted": "删除消息和子区"
+    },
     "copyMessage": "复制消息",
     "pinMessage": "置顶消息",
     "unpinMessage": "取消置顶",
@@ -6201,6 +6207,7 @@
       "lock": "锁定子区",
       "unlock": "解锁子区",
       "delete": "删除子区",
+      "gone": "此子区已被删除。",
       "mute": "静音子区",
       "unmute": "取消静音子区",
       "copyId": "复制子区 ID",
