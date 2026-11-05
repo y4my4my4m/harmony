@@ -186,7 +186,13 @@ const title = computed(() => {
   return name ? `:${name}:` : t('emojiInfo.dialog')
 })
 
-const server = computed(() => (source.value?.kind === 'server' ? source.value.server : null))
+// The server open in the view gets no preview: the source line already says "From this server".
+const server = computed(() => {
+  const answer = source.value
+  if (answer?.kind !== 'server') return null
+  const s = answer.server
+  return !s.domain && s.isMember && s.id === serverChannelStore.currentServerId ? null : s
+})
 const owner = computed(() => (source.value?.kind === 'personal' ? source.value.owner : null))
 const ownerName = computed(() => owner.value?.displayName || owner.value?.username || '')
 const ownerHandle = computed(() => {

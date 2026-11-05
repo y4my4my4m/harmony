@@ -3,6 +3,7 @@
 //   is its emoji, not the shortcode's text.
 // - The server's other emoji are one row: as many as the card's width holds (7 on a desktop
 //   card, 8 on a 375 px phone sheet), the row filled edge to edge.
+// - An emoji of the server open in the view gets no server preview: the source line says it.
 // - The copy actions are icon buttons named by their labels; the actions are one row.
 // - A hover card whose source arrives after it opens stays open while the pointer rests on
 //   the emoji. The card grew down over its emoji, moved off it, and the move read as the
@@ -26,7 +27,10 @@ let owner: SpecUser
 let viewer: SpecUser
 const reactors: SpecUser[] = []
 let home: SeededServer
+// The emoji under test belong to another server the viewer is in, so their card has a preview.
+let source: SeededServer
 const emoji: Array<{ id: string; name: string; url: string }> = []
+let homeEmoji: { id: string; name: string; url: string }
 
 test.beforeAll(async () => {
   test.setTimeout(120_000)
@@ -34,14 +38,26 @@ test.beforeAll(async () => {
   viewer = await createUser(admin, 'eicview')
   for (const tag of ['eicra', 'eicrb']) reactors.push(await createUser(admin, tag))
   home = await seedServer(admin, owner, `Compact ${owner.username.slice(-6)}`)
-  for (const user of [viewer, ...reactors]) await addMember(admin, user, home.id)
+  source = await seedServer(admin, owner, `Source ${owner.username.slice(-6)}`)
+  for (const user of [viewer, ...reactors]) {
+    await addMember(admin, user, home.id)
+    await addMember(admin, user, source.id)
+  }
   for (let i = 0; i < 12; i++) {
     const name = `cmp${i}${owner.username.slice(-6)}`
     const url = `https://emoji.e2e.test/${name}.svg`
     const { data, error } = await admin.from('emojis')
-      .insert({ name, url, server_id: home.id, scope: 'server', uploader: owner.id }).select('id').single()
+      .insert({ name, url, server_id: source.id, scope: 'server', uploader: owner.id }).select('id').single()
     if (error || !data) throw new Error(`emoji ${name}: ${error?.message}`)
     emoji.push({ id: data.id, name, url })
+  }
+  {
+    const name = `cmphome${owner.username.slice(-6)}`
+    const url = `https://emoji.e2e.test/${name}.svg`
+    const { data, error } = await admin.from('emojis')
+      .insert({ name, url, server_id: home.id, scope: 'server', uploader: owner.id }).select('id').single()
+    if (error || !data) throw new Error(`emoji ${name}: ${error?.message}`)
+    homeEmoji = { id: data.id, name, url }
   }
   const { error: nameError } = await admin.from('profiles')
     .update({ display_name: `:fire: ${reactors[0].displayName}` }).eq('id', reactors[0].id)
@@ -50,7 +66,8 @@ test.beforeAll(async () => {
   const part = (e: { id: string; name: string; url: string }) => ({ type: 'emoji', emoji: e })
   const start = Date.now() - 120_000
   const filler = Array.from({ length: 6 }, (_, i) => [{ type: 'text', text: `filler ${i}` }])
-  const contents = [...filler, [{ type: 'text', text: 'reacted to ' }], [{ type: 'text', text: 'emoji here ' }, part(emoji[0])]]
+  const contents = [...filler, [{ type: 'text', text: 'reacted to ' }], [{ type: 'text', text: 'local emoji ' }, part(homeEmoji)],
+    [{ type: 'text', text: 'emoji here ' }, part(emoji[0])]]
   const { data: rows, error } = await admin.from('messages').insert(contents.map((content, i) => ({
     channel_id: home.generalChannelId, user_id: owner.id, content, created_at: new Date(start + i * 1000).toISOString(),
   }))).select('id, content')
@@ -62,7 +79,7 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  await admin.from('emojis').delete().in('id', emoji.map((e) => e.id))
+  await admin.from('emojis').delete().in('id', [...emoji.map((e) => e.id), homeEmoji.id])
   for (const user of [viewer, ...reactors, owner]) await deleteUser(admin, user)
 })
 
@@ -126,6 +143,16 @@ test.describe('desktop', () => {
     const [a, b] = [await copy.boundingBox(), await link.boundingBox()]
     expect(Math.round(a!.y)).toBe(Math.round(b!.y))
     expect((await dialog.boundingBox())!.height).toBeLessThan(220)
+  })
+
+  test('an emoji of the server in view has no server preview', async ({ page }) => {
+    test.setTimeout(120_000)
+    await open(page)
+    await row(page, 'local emoji').locator('[data-emoji-info]').click()
+    const dialog = page.getByRole('dialog', { name: `:${homeEmoji.name}:` })
+    await expect(dialog).toHaveAccessibleDescription('From this server.', { timeout: 15000 })
+    await expect(dialog.getByTestId('emoji-info-server')).toHaveCount(0)
+    await expect(dialog.getByTestId('emoji-info-copy')).toBeVisible()
   })
 
   test('a hover card whose source arrives late stays open on its emoji', async ({ page }) => {
