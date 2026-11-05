@@ -53,7 +53,7 @@ pub async fn android_video_thumbnail(url: String) -> Result<String, String> {
 
 // Android opens URLs here, through an ACTION_VIEW intent, rather than through
 // tauri-plugin-opener. Only http(s) URLs: an ACTION_VIEW intent for file:,
-// content: or app schemes reaches other apps.
+// content: or app schemes reaches other apps. Err("no_url_handler") when no app took the URL.
 #[tauri::command]
 pub fn android_open_url(url: String) -> Result<(), String> {
   if !is_web_url(&url) {
@@ -62,11 +62,13 @@ pub fn android_open_url(url: String) -> Result<(), String> {
   #[cfg(target_os = "android")]
   {
     use jni::objects::JValue;
-    with_app_context(|env, context| {
+    let opened = with_app_context(|env, context| {
       let jurl = env.new_string(&url)?;
-      env.call_method(context, "openUrl", "(Ljava/lang/String;)V", &[JValue::Object(&jurl)])?;
-      Ok(())
+      env.call_method(context, "openUrl", "(Ljava/lang/String;)Z", &[JValue::Object(&jurl)])?.z()
     })?;
+    if !opened {
+      return Err("no_url_handler".into());
+    }
   }
   #[cfg(not(target_os = "android"))]
   let _ = url;

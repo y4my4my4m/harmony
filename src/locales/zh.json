@@ -6335,6 +6335,10 @@
     "copied": "链接已复制",
     "copyFailed": "无法复制链接",
     "trustFailed": "无法将 {host} 保存为受信任的网站",
+    "noApp": "此设备上没有可打开网页链接的应用",
+    "noAppCopied": "此设备上没有可打开网页链接的应用。链接已复制：请粘贴到浏览器中。",
+    "openFailed": "无法打开链接",
+    "openFailedCopied": "无法打开链接。链接已复制：请粘贴到浏览器中。",
     "settings": {
       "title": "外部链接",
       "askEvery": "打开任何外部链接前先询问",

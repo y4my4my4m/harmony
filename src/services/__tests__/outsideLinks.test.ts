@@ -7,15 +7,21 @@ const settings = vi.hoisted(() => ({
   trust: vi.fn(async (_host: string) => {}),
 }))
 const openUrl = vi.hoisted(() => vi.fn(async (_url: string) => {}))
+const invoke = vi.hoisted(() => vi.fn(async (_cmd: string, _args?: unknown): Promise<unknown> => undefined))
+const toast = vi.hoisted(() => ({ error: vi.fn() }))
 
 vi.mock('@/services/instanceConfig', () => ({ isTauriRuntime: () => runtime.tauri }))
 vi.mock('@/stores/outsideLinkSettings', () => ({ useOutsideLinkSettingsStore: () => settings }))
 vi.mock('@/utils/internalLinks', () => ({ isInstanceHost: (host: string) => host === 'har.mony.lol' }))
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke }))
+vi.mock('vue-toastification', () => ({ useToast: () => toast }))
+vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
 
 import {
   activateStoppedLink,
   installOutsideLinks,
+  openExternalUrl,
   openLink,
   useOutsideLinkPrompt,
 } from '../outsideLinks'
@@ -55,7 +61,9 @@ beforeEach(() => {
   settings.trustedHosts = new Set()
   settings.askEveryLink = false
   settings.trust.mockClear()
-  openUrl.mockClear()
+  openUrl.mockReset()
+  invoke.mockReset()
+  toast.error.mockClear()
   windowOpen = vi.spyOn(window, 'open').mockImplementation(() => null)
   prompt.cancel()
 })
@@ -319,5 +327,56 @@ describe('openLink', () => {
     openLink('mailto:a@example.com')
     expect(windowOpen).not.toHaveBeenCalled()
     expect(prompt.pending.value).toBeNull()
+  })
+})
+
+describe('openExternalUrl', () => {
+  const android = 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0 Mobile Safari/537.36'
+  let writeText: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    writeText = vi.fn(async (_text: string) => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('hands an http(s) URL to Android, and says nothing when it opens', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(android)
+    await openExternalUrl('https://github.com/y4my4my4m/harmony/releases/tag/v1.9.2')
+    expect(invoke).toHaveBeenCalledWith('android_open_url', { url: 'https://github.com/y4my4my4m/harmony/releases/tag/v1.9.2' })
+    expect(writeText).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('copies a link no Android app takes and says why', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(android)
+    invoke.mockRejectedValueOnce('no_url_handler')
+    await openExternalUrl('https://github.com/y4my4my4m/harmony')
+    expect(writeText).toHaveBeenCalledWith('https://github.com/y4my4my4m/harmony')
+    expect(toast.error).toHaveBeenCalledWith('outsideLink.noAppCopied')
+  })
+
+  it('copies a link the desktop opener refuses', async () => {
+    openUrl.mockRejectedValueOnce(new Error('spawn failed'))
+    await openExternalUrl('https://example.com/')
+    expect(writeText).toHaveBeenCalledWith('https://example.com/')
+    expect(toast.error).toHaveBeenCalledWith('outsideLink.openFailedCopied')
+  })
+
+  it('names no copy when the clipboard refuses', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(android)
+    invoke.mockRejectedValueOnce('no_url_handler')
+    writeText.mockRejectedValueOnce(new Error('denied'))
+    await openExternalUrl('https://example.com/')
+    expect(toast.error).toHaveBeenCalledWith('outsideLink.noApp')
+  })
+
+  it('opens no other scheme', async () => {
+    await openExternalUrl('intent://scan/#Intent;end')
+    expect(invoke).not.toHaveBeenCalled()
+    expect(openUrl).not.toHaveBeenCalled()
   })
 })

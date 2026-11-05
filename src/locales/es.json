@@ -6335,6 +6335,10 @@
     "copied": "Enlace copiado",
     "copyFailed": "No se pudo copiar el enlace",
     "trustFailed": "No se pudo guardar {host} como sitio de confianza",
+    "noApp": "Ninguna app de este dispositivo abre enlaces web",
+    "noAppCopied": "Ninguna app de este dispositivo abre enlaces web. El enlace está copiado: pégalo en un navegador.",
+    "openFailed": "No se pudo abrir el enlace",
+    "openFailedCopied": "No se pudo abrir el enlace. Está copiado: pégalo en un navegador.",
     "settings": {
       "title": "Enlaces externos",
       "askEvery": "Preguntar antes de abrir cualquier enlace externo",

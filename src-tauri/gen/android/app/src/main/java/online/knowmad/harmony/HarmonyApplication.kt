@@ -56,13 +56,15 @@ class HarmonyApplication : Application() {
     return Bitmap.createScaledBitmap(src, (w * ratio).toInt(), (h * ratio).toInt(), true)
   }
 
-  fun openUrl(url: String) {
-    try {
+  // False when no app took the URL: none in this profile handles web links (no browser
+  // installed or enabled), or startActivity threw.
+  fun openUrl(url: String): Boolean {
+    return try {
       val uri = Uri.parse(url)
       val scheme = uri.scheme?.lowercase()
       if ((scheme != "https" && scheme != "http") || uri.host.isNullOrEmpty()) {
         android.util.Log.w("Harmony", "openUrl refused a non-web URL")
-        return
+        return false
       }
       // FLAG_ACTIVITY_NEW_TASK: started from the Application context, not an Activity.
       val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -70,8 +72,10 @@ class HarmonyApplication : Application() {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       startActivity(intent)
+      true
     } catch (e: Throwable) {
       android.util.Log.w("Harmony", "openUrl failed: ${e.message}")
+      false
     }
   }
 

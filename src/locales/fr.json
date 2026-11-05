@@ -6335,6 +6335,10 @@
     "copied": "Lien copié",
     "copyFailed": "Impossible de copier le lien",
     "trustFailed": "Impossible d'enregistrer {host} comme site de confiance",
+    "noApp": "Aucune app de cet appareil n'ouvre les liens web",
+    "noAppCopied": "Aucune app de cet appareil n'ouvre les liens web. Le lien est copié : collez-le dans un navigateur.",
+    "openFailed": "Impossible d'ouvrir le lien",
+    "openFailedCopied": "Impossible d'ouvrir le lien. Il est copié : collez-le dans un navigateur.",
     "settings": {
       "title": "Liens externes",
       "askEvery": "Demander avant d'ouvrir tout lien externe",

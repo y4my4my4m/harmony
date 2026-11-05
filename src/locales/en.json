@@ -6331,6 +6331,10 @@
     "copied": "Link copied",
     "copyFailed": "Could not copy the link",
     "trustFailed": "Could not save {host} as trusted",
+    "noApp": "No app on this device opens web links",
+    "noAppCopied": "No app on this device opens web links. The link is copied: paste it into a browser.",
+    "openFailed": "Could not open the link",
+    "openFailedCopied": "Could not open the link. It is copied: paste it into a browser.",
     "settings": {
       "title": "Outside links",
       "askEvery": "Ask before opening any outside link",

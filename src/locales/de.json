@@ -6335,6 +6335,10 @@
     "copied": "Link kopiert",
     "copyFailed": "Der Link konnte nicht kopiert werden",
     "trustFailed": "{host} konnte nicht als vertrauenswürdig gespeichert werden",
+    "noApp": "Keine App auf diesem Gerät öffnet Weblinks",
+    "noAppCopied": "Keine App auf diesem Gerät öffnet Weblinks. Der Link ist kopiert: Füge ihn in einen Browser ein.",
+    "openFailed": "Der Link konnte nicht geöffnet werden",
+    "openFailedCopied": "Der Link konnte nicht geöffnet werden. Er ist kopiert: Füge ihn in einen Browser ein.",
     "settings": {
       "title": "Externe Links",
       "askEvery": "Vor dem Öffnen jedes externen Links fragen",
