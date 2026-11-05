@@ -34,7 +34,7 @@ Harmony has a social side and a chat side, and they federate differently.
 | Chat servers: channels, messages, reactions, threads, voice messages | Yes | Harmony instances only |
 | Voice channels and direct-message calls | Yes, through the LiveKit server of the instance that hosts the channel or places the call | Harmony instances only |
 | End-to-end encrypted content | No (see [Encryption](#encryption)) | Nobody |
-| Polls in chat messages | No; other instances receive the poll's text | Nobody |
+| Polls in chat messages | Yes: counted by the server's host or the author's instance, voted on from every member instance; a direct message poll reaches other software as a `Question` | Harmony 1.9.3 and later in channels; any software that sends and votes on polls in direct messages. Older Harmony shows the poll's text |
 | Typing indicators and presence | No | Nobody |
 | Role and permission definitions | No; the hosting instance enforces them | Nobody |
 
@@ -45,6 +45,7 @@ A chat server lives on one instance, the one where it was created. That instance
 ### Joining
 
 - A **public** server with federation enabled can be found by its handle, `slug@host`, shown in **Server settings** → **Privacy settings** → **Server handle**. The handle resolves through WebFinger.
+- A public, federated server whose owner turns on **Discoverable across federation** is listed in its host's server directory, an ActivityPub collection that NodeInfo names (see [Server directory](/federation/reference#server-directory)). People on other Harmony instances browse it under **Discover communities** → **Other instances** and join from there; their own instance reads the directory for them.
 - A **private** server needs an invite link. The joining instance first checks that the invite's server is a genuine `Group` on the same host as the link. The `Join` it sends carries the invite code, and the host checks the code (expiry, use count, revocation) before it accepts.
 - The host refuses a `Join` from a suspended account, from a banned account, and from an account that moved from a banned account.
 
@@ -121,6 +122,7 @@ Harmony works out the software from the instance's NodeInfo, read again weekly. 
 
 - Chat servers, channels, threads, voice and Harmony's chat extensions only work between Harmony instances. Following a Harmony server from Mastodon does nothing: the server's inbox answers only Harmony membership activities.
 - Harmony posts cannot contain polls. Polls from other software show their answers, vote shares, voter count and closing time, and take votes. A vote is final, as on Mastodon, and the shares update when the poll's instance next reports its counts.
+- A chat poll is counted by one instance: the server's host for a channel, the author's for a direct message. A vote cast on another instance is final, while a vote on the counting instance can still be changed.
 - A Lemmy, PieFed or Mbin community can be followed, by its handle (`community@instance`, or `!community@instance`) or its URL. Its posts and comments arrive; its votes and moderation do not, and a reply written in Harmony reaches the post's author, not the community.
 - Markdown in a Harmony post reaches other software as plain text.
 - Quote approvals are automatic. There is no queue for approving quotes by hand.
@@ -137,7 +139,7 @@ Every Harmony post advertises who may quote it, and Harmony answers quote reques
 | Followers only | The author's accepted followers |
 | Direct | Nobody but the author |
 
-When someone on another instance quotes a Harmony post, their instance sends a `QuoteRequest`. Harmony answers automatically under the table above: an `Accept` carrying a quote authorization, or a `Reject`. Once the quoted post is deleted, its authorizations are no longer served.
+When someone on another instance quotes a Harmony post, their instance sends a `QuoteRequest`. Harmony answers automatically under the table above: an `Accept` carrying a quote authorization, or a `Reject`. Once the quoted post is deleted, its authorizations are no longer served. The quote itself, delivered as a `Create`, notifies the quoted author (see [Quote posts](/federation/reference#quote-posts)).
 
 When you quote a post from another instance, Harmony publishes the quote and sends the quoted author a `QuoteRequest`. If they accept, Harmony sends your quote again with the authorization attached. If they reject, Harmony records the refusal and your quote stays on Harmony. Quoting another account on your own instance needs no request; Harmony issues the authorization itself under the same rules.
 
@@ -196,6 +198,8 @@ Harmony has no allowlist mode: every instance that is not blocked can federate.
 - **Send to other instances** off: nothing is delivered to other instances, and members cannot join servers hosted elsewhere.
 - **Receive from other instances** off: every inbox answers 403, federated call tokens are refused, and signed reads from other instances are served as if unsigned. Profiles, WebFinger and a server's public profile stay readable.
 - Both off closes federation, after a confirmation. Every server here turns its federation off as its owner turning it off does: members from other instances are removed and told. Every member here leaves the servers hosted elsewhere they belonged to, and is told why. No server's federation turns back on while closed, and a server created then starts with it off. The Removes and Leaves of the closing are the only deliveries a closed instance makes.
+
+While either switch is off, the instance's server directory lists no server, and its members cannot browse other instances' directories.
 
 Turning either switch back on turns federation on again for the servers the closing turned off. Nobody removed comes back; they rejoin with an invite.
 

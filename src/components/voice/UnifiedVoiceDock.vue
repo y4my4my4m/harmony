@@ -23,10 +23,11 @@
         <div class="dock-banner">
           <VoiceCallBanner compact />
         </div>
+        <!-- Popped out, the call window shows the video: the dock shows none. -->
         <DockVideoStrip
           :tiles="stripTiles"
           :collapsed="stripCollapsed"
-          :hidden="stripHidden"
+          :hidden="stripHidden || popoutActive"
           @update:collapsed="setStripCollapsed"
           @open="openFocused"
         />
@@ -146,7 +147,7 @@
           ref="dockShareButtonRef"
           @click="onDockShareButton"
           :class="['control-btn', 'screen-btn', {
-            active: voiceStore.localState.isScreenSharing
+            streaming: voiceStore.localState.isScreenSharing
           }]"
           :title="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
           :aria-label="t('voice.shareScreen')"
@@ -246,7 +247,7 @@
       />
 
       <div 
-        v-if="activeVideoUser && !voiceStore.pipActive && !stripExpanded"
+        v-if="activeVideoUser && !voiceStore.pipActive && !stripExpanded && !popoutActive"
         class="dock-video-preview"
         role="button"
         tabindex="0"
@@ -273,6 +274,22 @@
       </div>
 
       <AppToolbar class="action-controls" :label="t('voice.toolbar.call')" @mousedown.stop @touchstart.stop>
+        <!-- The call's chat docked beside the main window's chat -->
+        <button
+          v-if="callChat.dockable.value"
+          ref="dockChatButtonRef"
+          @click="toggleDockedChat"
+          class="control-btn chat-btn"
+          :class="{ active: callChat.docked.value }"
+          :title="t('voice.callChat.toggle')"
+          :aria-label="chatUnread ? t('voice.callChat.toggleUnread') : t('voice.callChat.toggle')"
+          :aria-expanded="callChat.docked.value"
+          data-testid="dock-chat-toggle"
+        >
+          <Icon name="message-square" />
+          <span v-if="chatUnread" class="chat-unread-dot" aria-hidden="true" data-testid="dock-chat-unread"></span>
+        </button>
+
         <button
           @click.stop="toggleParticipantsDropdown"
           class="control-btn participants-btn"
@@ -331,27 +348,37 @@
       <div class="dock-banner" @mousedown.stop @click.stop>
         <VoiceCallBanner compact />
       </div>
-      <div v-if="activeVideoUser && !voiceStore.pipActive" class="minimized-video-preview" @click.stop="expandToOverlay">
-        <video
-          ref="minimizedVideoRef"
-          autoplay
-          playsinline
-          muted
-          class="mini-video"
-          :class="{ mirrored: activeVideoIsSelfCamera }"
-        />
+      <div v-if="activeVideoUser && !voiceStore.pipActive && !popoutActive" class="minimized-video-preview" @click.stop>
+        <button
+          type="button"
+          class="mini-video-open"
+          :title="activeVideoLabel"
+          :aria-label="activeVideoLabel"
+          data-testid="mini-video-open"
+          @click="expandToOverlay"
+        >
+          <video
+            ref="minimizedVideoRef"
+            autoplay
+            playsinline
+            muted
+            class="mini-video"
+            :class="{ mirrored: activeVideoIsSelfCamera }"
+          />
+        </button>
         <div class="mini-video-overlay">
-          <span class="mini-video-label">
-            <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" />
-            <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :fallback="activeVideoUserName" />
+          <span class="mini-video-label" aria-hidden="true">
+            <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" :size="12" />
+            <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :fallback="activeVideoUserName" :truncate="true" />
           </span>
           <button
+            type="button"
             class="mini-pip-btn"
-            @click.stop="activatePIPForActiveVideo"
+            @click="activatePIPForActiveVideo"
             :title="t('voice.popOut')"
             :aria-label="t('voice.popOut')"
           >
-            <Icon name="maximize-2" />
+            <Icon name="picture-in-picture" :size="14" />
           </button>
         </div>
       </div>
@@ -628,6 +655,7 @@ import {
   focusCallPopout,
   openCallPopout,
 } from './callPopout';
+import { setCallChatOpen, useCallChat, useCallChatUnread } from './callChat';
 
 const { t } = useI18n();
 
@@ -950,6 +978,15 @@ const dockReactionTarget = computed<LiveReactionTarget | null>(() =>
 watch([() => voiceStore.liveReactionsAvailable, currentMode], () => {
   showReactions.value = false;
 });
+
+// CALL CHAT
+const callChat = useCallChat();
+const chatUnread = useCallChatUnread(callChat);
+const dockChatButtonRef = ref<HTMLButtonElement | null>(null);
+
+const toggleDockedChat = () => {
+  setCallChatOpen(!callChat.docked.value);
+};
 
 // METHODS
 const expandToOverlay = () => {
@@ -1692,6 +1729,7 @@ onUnmounted(() => {
    COMPACT MODE (Floating bar at bottom)
    ============================================================================= */
 
+/* Never wider than the window: the user section gives way first. */
 .dock-container {
   background: var(--background-floating);
   border: 1px solid var(--border-primary);
@@ -1701,6 +1739,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 16px;
   min-width: 400px;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
   box-shadow: var(--shadow-large);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 80px;
@@ -1892,6 +1932,34 @@ onUnmounted(() => {
   border-color: var(--error);
 }
 
+.control-btn.chat-btn {
+  position: relative;
+}
+
+.chat-unread-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--error-hover);
+  box-shadow: 0 0 0 2px var(--background-secondary);
+}
+
+.control-btn.chat-btn.active {
+  background: var(--harmony-primary-fill);
+  color: var(--text-on-primary);
+  border-color: var(--harmony-primary);
+}
+
+/* Live: red as in the call view and on the LIVE badges. */
+.control-btn.screen-btn.streaming {
+  background: var(--error-fill);
+  color: var(--text-on-primary);
+  border-color: var(--error);
+}
+
 .control-btn.ptt-mode {
   position: relative;
 }
@@ -2052,6 +2120,20 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.mini-video-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.mini-video-open:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -2px;
+}
+
 .mini-video {
   width: 100%;
   height: auto;
@@ -2059,6 +2141,7 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
+/* Over video in every theme: the label and button match the video tile pills (VoiceTile, DockVideoTile). */
 .mini-video-overlay {
   position: absolute;
   bottom: 0;
@@ -2067,32 +2150,44 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 6px 8px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  pointer-events: none;
 }
 
 .mini-video-label {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.65);
   font-size: 11px;
-  color: var(--text-primary);
+  color: #fff;
   font-weight: 500;
 }
 
 .mini-pip-btn {
-  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  background: rgba(0, 0, 0, 0.65);
   border: none;
   border-radius: var(--radius-sm);
-  padding: 4px 6px;
-  color: var(--text-primary);
+  color: #fff;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 12px;
+  transition: background 0.2s ease;
+  pointer-events: auto;
 }
 
-.mini-pip-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+.mini-pip-btn:hover,
+.mini-pip-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .minimized-content {

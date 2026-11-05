@@ -396,6 +396,7 @@
       :is-visible="showChannelContextMenu"
       :position="contextMenuPosition"
       :channel="selectedChannel"
+      :server-id="currentServer?.id"
       :trigger="contextMenuTrigger"
       :can-reorder="canDragAndDrop"
       :can-move-up="!!selectedChannel && canMoveChannel(selectedChannel, -1)"

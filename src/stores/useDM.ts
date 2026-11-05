@@ -31,6 +31,9 @@ import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeT
 /** Rows a catch-up after the newest loaded message reads at once. */
 const CATCH_UP_LIMIT = 50
 
+/** Rows per page of a conversation held in messageCache only (loadCachedConversationPage). */
+const CACHED_PAGE_LIMIT = 30
+
 export interface DMUser {
   id: string
   username: string
@@ -1614,6 +1617,54 @@ export const useDMStore = defineStore('dm', () => {
     pendingPrefetch.set(conversationId, work)
     return work
   }
+
+  /**
+   * Pages of a conversation the routed view does not show, kept in its
+   * messageCache entry, created when absent (an empty conversation included):
+   * the newest page, or with `older` the page before the oldest held row. A
+   * newest page that does not reach the held rows replaces them.
+   */
+  const loadCachedConversationPage = async (conversationId: string, older = false): Promise<void> => {
+    const held = messageCache.value.get(conversationId)
+    const oldest = held?.messages.find(m => !isPendingRow(m))
+    if (older && (!held || !oldest || held.allMessagesLoaded)) return
+    const before = older && oldest ? cursorOf(oldest) : undefined
+
+    const { messages: rows, hasMore } = await services.messages.loadConversationMessages(conversationId, { limit: CACHED_PAGE_LIMIT, before })
+    const formatted = toConversationMessages(conversationId, rows ?? [])
+    const userIds = [...new Set(formatted.map(m => m.user_id).filter(Boolean))] as string[]
+    if (userIds.length > 0) void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {})
+
+    let entry = messageCache.value.get(conversationId)
+    if (!entry) {
+      evictOldestCache()
+      messageCache.value.set(conversationId, {
+        messages: [],
+        lastFetchedAt: new Date(),
+        oldestMessageId: null,
+        allMessagesLoaded: !hasMore,
+        lastModified: new Date(),
+      })
+      entry = messageCache.value.get(conversationId)!
+    } else if (!older && hasMore && formatted.length > 0) {
+      const newestHeld = newestPersisted(entry.messages)
+      const gap = !newestHeld || formatted[0].created_at.getTime() > new Date(newestHeld.created_at).getTime()
+      if (gap) {
+        entry.messages = entry.messages.filter(m => isPendingRow(m))
+        entry.allMessagesLoaded = false
+      }
+    }
+    for (const message of formatted) {
+      if (!entry.messages.some(m => m.id === message.id)) insertMessageSorted(entry.messages, message)
+    }
+    if (older || entry.messages.length === formatted.length) entry.allMessagesLoaded = !hasMore
+    entry.oldestMessageId = entry.messages[0]?.id ?? null
+    entry.lastFetchedAt = new Date()
+    entry.lastModified = new Date()
+  }
+
+  /** The messageCache entry of a conversation. */
+  const cachedConversation = (conversationId: string) => messageCache.value.get(conversationId)
 
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
     if (loadingMessages.value && beforeMessageId !== undefined) return
@@ -3533,7 +3584,10 @@ export const useDMStore = defineStore('dm', () => {
     
     addMessageToCache,
     updateMessageInCache,
+    removeMessageFromCache,
     patchMessageFields,
+    loadCachedConversationPage,
+    cachedConversation,
     reprocessEncryptedDMMessages,
     setupEncryptionKeyListener
   }

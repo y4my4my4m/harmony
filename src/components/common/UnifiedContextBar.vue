@@ -43,18 +43,14 @@
           type="button"
           class="funding-indicator"
           :title="fundingTooltip"
-          :aria-label="fundingTooltip"
+          :aria-label="`${$t('activitypub.supportInstance')}, ${fundingAmountText}, ${fundingTooltip}`"
           @click="$emit('open-funding')"
         >
           <Icon name="heart" :size="12" class="funding-heart" />
           <span class="funding-progress-track" aria-hidden="true">
             <span class="funding-progress-fill" :style="{ width: fundingPercent + '%' }"></span>
           </span>
-          <span class="funding-text">
-            {{ formatCurrency(fundingConfig.displayed_amount ?? fundingConfig.current_amount, fundingConfig.goal_currency) }}
-            /
-            {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
-          </span>
+          <span class="funding-text">{{ fundingAmountText }}</span>
         </button>
         <!-- Funding without a goal shown: desktop's only entry; phones have the rail heart. -->
         <button
@@ -120,6 +116,13 @@ const fundingPercent = computed(() => {
   if (!props.fundingConfig?.goal_amount) return 0;
   const amount = props.fundingConfig.displayed_amount ?? props.fundingConfig.current_amount;
   return Math.min(100, Math.round((amount / props.fundingConfig.goal_amount) * 100));
+});
+
+// The pill's visible text; its accessible name contains it (WCAG 2.5.3).
+const fundingAmountText = computed(() => {
+  const cfg = props.fundingConfig;
+  if (!cfg?.goal_amount) return '';
+  return `${formatCurrency(cfg.displayed_amount ?? cfg.current_amount, cfg.goal_currency)} / ${formatCurrency(cfg.goal_amount, cfg.goal_currency)}`;
 });
 
 const fundingTooltip = computed(() => {

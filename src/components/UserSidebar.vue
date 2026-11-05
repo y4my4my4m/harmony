@@ -258,7 +258,7 @@
                     v-if="staffBadge(item.user!.id).value"
                     class="instance-badge"
                     :class="staffBadge(item.user!.id).value!.kind"
-                    :title="staffBadgeLabel(staffBadge(item.user!.id).value!)"
+                    :title="staffBadgeTitle(staffBadge(item.user!.id).value!)"
                     data-testid="member-staff-badge"
                     aria-hidden="true"
                   >
@@ -379,7 +379,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerRolesStore } from '@/stores/useServerRoles';
-import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
+import { contextStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
@@ -466,17 +466,23 @@ function hasCustomStatusToShow(userId: string): boolean {
   return !!(s.text || s.emoji || s.emoji_url || (s.type && s.type !== 'custom'));
 }
 
-// This instance's staff badges are hidden on federated servers, where the owner is an ordinary
-// member; a remote account's role on its own instance shows everywhere (instanceBadge.ts).
 const staffBadge = (userId: string) => computed(() =>
-  instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer)
+  contextStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer, runtimeConfig.domain)
 );
 
+/** Inside the row's spoken state, after the presence. */
 function staffBadgeLabel(badge: InstanceStaffBadge): string {
   if (badge.domain) {
     return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
   }
   return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+}
+
+function staffBadgeTitle(badge: InstanceStaffBadge): string {
+  if (badge.domain) {
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminBadgeOf' : 'chatNav.members.instanceModBadgeOf', { domain: badge.domain });
+  }
+  return t(badge.kind === 'admin' ? 'activitypub.instanceAdmin' : 'activitypub.instanceModerator');
 }
 
 // Component state

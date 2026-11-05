@@ -75,6 +75,8 @@ export interface OutboxAttachment {
   driveName?: string
   /** False for new bytes (a recording): the upload skips the Drive hash lookup. */
   reuse?: boolean
+  /** False keeps an upload the outbox starts out of the transfers indicator (a voice message). */
+  listed?: boolean
   /** An upload the outbox starts keeps the photo's or video's metadata. */
   keepMetadata?: boolean
   /**
@@ -105,6 +107,7 @@ export interface OutboxFile {
   temporary?: boolean
   driveName?: string
   reuse?: boolean
+  listed?: boolean
   keepMetadata?: boolean
   sourcePath?: string
   name: string
@@ -294,6 +297,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       ...(attachment.temporary ? { temporary: true } : {}),
       ...(attachment.driveName ? { driveName: attachment.driveName } : {}),
       ...(attachment.reuse === false ? { reuse: false } : {}),
+      ...(attachment.listed === false ? { listed: false } : {}),
       ...(attachment.keepMetadata ? { keepMetadata: true } : {}),
       ...(attachment.sourcePath ? { sourcePath: attachment.sourcePath } : {}),
     }
@@ -370,6 +374,7 @@ export const useOutboxStore = defineStore('outbox', () => {
         name: file.driveName,
         ephemeral: file.temporary,
         reuse: file.reuse,
+        listed: file.listed,
         keepMetadata: file.keepMetadata,
       }))
       const id = job.id

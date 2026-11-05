@@ -265,7 +265,8 @@ export async function updateViewContext(
   viewType: ViewType,
   serverId?: string,
   channelId?: string,
-  conversationId?: string
+  conversationId?: string,
+  threadId?: string
 ): Promise<void> {
   try {
     // Local tracker first: client-side suppression must not wait for the network.
@@ -273,7 +274,8 @@ export async function updateViewContext(
       view_type: viewType === 'activitypub_home' ? 'home' : viewType,
       server_id: serverId,
       channel_id: channelId,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      thread_id: threadId
     })
 
     lastView = { viewType, serverId, channelId, conversationId }
@@ -344,6 +346,8 @@ export interface RouteViewContext {
   serverId?: string
   channelId?: string
   conversationId?: string
+  /** A thread shown full page; the database knows the view as 'home'. */
+  threadId?: string
   /** Context whose existing notifications are read on entry. */
   clear?: { channelId?: string; serverId?: string; conversationId?: string; postId?: string }
 }
@@ -373,6 +377,10 @@ export function viewContextForRoute(route: RouteLike): RouteViewContext {
   if (name === 'ChatChannel' && serverId && channelId) {
     return { viewType: 'server_channel', serverId, channelId, clear: { channelId, serverId } }
   }
+  const threadId = param(route, 'threadId')
+  if (name === 'ThreadView' && threadId) {
+    return { viewType: 'home', threadId }
+  }
   if (name === 'DMConversation' && conversationId) {
     return { viewType: 'dm', conversationId, clear: { conversationId } }
   }
@@ -396,7 +404,7 @@ export function useViewContextTracking() {
     () => route.path,
     () => {
       const view = viewContextForRoute(route)
-      void updateViewContext(view.viewType, view.serverId, view.channelId, view.conversationId)
+      void updateViewContext(view.viewType, view.serverId, view.channelId, view.conversationId, view.threadId)
       if (view.clear) void viewContextTracker.clearExistingNotificationsForContext(view.clear)
     },
     { immediate: true }

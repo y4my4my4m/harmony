@@ -146,7 +146,7 @@
           <MyEmojisSettings v-else-if="activeSection === 'emojis'" />
 
           <StickerSettings
-            v-else-if="activeSection === 'stickers'"
+            v-else-if="activeSection === 'stickers' && personalStickers"
             scope="user"
             :can-manage="true"
             :title="t('stickers.manage.myTitle')"
@@ -279,6 +279,9 @@ import RobotIcon from '@/components/icons/Robot.vue'
 import EmojiIcon from '@/components/icons/EmojiIcon.vue'
 import StickerIcon from '@/components/icons/StickerIcon.vue'
 import { hasCapability } from '@/services/instanceCapabilities'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { useStickersStore } from '@/stores/useStickers'
+import { stickerSectionListed } from '@/utils/stickerLimits'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
@@ -365,6 +368,35 @@ const currentSectionLabel = computed(() => {
   return section ? t(section.label) : t('settings.title')
 })
 
+// My stickers is listed while max_personal_stickers_per_user allows personal stickers, or while
+// the account holds some from before the instance turned them off. The count is read once per
+// visit, so removing the last one keeps the section open.
+const instanceSettings = useInstanceSettingsStore()
+const stickersStore = useStickersStore()
+const instanceSettingsRead = ref(false)
+const heldPersonalStickers = ref<number | null>(null)
+const personalStickers = computed<boolean | null>(() => {
+  if (!hasCapability('custom-stickers')) return false
+  const cap = instanceSettings.isLoaded
+    ? instanceSettings.settings.maxPersonalStickersPerUser
+    : instanceSettingsRead.value ? 0 : null
+  return stickerSectionListed(cap, heldPersonalStickers.value)
+})
+
+async function readPersonalStickers() {
+  if (!hasCapability('custom-stickers')) return
+  await instanceSettings.fetchSettings()
+  instanceSettingsRead.value = true
+  if (instanceSettings.isLoaded && instanceSettings.settings.maxPersonalStickersPerUser > 0) return
+  const profileId = profileStore.profile?.id
+  try {
+    heldPersonalStickers.value = profileId ? (await stickersStore.myStickers(profileId)).length : 0
+  } catch (error) {
+    debug.warn('Personal sticker count failed:', error)
+    heldPersonalStickers.value = 0
+  }
+}
+
 // Navigation sections
 const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
@@ -372,7 +404,7 @@ const userSections = computed(() => [
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
   { id: 'bots', label: 'settings.myBots', icon: RobotIcon },
   { id: 'emojis', label: 'settings.myEmojis.title', icon: EmojiIcon },
-  ...(hasCapability('custom-stickers') ? [{ id: 'stickers', label: 'stickers.manage.myTitle', icon: StickerIcon }] : [])
+  ...(personalStickers.value ? [{ id: 'stickers', label: 'stickers.manage.myTitle', icon: StickerIcon }] : [])
 ])
 
 const appSections = computed(() => [
@@ -408,6 +440,17 @@ const validSections = computed(() => [
   ...userSections.value.map(s => s.id),
   ...appSections.value.map(s => s.id)
 ])
+
+/** A section the view may show; My stickers waits while personalStickers is undecided. */
+const sectionAllowed = (section: string) =>
+  validSections.value.includes(section) || (section === 'stickers' && personalStickers.value === null)
+
+// My stickers opened before the instance settings were read: it closes once they turn it off.
+watch(personalStickers, (listed) => {
+  if (listed === false && activeSection.value === 'stickers') {
+    router.replace({ name: 'UserSettings', params: { section: 'account' } })
+  }
+})
 
 // Methods
 const handleResize = () => {
@@ -666,16 +709,16 @@ const handleAdvancedUpdate = async (advancedSettings: any) => {
 // Watchers
 watch(() => route.params.section, (newSection) => {
   const sectionStr = Array.isArray(newSection) ? newSection[0] : newSection
-  if (sectionStr && validSections.value.includes(sectionStr)) {
+  if (sectionStr && sectionAllowed(sectionStr)) {
     activeSection.value = sectionStr
-  } else if (sectionStr && !validSections.value.includes(sectionStr)) {
+  } else if (sectionStr) {
     // Invalid section, redirect to default
     router.replace({ name: 'UserSettings', params: { section: 'account' } })
   }
 }, { immediate: true })
 
 watch(() => props.section, (newSection) => {
-  if (newSection && validSections.value.includes(newSection)) {
+  if (newSection && sectionAllowed(newSection)) {
     activeSection.value = newSection
   }
 }, { immediate: true })
@@ -707,7 +750,7 @@ onMounted(async () => {
   const routeSection = Array.isArray(route.params.section) ? route.params.section[0] : route.params.section
   const initialSection = routeSection || props.section || 'account'
   
-  if (validSections.value.includes(initialSection)) {
+  if (sectionAllowed(initialSection)) {
     activeSection.value = initialSection
   } else {
     activeSection.value = 'account'
@@ -735,6 +778,7 @@ onMounted(async () => {
       loading.value = false
     }
   }
+  void readPersonalStickers()
 })
 
 onUnmounted(() => {

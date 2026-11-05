@@ -176,7 +176,7 @@ export const YOUTUBE_RELAY_PATH = '/youtube-embed.html';
 
 /**
  * Origin of the YouTube relay, or null when this page frames YouTube itself.
- * A page on a non-http scheme (tauri://localhost on macOS and Linux) sends no
+ * A page on a non-http scheme (tauri://localhost in the macOS and iOS apps) sends no
  * Referer, and YouTube refuses the embed with error 153; the relay is the
  * instance's https origin.
  */

@@ -3,7 +3,8 @@
 # link-preview crawlers reach the federation backend, browsers and search engines the SPA.
 # /@<name> and /@<name>/<post id>: the SPA with the cookie harmony_app=1, the backend otherwise.
 # Cache lifetimes: every SPA answer no-cache, hashed /assets/ files immutable, other static files
-# a day, a missing static file or /config.json a 404 rather than index.html.
+# a day, a missing static file or /config.json a 404 rather than index.html. The pages the native
+# apps frame name their origins in frame-ancestors.
 #
 # The template runs in a plain-HTTP nginx container: certificate directives dropped, the
 # backend upstream pointed at a stub server in the same nginx that answers with the URI it
@@ -30,6 +31,8 @@ echo ping > "$WORK/dist/assets/sounds/ping.mp3"
 echo icon > "$WORK/dist/favicon/icon.png"
 echo bg > "$WORK/dist/backgrounds/a.webp"
 echo sw > "$WORK/dist/service-worker.js"
+echo relay > "$WORK/dist/youtube-embed.html"
+echo player > "$WORK/dist/embed-player.html"
 sed -e 's/listen 443 ssl;/listen 8443;/' -e '/http2 on;/d' -e '/ssl_/d' \
     -e 's/listen 80;/listen 8080;/' -e 's/server_name YOUR_DOMAIN;/server_name _;/' \
     -e 's|/path/to/harmony/dist|/srv/dist|' \
@@ -121,6 +124,10 @@ for c in likes shares replies context; do
   expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
 done
 expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+# The server directory (OrderedCollection and pages) and its readers under /api/federation.
+expect "$MASTODON" /servers/directory 'backend /servers/directory'
+expect "$FIREFOX"  '/servers/directory?page=1' 'backend /servers/directory?page=1'
+expect "$FIREFOX"  '/api/federation/directory/remote?domain=a.example' 'backend /directory/remote?domain=a.example'
 THREAD=/threads/00000000-0000-0000-0000-000000000004
 THREADS=/channels/00000000-0000-0000-0000-000000000005/threads
 for p in $THREAD $THREAD/members "$THREAD/members?page=1" $THREADS "$THREADS?page=1"; do
@@ -286,6 +293,14 @@ done
 # Proxied answers keep the backend's caching alone.
 for p in /api/federation/media/c/x/a.png /@fx_alice /posts/00000000-0000-0000-0000-000000000001; do
   expect_headers "$p" '200 OK' '!Cache-Control' '!Expires'
+done
+
+log "native app framing"
+# The YouTube relay and the player page are framed by the native apps, from the origins in
+# federation-backend src/config/nativeOrigins.ts.
+for p in /youtube-embed.html /embed-player.html; do
+  expect_headers "$p" "Content-Security-Policy: frame-ancestors 'self' tauri://localhost http://tauri.localhost" \
+    '!https://tauri.localhost' '!X-Frame-Options'
 done
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }

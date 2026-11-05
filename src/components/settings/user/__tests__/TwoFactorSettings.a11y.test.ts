@@ -2,7 +2,9 @@
  * Settings > Security > Two-factor: code inputs carry a label, numeric input
  * mode and one-time-code autocomplete; errors are linked alerts; the setup key
  * is a labelled group with a named copy button; the confirmation modal is a
- * labelled dialog that takes focus.
+ * labelled dialog that takes focus. Turning it off with a recovery code is one
+ * redeem_recovery_code_and_disable_mfa call followed by a session refresh; with
+ * an authenticator code it is a step-up followed by unenroll.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,6 +51,8 @@ const mfa = {
   unenroll: vi.fn(async () => ({ error: null })),
   challengeAndVerify: vi.fn(),
 }
+const refreshSession = vi.fn(async () => ({ data: { session: {} }, error: null }))
+const rpc = vi.mocked(supabase.rpc)
 
 let wrapper: VueWrapper
 
@@ -70,6 +74,10 @@ beforeEach(() => {
   setActivePinia(createPinia())
   resetLayersForTests()
   ;(supabase.auth as unknown as { mfa: typeof mfa }).mfa = mfa
+  ;(supabase.auth as unknown as { refreshSession: typeof refreshSession }).refreshSession = refreshSession
+  mfa.unenroll.mockClear()
+  refreshSession.mockClear()
+  rpc.mockReset()
   mfa.enroll.mockResolvedValue({ data: { id: 'f2', totp: { secret: 'ABCDEFGHIJKLMNOP', uri: 'otpauth://x' } }, error: null })
   security.stepUpWithTotp.mockReset()
   polite.mockClear()
@@ -169,5 +177,76 @@ describe('TwoFactorSettings confirmation modal', () => {
     await flushPromises()
     expect(document.querySelector('[data-testid="twofa-code-modal"]')).toBeNull()
     expect(document.activeElement).toBe(opener.element)
+  })
+})
+
+describe('TwoFactorSettings turning off', () => {
+  const NO_FACTORS = { data: { totp: [], all: [] }, error: null }
+
+  async function submitDisable(code: string, recovery: boolean) {
+    await wrapper.get('[data-testid="twofa-disable"]').trigger('click')
+    await flushPromises()
+    if (recovery) {
+      const toggle = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="twofa-code-modal"] button')]
+        .find((b) => b.textContent?.trim() === 'security.twoFactor.useRecoveryCode')!
+      toggle.click()
+      await nextTick()
+    }
+    const input = document.querySelector<HTMLInputElement>('[data-testid="twofa-modal-code"]')!
+    input.value = code
+    input.dispatchEvent(new Event('input'))
+    await nextTick()
+    document.querySelector<HTMLFormElement>('[data-testid="twofa-code-modal"]')!
+      .dispatchEvent(new Event('submit', { cancelable: true }))
+    await flushPromises()
+    return input
+  }
+
+  it('redeems a recovery code in one call, refreshes the session, then shows two-factor off', async () => {
+    await mountWith(true)
+    rpc.mockResolvedValue({ data: true, error: null } as never)
+    mfa.listFactors.mockResolvedValue(NO_FACTORS)
+
+    await submitDisable('ABCDE-FGHJK', true)
+
+    expect(rpc.mock.calls).toEqual([['redeem_recovery_code_and_disable_mfa', { p_code: 'ABCDE-FGHJK' }]])
+    expect(mfa.unenroll).not.toHaveBeenCalled()
+    expect(refreshSession).toHaveBeenCalledTimes(1)
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(refreshSession.mock.invocationCallOrder[0])
+    expect(refreshSession.mock.invocationCallOrder[0]).toBeLessThan(mfa.listFactors.mock.invocationCallOrder.at(-1)!)
+    expect(document.querySelector('[data-testid="twofa-code-modal"]')).toBeNull()
+    expect(wrapper.get('.sec-badge').text()).toBe('security.twoFactor.off')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="twofa-setup"]').element)
+  })
+
+  it('leaves everything as it was when the recovery code is refused', async () => {
+    await mountWith(true)
+    rpc.mockResolvedValue({ data: false, error: null } as never)
+
+    const input = await submitDisable('ABCDE-FGHJK', true)
+
+    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(refreshSession).not.toHaveBeenCalled()
+    expect(mfa.unenroll).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="twofa-code-modal"]')).not.toBeNull()
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.value).toBe('ABCDE-FGHJK')
+    expect(wrapper.get('.sec-badge').text()).toBe('security.twoFactor.on')
+    expect(wrapper.emitted('changed')).toBeUndefined()
+  })
+
+  it('with an authenticator code, steps up and unenrolls the verified factor', async () => {
+    await mountWith(true)
+    security.stepUpWithTotp.mockResolvedValue(undefined)
+    mfa.listFactors.mockResolvedValue(NO_FACTORS)
+
+    await submitDisable('123456', false)
+
+    expect(security.stepUpWithTotp).toHaveBeenCalledWith('123456')
+    expect(mfa.unenroll).toHaveBeenCalledWith({ factorId: 'f1' })
+    expect(rpc).not.toHaveBeenCalled()
+    expect(refreshSession).not.toHaveBeenCalled()
+    expect(wrapper.get('.sec-badge').text()).toBe('security.twoFactor.off')
   })
 })

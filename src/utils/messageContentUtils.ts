@@ -3,6 +3,7 @@ import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
 import { withoutStickerFallbacks } from '@/utils/stickerParts';
 import { isMassMentionWord } from '@/utils/massMentions';
+import { isSingleEmojiSequence } from '@/utils/unicodeEmoji';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
 /**
@@ -173,6 +174,15 @@ export function removeFilePartByUrl(parts: MessagePart[], url: string): MessageP
       return false;
     }
     return true;
+  });
+}
+
+/** Text, a mention, an emoji or a link among the parts: what Copy text has to copy. */
+export function hasCopyableText(parts: MessagePart[] | null | undefined): boolean {
+  if (!Array.isArray(parts)) return false;
+  return parts.some(part => {
+    if (part.type === 'text' && (part.text || '').trim().length > 0) return true;
+    return part.type === 'mention' || part.type === 'role_mention' || part.type === 'emoji' || part.type === 'url';
   });
 }
 
@@ -355,10 +365,7 @@ export function isSingleEmojiMessage(parts: MessagePart[]): boolean {
   
   if (part.type === 'text') {
     const trimmed = (part.text || '').trim();
-    // Unicode emoji regex - must be ONLY an emoji (flags, ZWJ sequences, or standard emojis)
-    // Includes Regional Indicator Symbol pairs for flags (U+1F1E6-U+1F1FF)
-    const singleEmojiRegex = /^([\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*)$/u;
-    return singleEmojiRegex.test(trimmed);
+    return isSingleEmojiSequence(trimmed);
   }
   
   return false;

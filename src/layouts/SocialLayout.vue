@@ -2,11 +2,6 @@
   <div class="social-layout" :class="{ 'is-dragging': isDragging }">
     <!-- Social mode has no context bar; views render their own headers and the
          funding indicator sits in the instance card. -->
-    <FundingModal
-      v-if="showFundingModal"
-      @close="showFundingModal = false"
-    />
-
     <div class="social-layout-content" data-region="workspace">
       <nav
         id="app-channel-panel"
@@ -139,7 +134,7 @@
               type="button"
               class="funding-card"
               :title="fundingTooltip"
-              @click="showFundingModal = true"
+              @click="fundingStore.openModal()"
             >
               <span class="funding-head">
                 <Icon name="heart" :size="14" class="funding-heart" />
@@ -160,7 +155,7 @@
               type="button"
               class="funding-card"
               data-testid="funding-support"
-              @click="showFundingModal = true"
+              @click="fundingStore.openModal()"
             >
               <span class="funding-head">
                 <Icon name="heart" :size="14" class="funding-heart" />
@@ -226,7 +221,6 @@ import { useDrawerPanel, useLayoutState, useSidebarPanel } from '@/composables/u
 import { useT } from '@/composables/useT'
 import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { getOriginalPost } from '@/utils/postReblog'
-import FundingModal from '@/components/FundingModal.vue'
 import { showsFundingGoal } from '@/services/FundingService'
 import type { FederatedUser, TimelinePost } from '@/types'
 import { runtimeConfig } from '@/services/runtimeConfig'
@@ -290,7 +284,6 @@ const emit = defineEmits<{
 const activityPubStore = useActivityPubStore()
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
-const showFundingModal = ref(false)
 const router = useRouter()
 const route = useRoute()
 

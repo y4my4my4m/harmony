@@ -64,6 +64,7 @@ import {
   federationClosedNoticeText,
   memberRemovedNoticeText,
   pushAllowedForType,
+  pushSoundAllowed,
 } from '../services/pushPolicy.js';
 
 const SUB = { endpoint: 'https://push.example/new', keys: { p256dh: 'p', auth: 'a' } };
@@ -130,6 +131,27 @@ describe('per-type push gates', () => {
   it('gates social types on the social alert toggles', () => {
     expect(pushAllowedForType('activitypub_favorite', { activitypub_desktop_favorites: false })).toBe(false);
     expect(pushAllowedForType('activitypub_follow', { activitypub_desktop_notifications: false })).toBe(false);
+  });
+
+  it('gates quotes on their own alert toggle', () => {
+    expect(pushAllowedForType('activitypub_quote', { activitypub_desktop_quotes: false })).toBe(false);
+    expect(pushAllowedForType('activitypub_quote', { activitypub_desktop_quotes: true, activitypub_desktop_replies: false })).toBe(true);
+  });
+});
+
+describe('push sound', () => {
+  it('sounds without a preferences row or a column', () => {
+    expect(pushSoundAllowed('activitypub_quote', null)).toBe(true);
+    expect(pushSoundAllowed('activitypub_quote', { activitypub_sound_replies: false })).toBe(true);
+  });
+
+  it('follows the type\'s sound toggle and the masters', () => {
+    expect(pushSoundAllowed('activitypub_favorite', { activitypub_sound_favorites: false })).toBe(false);
+    expect(pushSoundAllowed('activitypub_quote', { activitypub_sound_quotes: false })).toBe(false);
+    expect(pushSoundAllowed('dm', { sound_dms: false })).toBe(false);
+    expect(pushSoundAllowed('dm', { sound_dms: true, sound_notifications: false })).toBe(false);
+    expect(pushSoundAllowed('activitypub_reply', { activitypub_sound_notifications: false })).toBe(false);
+    expect(pushSoundAllowed('mention', { activitypub_sound_notifications: false })).toBe(true);
   });
 });
 

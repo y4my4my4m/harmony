@@ -122,6 +122,9 @@
   <!-- Media viewer opened through openLightbox -->
   <MediaLightboxHost />
 
+  <!-- Support window opened through useFundingStore().openModal -->
+  <SupportModalHost v-if="!isAuthRoute" />
+
   <!-- Emoji info card opened through openEmojiInfo / hoverEmojiInfo -->
   <EmojiInfoHost v-if="!isAuthRoute" />
 
@@ -167,6 +170,7 @@ import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import MediaLightboxHost from '@/components/common/MediaLightboxHost.vue'
 import EmojiInfoHost from '@/components/emoji/EmojiInfoHost.vue'
+import SupportModalHost from '@/components/funding/SupportModalHost.vue'
 import TransfersIndicator from '@/components/common/TransfersIndicator.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'

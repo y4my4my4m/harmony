@@ -21,6 +21,7 @@ import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { resolveNotificationRoute } from '@/utils/notificationRoute'
 import { isMobileUserAgent } from '@/utils/pwaUtils'
+import { audioThemeService } from '@/services/AudioThemeService'
 import { i18n } from '@/i18n'
 import { UserStatus } from '@/types'
 import type { 
@@ -93,6 +94,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_reaction: 'reaction',
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
+  activitypub_quote: 'reply',
   activitypub_follow_request: 'friend_request',
   activitypub_follow_accepted: 'friend_request',
   move: 'friend_request',
@@ -142,6 +144,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_reblogs: true,
   activitypub_mentions: true,
   activitypub_replies: true,
+  activitypub_quotes: true,
   activitypub_follow_requests: true,
   
   activitypub_desktop_notifications: true,
@@ -150,13 +153,15 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_desktop_reblogs: false,
   activitypub_desktop_mentions: true,
   activitypub_desktop_replies: true,
+  activitypub_desktop_quotes: true,
   
   activitypub_sound_notifications: true,
   activitypub_sound_follows: true,
   activitypub_sound_favorites: false,
   activitypub_sound_reblogs: false,
   activitypub_sound_mentions: true,
-  activitypub_sound_replies: true
+  activitypub_sound_replies: true,
+  activitypub_sound_quotes: true
 }
 
 // Unsubscribe functions for UserEventChannel handlers (module-level to avoid
@@ -242,6 +247,25 @@ async function dismissSystemNotifications(criteria: DismissCriteria): Promise<vo
 function isStatusBusy(): boolean {
   try {
     return userDataService.getCurrentUser()?.status === UserStatus.Busy
+  } catch {
+    return false
+  }
+}
+
+/** The window is shown and has focus: what arrives is seen in the app itself. */
+function windowHasAttention(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
+
+/** A push for the row is on screen: shown by the service worker, not by this page. */
+async function pushShownFor(notificationId: string): Promise<boolean> {
+  if (isTauriRuntime() || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return false
+  try {
+    const registration = await navigator.serviceWorker.getRegistration()
+    if (!registration) return false
+    const shown = await registration.getNotifications()
+    return shown.some((n) => n.data?.notification_id === notificationId && n.data?.shown_by !== 'page')
   } catch {
     return false
   }
@@ -490,7 +514,10 @@ export const useNotificationStore = defineStore('notification', {
     shouldShowDesktopNotification: (state) => {
       return (type: NotificationType) => {
         const store = useNotificationStore()
-        if (!state.preferences?.desktop_notifications || store.isQuietHours) return false
+        if (!state.preferences || store.isQuietHours) return false
+        // The Fediverse types have their own category; desktop_notifications is the chat one's
+        // switch. Mirrors pushAllowedForType in federation-backend/src/services/pushPolicy.ts.
+        if (!type.startsWith('activitypub_') && !state.preferences.desktop_notifications) return false
 
         switch (type) {
           case 'mention':
@@ -517,6 +544,8 @@ export const useNotificationStore = defineStore('notification', {
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_mentions
           case 'activitypub_reply':
             return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_replies
+          case 'activitypub_quote':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_quotes !== false
           case 'activitypub_follow_request':
           case 'activitypub_follow_accepted':
           case 'move':
@@ -560,6 +589,8 @@ export const useNotificationStore = defineStore('notification', {
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_mentions
           case 'activitypub_reply':
             return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_replies
+          case 'activitypub_quote':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_quotes !== false
           case 'activitypub_follow_request':
           case 'activitypub_follow_accepted':
           case 'move':
@@ -630,6 +661,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.log('Notification Store: Initializing for user:', userId)
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
+        void this.preloadSounds()
 
         await this.loadPreferences(userId)
 
@@ -661,6 +693,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.log('Notification Store: Initializing with unread notifications')
 
         this.hasPermission = await this.requestNativePermissionIfNeeded()
+        void this.preloadSounds()
 
         await this.loadPreferences(userId)
         
@@ -1003,6 +1036,7 @@ export const useNotificationStore = defineStore('notification', {
         server_id: notifData.location?.server_id || notifData.server_id,
         channel_id: notifData.location?.channel_id || notifData.channel_id,
         conversation_id: notifData.conversation?.id || notifData.conversation_id || notifData.location?.conversation_id,
+        thread_id: notifData.thread?.id || notifData.thread_id,
         type: newNotification.type
       }
 
@@ -1097,8 +1131,13 @@ export const useNotificationStore = defineStore('notification', {
 
 
     /**
-     * Fans a notification out to toast / desktop / sound according to
-     * `uiDecision` from ViewContextTracker and the user's preferences.
+     * Fans a notification out to one alert surface and at most one sound.
+     *
+     * Focused window: the in-app toast and the app's sound. Otherwise a system notification
+     * where one can show, in place of the toast; the toast stands in when none can. The app
+     * plays the sound while it can start one at once (AudioThemeService.canPlayNow) and the
+     * page is not a phone's hidden page, which may get no audio; else the system notification
+     * carries it. A sound the type's settings turn off plays on neither.
      */
     handleRealtimeNotification(
       notification: Notification, 
@@ -1108,55 +1147,18 @@ export const useNotificationStore = defineStore('notification', {
       try {
         debug.log('Processing notification:', notification.type)
 
-        if (uiDecision.showToast) {
-          let emojiUrl: string | undefined
-          let emojiName: string | undefined
-          if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
-            const data = notification.data
-            const reactionData = data.reaction || data
-            
-            emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
-            emojiUrl = reactionData?.emoji_url || data.emoji_url
-            
-            if (emojiUrl) {
-              emojiUrl = getEmojiUrl(emojiUrl, 48)
-            } else {
-              // Bridged Discord reactions carry discord:name:id and no url.
-              const discord = emojiName ? parseDiscordEmojiToken(emojiName) : null
-              if (discord) {
-                emojiUrl = discordEmojiCdnUrl(discord)
-                emojiName = discord.name
-              }
-            }
-          }
-          
-          const actorInfo = NotificationFormatter.getActorInfo(notification)
-          this.showToast(
-            notification.type,
-            formatted.title,
-            formatted.message,
-            4000,
-            NotificationFormatter.getAvatarUrl(notification),
-            emojiUrl,
-            emojiName,
-            actorInfo?.actorUserId,
-            actorInfo?.titleSuffix,
-            notification.id
-          )
-        }
+        const type = notification.type
+        const focused = windowHasAttention()
+        const wantsSound = uiDecision.playSound && this.shouldPlaySound(type)
+        const system = !focused && uiDecision.showDesktop
+          && this.shouldShowDesktopNotification(type) && this.canShowSystemNotification()
 
-        // A backgrounded mobile page may not get audio; the system notification
-        // carries the sound there. Elsewhere the app sound plays and the system
-        // notification stays silent.
-        const osCarriesSound = typeof document !== 'undefined' && document.hidden && isMobileUserAgent()
-        const appSound = uiDecision.playSound && this.shouldPlaySound(notification.type) && !osCarriesSound
-
-        if (uiDecision.showDesktop && this.shouldShowDesktopNotification(notification.type)) {
-          this.showDesktopNotification(notification, formatted, { silent: !osCarriesSound })
-        }
-
-        if (appSound) {
-          this.playNotificationSound(notification.type)
+        if (system) {
+          const pageMayPlay = !(typeof document !== 'undefined' && document.hidden && isMobileUserAgent())
+          void this.alertBySystemNotification(notification, formatted, wantsSound, pageMayPlay && audioThemeService.canPlayNow())
+        } else {
+          if (uiDecision.showToast) this.showNotificationToast(notification, formatted)
+          if (wantsSound) void this.playNotificationSound(type)
         }
 
         debug.log('Notification processed successfully')
@@ -1171,10 +1173,65 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    showNotificationToast(notification: Notification, formatted: any) {
+      let emojiUrl: string | undefined
+      let emojiName: string | undefined
+      if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
+        const data = notification.data
+        const reactionData = data.reaction || data
+
+        emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
+        emojiUrl = reactionData?.emoji_url || data.emoji_url
+
+        if (emojiUrl) {
+          emojiUrl = getEmojiUrl(emojiUrl, 48)
+        } else {
+          // Bridged Discord reactions carry discord:name:id and no url.
+          const discord = emojiName ? parseDiscordEmojiToken(emojiName) : null
+          if (discord) {
+            emojiUrl = discordEmojiCdnUrl(discord)
+            emojiName = discord.name
+          }
+        }
+      }
+
+      const actorInfo = NotificationFormatter.getActorInfo(notification)
+      this.showToast(
+        notification.type,
+        formatted.title,
+        formatted.message,
+        4000,
+        NotificationFormatter.getAvatarUrl(notification),
+        emojiUrl,
+        emojiName,
+        actorInfo?.actorUserId,
+        actorInfo?.titleSuffix,
+        notification.id
+      )
+    },
+
+    /**
+     * The system notification for a row, and its one sound. A push for the row already on
+     * screen keeps its own sound (the service worker shows pushes audible unless the type's
+     * sound is off); the app's notification for it is then dropped by the worker.
+     */
+    async alertBySystemNotification(notification: Notification, formatted: any, wantsSound: boolean, appCanSound: boolean) {
+      const pushed = await pushShownFor(notification.id)
+      const appSound = wantsSound && appCanSound && !pushed
+      await this.showDesktopNotification(notification, formatted, { silent: appSound || !wantsSound })
+      if (appSound) await this.playNotificationSound(notification.type)
+    },
+
+    /** The OS will show a notification from this client: permission is granted. */
+    canShowSystemNotification(): boolean {
+      if (isTauriRuntime()) return this.hasPermission
+      return typeof Notification !== 'undefined' && Notification.permission === 'granted'
+    },
+
     async showDesktopNotification(notification: Notification, formatted?: any, opts: { silent?: boolean } = {}) {
       try {
         // A focused, visible window shows the in-app toast instead.
-        if (!document.hidden && document.hasFocus()) {
+        if (windowHasAttention()) {
           return
         }
 
@@ -1285,6 +1342,7 @@ export const useNotificationStore = defineStore('notification', {
           data: {
             notification_id: notification.id,
             type: notification.type,
+            shown_by: 'page',
             url: this.getNotificationUrl(notification),
             conversation_id: pick(conversationId),
             server_id: pick(d.server_id || d.location?.server_id),
@@ -1379,6 +1437,7 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    /** Plays from sounds decoded ahead (preloadSounds); waits on no theme loading. */
     async playNotificationSound(type: NotificationType) {
       try {
         if (!this.shouldPlaySound(type)) return
@@ -1386,18 +1445,22 @@ export const useNotificationStore = defineStore('notification', {
         const audioAction = NOTIFICATION_SOUND_MAPPING[type]
         if (!audioAction) return
 
-        const { useThemeStore } = await import('./useTheme')
-        const themeStore = useThemeStore()
-        
-        if (!themeStore.isInitialized) {
-          await themeStore.initialize()
-        }
-        
-        await themeStore.playAudio(audioAction)
-        
+        await audioThemeService.ensureCustomPacksLoaded()
+        await audioThemeService.playAudio(audioAction)
+
         debug.log(`Played sound for ${type}`)
       } catch (error) {
         debug.error(`Failed to play sound for ${type}:`, error)
+      }
+    },
+
+    /** Fetches the current sound theme and decodes its alert sounds before any notification. */
+    async preloadSounds() {
+      try {
+        await audioThemeService.ensureCustomPacksLoaded()
+        await audioThemeService.preloadTheme(audioThemeService.getCurrentTheme()?.id ?? 'default')
+      } catch (error) {
+        debug.warn('Failed to preload notification sounds:', error)
       }
     },
 

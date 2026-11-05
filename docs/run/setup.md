@@ -100,6 +100,8 @@ Invites are links of the form `https://<instance>/invite/<code>`. Creating them 
 
 Open the server menu and select **Get invite link**, or right-click a text channel or the server's icon and select **Invite people**. "Anyone with the link can join this server." If you have no active link, one is created. Use **Copy** or **Share**.
 
+A server invite does not make an account. Someone without one signs up first; on an instance where sign-up is invite only, an instance admin invites them under **Instance admin** → **Invites** ([Invite someone](/self-host/install#invite-someone)).
+
 ### Link settings
 
 Select **Link settings** to make a link with other limits, then **Create new link**. "Existing links keep working until they expire or you revoke them."
@@ -115,7 +117,7 @@ Select **Revoke** under the current link, or the remove button beside a link und
 
 ### Joining without an invite
 
-A server set to **Public directory** in **Privacy settings** is listed in Discover, and anyone on your instance can join it from there. People on other instances can join a public server whose federation is on without an invite; a private server needs an invite code from them too. A banned account cannot join by either route.
+A server set to **Public directory** in **Privacy settings** is listed in Discover, and anyone on your instance can join it from there. People on other instances can join a public server whose federation is on without an invite; a private server needs an invite code from them too. With **Discoverable across federation** on as well, the server is listed in your instance's server directory, which people on other Harmony instances browse under **Other instances** in Discover. A banned account cannot join by any route.
 
 ## Custom emoji
 
@@ -190,6 +192,7 @@ Select **Save**.
 
 - **Enable federation**: "Allow users from other Harmony instances to join and interact with this server." Shown when the instance federates and you hold **Manage Server**. It is off for new servers. With it on, the server's **Server handle** is shown. Turning it off removes the members from other instances, after a confirmation that names how many (see [Turning federation off for a server](/federation/#turning-federation-off-for-a-server)).
 - **Server discovery**: **Invite only** or **Public directory** ("Anyone can discover and join your server through the public server list"), and the **Category** used in Discover.
+- **Discoverable across federation**: "List this server in this instance's server directory, so people on other Harmony instances can find and join it." Off for every server until turned on. It needs **Public directory**, **Enable federation** and both of the instance's federation switches; until then the switch is off and names what is missing. Choosing **Invite only** or turning federation off takes the server out of the directory.
 - **Server encryption policy**: **Disabled**, **Optional** or **Required**, plus **Require end-to-end encrypted voice and video**. Only the owner can change it. See [Privacy and security](/use/privacy-security).
 
 ### Advanced settings

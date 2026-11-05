@@ -76,6 +76,21 @@ In the attachment description dialog, Ctrl/Cmd+Enter saves the description.
 | Shift+Page Up | Jump to the **New messages** divider. |
 | Context menu key or Shift+F10 | On a reaction, list who reacted. |
 
+These keys act on the focused message, as in Discord. They work on the message itself, not on a control inside it, never with Ctrl, Alt or Cmd held, and only where the message's own buttons offer the action. **User settings** → **Keybindings** lists them under **Message list**.
+
+| Keys | Action |
+|---|---|
+| E | Edit your message. |
+| R | Reply. Not on a system message. |
+| `+` | Open the reaction picker. |
+| P | Pin or unpin, where you may pin. |
+| Backspace or Delete | Delete, after a confirmation, where you may delete it. |
+| Shift+Backspace or Shift+Delete | Delete without the confirmation. A message that started a thread still asks. |
+| C | Copy the message text. |
+| T | Open the message's thread, or start one, where you may create threads. |
+
+Starting a reply, pinning, unpinning and copying are announced to screen readers.
+
 ## Posts and timelines
 
 | Keys | Action |
@@ -101,7 +116,7 @@ In the attachment description dialog, Ctrl/Cmd+Enter saves the description.
 | Channel list | Letters | Jump to the next item whose name starts with them. |
 | Channel list | Enter or Space | Open the channel. |
 | Channel list | Alt+Up / Alt+Down | Move the channel or category, when you own the server or have **Manage Channels**. |
-| Channel list | Context menu key or Shift+F10 | Open the channel or category menu. |
+| Channel list | Context menu key or Shift+F10 | Open the channel or category menu. A channel's menu holds **Mark as read**, **Mute channel** (or the unmute entry), **Notification level** and **Notification settings**; Right or Enter opens a submenu in place, Left or Escape closes it. |
 | Member list | Up / Down, Home / End | Move between members. |
 | Member list | Enter or Space | Open the member's profile. |
 | Member list | Context menu key or Shift+F10 | Open the member menu. |

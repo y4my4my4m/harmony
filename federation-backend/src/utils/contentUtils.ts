@@ -25,6 +25,14 @@ export function escapeHtml(text: string): string {
 }
 
 /**
+ * Escaped text with its line breaks as <br />: HTML readers (Mastodon, Misskey) collapse a bare
+ * newline into a space. Harmony reads <br> back as a newline (noteToContent).
+ */
+function lines(text: string): string {
+  return escapeHtml(text).replace(/\r\n?|\n/g, '<br />');
+}
+
+/**
  * Decode HTML entities back to their characters.
  * Handles named entities (&amp; &lt; &gt; &quot; &nbsp;),
  * decimal numeric references (&#39; &#039; &#8217;), and
@@ -57,7 +65,7 @@ export function decodeHtmlEntities(text: string): string {
 export function convertContentToHTML(content: any): string {
   // Plain string
   if (typeof content === 'string') {
-    return escapeHtml(content);
+    return lines(content);
   }
   
   // Array of content parts
@@ -65,7 +73,7 @@ export function convertContentToHTML(content: any): string {
     return content.map(part => {
       switch (part.type) {
         case 'text':
-          return escapeHtml(part.text || '');
+          return lines(part.text || '');
 
         case 'mention': {
           const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
@@ -109,13 +117,13 @@ export function convertContentToHTML(content: any): string {
         }
 
         case 'bold':
-          return `<strong>${escapeHtml(part.text || '')}</strong>`;
+          return `<strong>${lines(part.text || '')}</strong>`;
 
         case 'italic':
-          return `<em>${escapeHtml(part.text || '')}</em>`;
+          return `<em>${lines(part.text || '')}</em>`;
 
         case 'strikethrough':
-          return `<del>${escapeHtml(part.text || '')}</del>`;
+          return `<del>${lines(part.text || '')}</del>`;
 
         case 'link': {
           const safe = safeAttrUrlOutbound(part.url || part.href || '');
@@ -134,7 +142,7 @@ export function convertContentToHTML(content: any): string {
   
   // Object with text property (simple format)
   if (content?.text) {
-    return escapeHtml(content.text);
+    return lines(content.text);
   }
   
   return '';

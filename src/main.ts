@@ -13,7 +13,7 @@ import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import { getBuildInfo, getNativeVersion } from '@/utils/buildInfo'
-import { reloadIfStaleBundle, withoutStaleParam } from '@/utils/staleBundle'
+import { claimPreloadReload, reloadIfStaleBundle, withoutStaleParam } from '@/utils/staleBundle'
 import { reactionCacheManager } from '@/utils/reactionCacheManager'
 import { setAppSessionCookie } from '@/utils/appSessionCookie'
 
@@ -116,15 +116,16 @@ app.config.errorHandler = (err, instance, info) => {
   debug.error(`[Vue Error] ${info}:`, err)
 }
 
-// A chunk or stylesheet of this bundle that no longer exists (a desktop update replaced the
-// files under a cached page) reloads the page once per session.
+// A chunk or stylesheet of this bundle that no longer exists reloads the page (claimPreloadReload).
+// import.meta.url is the entry chunk's URL, which names the build.
 window.addEventListener('vite:preloadError', (event) => {
+  let storage: Storage | null = null
   try {
-    if (sessionStorage.getItem('harmony:preload-reload')) return
-    sessionStorage.setItem('harmony:preload-reload', '1')
+    storage = sessionStorage
   } catch {
-    return
+    storage = null
   }
+  if (!claimPreloadReload(storage, import.meta.url, Date.now())) return
   event.preventDefault()
   window.location.reload()
 })

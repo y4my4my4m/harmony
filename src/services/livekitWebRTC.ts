@@ -51,6 +51,7 @@ import {
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
 import { getLiveKitToken } from './livekitTokens';
+import { getInstanceDomain } from './instanceConfig';
 import { adaptiveStreamSettings } from './voice/adaptiveStreamSettings';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
@@ -183,8 +184,8 @@ async function resolveFederatedId(federatedId: string, originalIdentity: string)
   const pathParts = federatedUrl.pathname.split('/').filter(p => p);
   const username = pathParts[pathParts.length - 1]; // Last part of /users/username
   
-  const currentDomain = window.location.hostname;
-  const isLocalUser = federatedDomain === currentDomain;
+  // Local actor ids name the instance domain; the native app's page host is tauri.localhost.
+  const isLocalUser = federatedDomain === getInstanceDomain().split(':')[0];
   
   // Look up the user by federated_id first
   try {

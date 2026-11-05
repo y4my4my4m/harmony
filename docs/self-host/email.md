@@ -15,7 +15,7 @@ own services send none: the Supabase sign-in service (the `auth` container,
 |---|---|
 | Address confirmation | Someone registers and email confirmation is on. The app tells them it sent a confirmation link and returns to the sign-in page; they can sign in after following the link |
 | Password reset | Someone uses **Forgot your password?** on the sign-in page. The link opens the app's password page (`/reset-password`) |
-| Invitation | You run `harmony admin invite <email> --send`. The single-use link opens the same password page, where the person chooses a password |
+| Invitation | You turn on **Send by email** in the admin panel's **Invites**, or run `harmony admin invite <email> --send`. The single-use link opens the same password page, where the person chooses a password |
 
 Without SMTP the instance works, with these differences:
 
@@ -24,7 +24,8 @@ Without SMTP the instance works, with these differences:
 - Nobody can reset a forgotten password by email. You can set one from the
   server with `harmony admin reset-password --email user@example.com`.
 - `harmony admin invite` prints the invitation link for you to send;
-  `--send` refuses to run.
+  `--send` refuses to run. In the admin panel's **Invites**, **Send by email**
+  is off and the page gives you the link to copy.
 - A first sign-in through Google, GitHub or Twitch makes a new account even
   when an account has the same address
   ([Existing accounts](/self-host/oauth#existing-accounts)).
@@ -134,6 +135,13 @@ sets the same keys in that stack's `.env`.
 
 Links in the messages lead back to the app at `SITE_URL`
 (`https://chat.example.com`), which `configure.sh` sets.
+
+The federation backend cannot see the sign-in service's settings. `configure.sh`
+copies `SMTP_HOST` into `federation.env` as `GOTRUE_SMTP_HOST`; the admin
+panel offers **Send by email** for invitations only when it is set and not
+`supabase-mail`. After editing `SMTP_HOST` by hand, run `harmony config`, or
+set `GOTRUE_SMTP_HOST` in `federation.env` and
+`docker compose up -d federation-server`.
 
 ## Test email
 

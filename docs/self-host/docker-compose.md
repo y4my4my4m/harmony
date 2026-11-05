@@ -23,7 +23,8 @@ lists what any proxy in front of Harmony must route.
 The self-host stack is the supported path: the `harmony` command, its
 updates, backups and checks all assume its layout. The root compose files
 are for setups that bring their own Supabase and nginx; you then apply
-migrations, back up and update by hand.
+migrations, back up and update by hand, and give that stack's `db` service
+`shm_size: 1g` as `supabase-overrides.yml` does.
 
 ## Run the self-host stack by hand
 
@@ -70,8 +71,10 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 
 | Service | Change |
 |---|---|
+| `db` | `shm_size: 1g`. Docker gives a container 64 MB of `/dev/shm`; parallel VACUUM, index builds and hash joins on a large table need more and otherwise fail with "could not resize shared memory segment". Starts without `vector` |
 | `functions`, `supavisor` | Moved to a profile nothing enables: defined, never started. The federation backend replaces Edge Functions; Supavisor would publish Postgres on the host |
-| `kong`, `analytics` | No host ports; Caddy reaches Kong as `supabase-kong:8000` |
+| `kong` | No host ports; Caddy reaches Kong as `supabase-kong:8000`. `KONG_DNS_VALID_TTL: 5`: Kong looks up a service's address again after 5 seconds instead of the 600 seconds Docker's DNS answers carry, so a service an update recreates on another address answers within seconds rather than with 502 for up to 10 minutes |
+| `analytics`, `vector` | Profile `logs`, started only with [log collection](/self-host/#log-collection) on; `analytics` publishes no host port. `kong`, `auth`, `rest`, `realtime`, `meta` and `studio` start without them (`required: false`) |
 | `rest` | `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
 | `imgproxy` | `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images |
 | `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.196.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |

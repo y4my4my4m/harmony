@@ -35,7 +35,9 @@ import {
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote, SYSTEM_NOTE_TYPES } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
+import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.js';
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
+import { withMessagePolls } from './messagePolls.js';
 import { groupAuthorOf } from './groupAuthor.js';
 import {
   HARMONY_MEMBER_ROLES,
@@ -75,6 +77,7 @@ function serverToGroup(
   hostDomain: string,
   publicKeyPem: string | null,
   display: { roles: ApRole[] | null; pins: Map<string, PinSummary> | null } = { roles: null, pins: null },
+  instanceOpen = false,
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
@@ -86,6 +89,8 @@ function serverToGroup(
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
       {
+        toot: 'http://joinmastodon.org/ns#',
+        discoverable: 'toot:discoverable',
         harmony: HARMONY_NS,
         'ChatServer': 'harmony:ChatServer',
         'TextChannel': 'harmony:TextChannel',
@@ -120,6 +125,9 @@ function serverToGroup(
     'harmony:federationEnabled': server.federation_enabled === true,
     // Flags naming a message of the server reach its moderators (1.8.12); older hosts drop them.
     'harmony:acceptsReports': true,
+    // Polls in its channels federate (1.9.3, activitypub/messagePolls.ts): a copy's members vote
+    // through this Group. Older hosts keep a poll on the instance it was posted on.
+    'harmony:polls': true,
     'harmony:suspended': server.suspended_at
       ? { at: server.suspended_at, reason: server.suspended_reason ?? null }
       : null,
@@ -168,8 +176,8 @@ function serverToGroup(
       };
     }),
     
-    // Discoverability and federation settings
-    discoverable: server.public === true,
+    // Listed across federation, and open to anyone (serverDirectory.ts).
+    ...groupDiscoverability(server, instanceOpen),
     manuallyApprovesFollowers: false, // Auto-accept joins for public servers
     
     // Key of the Group's own activities (ServerActor.ts).
@@ -463,6 +471,7 @@ router.get(
       config.INSTANCE_DOMAIN,
       publicKeyPem,
       { roles: await loadApRoles(supabase, server.id, serverUrl), pins },
+      await instanceFederationOpen(),
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -556,6 +565,7 @@ async function channelNotes(
 ): Promise<any[]> {
   const hostDomain = config.INSTANCE_DOMAIN;
   await withParentObjectIds(supabase, rows.filter((m: any) => !m.is_system));
+  await withMessagePolls(supabase, rows);
   const people = await loadSystemPeople(supabase, rows.filter((m: any) => m.is_system));
   const server = await serverNameRow(supabase, ctx.serverId);
   return rows.flatMap((message: any) => {
@@ -935,6 +945,7 @@ router.get(
     }
 
     await withParentObjectIds(supabase, messages.filter((m: any) => !m.is_system));
+    await withMessagePolls(supabase, messages);
     const server = await serverNameRow(supabase, serverId);
     const people = await loadSystemPeople(supabase, messages.filter((m: any) => m.is_system));
     const items = messages.flatMap((message: any) => {

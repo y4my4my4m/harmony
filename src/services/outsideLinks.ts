@@ -23,6 +23,8 @@
  */
 
 import { computed, shallowRef } from 'vue'
+import { useToast } from 'vue-toastification'
+import { i18n } from '@/i18n'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import { useOutsideLinkSettingsStore } from '@/stores/outsideLinkSettings'
 import { debug } from '@/utils/debug'
@@ -38,7 +40,13 @@ import {
 
 const HTTP = /^https?:\/\//i
 
-/** Native clients only. Android: an ACTION_VIEW intent. Desktop and iOS: tauri-plugin-opener. */
+// android_open_url's error when no app on the device takes a web link.
+const NO_URL_HANDLER = 'no_url_handler'
+
+/**
+ * Native clients only. Android: an ACTION_VIEW intent. Desktop and iOS: tauri-plugin-opener.
+ * A link that does not open is copied, and a toast says so.
+ */
 export async function openExternalUrl(url: string): Promise<void> {
   if (!HTTP.test(url)) return
   try {
@@ -51,7 +59,20 @@ export async function openExternalUrl(url: string): Promise<void> {
     }
   } catch (err) {
     debug.warn('[outsideLinks] failed to open external URL:', err)
+    await reportUnopened(url, String(err).includes(NO_URL_HANDLER))
   }
+}
+
+async function reportUnopened(url: string, noApp: boolean): Promise<void> {
+  let copied = false
+  try {
+    await navigator.clipboard.writeText(url)
+    copied = true
+  } catch {
+    // No clipboard access: the toast names no copy.
+  }
+  const key = `${noApp ? 'noApp' : 'openFailed'}${copied ? 'Copied' : ''}`
+  useToast().error(i18n.global.t(`outsideLink.${key}`) as string)
 }
 
 /** Opens an http(s) URL outside the app without asking. Synchronous on the web: window.open keeps the click's activation. */

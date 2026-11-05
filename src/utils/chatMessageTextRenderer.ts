@@ -48,6 +48,7 @@
 import { escapeHtml, sanitizeMessageHtml } from './sanitize';
 import { renderTextWithBlockquotes } from './chatBlockquotes';
 import { convertEmoticons } from './emoticons';
+import { emojiSequenceRegex } from './unicodeEmoji';
 
 export interface CodeBlock {
   id: string;
@@ -77,8 +78,8 @@ export interface ChatMessageRendererOptions {
   convertEmoticons?: boolean;
 }
 
-const UNICODE_EMOJI_REGEX =
-  /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+// Skin tones, keycaps and tag sequences are one emoji each (utils/unicodeEmoji).
+const UNICODE_EMOJI_REGEX = emojiSequenceRegex();
 
 /**
  * Render a single message text part to safe HTML. See the file header for

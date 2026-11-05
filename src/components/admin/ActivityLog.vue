@@ -91,6 +91,7 @@ const getActivityCategory = (type: string): string => {
   const t = type.toLowerCase()
   // Staff actions on chat servers (utils/staffActivity).
   if (t.startsWith('server_') || t.startsWith('instance_server_')) return 'moderation'
+  if (t.startsWith('instance_invite_')) return 'security'
   if (t.startsWith('instance_') || t.includes('federation') || t.includes('add_instance')) return 'federation'
   if (t.startsWith('user_') || t.includes('moderate') || t.includes('report') || t.includes('suspend')) return 'moderation'
   if (t.includes('security') || t.includes('login') || t.includes('config')) return 'security'

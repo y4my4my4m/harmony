@@ -289,7 +289,7 @@ export function sanitizeInlineHtml(html: string): string {
  * - Returns `""` for a scheme-less URL that leaves this origin: a leading
  *   backslash (the URL parser reads `\\host`, `/\host` and `\/host` as
  *   `//host` under http(s)) or a protocol-relative URL to another host, which
- *   takes the app's own scheme (tauri://host in the macOS and Linux apps).
+ *   takes the app's own scheme (tauri://host in the macOS and iOS apps).
  * - Strips ASCII control characters (incl. tabs/newlines); browsers ignore
  *   them when parsing the scheme, a known XSS bypass vector
  *   (`java\tscript:`, `java\nscript:`).

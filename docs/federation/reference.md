@@ -58,8 +58,57 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 | `protocols` | `["activitypub"]` |
 | `usage` | `users.total`, `users.activeMonth`, `users.activeHalfyear`, `localPosts`. Users are local accounts; suspended and deleted accounts and bots are not counted. Active users signed in, refreshed a session, posted or sent a message in the past 30 or 180 days. Recomputed at most every 10 minutes. |
 | `openRegistrations` | The instance's registration setting |
-| `metadata` | `nodeName`, `nodeDescription`; `icon`, `banner`, `themeColor` and `maintainer` (`name`, `email`) when set |
-| `metadata.features` (2.1 only) | `discord_like_servers`, `voice_chat`, `video_chat`, `emoji_reactions`, `mastodon_compatible`, `misskey_compatible` |
+| `metadata` | `nodeName`, `nodeDescription`, `serverDirectory` (the [server directory](#server-directory) URL); `icon`, `banner`, `themeColor` and `maintainer` (`name`, `email`) when set |
+| `metadata.features` (2.1 only) | `discord_like_servers`, `voice_chat`, `video_chat`, `emoji_reactions`, `mastodon_compatible`, `misskey_compatible`, `server_directory` |
+
+### Server directory
+
+`GET /servers/directory` lists the chat servers the instance offers to other instances, as an `OrderedCollection` of `Group` summaries. NodeInfo names it in `metadata.serverDirectory`, and the [instance actor](#actors) in `streams` and `harmony:directory`. Responses carry `Cache-Control: no-cache`.
+
+A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner turned on **Discoverable across federation**; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
+
+| Request | Answer |
+|---|---|
+| `GET /servers/directory` | `OrderedCollection` with `totalItems` and `first` (`?page=1`) |
+| `GET /servers/directory?page=<n>` | `OrderedCollectionPage` with `partOf`, `totalItems`, up to 20 `Group`s in `orderedItems`, and `next` and `prev` where those pages exist |
+
+`n` runs from 1 to 500: a malformed `n` answers 400, a larger one 404. An unreadable listing answers 503.
+
+The `@context` is ActivityStreams plus `toot`, `discoverable` (`toot:discoverable`) and the `harmony` prefix. Each item is the public part of the server's [Group](#group-chat-server):
+
+```json
+{
+  "id": "https://chat.example.com/servers/<uuid>",
+  "type": "Group",
+  "preferredUsername": "book-club",
+  "name": "Book Club",
+  "summary": "Monthly reads",
+  "inbox": "https://chat.example.com/servers/<uuid>/inbox",
+  "outbox": "https://chat.example.com/servers/<uuid>/outbox",
+  "icon": { "type": "Image", "url": "https://chat.example.com/...", "mediaType": "image/webp" },
+  "published": "2026-10-01T12:00:00Z",
+  "updated": "2026-11-02T09:30:00Z",
+  "discoverable": true,
+  "harmony:public": true,
+  "harmony:federationEnabled": true,
+  "harmony:memberCount": 42,
+  "harmony:category": "community"
+}
+```
+
+`preferredUsername` (the slug), `icon` and `harmony:category` are omitted when unset. `summary` is `""` without a description, and `updated` is the creation time for a server never updated. `harmony:memberCount` counts accepted members. `harmony:category` is one of `gaming`, `technology`, `art_design`, `music`, `education`, `entertainment`, `community`, `science`, `sports` and `other`.
+
+Harmony reads another instance's directory as follows, and other consumers should validate the same way:
+
+- It fetches `/.well-known/nodeinfo`, follows the schema 2.1 link, else 2.0, and takes `metadata.serverDirectory` only when it is an `https` URL on that instance's domain.
+- It fetches the collection and its pages signed by its instance actor, for instances that require signed fetches. A document counts only when both its final URL and its `id` are on that domain. A collection may embed its items (`orderedItems` or `items`), embed `first`, or link `first`; `next` is followed only on that domain.
+- It keeps an item only when it is a `Group` whose `id` is on that domain and whose `discoverable` is `true`, and drops it when `harmony:public` or `harmony:federationEnabled` is `false` or `harmony:suspended` is set. `name` and `summary` are reduced to plain text, at most 100 and 500 characters.
+- It reads nothing from a blocked instance, and leaves out Groups it blocks.
+- A join goes through the Group's own document and inbox, as for any server joined by URL.
+
+Pages are cached for 2 minutes, a domain's directory URL for 10 minutes. The directory is read for a signed-in local user only, and not at all while either of the reading instance's federation switches is off.
+
+An instance that serves the directory lists `server-directory` in the `capabilities` of `GET /api/federation/instance-info`. Harmony's apps show **Discoverable across federation** and **Other instances** only on such an instance.
 
 ## Actors
 
@@ -71,7 +120,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 Keys are 2048-bit RSA, published as PEM in `publicKey.publicKeyPem` with `owner` set to the actor id. A key pair is generated on an account's first signed request or first actor fetch, and on a chat server's first activity or first `Group` fetch.
 
-Usernames match `[a-zA-Z0-9_]`, so no account can take `instance.actor`. The instance actor signs forwarded reports and the instance's own fetches. Its outbox is an empty collection, and it has `manuallyApprovesFollowers: true` and `discoverable: false`.
+Usernames match `[a-zA-Z0-9_]`, so no account can take `instance.actor`. The instance actor signs forwarded reports and the instance's own fetches. Its outbox is an empty collection, and it has `manuallyApprovesFollowers: true` and `discoverable: false`. Its `streams` lists the [server directory](#server-directory), which `harmony:directory` (`@type: @id`) also names.
 
 ### Person
 
@@ -112,7 +161,7 @@ The actor document's `@context` is `https://www.w3.org/ns/activitystreams`, `htt
 | `harmony:profileColor`, `harmony:customStatus` | See [Extension properties](#extension-properties) |
 | `harmony:instanceRole` | `"admin"` or `"moderator"` for the instance's staff; absent for everyone else |
 
-A receiver stores `harmony:instanceRole` only from the actor's own document or its own `Update`, and shows it as staff of the actor's instance, never of its own. Harmony before 1.9.1 does not publish or read it.
+A receiver stores `harmony:instanceRole` only from the actor's own document or its own `Update`, and shows it as staff of the actor's instance, never of its own: on the account's profile card everywhere, and as the staff badge beside the name in messages and the member list only in a server that instance hosts. Harmony before 1.9.1 does not publish or read it.
 
 A deleted account answers its actor URL with 410 and a `Tombstone` (`id`, `formerType: "Person"`, `deleted`).
 
@@ -135,7 +184,10 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `harmony:memberCount` | Accepted members |
 | `harmony:channels` | The categories and channels the caller may view |
 | `harmony:roles` | The server's roles but the default one, highest position first |
-| `discoverable` | `true` for a public server |
+| `discoverable` | `toot:discoverable`: `true` while the server is listed in the [server directory](#server-directory), `false` for a private server, absent for a public server that is not listed |
+| `harmony:public` | `true` for a public server, which anyone may join without an invite; `false` for a private one |
+| `harmony:federationEnabled` | Whether the server accepts members from other instances |
+| `harmony:polls` | `true`: polls in the server's channels federate. A member instance offers polls in its copy only then |
 | `manuallyApprovesFollowers` | `false` |
 | `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
@@ -144,6 +196,8 @@ Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceC
 Each `harmony:roles` entry is a `harmony:Role` with `id` (`/servers/<uuid>/roles/<role uuid>`), `name`, `color` (`#rrggbb` or null), `position`, `hoist`, `mentionable` and, when set, `unicodeEmoji`. Permission bits are not sent: a member instance shows the roles, the host enforces them.
 
 A member instance stores the roles on its copy display-only, with no permissions, and deletes a role of the Group the list no longer names; it reads the pins of a channel whose `harmony:pins` differs from what its copy holds. A Group without these properties (Harmony before 1.9.1) leaves the copy's roles and pins as they are.
+
+A receiver reads whether a server is public from `harmony:public`. Without it, `discoverable: false` means private and anything else public, as Harmony before 1.9.3 wrote `discoverable`; a public Group that is not listed omits `discoverable`, so both readings agree. The Group's `Update` carries the same `discoverable` and `harmony:public`.
 
 `GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, and `replies`, the channel's message collection.
 
@@ -167,6 +221,7 @@ A member instance stores the roles on its copy display-only, with no permissions
 | `GET /posts/<uuid>/replies` | `OrderedCollection` of public and unlisted reply ids, 20 per page |
 | `GET /posts/<uuid>/context` | FEP-7888 context of the thread rooted at the post: `OrderedCollection` of the root and the thread's public and unlisted posts, as ids, oldest first, 20 per page, `attributedTo` the root's author (see [Note (post)](#note-post)). 404 for a reply, a deleted root and a root the caller may not read |
 | `GET /messages/<uuid>` | `Note` of a federated chat or direct message; only with an ActivityPub `Accept`, else 406 |
+| `GET /servers/directory` | `OrderedCollection` of the servers listed across federation (see [Server directory](#server-directory)) |
 | `GET /servers/<uuid>` | `Group` actor |
 | `GET /servers/<uuid>/members` | `OrderedCollection` of member actor ids, 500 per page; each page's `harmony:memberRoles` lists `{ member, roles }` for the members on it holding a role, `roles` the `harmony:Role` ids |
 | `GET /servers/<uuid>/outbox` | `OrderedCollection` of `Create` activities from the channels the caller may read, 20 per page |
@@ -306,6 +361,8 @@ Social activities:
 | `Accept` / `Reject` | The received `QuoteRequest` | Answer to a quote request; an `Accept` has `result`, the `QuoteAuthorization` id | Requester |
 | `Flag` | `[account, post...]`, `content` the comment | A local report is forwarded | The account's instance, shared inbox preferred |
 | `Create` | `Note` with `name` the chosen answer and `inReplyTo` the `Question`, no `content`; one per answer. Ids `https://<domain>/users/<username>#votes/<post uuid>/<answer index>`, the `Create` that id plus `/activity`, as Mastodon's votes | A vote on a remote poll; final, never retracted | The poll's author alone, at its own inbox (shared inbox when it has none) |
+| `Create` | The same vote `Note`, `inReplyTo` the poll's message id, the message's UUID in place of the post's | A vote on a chat poll another instance holds (see [Polls in messages](#polls-in-messages)); final | The holder alone: the server's `Group` inbox for a channel poll, the author's inbox for a direct message poll |
+| `Update` | `Question`: the poll's message id with its counts and end | Votes change the counts of a direct message poll held here, or it ends | Each remote participant |
 | `Create` | `Note`, `directMessage: true` | A direct message | Each remote participant |
 | `Create` | `Note` with `metadata.type: "group_invite"` | A remote account is added to a group direct message | That account |
 | `Update` / `Remove` | Group conversation | A group direct message is renamed or its icon changes / a participant leaves | Remote participants |
@@ -325,10 +382,13 @@ Chat-server activities:
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
 | `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
-| `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
+| `Create` / `Update` | Thread creator | `ChatThread` | A thread is created or changed | As channel messages |
+| `Delete` | `https://<sending domain>/servers/<uuid>` | `ChatThread` with `id` and `context` | A thread of a server hosted here is deleted: from its menu, or by the deletion of its last message | Each instance with a member who can view the channel |
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
-| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon or banner changes, or a role is created, changed or deleted | Member instances |
+| `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon, banner, public setting or **Discoverable across federation** setting changes, or a role is created, changed or deleted | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
+| `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances with a member who can view the channel |
+| `Update` | Message author | `Question` with `closed` | The author ends their poll, which the host holds | Group inbox |
 | `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances with a member who can view the channel |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
@@ -373,12 +433,13 @@ Shared and personal inboxes:
 | `Accept` | `Join` | Pending membership of a remote server accepted; the server is synced as the member |
 | `Reject` | `Follow`, `QuoteRequest`, `Join` | Follow removed, quote marked refused, membership removed. A `Join`'s `Reject` removes only the membership that `Join` made, by its id; a membership with no stored `Join` id goes only while pending. |
 | `Create` | `Note`, `Article`, `Page`, `Video` | A post (public, unlisted, followers-only). A direct `Note` becomes a direct message; with several local recipients or `harmony:conversationType: "group"`, a group conversation. A `Note` with `harmony:serverId` is a channel message. The object id must be on the actor's host. See [Inbound posts](#inbound-posts). |
-| `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them |
+| `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them. A direct `Question` (addressed to accounts only) is a direct message holding the poll instead (see [Polls in messages](#polls-in-messages)). |
+| `Create` | Vote `Note` (`name`, `inReplyTo` a message's poll held here, no `content`) | A participant's vote on a direct message poll held here; one answer per `Note`. A vote naming no such poll is processed as any `Note`. |
 | `Create` | `ChatThread` | A thread in a channel of a server this instance mirrors |
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
-| `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. |
+| `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. A `Question` naming a message's poll held elsewhere sets its counts and end, from the poll's holder only. |
 | `Update` | `Group`, channel types, `ChatThread`, group conversation | Mirrored server, channel, thread or group conversation updated |
-| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. |
+| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. A `ChatThread` is deleted by its creator, or in a mirrored server by that server's `Group`; a mirrored server's thread is never deleted by this instance on its own. |
 | `Delete` | The actor itself | The remote account is marked deleted, follows in both directions are removed (no `Undo` is sent to it) and its posts soft-deleted. Its later activities are dropped. A local account is never affected. |
 | `Like`, `EmojiReact`, `EmojiReaction` | Post or message | A `Like` with no emoji or a heart (❤, ♥) is a favourite. A `Like` with `_misskey_reaction` or `content`, and an `EmojiReact`, is a reaction and implies the favourite. |
 | `Announce` | Post | Boost; the original is fetched when unknown |
@@ -405,8 +466,8 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 | `Join` | Membership. A private server requires `harmony:inviteCode`, checked for expiry, use count and revocation and spent on success. Refused for suspended and banned accounts and accounts that moved from a banned one. Answered with `Accept` or `Reject`. |
 | `Leave` | Membership removed. Accepted even with federation off for the server. |
 | `Follow` | Of the Group: answered with the Group's `Reject`, with federation on or off |
-| `Create` | A `Note` with `context` a channel URL of the server, or a `ChatThread`. The author must be an accepted, unbanned member with **Send Messages** in the channel, or **Send Messages in Threads** for a thread message and **Create Public Threads** or **Create Private Threads** for a new thread. |
-| `Update` | Message edit by its author; thread changes by the thread's rules; channel, category or server changes by a member with **Manage Channels** |
+| `Create` | A `Note` with `context` a channel URL of the server, or a `ChatThread`. The author must be an accepted, unbanned member with **Send Messages** in the channel, or **Send Messages in Threads** for a thread message and **Create Public Threads** or **Create Private Threads** for a new thread. A vote `Note` on a poll in the server's channels is a vote (see [Polls in messages](#polls-in-messages)), never a message, and is not relayed. |
+| `Update` | Message edit by its author; thread changes by the thread's rules; channel, category or server changes by a member with **Manage Channels**; a `Question` with `closed` ends its poll, by the poll's author |
 | `Delete` | Message deleted by its author or by a member with **Manage Messages** |
 | `Like`, `EmojiReact`, `EmojiReaction` | Reaction, by a member with **Add Reactions** |
 | `Add`, `Remove` | Channel or category, by a member with **Manage Channels**. `Remove` of a member: by the member themself, the host, or a member with **Kick Members** whose highest role is above the target's. |
@@ -521,7 +582,7 @@ Inbound, visibility is read the same way: Public in `to` is public, Public in `c
 }
 ```
 
-`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted` and `harmony:voiceMessage`. A sticker is a `sticker` part in `harmony:rawContent` followed by its image as a `file` part with `stickerId`; see [Stickers](#stickers). Attachment URLs are capability links issued for the receiving instance:
+`context` is the channel URL. Receivers match it against the channel's id, then by the channel UUID in its path; a member instance writes the URL with its own domain. Optional fields: `inReplyTo` (the replied-to message id), `updated`, `tag`, `attachment`, `harmony:threadId`, `harmony:parentMessageId`, `harmony:encrypted`, `harmony:voiceMessage` and `harmony:poll` (see [Polls in messages](#polls-in-messages)). A sticker is a `sticker` part in `harmony:rawContent` followed by its image as a `file` part with `stickerId`; see [Stickers](#stickers). Attachment URLs are capability links issued for the receiving instance:
 
 ```text
 https://<domain>/api/federation/media/<path>?to=<receiving domain>&sig=<HMAC>
@@ -569,7 +630,38 @@ The channel collection serves these Notes, and the Group delivers each live as i
 
 ### Direct message Note
 
-A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group.
+A direct message is a `Create` of a `Note` with `id` `https://<domain>/messages/<uuid>`, `to` every participant, `directMessage: true`, `conversation` a `tag:` URI shared by the conversation, and `contentMap`. A group conversation adds `harmony:conversationType: "group"`, `harmony:conversationId` and `inReplyTo` the previous message, and lists local participants in `to` so the receiver can count the group. A line break in the text is `<br />`.
+
+### Polls in messages
+
+One instance holds a poll's tally: the instance hosting the server for a poll in a channel, the author's instance for a poll in a direct message. The poll's id is its message's id. Every other instance keeps a copy with the holder's counts and its own voters' answers.
+
+A channel message `Note`, and a direct message `Note` to Harmony or to software not known, carries the poll as `harmony:poll`, a `Question`'s poll fields with the question as `name`:
+
+```json
+{
+  "type": "Note",
+  "id": "https://chat.example.com/messages/<message>",
+  "content": "📊 Lunch?<br />1. Pizza<br />2. Soup",
+  "harmony:rawContent": [{ "type": "text", "text": "📊 Lunch?\n1. Pizza\n2. Soup" }],
+  "harmony:poll": {
+    "type": "Question",
+    "name": "Lunch?",
+    "oneOf": [
+      { "type": "Note", "name": "Pizza", "replies": { "type": "Collection", "totalItems": 2 } },
+      { "type": "Note", "name": "Soup", "replies": { "type": "Collection", "totalItems": 1 } }
+    ],
+    "endTime": "2026-11-06T12:00:00.000Z",
+    "votersCount": 3
+  }
+}
+```
+
+`anyOf` replaces `oneOf` for a poll taking several answers; `closed`, the close time, is present once it ended. 2 to 10 answers of at most 100 characters and a question of at most 300; a poll outside these is kept as its text. `content` and `harmony:rawContent` spell the poll out as text, which Harmony before 1.9.3 shows. A direct message to software known not to be Harmony is a `Question` with these fields and the question as `content`, as Mastodon sends a poll.
+
+A vote is Mastodon's: a `Create` of a `Note` with `name` the answer and `inReplyTo` the poll's id, no `content`, one per answer, to the holder alone (the `Group` inbox for a channel poll). It is final: a single-choice poll takes one answer per account, a multiple-choice poll each answer once, and none after the end. The voter views the channel (and its history back to the message), or is a participant of the conversation, and is not blocked by the author. Accepted votes and the end reach the copies as the holder's `Update` of a `Question` with the poll's id and its fields; no document names who voted. The author ends their channel poll held by the host with an `Update` of a `Question` carrying `closed`, to the `Group` inbox.
+
+A copy of a server takes polls only when the `Group` publishes `harmony:polls: true`. Harmony before 1.9.3 keeps a poll on the instance it was posted on, and shows other instances' polls as text.
 
 ### Stickers
 
@@ -609,6 +701,7 @@ Inbound, a receiver keeps the first well-formed sticker part (string `id` of 1 t
 Harmony implements FEP-044f in both directions.
 
 - **Quoted side.** A `QuoteRequest` names the quoted post as `object` and the quoting post as `instrument`. When `instrument` is embedded, its `attributedTo` must be the request's actor. The answer comes from the quoted post's author and is automatic, by the `canQuote` policy. Public and unlisted posts: anyone. Followers-only: accepted followers. Direct: nobody but the author. An account the author blocks: never. An `Accept` embeds the request and carries `result`, the stamp URL; a `Reject` embeds the request.
+- **Notification.** A stored quote of a local account's post notifies that account: a quote written here, or one received in a `Create` whose object names the post in `quote`, `quoteUrl`, `quoteUri` or `_misskey_quote`. A `QuoteRequest` alone notifies nobody. Not notified: a self-quote, a direct quote, a quote that replies to the quoted post or mentions its author (the reply or mention notifies instead), and a followers-only quote by an account the quoted author does not follow.
 - **Quoting side.** A quote of another account's remote post is sent as a `Create`, followed by a `QuoteRequest` with id `<note id>#quote-request` to the quoted author's inbox. An `Accept` whose `result` is on the responder's host is stored, and the quote is sent again as `Update` with `quoteAuthorization`. A quote of a local post by another account carries a stamp issued locally. A self-quote carries none.
 
 ## Account moves
@@ -711,7 +804,11 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:customStatus` | `Person` | Custom status: `text`, `emoji`, `emoji_url` (absolute), `expires_at` |
 | `harmony:type` | `Group` | `"ChatServer"` for a chat server, `"harmony:GroupConversation"` for a group conversation object |
 | `harmony:ChatServer` | `Group` in an `Update` | `true` |
-| `harmony:memberCount` | `Group` | Accepted members |
+| `harmony:memberCount` | `Group`, directory items | Accepted members |
+| `harmony:public` | `Group`, `Group` in an `Update`, directory items | `true` for a server anyone may join without an invite |
+| `harmony:federationEnabled` | `Group`, directory items | Whether the server accepts members from other instances |
+| `harmony:category` | Directory items | The server's Discover category |
+| `harmony:directory` | Instance actor (`Application`) | The [server directory](#server-directory) URL, `@type: @id` |
 | `harmony:channels` | `Group` | Channel and category entries |
 | `harmony:roles`, `harmony:Role` | `Group` | The server's roles; see [Group (chat server)](#group-chat-server) |
 | `harmony:pins` | `harmony:channels` entries | The channel's pins collection, its `totalItems` and newest pin time |
@@ -722,6 +819,8 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | Channel entries, `Add`/`Update`/`Remove` objects | Channel and category types |
 | `harmony:inviteCode` | `Join` | Invite code for a private server |
 | `harmony:rawContent` | Channel message `Note` | The message as Harmony message parts (text, mentions, emoji, hashtags, links, files, stickers). Receivers re-derive mention locality, drop file storage paths and drop poll parts. Without it, `content` is used. |
+| `harmony:poll` | Channel message and direct message `Note` | The message's poll: `name` and a `Question`'s poll fields; see [Polls in messages](#polls-in-messages) |
+| `harmony:polls` | `Group` | `true` when polls in its channels federate |
 | `harmony:channelName`, `harmony:channelType` | Channel message `Note` | Channel name; `"text"` |
 | `harmony:serverId`, `harmony:serverName` | Channel message `Note`, `ChatThread` | The host's server UUID; server name |
 | `harmony:threadId`, `harmony:parentMessageId` | Channel message `Note` | The thread's id and the thread's parent message id, for a message in a thread |

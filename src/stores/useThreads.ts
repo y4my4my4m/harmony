@@ -11,7 +11,8 @@
 import { defineStore } from 'pinia'
 import type { Message } from '@/types'
 import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
-import { getRandomId, isOptimisticId } from '@/stores/shared/optimisticMessages'
+import { findOptimisticMatchIndex, getRandomId, isOptimisticId } from '@/stores/shared/optimisticMessages'
+import { insertMessageSorted, placeStoredRow } from '@/stores/shared/messageCacheUtils'
 import { debug } from '@/utils/debug'
 
 export const OPTIMISTIC_THREAD_PREFIX = 'temp-thread-'
@@ -94,6 +95,19 @@ export function mergeFreshThreadMessages(
   })
   if (!kept.length) return fresh
   return [...fresh, ...kept].sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at))
+}
+
+/**
+ * A reply delivered by realtime, by the channel list's rule: a row held by id stays, the
+ * optimistic row of the same send (client_nonce, else author and content) gives way to it, any
+ * other reply is added by created_at. False when `list` held it already.
+ */
+export function landThreadReply(list: Message[], reply: Message): boolean {
+  if (list.some(m => m.id === reply.id)) return false
+  const pending = findOptimisticMatchIndex(list, reply)
+  if (pending !== -1) placeStoredRow(list, list[pending].id, reply)
+  else insertMessageSorted(list, reply)
+  return true
 }
 
 const channelLoads = new Map<string, Promise<void>>()
@@ -203,6 +217,26 @@ export const useThreadsStore = defineStore('threads', {
     removeByParent(messageId: string): void {
       const id = this.byParent[messageId]
       if (id) this.remove(id)
+    },
+
+    /**
+     * Re-reads a thread after one of its messages, or its starter, was deleted: the deletion
+     * that leaves a thread with no message deletes it (migration 20261106200001). An absent row
+     * drops the entry and the thread's caches; a failed read leaves both.
+     */
+    async reconcileAfterMessageDelete(threadId: string): Promise<void> {
+      if (isOptimisticThreadId(threadId)) return
+      try {
+        const row = await threadService.getThreadRow(threadId)
+        if (row) {
+          this.upsert(row)
+          return
+        }
+        this.remove(threadId)
+        threadService.clearThreadCache(threadId)
+      } catch (error) {
+        debug.warn('Thread re-read after a delete failed:', error)
+      }
     },
 
     patch(threadId: string, fields: Partial<StoredThread>): void {

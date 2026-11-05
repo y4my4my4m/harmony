@@ -34,6 +34,8 @@ import {
 } from './channelWriteAuthz.js';
 import { HARMONY_CONTEXT } from './harmonyContext.js';
 import { parseChannelPosition } from './copyMirror.js';
+import { groupIsPublic, HARMONY_PUBLIC } from './serverDirectory.js';
+import { isPollVoteNote, preparePoll, receivePollEnd, receivePollVote, storeInboundPoll } from './messagePolls.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -801,6 +803,16 @@ async function processCreateActivity(
 
   const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
 
+  // A member's vote on a poll in this server's channels (messagePolls.ts): never a message,
+  // never relayed; the Group sends the counts.
+  if (isPollVoteNote(object)) {
+    const resolveActor = (url: string) => ActivityProcessor['ensureRemoteUser'](url);
+    if (!(await receivePollVote(supabase, activity, object, { serverId, resolveActor }))) {
+      logger.info(`Vote on ${object.inReplyTo} names no poll of server ${serverId}`);
+    }
+    return;
+  }
+
   const remoteAuthor = await ActivityProcessor['ensureRemoteUser'](actorUrl);
   logger.debug(`ensureRemoteUser returned: ${remoteAuthor ? `id=${remoteAuthor.id}, username=${remoteAuthor.username}` : 'null'}`);
 
@@ -953,6 +965,9 @@ async function processCreateActivity(
     messageContent = await resolveMentionUserIds(messageContent);
   }
 
+  // A member's poll: this instance, the host, holds its tally (messagePolls.ts).
+  const pollIn = Array.isArray(messageContent) ? preparePoll(object, messageContent) : null;
+
   const { data: existingMessage } = await supabase
     .from('messages')
     .select('id')
@@ -990,7 +1005,7 @@ async function processCreateActivity(
   const { data: insertedRows, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
-    content: messageContent,
+    content: pollIn?.content ?? messageContent,
     reply_to: replyToId,
     thread_id: resolvedThreadId,
     metadata: messageMetadata,
@@ -1020,6 +1035,9 @@ async function processCreateActivity(
   }
   
   logger.info(`Inserted federated message in #${channel.name} from ${author.username}`);
+  if (pollIn) {
+    await storeInboundPoll(supabase, insertedMessage.id, pollIn.pollId, pollIn.poll, { remote: false, apId: object.id });
+  }
 
   // Messages may arrive before their thread; a stub thread stands in.
   if (threadApIdValue && !resolvedThreadId && insertedMessage) {
@@ -1109,6 +1127,12 @@ async function processUpdateActivity(
   const object = activity.object;
 
   if (!object) {
+    return;
+  }
+
+  // The author ends their poll in this server's channels (messagePolls.ts).
+  if (object.type === 'Question') {
+    await receivePollEnd(supabase, serverId, activity, object, (url) => ActivityProcessor['ensureRemoteUser'](url));
     return;
   }
 
@@ -1272,9 +1296,9 @@ async function processUpdateActivity(
     } else if (object.image === null) {
       updateData.banner = null;
     }
-    // AP 'discoverable' maps to servers.public.
-    if (object.discoverable !== undefined) {
-      updateData.public = object.discoverable;
+    // harmony:public, else `discoverable` as hosts before 1.9.3 wrote it (groupIsPublic).
+    if (typeof object[HARMONY_PUBLIC] === 'boolean' || object.discoverable !== undefined) {
+      updateData.public = groupIsPublic(object);
     }
     
     const { error: updateError } = await supabase

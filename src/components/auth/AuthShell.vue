@@ -28,7 +28,9 @@
               <img
                 v-for="pose in MASCOT_POSES"
                 :key="pose"
-                :src="`/mascot/${pose}.webp`"
+                :src="mascotUrl(mascot, pose)"
+                :data-mascot="mascot"
+                :data-pose="pose"
                 alt=""
                 :class="{ 'is-shown': pose === mascotPose }"
               />
@@ -47,6 +49,8 @@
 
           <slot />
         </div>
+
+        <SupporterStrip />
 
         <!-- In flow under the card: no window height puts it over the card. -->
         <p class="auth-footer">
@@ -73,17 +77,25 @@ import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { safeHref } from '@/utils/sanitize'
+import SupporterStrip from '@/components/auth/SupporterStrip.vue'
 
-// public/mascot/<pose>.webp. All four load with the page so a pose change never waits on the network.
+// src/assets/mascot/<mascot>/<pose>.webp: the emoji pack's busts (Mony signs people in, Har welcomes new
+// accounts). Bundled, so each has a content-hashed /assets/ URL that caches for a year. All four poses
+// load with the page so a pose change never waits on the network.
 const MASCOT_POSES = ['idle', 'hide', 'peek', 'oops'] as const
 export type MascotPose = typeof MASCOT_POSES[number]
+export type Mascot = 'mony' | 'har'
+const MASCOT_URLS = import.meta.glob<string>('../../assets/mascot/*/*.webp', { eager: true, query: '?url', import: 'default' })
+const mascotUrl = (mascot: Mascot, pose: MascotPose): string => MASCOT_URLS[`../../assets/mascot/${mascot}/${pose}.webp`]
 
 withDefaults(defineProps<{
-  /** idle waves, hide covers its eyes, peek looks between its paws, oops follows a failed attempt. */
+  /** idle waits, hide looks away from a hidden password, peek looks at a shown one, oops follows a failed attempt. */
   mascotPose?: MascotPose
+  mascot?: Mascot
   busy?: boolean
 }>(), {
   mascotPose: 'idle',
+  mascot: 'mony',
   busy: false,
 })
 
@@ -270,7 +282,7 @@ onMounted(async () => {
 }
 
 /* Bounding box is the strip above the card's top edge; overflow hides what
-   drops below it. Pose images: 320 px square, feet on the bottom row. */
+   drops below it. Pose images: 320 px square busts; their bottom fifth sits behind the edge. */
 .auth-mascot {
   position: absolute;
   right: 28px;
@@ -287,9 +299,12 @@ onMounted(async () => {
   height: 100%;
 }
 
-/* Paws over the eyes stay above the edge; the body sinks behind it. */
-.auth-mascot:is([data-pose="hide"], [data-pose="peek"]) .auth-mascot-body {
-  transform: translateY(34%);
+.auth-mascot-body {
+  transform: translateY(20%);
+}
+
+.auth-mascot[data-pose="oops"] .auth-mascot-body {
+  transform: translateY(14%);
 }
 
 /* Swapped, not crossfaded: two half-transparent poses overlap as a ghost. */

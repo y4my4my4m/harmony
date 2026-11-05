@@ -371,6 +371,20 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => `New reply`
   },
 
+  activitypub_quote: {
+    titleAction: () => i18n.global.t('settings.notifications.quoteNotice.action'),
+    title: (data: any) => getActorDisplayName(data) + i18n.global.t('settings.notifications.quoteNotice.action'),
+    message: (data: any) => {
+      const text = extractContentText(data.post?.content_preview) || extractContentText(data.post?.content)
+      if (text) {
+        const truncated = text.substring(0, 120)
+        return `"${truncated}${text.length > 120 ? '...' : ''}"`
+      }
+      return i18n.global.t('settings.notifications.quoteNotice.noPreview')
+    },
+    shortTitle: () => i18n.global.t('settings.notifications.quoteNotice.short')
+  },
+
   activitypub_reaction: {
     titleAction: () => ' reacted to your post',
     title: (data: any) => getActorDisplayName(data) + ' reacted to your post',

@@ -30,6 +30,7 @@ import { federationUserAgent } from '../utils/userAgent.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata, type HarmonySystem } from '../activitypub/systemNotes.js';
 import { HARMONY_NS } from '../activitypub/harmonyContext.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata, type GroupAuthor } from '../activitypub/groupAuthor.js';
+import { applyPagePollState, preparePoll, storeInboundPoll } from '../activitypub/messagePolls.js';
 import { federationSwitches } from './FederationSwitches.js';
 import {
   HARMONY_MEMBER_ROLES,
@@ -47,6 +48,7 @@ import {
   type PinsAdvert,
 } from '../activitypub/copyMirror.js';
 import { CopyMirrorService } from './CopyMirrorService.js';
+import { groupIsPublic } from '../activitypub/serverDirectory.js';
 
 const router = Router();
 
@@ -204,7 +206,8 @@ router.get(
           };
         }),
         inbox: serverData.inbox,
-        discoverable: serverData.discoverable !== false,
+        // Whether anyone may join (groupIsPublic), not the Group's toot:discoverable.
+        discoverable: groupIsPublic(serverData),
         // Null when the Group does not say (instances before 1.8.10) or is this instance's own.
         federationEnabled: !ownInstance && typeof serverData['harmony:federationEnabled'] === 'boolean'
           ? serverData['harmony:federationEnabled']
@@ -667,7 +670,7 @@ router.post(
 
     // Public servers: accept immediately so the user can interact right away.
     // Private servers: stay pending until we get an Accept from the remote.
-    const isPublicServer = localServer.public !== false && remoteServer.discoverable !== false;
+    const isPublicServer = localServer.public !== false && groupIsPublic(remoteServer);
     const initialStatus = isPublicServer ? 'accepted' : 'pending';
 
     const joinActivity = ServerDiscoveryService.createJoinActivity(
@@ -1142,6 +1145,7 @@ export async function cacheChannelItems(
     const ownMessage = !!author?.id && !author.is_bridge
       && (urlHost(note.id) === ownHost || urlHost(authorUrl) === ownHost);
     const ownRowId = ownMessage ? await ownMessageRow(supabase, channelId, author.id, note, messageUuid) : null;
+    if (ownRowId) await applyPagePollState(supabase, note, channelId);
 
     // Cache message locally for reactions and offline access (only if we have a valid author ID)
     let cachedMsgId: string | null = ownRowId;
@@ -1158,6 +1162,9 @@ export async function cacheChannelItems(
       } else {
         cachedContent = [];
       }
+      // A poll whose tally the host holds: a copy here (messagePolls.ts).
+      const pollIn = preparePoll(note, cachedContent);
+      if (pollIn) cachedContent = pollIn.content;
 
       const messageData: any = {
         channel_id: channelId,
@@ -1189,6 +1196,15 @@ export async function cacheChannelItems(
         // ignoreDuplicates: a row comes back only when this upsert inserted it.
         cachedMsgId = cachedMsg?.id;
         if (cachedMsgId) changed++;
+        if (pollIn && cachedMsgId) {
+          await storeInboundPoll(supabase, cachedMsgId, pollIn.pollId, pollIn.poll, { remote: true, apId: note.id });
+        } else if (pollIn && messageUuid) {
+          // Cached before: the stored content names its poll, which takes the page's counts.
+          const { data: storedRow } = await supabase
+            .from('messages').select('content').eq('id', messageUuid).eq('channel_id', channelId).maybeSingle();
+          if (Array.isArray(storedRow?.content)) cachedContent = storedRow.content;
+          await applyPagePollState(supabase, note, channelId);
+        }
         // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
         // host's page carried text only.
         if (isEncrypted && messageUuid) {
@@ -1613,13 +1629,14 @@ export class ServerDiscoveryService {
         federation_inbox_url: remoteServer.inbox,
         is_local_server: false,
         host_domain: hostDomain,
-        public: remoteServer.discoverable !== false,
+        public: groupIsPublic(remoteServer),
         federation_metadata: {
           outbox: remoteServer.outbox,
           members: remoteServer.members,
           followers: remoteServer.followers,
           attributedTo: remoteServer.attributedTo,
           accepts_reports: remoteServer['harmony:acceptsReports'] === true,
+          message_polls: remoteServer['harmony:polls'] === true,
           fetched_at: new Date().toISOString(),
         },
       };
@@ -1976,7 +1993,7 @@ export class ServerDiscoveryService {
           description: remoteServer.summary,
           icon: remoteServer.icon?.url ?? null,
           banner: remoteServer.image?.url || null,
-          public: remoteServer.discoverable !== false,
+          public: groupIsPublic(remoteServer),
           ...(owner === undefined ? {} : { owner }),
           ...(this.groupSuspension(remoteServer) ?? {}),
           federation_metadata: {
@@ -1986,6 +2003,7 @@ export class ServerDiscoveryService {
             followers: remoteServer.followers,
             attributedTo: remoteServer.attributedTo,
             accepts_reports: remoteServer['harmony:acceptsReports'] === true,
+            message_polls: remoteServer['harmony:polls'] === true,
             synced_at: new Date().toISOString(),
           },
         })

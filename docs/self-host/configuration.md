@@ -59,7 +59,7 @@ Some settings exist both as a variable and in the database:
 | OAuth buttons | `ENABLED_OAUTH_PROVIDERS` | `instance_config.oauth_providers` | The database list when it names at least one provider, else the variable. See [OAuth sign-in](/self-host/oauth) |
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
-| Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
+| Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
 | Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
 | Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
@@ -215,6 +215,7 @@ docker compose up -d
 | `HARMONY_VOICE` | `y` or `n`: LiveKit voice and video |
 | `HARMONY_BOTS` | `y` or `n`: the bot gateway |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on |
+| `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection, Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` |
 | `HARMONY_SMTP_HOST` | SMTP server. Unset keeps the current email settings |
 | `HARMONY_SMTP_PORT` | Default `587` |
@@ -242,7 +243,7 @@ is a mounted file, so a change to it needs `docker compose restart livekit`.
 `configure.sh` runs again on every `harmony config` and `harmony update`. It
 keeps every key it finds, adds missing ones, and never regenerates a secret.
 The answers in `.env` (`DOMAIN`, `INSTANCE_NAME`, `ADMIN_EMAIL`,
-`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `REGISTRATION`,
+`ENABLE_VOICE`, `ENABLE_BOTS`, `ENABLE_DISCORD_BRIDGE`, `ENABLE_ANALYTICS`, `REGISTRATION`,
 `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT`) default to their current values,
 so a hand edit of them stays and takes effect on the next run. The keys below
 are recomputed on every run, and a hand edit of them is lost:
@@ -256,6 +257,7 @@ are recomputed on every run, and a hand edit of them is lost:
 | `federation.env` | `INSTANCE_NAME` | `.env` |
 | `federation.env` | `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | `supabase/.env` |
 | `federation.env` | `VAPID_SUBJECT` | `ADMIN_EMAIL` |
+| `federation.env` | `GOTRUE_SMTP_HOST` | `SMTP_HOST` in `supabase/.env` |
 | `federation.env` | `LIVEKIT_URL`, `LIVEKIT_PUBLIC_URL` | Removed while voice is off |
 | `bot-gateway.env` | `SUPABASE_SERVICE_ROLE_KEY` | `supabase/.env` |
 | `bot-gateway.env` | `INTERNAL_API_SECRET` | `federation.env` |
@@ -317,8 +319,9 @@ the sign-in service. A Supabase stack without it needs the
 | `ENABLE_VOICE` | `false` | `true` defines the LiveKit site in Caddy. `configure.sh` adds the `voice` profile and the LiveKit URLs |
 | `ENABLE_BOTS` | `false` | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
 | `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env` |
+| `ENABLE_ANALYTICS` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it. Absent, `harmony update`, `harmony install` and `harmony config` write `false`, remove both containers and delete the logs they stored |
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
-| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`) `docker compose up -d` starts |
+| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |
 | `HARMONY_VERSION` | `edge` | Tag of the `ghcr.io/y4my4my4m/harmony-*` images. Rewritten by every `configure.sh` run; `harmony update --version` changes it |
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |
@@ -346,7 +349,7 @@ values.
 | `SITE_URL` | `https://DOMAIN` | Where links in sign-in emails lead |
 | `API_EXTERNAL_URL` | `https://DB_DOMAIN` | Public API URL; base of the OAuth callback |
 | `SUPABASE_PUBLIC_URL` | `https://DB_DOMAIN` | Upstream's public URL setting |
-| `ADDITIONAL_REDIRECT_URLS` | `https://DOMAIN` | Redirect targets the sign-in service accepts |
+| `ADDITIONAL_REDIRECT_URLS` | `https://DOMAIN`, then `tauri://localhost/**` and `http://tauri.localhost/**` (added on every run when absent) | Redirect targets the sign-in service accepts besides `SITE_URL`. The two `tauri` entries are the desktop and mobile apps' own pages, where their provider sign-in ends |
 | `DISABLE_SIGNUP` | `true` on a new install | `harmony registration` sets it: `false` for `open`, `true` otherwise |
 | `ENABLE_EMAIL_AUTOCONFIRM` | `true` without SMTP, `false` with | `false` makes new accounts confirm their address by email |
 | `STUDIO_DEFAULT_PROJECT` | instance name | Project name in Studio |
@@ -451,6 +454,17 @@ process and names the variable.
 | `INSTANCE_DESCRIPTION` | `A federated social platform` | NodeInfo description when the database has none |
 | `PUBLIC_SUPABASE_URL` | `SUPABASE_URL` | Public Supabase URL: storage URLs sent to other instances and the `supabaseUrl` in `/instance-info`. Set it whenever `SUPABASE_URL` is an internal address |
 | `VERSION` | the release (`1.8.10`) | Version reported by `/health`, `/instance-info`, NodeInfo and the outgoing `User-Agent` |
+| `APP_URL` | `https://INSTANCE_DOMAIN` | Origin of the web app. Invitation links from the admin panel land on its `/reset-password?invite=1` |
+
+### Invitations
+
+The admin panel's **Invites** reads two settings of the sign-in service, which
+the backend cannot see. Set them to the sign-in service's own values.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GOTRUE_SMTP_HOST` | empty | The sign-in service's `GOTRUE_SMTP_HOST`. Empty or `supabase-mail`: no SMTP, and **Send by email** is off. `configure.sh` copies `SMTP_HOST` from `supabase/.env` |
+| `GOTRUE_MAILER_OTP_EXP` | `86400` | The sign-in service's `GOTRUE_MAILER_OTP_EXP`: seconds an invitation link works after it is made. The page shows each link's expiry from it |
 
 ### Queue and database
 
@@ -472,6 +486,14 @@ process and names the variable.
 | `EMBED_RELAY_ENABLED` | empty | X and Bluesky video of link previews the backend streams; the rest gets a redirect without Referer. Empty or `0`: nothing, no video bytes pass through the instance. Chromium and Firefox send X a Referer on later byte ranges of a redirected video and are refused, so there an X video shows its still and plays in X's own embedded post after a click. `1`: X video for every engine but WebKit, which then plays in place everywhere. `all`: X and Bluesky video for every engine |
 | `EMBED_RELAY_MAX_BYTES` | `209715200` (200 MiB) | Largest video that relay streams |
 | `INTERNAL_API_SECRET` | the service role key | Bearer secret of `POST /link-preview/enrich-message`, which the bot gateway calls. Must equal the gateway's |
+
+### Funding
+
+Funding has no environment variables. See [Instance funding](/run/funding).
+
+The **Harmony development** tab of the Support window links to the Harmony project's own Stripe
+pages and to its supporters page on mony.lol, built into Harmony; no setting of an instance changes
+them, and neither the app nor the backend fetches anything for the tab.
 
 ### Push notifications
 

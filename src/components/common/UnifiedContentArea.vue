@@ -10,6 +10,8 @@
         :conversationId="conversationId"
         :channelName="channelName"
         :dmUsername="dmUsername"
+        :serverId="serverId"
+        :listState="listState"
         :loadMoreMessages="() => $emit('load-more-messages')"
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
         @showAllThreads="$emit('show-all-threads')"
@@ -229,6 +231,10 @@ interface Props {
   conversationId?: string;
   channelName?: string;
   dmUsername?: string;
+  /** Server of the channel when it is not the routed server's. */
+  serverId?: string;
+  /** Paging state of a list the routed stores do not hold (MessageDisplay). */
+  listState?: { loadingOlder: boolean; allLoaded: boolean } | null;
 
   // ActivityPub mode props. Same accommodation as `mode`: accept both the
   // enum and the raw string variants the routed views still emit.
@@ -267,7 +273,9 @@ const props = withDefaults(defineProps<Props>(), {
   specialViewData: () => [],
   hasMoreSpecialData: false,
   loadError: null,
-  pendingCount: 0
+  pendingCount: 0,
+  serverId: undefined,
+  listState: null,
 });
 
 const emit = defineEmits<{

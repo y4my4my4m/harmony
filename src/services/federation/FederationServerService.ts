@@ -89,6 +89,53 @@ export interface DiscoverServerResult {
   refusedHere?: RefusedHere
 }
 
+/** A server listed in another instance's directory (federation-backend GET /directory/remote). */
+export interface DirectoryServer {
+  /** Group actor id; joined through Join by URL. */
+  id: string
+  name: string
+  summary: string
+  icon: string | null
+  memberCount: number | null
+  /** name@domain, resolvable through WebFinger. */
+  handle: string | null
+  category: string | null
+}
+
+export interface DirectoryPage {
+  domain: string
+  items: DirectoryServer[]
+  totalItems: number | null
+  /** Next page's URL on the same instance; null at the end. */
+  next: string | null
+}
+
+/** A known instance that publishes a server directory. */
+export interface DirectoryPeer {
+  domain: string
+  software: string | null
+  icon: string | null
+}
+
+export type DirectoryRefusal =
+  | 'invalid_domain'
+  | 'own_instance'
+  | 'instance_blocked'
+  | 'federation_off'
+  | 'no_directory'
+  | 'unreachable'
+  | 'unknown'
+
+const DIRECTORY_REFUSALS: Record<string, DirectoryRefusal> = {
+  invalid_domain: 'invalid_domain',
+  invalid_page: 'invalid_domain',
+  own_instance: 'own_instance',
+  instance_blocked: 'instance_blocked',
+  INSTANCE_FEDERATION_OFF: 'federation_off',
+  no_directory: 'no_directory',
+  unreachable: 'unreachable',
+}
+
 // Federation backend base path (proxied via nginx)
 // apiUrl resolves against the stored instance on native builds, where relative URLs
 // point at the bundled app.
@@ -375,6 +422,56 @@ export class FederationServerService {
         success: false,
         error: error.message || 'Failed to connect to federation backend',
       }
+    }
+  }
+
+  // SERVER DIRECTORIES OF OTHER INSTANCES
+
+  private async bearer(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  }
+
+  /** One page of `domain`'s server directory, read by this instance's backend; `page` is an earlier answer's `next`. */
+  async browseDirectory(
+    domain: string,
+    page?: string,
+  ): Promise<{ ok: true; page: DirectoryPage } | { ok: false; refusal: DirectoryRefusal }> {
+    const params = new URLSearchParams({ domain })
+    if (page) params.set('page', page)
+    try {
+      const response = await fetch(federationApi(`/directory/remote?${params}`), {
+        headers: { Accept: 'application/json', ...(await this.bearer()) },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) return { ok: false, refusal: DIRECTORY_REFUSALS[data?.code] ?? 'unknown' }
+      return {
+        ok: true,
+        page: {
+          domain: String(data.domain ?? domain),
+          items: Array.isArray(data.items) ? data.items : [],
+          totalItems: typeof data.totalItems === 'number' ? data.totalItems : null,
+          next: typeof data.next === 'string' ? data.next : null,
+        },
+      }
+    } catch (error) {
+      debug.error('Error browsing a server directory:', error)
+      return { ok: false, refusal: 'unknown' }
+    }
+  }
+
+  /** Known instances that publish a server directory. */
+  async listDirectoryPeers(): Promise<{ peers: DirectoryPeer[]; federationOff: boolean }> {
+    try {
+      const response = await fetch(federationApi('/directory/peers'), {
+        headers: { Accept: 'application/json', ...(await this.bearer()) },
+      })
+      if (!response.ok) return { peers: [], federationOff: false }
+      const data = await response.json()
+      return { peers: Array.isArray(data.peers) ? data.peers : [], federationOff: data.federationOff === true }
+    } catch (error) {
+      debug.error('Error listing directory peers:', error)
+      return { peers: [], federationOff: false }
     }
   }
 

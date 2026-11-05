@@ -244,8 +244,10 @@ export function useAutoSuggest(
     triggers.push({
       char: '#',
       // Same shape as the parser's hashtag/channel token so what autocomplete
-      // inserts is exactly what parseContentToMessageParts resolves.
-      pattern: /(?:^|\s)#([\p{L}\p{N}_-]*)$/u,
+      // inserts is exactly what parseContentToMessageParts resolves. The lookbehind keeps
+      // the whitespace before '#' out of the match: match.index is the '#', where the
+      // insert starts.
+      pattern: /(?<=^|\s)#([\p{L}\p{N}_-]*)$/u,
       type: 'channel'
     });
   }
@@ -860,7 +862,7 @@ export function useAutoSuggest(
             triggerPosition = match.index + 1;
           }
         }
-        // The emoji pattern's match starts at ':', so its index needs no adjustment.
+        // The emoji and channel patterns' matches start at ':' and '#'; their index needs no adjustment.
         
         // An open popup keeps its position; the suggestions watcher re-places it
         // once per list change instead of forcing layout on every keystroke.
@@ -1049,12 +1051,14 @@ export function useAutoSuggest(
         }
       }
       
-      const newText = currentText.substring(0, triggerStart) + 
-                     insertText + 
-                     currentText.substring(triggerEnd);
-      
+      // A space already after the trigger text stands in for the inserted one.
+      const after = currentText.substring(triggerEnd);
+      const spaceFollows = insertText.endsWith(' ') && /^[ \u00A0]/.test(after);
+      if (spaceFollows) insertText = insertText.slice(0, -1);
+      const newText = currentText.substring(0, triggerStart) + insertText + after;
+
       // Cursor lands after the inserted text, past its trailing space.
-      const newCursorPosition = triggerStart + insertText.length;
+      const newCursorPosition = triggerStart + insertText.length + (spaceFollows ? 1 : 0);
       
       debug.log('Final replacement:', { 
         insertText, 

@@ -73,6 +73,8 @@ export interface MessageMediaUploadOptions {
   resumeKey?: string
   /** The starting page shows the progress (storageUpload.ts ownProgress). */
   ownProgress?: boolean
+  /** False: never in the transfers indicator, refusals included (storageUpload.ts listed). */
+  listed?: boolean
   /** Upload the photo or video with its location, camera and other metadata. */
   keepMetadata?: boolean
 }
@@ -175,7 +177,7 @@ export function startMessageMediaUpload(
     try {
       await checkUploadLimit(MESSAGE_MEDIA_BUCKET, source, label)
     } catch (error) {
-      if (error instanceof UploadLimitError) listRefusedUpload(label, source.size, error.message)
+      if (error instanceof UploadLimitError && options.listed !== false) listRefusedUpload(label, source.size, error.message)
       throw error
     }
     const metadata: DriveUploadMetadata = {}
@@ -209,6 +211,7 @@ export function startMessageMediaUpload(
       onProgress: options.onProgress,
       resumeKey: options.resumeKey,
       ownProgress: options.ownProgress,
+      listed: options.listed,
       state,
     })
     try {

@@ -166,6 +166,14 @@
       "mfaRequired": "2단계 인증이 필요합니다. 코드를 확인하세요.",
       "failed": "비밀번호를 재설정하지 못했습니다. 다시 시도하세요.",
       "done": "비밀번호가 재설정되었습니다. 새 비밀번호로 로그인하세요."
+    },
+    "invite": {
+      "title": "환영합니다! 비밀번호를 정하세요",
+      "subtitle": "{email} 계정을 만들도록 초대받았습니다. 로그인에 쓸 비밀번호를 정하세요.",
+      "submit": "비밀번호 설정 후 계속",
+      "done": "비밀번호를 설정했습니다. 이제 사용자 이름을 고르세요.",
+      "invalidTitle": "이 초대 링크는 작동하지 않습니다",
+      "invalidBody": "링크가 이미 사용되었거나, 만료되었거나, 취소되었습니다. 초대한 사람에게 새 링크를 요청하세요."
     }
   },
   "server": {
@@ -387,9 +395,14 @@
     "federationActive": "연합 활성화됨",
     "federationBenefit1": "다른 인스턴스의 사용자가 초대 링크를 통해 참여할 수 있습니다",
     "federationBenefit2": "메시지는 연합 멤버와 실시간으로 공유됩니다",
-    "federationBenefit3": "서버가 연합 서버 검색에 표시됩니다",
+    "federationBenefit3": "다른 인스턴스의 사람들이 서버 핸들로 참여할 수 있습니다",
     "federationHandle": "서버 핸들",
     "federationHandleDesc": "이 핸들을 공유하면 다른 인스턴스의 사람들이 이 서버를 찾아 참여할 수 있습니다.",
+    "federationDiscoverable": "연합 전체에서 검색 가능",
+    "federationDiscoverableDesc": "이 인스턴스의 서버 디렉터리에 이 서버를 올려 다른 Harmony 인스턴스의 사람들이 찾아 참여할 수 있게 합니다.",
+    "federationDiscoverableNeedsPublic": "올리려면 서버를 공개로 설정하세요.",
+    "federationDiscoverableNeedsFederation": "올리려면 연합을 켜세요.",
+    "federationDiscoverableInstanceOff": "이 인스턴스의 연합이 꺼져 있어 디렉터리에 서버가 올라가지 않습니다.",
     "banner": {
       "title": "서버 배너",
       "upload": "서버 배너 업로드",
@@ -920,6 +933,12 @@
     "moreActions": "추가 작업",
     "editMessage": "메시지 편집",
     "deleteMessage": "메시지 삭제",
+    "deleteWithThread": {
+      "message": "이 메시지에서 스레드 \"{name}\"이(가) 시작되었습니다.",
+      "threadKept": "스레드와 답글은 남고, 스레드에는 이 메시지가 삭제됨으로 표시됩니다.",
+      "threadDeleted": "스레드에 답글이 없어 이 메시지와 함께 삭제됩니다.",
+      "confirmDeleted": "메시지와 스레드 삭제"
+    },
     "copyMessage": "메시지 복사",
     "pinMessage": "메시지 고정",
     "unpinMessage": "고정 해제",
@@ -1026,6 +1045,13 @@
       "label": "메시지 작업",
       "thread": "스레드 만들기"
     },
+    "shortcuts": {
+      "replying": "{name}님에게 답장",
+      "pinned": "메시지를 고정했습니다",
+      "unpinned": "고정을 해제했습니다",
+      "copied": "메시지 텍스트를 복사했습니다",
+      "copyFailed": "메시지 텍스트를 복사하지 못했습니다"
+    },
     "failed": {
       "label": "전송 실패",
       "retry": "다시 시도",
@@ -1054,7 +1080,8 @@
       "pill": "{emoji}, 반응 {count}개",
       "pillYou": "{emoji}, 나를 포함한 반응 {count}개",
       "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 이모지와 반응한 사람을 볼 수 있습니다.",
-      "removed": "반응을 취소했습니다: {emoji}"
+      "removed": "반응을 취소했습니다: {emoji}",
+      "summary": "반응: {list}"
     },
     "emoji": {
       "reactionDialog": "반응 추가",
@@ -1406,8 +1433,6 @@
       "region": "{name} 채팅",
       "close": "채팅 닫기",
       "resize": "채팅 너비 조절",
-      "awayText": "기본 창에 다른 채팅이 표시되어 있습니다.",
-      "awayAction": "통화 채팅 보기",
       "elsewhereText": "이 채팅은 통화 옆에 열려 있습니다.",
       "elsewhereAction": "여기에 채팅 표시"
     },
@@ -1749,6 +1774,15 @@
       "autoGainControlDesc": "마이크 감도를 자동으로 조절합니다",
       "video": "영상",
       "noCamera": "카메라 없음",
+      "deviceNone": "없음",
+      "deviceDefault": "기본값",
+      "microphoneNamesHidden": "Harmony가 마이크를 사용할 수 있게 되면 장치 이름이 표시됩니다.",
+      "cameraNamesHidden": "Harmony가 카메라를 사용할 수 있게 되면 카메라 이름이 표시됩니다.",
+      "allowMicrophone": "마이크 허용",
+      "allowCamera": "카메라 허용",
+      "microphoneBlocked": "마이크 접근이 차단되어 있습니다. 브라우저 또는 시스템 설정에서 허용한 뒤 다시 시도하세요.",
+      "cameraBlocked": "카메라 접근이 차단되어 있습니다. 브라우저 또는 시스템 설정에서 허용한 뒤 다시 시도하세요.",
+      "deviceOpenFailed": "장치를 열 수 없습니다. 이 장치를 사용 중인 다른 앱을 닫은 뒤 다시 시도하세요.",
       "resolution": "해상도",
       "frameRate": "프레임 속도",
       "audioBitrate": "오디오 비트레이트",
@@ -1861,6 +1895,11 @@
           "label": "답글",
           "name": "연합우주 답글",
           "description": "누군가 내 게시물에 답글을 달 때"
+        },
+        "apQuotes": {
+          "label": "인용",
+          "name": "연합우주 인용",
+          "description": "누군가 내 게시물을 인용할 때"
         },
         "apFavorites": {
           "label": "좋아요",
@@ -1989,6 +2028,11 @@
         "deviceRemoved": "기기를 삭제했습니다",
         "deviceRemoveFailed": "기기를 삭제하지 못했습니다"
       },
+      "quoteNotice": {
+        "action": "님이 내 게시물을 인용했습니다",
+        "short": "게시물 인용됨",
+        "noPreview": "클릭하여 인용 보기"
+      },
       "samples": {
         "mention": {
           "title": "테스트 멘션",
@@ -2045,6 +2089,10 @@
         "apReply": {
           "title": "테스트 ActivityPub 답글",
           "message": "누군가 연합우주 게시물에 답글을 달았습니다"
+        },
+        "apQuote": {
+          "title": "테스트 인용",
+          "message": "누군가 연합우주 게시물을 인용했습니다"
         },
         "apFollowRequest": {
           "title": "테스트 ActivityPub 팔로우 요청",
@@ -2493,7 +2541,14 @@
     "editedTitle": "편집된 게시물입니다",
     "replyToUser": "{name}님에게 답장",
     "replyingTo": "답장 대상",
-    "viewThread": "스레드 보기",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "첨부 파일 {count}개 | 첨부 파일 {count}개",
+      "deleted": "삭제된 게시물에 대한 답장",
+      "hidden": "볼 수 없는 게시물에 대한 답장",
+      "remote": "{domain}의 게시물에 대한 답장",
+      "loading": "답장 대상 게시물을 불러오는 중"
+    },
     "viewOriginalPost": "원본 게시물 보기",
     "viewQuotedPost": "인용된 게시물 보기",
     "showMore": "더 보기",
@@ -3337,6 +3392,35 @@
     "federationOff": "이 서버는 다른 인스턴스의 멤버를 받지 않습니다: 페더레이션이 꺼져 있습니다.",
     "federatedNotice": "이것은 다른 Harmony 인스턴스에서 호스팅되는 연합 서버입니다. 메시지는 네트워크를 통해 전송됩니다.",
     "joinByUrl": "URL로 참여",
+    "directory": {
+      "tabsLabel": "찾을 곳",
+      "thisInstance": "이 인스턴스",
+      "otherInstances": "다른 인스턴스",
+      "domainLabel": "인스턴스",
+      "domainPlaceholder": "example.social",
+      "domainHint": "다른 Harmony 인스턴스의 도메인을 입력하거나 알려진 인스턴스를 고르세요.",
+      "browse": "둘러보기",
+      "knownInstances": "알려진 인스턴스",
+      "loading": "{domain}의 디렉터리를 읽는 중…",
+      "serversOn": "{domain}의 서버 {count}개 | {domain}의 서버 {count}개",
+      "emptyTitle": "올라온 서버가 없습니다",
+      "empty": "{domain}에는 지금 올라온 서버가 없습니다.",
+      "introTitle": "다른 인스턴스 둘러보기",
+      "intro": "소유자가 연합 전체에 올린 서버가 여기에 표시됩니다. 참여하면 이 인스턴스에서 멤버가 됩니다.",
+      "members": "멤버 {count}명 | 멤버 {count}명",
+      "join": "참여",
+      "loadMore": "더 불러오기",
+      "errorTitle": "이 인스턴스를 둘러볼 수 없습니다",
+      "noDirectoryTitle": "서버 디렉터리 없음",
+      "invalidDomain": "example.social처럼 인스턴스 도메인을 입력하세요.",
+      "ownInstance": "이 인스턴스입니다. 서버는 '이 인스턴스'에 있습니다.",
+      "blocked": "{domain}은(는) 이 인스턴스에서 차단되었습니다.",
+      "federationOffTitle": "연합이 꺼져 있습니다",
+      "federationOff": "이 인스턴스가 지금 연합하지 않아 다른 인스턴스를 둘러볼 수 없습니다.",
+      "noDirectory": "{domain}은(는) 서버 디렉터리를 게시하지 않습니다.",
+      "unreachable": "{domain}이(가) 응답하지 않았습니다. 나중에 다시 시도하세요.",
+      "failed": "문제가 발생했습니다. 다시 시도하세요."
+    },
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
     "inviteLink": "초대 링크",
     "invitedBy": "초대한 사람",
@@ -4906,7 +4990,7 @@
       "mfaDisabled": {
         "title": "2단계 인증이 꺼졌습니다",
         "message": "이제 계정에서 인증 앱 코드를 요구하지 않습니다.",
-        "messageRecoveryCode": "복구 코드로 로그인했습니다. 2단계 인증을 다시 설정하세요."
+        "messageRecoveryCode": "복구 코드가 사용되었습니다. 2단계 인증을 다시 설정하세요."
       },
       "recoveryCodeUsed": {
         "title": "복구 코드 사용됨",
@@ -5222,7 +5306,11 @@
         "keptOutHere": "{instance}에서 {person}님의 {server} 참여를 막음",
         "keepoutLifted": "{person}님이 {instance}에서 {server}에 다시 참여하도록 허용함",
         "reportsRejected": "{domain}의 신고를 무시함",
-        "reportsAccepted": "{domain}의 신고를 다시 받음"
+        "reportsAccepted": "{domain}의 신고를 다시 받음",
+        "inviteCreated": "{email} 초대",
+        "inviteEmailed": "{email}에 초대 이메일 보냄",
+        "inviteReissued": "{email}의 새 초대 링크 만듦",
+        "inviteRevoked": "{email} 초대 취소"
       }
     },
     "antiSpam": {
@@ -6119,6 +6207,7 @@
       "lock": "스레드 잠금",
       "unlock": "스레드 잠금 해제",
       "delete": "스레드 삭제",
+      "gone": "이 스레드는 삭제되었습니다.",
       "mute": "스레드 음소거",
       "unmute": "스레드 음소거 해제",
       "copyId": "스레드 ID 복사",
@@ -6246,6 +6335,10 @@
     "copied": "링크를 복사했습니다",
     "copyFailed": "링크를 복사하지 못했습니다",
     "trustFailed": "{host}을(를) 신뢰하는 사이트로 저장하지 못했습니다",
+    "noApp": "이 기기에는 웹 링크를 여는 앱이 없습니다",
+    "noAppCopied": "이 기기에는 웹 링크를 여는 앱이 없습니다. 링크를 복사했습니다. 브라우저에 붙여 넣으세요.",
+    "openFailed": "링크를 열 수 없습니다",
+    "openFailedCopied": "링크를 열 수 없습니다. 링크를 복사했습니다. 브라우저에 붙여 넣으세요.",
     "settings": {
       "title": "외부 링크",
       "askEvery": "외부 링크를 열기 전에 항상 묻기",
@@ -6397,6 +6490,7 @@
     "post": "투표 게시",
     "selectOne": "답변을 하나 선택하세요",
     "selectMultiple": "답변을 하나 이상 선택하세요",
+    "voteFinal": "보낸 투표는 바꿀 수 없습니다",
     "votes": "{count}표",
     "timeLeft": {
       "minutes": "{count}분 남음",
@@ -6420,7 +6514,8 @@
       "voteFailed": "투표를 저장하지 못했습니다.",
       "closed": "이 투표는 종료되었습니다.",
       "endFailed": "투표를 종료하지 못했습니다.",
-      "alreadyVoted": "이미 이 투표에 참여했습니다."
+      "alreadyVoted": "이미 이 투표에 참여했습니다.",
+      "hostUnsupported": "이 서버의 원래 인스턴스는 아직 투표를 지원하지 않습니다."
     },
     "remote": {
       "voters": "{count}명 투표함",
@@ -6500,7 +6595,10 @@
       "unmuteChannel": "채널 음소거 해제",
       "unmuteCategory": "카테고리 음소거 해제",
       "level": "알림 수준",
-      "default": "기본값 ({level})"
+      "default": "기본값 ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} 음소거됨",
+      "unmuted": "{name} 음소거 해제됨"
     },
     "notification": {
       "action": "님이 #{channel}에 메시지를 보냈습니다",
@@ -6704,7 +6802,29 @@
       "skip": "본문으로 건너뛰기: 모든 페이지의 첫 번째 Tab 위치",
       "skipKeys": "Tab",
       "escape": "열린 대화 상자, 메뉴 또는 패널을 닫고 포커스를 원래 위치로 되돌립니다",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "메시지 목록",
+        "note": "이 키는 포커스가 있는 메시지에 적용됩니다.",
+        "moveKeys": "↑ / ↓",
+        "move": "이전 또는 다음 메시지. Home과 End는 처음과 마지막으로 이동",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "메시지 옵션",
+        "editKeys": "E",
+        "edit": "내 메시지 편집",
+        "replyKeys": "R",
+        "reply": "답장",
+        "reactKeys": "+",
+        "react": "반응 추가",
+        "pinKeys": "P",
+        "pin": "고정 또는 고정 해제",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "삭제 (Shift를 누르면 확인 없이)",
+        "copyKeys": "C",
+        "copy": "텍스트 복사",
+        "threadKeys": "T",
+        "thread": "스레드 만들기 또는 열기"
+      }
     },
     "unsavedChanges": "저장되지 않은 변경 사항"
   },
@@ -7181,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "이 인스턴스 후원하기",
     "progress": "후원 진행률",
     "raisedMonth": "모금 / 이번 달 목표 {goal}",
     "raisedTotal": "모금 / 전체 목표 {goal}",
@@ -7202,7 +7321,88 @@
     "yours": "내 후원",
     "tierSupporter": "{tier} 후원자",
     "active": "활성",
-    "history": "내 후원 기록"
+    "history": "내 후원 기록",
+    "titleShort": "후원",
+    "raisedThisMonth": "이번 달 모금액",
+    "raisedAllTime": "총 모금액",
+    "resets": "{date}(UTC)에 초기화",
+    "until": "{date}까지 활성",
+    "instanceOff": "이 인스턴스는 지금 후원을 받고 있지 않습니다.",
+    "thanks": "감사합니다! 후원이 반영되었습니다.",
+    "tabs": {
+      "label": "후원 대상",
+      "instance": "이 인스턴스",
+      "project": "Harmony 개발"
+    },
+    "project": {
+      "title": "Harmony 개발을 도와주세요",
+      "lead": "Harmony는 자유 오픈 소스 소프트웨어입니다. 여기서의 후원은 {instance}가 아니라 Harmony를 만드는 사람들에게 갑니다.",
+      "monthly": "매월",
+      "footnote": "결제는 Stripe에서 이루어지며, {instance}는 돈을 다루지 않습니다.",
+      "supporters": "후원자와 메시지"
+    },
+    "wall": {
+      "title": "최근 후원자",
+      "empty": "아직 메시지가 없습니다. 첫 메시지를 남겨 보세요.",
+      "anonymous": "익명",
+      "you": "나",
+      "now": "방금",
+      "hide": "숨기기",
+      "hideFrom": "{name}의 메시지 숨기기",
+      "more": "모두 보기({count})",
+      "fewer": "간단히 보기"
+    },
+    "message": {
+      "title": "공개 메시지 남기기",
+      "optional": "선택",
+      "label": "공개 메시지",
+      "placeholder": "커뮤니티에 한마디",
+      "anonymous": "익명으로 표시",
+      "help": "24시간 안의 다음 후원에 함께 붙으며, 관리자가 승인해야 다른 사람에게 보입니다. 텍스트만, 50자까지.",
+      "save": "메시지 저장",
+      "saved": "저장했습니다. {time}까지의 후원에 함께 붙습니다.",
+      "remove": "삭제",
+      "status": {
+        "waiting": "{time}까지 후원을 기다리는 중",
+        "pending": "승인 대기 중",
+        "hidden": "관리자가 숨김"
+      },
+      "errors": {
+        "length": "{max}자까지 쓸 수 있습니다.",
+        "control": "줄바꿈과 제어 문자는 쓸 수 없습니다.",
+        "bidi": "텍스트 방향 표시 문자는 쓸 수 없습니다.",
+        "marks": "한 글자에 붙은 부호가 너무 많습니다.",
+        "disabled": "이 인스턴스에서는 메시지가 꺼져 있습니다.",
+        "failed": "메시지를 저장하지 못했습니다."
+      }
+    },
+    "landing": {
+      "label": "이 인스턴스의 최근 후원자",
+      "next": "다음 후원자 메시지"
+    },
+    "settings": {
+      "title": "후원",
+      "lead": "이 인스턴스와 Harmony가 계속 운영되도록 도와주세요.",
+      "project": "Harmony 개발 후원하기"
+    },
+    "admin": {
+      "messagesEnabled": "후원자 메시지",
+      "messagesPublic": "승인한 메시지를 로그인 페이지에 표시",
+      "messagesHint": "후원자는 후원에 50자까지의 메시지를 붙일 수 있습니다. 아래에서 승인하기 전에는 아무것도 표시되지 않습니다.",
+      "queueTitle": "후원자 메시지",
+      "queueHint": "메시지는 반영된 기부와 함께 도착합니다. 승인하면 후원 창에, 켜져 있으면 로그인 페이지에도 표시됩니다. 언제든 숨길 수 있습니다.",
+      "queueEmpty": "아직 후원자 메시지가 없습니다.",
+      "approve": "승인",
+      "hide": "숨기기",
+      "unhide": "다시 표시",
+      "anonymousBy": "익명: {name}",
+      "reviewFailed": "메시지를 업데이트하지 못했습니다.",
+      "state": {
+        "pending": "승인 대기",
+        "approved": "표시 중",
+        "hidden": "숨김"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "원격 상호작용",
@@ -7546,6 +7746,79 @@
       "paused": "일시 중지 중"
     }
   },
+  "adminInvites": {
+    "tab": "초대",
+    "title": "사람 초대",
+    "intro": "초대는 이메일 주소 하나에 계정을 만듭니다. 상대는 링크를 열고 비밀번호를 정한 뒤 사용자 이름을 고릅니다.",
+    "modeOpen": "가입: 공개.",
+    "modeOpenHint": "누구나 가입 페이지에서 계정을 만들 수 있습니다.",
+    "modeClosed": "가입: 초대 전용.",
+    "modeClosedHint": "가입 페이지에서는 계정을 만들 수 없습니다. 새 사용자는 초대로 들어옵니다.",
+    "modeUnknown": "가입: 알 수 없음.",
+    "modeUnknownHint": "인증 서비스가 가입 허용 여부를 알려 주지 않았습니다.",
+    "advertisedOpen": "다른 서버에는 가입이 열려 있다고 알립니다(인스턴스 설정 open_registration).",
+    "advertisedClosed": "다른 서버에는 가입이 닫혀 있다고 알립니다(인스턴스 설정 open_registration).",
+    "everyMode": "초대는 모든 가입 모드에서, 가입이 꺼져 있어도 작동합니다.",
+    "email": "이메일 주소",
+    "emailHint": "주소마다 초대 하나. 링크는 이 주소의 계정만 만듭니다.",
+    "send": "이메일로 보내기",
+    "sendHint": "인증 서비스가 링크를 이메일로 보냅니다. 아니면 링크를 복사해 직접 보내세요.",
+    "sendUnavailable": "이 인스턴스는 이메일을 보낼 수 없습니다. 인증 서비스에 SMTP 서버가 없습니다. 링크를 복사해 직접 보내세요.",
+    "create": "초대 만들기",
+    "created": "{email} 초대입니다. 링크는 한 번만 쓸 수 있고 {when}에 만료됩니다.",
+    "reissued": "{email}의 새 링크입니다. 이전 링크는 더 이상 작동하지 않습니다. {when}에 만료됩니다.",
+    "emailed": "{email}에 초대를 이메일로 보냈습니다. 링크는 {when}에 만료됩니다.",
+    "linkFor": "{email} 초대 링크",
+    "copy": "복사",
+    "copied": "초대 링크를 복사했습니다",
+    "copyFailed": "링크를 복사하지 못했습니다. 선택해서 직접 복사하세요",
+    "singleUse": "이 사람에게만 보내세요. 먼저 여는 사람이 계정을 만듭니다.",
+    "pendingTitle": "대기 중인 초대 ({count})",
+    "refresh": "새로 고침",
+    "loading": "초대를 불러오는 중…",
+    "lifetime": "링크는 만든 뒤 {hours}시간 동안 작동합니다.",
+    "pendingEmpty": "대기 중인 초대가 없습니다.",
+    "invitedBy": "초대한 사람",
+    "invitedAt": "초대 시각",
+    "delivery": "보낸 방법",
+    "expiry": "링크",
+    "byCli": "명령줄",
+    "byFormerAdmin": "이전 관리자",
+    "byUnknown": "Harmony 외부",
+    "byEmail": "이메일",
+    "byLink": "링크",
+    "byUnknownDelivery": "알 수 없음",
+    "linksIssued": "{how}, 링크 {count}개 생성",
+    "expires": "{when} 만료",
+    "expired": "{when} 만료됨",
+    "reissue": "새 링크 복사",
+    "reissueFor": "{email}의 새 링크 복사",
+    "revoke": "취소",
+    "revokeFor": "{email} 초대 취소",
+    "revokeTitle": "초대 취소",
+    "revokeMessage": "{email}의 링크가 더 이상 작동하지 않고 사용하지 않은 계정은 삭제됩니다. 나중에 이 주소를 다시 초대할 수 있습니다.",
+    "revokedToast": "{email} 초대를 취소했습니다",
+    "closedTitle": "수락 및 취소됨",
+    "acceptedAs": "{handle}(으)로 참여, {when}",
+    "accepted": "{when} 수락, 아직 사용자 이름 없음",
+    "revokedBy": "{handle}이(가) 취소, {when}",
+    "revoked": "{when} 취소됨",
+    "removed": "계정이 삭제되었습니다",
+    "invitedLine": "{who}이(가) 초대, {when}",
+    "errors": {
+      "invalidEmail": "name{'@'}example.org 같은 이메일 주소를 입력하세요.",
+      "accountExists": "이 주소의 계정이 이미 있습니다. 아무것도 만들지 않았습니다.",
+      "invitePending": "이 주소에는 이미 대기 중인 초대가 있습니다(아래). 다시 보내려면 '새 링크 복사'를 쓰세요.",
+      "emailUnavailable": "이 인스턴스는 이메일을 보낼 수 없습니다. 링크를 만드세요.",
+      "authRateLimited": "인증 서비스가 이메일을 너무 많이 보냈습니다. 나중에 다시 시도하세요.",
+      "rateLimited": "초대 변경이 너무 많습니다. 나중에 다시 시도하세요.",
+      "inviteAccepted": "이 사람은 이미 로그인했습니다. 초대를 더 이상 바꿀 수 없습니다.",
+      "inviteGone": "이 초대는 더 이상 없습니다.",
+      "adminRequired": "인스턴스 관리자만 초대할 수 있습니다.",
+      "authFailed": "인증 서비스가 거부했습니다: {detail}",
+      "unavailable": "초대를 쓸 수 없습니다. 연합 백엔드가 응답하지 않았습니다."
+    }
+  },
   "adminWebhooks": {
     "tab": "웹훅",
     "settingsTitle": "웹훅 설정",
@@ -7647,6 +7920,7 @@
       "upload": "스티커 추가",
       "limits": "PNG, APNG, WebP 또는 GIF, 최대 {size}, {side}×{side}픽셀. 애니메이션은 최대 {seconds}초. 더 큰 정지 이미지는 크기를 줄입니다.",
       "file": "이미지",
+      "choose": "이미지를 선택하거나 여기에 놓으세요",
       "name": "이름",
       "description": "설명",
       "descriptionHint": "스크린 리더가 읽어 주고 이미지를 불러오지 못할 때 표시됩니다. 필수입니다.",

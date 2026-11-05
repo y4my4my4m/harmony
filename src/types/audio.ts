@@ -50,6 +50,8 @@ export interface AudioThemeSettings {
   selectedTheme: string;
   volume: number;
   lastUpdated: string;
+  /** AUDIO_SETTINGS_VERSION (AudioThemeService.ts); absent before 1.9.3. */
+  settingsVersion?: number;
 }
 
 export interface ThemePreferences {

@@ -43,6 +43,9 @@ describe('UnifiedContextBar funding entry', () => {
     const w = render(config())
     expect(w.find('.funding-progress-track').exists()).toBe(true)
     expect(w.find('[data-testid="funding-support"]').exists()).toBe(false)
+    const pill = w.get('.funding-indicator')
+    expect(pill.get('.funding-text').text()).toBe('$40 / $100')
+    expect(pill.attributes('aria-label')).toBe('activitypub.supportInstance, $40 / $100, 40% funded')
   })
 
   it('shows a support button on desktop when funding is enabled without a shown goal', () => {

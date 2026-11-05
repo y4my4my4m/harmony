@@ -3,15 +3,21 @@
  * channel's chat: the voice channel's messages for a server call, the
  * conversation for a DM call.
  *
- * The chat stores hold one channel and one conversation at a time, loaded and
- * subscribed by the routed ChatView/DMView. The side chat therefore shows the
- * routed chat and routes the main window to the call's chat when the user opens it; the
- * routed view yields its message list while the side chat shows it, so one
- * list and one composer exist per chat.
+ * The chat stores hold one routed channel and one routed conversation, loaded
+ * and subscribed by ChatView/DMView. While the main window shows the call's
+ * chat, the side chat shows that routed list and the routed view yields its
+ * own, so one list and one composer exist per chat. While it shows another
+ * chat, the side chat reads the call chat's cache entry through
+ * callChatFeed.ts, and the main window stays where it is.
+ *
+ * Placement: inside the call view while it shows (in the app or popped out);
+ * else, open and wide enough, docked beside the main window's chat, unless
+ * that chat is the call's.
  */
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { useRouter, type RouteLocationRaw } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewport } from '@/composables/useViewport'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useDMStore } from '@/stores/useDM'
@@ -28,6 +34,13 @@ export type CallChatTarget =
 
 /** CSS px. */
 export const CALL_CHAT_WIDTH = { min: 280, initial: 360, max: 640 } as const
+
+/**
+ * Narrowest window, CSS px, the chat docks in: beside the channel list, the
+ * member list and a docked chat of at most 40% of the row, the routed chat
+ * keeps about 260 px.
+ */
+export const CALL_CHAT_DOCK_MIN_VIEWPORT = 1200
 
 const OPEN_KEY = 'voice-call-chat-open'
 const WIDTH_KEY = 'voice-call-chat-width'
@@ -91,12 +104,6 @@ function dmCallConversation(channelId: string): string | null {
   return null
 }
 
-export function targetRoute(target: CallChatTarget): RouteLocationRaw {
-  return target.kind === 'channel'
-    ? { name: 'ChatChannel', params: { serverId: target.serverId, channelId: target.channelId } }
-    : { name: 'DMConversation', params: { conversationId: target.conversationId } }
-}
-
 export interface CallChat {
   target: ComputedRef<CallChatTarget | null>
   /** The target's chat is one this user can read here. */
@@ -107,7 +114,10 @@ export interface CallChat {
   shown: ComputedRef<boolean>
   /** The routed chat is the call's. */
   routed: ComputedRef<boolean>
-  showTarget: () => void
+  /** The side chat can dock beside the main window's chat: a call chat, a wide window, not routed to it. */
+  dockable: ComputedRef<boolean>
+  /** Open and dockable with the call view hidden: the side chat is docked in the main window. */
+  docked: ComputedRef<boolean>
   /** The routed view yields its message list for `context`. */
   hosts: (context: { channelId?: string | null; conversationId?: string | null }) => boolean
 }
@@ -150,11 +160,9 @@ export function useCallChat(): CallChat {
     return route.name === 'DMConversation' && route.params.conversationId === t.conversationId
   })
 
-  const showTarget = () => {
-    const t = target.value
-    if (!t || routed.value || !router) return
-    void router.push(targetRoute(t)).catch(() => {})
-  }
+  const { viewportWidth } = useViewport()
+  const dockable = computed(() => available.value && !routed.value && viewportWidth.value >= CALL_CHAT_DOCK_MIN_VIEWPORT)
+  const docked = computed(() => open.value && dockable.value && !callViewShown.value)
 
   const hosts: CallChat['hosts'] = (context) => {
     const t = target.value
@@ -164,7 +172,7 @@ export function useCallChat(): CallChat {
       : !!context.conversationId && context.conversationId === t.conversationId
   }
 
-  return { target, available, open, width, shown, routed, showTarget, hosts }
+  return { target, available, open, width, shown, routed, dockable, docked, hosts }
 }
 
 /**
@@ -188,13 +196,13 @@ export function useCallChatUnread(chat: CallChat): ComputedRef<boolean> {
   })
 
   watch(() => newest.value?.id, (id, previous) => {
-    if (!id || !previous || id === previous || chat.shown.value) return
+    if (!id || !previous || id === previous || chat.shown.value || chat.docked.value) return
     if (id.startsWith('temp-') || newest.value?.user_id === profile.profileId) return
     fresh.value = true
   })
 
-  watch(chat.shown, (shown) => {
-    if (shown) fresh.value = false
+  watch([chat.shown, chat.docked], ([shown, docked]) => {
+    if (shown || docked) fresh.value = false
   })
 
   watch(() => chat.target.value && JSON.stringify(chat.target.value), () => {
@@ -209,5 +217,5 @@ export function useCallChatUnread(chat: CallChat): ComputedRef<boolean> {
       : getUnreadMessages({ conversationId: t.conversationId })
   })
 
-  return computed(() => chat.available.value && !chat.shown.value && (fresh.value || counted.value > 0))
+  return computed(() => chat.available.value && !chat.shown.value && !chat.docked.value && (fresh.value || counted.value > 0))
 }

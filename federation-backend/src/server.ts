@@ -15,6 +15,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import config from './config/index.js';
+import { corsOrigins } from './config/nativeOrigins.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { linkPreviewLimiter, pushLimiter, gifLimiter, mediaLimiter, embedMediaLimiter } from './middleware/rateLimit.js';
@@ -33,6 +34,7 @@ import mediaRouter from './routes/media.js';
 import embedMediaRouter from './routes/embedMedia.js';
 import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
+import adminInvitesRouter from './routes/adminInvites.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -42,9 +44,11 @@ import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
 import threadRouter from './activitypub/threadRoutes.js';
 import instanceActorRouter from './activitypub/InstanceActor.js';
+import serverDirectoryRouter from './activitypub/serverDirectory.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
+import directoryRouter from './routes/directory.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
@@ -64,11 +68,8 @@ export function createApp(): Application {
   app.set('trust proxy', config.TRUST_PROXY.split(',').map((v) => v.trim()).filter(Boolean));
 
   app.use(helmet());
-  // Native (Tauri) clients are cross-origin by construction: the frontend is
-  // served from the app's own origin, not from this instance's domain.
-  const nativeClientOrigins = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost'];
   app.use(cors({
-    origin: [...config.CORS_ORIGIN.split(',').map(o => o.trim()), ...nativeClientOrigins],
+    origin: corsOrigins(config.CORS_ORIGIN),
     credentials: true,
   }));
 
@@ -139,6 +140,8 @@ export function createApp(): Application {
   app.use('/api/federation/drive', mediaLimiter, driveLinkRouter);
   app.use('/account', accountMigrationRouter);
   app.use('/api/federation/account', accountMigrationRouter);
+  app.use('/admin/invites', adminInvitesRouter);
+  app.use('/api/federation/admin/invites', adminInvitesRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json
@@ -165,12 +168,14 @@ export function createApp(): Application {
   app.use('/', publicPagesRouter);
   app.use('/', invitePageRouter);
   app.use('/', driveLinkPageRouter);
-  // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
-  // with groupRouter's /servers/:serverId (which would match serverId='discover')
+  // serverDiscoveryRouter and serverDirectoryRouter before groupRouter: /servers/discover and
+  // /servers/directory must not collide with groupRouter's /servers/:serverId
+  app.use('/', serverDirectoryRouter);
   app.use('/', serverDiscoveryRouter);
   app.use('/', groupRouter);
   app.use('/', threadRouter);
   app.use('/', instanceProbeRouter);
+  app.use('/', directoryRouter);
   app.use('/', actorRouter);
   app.use('/', inboxRouter);
 

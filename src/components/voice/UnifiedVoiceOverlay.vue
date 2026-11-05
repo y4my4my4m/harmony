@@ -27,11 +27,11 @@
           'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party',
           'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party',
         }"
-        :style="chatShown ? { '--call-chat-width': `${callChat.width.value}px` } : undefined"
+        :style="containerStyle"
         @mousemove="pokeControls"
       >
         <!-- Header -->
-        <div class="voice-header" :inert="chatSheet || undefined">
+        <div ref="headerEl" class="voice-header" :inert="chatSheet || undefined">
           <div class="channel-info">
             <div class="channel-icon">
               <Icon name="volume" />
@@ -245,7 +245,7 @@
               />
             </div>
 
-            <div v-if="filmstripTiles.length > 0" class="filmstrip-container" @click.stop>
+            <div v-if="filmstripTiles.length > 0" ref="filmstripEl" class="filmstrip-container" @click.stop>
               <button
                 class="filmstrip-collapse-btn"
                 @click="isFilmstripCollapsed = !isFilmstripCollapsed"
@@ -273,7 +273,7 @@
         <SoundboardActivity class="overlay-soundboard-activity" />
 
         <!-- Bottom Controls -->
-        <div class="voice-controls">
+        <div ref="controlsEl" class="voice-controls">
           <AppToolbar class="media-controls" :label="t('voice.toolbar.controls')">
             <!-- Microphone with device selector -->
             <div class="control-group">
@@ -860,6 +860,43 @@ const pokeControls = () => {
   }, 2500);
 };
 
+// Floating chrome in native fullscreen, CSS px: the header's height and that of the controls
+// with the filmstrip above them. Tile overlays and the banner keep clear of them.
+const headerEl = ref<HTMLElement | null>(null);
+const controlsEl = ref<HTMLElement | null>(null);
+const filmstripEl = ref<HTMLElement | null>(null);
+const chromeInsets = ref({ top: 0, controls: 0, bottom: 0 });
+let stopChromeResize: (() => void) | null = null;
+
+watch([isNativeFullscreen, headerEl, controlsEl, filmstripEl], ([fullscreen, header, controls, filmstrip]) => {
+  stopChromeResize?.();
+  stopChromeResize = null;
+  if (!fullscreen || !header || !controls) return;
+  const measure = () => {
+    const strip = filmstripEl.value?.offsetHeight ?? 0;
+    chromeInsets.value = {
+      top: header.offsetHeight,
+      controls: controls.offsetHeight,
+      bottom: controls.offsetHeight + strip,
+    };
+  };
+  const stops = [observeResize(header, measure), observeResize(controls, measure)];
+  if (filmstrip) stops.push(observeResize(filmstrip, measure));
+  stopChromeResize = () => stops.forEach((stop) => stop());
+  measure();
+}, { flush: 'post' });
+
+const containerStyle = computed(() => {
+  const style: Record<string, string> = {};
+  if (chatShown.value) style['--call-chat-width'] = `${callChat.width.value}px`;
+  if (isNativeFullscreen.value) {
+    style['--fs-top'] = `${chromeInsets.value.top}px`;
+    style['--fs-controls'] = `${chromeInsets.value.controls}px`;
+    style['--fs-bottom'] = `${chromeInsets.value.bottom}px`;
+  }
+  return style;
+});
+
 // Legacy "full window" mode (still reachable from the user context menu):
 // the focused tile covers the viewport without the browser fullscreen API
 const isFullWindowActive = computed(() => voiceStore.isFullWindowMode && !!focusedTile.value);
@@ -876,8 +913,12 @@ watch([gridEl, () => callPopout.generation], ([el]) => {
   stopStageResize?.();
   stopStageResize = null;
   if (el) {
+    // Content box: full screen pads the grid clear of the floating chrome.
     const measure = () => {
-      stageSize.value = { width: el.clientWidth, height: el.clientHeight };
+      const style = (el.ownerDocument.defaultView ?? window).getComputedStyle(el);
+      const x = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const y = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      stageSize.value = { width: el.clientWidth - (x || 0), height: el.clientHeight - (y || 0) };
     };
     stopStageResize = observeResize(el, measure);
     measure();
@@ -1028,7 +1069,6 @@ const toggleChat = () => {
   }
   chatAutofocus.value = true;
   setCallChatOpen(true);
-  callChat.showTarget();
 };
 
 const closeChat = () => {
@@ -1179,6 +1219,7 @@ onUnmounted(() => {
   if (durationTimer) clearInterval(durationTimer);
   stopStageResize?.();
   stopNarrowWatch?.();
+  stopChromeResize?.();
   // Unmounting while popped out means the call ended: the window goes too.
   if (poppedOut.value) closeCallPopout();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
@@ -1360,7 +1401,8 @@ onUnmounted(() => {
   box-shadow: 0 0 0 2px var(--background-secondary);
 }
 
-/* Native fullscreen: stage is everything, chrome floats over it */
+/* Native fullscreen: stage is everything, chrome floats over it. The chrome keeps the
+   theme's surface so its text and buttons read as they do outside fullscreen. */
 .voice-container.native-fullscreen {
   max-width: none;
   max-height: none;
@@ -1375,9 +1417,14 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 20;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent);
+  background: color-mix(in srgb, var(--background-secondary) 88%, transparent);
   border-bottom: none;
   transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+/* The chat column keeps its own header. */
+.voice-container.native-fullscreen.with-chat .voice-header {
+  right: min(var(--call-chat-width, 360px), 50%);
 }
 
 .voice-container.native-fullscreen .voice-controls {
@@ -1386,9 +1433,46 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 20;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  background: color-mix(in srgb, var(--background-secondary) 88%, transparent);
   border-top: none;
   transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+/* The filmstrip floats above the controls and hides with them. */
+.voice-container.native-fullscreen .filmstrip-container {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--fs-controls, 72px);
+  z-index: 19;
+  padding-bottom: 6px;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.voice-container.native-fullscreen .stage-banner {
+  top: calc(var(--fs-top, 60px) + 12px);
+}
+
+/* Grid view stays in the band between the header and the controls. */
+.voice-container.native-fullscreen .tile-grid {
+  padding: var(--fs-top, 60px) 8px var(--fs-bottom, 72px);
+}
+
+/* The focused feed is full bleed; its own overlays clear the chrome while it shows. */
+.voice-container.native-fullscreen:not(.controls-hidden) .focus-tile :deep(.tile-actions) {
+  top: calc(var(--fs-top, 60px) + 8px);
+}
+
+.voice-container.native-fullscreen:not(.controls-hidden) .focus-tile :deep(.tile-pill),
+.voice-container.native-fullscreen:not(.controls-hidden) .focus-tile :deep(.tile-bottom-actions),
+.voice-container.native-fullscreen:not(.controls-hidden) .focus-tile :deep(.tile-corner-badge) {
+  bottom: calc(var(--fs-bottom, 72px) + 8px);
+}
+
+.voice-container.native-fullscreen.controls-hidden .focus-tile :deep(.tile-actions),
+.voice-container.native-fullscreen.controls-hidden .focus-tile :deep(.tile-bottom-actions) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .voice-container.native-fullscreen.controls-hidden .voice-header {
@@ -1397,7 +1481,8 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.voice-container.native-fullscreen.controls-hidden .voice-controls {
+.voice-container.native-fullscreen.controls-hidden .voice-controls,
+.voice-container.native-fullscreen.controls-hidden .filmstrip-container {
   opacity: 0;
   transform: translateY(12px);
   pointer-events: none;
@@ -1478,10 +1563,17 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
+.channel-details {
+  min-width: 0;
+}
+
 .participant-count {
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .speaking-count {
@@ -1848,6 +1940,8 @@ onUnmounted(() => {
 
 /* --error under white text is 3.7:1; the hover shade is 5.3:1 (WCAG AA). */
 .leave-button {
+  flex-shrink: 0;
+  white-space: nowrap;
   background: var(--error-hover);
   color: var(--text-on-primary);
   border: none;
@@ -2018,8 +2112,19 @@ onUnmounted(() => {
   }
 
   .header-controls {
-    gap: 4px;
+    gap: 2px;
     flex-shrink: 0;
+  }
+
+  /* The title and count keep room beside six or seven header buttons. */
+  .channel-icon {
+    display: none;
+  }
+
+  .layout-btn,
+  .close-btn {
+    width: 32px;
+    height: 32px;
   }
 
   .stage {

@@ -211,7 +211,7 @@
           />
 
           <StickerSettings
-            v-if="activeSection === 'stickers' && hasCapability('custom-stickers')"
+            v-if="activeSection === 'stickers' && serverStickers"
             scope="server"
             :server-id="serverId"
             :can-manage="permissions.canManageSoundboard"
@@ -234,6 +234,8 @@
               @update:category="server.category = $event"
               :federationEnabled="server.federation_enabled ?? false"
               @update:federationEnabled="server.federation_enabled = $event"
+              :federationDiscoverable="server.federation_discoverable ?? false"
+              @update:federationDiscoverable="server.federation_discoverable = $event"
               :loading="loading"
               :permissions="permissions"
             />
@@ -326,6 +328,9 @@ import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSet
 import ServerAuditLog from '@/components/settings/server/ServerAuditLog.vue'
 import ServerSoundboardManagement from '@/components/settings/server/ServerSoundboardManagement.vue'
 import StickerSettings from '@/components/stickers/StickerSettings.vue'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { useStickersStore } from '@/stores/useStickers'
+import { stickerSectionListed } from '@/utils/stickerLimits'
 import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
 import ServerCopyBanner from '@/components/settings/server/ServerCopyBanner.vue'
 import { useLeaveServer } from '@/composables/useLeaveServer'
@@ -440,6 +445,38 @@ const emojiPermissions = computed(() => ({
   canManageCrossServer: permissions.value.canManageCrossServerEmojis
 }))
 
+// Stickers of local servers only. Listed while max_stickers_per_server allows server stickers,
+// or while the server holds some from before the instance turned them off.
+const instanceSettings = useInstanceSettingsStore()
+const stickersStore = useStickersStore()
+const instanceSettingsRead = ref(false)
+const heldServerStickers = ref<number | null>(null)
+const serverStickers = computed(() => {
+  if (server.value.is_local_server === false || !hasCapability('custom-stickers')) return false
+  const cap = instanceSettings.isLoaded
+    ? instanceSettings.settings.maxStickersPerServer
+    : instanceSettingsRead.value ? 0 : null
+  return stickerSectionListed(cap, heldServerStickers.value) === true
+})
+
+async function readServerStickers(serverId: string) {
+  if (!hasCapability('custom-stickers')) return
+  await instanceSettings.fetchSettings()
+  instanceSettingsRead.value = true
+  if (instanceSettings.isLoaded && instanceSettings.settings.maxStickersPerServer > 0) return
+  try {
+    const held = (await stickersStore.serverStickers(serverId)).length
+    if (serverId === props.serverId) heldServerStickers.value = held
+  } catch (error) {
+    debug.warn('Server sticker count failed:', error)
+    if (serverId === props.serverId) heldServerStickers.value = 0
+  }
+}
+watch(() => props.serverId, (serverId) => {
+  heldServerStickers.value = null
+  if (serverId) void readServerStickers(serverId)
+}, { immediate: true })
+
 // Available sections based on permissions
 const availableSections = computed(() => {
   const p = permissions.value
@@ -466,10 +503,8 @@ const availableSections = computed(() => {
       ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
       : []),
     { id: 'emoji', label: t('server.emoji') },
-    // Stickers of local servers only; MANAGE_EMOJIS manages them (can_manage_server_stickers).
-    ...(server.value.is_local_server !== false && hasCapability('custom-stickers')
-      ? [{ id: 'stickers', label: t('stickers.manage.navLabel') }]
-      : []),
+    // MANAGE_EMOJIS manages them (can_manage_server_stickers).
+    ...(serverStickers.value ? [{ id: 'stickers', label: t('stickers.manage.navLabel') }] : []),
     // server_sounds holds local servers' sounds only.
     ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },
@@ -519,6 +554,7 @@ const generalHasChanges = computed(() => {
     server.value.public !== originalServer.value.public ||
     (server.value.category ?? null) !== (originalServer.value.category ?? null) ||
     server.value.federation_enabled !== originalServer.value.federation_enabled ||
+    !!server.value.federation_discoverable !== !!originalServer.value.federation_discoverable ||
     !!server.value.sidebar_banner !== !!originalServer.value.sidebar_banner ||
     selectedFile.value !== null ||
     selectedBannerFile.value !== null ||

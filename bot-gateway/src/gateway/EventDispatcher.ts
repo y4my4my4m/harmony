@@ -1071,25 +1071,16 @@ export class EventDispatcher {
   }
   
   private contentToText(content: any): string {
-    console.log('contentToText input:', JSON.stringify(content).substring(0, 200));
-    
-    if (typeof content === 'string') {
-      console.log('Content is string:', content);
-      return content
-    }
-    
+    if (typeof content === 'string') return content
+
     if (Array.isArray(content)) {
-      const textParts = content
+      return content
         .filter(part => part && part.type === 'text')
         .map(part => part.text || part.value || '')
         .join(' ')
         .trim()
-      
-      console.log(`Extracted text from ${content.length} parts: "${textParts}"`);
-      return textParts
     }
-    
-    console.log('Content is neither string nor array, returning empty');
+
     return ''
   }
   

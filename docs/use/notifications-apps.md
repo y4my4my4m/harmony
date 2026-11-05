@@ -25,7 +25,7 @@ The level that applies is the first one set in this order:
 
 A level changes notifications only. Unread dots and counts are not affected by levels; they are affected by mutes.
 
-You are never notified about the channel or conversation you are looking at, or about people you blocked.
+You are never notified about the channel, conversation or full-page thread you are looking at, or about people you blocked.
 
 ## Set a server's notifications
 
@@ -50,10 +50,12 @@ Click **Done** to close the window; changes save as you make them.
 
 ## Set a channel's level
 
-1. Open the channel and click **More options** in the header.
+1. Open the channel and click **More options** in the header, or right-click (or long-press) the channel in the channel list.
 2. Under **Notification level**, pick **All messages**, **Only @mentions** or **Nothing**.
 
 **Default (...)** removes the channel's own level; the brackets show the level it then inherits.
+
+The channel list's menu holds the same entries as **More options**: **Mark as read**, **Mute channel**, **Notification level** and **Notification settings**.
 
 ## Set a category's level
 
@@ -68,11 +70,11 @@ Channels in the category follow it unless they have their own level. The same ta
 | What | How | How long |
 |---|---|---|
 | Server | Right-click the server icon → **Mute server**, or the switch at the top of **Notification settings** | **For 15 minutes**, **For 1 hour**, **For 3 hours**, **For 8 hours**, **For 24 hours** or **Until I turn it back on** |
-| Channel | **More options** in the channel header → **Mute channel** | Until you unmute it |
+| Channel | **More options** in the channel header → **Mute channel**; or right-click the channel in the channel list → **Mute channel** and a duration | From the header, until you unmute it; from the channel list, the same durations as a server |
 | Category | **Notification settings** → **Notification overrides** → **Mute** in the category's row | Until you unmute it |
 | Direct or group conversation | **More options** in the conversation header → **Mute conversation** | Until you unmute it |
 
-A timed server mute shows "Muted until" followed by the end time. When a channel is muted through its category, the channel menu offers **Unmute category** instead.
+A timed mute shows "Muted until" followed by the end time; a channel's shows in its menu in the channel list. When a channel is muted through its category, the channel menu offers **Unmute category** instead.
 
 What a mute does:
 
@@ -95,13 +97,26 @@ Direct messages have no levels: they always notify unless you mute the conversat
 | **Do not disturb** | A switch, then **Quiet hours**: a daily start and end time in your local time. During quiet hours sounds, pop-ups and push are silenced; notifications still reach your inbox. |
 | **Enable desktop notifications** (**Enable notifications** on phones) | **Grant permission** asks the browser or system to allow notifications. |
 | **Chat & Messages** | A main switch, then a desktop switch and a sound switch for **Chat messages**, **Mentions**, **Direct messages**, **Replies** and **Reactions**, plus **New members** for servers you own or moderate. **Reactions** is off by default. |
-| **ActivityPub and federation** | The same switches for **Follows**, **Mentions**, **Replies**, **Favorites**, **Reblogs** and **Follow requests**. |
-| **Sound settings** | **Master volume** and **Voice activity sounds**. |
+| **ActivityPub and federation** | Its own main switch, then the same switches for **Follows**, **Mentions**, **Replies**, **Quotes**, **Favorites**, **Reblogs** and **Follow requests**. The **Chat & Messages** switch does not turn these off. |
+| **Sound settings** | **Master volume**, the volume of every notification and interface sound, 100% by default; and **Voice activity sounds**. |
 | **Push notifications** | Push to this device and your other devices. See [Push notifications](#push-notifications). |
 | **Haptic feedback** | Devices that can vibrate only: vibration for messages, reactions, navigation, voice and other actions. |
 | **Test notifications** | **Test all notifications** and **Reset to defaults**. |
 
 Setting your status to **Do not disturb** also stops push notifications, and makes direct message calls to you fail with "This user is in Do Not Disturb mode".
+
+**Quotes** notifies you when someone quotes one of your posts, on this instance or another. A quote that replies to your post or mentions you notifies you as the reply or mention instead. A direct quote, and a followers-only quote by someone you do not follow, do not notify you. The notification opens the quoting post.
+
+### Where an alert appears
+
+Each notification alerts you once, on one surface, while Harmony is open:
+
+| Window | Alert |
+|---|---|
+| Shown and focused | The in-app pop-up and the sound. No system notification. |
+| Not focused, or hidden | A system notification and the sound, no in-app pop-up. When system notifications are not allowed, or are switched off for that type, the in-app pop-up shows instead. |
+
+A type whose sound switch is off plays no sound anywhere: the app, its system notification and its push all stay silent.
 
 ## Push notifications
 

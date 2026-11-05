@@ -126,9 +126,9 @@ const makePost = (counts: { replies?: number; reblogs?: number; favorites?: numb
   ...extra,
 }) as any
 
-const mountPost = (post: any, detailed = true) =>
+const mountPost = (post: any, detailed = true, props: Record<string, unknown> = {}) =>
   mount(MonyPost, {
-    props: { post, detailed },
+    props: { post, detailed, ...props },
     shallow: true,
     global: {
       plugins: [createPinia(), createI18n({ legacy: false, locale: 'en', messages: { en } })],
@@ -153,6 +153,13 @@ describe('MonyPost focused stats', () => {
     const replies = wrapper.findAll('.detail-stat').find((el) => el.text().includes('replies'))!
     expect(replies.element.tagName).toBe('SPAN')
     expect(wrapper.find('[data-testid="post-replies-stat"]').exists()).toBe(false)
+  })
+
+  it('counts the thread\'s replies below the post, or the direct figure when larger', () => {
+    const repliesText = (wrapper: ReturnType<typeof mountPost>) =>
+      wrapper.findAll('.detail-stat').find((el) => /repl/.test(el.text()))?.text().replace(/\s+/g, ' ')
+    expect(repliesText(mountPost(makePost({ replies: 1 }), true, { threadReplyCount: 3 }))).toBe('3 replies')
+    expect(repliesText(mountPost(makePost({ replies: 5 }), true, { threadReplyCount: 2 }))).toBe('5 replies')
   })
 
   it('uses the shortened count in the name, as shown', () => {

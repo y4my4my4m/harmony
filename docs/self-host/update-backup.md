@@ -27,9 +27,12 @@ In order, it:
    new code.
 2. **Merges new configuration keys** (`configure.sh --non-interactive`):
    existing values stay, new keys are added. The image tag follows the
-   checkout: `X.Y.Z` on tag `vX.Y.Z`, otherwise `edge`.
+   checkout: `X.Y.Z` on tag `vX.Y.Z`, otherwise `edge`. On an instance whose
+   `.env` has no `ENABLE_ANALYTICS`, [log collection](/self-host/#log-collection)
+   turns off: `analytics` and `vector` are removed and the logs they stored
+   deleted, with one line naming the space freed.
 3. **Downloads the new images**, or builds Harmony's with `HARMONY_BUILD=1`.
-   The running instance is untouched so far.
+   The running instance is untouched so far, log collection aside.
 4. **Backs up** the database, the database roles and the configuration into
    `self-host/backups/TIME-OLD-to-NEW/` (no uploads). `HARMONY_SKIP_BACKUP=1`
    skips this, for when a backup was taken another way.
@@ -40,7 +43,8 @@ In order, it:
 
 It ends with a table of the containers and `Update complete (VERSION).`;
 then run `harmony doctor`. Nothing in an update deletes volumes, data
-directories or backups.
+directories or backups. It deletes the logs of log collection only when it
+turns log collection off (step 2).
 
 ### The apps and an older instance
 

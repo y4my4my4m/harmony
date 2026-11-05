@@ -18,6 +18,8 @@ export interface Server {
   /** Discovery category id from SERVER_CATEGORIES; null when the owner has not chosen one. */
   category?: string | null;
   federation_enabled?: boolean;
+  /** Listed in this instance's server directory for other instances; meaningful while public and federated. */
+  federation_discoverable?: boolean;
   is_local_server?: boolean;
   /**
    * Domain part of a remote server's ActivityPub identity, e.g. `mony.dev`.
@@ -30,6 +32,11 @@ export interface Server {
    * as `federation_domain`.
    */
   federation_inbox_url?: string;
+  /**
+   * A copy's host federates polls in its channels (servers.federation_metadata.message_polls,
+   * from the Group's harmony:polls); null or absent when it does not or the copy was not synced.
+   */
+  host_polls?: boolean | null;
   created_at?: string;
   folder_id?: string | null;
   position?: number;

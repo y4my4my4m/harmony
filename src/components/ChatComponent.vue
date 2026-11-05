@@ -12,6 +12,7 @@
       :loadMoreMessages="props.loadMoreMessages"
       :channelId="props.channelId"
       :conversationId="props.conversationId"
+      :listState="props.listState"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
@@ -60,7 +61,7 @@
       :channel-id="props.channelId"
       :conversation-id="props.conversationId"
       :media-room="composerMediaRoom"
-      :server-id="serverChannelStore.currentServerId ?? undefined"
+      :server-id="props.serverId ?? serverChannelStore.currentServerId ?? undefined"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
@@ -231,6 +232,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useToast } from 'vue-toastification';
   import { useAnnouncer } from '@/composables/useAnnouncer';
   import { usePortalTarget } from '@/composables/usePortalTarget';
+  import { hasCapability } from '@/services/instanceCapabilities';
 
   const portalTarget = usePortalTarget();
 
@@ -243,11 +245,17 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     conversationId?: string;
     channelName?: string;
     dmUsername?: string;
+    /** Server of the channel when it is not the routed server's. */
+    serverId?: string;
+    /** Paging state of a list the routed stores do not hold (MessageDisplay). */
+    listState?: { loadingOlder: boolean; allLoaded: boolean } | null;
   }
 
   const props = withDefaults(defineProps<Props>(), {
     isLoading: false,
     isDM: false,
+    serverId: undefined,
+    listState: null,
   });
 
   interface Emits {
@@ -287,7 +295,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       return conversationId ? { kind: 'dm', conversationId } : null;
     }
     const channelId = props.channelId || serverChannelStore.currentChannelId;
-    const serverId = serverChannelStore.channels.find(ch => ch.id === channelId)?.server_id
+    const serverId = props.serverId
+      ?? serverChannelStore.channels.find(ch => ch.id === channelId)?.server_id
       ?? serverChannelStore.currentServerId;
     return channelId && serverId ? { kind: 'channel', serverId, channelId } : null;
   };
@@ -309,7 +318,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
   const welcomeStore = useServerWelcomeStore();
   const rulesPromptServerId = computed(() => {
-    const serverId = serverChannelStore.currentServerId;
+    const serverId = props.serverId ?? serverChannelStore.currentServerId;
     return !props.isDM && serverId && welcomeStore.mustAccept(serverId) ? serverId : null;
   });
 
@@ -319,7 +328,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const pollsAllowed = computed(() => {
     if (props.isDM) return !!props.conversationId && !dmEncryptionEnabled.value;
     const channelId = props.channelId || serverChannelStore.currentChannelId;
-    return !!channelId && !channelEncryptionStore.isMessagesEncrypted(channelId);
+    if (!channelId || channelEncryptionStore.isMessagesEncrypted(channelId)) return false;
+    // A copy of a server hosted elsewhere: its host holds the tally (POLL_HOST_UNSUPPORTED).
+    const server = serverChannelStore.currentServer;
+    return server?.is_local_server !== false || server.host_polls === true || !hasCapability('federated-polls');
   });
   const openPollModal = () => {
     if (pollsAllowed.value) showPollModal.value = true;
@@ -1018,7 +1030,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 uploadedUrl: completed ? raw.uploadedUrl : undefined,
                 temporary: raw.temporary,
                 driveName: composerEncrypted.value ? undefined : raw.name,
-                ...(raw.recorded ? { reuse: false } : {}),
+                ...(raw.recorded ? { reuse: false, listed: false } : {}),
                 ...(raw.keepDetails ? { keepMetadata: true } : {}),
                 ...(raw.sourcePath ? { sourcePath: raw.sourcePath } : {}),
               };

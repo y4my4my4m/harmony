@@ -20,7 +20,7 @@
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-right-sidebar="$emit('toggleRightSidebar')"
         @toggle-search="handleToggleSearch"
-        @open-funding="showFundingModal = true"
+        @open-funding="fundingStore.openModal()"
       />
     </header>
 
@@ -100,6 +100,16 @@
             />
           </main>
 
+          <!-- The call's chat beside the routed one while the call view is hidden -->
+          <CallSideChat
+            v-if="callChat.docked.value"
+            :id="dockedCallChatId"
+            class="docked-call-chat"
+            :style="{ width: `${callChat.width.value}px` }"
+            data-testid="docked-call-chat"
+            @close="closeDockedCallChat"
+          />
+
           <aside
             v-if="!isDM" 
             id="app-member-panel"
@@ -162,8 +172,6 @@
     />
   </div>
 
-  <FundingModal v-if="showFundingModal" @close="showFundingModal = false" />
-
   <ChannelEditModal
     :show="showChannelEditModal"
     :channel="editingChannel"
@@ -175,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
@@ -199,8 +207,12 @@ import { useT } from '@/composables/useT'
 import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
-import FundingModal from '@/components/FundingModal.vue'
 import type { Message } from '@/types'
+import { setCallChatOpen, useCallChat } from '@/components/voice/callChat'
+import { restoreFocusIfLost } from '@/components/voice/voiceFocus'
+import { uid } from '@/utils/a11y/focus'
+
+const CallSideChat = defineAsyncComponent(() => import('@/components/voice/CallSideChat.vue'))
 
 interface Props {
   leftSidebarOpen: boolean
@@ -229,6 +241,15 @@ const props = withDefaults(defineProps<Props>(), {
   leftSidebarDragOffset: 0,
   rightSidebarDragOffset: 0
 })
+
+const callChat = useCallChat()
+const dockedCallChatId = uid('docked-call-chat')
+
+// Focus returns to the dock's Chat button, which opened the panel.
+const closeDockedCallChat = () => {
+  setCallChatOpen(false)
+  void nextTick(() => restoreFocusIfLost(document.querySelector<HTMLElement>('[data-testid="dock-chat-toggle"]')))
+}
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const emit = defineEmits<{
@@ -557,11 +578,9 @@ watch(
   { immediate: true }
 )
 
-// Funding config lives in useFundingStore. load() is idempotent and
-// dedup-protected, so calling it on every mount is cheap.
+// load() returns the store's copy while it is fresh: a mount reads nothing.
 const fundingStore = useFundingStore()
 const { config: fundingConfig } = storeToRefs(fundingStore)
-const showFundingModal = ref(false)
 
 onMounted(() => {
   navigateToDefaultIfNeeded()
@@ -669,6 +688,13 @@ onMounted(() => {
 .chat-content-area {
   flex: 1;
   overflow: hidden;
+}
+
+/* The resize handle sets the width; the routed chat keeps the larger share of the row. */
+.docked-call-chat {
+  flex-shrink: 0;
+  max-width: 40%;
+  min-height: 0;
 }
 
 .right-sidebar-container {

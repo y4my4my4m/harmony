@@ -7,7 +7,9 @@
 #   2. merge new configuration keys (configure.sh --non-interactive); the image
 #      tag follows the checkout (X.Y.Z at tag vX.Y.Z, otherwise edge); the auth
 #      image (GOTRUE_IMAGE) is the Supabase stack's own unless that is older than
-#      supabase-overrides.yml needs
+#      supabase-overrides.yml needs. An install whose .env has no ENABLE_ANALYTICS
+#      gets log collection off: analytics and vector are removed and the logs
+#      they stored deleted (analytics_default_off, lib.sh)
 #   3. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
 #      stack is untouched
 #   4. back up the database and the config files into backups/
@@ -83,7 +85,10 @@ main() {
 
 	# --- 2. configuration --------------------------------------------------------
 	STEP=configure
+	local unchosen=false
+	analytics_unchosen && unchosen=true
 	bash "$SCRIPT_DIR/configure.sh" --non-interactive </dev/null
+	if $unchosen && ! truthy "$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"; then analytics_default_off; fi
 
 	# --- 3. images ---------------------------------------------------------------
 	STEP=images

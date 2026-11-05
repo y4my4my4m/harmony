@@ -8,6 +8,16 @@
     class="context-menu"
     @close="emit('close')"
   >
+    <template v-if="hasNotifications">
+      <button type="button" role="menuitem" class="chat-menu-item context-menu-item" data-action="mark-read" @click="markRead">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
+        </svg>
+        <span>{{ t('notificationSettings.header.markRead') }}</span>
+      </button>
+      <div class="chat-menu-divider" role="separator"></div>
+    </template>
+
     <button v-if="canInvite" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="inviteUsers">
       <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z"/>
@@ -21,6 +31,89 @@
       </svg>
       <span>{{ t('channel.copyId') }}</span>
     </button>
+
+    <!-- The chat header's notification entries (useChannelNotificationMenu). Submenus
+         expand in place: the menu scrolls, and a flyout would be clipped. -->
+    <template v-if="hasNotifications">
+      <div class="chat-menu-divider" role="separator"></div>
+      <button
+        v-if="isMuted"
+        type="button"
+        role="menuitem"
+        class="chat-menu-item context-menu-item"
+        data-action="unmute"
+        @click="act(unmute)"
+      >
+        <Icon name="bell" :size="16" aria-hidden="true" />
+        <span>{{ t(muteLabelKey) }}</span>
+      </button>
+      <div v-else class="chat-menu-sub" role="none">
+        <button
+          type="button"
+          role="menuitem"
+          class="chat-menu-item context-menu-item"
+          data-action="mute"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          @click="openSubmenu"
+        >
+          <Icon name="bell-off" :size="16" aria-hidden="true" />
+          <span>{{ t('notificationSettings.header.muteChannel') }}</span>
+          <Icon name="chevron-right" :size="14" class="chat-menu-trail chat-menu-chevron" aria-hidden="true" />
+        </button>
+        <div role="menu" :aria-label="t('notificationSettings.header.muteChannel')">
+          <button
+            v-for="d in MUTE_DURATIONS"
+            :key="d.key"
+            type="button"
+            role="menuitem"
+            class="chat-menu-item context-menu-item"
+            :data-action="`mute-${d.key}`"
+            @click="act(() => mute(muteUntil(d.key)))"
+          >
+            <span>{{ t(`serverRail.mute.${d.key}`) }}</span>
+          </button>
+        </div>
+      </div>
+      <div v-if="mutedUntilLabel" class="chat-menu-note">{{ mutedUntilLabel }}</div>
+
+      <div class="chat-menu-sub" role="none">
+        <button
+          type="button"
+          role="menuitem"
+          class="chat-menu-item context-menu-item"
+          data-action="notification-level"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          @click="openSubmenu"
+        >
+          <Icon name="bell" :size="16" aria-hidden="true" />
+          <span>{{ t('notificationSettings.header.level') }}</span>
+          <Icon name="chevron-right" :size="14" class="chat-menu-trail chat-menu-chevron" aria-hidden="true" />
+        </button>
+        <div role="menu" :aria-label="t('notificationSettings.header.level')">
+          <button
+            v-for="option in levelOptions"
+            :key="option.value ?? 'default'"
+            type="button"
+            role="menuitemradio"
+            class="chat-menu-item context-menu-item"
+            :aria-checked="level === option.value ? 'true' : 'false'"
+            :data-action="`level-${option.value ?? 'default'}`"
+            @click="act(() => setLevel(option.value))"
+          >
+            <Icon :name="option.icon" :size="16" aria-hidden="true" />
+            <span>{{ option.label }}</span>
+            <Icon v-if="level === option.value" name="check" :size="14" class="chat-menu-check" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <button type="button" role="menuitem" class="chat-menu-item context-menu-item" data-action="notification-settings" @click="act(openSettings)">
+        <Icon name="settings" :size="16" aria-hidden="true" />
+        <span>{{ t('notificationSettings.menuEntry') }}</span>
+      </button>
+    </template>
 
     <template v-if="canReorder">
       <div class="chat-menu-divider" role="separator"></div>
@@ -67,11 +160,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import ChatMenu from '@/components/chat/ChatMenu.vue'
+import Icon from '@/components/common/Icon.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useChannelNotificationMenu } from '@/composables/useChannelNotificationMenu'
+import { toggleSubmenu } from '@/composables/useMenu'
+import { MUTE_DURATIONS, muteUntil } from '@/services/notificationSettings'
 import { debug } from '@/utils/debug'
 import type { Channel } from '@/types'
 
@@ -81,6 +178,8 @@ interface Props {
   channel: Channel | null
   /** Element focus returns to on close: the channel row. */
   trigger?: HTMLElement | null
+  /** The channel's server; default the channel's server_id. */
+  serverId?: string | null
   /** Shows Move up/down. */
   canReorder?: boolean
   canMoveUp?: boolean
@@ -97,6 +196,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   trigger: null,
+  serverId: null,
   canReorder: false,
   canMoveUp: false,
   canMoveDown: false,
@@ -116,6 +216,39 @@ const canEditChannel = computed(() =>
 // A copy's invites are the host's.
 const canInvite = computed(() =>
   isLocalServer.value && hasCurrentUserPermission(Permission.CREATE_INVITE) && props.channel?.type === 0)
+
+const {
+  serverId: notificationServerId,
+  isMuted,
+  muteLabelKey,
+  mutedUntilLabel,
+  level,
+  levelOptions,
+  load: loadNotifications,
+  setLevel,
+  mute,
+  unmute,
+  openSettings,
+  markRead: markChannelRead,
+} = useChannelNotificationMenu(() => props.channel, () => props.serverId)
+// Notification settings are a server member's.
+const hasNotifications = computed(() => !!notificationServerId.value)
+
+watch(() => props.isVisible && props.channel?.id, (open) => {
+  if (open) loadNotifications()
+}, { immediate: true })
+
+const openSubmenu = (event: MouseEvent) => {
+  if (event.currentTarget instanceof HTMLElement) toggleSubmenu(event.currentTarget)
+}
+
+/** Closes the menu, then runs the entry's action; focus returns to the channel row. */
+const act = (action: () => unknown) => {
+  emit('close')
+  void action()
+}
+
+const markRead = () => act(markChannelRead)
 
 const inviteUsers = () => {
   emit('invite-users')

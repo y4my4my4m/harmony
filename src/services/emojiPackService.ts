@@ -142,7 +142,8 @@ function savePackPreference(): void {
 }
 
 /**
- * Synchronous initialization: register the built-in packs (twemoji, native).
+ * Synchronous initialization: register the built-in packs (twemoji, native) and apply the
+ * saved choice, which the first render reads.
  */
 export function initializeEmojiPacks(): void {
   if (isInitialized.value) return
@@ -151,6 +152,7 @@ export function initializeEmojiPacks(): void {
   availablePacks.value.set('native', nativeUnicodePack)
 
   isInitialized.value = true
+  loadPackPreference()
   debug.log('Emoji packs initialized.')
 }
 

@@ -452,6 +452,9 @@ const loading = ref(false)
 const saving = ref(false)
 const moving = ref(false)
 const roles = ref<ServerRole[]>([])
+// Harmony members per role id, from the roles load and this pane's member edits. Rows a role
+// write returns carry no member_count.
+const memberCounts = ref<Record<string, number>>({})
 const selectedRole = ref<ServerRole | null>(null)
 const activeTab = ref<EditorTab>('display')
 const railEl = ref<HTMLElement | null>(null)
@@ -748,6 +751,7 @@ const loadRoles = async () => {
     const data = await roleService.getServerRoles(props.serverId, true)
     const previous = new Map(roles.value.map(r => [r.id, r]))
     roles.value = data.sort((a, b) => b.position - a.position)
+    memberCounts.value = Object.fromEntries(data.map(r => [r.id, r.member_count ?? 0]))
     rebaseEdits(previous)
     // Auto-select the highest-position role (or @everyone) so the editor
     // pane has content immediately. Don't override an existing selection
@@ -779,6 +783,7 @@ const createRole = async () => {
     })
     if (newRole) {
       roles.value = [...roles.value, newRole].sort((a, b) => b.position - a.position)
+      memberCounts.value = { ...memberCounts.value, [newRole.id]: 0 }
       selectRole(newRole)
       polite(t('server.roleManagement.created', { name: newRole.name }))
     } else {
@@ -850,9 +855,14 @@ function mergeRoleMembers(
 }
 
 function getRoleDisplayCount(role: ServerRole): number {
-  const base = role.member_count || 0
+  const base = memberCounts.value[role.id] ?? role.member_count ?? 0
   const bridged = bridgedUsersForRole(role.id).length
   return base + bridged
+}
+
+function shiftMemberCount(roleId: string, delta: number): void {
+  const count = Math.max(0, (memberCounts.value[roleId] ?? 0) + delta)
+  memberCounts.value = { ...memberCounts.value, [roleId]: count }
 }
 
 async function loadServerBridgedUsers(options: { force?: boolean } = {}) {
@@ -975,11 +985,13 @@ const removeMember = async (member: RoleMemberRow) => {
   if (!selectedRole.value || member.isBridged) return
   
   const roleName = selectedRole.value.name
+  const roleId = selectedRole.value.id
   try {
     const index = filteredMembers.value.findIndex(m => m.id === member.id)
-    const success = await roleService.removeRole(member.id, selectedRole.value.id)
+    const success = await roleService.removeRole(member.id, roleId)
     if (success) {
       roleMembers.value = roleMembers.value.filter(m => m.id !== member.id)
+      shiftMemberCount(roleId, -1)
       polite(t('server.roleManagement.memberRemoved', { member: memberName(member), role: roleName }))
       // The removed row's button unmounts: focus the row now in its place, else the list heading.
       await nextTick()
@@ -1073,8 +1085,10 @@ const addMemberToRole = async (memberId: string) => {
   
   try {
     const roleName = selectedRole.value.name
-    const success = await roleService.assignRole(memberId, selectedRole.value.id, props.serverId)
+    const roleId = selectedRole.value.id
+    const success = await roleService.assignRole(memberId, roleId, props.serverId)
     if (success) {
+      shiftMemberCount(roleId, 1)
       const member = availableMembers.value.find(m => m.id === memberId)
       if (member) {
         roleMembers.value.push(member)

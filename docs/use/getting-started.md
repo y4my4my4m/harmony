@@ -118,6 +118,14 @@ Select **Harmony Portal**, the first button at the top of the server rail, to op
 
 The footer offers **Join by URL** for servers on other instances and **Create your own server**.
 
+When your instance federates, the window has two tabs: **This instance**, the list above, and **Other instances**, the server directories of other Harmony instances. Arrow keys move between the tabs.
+
+1. Under **Instance**, enter another instance's domain, such as `example.social`, and select **Browse**. Or pick one under **Known instances**: the instances yours knows that publish a server directory.
+2. The list shows the servers whose owners list them across federation, each with its icon, handle, description and member count. **Load more** reads the next page.
+3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
+
+An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list.
+
 ## Find your way around
 
 On a desktop-sized window the app has five areas from left to right:
@@ -196,3 +204,12 @@ The user panel sits at the bottom left. Click your status to change it, use the 
 | **User settings** | **My account**, **Security**, **Privacy & safety**, **My bots**, **My emojis** |
 | **Settings** | **Announcements**, **Notifications**, **Appearance**, **Voice & video**, **Keybindings**, **Sounds**, **Language**, **Advanced** |
 | **Administration** | Shown only to instance administrators and moderators. |
+
+### Support your instance and Harmony
+
+When your instance asks for support, a heart shows in the bar above the chat, and at the end of the server rail on a phone. It opens the **Support** window, also under **User settings** → **My account** → **Support**:
+
+- **This instance**: the instance's goal and how much of it this month has raised, its payment links and supporter tiers, and your own supporter status. A Stripe payment from here is credited to your account automatically; for Ko-fi, write your handle in the Ko-fi message.
+- **Harmony development**: support for the Harmony project itself, on every instance, har.mony.lol included. You pay on Stripe, once or monthly; your instance never sees the payment. Stripe's checkout takes an optional message, and the project's supporters and their messages are on [mony.lol](https://mony.lol/supporters).
+
+Before you pay on **This instance** you can add a public message of up to 50 characters, shown with your name or as **Anonymous**. It goes with your next support within 24 hours and appears once an admin approves it, in the Support window and, if the instance shows them, under its sign-in form. You can remove it at any time.

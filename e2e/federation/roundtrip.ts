@@ -45,20 +45,30 @@
 //     against that member's published key.
 // Remote follow, votes on remote polls, follows of Lemmy communities (FEP-1b12) and thread
 // contexts (FEP-7888) run against a community host of their own (cases/remoteInteractions.ts).
+// A Mastodon quote of a local post, its QuoteRequest and Create in either order, is accepted,
+// stored as a quote and notifies the quoted author once (cases/notif.ts).
+// Reply chains fetched from a second instance, and parents fetched after their replies, are
+// read back as a timeline reads them (cases/social.ts).
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts),
 // and so is its Remove of a member from another instance (cases/memberRemoval.ts).
 // Bot, webhook and bridged messages are the Group's Notes with harmony:author, each way
 // (cases/groupAuthored.ts).
+// Server directories are published and read, signed, and a listed Group is joined from one
+// (cases/discovery.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
+// A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
+// are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
 // actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
+// A thread emptied by a deletion goes with its last message here and leaves as the Group's
+// Delete; a copy's thread waits for its Group's Delete (cases/emptyThread.ts).
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
@@ -99,6 +109,7 @@ import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
+import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
@@ -107,6 +118,7 @@ import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
+import { caseEmptyThread } from './cases/emptyThread.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
@@ -120,6 +132,9 @@ import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
+import { caseDiscovery } from './cases/discovery.ts'
+import { caseSocial } from './cases/social.ts'
+import { casePolls } from './cases/polls.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2764,6 +2779,15 @@ async function main() {
     })
     await caseInboundPosts({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, env, userToken, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
+    await caseSocial({
+      db, peer, localUrl, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, aliceAuth: ALICE_AUTH },
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
@@ -2796,6 +2820,7 @@ async function main() {
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
+    await caseQuoteNotifications({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
     // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
     await caseVoiceModerationFederation({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
@@ -2849,6 +2874,17 @@ async function main() {
       ids: {
         alice: ALICE, remote: REMOTE, privServer: PRIV_SERVER, privGeneral: PRIV_GENERAL, privSecret: PRIV_SECRET,
         pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL,
+      },
+    })
+    await caseEmptyThread({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
     })
     await caseApConformance({
@@ -2915,6 +2951,28 @@ async function main() {
         alice: ALICE, bob: BOB, carol: CAROL, remote: REMOTE,
         hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, hiddenChannel: PRIV_SECRET,
         remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseDiscovery({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, get, signedGetHeaders, assert, eq,
+      aliceAuth: ALICE_AUTH,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, pubServer: PUB_SERVER, privServer: PRIV_SERVER },
+    })
+    await casePolls({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE,
+        conversation: CONVERSATION, callConversation: CALL_CONVERSATION,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
     })
     // Last: suspending the peer's account removes it from servers hosted here.

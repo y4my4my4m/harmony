@@ -242,7 +242,7 @@
           aria-haspopup="dialog"
           :aria-expanded="openRoleCard?.part === part"
           @click="toggleRoleCard(part, $event)"
-        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ roleMentionName(part) }}</button></InlineMarks>
+        >@{{ roleMentionName(part) }}</button></InlineMarks>
         
         <!-- Hashtags -->
         <InlineMarks
@@ -1723,11 +1723,31 @@ export default defineComponent({
         (text) => renderChatMessageText(text, options),
       );
     });
+    // Parts drawn as a block below the text line: preview cards, media, files, polls, stickers.
+    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'sticker', 'media_gallery', 'media_hidden']);
+    const drawsBlock = (partIndex: number): boolean => {
+      const part = displayContent.value[partIndex] as any;
+      if (!part || typeof part !== 'object') return false;
+      if (BLOCK_PART_TYPES.has(part.type)) return true;
+      if (part.type === 'embed') return !!resolveEmbedPayload(part);
+      // A url part with its preview off (<url>, suppressed embeds) is an inline link.
+      if (part.type !== 'url' || typeof part.url !== 'string' || !showsPreview(part) || isCoveredLink(partIndex)) return false;
+      return !!resolveEmbedPayload(part) || isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url);
+    };
+    // Text after a block already starts on its own line: the line breaks it begins with would
+    // only add an empty gap under the block.
+    const withoutLeadingBreaks = (segments: TextSegment[]): TextSegment[] => {
+      const first = segments[0];
+      if (!first || first.type !== 'text' || !first.content) return segments;
+      const content = first.content.replace(/^(?:\s|<br\s*\/?>)+/i, '');
+      return content ? [{ ...first, content }, ...segments.slice(1)] : segments.slice(1);
+    };
     const textSegmentsAt = (partIndex: number, text: string, piece?: number): TextSegment[] => {
       const rendered = inlineRuns.value?.text[partIndex];
-      if (!rendered) return renderTextSegments(text);
-      const html = piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html;
-      return splitCodeBlockSegments(html, rendered.codeBlocks);
+      const segments = rendered
+        ? splitCodeBlockSegments(piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html, rendered.codeBlocks)
+        : renderTextSegments(text);
+      return (piece === undefined || piece === 0) && drawsBlock(partIndex - 1) ? withoutLeadingBreaks(segments) : segments;
     };
     const NO_MARKS: InlineMark[] = [];
     const marksAt = (partIndex: number): InlineMark[] => inlineRuns.value?.marks[partIndex] ?? NO_MARKS;
@@ -1938,7 +1958,7 @@ export default defineComponent({
     /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
     const roleMentionStyle = (part: any) => {
       const color = roleMentionColor(part?.roleColor);
-      return { '--role-color': color, color, backgroundColor: color + '1a' };
+      return { color, backgroundColor: color + '1a' };
     };
 
     const openRoleCard = ref<{ part: any; anchor: { left: number; top: number; bottom: number }; pill: HTMLElement } | null>(null);
@@ -2428,17 +2448,6 @@ a.channel-mention {
   filter: brightness(1.15);
 }
 
-/* Role marker: a dot of the role's colour, absent from a person's pill. */
-.role-mention .role-mention-dot {
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin: 0 0.25em 0.1em 0.1em;
-  border-radius: 50%;
-  background-color: var(--role-color);
-  vertical-align: middle;
-}
-
 /* Hashtag styling */
 .hashtag {
   background-color: var(--harmony-primary-alpha);
@@ -2757,6 +2766,14 @@ a.channel-mention {
   width: 100%;
 }
 
+/* The message text's size and line height (.unified-content: --message-font-size, 1.375).
+   Two classes outrank RichTextEditor's own .rich-text-editor rule (1rem), whatever order the
+   two stylesheets load in. */
+.edit-container .edit-textarea {
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .edit-textarea {
   width: 100%;
   min-height: 40px;
@@ -2767,8 +2784,6 @@ a.channel-mention {
   background-color: var(--background-secondary-alpha);
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.375;
   resize: none;
   outline: none;
   box-sizing: border-box;

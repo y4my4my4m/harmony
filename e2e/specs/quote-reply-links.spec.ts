@@ -2,8 +2,9 @@
 //
 // The quoted card of a quote post opens the quoted post; its author's name opens their
 // profile, a hashtag inside it opens the hashtag, and the keyboard reaches the quoted post
-// through the card's time link. A reply in a feed says whom it answers on one line, however
-// long the handle, and the line opens the parent post.
+// through the card's time link. A reply in a feed previews the post it answers, the whole
+// handle in its title however long, and the preview opens the parent post with the reply
+// highlighted.
 //
 // Rows are seeded through the service role, as the federation backend stores them: a remote
 // account quotes a remote post (Mastodon 4.4+ quotes), and a local reply answers a remote
@@ -121,38 +122,31 @@ test('the quoted card opens the quoted post, its author and its hashtags', async
   await expect(page).toHaveURL(new RegExp(`/social/post/${ids.quoted}$`))
 })
 
-test('a reply in a feed names its parent on one line and opens it', async ({ page }) => {
+test('a reply in a feed previews its parent and opens it', async ({ page }) => {
   test.setTimeout(180_000)
   await page.setViewportSize({ width: 375, height: 812 })
   await signIn(page, reader)
   await page.goto('/social/local')
   const post = page.locator('article[data-testid="post-item"]').filter({ hasText: `local answer ${marker}` })
-  const line = post.getByTestId('post-reply-line')
+  const line = post.getByTestId('post-reply-context')
   await expect(line).toBeVisible({ timeout: 90_000 })
 
   const handle = `@${parentAuthor.username}@${parentAuthor.domain}`
   await expect(line).toHaveAttribute('title', `Replying to ${handle}`)
-  await expect(line).toHaveAccessibleName(`Replying to ${handle}`)
+  await expect(line).toHaveAccessibleName(`Replying to Someone parent on a long domain ${marker}`)
   const layout = await post.evaluate((article) => {
-    const row = article.querySelector('.reply-line') as HTMLElement
-    const target = article.querySelector('.reply-line-target') as HTMLElement
+    const row = article.querySelector('[data-testid="post-reply-context"]') as HTMLElement
     const body = article.querySelector('.post-content') as HTMLElement
-    const lineHeight = parseFloat(getComputedStyle(row).lineHeight)
     return {
-      rowHeight: row.getBoundingClientRect().height,
-      lineHeight,
-      truncated: target.scrollWidth > target.clientWidth,
       rowRight: row.getBoundingClientRect().right,
       bodyRight: body.getBoundingClientRect().right,
       articleScroll: article.scrollWidth - article.clientWidth,
     }
   })
-  expect(layout.rowHeight).toBeLessThan(layout.lineHeight * 1.5 + 4)
-  expect(layout.truncated).toBe(true)
   expect(layout.rowRight).toBeLessThanOrEqual(layout.bodyRight + 0.5)
   expect(layout.articleScroll).toBeLessThanOrEqual(0)
 
   await line.click()
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.parent}$`))
+  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.parent}\\?highlight=${ids.reply}$`))
   await expect(opened(page)).toContainText(`parent on a long domain ${marker}`, { timeout: 30_000 })
 })

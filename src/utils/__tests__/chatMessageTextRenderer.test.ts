@@ -347,3 +347,33 @@ describe('renderChatMessageText - preserves legitimate output', () => {
     });
   });
 });
+
+describe('renderChatMessageText - unicode emoji under the Twemoji pack', () => {
+  const twemoji: ChatMessageRendererOptions = {
+    ...defaultOptions,
+    isNativePack: false,
+    emojiServiceLoaded: true,
+    resolveEmoji: (input) => ({
+      display: { type: 'svg', content: `/assets/emojis/twemoji/${Array.from(input).map((c) => c.codePointAt(0)!.toString(16)).join('-')}.svg` },
+    }),
+  };
+  const images = (html: string) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return Array.from(div.querySelectorAll('img.inline-emoji')).map((img) => img.getAttribute('alt'));
+  };
+
+  it.each([
+    ['👍🏽', ['👍🏽']],
+    ['1️⃣', ['1️⃣']],
+    ['🏴󠁧󠁢󠁥󠁮󠁧󠁿', ['🏴󠁧󠁢󠁥󠁮󠁧󠁿']],
+    ['🧑🏻‍🤝‍🧑🏼', ['🧑🏻‍🤝‍🧑🏼']],
+    ['a 👨‍👩‍👧 🇯🇵 b', ['👨‍👩‍👧', '🇯🇵']],
+  ])('%j draws one image per emoji: %j', (text, alts) => {
+    expect(images(renderChatMessageText(text, twemoji).renderedText)).toEqual(alts);
+  });
+
+  it('leaves text-presentation characters as text', () => {
+    expect(images(renderChatMessageText('™ © ❤', twemoji).renderedText)).toEqual([]);
+  });
+});

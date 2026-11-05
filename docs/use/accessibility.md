@@ -59,6 +59,8 @@ A toolbar that stays on screen keeps the button used last as its Tab stop.
 ### Menus and dialogs
 
 - Enter, the context menu key or Shift+F10 on a message opens its **Message options** menu. The context menu key and Shift+F10 open the menu of a server, channel, member or voice participant too, and on a reaction they list who reacted.
+- On a focused message, single keys act as in Discord: E edits, R replies, `+` adds a reaction, P pins or unpins, Backspace or Delete deletes (with Shift, without asking first), C copies the text and T opens the thread. Each works only where the message offers that action. See [Keyboard shortcuts](/use/keyboard-shortcuts#message-list).
+- A channel's menu in the channel list holds its notification entries: **Mark as read**, **Mute channel** with its durations, **Notification level** and **Notification settings**. Their submenus open in place, inside the menu.
 - In a menu, Up and Down move (and wrap), Home and End go to the ends, and typing letters jumps to an item. Right opens a submenu; Left or Escape closes it.
 - A dialog takes focus when it opens. Tab and Shift+Tab stay inside it, and the page behind it does not respond.
 - Escape closes the topmost dialog, menu or drawer, and focus returns to where it was before it opened.
@@ -85,7 +87,9 @@ Controls show a focus outline when they are reached with the keyboard, not when 
 
 ### Messages
 
-The message list is labelled with where you are, such as "Messages in #general". Each message is one item, named by its author, its text, the message it replies to, then its time, its state and its date: "Sam, Yes, it went up this morning, Replying to Alex Is the new build out yet?, 6:10 PM, edited, October 23, 2026". The date comes last, so moving on cuts it off.
+The message list is labelled with where you are, such as "Messages in #general". Each message is one item, named by its author, its text, its reactions, the message it replies to, then its time, its state and its date: "Sam, Yes, it went up this morning, Reactions: thumbs up, 2 reactions, including you, Replying to Alex Is the new build out yet?, 6:10 PM, edited, October 23, 2026". The date comes last, so moving on cuts it off.
+
+**User settings** → **Keybindings** lists the message list's keys under **Message list**. Pinning, unpinning, copying and starting a reply by key are announced.
 
 With **Announce new messages** on, messages that arrive in the open channel, conversation or thread are read out politely; your own are not. A single message is read as the author and its text, cut at 160 characters. Several messages arriving together are summarized, for example "3 new messages from Alice, Bob". Spoilers and encrypted message text are never read out; attachments are named by their kind and their description.
 

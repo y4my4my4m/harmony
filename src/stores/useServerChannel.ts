@@ -354,6 +354,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
             is_local_server,
             federation_domain,
             federation_inbox_url,
+            host_polls:federation_metadata->message_polls,
             suspended_at,
             suspended_reason
           )
@@ -399,6 +400,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
             is_local_server,
             federation_domain,
             federation_inbox_url,
+            host_polls:federation_metadata->message_polls,
             suspended_at,
             suspended_reason
           )

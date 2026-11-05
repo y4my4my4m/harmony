@@ -3,11 +3,16 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, reactive, ref } from 'vue'
 
 // The side chat panel: a named region with the routed list, a keyboard
-// operable width separator, a way back to the call's chat when the main
-// window routes elsewhere, and focus on request.
+// operable width separator, the call chat's own list while the main window
+// shows another chat, and focus on request.
 
-const h = vi.hoisted(() => ({ chat: null as any, width: null as any, setWidth: null as any }))
-const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, props: ['chatMessages', 'channelId'], render: () => null } }) }))
+const h = vi.hoisted(() => ({ chat: null as any, width: null as any, setWidth: null as any, feed: null as any }))
+const { stub } = vi.hoisted(() => ({
+  stub: (name: string) => ({
+    __esModule: true,
+    default: { name, props: ['chatMessages', 'channelId', 'serverId', 'listState', 'isLoading'], render: () => null },
+  }),
+}))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, args?: Record<string, unknown>) => (args ? `${key}:${JSON.stringify(args)}` : key) }) }))
 vi.mock('@/components/common/UnifiedContentArea.vue', () => stub('UnifiedContentArea'))
@@ -28,6 +33,7 @@ vi.mock('../callChat', () => ({
   setCallChatWidth: (px: number) => h.setWidth(px),
   useCallChat: () => h.chat,
 }))
+vi.mock('../callChatFeed', () => ({ useCallChatFeed: () => h.feed }))
 
 import CallSideChat from '../CallSideChat.vue'
 
@@ -42,7 +48,12 @@ beforeEach(() => {
     target: computed(() => ({ kind: 'channel', serverId: 's1', channelId: 'lounge' })),
     width: h.width,
     routed: computed(() => state.routed),
-    showTarget: vi.fn(),
+  }
+  h.feed = {
+    messages: computed(() => [{ id: 'own-1' }]),
+    loading: ref(false),
+    listState: computed(() => ({ loadingOlder: false, allLoaded: true })),
+    loadOlder: vi.fn(),
   }
 })
 
@@ -67,7 +78,7 @@ describe('CallSideChat', () => {
     const list = panel.findComponent({ name: 'UnifiedContentArea' })
     expect(list.props('channelId')).toBe('lounge')
     expect(list.props('chatMessages')).toEqual([{ id: 'm1' }])
-    expect(h.chat.showTarget).not.toHaveBeenCalled()
+    expect(list.props('listState')).toBeUndefined()
   })
 
   it('resizes from the keyboard through its separator', async () => {
@@ -90,15 +101,16 @@ describe('CallSideChat', () => {
     expect(separator.attributes('aria-valuenow')).toBe('280')
   })
 
-  it("leaves the main window where it is on mount, and offers the call's chat", async () => {
+  it("shows the call chat's own list while the main window shows another chat", async () => {
     h.chat.state.routed = false
     const panel = await mountPanel()
-    expect(h.chat.showTarget).not.toHaveBeenCalled()
-    expect(panel.findComponent({ name: 'UnifiedContentArea' }).exists()).toBe(false)
-    const away = panel.find('[data-testid="call-chat-away"]')
-    expect(away.text()).toContain('voice.callChat.awayText')
-    await away.find('button').trigger('click')
-    expect(h.chat.showTarget).toHaveBeenCalledTimes(1)
+    const list = panel.findComponent({ name: 'UnifiedContentArea' })
+    expect(list.props('chatMessages')).toEqual([{ id: 'own-1' }])
+    expect(list.props('channelId')).toBe('lounge')
+    expect(list.props('serverId')).toBe('s1')
+    expect(list.props('listState')).toEqual({ loadingOlder: false, allLoaded: true })
+    list.vm.$emit('load-more-messages')
+    expect(h.feed.loadOlder).toHaveBeenCalledTimes(1)
   })
 
   it('takes focus when asked, and closes from its close button', async () => {

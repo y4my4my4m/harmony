@@ -166,6 +166,14 @@
       "mfaRequired": "Se requiere la verificación en dos pasos. Verifica tu código.",
       "failed": "No se pudo restablecer la contraseña. Inténtalo de nuevo.",
       "done": "Contraseña restablecida. Inicia sesión con la nueva contraseña."
+    },
+    "invite": {
+      "title": "¡Bienvenido! Elige una contraseña",
+      "subtitle": "Te invitaron a crear una cuenta para {email}. Elige la contraseña con la que iniciarás sesión.",
+      "submit": "Guardar contraseña y continuar",
+      "done": "Contraseña guardada. Ahora elige tu nombre de usuario.",
+      "invalidTitle": "Este enlace de invitación no funciona",
+      "invalidBody": "El enlace ya se usó, caducó o fue revocado. Pide uno nuevo a quien te invitó."
     }
   },
   "server": {
@@ -354,9 +362,14 @@
     "federationActive": "Federación activa",
     "federationBenefit1": "Los usuarios de otras instancias pueden unirse mediante enlaces de invitación",
     "federationBenefit2": "Los mensajes se comparten con miembros federados en tiempo real",
-    "federationBenefit3": "El servidor aparece en el descubrimiento de servidores federados",
+    "federationBenefit3": "Personas de otras instancias pueden unirse con el identificador del servidor",
     "federationHandle": "Identificador del servidor",
     "federationHandleDesc": "Comparte este identificador para que personas de otras instancias puedan encontrar este servidor y unirse a él.",
+    "federationDiscoverable": "Descubrible en la federación",
+    "federationDiscoverableDesc": "Incluye este servidor en el directorio de servidores de esta instancia, para que personas de otras instancias de Harmony puedan encontrarlo y unirse.",
+    "federationDiscoverableNeedsPublic": "Haz público el servidor para incluirlo.",
+    "federationDiscoverableNeedsFederation": "Activa la federación para incluirlo.",
+    "federationDiscoverableInstanceOff": "La federación está desactivada en esta instancia, así que su directorio no incluye ningún servidor.",
     "uploadingEmojis": "Subiendo emoji {current} de {total}...",
     "uploadingEmoji": "Subiendo {name}…",
     "copyEmojiName": "Copiar nombre del emoji",
@@ -920,6 +933,12 @@
     "moreActions": "Más acciones",
     "editMessage": "Editar mensaje",
     "deleteMessage": "Eliminar mensaje",
+    "deleteWithThread": {
+      "message": "Este mensaje inició el hilo «{name}».",
+      "threadKept": "El hilo y sus respuestas se mantienen; el hilo muestra este mensaje como eliminado.",
+      "threadDeleted": "El hilo no tiene respuestas y se elimina con este mensaje.",
+      "confirmDeleted": "Eliminar mensaje e hilo"
+    },
     "copyMessage": "Copiar mensaje",
     "pinMessage": "Fijar mensaje",
     "unpinMessage": "Desfijar mensaje",
@@ -1026,6 +1045,13 @@
       "label": "Acciones del mensaje",
       "thread": "Crear hilo"
     },
+    "shortcuts": {
+      "replying": "En respuesta a {name}",
+      "pinned": "Mensaje fijado",
+      "unpinned": "Mensaje desfijado",
+      "copied": "Texto del mensaje copiado",
+      "copyFailed": "No se pudo copiar el texto del mensaje"
+    },
     "failed": {
       "label": "No se pudo enviar",
       "retry": "Reintentar",
@@ -1054,7 +1080,8 @@
       "pill": "{emoji}, {count} reacción | {emoji}, {count} reacciones",
       "pillYou": "{emoji}, {count} reacción, incluida la tuya | {emoji}, {count} reacciones, incluida la tuya",
       "hint": "La tecla de menú contextual o Mayús+F10 muestra el emoji y quién reaccionó.",
-      "removed": "Reacción quitada: {emoji}"
+      "removed": "Reacción quitada: {emoji}",
+      "summary": "Reacciones: {list}"
     },
     "emoji": {
       "reactionDialog": "Añadir reacción",
@@ -1406,8 +1433,6 @@
       "region": "Chat de {name}",
       "close": "Cerrar chat",
       "resize": "Cambiar el ancho del chat",
-      "awayText": "La ventana principal muestra otro chat.",
-      "awayAction": "Mostrar el chat de la llamada",
       "elsewhereText": "Este chat está abierto junto a la llamada.",
       "elsewhereAction": "Mostrar el chat aquí"
     },
@@ -1749,6 +1774,15 @@
       "autoGainControlDesc": "Ajusta automáticamente la sensibilidad del micrófono",
       "video": "Vídeo",
       "noCamera": "Sin cámara",
+      "deviceNone": "Ninguno",
+      "deviceDefault": "Predeterminado",
+      "microphoneNamesHidden": "Los nombres de los dispositivos aparecen cuando Harmony puede usar tu micrófono.",
+      "cameraNamesHidden": "Los nombres de las cámaras aparecen cuando Harmony puede usar tu cámara.",
+      "allowMicrophone": "Permitir micrófono",
+      "allowCamera": "Permitir cámara",
+      "microphoneBlocked": "El acceso al micrófono está bloqueado. Permítelo en la configuración del navegador o del sistema y vuelve a intentarlo.",
+      "cameraBlocked": "El acceso a la cámara está bloqueado. Permítelo en la configuración del navegador o del sistema y vuelve a intentarlo.",
+      "deviceOpenFailed": "No se pudo abrir el dispositivo. Cierra otras apps que lo usen y vuelve a intentarlo.",
       "resolution": "Resolución",
       "frameRate": "Fotogramas por segundo",
       "audioBitrate": "Tasa de bits de audio",
@@ -1861,6 +1895,11 @@
           "label": "Respuestas",
           "name": "Respuestas del fediverso",
           "description": "Cuando alguien responde a tu publicación"
+        },
+        "apQuotes": {
+          "label": "Citas",
+          "name": "Citas del fediverso",
+          "description": "Cuando alguien cita tu publicación"
         },
         "apFavorites": {
           "label": "Favoritos",
@@ -1989,6 +2028,11 @@
         "deviceRemoved": "Dispositivo quitado",
         "deviceRemoveFailed": "No se pudo quitar el dispositivo"
       },
+      "quoteNotice": {
+        "action": " citó tu publicación",
+        "short": "Publicación citada",
+        "noPreview": "Haz clic para ver la cita"
+      },
       "samples": {
         "mention": {
           "title": "Mención de prueba",
@@ -2045,6 +2089,10 @@
         "apReply": {
           "title": "Respuesta de ActivityPub de prueba",
           "message": "Alguien respondió a tu publicación del fediverso"
+        },
+        "apQuote": {
+          "title": "Cita de prueba",
+          "message": "Alguien citó tu publicación del fediverso"
         },
         "apFollowRequest": {
           "title": "Solicitud de seguimiento de ActivityPub de prueba",
@@ -2552,7 +2600,14 @@
     "editedTitle": "Esta publicación ha sido editada",
     "replyToUser": "Responder a {name}",
     "replyingTo": "Respondiendo a",
-    "viewThread": "Ver hilo",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "{count} archivo adjunto | {count} archivos adjuntos",
+      "deleted": "Respondiendo a una publicación eliminada",
+      "hidden": "Respondiendo a una publicación que no puedes ver",
+      "remote": "Respondiendo a una publicación en {domain}",
+      "loading": "Cargando la publicación a la que responde"
+    },
     "viewOriginalPost": "Ver publicación original",
     "viewQuotedPost": "Ver publicación citada",
     "showMore": "Mostrar más",
@@ -3337,6 +3392,35 @@
     "federationOff": "Este servidor no acepta miembros de otras instancias: tiene la federación desactivada.",
     "federatedNotice": "Este es un servidor federado alojado en otra instancia de Harmony. Tus mensajes se enviarán a través de la red.",
     "joinByUrl": "Unirse por URL",
+    "directory": {
+      "tabsLabel": "Dónde buscar",
+      "thisInstance": "Esta instancia",
+      "otherInstances": "Otras instancias",
+      "domainLabel": "Instancia",
+      "domainPlaceholder": "example.social",
+      "domainHint": "Escribe el dominio de otra instancia de Harmony o elige una conocida.",
+      "browse": "Explorar",
+      "knownInstances": "Instancias conocidas",
+      "loading": "Leyendo el directorio de {domain}…",
+      "serversOn": "{count} servidor en {domain} | {count} servidores en {domain}",
+      "emptyTitle": "No hay servidores",
+      "empty": "{domain} no incluye servidores por ahora.",
+      "introTitle": "Explora otra instancia",
+      "intro": "Aquí aparecen los servidores que sus dueños incluyen en la federación. Al unirte a uno, eres miembro desde esta instancia.",
+      "members": "{count} miembro | {count} miembros",
+      "join": "Unirse",
+      "loadMore": "Cargar más",
+      "errorTitle": "No se pudo explorar esa instancia",
+      "noDirectoryTitle": "Sin directorio de servidores",
+      "invalidDomain": "Escribe el dominio de una instancia, como example.social.",
+      "ownInstance": "Es esta instancia: sus servidores están en Esta instancia.",
+      "blocked": "{domain} está bloqueada en esta instancia.",
+      "federationOffTitle": "La federación está desactivada",
+      "federationOff": "Esta instancia no federa ahora mismo, así que no se pueden explorar otras instancias.",
+      "noDirectory": "{domain} no publica un directorio de servidores.",
+      "unreachable": "{domain} no respondió. Inténtalo más tarde.",
+      "failed": "Algo salió mal. Inténtalo de nuevo."
+    },
     "haveInviteLink": "¿Tienes un enlace de invitación? Pégalo aquí",
     "inviteLink": "Enlace de invitación",
     "invitedBy": "Invitado por",
@@ -4906,7 +4990,7 @@
       "mfaDisabled": {
         "title": "Autenticación de dos factores desactivada",
         "message": "Tu cuenta ya no pide un código de autenticador.",
-        "messageRecoveryCode": "Se usó un código de recuperación para iniciar sesión. Vuelve a configurar la autenticación de dos factores."
+        "messageRecoveryCode": "Se usó un código de recuperación. Vuelve a configurar la autenticación de dos factores."
       },
       "recoveryCodeUsed": {
         "title": "Código de recuperación usado",
@@ -5222,7 +5306,11 @@
         "keptOutHere": "Mantuvo a {person} fuera de {server} en {instance}",
         "keepoutLifted": "Permitió que {person} vuelva a unirse a {server} desde {instance}",
         "reportsRejected": "Ignoró los informes de {domain}",
-        "reportsAccepted": "Volvió a aceptar los informes de {domain}"
+        "reportsAccepted": "Volvió a aceptar los informes de {domain}",
+        "inviteCreated": "Invitó a {email}",
+        "inviteEmailed": "Envió una invitación por correo a {email}",
+        "inviteReissued": "Creó un enlace de invitación nuevo para {email}",
+        "inviteRevoked": "Revocó la invitación para {email}"
       }
     },
     "antiSpam": {
@@ -6119,6 +6207,7 @@
       "lock": "Bloquear hilo",
       "unlock": "Desbloquear hilo",
       "delete": "Eliminar hilo",
+      "gone": "Este hilo se eliminó.",
       "mute": "Silenciar hilo",
       "unmute": "Dejar de silenciar hilo",
       "copyId": "Copiar ID del hilo",
@@ -6246,6 +6335,10 @@
     "copied": "Enlace copiado",
     "copyFailed": "No se pudo copiar el enlace",
     "trustFailed": "No se pudo guardar {host} como sitio de confianza",
+    "noApp": "Ninguna app de este dispositivo abre enlaces web",
+    "noAppCopied": "Ninguna app de este dispositivo abre enlaces web. El enlace está copiado: pégalo en un navegador.",
+    "openFailed": "No se pudo abrir el enlace",
+    "openFailedCopied": "No se pudo abrir el enlace. Está copiado: pégalo en un navegador.",
     "settings": {
       "title": "Enlaces externos",
       "askEvery": "Preguntar antes de abrir cualquier enlace externo",
@@ -6397,6 +6490,7 @@
     "post": "Publicar encuesta",
     "selectOne": "Elige una respuesta",
     "selectMultiple": "Elige una o más respuestas",
+    "voteFinal": "Tu voto no se puede cambiar una vez enviado",
     "votes": "{count} voto | {count} votos",
     "timeLeft": {
       "minutes": "Queda {count} minuto | Quedan {count} minutos",
@@ -6420,7 +6514,8 @@
       "voteFailed": "No se guardó tu voto.",
       "closed": "Esta encuesta ha terminado.",
       "endFailed": "No se pudo terminar la encuesta.",
-      "alreadyVoted": "Ya votaste en esta encuesta."
+      "alreadyVoted": "Ya votaste en esta encuesta.",
+      "hostUnsupported": "La instancia de origen de este servidor aún no admite encuestas."
     },
     "remote": {
       "voters": "{count} persona votó | {count} personas votaron",
@@ -6500,7 +6595,10 @@
       "unmuteChannel": "Dejar de silenciar el canal",
       "unmuteCategory": "Dejar de silenciar la categoría",
       "level": "Nivel de notificación",
-      "default": "Predeterminado ({level})"
+      "default": "Predeterminado ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} silenciado",
+      "unmuted": "{name} ya no está silenciado"
     },
     "notification": {
       "action": " envió un mensaje en #{channel}",
@@ -6704,7 +6802,29 @@
       "skip": "Saltar al contenido: la primera parada de Tab en cada página",
       "skipKeys": "Tab",
       "escape": "Cerrar el diálogo, menú o panel abierto; el foco vuelve a donde estaba",
-      "escapeKeys": "Escape"
+      "escapeKeys": "Escape",
+      "messages": {
+        "title": "Lista de mensajes",
+        "note": "Estas teclas actúan sobre el mensaje que tiene el foco.",
+        "moveKeys": "↑ / ↓",
+        "move": "Mensaje anterior o siguiente; Inicio y Fin van al primero y al último",
+        "menuKeys": "Intro / Mayús+F10",
+        "menu": "Opciones del mensaje",
+        "editKeys": "E",
+        "edit": "Editar tu mensaje",
+        "replyKeys": "R",
+        "reply": "Responder",
+        "reactKeys": "+",
+        "react": "Añadir una reacción",
+        "pinKeys": "P",
+        "pin": "Fijar o desfijar",
+        "deleteKeys": "Retroceso / Supr",
+        "delete": "Eliminar; con Mayús, sin preguntar antes",
+        "copyKeys": "C",
+        "copy": "Copiar el texto",
+        "threadKeys": "T",
+        "thread": "Crear o abrir un hilo"
+      }
     },
     "unsavedChanges": "Cambios sin guardar"
   },
@@ -7181,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "Apoyar a esta instancia",
     "progress": "Progreso de la financiación",
     "raisedMonth": "recaudado de {goal} este mes",
     "raisedTotal": "recaudado de {goal} en total",
@@ -7202,7 +7321,88 @@
     "yours": "Tu apoyo",
     "tierSupporter": "Patrocinador {tier}",
     "active": "Activo",
-    "history": "Tu historial de apoyo"
+    "history": "Tu historial de apoyo",
+    "titleShort": "Apoyar",
+    "raisedThisMonth": "recaudado este mes",
+    "raisedAllTime": "recaudado en total",
+    "resets": "Se reinicia el {date} (UTC)",
+    "until": "Activo hasta el {date}",
+    "instanceOff": "Esta instancia no está pidiendo apoyo ahora mismo.",
+    "thanks": "¡Gracias! Tu apoyo se ha registrado.",
+    "tabs": {
+      "label": "A quién apoyar",
+      "instance": "Esta instancia",
+      "project": "Desarrollo de Harmony"
+    },
+    "project": {
+      "title": "Ayuda a construir Harmony",
+      "lead": "Harmony es software libre y de código abierto. El apoyo aquí va a quienes lo construyen, no a {instance}.",
+      "monthly": "Mensual",
+      "footnote": "Pagas a través de Stripe; {instance} nunca toca el dinero.",
+      "supporters": "Quienes apoyan y sus mensajes"
+    },
+    "wall": {
+      "title": "Apoyos recientes",
+      "empty": "Aún no hay mensajes. El tuyo puede ser el primero.",
+      "anonymous": "Anónimo",
+      "you": "Tú",
+      "now": "ahora",
+      "hide": "Ocultar",
+      "hideFrom": "Ocultar el mensaje de {name}",
+      "more": "Ver los {count}",
+      "fewer": "Ver menos"
+    },
+    "message": {
+      "title": "Añadir un mensaje público",
+      "optional": "opcional",
+      "label": "Mensaje público",
+      "placeholder": "Di algo a la comunidad",
+      "anonymous": "Mostrar como Anónimo",
+      "help": "Acompaña a tu próximo apoyo en las próximas 24 horas, y un admin lo aprueba antes de que otros lo vean. Solo texto, hasta 50 caracteres.",
+      "save": "Guardar mensaje",
+      "saved": "Guardado. Acompaña a tu apoyo hasta las {time}.",
+      "remove": "Quitar",
+      "status": {
+        "waiting": "Esperando tu apoyo hasta las {time}",
+        "pending": "Esperando aprobación",
+        "hidden": "Ocultado por un admin"
+      },
+      "errors": {
+        "length": "Hasta {max} caracteres.",
+        "control": "No se pueden usar saltos de línea ni caracteres de control.",
+        "bidi": "No se pueden usar marcas de dirección de texto.",
+        "marks": "Demasiados acentos sobre un carácter.",
+        "disabled": "Los mensajes están desactivados en esta instancia.",
+        "failed": "No se pudo guardar el mensaje."
+      }
+    },
+    "landing": {
+      "label": "Apoyos recientes a esta instancia",
+      "next": "Siguiente mensaje de apoyo"
+    },
+    "settings": {
+      "title": "Apoyar",
+      "lead": "Ayuda a mantener esta instancia en marcha, y a Harmony.",
+      "project": "Apoyar el desarrollo de Harmony"
+    },
+    "admin": {
+      "messagesEnabled": "Mensajes de apoyo",
+      "messagesPublic": "Mostrar los mensajes aprobados en la página de inicio de sesión",
+      "messagesHint": "Quienes apoyan pueden añadir un mensaje de hasta 50 caracteres. No se muestra nada hasta que lo apruebes abajo.",
+      "queueTitle": "Mensajes de apoyo",
+      "queueHint": "Un mensaje llega con una donación acreditada. Apruébalo para mostrarlo en la ventana de apoyo y, si está activado, en la página de inicio de sesión. Puedes ocultarlo en cualquier momento.",
+      "queueEmpty": "Aún no hay mensajes de apoyo.",
+      "approve": "Aprobar",
+      "hide": "Ocultar",
+      "unhide": "Volver a mostrar",
+      "anonymousBy": "Anónimo: {name}",
+      "reviewFailed": "No se pudo actualizar el mensaje.",
+      "state": {
+        "pending": "Esperando aprobación",
+        "approved": "Visible",
+        "hidden": "Oculto"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "Interacción remota",
@@ -7546,6 +7746,79 @@
       "paused": "durante la pausa"
     }
   },
+  "adminInvites": {
+    "tab": "Invitaciones",
+    "title": "Invitar personas",
+    "intro": "Una invitación crea una cuenta para una dirección de correo. La persona abre el enlace, elige una contraseña y luego un nombre de usuario.",
+    "modeOpen": "Registro: abierto.",
+    "modeOpenHint": "Cualquiera puede crear una cuenta en la página de registro.",
+    "modeClosed": "Registro: solo con invitación.",
+    "modeClosedHint": "La página de registro no crea cuentas; las personas nuevas entran con una invitación.",
+    "modeUnknown": "Registro: desconocido.",
+    "modeUnknownHint": "El servicio de autenticación no indicó si el registro está activo.",
+    "advertisedOpen": "A otros servidores se les indica que el registro está abierto (ajuste de instancia open_registration).",
+    "advertisedClosed": "A otros servidores se les indica que el registro está cerrado (ajuste de instancia open_registration).",
+    "everyMode": "Las invitaciones funcionan en cualquier modo de registro, también con el registro desactivado.",
+    "email": "Dirección de correo",
+    "emailHint": "Una invitación por dirección; el enlace crea la cuenta solo para esta dirección.",
+    "send": "Enviar por correo",
+    "sendHint": "El servicio de autenticación envía el enlace por correo. Si no, copia el enlace y envíalo tú.",
+    "sendUnavailable": "Esta instancia no puede enviar correos: el servicio de autenticación no tiene servidor SMTP. Copia el enlace y envíalo tú.",
+    "create": "Crear invitación",
+    "created": "Invitación para {email}. El enlace funciona una vez y caduca {when}.",
+    "reissued": "Nuevo enlace para {email}; el anterior ya no funciona. Caduca {when}.",
+    "emailed": "Invitación enviada a {email}. El enlace caduca {when}.",
+    "linkFor": "Enlace de invitación para {email}",
+    "copy": "Copiar",
+    "copied": "Enlace de invitación copiado",
+    "copyFailed": "No se pudo copiar el enlace; selecciónalo y cópialo tú",
+    "singleUse": "Envíalo solo a esta persona: quien lo abra primero crea la cuenta.",
+    "pendingTitle": "Invitaciones pendientes ({count})",
+    "refresh": "Actualizar",
+    "loading": "Cargando invitaciones…",
+    "lifetime": "Un enlace funciona {hours} hora desde que se crea. | Un enlace funciona {hours} horas desde que se crea.",
+    "pendingEmpty": "No hay invitaciones pendientes.",
+    "invitedBy": "Invitado por",
+    "invitedAt": "Invitado",
+    "delivery": "Enviado como",
+    "expiry": "Enlace",
+    "byCli": "Línea de comandos",
+    "byFormerAdmin": "Un antiguo admin",
+    "byUnknown": "Fuera de Harmony",
+    "byEmail": "Correo",
+    "byLink": "Enlace",
+    "byUnknownDelivery": "Desconocido",
+    "linksIssued": "{how}, {count} enlaces creados",
+    "expires": "Caduca {when}",
+    "expired": "Caducó {when}",
+    "reissue": "Copiar enlace nuevo",
+    "reissueFor": "Copiar enlace nuevo para {email}",
+    "revoke": "Revocar",
+    "revokeFor": "Revocar la invitación para {email}",
+    "revokeTitle": "Revocar invitación",
+    "revokeMessage": "El enlace para {email} deja de funcionar y se elimina la cuenta sin usar. Puedes volver a invitar la dirección más tarde.",
+    "revokedToast": "Invitación para {email} revocada",
+    "closedTitle": "Aceptadas y revocadas",
+    "acceptedAs": "Se unió como {handle}, {when}",
+    "accepted": "Aceptada {when}; aún sin nombre de usuario",
+    "revokedBy": "Revocada por {handle}, {when}",
+    "revoked": "Revocada {when}",
+    "removed": "La cuenta fue eliminada",
+    "invitedLine": "Invitado por {who}, {when}",
+    "errors": {
+      "invalidEmail": "Escribe una dirección de correo, como nombre{'@'}example.org.",
+      "accountExists": "Ya existe una cuenta con esta dirección. No se creó nada.",
+      "invitePending": "Esta dirección ya tiene una invitación pendiente (abajo). Usa Copiar enlace nuevo para enviarla otra vez.",
+      "emailUnavailable": "Esta instancia no puede enviar correos. Crea un enlace.",
+      "authRateLimited": "El servicio de autenticación ha enviado demasiados correos; inténtalo más tarde.",
+      "rateLimited": "Demasiados cambios en invitaciones; inténtalo más tarde.",
+      "inviteAccepted": "Esta persona ya inició sesión; la invitación ya no puede cambiar.",
+      "inviteGone": "Esta invitación ya no existe.",
+      "adminRequired": "Solo los admins de la instancia invitan personas.",
+      "authFailed": "El servicio de autenticación rechazó la solicitud: {detail}",
+      "unavailable": "Las invitaciones no están disponibles: el backend de federación no respondió."
+    }
+  },
   "adminWebhooks": {
     "tab": "Webhooks",
     "settingsTitle": "Ajustes de webhooks",
@@ -7647,6 +7920,7 @@
       "upload": "Añadir un sticker",
       "limits": "PNG, APNG, WebP o GIF, hasta {size} y {side}×{side} píxeles; animaciones de hasta {seconds} segundos. Las imágenes fijas más grandes se redimensionan.",
       "file": "Imagen",
+      "choose": "Elige una imagen o suéltala aquí",
       "name": "Nombre",
       "description": "Descripción",
       "descriptionHint": "La leen los lectores de pantalla y se muestra cuando la imagen no carga. Obligatoria.",

@@ -17,6 +17,7 @@ import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/fede
 import { LIVE_SYSTEM_NOTE_TYPES, loadSystemPeople, systemNote } from '../activitypub/systemNotes.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
 import { channelMessageActivity, withParentObjectIds } from '../activitypub/channelMessageActivity.js';
+import { withMessagePolls } from '../activitypub/messagePolls.js';
 import { groupAuthorOf, type GroupAuthor } from '../activitypub/groupAuthor.js';
 
 // TYPES
@@ -89,6 +90,7 @@ export async function handleChannelMessageFederation(
       }
     }
     await withParentObjectIds(supabase, [message]);
+    await withMessagePolls(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')
@@ -331,6 +333,7 @@ export async function handleChannelMessageUpdate(
       }
     }
     await withParentObjectIds(supabase, [message]);
+    await withMessagePolls(supabase, [message]);
 
     const { data: server } = await supabase
       .from('servers')

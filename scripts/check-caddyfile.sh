@@ -125,6 +125,9 @@ for c in likes shares replies context; do
 done
 expect "$AP"   $POST                  "backend $POST"
 expect "$AP"   /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+expect "$AP"   /servers/directory     'backend /servers/directory'
+expect "$HTML" '/servers/directory?page=1' 'backend /servers/directory?page=1'
+expect "$HTML" '/api/federation/directory/remote?domain=a.example' 'backend /directory/remote?domain=a.example'
 THREAD=/threads/00000000-0000-0000-0000-000000000004
 THREADS=/channels/00000000-0000-0000-0000-000000000005/threads
 expect "$AP"   $THREAD                "backend $THREAD"

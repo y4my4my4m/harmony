@@ -64,25 +64,12 @@
         </div>
       </div>
 
-      <!-- Reply line: one line naming the parent's author, never the parent body. It opens the
-           parent post; the handle truncates and the title carries it whole. -->
-      <div v-if="showReplyLine" class="reply-line">
-        <Icon name="reply" :size="14" class="reply-line-icon" />
-        <RouterLink
-          v-if="replyParentRoute"
-          :to="replyParentRoute"
-          class="reply-line-target"
-          data-testid="post-reply-line"
-          :title="replyLineText"
-        >{{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span></RouterLink>
-        <span v-else class="reply-line-target" :title="replyLineText">
-          {{ t('activitypub.replyingTo') }} <span class="reply-line-handle">{{ replyHandle }}</span>
-        </span>
-        <span class="reply-line-sep" aria-hidden="true">·</span>
-        <button type="button" class="text-link reply-line-thread" @click.stop="showReplyTarget">
-          {{ t('activitypub.viewThread') }}
-        </button>
-      </div>
+      <ReplyContextPreview
+        v-if="showReplyContext"
+        :context="displayReplyContext"
+        :loading="replyContextLoading"
+        :reply-id="replyPost.id"
+      />
 
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
@@ -808,7 +795,6 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import { useRemotePostSync } from '@/composables/useRemotePostSync';
-import ConversationService from '@/services/ConversationService';
 import { formatShortRelativeTime, formatFullDateTime, formatSpokenRelativeTime } from '@/utils/shortRelativeTime';
 import { plainDisplayName } from '@/utils/plainDisplayName';
 import { uid } from '@/utils/a11y/focus';
@@ -832,6 +818,8 @@ import { usePostReactionsStore } from '@/stores/postReactions';
 import { services } from '@/services';
 import { supabase } from '@/supabase';
 import type { TimelinePost, DisplayNamePart } from '@/types';
+import type { ReplyContext } from '@/types/activitypub';
+import { replyContextCache, requestReplyContext } from '@/services/replyContext';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -850,6 +838,7 @@ import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import MonyMediaGallery from './MonyMediaGallery.vue';
+import ReplyContextPreview from './ReplyContextPreview.vue';
 import { galleryMedia, isDirectMediaUrl, mediaUrlPath, withoutGalleryMedia } from '@/utils/postMedia';
 import RemotePollCard from '@/components/polls/RemotePollCard.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
@@ -866,6 +855,7 @@ import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { messagePartsToRawText } from '@/utils/messageContentUtils'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { contextStaffBadge } from '@/utils/instanceBadge'
 
 // Props
 interface Props {
@@ -888,6 +878,8 @@ interface Props {
   current?: boolean;
   /** Position cue appended to the heading in a thread ("earlier in the thread"). */
   threadCue?: string;
+  /** Focused post: replies below it in the thread the reader sees, nested replies included. */
+  threadReplyCount?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -901,6 +893,7 @@ const props = withDefaults(defineProps<Props>(), {
   headingLevel: 3,
   current: false,
   threadCue: undefined,
+  threadReplyCount: undefined,
 });
 
 const i18n = useI18n();
@@ -1235,10 +1228,7 @@ const authorSupporterBadge = computed(() => {
 const authorInstanceBadge = computed(() => {
   const authorId = displayAuthor.value?.id;
   if (!authorId) return null;
-  const profile = getUserProfile(authorId).value;
-  if (profile?.is_admin) return 'admin';
-  if (profile?.is_moderator) return 'mod';
-  return null;
+  return contextStaffBadge(getUserProfile(authorId).value, null, LOCAL_DOMAIN)?.kind ?? null;
 });
 
 const originalInstanceDomain = computed(() => {
@@ -1411,89 +1401,28 @@ const displayIsSensitive = computed(() => {
   return props.post.is_sensitive;
 });
 
-const loadedReplyContext = ref<any>(null);
-const isLoadingReplyContext = ref(false);
+// The reply whose parent the card previews: a pure boost's original, else the post itself.
+const replyPost = computed(() => (isPureReblog.value && props.post.reblog ? props.post.reblog : props.post));
 
-const displayReplyContext = computed(() => {
-  // For pure reblogs, check the reblogged post's reply context
-  if (isPureReblog.value && props.post.reblog?.reply_context) {
-    return props.post.reblog.reply_context;
-  }
-  // First check if we have reply_context in the post itself
-  if (props.post.reply_context) {
-    return props.post.reply_context;
-  }
-  // Use dynamically loaded context if available
-  if (loadedReplyContext.value) {
-    return loadedReplyContext.value;
-  }
+/**
+ * The parent: as read since load (services/replyContext.ts), as the post's read embedded it,
+ * or, for a post read without the embed, its stored remote parent URL.
+ */
+const displayReplyContext = computed<ReplyContext | null>(() => {
+  const reply = replyPost.value;
+  if (replyContextCache.has(reply.id)) return replyContextCache.get(reply.id) ?? null;
+  if (reply.reply_context) return reply.reply_context;
+  const url = reply.metadata?.in_reply_to_ap_url;
+  if (!reply.in_reply_to && typeof url === 'string' && url) return { id: null, state: 'remote', url };
   return null;
 });
 
-const showReplyLine = computed(() => {
-  return !!displayReplyContext.value?.author && !props.hideReplyContext && !props.isInThread;
-});
+// A reply read without the embed, its parent not read yet. A read that finds no row settles it.
+const replyContextLoading = computed(() =>
+  !displayReplyContext.value && !!replyPost.value.in_reply_to && !replyContextCache.has(replyPost.value.id));
 
-const replyHandle = computed(() => formatHandle(displayReplyContext.value?.author));
-const replyLineText = computed(() => `${t('activitypub.replyingTo')} ${replyHandle.value}`);
-const replyParentRoute = computed(() => {
-  const id = displayReplyContext.value?.id;
-  return id ? { name: 'PostDetail', params: { postId: id } } : null;
-});
-
-const loadReplyContext = async () => {
-  // For pure reblogs, use the reblogged post's in_reply_to
-  const inReplyTo = isPureReblog.value
-    ? props.post.reblog?.in_reply_to
-    : props.post.in_reply_to;
-  const hasReplyContext = isPureReblog.value
-    ? props.post.reblog?.reply_context
-    : props.post.reply_context;
-    
-  if (!inReplyTo || hasReplyContext || isLoadingReplyContext.value) {
-    return;
-  }
-  
-  isLoadingReplyContext.value = true;
-  try {
-    const { data: parentPost, error } = await supabase
-      .from('posts')
-      .select(`
-        id, content, created_at, visibility,
-        author:profiles!posts_author_id_fkey(
-          id, username, display_name, avatar_url, domain
-        )
-      `)
-      .eq('id', inReplyTo)
-      .single();
-    
-    if (!error && parentPost && parentPost.author) {
-      const author = Array.isArray(parentPost.author) ? parentPost.author[0] : parentPost.author;
-      if (author) {
-        loadedReplyContext.value = {
-          id: parentPost.id,
-          content: parentPost.content,
-          content_preview: Array.isArray(parentPost.content) 
-            ? parentPost.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ').slice(0, 200)
-            : String(parentPost.content).slice(0, 200),
-          author: {
-            id: author.id,
-            username: author.username,
-            display_name: author.display_name || author.username,
-            avatar_url: author.avatar_url || '/default_avatar.webp',
-            domain: author.domain || runtimeConfig.domain as string
-          },
-          created_at: parentPost.created_at,
-          visibility: parentPost.visibility
-        };
-      }
-    }
-  } catch (err) {
-    debug.error('Failed to load reply context:', err);
-  } finally {
-    isLoadingReplyContext.value = false;
-  }
-};
+const showReplyContext = computed(() =>
+  !props.hideReplyContext && !props.isInThread && (!!displayReplyContext.value || replyContextLoading.value));
 
 // Reblogs: interaction state belongs to the ORIGINAL post
 const originalPostInteractions = ref<{
@@ -1544,19 +1473,11 @@ const loadOriginalPostInteractions = async () => {
   }
 };
 
-onMounted(() => {
-  // Check for reply context in post or reblog
-  const inReplyTo = isPureReblog.value
-    ? props.post.reblog?.in_reply_to
-    : props.post.in_reply_to;
-  const hasReplyContext = isPureReblog.value
-    ? props.post.reblog?.reply_context
-    : props.post.reply_context;
-    
-  if (inReplyTo && !hasReplyContext) {
-    loadReplyContext();
-  }
+watch(() => replyPost.value.id, () => {
+  if (!props.hideReplyContext && !props.isInThread) requestReplyContext(replyPost.value);
+}, { immediate: true });
 
+onMounted(() => {
   // For pure reblogs, fetch the user's interaction state with the original post
   if (isPureReblog.value) {
     loadOriginalPostInteractions();
@@ -1647,11 +1568,15 @@ const displayInteractionCounts = computed(() => {
 });
 
 // Focused-post counts: replies, then boosts and favourites as Mastodon orders them.
-// Zero counts are left out. `list` names the accounts list a stat opens.
+// Zero counts are left out. `list` names the accounts list a stat opens. Replies are the
+// thread's replies the reader sees below the post, nested ones included, or the post's
+// direct-reply figure when larger: a remote post's figure counts replies its origin holds
+// that are not stored here. Cards elsewhere show the direct-reply figure, as Mastodon does.
 const detailStats = computed(() => {
   const counts = displayInteractionCounts.value;
+  const replies = Math.max(counts.replies_count, props.threadReplyCount ?? 0);
   const stats: Array<{ key: string; count: number; label: string; list?: ListedInteraction }> = [
-    { key: 'replies', count: counts.replies_count, label: 'activitypub.repliesLabel' },
+    { key: 'replies', count: replies, label: 'activitypub.repliesLabel' },
     { key: 'boosts', count: counts.reblogs_count, label: 'activitypub.boostsLabel', list: 'reblog' },
     { key: 'favorites', count: counts.favorites_count, label: 'activitypub.favoritesLabel', list: 'favorite' },
   ];
@@ -2201,33 +2126,6 @@ const handleDeleteCancel = () => {
   showDeleteConfirmation.value = false;
 };
 
-const showReplyTarget = async () => {
-  if (displayReplyContext.value) {
-    try {
-      const navigationData = await ConversationService.getConversationNavigationData(props.post.id, {
-        highlightPost: props.post.id
-      });
-      
-      if (navigationData.success && navigationData.route) {
-        await router.push(navigationData.route);
-      } else {
-        debug.error('Failed to get conversation navigation data:', navigationData.error);
-        
-        // Use fallback route
-        await router.push(navigationData.fallbackRoute);
-      }
-      
-    } catch (error) {
-      debug.error('Failed to navigate to conversation:', error);
-      
-      // Fallback: emit the event as before
-      emit('show-conversation', props.post.id);
-    }
-  } else {
-    debug.warn('No reply context found for post:', props.post.id);
-  }
-};
-
 // A pure boost links to the boosted post.
 const links = computed(() => postLinks(isPureReblog.value ? boostLinkTarget(props.post) : props.post, resolveHarmonyBaseUrl()));
 
@@ -2699,62 +2597,6 @@ const handleImageClick = (url: string) => {
 .edited-indicator {
   color: var(--text-muted);
   cursor: default;
-}
-
-/* Reply line: one line at most the post's width; the handle gives way first. */
-.reply-line {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-  max-width: 100%;
-  margin-bottom: var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
-}
-
-.reply-line-icon,
-.reply-line-sep,
-.reply-line-thread {
-  flex-shrink: 0;
-}
-
-.reply-line-target {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-
-.reply-line-handle {
-  color: var(--text-link);
-}
-
-a.reply-line-target:hover,
-.text-link:hover {
-  text-decoration: underline;
-}
-
-a.reply-line-target:focus-visible,
-.reply-line-thread:focus-visible {
-  outline: 2px solid var(--harmony-primary);
-  outline-offset: 2px;
-}
-
-.reply-line-thread {
-  white-space: nowrap;
-}
-
-.text-link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text-link);
-  font: inherit;
-  cursor: pointer;
 }
 
 /* Content warning */

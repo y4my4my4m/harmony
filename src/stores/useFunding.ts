@@ -1,43 +1,65 @@
 import { defineStore } from 'pinia'
-import { supabase } from '@/supabase'
-import {
-  fundingService,
-  type FundingConfigWithProgress,
-} from '@/services/FundingService'
+import { fundingService, primeBadgeCache, type FundingSummary } from '@/services/FundingService'
 import { debug } from '@/utils/debug'
 
-// Instance funding bar: load() dedupes via inflight + STALE_MS. Without a session it reads nothing.
-const STALE_MS = 60_000
+// One funding read (get_funding_summary) serves the support pill, the Support window and the
+// account settings. A load returns the cached copy for FRESH_MS, and past the monthly period's
+// end. Nothing polls: the window refreshes when it opens, and returning to the page after a
+// payment link was opened refreshes until the donation shows (PAYMENT_RETRY_MS).
+export const FRESH_MS = 10 * 60_000
+// A payment counts as in progress this long after its link was opened.
+export const PAYMENT_WINDOW_MS = 60 * 60_000
+// Reads after returning from a payment page while no new donation shows: the webhook may lag.
+export const PAYMENT_RETRY_MS = [0, 20_000, 60_000] as const
+// Least time between two reads triggered by returning to the page.
+const RETURN_THROTTLE_MS = 10_000
+
+export type SupportTab = 'instance' | 'project'
+
+let visibilityHandler: (() => void) | null = null
+let retryTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useFundingStore = defineStore('funding', {
   state: () => ({
-    config: null as FundingConfigWithProgress | null,
+    config: null as FundingSummary | null,
     lastLoadedAt: 0,
-    inflight: null as Promise<FundingConfigWithProgress | null> | null,
-    refreshTimer: null as ReturnType<typeof setInterval> | null,
+    inflight: null as Promise<FundingSummary | null> | null,
     /** Bumped by clear(); a load started under an older epoch discards its result. */
     epoch: 0,
+    /** The Support window: closed, or the tab it opened on. */
+    modal: null as SupportTab | null,
+    paymentOpenedAt: 0,
+    /** Set when a read after a payment found a new donation; the window thanks the donor. */
+    thankedAt: 0,
+    lastReturnAt: 0,
   }),
   getters: {
-    isStale(state): boolean {
-      return Date.now() - state.lastLoadedAt > STALE_MS
+    myBadge(state) {
+      return state.config?.me?.badge ?? null
     },
   },
   actions: {
-    async load(options: { force?: boolean } = {}): Promise<FundingConfigWithProgress | null> {
-      void this.ensureAutoRefresh()
-      if (!options.force && !this.isStale && this.config) {
-        return this.config
-      }
+    /** An action, not a getter: a getter is cached and does not see the clock move. */
+    isStale(): boolean {
+      if (!this.config) return true
+      if (Date.now() - this.lastLoadedAt > FRESH_MS) return true
+      const end = this.config.period_end ? Date.parse(this.config.period_end) : NaN
+      return Number.isFinite(end) && Date.now() >= end
+    },
+
+    async load(options: { force?: boolean } = {}): Promise<FundingSummary | null> {
+      this.watchVisibility()
+      if (!options.force && !this.isStale()) return this.config
       if (this.inflight) return this.inflight
 
       const epoch = this.epoch
       const promise = (async () => {
         try {
-          const data = await fundingService.getFundingWithProgress()
+          const data = await fundingService.getFundingSummary()
           if (epoch !== this.epoch) return null
           this.config = data
           this.lastLoadedAt = Date.now()
+          if (data?.me) primeBadgeCache(data.me.profile_id, data.me.badge)
           return data
         } catch (err) {
           debug.warn('useFundingStore.load failed:', err)
@@ -52,43 +74,83 @@ export const useFundingStore = defineStore('funding', {
       return promise
     },
 
-    refresh(): Promise<FundingConfigWithProgress | null> {
+    refresh(): Promise<FundingSummary | null> {
       return this.load({ force: true })
     },
 
-    /** Starts the background refresh while signed in; clear() stops it at sign-out. */
-    async ensureAutoRefresh(): Promise<void> {
-      if (this.refreshTimer) return
-      const epoch = this.epoch
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session && epoch === this.epoch) this.startAutoRefresh()
-      } catch (err) {
-        debug.warn('useFundingStore: session read failed:', err)
+    openModal(tab: SupportTab = 'instance') {
+      this.modal = tab
+    },
+
+    closeModal() {
+      this.modal = null
+    },
+
+    /** A payment link opened in another tab or app: the next return to this page reads again. */
+    notePaymentOpened() {
+      this.paymentOpenedAt = Date.now()
+      this.watchVisibility()
+    },
+
+    /** Reads after a payment until a donation newer than the link shows, PAYMENT_RETRY_MS apart. */
+    async refreshAfterPayment(attempt = 0): Promise<void> {
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
+      const since = this.paymentOpenedAt
+      const data = await this.refresh()
+      const latest = data?.me?.donations?.[0]?.donated_at
+      if (latest && Date.parse(latest) >= since - 60_000) {
+        this.paymentOpenedAt = 0
+        this.thankedAt = Date.now()
+        return
+      }
+      const next = PAYMENT_RETRY_MS[attempt + 1]
+      if (next === undefined || !this.paymentOpenedAt) return
+      retryTimer = setTimeout(() => {
+        retryTimer = null
+        void this.refreshAfterPayment(attempt + 1)
+      }, next - PAYMENT_RETRY_MS[attempt])
+    },
+
+    onReturn() {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - this.lastReturnAt < RETURN_THROTTLE_MS) return
+      this.lastReturnAt = now
+      if (this.paymentOpenedAt && now - this.paymentOpenedAt < PAYMENT_WINDOW_MS) {
+        void this.refreshAfterPayment()
+      } else if (this.config) {
+        void this.load()
       }
     },
 
-    startAutoRefresh(intervalMs = STALE_MS) {
-      if (this.refreshTimer) return
-      this.refreshTimer = setInterval(() => {
-        void this.refresh()
-      }, intervalMs)
+    watchVisibility() {
+      if (visibilityHandler || typeof document === 'undefined') return
+      visibilityHandler = () => this.onReturn()
+      document.addEventListener('visibilitychange', visibilityHandler)
+      // Native clients open payment pages in the system browser; the window regains focus.
+      window.addEventListener('focus', visibilityHandler)
     },
 
-    stopAutoRefresh() {
-      if (this.refreshTimer) {
-        clearInterval(this.refreshTimer)
-        this.refreshTimer = null
-      }
-    },
-
-    /** Sign-out: stops the refresh and drops the config, including what a running load returns. */
+    /** Sign-out: drops what was read, including what a running load returns. */
     clear() {
-      this.stopAutoRefresh()
+      if (visibilityHandler && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityHandler)
+        window.removeEventListener('focus', visibilityHandler)
+      }
+      visibilityHandler = null
+      if (retryTimer) clearTimeout(retryTimer)
+      retryTimer = null
       this.epoch++
       this.config = null
       this.lastLoadedAt = 0
       this.inflight = null
+      this.modal = null
+      this.paymentOpenedAt = 0
+      this.thankedAt = 0
+      this.lastReturnAt = 0
     },
   },
 })

@@ -166,6 +166,14 @@
       "mfaRequired": "2段階認証が必要です。コードを確認してください。",
       "failed": "パスワードをリセットできませんでした。もう一度お試しください。",
       "done": "パスワードをリセットしました。新しいパスワードでログインしてください。"
+    },
+    "invite": {
+      "title": "ようこそ！パスワードを決めてください",
+      "subtitle": "{email} のアカウント作成に招待されました。サインインに使うパスワードを決めてください。",
+      "submit": "パスワードを設定して続ける",
+      "done": "パスワードを設定しました。次にユーザー名を選んでください。",
+      "invalidTitle": "この招待リンクは使えません",
+      "invalidBody": "リンクは使用済み、期限切れ、または取り消されています。招待した人に新しいリンクを頼んでください。"
     }
   },
   "server": {
@@ -387,9 +395,14 @@
     "federationActive": "連合が有効",
     "federationBenefit1": "他のインスタンスのユーザーが招待リンク経由で参加できます",
     "federationBenefit2": "メッセージは連合メンバーとリアルタイムで共有されます",
-    "federationBenefit3": "サーバーが連合サーバーの検出に表示されます",
+    "federationBenefit3": "他のインスタンスのユーザーがサーバーハンドルで参加できます",
     "federationHandle": "サーバーハンドル",
     "federationHandleDesc": "このハンドルを共有すると、他のインスタンスのユーザーがこのサーバーを見つけて参加できます。",
+    "federationDiscoverable": "連合全体で見つけられるようにする",
+    "federationDiscoverableDesc": "このインスタンスのサーバーディレクトリにこのサーバーを掲載し、他の Harmony インスタンスのユーザーが見つけて参加できるようにします。",
+    "federationDiscoverableNeedsPublic": "掲載するにはサーバーを公開にしてください。",
+    "federationDiscoverableNeedsFederation": "掲載するには連合をオンにしてください。",
+    "federationDiscoverableInstanceOff": "このインスタンスでは連合がオフのため、ディレクトリにはサーバーが掲載されません。",
     "banner": {
       "title": "サーバーバナー",
       "upload": "サーバーバナーをアップロード",
@@ -920,6 +933,12 @@
     "moreActions": "その他の操作",
     "editMessage": "メッセージを編集",
     "deleteMessage": "メッセージを削除",
+    "deleteWithThread": {
+      "message": "このメッセージからスレッド「{name}」が始まりました。",
+      "threadKept": "スレッドと返信は残り、このメッセージは削除済みとして表示されます。",
+      "threadDeleted": "スレッドには返信がないため、このメッセージと一緒に削除されます。",
+      "confirmDeleted": "メッセージとスレッドを削除"
+    },
     "copyMessage": "メッセージをコピー",
     "pinMessage": "メッセージをピン留め",
     "unpinMessage": "ピン留めを外す",
@@ -1026,6 +1045,13 @@
       "label": "メッセージの操作",
       "thread": "スレッドを作成"
     },
+    "shortcuts": {
+      "replying": "{name} に返信",
+      "pinned": "メッセージをピン留めしました",
+      "unpinned": "ピン留めを外しました",
+      "copied": "メッセージのテキストをコピーしました",
+      "copyFailed": "メッセージのテキストをコピーできませんでした"
+    },
     "failed": {
       "label": "送信できませんでした",
       "retry": "再試行",
@@ -1054,7 +1080,8 @@
       "pill": "{emoji}、{count} 件のリアクション",
       "pillYou": "{emoji}、あなたを含む {count} 件のリアクション",
       "hint": "コンテキストメニューキーまたは Shift+F10 で絵文字とリアクションした人を表示します。",
-      "removed": "リアクションを取り消しました: {emoji}"
+      "removed": "リアクションを取り消しました: {emoji}",
+      "summary": "リアクション：{list}"
     },
     "emoji": {
       "reactionDialog": "リアクションを追加",
@@ -1406,8 +1433,6 @@
       "region": "{name} のチャット",
       "close": "チャットを閉じる",
       "resize": "チャットの幅を変更",
-      "awayText": "メインウィンドウには別のチャットが表示されています。",
-      "awayAction": "通話のチャットを表示",
       "elsewhereText": "このチャットは通話の横に開いています。",
       "elsewhereAction": "ここにチャットを表示"
     },
@@ -1749,6 +1774,15 @@
       "autoGainControlDesc": "マイクの感度を自動調整します",
       "video": "ビデオ",
       "noCamera": "カメラなし",
+      "deviceNone": "なし",
+      "deviceDefault": "デフォルト",
+      "microphoneNamesHidden": "Harmony がマイクを使えるようになると、デバイス名が表示されます。",
+      "cameraNamesHidden": "Harmony がカメラを使えるようになると、カメラ名が表示されます。",
+      "allowMicrophone": "マイクを許可",
+      "allowCamera": "カメラを許可",
+      "microphoneBlocked": "マイクへのアクセスがブロックされています。ブラウザーまたはシステムの設定で許可してから、もう一度お試しください。",
+      "cameraBlocked": "カメラへのアクセスがブロックされています。ブラウザーまたはシステムの設定で許可してから、もう一度お試しください。",
+      "deviceOpenFailed": "デバイスを開けませんでした。使用中のほかのアプリを閉じてから、もう一度お試しください。",
       "resolution": "解像度",
       "frameRate": "フレームレート",
       "audioBitrate": "オーディオビットレート",
@@ -1861,6 +1895,11 @@
           "label": "返信",
           "name": "Fediverse の返信",
           "description": "誰かがあなたの投稿に返信したとき"
+        },
+        "apQuotes": {
+          "label": "引用",
+          "name": "Fediverse の引用",
+          "description": "誰かがあなたの投稿を引用したとき"
         },
         "apFavorites": {
           "label": "お気に入り",
@@ -1989,6 +2028,11 @@
         "deviceRemoved": "デバイスを削除しました",
         "deviceRemoveFailed": "デバイスを削除できませんでした"
       },
+      "quoteNotice": {
+        "action": " があなたの投稿を引用しました",
+        "short": "投稿が引用されました",
+        "noPreview": "クリックして引用を表示"
+      },
       "samples": {
         "mention": {
           "title": "テストメンション",
@@ -2045,6 +2089,10 @@
         "apReply": {
           "title": "テスト ActivityPub 返信",
           "message": "Fediverse の投稿に返信がありました"
+        },
+        "apQuote": {
+          "title": "テスト 引用",
+          "message": "Fediverse の投稿が引用されました"
         },
         "apFollowRequest": {
           "title": "テスト ActivityPub フォローリクエスト",
@@ -2552,7 +2600,14 @@
     "editedTitle": "この投稿は編集されています",
     "replyToUser": "{name} に返信",
     "replyingTo": "返信先",
-    "viewThread": "スレッドを表示",
+    "replyContext": {
+      "contentWarning": "CW：{text}",
+      "attachments": "{count} 件の添付ファイル | {count} 件の添付ファイル",
+      "deleted": "削除された投稿への返信",
+      "hidden": "表示できない投稿への返信",
+      "remote": "{domain} の投稿への返信",
+      "loading": "返信先の投稿を読み込み中"
+    },
     "viewOriginalPost": "元の投稿を表示",
     "viewQuotedPost": "引用された投稿を表示",
     "showMore": "もっと見る",
@@ -3337,6 +3392,35 @@
     "federationOff": "このサーバーは他のインスタンスのメンバーを受け付けていません（フェデレーションがオフです）。",
     "federatedNotice": "これは別の Harmony インスタンスでホストされている連合サーバーです。メッセージはネットワーク経由で送信されます。",
     "joinByUrl": "URL で参加",
+    "directory": {
+      "tabsLabel": "探す場所",
+      "thisInstance": "このインスタンス",
+      "otherInstances": "他のインスタンス",
+      "domainLabel": "インスタンス",
+      "domainPlaceholder": "example.social",
+      "domainHint": "他の Harmony インスタンスのドメインを入力するか、既知のものを選んでください。",
+      "browse": "見る",
+      "knownInstances": "既知のインスタンス",
+      "loading": "{domain} のディレクトリを読み込み中…",
+      "serversOn": "{domain} のサーバー {count} 件 | {domain} のサーバー {count} 件",
+      "emptyTitle": "掲載されているサーバーはありません",
+      "empty": "{domain} には現在掲載されているサーバーがありません。",
+      "introTitle": "他のインスタンスを見る",
+      "intro": "オーナーが連合全体に掲載しているサーバーがここに表示されます。参加すると、このインスタンスからメンバーになります。",
+      "members": "メンバー {count} 人 | メンバー {count} 人",
+      "join": "参加",
+      "loadMore": "さらに読み込む",
+      "errorTitle": "このインスタンスを表示できませんでした",
+      "noDirectoryTitle": "サーバーディレクトリがありません",
+      "invalidDomain": "example.social のようなインスタンスのドメインを入力してください。",
+      "ownInstance": "これはこのインスタンスです。サーバーは「このインスタンス」にあります。",
+      "blocked": "{domain} はこのインスタンスでブロックされています。",
+      "federationOffTitle": "連合はオフです",
+      "federationOff": "このインスタンスは現在連合していないため、他のインスタンスを見ることはできません。",
+      "noDirectory": "{domain} はサーバーディレクトリを公開していません。",
+      "unreachable": "{domain} から応答がありませんでした。後でもう一度お試しください。",
+      "failed": "問題が発生しました。もう一度お試しください。"
+    },
     "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
     "inviteLink": "招待リンク",
     "invitedBy": "招待者",
@@ -4906,7 +4990,7 @@
       "mfaDisabled": {
         "title": "二要素認証がオフになりました",
         "message": "アカウントで認証アプリのコードを求められなくなりました。",
-        "messageRecoveryCode": "リカバリーコードを使ってサインインしました。二要素認証を再度設定してください。"
+        "messageRecoveryCode": "リカバリーコードが使用されました。二要素認証を再度設定してください。"
       },
       "recoveryCodeUsed": {
         "title": "リカバリーコードが使用されました",
@@ -5222,7 +5306,11 @@
         "keptOutHere": "{instance} で {person} を {server} に参加不可に",
         "keepoutLifted": "{person} が {instance} から {server} に再参加できるように",
         "reportsRejected": "{domain} からの報告を無視",
-        "reportsAccepted": "{domain} からの報告を再び受け付け"
+        "reportsAccepted": "{domain} からの報告を再び受け付け",
+        "inviteCreated": "{email} を招待",
+        "inviteEmailed": "{email} に招待をメールで送信",
+        "inviteReissued": "{email} の新しい招待リンクを作成",
+        "inviteRevoked": "{email} への招待を取り消し"
       }
     },
     "antiSpam": {
@@ -6119,6 +6207,7 @@
       "lock": "スレッドをロック",
       "unlock": "スレッドのロックを解除",
       "delete": "スレッドを削除",
+      "gone": "このスレッドは削除されました。",
       "mute": "スレッドをミュート",
       "unmute": "スレッドのミュートを解除",
       "copyId": "スレッド ID をコピー",
@@ -6246,6 +6335,10 @@
     "copied": "リンクをコピーしました",
     "copyFailed": "リンクをコピーできませんでした",
     "trustFailed": "{host}を信頼済みとして保存できませんでした",
+    "noApp": "この端末にはウェブリンクを開けるアプリがありません",
+    "noAppCopied": "この端末にはウェブリンクを開けるアプリがありません。リンクをコピーしました。ブラウザに貼り付けてください。",
+    "openFailed": "リンクを開けませんでした",
+    "openFailedCopied": "リンクを開けませんでした。リンクをコピーしました。ブラウザに貼り付けてください。",
     "settings": {
       "title": "外部リンク",
       "askEvery": "外部リンクを開く前に毎回確認する",
@@ -6397,6 +6490,7 @@
     "post": "投票を投稿",
     "selectOne": "回答を1つ選択",
     "selectMultiple": "回答を1つ以上選択",
+    "voteFinal": "送信した投票は変更できません",
     "votes": "{count} 票",
     "timeLeft": {
       "minutes": "残り {count} 分",
@@ -6420,7 +6514,8 @@
       "voteFailed": "投票を保存できませんでした。",
       "closed": "この投票は終了しています。",
       "endFailed": "投票を終了できませんでした。",
-      "alreadyVoted": "このアンケートにはすでに投票しています。"
+      "alreadyVoted": "このアンケートにはすでに投票しています。",
+      "hostUnsupported": "このサーバーのホストインスタンスはまだアンケートに対応していません。"
     },
     "remote": {
       "voters": "{count} 人が投票",
@@ -6500,7 +6595,10 @@
       "unmuteChannel": "チャンネルのミュートを解除",
       "unmuteCategory": "カテゴリーのミュートを解除",
       "level": "通知レベル",
-      "default": "デフォルト（{level}）"
+      "default": "デフォルト（{level}）",
+      "levelSet": "{name}：{level}",
+      "muted": "{name} をミュートしました",
+      "unmuted": "{name} のミュートを解除しました"
     },
     "notification": {
       "action": " が #{channel} にメッセージを送信しました",
@@ -6704,7 +6802,29 @@
       "skip": "コンテンツへスキップ：各ページで最初の Tab 位置",
       "skipKeys": "Tab",
       "escape": "開いているダイアログ、メニュー、パネルを閉じ、フォーカスを元の場所に戻す",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "メッセージ一覧",
+        "note": "これらのキーはフォーカスのあるメッセージに作用します。",
+        "moveKeys": "↑ / ↓",
+        "move": "前または次のメッセージ。Home と End で最初と最後へ",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "メッセージのオプション",
+        "editKeys": "E",
+        "edit": "自分のメッセージを編集",
+        "replyKeys": "R",
+        "reply": "返信",
+        "reactKeys": "+",
+        "react": "リアクションを追加",
+        "pinKeys": "P",
+        "pin": "ピン留めまたは解除",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "削除（Shift を押すと確認なし）",
+        "copyKeys": "C",
+        "copy": "テキストをコピー",
+        "threadKeys": "T",
+        "thread": "スレッドを作成または開く"
+      }
     },
     "unsavedChanges": "未保存の変更"
   },
@@ -7181,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "このインスタンスを支援",
     "progress": "資金の状況",
     "raisedMonth": "集まりました（今月の目標 {goal}）",
     "raisedTotal": "集まりました（目標総額 {goal}）",
@@ -7202,7 +7321,88 @@
     "yours": "あなたの支援",
     "tierSupporter": "{tier} サポーター",
     "active": "有効",
-    "history": "支援履歴"
+    "history": "支援履歴",
+    "titleShort": "支援",
+    "raisedThisMonth": "今月集まった額",
+    "raisedAllTime": "これまでに集まった額",
+    "resets": "{date}（UTC）にリセット",
+    "until": "{date} まで有効",
+    "instanceOff": "このインスタンスは現在支援を募集していません。",
+    "thanks": "ありがとうございます！支援が届きました。",
+    "tabs": {
+      "label": "支援先",
+      "instance": "このインスタンス",
+      "project": "Harmony の開発"
+    },
+    "project": {
+      "title": "Harmony の開発を応援",
+      "lead": "Harmony は自由なオープンソースソフトウェアです。ここでの支援は {instance} ではなく、開発している人たちに届きます。",
+      "monthly": "毎月",
+      "footnote": "支払いは Stripe で行われます。{instance} がお金を扱うことはありません。",
+      "supporters": "サポーターとメッセージ"
+    },
+    "wall": {
+      "title": "最近のサポーター",
+      "empty": "メッセージはまだありません。最初のひとことをどうぞ。",
+      "anonymous": "匿名",
+      "you": "あなた",
+      "now": "今",
+      "hide": "非表示",
+      "hideFrom": "{name} のメッセージを非表示",
+      "more": "すべて表示（{count}）",
+      "fewer": "表示を減らす"
+    },
+    "message": {
+      "title": "公開メッセージを添える",
+      "optional": "任意",
+      "label": "公開メッセージ",
+      "placeholder": "コミュニティにひとこと",
+      "anonymous": "匿名で表示",
+      "help": "24 時間以内の次の支援に添えられ、管理者が承認してから表示されます。テキストのみ、50 文字まで。",
+      "save": "メッセージを保存",
+      "saved": "保存しました。{time} までの支援に添えられます。",
+      "remove": "削除",
+      "status": {
+        "waiting": "{time} まで支援を待っています",
+        "pending": "承認待ち",
+        "hidden": "管理者が非表示にしました"
+      },
+      "errors": {
+        "length": "{max} 文字までです。",
+        "control": "改行や制御文字は使えません。",
+        "bidi": "文字方向の制御記号は使えません。",
+        "marks": "1 文字に付けられる記号が多すぎます。",
+        "disabled": "このインスタンスではメッセージが無効になっています。",
+        "failed": "メッセージを保存できませんでした。"
+      }
+    },
+    "landing": {
+      "label": "このインスタンスの最近のサポーター",
+      "next": "次のサポーターメッセージ"
+    },
+    "settings": {
+      "title": "支援",
+      "lead": "このインスタンスと Harmony 自体の運営を支えましょう。",
+      "project": "Harmony の開発を支援"
+    },
+    "admin": {
+      "messagesEnabled": "サポーターメッセージ",
+      "messagesPublic": "承認したメッセージをログインページに表示",
+      "messagesHint": "サポーターは支援に 50 文字までのメッセージを添えられます。下で承認するまで表示されません。",
+      "queueTitle": "サポーターメッセージ",
+      "queueHint": "メッセージは反映された寄付と一緒に届きます。承認すると支援ウィンドウに、有効な場合はログインページにも表示されます。いつでも非表示にできます。",
+      "queueEmpty": "サポーターメッセージはまだありません。",
+      "approve": "承認",
+      "hide": "非表示",
+      "unhide": "再表示",
+      "anonymousBy": "匿名: {name}",
+      "reviewFailed": "メッセージを更新できませんでした。",
+      "state": {
+        "pending": "承認待ち",
+        "approved": "表示中",
+        "hidden": "非表示"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "リモート操作",
@@ -7546,6 +7746,79 @@
       "paused": "一時停止中"
     }
   },
+  "adminInvites": {
+    "tab": "招待",
+    "title": "ユーザーを招待",
+    "intro": "招待はひとつのメールアドレスにアカウントを作ります。相手はリンクを開き、パスワードを決めてからユーザー名を選びます。",
+    "modeOpen": "登録：公開。",
+    "modeOpenHint": "誰でも登録ページからアカウントを作れます。",
+    "modeClosed": "登録：招待制。",
+    "modeClosedHint": "登録ページではアカウントを作れません。新しいユーザーは招待で参加します。",
+    "modeUnknown": "登録：不明。",
+    "modeUnknownHint": "認証サービスから登録の可否を取得できませんでした。",
+    "advertisedOpen": "他のサーバーには登録が公開と伝えています（インスタンス設定 open_registration）。",
+    "advertisedClosed": "他のサーバーには登録が締め切りと伝えています（インスタンス設定 open_registration）。",
+    "everyMode": "招待はどの登録モードでも使えます。登録がオフでも使えます。",
+    "email": "メールアドレス",
+    "emailHint": "招待はアドレスごとに1つ。リンクはこのアドレスのアカウントだけを作ります。",
+    "send": "メールで送る",
+    "sendHint": "認証サービスがリンクをメールで送ります。送らない場合はリンクをコピーしてご自身で送ってください。",
+    "sendUnavailable": "このインスタンスはメールを送れません（認証サービスに SMTP サーバーがありません）。リンクをコピーしてご自身で送ってください。",
+    "create": "招待を作成",
+    "created": "{email} への招待です。リンクは1回だけ使え、{when} に期限切れになります。",
+    "reissued": "{email} への新しいリンクです。以前のリンクは使えなくなりました。{when} に期限切れになります。",
+    "emailed": "{email} に招待をメールで送りました。リンクは {when} に期限切れになります。",
+    "linkFor": "{email} への招待リンク",
+    "copy": "コピー",
+    "copied": "招待リンクをコピーしました",
+    "copyFailed": "リンクをコピーできませんでした。選択してご自身でコピーしてください",
+    "singleUse": "この相手にだけ送ってください。最初に開いた人がアカウントを作ります。",
+    "pendingTitle": "保留中の招待（{count}）",
+    "refresh": "更新",
+    "loading": "招待を読み込み中…",
+    "lifetime": "リンクは作成から {hours} 時間有効です。",
+    "pendingEmpty": "保留中の招待はありません。",
+    "invitedBy": "招待した人",
+    "invitedAt": "招待日時",
+    "delivery": "送信方法",
+    "expiry": "リンク",
+    "byCli": "コマンドライン",
+    "byFormerAdmin": "以前の管理者",
+    "byUnknown": "Harmony の外部",
+    "byEmail": "メール",
+    "byLink": "リンク",
+    "byUnknownDelivery": "不明",
+    "linksIssued": "{how}、リンク {count} 件",
+    "expires": "{when} に期限切れ",
+    "expired": "{when} に期限切れになりました",
+    "reissue": "新しいリンクをコピー",
+    "reissueFor": "{email} の新しいリンクをコピー",
+    "revoke": "取り消す",
+    "revokeFor": "{email} への招待を取り消す",
+    "revokeTitle": "招待を取り消す",
+    "revokeMessage": "{email} へのリンクは使えなくなり、未使用のアカウントは削除されます。後でもう一度招待できます。",
+    "revokedToast": "{email} への招待を取り消しました",
+    "closedTitle": "承諾済み・取り消し済み",
+    "acceptedAs": "{handle} として参加、{when}",
+    "accepted": "{when} に承諾。ユーザー名はまだありません",
+    "revokedBy": "{handle} が取り消し、{when}",
+    "revoked": "{when} に取り消し",
+    "removed": "アカウントは削除されました",
+    "invitedLine": "{who} が招待、{when}",
+    "errors": {
+      "invalidEmail": "name{'@'}example.org のようなメールアドレスを入力してください。",
+      "accountExists": "このアドレスのアカウントはすでにあります。何も作成していません。",
+      "invitePending": "このアドレスには保留中の招待があります（下記）。もう一度送るには「新しいリンクをコピー」を使ってください。",
+      "emailUnavailable": "このインスタンスはメールを送れません。リンクを作成してください。",
+      "authRateLimited": "認証サービスが送ったメールが多すぎます。しばらくしてからお試しください。",
+      "rateLimited": "招待の変更が多すぎます。しばらくしてからお試しください。",
+      "inviteAccepted": "この人はすでにサインインしています。招待はもう変更できません。",
+      "inviteGone": "この招待はもうありません。",
+      "adminRequired": "招待できるのはインスタンス管理者だけです。",
+      "authFailed": "認証サービスが拒否しました：{detail}",
+      "unavailable": "招待を利用できません。フェデレーションバックエンドが応答しませんでした。"
+    }
+  },
   "adminWebhooks": {
     "tab": "Webhook",
     "settingsTitle": "Webhook設定",
@@ -7647,6 +7920,7 @@
       "upload": "スタンプを追加",
       "limits": "PNG、APNG、WebP、GIF。{size} まで、{side}×{side} ピクセルまで。アニメーションは {seconds} 秒まで。大きい静止画は縮小されます。",
       "file": "画像",
+      "choose": "画像を選択するか、ここにドロップ",
       "name": "名前",
       "description": "説明",
       "descriptionHint": "スクリーンリーダーで読み上げられ、画像を読み込めないときに表示されます。必須です。",

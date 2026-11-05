@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import { directoryUrl } from './serverDirectory.js';
 
 const router = Router();
 
@@ -145,6 +146,8 @@ router.get(
       metadata: {
         nodeName: instanceCfg.name,
         nodeDescription: instanceCfg.description,
+        // OrderedCollection of the Groups listed across federation (serverDirectory.ts).
+        serverDirectory: directoryUrl(),
         ...(instanceCfg.icon && { icon: instanceCfg.icon }),
         ...(instanceCfg.banner && { banner: instanceCfg.banner }),
         ...(instanceCfg.themeColor && { themeColor: instanceCfg.themeColor }),
@@ -193,6 +196,8 @@ router.get(
       metadata: {
         nodeName: instanceCfg.name,
         nodeDescription: instanceCfg.description,
+        // OrderedCollection of the Groups listed across federation (serverDirectory.ts).
+        serverDirectory: directoryUrl(),
         ...(instanceCfg.icon && { icon: instanceCfg.icon }),
         ...(instanceCfg.banner && { banner: instanceCfg.banner }),
         ...(instanceCfg.themeColor && { themeColor: instanceCfg.themeColor }),
@@ -211,6 +216,7 @@ router.get(
           'emoji_reactions',
           'mastodon_compatible',
           'misskey_compatible',
+          'server_directory',
         ],
       },
     });

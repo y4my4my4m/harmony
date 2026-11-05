@@ -483,19 +483,21 @@ async function submitCodeModal() {
     }
 
     if (useRecoveryCode.value) {
-      const userId = authStore.session?.user?.id
-      const { data: valid, error } = await supabase.rpc('verify_recovery_code', {
-        p_user_id: userId,
+      // Consumes the code and deletes every factor and recovery code in one transaction.
+      const { data: redeemed, error } = await supabase.rpc('redeem_recovery_code_and_disable_mfa', {
         p_code: modalCode.value,
       })
       if (error) throw error
-      if (!valid) throw new Error(t('security.mfa.recoveryCodeInvalid'))
+      if (!redeemed) throw new Error(t('security.mfa.recoveryCodeInvalid'))
+      // The stored session's user lists the deleted factor until the next refresh.
+      const { error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError) debug.warn('Session refresh after recovery-code disable failed:', refreshError)
     } else {
       await accountSecurityService.stepUpWithTotp(modalCode.value)
+      // The factor trigger removes the recovery codes with the last verified factor.
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factorId.value })
+      if (unenrollError) throw unenrollError
     }
-    // The factor trigger removes the recovery codes with the last verified factor.
-    const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factorId.value })
-    if (unenrollError) throw unenrollError
     codeModal.value = null
     toast.success(t('security.twoFactor.disabledToast'))
     emit('changed')

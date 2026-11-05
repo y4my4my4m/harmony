@@ -166,6 +166,14 @@
       "mfaRequired": "需要两步验证。请验证你的验证码。",
       "failed": "无法重置密码。请重试。",
       "done": "密码已重置。请使用新密码登录。"
+    },
+    "invite": {
+      "title": "欢迎！请设置密码",
+      "subtitle": "你受邀为 {email} 创建账号。请设置用于登录的密码。",
+      "submit": "设置密码并继续",
+      "done": "密码已设置。接下来请选择用户名。",
+      "invalidTitle": "此邀请链接无法使用",
+      "invalidBody": "链接已被使用、已过期或已被撤销。请向邀请你的人索取新链接。"
     }
   },
   "server": {
@@ -387,9 +395,14 @@
     "federationActive": "联邦已激活",
     "federationBenefit1": "其他实例的用户可以通过邀请链接加入",
     "federationBenefit2": "消息将与联邦成员实时共享",
-    "federationBenefit3": "服务器将出现在联邦服务器发现中",
+    "federationBenefit3": "其他实例的用户可以通过服务器标识加入",
     "federationHandle": "服务器标识",
     "federationHandleDesc": "分享此标识，让其他实例的用户可以找到并加入此服务器。",
+    "federationDiscoverable": "在联邦中可被发现",
+    "federationDiscoverableDesc": "将此服务器列入本实例的服务器目录，让其他 Harmony 实例的用户可以找到并加入。",
+    "federationDiscoverableNeedsPublic": "将服务器设为公开后才能列入。",
+    "federationDiscoverableNeedsFederation": "开启联邦后才能列入。",
+    "federationDiscoverableInstanceOff": "本实例已关闭联邦，其目录不列出任何服务器。",
     "banner": {
       "title": "服务器横幅",
       "upload": "上传服务器横幅",
@@ -920,6 +933,12 @@
     "moreActions": "更多操作",
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",
+    "deleteWithThread": {
+      "message": "此消息开启了子区“{name}”。",
+      "threadKept": "子区及其回复会保留；子区中此消息显示为已删除。",
+      "threadDeleted": "该子区没有回复，将随此消息一起删除。",
+      "confirmDeleted": "删除消息和子区"
+    },
     "copyMessage": "复制消息",
     "pinMessage": "置顶消息",
     "unpinMessage": "取消置顶",
@@ -1026,6 +1045,13 @@
       "label": "消息操作",
       "thread": "创建讨论串"
     },
+    "shortcuts": {
+      "replying": "回复 {name}",
+      "pinned": "消息已置顶",
+      "unpinned": "已取消置顶",
+      "copied": "已复制消息文本",
+      "copyFailed": "无法复制消息文本"
+    },
     "failed": {
       "label": "发送失败",
       "retry": "重试",
@@ -1054,7 +1080,8 @@
       "pill": "{emoji}，{count} 个回应",
       "pillYou": "{emoji}，{count} 个回应，包括你",
       "hint": "按上下文菜单键或 Shift+F10 查看表情和谁做了回应。",
-      "removed": "已取消回应：{emoji}"
+      "removed": "已取消回应：{emoji}",
+      "summary": "反应：{list}"
     },
     "emoji": {
       "reactionDialog": "添加回应",
@@ -1406,8 +1433,6 @@
       "region": "{name} 的聊天",
       "close": "关闭聊天",
       "resize": "调整聊天宽度",
-      "awayText": "主窗口正在显示其他聊天。",
-      "awayAction": "显示通话的聊天",
       "elsewhereText": "此聊天已在通话旁打开。",
       "elsewhereAction": "在此处显示聊天"
     },
@@ -1749,6 +1774,15 @@
       "autoGainControlDesc": "自动调节麦克风灵敏度",
       "video": "视频",
       "noCamera": "无摄像头",
+      "deviceNone": "无",
+      "deviceDefault": "默认",
+      "microphoneNamesHidden": "Harmony 获准使用麦克风后，设备名称才会显示。",
+      "cameraNamesHidden": "Harmony 获准使用摄像头后，摄像头名称才会显示。",
+      "allowMicrophone": "允许使用麦克风",
+      "allowCamera": "允许使用摄像头",
+      "microphoneBlocked": "麦克风访问已被阻止。请在浏览器或系统设置中允许后重试。",
+      "cameraBlocked": "摄像头访问已被阻止。请在浏览器或系统设置中允许后重试。",
+      "deviceOpenFailed": "无法打开该设备。请关闭正在使用它的其他应用后重试。",
       "resolution": "分辨率",
       "frameRate": "帧率",
       "audioBitrate": "音频码率",
@@ -1861,6 +1895,11 @@
           "label": "回复",
           "name": "联邦宇宙回复",
           "description": "有人回复你的帖子时"
+        },
+        "apQuotes": {
+          "label": "引用",
+          "name": "联邦宇宙引用",
+          "description": "有人引用你的帖子时"
         },
         "apFavorites": {
           "label": "收藏",
@@ -1989,6 +2028,11 @@
         "deviceRemoved": "设备已移除",
         "deviceRemoveFailed": "无法移除设备"
       },
+      "quoteNotice": {
+        "action": " 引用了你的帖子",
+        "short": "帖子被引用",
+        "noPreview": "点击查看引用"
+      },
       "samples": {
         "mention": {
           "title": "测试提及",
@@ -2045,6 +2089,10 @@
         "apReply": {
           "title": "测试 ActivityPub 回复",
           "message": "有人回复了你的联邦宇宙帖子"
+        },
+        "apQuote": {
+          "title": "测试引用",
+          "message": "有人引用了你的联邦宇宙帖子"
         },
         "apFollowRequest": {
           "title": "测试 ActivityPub 关注请求",
@@ -2493,7 +2541,14 @@
     "editedTitle": "此帖子已被编辑",
     "replyToUser": "回复 {name}",
     "replyingTo": "正在回复",
-    "viewThread": "查看对话串",
+    "replyContext": {
+      "contentWarning": "内容警告：{text}",
+      "attachments": "{count} 个附件 | {count} 个附件",
+      "deleted": "回复的帖子已删除",
+      "hidden": "回复了一条你无法查看的帖子",
+      "remote": "回复 {domain} 上的帖子",
+      "loading": "正在加载所回复的帖子"
+    },
     "viewOriginalPost": "查看原帖",
     "viewQuotedPost": "查看被引用的帖子",
     "showMore": "显示更多",
@@ -3337,6 +3392,35 @@
     "federationOff": "此服务器不接受其他实例的成员：已关闭联邦。",
     "federatedNotice": "这是托管在另一个 Harmony 实例上的联邦服务器。您的消息将通过网络发送。",
     "joinByUrl": "通过 URL 加入",
+    "directory": {
+      "tabsLabel": "查找范围",
+      "thisInstance": "本实例",
+      "otherInstances": "其他实例",
+      "domainLabel": "实例",
+      "domainPlaceholder": "example.social",
+      "domainHint": "输入另一个 Harmony 实例的域名，或选择一个已知实例。",
+      "browse": "浏览",
+      "knownInstances": "已知实例",
+      "loading": "正在读取 {domain} 的目录…",
+      "serversOn": "{domain} 上有 {count} 个服务器 | {domain} 上有 {count} 个服务器",
+      "emptyTitle": "没有列出的服务器",
+      "empty": "{domain} 目前没有列出服务器。",
+      "introTitle": "浏览其他实例",
+      "intro": "所有者在联邦中列出的服务器会显示在这里。加入后，你将以本实例的身份成为成员。",
+      "members": "{count} 位成员 | {count} 位成员",
+      "join": "加入",
+      "loadMore": "加载更多",
+      "errorTitle": "无法浏览该实例",
+      "noDirectoryTitle": "没有服务器目录",
+      "invalidDomain": "请输入实例域名，例如 example.social。",
+      "ownInstance": "这是本实例：它的服务器在“本实例”中。",
+      "blocked": "{domain} 已在本实例被屏蔽。",
+      "federationOffTitle": "联邦已关闭",
+      "federationOff": "本实例目前未开启联邦，无法浏览其他实例。",
+      "noDirectory": "{domain} 未发布服务器目录。",
+      "unreachable": "{domain} 没有响应，请稍后再试。",
+      "failed": "出了点问题，请重试。"
+    },
     "haveInviteLink": "有邀请链接吗? 粘贴在此处",
     "inviteLink": "邀请链接",
     "invitedBy": "邀请者",
@@ -4906,7 +4990,7 @@
       "mfaDisabled": {
         "title": "双重验证已关闭",
         "message": "您的账户不再要求输入验证器验证码。",
-        "messageRecoveryCode": "有人使用恢复码登录。请重新设置双重验证。"
+        "messageRecoveryCode": "有人使用了恢复码。请重新设置双重验证。"
       },
       "recoveryCodeUsed": {
         "title": "恢复码已被使用",
@@ -5222,7 +5306,11 @@
         "keptOutHere": "已在 {instance} 上禁止 {person} 加入 {server}",
         "keepoutLifted": "已允许 {person} 从 {instance} 重新加入 {server}",
         "reportsRejected": "已忽略来自 {domain} 的举报",
-        "reportsAccepted": "已重新接受来自 {domain} 的举报"
+        "reportsAccepted": "已重新接受来自 {domain} 的举报",
+        "inviteCreated": "邀请了 {email}",
+        "inviteEmailed": "向 {email} 发送了邀请邮件",
+        "inviteReissued": "为 {email} 创建了新邀请链接",
+        "inviteRevoked": "撤销了给 {email} 的邀请"
       }
     },
     "antiSpam": {
@@ -6119,6 +6207,7 @@
       "lock": "锁定子区",
       "unlock": "解锁子区",
       "delete": "删除子区",
+      "gone": "此子区已被删除。",
       "mute": "静音子区",
       "unmute": "取消静音子区",
       "copyId": "复制子区 ID",
@@ -6246,6 +6335,10 @@
     "copied": "链接已复制",
     "copyFailed": "无法复制链接",
     "trustFailed": "无法将 {host} 保存为受信任的网站",
+    "noApp": "此设备上没有可打开网页链接的应用",
+    "noAppCopied": "此设备上没有可打开网页链接的应用。链接已复制：请粘贴到浏览器中。",
+    "openFailed": "无法打开链接",
+    "openFailedCopied": "无法打开链接。链接已复制：请粘贴到浏览器中。",
     "settings": {
       "title": "外部链接",
       "askEvery": "打开任何外部链接前先询问",
@@ -6397,6 +6490,7 @@
     "post": "发布投票",
     "selectOne": "选择一个选项",
     "selectMultiple": "选择一个或多个选项",
+    "voteFinal": "投票提交后无法更改",
     "votes": "{count} 票",
     "timeLeft": {
       "minutes": "剩余 {count} 分钟",
@@ -6420,7 +6514,8 @@
       "voteFailed": "你的投票未能保存。",
       "closed": "此投票已结束。",
       "endFailed": "无法结束投票。",
-      "alreadyVoted": "你已经在这个投票中投过票了。"
+      "alreadyVoted": "你已经在这个投票中投过票了。",
+      "hostUnsupported": "此服务器所在的实例暂不支持投票。"
     },
     "remote": {
       "voters": "{count} 人已投票",
@@ -6500,7 +6595,10 @@
       "unmuteChannel": "取消静音频道",
       "unmuteCategory": "取消静音分类",
       "level": "通知级别",
-      "default": "默认（{level}）"
+      "default": "默认（{level}）",
+      "levelSet": "{name}：{level}",
+      "muted": "{name} 已静音",
+      "unmuted": "{name} 已取消静音"
     },
     "notification": {
       "action": " 在 #{channel} 发送了一条消息",
@@ -6704,7 +6802,29 @@
       "skip": "跳到内容：每个页面上第一个 Tab 位置",
       "skipKeys": "Tab",
       "escape": "关闭打开的对话框、菜单或面板，焦点回到原处",
-      "escapeKeys": "Esc"
+      "escapeKeys": "Esc",
+      "messages": {
+        "title": "消息列表",
+        "note": "这些按键作用于当前获得焦点的消息。",
+        "moveKeys": "↑ / ↓",
+        "move": "上一条或下一条消息；Home 和 End 跳到第一条和最后一条",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "消息选项",
+        "editKeys": "E",
+        "edit": "编辑你的消息",
+        "replyKeys": "R",
+        "reply": "回复",
+        "reactKeys": "+",
+        "react": "添加反应",
+        "pinKeys": "P",
+        "pin": "置顶或取消置顶",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "删除；按住 Shift 则不再确认",
+        "copyKeys": "C",
+        "copy": "复制文本",
+        "threadKeys": "T",
+        "thread": "创建或打开讨论串"
+      }
     },
     "unsavedChanges": "未保存的更改"
   },
@@ -7181,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "支持此实例",
     "progress": "资助进度",
     "raisedMonth": "本月已筹集，目标 {goal}",
     "raisedTotal": "累计已筹集，目标 {goal}",
@@ -7202,7 +7321,88 @@
     "yours": "你的支持",
     "tierSupporter": "{tier} 支持者",
     "active": "生效中",
-    "history": "你的支持记录"
+    "history": "你的支持记录",
+    "titleShort": "支持",
+    "raisedThisMonth": "本月已筹集",
+    "raisedAllTime": "累计已筹集",
+    "resets": "{date}（UTC）重置",
+    "until": "有效期至 {date}",
+    "instanceOff": "此实例目前没有在寻求支持。",
+    "thanks": "谢谢！你的支持已到账。",
+    "tabs": {
+      "label": "支持对象",
+      "instance": "此实例",
+      "project": "Harmony 开发"
+    },
+    "project": {
+      "title": "帮助构建 Harmony",
+      "lead": "Harmony 是自由开源软件。在这里的支持会交给开发它的人，而不是 {instance}。",
+      "monthly": "每月",
+      "footnote": "付款在 Stripe 上完成；{instance} 不会经手这笔钱。",
+      "supporters": "支持者及其留言"
+    },
+    "wall": {
+      "title": "最新支持者",
+      "empty": "还没有留言。你可以成为第一个。",
+      "anonymous": "匿名",
+      "you": "你",
+      "now": "刚刚",
+      "hide": "隐藏",
+      "hideFrom": "隐藏 {name} 的留言",
+      "more": "显示全部 {count} 条",
+      "fewer": "收起"
+    },
+    "message": {
+      "title": "添加公开留言",
+      "optional": "可选",
+      "label": "公开留言",
+      "placeholder": "对社区说点什么",
+      "anonymous": "以匿名显示",
+      "help": "它会附在你 24 小时内的下一次支持上，并在管理员批准后才对他人显示。仅限纯文本，最多 50 个字符。",
+      "save": "保存留言",
+      "saved": "已保存。它会附在 {time} 之前的支持上。",
+      "remove": "移除",
+      "status": {
+        "waiting": "等待你的支持，截至 {time}",
+        "pending": "等待批准",
+        "hidden": "已被管理员隐藏"
+      },
+      "errors": {
+        "length": "最多 {max} 个字符。",
+        "control": "不能使用换行和控制字符。",
+        "bidi": "不能使用文字方向控制符。",
+        "marks": "一个字符上的附加符号太多。",
+        "disabled": "此实例已关闭留言。",
+        "failed": "无法保存留言。"
+      }
+    },
+    "landing": {
+      "label": "此实例的最新支持者",
+      "next": "下一条支持者留言"
+    },
+    "settings": {
+      "title": "支持",
+      "lead": "帮助此实例和 Harmony 本身持续运行。",
+      "project": "支持 Harmony 的开发"
+    },
+    "admin": {
+      "messagesEnabled": "支持者留言",
+      "messagesPublic": "在登录页面显示已批准的留言",
+      "messagesHint": "支持者可以为支持附上最多 50 个字符的留言。在你于下方批准前不会显示任何内容。",
+      "queueTitle": "支持者留言",
+      "queueHint": "留言会随一笔已入账的捐款到达。批准后它会显示在支持窗口中，若已开启也会显示在登录页面。你可以随时隐藏。",
+      "queueEmpty": "还没有支持者留言。",
+      "approve": "批准",
+      "hide": "隐藏",
+      "unhide": "重新显示",
+      "anonymousBy": "匿名：{name}",
+      "reviewFailed": "无法更新留言。",
+      "state": {
+        "pending": "等待批准",
+        "approved": "已显示",
+        "hidden": "已隐藏"
+      }
+    }
   },
   "authorizeInteraction": {
     "title": "远程互动",
@@ -7546,6 +7746,79 @@
       "paused": "暂停期间"
     }
   },
+  "adminInvites": {
+    "tab": "邀请",
+    "title": "邀请他人",
+    "intro": "邀请会为一个邮箱地址创建账号。对方打开链接，设置密码，然后选择用户名。",
+    "modeOpen": "注册：开放。",
+    "modeOpenHint": "任何人都可以在注册页面创建账号。",
+    "modeClosed": "注册：仅限邀请。",
+    "modeClosedHint": "注册页面不会创建账号；新用户通过邀请加入。",
+    "modeUnknown": "注册：未知。",
+    "modeUnknownHint": "认证服务没有告知注册是否开启。",
+    "advertisedOpen": "其他服务器看到的是注册开放（实例设置 open_registration）。",
+    "advertisedClosed": "其他服务器看到的是注册关闭（实例设置 open_registration）。",
+    "everyMode": "邀请在任何注册模式下都有效，注册关闭时也一样。",
+    "email": "邮箱地址",
+    "emailHint": "每个地址一份邀请；链接只为这个地址创建账号。",
+    "send": "通过邮件发送",
+    "sendHint": "认证服务会用邮件发送链接。否则请复制链接自行发送。",
+    "sendUnavailable": "此实例无法发送邮件：认证服务没有 SMTP 服务器。请复制链接自行发送。",
+    "create": "创建邀请",
+    "created": "给 {email} 的邀请。链接只能使用一次，于 {when} 过期。",
+    "reissued": "给 {email} 的新链接；之前的链接已失效。于 {when} 过期。",
+    "emailed": "已向 {email} 发送邀请邮件。链接于 {when} 过期。",
+    "linkFor": "给 {email} 的邀请链接",
+    "copy": "复制",
+    "copied": "已复制邀请链接",
+    "copyFailed": "无法复制链接；请选中后自行复制",
+    "singleUse": "只发给这个人：最先打开链接的人会创建账号。",
+    "pendingTitle": "待处理的邀请（{count}）",
+    "refresh": "刷新",
+    "loading": "正在加载邀请…",
+    "lifetime": "链接创建后 {hours} 小时内有效。",
+    "pendingEmpty": "没有待处理的邀请。",
+    "invitedBy": "邀请人",
+    "invitedAt": "邀请时间",
+    "delivery": "发送方式",
+    "expiry": "链接",
+    "byCli": "命令行",
+    "byFormerAdmin": "前任管理员",
+    "byUnknown": "Harmony 之外",
+    "byEmail": "邮件",
+    "byLink": "链接",
+    "byUnknownDelivery": "未知",
+    "linksIssued": "{how}，已创建 {count} 个链接",
+    "expires": "{when} 过期",
+    "expired": "已于 {when} 过期",
+    "reissue": "复制新链接",
+    "reissueFor": "为 {email} 复制新链接",
+    "revoke": "撤销",
+    "revokeFor": "撤销给 {email} 的邀请",
+    "revokeTitle": "撤销邀请",
+    "revokeMessage": "给 {email} 的链接将失效，未使用的账号会被删除。之后可以再次邀请这个地址。",
+    "revokedToast": "已撤销给 {email} 的邀请",
+    "closedTitle": "已接受和已撤销",
+    "acceptedAs": "以 {handle} 加入，{when}",
+    "accepted": "{when} 已接受；尚未设置用户名",
+    "revokedBy": "由 {handle} 撤销，{when}",
+    "revoked": "{when} 已撤销",
+    "removed": "账号已被删除",
+    "invitedLine": "由 {who} 邀请，{when}",
+    "errors": {
+      "invalidEmail": "请输入邮箱地址，例如 name{'@'}example.org。",
+      "accountExists": "已有使用此地址的账号。未创建任何内容。",
+      "invitePending": "此地址已有待处理的邀请（见下方）。如需再次发送，请使用“复制新链接”。",
+      "emailUnavailable": "此实例无法发送邮件。请改为创建链接。",
+      "authRateLimited": "认证服务发送的邮件过多；请稍后再试。",
+      "rateLimited": "邀请更改过于频繁；请稍后再试。",
+      "inviteAccepted": "此人已经登录；邀请无法再更改。",
+      "inviteGone": "此邀请已不存在。",
+      "adminRequired": "只有实例管理员可以邀请他人。",
+      "authFailed": "认证服务拒绝了请求：{detail}",
+      "unavailable": "邀请不可用：联邦后端没有响应。"
+    }
+  },
   "adminWebhooks": {
     "tab": "Webhook",
     "settingsTitle": "Webhook 设置",
@@ -7647,6 +7920,7 @@
       "upload": "添加贴纸",
       "limits": "PNG、APNG、WebP 或 GIF,最大 {size}、{side}×{side} 像素;动画最长 {seconds} 秒。更大的静态图片会被缩小。",
       "file": "图片",
+      "choose": "选择图片或拖放到此处",
       "name": "名称",
       "description": "描述",
       "descriptionHint": "由屏幕阅读器朗读,并在图片无法加载时显示。必填。",

@@ -37,6 +37,7 @@ harmony auth remove-provider ID
 harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [--provider-verifies-email])
 harmony config
 harmony config --upload-ceiling [SIZE]
+harmony analytics [on | off [--delete-logs]]
 harmony version
 harmony help
 ```
@@ -62,7 +63,9 @@ harmony install [--dir DIR] [--ref REF] [--non-interactive]
 
 Runs the installer, `install.sh`, on this checkout: a first install, or a
 safe re-run that keeps the configuration, secrets, data and admin account and
-offers the current answers as defaults. `--dir` and `--ref` choose where and
+offers the current answers as defaults. On an instance whose `.env` has no
+`ENABLE_ANALYTICS`, log collection defaults to off; see
+[harmony update](#harmony-update). `--dir` and `--ref` choose where and
 which version to download, so they apply when the installer is piped from
 `curl`; a re-run uses the checkout it belongs to. [Install](/self-host/install)
 describes the questions, the steps and every environment variable.
@@ -79,6 +82,14 @@ harmony update [--version V]
 Updates the code, the configuration, the images and the database, then
 recreates the containers that changed, taking a backup first.
 [Update](/self-host/update-backup#update-an-instance) describes the steps.
+
+An instance whose `.env` has no `ENABLE_ANALYTICS` never chose
+[log collection](/self-host/#log-collection) and runs it anyway. The update
+writes `ENABLE_ANALYTICS=false`, removes `analytics` and `vector`, deletes the
+logs they stored (as `harmony analytics off --delete-logs`) and prints one
+line with the space freed. `HARMONY_ANALYTICS=y harmony update`, or
+`harmony analytics on` afterwards, keeps it on. `ENABLE_ANALYTICS=true` stays
+on.
 
 | Option | Effect |
 |---|---|
@@ -161,6 +172,9 @@ certificates, Federation, Services, Security, Versions.
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
 | `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
 | `listener` | The `harmony_listener` role exists | WARN: queued jobs wait for the periodic sweep | `bash bootstrap.sh && docker compose restart federation-worker` |
+| `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
+| `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
+| `log collection` | `analytics` or `vector` runs while `COMPOSE_PROFILES` lacks `logs` | WARN: it keeps filling the database | `harmony analytics off --delete-logs` |
 
 ### DNS
 
@@ -298,7 +312,7 @@ Prints the instance URL, then:
 |---|---|
 | `code` | `git describe` of the checkout and its branch, or `detached` |
 | `images` | `HARMONY_VERSION`, with `(built from this checkout)` when building locally |
-| `profiles` | `COMPOSE_PROFILES`: `voice`, `bots`, `discord`, or `(none)` |
+| `profiles` | `COMPOSE_PROFILES`: `voice`, `bots`, `discord`, `logs`, or `(none)` |
 | `register` | The registration policy |
 | `backup` | The newest backup's directory name, or `none` |
 
@@ -376,13 +390,23 @@ your shell history; the prompt does not.
 harmony admin invite <email> [--send]
 ```
 
-Creates a single-use invitation for the address. The link signs the person
-in on `https://DOMAIN/reset-password`, where they choose a password.
+Creates a single-use invitation for the address, as **Invites** in the admin
+panel does. The link signs the person in on
+`https://DOMAIN/reset-password?invite=1`, where they choose a password and
+then a username. It expires 24 hours after it is made, unless the sign-in
+service sets `GOTRUE_MAILER_OTP_EXP`.
 
 | Option | Effect |
 |---|---|
 | none | Prints the link; send it yourself |
 | `--send` | Emails the invitation. Needs SMTP; without it, the command stops with `--send needs SMTP (harmony config); without it, send the printed link yourself` |
+
+An address whose account exists stops the command with `an account with the
+address … exists; nothing was created`. An address already invited gets a new
+link, and the one before stops working. The invitation is listed in the admin
+panel under **Invites**, invited by **Command line**; on a database not yet
+updated, the command warns that it was not recorded, and the panel lists it
+as made outside Harmony.
 
 ## harmony registration
 
@@ -397,7 +421,7 @@ Sets who can create an account. Without an argument it applies
 | Policy | Sign-up | `open_registration` |
 |---|---|---|
 | `open` | on (`DISABLE_SIGNUP=false`) | `true` |
-| `invite` | off; invitations through `harmony admin invite` | `false` |
+| `invite` | off; invitations through `harmony admin invite` or the admin panel's **Invites** | `false` |
 | `closed` | off | `false` |
 
 It writes `REGISTRATION` to `.env`, `DISABLE_SIGNUP` to `supabase/.env` and
@@ -508,11 +532,12 @@ defaults, and applies them:
 | Enable voice/video? | LiveKit; needs the `live.` record, UDP 7882 and TCP 7881 |
 | Enable the bot gateway? | Bots and Discord bridges |
 | Host Discord bridges for your communities? | Asked with bots on |
+| Run Supabase log collection? | Logflare and vector; see [Log collection](/self-host/#log-collection) |
 | Registration | `open`, `invite` or `closed` |
 | Configure outgoing email (SMTP) now? | Then SMTP host, port, username, password (empty keeps the current one) and sender address |
 
 Then it removes the container of each service turned off (`livekit`,
-`bot-gateway`, `discord-bridge-host`), pulls images, runs
+`bot-gateway`, `discord-bridge-host`, `analytics`, `vector`), pulls images, runs
 `docker compose up -d`, and re-applies the registration policy when an admin
 exists. It ends with `Configuration applied. Check it: harmony doctor`.
 
@@ -545,6 +570,29 @@ needs no terminal. See [Upload limits](/self-host/configuration#upload-limits).
 ```bash
 harmony config --upload-ceiling 2GB
 ```
+
+## harmony analytics
+
+```text
+harmony analytics [on | off [--delete-logs]]
+```
+
+Turns Supabase's log collection, Logflare (`analytics`) and `vector`, on or
+off: sets `ENABLE_ANALYTICS` and the `logs` profile in `.env`, then starts
+both containers, or stops and removes them. Without an argument it prints
+whether they run and the size of the logs they stored. It needs no terminal.
+See [Log collection](/self-host/#log-collection) for what it costs.
+
+| Argument or option | Effect |
+|---|---|
+| `on` | `docker compose up -d analytics vector` |
+| `off` | `docker compose --profile logs rm -sf analytics vector`. Removed rather than stopped: a stopped container with a restart policy reads as a failure to monitors |
+| `--delete-logs` | With `off`: empties the `_analytics` schema of the `_supabase` database, where Logflare keeps the logs and its own tables, and drops its publication `logflare_pub`; Logflare recreates both at its next start. Drops Logflare's replication slots (`cainophile_…`) and runs `CHECKPOINT`, which releases the write-ahead log they held. Prints the space freed |
+
+`harmony config` asks the same question; `HARMONY_ANALYTICS=y` or `n` sets
+it for `configure.sh`. On an instance that never answered it, `harmony config`,
+`harmony install` and `harmony update` default it to `n` and delete the
+stored logs.
 
 ## harmony version
 
@@ -603,7 +651,7 @@ built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
 
 | Environment variable | Effect |
 |---|---|
-| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_REGISTRATION`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
+| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
 | `HARMONY_VERSION` | Image tag; default from the checkout: `X.Y.Z` at tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout (`docker-compose.build.yml`); `0` returns to published images |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |

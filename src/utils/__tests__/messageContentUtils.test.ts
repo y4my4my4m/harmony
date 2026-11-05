@@ -152,6 +152,14 @@ describe('messageContentUtils', () => {
       expect(isSingleEmojiMessage(parts as any)).toBe(true)
     })
 
+    it.each(['👍🏽', '1️⃣', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '👨‍👩‍👧'])('returns true for the single sequence %j', (text) => {
+      expect(isSingleEmojiMessage([{ type: 'text', text }] as any)).toBe(true)
+    })
+
+    it('returns false for two emoji', () => {
+      expect(isSingleEmojiMessage([{ type: 'text', text: '👍👍' }] as any)).toBe(false)
+    })
+
     it('returns false for empty array', () => {
       expect(isSingleEmojiMessage([])).toBe(false)
     })

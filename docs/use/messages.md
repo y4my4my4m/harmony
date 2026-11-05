@@ -82,7 +82,9 @@ An edited message shows **(edited)** after its text. Polls cannot be edited.
 1. Hover the message and select **Delete message**, or right-click it and choose **Delete message**.
 2. Confirm.
 
-Hold Shift while selecting **Delete message** to skip the confirmation. A message that started a thread always asks, because deleting it deletes the thread and all its replies (**Delete message and thread**).
+Hold Shift while selecting **Delete message** to skip the confirmation. A message that started a thread always asks: a thread with replies stays and shows that message as deleted, a thread without replies is deleted with it (**Delete message and thread**).
+
+Deleting the last remaining message of a thread deletes the thread. Anyone who has it open returns to its channel.
 
 You can delete your own messages. In server channels, members with the **Manage Messages** permission and the instance's administrators and moderators can delete anyone's. On a server hosted on another instance you can delete only your own.
 
@@ -165,7 +167,15 @@ Each answer shows the percentage of voters who chose it, and the footer shows th
 
 The author can select **End poll** to close it early. A closed poll shows **Poll closed** and takes no more votes.
 
-Bots, bridges and other instances receive a poll as plain text: the question followed by its numbered answers.
+### Polls on other instances
+
+A poll in a server hosted on another Harmony instance, or in a direct message with someone on another instance, is counted by one instance: the server's, or the poll author's. Members everywhere see the same counts and vote from their own instance.
+
+- Choose your answers, then select **Vote**. A vote on a poll counted elsewhere is final: it cannot be moved or removed, as on Mastodon.
+- In a server whose instance runs a Harmony version without poll support, **Create poll** is not offered.
+- A Mastodon user can answer your poll in a direct message, and a poll a Mastodon user sends you shows as a poll you can vote on.
+
+Bots, bridges and instances without poll support receive a poll as plain text: the question followed by its numbered answers.
 
 ## Reactions
 
@@ -215,7 +225,7 @@ Type `@` to open suggestions, then pick a person or a role. Roles, `@everyone` a
 
 `@everyone` and `@here` never name a person. Someone called `everyone` on another instance is `@everyone@instance.example`. A person whose display name reads `everyone` or `here` shows as their @username, so the mention never looks like the server-wide one.
 
-A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour with a dot before it, and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
+A typed `@name` is always a person: a role is mentioned only by picking it. A role mention shows in the role's colour and is announced as a role; select it to see the role and how many members hold it. A person's mention has neither, even when their name matches a role's.
 
 - In server channels, a message that mentions you, a role you hold, `@everyone` or `@here` is highlighted.
 - A message notifies each person once, even when it names them in several ways.

@@ -261,7 +261,6 @@
               :aria-valuetext="`${soundVolume}%`"
               class="volume-slider"
               data-testid="notification-volume"
-              @input="onVolumeChange"
             />
             <Icon name="volume-2" aria-hidden="true" />
             <span class="volume-value" aria-hidden="true">{{ soundVolume }}%</span>
@@ -654,6 +653,7 @@ import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
+import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
 import type { NotificationPreferences, NotificationType } from '@/types'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -674,6 +674,7 @@ const { t } = useI18n()
 
 // Stores
 const notificationStore = useNotificationStore()
+const themeStore = useThemeStore()
 const toast = useToast()
 const userData = useUserData()
 const pushNotifications = usePushNotifications()
@@ -723,6 +724,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_reblogs: true,
   activitypub_mentions: true,
   activitypub_replies: true,
+  activitypub_quotes: true,
   activitypub_follow_requests: true,
   activitypub_desktop_notifications: true,
   activitypub_desktop_follows: true,
@@ -730,12 +732,14 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_desktop_reblogs: false,
   activitypub_desktop_mentions: true,
   activitypub_desktop_replies: true,
+  activitypub_desktop_quotes: true,
   activitypub_sound_notifications: true,
   activitypub_sound_follows: true,
   activitypub_sound_favorites: false,
   activitypub_sound_reblogs: false,
   activitypub_sound_mentions: true,
   activitypub_sound_replies: true,
+  activitypub_sound_quotes: true,
 }
 
 const preferences = reactive<NotificationPreferences>({
@@ -751,7 +755,11 @@ const hasNotificationPermission = ref(false)
 const isRequestingPermission = ref(false)
 const isTesting = ref(false)
 const isTestingType = ref<string | null>(null)
-const soundVolume = ref(70)
+// Percent of every notification and interface sound: the audio theme volume.
+const soundVolume = computed({
+  get: () => Math.round(themeStore.audioVolume * 100),
+  set: (percent: number) => themeStore.setAudioVolume(percent / 100),
+})
 const isTestingPush = ref(false)
 
 // Notification type configurations. `name` is the label qualified for the
@@ -801,6 +809,7 @@ const activityPubNotificationTypes = computed<NotificationTypeRow[]>(() => [
   typeRow('activitypub_follows', 'apFollows', 'user-plus', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow', true),
   typeRow('activitypub_mentions', 'apMentions', 'at-sign', 'activitypub_desktop_mentions', 'activitypub_sound_mentions', 'activitypub_mention', true),
   typeRow('activitypub_replies', 'apReplies', 'message-circle', 'activitypub_desktop_replies', 'activitypub_sound_replies', 'activitypub_reply', true),
+  typeRow('activitypub_quotes', 'apQuotes', 'quote', 'activitypub_desktop_quotes', 'activitypub_sound_quotes', 'activitypub_quote', true),
   typeRow('activitypub_favorites', 'apFavorites', 'heart', 'activitypub_desktop_favorites', 'activitypub_sound_favorites', 'activitypub_favorite', true),
   typeRow('activitypub_reblogs', 'apReblogs', 'repeat', 'activitypub_desktop_reblogs', 'activitypub_sound_reblogs', 'activitypub_reblog', true),
   typeRow('activitypub_follow_requests', 'apFollowRequests', 'user-check', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow_request', true),
@@ -899,6 +908,7 @@ const requestPermission = async () => {
       hasNotificationPermission.value = permission === 'granted'
     }
 
+    notificationStore.hasPermission = hasNotificationPermission.value
     if (hasNotificationPermission.value) {
       toast.success(t('settings.notifications.toast.permissionGranted'))
     } else {
@@ -990,6 +1000,7 @@ const SAMPLE_KEYS: Record<string, string> = {
   activitypub_reblog: 'apReblog',
   activitypub_mention: 'apMention',
   activitypub_reply: 'apReply',
+  activitypub_quote: 'apQuote',
   activitypub_follow_request: 'apFollowRequest',
 }
 const SERVER_SAMPLES = new Set(['server_invite', 'server_update', 'emoji_added'])
@@ -1035,10 +1046,6 @@ const resetToDefaults = async () => {
   if (isAtDefaults.value) return
   Object.assign(preferences, DEFAULT_PREFERENCES)
   await updatePreferences()
-}
-
-const onVolumeChange = () => {
-  notificationStore.setVolume(soundVolume.value / 100)
 }
 
 const pushStatusClass = computed(() => {
@@ -1173,6 +1180,7 @@ const formatDate = (dateStr: string): string => {
 
 // Check notification permission on mount
 onMounted(async () => {
+  if (!themeStore.isInitialized && !themeStore.isLoading) void themeStore.initialize().catch(() => {})
   if (isNativeClient) {
     try {
       const { isPermissionGranted } = await import('@tauri-apps/plugin-notification')

@@ -87,7 +87,7 @@
       :aria-label="listLabel"
       :aria-busy="isLoadingOlderMessages ? 'true' : undefined"
       :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }"
-      @keydown="roving.onKeydown"
+      @keydown="onListKeydown"
       @focusin="onListFocusIn"
       @focusout="onListFocusOut"
     >
@@ -209,6 +209,12 @@
             :aria-hidden="shouldShowHeader(item.message, item.index) ? 'true' : undefined"
           >{{ getAuthorDisplayName(item.message).value }}</span>
           <span v-if="mentionsMe(item.message)" class="sr-only">{{ t('messageA11y.row.mentionsYou') }}</span>
+          <span
+            v-if="rowReactions(item.message)"
+            :id="`msg-reactions-${item.message.id}`"
+            class="sr-only"
+            aria-hidden="true"
+          >{{ rowReactions(item.message) }}</span>
           <span :id="`msg-meta-${item.message.id}`" class="sr-only" aria-hidden="true">{{ rowMeta(item.message) }}</span>
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
@@ -303,8 +309,9 @@
                   :title="instanceBadgeTitle(getInstanceBadge(item.message).value!)"
                   data-testid="message-staff-badge"
                 >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  {{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                  <span aria-hidden="true">{{ getInstanceBadge(item.message).value!.kind === 'admin' ? 'ADMIN' : 'MOD' }}</span>
+                  <span class="sr-only">{{ instanceBadgeTitle(getInstanceBadge(item.message).value!) }}</span>
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
               </button>
@@ -603,9 +610,12 @@
     :title="deleteConfirmConfig.hide ? t('serverCopy.hide.action', { instance: instanceDomain }) : t('message.deleteMessage')"
     :message="deleteConfirmConfig.hide
       ? t('serverCopy.hide.confirm', { instance: instanceDomain, host: copyHost })
-      : deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
-    :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
-    :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button') : deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
+      : deleteConfirmConfig.hasThread ? t('message.deleteWithThread.message', { name: deleteConfirmConfig.threadName }) : 'Are you sure you want to delete this message? This action cannot be undone.'"
+    :secondary-message="!deleteConfirmConfig.hide && deleteConfirmConfig.hasThread
+      ? t(deleteConfirmConfig.threadKept ? 'message.deleteWithThread.threadKept' : 'message.deleteWithThread.threadDeleted')
+      : undefined"
+    :confirm-button-text="deleteConfirmConfig.hide ? t('serverCopy.hide.button')
+      : deleteConfirmConfig.hasThread && !deleteConfirmConfig.threadKept ? t('message.deleteWithThread.confirmDeleted') : 'Delete'"
     @close="cancelDeleteMessage"
     @confirm="confirmDeleteMessage"
   />
@@ -622,7 +632,7 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, ReactionActor, ReactionGroup, StickerContent } from '@/types';
-import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
+import { hasCopyableText, hasSubstantiveMessageContent, messagePartsToPlainText, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor';
 import { pollPartOf } from '@/utils/messagePoll';
 import { remoteServerHost } from '@/utils/serverUtils';
@@ -638,7 +648,8 @@ import { useOutboxStore } from '@/stores/useOutbox';
 import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { instanceStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
+import { contextStaffBadge, type InstanceStaffBadge } from '@/utils/instanceBadge';
+import { runtimeConfig } from '@/services/runtimeConfig';
 import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -649,6 +660,8 @@ import { supabase } from '@/supabase';
 import { throttle } from '@/utils/throttle';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
+import { usePinActions } from '@/composables/usePinActions';
+import { canPinMessage } from '@/utils/pinPermission';
 import { useServerMediaHidden } from '@/composables/useInstanceMediaHidden';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -723,6 +736,7 @@ import { useAnnouncer } from '@/composables/useAnnouncer';
 import { PARKED_ATTR, useRovingTabindex } from '@/composables/useRovingTabindex';
 import { createNewMessageAnnouncer } from '@/composables/useNewMessageAnnouncer';
 import { messageSpeechText } from '@/utils/a11y/messageSpeech';
+import { reactionsSummary } from '@/utils/a11y/reactionLabels';
 import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
 import { hasOpenLayer, resolveFocusOrigin } from '@/utils/a11y/layers';
 import { useThreadsStore } from '@/stores/useThreads';
@@ -776,6 +790,13 @@ const props = defineProps({
   enableReadDivider: {
     type: Boolean,
     default: true
+  },
+  // A list the routed chat stores do not hold: paging state comes from here, the list
+  // is never detached from the present, and reply jumps and highlights stay within its
+  // loaded rows.
+  listState: {
+    type: Object as PropType<{ loadingOlder: boolean; allLoaded: boolean } | null>,
+    default: null
   },
 });
 
@@ -1159,9 +1180,9 @@ const floatingActionsStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
+const { isCurrentUserServerOwner, getCurrentUserRole, isLocalServer } = useServerPermissions();
 // Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
-const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+const { canManageMessages, canCreateThreads, canPinMessages } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
 // create_thread needs CREATE_PUBLIC_THREADS in the channel.
 const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
 // Pictures, videos and files of a server hosted elsewhere whose media this instance hides.
@@ -1326,21 +1347,22 @@ const getDiscordUserInfo = (message: Message): { username: string; display_name:
   return message.metadata?.discord_user || null;
 };
 
-// This instance's staff flags do not surface inside a federated server; a remote author's role on
-// its own instance does (instanceBadge.ts).
+// A conversation is outside every server; currentServer keeps the last server opened.
+const staffBadgeServer = computed(() => (props.conversationId ? null : serverChannelStore.currentServer));
+
 const getInstanceBadge = (message: Message): ComputedRef<InstanceStaffBadge | null> => {
   return computed(() => {
     const userId = message.user_id;
     if (!userId) return null;
-    return instanceStaffBadge(getUserProfile(userId).value, serverChannelStore.currentServer);
+    return contextStaffBadge(getUserProfile(userId).value, staffBadgeServer.value, runtimeConfig.domain);
   });
 };
 
 function instanceBadgeTitle(badge: InstanceStaffBadge): string {
   if (badge.domain) {
-    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminOf' : 'chatNav.members.instanceModOf', { domain: badge.domain });
+    return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdminBadgeOf' : 'chatNav.members.instanceModBadgeOf', { domain: badge.domain });
   }
-  return t(badge.kind === 'admin' ? 'chatNav.members.instanceAdmin' : 'chatNav.members.instanceMod');
+  return t(badge.kind === 'admin' ? 'activitypub.instanceAdmin' : 'activitypub.instanceModerator');
 }
 
 // Helper functions for bot display
@@ -1456,28 +1478,32 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
   });
 };
 
-// Unified computed properties that work for both chat and DMs
+// Paging state of the shown list. Thread views carry their parent channel's id but not its
+// list: the channel's paging, start line and detached state are not theirs.
 const isLoadingOlderMessages = computed(() => {
+  if (props.listState) return props.listState.loadingOlder;
   if (props.conversationId) return dmStore.loadingMessages;
-  if (props.channelId) return chatStore.loadingOlderMessages;
+  if (props.channelId && !props.threadId) return chatStore.loadingOlderMessages;
   return false;
 });
 
 const isAllMessagesLoaded = computed(() => {
+  if (props.listState) return props.listState.allLoaded;
   if (props.conversationId) return dmStore.allMessagesLoaded;
-  if (props.channelId) return chatStore.allMessagesLoaded;
+  if (props.channelId && !props.threadId) return chatStore.allMessagesLoaded;
   return false;
 });
 
 // A jump detached the list from the present: it ends before the newest message.
-// Thread views carry their parent channel's id but not its list.
 const isDetached = computed(() => {
+  if (props.listState) return false;
   if (props.conversationId) return dmStore.hasNewerMessages;
   if (props.channelId && !props.threadId) return chatStore.hasNewerMessages;
   return false;
 });
 
 const isLoadingNewerMessages = computed(() => {
+  if (props.listState) return false;
   if (props.conversationId) return dmStore.loadingNewerMessages;
   if (props.channelId && !props.threadId) return chatStore.loadingNewerMessages;
   return false;
@@ -1485,6 +1511,7 @@ const isLoadingNewerMessages = computed(() => {
 
 // Messages from others that arrived while detached.
 const detachedUnseen = computed(() => {
+  if (props.listState) return 0;
   if (props.conversationId) return dmStore.unseenWhileDetached;
   if (props.channelId && !props.threadId) return chatStore.unseenWhileDetached;
   return 0;
@@ -1672,7 +1699,7 @@ const selectedBot = ref<(Partial<ServerBot> & { id: string }) | null>(null);
 const showInviteModal = ref(false);
 
 const showDeleteConfirmModal = ref(false);
-const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; focusAfter?: string | null; hide?: boolean }>({
+const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; threadKept?: boolean; focusAfter?: string | null; hide?: boolean }>({
   messageId: '',
   hasThread: false,
   threadName: '',
@@ -1998,11 +2025,16 @@ const rowMeta = (message: Message): string => {
   return parts.filter(Boolean).join(', ');
 };
 
-/** Author, content, the message replied to, then time, state and date. */
+/** The reaction buttons' labels joined (utils/a11y/reactionLabels); '' without reactions. */
+const rowReactions = (message: Message): string =>
+  reactionsSummary(reactionsStore.getMessageReactions(message.id), t, resolveUnifiedEmoji);
+
+/** Author, content, reactions, the message replied to, then time, state and date. */
 const rowLabelledBy = (message: Message): string => {
   const id = message.id;
-  if (message.is_system) return `msg-body-${id} msg-meta-${id}`;
-  const parts = [`msg-head-${id}`, `msg-body-${id}`];
+  const reactions = rowReactions(message) ? [`msg-reactions-${id}`] : [];
+  if (message.is_system) return [`msg-body-${id}`, ...reactions, `msg-meta-${id}`].join(' ');
+  const parts = [`msg-head-${id}`, `msg-body-${id}`, ...reactions];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
   parts.push(`msg-meta-${id}`);
   return parts.join(' ');
@@ -2160,6 +2192,82 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
 const activateRowElement = (row: HTMLElement) => {
   const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
   if (item) activateRow(item, row);
+};
+
+// --- ROW SHORTCUTS ---
+// Discord's keys on a focused message row: E edit, R reply, + react, P pin or unpin,
+// Backspace or Delete delete (Shift skips the confirmation), C copy text, T thread. A key
+// acts on the row element itself, never on a control inside it, without Ctrl, Alt or Meta,
+// and only where the row's own controls offer the action. Harmony has no mark-unread or
+// forward: Alt+Enter and F are not bound.
+const { setPinned: setMessagePinned } = usePinActions();
+
+const canPinRow = (message: Message): boolean => canPinMessage(message, {
+  inConversation: !!props.conversationId,
+  isLocalServer: isLocalServer.value,
+  canPinInChannel: canPinMessages.value,
+});
+
+const togglePinFromRow = async (message: Message) => {
+  const pinned = !message.is_pinned;
+  if (await setMessagePinned(message, pinned)) polite(t(pinned ? 'messageA11y.shortcuts.pinned' : 'messageA11y.shortcuts.unpinned'));
+};
+
+const copyRowText = async (message: Message) => {
+  const text = messagePartsToPlainText(message.content);
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    polite(t('messageA11y.shortcuts.copied'));
+  } catch (error) {
+    debug.error('Failed to copy message text:', error);
+    polite(t('messageA11y.shortcuts.copyFailed'));
+  }
+};
+
+/** The action a key takes on the row's message; null where the viewer may not take it. */
+const rowShortcut = (key: string, message: Message, row: HTMLElement, shiftKey: boolean): (() => void) | null => {
+  switch (key.length === 1 ? key.toLowerCase() : key) {
+    case 'e':
+      return canEditMessage(message) ? () => startEdit(message) : null;
+    case 'r':
+      if (message.is_system) return null;
+      return () => {
+        replyTo(message);
+        polite(t('messageA11y.shortcuts.replying', { name: getAuthorDisplayName(message).value }));
+      };
+    case '+':
+      return () => emit('toggleEmojiList', true, message, row);
+    case 'p':
+      return canPinRow(message) ? () => void togglePinFromRow(message) : null;
+    case 'Backspace':
+    case 'Delete':
+      return canDeleteMessage(message) ? () => deleteMessage(message.id, { shiftKey }) : null;
+    case 'c':
+      return hasCopyableText(message.content) ? () => void copyRowText(message) : null;
+    case 't':
+      return !message.is_system && !hideThreadCreate.value ? () => createThread(message) : null;
+    default:
+      return null;
+  }
+};
+
+/** True when the key was a row shortcut and acted. */
+const onRowShortcut = (event: KeyboardEvent): boolean => {
+  if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
+  const row = event.target;
+  if (!(row instanceof HTMLElement) || !row.matches(ROW_SELECTOR)) return false;
+  const item = displayItems.value.find(entry => entry.key === row.dataset.rowKey);
+  if (!item || item.type !== 'message' || isOptimisticId(item.message.id)) return false;
+  const action = rowShortcut(event.key, item.message, row, event.shiftKey);
+  if (!action) return false;
+  event.preventDefault();
+  action();
+  return true;
+};
+
+const onListKeydown = (event: KeyboardEvent) => {
+  if (!onRowShortcut(event)) roving.onKeydown(event);
 };
 
 // Interactive content of rows other than the tab stop row leaves the Tab
@@ -3144,13 +3252,13 @@ onMounted(() => {
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
   document.addEventListener('focusin', onDocumentFocusIn);
-  // A thread view shares the channel id but not the channel's list.
-  if (!props.threadId) chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
+  // A thread view shares the channel id but not the channel's list; nor does a list the stores do not hold.
+  if (!props.threadId && !props.listState) chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
 // Watch for DM highlight requests (reply jump in DMs)
 watch(() => dmStore.highlightedMessageId, (messageId) => {
-  if (!messageId || !props.conversationId) return;
+  if (!messageId || !props.conversationId || props.listState) return;
   jumpToMessageRow(messageId);
   dmStore.highlightedMessageId = null;
 });
@@ -3166,7 +3274,7 @@ onUnmounted(() => {
     clearTimeout(longPressTimer.value);
   }
   clearReadDivider();
-  if (!props.threadId) chatStore.highlightMessage = (_messageId: string) => {};
+  if (!props.threadId && !props.listState) chatStore.highlightMessage = (_messageId: string) => {};
   if (highlightTimer) clearTimeout(highlightTimer);
 });
 
@@ -3535,12 +3643,24 @@ const neighborRowKey = (messageId: string): string | null => {
   return items[index + 1]?.key ?? items[index - 1]?.key ?? null;
 };
 
+/**
+ * The thread the deleted message was in, and the one it started, are read again: the server
+ * deletes a thread the deletion left with no message (migration 20261106200001).
+ */
+const reconcileThreadsAfterDelete = (messageId: string) => {
+  const ids = new Set<string>();
+  if (props.threadId) ids.add(props.threadId);
+  const started = threadsStore.byParent[messageId];
+  if (started) ids.add(started);
+  for (const id of ids) void threadsStore.reconcileAfterMessageDelete(id);
+};
+
 const afterDelete = (focusKey: string | null | undefined) => {
   polite(t('messageA11y.deleted'));
   nextTick(() => focusRowKey(focusKey));
 };
 
-const deleteMessage = (messageId: string, event?: MouseEvent) => {
+const deleteMessage = (messageId: string, event?: { shiftKey?: boolean }) => {
   const bypassConfirm = event?.shiftKey === true;
   hoveredMessageId.value = null;
   // An unsent row has no message to delete: an outbox row is discarded, an
@@ -3554,10 +3674,12 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
   const hide = isInstanceHide(props.messages.find((m) => m.id === messageId));
   
   if (thread) {
+    // A starter's thread outlives it while the thread holds replies (migration 20261106200001).
     deleteConfirmConfig.value = {
       messageId,
       hasThread: true,
       threadName: thread.name || 'this thread',
+      threadKept: (thread.message_count ?? 0) > 0,
       focusAfter,
       hide,
     };
@@ -3567,7 +3689,10 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
     const removal = props.channelId
       ? chatStore.deleteMessage(messageId)
       : props.conversationId ? dmStore.deleteMessage(messageId) : null;
-    void removal?.then(() => afterDelete(focusAfter), () => {});
+    void removal?.then(() => {
+      reconcileThreadsAfterDelete(messageId);
+      afterDelete(focusAfter);
+    }, () => {});
   } else {
     deleteConfirmConfig.value = {
       messageId,
@@ -3581,7 +3706,7 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
 };
 
 const confirmDeleteMessage = async () => {
-  const { messageId, hasThread, focusAfter } = deleteConfirmConfig.value;
+  const { messageId, focusAfter } = deleteConfirmConfig.value;
   if (outbox.has(messageId)) {
     outbox.discard(messageId);
     showDeleteConfirmModal.value = false;
@@ -3593,12 +3718,9 @@ const confirmDeleteMessage = async () => {
   
   if (props.channelId) {
     await chatStore.deleteMessage(messageId);
+    reconcileThreadsAfterDelete(messageId);
   } else if (props.conversationId) {
     await dmStore.deleteMessage(messageId);
-  }
-  
-  if (hasThread) {
-    threadsStore.removeByParent(messageId);
   }
   
   showDeleteConfirmModal.value = false;
@@ -3773,8 +3895,8 @@ const returnFromJump = (messageId: string) => {
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
-  // A thread view's rows are its own; the channel's list is not on screen.
-  if (props.threadId) {
+  // A thread view's rows are its own, as are those of a list the stores do not hold.
+  if (props.threadId || props.listState) {
     if (!jumpToMessageRow(replyMessageId)) debug.warn(`Reply target is not in this thread: ${replyMessageId}`);
     return;
   }

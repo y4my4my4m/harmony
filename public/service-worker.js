@@ -178,7 +178,8 @@ async function handlePushEvent(event) {
       renotify: true,
       data,
       requireInteraction: ['mention', 'dm', 'reply', 'friend_request', 'server_invite'].includes(payload.type),
-      silent: false,
+      // The backend sets silent when the type's sound is off (pushPolicy.pushSoundAllowed).
+      silent: payload.silent === true,
       timestamp: Date.now(),
       actions: getNotificationActions(payload.type),
       vibrate: getVibrationPattern(payload.type),

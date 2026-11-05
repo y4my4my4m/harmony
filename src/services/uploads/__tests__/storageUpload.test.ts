@@ -543,4 +543,15 @@ describe('background uploads', () => {
     expect(entry.progress.status).toBe('completed')
     app.unmount()
   })
+
+  it('lists no upload marked listed: false, on any page, though it is labelled', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const upload = start({ bucket: 'message_media', path: 'c/u/voice.webm', file: new File(['opus'], 'voice.webm'), label: 'Voice message', listed: false })
+    await requests(1)
+    await vi.advanceTimersByTimeAsync(TRANSFER_SHOW_DELAY_MS * 2)
+    expect(transfers()).toHaveLength(0)
+    last().answer(200)
+    await expect(upload.result).resolves.toEqual({ path: 'c/u/voice.webm' })
+    expect(transfers()).toHaveLength(0)
+  })
 })

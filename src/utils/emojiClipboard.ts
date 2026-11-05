@@ -15,8 +15,8 @@ import { escapeHtml } from '@/utils/sanitize'
 
 const EMOJI_TOKEN_RE = new RegExp(`^:(?:${DISCORD_EMOJI_TOKEN_INNER}|${EMOJI_SHORTCODE_INNER}):$`)
 const EMOJI_TOKEN_GLOBAL = () => new RegExp(`:(${DISCORD_EMOJI_TOKEN_INNER}|${EMOJI_SHORTCODE_INNER}):`, 'g')
-/** Unicode emoji sequence: pictographs, regional indicators, ZWJ, VS16, skin tones, keycaps. */
-const UNICODE_EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|\u200D|\uFE0F|\u20E3|[#*0-9])+$/u
+/** Unicode emoji sequence: pictographs, regional indicators, ZWJ, VS16, skin tones, keycaps, tags. */
+const UNICODE_EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]|\u200D|\uFE0F|\u20E3|[#*0-9])+$/u
 
 const BLOCK_TAGS = new Set([
   'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DD', 'DIV', 'DL', 'DT', 'FIGCAPTION', 'FIGURE',

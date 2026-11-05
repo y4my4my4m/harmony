@@ -107,6 +107,7 @@ import {
   type Point,
 } from '@/utils/floatingVideoGeometry';
 import { cssZoom, styleViewport, toStylePx } from '@/utils/appZoom';
+import { callPopoutActive } from './callPopout';
 
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
@@ -143,8 +144,10 @@ const participantName = computed(() => {
 });
 
 // 'fixed' is the fallback when the browser refuses native Picture-in-Picture.
+// The popped-out call window shows the stream; the frame returns when it closes.
 const showFrame = computed(() =>
   voiceStore.pipActive &&
+  !callPopoutActive.value &&
   (voiceStore.pipMode === 'draggable' || voiceStore.pipMode === 'fixed') &&
   !!pipParticipant.value?.isScreenSharing
 );

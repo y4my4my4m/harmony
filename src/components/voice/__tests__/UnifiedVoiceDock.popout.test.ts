@@ -26,6 +26,14 @@ vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name
 vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
 vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('../callChat', async () => {
+  const { computed } = await import('vue')
+  return {
+    setCallChatOpen: vi.fn(),
+    useCallChat: () => ({ dockable: computed(() => false), docked: computed(() => false) }),
+    useCallChatUnread: () => computed(() => false),
+  }
+})
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/spatialAudio', () => ({
   useSpatialAudioStore: () => ({ isPanelVisible: false, settings: { enabled: false }, togglePanel: vi.fn() }),
@@ -234,6 +242,24 @@ describe('UnifiedVoiceDock pop-out', () => {
     expect(wrapper.find('.minimized-container').exists()).toBe(false)
     expect(wrapper.find('.dock-container').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'UnifiedVoiceOverlay' }).exists()).toBe(true)
+  })
+
+  it('popped out, shows no video in the main window: the call window holds the stream', async () => {
+    h.store = makeStore([member('bob', { isScreenSharing: true })])
+    h.store.watchedStreamUserIds.push('bob')
+    wrapper = await mountDock()
+    expect(wrapper.findAll('.dock-container video').length).toBeGreaterThan(0)
+
+    h.popout.active = true
+    await flushPromises()
+    expect(wrapper.find('.minimized-container').exists()).toBe(true)
+    expect(wrapper.findAll('video')).toHaveLength(0)
+
+    // Expanded to the dock while popped out: no strip, no thumbnail.
+    await wrapper.find('.minimized-container').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.dock-container').exists()).toBe(true)
+    expect(wrapper.findAll('video')).toHaveLength(0)
   })
 
   it('closes the pop-out when the call ends', async () => {

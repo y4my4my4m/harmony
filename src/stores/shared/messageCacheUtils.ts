@@ -68,12 +68,14 @@ const timeOf = (m: Message): number => new Date(m.created_at).getTime()
  * created_at. The row starts where the pending one was and moves past neighbouring server rows
  * on the wrong side of its timestamp. Pending and failed rows bound the move: they carry the
  * client clock, keep the typed order of the rows around them, and a failed row stays where it
- * is. False when `arr` holds no such pending row.
+ * is. A stored row `arr` already holds by id, delivered by realtime, stays as it is and the
+ * pending row goes: an id appears once. False when `arr` holds no such pending row.
  */
 export function placeStoredRow(arr: Message[], pendingId: string, stored: Message): boolean {
   let index = arr.findIndex((m) => m.id === pendingId)
   if (index === -1) return false
   arr.splice(index, 1)
+  if (arr.some((m) => m.id === stored.id)) return true
   const at = timeOf(stored)
   while (index > 0 && !isPending(arr[index - 1]) && timeOf(arr[index - 1]) > at) index--
   while (index < arr.length && !isPending(arr[index]) && timeOf(arr[index]) <= at) index++

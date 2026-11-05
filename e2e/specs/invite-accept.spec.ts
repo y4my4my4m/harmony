@@ -58,7 +58,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
     await expect(linkField).toHaveValue(/\/invite\/[A-Z0-9]{8}$/, { timeout: 30000 })
     link = await linkField.inputValue()
     // The link is opened as given: an origin other than the instance's (the
-    // desktop webview's tauri://localhost) fails here.
+    // native apps' tauri://localhost or http://tauri.localhost) fails here.
     expect(new URL(link).origin).toBe(new URL(ownerPage.url()).origin)
     code = link.split('/invite/')[1]
   })

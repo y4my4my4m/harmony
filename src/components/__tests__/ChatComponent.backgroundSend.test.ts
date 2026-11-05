@@ -108,7 +108,7 @@ vi.mock('@/utils/chatParseOptions', () => ({ buildChatParseOptions: () => ({}), 
 vi.mock('@/services/emojiService', () => ({ recordEmojiUsage: vi.fn() }))
 vi.mock('@/services/emojiShortcodeResolver', () => ({ getEmojiShortcodeForInsert: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }))
-vi.mock('@/services/instanceConfig', () => ({ isTauriRuntime: () => false }))
+vi.mock('@/services/instanceConfig', () => ({ isTauriRuntime: () => false, getStoredInstance: () => null }))
 vi.mock('@/utils/fileUpload', () => ({ getMimeTypeFromFilename: vi.fn() }))
 vi.mock('@/utils/klipyAttribution', () => ({ isVideoMessageUrl: () => false }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))

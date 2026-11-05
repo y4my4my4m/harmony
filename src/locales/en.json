@@ -166,6 +166,14 @@
       "mfaRequired": "Two-factor authentication is required. Verify your code.",
       "failed": "Could not reset the password. Try again.",
       "done": "Password reset. Log in with your new password."
+    },
+    "invite": {
+      "title": "Welcome! Choose a password",
+      "subtitle": "You were invited to make an account for {email}. Choose the password you will sign in with.",
+      "submit": "Set password and continue",
+      "done": "Password set. Next, pick your username.",
+      "invalidTitle": "This invitation link does not work",
+      "invalidBody": "The link was already used, has expired or was revoked. Ask the person who invited you for a new one."
     }
   },
   "server": {
@@ -340,9 +348,14 @@
     "federationActive": "Federation active",
     "federationBenefit1": "Users from other instances can join via invite links",
     "federationBenefit2": "Messages are shared with federated members in real-time",
-    "federationBenefit3": "Server appears in federated server discovery",
+    "federationBenefit3": "People on other instances can join with the server handle",
     "federationHandle": "Server handle",
     "federationHandleDesc": "Share this handle so people on other instances can find and join this server.",
+    "federationDiscoverable": "Discoverable across federation",
+    "federationDiscoverableDesc": "List this server in this instance's server directory, so people on other Harmony instances can find and join it.",
+    "federationDiscoverableNeedsPublic": "Make the server public to list it.",
+    "federationDiscoverableNeedsFederation": "Turn on federation to list it.",
+    "federationDiscoverableInstanceOff": "Federation is off on this instance, so its directory lists no server.",
     "uploadingEmojis": "Uploading emoji {current} of {total}...",
     "uploadingEmoji": "Uploading {name}…",
     "copyEmojiName": "Copy emoji name",
@@ -973,6 +986,12 @@
     "moreActions": "More actions",
     "editMessage": "Edit message",
     "deleteMessage": "Delete message",
+    "deleteWithThread": {
+      "message": "This message started the thread “{name}”.",
+      "threadKept": "The thread and its replies stay; the thread shows this message as deleted.",
+      "threadDeleted": "The thread has no replies and is deleted with this message.",
+      "confirmDeleted": "Delete message and thread"
+    },
     "copyMessage": "Copy message",
     "pinMessage": "Pin message",
     "unpinMessage": "Unpin message",
@@ -1073,6 +1092,13 @@
       "label": "Message actions",
       "thread": "Create thread"
     },
+    "shortcuts": {
+      "replying": "Replying to {name}",
+      "pinned": "Message pinned",
+      "unpinned": "Message unpinned",
+      "copied": "Message text copied",
+      "copyFailed": "Could not copy the message text"
+    },
     "failed": {
       "label": "Failed to send",
       "retry": "Retry",
@@ -1101,7 +1127,8 @@
       "pill": "{emoji}, {count} reaction | {emoji}, {count} reactions",
       "pillYou": "{emoji}, {count} reaction, including you | {emoji}, {count} reactions, including you",
       "hint": "The context menu key or Shift+F10 shows the emoji and who reacted.",
-      "removed": "Reaction removed: {emoji}"
+      "removed": "Reaction removed: {emoji}",
+      "summary": "Reactions: {list}"
     },
     "emoji": {
       "reactionDialog": "Add reaction",
@@ -1453,8 +1480,6 @@
       "region": "{name} chat",
       "close": "Close chat",
       "resize": "Resize chat",
-      "awayText": "The main window shows another chat.",
-      "awayAction": "Show the call's chat",
       "elsewhereText": "This chat is open beside the call.",
       "elsewhereAction": "Show chat here"
     },
@@ -1876,6 +1901,15 @@
       "autoGainControlDesc": "Automatically adjusts microphone sensitivity",
       "video": "Video",
       "noCamera": "No camera",
+      "deviceNone": "None",
+      "deviceDefault": "Default",
+      "microphoneNamesHidden": "Device names appear once Harmony may use your microphone.",
+      "cameraNamesHidden": "Camera names appear once Harmony may use your camera.",
+      "allowMicrophone": "Allow microphone",
+      "allowCamera": "Allow camera",
+      "microphoneBlocked": "Microphone access is blocked. Allow it in your browser or system settings, then try again.",
+      "cameraBlocked": "Camera access is blocked. Allow it in your browser or system settings, then try again.",
+      "deviceOpenFailed": "The device could not be opened. Close other apps using it, then try again.",
       "resolution": "Resolution",
       "frameRate": "Frame rate",
       "audioBitrate": "Audio bitrate",
@@ -1988,6 +2022,11 @@
           "label": "Replies",
           "name": "Fediverse replies",
           "description": "When someone replies to your post"
+        },
+        "apQuotes": {
+          "label": "Quotes",
+          "name": "Fediverse quotes",
+          "description": "When someone quotes your post"
         },
         "apFavorites": {
           "label": "Favorites",
@@ -2116,6 +2155,11 @@
         "deviceRemoved": "Device removed",
         "deviceRemoveFailed": "Failed to remove device"
       },
+      "quoteNotice": {
+        "action": " quoted your post",
+        "short": "Post quoted",
+        "noPreview": "Click to see the quote"
+      },
       "samples": {
         "mention": {
           "title": "Test mention",
@@ -2172,6 +2216,10 @@
         "apReply": {
           "title": "Test ActivityPub reply",
           "message": "Someone replied to your fediverse post"
+        },
+        "apQuote": {
+          "title": "Test quote",
+          "message": "Someone quoted your fediverse post"
         },
         "apFollowRequest": {
           "title": "Test ActivityPub follow request",
@@ -2606,7 +2654,14 @@
     "editedTitle": "This post has been edited",
     "replyToUser": "Reply to {name}",
     "replyingTo": "Replying to",
-    "viewThread": "View thread",
+    "replyContext": {
+      "contentWarning": "CW: {text}",
+      "attachments": "{count} attachment | {count} attachments",
+      "deleted": "Replying to a deleted post",
+      "hidden": "Replying to a post you can't see",
+      "remote": "Replying to a post on {domain}",
+      "loading": "Loading the post this replies to"
+    },
     "viewOriginalPost": "View original post",
     "viewQuotedPost": "View quoted post",
     "showMore": "Show more",
@@ -3328,6 +3383,35 @@
     "federationOff": "This server doesn't accept members from other instances: federation is off for it.",
     "federatedNotice": "This is a federated server hosted on another Harmony instance. Your messages will be sent across the network.",
     "joinByUrl": "Join by URL",
+    "directory": {
+      "tabsLabel": "Where to look",
+      "thisInstance": "This instance",
+      "otherInstances": "Other instances",
+      "domainLabel": "Instance",
+      "domainPlaceholder": "example.social",
+      "domainHint": "Enter the domain of another Harmony instance, or pick a known one.",
+      "browse": "Browse",
+      "knownInstances": "Known instances",
+      "loading": "Reading the directory of {domain}…",
+      "serversOn": "{count} server on {domain} | {count} servers on {domain}",
+      "emptyTitle": "No servers listed",
+      "empty": "{domain} lists no servers right now.",
+      "introTitle": "Browse another instance",
+      "intro": "Servers whose owners list them across federation appear here. Joining one makes you a member from this instance.",
+      "members": "{count} member | {count} members",
+      "join": "Join",
+      "loadMore": "Load more",
+      "errorTitle": "Couldn't browse that instance",
+      "noDirectoryTitle": "No server directory",
+      "invalidDomain": "Enter an instance domain, like example.social.",
+      "ownInstance": "That's this instance: its servers are under This instance.",
+      "blocked": "{domain} is blocked on this instance.",
+      "federationOffTitle": "Federation is off",
+      "federationOff": "This instance doesn't federate right now, so other instances can't be browsed.",
+      "noDirectory": "{domain} doesn't publish a server directory.",
+      "unreachable": "{domain} didn't answer. Try again later.",
+      "failed": "Something went wrong. Try again."
+    },
     "haveInviteLink": "Have an invite link? Paste it here",
     "inviteLink": "Invite link",
     "invitedBy": "Invited by",
@@ -4902,7 +4986,7 @@
       "mfaDisabled": {
         "title": "Two-factor authentication turned off",
         "message": "Your account no longer asks for an authenticator code.",
-        "messageRecoveryCode": "A recovery code was used to sign in. Set up two-factor authentication again."
+        "messageRecoveryCode": "A recovery code was used. Set up two-factor authentication again."
       },
       "recoveryCodeUsed": {
         "title": "Recovery code used",
@@ -5218,7 +5302,11 @@
         "keptOutHere": "Kept {person} out of {server} on {instance}",
         "keepoutLifted": "Let {person} rejoin {server} from {instance}",
         "reportsRejected": "Ignored reports from {domain}",
-        "reportsAccepted": "Accepted reports from {domain} again"
+        "reportsAccepted": "Accepted reports from {domain} again",
+        "inviteCreated": "Invited {email}",
+        "inviteEmailed": "Emailed an invitation to {email}",
+        "inviteReissued": "Made a new invitation link for {email}",
+        "inviteRevoked": "Revoked the invitation for {email}"
       }
     },
     "antiSpam": {
@@ -6115,6 +6203,7 @@
       "lock": "Lock thread",
       "unlock": "Unlock thread",
       "delete": "Delete thread",
+      "gone": "This thread was deleted.",
       "mute": "Mute thread",
       "unmute": "Unmute thread",
       "copyId": "Copy thread ID",
@@ -6242,6 +6331,10 @@
     "copied": "Link copied",
     "copyFailed": "Could not copy the link",
     "trustFailed": "Could not save {host} as trusted",
+    "noApp": "No app on this device opens web links",
+    "noAppCopied": "No app on this device opens web links. The link is copied: paste it into a browser.",
+    "openFailed": "Could not open the link",
+    "openFailedCopied": "Could not open the link. It is copied: paste it into a browser.",
     "settings": {
       "title": "Outside links",
       "askEvery": "Ask before opening any outside link",
@@ -6393,6 +6486,7 @@
     "post": "Post poll",
     "selectOne": "Select one answer",
     "selectMultiple": "Select one or more answers",
+    "voteFinal": "Your vote can't be changed once sent",
     "votes": "{count} vote | {count} votes",
     "timeLeft": {
       "minutes": "{count} minute left | {count} minutes left",
@@ -6416,7 +6510,8 @@
       "voteFailed": "Your vote was not saved.",
       "closed": "This poll has ended.",
       "endFailed": "The poll could not be ended.",
-      "alreadyVoted": "You already voted on this poll."
+      "alreadyVoted": "You already voted on this poll.",
+      "hostUnsupported": "This server's home instance doesn't take polls yet."
     },
     "remote": {
       "voters": "{count} person voted | {count} people voted",
@@ -6496,7 +6591,10 @@
       "unmuteChannel": "Unmute channel",
       "unmuteCategory": "Unmute category",
       "level": "Notification level",
-      "default": "Default ({level})"
+      "default": "Default ({level})",
+      "levelSet": "{name}: {level}",
+      "muted": "{name} muted",
+      "unmuted": "{name} unmuted"
     },
     "notification": {
       "action": " sent a message in #{channel}",
@@ -6700,7 +6798,29 @@
       "skip": "Skip to content: the first Tab stop on every page",
       "skipKeys": "Tab",
       "escape": "Close the open dialog, menu or drawer; focus returns to where it was",
-      "escapeKeys": "Escape"
+      "escapeKeys": "Escape",
+      "messages": {
+        "title": "Message list",
+        "note": "These keys act on the message that has focus.",
+        "moveKeys": "↑ / ↓",
+        "move": "Previous or next message; Home and End go to the first and last",
+        "menuKeys": "Enter / Shift+F10",
+        "menu": "Message options",
+        "editKeys": "E",
+        "edit": "Edit your message",
+        "replyKeys": "R",
+        "reply": "Reply",
+        "reactKeys": "+",
+        "react": "Add a reaction",
+        "pinKeys": "P",
+        "pin": "Pin or unpin",
+        "deleteKeys": "Backspace / Delete",
+        "delete": "Delete; with Shift, without asking first",
+        "copyKeys": "C",
+        "copy": "Copy the text",
+        "threadKeys": "T",
+        "thread": "Create or open a thread"
+      }
     },
     "unsavedChanges": "Unsaved changes"
   },
@@ -7142,7 +7262,6 @@
     "linkHint": "YouTube, SoundCloud, Spotify or a file link"
   },
   "support": {
-    "title": "Support this instance",
     "progress": "Funding progress",
     "raisedMonth": "raised of {goal} this month",
     "raisedTotal": "raised of {goal} in total",
@@ -7163,7 +7282,88 @@
     "yours": "Your support",
     "tierSupporter": "{tier} supporter",
     "active": "Active",
-    "history": "Your support history"
+    "history": "Your support history",
+    "titleShort": "Support",
+    "raisedThisMonth": "raised this month",
+    "raisedAllTime": "raised in total",
+    "resets": "Resets {date} (UTC)",
+    "until": "Active until {date}",
+    "instanceOff": "This instance is not asking for support right now.",
+    "thanks": "Thank you! Your support came through.",
+    "tabs": {
+      "label": "Who to support",
+      "instance": "This instance",
+      "project": "Harmony development"
+    },
+    "project": {
+      "title": "Help build Harmony",
+      "lead": "Harmony is free, open-source software. Support here goes to the people building it, not to {instance}.",
+      "monthly": "Monthly",
+      "footnote": "You pay on Stripe; {instance} never handles the money.",
+      "supporters": "Supporters and their messages"
+    },
+    "wall": {
+      "title": "Recent supporters",
+      "empty": "No messages yet. Yours could be the first.",
+      "anonymous": "Anonymous",
+      "you": "You",
+      "now": "now",
+      "hide": "Hide",
+      "hideFrom": "Hide the message from {name}",
+      "more": "Show all {count}",
+      "fewer": "Show fewer"
+    },
+    "message": {
+      "title": "Add a public message",
+      "optional": "optional",
+      "label": "Public message",
+      "placeholder": "Say something to the community",
+      "anonymous": "Show as Anonymous",
+      "help": "It goes with your next support within 24 hours, and an admin approves it before others see it. Plain text, up to 50 characters.",
+      "save": "Save message",
+      "saved": "Saved. It goes with your support until {time}.",
+      "remove": "Remove",
+      "status": {
+        "waiting": "Waiting for your support until {time}",
+        "pending": "Waiting for approval",
+        "hidden": "Hidden by an admin"
+      },
+      "errors": {
+        "length": "Up to {max} characters.",
+        "control": "Line breaks and control characters can't be used.",
+        "bidi": "Text direction marks can't be used.",
+        "marks": "Too many accents on one character.",
+        "disabled": "Messages are turned off on this instance.",
+        "failed": "The message couldn't be saved."
+      }
+    },
+    "landing": {
+      "label": "Recent supporters of this instance",
+      "next": "Next supporter message"
+    },
+    "settings": {
+      "title": "Support",
+      "lead": "Help keep this instance running, and Harmony itself.",
+      "project": "Support Harmony's development"
+    },
+    "admin": {
+      "messagesEnabled": "Supporter messages",
+      "messagesPublic": "Show approved messages on the sign-in page",
+      "messagesHint": "Supporters can add a message of up to 50 characters to their support. Nothing shows until you approve it below.",
+      "queueTitle": "Supporter messages",
+      "queueHint": "A message arrives with a credited donation. Approve it to show it in the Support window and, when that is on, on the sign-in page. Hide it at any time.",
+      "queueEmpty": "No supporter messages yet.",
+      "approve": "Approve",
+      "hide": "Hide",
+      "unhide": "Show again",
+      "anonymousBy": "Anonymous: {name}",
+      "reviewFailed": "The message could not be updated.",
+      "state": {
+        "pending": "Awaiting approval",
+        "approved": "Shown",
+        "hidden": "Hidden"
+      }
+    }
   },
   "driveAdmin": {
     "settings": "Drive storage",
@@ -7542,6 +7742,79 @@
       "paused": "while paused"
     }
   },
+  "adminInvites": {
+    "tab": "Invites",
+    "title": "Invite people",
+    "intro": "An invitation makes an account for one email address. The person opens the link, chooses a password and then a username.",
+    "modeOpen": "Registration: open.",
+    "modeOpenHint": "Anyone can create an account on the sign-up page.",
+    "modeClosed": "Registration: invite only.",
+    "modeClosedHint": "The sign-up page creates no accounts; new people join with an invitation.",
+    "modeUnknown": "Registration: unknown.",
+    "modeUnknownHint": "The auth service did not say whether sign-up is on.",
+    "advertisedOpen": "Other servers are told registration is open (instance setting open_registration).",
+    "advertisedClosed": "Other servers are told registration is closed (instance setting open_registration).",
+    "everyMode": "Invitations work in every registration mode, including while sign-up is off.",
+    "email": "Email address",
+    "emailHint": "One invitation per address; the link makes the account for this address only.",
+    "send": "Send by email",
+    "sendHint": "The auth service emails the link. Otherwise, copy the link and send it yourself.",
+    "sendUnavailable": "This instance cannot send email: the auth service has no SMTP server. Copy the link and send it yourself.",
+    "create": "Create invitation",
+    "created": "Invitation for {email}. The link works once and expires {when}.",
+    "reissued": "New link for {email}; the one before no longer works. It expires {when}.",
+    "emailed": "Invitation emailed to {email}. The link expires {when}.",
+    "linkFor": "Invitation link for {email}",
+    "copy": "Copy",
+    "copied": "Invitation link copied",
+    "copyFailed": "Could not copy the link; select it and copy it yourself",
+    "singleUse": "Send it only to this person: whoever opens it first makes the account.",
+    "pendingTitle": "Pending invitations ({count})",
+    "refresh": "Refresh",
+    "loading": "Loading invitations…",
+    "lifetime": "A link works for {hours} hour after it is made. | A link works for {hours} hours after it is made.",
+    "pendingEmpty": "No pending invitations.",
+    "invitedBy": "Invited by",
+    "invitedAt": "Invited",
+    "delivery": "Sent as",
+    "expiry": "Link",
+    "byCli": "Command line",
+    "byFormerAdmin": "A former admin",
+    "byUnknown": "Outside Harmony",
+    "byEmail": "Email",
+    "byLink": "Link",
+    "byUnknownDelivery": "Unknown",
+    "linksIssued": "{how}, {count} links made",
+    "expires": "Expires {when}",
+    "expired": "Expired {when}",
+    "reissue": "Copy new link",
+    "reissueFor": "Copy new link for {email}",
+    "revoke": "Revoke",
+    "revokeFor": "Revoke the invitation for {email}",
+    "revokeTitle": "Revoke invitation",
+    "revokeMessage": "The link for {email} stops working and the unused account is deleted. You can invite the address again later.",
+    "revokedToast": "Invitation for {email} revoked",
+    "closedTitle": "Accepted and revoked",
+    "acceptedAs": "Joined as {handle}, {when}",
+    "accepted": "Accepted {when}; no username yet",
+    "revokedBy": "Revoked by {handle}, {when}",
+    "revoked": "Revoked {when}",
+    "removed": "The account was deleted",
+    "invitedLine": "Invited by {who}, {when}",
+    "errors": {
+      "invalidEmail": "Enter an email address, like name{'@'}example.org.",
+      "accountExists": "An account with this address already exists. Nothing was created.",
+      "invitePending": "This address already has a pending invitation (below). Use Copy new link to send it again.",
+      "emailUnavailable": "This instance cannot send email. Create a link instead.",
+      "authRateLimited": "The auth service has sent too many emails; try again later.",
+      "rateLimited": "Too many invitation changes; try again later.",
+      "inviteAccepted": "This person has already signed in; the invitation can no longer change.",
+      "inviteGone": "This invitation no longer exists.",
+      "adminRequired": "Only instance admins invite people.",
+      "authFailed": "The auth service refused: {detail}",
+      "unavailable": "Invitations are unavailable: the federation backend did not answer."
+    }
+  },
   "adminWebhooks": {
     "tab": "Webhooks",
     "settingsTitle": "Webhook settings",
@@ -7643,6 +7916,7 @@
       "upload": "Add a sticker",
       "limits": "PNG, APNG, WebP or GIF, up to {size} and {side}×{side} pixels; animations up to {seconds} seconds. Larger still images are resized.",
       "file": "Image",
+      "choose": "Choose an image or drop it here",
       "name": "Name",
       "description": "Description",
       "descriptionHint": "Read aloud by screen readers and shown when the image cannot load. Required.",

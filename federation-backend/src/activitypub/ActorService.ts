@@ -24,6 +24,7 @@ import { movedColumns } from './accountMigration.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { isPublicVisibility } from './postAccess.js';
 import { bearerToken } from '../utils/sessionAssurance.js';
+import { resolveReplyParents } from './replyParents.js';
 import {
   collectionTotal, engagementColumns, fetchProfileCounts, misskeyNoteTotals, noteEngagementColumns,
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
@@ -644,6 +645,37 @@ router.post(
 
     logger.info(`Resolved remote post ${url} → ${result.id}`);
     return res.json({ success: true, post_id: result.id });
+  })
+);
+
+/**
+ * Fetch the parents of stored replies whose parent was not stored on receipt (replyParents.ts).
+ * POST /resolve-reply-parents (proxied via /api/federation/resolve-reply-parents)
+ * Body: { post_ids: uuid[] }, at most 20. Posts are read as the bearer's session, anon without
+ * one. Answers { results: { [post_id]: 'linked' | 'unavailable' | 'none' } }.
+ */
+router.post(
+  '/resolve-reply-parents',
+  discoveryLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const postIds = req.body?.post_ids;
+    if (!Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ error: 'post_ids array is required' });
+    }
+    const token = bearerToken(req.headers.authorization);
+    const reader = getSupabaseClientWithAuth(token ?? config.SUPABASE_ANON_KEY);
+    const results = await resolveReplyParents(
+      postIds,
+      reader,
+      getSupabaseClient(),
+      async (url) => {
+        const parent = await ActivityProcessor.fetchAndCreateRemotePost(url);
+        if (!parent) return null;
+        const { data } = await getSupabaseClient().from('posts').select('ap_id, url').eq('id', parent.id).maybeSingle();
+        return { ...parent, ap_id: data?.ap_id ?? null, url: data?.url ?? null };
+      },
+    );
+    return res.json({ success: true, results });
   })
 );
 

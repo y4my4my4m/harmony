@@ -11,7 +11,8 @@
 #   ./harmony admin create   # the instance admin
 #
 # Updates: ./harmony update. Optional services are compose profiles (voice,
-# bots, discord); configure.sh lists the enabled ones in COMPOSE_PROFILES in .env.
+# bots, discord, and logs for Supabase's log collection in supabase-overrides.yml);
+# configure.sh lists the enabled ones in COMPOSE_PROFILES in .env.
 #
 # Harmony's own services run published images. HARMONY_BUILD=1 configure.sh
 # adds docker-compose.build.yml through COMPOSE_FILE in .env, which builds

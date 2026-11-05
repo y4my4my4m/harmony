@@ -35,6 +35,7 @@ const CDN_CLIP = 'https://cdn.discordapp.com/attachments/1/2/clip.mp4?ex=6ad0146
 const CDN_GIF = 'https://media.example/dance.gif'
 const WIKI_STORED = 'https://en.wikipedia.org/wiki/Moustapha_Akkad'
 const WIKI = 'https://en.m.wikipedia.org/wiki/The_Message_(1976_film)'
+const DOCS = 'https://developer.example/docs/web-share-target/'
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173'
 // The dev server's own asset stands in for the video file.
 const VIDEO = new URL('/default_avatar.webp', BASE_URL).href
@@ -77,6 +78,28 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await deleteUser(admin, user)
+})
+
+test('text after a preview card starts right below it', async ({ page }) => {
+  test.setTimeout(120_000)
+  const { error } = await admin.from('messages').insert({
+    channel_id: server.generalChannelId,
+    user_id: user.id,
+    content: [{ type: 'text', text: 'gapcheck supported ' }, { type: 'url', url: DOCS }, { type: 'text', text: '\n\nafter the card\nsecond line' }],
+    metadata: { embeds: { [DOCS]: payload(DOCS, { title: 'Web Share Target', siteName: 'developer.example', description: 'Receive shared data.' }) } },
+  })
+  if (error) throw new Error(`message: ${error.message}`)
+  await signIn(page, user)
+  await openChannel(page, server.id, server.generalChannelId)
+  await dismissAnnouncements(page)
+  const row = page.locator('[data-testid="message-list"] .message-item').filter({ hasText: 'gapcheck supported' })
+  const card = row.locator('.link-embed-card')
+  await expect(card).toContainText('Web Share Target', { timeout: 30000 })
+  const after = row.locator('.text-content').filter({ hasText: 'after the card' })
+  expect(await after.evaluate((el) => el.innerHTML.trimStart().startsWith('<br'))).toBe(false)
+  const gap = (await after.boundingBox())!.y - ((await card.boundingBox())!.y + (await card.boundingBox())!.height)
+  expect(gap).toBeLessThan(20)
+  await expect(after).toContainText('second line')
 })
 
 test('failed previews show no card; video answers and og:video play', async ({ page }) => {

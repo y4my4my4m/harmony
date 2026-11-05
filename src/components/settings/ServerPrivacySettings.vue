@@ -182,6 +182,41 @@
         </div>
       </fieldset>
 
+      <!-- Listed in the instance's server directory for other instances: public and federated only. -->
+      <div v-if="directorySupported" class="form-group directory-group">
+        <div class="setting-row">
+          <div class="setting-info">
+            <label class="form-label" :for="`${uid}-directory`">{{ $t('server.federationDiscoverable') }}</label>
+            <div :id="`${uid}-directory-hint`" class="form-hint">
+              {{ $t('server.federationDiscoverableDesc') }}
+            </div>
+            <div
+              v-if="directoryRequirement"
+              :id="`${uid}-directory-requires`"
+              class="form-hint"
+              data-testid="server-directory-requires"
+            >
+              {{ directoryRequirement }}
+            </div>
+          </div>
+          <div class="setting-control">
+            <label class="toggle-switch">
+              <input
+                :id="`${uid}-directory`"
+                type="checkbox"
+                role="switch"
+                :aria-describedby="directoryRequirement ? `${uid}-directory-hint ${uid}-directory-requires` : `${uid}-directory-hint`"
+                :checked="federationDiscoverable && !directoryRequirement"
+                :disabled="loading || !permissions.canChangePrivacySettings || !!directoryRequirement"
+                data-testid="server-directory-toggle"
+                @change="handleDirectoryToggle"
+              />
+              <span class="toggle-slider" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div class="form-group category-group">
         <span id="server-category-label" class="form-label">{{ $t('server.discoveryCategory') }}</span>
         <ServerCategoryPicker
@@ -249,16 +284,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, useId } from 'vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { hasCapability } from '@/services/instanceCapabilities'
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue'
 import type { ServerCategory } from '@/utils/serverDiscovery'
 import { supabase } from '@/supabase'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import { useI18n } from 'vue-i18n'
 import { useDialog } from '@/composables/useDialog'
 
-useI18n();
+const { t } = useI18n();
 const uid = `privacy-${useId()}`
 const instanceSettings = useInstanceSettingsStore()
 const instanceFederationEnabled = computed(() => instanceSettings.isFederationEnabled)
+// The directory lists nothing unless both switches are on (federation_server_directory).
+const instanceDirectoryOpen = computed(() => {
+  const s = instanceSettings.settings
+  return s.federationEnabled && s.federationInboundEnabled && s.federationOutboundEnabled
+})
+const directorySupported = hasCapability('server-directory')
 
 interface ServerPermissions {
   canChangePrivacySettings: boolean
@@ -269,6 +312,7 @@ interface Props {
   isPublic: boolean
   category?: string | null
   federationEnabled: boolean
+  federationDiscoverable?: boolean
   loading: boolean
   permissions: ServerPermissions
 }
@@ -276,14 +320,34 @@ interface Props {
 interface Emits {
   (e: 'update:isPublic', value: boolean): void
   (e: 'update:federationEnabled', value: boolean): void
+  (e: 'update:federationDiscoverable', value: boolean): void
   (e: 'update:category', value: ServerCategory | null): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   category: null,
-  federationEnabled: false
+  federationEnabled: false,
+  federationDiscoverable: false,
 })
 const emit = defineEmits<Emits>()
+
+// Why the server cannot be listed now; null when it can. update_server clears the flag when the
+// server stops being public or federated.
+const directoryRequirement = computed(() => {
+  if (!instanceDirectoryOpen.value) return t('server.federationDiscoverableInstanceOff')
+  if (!props.isPublic) return t('server.federationDiscoverableNeedsPublic')
+  if (!props.federationEnabled) return t('server.federationDiscoverableNeedsFederation')
+  return null
+})
+
+const handleDirectoryToggle = (event: Event) => {
+  if (!props.permissions.canChangePrivacySettings || directoryRequirement.value) return
+  emit('update:federationDiscoverable', (event.target as HTMLInputElement).checked)
+}
+
+function unlist() {
+  if (props.federationDiscoverable) emit('update:federationDiscoverable', false)
+}
 
 const federatedMemberCount = ref(0)
 const showDisableWarning = ref(false)
@@ -314,7 +378,8 @@ async function fetchFederatedMemberCount() {
   }
 }
 
-// The server's WebFinger handle ({slug}@{instance}) used for federated discovery.
+// The server's WebFinger handle ({slug}@{instance domain}) used for federated discovery. The page's
+// own host is the native app's (tauri.localhost), or a web app host apart from the handle domain.
 async function fetchServerHandle() {
   serverHandle.value = ''
   if (!props.serverId) return
@@ -325,7 +390,7 @@ async function fetchServerHandle() {
     .maybeSingle()
 
   if (!error && data?.slug) {
-    serverHandle.value = `${data.slug}@${window.location.hostname}`
+    serverHandle.value = `${data.slug}@${getInstanceDomain()}`
   }
 }
 
@@ -361,11 +426,13 @@ const handleFederationToggle = (event: Event) => {
     return
   }
 
+  if (!newValue) unlist()
   emit('update:federationEnabled', newValue)
 }
 
 function confirmDisableFederation() {
   showDisableWarning.value = false
+  unlist()
   emit('update:federationEnabled', false)
 }
 
@@ -381,6 +448,7 @@ const setCategory = (value: ServerCategory | null) => {
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   if (!props.permissions.canChangePrivacySettings) return
   const newPublicState = mode === 'public-directory'
+  if (!newPublicState) unlist()
   emit('update:isPublic', newPublicState)
 }
 </script>
@@ -491,6 +559,10 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   margin-top: 8px;
 }
 
+.directory-group .setting-row {
+  margin-bottom: 0;
+}
+
 .setting-row {
   display: flex;
   justify-content: space-between;
@@ -532,7 +604,8 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   border-radius: 24px;
 }
 
-.toggle-slider.disabled {
+.toggle-slider.disabled,
+.toggle-switch input:disabled + .toggle-slider {
   cursor: not-allowed;
   opacity: 0.6;
 }

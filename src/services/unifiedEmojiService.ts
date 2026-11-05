@@ -12,10 +12,10 @@ import { ref, shallowRef, markRaw, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { 
   TWEMOJI_BASE_URL, 
-  DEFAULT_EMOJI_PACK,
   EMOJI_CATEGORIES,
   type EmojiPack 
 } from '@/utils/emojiConstants'
+import { currentPackId, initializeEmojiPacks, setCurrentPack } from '@/services/emojiPackService'
 import {
   getCachedStaticEmojiData,
   setCachedStaticEmojiData,
@@ -69,8 +69,8 @@ export interface EmojiData {
 }
 
 // State
-const PACK_STORAGE_KEY = 'harmony-emoji-pack'
-const currentPack = ref<EmojiPack>(DEFAULT_EMOJI_PACK)
+// The pack chosen in Appearance (emojiPackService); every pack but System draws Twemoji.
+const currentPack = computed<EmojiPack>(() => (currentPackId.value === 'native' ? 'native' : 'twemoji'))
 // Shallow and raw: 1906 entries with keyword arrays; deep proxies cost every
 // property read in search and render loops. The data is replaced, never mutated.
 const emojiData = shallowRef<EmojiData | null>(null)
@@ -204,29 +204,8 @@ async function loadEmojiData(): Promise<void> {
   }
 }
 
-function loadPackPreference(): void {
-  try {
-    const stored = localStorage.getItem(PACK_STORAGE_KEY)
-    if (stored === 'native' || stored === 'twemoji') {
-      currentPack.value = stored as EmojiPack
-    }
-  } catch (error) {
-    debug.error('Failed to load emoji pack preference:', error)
-  }
-}
-
-function savePackPreference(): void {
-  try {
-    localStorage.setItem(PACK_STORAGE_KEY, currentPack.value)
-  } catch (error) {
-    debug.error('Failed to save emoji pack preference:', error)
-  }
-}
-
 function setEmojiPack(pack: EmojiPack): void {
-  currentPack.value = pack
-  savePackPreference()
-  debug.log(`Switched to emoji pack: ${pack}`)
+  setCurrentPack(pack)
 }
 
 // CONVERSION UTILITIES
@@ -411,6 +390,18 @@ function unicodeToSvgUrl(unicode: string): string | null {
   return null
 }
 
+/**
+ * Twemoji SVG URL of a unicode emoji sequence under the Twemoji pack, when the file map lists
+ * its file. Null under the native pack, before the map loads, and for a sequence Twemoji does
+ * not draw: no request is made for a file that does not exist.
+ */
+function twemojiFileUrl(unicode: string): string | null {
+  if (currentPack.value !== 'twemoji' || !twemojiFileMap.value) return null
+  const codepoint = unicodeToCodepoint(unicode) || unicodeToCodepointDirect(unicode)
+  const found = codepoint ? findTwemojiFile(codepoint) : null
+  return found ? `${TWEMOJI_BASE_URL}/${found}.svg` : null
+}
+
 // EMOJI RESOLUTION (for display)
 
 export interface ResolvedEmoji {
@@ -549,7 +540,7 @@ function getAllEmojis(): EmojiEntry[] {
 
 /** Emoji data is not loaded here; see the note in the body. */
 export function useUnifiedEmoji() {
-  loadPackPreference()
+  initializeEmojiPacks()
   
   // Emoji data stays unloaded on mount: 712KB off the initial page load.
   // Loaded on picker open, on search, and on resolution.
@@ -605,6 +596,7 @@ export {
   getSvgUrl,
   unicodeToSvgUrl,
   getTwemojiUrl,
+  twemojiFileUrl,
   resolveEmoji,
   normalizeToUnicode,
   searchEmojis,

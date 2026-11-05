@@ -52,12 +52,24 @@
         :current-view="isDM ? 'dm' : 'chat'"
         @load-more-messages="loadMore"
       />
-      <div v-else class="call-chat-away" data-testid="call-chat-away">
-        <p class="call-chat-away-text">{{ t('voice.callChat.awayText') }}</p>
-        <button type="button" class="call-chat-away-action" @click="chat.showTarget()">
-          {{ t('voice.callChat.awayAction') }}
-        </button>
-      </div>
+      <!-- The main window shows another chat: the call's is read from its cache entry. -->
+      <UnifiedContentArea
+        v-else
+        :mode="ViewMode.CHAT"
+        :chat-messages="feed.messages.value"
+        :is-loading="feed.loading.value"
+        :is-d-m="isDM"
+        :channel-id="channelId"
+        :conversation-id="conversationId"
+        :channel-name="isDM ? undefined : title"
+        :dm-username="isDM ? title : undefined"
+        :server-id="serverId"
+        :list-state="feed.listState.value"
+        :view-type="isDM ? ViewType.DM : ViewType.CHAT"
+        :current-view="isDM ? 'dm' : 'chat'"
+        data-testid="call-chat-own-list"
+        @load-more-messages="feed.loadOlder"
+      />
     </div>
   </section>
 </template>
@@ -81,6 +93,7 @@ import {
 import { ViewMode, ViewType } from '@/types/viewTypes'
 import { toStylePx } from '@/utils/appZoom'
 import { CALL_CHAT_WIDTH, setCallChatWidth, useCallChat } from './callChat'
+import { useCallChatFeed } from './callChatFeed'
 
 const props = withDefaults(defineProps<{
   id: string
@@ -101,8 +114,11 @@ const { getUserDisplayName } = useUserData()
 const rootEl = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 
+const feed = useCallChatFeed(chat)
+
 const isDM = computed(() => chat.target.value?.kind === 'dm')
 const channelId = computed(() => (chat.target.value?.kind === 'channel' ? chat.target.value.channelId : undefined))
+const serverId = computed(() => (chat.target.value?.kind === 'channel' ? chat.target.value.serverId : undefined))
 const conversationId = computed(() => (chat.target.value?.kind === 'dm' ? chat.target.value.conversationId : undefined))
 
 const messages = computed(() => (isDM.value ? dmStore.currentDMMessages : chatStore.messages))
@@ -115,7 +131,7 @@ const title = computed(() => {
     return name || (voice.effectiveChannelName as string) || ''
   }
   const channel = channelStore.channels.find((c: { id: string }) => c.id === channelId.value) as { name?: string } | undefined
-  return channel?.name || (voice.effectiveChannelName as string) || ''
+  return channel?.name || (voice.currentChannelName as string) || (voice.effectiveChannelName as string) || ''
 })
 
 const loadMore = () => (isDM.value
@@ -175,8 +191,6 @@ const focusStart = () => {
   ;(composer ?? closeButton.value)?.focus()
 }
 
-// Routing follows the user's Chat toggle only: a panel mounted because the call view opened
-// on its own (a stream starting) leaves the main window where it is and offers the chat.
 onMounted(() => {
   if (props.autofocus) void nextTick(focusStart)
 })
@@ -285,38 +299,6 @@ onBeforeUnmount(endResize)
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.call-chat-away {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.call-chat-away-text {
-  margin: 0;
-  font-size: var(--font-size-sm);
-}
-
-.call-chat-away-action {
-  padding: 8px 16px;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  background: var(--background-secondary);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.call-chat-away-action:hover {
-  background: var(--background-modifier-hover);
 }
 
 @media (max-width: 768px) {

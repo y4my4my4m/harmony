@@ -359,6 +359,29 @@ check_database() {
 	else
 		report WARN listener "no harmony_listener role: queued jobs wait for the periodic sweep" "bash bootstrap.sh && docker compose restart federation-worker"
 	fi
+
+	# Supabase log collection. Logflare's Postgres backend deletes no log line (its retention
+	# applies to BigQuery only), and its replication slot never confirms: Postgres keeps the
+	# write-ahead log behind it up to max_slot_wal_keep_size (4 GB).
+	local gb=1073741824 bytes size slot fix
+	fix="harmony analytics off --delete-logs (harmony analytics on afterwards collects again, from empty)"
+	read -r bytes size <<<"$(db_sql -d _supabase -c "SELECT s, pg_size_pretty(s) FROM (SELECT coalesce(sum(pg_total_relation_size(c.oid)), 0) AS s
+		FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '_analytics' AND c.relkind = 'r') t" 2>/dev/null | tr '|' ' ')"
+	if [[ "$bytes" =~ ^[0-9]+$ ]]; then
+		if (( bytes > gb )); then
+			report WARN "stored logs" "_supabase._analytics holds $size of collected logs" "$fix"
+		else
+			report OK "stored logs" "$size in _supabase._analytics"
+		fi
+	fi
+	read -r slot bytes size <<<"$(db_sql -c "SELECT slot_name, d, pg_size_pretty(d) FROM (SELECT slot_name, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)::bigint AS d
+		FROM pg_replication_slots WHERE slot_name LIKE 'cainophile\_%' AND restart_lsn IS NOT NULL) t ORDER BY d DESC LIMIT 1" 2>/dev/null | tr '|' ' ')"
+	if [[ -n "$slot" && "$bytes" =~ ^[0-9]+$ ]] && (( bytes > gb )); then
+		report WARN "logflare slot" "replication slot $slot holds $size of write-ahead log" "$fix"
+	fi
+	if [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," != *",logs,"* && -n "$(compose --profile logs ps -q analytics vector 2>/dev/null)" ]]; then
+		report WARN "log collection" "analytics or vector runs though log collection is off in .env; it keeps filling the database" "harmony analytics off --delete-logs"
+	fi
 }
 
 # --- DNS and TLS ---------------------------------------------------------------

@@ -20,6 +20,18 @@ export const CAPABILITIES = [
   // The stickers table and bucket, create_sticker, update_sticker, delete_sticker and
   // create_report's p_reported_sticker_id (20261031200001).
   'custom-stickers',
+  // Server directories: servers.federation_discoverable written through update_server,
+  // GET /servers/directory, GET /directory/remote and /directory/peers (20261105100001).
+  'server-directory',
+  // The admin panel's invitations: /admin/invites and the admin_* invitation functions
+  // (20261105980001).
+  'instance-invites',
+  // Chat message polls over federation: message_polls.remote, get_message_polls' remote column,
+  // create_message_poll's POLL_HOST_UNSUPPORTED and servers.federation_metadata.message_polls
+  // (20261105990001).
+  'federated-polls',
+  // get_funding_summary and the supporter message RPCs (20261106100001).
+  'supporter-messages',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

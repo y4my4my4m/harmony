@@ -36,3 +36,41 @@ export function withoutStaleParam(href: string): string | null {
   url.searchParams.delete(STALE_RELOAD_PARAM)
   return `${url.pathname}${url.search}${url.hash}`
 }
+
+export const PRELOAD_RELOAD_KEY = 'harmony:preload-reload'
+// A second failure of the same bundle within this window reloads nothing: the server still
+// serves the files that failed.
+export const PRELOAD_RELOAD_WINDOW_MS = 10 * 60 * 1000
+
+/**
+ * vite:preloadError guard: a chunk or stylesheet of the loaded bundle that no longer exists (a
+ * deploy or desktop update replaced the files under the page) reloads the page once per bundle
+ * per PRELOAD_RELOAD_WINDOW_MS. The record holds the bundle and the time, so an earlier reload of
+ * the tab (an earlier update, a chunk fetch lost to the network) leaves the next one free.
+ * True when the caller reloads; the record is written first.
+ */
+export function claimPreloadReload(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null,
+  bundle: string,
+  now: number,
+): boolean {
+  if (!storage) return false
+  try {
+    let last: unknown = null
+    try {
+      last = JSON.parse(storage.getItem(PRELOAD_RELOAD_KEY) ?? 'null')
+    } catch {
+      last = null
+    }
+    const rec = last as { bundle?: unknown; at?: unknown } | null
+    if (rec && typeof rec === 'object' && rec.bundle === bundle && typeof rec.at === 'number' &&
+        now - rec.at >= 0 && now - rec.at < PRELOAD_RELOAD_WINDOW_MS) {
+      return false
+    }
+    storage.setItem(PRELOAD_RELOAD_KEY, JSON.stringify({ bundle, at: now }))
+    return true
+  } catch {
+    // Without storage there is no loop guard: no reload.
+    return false
+  }
+}

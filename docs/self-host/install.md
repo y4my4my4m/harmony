@@ -102,6 +102,7 @@ In order:
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
 | Enable bots? | The bot gateway, for bots and Discord bridges | `n` |
 | Host Discord bridges on this server? | Asked when bots are on. Communities paste their Discord bot token into Harmony and this server runs their bridge; see [Discord bridges](/self-host/discord-bridges) | `n` |
+| Run Supabase log collection? | Logflare and vector store every service's logs in the database for Supabase Studio's Logs pages, for 0.7 to 2 GB of memory; `harmony logs` works without them. `harmony analytics on\|off` changes it later; see [Log collection](/self-host/#log-collection) | `n`, also on an instance installed before the question existed; answered `n` there, the installer removes `analytics` and `vector` and deletes the logs they stored |
 | Set up email (SMTP) now? | Then: SMTP server, SMTP port, SMTP username, SMTP password, sender address. Without it, accounts work but nobody can reset a forgotten password; see [Email](/self-host/email) | `n`; port `587`, sender `noreply@` your domain |
 | Registration | `open`: anyone can sign up. `invite`: only people you invite. `closed`: no new accounts | `open` |
 
@@ -166,7 +167,7 @@ The installer already ran it once. Each line is OK, WARN or FAIL with a fix;
 Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
-**Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
+**Federation**, **Users**, **Invites**, **Retention**, **Reports**, **Anti-spam**,
 **Webhooks**, **Content**, **Emojis**, **Stickers**, **Config**, **Funding**,
 **Drive** and **Tools**. The instance name, description, rules, icon and legal links
 are under **Config** → **Branding**, the largest file each account may upload
@@ -213,16 +214,41 @@ providers are refused too. NodeInfo advertises the policy to other servers
 
 ### Invite someone
 
-With `invite`, each invitation is a single-use link:
+An invitation makes an account for one email address. It works in every
+registration policy, also while sign-up is off.
+
+In the admin panel, open **Invites**:
+
+1. Enter the address in **Email address**.
+2. Leave **Send by email** off to get a link, or turn it on to have the sign-in
+   service email it. Without SMTP the switch is off, with the reason under it.
+3. Select **Create invitation**. The single-use link appears with **Copy** and
+   the time it expires: 24 hours after it is made, unless the sign-in service
+   sets `GOTRUE_MAILER_OTP_EXP`.
+
+The page states the registration policy in force. **Pending invitations**
+lists each open invitation with who made it, when, whether it went out as a
+link or by email, and when its link expires. **Copy new link** makes and copies
+a new link; the one before stops working. **Revoke** withdraws the invitation:
+the link stops working and the unused account is deleted. An invitation whose
+person has signed in moves to **Accepted and revoked**, with the username they
+chose, and can no longer be revoked. An address that already has an account is
+refused, and nothing is created. Each invitation, new link and revoke appears
+in **Overview** → **Recent Activity**.
+
+From the server:
 
 ```bash
 harmony admin invite friend@example.com           # prints the link; send it yourself
 harmony admin invite friend@example.com --send    # emails it (needs SMTP)
 ```
 
-The link signs the person in on Harmony's password page
-(`/reset-password`), where they choose a password; they then pick a
-username.
+Both open Harmony's password page (`/reset-password?invite=1`), where the
+person chooses a password and stays signed in; they then pick a username.
+The link works once. Someone who opened it and left before choosing a
+password is listed as accepted; they set a password with **Forgot your
+password?** on the sign-in page (needs SMTP), or you set one with
+`harmony admin reset-password`.
 
 ## Install without prompts {#scripted-installs}
 
@@ -253,6 +279,7 @@ Answers:
 | `HARMONY_VOICE` | `y` or `n`: voice and video | `y` |
 | `HARMONY_BOTS` | `y` or `n`: bot gateway | `n` |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on | `n` |
+| `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection (Logflare and vector) | `n`; the current setting on a re-run, `n` when the instance never answered |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` | `open` |
 | `HARMONY_SMTP_HOST` | SMTP server; setting it configures email | unset: no email |
 | `HARMONY_SMTP_PORT` | SMTP port | `587` |

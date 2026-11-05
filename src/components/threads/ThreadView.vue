@@ -330,8 +330,10 @@ import {
   useThreadsStore,
   isOptimisticThreadId,
   mergeFreshThreadMessages,
+  landThreadReply,
   type StoredThread,
 } from '@/stores/useThreads'
+import { getRandomId } from '@/stores/shared/optimisticMessages'
 import { usePinsStore } from '@/stores/usePins'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -344,6 +346,7 @@ import { insertMessageSorted, placeStoredRow } from '@/stores/shared/messageCach
 import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
@@ -443,6 +446,13 @@ const composerElement = computed(() => messageInputRef.value?.composerRef || nul
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+// A deleted thread closes the panel, which leaves its channel in view; one opened from a link or
+// notice after its deletion says so.
+const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {
+  if (!props.isVisible) return false
+  if (how === 'missing') toast.info(t('chatNav.thread.gone'))
+  close()
+})
 const messages = ref<Message[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -601,6 +611,8 @@ const loadThread = async () => {
     if (details) {
       thread.value = threadsStore.upsert(details)
       isMember.value = details.is_member ?? true
+    } else {
+      void checkThreadMissing(threadId)
     }
     const before = messages.value.length
     messages.value = mergeFreshThreadMessages(messages.value, fresh.messages, {
@@ -966,8 +978,10 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
     // Optimistic: add a temporary message immediately
     const tempId = `temp-${crypto.randomUUID()}`
-    // reply_to/metadata are optional strings/objects in the Message type; use
-    // undefined instead of null to satisfy the optional-property shape.
+    // Echoed on the stored row and its realtime INSERT; the stored content differs (jsonb key
+    // order, ciphertext).
+    const sendMetadata = { client_nonce: getRandomId() }
+    // reply_to is optional in the Message type; undefined instead of null.
     const optimisticMessage: Message = {
       id: tempId,
       created_at: new Date(),
@@ -979,7 +993,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       is_system: false,
       encrypted: false,
       reactions: [],
-      metadata: undefined,
+      metadata: sendMetadata,
     }
     messages.value.push(optimisticMessage)
     const settleReply = countLocalReply()
@@ -1001,7 +1015,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, sendMetadata, {
           allowPlaintextFallback,
         })),
       { scope: 'thread' },
@@ -1171,6 +1185,7 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
         duration: data.duration,
         waveform: data.waveform,
       },
+      client_nonce: getRandomId(),
     }
 
     const tempId = `temp-${crypto.randomUUID()}`
@@ -1350,11 +1365,6 @@ const setupRealtimeSubscription = () => {
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Skip if already in messages (non-optimistic duplicate)
-      if (messages.value.some(m => m.id === payloadNew.id)) {
-        return
-      }
-      
       if (payloadNew.thread_id === thread.value?.id) {
         const newMessage: Message = {
           id: payloadNew.id,
@@ -1374,16 +1384,8 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        // Replace the oldest optimistic temp message with matching content
-        const tempIndex = messages.value.findIndex(
-          m => m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
-            && JSON.stringify(m.content) === JSON.stringify(payloadNew.content)
-        )
-        if (tempIndex !== -1) {
-          placeStoredRow(messages.value, messages.value[tempIndex].id, newMessage)
-        } else {
-          messages.value.push(newMessage)
-        }
+        // The send response may have placed it already, or may still hold its optimistic row.
+        if (!landThreadReply(messages.value, newMessage)) return
         if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
 
         // message_count is absolute on the thread:update broadcast that

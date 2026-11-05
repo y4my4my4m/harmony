@@ -34,6 +34,9 @@ let windowSeq = 0;
 /** Rows a catch-up after the newest loaded message reads at once. */
 const CATCH_UP_LIMIT = 50;
 
+/** Rows per page of a channel held in messageCache only (loadCachedChannelPage). */
+const CACHED_PAGE_LIMIT = 30;
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as Message[],
@@ -524,6 +527,55 @@ export const useChatStore = defineStore('chat', {
       })();
       pendingPrefetch.set(channelId, work);
       return work;
+    },
+
+    /**
+     * Pages of a channel the routed view does not show, kept in its messageCache
+     * entry, created when absent (an empty channel included): the newest page, or
+     * with `older` the page before the oldest held row. A newest page that does
+     * not reach the held rows replaces them.
+     */
+    async loadCachedChannelPage(channelId: string, older = false): Promise<void> {
+      const held = this.messageCache.get(channelId);
+      const oldest = held?.messages.find((m: Message) => !isPendingRow(m));
+      if (older && (!held || !oldest || held.allMessagesLoaded)) return;
+      const before = older && oldest ? cursorOf(oldest) : undefined;
+
+      const { messages, hasMore } = await services.messages.loadChannelMessages(channelId, {
+        limit: CACHED_PAGE_LIMIT,
+        before,
+        isRemote: this._knownIsRemote(channelId),
+      });
+      try { ensureMessageEmbeds(messages); } catch (e) { debug.warn('Failed to prepare embeds for a cached page:', e); }
+      const userIds = [...new Set(messages.map((m: Message) => m.user_id).filter(Boolean))] as string[];
+      if (userIds.length > 0) void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {});
+
+      let entry = this.messageCache.get(channelId);
+      if (!entry) {
+        this.evictOldestCache();
+        this.messageCache.set(channelId, {
+          messages: [],
+          lastFetchedAt: new Date(),
+          oldestMessageId: null,
+          allMessagesLoaded: !hasMore,
+          lastModified: new Date(),
+        });
+        entry = this.messageCache.get(channelId)!;
+      } else if (!older && hasMore && messages.length > 0) {
+        const newestHeld = newestPersisted(entry.messages);
+        const gap = !newestHeld || new Date(messages[0].created_at).getTime() > new Date(newestHeld.created_at).getTime();
+        if (gap) {
+          entry.messages = entry.messages.filter((m: Message) => isPendingRow(m));
+          entry.allMessagesLoaded = false;
+        }
+      }
+      for (const message of messages) {
+        if (!entry.messages.some((m: Message) => m.id === message.id)) insertMessageSorted(entry.messages, message);
+      }
+      if (older || entry.messages.length === messages.length) entry.allMessagesLoaded = !hasMore;
+      entry.oldestMessageId = entry.messages[0]?.id ?? null;
+      entry.lastFetchedAt = new Date();
+      entry.lastModified = new Date();
     },
 
     /**

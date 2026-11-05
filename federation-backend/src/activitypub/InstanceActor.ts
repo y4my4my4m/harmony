@@ -18,6 +18,8 @@ import config from '../config/index.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { SignatureService } from './SignatureService.js';
+import { HARMONY_NS } from './harmonyContext.js';
+import { directoryUrl, HARMONY_DIRECTORY } from './serverDirectory.js';
 
 export const INSTANCE_ACTOR_USERNAME = 'instance.actor';
 
@@ -113,7 +115,11 @@ export function instanceActorDocument(publicKeyPem: string): Record<string, unkn
   const id = instanceActorUrl();
   const base = `https://${config.INSTANCE_DOMAIN}`;
   return {
-    '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      'https://w3id.org/security/v1',
+      { harmony: HARMONY_NS, [HARMONY_DIRECTORY]: { '@type': '@id' } },
+    ],
     id,
     type: 'Application',
     preferredUsername: INSTANCE_ACTOR_USERNAME,
@@ -123,6 +129,9 @@ export function instanceActorDocument(publicKeyPem: string): Record<string, unkn
     inbox: `${id}/inbox`,
     outbox: `${id}/outbox`,
     endpoints: { sharedInbox: `${base}/inbox` },
+    // The server directory: an AS2 supplementary collection, and named as such.
+    streams: [directoryUrl()],
+    [HARMONY_DIRECTORY]: directoryUrl(),
     manuallyApprovesFollowers: true,
     discoverable: false,
     publicKey: {

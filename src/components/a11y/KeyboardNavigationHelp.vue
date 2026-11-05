@@ -1,6 +1,7 @@
 <!--
   KeyboardNavigationHelp - the app-wide keyboard navigation keys (region cycling,
-  skip link, Escape), listed in Settings > Keybinds. Fixed keys: not remappable.
+  skip link, Escape) and the message list's keys (MessageDisplay row shortcuts),
+  listed in Settings > Keybinds. Fixed keys: not remappable.
 -->
 <template>
   <section class="kbd-nav-help" :aria-labelledby="titleId">
@@ -22,6 +23,15 @@
         <dd>{{ t('a11y.shortcuts.escape') }}</dd>
       </div>
     </dl>
+
+    <h4 class="kbd-nav-help__subtitle">{{ t('a11y.shortcuts.messages.title') }}</h4>
+    <p class="kbd-nav-help__lead">{{ t('a11y.shortcuts.messages.note') }}</p>
+    <dl class="kbd-nav-help__list" data-testid="kbd-help-messages">
+      <div v-for="key in MESSAGE_KEYS" :key="key" class="kbd-nav-help__row">
+        <dt><kbd>{{ t(`a11y.shortcuts.messages.${key}Keys`) }}</kbd></dt>
+        <dd>{{ t(`a11y.shortcuts.messages.${key}`) }}</dd>
+      </div>
+    </dl>
   </section>
 </template>
 
@@ -31,6 +41,8 @@ import { uid } from '@/utils/a11y/focus'
 
 const { t } = useT()
 const titleId = uid('kbd-nav-help')
+
+const MESSAGE_KEYS = ['move', 'menu', 'edit', 'reply', 'react', 'pin', 'delete', 'copy', 'thread'] as const
 </script>
 
 <style scoped>
@@ -46,6 +58,19 @@ const titleId = uid('kbd-nav-help')
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+}
+
+.kbd-nav-help__subtitle {
+  margin: var(--space-5) 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.kbd-nav-help__lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .kbd-nav-help__list {

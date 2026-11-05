@@ -82,6 +82,11 @@ export function webhookOrigin(): string {
   return base.replace(/\/+$/, '')
 }
 
+/** A federation backend webhook route (`/webhooks/kofi`) at webhookOrigin(). */
+export function instanceWebhookUrl(path: string): string {
+  return `${webhookOrigin()}${path}`
+}
+
 export function channelWebhookUrl(id: string, token: string): string {
   return `${webhookOrigin()}/webhooks/channels/${id}/${token}`
 }

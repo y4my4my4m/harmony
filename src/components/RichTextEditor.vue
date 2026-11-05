@@ -22,6 +22,7 @@
     data-can-focus="true"
     :aria-label="placeholder"
     contenteditable="true"
+    @beforeinput="handleBeforeInput"
     @input="handleInput"
     @compositionstart="handleCompositionStart"
     @compositionend="handleCompositionEnd"
@@ -29,6 +30,7 @@
     @focus="handleFocus"
     @blur="handleBlur"
     @paste="handlePaste"
+    @dblclick="handleDoubleClick"
     @copy="handleCopy"
     @cut="handleCut"
     :data-placeholder="placeholder"
@@ -50,7 +52,8 @@ import { useViewport } from '@/composables/useViewport';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { userDataService } from '@/services/userDataService';
-import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { currentPack, loadEmojiData, twemojiFileUrl, useUnifiedEmoji } from '@/services/unifiedEmojiService';
+import { hasEmojiSequence, splitEmojiSequences } from '@/utils/unicodeEmoji';
 import { roleService } from '@/services/RoleService';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
@@ -112,9 +115,10 @@ const isFocused = ref(false);
 const keyboardFocused = ref(false);
 trackNavigationKeys();
 const serverChannelStore = useServerChannelStore();
-// Only `unifiedLoaded` is consumed locally, watched for re-render.
-// Emoji resolution goes through emojiShortcodeResolver.findEmojiByName.
+// `:name:` emoji resolve through emojiShortcodeResolver.findEmojiByName; unicode emoji draw
+// as Twemoji under the Twemoji pack (twemojiFileUrl), as sent messages draw them.
 const { isLoaded: unifiedLoaded } = useUnifiedEmoji();
+const isTwemojiPack = computed(() => currentPack.value === 'twemoji');
 const isRendering = ref(false);
 // An IME composition is open. The composed text's DOM belongs to the IME: a rebuild
 // (renderContent) ends the composition, the browser commits the half-converted text
@@ -252,6 +256,66 @@ const setCursorPosition = (targetPosition: number) => {
 // drawn text can be shorter than the value.
 const moveCaretToEnd = () => setCursorPosition(getPlainText().length);
 
+/**
+ * An emoji atom of a unicode sequence: non-editable, so the caret steps over the whole
+ * sequence and Backspace removes it whole. The sequence stays its text, drawn transparent
+ * over the Twemoji image as background: the field's value, an input method's surrounding text
+ * and a screen reader hold the characters, as with the System pack. It reads as `sequence`
+ * (utils/editorText).
+ */
+const createUnicodeEmojiAtom = (sequence: string, url: string): HTMLElement => {
+  const span = document.createElement('span');
+  span.className = 'editor-emoji editor-twemoji';
+  span.contentEditable = 'false';
+  span.setAttribute('data-unicode', sequence);
+  span.style.backgroundImage = `url("${url}")`;
+  span.textContent = sequence;
+  return span;
+};
+
+/** `text` as a text node, or under the Twemoji pack text nodes and an atom per emoji Twemoji draws. */
+const emojiText = (text: string): Node => {
+  if (!text || !isTwemojiPack.value || !hasEmojiSequence(text)) return document.createTextNode(text);
+  if (!unifiedLoaded.value) {
+    // The file map arrives with the emoji data; its watcher renders again.
+    void loadEmojiData();
+    return document.createTextNode(text);
+  }
+  const fragment = document.createDocumentFragment();
+  let plain = '';
+  for (const run of splitEmojiSequences(text)) {
+    const url = run.emoji ? twemojiFileUrl(run.text) : null;
+    if (!url) {
+      plain += run.text;
+      continue;
+    }
+    if (plain) fragment.appendChild(document.createTextNode(plain));
+    plain = '';
+    fragment.appendChild(createUnicodeEmojiAtom(run.text, url));
+  }
+  if (plain) fragment.appendChild(document.createTextNode(plain));
+  return fragment;
+};
+
+/**
+ * A text node outside a code block holds an emoji Twemoji draws: typed, composed or dropped in
+ * since the last render. False under the System pack.
+ */
+const hasUndrawnEmoji = (): boolean => {
+  if (!editorRef.value || !isTwemojiPack.value) return false;
+  const walker = editorDocument().createTreeWalker(editorRef.value, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const data = (node as Text).data;
+    if (!hasEmojiSequence(data) || node.parentElement?.closest('.editor-twemoji, .editor-codeblock-wrapper')) continue;
+    if (!unifiedLoaded.value) {
+      void loadEmojiData();
+      return false;
+    }
+    if (splitEmojiSequences(data).some((run) => run.emoji && twemojiFileUrl(run.text))) return true;
+  }
+  return false;
+};
+
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
@@ -286,7 +350,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
     
     if (matchStart > lastIndex) {
       const textBefore = text.substring(lastIndex, matchStart);
-      fragment.appendChild(document.createTextNode(editorSpaces(textBefore)));
+      fragment.appendChild(emojiText(editorSpaces(textBefore)));
     }
     
     if (match[1]) {
@@ -348,7 +412,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   }
   
   if (lastIndex < text.length) {
-    fragment.appendChild(document.createTextNode(editorSpaces(text.substring(lastIndex))));
+    fragment.appendChild(emojiText(editorSpaces(text.substring(lastIndex))));
   }
   
   return fragment;
@@ -567,7 +631,7 @@ const renderContent = (text: string, skipCursorRestore = false) => {
 const createElementFromToken = (token: MarkdownToken): Node => {
   switch (token.type) {
     case 'text':
-      return document.createTextNode(token.content);
+      return emojiText(token.content);
       
     case 'bold': {
       const span = document.createElement('span');
@@ -584,7 +648,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           content.appendChild(createElementFromToken(child));
         }
       } else {
-        content.textContent = token.content;
+        content.appendChild(emojiText(token.content));
       }
       
       const endMarker = document.createElement('span');
@@ -612,7 +676,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           content.appendChild(createElementFromToken(child));
         }
       } else {
-        content.textContent = token.content;
+        content.appendChild(emojiText(token.content));
       }
       
       const endMarker = document.createElement('span');
@@ -640,7 +704,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           content.appendChild(createElementFromToken(child));
         }
       } else {
-        content.textContent = token.content;
+        content.appendChild(emojiText(token.content));
       }
       
       const endMarker = document.createElement('span');
@@ -668,7 +732,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           content.appendChild(createElementFromToken(child));
         }
       } else {
-        content.textContent = token.content;
+        content.appendChild(emojiText(token.content));
       }
       
       const endMarker = document.createElement('span');
@@ -691,7 +755,8 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       
       const content = document.createElement('span');
       content.className = 'editor-code-content';
-      content.textContent = token.content;
+      // Sent messages draw emoji inside inline code; fenced blocks keep their characters.
+      content.appendChild(emojiText(token.content));
       
       const endMarker = document.createElement('span');
       endMarker.className = 'editor-marker';
@@ -773,7 +838,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       const piece = (className: string, text: string) => {
         const el = document.createElement('span');
         el.className = className;
-        el.textContent = text;
+        el.appendChild(className === 'editor-link-label' ? emojiText(text) : document.createTextNode(text));
         span.appendChild(el);
       };
       piece('editor-marker', '[');
@@ -815,7 +880,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     }
     
     default:
-      return document.createTextNode(token.content);
+      return emojiText(token.content);
   }
 };
 
@@ -884,9 +949,10 @@ const handleInput = (event?: Event) => {
 
   // Render is driven from input, not the modelValue watcher: the watcher
   // short-circuits when the new value equals the editor's plain text, which
-  // holds immediately after a keystroke. Gated on hasFormattableMarkers so
-  // plain text typing skips the rebuild. renderContent restores the caret.
-  if (hasFormattableMarkers(text)) {
+  // holds immediately after a keystroke. Gated on hasFormattableMarkers and a
+  // newly entered emoji so plain text typing skips the rebuild. renderContent
+  // restores the caret.
+  if (hasFormattableMarkers(text) || hasUndrawnEmoji()) {
     renderContent(text, false);
   }
 
@@ -905,6 +971,50 @@ const handleInput = (event?: Event) => {
   }
 
   autoExpand();
+};
+
+/**
+ * A deletion reaching into an emoji or mention pill removes the pill whole. Gboard's delete key
+ * after a unicode emoji deletes through the input method: Chromium aims it at the emoji's own
+ * text, inside the non-editable element, and deletes nothing (beforeinput
+ * deleteContentBackward, target range inside the pill, no input event; WebView 155, Gboard 18.4,
+ * API 35, measured 2026-11-04). A deletion spanning whole pills (desktop Backspace) runs
+ * natively.
+ */
+const handleBeforeInput = (e: Event) => {
+  const event = e as InputEvent;
+  if (!editorRef.value || !event.inputType?.startsWith('delete') || composing) return;
+  const root = editorRef.value;
+  const ranges = event.getTargetRanges?.() ?? [];
+  const pillOf = (node: Node) => {
+    const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+    const pill = el?.closest('.editor-emoji, .editor-mention');
+    return pill && root.contains(pill) ? pill : null;
+  };
+  if (!ranges.some((r) => pillOf(r.startContainer) || pillOf(r.endContainer))) return;
+  event.preventDefault();
+  const lin = linearize(root);
+  let start = Infinity;
+  let end = -Infinity;
+  for (const r of ranges) {
+    start = Math.min(start, offsetForPoint(lin, root, r.startContainer, r.startOffset));
+    end = Math.max(end, offsetForPoint(lin, root, r.endContainer, r.endOffset));
+  }
+  // A range inside one pill maps to one of its edges; the pill's whole text goes.
+  for (const unit of lin.units) {
+    if (unit.kind !== 'atom' || !pillOf(unit.node)) continue;
+    if (unit.start < end && start < unit.start + unit.length) {
+      start = Math.min(start, unit.start);
+      end = Math.max(end, unit.start + unit.length);
+    } else if (start === end && (unit.start === start || unit.start + unit.length === start)
+      && ranges.some((r) => pillOf(r.startContainer) === unit.node)) {
+      start = unit.start;
+      end = unit.start + unit.length;
+    }
+  }
+  if (!(start < end)) return;
+  const full = plainTextOf(lin);
+  applyEditorTextChange(full.slice(0, start) + full.slice(end), start, start);
 };
 
 const applyEditorTextChange = (newText: string, selStart: number, selEnd: number) => {
@@ -1100,6 +1210,20 @@ const pasteLinkOverSelection = (pasted: string): boolean => {
   return true;
 };
 
+// A double click on an emoji selects it, as one on a word selects the word: the browser's word
+// selection passes over a non-editable atom and takes the word beside it.
+const handleDoubleClick = (event: MouseEvent) => {
+  const target = event.target as Node | null;
+  const el = target?.nodeType === Node.ELEMENT_NODE ? (target as Element) : target?.parentElement;
+  const atom = el?.closest('.editor-emoji');
+  const selection = editorSelection();
+  if (!atom || !selection || !editorRef.value?.contains(atom)) return;
+  const range = editorDocument().createRange();
+  range.selectNode(atom);
+  selection.removeAllRanges();
+  selection.addRange(range);
+};
+
 // Composer text of a selection holding emoji, emoji as their tokens. Null
 // when the selection is collapsed, outside the editor, or holds no emoji:
 // that copy keeps the browser's default.
@@ -1292,14 +1416,21 @@ defineExpose({
   redo: undoRedo.redo,
 });
 
-// Emoji pack loads lazily; re-render so :shortcode: text resolves.
+// Emoji data loads lazily; re-render so :shortcode: text and unicode emoji resolve.
 watch(unifiedLoaded, (loaded) => {
   if (loaded && editorRef.value && props.modelValue && !composing) {
     const text = getPlainText();
-    if (text && text.includes(':')) {
+    if (text && (text.includes(':') || hasEmojiSequence(text))) {
       renderContent(text);
     }
   }
+});
+
+// A pack switch redraws unicode emoji: images under Twemoji, text under System.
+watch(isTwemojiPack, () => {
+  if (!editorRef.value || composing) return;
+  const text = getPlainText();
+  if (text && hasEmojiSequence(text)) renderContent(text);
 });
 
 // Role cache is per-server; clearing on switch bounds its growth.
@@ -1533,6 +1664,34 @@ async function prewarmRoles() {
   margin: 0 0.05em 0 0.1em;
   vertical-align: -0.2em;
   object-fit: contain;
+}
+
+/* Its characters are clipped and transparent over the image. The box with its margins is the
+   line's height (line-height 1.375) and no more: drawing an emoji leaves the line box, and
+   the composer's height, as the characters left them. user-select overrides the global
+   `* { user-select: none }`, which a non-editable element is subject to: without it a
+   selection over the emoji neither shows it selected nor holds its characters. */
+.rich-text-editor :deep(.editor-twemoji) {
+  -webkit-user-select: text;
+  user-select: text;
+  vertical-align: top;
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0.0625em 0.05em;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.25em;
+  color: transparent;
+  /* Forced colours (Windows contrast themes) would paint the characters over the image. */
+  forced-color-adjust: none;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* The global ::selection colour would paint the system glyph over the image. */
+.rich-text-editor :deep(.editor-twemoji::selection) {
+  color: transparent;
 }
 
 .rich-text-editor :deep(.editor-emoji.native-emoji) {

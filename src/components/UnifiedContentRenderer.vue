@@ -63,7 +63,7 @@
           :style="roleMentionStyle(part.roleColor)"
           :aria-label="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
           :title="t('mentionLabels.rolePill', { name: part.roleName?.replace(/^@/, '') })"
-        ><span class="role-mention-dot" aria-hidden="true"></span>@{{ part.roleName?.replace(/^@/, '') }}</span>
+        >@{{ part.roleName?.replace(/^@/, '') }}</span>
         
         <!-- Emojis (custom server or unified pack) -->
         <template v-else-if="part && part.type === 'emoji'">
@@ -224,6 +224,7 @@ import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { roleMentionColor } from '@/utils/roleMentions';
+import { emojiSequenceRegex } from '@/utils/unicodeEmoji';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -364,7 +365,7 @@ const { t } = useI18n();
 /** Role colour on every role pill, the default grey included: a person's pill is never coloured. */
 const roleMentionStyle = (roleColor: string | null | undefined) => {
   const color = roleMentionColor(roleColor);
-  return { '--role-color': color, color, background: color + '1a' };
+  return { color, background: color + '1a' };
 };
 
 /** A user pill whose name would read as @everyone or @here shows the handle, unlike the role pill. */
@@ -532,7 +533,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
 
   // Splice in emoji <img>/<span> markup from trusted sources.
   if (!isNativePack.value && emojiServiceLoaded.value) {
-    const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+    const emojiRegex = emojiSequenceRegex();
     rendered = rendered.replace(emojiRegex, (match) => {
       const resolved = resolveEmoji(match);
       if (resolved.display.type === 'svg') {
@@ -543,7 +544,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
       return match;
     });
   } else if (isSingle) {
-    const emojiRegex = /[\u{1F1E6}-\u{1F1FF}]{2}|(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu;
+    const emojiRegex = emojiSequenceRegex();
     rendered = rendered.replace(emojiRegex, (match) => {
       return `<span class="native-emoji single">${match}</span>`;
     });
@@ -653,17 +654,6 @@ const formatFileSize = (bytes: number): string => {
 
 .role-mention {
   cursor: default;
-}
-
-/* Role marker: a dot of the role's colour, absent from a person's pill. */
-.role-mention .role-mention-dot {
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin: 0 0.25em 0.1em 0.1em;
-  border-radius: 50%;
-  background-color: var(--role-color);
-  vertical-align: middle;
 }
 .role-mention:hover {
   filter: brightness(1.15);

@@ -261,12 +261,13 @@ test('personal stickers are off by default; an admin allows them and the member 
   await stubKlipy(page)
   await signIn(page, member)
 
-  await test.step('off: no form, and storage refuses the folder', async () => {
+  await test.step('off: Settings lists no My stickers, its address opens My account, and storage refuses the folder', async () => {
     await page.goto('/settings/stickers')
-    const section = page.getByTestId('user-stickers')
-    await expect(section.getByTestId('sticker-uploads-off')).toHaveText(
-      'Personal stickers are turned off on this instance. An admin can allow them.', { timeout: BOOT_MS })
-    await expect(section.getByTestId('sticker-upload-form')).toHaveCount(0)
+    await expect(page).toHaveURL(/\/settings\/account$/, { timeout: BOOT_MS })
+    const nav = page.getByTestId('user-settings-nav')
+    await expect(nav.getByRole('button', { name: 'My emojis' })).toBeVisible()
+    await expect(nav.getByRole('button', { name: 'My stickers' })).toHaveCount(0)
+    await expect(page.getByTestId('user-stickers')).toHaveCount(0)
     const refused = await (await userClient(member)).storage.from('stickers').upload(`user/${member.id}/${randomUUID()}.png`, PNG, { contentType: 'image/png' })
     expect(refused.error).toBeTruthy()
   })
@@ -291,7 +292,8 @@ test('personal stickers are off by default; an admin allows them and the member 
   })
 
   await test.step('the member uploads one and finds it in the picker', async () => {
-    await page.reload()
+    await page.goto('/settings/stickers')
+    await expect(page.getByTestId('user-settings-nav').getByRole('button', { name: 'My stickers' })).toBeVisible({ timeout: BOOT_MS })
     const section = page.getByTestId('user-stickers')
     await expect(section.getByTestId('sticker-count')).toHaveText('0 / 1', { timeout: BOOT_MS })
     await upload(page, 'user', { name: 'me.png', mimeType: 'image/png', buffer: PNG }, 'Me waving', 'Me, waving hello')
@@ -305,6 +307,52 @@ test('personal stickers are off by default; an admin allows them and the member 
     const picker = await openStickerTab(page)
     await expect(picker.getByTestId('custom-stickers-user').getByRole('button', { name: 'Send sticker Me waving: Me, waving hello' })).toBeVisible({ timeout: 15000 })
   })
+
+  await test.step('turned off again, My stickers stays while the member holds one, which they remove', async () => {
+    await setCap('max_personal_stickers_per_user', 0)
+    await page.goto('/settings/stickers')
+    const section = page.getByTestId('user-stickers')
+    await expect(section.getByTestId('sticker-uploads-off')).toBeVisible({ timeout: BOOT_MS })
+    await expect(section.getByTestId('sticker-upload-form')).toHaveCount(0)
+    await section.getByRole('button', { name: 'Delete sticker Me waving' }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(section.getByTestId('sticker-row')).toHaveCount(0, { timeout: 20000 })
+    await expect(section).toBeVisible()
+    await page.goto('/settings/stickers')
+    await expect(page).toHaveURL(/\/settings\/account$/, { timeout: BOOT_MS })
+    await expect(page.getByTestId('user-settings-nav').getByRole('button', { name: 'My stickers' })).toHaveCount(0)
+  })
+})
+
+test('Server settings lists Stickers while the instance allows server stickers or the server holds some', async ({ page }) => {
+  test.setTimeout(180_000)
+  const bare = await seedServer(admin, owner, `Bare ${owner.username}`)
+  await setCap('max_stickers_per_server', 0)
+  try {
+    await signIn(page, owner)
+    const nav = page.getByTestId('server-settings-nav')
+
+    await test.step('a server without stickers: no Stickers section, and ?section=stickers opens the overview', async () => {
+      await page.goto(`/server/${bare.id}?section=stickers`)
+      await expect(nav.getByRole('button', { name: 'Emoji', exact: true })).toBeVisible({ timeout: BOOT_MS })
+      await expect(nav.getByRole('button', { name: 'Soundboard', exact: true })).toBeVisible()
+      await expect(nav.getByRole('button', { name: 'Stickers', exact: true })).toHaveCount(0)
+      await expect(nav.getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page')
+      await expect(page.getByTestId('server-stickers')).toHaveCount(0)
+    })
+
+    await test.step('a server holding one keeps the section, its notice and the remove control', async () => {
+      await page.goto(`/server/${server.id}?section=stickers`)
+      const section = page.getByTestId('server-stickers')
+      await expect(section.getByTestId('sticker-uploads-off')).toHaveText('Server stickers are turned off on this instance.', { timeout: BOOT_MS })
+      await expect(section.getByTestId('sticker-row')).toHaveCount(1)
+      await expect(section.getByTestId('sticker-delete')).toHaveCount(1)
+      await expect(nav.getByRole('button', { name: 'Stickers', exact: true })).toHaveAttribute('aria-current', 'page')
+    })
+  } finally {
+    await setCap('max_stickers_per_server', 15)
+    await admin.from('servers').delete().eq('id', bare.id)
+  }
 })
 
 test('an admin adds an instance sticker that members find by search; members cannot add one', async ({ page, browser }) => {
@@ -392,3 +440,135 @@ test('a member reports a sticker; staff remove it and the message shows a placeh
   await expect(gone).toContainText('Sticker removed', { timeout: BOOT_MS })
   await expect(gone).toHaveAttribute('aria-label', 'Sticker Cat wave, no longer available: A cat waving')
 })
+
+// The sticker pages are built as their emoji siblings (My emojis, Server settings › Emoji, Admin ›
+// Emojis): the same cards, field chrome and list rows, at desktop and phone width, in the default
+// skin, Paper and high contrast.
+for (const [label, skin, highContrast] of [['default', null, false], ['paper', 'paper', false], ['high contrast', null, true]] as const) {
+  test(`sticker settings pages match the emoji pages: ${label}`, async ({ page }) => {
+    test.setTimeout(180_000)
+    const viewer = await createUser(admin, 'stkl')
+    const own = await seedServer(admin, viewer, `Layout ${viewer.username}`)
+    const imageUrl = new URL('/default_avatar.webp', process.env.BASE_URL || 'http://localhost:5173').href
+    const LONG = 'A description long enough to wrap on a phone: it keeps going well past the width of one row, and then some more'
+    try {
+      await admin.from('profiles').update({ is_admin: true, appearance_settings: { theme: 'dark', activeSkinId: skin, highContrast } }).eq('id', viewer.id)
+      await setCap('max_personal_stickers_per_user', 5)
+      const seeded = [
+        { scope: 'user', owner_id: viewer.id, server_id: null, folder: `user/${viewer.id}/` },
+        { scope: 'server', owner_id: null, server_id: own.id, folder: `server/${own.id}/` },
+      ].flatMap((r) => [['wave', 'A cat waving'], ['a-much-longer-sticker-name', LONG]].map(([name, description]) => ({
+        scope: r.scope, owner_id: r.owner_id, server_id: r.server_id, uploader: viewer.id, name, description,
+        path: `${r.folder}${randomUUID()}.webp`, url: imageUrl, mime_type: 'image/webp', file_size: 1000, width: 128, height: 128,
+      })))
+      const { error } = await admin.from('stickers').insert(seeded)
+      if (error) throw new Error(`stickers: ${error.message}`)
+
+      await signIn(page, viewer)
+      await page.setViewportSize({ width: 1280, height: 800 })
+
+      const css = (locator: ReturnType<Page['locator']>, ...props: string[]) =>
+        locator.evaluate((el, names) => names.map((n) => getComputedStyle(el).getPropertyValue(n)), props)
+      const resolved = (prop: string, value: string) => page.evaluate(([p, v]) => {
+        const probe = document.createElement('div')
+        probe.style.setProperty(p, v)
+        document.body.appendChild(probe)
+        const out = getComputedStyle(probe).getPropertyValue(p)
+        probe.remove()
+        return out
+      }, [prop, value])
+      const CARD = ['background-color', 'border-top-color', 'border-top-style', 'border-radius', 'padding-top']
+      const FIELD = ['background-color', 'border-top-color', 'border-top-style', 'border-top-left-radius']
+      // The app's standard field (design-system .form-input), as the skin draws it.
+      const formInput = () => page.locator('.settings-content').evaluate((host, props) => {
+        const probe = document.createElement('input')
+        probe.className = 'form-input'
+        host.appendChild(probe)
+        const out = props.map((n) => getComputedStyle(probe).getPropertyValue(n))
+        probe.remove()
+        return out
+      }, FIELD)
+
+      await test.step('User settings: My stickers as My emojis', async () => {
+        await page.goto('/settings/emojis')
+        await dismissAnnouncements(page)
+        const emojiCard = page.getByTestId('my-emojis').locator('.settings-card').first()
+        await expect(emojiCard).toBeVisible({ timeout: BOOT_MS })
+        const emojiCardStyle = await css(emojiCard, ...CARD)
+        const emojiTitle = await css(page.locator('#my-emojis-title'), 'font-size', 'font-weight', 'margin-bottom')
+
+        await page.goto('/settings/stickers')
+        const section = page.getByTestId('user-stickers')
+        await expect(section.getByTestId('sticker-row')).toHaveCount(2, { timeout: BOOT_MS })
+        const cards = section.locator('.settings-card')
+        await expect(cards).toHaveCount(2)
+        for (const card of await cards.all()) expect(await css(card, ...CARD)).toEqual(emojiCardStyle)
+        expect(await css(section.getByRole('heading', { level: 2, name: 'My stickers' }), 'font-size', 'font-weight', 'margin-bottom')).toEqual(emojiTitle)
+
+        expect((await section.getByTestId('sticker-upload-input').boundingBox())?.width ?? 0).toBeLessThanOrEqual(1)
+        expect(await css(section.getByTestId('sticker-upload-area'), 'border-top-style')).toEqual(['dashed'])
+        const field = await formInput()
+        expect(await css(section.getByTestId('sticker-name-input'), ...FIELD)).toEqual(field)
+        expect(await css(section.getByTestId('sticker-description-input'), ...FIELD)).toEqual(field)
+        expect(await css(section.getByTestId('sticker-row').first(), 'background-color')).toEqual([await resolved('background-color', 'var(--surface-inset)')])
+        for (const control of await section.locator('[data-testid="sticker-edit"], [data-testid="sticker-delete"]').all()) {
+          expect((await control.boundingBox())!.width).toBeLessThanOrEqual(32)
+        }
+        await expect(section.getByRole('button', { name: 'Edit sticker wave' })).toBeVisible()
+        await expectNoAxeViolations(page, { include: '[data-testid="user-stickers"]', label: `user stickers ${label}` })
+      })
+
+      await test.step('on a phone the page fits the width', async () => {
+        await page.setViewportSize({ width: 375, height: 812 })
+        await page.goto('/settings/stickers')
+        const section = page.getByTestId('user-stickers')
+        await expect(section.getByTestId('sticker-row')).toHaveCount(2, { timeout: BOOT_MS })
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
+        const content = page.locator('.settings-content')
+        expect(await content.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
+        expect(await css(section.locator('.settings-card').first(), 'padding-top')).toEqual(['16px'])
+        for (const row of await section.getByTestId('sticker-row').all()) {
+          await row.scrollIntoViewIfNeeded()
+          const box = (await row.boundingBox())!
+          expect(box.x).toBeGreaterThanOrEqual(0)
+          expect(box.x + box.width).toBeLessThanOrEqual(375)
+        }
+        await page.setViewportSize({ width: 1280, height: 800 })
+      })
+
+      await test.step('Server settings: Stickers as Emoji', async () => {
+        await page.goto(`/server/${own.id}?section=emoji`)
+        const emojiCard = page.locator('.server-emoji-management .settings-card').first()
+        await expect(emojiCard).toBeVisible({ timeout: BOOT_MS })
+        const emojiCardStyle = await css(emojiCard, 'background-color', 'border-top-color', 'border-radius', 'padding-top')
+        const emojiTitle = await css(page.locator('.server-emoji-management .section-title'), 'font-size', 'font-weight')
+
+        await page.goto(`/server/${own.id}?section=stickers`)
+        const section = page.getByTestId('server-stickers')
+        await expect(section.getByTestId('sticker-row')).toHaveCount(2, { timeout: BOOT_MS })
+        for (const card of await section.locator('.settings-card').all()) {
+          expect(await css(card, 'background-color', 'border-top-color', 'border-radius', 'padding-top')).toEqual(emojiCardStyle)
+        }
+        expect(await css(section.getByRole('heading', { level: 2, name: 'Stickers' }), 'font-size', 'font-weight')).toEqual(emojiTitle)
+      })
+
+      await test.step('Admin: Instance stickers as Instance emojis', async () => {
+        await page.goto('/admin?tab=emojis')
+        const emojiModule = page.getByTestId('instance-emoji-library')
+        await expect(emojiModule).toBeVisible({ timeout: BOOT_MS })
+        const moduleStyle = await css(emojiModule, 'background-color', 'border-top-color', 'border-radius')
+        const moduleTitle = await css(emojiModule.locator('.module-header h2'), 'font-size', 'font-weight')
+
+        await page.goto('/admin?tab=stickers')
+        const section = page.getByTestId('instance-stickers')
+        await expect(section.getByTestId('sticker-count')).toBeVisible({ timeout: BOOT_MS })
+        expect(await css(section, 'background-color', 'border-top-color', 'border-radius')).toEqual(moduleStyle)
+        expect(await css(section.getByRole('heading', { level: 2, name: 'Instance stickers' }), 'font-size', 'font-weight')).toEqual(moduleTitle)
+      })
+    } finally {
+      await setCap('max_personal_stickers_per_user', 0)
+      await admin.from('stickers').delete().eq('uploader', viewer.id)
+      await deleteUser(admin, viewer)
+    }
+  })
+}

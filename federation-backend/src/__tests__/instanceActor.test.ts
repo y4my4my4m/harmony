@@ -77,6 +77,13 @@ describe('instance actor', () => {
     expect(JSON.stringify(actor)).not.toContain('PRIVATE KEY')
   })
 
+  it('links the server directory as a stream and as harmony:directory', async () => {
+    const actor = JSON.parse((await supertest(app()).get('/users/instance.actor')).text)
+    expect(actor.streams).toEqual(['https://harmony.test/servers/directory'])
+    expect(actor['harmony:directory']).toBe('https://harmony.test/servers/directory')
+    expect(actor['@context'][2]).toEqual({ harmony: 'https://mony.lol/ns#', 'harmony:directory': { '@type': '@id' } })
+  })
+
   it('has an empty outbox', async () => {
     const res = await supertest(app()).get('/users/instance.actor/outbox')
     expect(JSON.parse(res.text)).toMatchObject({ type: 'OrderedCollection', totalItems: 0 })

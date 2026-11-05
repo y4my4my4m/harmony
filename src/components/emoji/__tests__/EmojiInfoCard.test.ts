@@ -1,7 +1,7 @@
 /**
  * The card says where an emoji comes from as the RPC answered it. 'unavailable' is one
  * generic line with nothing of a server; Join shows only for a joinable server; a reaction
- * card names its first reactors and "and N others".
+ * card names its first reactors, users through DisplayName, and "and N others".
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -40,7 +40,10 @@ vi.mock('@/components/common/Avatar.vue', () => ({ default: defineComponent({ se
 vi.mock('@/components/common/ServerIcon.vue', () => ({ default: defineComponent({ setup: () => () => h('span', { class: 'server-icon' }) }) }))
 vi.mock('@/components/common/Icon.vue', () => ({ default: defineComponent({ setup: () => () => h('i') }) }))
 vi.mock('@/components/DisplayName.vue', () => ({
-  default: defineComponent({ props: { fallback: String }, setup: (p) => () => h('span', p.fallback) }),
+  default: defineComponent({
+    props: { fallback: String, userId: String },
+    setup: (p) => () => h('span', { class: 'display-name', 'data-user-id': p.userId }, p.fallback),
+  }),
 }))
 
 import EmojiInfoCard from '@/components/emoji/EmojiInfoCard.vue'
@@ -85,6 +88,14 @@ describe('EmojiInfoCard source', () => {
     expect(source(w)).toBe('From a server that is private or no longer available.')
     expect(w.find('[data-testid="emoji-info-server"]').exists()).toBe(false)
     expect(w.find('[data-testid="emoji-info-join"]').exists()).toBe(false)
+  })
+
+  it('the preview lists at most the 7 emoji of an unmeasured row', async () => {
+    const emojis = Array.from({ length: 9 }, (_, i) => ({ id: `e${i}`, name: `e${i}`, url: `https://cdn.test/${i}.png` }))
+    state.source = server({ emojis })
+    const w = await render()
+    expect(w.findAll('[data-testid="emoji-info-more"] img').map((i) => i.attributes('alt'))).toEqual(
+      emojis.slice(0, 7).map((e) => `:${e.name}:`))
   })
 
   it('a public server shows its card and Join', async () => {
@@ -136,6 +147,22 @@ describe('EmojiInfoCard reactions', () => {
     const w = await render({ reactions: { count: () => 5, users: () => users(['A', 'B', 'C', 'D', 'E']), onShowAll: vi.fn() } })
     expect(w.get('[data-testid="emoji-info-reactors"]').text()).toBe('Reacted by A, B, C and 2 others')
     expect(w.find('[data-testid="emoji-info-all-reactions"]').exists()).toBe(true)
+  })
+
+  it('names a user reactor through DisplayName, others as text', async () => {
+    const reactors = [
+      { key: 'u', id: 'user-1', kind: 'user', displayName: ':fire: Ana' },
+      { key: 'b', id: 'bot-1', kind: 'bot', displayName: 'Helper' },
+    ] as ReactionUser[]
+    const w = await render({ reactions: { count: () => 2, users: () => reactors } })
+    const line = w.get('[data-testid="emoji-info-reactors"]')
+    expect(line.findAll('.display-name').map((n) => n.attributes('data-user-id'))).toEqual(['user-1'])
+    expect(line.text()).toBe('Reacted by :fire: Ana, Helper')
+  })
+
+  it('counts reactions when no reactor has a name yet', async () => {
+    const w = await render({ reactions: { count: () => 3, users: () => [] } })
+    expect(w.get('[data-testid="emoji-info-reactors"]').text()).toBe('3 reactions')
   })
 
   it('names every reactor when there are few', async () => {

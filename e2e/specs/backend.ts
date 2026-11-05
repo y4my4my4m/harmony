@@ -58,6 +58,8 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
         'TEST_SUPABASE_SERVICE_ROLE_KEY',
       ),
       INSTANCE_DOMAIN,
+      // directoryPeer.ts serves its directory on host:port.
+      DIRECTORY_ALLOW_PORTS: 'true',
       // createApp() opens no Redis connection; a closed port keeps any path off a local Redis.
       REDIS_URL: 'redis://127.0.0.1:9',
       LOG_LEVEL: 'error',

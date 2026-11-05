@@ -14,6 +14,8 @@ interface ThemeState {
   lastError: string | null
 }
 
+let initializing: Promise<void> | null = null
+
 export const useThemeStore = defineStore('theme', {
   state: (): ThemeState => ({
     audioThemes: [],
@@ -60,34 +62,44 @@ export const useThemeStore = defineStore('theme', {
   },
 
   actions: {
+    /**
+     * Registers the themes and starts loading the current one's sounds. A sound asked for
+     * before they arrive waits on its own file only (AudioThemeService.playPath), never on the
+     * whole theme. Concurrent callers share one run.
+     */
     async initialize(): Promise<void> {
       if (this.isInitialized) return
+      if (initializing) return initializing
 
       this.isLoading = true
       this.lastError = null
 
-      try {
-        debug.log('Initializing professional theme system...')
+      initializing = (async () => {
+        try {
+          debug.log('Initializing professional theme system...')
 
-        await audioThemeService.ensureCustomPacksLoaded()
-        this.audioThemes = audioThemeService.getThemes()
+          await audioThemeService.ensureCustomPacksLoaded()
+          this.audioThemes = audioThemeService.getThemes()
 
-        const currentTheme = audioThemeService.getCurrentTheme()
-        this.currentAudioTheme = currentTheme?.id || 'default'
-        this.audioVolume = audioThemeService.getVolume()
+          const currentTheme = audioThemeService.getCurrentTheme()
+          this.currentAudioTheme = currentTheme?.id || 'default'
+          this.audioVolume = audioThemeService.getVolume()
 
-        this.setupEventListeners()
-        await this.preloadCurrentTheme()
+          this.setupEventListeners()
+          void this.preloadCurrentTheme()
 
-        this.isInitialized = true
-        debug.log('Theme system initialized successfully')
-      } catch (error) {
-        debug.error('Failed to initialize theme system:', error)
-        this.lastError = error instanceof Error ? error.message : 'Unknown initialization error'
-        throw error
-      } finally {
-        this.isLoading = false
-      }
+          this.isInitialized = true
+          debug.log('Theme system initialized successfully')
+        } catch (error) {
+          debug.error('Failed to initialize theme system:', error)
+          this.lastError = error instanceof Error ? error.message : 'Unknown initialization error'
+          throw error
+        } finally {
+          this.isLoading = false
+          initializing = null
+        }
+      })()
+      return initializing
     },
 
     setupEventListeners(): void {
@@ -265,7 +277,7 @@ export const useThemeStore = defineStore('theme', {
     async resetToDefaults(): Promise<void> {
       try {
         await this.setAudioTheme('default')
-        this.setAudioVolume(0.7)
+        this.setAudioVolume(1.0)
         this.clearError()
         debug.log('Theme settings reset to defaults')
       } catch (error) {

@@ -15,6 +15,8 @@ export interface ViewContext {
   server_id?: string
   channel_id?: string
   conversation_id?: string
+  /** The thread shown full page. Local only: device_view_contexts has no thread view. */
+  thread_id?: string
   view_type: 'server_channel' | 'dm' | 'settings' | 'home'
 }
 
@@ -114,6 +116,7 @@ export class ViewContextTracker {
     server_id?: string
     channel_id?: string
     conversation_id?: string
+    thread_id?: string
     type: string
   }, activeConversationId?: string): NotificationUIDecision {
     if (!this.isSeen()) {
@@ -125,6 +128,10 @@ export class ViewContextTracker {
       if (this.isViewingChannel(notificationContext.server_id, notificationContext.channel_id)) {
         return { ...SUPPRESSED, reason: 'User is viewing the source channel' }
       }
+    }
+
+    if (notificationContext.thread_id && this.currentContext.thread_id === notificationContext.thread_id) {
+      return { ...SUPPRESSED, reason: 'User is viewing the source thread' }
     }
 
     // If user is viewing the exact DM conversation, suppress

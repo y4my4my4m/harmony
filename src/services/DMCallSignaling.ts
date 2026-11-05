@@ -23,6 +23,7 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { authContextService } from './AuthContextService'
 import { debug } from '@/utils/debug'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 
 export interface CallSignal {
   type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave' | 'busy' | 'timeout'
@@ -1011,7 +1012,7 @@ class DMCallSignalingService {
       const callInfo: FederatedCallInfo = {
         callerFederatedId,
         calleeFederatedId,
-        callerInstanceUrl: config.instanceDomain || window.location.origin,
+        callerInstanceUrl: config.instanceDomain || resolveHarmonyBaseUrl(),
         livekitUrl: config.wsUrl,
         roomName,
       }

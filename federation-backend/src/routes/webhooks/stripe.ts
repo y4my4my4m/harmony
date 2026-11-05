@@ -22,6 +22,17 @@
  * Sessions with no resolvable profile are queued when they came from a Payment Link and
  * ignored otherwise (other Checkout integrations on the same account).
  *
+ * The Harmony development fund is paid outside every instance, through two Payment Links on
+ * the Stripe account that har.mony.lol's own funding also uses. Its events are answered 2xx as
+ * ignored and write nothing, on every instance:
+ * - a checkout session whose payment_link is one of DEVELOPMENT_PAYMENT_LINK_IDS, or whose
+ *   metadata.fund is DEVELOPMENT_FUND_METADATA (Checkout copies a Payment Link's metadata onto
+ *   its sessions);
+ * - an invoice whose subscription metadata.fund is DEVELOPMENT_FUND_METADATA: in
+ *   parent.subscription_details (API 2025-03-31 on), subscription_details (earlier), or a
+ *   line's metadata. The links copy subscription_data.metadata onto the subscription; a
+ *   renewal carries only the invoice.
+ *
  * Responses: 2xx once handled, including ignored and duplicate events; 5xx on a storage
  * failure, so Stripe retries (up to three days) and the dedup keys absorb the replay.
  */
@@ -38,6 +49,17 @@ import {
   type DonationRecord,
   type MatchedUser,
 } from './donations.js';
+
+/** The Harmony development fund's Payment Links: one-time, any amount; monthly, $1 per unit. */
+export const DEVELOPMENT_PAYMENT_LINK_IDS: ReadonlySet<string> = new Set([
+  'plink_1UYKJgIByukKkdhljBcFnf5I',
+  'plink_1UYKRBIByukKkdhlRV8itB6j',
+]);
+
+/** metadata.fund on the development fund's Payment Links, PaymentIntents and subscriptions. */
+export const DEVELOPMENT_FUND_METADATA = 'harmony-development';
+
+const DEVELOPMENT_FUND_IGNORED = 'Harmony development fund, paid outside this instance';
 
 const router = Router();
 
@@ -105,6 +127,23 @@ function refId(value: unknown): string | null {
   return null;
 }
 
+function developmentTagged(metadata: unknown): boolean {
+  return !!metadata && typeof metadata === 'object'
+    && (metadata as { fund?: unknown }).fund === DEVELOPMENT_FUND_METADATA;
+}
+
+export function isDevelopmentSession(session: any): boolean {
+  const link = refId(session?.payment_link);
+  return (link !== null && DEVELOPMENT_PAYMENT_LINK_IDS.has(link)) || developmentTagged(session?.metadata);
+}
+
+export function isDevelopmentInvoice(invoice: any): boolean {
+  const lines: unknown[] = Array.isArray(invoice?.lines?.data) ? invoice.lines.data : [];
+  return developmentTagged(invoice?.parent?.subscription_details?.metadata)
+    || developmentTagged(invoice?.subscription_details?.metadata)
+    || lines.some((line) => developmentTagged((line as { metadata?: unknown } | null)?.metadata));
+}
+
 interface StripeConfig {
   stripe_webhook_secret: string | null;
   stripe_auto_assign_tier: boolean;
@@ -170,6 +209,7 @@ async function credit(
 }
 
 async function handleCheckoutSession(session: any, cfg: StripeConfig): Promise<Outcome> {
+  if (isDevelopmentSession(session)) return { status: 'ignored', reason: DEVELOPMENT_FUND_IGNORED };
   if (session.payment_status !== 'paid') {
     return { status: 'ignored', reason: `payment_status ${session.payment_status}` };
   }
@@ -205,6 +245,7 @@ async function handleCheckoutSession(session: any, cfg: StripeConfig): Promise<O
 }
 
 async function handleInvoicePaid(invoice: any, cfg: StripeConfig): Promise<Outcome> {
+  if (isDevelopmentInvoice(invoice)) return { status: 'ignored', reason: DEVELOPMENT_FUND_IGNORED };
   // API versions from 2025-03-31 move the subscription under parent.subscription_details.
   const subscription = refId(invoice.subscription) ?? refId(invoice.parent?.subscription_details?.subscription);
   if (!subscription) return { status: 'ignored', reason: 'not a subscription invoice' };

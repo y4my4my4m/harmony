@@ -19,6 +19,16 @@ const { store } = vi.hoisted(() => ({
   },
 }))
 
+const themeStore = reactive({
+  audioVolume: 1,
+  isInitialized: false,
+  isLoading: false,
+  initialize: vi.fn(async () => {}),
+  setAudioVolume(volume: number) {
+    themeStore.audioVolume = volume
+  },
+})
+
 const translate = (key: string, params?: Record<string, unknown>) =>
   params ? `${key} ${JSON.stringify(params)}` : key
 
@@ -28,6 +38,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => store }))
+vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => themeStore }))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({ getUserAvatarUrlCurrent: computed(() => '') }),
 }))
@@ -68,6 +79,7 @@ function labelFor(el: Element): string {
 
 beforeEach(async () => {
   store.preferences = reactive({ dnd_enabled: true, dnd_start_time: '22:00:00', dnd_end_time: '08:00:00' })
+  themeStore.audioVolume = 1
   store.showToast.mockClear()
   wrapper = mount(NotificationSettings, {
     attachTo: document.body,
@@ -97,10 +109,18 @@ describe('NotificationSettings labels', () => {
   it('labels the master volume slider and speaks its value as a percentage', async () => {
     const slider = wrapper.get('[data-testid="notification-volume"]')
     expect(labelFor(slider.element)).toBe('a11y.notifications.volume')
-    expect(slider.attributes('aria-valuetext')).toBe('70%')
+    expect(slider.attributes('aria-valuetext')).toBe('100%')
     expect(document.getElementById(slider.attributes('aria-describedby')!)).not.toBeNull()
     await slider.setValue('40')
     expect(slider.attributes('aria-valuetext')).toBe('40%')
+    expect(themeStore.audioVolume).toBe(0.4)
+  })
+
+  it('shows the stored volume and starts the sound theme when it is not running', async () => {
+    themeStore.audioVolume = 0.55
+    await flushPromises()
+    expect(wrapper.get('[data-testid="notification-volume"]').attributes('aria-valuetext')).toBe('55%')
+    expect(themeStore.initialize).toHaveBeenCalled()
   })
 })
 

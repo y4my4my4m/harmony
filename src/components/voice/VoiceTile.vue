@@ -47,7 +47,7 @@
       />
       <button type="button" class="tile-watch-btn" @click.stop="watchAndFocus">
         <Icon name="eye" :size="16" />
-        <span>{{ t('voice.watchStream') }}</span>
+        <span class="tile-watch-text">{{ t('voice.watchStream') }}</span>
       </button>
     </div>
 
@@ -122,6 +122,16 @@
         <Icon name="smile-plus" />
       </button>
       <button
+        v-if="source === 'screen' && isSelf && showVideo"
+        class="tile-action-btn tile-stop-stream-btn"
+        :title="t('voice.stopStreaming')"
+        :aria-label="t('voice.stopStreaming')"
+        data-testid="tile-stop-streaming"
+        @click="stopStreaming"
+      >
+        <Icon name="screen-share-off" />
+      </button>
+      <button
         v-if="source === 'screen' && canStopWatching"
         class="tile-action-btn"
         :title="t('voice.stopWatching')"
@@ -130,8 +140,9 @@
       >
         <Icon name="eye-off" />
       </button>
+      <!-- Popped out, the call window holds the stream: no in-app frame, no full screen. -->
       <button
-        v-if="source === 'screen' && showVideo"
+        v-if="source === 'screen' && showVideo && !poppedOut"
         class="tile-action-btn"
         :class="{ active: isPIPActive }"
         :title="isPIPActive ? t('voice.closePopOut') : t('voice.popOut')"
@@ -141,7 +152,7 @@
         <Icon name="picture-in-picture" />
       </button>
       <button
-        v-if="showVideo"
+        v-if="showVideo && !poppedOut"
         class="tile-action-btn"
         :title="t('voice.fullScreen')"
         :aria-label="t('voice.fullScreen')"
@@ -184,7 +195,7 @@
       :y="contextMenuPosition.y"
       :visible="showContextMenu"
       :source="source"
-      can-fullscreen
+      :can-fullscreen="!poppedOut"
       @close="closeMenu"
       @request-fullscreen="emit('request-fullscreen')"
     />
@@ -213,6 +224,7 @@ import { restoreFocusIfLost } from './voiceFocus';
 import { withRenderFallback } from '@/utils/renderFallback';
 import { stylePoint, styleRect } from '@/utils/appZoom';
 import { SPEAKING_LEVEL } from '@/services/voice/speakingDetector';
+import { callPopoutActive } from './callPopout';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -346,6 +358,12 @@ const tileLabel = computed(() => {
   });
   return showQualityWarning.value ? `${label}, ${t(`voice.quality.${quality.value}`)}` : label;
 });
+
+const poppedOut = callPopoutActive;
+
+const stopStreaming = () => {
+  if (voiceStore.localState.isScreenSharing) void voiceStore.toggleScreenShare();
+};
 
 const togglePIP = () => {
   if (isPIPActive.value) {
@@ -696,6 +714,15 @@ onBeforeUnmount(detach);
   background: var(--harmony-primary);
 }
 
+.tile-action-btn.tile-stop-stream-btn {
+  background: var(--error-fill);
+  color: var(--text-on-primary);
+}
+
+.tile-action-btn.tile-stop-stream-btn:hover {
+  background: var(--error-hover);
+}
+
 .tile-action-btn :deep(svg) {
   width: 15px;
   height: 15px;
@@ -783,6 +810,35 @@ onBeforeUnmount(detach);
 /* Small tiles (filmstrip) show the button without the avatar. */
 @container (max-height: 140px) {
   .tile-watch-avatar { display: none; }
+}
+
+/* Phone filmstrip tiles: the button sits above the name pill, its label kept for assistive tech. */
+@container (max-height: 90px) {
+  .tile-watch {
+    justify-content: flex-start;
+    padding-top: 6px;
+  }
+  .tile-watch-btn {
+    padding: 5px 10px;
+  }
+  .tile-pill {
+    bottom: 4px;
+    left: 4px;
+    max-width: calc(100% - 8px);
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+}
+
+@container (max-width: 150px) {
+  .tile-watch-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 /* Filmstrip tiles have no room for it; the call controls carry the reaction bar. */

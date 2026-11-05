@@ -6,6 +6,7 @@
     </div>
     <div v-if="!closed && !unavailable" class="poll-hint">
       {{ allowMultiple ? t('polls.selectMultiple') : t('polls.selectOne') }}
+      <template v-if="remote && !hasVoted"> · {{ t('polls.voteFinal') }}</template>
     </div>
 
     <div class="poll-options" :role="allowMultiple ? 'group' : 'radiogroup'">
@@ -14,9 +15,9 @@
         :key="option.key"
         type="button"
         class="poll-option"
-        :class="{ 'is-mine': option.mine, 'is-leading': showResults && option.leading }"
+        :class="{ 'is-mine': option.checked, 'is-leading': showResults && option.leading }"
         :role="allowMultiple ? 'checkbox' : 'radio'"
-        :aria-checked="option.mine"
+        :aria-checked="option.checked"
         :disabled="!canVote"
         :title="showResults ? t('polls.votes', { count: option.votes }, option.votes) : undefined"
         data-testid="poll-option"
@@ -29,7 +30,7 @@
           aria-hidden="true"
         />
         <span class="poll-option-mark" :class="allowMultiple ? 'is-box' : 'is-round'" aria-hidden="true">
-          <Icon v-if="option.mine" name="check" :size="12" />
+          <Icon v-if="option.checked" name="check" :size="12" />
         </span>
         <span class="poll-option-text">{{ option.text }}</span>
         <span v-if="showResults" class="poll-option-percent">{{ option.percent }}%</span>
@@ -39,18 +40,26 @@
     <div class="poll-footer">
       <span v-if="unavailable" class="poll-status">{{ t('polls.unavailable') }}</span>
       <template v-else-if="state">
+        <button
+          v-if="remote && canVote"
+          type="button"
+          class="poll-vote"
+          :disabled="selected.length === 0 || voting"
+          data-testid="poll-vote"
+          @click="castRemoteVote"
+        >{{ t('polls.remote.vote') }}</button>
         <span class="poll-status" data-testid="poll-voters">{{ t('polls.votes', { count: state.totalVoters }, state.totalVoters) }}</span>
         <span class="poll-dot" aria-hidden="true">·</span>
         <span class="poll-status">{{ endLabel }}</span>
         <button
-          v-if="!closed && hasVoted"
+          v-if="!closed && hasVoted && !remote"
           type="button"
           class="poll-link"
           data-testid="poll-remove-vote"
           @click="removeVote"
         >{{ t('polls.removeVote') }}</button>
         <button
-          v-else-if="!closed"
+          v-else-if="!closed && !hasVoted"
           type="button"
           class="poll-link"
           @click="peek = !peek"
@@ -110,16 +119,21 @@ const closed = computed(() => {
 })
 const hasVoted = computed(() => (state.value?.myOptionIds.length ?? 0) > 0)
 const showResults = computed(() => !!state.value && (hasVoted.value || closed.value || peek.value))
-const canVote = computed(() => !!state.value && !closed.value && !unavailable.value)
+// Another instance holds the tally: answers are chosen, then sent once with Vote, and stay.
+const remote = computed(() => state.value?.remote === true)
+const canVote = computed(() => !!state.value && !closed.value && !unavailable.value && !(remote.value && hasVoted.value))
+// Answers chosen on a remote poll before Vote.
+const selected = ref<string[]>([])
+const voting = ref(false)
 
 const options = computed(() => {
   const s = state.value
   if (!s) {
     return (props.poll.options ?? []).map((text, i) => ({
-      key: `${i}`, id: '', text, votes: 0, percent: 0, mine: false, leading: false,
+      key: `${i}`, id: '', text, votes: 0, percent: 0, checked: false, leading: false,
     }))
   }
-  const mine = new Set(s.myOptionIds)
+  const mine = new Set(s.remote && s.myOptionIds.length === 0 ? selected.value : s.myOptionIds)
   const top = Math.max(0, ...s.options.map((o) => o.votes))
   return s.options.map((o) => ({
     key: o.id,
@@ -127,7 +141,7 @@ const options = computed(() => {
     text: o.text,
     votes: o.votes,
     percent: pollPercent(o.votes, s.totalVoters),
-    mine: mine.has(o.id),
+    checked: mine.has(o.id),
     leading: top > 0 && o.votes === top,
   }))
 })
@@ -143,13 +157,33 @@ async function submit(optionIds: string[]) {
     await store.vote(props.poll.pollId, optionIds)
   } catch (error) {
     debug.warn('Poll vote failed:', error)
-    toast.error(pollErrorCode(error) === 'POLL_CLOSED' ? t('polls.errors.closed') : t('polls.errors.voteFailed'))
+    const code = pollErrorCode(error)
+    toast.error(code === 'POLL_CLOSED' ? t('polls.errors.closed')
+      : code === 'POLL_ALREADY_VOTED' ? t('polls.errors.alreadyVoted')
+      : t('polls.errors.voteFailed'))
+  }
+}
+
+async function castRemoteVote() {
+  if (selected.value.length === 0 || voting.value || !canVote.value) return
+  voting.value = true
+  try {
+    await submit([...selected.value])
+  } finally {
+    voting.value = false
+    selected.value = []
   }
 }
 
 function choose(optionId: string) {
   const s = state.value
   if (!s || !optionId || !canVote.value) return
+  if (s.remote) {
+    selected.value = !s.allowMultiple ? [optionId]
+      : selected.value.includes(optionId) ? selected.value.filter((id) => id !== optionId)
+      : [...selected.value, optionId]
+    return
+  }
   if (!s.allowMultiple) {
     if (s.myOptionIds.length === 1 && s.myOptionIds[0] === optionId) return
     void submit([optionId])
@@ -321,6 +355,22 @@ onUnmounted(() => {
   gap: 6px;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+}
+
+.poll-vote {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.poll-vote:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .poll-link {

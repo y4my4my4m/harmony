@@ -46,7 +46,7 @@ The Supabase containers:
 | `imgproxy` | `supabase-imgproxy` | Image resizing |
 | `kong` | `supabase-kong` | The API gateway Caddy serves at the `db.` name |
 | `meta`, `studio` | `supabase-meta`, `supabase-studio` | Supabase Studio, a database browser |
-| `analytics`, `vector` | `supabase-analytics`, `supabase-vector` | Supabase's log collection |
+| `analytics`, `vector` | `supabase-analytics`, `supabase-vector` | Supabase's log collection (Logflare), for Studio's Logs pages. Profile `logs`, off unless chosen at install; see [Log collection](#log-collection) |
 
 Supabase's Edge Functions and Supavisor stay defined but never start: the
 federation backend replaces the first, and the second would publish Postgres
@@ -100,8 +100,7 @@ domain is chosen once.
 | | Requirement |
 |---|---|
 | Operating system | Linux on x86_64 (amd64) or arm64 (aarch64): a VPS, a home server or a VM. Prebuilt images exist for these two; elsewhere `HARMONY_BUILD=1` builds Harmony's images on the server, provided Supabase's images run there |
-| Memory | 2 GB. The installer and `harmony doctor` warn below about 1.9 GB. Under 4 GB without swap, the installer offers a 2 GB swap file and `harmony doctor` warns |
-| Disk | The installer stops with under 4 GB free (the images alone take about 4 GB) and warns under 10 GB; the database, uploads and backups grow from there |
+| CPU, memory, disk | See [Server size](#server-size). The installer and `harmony doctor` warn below about 1.9 GB of RAM; under 4 GB without swap, the installer offers a 2 GB swap file. The installer stops with under 4 GB of free disk and warns under 10 GB |
 | Access | Root over SSH, so the installer can install Docker, create `/opt/harmony` and link `/usr/local/bin/harmony`. A user in the `docker` group can install into a directory of its own with `HARMONY_DIR` |
 | Network | A public IPv4 address, for an instance others can reach. A [LAN install](/self-host/install#install-on-a-lan) works without one |
 | Domain | A domain name you can add DNS records to; see [DNS records](/self-host/install#dns) |
@@ -121,6 +120,121 @@ and Python are not needed on the host.
 | 7881/tcp, 7882/udp | Voice and video media, with voice on |
 
 Everything else stays on Docker's internal network.
+
+## Server size {#server-size}
+
+| | Minimum | Recommended |
+|---|---|---|
+| CPU | 2 cores | 4 cores |
+| Memory | 2 GB, plus a 2 GB swap file; 4 GB with log collection on | 4 GB; 8 GB with log collection on |
+| Disk | 20 GB SSD | 40 GB SSD or more, depending on uploads; see [What grows](#what-grows) |
+| Bandwidth | 10 Mbit/s without voice | 100 Mbit/s with voice and video; see [Bandwidth](#bandwidth) |
+| Operating system | 64-bit Linux on x86_64 (amd64) or arm64 (aarch64) | A current Debian or Ubuntu LTS |
+| Docker | Docker Engine with the Compose plugin 2.24.4 or later | What `https://get.docker.com` installs, which the installer offers |
+
+The minimum leaves about 1 GB above the idle figures below for the
+operating system, Postgres's cache and load. Building Harmony's images on
+the server (`HARMONY_BUILD=1`) compiles
+the web app there and needs several GB more memory while it runs: an 8 GB
+server running an instance has run out of memory during that build.
+
+### Memory by service
+
+Measured with `docker stats` on a new instance, idle, limited to 2 CPU
+cores, after the database schema loads:
+
+| Services | Memory, idle | Images on disk |
+|---|---|---|
+| Harmony: `caddy`, `web`, `media-cache`, `federation-server`, `federation-worker`, `redis` | 170 MB | 0.5 GB |
+| Supabase: `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio` | 790 MB | 4.3 GB |
+| Voice: `livekit` | 17 MB, more during calls | 75 MB |
+| Bots and Discord bridge hosting: `bot-gateway`, `discord-bridge-host` | 85 MB with no bridge running | 0.37 GB |
+| Log collection: `analytics`, `vector` | 0.7 GB, rising; 1.9 GB measured on a production instance | 0.57 GB |
+
+The whole stack takes about 1 GB without log collection and 1.6 GB with it,
+before any user signs in; the operating system needs 200 to 400 MB more.
+Postgres grows into free memory as its cache under use. Kong starts one
+worker per CPU core, and Realtime and Logflare one scheduler per core: on 8
+cores Kong took 640 MB and Realtime 220 MB, on 32 cores Kong took 2.4 GB.
+
+### Log collection {#log-collection}
+
+Supabase's log collection runs Logflare (`analytics`) and `vector`, which
+read every container's output and store it in the database for the Logs
+pages of Supabase Studio. Harmony needs neither: `harmony logs` reads the
+same output from Docker. It is off unless chosen; the installer asks
+(`HARMONY_ANALYTICS=y` turns it on in a scripted install). An instance
+installed before the question existed ran it without being asked: there
+`harmony update` turns it off, removes both containers, deletes the logs
+they stored and prints the space freed. `harmony analytics on` turns it
+back on.
+
+```bash
+harmony analytics                    # whether it runs, and the logs it stores
+harmony analytics off                # stop and remove both containers
+harmony analytics off --delete-logs  # also delete the stored logs
+harmony analytics on
+```
+
+While it runs it costs:
+
+- 0.7 GB of memory at start, 1.9 GB measured on a small production instance
+  after months;
+- the stored logs, in the `_analytics` schema of the `_supabase` database:
+  2.8 GB on that instance, 10 GB on another two weeks after its install.
+  Every request through Kong adds a row, about 0.9 KB; Logflare deletes none
+  (its retention setting applies to BigQuery, not to Postgres).
+  `harmony doctor` warns above 1 GB, and
+  `harmony analytics off --delete-logs` followed by `harmony analytics on`
+  starts them over, empty;
+- write-ahead log: Logflare reads changes through a replication slot, and
+  Postgres keeps the write-ahead log the slot has not confirmed, up to
+  `max_slot_wal_keep_size` (4 GB). It held 832 MB on that instance. The slot
+  never confirms, so the write-ahead log grows to that limit; it is
+  temporary and disappears when Logflare stops. `harmony doctor` warns above
+  1 GB.
+
+Turning it off there, with Studio stopped at the same time, raised free
+memory from 160 MB to 2.75 GB and cut the write-ahead log from 832 MB to
+80 MB.
+
+### Bandwidth {#bandwidth}
+
+Text, posts and federation traffic are small; uploads, avatars and
+attachments that people and other servers download make up most of the
+traffic without voice. Voice and video go through LiveKit, which sends
+every stream to every participant receiving it, so its upload grows with
+the number of people in a call times the streams they receive:
+
+| Stream | Bitrate per receiver |
+|---|---|
+| Voice | 48 kbit/s while speaking; near nothing in silence |
+| Camera | up to 1.7 Mbit/s at 720p; less for small tiles |
+| Screen share | 1.2 Mbit/s below 720p, 2.5 at 720p, 5 at 1080p, 8 at 1440p, 16 at 4K; 60 fps adds 80% |
+
+A 1080p screen share at 30 fps watched by 10 people needs 50 Mbit/s of
+upload, 22 GB an hour. A voice call of 10 people with two speaking at a time
+needs about 1 Mbit/s.
+
+### What grows {#what-grows}
+
+| What | Where | Grows with | Bounded by |
+|---|---|---|---|
+| Database | `supabase/volumes/db/data` | Messages, posts, reactions, the search index, accounts and posts from other servers | Nothing; **Admin** → **Overview** shows its size |
+| Uploads | `supabase/volumes/storage`; the bucket instead when storage runs on S3 or Cloudflare R2 | Attachments, avatars, banners, emoji, stickers, Drive | [Upload limits](/self-host/configuration#upload-limits) and [Drive storage](/self-host/configuration#drive-storage) per account |
+| Media cache | Docker volume `media-cache-data` | Public files other servers fetch | 2 GB (`media-cache.conf`) |
+| Backups | `self-host/backups` | Each `harmony backup`, and each `harmony update` (database only) | Nothing; [Delete old backups](/self-host/update-backup#delete-old-backups) |
+| Container output | `/var/lib/docker/containers` | Every service's log lines | Nothing, unless Docker rotates them (below) |
+| Log collection, when on | `_supabase._analytics`, and write-ahead log | Every request | Write-ahead log: 4 GB (`max_slot_wal_keep_size`). Stored logs: nothing; `harmony analytics off --delete-logs` deletes them |
+| Images | Docker's data directory | Each update downloads new images | `docker image prune` |
+
+Docker keeps container output without limit by default. To rotate it, put
+this in `/etc/docker/daemon.json` and restart Docker; it applies to
+containers created afterwards (`docker compose up -d --force-recreate`):
+
+```json
+{ "log-driver": "json-file", "log-opts": { "max-size": "50m", "max-file": "3" } }
+```
 
 ## The database never faces the internet
 

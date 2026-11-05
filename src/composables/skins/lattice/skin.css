@@ -205,6 +205,14 @@
   background: transparent;
   border-right: 1px solid var(--lt-frame);
 }
+/* At 768px and below the Drive navigation is the left drawer's panel over the files: a frame of
+   its own, as the channel panel. */
+@media (max-width: 768px) {
+  :root[data-skin="lattice"] .drive-view .drive-sidebar {
+    background: var(--lt-marks), var(--lt-panel);
+    background-origin: border-box;
+  }
+}
 
 :root[data-skin="lattice"] [data-region="context"] .unified-context-bar {
   background: transparent;

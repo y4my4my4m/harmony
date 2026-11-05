@@ -146,6 +146,96 @@ upload_ceiling() {
 # docker compose in self-host/, so .env, COMPOSE_FILE and COMPOSE_PROFILES apply.
 compose() { ( cd "$SELF_HOST_DIR" && docker compose "$@" ); }
 
+# --- Supabase log collection ----------------------------------------------------
+# Logflare (service analytics) and vector, compose profile `logs` (supabase-overrides.yml),
+# ENABLE_ANALYTICS in .env. ANALYTICS_RAM, as the questions state it (configure.sh repeats it):
+# 0.7 GB idle on a new instance limited to 2 cores, 1.9 GB measured on a production instance.
+# shellcheck disable=SC2034
+ANALYTICS_RAM="0.7-2 GB"
+
+# profiles_with LIST PROFILE on|off: comma-separated LIST with PROFILE present or absent, the
+# others in their order.
+profiles_with() {
+	local out="" p
+	local -a list
+	IFS=, read -ra list <<<"$1"
+	for p in "${list[@]}"; do
+		[[ -n "$p" && "$p" != "$2" ]] && out+="${out:+,}$p"
+	done
+	[[ "$3" == on ]] && out+="${out:+,}$2"
+	printf '%s' "$out"
+}
+
+# analytics_unchosen: a configured install whose .env has no ENABLE_ANALYTICS. Releases up to
+# 1.9.2 wrote no such key and ran log collection on every install (the upstream stack starts
+# it; no profile held it back).
+analytics_unchosen() {
+	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^ENABLE_ANALYTICS=' "$ENV_FILE"
+}
+
+# Bytes of the _supabase database plus the write-ahead log.
+analytics_disk_bytes() {
+	db_sql -c "SELECT coalesce((SELECT pg_database_size(oid) FROM pg_database WHERE datname = '_supabase'), 0)
+		+ coalesce((SELECT sum(size) FROM pg_ls_waldir()), 0)"
+}
+
+# analytics_delete_logs: deletes Logflare's data and prints the disk space freed; run with
+# analytics and vector removed. In _supabase, the _analytics schema is emptied (Logflare's
+# migrations refill it at its next start) and the publication logflare_pub dropped (those
+# migrations stop at CREATE PUBLICATION when it exists). Logflare's replication slots,
+# cainophile_% (temporary, in _supabase), are dropped after their walsenders are terminated;
+# CHECKPOINT then removes the write-ahead log they retained.
+analytics_delete_logs() {
+	local before after
+	before="$(analytics_disk_bytes)" && [[ "$before" =~ ^[0-9]+$ ]] || return 1
+	if [[ "$(db_sql -c "SELECT 1 FROM pg_database WHERE datname = '_supabase'")" == 1 ]]; then
+		db_sql -d _supabase >/dev/null <<'SQL' || return 1
+SET lock_timeout = '10s';
+DROP SCHEMA IF EXISTS _analytics CASCADE;
+CREATE SCHEMA _analytics AUTHORIZATION supabase_admin;
+DROP PUBLICATION IF EXISTS logflare_pub;
+SQL
+	fi
+	db_sql >/dev/null <<'SQL' || return 1
+DO $$
+DECLARE
+	s record;
+	tries int := 0;
+BEGIN
+	PERFORM pg_terminate_backend(active_pid) FROM pg_replication_slots
+	 WHERE slot_name LIKE 'cainophile\_%' AND active_pid IS NOT NULL;
+	WHILE tries < 20 AND EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name LIKE 'cainophile\_%' AND active) LOOP
+		PERFORM pg_sleep(0.5);
+		tries := tries + 1;
+	END LOOP;
+	FOR s IN SELECT slot_name FROM pg_replication_slots WHERE slot_name LIKE 'cainophile\_%' AND NOT active LOOP
+		BEGIN
+			PERFORM pg_drop_replication_slot(s.slot_name);
+		EXCEPTION WHEN object_in_use OR undefined_object THEN
+			NULL;
+		END;
+	END LOOP;
+END $$;
+CHECKPOINT;
+SQL
+	after="$(analytics_disk_bytes)" && [[ "$after" =~ ^[0-9]+$ ]] || return 1
+	db_sql -c "SELECT pg_size_pretty(greatest($before - $after, 0)::numeric)"
+}
+
+# analytics_default_off: an install that never chose log collection (analytics_unchosen before
+# configure.sh) and now has it off. Removes analytics and vector and deletes the logs they
+# stored, which nothing reads without Logflare. Prints one line; never stops the caller.
+analytics_default_off() {
+	local freed
+	compose --profile logs rm -sf analytics vector >/dev/null 2>&1 ||
+		warn "analytics and vector were not removed: harmony analytics off --delete-logs"
+	if db_ready && freed="$(analytics_delete_logs)"; then
+		ok "Supabase log collection is off now: it ran without having been chosen. Its stored logs are deleted, $freed freed. To turn it back on: harmony analytics on"
+	else
+		warn "Supabase log collection is off now; its stored logs are still in the database. Delete them once the database runs: harmony analytics off --delete-logs. To turn it back on: harmony analytics on"
+	fi
+}
+
 # Container id of a running compose service; empty when it is not running.
 svc_id() { compose ps -q --status running "$1" 2>/dev/null | head -1; }
 

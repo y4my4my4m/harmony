@@ -19,11 +19,11 @@
           <button type="button" class="user-name-btn" data-testid="user-card-open" @click.stop="handleUserClick">
             <DisplayName class="user-name" :userId="user.id" :fallback="user.display_name || user.username" />
           </button>
-          <span v-if="user.is_admin" class="instance-badge admin" :title="t('activitypub.instanceAdmin')">
+          <span v-if="staffBadge?.kind === 'admin'" class="instance-badge admin" :title="t('activitypub.instanceAdmin')">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
             {{ t('activitypub.adminBadge') }}
           </span>
-          <span v-else-if="user.is_moderator" class="instance-badge mod" :title="t('activitypub.instanceModerator')">
+          <span v-else-if="staffBadge?.kind === 'mod'" class="instance-badge mod" :title="t('activitypub.instanceModerator')">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
             {{ t('activitypub.modBadge') }}
           </span>
@@ -150,6 +150,8 @@ import { plainDisplayName } from '@/utils/plainDisplayName';
 import { useMenuButton } from '@/composables/useMenu';
 import SocialMenu from './SocialMenu.vue';
 import { getBannerUrl } from '@/utils/bannerUtils';
+import { contextStaffBadge } from '@/utils/instanceBadge';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 const { t } = useI18n();
 // Props
@@ -172,6 +174,8 @@ const props = withDefaults(defineProps<Props>(), {
   showActions: true,
   showBanner: false
 });
+
+const staffBadge = computed(() => contextStaffBadge(props.user, null, runtimeConfig.domain));
 
 const bannerFailed = ref(false);
 const hasBanner = computed(() => props.showBanner && !props.isCompact);
