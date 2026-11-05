@@ -157,4 +157,13 @@ describe('placing a stored row', () => {
     expect(placeStoredRow(list, 'temp-1', row('m1', 100))).toBe(false)
     expect(list.map((m) => m.id)).toEqual(['m1'])
   })
+
+  it('drops the pending row when realtime added the stored row beside it', () => {
+    // Realtime did not match the pending row and added the stored one; the response lands after.
+    const live = row('m1', 120, { metadata: { ap_id: 'https://h.test/m1' } } as Partial<Message>)
+    const list = [row('a', 100), row('temp-1', 205, { sending: true }), live]
+    expect(placeStoredRow(list, 'temp-1', row('m1', 120))).toBe(true)
+    expect(list.map((m) => m.id)).toEqual(['a', 'm1'])
+    expect(list[1]).toBe(live)
+  })
 })

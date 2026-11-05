@@ -330,8 +330,10 @@ import {
   useThreadsStore,
   isOptimisticThreadId,
   mergeFreshThreadMessages,
+  landThreadReply,
   type StoredThread,
 } from '@/stores/useThreads'
+import { getRandomId } from '@/stores/shared/optimisticMessages'
 import { usePinsStore } from '@/stores/usePins'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -966,8 +968,10 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
     // Optimistic: add a temporary message immediately
     const tempId = `temp-${crypto.randomUUID()}`
-    // reply_to/metadata are optional strings/objects in the Message type; use
-    // undefined instead of null to satisfy the optional-property shape.
+    // Echoed on the stored row and its realtime INSERT; the stored content differs (jsonb key
+    // order, ciphertext).
+    const sendMetadata = { client_nonce: getRandomId() }
+    // reply_to is optional in the Message type; undefined instead of null.
     const optimisticMessage: Message = {
       id: tempId,
       created_at: new Date(),
@@ -979,7 +983,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       is_system: false,
       encrypted: false,
       reactions: [],
-      metadata: undefined,
+      metadata: sendMetadata,
     }
     messages.value.push(optimisticMessage)
     const settleReply = countLocalReply()
@@ -1001,7 +1005,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, sendMetadata, {
           allowPlaintextFallback,
         })),
       { scope: 'thread' },
@@ -1171,6 +1175,7 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
         duration: data.duration,
         waveform: data.waveform,
       },
+      client_nonce: getRandomId(),
     }
 
     const tempId = `temp-${crypto.randomUUID()}`
@@ -1350,11 +1355,6 @@ const setupRealtimeSubscription = () => {
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Skip if already in messages (non-optimistic duplicate)
-      if (messages.value.some(m => m.id === payloadNew.id)) {
-        return
-      }
-      
       if (payloadNew.thread_id === thread.value?.id) {
         const newMessage: Message = {
           id: payloadNew.id,
@@ -1374,16 +1374,8 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        // Replace the oldest optimistic temp message with matching content
-        const tempIndex = messages.value.findIndex(
-          m => m.id.startsWith('temp-') && m.user_id === payloadNew.user_id
-            && JSON.stringify(m.content) === JSON.stringify(payloadNew.content)
-        )
-        if (tempIndex !== -1) {
-          placeStoredRow(messages.value, messages.value[tempIndex].id, newMessage)
-        } else {
-          messages.value.push(newMessage)
-        }
+        // The send response may have placed it already, or may still hold its optimistic row.
+        if (!landThreadReply(messages.value, newMessage)) return
         if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
 
         // message_count is absolute on the thread:update broadcast that

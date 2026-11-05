@@ -278,7 +278,7 @@ import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import { routeMessageEvent, type MessageEventHandlers } from '@/stores/shared/realtimeMessageEvent'
-import { useThreadsStore, mergeFreshThreadMessages } from '@/stores/useThreads'
+import { useThreadsStore, mergeFreshThreadMessages, landThreadReply } from '@/stores/useThreads'
 import { usePinsStore } from '@/stores/usePins'
 import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
@@ -919,11 +919,6 @@ const setupRealtimeSubscription = () => {
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
-      // Skip if already in messages (optimistic update)
-      if (messages.value.some(m => m.id === payloadNew.id)) {
-        return
-      }
-      
       // Only add if it's for this thread
       if (payloadNew.thread_id === thread.value?.id) {
         const newMessage: Message = {
@@ -944,7 +939,8 @@ const setupRealtimeSubscription = () => {
           thread_id: payloadNew.thread_id,
         }
         
-        messages.value.push(newMessage)
+        // The send response may have added it already.
+        if (!landThreadReply(messages.value, newMessage)) return
         if (refreshInFlight) arrivedDuringFetch.add(newMessage.id)
         threadService.addMessageToCache(thread.value!.id, newMessage)
         await nextTick()
@@ -1094,6 +1090,8 @@ watch(() => props.threadId, () => {
   }
 }, { immediate: true })
 
+// Immediate: a thread the store already holds is set during the threadId watcher above, so its
+// id never changes after this watcher starts.
 watch(() => thread.value?.id, (threadId) => {
   if (threadId) {
     setupRealtimeSubscription()
@@ -1105,7 +1103,7 @@ watch(() => thread.value?.id, (threadId) => {
     }
     cleanupReactionsSubscription()
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
   // Focus will be handled by MessageInput component

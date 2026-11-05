@@ -22,17 +22,19 @@ export function isOptimisticId(id: unknown): boolean {
   return typeof id === 'string' && id.startsWith('temp-');
 }
 
+type NonceMetadata = { client_nonce?: string; [key: string]: unknown } | null;
+
 interface NonceCarrier {
   id: string;
   user_id?: string | null;
   content?: unknown;
-  metadata?: { client_nonce?: string } | null;
+  metadata?: NonceMetadata;
 }
 
 interface IncomingRow {
   user_id?: string | null;
   content?: unknown;
-  metadata?: { client_nonce?: string } | null;
+  metadata?: NonceMetadata;
 }
 
 /**

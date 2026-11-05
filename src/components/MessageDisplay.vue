@@ -1475,23 +1475,23 @@ const getAuthorColor = (message: Message): ComputedRef<string> => {
   });
 };
 
-// Unified computed properties that work for both chat and DMs
+// Paging state of the shown list. Thread views carry their parent channel's id but not its
+// list: the channel's paging, start line and detached state are not theirs.
 const isLoadingOlderMessages = computed(() => {
   if (props.listState) return props.listState.loadingOlder;
   if (props.conversationId) return dmStore.loadingMessages;
-  if (props.channelId) return chatStore.loadingOlderMessages;
+  if (props.channelId && !props.threadId) return chatStore.loadingOlderMessages;
   return false;
 });
 
 const isAllMessagesLoaded = computed(() => {
   if (props.listState) return props.listState.allLoaded;
   if (props.conversationId) return dmStore.allMessagesLoaded;
-  if (props.channelId) return chatStore.allMessagesLoaded;
+  if (props.channelId && !props.threadId) return chatStore.allMessagesLoaded;
   return false;
 });
 
 // A jump detached the list from the present: it ends before the newest message.
-// Thread views carry their parent channel's id but not its list.
 const isDetached = computed(() => {
   if (props.listState) return false;
   if (props.conversationId) return dmStore.hasNewerMessages;

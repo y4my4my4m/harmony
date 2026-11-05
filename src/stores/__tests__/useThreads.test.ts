@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Message } from '@/types'
+import { placeStoredRow } from '@/stores/shared/messageCacheUtils'
+import { findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 
 const service = vi.hoisted(() => ({
   getChannelThreads: vi.fn(),
@@ -13,6 +15,7 @@ import {
   useThreadsStore,
   isOptimisticThreadId,
   mergeFreshThreadMessages,
+  landThreadReply,
   isThreadExpired,
   CHANNEL_THREAD_PAGE,
 } from '@/stores/useThreads'
@@ -220,5 +223,63 @@ describe('mergeFreshThreadMessages', () => {
   it('empties to the fetch when nothing local survives', () => {
     const local = [msg('x', '2026-09-01T00:00:01Z')]
     expect(mergeFreshThreadMessages(local, [], { freshHasMore: false, arrivedDuringFetch: none })).toEqual([])
+  })
+})
+
+describe('own thread reply: optimistic row, send response and realtime events', () => {
+  const ME = 'me'
+  const NONCE = 'nonce-1'
+  // The composer's parts, and the same parts read back from jsonb: keys by length, then bytes.
+  const typed = [{ type: 'text', text: 'docker compose rm -sf analytics vector' }]
+  const stored = [{ text: 'docker compose rm -sf analytics vector', type: 'text' }]
+
+  const optimistic = (): Message => ({
+    id: 'temp-1', user_id: ME, created_at: new Date('2026-11-05T11:53:05Z'), content: typed,
+    metadata: { client_nonce: NONCE },
+  }) as unknown as Message
+  /** The stored row, as the insert response and broadcast_message_event carry it. */
+  const row = (metadata: Record<string, unknown> = {}): Message => ({
+    id: 'm1', user_id: ME, created_at: new Date('2026-11-05T11:53:04Z'), content: stored,
+    metadata: { created_via: 'harmony_client', client_nonce: NONCE, ...metadata },
+  }) as unknown as Message
+  /** ThreadView's onUpdate: the row held by id takes the new fields. */
+  const applyUpdate = (list: Message[], next: Message) => {
+    const index = list.findIndex(m => m.id === next.id)
+    if (index !== -1) list[index] = { ...list[index], ...next }
+  }
+
+  it('reads the stored content back in another key order than the composer wrote', () => {
+    expect(JSON.stringify(stored)).not.toBe(JSON.stringify(typed))
+    expect(findOptimisticMatchIndex([optimistic()], { user_id: ME, content: stored })).toBe(-1)
+  })
+
+  it('INSERT before the response: one row, the stored one', () => {
+    const list = [msg('earlier', '2026-11-05T11:50:00Z'), optimistic()]
+    expect(landThreadReply(list, row())).toBe(true)
+    placeStoredRow(list, 'temp-1', row())
+    applyUpdate(list, row({ ap_id: 'https://har.mony.lol/m1' }))
+    expect(list.map(m => m.id)).toEqual(['earlier', 'm1'])
+    expect((list[1].metadata as any).ap_id).toBe('https://har.mony.lol/m1')
+  })
+
+  it('response before the INSERT: the INSERT changes nothing', () => {
+    const list = [optimistic()]
+    placeStoredRow(list, 'temp-1', row())
+    expect(landThreadReply(list, row())).toBe(false)
+    expect(list.map(m => m.id)).toEqual(['m1'])
+  })
+
+  it('an optimistic row without a nonce still leaves one row once the response lands', () => {
+    const list = [{ ...optimistic(), metadata: undefined } as unknown as Message]
+    expect(landThreadReply(list, row())).toBe(true)
+    expect(list.map(m => m.id)).toEqual(['m1', 'temp-1'])
+    placeStoredRow(list, 'temp-1', row())
+    expect(list.map(m => m.id)).toEqual(['m1'])
+  })
+
+  it('a reply from someone else is added by created_at', () => {
+    const list = [msg('a', '2026-11-05T11:50:00Z'), msg('c', '2026-11-05T11:52:00Z')]
+    expect(landThreadReply(list, msg('b', '2026-11-05T11:51:00Z'))).toBe(true)
+    expect(list.map(m => m.id)).toEqual(['a', 'b', 'c'])
   })
 })
