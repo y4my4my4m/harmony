@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "支持此实例",
     "progress": "资助进度",
     "raisedMonth": "本月已筹集，目标 {goal}",
     "raisedTotal": "累计已筹集，目标 {goal}",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "帮助构建 Harmony",
       "lead": "Harmony 是自由开源软件。在这里的支持会交给开发它的人，而不是 {instance}。",
-      "paymentNote": "付款在 {project} 自己的页面上完成；{instance} 不会经手这笔钱。",
-      "ownFund": "这是 Harmony 的开发基金，与 {instance} 自身的服务器经费分开管理。",
-      "fallback": "无法访问 Harmony 的资助页面，因此不显示其进度和支持者留言。",
-      "unavailable": "目前无法获取 Harmony 的资助信息。",
-      "wall": "Harmony 的最新支持者"
+      "monthly": "每月",
+      "footnote": "付款在 Stripe 上完成；{instance} 不会经手这笔钱。",
+      "supporters": "支持者及其留言"
     },
     "wall": {
       "title": "最新支持者",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "支持者留言",
       "messagesPublic": "在登录页面显示已批准的留言",
-      "messagesHint": "支持者可以为支持附上最多 50 个字符的留言。在你于下方批准前不会显示任何内容。登录页面显示的留言也会出现在此实例的公开资助订阅中。",
-      "projectMessages": "显示 Harmony 的支持者留言",
-      "projectMessagesHint": "显示在支持窗口的 Harmony 开发标签页中。这些留言由 Harmony 项目批准，而不是由此实例的管理员批准。",
+      "messagesHint": "支持者可以为支持附上最多 50 个字符的留言。在你于下方批准前不会显示任何内容。",
       "queueTitle": "支持者留言",
       "queueHint": "留言会随一笔已入账的捐款到达。批准后它会显示在支持窗口中，若已开启也会显示在登录页面。你可以随时隐藏。",
       "queueEmpty": "还没有支持者留言。",
@@ -7402,32 +7397,6 @@
       "unhide": "重新显示",
       "anonymousBy": "匿名：{name}",
       "reviewFailed": "无法更新留言。",
-      "project": {
-        "title": "Harmony 开发基金",
-        "hint": "用于 Harmony 开发的捐款，与本实例的经费分开管理。每个 Harmony 服务器都会在其支持窗口的“Harmony 开发”标签页中显示这个基金，并附上项目自己的付款链接：这些链接内置于 Harmony，任何实例都无法更改。",
-        "progress": "已筹 {raised} / {goal} · 支持者：{count}",
-        "enabled": "公开进度和留言",
-        "goal": "目标金额",
-        "currency": "货币",
-        "period": "周期",
-        "periodMonthly": "每月（每月重置）",
-        "periodAll": "全部时间",
-        "description": "说明",
-        "descriptionPlaceholder": "基金的用途…",
-        "kofiToken": "Ko-fi 验证令牌",
-        "kofiHint": "带有此令牌的 Ko-fi 捐款计入此基金。未设置时，Ko-fi 捐款计入本实例。",
-        "showToken": "显示令牌",
-        "hideToken": "隐藏令牌",
-        "messagesEnabled": "支持者留言",
-        "messagesPublic": "在基金的公开源中显示已批准的留言",
-        "save": "保存基金",
-        "saved": "已保存 Harmony 开发基金",
-        "saveFailed": "无法保存基金。",
-        "queueTitle": "给 Harmony 开发的留言",
-        "queueHint": "随 Harmony 开发捐款留下的留言。已批准的留言会显示在所有选择显示它们的服务器的“Harmony 开发”标签页中。",
-        "queueEmpty": "还没有给 Harmony 开发的留言。",
-        "tag": "Harmony 开发"
-      },
       "state": {
         "pending": "等待批准",
         "approved": "已显示",

@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "Soutenir cette instance",
     "progress": "Progression du financement",
     "raisedMonth": "collectés sur {goal} ce mois-ci",
     "raisedTotal": "collectés sur {goal} au total",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "Aidez à construire Harmony",
       "lead": "Harmony est un logiciel libre et open source. Le soutien ici va aux personnes qui le construisent, pas à {instance}.",
-      "paymentNote": "Vous payez sur les pages de {project} ; {instance} ne touche jamais l'argent.",
-      "ownFund": "Voici le fonds de développement de Harmony, distinct du financement du serveur {instance}.",
-      "fallback": "La page de financement de Harmony est injoignable : sa progression et ses messages de soutien ne s'affichent pas.",
-      "unavailable": "Les informations de financement de Harmony ne sont pas disponibles pour le moment.",
-      "wall": "Derniers soutiens de Harmony"
+      "monthly": "Mensuel",
+      "footnote": "Vous payez sur Stripe ; {instance} ne touche jamais l'argent.",
+      "supporters": "Les soutiens et leurs messages"
     },
     "wall": {
       "title": "Derniers soutiens",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "Messages de soutien",
       "messagesPublic": "Afficher les messages approuvés sur la page de connexion",
-      "messagesHint": "Les soutiens peuvent joindre un message de 50 caractères au plus. Rien ne s'affiche avant votre approbation ci-dessous. Les messages affichés sur la page de connexion figurent aussi dans le flux public de financement de cette instance.",
-      "projectMessages": "Afficher les messages de soutien à Harmony",
-      "projectMessagesHint": "Dans l'onglet Développement de Harmony de la fenêtre Soutenir. Ces messages sont approuvés par le projet Harmony, pas par les admins de cette instance.",
+      "messagesHint": "Les soutiens peuvent joindre un message de 50 caractères au plus. Rien ne s'affiche avant votre approbation ci-dessous.",
       "queueTitle": "Messages de soutien",
       "queueHint": "Un message arrive avec un don crédité. Approuvez-le pour l'afficher dans la fenêtre Soutenir et, si l'option est active, sur la page de connexion. Vous pouvez le masquer à tout moment.",
       "queueEmpty": "Pas encore de message de soutien.",
@@ -7402,32 +7397,6 @@
       "unhide": "Réafficher",
       "anonymousBy": "Anonyme : {name}",
       "reviewFailed": "Le message n'a pas pu être mis à jour.",
-      "project": {
-        "title": "Fonds de développement de Harmony",
-        "hint": "Les dons au développement de Harmony, distincts du financement de cette instance. Chaque serveur Harmony affiche ce fonds dans l'onglet Développement de Harmony de sa fenêtre Soutenir, avec les liens de paiement du projet lui-même : ils sont intégrés à Harmony et aucune instance ne peut les changer.",
-        "progress": "{raised} collectés sur {goal} · Soutiens : {count}",
-        "enabled": "Publier la progression et les messages",
-        "goal": "Montant visé",
-        "currency": "Devise",
-        "period": "Période",
-        "periodMonthly": "Mensuelle (remise à zéro chaque mois)",
-        "periodAll": "Depuis le début",
-        "description": "Description",
-        "descriptionPlaceholder": "Ce que le fonds finance…",
-        "kofiToken": "Jeton de vérification Ko-fi",
-        "kofiHint": "Les dons Ko-fi portant ce jeton comptent pour ce fonds. Sans lui, ils comptent pour cette instance.",
-        "showToken": "Afficher le jeton",
-        "hideToken": "Masquer le jeton",
-        "messagesEnabled": "Messages de soutien",
-        "messagesPublic": "Afficher les messages approuvés dans le flux public du fonds",
-        "save": "Enregistrer le fonds",
-        "saved": "Fonds de développement de Harmony enregistré",
-        "saveFailed": "Le fonds n'a pas pu être enregistré.",
-        "queueTitle": "Messages pour le développement de Harmony",
-        "queueHint": "Laissés avec un don au développement de Harmony. Les messages approuvés apparaissent dans l'onglet Développement de Harmony de chaque serveur qui les affiche.",
-        "queueEmpty": "Pas encore de message pour le développement de Harmony.",
-        "tag": "Développement de Harmony"
-      },
       "state": {
         "pending": "En attente d'approbation",
         "approved": "Affiché",

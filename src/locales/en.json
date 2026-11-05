@@ -7262,7 +7262,6 @@
     "linkHint": "YouTube, SoundCloud, Spotify or a file link"
   },
   "support": {
-    "title": "Support this instance",
     "progress": "Funding progress",
     "raisedMonth": "raised of {goal} this month",
     "raisedTotal": "raised of {goal} in total",
@@ -7299,11 +7298,9 @@
     "project": {
       "title": "Help build Harmony",
       "lead": "Harmony is free, open-source software. Support here goes to the people building it, not to {instance}.",
-      "paymentNote": "You pay on {project}'s own pages; {instance} never handles the money.",
-      "ownFund": "This is Harmony's development fund, kept apart from {instance}'s own server funding.",
-      "fallback": "Harmony's funding page could not be reached, so its progress and supporter messages are not shown.",
-      "unavailable": "Harmony's funding information is not available right now.",
-      "wall": "Harmony's recent supporters"
+      "monthly": "Monthly",
+      "footnote": "You pay on Stripe; {instance} never handles the money.",
+      "supporters": "Supporters and their messages"
     },
     "wall": {
       "title": "Recent supporters",
@@ -7352,9 +7349,7 @@
     "admin": {
       "messagesEnabled": "Supporter messages",
       "messagesPublic": "Show approved messages on the sign-in page",
-      "messagesHint": "Supporters can add a message of up to 50 characters to their support. Nothing shows until you approve it below. Messages shown on the sign-in page are also in this instance's public funding feed.",
-      "projectMessages": "Show Harmony's supporter messages",
-      "projectMessagesHint": "On the Harmony development tab of the Support window. The Harmony project approves these messages, not this instance's admins.",
+      "messagesHint": "Supporters can add a message of up to 50 characters to their support. Nothing shows until you approve it below.",
       "queueTitle": "Supporter messages",
       "queueHint": "A message arrives with a credited donation. Approve it to show it in the Support window and, when that is on, on the sign-in page. Hide it at any time.",
       "queueEmpty": "No supporter messages yet.",
@@ -7363,32 +7358,6 @@
       "unhide": "Show again",
       "anonymousBy": "Anonymous: {name}",
       "reviewFailed": "The message could not be updated.",
-      "project": {
-        "title": "Harmony development fund",
-        "hint": "Donations to Harmony's development, kept apart from this instance's funding. Every Harmony server shows this fund on the Harmony development tab of its Support window, with the project's own payment links: they are built into Harmony and no instance can change them.",
-        "progress": "Raised {raised} of {goal} · Supporters: {count}",
-        "enabled": "Publish progress and messages",
-        "goal": "Goal amount",
-        "currency": "Currency",
-        "period": "Period",
-        "periodMonthly": "Monthly (resets each month)",
-        "periodAll": "All time",
-        "description": "Description",
-        "descriptionPlaceholder": "What the fund pays for…",
-        "kofiToken": "Ko-fi verification token",
-        "kofiHint": "Ko-fi donations that carry this token count toward this fund. Without it, Ko-fi donations count toward this instance.",
-        "showToken": "Show token",
-        "hideToken": "Hide token",
-        "messagesEnabled": "Supporter messages",
-        "messagesPublic": "Show approved messages in the fund's public feed",
-        "save": "Save fund",
-        "saved": "Harmony development fund saved",
-        "saveFailed": "The fund could not be saved.",
-        "queueTitle": "Messages for Harmony's development",
-        "queueHint": "Left with a donation to Harmony's development. Approved messages show on the Harmony development tab of every server that shows them.",
-        "queueEmpty": "No messages for Harmony's development yet.",
-        "tag": "Harmony development"
-      },
       "state": {
         "pending": "Awaiting approval",
         "approved": "Shown",

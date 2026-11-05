@@ -1,10 +1,5 @@
 import { defineStore } from 'pinia'
-import {
-  fundingService,
-  primeBadgeCache,
-  type FundingSummary,
-  type ProjectFundingResponse,
-} from '@/services/FundingService'
+import { fundingService, primeBadgeCache, type FundingSummary } from '@/services/FundingService'
 import { debug } from '@/utils/debug'
 
 // One funding read (get_funding_summary) serves the support pill, the Support window and the
@@ -12,8 +7,6 @@ import { debug } from '@/utils/debug'
 // end. Nothing polls: the window refreshes when it opens, and returning to the page after a
 // payment link was opened refreshes until the donation shows (PAYMENT_RETRY_MS).
 export const FRESH_MS = 10 * 60_000
-// The project's feed, as this instance's backend caches it.
-export const PROJECT_FRESH_MS = 30 * 60_000
 // A payment counts as in progress this long after its link was opened.
 export const PAYMENT_WINDOW_MS = 60 * 60_000
 // Reads after returning from a payment page while no new donation shows: the webhook may lag.
@@ -21,26 +14,7 @@ export const PAYMENT_RETRY_MS = [0, 20_000, 60_000] as const
 // Least time between two reads triggered by returning to the page.
 const RETURN_THROTTLE_MS = 10_000
 
-const PROJECT_HINT_KEY = 'harmony.funding.project-instance'
-
 export type SupportTab = 'instance' | 'project'
-
-function readProjectHint(): boolean | null {
-  try {
-    const raw = localStorage.getItem(PROJECT_HINT_KEY)
-    return raw === 'true' ? true : raw === 'false' ? false : null
-  } catch {
-    return null
-  }
-}
-
-function writeProjectHint(value: boolean): void {
-  try {
-    localStorage.setItem(PROJECT_HINT_KEY, String(value))
-  } catch {
-    /* storage unavailable */
-  }
-}
 
 let visibilityHandler: (() => void) | null = null
 let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -52,11 +26,6 @@ export const useFundingStore = defineStore('funding', {
     inflight: null as Promise<FundingSummary | null> | null,
     /** Bumped by clear(); a load started under an older epoch discards its result. */
     epoch: 0,
-    project: null as ProjectFundingResponse | null,
-    projectLoadedAt: 0,
-    projectInflight: null as Promise<ProjectFundingResponse | null> | null,
-    /** Last answer of whether this is the project's instance; null before the first. */
-    projectInstanceHint: readProjectHint() as boolean | null,
     /** The Support window: closed, or the tab it opened on. */
     modal: null as SupportTab | null,
     paymentOpenedAt: 0,
@@ -67,14 +36,6 @@ export const useFundingStore = defineStore('funding', {
   getters: {
     myBadge(state) {
       return state.config?.me?.badge ?? null
-    },
-    /**
-     * True on the Harmony project's own instance, whose Harmony development tab is its own
-     * project fund; null before the first answer.
-     */
-    isProjectInstance(state): boolean | null {
-      if (state.project) return state.project.projectInstance
-      return state.projectInstanceHint
     },
   },
   actions: {
@@ -117,28 +78,6 @@ export const useFundingStore = defineStore('funding', {
       return this.load({ force: true })
     },
 
-    async loadProject(options: { force?: boolean } = {}): Promise<ProjectFundingResponse | null> {
-      const fresh = this.project && Date.now() - this.projectLoadedAt < PROJECT_FRESH_MS
-      if (fresh && !options.force) return this.project
-      if (this.projectInflight) return this.projectInflight
-      const epoch = this.epoch
-      const promise = (async () => {
-        const data = await fundingService.getProjectFunding({ fresh: options.force })
-        if (epoch !== this.epoch) return null
-        if (data) {
-          this.project = data
-          this.projectLoadedAt = Date.now()
-          this.projectInstanceHint = data.projectInstance
-          writeProjectHint(data.projectInstance)
-        }
-        return data ?? this.project
-      })().finally(() => {
-        if (epoch === this.epoch) this.projectInflight = null
-      })
-      this.projectInflight = promise
-      return promise
-    },
-
     openModal(tab: SupportTab = 'instance') {
       this.modal = tab
     },
@@ -161,14 +100,10 @@ export const useFundingStore = defineStore('funding', {
       }
       const since = this.paymentOpenedAt
       const data = await this.refresh()
-      // Either fund's: on the project's own instance a donor pays into its project fund too.
-      const latest = [data?.me?.donations?.[0]?.donated_at, data?.me?.project?.donations?.[0]?.donated_at]
-        .map((at) => (at ? Date.parse(at) : NaN))
-        .filter(Number.isFinite)
-      if (latest.some((at) => at >= since - 60_000)) {
+      const latest = data?.me?.donations?.[0]?.donated_at
+      if (latest && Date.parse(latest) >= since - 60_000) {
         this.paymentOpenedAt = 0
         this.thankedAt = Date.now()
-        if (this.isProjectInstance) void this.loadProject({ force: true })
         return
       }
       const next = PAYMENT_RETRY_MS[attempt + 1]
@@ -212,9 +147,6 @@ export const useFundingStore = defineStore('funding', {
       this.config = null
       this.lastLoadedAt = 0
       this.inflight = null
-      this.project = null
-      this.projectLoadedAt = 0
-      this.projectInflight = null
       this.modal = null
       this.paymentOpenedAt = 0
       this.thankedAt = 0

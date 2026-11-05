@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "이 인스턴스 후원하기",
     "progress": "후원 진행률",
     "raisedMonth": "모금 / 이번 달 목표 {goal}",
     "raisedTotal": "모금 / 전체 목표 {goal}",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "Harmony 개발을 도와주세요",
       "lead": "Harmony는 자유 오픈 소스 소프트웨어입니다. 여기서의 후원은 {instance}가 아니라 Harmony를 만드는 사람들에게 갑니다.",
-      "paymentNote": "결제는 {project}의 페이지에서 이루어지며, {instance}는 돈을 다루지 않습니다.",
-      "ownFund": "Harmony 개발 기금이며, {instance} 서버 운영 자금과 따로 관리됩니다.",
-      "fallback": "Harmony 후원 페이지에 연결할 수 없어 진행 상황과 후원자 메시지를 표시하지 않습니다.",
-      "unavailable": "지금은 Harmony 후원 정보를 불러올 수 없습니다.",
-      "wall": "Harmony의 최근 후원자"
+      "monthly": "매월",
+      "footnote": "결제는 Stripe에서 이루어지며, {instance}는 돈을 다루지 않습니다.",
+      "supporters": "후원자와 메시지"
     },
     "wall": {
       "title": "최근 후원자",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "후원자 메시지",
       "messagesPublic": "승인한 메시지를 로그인 페이지에 표시",
-      "messagesHint": "후원자는 후원에 50자까지의 메시지를 붙일 수 있습니다. 아래에서 승인하기 전에는 아무것도 표시되지 않습니다. 로그인 페이지에 표시되는 메시지는 이 인스턴스의 공개 후원 피드에도 실립니다.",
-      "projectMessages": "Harmony 후원자 메시지 표시",
-      "projectMessagesHint": "후원 창의 Harmony 개발 탭에 표시됩니다. 이 메시지는 이 인스턴스의 관리자가 아니라 Harmony 프로젝트가 승인합니다.",
+      "messagesHint": "후원자는 후원에 50자까지의 메시지를 붙일 수 있습니다. 아래에서 승인하기 전에는 아무것도 표시되지 않습니다.",
       "queueTitle": "후원자 메시지",
       "queueHint": "메시지는 반영된 기부와 함께 도착합니다. 승인하면 후원 창에, 켜져 있으면 로그인 페이지에도 표시됩니다. 언제든 숨길 수 있습니다.",
       "queueEmpty": "아직 후원자 메시지가 없습니다.",
@@ -7402,32 +7397,6 @@
       "unhide": "다시 표시",
       "anonymousBy": "익명: {name}",
       "reviewFailed": "메시지를 업데이트하지 못했습니다.",
-      "project": {
-        "title": "Harmony 개발 기금",
-        "hint": "Harmony 개발을 위한 후원으로, 이 인스턴스의 자금과 따로 관리됩니다. 모든 Harmony 서버가 후원 창의 'Harmony 개발' 탭에 이 기금을 프로젝트 자체의 결제 링크와 함께 표시합니다. 이 링크는 Harmony에 내장되어 있어 어떤 인스턴스도 바꿀 수 없습니다.",
-        "progress": "{goal} 중 {raised} 모금 · 후원자: {count}",
-        "enabled": "진행 상황과 메시지 공개",
-        "goal": "목표 금액",
-        "currency": "통화",
-        "period": "기간",
-        "periodMonthly": "매월 (매달 초기화)",
-        "periodAll": "전체 기간",
-        "description": "설명",
-        "descriptionPlaceholder": "기금의 사용처…",
-        "kofiToken": "Ko-fi 인증 토큰",
-        "kofiHint": "이 토큰이 있는 Ko-fi 후원은 이 기금에 포함됩니다. 토큰이 없으면 Ko-fi 후원은 이 인스턴스에 포함됩니다.",
-        "showToken": "토큰 보기",
-        "hideToken": "토큰 숨기기",
-        "messagesEnabled": "후원자 메시지",
-        "messagesPublic": "승인된 메시지를 기금의 공개 피드에 표시",
-        "save": "기금 저장",
-        "saved": "Harmony 개발 기금을 저장했습니다",
-        "saveFailed": "기금을 저장하지 못했습니다.",
-        "queueTitle": "Harmony 개발 후원 메시지",
-        "queueHint": "Harmony 개발 후원과 함께 남긴 메시지입니다. 승인된 메시지는 이를 표시하는 모든 서버의 'Harmony 개발' 탭에 나타납니다.",
-        "queueEmpty": "아직 Harmony 개발 후원 메시지가 없습니다.",
-        "tag": "Harmony 개발"
-      },
       "state": {
         "pending": "승인 대기",
         "approved": "표시 중",

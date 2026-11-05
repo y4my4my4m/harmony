@@ -22,16 +22,16 @@
  * Sessions with no resolvable profile are queued when they came from a Payment Link and
  * ignored otherwise (other Checkout integrations on the same account).
  *
- * Fund (instance_donation_history.fund): on the Harmony project's own instance
- * (isProjectInstance), an event is the project's when
- * - a checkout session's payment_link is one of PROJECT_PAYMENT_LINK_IDS, or its metadata.fund is
- *   PROJECT_FUND_METADATA (a Payment Link's own metadata is copied onto its sessions);
- * - an invoice's subscription metadata.fund is PROJECT_FUND_METADATA: parent.subscription_details
- *   (API 2025-03-31 on), subscription_details (earlier), or a line's metadata. Payment Links copy
- *   subscription_data.metadata onto the subscription, and renewals carry only the invoice.
- * Everything else, and every event on any other instance, is the instance's. A session event
- * carries neither its PaymentIntent's nor its subscription's metadata, so a project Payment Link
- * is recognised on its first payment by its id.
+ * The Harmony development fund is paid outside every instance, through two Payment Links on
+ * the Stripe account that har.mony.lol's own funding also uses. Its events are answered 2xx as
+ * ignored and write nothing, on every instance:
+ * - a checkout session whose payment_link is one of DEVELOPMENT_PAYMENT_LINK_IDS, or whose
+ *   metadata.fund is DEVELOPMENT_FUND_METADATA (Checkout copies a Payment Link's metadata onto
+ *   its sessions);
+ * - an invoice whose subscription metadata.fund is DEVELOPMENT_FUND_METADATA: in
+ *   parent.subscription_details (API 2025-03-31 on), subscription_details (earlier), or a
+ *   line's metadata. The links copy subscription_data.metadata onto the subscription; a
+ *   renewal carries only the invoice.
  *
  * Responses: 2xx once handled, including ignored and duplicate events; 5xx on a storage
  * failure, so Stripe retries (up to three days) and the dedup keys absorb the replay.
@@ -43,17 +43,23 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
-import { isProjectInstance, PROJECT_PAYMENT_LINK_IDS } from '../../services/projectFunding.js';
 import {
   recordMatchedDonation,
   recordPendingDonation,
   type DonationRecord,
-  type Fund,
   type MatchedUser,
 } from './donations.js';
 
-/** metadata.fund on the project's Stripe product, Payment Links, PaymentIntents and subscriptions. */
-export const PROJECT_FUND_METADATA = 'harmony-development';
+/** The Harmony development fund's Payment Links: one-time, any amount; monthly, $1 per unit. */
+export const DEVELOPMENT_PAYMENT_LINK_IDS: ReadonlySet<string> = new Set([
+  'plink_1UYKJgIByukKkdhljBcFnf5I',
+  'plink_1UYKRBIByukKkdhlRV8itB6j',
+]);
+
+/** metadata.fund on the development fund's Payment Links, PaymentIntents and subscriptions. */
+export const DEVELOPMENT_FUND_METADATA = 'harmony-development';
+
+const DEVELOPMENT_FUND_IGNORED = 'Harmony development fund, paid outside this instance';
 
 const router = Router();
 
@@ -121,11 +127,26 @@ function refId(value: unknown): string | null {
   return null;
 }
 
+function developmentTagged(metadata: unknown): boolean {
+  return !!metadata && typeof metadata === 'object'
+    && (metadata as { fund?: unknown }).fund === DEVELOPMENT_FUND_METADATA;
+}
+
+export function isDevelopmentSession(session: any): boolean {
+  const link = refId(session?.payment_link);
+  return (link !== null && DEVELOPMENT_PAYMENT_LINK_IDS.has(link)) || developmentTagged(session?.metadata);
+}
+
+export function isDevelopmentInvoice(invoice: any): boolean {
+  const lines: unknown[] = Array.isArray(invoice?.lines?.data) ? invoice.lines.data : [];
+  return developmentTagged(invoice?.parent?.subscription_details?.metadata)
+    || developmentTagged(invoice?.subscription_details?.metadata)
+    || lines.some((line) => developmentTagged((line as { metadata?: unknown } | null)?.metadata));
+}
+
 interface StripeConfig {
   stripe_webhook_secret: string | null;
   stripe_auto_assign_tier: boolean;
-  /** The project fund's Payment Link ids; null off the project's own instance. */
-  projectLinks: ReadonlySet<string> | null;
 }
 
 async function loadStripeConfig(): Promise<StripeConfig | null> {
@@ -138,30 +159,7 @@ async function loadStripeConfig(): Promise<StripeConfig | null> {
     logger.error(`stripe: failed to load funding config: ${error.message}`);
     return null;
   }
-  if (!data) return null;
-  const projectLinks = isProjectInstance() ? PROJECT_PAYMENT_LINK_IDS : null;
-  return { ...(data as Omit<StripeConfig, 'projectLinks'>), projectLinks };
-}
-
-function isProjectMetadata(metadata: unknown): boolean {
-  return !!metadata && typeof metadata === 'object'
-    && (metadata as { fund?: unknown }).fund === PROJECT_FUND_METADATA;
-}
-
-export function sessionFund(session: any, projectLinks: ReadonlySet<string> | null): Fund {
-  if (!projectLinks) return 'instance';
-  const link = refId(session?.payment_link);
-  if (link && projectLinks.has(link)) return 'project';
-  return isProjectMetadata(session?.metadata) ? 'project' : 'instance';
-}
-
-export function invoiceFund(invoice: any, projectLinks: ReadonlySet<string> | null): Fund {
-  if (!projectLinks) return 'instance';
-  const lines: unknown[] = Array.isArray(invoice?.lines?.data) ? invoice.lines.data : [];
-  const project = isProjectMetadata(invoice?.parent?.subscription_details?.metadata)
-    || isProjectMetadata(invoice?.subscription_details?.metadata)
-    || lines.some((line) => isProjectMetadata((line as { metadata?: unknown } | null)?.metadata));
-  return project ? 'project' : 'instance';
+  return data as StripeConfig | null;
 }
 
 async function profileById(id: string | null): Promise<MatchedUser | null> {
@@ -193,7 +191,7 @@ async function mapCustomer(customerId: string, userId: string): Promise<void> {
   if (error) throw new Error(`customer mapping failed: ${error.message}`);
 }
 
-type Outcome = { status: 'recorded' | 'duplicate' | 'pending' | 'ignored'; fund?: Fund; reason?: string };
+type Outcome = { status: 'recorded' | 'duplicate' | 'pending' | 'ignored'; reason?: string };
 
 async function credit(
   user: MatchedUser | null,
@@ -201,17 +199,17 @@ async function credit(
   email: string | null,
   raw: unknown,
   cfg: StripeConfig,
-  fund: Fund,
 ): Promise<Outcome> {
   if (user) {
-    const result = await recordMatchedDonation(user, donation, cfg.stripe_auto_assign_tier, fund);
-    return { status: result, fund };
+    const result = await recordMatchedDonation(user, donation, cfg.stripe_auto_assign_tier);
+    return { status: result };
   }
-  await recordPendingDonation(donation, email, raw, fund);
-  return { status: 'pending', fund };
+  await recordPendingDonation(donation, email, raw);
+  return { status: 'pending' };
 }
 
 async function handleCheckoutSession(session: any, cfg: StripeConfig): Promise<Outcome> {
+  if (isDevelopmentSession(session)) return { status: 'ignored', reason: DEVELOPMENT_FUND_IGNORED };
   if (session.payment_status !== 'paid') {
     return { status: 'ignored', reason: `payment_status ${session.payment_status}` };
   }
@@ -243,11 +241,11 @@ async function handleCheckoutSession(session: any, cfg: StripeConfig): Promise<O
   };
   if (!(donation.amount > 0)) return { status: 'ignored', reason: 'zero amount' };
 
-  return credit(user, donation, session.customer_details?.email ?? null, session, cfg,
-    sessionFund(session, cfg.projectLinks));
+  return credit(user, donation, session.customer_details?.email ?? null, session, cfg);
 }
 
 async function handleInvoicePaid(invoice: any, cfg: StripeConfig): Promise<Outcome> {
+  if (isDevelopmentInvoice(invoice)) return { status: 'ignored', reason: DEVELOPMENT_FUND_IGNORED };
   // API versions from 2025-03-31 move the subscription under parent.subscription_details.
   const subscription = refId(invoice.subscription) ?? refId(invoice.parent?.subscription_details?.subscription);
   if (!subscription) return { status: 'ignored', reason: 'not a subscription invoice' };
@@ -270,8 +268,7 @@ async function handleInvoicePaid(invoice: any, cfg: StripeConfig): Promise<Outco
   if (!user && invoice.billing_reason !== 'subscription_cycle') {
     return { status: 'ignored', reason: `billing_reason ${invoice.billing_reason}` };
   }
-  return credit(user, donation, invoice.customer_email ?? null, invoice, cfg,
-    invoiceFund(invoice, cfg.projectLinks));
+  return credit(user, donation, invoice.customer_email ?? null, invoice, cfg);
 }
 
 router.post('/stripe', webhookLimiter, async (req: Request, res: Response) => {

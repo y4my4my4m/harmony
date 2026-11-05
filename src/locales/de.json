@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "Diese Instanz unterstützen",
     "progress": "Finanzierungsfortschritt",
     "raisedMonth": "von {goal} diesen Monat gesammelt",
     "raisedTotal": "von {goal} insgesamt gesammelt",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "Hilf, Harmony zu bauen",
       "lead": "Harmony ist freie Open-Source-Software. Unterstützung hier geht an die Menschen, die es bauen, nicht an {instance}.",
-      "paymentNote": "Du bezahlst auf den Seiten von {project}; {instance} kommt mit dem Geld nie in Berührung.",
-      "ownFund": "Das ist der Entwicklungsfonds von Harmony, getrennt von der Serverfinanzierung von {instance}.",
-      "fallback": "Die Finanzierungsseite von Harmony war nicht erreichbar, daher fehlen Fortschritt und Unterstützer-Nachrichten.",
-      "unavailable": "Die Finanzierungsinfos von Harmony sind gerade nicht verfügbar.",
-      "wall": "Neueste Unterstützer von Harmony"
+      "monthly": "Monatlich",
+      "footnote": "Du bezahlst über Stripe; {instance} kommt mit dem Geld nie in Berührung.",
+      "supporters": "Unterstützer und ihre Nachrichten"
     },
     "wall": {
       "title": "Neueste Unterstützer",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "Unterstützer-Nachrichten",
       "messagesPublic": "Freigegebene Nachrichten auf der Anmeldeseite zeigen",
-      "messagesHint": "Unterstützer können ihrer Unterstützung eine Nachricht mit bis zu 50 Zeichen beifügen. Nichts wird angezeigt, bevor du es unten freigibst. Auf der Anmeldeseite gezeigte Nachrichten stehen auch im öffentlichen Finanzierungs-Feed dieser Instanz.",
-      "projectMessages": "Unterstützer-Nachrichten von Harmony zeigen",
-      "projectMessagesHint": "Im Tab „Harmony-Entwicklung“ des Unterstützen-Fensters. Diese Nachrichten gibt das Harmony-Projekt frei, nicht die Admins dieser Instanz.",
+      "messagesHint": "Unterstützer können ihrer Unterstützung eine Nachricht mit bis zu 50 Zeichen beifügen. Nichts wird angezeigt, bevor du es unten freigibst.",
       "queueTitle": "Unterstützer-Nachrichten",
       "queueHint": "Eine Nachricht kommt mit einer gutgeschriebenen Spende. Gib sie frei, um sie im Unterstützen-Fenster und, falls eingeschaltet, auf der Anmeldeseite zu zeigen. Du kannst sie jederzeit ausblenden.",
       "queueEmpty": "Noch keine Unterstützer-Nachrichten.",
@@ -7402,32 +7397,6 @@
       "unhide": "Wieder zeigen",
       "anonymousBy": "Anonym: {name}",
       "reviewFailed": "Die Nachricht konnte nicht geändert werden.",
-      "project": {
-        "title": "Harmony-Entwicklungsfonds",
-        "hint": "Spenden für die Entwicklung von Harmony, getrennt von der Finanzierung dieser Instanz. Jeder Harmony-Server zeigt diesen Fonds im Tab „Harmony-Entwicklung“ seines Unterstützen-Fensters, mit den Zahlungslinks des Projekts selbst: Sie sind in Harmony eingebaut und keine Instanz kann sie ändern.",
-        "progress": "{raised} von {goal} gesammelt · Unterstützer: {count}",
-        "enabled": "Fortschritt und Nachrichten veröffentlichen",
-        "goal": "Zielbetrag",
-        "currency": "Währung",
-        "period": "Zeitraum",
-        "periodMonthly": "Monatlich (jeden Monat neu)",
-        "periodAll": "Gesamter Zeitraum",
-        "description": "Beschreibung",
-        "descriptionPlaceholder": "Wofür der Fonds bezahlt …",
-        "kofiToken": "Ko-fi-Verifizierungstoken",
-        "kofiHint": "Ko-fi-Spenden mit diesem Token zählen zu diesem Fonds. Ohne Token zählen Ko-fi-Spenden zu dieser Instanz.",
-        "showToken": "Token anzeigen",
-        "hideToken": "Token verbergen",
-        "messagesEnabled": "Unterstützer-Nachrichten",
-        "messagesPublic": "Freigegebene Nachrichten im öffentlichen Feed des Fonds zeigen",
-        "save": "Fonds speichern",
-        "saved": "Harmony-Entwicklungsfonds gespeichert",
-        "saveFailed": "Der Fonds konnte nicht gespeichert werden.",
-        "queueTitle": "Nachrichten für die Harmony-Entwicklung",
-        "queueHint": "Mit einer Spende für die Entwicklung von Harmony hinterlassen. Freigegebene Nachrichten erscheinen im Tab „Harmony-Entwicklung“ jedes Servers, der sie anzeigt.",
-        "queueEmpty": "Noch keine Nachrichten für die Harmony-Entwicklung.",
-        "tag": "Harmony-Entwicklung"
-      },
       "state": {
         "pending": "Wartet auf Freigabe",
         "approved": "Sichtbar",

@@ -52,19 +52,6 @@
           </div>
           <p class="setting-hint">{{ t('support.admin.messagesHint') }}</p>
         </template>
-      </div>
-      <!-- Applies to the Harmony development tab, which shows whether or not funding is on. -->
-      <div v-if="showProjectSwitch" class="funding-fields">
-        <div class="setting-row">
-          <label class="toggle-label">
-            <input type="checkbox" v-model="projectMessagesShown" data-testid="admin-project-messages" />
-            <span class="toggle-slider"></span>
-            {{ t('support.admin.projectMessages') }}
-          </label>
-        </div>
-        <p class="setting-hint" data-testid="admin-project-messages-hint">{{ t('support.admin.projectMessagesHint') }}</p>
-      </div>
-      <div v-if="fundingEnabled" class="funding-fields">
         <div class="funding-form-row">
           <div class="funding-field">
             <label>Goal amount</label>
@@ -234,7 +221,6 @@
           <div class="pending-donation-header">
             <span class="pending-amount">{{ pending.currency }} {{ pending.amount.toFixed(2) }}</span>
             <span class="pending-platform">{{ pending.platform }}</span>
-            <span v-if="pending.fund === 'project'" class="section-badge" data-testid="admin-pending-project">{{ t('support.admin.project.tag') }}</span>
             <span class="pending-date">{{ formatDate(pending.received_at) }}</span>
           </div>
           <div class="pending-donation-meta">
@@ -282,9 +268,9 @@
         <span v-if="awaitingCount > 0" class="pending-count-badge" data-testid="admin-supporter-messages-awaiting">{{ awaitingCount }}</span>
       </h3>
       <p class="section-description" style="margin-bottom: 12px;">{{ t('support.admin.queueHint') }}</p>
-      <ul v-if="instanceMessages.length > 0" class="admin-messages">
+      <ul v-if="adminMessages.length > 0" class="admin-messages">
         <li
-          v-for="m in instanceMessages"
+          v-for="m in adminMessages"
           :key="m.id"
           class="admin-message"
           :data-review="m.review"
@@ -324,161 +310,6 @@
         </li>
       </ul>
       <EmptyState v-else size="sm" icon="message-circle" :title="t('support.admin.queueEmpty')" />
-    </div>
-
-    <!-- The Harmony project's development fund (project_funding): its own instance only -->
-    <div v-if="showProjectFund" class="funding-section" data-testid="admin-project-fund">
-      <h3>{{ t('support.admin.project.title') }}</h3>
-      <p class="section-description">{{ t('support.admin.project.hint') }}</p>
-      <p v-if="projectProgress" class="setting-hint" data-testid="admin-project-fund-progress">{{ projectProgress }}</p>
-      <div class="setting-row">
-        <label class="toggle-label">
-          <input v-model="projectFund.enabled" type="checkbox" data-testid="admin-project-fund-enabled" />
-          <span class="toggle-slider"></span>
-          {{ t('support.admin.project.enabled') }}
-        </label>
-      </div>
-      <div class="funding-fields">
-        <div class="funding-form-row">
-          <div class="funding-field">
-            <label :for="`${projectScope}-goal`">{{ t('support.admin.project.goal') }}</label>
-            <input
-              :id="`${projectScope}-goal`"
-              v-model.number="projectFund.goal_amount"
-              type="number"
-              class="cyber-input"
-              min="0"
-              step="1"
-              data-testid="admin-project-fund-goal"
-            />
-          </div>
-          <div class="funding-field">
-            <label :for="`${projectScope}-currency`">{{ t('support.admin.project.currency') }}</label>
-            <select :id="`${projectScope}-currency`" v-model="projectFund.goal_currency" class="cyber-select">
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="GBP">GBP</option>
-              <option value="JPY">JPY</option>
-            </select>
-          </div>
-          <div class="funding-field">
-            <label :for="`${projectScope}-period`">{{ t('support.admin.project.period') }}</label>
-            <select :id="`${projectScope}-period`" v-model="projectFund.funding_period" class="cyber-select">
-              <option value="monthly">{{ t('support.admin.project.periodMonthly') }}</option>
-              <option value="all">{{ t('support.admin.project.periodAll') }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="funding-field" style="margin-top: 8px;">
-          <label :for="`${projectScope}-description`">{{ t('support.admin.project.description') }}</label>
-          <input
-            :id="`${projectScope}-description`"
-            v-model="projectDescription"
-            type="text"
-            class="cyber-input"
-            maxlength="200"
-            :placeholder="t('support.admin.project.descriptionPlaceholder')"
-          />
-        </div>
-        <div class="funding-field" style="margin-top: 8px;">
-          <label :for="`${projectScope}-kofi`">{{ t('support.admin.project.kofiToken') }}</label>
-          <div class="funding-link-row">
-            <input
-              :id="`${projectScope}-kofi`"
-              v-model="projectKofiToken"
-              :type="showProjectKofiToken ? 'text' : 'password'"
-              class="cyber-input"
-              autocomplete="off"
-              style="flex: 1;"
-              :aria-describedby="`${projectScope}-kofi-hint`"
-            />
-            <button
-              class="mod-btn secret-toggle"
-              type="button"
-              :aria-label="showProjectKofiToken ? t('support.admin.project.hideToken') : t('support.admin.project.showToken')"
-              :title="showProjectKofiToken ? t('support.admin.project.hideToken') : t('support.admin.project.showToken')"
-              @click="showProjectKofiToken = !showProjectKofiToken"
-            >
-              <Icon :name="showProjectKofiToken ? 'eye-off' : 'eye'" :size="14" />
-            </button>
-          </div>
-          <span :id="`${projectScope}-kofi-hint`" class="setting-hint">{{ t('support.admin.project.kofiHint') }}</span>
-        </div>
-        <div class="setting-row" style="margin-top: 8px;">
-          <label class="toggle-label">
-            <input v-model="projectFund.supporter_messages_enabled" type="checkbox" data-testid="admin-project-fund-messages" />
-            <span class="toggle-slider"></span>
-            {{ t('support.admin.project.messagesEnabled') }}
-          </label>
-        </div>
-        <div v-if="projectFund.supporter_messages_enabled" class="setting-row">
-          <label class="toggle-label">
-            <input v-model="projectFund.supporter_messages_public" type="checkbox" />
-            <span class="toggle-slider"></span>
-            {{ t('support.admin.project.messagesPublic') }}
-          </label>
-        </div>
-        <div class="report-action-buttons" style="margin-top: 12px;">
-          <button
-            type="button"
-            class="save-btn"
-            :disabled="!projectChanged || projectSaving"
-            data-testid="admin-project-fund-save"
-            @click="saveProjectFund"
-          >
-            <Icon name="save" :size="16" />
-            {{ t('support.admin.project.save') }}
-          </button>
-        </div>
-      </div>
-
-      <h4 class="project-queue-title">
-        {{ t('support.admin.project.queueTitle') }}
-        <span v-if="projectAwaiting > 0" class="pending-count-badge">{{ projectAwaiting }}</span>
-      </h4>
-      <p class="section-description" style="margin-bottom: 12px;">{{ t('support.admin.project.queueHint') }}</p>
-      <ul v-if="projectQueue.length > 0" class="admin-messages" data-testid="admin-project-messages-queue">
-        <li
-          v-for="m in projectQueue"
-          :key="m.id"
-          class="admin-message"
-          :data-review="m.review"
-          data-testid="admin-project-message"
-        >
-          <div class="admin-message__text">
-            <p class="admin-message__body" data-testid="admin-supporter-message-body">{{ m.body }}</p>
-            <p class="admin-message__meta">
-              <span class="admin-message__author">{{ messageAuthor(m) }}</span>
-              <span v-if="m.amount != null">{{ m.currency }} {{ m.amount }}</span>
-              <span>{{ formatDate(m.attached_at) }}</span>
-              <span class="admin-message__state">{{ t(`support.admin.state.${m.review}`) }}</span>
-            </p>
-          </div>
-          <div class="admin-message__actions">
-            <button
-              v-if="m.review !== 'approved'"
-              type="button"
-              class="report-action-btn resolve"
-              data-testid="admin-supporter-message-approve"
-              @click="reviewMessage(m, 'approved')"
-            >
-              <Icon name="check" :size="14" />
-              {{ m.review === 'hidden' ? t('support.admin.unhide') : t('support.admin.approve') }}
-            </button>
-            <button
-              v-if="m.review !== 'hidden'"
-              type="button"
-              class="report-action-btn dismiss"
-              data-testid="admin-supporter-message-hide"
-              @click="reviewMessage(m, 'hidden')"
-            >
-              <Icon name="eye-off" :size="14" />
-              {{ t('support.admin.hide') }}
-            </button>
-          </div>
-        </li>
-      </ul>
-      <EmptyState v-else size="sm" icon="message-circle" :title="t('support.admin.project.queueEmpty')" />
     </div>
 
     <!-- Supporter Tiers -->
@@ -731,7 +562,6 @@
           <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
           <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
           <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
-          <span v-if="donation.fund === 'project'" class="section-badge" data-testid="admin-donation-project">{{ t('support.admin.project.tag') }}</span>
           <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
           <div class="donation-actions">
             <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
@@ -774,7 +604,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
@@ -784,9 +614,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import CopyIdButton from './CopyIdButton.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
-import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation, type AdminSupporterMessage, type ProjectFundingSettings } from '@/services/FundingService'
-import { formatMoney } from '@/components/funding/format'
-import { uid } from '@/utils/a11y/focus'
+import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation, type AdminSupporterMessage } from '@/services/FundingService'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { useFundingStore } from '@/stores/useFunding'
 import { useT } from '@/composables/useT'
@@ -820,102 +648,13 @@ const newLinkUrl = ref('')
 const newLinkLabel = ref('')
 
 // Supporter messages
-const { t, locale } = useT()
+const { t } = useT()
 const fundingStore = useFundingStore()
 const supportsMessages = hasCapability('supporter-messages')
 const messagesEnabled = ref(true)
 const messagesPublic = ref(true)
-// Off the project's own instance only: there the project fund section replaces it. The switch
-// waits for loadFundingData, which resets fundingChanged when it ends.
-const projectMessagesShown = ref(true)
-let savedProjectMessagesShown = true
-const fundingLoaded = ref(false)
-const showProjectSwitch = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === false)
 const adminMessages = ref<AdminSupporterMessage[]>([])
-// The project's own instance also lists its project fund's messages; they have their own queue.
-const instanceMessages = computed(() => adminMessages.value.filter((m) => m.fund !== 'project'))
-const projectQueue = computed(() => adminMessages.value.filter((m) => m.fund === 'project'))
-const awaitingCount = computed(() => instanceMessages.value.filter((m) => m.review === 'pending').length)
-const projectAwaiting = computed(() => projectQueue.value.filter((m) => m.review === 'pending').length)
-
-// Harmony development fund (project_funding): only on the project's own instance.
-const showProjectFund = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === true)
-const projectScope = uid('project-fund')
-// The project_funding column defaults (20261106400001).
-const PROJECT_FUND_DEFAULTS: ProjectFundingSettings = {
-  enabled: true,
-  goal_amount: null,
-  goal_currency: 'USD',
-  funding_period: 'monthly',
-  goal_description: null,
-  supporter_messages_enabled: true,
-  supporter_messages_public: true,
-}
-const projectFund = reactive<ProjectFundingSettings>({ ...PROJECT_FUND_DEFAULTS })
-const projectDescription = ref('')
-const projectKofiToken = ref('')
-let savedProjectKofiToken = ''
-const showProjectKofiToken = ref(false)
-const projectChanged = ref(false)
-const projectSaving = ref(false)
-const projectProgress = computed(() => {
-  const feed = fundingStore.project?.projectInstance ? fundingStore.project.funding : null
-  if (!feed?.goal) return ''
-  return t('support.admin.project.progress', {
-    raised: formatMoney(feed.goal.raised, feed.goal.currency, locale.value),
-    goal: formatMoney(feed.goal.amount, feed.goal.currency, locale.value),
-    count: feed.supporters,
-  })
-})
-
-watch([projectFund, projectDescription, projectKofiToken], () => { projectChanged.value = true }, { deep: true })
-
-const loadProjectFund = async () => {
-  const [settings, token] = await Promise.all([
-    fundingService.getProjectFundingSettings(),
-    fundingService.getProjectKofiWebhookToken(),
-  ])
-  Object.assign(projectFund, PROJECT_FUND_DEFAULTS, settings ?? {})
-  projectDescription.value = settings?.goal_description ?? ''
-  projectKofiToken.value = token
-  savedProjectKofiToken = token
-  await nextTick()
-  projectChanged.value = false
-}
-
-watch(showProjectFund, (shown) => { if (shown) void loadProjectFund() }, { immediate: true })
-
-const saveProjectFund = async () => {
-  projectSaving.value = true
-  try {
-    const result = await fundingService.saveProjectFundingSettings({
-      enabled: projectFund.enabled,
-      goal_amount: projectFund.goal_amount || null,
-      goal_currency: projectFund.goal_currency,
-      funding_period: projectFund.funding_period === 'all' ? 'all' : 'monthly',
-      goal_description: projectDescription.value.trim() || null,
-      supporter_messages_enabled: projectFund.supporter_messages_enabled,
-      supporter_messages_public: projectFund.supporter_messages_public,
-    })
-    let tokenSaved = true
-    const token = projectKofiToken.value.trim()
-    if (result.ok && token !== savedProjectKofiToken) {
-      tokenSaved = await fundingService.setProjectKofiWebhookToken(token)
-      if (tokenSaved) savedProjectKofiToken = token
-    }
-    if (result.ok && tokenSaved) {
-      await adminService.logAdminAction({ action: 'project_fund_update', targetType: 'funding', targetId: 'project' })
-      projectChanged.value = false
-      toast.success(t('support.admin.project.saved'))
-      void fundingStore.loadProject({ force: true })
-      void fundingStore.refresh()
-    } else {
-      toast.error(result.message ?? t('support.admin.project.saveFailed'))
-    }
-  } finally {
-    projectSaving.value = false
-  }
-}
+const awaitingCount = computed(() => adminMessages.value.filter((m) => m.review === 'pending').length)
 
 const messageAuthor = (m: AdminSupporterMessage): string => {
   const who = m.display_name || m.username || m.user_id
@@ -1010,7 +749,7 @@ const editDonationNote = ref('')
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier, messagesEnabled, messagesPublic, projectMessagesShown],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier, messagesEnabled, messagesPublic],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -1033,8 +772,6 @@ const loadFundingData = async () => {
     stripeAutoAssignTier.value = config.stripe_auto_assign_tier !== false
     messagesEnabled.value = config.supporter_messages_enabled !== false
     messagesPublic.value = config.supporter_messages_public !== false
-    projectMessagesShown.value = config.show_project_messages !== false
-    savedProjectMessagesShown = projectMessagesShown.value
   }
   if (supportsMessages) adminMessages.value = await fundingService.adminListSupporterMessages()
   kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
@@ -1049,7 +786,6 @@ const loadFundingData = async () => {
   pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
   // Reset after populating to avoid false dirty state from watchers
   fundingChanged.value = false
-  fundingLoaded.value = true
 }
 
 const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
@@ -1166,7 +902,6 @@ const saveFundingConfig = async () => {
     ...(supportsMessages ? {
       supporter_messages_enabled: messagesEnabled.value,
       supporter_messages_public: messagesPublic.value,
-      show_project_messages: projectMessagesShown.value,
     } : {}),
   } as any)
   const token = kofiWebhookToken.value.trim()
@@ -1188,10 +923,6 @@ const saveFundingConfig = async () => {
   if (success) {
     fundingChanged.value = false
     void fundingStore.refresh()
-    if (projectMessagesShown.value !== savedProjectMessagesShown) {
-      savedProjectMessagesShown = projectMessagesShown.value
-      void fundingStore.loadProject({ force: true })
-    }
     toast.success('Funding settings saved')
   } else {
     toast.error(secretMessage ?? 'Failed to save funding settings')
@@ -1508,7 +1239,6 @@ const deleteDonation = async (donationId: string) => {
 
 onMounted(() => {
   void loadFundingData()
-  if (supportsMessages) void fundingStore.loadProject()
 })
 </script>
 
@@ -2279,16 +2009,6 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
-}
-
-.project-queue-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 20px 0 4px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 

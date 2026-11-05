@@ -489,15 +489,11 @@ the backend cannot see. Set them to the sign-in service's own values.
 
 ### Funding
 
-Funding has no environment variables. Every instance publishes its own funding at
-`GET /api/federation/funding/public` (JSON, readable from any origin). See
-[Instance funding](/run/funding).
+Funding has no environment variables. See [Instance funding](/run/funding).
 
-The **Harmony development** tab of the Support window always points at the Harmony project's own
-payment pages, built into Harmony; no setting of an instance changes them. The backend reads the
-tab's goal, progress and messages from har.mony.lol every 30 minutes, keeps the last copy for up to
-7 days when it is unreachable, and needs outbound `https` to har.mony.lol for it; browsers never
-contact the project.
+The **Harmony development** tab of the Support window links to the Harmony project's own Stripe
+pages and to its supporters page on mony.lol, built into Harmony; no setting of an instance changes
+them, and neither the app nor the backend fetches anything for the tab.
 
 ### Push notifications
 

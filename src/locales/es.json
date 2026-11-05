@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "Apoyar a esta instancia",
     "progress": "Progreso de la financiación",
     "raisedMonth": "recaudado de {goal} este mes",
     "raisedTotal": "recaudado de {goal} en total",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "Ayuda a construir Harmony",
       "lead": "Harmony es software libre y de código abierto. El apoyo aquí va a quienes lo construyen, no a {instance}.",
-      "paymentNote": "Pagas en las páginas de {project}; {instance} nunca toca el dinero.",
-      "ownFund": "Este es el fondo de desarrollo de Harmony, separado de la financiación del servidor de {instance}.",
-      "fallback": "No se pudo acceder a la página de financiación de Harmony, así que no se muestran su progreso ni sus mensajes de apoyo.",
-      "unavailable": "La información de financiación de Harmony no está disponible ahora.",
-      "wall": "Apoyos recientes a Harmony"
+      "monthly": "Mensual",
+      "footnote": "Pagas a través de Stripe; {instance} nunca toca el dinero.",
+      "supporters": "Quienes apoyan y sus mensajes"
     },
     "wall": {
       "title": "Apoyos recientes",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "Mensajes de apoyo",
       "messagesPublic": "Mostrar los mensajes aprobados en la página de inicio de sesión",
-      "messagesHint": "Quienes apoyan pueden añadir un mensaje de hasta 50 caracteres. No se muestra nada hasta que lo apruebes abajo. Los mensajes mostrados en la página de inicio de sesión también aparecen en el feed público de financiación de esta instancia.",
-      "projectMessages": "Mostrar los mensajes de apoyo a Harmony",
-      "projectMessagesHint": "En la pestaña Desarrollo de Harmony de la ventana de apoyo. Estos mensajes los aprueba el proyecto Harmony, no los administradores de esta instancia.",
+      "messagesHint": "Quienes apoyan pueden añadir un mensaje de hasta 50 caracteres. No se muestra nada hasta que lo apruebes abajo.",
       "queueTitle": "Mensajes de apoyo",
       "queueHint": "Un mensaje llega con una donación acreditada. Apruébalo para mostrarlo en la ventana de apoyo y, si está activado, en la página de inicio de sesión. Puedes ocultarlo en cualquier momento.",
       "queueEmpty": "Aún no hay mensajes de apoyo.",
@@ -7402,32 +7397,6 @@
       "unhide": "Volver a mostrar",
       "anonymousBy": "Anónimo: {name}",
       "reviewFailed": "No se pudo actualizar el mensaje.",
-      "project": {
-        "title": "Fondo de desarrollo de Harmony",
-        "hint": "Donaciones para el desarrollo de Harmony, separadas de la financiación de esta instancia. Todo servidor de Harmony muestra este fondo en la pestaña Desarrollo de Harmony de su ventana Apoyar, con los enlaces de pago del propio proyecto: vienen incluidos en Harmony y ninguna instancia puede cambiarlos.",
-        "progress": "Recaudado {raised} de {goal} · Personas que apoyan: {count}",
-        "enabled": "Publicar el progreso y los mensajes",
-        "goal": "Importe objetivo",
-        "currency": "Moneda",
-        "period": "Periodo",
-        "periodMonthly": "Mensual (se reinicia cada mes)",
-        "periodAll": "Todo el tiempo",
-        "description": "Descripción",
-        "descriptionPlaceholder": "Para qué sirve el fondo…",
-        "kofiToken": "Token de verificación de Ko-fi",
-        "kofiHint": "Las donaciones de Ko-fi con este token cuentan para este fondo. Sin él, cuentan para esta instancia.",
-        "showToken": "Mostrar token",
-        "hideToken": "Ocultar token",
-        "messagesEnabled": "Mensajes de apoyo",
-        "messagesPublic": "Mostrar los mensajes aprobados en el feed público del fondo",
-        "save": "Guardar fondo",
-        "saved": "Fondo de desarrollo de Harmony guardado",
-        "saveFailed": "No se pudo guardar el fondo.",
-        "queueTitle": "Mensajes para el desarrollo de Harmony",
-        "queueHint": "Dejados con una donación para el desarrollo de Harmony. Los aprobados aparecen en la pestaña Desarrollo de Harmony de todo servidor que los muestre.",
-        "queueEmpty": "Aún no hay mensajes para el desarrollo de Harmony.",
-        "tag": "Desarrollo de Harmony"
-      },
       "state": {
         "pending": "Esperando aprobación",
         "approved": "Visible",

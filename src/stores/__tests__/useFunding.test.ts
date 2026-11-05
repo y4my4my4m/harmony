@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-const funding = vi.hoisted(() => ({ getFundingSummary: vi.fn(), getProjectFunding: vi.fn() }))
+const funding = vi.hoisted(() => ({ getFundingSummary: vi.fn() }))
 vi.mock('@/services/FundingService', () => ({ fundingService: funding, primeBadgeCache: vi.fn() }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
@@ -32,7 +32,6 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-11-05T12:00:00Z'))
   funding.getFundingSummary.mockReset()
-  funding.getProjectFunding.mockReset()
   localStorage.clear()
   setVisibility('visible')
 })
@@ -128,32 +127,6 @@ describe('useFundingStore', () => {
     expect(funding.getFundingSummary).toHaveBeenCalledTimes(3)
   })
 
-  it('on the project instance a project fund donation ends the reads and reloads the project fund', async () => {
-    const opened = Date.parse('2026-11-05T12:00:00Z')
-    const paid = {
-      ...SUMMARY,
-      me: {
-        profile_id: 'p', badge: null, messages: [], donations: [],
-        project: { messages: [], donations: [{ id: 'd', donated_at: new Date(opened + 30_000).toISOString() }] },
-      },
-    }
-    const own = { projectInstance: true, source: 'local', fetchedAt: null, funding: {} }
-    funding.getProjectFunding.mockResolvedValue(own)
-    funding.getFundingSummary.mockResolvedValueOnce(SUMMARY).mockResolvedValueOnce(paid)
-    const store = useFundingStore()
-    await store.load()
-    await store.loadProject()
-    store.notePaymentOpened()
-    setVisibility('hidden')
-    await vi.advanceTimersByTimeAsync(60_000)
-    setVisibility('visible')
-    await vi.advanceTimersByTimeAsync(0)
-    expect(funding.getFundingSummary).toHaveBeenCalledTimes(2)
-    expect(store.thankedAt).toBeGreaterThan(0)
-    expect(funding.getProjectFunding).toHaveBeenCalledTimes(2)
-    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: true })
-  })
-
   it('stops after the last retry when no donation shows', async () => {
     funding.getFundingSummary.mockResolvedValue(SUMMARY)
     const store = useFundingStore()
@@ -163,28 +136,6 @@ describe('useFundingStore', () => {
     setVisibility('visible')
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(funding.getFundingSummary).toHaveBeenCalledTimes(1 + PAYMENT_RETRY_MS.length)
-  })
-
-  it('caches the project feed and remembers whether this is the project instance', async () => {
-    funding.getProjectFunding.mockResolvedValue({ projectInstance: true, source: 'local', fetchedAt: null, funding: {} })
-    const store = useFundingStore()
-    expect(store.isProjectInstance).toBeNull()
-    await Promise.all([store.loadProject(), store.loadProject()])
-    await store.loadProject()
-    expect(funding.getProjectFunding).toHaveBeenCalledTimes(1)
-    expect(store.isProjectInstance).toBe(true)
-    setActivePinia(createPinia())
-    expect(useFundingStore().isProjectInstance).toBe(true)
-  })
-
-  it('reads the project feed again when forced, past the browser cache', async () => {
-    funding.getProjectFunding.mockResolvedValue({ projectInstance: false, source: 'upstream', fetchedAt: null, funding: {} })
-    const store = useFundingStore()
-    await store.loadProject()
-    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: undefined })
-    await store.loadProject({ force: true })
-    expect(funding.getProjectFunding).toHaveBeenCalledTimes(2)
-    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: true })
   })
 
   it('opens and closes the Support window on a tab', () => {

@@ -1,5 +1,4 @@
 import { supabase } from '@/supabase'
-import { apiUrl } from '@/services/instanceConfig'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 
@@ -22,10 +21,8 @@ export interface FundingConfig {
   stripe_auto_assign_tier: boolean
   /** Donors may attach a message; approved ones show in the Support window. */
   supporter_messages_enabled?: boolean
-  /** Approved messages also show signed out: the sign-in page and the public funding feed. */
+  /** Approved messages also show signed out, on the sign-in page. */
   supporter_messages_public?: boolean
-  /** The Harmony development tab shows the project's supporter messages. */
-  show_project_messages?: boolean
 }
 
 /**
@@ -36,7 +33,7 @@ const FUNDING_CONFIG_COLUMNS =
   'id, enabled, goal_amount, goal_currency, current_amount, funding_period, goal_description, ' +
   'funding_links, show_progress_bar, show_in_context_bar, context_bar_style, thank_you_message, ' +
   'kofi_auto_assign_tier, stripe_auto_assign_tier'
-const MESSAGE_SWITCH_COLUMNS = ', supporter_messages_enabled, supporter_messages_public, show_project_messages'
+const MESSAGE_SWITCH_COLUMNS = ', supporter_messages_enabled, supporter_messages_public'
 
 /** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
@@ -90,19 +87,11 @@ export interface MySupporterMessage {
   expires_at: string | null
 }
 
-/** instance_donation_history.fund: the instance's own funding or the Harmony project's. */
-export type Fund = 'instance' | 'project'
-
-export type MyDonation = Pick<DonationRecord, 'id' | 'amount' | 'currency' | 'platform' | 'note' | 'donated_at'>
-
 export interface MyFunding {
   profile_id: string
   badge: (SupporterBadge & { expires_at: string | null }) | null
-  /** The instance's fund. */
-  donations: MyDonation[]
+  donations: Array<Pick<DonationRecord, 'id' | 'amount' | 'currency' | 'platform' | 'note' | 'donated_at'>>
   messages: MySupporterMessage[]
-  /** The project fund, recorded on the project's own instance only. */
-  project?: { donations: MyDonation[]; messages: MySupporterMessage[] }
 }
 
 /** public.get_funding_summary(): everything the pill, the Support window and settings show. */
@@ -114,8 +103,6 @@ export interface FundingSummary extends FundingConfigWithProgress {
   tiers: SupporterTier[]
   messages: SupporterMessage[]
   me: MyFunding | null
-  /** project_funding takes donor messages (the project's own instance writes them). */
-  project_messages_enabled?: boolean
 }
 
 /** A message on the sign-in page: no profile id; name null for an anonymous one. */
@@ -126,74 +113,12 @@ export interface PublicSupporterMessage {
   at: string
 }
 
-/** An instance's public funding feed (federation-backend services/projectFunding.ts). */
-export interface PublicFunding {
-  version: number
-  instance: string
-  enabled: boolean
-  goal: {
-    amount: number
-    currency: string
-    period: 'monthly' | 'all'
-    raised: number
-    periodEnd: string | null
-    description: string | null
-  } | null
-  supporters: number
-  links: FundingLink[]
-  messages: PublicSupporterMessage[]
-}
-
-/**
- * GET /funding/project. On the project's own instance its project fund read locally ('local'),
- * else the project's feed as this instance's backend caches it.
- */
-export interface ProjectFundingResponse {
-  projectInstance: boolean
-  source: 'upstream' | 'stale' | 'fallback' | 'local'
-  fetchedAt: string | null
-  funding: PublicFunding
-}
-
-/** The Harmony project's own instance; federation-backend services/projectFunding.ts PROJECT_DOMAIN. */
-export const PROJECT_DOMAIN = 'har.mony.lol'
-
-/**
- * The Harmony development tab's links on every instance, never read from a feed or a database;
- * federation-backend services/projectFunding.ts PROJECT_LINKS.
- */
-export const PROJECT_LINKS: readonly Readonly<FundingLink>[] = Object.freeze([
-  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' }),
-  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' }),
-  Object.freeze({ platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' }),
-])
-
-/**
- * public.project_funding as instance admins read and write it; the Ko-fi token is apart. The
- * fund's links are PROJECT_LINKS.
- */
-export interface ProjectFundingSettings {
-  enabled: boolean
-  goal_amount: number | null
-  goal_currency: string
-  funding_period: 'monthly' | 'all'
-  goal_description: string | null
-  supporter_messages_enabled: boolean
-  supporter_messages_public: boolean
-}
-
-const PROJECT_FUNDING_COLUMNS =
-  'enabled, goal_amount, goal_currency, funding_period, goal_description, ' +
-  'supporter_messages_enabled, supporter_messages_public'
-
 /** An attached message in the admin review queue. */
 export interface AdminSupporterMessage {
   id: string
   body: string
   anonymous: boolean
   review: SupporterMessageReview
-  /** Absent from servers before 20261106400001: the instance's. */
-  fund?: Fund
   attached_at: string
   reviewed_at: string | null
   user_id: string
@@ -300,7 +225,6 @@ export interface DonationRecord {
   external_reference: string | null
   note: string | null
   donated_at: string
-  fund?: Fund
   user?: {
     username: string
     display_name: string
@@ -326,7 +250,6 @@ export interface PendingDonation {
   resolved_at: string | null
   resolved_by: string | null
   resolved_user_id: string | null
-  fund?: Fund
 }
 
 // A badge changes when its holder's support does; the holder's own is re-primed from the summary.
@@ -568,15 +491,11 @@ class FundingService {
     }
   }
 
-  /**
-   * Writes the caller's message for their next donation to `fund`; throws SupporterMessageError.
-   * The two-argument call writes the instance's, as servers before 20261106400001 take it.
-   */
-  async setSupporterMessage(body: string, anonymous: boolean, fund: Fund = 'instance'): Promise<MySupporterMessage> {
+  /** Writes the caller's message for their next donation; throws SupporterMessageError. */
+  async setSupporterMessage(body: string, anonymous: boolean): Promise<MySupporterMessage> {
     const { data, error } = await supabase.rpc('set_supporter_message', {
       p_body: body,
       p_anonymous: anonymous,
-      ...(fund === 'project' ? { p_fund: fund } : {}),
     })
     if (error) {
       debug.warn('set_supporter_message refused:', error)
@@ -606,71 +525,6 @@ class FundingService {
       debug.warn('Failed to read supporter messages:', error)
       return []
     }
-  }
-
-  /**
-   * The Harmony project's funding through this instance's backend; null when unavailable.
-   * `fresh` reads past the browser's copy and, on the project's own instance, the backend's.
-   */
-  async getProjectFunding(options: { fresh?: boolean } = {}): Promise<ProjectFundingResponse | null> {
-    if (!hasCapability('supporter-messages')) return null
-    try {
-      const res = await fetch(apiUrl(`/api/federation/funding/project${options.fresh ? '?fresh=1' : ''}`), {
-        headers: { Accept: 'application/json' },
-        cache: options.fresh ? 'no-cache' : 'default',
-      })
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      return (await res.json()) as ProjectFundingResponse
-    } catch (error) {
-      debug.warn('Failed to read the project funding:', error)
-      return null
-    }
-  }
-
-  /** The project fund's settings; null without a row or on a refused read. Instance admins. */
-  async getProjectFundingSettings(): Promise<ProjectFundingSettings | null> {
-    const { data, error } = await supabase
-      .from('project_funding')
-      .select(PROJECT_FUNDING_COLUMNS)
-      .limit(1)
-      .maybeSingle()
-    if (error) {
-      debug.error('Failed to read the project fund:', error)
-      return null
-    }
-    return data as unknown as ProjectFundingSettings | null
-  }
-
-  /** Writes the project fund's one row; the database's refusal message on a CHECK failure. */
-  async saveProjectFundingSettings(settings: ProjectFundingSettings): Promise<{ ok: boolean; message?: string }> {
-    const { error } = await supabase
-      .from('project_funding')
-      .upsert({ id: true, ...settings, updated_at: new Date().toISOString() }, { onConflict: 'id' })
-    if (error) {
-      debug.error('Failed to save the project fund:', error)
-      return { ok: false, message: error.code === '23514' ? error.message : undefined }
-    }
-    return { ok: true }
-  }
-
-  /** The project fund's Ko-fi verification token; empty when unset. Instance admins only. */
-  async getProjectKofiWebhookToken(): Promise<string> {
-    const { data, error } = await supabase.rpc('get_project_kofi_webhook_token')
-    if (error) {
-      debug.error('Failed to get the project Ko-fi token:', error)
-      return ''
-    }
-    return typeof data === 'string' ? data : ''
-  }
-
-  /** Empty sends Ko-fi donations to the instance's fund. Instance admins only. */
-  async setProjectKofiWebhookToken(token: string): Promise<boolean> {
-    const { error } = await supabase.rpc('set_project_kofi_webhook_token', { p_token: token })
-    if (error) {
-      debug.error('Failed to set the project Ko-fi token:', error)
-      return false
-    }
-    return true
   }
 
   /** Attached messages, awaiting review first. Instance admins only. */
@@ -1106,15 +960,13 @@ class FundingService {
     uniqueDonors: number
   }> {
     try {
-      // The instance's fund only: the project's own instance also records the project fund here.
       const { data, error } = await supabase
         .from('instance_donation_history')
-        .select(hasCapability('supporter-messages') ? 'amount, user_id, fund' : 'amount, user_id')
+        .select('amount, user_id')
 
       if (error) throw error
 
-      const records = ((data || []) as unknown as Array<{ amount: number; user_id: string; fund?: Fund }>)
-        .filter((r) => r.fund !== 'project')
+      const records = data || []
       const uniqueDonors = new Set(records.map(r => r.user_id)).size
       const totalDonated = records.reduce((sum, r) => sum + (r.amount || 0), 0)
 

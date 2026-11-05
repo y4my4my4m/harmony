@@ -475,8 +475,6 @@ get_post_emoji_reactions	p_post_id uuid, p_user_limit integer	TABLE(emoji_id uui
 get_post_with_context	p_post_id uuid, p_user_id uuid, p_context_type text, p_highlight_reply uuid, p_max_depth integer, p_include_interactions boolean	jsonb	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_presence	p_profile_ids uuid[]	TABLE(profile_id uuid, status smallint, online boolean, is_mobile boolean, last_seen_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
 get_profile_media	p_author_id uuid, p_limit integer, p_before_created_at timestamp with time zone, p_before_id uuid	TABLE(id uuid, created_at timestamp with time zone, visibility text, content_warning text, is_sensitive boolean, media_attachments jsonb, content_media jsonb)	invoker	public, pg_temp	anon+authenticated+service_role	client
-get_project_funding_summary		jsonb	definer	public, pg_temp	service_role	client
-get_project_kofi_webhook_token		text	definer	public, pg_temp	authenticated+service_role	client
 get_public_federation_settings		jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
 get_public_supporter_messages	p_limit integer	jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
 get_relayable_key_requests	p_limit integer	TABLE(id uuid, requester_user_id uuid, sender_user_id uuid, room_id text, session_id text, status text, request_signature text, request_signing_fingerprint text, accepts_relay boolean, message_id uuid, message_index integer, key_scope text, created_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
@@ -867,7 +865,6 @@ set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+s
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 set_message_embeds_suppressed	p_message_id uuid, p_suppressed boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_my_account_aliases	p_uris text[]	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
-set_project_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+service_role	client
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -878,7 +875,6 @@ set_server_voice_state	p_server_id uuid, p_user_id uuid, p_mute boolean, p_deafe
 set_server_welcome	p_server_id uuid, p_enabled boolean, p_message text, p_rules jsonb, p_require_acceptance boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_stripe_webhook_secret	p_secret text	void	definer	public, pg_temp	authenticated+service_role	client
 set_supporter_message	p_body text, p_anonymous boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
-set_supporter_message	p_body text, p_anonymous boolean, p_fund text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_user_role_assigned_by		trigger	invoker	public, pg_temp	service_role	trigger
 set_welcome_server	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 should_show_gif_ads	p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	client

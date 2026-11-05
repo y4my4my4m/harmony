@@ -304,7 +304,7 @@
         </div>
       </div>
 
-      <div v-if="instanceFundingOn || showProjectSupport" class="supporter-actions">
+      <div class="supporter-actions">
         <button
           v-if="instanceFundingOn"
           type="button"
@@ -316,7 +316,6 @@
           {{ t('activitypub.supportInstance') }}
         </button>
         <button
-          v-if="showProjectSupport"
           type="button"
           class="btn btn-secondary"
           data-testid="settings-support-project"
@@ -380,7 +379,6 @@ import AutoSuggest from '@/components/AutoSuggest.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import { useFundingStore } from '@/stores/useFunding'
-import { hasCapability } from '@/services/instanceCapabilities'
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
@@ -855,8 +853,6 @@ watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
 const fundingStore = useFundingStore()
 const supporterBadge = computed(() => fundingStore.myBadge)
 const instanceFundingOn = computed(() => fundingStore.config?.enabled === true)
-// The project's own instance too: its Harmony development tab is its project fund.
-const showProjectSupport = hasCapability('supporter-messages')
 
 onMounted(() => {
   syncLocalProfile()

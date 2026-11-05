@@ -30,9 +30,7 @@ export const CAPABILITIES = [
   // create_message_poll's POLL_HOST_UNSUPPORTED and servers.federation_metadata.message_polls
   // (20261105990001).
   'federated-polls',
-  // get_funding_summary, the supporter message RPCs, the /funding routes (20261106100001),
-  // instance_funding.show_project_messages (20261106300001), and the fund of donations and
-  // messages with project_funding and set_supporter_message's p_fund (20261106400001).
+  // get_funding_summary and the supporter message RPCs (20261106100001).
   'supporter-messages',
 ] as const;
 

@@ -81,17 +81,14 @@ import {
 import {
   fundingService,
   SupporterMessageError,
-  type Fund,
   type MySupporterMessage,
 } from '@/services/FundingService'
 import { formatUntil } from './format'
 
-const props = withDefaults(defineProps<{
-  /** The donor's unattached message for this fund, if any. */
+const props = defineProps<{
+  /** The donor's unattached message, if any. */
   pending: MySupporterMessage | null
-  /** The fund whose next donation takes the message. */
-  fund?: Fund
-}>(), { fund: 'instance' })
+}>()
 
 const emit = defineEmits<{ saved: [message: MySupporterMessage] }>()
 
@@ -161,7 +158,7 @@ async function save(): Promise<boolean> {
   }
   saving.value = true
   try {
-    const saved = await fundingService.setSupporterMessage(body.value, anonymous.value, props.fund)
+    const saved = await fundingService.setSupporterMessage(body.value, anonymous.value)
     emit('saved', saved)
     return true
   } catch (err) {

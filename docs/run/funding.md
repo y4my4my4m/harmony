@@ -1,6 +1,6 @@
 ---
 title: Instance funding
-description: How instance administrators ask for support - goal, payment links, supporter tiers, supporter messages and their approval, the sign-in page strip - how the Harmony development tab works on every instance, and the project fund on har.mony.lol.
+description: How instance administrators ask for support - goal, payment links, supporter tiers, supporter messages and their approval, the sign-in page strip - and what the Harmony development tab shows on every instance.
 ---
 
 # Instance funding
@@ -14,11 +14,9 @@ The window has two tabs:
 | Tab | What it shows |
 |---|---|
 | **This instance** | Your goal and progress, your payment links, the member's own supporter status and history, approved supporter messages and your supporter tiers |
-| **Harmony development** | The Harmony project's development fund: the project's own payment links, its goal and progress when it publishes them, and its supporters' messages unless you turn them off. Payment happens on the project's pages; your instance never handles that money |
+| **Harmony development** | The Harmony project's development fund: its one-time and monthly Stripe pages, and a link to its supporters and their messages on [mony.lol](https://mony.lol/supporters). Payment happens on Stripe; your instance never handles that money |
 
-The **Harmony development** tab always points at the Harmony project's own payment pages: its one-time and monthly Stripe pages and its Ko-fi. They are built into Harmony itself. No instance setting, admin panel or feed changes them, so no instance can put its own payment links under the Harmony development name.
-
-The development fund is not har.mony.lol's own funding. On har.mony.lol the two tabs are two funds as well: **This instance** pays for that server, **Harmony development** for the project, and each counts only its own donations. See [The Harmony development fund](#the-harmony-development-fund).
+The **Harmony development** tab is the same on every instance, har.mony.lol included, whether or not your own funding is enabled. Its two Stripe pages are built into Harmony: no instance setting changes them, so no instance can put its own payment links under the Harmony development name. The tab shows no goal, progress or messages, and opening it sends nothing to your instance or to the project. Supporters of Harmony's development leave their messages at checkout on Stripe, and the project approves and publishes them on mony.lol.
 
 A monthly goal counts donations in the current calendar month in UTC and says when it resets, for example **Resets Dec 1 (UTC)**. A supporter's badge lasts 30 days from their latest donation.
 
@@ -31,6 +29,8 @@ Open **User settings** → **Instance admin** → **Funding**.
 - **Donation links**: Stripe Payment Links credit the donor's account automatically (Harmony opens them with the donor's account id); Ko-fi and other platforms credit a donor who writes their handle, `@name@your.domain`, in their message. See the Stripe and Ko-fi sections of the same tab for the webhook URLs and secrets.
 - **Supporter tiers** with a minimum amount, badge and colour.
 
+The Stripe webhook answers the Harmony development fund's payments and records nothing: checkouts of its two Payment Links, and invoices of subscriptions whose metadata has `fund` = `harmony-development`. An instance whose Stripe account also takes development donations, as har.mony.lol's does, never counts them as its own.
+
 ## Supporter messages
 
 With **Supporter messages** on, a member can add a public message to their support in the Support window before opening a payment link:
@@ -42,24 +42,3 @@ With **Supporter messages** on, a member can add a public message to their suppo
 - A member can remove their own message at any time.
 
 **Show approved messages on the sign-in page** adds a small **Recent supporters** strip under the sign-in form, one message at a time. Turn it off to keep messages inside the app.
-
-### Harmony's supporter messages
-
-**Show Harmony's supporter messages**, on by default, shows the messages of the Harmony project's own supporters on the **Harmony development** tab. The Harmony project approves those messages, not you. Turn it off and the tab shows only the project's links and progress: your instance's backend leaves the messages out of what it sends, so none reaches your members' devices. The switch applies whether or not your own funding is enabled, and does not appear on har.mony.lol, where the tab is the project's own fund. Members with the app already open see the change within 30 minutes.
-
-## Public funding feed
-
-Every instance publishes its funding at `GET /api/federation/funding/public`, as JSON any website can read: the links, the goal and progress, the supporter count and, when **Show approved messages on the sign-in page** is on, the approved messages. An anonymous message has no name, and no message carries an account id.
-
-har.mony.lol also publishes the development fund, in the same form, at `GET /api/federation/funding/project-feed`. Every other instance's backend reads that feed every 30 minutes for the goal, progress and messages of its **Harmony development** tab, and keeps the last copy for up to 7 days when har.mony.lol is unreachable; your members' browsers never contact the project. The tab's links never come from the feed. Another instance answers that address with 404.
-
-## The Harmony development fund
-
-This section is for the administrators of har.mony.lol, the Harmony project's own instance. Its **Funding** tab has a **Harmony development fund** section, which no other instance shows; which instance is the project's is built into Harmony, not a setting. The section starts published, with no goal (and so no progress bar) and messages on:
-
-- **Publish progress and messages**, the goal amount, currency and period, and a description, which every instance shows on its **Harmony development** tab. The tab's payment links are not here: they are the project's own, built into Harmony.
-- A checkout of the project's one-time or monthly Payment Link is the fund's, and so is a subscription whose metadata has `fund` = `harmony-development`, which is how renewals are told apart: a renewal carries only its subscription. Every other Stripe payment, through the same webhook and signing secret, is the instance's.
-- **Ko-fi verification token**: with a token here, Ko-fi donations that carry it are the fund's. Without one, every Ko-fi donation is the instance's.
-- **Supporter messages** and their public display, as for the instance. A member of har.mony.lol writes a message for the fund on the **Harmony development** tab; it goes with their next donation to the fund within 24 hours and waits in the section's own queue, apart from the instance's.
-
-A donation to the fund credits the donor's account when they pay from the Harmony development tab of har.mony.lol, and gives no supporter tier or badge: tiers are the instance's. Donations nobody can be credited with, from mony.lol or another instance, still count toward the fund's total and supporters, and wait in **Pending donations** tagged **Harmony development**; attributing or dismissing one does not change the total.

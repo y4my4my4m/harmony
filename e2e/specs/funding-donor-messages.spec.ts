@@ -7,17 +7,18 @@
 // element made from them, no dialog and no page error; a bidi override and a Zalgo run are
 // refused by the window and by the database. An admin hides a message and it leaves both places;
 // turning off "Show approved messages on the sign-in page" empties the strip there.
+// A checkout of a Harmony development Payment Link is answered and ignored: no donation, no
+// pending donation, and the donor's message stays unattached.
 
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, seedServer, signIn, userClient, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
-import { enableFunding, openSupportFromChat, openSupportFromSettings, postStripeCheckout } from './funding'
+import { DEVELOPMENT_PLINKS, enableFunding, openSupportFromChat, openSupportFromSettings, postStripeCheckout } from './funding'
 import { expectNoAxeViolations } from './a11y'
 
 test.use({ serviceWorkers: 'block' })
 
 const admin = adminClient()
-const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/project-feed'
 
 // A run tag keeps each body unique across retries; every body stays within 50 characters.
 const TAG = Math.random().toString(36).slice(2, 6)
@@ -39,7 +40,7 @@ let donorServer: SeededServer
 
 test.beforeAll(async () => {
   test.setTimeout(120_000)
-  backend = await startBackend({ E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
+  backend = await startBackend()
   donor = await createUser(admin, 'donor')
   viewer = await createUser(admin, 'donorv')
   staff = await createUser(admin, 'donora')
@@ -116,6 +117,28 @@ async function landingBodies(browser: Browser): Promise<{ bodies: string[]; name
   }
   return { bodies, names, problems: w.problems, page: w.page, context: w.context }
 }
+
+test('a checkout of a Harmony development link records nothing here', async () => {
+  const dev = await createUser(admin, 'donordev')
+  try {
+    const client = await userClient(dev)
+    const { error } = await client.rpc('set_supporter_message', { p_body: `for Harmony ${TAG}`, p_anonymous: false })
+    if (error) throw new Error(`set_supporter_message: ${error.message}`)
+    for (const link of DEVELOPMENT_PLINKS) {
+      const res = await postStripeCheckout(backend.url, dev.id, 700, link)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ success: true, status: 'ignored', reason: expect.stringContaining('Harmony development fund') })
+    }
+    const { data: donations } = await admin.from('instance_donation_history').select('id').eq('user_id', dev.id)
+    expect(donations).toEqual([])
+    const { data: pending } = await admin.from('instance_pending_donations').select('id').eq('raw_payload->>client_reference_id', dev.id)
+    expect(pending).toEqual([])
+    const { data: messages } = await admin.from('instance_supporter_messages').select('donation_id').eq('user_id', dev.id)
+    expect(messages).toEqual([{ donation_id: null }])
+  } finally {
+    await deleteUser(admin, dev)
+  }
+})
 
 test('a donor message: written, credited by the webhook, approved, shown as text', async ({ browser }) => {
   test.setTimeout(300_000)

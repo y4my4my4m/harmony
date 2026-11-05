@@ -1,12 +1,9 @@
 <!--
-  FundingModal - the Support window. Two tabs: "This instance" (the admin's own funding:
-  progress, payment links, an optional message, the donor's status, supporter messages, tiers)
-  and "Harmony development" (the project's development fund: progress and messages read by this
-  instance's backend, payment on the project's own pages, PROJECT_LINKS, which no feed or
-  instance setting changes). On the project's own instance the second tab is its project fund,
-  kept apart from the instance's: its links credit the signed-in donor and take a message for
-  the project. Wide two-column layout on desktop; a full-height sheet on phones.
-  Opening it reads the funding summary once; the project feed is cached in the store.
+  FundingModal - the Support window. Two tabs on every instance: "This instance" (the admin's
+  own funding: progress, payment links, an optional message, the donor's status, supporter
+  messages, tiers) and "Harmony development" (services/developmentFund.ts: the project's Stripe
+  Payment Links and its supporters page; no progress, no messages, no request). Wide two-column
+  layout on desktop; a full-height sheet on phones. Opening it reads the funding summary once.
 -->
 <template>
   <BaseModal
@@ -20,7 +17,6 @@
   >
     <div class="support" data-testid="support-modal">
       <div
-        v-if="showTabs"
         class="support-tabs"
         role="tablist"
         :aria-label="t('support.tabs.label')"
@@ -49,8 +45,8 @@
       <section
         v-show="tab === 'instance'"
         :id="panelId('instance')"
-        :role="showTabs ? 'tabpanel' : undefined"
-        :aria-labelledby="showTabs ? tabId('instance') : undefined"
+        role="tabpanel"
+        :aria-labelledby="tabId('instance')"
         class="support-panel"
         data-testid="support-panel-instance"
       >
@@ -182,7 +178,6 @@
 
       <!-- Harmony development -->
       <section
-        v-if="showTabs"
         v-show="tab === 'project'"
         :id="panelId('project')"
         role="tabpanel"
@@ -190,11 +185,7 @@
         class="support-panel"
         data-testid="support-panel-project"
       >
-        <div v-if="!projectFeed" class="support-loading">
-          <LoadingSpinner v-if="projectLoading" />
-          <EmptyState v-else icon="heart" :title="t('support.project.unavailable')" />
-        </div>
-        <div v-else class="support-grid" :class="{ 'support-grid--single': !projectWallShown }">
+        <div class="support-grid support-grid--single">
           <div class="support-col">
             <div class="support-project">
               <img :src="duoUrl" alt="" class="support-project__mascot" width="88" height="64" />
@@ -203,54 +194,25 @@
                 <p class="support-project__lead">{{ t('support.project.lead', { instance: instanceDomain }) }}</p>
               </div>
             </div>
-            <p v-if="thanked && projectInstance" class="support-thanks" role="status" data-testid="support-thanks-project">
-              <Icon name="heart" :size="16" aria-hidden="true" />
-              <span>{{ t('support.thanks') }}</span>
-            </p>
-            <FundingProgress
-              v-if="projectFeed.goal"
-              :raised="projectFeed.goal.raised"
-              :goal="projectFeed.goal.amount"
-              :currency="projectFeed.goal.currency"
-              :period="projectFeed.goal.period"
-              :period-end="projectFeed.goal.periodEnd"
-              :supporters="projectFeed.supporters"
-            />
-            <p v-if="projectFeed.goal?.description" class="support-description">{{ projectFeed.goal.description }}</p>
             <section class="support-give" :aria-labelledby="projectGiveHeadingId">
               <h3 :id="projectGiveHeadingId" class="support-heading">{{ t('support.heading') }}</h3>
-              <SupportMessageComposer
-                v-if="projectComposerOn"
-                ref="projectComposer"
-                fund="project"
-                :pending="myProjectPending"
-                @saved="onProjectMessageSaved"
-              />
-              <SupportLinkList
-                :links="projectLinks"
-                :donor="projectInstance ? donor : null"
-                testid="support-links-project"
-                @open="onProjectPaymentOpened"
-              />
+              <SupportLinkList :links="developmentLinks" testid="support-links-project" />
             </section>
             <p class="support-footnote" data-testid="support-project-footnote">
               <Icon name="lock" :size="12" aria-hidden="true" />
-              <span v-if="projectInstance">{{ t('support.project.ownFund', { instance: instanceDomain }) }}</span>
-              <span v-else>{{ t('support.project.paymentNote', { project: PROJECT_DOMAIN, instance: instanceDomain }) }}</span>
+              <span>
+                {{ t('support.project.footnote', { instance: instanceDomain }) }}
+                <!-- BaseModal's container stops clicks before the document's outside-link listener. -->
+                <a
+                  :href="DEVELOPMENT_SUPPORTERS_URL"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="support-footnote__link"
+                  data-testid="support-project-supporters"
+                  @click="activateStoppedLink"
+                >{{ t('support.project.supporters') }}</a>
+              </span>
             </p>
-            <p v-if="projectSource === 'fallback'" class="support-footnote" data-testid="support-project-fallback">
-              <Icon name="info" :size="12" aria-hidden="true" />
-              <span>{{ t('support.project.fallback') }}</span>
-            </p>
-          </div>
-          <div v-if="projectWallShown" class="support-col">
-            <SupporterWall
-              :messages="projectMessages"
-              :mine="myProjectMessages"
-              :heading="t('support.project.wall')"
-              testid="supporter-wall-project"
-              @remove="removeProjectMessage"
-            />
           </div>
         </div>
       </section>
@@ -272,14 +234,14 @@ import SupportMessageComposer from '@/components/funding/SupportMessageComposer.
 import SupporterWall from '@/components/funding/SupporterWall.vue'
 import { formatDay, formatMoney, fundingPlatformLabel } from '@/components/funding/format'
 import { useT } from '@/composables/useT'
+import { DEVELOPMENT_LINKS, DEVELOPMENT_SUPPORTERS_URL } from '@/services/developmentFund'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { getInstanceDomain } from '@/services/instanceConfig'
+import { activateStoppedLink } from '@/services/outsideLinks'
 import {
   fundingService,
   isStripeLink,
   needsHandleInMessage,
-  PROJECT_DOMAIN,
-  PROJECT_LINKS,
   type FundingLink,
   type MySupporterMessage,
 } from '@/services/FundingService'
@@ -299,14 +261,11 @@ const instanceDomain = computed(() => getInstanceDomain())
 const config = computed(() => store.config)
 const me = computed(() => store.config?.me ?? null)
 const loading = ref(!store.config)
-const projectLoading = ref(false)
 
-const supportsProject = hasCapability('supporter-messages')
-const projectInstance = computed(() => supportsProject && store.isProjectInstance === true)
-const showTabs = supportsProject
-const tab = ref<SupportTab>(showTabs && store.modal === 'project' ? 'project' : 'instance')
+const supportsMessages = hasCapability('supporter-messages')
+const tab = ref<SupportTab>(store.modal === 'project' ? 'project' : 'instance')
 
-const title = computed(() => (supportsProject ? t('support.titleShort') : t('support.title')))
+const title = computed(() => t('support.titleShort'))
 
 const close = () => store.closeModal()
 
@@ -335,7 +294,7 @@ const period = computed<'monthly' | 'all'>(() => (config.value?.funding_period =
 const raised = computed(() => Number(config.value?.displayed_amount ?? config.value?.current_amount ?? 0))
 const links = computed<FundingLink[]>(() => config.value?.funding_links ?? [])
 const tiers = computed(() => config.value?.tiers ?? [])
-const messagesOn = computed(() => supportsProject && config.value?.supporter_messages_enabled === true)
+const messagesOn = computed(() => supportsMessages && config.value?.supporter_messages_enabled === true)
 const myPending = computed<MySupporterMessage | null>(() => me.value?.messages?.find((m) => !m.attached) ?? null)
 const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 const thanked = computed(() => store.thankedAt > 0 && Date.now() - store.thankedAt < 10 * 60_000)
@@ -345,17 +304,12 @@ const donor = computed(() => ({
   email: authStore.session?.user?.email ?? null,
 }))
 
-const projectFeed = computed(() => store.project?.funding ?? null)
-// The feed's own links are never shown.
-const projectLinks: FundingLink[] = PROJECT_LINKS.map((link) => ({ ...link }))
-const projectSource = computed(() => store.project?.source ?? null)
-// Empty when the project has none, its feed is unreachable, or this instance's admin turned them off.
-const projectMessages = computed(() => projectFeed.value?.messages ?? [])
-// On the project's own instance: the signed-in donor's project messages and their composer.
-const myProjectMessages = computed<MySupporterMessage[]>(() => (projectInstance.value ? me.value?.project?.messages ?? [] : []))
-const myProjectPending = computed<MySupporterMessage | null>(() => myProjectMessages.value.find((m) => !m.attached) ?? null)
-const projectComposerOn = computed(() => projectInstance.value && !!me.value && config.value?.project_messages_enabled === true)
-const projectWallShown = computed(() => projectMessages.value.length > 0 || myProjectMessages.value.length > 0)
+// Opened as they are: no profile id or email, which mean nothing outside this instance.
+const developmentLinks = computed<FundingLink[]>(() => DEVELOPMENT_LINKS.map((link) => ({
+  platform: link.platform,
+  url: link.url,
+  label: link.period === 'monthly' ? t('support.project.monthly') : t('support.oneTime'),
+})))
 
 const money = (amount: number, currency: string) => formatMoney(amount, currency, locale.value)
 const day = (iso: string) => formatDay(iso, locale.value)
@@ -390,16 +344,9 @@ async function copyHandle() {
 }
 
 const composer = ref<InstanceType<typeof SupportMessageComposer> | null>(null)
-const projectComposer = ref<InstanceType<typeof SupportMessageComposer> | null>(null)
 
 function onPaymentOpened() {
   composer.value?.saveIfChanged()
-  store.notePaymentOpened()
-}
-
-function onProjectPaymentOpened() {
-  if (!projectInstance.value) return
-  projectComposer.value?.saveIfChanged()
   store.notePaymentOpened()
 }
 
@@ -407,21 +354,6 @@ function onMessageSaved(message: MySupporterMessage) {
   const summary = store.config
   if (!summary?.me) return
   summary.me.messages = [message, ...summary.me.messages.filter((m) => m.attached)]
-}
-
-function onProjectMessageSaved(message: MySupporterMessage) {
-  const me = store.config?.me
-  if (!me) return
-  const project = me.project ?? { donations: [], messages: [] }
-  me.project = { ...project, messages: [message, ...project.messages.filter((m) => m.attached)] }
-}
-
-async function removeProjectMessage(id: string) {
-  if (!(await fundingService.deleteSupporterMessage(id))) return
-  const me = store.config?.me
-  if (me?.project) me.project = { ...me.project, messages: me.project.messages.filter((m) => m.id !== id) }
-  const feed = store.project?.funding
-  if (feed) feed.messages = feed.messages.filter((m) => m.id !== id)
 }
 
 async function removeMessage(id: string) {
@@ -440,10 +372,6 @@ async function hideMessage(id: string) {
 
 onMounted(() => {
   void store.refresh().finally(() => { loading.value = false })
-  if (supportsProject) {
-    projectLoading.value = !store.project
-    void store.loadProject().finally(() => { projectLoading.value = false })
-  }
 })
 
 onBeforeUnmount(() => {
@@ -586,7 +514,7 @@ onBeforeUnmount(() => {
   }
 }
 
-/* The Harmony development tab without its messages column: one centred column. */
+/* The Harmony development tab: one centred column. */
 .support-grid--single {
   width: 100%;
   max-width: 560px;
@@ -930,5 +858,22 @@ onBeforeUnmount(() => {
 .support-footnote :deep(svg) {
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+.support-footnote__link {
+  color: var(--text-link);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.support-footnote__link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.support-footnote__link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 </style>

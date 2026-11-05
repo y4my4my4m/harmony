@@ -7,8 +7,8 @@
 -- or Ko-fi webhook, an admin's manual entry, a resolved pending donation). One message per
 -- donation. An attached message waits for an admin: review 'pending', 'approved' or 'hidden'.
 -- Approved, unhidden messages show to every signed-in user (get_funding_summary) and, when
--- supporter_messages_public is on, to anyone (get_public_supporter_messages: the sign-in page,
--- and the federation backend's /funding/public feed). The author sees their own in every state.
+-- supporter_messages_public is on, to anyone (get_public_supporter_messages, the sign-in page).
+-- The author sees their own in every state.
 -- An anonymous message carries no name, avatar or profile id outside the admin list.
 --
 -- supporter_message_problem() is the validation, used by the RPC and the table's CHECK:
@@ -16,8 +16,7 @@
 -- (newline and tab included), no line or paragraph separator (U+2028, U+2029), no bidi mark,
 -- embedding, override or isolate (U+061C, U+200E, U+200F, U+202A-202E, U+2066-2069), and no run
 -- of three or more combining marks from the generic combining blocks (U+0300-036F, U+0483-0489,
--- U+1AB0-1AFF, U+1DC0-1DFF, U+20D0-20FF, U+FE20-FE2F). federation-backend
--- services/supporterMessageText.ts applies the same rule to the project's feed.
+-- U+1AB0-1AFF, U+1DC0-1DFF, U+20D0-20FF, U+FE20-FE2F).
 --
 -- instance_funding.supporter_messages_enabled: donors may write messages, and approved ones
 -- show in the app. instance_funding.supporter_messages_public: approved messages also show

@@ -7301,7 +7301,6 @@
     }
   },
   "support": {
-    "title": "このインスタンスを支援",
     "progress": "資金の状況",
     "raisedMonth": "集まりました（今月の目標 {goal}）",
     "raisedTotal": "集まりました（目標総額 {goal}）",
@@ -7338,11 +7337,9 @@
     "project": {
       "title": "Harmony の開発を応援",
       "lead": "Harmony は自由なオープンソースソフトウェアです。ここでの支援は {instance} ではなく、開発している人たちに届きます。",
-      "paymentNote": "支払いは {project} のページで行われます。{instance} がお金を扱うことはありません。",
-      "ownFund": "これは Harmony の開発基金で、{instance} のサーバー運営資金とは別に管理されています。",
-      "fallback": "Harmony の支援ページに接続できなかったため、進捗とサポーターメッセージは表示されません。",
-      "unavailable": "現在 Harmony の支援情報を取得できません。",
-      "wall": "Harmony の最近のサポーター"
+      "monthly": "毎月",
+      "footnote": "支払いは Stripe で行われます。{instance} がお金を扱うことはありません。",
+      "supporters": "サポーターとメッセージ"
     },
     "wall": {
       "title": "最近のサポーター",
@@ -7391,9 +7388,7 @@
     "admin": {
       "messagesEnabled": "サポーターメッセージ",
       "messagesPublic": "承認したメッセージをログインページに表示",
-      "messagesHint": "サポーターは支援に 50 文字までのメッセージを添えられます。下で承認するまで表示されません。ログインページに表示するメッセージは、このインスタンスの公開支援フィードにも含まれます。",
-      "projectMessages": "Harmony のサポーターメッセージを表示",
-      "projectMessagesHint": "支援ウィンドウの「Harmony の開発」タブに表示されます。これらのメッセージを承認するのは Harmony プロジェクトで、このインスタンスの管理者ではありません。",
+      "messagesHint": "サポーターは支援に 50 文字までのメッセージを添えられます。下で承認するまで表示されません。",
       "queueTitle": "サポーターメッセージ",
       "queueHint": "メッセージは反映された寄付と一緒に届きます。承認すると支援ウィンドウに、有効な場合はログインページにも表示されます。いつでも非表示にできます。",
       "queueEmpty": "サポーターメッセージはまだありません。",
@@ -7402,32 +7397,6 @@
       "unhide": "再表示",
       "anonymousBy": "匿名: {name}",
       "reviewFailed": "メッセージを更新できませんでした。",
-      "project": {
-        "title": "Harmony 開発基金",
-        "hint": "Harmony の開発への寄付で、このインスタンスの資金とは別に管理されます。すべての Harmony サーバーが、支援ウィンドウの「Harmony の開発」タブでこの基金を、プロジェクト自身の支払いリンクとともに表示します。リンクは Harmony に組み込まれており、どのインスタンスも変更できません。",
-        "progress": "{goal} 中 {raised} 達成 · サポーター: {count}",
-        "enabled": "進捗とメッセージを公開する",
-        "goal": "目標金額",
-        "currency": "通貨",
-        "period": "期間",
-        "periodMonthly": "毎月(毎月リセット)",
-        "periodAll": "全期間",
-        "description": "説明",
-        "descriptionPlaceholder": "基金の使い道…",
-        "kofiToken": "Ko-fi 検証トークン",
-        "kofiHint": "このトークン付きの Ko-fi 寄付はこの基金に計上されます。未設定の場合、Ko-fi 寄付はこのインスタンスに計上されます。",
-        "showToken": "トークンを表示",
-        "hideToken": "トークンを隠す",
-        "messagesEnabled": "サポーターメッセージ",
-        "messagesPublic": "承認したメッセージを基金の公開フィードに表示する",
-        "save": "基金を保存",
-        "saved": "Harmony 開発基金を保存しました",
-        "saveFailed": "基金を保存できませんでした。",
-        "queueTitle": "Harmony の開発へのメッセージ",
-        "queueHint": "Harmony の開発への寄付に添えられたメッセージです。承認したメッセージは、表示を許可しているすべてのサーバーの「Harmony の開発」タブに表示されます。",
-        "queueEmpty": "Harmony の開発へのメッセージはまだありません。",
-        "tag": "Harmony の開発"
-      },
       "state": {
         "pending": "承認待ち",
         "approved": "表示中",
