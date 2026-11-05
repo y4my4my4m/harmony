@@ -240,6 +240,11 @@ test('server routes read the stored columns and MESSAGE_DELETE names the thread'
     })
     expect(created.status).toBe(201)
     const threadId = (await created.json()).id as string
+    // A thread goes with its last live message (20261106200001); this reply outlives both deletes.
+    const { error: keepError } = await admin
+      .from('messages')
+      .insert({ channel_id: server.generalChannelId, thread_id: threadId, user_id: member.id, content: [{ type: 'text', text: 'keeps the thread' }] })
+    expect(keepError).toBeNull()
 
     const { ws, ready } = await identify()
     expect(ready).toBeTruthy()
