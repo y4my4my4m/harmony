@@ -199,7 +199,7 @@
         <div v-else class="support-grid" :class="{ 'support-grid--single': !projectMessages.length }">
           <div class="support-col">
             <div class="support-project">
-              <img src="/mascot/duo.webp" alt="" class="support-project__mascot" width="88" height="64" />
+              <img :src="duoUrl" alt="" class="support-project__mascot" width="88" height="64" />
               <div class="support-project__text">
                 <h3 class="support-project__title">{{ t('support.project.title') }}</h3>
                 <p class="support-project__lead">{{ t('support.project.lead', { instance: instanceDomain }) }}</p>
@@ -243,6 +243,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import duoUrl from '@/assets/mascot/duo.webp'
 import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'

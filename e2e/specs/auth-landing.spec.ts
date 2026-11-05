@@ -48,7 +48,9 @@ test('login art is an image, kept for Register, and the card names the instance'
 async function expectPose(page: Page, pose: string, who: 'mony' | 'har' = 'mony') {
   const mascot = page.getByTestId('auth-mascot')
   await expect(mascot).toHaveAttribute('data-pose', pose)
-  await expect(mascot.locator('img.is-shown')).toHaveAttribute('src', `/mascot/${who}/${pose}.webp`)
+  const shown = mascot.locator('img.is-shown')
+  await expect(shown).toHaveAttribute('data-mascot', who)
+  await expect(shown).toHaveAttribute('data-pose', pose)
 }
 
 test('Mony waits on the sign-in card, Har welcomes on the register card', async ({ page }) => {

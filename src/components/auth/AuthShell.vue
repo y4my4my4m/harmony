@@ -28,7 +28,9 @@
               <img
                 v-for="pose in MASCOT_POSES"
                 :key="pose"
-                :src="`/mascot/${mascot}/${pose}.webp`"
+                :src="mascotUrl(mascot, pose)"
+                :data-mascot="mascot"
+                :data-pose="pose"
                 alt=""
                 :class="{ 'is-shown': pose === mascotPose }"
               />
@@ -77,11 +79,14 @@ import { runtimeConfig } from '@/services/runtimeConfig'
 import { safeHref } from '@/utils/sanitize'
 import SupporterStrip from '@/components/auth/SupporterStrip.vue'
 
-// public/mascot/<mascot>/<pose>.webp: the emoji pack's busts (Mony signs people in, Har welcomes new
-// accounts). All four poses load with the page so a pose change never waits on the network.
+// src/assets/mascot/<mascot>/<pose>.webp: the emoji pack's busts (Mony signs people in, Har welcomes new
+// accounts). Bundled, so each has a content-hashed /assets/ URL that caches for a year. All four poses
+// load with the page so a pose change never waits on the network.
 const MASCOT_POSES = ['idle', 'hide', 'peek', 'oops'] as const
 export type MascotPose = typeof MASCOT_POSES[number]
 export type Mascot = 'mony' | 'har'
+const MASCOT_URLS = import.meta.glob<string>('../../assets/mascot/*/*.webp', { eager: true, query: '?url', import: 'default' })
+const mascotUrl = (mascot: Mascot, pose: MascotPose): string => MASCOT_URLS[`../../assets/mascot/${mascot}/${pose}.webp`]
 
 withDefaults(defineProps<{
   /** idle waits, hide looks away from a hidden password, peek looks at a shown one, oops follows a failed attempt. */
