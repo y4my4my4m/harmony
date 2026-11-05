@@ -1,5 +1,5 @@
 <template>
-  <AuthShell :mascot-pose="mascotPose" :busy="isLoading">
+  <AuthShell :mascot-pose="mascotPose" :mascot="isLogin ? 'mony' : 'har'" :busy="isLoading">
     <div class="form-header">
       <h2 :id="formTitleId">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
       <p v-if="!isLogin">{{ $t('auth.createAccountSubtitle') }}</p>

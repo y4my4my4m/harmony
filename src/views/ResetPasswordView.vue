@@ -1,5 +1,5 @@
 <template>
-  <AuthShell :mascot-pose="mascotPose" :busy="isLoading">
+  <AuthShell :mascot-pose="mascotPose" :mascot="isInvite ? 'har' : 'mony'" :busy="isLoading">
     <div v-if="isSuccess" class="success-state">
       <div class="success-icon" aria-hidden="true">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none">

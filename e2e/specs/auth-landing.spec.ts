@@ -45,11 +45,27 @@ test('login art is an image, kept for Register, and the card names the instance'
   expect(await artLoaded(page)).toBe(src)
 })
 
-async function expectPose(page: Page, pose: string) {
+async function expectPose(page: Page, pose: string, who: 'mony' | 'har' = 'mony') {
   const mascot = page.getByTestId('auth-mascot')
   await expect(mascot).toHaveAttribute('data-pose', pose)
-  await expect(mascot.locator('img.is-shown')).toHaveAttribute('src', `/mascot/${pose}.webp`)
+  await expect(mascot.locator('img.is-shown')).toHaveAttribute('src', `/mascot/${who}/${pose}.webp`)
 }
+
+test('Mony waits on the sign-in card, Har welcomes on the register card', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByTestId('auth-password')).toBeVisible({ timeout: 30000 })
+  await expectPose(page, 'idle', 'mony')
+  await page.getByTestId('auth-switch-mode').click()
+  await expect(page).toHaveURL(/\/register$/)
+  await expectPose(page, 'idle', 'har')
+  const poses = page.getByTestId('auth-mascot').locator('img')
+  await expect(poses).toHaveCount(4)
+  for (const img of await poses.all()) {
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth), { timeout: 15000 }).toBe(320)
+  }
+  await page.getByTestId('auth-password').focus()
+  await expectPose(page, 'hide', 'har')
+})
 
 test('the mascot hides from a hidden password, peeks at a shown one, is sorry after a rejected sign-in', async ({ page }) => {
   await page.goto('/login')
