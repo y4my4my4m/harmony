@@ -199,7 +199,7 @@
         <div v-else class="support-grid">
           <div class="support-col">
             <div class="support-project">
-              <img src="/mascot/idle.webp" alt="" class="support-project__mascot" width="64" height="64" />
+              <img src="/mascot/duo.webp" alt="" class="support-project__mascot" width="88" height="64" />
               <div class="support-project__text">
                 <h3 class="support-project__title">{{ t('support.project.title') }}</h3>
                 <p class="support-project__lead">{{ t('support.project.lead', { instance: instanceDomain }) }}</p>
@@ -837,7 +837,7 @@ onBeforeUnmount(() => {
 
 .support-project__mascot {
   flex-shrink: 0;
-  width: 64px;
+  width: 88px;
   height: 64px;
   object-fit: contain;
 }
