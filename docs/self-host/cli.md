@@ -63,7 +63,9 @@ harmony install [--dir DIR] [--ref REF] [--non-interactive]
 
 Runs the installer, `install.sh`, on this checkout: a first install, or a
 safe re-run that keeps the configuration, secrets, data and admin account and
-offers the current answers as defaults. `--dir` and `--ref` choose where and
+offers the current answers as defaults. On an instance whose `.env` has no
+`ENABLE_ANALYTICS`, log collection defaults to off; see
+[harmony update](#harmony-update). `--dir` and `--ref` choose where and
 which version to download, so they apply when the installer is piped from
 `curl`; a re-run uses the checkout it belongs to. [Install](/self-host/install)
 describes the questions, the steps and every environment variable.
@@ -80,6 +82,14 @@ harmony update [--version V]
 Updates the code, the configuration, the images and the database, then
 recreates the containers that changed, taking a backup first.
 [Update](/self-host/update-backup#update-an-instance) describes the steps.
+
+An instance whose `.env` has no `ENABLE_ANALYTICS` never chose
+[log collection](/self-host/#log-collection) and runs it anyway. The update
+writes `ENABLE_ANALYTICS=false`, removes `analytics` and `vector`, deletes the
+logs they stored (as `harmony analytics off --delete-logs`) and prints one
+line with the space freed. `HARMONY_ANALYTICS=y harmony update`, or
+`harmony analytics on` afterwards, keeps it on. `ENABLE_ANALYTICS=true` stays
+on.
 
 | Option | Effect |
 |---|---|
@@ -162,6 +172,9 @@ certificates, Federation, Services, Security, Versions.
 | `admin` | A local admin account exists | WARN when none does | `harmony admin create` |
 | `registration` | `REGISTRATION` in `.env` matches the auth service's sign-up setting and `instance_config.open_registration` | WARN on a mismatch | `harmony registration POLICY` |
 | `listener` | The `harmony_listener` role exists | WARN: queued jobs wait for the periodic sweep | `bash bootstrap.sh && docker compose restart federation-worker` |
+| `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
+| `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
+| `log collection` | `analytics` or `vector` runs while `COMPOSE_PROFILES` lacks `logs` | WARN: it keeps filling the database | `harmony analytics off --delete-logs` |
 
 ### DNS
 
@@ -574,10 +587,12 @@ See [Log collection](/self-host/#log-collection) for what it costs.
 |---|---|
 | `on` | `docker compose up -d analytics vector` |
 | `off` | `docker compose --profile logs rm -sf analytics vector`. Removed rather than stopped: a stopped container with a restart policy reads as a failure to monitors |
-| `--delete-logs` | With `off`: empties the `_analytics` schema of the `_supabase` database, where Logflare keeps the logs and its own tables, and drops its publication `logflare_pub`. Logflare recreates both at its next start |
+| `--delete-logs` | With `off`: empties the `_analytics` schema of the `_supabase` database, where Logflare keeps the logs and its own tables, and drops its publication `logflare_pub`; Logflare recreates both at its next start. Drops Logflare's replication slots (`cainophile_…`) and runs `CHECKPOINT`, which releases the write-ahead log they held. Prints the space freed |
 
 `harmony config` asks the same question; `HARMONY_ANALYTICS=y` or `n` sets
-it for `configure.sh`.
+it for `configure.sh`. On an instance that never answered it, `harmony config`,
+`harmony install` and `harmony update` default it to `n` and delete the
+stored logs.
 
 ## harmony version
 

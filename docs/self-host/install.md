@@ -102,7 +102,7 @@ In order:
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
 | Enable bots? | The bot gateway, for bots and Discord bridges | `n` |
 | Host Discord bridges on this server? | Asked when bots are on. Communities paste their Discord bot token into Harmony and this server runs their bridge; see [Discord bridges](/self-host/discord-bridges) | `n` |
-| Run Supabase log collection? | Logflare and vector store every service's logs in the database for Supabase Studio's Logs pages, for 0.7 to 2 GB of memory; `harmony logs` works without them. `harmony analytics on\|off` changes it later; see [Log collection](/self-host/#log-collection) | `n`; `y` on an instance installed before the question existed |
+| Run Supabase log collection? | Logflare and vector store every service's logs in the database for Supabase Studio's Logs pages, for 0.7 to 2 GB of memory; `harmony logs` works without them. `harmony analytics on\|off` changes it later; see [Log collection](/self-host/#log-collection) | `n`, also on an instance installed before the question existed; answered `n` there, the installer removes `analytics` and `vector` and deletes the logs they stored |
 | Set up email (SMTP) now? | Then: SMTP server, SMTP port, SMTP username, SMTP password, sender address. Without it, accounts work but nobody can reset a forgotten password; see [Email](/self-host/email) | `n`; port `587`, sender `noreply@` your domain |
 | Registration | `open`: anyone can sign up. `invite`: only people you invite. `closed`: no new accounts | `open` |
 
@@ -279,7 +279,7 @@ Answers:
 | `HARMONY_VOICE` | `y` or `n`: voice and video | `y` |
 | `HARMONY_BOTS` | `y` or `n`: bot gateway | `n` |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on | `n` |
-| `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection (Logflare and vector) | `n`; the current setting on a re-run |
+| `HARMONY_ANALYTICS` | `y` or `n`: Supabase's log collection (Logflare and vector) | `n`; the current setting on a re-run, `n` when the instance never answered |
 | `HARMONY_REGISTRATION` | `open`, `invite` or `closed` | `open` |
 | `HARMONY_SMTP_HOST` | SMTP server; setting it configures email | unset: no email |
 | `HARMONY_SMTP_PORT` | SMTP port | `587` |

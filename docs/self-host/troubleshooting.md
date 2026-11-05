@@ -38,6 +38,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | Push notifications never arrive | VAPID keys missing or not served | The `push` row of `harmony doctor`; [Push notifications](/self-host/push) |
 | The proxy answers 502 | The federation server is down or unhealthy | `docker compose ps` (it reports `healthy` once `/health` answers 200); `docker exec harmony-caddy wget -qO- http://federation-server:3001/health`; `harmony logs federation-server` |
 | Services restart in a loop; `docker compose ps` shows `Exited (137)` | The kernel killed them for lack of memory | Add swap or memory; the `memory` row of `harmony doctor` |
+| The disk fills; most of the database is the `_supabase` database or the write-ahead log (`supabase/volumes/db/data/pg_wal`) | [Log collection](/self-host/#log-collection) stores every request and deletes none, and its replication slot holds up to 4 GB of write-ahead log. The `stored logs`, `logflare slot` and `log collection` rows of `harmony doctor` warn above 1 GB | `harmony analytics off --delete-logs`. On an instance whose `.env` has no `ENABLE_ANALYTICS`, `harmony update` does the same |
 | Forgot the admin password | | `harmony admin reset-password --email you@example.com` |
 | `harmony doctor` warns `no admin account` | No admin was created, for example after an interrupted install | `harmony admin create` |
 | An update stopped | Its last lines name the step and the state | Fix the cause and run `harmony update` again; see [When an update stops](/self-host/update-backup#when-an-update-stops) |

@@ -121,6 +121,11 @@ Studio, Supabase's database browser, is at `https://db.chat.example.com`:
 user `supabase`, password `DASHBOARD_PASSWORD` from `self-host/supabase/.env`.
 It shows tables, sign-in users and storage, and, with
 [log collection](/self-host/#log-collection) on, the Supabase services' logs.
+Log collection keeps every line it receives, about 0.9 KB per request through
+Kong, and its replication slot holds up to 4 GB of write-ahead log.
+`harmony doctor` warns when either passes 1 GB;
+`harmony analytics off --delete-logs` deletes both, and `harmony analytics on`
+afterwards collects again from empty.
 
 ## Queue dashboard
 

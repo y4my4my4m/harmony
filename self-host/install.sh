@@ -27,8 +27,9 @@
 #   HARMONY_VOICE             y|n, default y (LiveKit; live.DOMAIN, 7881/tcp, 7882/udp)
 #   HARMONY_BOTS              y|n, default n (bot gateway)
 #   HARMONY_DISCORD           y|n, default n (Discord bridge hosting; implies bots)
-#   HARMONY_ANALYTICS         y|n, default n (Supabase log collection: Logflare + vector);
-#                             an install configured before the question existed keeps it on
+#   HARMONY_ANALYTICS         y|n, default n (Supabase log collection: Logflare + vector),
+#                             also on an install configured before the question existed:
+#                             n there removes it and deletes the logs it stored
 #   HARMONY_REGISTRATION      open|invite|closed, default open
 #   HARMONY_SMTP_HOST, HARMONY_SMTP_PORT (587), HARMONY_SMTP_USER,
 #   HARMONY_SMTP_PASS, HARMONY_SMTP_SENDER (noreply@DOMAIN)
@@ -364,10 +365,10 @@ questions() {
 	echo
 	info "Supabase log collection (Logflare + vector) keeps every service's logs in the database"
 	info "for Studio's Logs pages. 'harmony logs' works without it; 'harmony analytics on|off' changes it later."
-	cur="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
-	# An install configured without the key runs it: the upstream stack starts it by default.
-	[[ -n "$cur" ]] || ! $EXISTING || cur=true
-	cur="$(yn "${HARMONY_ANALYTICS:-$cur}" n)"
+	ANALYTICS_UNCHOSEN=false
+	analytics_unchosen && ANALYTICS_UNCHOSEN=true
+	$ANALYTICS_UNCHOSEN && info "It runs on this instance without having been chosen; n removes it and deletes the logs it stored."
+	cur="$(yn "${HARMONY_ANALYTICS:-$(env_get "$ENV_FILE" ENABLE_ANALYTICS)}" n)"
 	if ask_yn "Run Supabase log collection (about $ANALYTICS_RAM more RAM)?" "$cur"; then ANALYTICS=y; else ANALYTICS=n; fi
 
 	echo
@@ -504,6 +505,7 @@ install_stack() {
 		HARMONY_REGISTRATION="$REGISTRATION" HARMONY_HTTP_PORT="$HTTP_PORT" HARMONY_HTTPS_PORT="$HTTPS_PORT"
 	info "Writing the configuration..."
 	bash "$SELF_HOST_DIR/configure.sh" --non-interactive </dev/null
+	if $ANALYTICS_UNCHOSEN && ! truthy "$ANALYTICS"; then analytics_default_off; fi
 
 	pull_images
 	info "Starting the stack..."

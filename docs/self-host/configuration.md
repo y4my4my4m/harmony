@@ -319,7 +319,7 @@ the sign-in service. A Supabase stack without it needs the
 | `ENABLE_VOICE` | `false` | `true` defines the LiveKit site in Caddy. `configure.sh` adds the `voice` profile and the LiveKit URLs |
 | `ENABLE_BOTS` | `false` | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
 | `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env` |
-| `ENABLE_ANALYTICS` | `false`; `true` on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it |
+| `ENABLE_ANALYTICS` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it. Absent, `harmony update`, `harmony install` and `harmony config` write `false`, remove both containers and delete the logs they stored |
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
 | `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |

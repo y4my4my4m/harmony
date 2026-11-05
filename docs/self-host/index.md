@@ -162,9 +162,12 @@ cores Kong took 640 MB and Realtime 220 MB, on 32 cores Kong took 2.4 GB.
 Supabase's log collection runs Logflare (`analytics`) and `vector`, which
 read every container's output and store it in the database for the Logs
 pages of Supabase Studio. Harmony needs neither: `harmony logs` reads the
-same output from Docker. It is off on a new install; the installer asks
+same output from Docker. It is off unless chosen; the installer asks
 (`HARMONY_ANALYTICS=y` turns it on in a scripted install). An instance
-installed before the question existed keeps it on.
+installed before the question existed ran it without being asked: there
+`harmony update` turns it off, removes both containers, deletes the logs
+they stored and prints the space freed. `harmony analytics on` turns it
+back on.
 
 ```bash
 harmony analytics                    # whether it runs, and the logs it stores
@@ -178,11 +181,18 @@ While it runs it costs:
 - 0.7 GB of memory at start, 1.9 GB measured on a small production instance
   after months;
 - the stored logs, in the `_analytics` schema of the `_supabase` database:
-  2.8 GB on that instance;
+  2.8 GB on that instance, 10 GB on another two weeks after its install.
+  Every request through Kong adds a row, about 0.9 KB; Logflare deletes none
+  (its retention setting applies to BigQuery, not to Postgres).
+  `harmony doctor` warns above 1 GB, and
+  `harmony analytics off --delete-logs` followed by `harmony analytics on`
+  starts them over, empty;
 - write-ahead log: Logflare reads changes through a replication slot, and
   Postgres keeps the write-ahead log the slot has not confirmed, up to
   `max_slot_wal_keep_size` (4 GB). It held 832 MB on that instance. The slot
-  is temporary and disappears when Logflare stops.
+  never confirms, so the write-ahead log grows to that limit; it is
+  temporary and disappears when Logflare stops. `harmony doctor` warns above
+  1 GB.
 
 Turning it off there, with Studio stopped at the same time, raised free
 memory from 160 MB to 2.75 GB and cut the write-ahead log from 832 MB to
@@ -215,7 +225,7 @@ needs about 1 Mbit/s.
 | Media cache | Docker volume `media-cache-data` | Public files other servers fetch | 2 GB (`media-cache.conf`) |
 | Backups | `self-host/backups` | Each `harmony backup`, and each `harmony update` (database only) | Nothing; [Delete old backups](/self-host/update-backup#delete-old-backups) |
 | Container output | `/var/lib/docker/containers` | Every service's log lines | Nothing, unless Docker rotates them (below) |
-| Log collection | `_supabase._analytics`, and write-ahead log | Every request | Write-ahead log: 4 GB (`max_slot_wal_keep_size`). Stored logs: 2.8 GB measured on a small production instance |
+| Log collection, when on | `_supabase._analytics`, and write-ahead log | Every request | Write-ahead log: 4 GB (`max_slot_wal_keep_size`). Stored logs: nothing; `harmony analytics off --delete-logs` deletes them |
 | Images | Docker's data directory | Each update downloads new images | `docker image prune` |
 
 Docker keeps container output without limit by default. To rotate it, put

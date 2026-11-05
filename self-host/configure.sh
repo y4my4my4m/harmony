@@ -28,7 +28,7 @@
 #   HARMONY_BOTS            y | n   (bot gateway)
 #   HARMONY_DISCORD         y | n   (Discord bridge hosting; implies bots)
 #   HARMONY_ANALYTICS       y | n   (Supabase log collection, Logflare + vector:
-#                                   profile logs; default n, y on an install
+#                                   profile logs; default n, also on an install
 #                                   configured before this answer existed)
 #   HARMONY_REGISTRATION    open | invite | closed
 #   HARMONY_SMTP_HOST       SMTP server; set to configure email, unset keeps
@@ -245,9 +245,9 @@ BOTS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_BOTS)"
 [[ -n "$BOTS_DEFAULT" || ! -f "$BOT_ENV" ]] || BOTS_DEFAULT=true
 DISCORD_DEFAULT="$(env_get "$ENV_FILE" ENABLE_DISCORD_BRIDGE)"
 ANALYTICS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
-# An install configured without ENABLE_ANALYTICS runs log collection: the
-# upstream stack starts it by default.
-[[ -n "$ANALYTICS_DEFAULT" || -z "$(env_get "$ENV_FILE" DOMAIN)" ]] || ANALYTICS_DEFAULT=true
+# Configured without ENABLE_ANALYTICS: log collection runs unasked (lib.sh analytics_unchosen).
+ANALYTICS_UNCHOSEN=false
+[[ -n "$OLD_DOMAIN" ]] && ! env_has "$ENV_FILE" ENABLE_ANALYTICS && ANALYTICS_UNCHOSEN=true
 REGISTRATION_DEFAULT="$(env_get "$ENV_FILE" REGISTRATION)"
 OLD_SMTP_HOST="$(env_get "$SB_ENV" SMTP_HOST)"
 OLD_AUTOCONFIRM="$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"
@@ -311,6 +311,7 @@ if $INTERACTIVE; then
 	info "Supabase log collection (Logflare + vector) stores every service's logs in the"
 	info "database for Studio's Logs pages. It takes about ${ANALYTICS_RAM} of RAM and grows the"
 	info "database; 'harmony logs' works without it. 'harmony analytics on|off' changes it later."
+	$ANALYTICS_UNCHOSEN && info "It runs on this instance without having been chosen; n removes it and deletes the logs it stored."
 fi
 prompt ANALYTICS_CHOICE "Run Supabase log collection (about ${ANALYTICS_RAM} more RAM)?" "${HARMONY_ANALYTICS:-$( [[ "$(yes_no "${ANALYTICS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_ANALYTICS="$(yes_no "$ANALYTICS_CHOICE")"
