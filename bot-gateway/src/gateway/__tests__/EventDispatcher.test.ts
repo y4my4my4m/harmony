@@ -339,6 +339,23 @@ describe('author.nickname', () => {
   })
 })
 
+describe('message text stays out of the logs', () => {
+  it('dispatches a message without writing its text to stdout or stderr', async () => {
+    const secret = 'my private zebra words'
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) => vi.spyOn(console, level))
+    try {
+      // message() puts the text into the id; the id is logged and the text is not.
+      await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, secret), id: 'msg-1' } })
+      await (dispatcher as any).handleMessageUpdate({ new: { ...message(GENERAL, `${secret}, edited`), id: 'msg-1' } })
+      expect(sent.filter((s) => s.event.t === 'MESSAGE_CREATE').map((s) => s.event.d.content)).toEqual([secret])
+      const written = spies.flatMap((spy) => spy.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')))
+      expect(written.filter((line) => line.includes('zebra')).join('\n')).toBe('')
+    } finally {
+      for (const spy of spies) spy.mockRestore()
+    }
+  })
+})
+
 describe('message change feed', () => {
   const BRIDGE_METADATA = { discord_message_id: '1300000000000000001', bridge_source: 'discord', discord_user: { id: '8' } }
   const d = () => dispatcher as any
