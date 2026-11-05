@@ -1730,7 +1730,8 @@ export default defineComponent({
       if (!part || typeof part !== 'object') return false;
       if (BLOCK_PART_TYPES.has(part.type)) return true;
       if (part.type === 'embed') return !!resolveEmbedPayload(part);
-      if (part.type !== 'url' || typeof part.url !== 'string' || isCoveredLink(partIndex)) return false;
+      // A url part with its preview off (<url>, suppressed embeds) is an inline link.
+      if (part.type !== 'url' || typeof part.url !== 'string' || !showsPreview(part) || isCoveredLink(partIndex)) return false;
       return !!resolveEmbedPayload(part) || isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url);
     };
     // Text after a block already starts on its own line: the line breaks it begins with would

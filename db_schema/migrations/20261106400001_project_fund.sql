@@ -1,9 +1,8 @@
 -- The Harmony project's development fund, kept apart from the instance's own funding.
 --
 -- fund ('instance' | 'project', default 'instance') on instance_donation_history,
--- instance_pending_donations and instance_supporter_messages. Existing rows are 'instance'. The
--- federation backend's webhooks choose the fund (routes/webhooks/stripe.ts, kofi.ts); only the
--- project's own instance records 'project'.
+-- instance_pending_donations and instance_supporter_messages. Existing rows are 'instance'; only
+-- the project's own instance records 'project'.
 --
 -- A project donation has no instance_supporters row (supporter_id NULL): supporter rows carry the
 -- instance's tiers and their perks (badge, ad-free GIFs), which project donations do not earn.
@@ -696,10 +695,10 @@ BEGIN
 END;
 $$;
 
--- The project fund for its public feed (federation-backend services/projectFunding.ts buildFeed):
--- settings, the period's total and distinct donors, and the approved project messages while
--- messages are on; no links. NULL without a project_funding row. Donors: a profile, or for an
--- unattributed webhook donation its email, else its external reference.
+-- The project fund as its public feed shows it: settings, the period's total and distinct
+-- donors, and the approved project messages while messages are on; no links. NULL without a
+-- project_funding row. Donors: a profile, or for an unattributed webhook donation its email,
+-- else its external reference.
 CREATE OR REPLACE FUNCTION public.get_project_funding_summary()
 RETURNS jsonb
 LANGUAGE plpgsql

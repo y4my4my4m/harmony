@@ -72,6 +72,20 @@ describe('useOpenThreadGone', () => {
     expect(thread.value).toBe(store.byId.t1)
   })
 
+  it('a deletion declined while the view is hidden is reported when the view reads the thread again', async () => {
+    const { store, onGone, checkMissing } = open('t1')
+    onGone.mockReturnValueOnce(false)
+    service.getThreadRow.mockResolvedValueOnce(null)
+    store.remove('t1')
+    await settle()
+    expect(onGone).toHaveBeenCalledWith('removed')
+
+    service.getThreadRow.mockResolvedValueOnce(null)
+    await checkMissing('t1')
+    expect(onGone).toHaveBeenCalledTimes(2)
+    expect(onGone).toHaveBeenLastCalledWith('missing')
+  })
+
   it('stays when the re-read fails', async () => {
     const { store, onGone } = open('t1')
     service.getThreadRow.mockRejectedValueOnce(new Error('offline'))

@@ -15,10 +15,12 @@ export type ThreadGone = 'removed' | 'missing'
  * thread index and the server returns no row for it; an entry dropped while its row still exists
  * is put back and the view stays. 'missing': `checkMissing`, called when a view's read found no
  * thread, confirms the row is absent and drops any stale entry. A failed read keeps the view.
+ * `onGone` returning false (a hidden view) leaves the thread unreported: `checkMissing` reports
+ * it when the view shows again.
  */
 export function useOpenThreadGone(
   thread: Ref<ThreadWithDetails | null>,
-  onGone: (how: ThreadGone) => void,
+  onGone: (how: ThreadGone) => boolean | void,
 ): { checkMissing: (id: string) => Promise<void> } {
   const threadsStore = useThreadsStore()
   let reported: string | null = null
@@ -44,8 +46,7 @@ export function useOpenThreadGone(
       if (!id || id !== previousId || !wasPresent || present || isOptimisticThreadId(id)) return
       if (reported === id) return
       if (!(await absent(id)) || thread.value?.id !== id || reported === id) return
-      reported = id
-      onGone('removed')
+      if (onGone('removed') !== false) reported = id
     },
   )
 
@@ -53,10 +54,9 @@ export function useOpenThreadGone(
     async checkMissing(id: string) {
       if (isOptimisticThreadId(id) || reported === id) return
       if (!(await absent(id)) || (thread.value && thread.value.id !== id) || reported === id) return
-      reported = id
       threadsStore.remove(id)
       threadService.clearThreadCache(id)
-      onGone('missing')
+      if (onGone('missing') !== false) reported = id
     },
   }
 }

@@ -449,7 +449,7 @@ const thread = ref<ThreadWithDetails | null>(null)
 // A deleted thread closes the panel, which leaves its channel in view; one opened from a link or
 // notice after its deletion says so.
 const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {
-  if (!props.isVisible) return
+  if (!props.isVisible) return false
   if (how === 'missing') toast.info(t('chatNav.thread.gone'))
   close()
 })

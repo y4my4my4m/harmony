@@ -47,4 +47,10 @@ describe('UnifiedMessageContent text after a block', () => {
     const w = await render([{ type: 'text', text: 'see ' }, { type: 'url', url: 'https://example.com/plain' }, { type: 'text', text: '\n\nnext' }])
     expect(textSpans(w).at(-1)).toMatch(/<br/)
   })
+
+  it('keeps leading line breaks after a media link whose preview is off', async () => {
+    const w = await render([{ type: 'url', url: 'https://example.com/cat.png', preview: false }, { type: 'text', text: '\nnext line' }])
+    expect(w.find('.content-image').exists()).toBe(false)
+    expect(textSpans(w).at(-1)).toMatch(/^<span[^>]*>\s*<br/)
+  })
 })

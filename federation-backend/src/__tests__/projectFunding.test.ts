@@ -331,6 +331,20 @@ describe('funding routes', () => {
     expect(shown).not.toHaveBeenCalled()
   })
 
+  it('GET /project on the project instance keeps its read a minute; ?fresh=1 reads again', async () => {
+    let now = 0
+    let supporters = 1
+    const local = vi.fn(async () => sanitizeFeed({ ...GOOD, supporters })!)
+    const own = express()
+    own.use('/funding', createFundingRouter({ projectInstance: () => true, readProjectFeed: local, now: () => now }))
+    expect((await supertest(own).get('/funding/project')).body.funding.supporters).toBe(1)
+    supporters = 2
+    now = 10_000
+    expect((await supertest(own).get('/funding/project')).body.funding.supporters).toBe(1)
+    expect((await supertest(own).get('/funding/project?fresh=1')).body.funding.supporters).toBe(2)
+    expect(local).toHaveBeenCalledTimes(2)
+  })
+
   it('GET /project on the project instance serves the standing links when its fund cannot be read', async () => {
     const own = express()
     own.use('/funding', createFundingRouter({

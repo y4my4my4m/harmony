@@ -825,8 +825,8 @@ const fundingStore = useFundingStore()
 const supportsMessages = hasCapability('supporter-messages')
 const messagesEnabled = ref(true)
 const messagesPublic = ref(true)
-// The Harmony development tab exists only off the project's own instance. The switch waits for
-// loadFundingData, which resets fundingChanged when it ends.
+// Off the project's own instance only: there the project fund section replaces it. The switch
+// waits for loadFundingData, which resets fundingChanged when it ends.
 const projectMessagesShown = ref(true)
 let savedProjectMessagesShown = true
 const fundingLoaded = ref(false)

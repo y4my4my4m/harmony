@@ -7,9 +7,9 @@
  * read it as PROJECT_FEED_URL.
  *
  * GET /funding/project: the Harmony project's feed for this instance's Support window. On the
- * project's own instance, the project fund read locally (source 'local'); elsewhere the cached
- * project feed with its source, its messages empty while instance_funding.show_project_messages
- * is off or when the switch cannot be read.
+ * project's own instance, the project fund read locally (source 'local'; `?fresh=1` reads past
+ * the kept copy); elsewhere the cached project feed with its source, its messages empty while
+ * instance_funding.show_project_messages is off or when the switch cannot be read.
  *
  * Both project routes carry PROJECT_LINKS as the fund's links, whatever the database or the
  * project's feed holds.
@@ -31,12 +31,14 @@ import {
 
 export const FEED_CACHE_MS = 60_000;
 
-/** One read at a time, the result kept FEED_CACHE_MS. */
+/** One read at a time, the result kept FEED_CACHE_MS; `fresh` reads past the kept copy. */
 function cachedFeed(read: () => Promise<PublicFunding>, now: () => number) {
   let copy: { body: PublicFunding; at: number } | null = null;
   let reading: Promise<PublicFunding> | null = null;
-  return async (): Promise<{ body: PublicFunding; at: number }> => {
-    if (!copy || now() - copy.at >= FEED_CACHE_MS) {
+  return async (fresh = false): Promise<{ body: PublicFunding; at: number }> => {
+    if (fresh) {
+      copy = { body: await read(), at: now() };
+    } else if (!copy || now() - copy.at >= FEED_CACHE_MS) {
       reading ??= read().finally(() => { reading = null; });
       copy = { body: await reading, at: now() };
     }
@@ -97,10 +99,10 @@ export function createFundingRouter(
     }
   });
 
-  router.get('/project', fundingLimiter, async (_req: Request, res: Response) => {
+  router.get('/project', fundingLimiter, async (req: Request, res: Response) => {
     if (projectInstance()) {
       try {
-        const { body, at } = await projectFeed();
+        const { body, at } = await projectFeed(req.query.fresh === '1');
         json(res, { projectInstance: true, source: 'local', fetchedAt: new Date(at).toISOString(), funding: withProjectLinks(body) }, 60);
       } catch (err) {
         logger.error(`project fund: ${err instanceof Error ? err.message : String(err)}`);

@@ -610,12 +610,12 @@ class FundingService {
 
   /**
    * The Harmony project's funding through this instance's backend; null when unavailable.
-   * `fresh` revalidates past the response's max-age.
+   * `fresh` reads past the browser's copy and, on the project's own instance, the backend's.
    */
   async getProjectFunding(options: { fresh?: boolean } = {}): Promise<ProjectFundingResponse | null> {
     if (!hasCapability('supporter-messages')) return null
     try {
-      const res = await fetch(apiUrl('/api/federation/funding/project'), {
+      const res = await fetch(apiUrl(`/api/federation/funding/project${options.fresh ? '?fresh=1' : ''}`), {
         headers: { Accept: 'application/json' },
         cache: options.fresh ? 'no-cache' : 'default',
       })
