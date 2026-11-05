@@ -4,7 +4,8 @@
  *
  * GET /funding/project: the Harmony project's feed for this instance's Support window:
  * `{ projectInstance: true }` on the project's own instance, else the cached project feed with
- * its source.
+ * its source. Its messages are empty while instance_funding.show_project_messages is off, or
+ * when the switch cannot be read.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -15,6 +16,7 @@ import {
   isProjectInstance,
   ProjectFundingCache,
   readOwnFeed,
+  readShowProjectMessages,
   type PublicFunding,
 } from '../services/projectFunding.js';
 
@@ -25,12 +27,14 @@ export function createFundingRouter(
     readFeed?: () => Promise<PublicFunding>;
     project?: ProjectFundingCache;
     projectInstance?: () => boolean;
+    showProjectMessages?: () => Promise<boolean>;
     now?: () => number;
   } = {},
 ): Router {
   const readFeed = deps.readFeed ?? readOwnFeed;
   const project = deps.project ?? new ProjectFundingCache();
   const projectInstance = deps.projectInstance ?? (() => isProjectInstance(config));
+  const showProjectMessages = deps.showProjectMessages ?? readShowProjectMessages;
   const now = deps.now ?? Date.now;
   const router = Router();
 
@@ -63,8 +67,15 @@ export function createFundingRouter(
       json(res, { projectInstance: true }, 300);
       return;
     }
-    const result = await project.get();
-    json(res, { projectInstance: false, ...result }, 300);
+    const [result, shown] = await Promise.all([
+      project.get(),
+      showProjectMessages().catch((err: unknown) => {
+        logger.warn(`project funding: show_project_messages unreadable: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+      }),
+    ]);
+    const funding = shown ? result.funding : { ...result.funding, messages: [] };
+    json(res, { projectInstance: false, ...result, funding }, 300);
   });
 
   return router;

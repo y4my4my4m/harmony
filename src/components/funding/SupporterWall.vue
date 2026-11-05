@@ -71,7 +71,7 @@
         </button>
       </li>
     </ul>
-    <p v-else class="supporter-wall__empty">{{ emptyText }}</p>
+    <p v-else-if="emptyText" class="supporter-wall__empty">{{ emptyText }}</p>
     <button
       v-if="messages.length > limit"
       type="button"
@@ -108,7 +108,8 @@ const props = withDefaults(defineProps<{
   mine?: MySupporterMessage[]
   canModerate?: boolean
   heading: string
-  emptyText: string
+  /** Shown when there is no message. */
+  emptyText?: string
   testid?: string
   /** Messages shown before "Show all". */
   limit?: number

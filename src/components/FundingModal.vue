@@ -196,7 +196,7 @@
           <LoadingSpinner v-if="projectLoading" />
           <EmptyState v-else icon="heart" :title="t('support.project.unavailable')" />
         </div>
-        <div v-else class="support-grid">
+        <div v-else class="support-grid" :class="{ 'support-grid--single': !projectMessages.length }">
           <div class="support-col">
             <div class="support-project">
               <img src="/mascot/duo.webp" alt="" class="support-project__mascot" width="88" height="64" />
@@ -228,11 +228,10 @@
               <span>{{ t('support.project.fallback') }}</span>
             </p>
           </div>
-          <div class="support-col">
+          <div v-if="projectMessages.length" class="support-col">
             <SupporterWall
-              :messages="projectFeed.messages"
+              :messages="projectMessages"
               :heading="t('support.project.wall')"
-              :empty-text="t('support.project.wallEmpty')"
               testid="supporter-wall-project"
             />
           </div>
@@ -332,6 +331,8 @@ const donor = computed(() => ({
 
 const projectFeed = computed(() => (store.project && !store.project.projectInstance ? store.project.funding : null))
 const projectSource = computed(() => (store.project && !store.project.projectInstance ? store.project.source : null))
+// Empty when the project has none, its feed is unreachable, or this instance's admin turned them off.
+const projectMessages = computed(() => projectFeed.value?.messages ?? [])
 
 const money = (amount: number, currency: string) => formatMoney(amount, currency, locale.value)
 const day = (iso: string) => formatDay(iso, locale.value)
@@ -534,6 +535,17 @@ onBeforeUnmount(() => {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
     align-items: start;
   }
+
+  .support-grid--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The Harmony development tab without its messages column: one centred column. */
+.support-grid--single {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
 }
 
 .support-col {

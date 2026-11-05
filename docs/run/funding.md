@@ -14,7 +14,7 @@ On a self-hosted instance the window has two tabs:
 | Tab | What it shows |
 |---|---|
 | **This instance** | Your goal and progress, your payment links, the member's own supporter status and history, approved supporter messages and your supporter tiers |
-| **Harmony development** | The Harmony project's own funding: its links, its goal and progress when it publishes them, and its supporters' messages. Payment happens on the project's pages; your instance never handles that money |
+| **Harmony development** | The Harmony project's own funding: its links, its goal and progress when it publishes them, and its supporters' messages unless you turn them off. Payment happens on the project's pages; your instance never handles that money |
 
 On the Harmony project's own instance, har.mony.lol, both are the same funding and the window shows one view.
 
@@ -40,6 +40,10 @@ With **Supporter messages** on, a member can add a public message to their suppo
 - A member can remove their own message at any time.
 
 **Show approved messages on the sign-in page** adds a small **Recent supporters** strip under the sign-in form, one message at a time. Turn it off to keep messages inside the app.
+
+### Harmony's supporter messages
+
+**Show Harmony's supporter messages**, on by default, shows the messages of the Harmony project's own supporters on the **Harmony development** tab. The Harmony project approves those messages, not you. Turn it off and the tab shows only the project's links and progress: your instance's backend leaves the messages out of what it sends, so none reaches your members' devices. The switch applies whether or not your own funding is enabled, and does not appear on har.mony.lol, which has no Harmony development tab. Members with the app already open see the change within 30 minutes.
 
 ## Public funding feed
 

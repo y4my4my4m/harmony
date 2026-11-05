@@ -7339,8 +7339,7 @@
       "paymentNote": "Vous payez sur les pages de {project} ; {instance} ne touche jamais l'argent.",
       "fallback": "La page de financement de Harmony est injoignable ; voici ses liens habituels.",
       "unavailable": "Les informations de financement de Harmony ne sont pas disponibles pour le moment.",
-      "wall": "Derniers soutiens de Harmony",
-      "wallEmpty": "Pas encore de message des soutiens de Harmony."
+      "wall": "Derniers soutiens de Harmony"
     },
     "wall": {
       "title": "Derniers soutiens",
@@ -7390,6 +7389,8 @@
       "messagesEnabled": "Messages de soutien",
       "messagesPublic": "Afficher les messages approuvés sur la page de connexion",
       "messagesHint": "Les soutiens peuvent joindre un message de 50 caractères au plus. Rien ne s'affiche avant votre approbation ci-dessous. Les messages affichés sur la page de connexion figurent aussi dans le flux public de financement de cette instance.",
+      "projectMessages": "Afficher les messages de soutien à Harmony",
+      "projectMessagesHint": "Dans l'onglet Développement de Harmony de la fenêtre Soutenir. Ces messages sont approuvés par le projet Harmony, pas par les admins de cette instance.",
       "queueTitle": "Messages de soutien",
       "queueHint": "Un message arrive avec un don crédité. Approuvez-le pour l'afficher dans la fenêtre Soutenir et, si l'option est active, sur la page de connexion. Vous pouvez le masquer à tout moment.",
       "queueEmpty": "Pas encore de message de soutien.",

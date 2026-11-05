@@ -52,6 +52,19 @@
           </div>
           <p class="setting-hint">{{ t('support.admin.messagesHint') }}</p>
         </template>
+      </div>
+      <!-- Applies to the Harmony development tab, which shows whether or not funding is on. -->
+      <div v-if="showProjectSwitch" class="funding-fields">
+        <div class="setting-row">
+          <label class="toggle-label">
+            <input type="checkbox" v-model="projectMessagesShown" data-testid="admin-project-messages" />
+            <span class="toggle-slider"></span>
+            {{ t('support.admin.projectMessages') }}
+          </label>
+        </div>
+        <p class="setting-hint" data-testid="admin-project-messages-hint">{{ t('support.admin.projectMessagesHint') }}</p>
+      </div>
+      <div v-if="fundingEnabled" class="funding-fields">
         <div class="funding-form-row">
           <div class="funding-field">
             <label>Goal amount</label>
@@ -653,6 +666,12 @@ const fundingStore = useFundingStore()
 const supportsMessages = hasCapability('supporter-messages')
 const messagesEnabled = ref(true)
 const messagesPublic = ref(true)
+// The Harmony development tab exists only off the project's own instance. The switch waits for
+// loadFundingData, which resets fundingChanged when it ends.
+const projectMessagesShown = ref(true)
+let savedProjectMessagesShown = true
+const fundingLoaded = ref(false)
+const showProjectSwitch = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === false)
 const adminMessages = ref<AdminSupporterMessage[]>([])
 const awaitingCount = computed(() => adminMessages.value.filter((m) => m.review === 'pending').length)
 
@@ -749,7 +768,7 @@ const editDonationNote = ref('')
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier, messagesEnabled, messagesPublic],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier, messagesEnabled, messagesPublic, projectMessagesShown],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -772,6 +791,8 @@ const loadFundingData = async () => {
     stripeAutoAssignTier.value = config.stripe_auto_assign_tier !== false
     messagesEnabled.value = config.supporter_messages_enabled !== false
     messagesPublic.value = config.supporter_messages_public !== false
+    projectMessagesShown.value = config.show_project_messages !== false
+    savedProjectMessagesShown = projectMessagesShown.value
   }
   if (supportsMessages) adminMessages.value = await fundingService.adminListSupporterMessages()
   kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
@@ -786,6 +807,7 @@ const loadFundingData = async () => {
   pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
   // Reset after populating to avoid false dirty state from watchers
   fundingChanged.value = false
+  fundingLoaded.value = true
 }
 
 const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
@@ -902,6 +924,7 @@ const saveFundingConfig = async () => {
     ...(supportsMessages ? {
       supporter_messages_enabled: messagesEnabled.value,
       supporter_messages_public: messagesPublic.value,
+      show_project_messages: projectMessagesShown.value,
     } : {}),
   } as any)
   const token = kofiWebhookToken.value.trim()
@@ -923,6 +946,10 @@ const saveFundingConfig = async () => {
   if (success) {
     fundingChanged.value = false
     void fundingStore.refresh()
+    if (projectMessagesShown.value !== savedProjectMessagesShown) {
+      savedProjectMessagesShown = projectMessagesShown.value
+      void fundingStore.loadProject({ force: true })
+    }
     toast.success('Funding settings saved')
   } else {
     toast.error(secretMessage ?? 'Failed to save funding settings')
@@ -1239,6 +1266,7 @@ const deleteDonation = async (donationId: string) => {
 
 onMounted(() => {
   void loadFundingData()
+  if (supportsMessages) void fundingStore.loadProject()
 })
 </script>
 

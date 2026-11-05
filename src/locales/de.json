@@ -7339,8 +7339,7 @@
       "paymentNote": "Du bezahlst auf den Seiten von {project}; {instance} kommt mit dem Geld nie in Berührung.",
       "fallback": "Die Finanzierungsseite von Harmony war nicht erreichbar, daher werden die festen Links angezeigt.",
       "unavailable": "Die Finanzierungsinfos von Harmony sind gerade nicht verfügbar.",
-      "wall": "Neueste Unterstützer von Harmony",
-      "wallEmpty": "Noch keine Nachrichten von Harmonys Unterstützern."
+      "wall": "Neueste Unterstützer von Harmony"
     },
     "wall": {
       "title": "Neueste Unterstützer",
@@ -7390,6 +7389,8 @@
       "messagesEnabled": "Unterstützer-Nachrichten",
       "messagesPublic": "Freigegebene Nachrichten auf der Anmeldeseite zeigen",
       "messagesHint": "Unterstützer können ihrer Unterstützung eine Nachricht mit bis zu 50 Zeichen beifügen. Nichts wird angezeigt, bevor du es unten freigibst. Auf der Anmeldeseite gezeigte Nachrichten stehen auch im öffentlichen Finanzierungs-Feed dieser Instanz.",
+      "projectMessages": "Unterstützer-Nachrichten von Harmony zeigen",
+      "projectMessagesHint": "Im Tab „Harmony-Entwicklung“ des Unterstützen-Fensters. Diese Nachrichten gibt das Harmony-Projekt frei, nicht die Admins dieser Instanz.",
       "queueTitle": "Unterstützer-Nachrichten",
       "queueHint": "Eine Nachricht kommt mit einer gutgeschriebenen Spende. Gib sie frei, um sie im Unterstützen-Fenster und, falls eingeschaltet, auf der Anmeldeseite zu zeigen. Du kannst sie jederzeit ausblenden.",
       "queueEmpty": "Noch keine Unterstützer-Nachrichten.",

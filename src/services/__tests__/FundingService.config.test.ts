@@ -19,6 +19,7 @@ const { auth, from } = vi.hoisted(() => {
 
 vi.mock('@/supabase', () => ({ supabase: { auth, from, rpc: vi.fn() } }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: () => true }))
 
 import { fundingService } from '../FundingService'
 
@@ -38,5 +39,20 @@ describe('fundingService.getFundingConfig', () => {
     auth.getSession.mockResolvedValue({ data: { session: { access_token: 'jwt' } } })
     expect(await fundingService.getFundingConfig()).toEqual({ id: 'f1', enabled: true })
     expect(from).toHaveBeenCalledWith('instance_funding')
+  })
+})
+
+describe('fundingService.getProjectFunding', () => {
+  it('uses the browser cache unless asked for a fresh read', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ projectInstance: true }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      expect(await fundingService.getProjectFunding()).toEqual({ projectInstance: true })
+      expect((fetchMock.mock.calls[0] as unknown[])[1]).toMatchObject({ cache: 'default' })
+      await fundingService.getProjectFunding({ fresh: true })
+      expect((fetchMock.mock.calls[1] as unknown[])[1]).toMatchObject({ cache: 'no-cache' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

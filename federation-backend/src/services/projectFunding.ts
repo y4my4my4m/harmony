@@ -8,7 +8,8 @@
  * (config.PROJECT_FUNDING_URL) server-side, so its users' addresses never reach the project:
  * through safeFetch (public addresses only, https, 5 s, 64 KiB), cached 30 minutes, served
  * stale for up to 7 days when the project is unreachable, else PROJECT_FUNDING_FALLBACK. The
- * feed is untrusted: every field is re-validated and an invalid entry is dropped.
+ * feed is untrusted: every field is re-validated and an invalid entry is dropped. The project's
+ * messages reach this instance's clients only while instance_funding.show_project_messages is on.
  */
 
 import config from '../config/index.js';
@@ -249,6 +250,20 @@ export function buildFeed(summary: FundingSummaryRow | null, domain: string): Pu
       : [],
   });
   return feed ?? { version: FEED_VERSION, instance: domain, enabled: false, goal: null, supporters: 0, links: [], messages: [] };
+}
+
+/**
+ * instance_funding.show_project_messages as service_role reads it; true without a funding row,
+ * the column's default.
+ */
+export async function readShowProjectMessages(): Promise<boolean> {
+  const { data, error } = await getSupabaseClient()
+    .from('instance_funding')
+    .select('show_project_messages')
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`instance_funding: ${error.message}`);
+  return (data as { show_project_messages?: boolean } | null)?.show_project_messages !== false;
 }
 
 export async function readOwnFeed(): Promise<PublicFunding> {

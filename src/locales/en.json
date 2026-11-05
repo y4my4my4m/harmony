@@ -7300,8 +7300,7 @@
       "paymentNote": "You pay on {project}'s own pages; {instance} never handles the money.",
       "fallback": "Harmony's funding page could not be reached, so these are its standing links.",
       "unavailable": "Harmony's funding information is not available right now.",
-      "wall": "Harmony's recent supporters",
-      "wallEmpty": "No messages from Harmony's supporters yet."
+      "wall": "Harmony's recent supporters"
     },
     "wall": {
       "title": "Recent supporters",
@@ -7351,6 +7350,8 @@
       "messagesEnabled": "Supporter messages",
       "messagesPublic": "Show approved messages on the sign-in page",
       "messagesHint": "Supporters can add a message of up to 50 characters to their support. Nothing shows until you approve it below. Messages shown on the sign-in page are also in this instance's public funding feed.",
+      "projectMessages": "Show Harmony's supporter messages",
+      "projectMessagesHint": "On the Harmony development tab of the Support window. The Harmony project approves these messages, not this instance's admins.",
       "queueTitle": "Supporter messages",
       "queueHint": "A message arrives with a credited donation. Approve it to show it in the Support window and, when that is on, on the sign-in page. Hide it at any time.",
       "queueEmpty": "No supporter messages yet.",

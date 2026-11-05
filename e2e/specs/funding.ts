@@ -1,7 +1,11 @@
-// Instance funding for the funding journeys: the single instance_funding row, tiers, and Stripe
-// events signed as Stripe signs them (federation-backend routes/webhooks/stripe.ts).
+// Instance funding for the funding journeys: the single instance_funding row, tiers, Stripe
+// events signed as Stripe signs them (federation-backend routes/webhooks/stripe.ts), and a stand-in
+// for the Harmony project's funding feed.
 
+import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
+import http from 'node:http'
+import net from 'node:net'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { expect, type Page, type Request } from '@playwright/test'
 import { dismissAnnouncements, openChannel } from './harness'
@@ -114,4 +118,63 @@ export async function openSupportFromSettings(page: Page): Promise<void> {
   await page.getByTestId('settings-support-instance').click({ timeout: 30000 })
   await expect(page.getByTestId('support-modal')).toBeVisible({ timeout: 15000 })
   await expect(page.getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
+}
+
+export interface ProjectFeed {
+  /** PROJECT_FUNDING_URL for startBackend(). */
+  url: string
+  /** Reads of the feed so far. */
+  reads: number
+  stop(): Promise<void>
+}
+
+/** The host can listen on `ip` (directoryPeer.ts hostHolds). */
+function hostHolds(ip: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer()
+    probe.once('error', () => resolve(false))
+    probe.listen(0, ip, () => probe.close(() => resolve(true)))
+  })
+}
+
+/**
+ * The Harmony project's GET /api/federation/funding/public, serving `feed`. The backend reads it
+ * through safeFetch, which refuses loopback and private addresses, so the server listens on the
+ * gateway of a Docker bridge network on E2E_FUNDING_PEER_SUBNET (default 192.0.2.0/24, TEST-NET-1),
+ * as directoryPeer.ts does; a network already holding the gateway is reused. Plain http: the
+ * backend runs with NODE_ENV=development.
+ */
+export async function startProjectFeed(feed: unknown): Promise<ProjectFeed> {
+  const subnet = process.env.E2E_FUNDING_PEER_SUBNET ?? '192.0.2.0/24'
+  const ip = `${subnet.split('/')[0].split('.').slice(0, 3).join('.')}.1`
+  const network = `${process.env.E2E_PROJECT ?? 'hme2e'}-funding-peer`
+  let created = false
+  if (!(await hostHolds(ip))) {
+    try { execFileSync('docker', ['network', 'rm', network], { stdio: 'ignore' }) } catch { /* absent */ }
+    execFileSync('docker', ['network', 'create', '--driver', 'bridge', '--subnet', subnet, '--gateway', ip, network], { stdio: 'ignore' })
+    created = true
+    for (let i = 0; i < 50 && !(await hostHolds(ip)); i++) await new Promise((r) => setTimeout(r, 100))
+    if (!(await hostHolds(ip))) throw new Error(`docker network ${network} gave the host no ${ip}`)
+  }
+  const result: ProjectFeed = {
+    url: '',
+    reads: 0,
+    async stop() {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      if (created) {
+        try { execFileSync('docker', ['network', 'rm', network], { stdio: 'ignore' }) } catch { /* gone */ }
+      }
+    },
+  }
+  const server = http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/api/federation/funding/public') {
+      result.reads += 1
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(feed))
+      return
+    }
+    res.writeHead(404).end()
+  })
+  await new Promise<void>((resolve) => server.listen(0, ip, resolve))
+  result.url = `http://${ip}:${(server.address() as net.AddressInfo).port}/api/federation/funding/public`
+  return result
 }

@@ -128,6 +128,30 @@ describe('FundingModal', () => {
     expect(link.href).toBe('https://buy.stripe.com/project')
   })
 
+  it('shows the project\'s messages beside its links, and drops the column when there are none', async () => {
+    const withMessages = structuredClone(PROJECT)
+    withMessages.funding.messages = [
+      { id: 'p1', body: 'Thanks for Harmony', name: 'Ada', at: '2026-11-04T10:00:00Z' },
+    ] as never[]
+    service.getProjectFunding.mockResolvedValue(withMessages)
+    let dialog = await open()
+    let panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+    expect(panel.querySelector('[data-testid="supporter-wall-project"]')?.textContent).toContain('Thanks for Harmony')
+    expect(panel.querySelectorAll('.support-grid > .support-col')).toHaveLength(2)
+    expect(panel.querySelector('.support-grid')?.classList.contains('support-grid--single')).toBe(false)
+    wrapper?.unmount()
+    document.body.innerHTML = ''
+
+    service.getProjectFunding.mockResolvedValue(structuredClone(PROJECT))
+    dialog = await open()
+    panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+    expect(panel.querySelector('[data-testid="support-links-project"]')).not.toBeNull()
+    expect(panel.querySelector('[data-testid="supporter-wall-project"]')).toBeNull()
+    expect(panel.querySelectorAll('.support-grid > .support-col')).toHaveLength(1)
+    expect(panel.querySelector('.support-grid')?.classList.contains('support-grid--single')).toBe(true)
+    expect(panel.textContent).not.toContain('No messages')
+  })
+
   it('shows one view on the project instance', async () => {
     service.getProjectFunding.mockResolvedValue({ projectInstance: true })
     const dialog = await open()

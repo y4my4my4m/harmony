@@ -24,6 +24,8 @@ export interface FundingConfig {
   supporter_messages_enabled?: boolean
   /** Approved messages also show signed out: the sign-in page and the public funding feed. */
   supporter_messages_public?: boolean
+  /** The Harmony development tab shows the project's supporter messages. */
+  show_project_messages?: boolean
 }
 
 /**
@@ -34,7 +36,7 @@ const FUNDING_CONFIG_COLUMNS =
   'id, enabled, goal_amount, goal_currency, current_amount, funding_period, goal_description, ' +
   'funding_links, show_progress_bar, show_in_context_bar, context_bar_style, thank_you_message, ' +
   'kofi_auto_assign_tier, stripe_auto_assign_tier'
-const MESSAGE_SWITCH_COLUMNS = ', supporter_messages_enabled, supporter_messages_public'
+const MESSAGE_SWITCH_COLUMNS = ', supporter_messages_enabled, supporter_messages_public, show_project_messages'
 
 /** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
@@ -556,11 +558,17 @@ class FundingService {
     }
   }
 
-  /** The Harmony project's funding through this instance's backend; null when unavailable. */
-  async getProjectFunding(): Promise<ProjectFundingResponse | null> {
+  /**
+   * The Harmony project's funding through this instance's backend; null when unavailable.
+   * `fresh` revalidates past the response's max-age.
+   */
+  async getProjectFunding(options: { fresh?: boolean } = {}): Promise<ProjectFundingResponse | null> {
     if (!hasCapability('supporter-messages')) return null
     try {
-      const res = await fetch(apiUrl('/api/federation/funding/project'), { headers: { Accept: 'application/json' } })
+      const res = await fetch(apiUrl('/api/federation/funding/project'), {
+        headers: { Accept: 'application/json' },
+        cache: options.fresh ? 'no-cache' : 'default',
+      })
       if (!res.ok) throw new Error(`status ${res.status}`)
       return (await res.json()) as ProjectFundingResponse
     } catch (error) {

@@ -17,11 +17,19 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 const rpc = vi.hoisted(() => vi.fn())
-vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ rpc }) }))
+// instance_funding reads: from(table).select(columns).limit(n).maybeSingle().
+const from = vi.hoisted(() => vi.fn())
+vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({ rpc, from }) }))
+
+function fundingRow(result: { data: unknown; error: unknown }) {
+  const select = vi.fn(() => ({ limit: () => ({ maybeSingle: async () => result }) }))
+  from.mockReturnValue({ select })
+  return select
+}
 
 const {
   sanitizeFeed, buildFeed, isProjectInstance, ProjectFundingCache, PROJECT_FUNDING_FALLBACK,
-  FRESH_MS, STALE_MS, RETRY_MS,
+  FRESH_MS, STALE_MS, RETRY_MS, readShowProjectMessages,
 } = await import('../services/projectFunding.js')
 const { textProblem } = await import('../services/supporterMessageText.js')
 const { createFundingRouter } = await import('../routes/funding.js')
@@ -261,14 +269,78 @@ describe('funding routes', () => {
   it('GET /project names the project instance, else serves the cached project feed', async () => {
     const project = new ProjectFundingCache('https://har.mony.lol/f', vi.fn(async () => GOOD))
     const self = express()
-    self.use('/funding', createFundingRouter({ project, projectInstance: () => false }))
+    self.use('/funding', createFundingRouter({ project, projectInstance: () => false, showProjectMessages: async () => true }))
     const res = await supertest(self).get('/funding/project')
     expect(res.body).toMatchObject({ projectInstance: false, source: 'upstream', funding: { instance: 'har.mony.lol' } })
 
     const fetcher = vi.fn()
+    const shown = vi.fn(async () => true)
     const own = express()
-    own.use('/funding', createFundingRouter({ project: new ProjectFundingCache('x', fetcher), projectInstance: () => true }))
+    own.use('/funding', createFundingRouter({ project: new ProjectFundingCache('x', fetcher), projectInstance: () => true, showProjectMessages: shown }))
     expect((await supertest(own).get('/funding/project')).body).toEqual({ projectInstance: true })
     expect(fetcher).not.toHaveBeenCalled()
+    expect(shown).not.toHaveBeenCalled()
+  })
+
+  it('GET /project carries the project\'s messages only while show_project_messages is on', async () => {
+    const project = new ProjectFundingCache('https://har.mony.lol/f', vi.fn(async () => GOOD))
+    let shown = true
+    const app = express()
+    app.use('/funding', createFundingRouter({ project, projectInstance: () => false, showProjectMessages: async () => shown }))
+
+    const on = await supertest(app).get('/funding/project')
+    expect(on.body.funding.messages.map((m: { body: string }) => m.body)).toEqual(['Thanks for Harmony!', 'Keep going'])
+
+    shown = false
+    const off = await supertest(app).get('/funding/project')
+    expect(off.body).toMatchObject({ projectInstance: false, source: 'upstream', funding: { instance: 'har.mony.lol', supporters: 8 } })
+    expect(off.body.funding.messages).toEqual([])
+    expect(off.body.funding.links).toEqual(GOOD.links)
+    expect(off.body.funding.goal).toEqual(GOOD.goal)
+    expect(off.text).not.toContain('Thanks for Harmony!')
+    expect(off.text).not.toContain('Alice')
+
+    shown = true
+    const again = await supertest(app).get('/funding/project')
+    expect(again.body.funding.messages).toHaveLength(2)
+  })
+
+  it('GET /project leaves the messages out when the switch cannot be read', async () => {
+    const project = new ProjectFundingCache('https://har.mony.lol/f', vi.fn(async () => GOOD))
+    const app = express()
+    app.use('/funding', createFundingRouter({
+      project, projectInstance: () => false, showProjectMessages: async () => { throw new Error('connection refused') },
+    }))
+    const res = await supertest(app).get('/funding/project')
+    expect(res.status).toBe(200)
+    expect(res.body.funding.links).toHaveLength(2)
+    expect(res.body.funding.messages).toEqual([])
+  })
+
+  it('GET /project reads the switch from instance_funding as service_role', async () => {
+    const project = new ProjectFundingCache('https://har.mony.lol/f', vi.fn(async () => GOOD))
+    const app = express()
+    app.use('/funding', createFundingRouter({ project, projectInstance: () => false }))
+
+    const select = fundingRow({ data: { show_project_messages: false }, error: null })
+    expect((await supertest(app).get('/funding/project')).body.funding.messages).toEqual([])
+    expect(from).toHaveBeenCalledWith('instance_funding')
+    expect(select).toHaveBeenCalledWith('show_project_messages')
+
+    fundingRow({ data: { show_project_messages: true }, error: null })
+    expect((await supertest(app).get('/funding/project')).body.funding.messages).toHaveLength(2)
+  })
+})
+
+describe('readShowProjectMessages', () => {
+  it('is the column, on without a funding row, and throws on a read error', async () => {
+    fundingRow({ data: { show_project_messages: false }, error: null })
+    expect(await readShowProjectMessages()).toBe(false)
+    fundingRow({ data: { show_project_messages: true }, error: null })
+    expect(await readShowProjectMessages()).toBe(true)
+    fundingRow({ data: null, error: null })
+    expect(await readShowProjectMessages()).toBe(true)
+    fundingRow({ data: null, error: { message: 'column instance_funding.show_project_messages does not exist' } })
+    await expect(readShowProjectMessages()).rejects.toThrow(/does not exist/)
   })
 })

@@ -151,6 +151,16 @@ describe('useFundingStore', () => {
     expect(useFundingStore().isProjectInstance).toBe(true)
   })
 
+  it('reads the project feed again when forced, past the browser cache', async () => {
+    funding.getProjectFunding.mockResolvedValue({ projectInstance: false, source: 'upstream', fetchedAt: null, funding: {} })
+    const store = useFundingStore()
+    await store.loadProject()
+    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: undefined })
+    await store.loadProject({ force: true })
+    expect(funding.getProjectFunding).toHaveBeenCalledTimes(2)
+    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: true })
+  })
+
   it('opens and closes the Support window on a tab', () => {
     const store = useFundingStore()
     store.openModal('project')

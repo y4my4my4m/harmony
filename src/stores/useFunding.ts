@@ -120,7 +120,7 @@ export const useFundingStore = defineStore('funding', {
       if (this.projectInflight) return this.projectInflight
       const epoch = this.epoch
       const promise = (async () => {
-        const data = await fundingService.getProjectFunding()
+        const data = await fundingService.getProjectFunding({ fresh: options.force })
         if (epoch !== this.epoch) return null
         if (data) {
           this.project = data

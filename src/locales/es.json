@@ -7339,8 +7339,7 @@
       "paymentNote": "Pagas en las páginas de {project}; {instance} nunca toca el dinero.",
       "fallback": "No se pudo acceder a la página de financiación de Harmony; estos son sus enlaces habituales.",
       "unavailable": "La información de financiación de Harmony no está disponible ahora.",
-      "wall": "Apoyos recientes a Harmony",
-      "wallEmpty": "Aún no hay mensajes de quienes apoyan a Harmony."
+      "wall": "Apoyos recientes a Harmony"
     },
     "wall": {
       "title": "Apoyos recientes",
@@ -7390,6 +7389,8 @@
       "messagesEnabled": "Mensajes de apoyo",
       "messagesPublic": "Mostrar los mensajes aprobados en la página de inicio de sesión",
       "messagesHint": "Quienes apoyan pueden añadir un mensaje de hasta 50 caracteres. No se muestra nada hasta que lo apruebes abajo. Los mensajes mostrados en la página de inicio de sesión también aparecen en el feed público de financiación de esta instancia.",
+      "projectMessages": "Mostrar los mensajes de apoyo a Harmony",
+      "projectMessagesHint": "En la pestaña Desarrollo de Harmony de la ventana de apoyo. Estos mensajes los aprueba el proyecto Harmony, no los administradores de esta instancia.",
       "queueTitle": "Mensajes de apoyo",
       "queueHint": "Un mensaje llega con una donación acreditada. Apruébalo para mostrarlo en la ventana de apoyo y, si está activado, en la página de inicio de sesión. Puedes ocultarlo en cualquier momento.",
       "queueEmpty": "Aún no hay mensajes de apoyo.",
