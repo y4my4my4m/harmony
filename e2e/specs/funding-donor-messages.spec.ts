@@ -192,6 +192,10 @@ test('a donor message: written, credited by the webhook, approved, shown as text
     const queue = page.getByTestId('admin-supporter-messages')
     await expect(queue).toBeVisible({ timeout: 30000 })
     await expect(queue.getByTestId('admin-supporter-messages-awaiting')).toBeVisible()
+    // Each queue row is a laid-out card: its meta items are spaced apart, not run together.
+    const first = queue.getByTestId('admin-supporter-message').first()
+    expect(await first.evaluate((el) => getComputedStyle(el).display)).toBe('flex')
+    expect(await first.locator('.admin-message__meta').evaluate((el) => getComputedStyle(el).columnGap)).not.toBe('normal')
     for (const body of [IMG, ...OTHERS]) {
       const row = queue.getByTestId('admin-supporter-message').filter({ has: page.getByTestId('admin-supporter-message-body').getByText(body, { exact: true }) })
       await expect(row).toHaveAttribute('data-review', 'pending')

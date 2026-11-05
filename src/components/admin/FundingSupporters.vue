@@ -2602,7 +2602,9 @@ onMounted(() => {
 }
 </style>
 
-<style scoped src="./adminShared.css">
+<style scoped src="./adminShared.css"></style>
+
+<style scoped>
 .admin-messages {
   display: flex;
   flex-direction: column;
