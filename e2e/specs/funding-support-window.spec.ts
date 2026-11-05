@@ -2,7 +2,7 @@
 // "Harmony development": the instance's Stripe link carries the donor's profile id; the
 // project's links come from this instance's backend (the project's feed is unreachable here, so
 // its built-in links, said so) and carry none. Arrow keys move between the tabs. On the
-// project's own instance the window is one view. On a 375 px phone it is a full-height sheet with
+// project's own instance the second tab is its project fund. On a 375 px phone it is a full-height sheet with
 // no sideways scroll. In Paper, Skyglass and High contrast, light and dark, its text passes axe
 // color-contrast and Paper draws its window strip.
 
@@ -176,16 +176,17 @@ test.describe('on the project instance', () => {
     await deleteUser(admin, member)
   })
 
-  test('one view, no tabs', async ({ page }) => {
+  test('two tabs: its own funding, and the project fund kept apart from it', async ({ page }) => {
     test.setTimeout(120_000)
     await backend.route(page)
     await signIn(page, member)
     await openSupportFromSettings(page)
-    await expect(page.getByTestId('support-project-instance')).toBeVisible({ timeout: 15000 })
-    await expect(page.getByRole('dialog')).toHaveAccessibleName('Support Harmony')
-    await expect(page.getByRole('tablist')).toHaveCount(0)
-    await expect(page.getByTestId('support-panel-project')).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toHaveAccessibleName('Support')
+    await expect(page.getByRole('tablist').getByRole('tab')).toHaveText(['This instance', 'Harmony development'], { timeout: 15000 })
     const link = page.getByTestId('support-links-instance').getByRole('link').first()
     expect(new URL((await link.getAttribute('href'))!).searchParams.get('client_reference_id')).toBe(member.id)
+    await page.getByTestId('support-tab-project').click()
+    await expect(page.getByTestId('support-project-footnote')).toContainText("Harmony's development fund, kept apart from", { timeout: 15000 })
+    await expect(page.getByTestId('support-project-fallback')).toHaveCount(0)
   })
 })

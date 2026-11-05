@@ -1,11 +1,11 @@
 <!--
-  FundingModal - the Support window. Two tabs on an instance that is not the Harmony project's:
-  "This instance" (the admin's own funding: progress, payment links, an optional message,
-  the donor's status, supporter messages, tiers) and "Harmony development" (the project's feed,
-  read by this instance's backend; payment happens on the project's pages). On the project's
-  own instance both are the same funding and the window shows one view. Wide two-column layout
-  on desktop; a full-height sheet on phones. Opening it reads the funding summary once; the
-  project feed is cached in the store.
+  FundingModal - the Support window. Two tabs: "This instance" (the admin's own funding:
+  progress, payment links, an optional message, the donor's status, supporter messages, tiers)
+  and "Harmony development" (the project's development fund, read by this instance's backend;
+  payment happens on the project's pages). On the project's own instance the second tab is its
+  project fund, kept apart from the instance's: its links credit the signed-in donor and take a
+  message for the project. Wide two-column layout on desktop; a full-height sheet on phones.
+  Opening it reads the funding summary once; the project feed is cached in the store.
 -->
 <template>
   <BaseModal
@@ -44,7 +44,7 @@
         </button>
       </div>
 
-      <!-- This instance (on the project's instance: the only view) -->
+      <!-- This instance -->
       <section
         v-show="tab === 'instance'"
         :id="panelId('instance')"
@@ -70,9 +70,6 @@
           </p>
           <div class="support-grid">
             <div class="support-col">
-              <p v-if="projectInstance" class="support-lead" data-testid="support-project-instance">
-                {{ t('support.projectInstanceNote', { instance: instanceDomain }) }}
-              </p>
               <FundingProgress
                 :raised="raised"
                 :goal="config.goal_amount"
@@ -196,7 +193,7 @@
           <LoadingSpinner v-if="projectLoading" />
           <EmptyState v-else icon="heart" :title="t('support.project.unavailable')" />
         </div>
-        <div v-else class="support-grid" :class="{ 'support-grid--single': !projectMessages.length }">
+        <div v-else class="support-grid" :class="{ 'support-grid--single': !projectWallShown }">
           <div class="support-col">
             <div class="support-project">
               <img :src="duoUrl" alt="" class="support-project__mascot" width="88" height="64" />
@@ -205,6 +202,10 @@
                 <p class="support-project__lead">{{ t('support.project.lead', { instance: instanceDomain }) }}</p>
               </div>
             </div>
+            <p v-if="thanked && projectInstance" class="support-thanks" role="status" data-testid="support-thanks-project">
+              <Icon name="heart" :size="16" aria-hidden="true" />
+              <span>{{ t('support.thanks') }}</span>
+            </p>
             <FundingProgress
               v-if="projectFeed.goal"
               :raised="projectFeed.goal.raised"
@@ -217,22 +218,37 @@
             <p v-if="projectFeed.goal?.description" class="support-description">{{ projectFeed.goal.description }}</p>
             <section v-if="projectFeed.links.length" class="support-give" :aria-labelledby="projectGiveHeadingId">
               <h3 :id="projectGiveHeadingId" class="support-heading">{{ t('support.heading') }}</h3>
-              <SupportLinkList :links="projectFeed.links" testid="support-links-project" />
+              <SupportMessageComposer
+                v-if="projectComposerOn"
+                ref="projectComposer"
+                fund="project"
+                :pending="myProjectPending"
+                @saved="onProjectMessageSaved"
+              />
+              <SupportLinkList
+                :links="projectFeed.links"
+                :donor="projectInstance ? donor : null"
+                testid="support-links-project"
+                @open="onProjectPaymentOpened"
+              />
             </section>
-            <p class="support-footnote">
+            <p class="support-footnote" data-testid="support-project-footnote">
               <Icon name="lock" :size="12" aria-hidden="true" />
-              <span>{{ t('support.project.paymentNote', { project: projectFeed.instance, instance: instanceDomain }) }}</span>
+              <span v-if="projectInstance">{{ t('support.project.ownFund', { instance: instanceDomain }) }}</span>
+              <span v-else>{{ t('support.project.paymentNote', { project: projectFeed.instance, instance: instanceDomain }) }}</span>
             </p>
             <p v-if="projectSource === 'fallback'" class="support-footnote" data-testid="support-project-fallback">
               <Icon name="info" :size="12" aria-hidden="true" />
               <span>{{ t('support.project.fallback') }}</span>
             </p>
           </div>
-          <div v-if="projectMessages.length" class="support-col">
+          <div v-if="projectWallShown" class="support-col">
             <SupporterWall
               :messages="projectMessages"
+              :mine="myProjectMessages"
               :heading="t('support.project.wall')"
               testid="supporter-wall-project"
+              @remove="removeProjectMessage"
             />
           </div>
         </div>
@@ -242,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import duoUrl from '@/assets/mascot/duo.webp'
 import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -284,14 +300,10 @@ const projectLoading = ref(false)
 
 const supportsProject = hasCapability('supporter-messages')
 const projectInstance = computed(() => supportsProject && store.isProjectInstance === true)
-const showTabs = computed(() => supportsProject && store.isProjectInstance === false)
-const tab = ref<SupportTab>(store.modal === 'project' ? 'project' : 'instance')
-watch(showTabs, (shown) => { if (!shown) tab.value = 'instance' })
+const showTabs = supportsProject
+const tab = ref<SupportTab>(showTabs && store.modal === 'project' ? 'project' : 'instance')
 
-const title = computed(() => {
-  if (projectInstance.value) return t('support.projectTitle')
-  return supportsProject ? t('support.titleShort') : t('support.title')
-})
+const title = computed(() => (supportsProject ? t('support.titleShort') : t('support.title')))
 
 const close = () => store.closeModal()
 
@@ -330,10 +342,15 @@ const donor = computed(() => ({
   email: authStore.session?.user?.email ?? null,
 }))
 
-const projectFeed = computed(() => (store.project && !store.project.projectInstance ? store.project.funding : null))
-const projectSource = computed(() => (store.project && !store.project.projectInstance ? store.project.source : null))
+const projectFeed = computed(() => store.project?.funding ?? null)
+const projectSource = computed(() => store.project?.source ?? null)
 // Empty when the project has none, its feed is unreachable, or this instance's admin turned them off.
 const projectMessages = computed(() => projectFeed.value?.messages ?? [])
+// On the project's own instance: the signed-in donor's project messages and their composer.
+const myProjectMessages = computed<MySupporterMessage[]>(() => (projectInstance.value ? me.value?.project?.messages ?? [] : []))
+const myProjectPending = computed<MySupporterMessage | null>(() => myProjectMessages.value.find((m) => !m.attached) ?? null)
+const projectComposerOn = computed(() => projectInstance.value && !!me.value && config.value?.project_messages_enabled === true)
+const projectWallShown = computed(() => projectMessages.value.length > 0 || myProjectMessages.value.length > 0)
 
 const money = (amount: number, currency: string) => formatMoney(amount, currency, locale.value)
 const day = (iso: string) => formatDay(iso, locale.value)
@@ -368,9 +385,16 @@ async function copyHandle() {
 }
 
 const composer = ref<InstanceType<typeof SupportMessageComposer> | null>(null)
+const projectComposer = ref<InstanceType<typeof SupportMessageComposer> | null>(null)
 
 function onPaymentOpened() {
   composer.value?.saveIfChanged()
+  store.notePaymentOpened()
+}
+
+function onProjectPaymentOpened() {
+  if (!projectInstance.value) return
+  projectComposer.value?.saveIfChanged()
   store.notePaymentOpened()
 }
 
@@ -378,6 +402,21 @@ function onMessageSaved(message: MySupporterMessage) {
   const summary = store.config
   if (!summary?.me) return
   summary.me.messages = [message, ...summary.me.messages.filter((m) => m.attached)]
+}
+
+function onProjectMessageSaved(message: MySupporterMessage) {
+  const me = store.config?.me
+  if (!me) return
+  const project = me.project ?? { donations: [], messages: [] }
+  me.project = { ...project, messages: [message, ...project.messages.filter((m) => m.attached)] }
+}
+
+async function removeProjectMessage(id: string) {
+  if (!(await fundingService.deleteSupporterMessage(id))) return
+  const me = store.config?.me
+  if (me?.project) me.project = { ...me.project, messages: me.project.messages.filter((m) => m.id !== id) }
+  const feed = store.project?.funding
+  if (feed) feed.messages = feed.messages.filter((m) => m.id !== id)
 }
 
 async function removeMessage(id: string) {

@@ -313,7 +313,7 @@
           @click="fundingStore.openModal('instance')"
         >
           <Icon name="heart" :size="16" aria-hidden="true" />
-          {{ fundingStore.isProjectInstance ? t('support.projectTitle') : t('activitypub.supportInstance') }}
+          {{ t('activitypub.supportInstance') }}
         </button>
         <button
           v-if="showProjectSupport"
@@ -855,7 +855,8 @@ watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
 const fundingStore = useFundingStore()
 const supporterBadge = computed(() => fundingStore.myBadge)
 const instanceFundingOn = computed(() => fundingStore.config?.enabled === true)
-const showProjectSupport = hasCapability('supporter-messages') && fundingStore.isProjectInstance !== true
+// The project's own instance too: its Harmony development tab is its project fund.
+const showProjectSupport = hasCapability('supporter-messages')
 
 onMounted(() => {
   syncLocalProfile()

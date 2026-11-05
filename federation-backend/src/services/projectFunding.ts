@@ -1,15 +1,17 @@
 /**
- * Public funding feed (GET /funding/public) and the Harmony project's feed as this instance's
- * clients see it (GET /funding/project).
+ * Public funding feeds (GET /funding/public, GET /funding/project-feed) and the Harmony
+ * project's feed as this instance's clients see it (GET /funding/project).
  *
  * Every instance publishes its own funding: links, goal and progress, supporter count, and the
  * approved supporter messages when the admin shows them publicly. An anonymous message has no
- * name; no message carries a profile id. Each self-hosted instance reads the project's feed
- * (config.PROJECT_FUNDING_URL) server-side, so its users' addresses never reach the project:
- * through safeFetch (public addresses only, https, 5 s, 64 KiB), cached 30 minutes, served
- * stale for up to 7 days when the project is unreachable, else PROJECT_FUNDING_FALLBACK. The
- * feed is untrusted: every field is re-validated and an invalid entry is dropped. The project's
- * messages reach this instance's clients only while instance_funding.show_project_messages is on.
+ * name; no message carries a profile id. The project's own instance also publishes the project
+ * fund (project_funding, get_project_funding_summary) in the same shape. Each other instance
+ * reads that feed (config.PROJECT_FUNDING_URL) server-side, so its users' addresses never reach
+ * the project: through safeFetch (public addresses only, https, 5 s, 64 KiB), cached 30
+ * minutes, served stale for up to 7 days when the project is unreachable, else
+ * PROJECT_FUNDING_FALLBACK. The feed is untrusted: every field is re-validated and an invalid
+ * entry is dropped. The project's messages reach this instance's clients only while
+ * instance_funding.show_project_messages is on.
  */
 
 import config from '../config/index.js';
@@ -68,8 +70,11 @@ export interface PublicFunding {
 }
 
 export interface ProjectFundingResult {
-  /** upstream: fetched within the cache time; stale: an older copy; fallback: the built-in links. */
-  source: 'upstream' | 'stale' | 'fallback';
+  /**
+   * upstream: fetched within the cache time; stale: an older copy; fallback: the built-in links;
+   * local: read from this instance's database on the project's own instance.
+   */
+  source: 'upstream' | 'stale' | 'fallback' | 'local';
   fetchedAt: string | null;
   funding: PublicFunding;
 }
@@ -81,9 +86,11 @@ export const PROJECT_FUNDING_FALLBACK: PublicFunding = {
   enabled: true,
   goal: null,
   supporters: 0,
+  // The Harmony development product's Payment Links: plink_1UYKJgIByukKkdhljBcFnf5I (any amount,
+  // once) and plink_1UYKRBIByukKkdhlRV8itB6j ($1 a month per unit, quantity 1-999).
   links: [
-    { platform: 'stripe', url: 'https://donate.stripe.com/4gM3cw3e02FX0T3fCWb7y00', label: 'One-time' },
-    { platform: 'stripe', url: 'https://buy.stripe.com/6oU14o01O6Wd6dn1M6b7y01', label: 'Monthly' },
+    { platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' },
+    { platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' },
     { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
   ],
   messages: [],
@@ -208,7 +215,7 @@ export function sanitizeFeed(raw: unknown): PublicFunding | null {
   };
 }
 
-/** public.get_funding_summary() as service_role reads it. */
+/** public.get_funding_summary() or public.get_project_funding_summary() as service_role reads it. */
 export interface FundingSummaryRow {
   enabled?: boolean;
   goal_amount?: number | string | null;
@@ -269,6 +276,13 @@ export async function readShowProjectMessages(): Promise<boolean> {
 export async function readOwnFeed(): Promise<PublicFunding> {
   const { data, error } = await getSupabaseClient().rpc('get_funding_summary');
   if (error) throw new Error(`get_funding_summary failed: ${error.message}`);
+  return buildFeed((data as FundingSummaryRow | null) ?? null, config.INSTANCE_DOMAIN);
+}
+
+/** The project fund of this instance's database; served only by the project's own instance. */
+export async function readProjectFeed(): Promise<PublicFunding> {
+  const { data, error } = await getSupabaseClient().rpc('get_project_funding_summary');
+  if (error) throw new Error(`get_project_funding_summary failed: ${error.message}`);
   return buildFeed((data as FundingSummaryRow | null) ?? null, config.INSTANCE_DOMAIN);
 }
 

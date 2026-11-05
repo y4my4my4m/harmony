@@ -1,8 +1,10 @@
 /**
  * Donation recording shared by the provider webhooks (Ko-fi, Stripe).
  *
- * - A donation attributed to a profile: supporter row upserted, history row inserted, tier
- *   recomputed from the cycle total when the provider's auto-assign flag is on.
+ * - A donation to the instance's fund attributed to a profile: supporter row upserted, history
+ *   row inserted, tier recomputed from the cycle total when the provider's auto-assign flag is on.
+ * - A donation to the project's fund attributed to a profile: the history row alone, with no
+ *   supporter row (supporter rows carry the instance's tiers; 20261106400001).
  * - An unattributed donation: a row in `instance_pending_donations` for admin review.
  *
  * Both are idempotent on `(platform, external_reference)`: the history table's partial
@@ -13,6 +15,9 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 
 export type DonationPlatform = 'ko-fi' | 'stripe';
+
+/** instance_donation_history.fund: the instance's own funding or the Harmony project's. */
+export type Fund = 'instance' | 'project';
 
 export interface DonationRecord {
   platform: DonationPlatform;
@@ -50,9 +55,39 @@ export async function recordMatchedDonation(
   matchedUser: MatchedUser,
   donation: DonationRecord,
   autoAssignTier: boolean,
+  fund: Fund = 'instance',
 ): Promise<'recorded' | 'duplicate'> {
   const supabase = getSupabaseClient();
   const { platform } = donation;
+  const handle = `@${matchedUser.username}${matchedUser.domain ? '@' + matchedUser.domain : ''}`;
+
+  if (fund === 'project') {
+    const { error } = await supabase
+      .from('instance_donation_history')
+      .insert({
+        supporter_id: null,
+        user_id: matchedUser.id,
+        amount: donation.amount,
+        currency: donation.currency,
+        platform,
+        external_reference: donation.externalRef,
+        note: donation.donorMessage ?? null,
+        fund,
+      });
+    if (error) {
+      if (error.code === '23505') {
+        logger.info(`${platform}: duplicate transaction ${donation.externalRef} ignored (already recorded)`);
+        return 'duplicate';
+      }
+      logger.error(`${platform}: project donation_history insert failed: ${error.message}`);
+      throw error;
+    }
+    logger.info(
+      `${platform}: recorded ${donation.currency} ${donation.amount} to the project fund from ${handle} ` +
+      `(txn=${donation.externalRef})`,
+    );
+    return 'recorded';
+  }
 
   // Tier is recomputed from the cycle total below, not derived from this donation.
   const { data: supporter, error: upsertErr } = await supabase
@@ -102,7 +137,6 @@ export async function recordMatchedDonation(
     resolvedTierId = await recomputeUserTier(platform, matchedUser.id);
   }
 
-  const handle = `@${matchedUser.username}${matchedUser.domain ? '@' + matchedUser.domain : ''}`;
   logger.info(
     `${platform}: recorded ${donation.currency} ${donation.amount} from ${handle} ` +
     `(txn=${donation.externalRef}, tier=${resolvedTierId ?? 'none'})`,
@@ -114,6 +148,7 @@ export async function recordPendingDonation(
   donation: DonationRecord,
   donorEmail: string | null,
   rawPayload: unknown,
+  fund: Fund = 'instance',
 ): Promise<void> {
   const supabase = getSupabaseClient();
   const { platform } = donation;
@@ -128,6 +163,8 @@ export async function recordPendingDonation(
       donor_email: donorEmail,
       donor_message: donation.donorMessage,
       raw_payload: rawPayload,
+      // The instance's fund is the column default.
+      ...(fund === 'project' ? { fund } : {}),
     });
 
   if (error) {
@@ -140,6 +177,6 @@ export async function recordPendingDonation(
   }
 
   logger.info(
-    `${platform}: queued ${donation.currency} ${donation.amount} (txn=${donation.externalRef}) for manual review`,
+    `${platform}: queued ${donation.currency} ${donation.amount} (txn=${donation.externalRef}, fund=${fund}) for manual review`,
   );
 }

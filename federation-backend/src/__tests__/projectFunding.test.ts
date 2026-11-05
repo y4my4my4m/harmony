@@ -8,7 +8,7 @@ import supertest from 'supertest'
 const cfg = vi.hoisted(() => ({
   INSTANCE_DOMAIN: 'self.example',
   NODE_ENV: 'test',
-  PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/public',
+  PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/project-feed',
   PROJECT_INSTANCE: 'auto',
   SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
 }))
@@ -182,9 +182,20 @@ describe('buildFeed', () => {
   })
 })
 
+describe('PROJECT_FUNDING_FALLBACK', () => {
+  it('is the Harmony development fund\'s Payment Links and Ko-fi, and passes the feed validation', () => {
+    expect(PROJECT_FUNDING_FALLBACK.links).toEqual([
+      { platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' },
+      { platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' },
+      { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
+    ])
+    expect(sanitizeFeed(PROJECT_FUNDING_FALLBACK)).toEqual(PROJECT_FUNDING_FALLBACK)
+  })
+})
+
 describe('isProjectInstance', () => {
   it('is the instance at the feed URL host unless configured', () => {
-    const base = { PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/public', PROJECT_INSTANCE: 'auto' }
+    const base = { PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/project-feed', PROJECT_INSTANCE: 'auto' }
     expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'har.mony.lol' })).toBe(true)
     expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'self.example' })).toBe(false)
     expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'self.example', PROJECT_INSTANCE: 'true' })).toBe(true)
@@ -274,12 +285,88 @@ describe('funding routes', () => {
     expect(res.body).toMatchObject({ projectInstance: false, source: 'upstream', funding: { instance: 'har.mony.lol' } })
 
     const fetcher = vi.fn()
-    const shown = vi.fn(async () => true)
+    const shown = vi.fn(async () => false)
+    const local = vi.fn(async () => sanitizeFeed({ ...GOOD, supporters: 3 })!)
     const own = express()
-    own.use('/funding', createFundingRouter({ project: new ProjectFundingCache('x', fetcher), projectInstance: () => true, showProjectMessages: shown }))
-    expect((await supertest(own).get('/funding/project')).body).toEqual({ projectInstance: true })
+    own.use('/funding', createFundingRouter({
+      project: new ProjectFundingCache('x', fetcher), projectInstance: () => true, showProjectMessages: shown, readProjectFeed: local,
+    }))
+    const mine = await supertest(own).get('/funding/project')
+    expect(mine.body).toMatchObject({ projectInstance: true, source: 'local', funding: { supporters: 3 } })
+    expect(mine.body.funding.messages).toHaveLength(2)
+    expect(Date.parse(mine.body.fetchedAt)).not.toBeNaN()
     expect(fetcher).not.toHaveBeenCalled()
     expect(shown).not.toHaveBeenCalled()
+  })
+
+  it('GET /project on the project instance serves the standing links when its fund cannot be read', async () => {
+    const own = express()
+    own.use('/funding', createFundingRouter({
+      projectInstance: () => true, readProjectFeed: async () => { throw new Error('connection refused') },
+    }))
+    const res = await supertest(own).get('/funding/project')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ projectInstance: true, source: 'fallback', fetchedAt: null, funding: PROJECT_FUNDING_FALLBACK })
+  })
+
+  it('GET /project-feed is served by the project instance only, any origin, once a minute', async () => {
+    let now = 0
+    const readProjectFeed = vi.fn(async () => sanitizeFeed(GOOD)!)
+    const own = express()
+    own.use('/funding', createFundingRouter({ projectInstance: () => true, readProjectFeed, now: () => now }))
+    const res = await supertest(own).get('/funding/project-feed').set('Origin', 'https://self.example')
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toMatch(/^application\/json/)
+    expect(res.headers['access-control-allow-origin']).toBe('*')
+    expect(sanitizeFeed(res.body)).toEqual(sanitizeFeed(GOOD))
+    await supertest(own).get('/funding/project-feed')
+    expect(readProjectFeed).toHaveBeenCalledTimes(1)
+    now += 60_001
+    await supertest(own).get('/funding/project-feed')
+    expect(readProjectFeed).toHaveBeenCalledTimes(2)
+
+    const elsewhere = vi.fn(async () => sanitizeFeed(GOOD)!)
+    const self = express()
+    self.use('/funding', createFundingRouter({ projectInstance: () => false, readProjectFeed: elsewhere }))
+    const missing = await supertest(self).get('/funding/project-feed')
+    expect(missing.status).toBe(404)
+    expect(missing.headers['content-type']).toMatch(/^application\/json/)
+    expect(elsewhere).not.toHaveBeenCalled()
+  })
+
+  it('the instance feed and the project fund feed keep their funds apart', async () => {
+    const instanceSummary = {
+      enabled: true, goal_amount: 100, goal_currency: 'USD', funding_period: 'monthly',
+      goal_description: 'Server costs', displayed_amount: 25, period_end: '2026-12-01T00:00:00Z', supporter_count: 2,
+      funding_links: [{ platform: 'stripe', url: 'https://buy.stripe.com/server', label: '' }],
+      supporter_messages_enabled: true, supporter_messages_public: true,
+      messages: [{ id: '0b6f8a1e-0000-4000-8000-0000000000c1', body: 'For the server', anonymous: false, name: 'Bo', at: '2026-11-04T10:00:00Z' }],
+    }
+    const projectSummary = {
+      enabled: true, goal_amount: 2000, goal_currency: 'USD', funding_period: 'monthly',
+      goal_description: 'Harmony development', displayed_amount: 640, period_end: '2026-12-01T00:00:00Z', supporter_count: 21,
+      funding_links: PROJECT_FUNDING_FALLBACK.links,
+      supporter_messages_enabled: true, supporter_messages_public: true,
+      messages: [{ id: '0b6f8a1e-0000-4000-8000-0000000000d1', body: 'For Harmony', anonymous: true, name: 'Cy', at: '2026-11-04T11:00:00Z' }],
+    }
+    rpc.mockImplementation(async (fn: string) => ({
+      data: fn === 'get_project_funding_summary' ? projectSummary : fn === 'get_funding_summary' ? instanceSummary : null,
+      error: null,
+    }))
+    const app = express()
+    app.use('/funding', createFundingRouter({ projectInstance: () => true }))
+    const own = (await supertest(app).get('/funding/public')).body
+    const fund = (await supertest(app).get('/funding/project-feed')).body
+    const local = (await supertest(app).get('/funding/project')).body
+    rpc.mockReset()
+
+    expect(own).toMatchObject({ instance: 'self.example', supporters: 2, goal: { raised: 25, description: 'Server costs' } })
+    expect(own.links.map((l: { url: string }) => l.url)).toEqual(['https://buy.stripe.com/server'])
+    expect(own.messages.map((m: { body: string }) => m.body)).toEqual(['For the server'])
+    expect(fund).toMatchObject({ instance: 'self.example', supporters: 21, goal: { raised: 640, description: 'Harmony development' } })
+    expect(fund.links).toEqual(PROJECT_FUNDING_FALLBACK.links)
+    expect(fund.messages).toEqual([{ id: '0b6f8a1e-0000-4000-8000-0000000000d1', body: 'For Harmony', name: null, at: '2026-11-04T11:00:00.000Z' }])
+    expect(local.funding).toEqual(fund)
   })
 
   it('GET /project carries the project\'s messages only while show_project_messages is on', async () => {

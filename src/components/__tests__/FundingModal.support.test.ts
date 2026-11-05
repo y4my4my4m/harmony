@@ -1,8 +1,9 @@
 /**
- * The Support window: two tabs on an instance that is not the Harmony project's, one view on
- * the project's own instance. It speaks of support, not donations; an unlabelled Stripe
- * Payment Link reads "One-time" and carries the donor's profile id, the project's links do not.
- * Supporter messages and names are text: markup in them stays text.
+ * The Support window: two tabs on every instance. It speaks of support, not donations; an
+ * unlabelled Stripe Payment Link reads "One-time" and carries the donor's profile id; the
+ * project's links do not, except on the project's own instance, where its Harmony development
+ * tab is its own project fund and takes a message for it. Supporter messages and names are
+ * text: markup in them stays text.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -152,12 +153,59 @@ describe('FundingModal', () => {
     expect(panel.textContent).not.toContain('No messages')
   })
 
-  it('shows one view on the project instance', async () => {
-    service.getProjectFunding.mockResolvedValue({ projectInstance: true })
+  it('shows both funds on the project instance; its project links credit the donor and take a project message', async () => {
+    const own = structuredClone(PROJECT)
+    own.projectInstance = true
+    own.source = 'local'
+    own.funding.instance = 'harmony.test'
+    own.funding.supporters = 2
+    own.funding.messages = [{ id: 'p1', body: 'For Harmony', name: null, at: '2026-11-04T10:00:00Z' }] as never[]
+    service.getProjectFunding.mockResolvedValue(own)
+    const summary = structuredClone(SUMMARY) as typeof SUMMARY & { project_messages_enabled: boolean }
+    summary.project_messages_enabled = true
+    summary.me = {
+      ...summary.me,
+      project: {
+        donations: [],
+        messages: [{ id: 'mine', body: 'Waiting for mine', anonymous: false, attached: false, review: 'pending', created_at: '2026-11-05T00:00:00Z', attached_at: null, expires_at: '2026-11-06T00:00:00Z' }],
+      },
+    } as never
+    service.getFundingSummary.mockResolvedValue(summary)
+    service.setSupporterMessage.mockResolvedValue({ id: 'mine2', body: 'Go Harmony', anonymous: false, attached: false, review: 'pending', created_at: '2026-11-05T00:00:00Z', attached_at: null, expires_at: '2026-11-06T00:00:00Z' })
+
     const dialog = await open()
-    expect(dialog.querySelector('[role="tablist"]')).toBeNull()
-    expect(dialog.querySelector('.modal-title')?.textContent).toBe('Support Harmony')
-    expect(dialog.querySelector('[data-testid="support-project-instance"]')?.textContent).toContain('harmony.test is run by the Harmony project')
+    expect(dialog.querySelector('.modal-title')?.textContent).toBe('Support')
+    expect([...dialog.querySelectorAll('[role="tab"]')].map((el) => el.textContent?.trim())).toEqual(['This instance', 'Harmony development'])
+    const instance = dialog.querySelector('[data-testid="support-panel-instance"]') as HTMLElement
+    expect(instance.querySelectorAll('[data-testid="support-message"]')).toHaveLength(1)
+    expect(instance.textContent).not.toContain('Waiting for mine')
+
+    ;(dialog.querySelector('[data-testid="support-tab-project"]') as HTMLElement).click()
+    await flushPromises()
+    const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+    const link = panel.querySelector<HTMLAnchorElement>('[data-testid="support-links-project"] a')!
+    expect(new URL(link.href).searchParams.get('client_reference_id')).toBe('p-me')
+    expect(panel.querySelector('[data-testid="support-project-footnote"]')?.textContent).toContain("kept apart from harmony.test's own server funding")
+    const wall = panel.querySelector('[data-testid="supporter-wall-project"]') as HTMLElement
+    expect([...wall.querySelectorAll('[data-testid="supporter-message-body"]')].map((el) => el.textContent)).toEqual(['Waiting for mine', 'For Harmony'])
+
+    const input = panel.querySelector<HTMLInputElement>('[data-testid="support-message-input"]')!
+    input.value = 'Go Harmony'
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+    ;(panel.querySelector('[data-testid="support-message-save"]') as HTMLElement).click()
+    await flushPromises()
+    expect(service.setSupporterMessage).toHaveBeenCalledWith('Go Harmony', false, 'project')
+  })
+
+  it('shows no project composer off the project instance', async () => {
+    const summary = structuredClone(SUMMARY) as typeof SUMMARY & { project_messages_enabled: boolean }
+    summary.project_messages_enabled = true
+    service.getFundingSummary.mockResolvedValue(summary)
+    const dialog = await open()
+    const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+    expect(panel.querySelector('[data-testid="support-message"]')).toBeNull()
+    expect(panel.querySelector('[data-testid="support-project-footnote"]')?.textContent).toContain("You pay on har.mony.lol's own pages")
   })
 
   it('renders supporter messages and names as text', async () => {

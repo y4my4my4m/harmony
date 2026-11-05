@@ -12,6 +12,10 @@
  *   HMAC, so the token is the only proof of authenticity. This endpoint must
  *   be served over HTTPS and the token treated as a secret.
  *
+ * Fund: on the Harmony project's own instance, a token equal to
+ * `project_funding.kofi_webhook_token` makes the donation the project fund's
+ * (checked first); every other donation is the instance's.
+ *
  * Matching strategy:
  * - Parse `message` and `from_name` for `@username@domain` or `@username`.
  * - Match against `profiles.username` (+ optional `domain`).
@@ -32,10 +36,13 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
+import config from '../../config/index.js';
+import { isProjectInstance } from '../../services/projectFunding.js';
 import {
   recordMatchedDonation,
   recordPendingDonation,
   type DonationRecord,
+  type Fund,
   type MatchedUser,
 } from './donations.js';
 
@@ -165,6 +172,21 @@ async function loadFundingConfig(): Promise<FundingConfig | null> {
   return data as FundingConfig | null;
 }
 
+/** project_funding.kofi_webhook_token on the project's own instance; null elsewhere or unset. */
+async function loadProjectKofiToken(): Promise<string | null> {
+  if (!isProjectInstance(config)) return null;
+  const { data, error } = await getSupabaseClient()
+    .from('project_funding')
+    .select('kofi_webhook_token')
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    logger.error(`kofi: failed to load the project fund: ${error.message}`);
+    return null;
+  }
+  return (data as { kofi_webhook_token?: string | null } | null)?.kofi_webhook_token || null;
+}
+
 /**
  * POST /webhooks/kofi
  *
@@ -193,17 +215,23 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
     return sendError(res, 'Invalid JSON in data field', 400);
   }
 
-  const cfg = await loadFundingConfig();
-  if (!cfg?.kofi_webhook_token) {
+  const [cfg, projectToken] = await Promise.all([loadFundingConfig(), loadProjectKofiToken()]);
+  if (!cfg?.kofi_webhook_token && !projectToken) {
     return sendError(res, 'Ko-fi webhook is not configured on this instance', 503);
   }
 
   // Not constant-time: crypto.timingSafeEqual requires equal-length buffers.
   // The shared-secret model has no HMAC, so plain equality is the bound here.
-  if (payload.verification_token !== cfg.kofi_webhook_token) {
+  let fund: Fund;
+  if (projectToken && payload.verification_token === projectToken) {
+    fund = 'project';
+  } else if (cfg?.kofi_webhook_token && payload.verification_token === cfg.kofi_webhook_token) {
+    fund = 'instance';
+  } else {
     logger.warn(`kofi: verification_token mismatch from ${clientIp(req)}`);
     return sendError(res, 'Invalid verification token', 401);
   }
+  const autoAssignTier = cfg?.kofi_auto_assign_tier ?? true;
 
   // Only Donation and Subscription events count as revenue; Shop Order and
   // Commission are ignored.
@@ -236,21 +264,21 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
     const matched = await findUserByHandle(handle, localDomain);
     if (matched) {
       try {
-        await recordMatchedDonation(matched, donation, cfg.kofi_auto_assign_tier);
-        return sendSuccess(res, { status: 'recorded', userId: matched.id });
+        await recordMatchedDonation(matched, donation, autoAssignTier, fund);
+        return sendSuccess(res, { status: 'recorded', userId: matched.id, fund });
       } catch (err) {
         // Persist to pending so admin can still see it, then 200 so Ko-fi doesn't retry.
         logger.error(
           `kofi: matched donation write failed, queuing as pending: ${err instanceof Error ? err.message : String(err)}`,
         );
-        await recordPendingDonation(donation, payload.email ?? null, payload).catch(() => {});
-        return sendSuccess(res, { status: 'pending', reason: 'write_failed' });
+        await recordPendingDonation(donation, payload.email ?? null, payload, fund).catch(() => {});
+        return sendSuccess(res, { status: 'pending', reason: 'write_failed', fund });
       }
     }
   }
 
-  await recordPendingDonation(donation, payload.email ?? null, payload);
-  return sendSuccess(res, { status: 'pending', reason: handle ? 'no_profile_match' : 'no_handle_in_message' });
+  await recordPendingDonation(donation, payload.email ?? null, payload, fund);
+  return sendSuccess(res, { status: 'pending', reason: handle ? 'no_profile_match' : 'no_handle_in_message', fund });
 });
 
 export default router;

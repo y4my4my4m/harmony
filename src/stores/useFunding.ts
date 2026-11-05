@@ -68,7 +68,10 @@ export const useFundingStore = defineStore('funding', {
     myBadge(state) {
       return state.config?.me?.badge ?? null
     },
-    /** True on the Harmony project's own instance: one view, no project tab. */
+    /**
+     * True on the Harmony project's own instance, whose Harmony development tab is its own
+     * project fund; null before the first answer.
+     */
     isProjectInstance(state): boolean | null {
       if (state.project) return state.project.projectInstance
       return state.projectInstanceHint
@@ -158,10 +161,14 @@ export const useFundingStore = defineStore('funding', {
       }
       const since = this.paymentOpenedAt
       const data = await this.refresh()
-      const latest = data?.me?.donations?.[0]?.donated_at
-      if (latest && Date.parse(latest) >= since - 60_000) {
+      // Either fund's: on the project's own instance a donor pays into its project fund too.
+      const latest = [data?.me?.donations?.[0]?.donated_at, data?.me?.project?.donations?.[0]?.donated_at]
+        .map((at) => (at ? Date.parse(at) : NaN))
+        .filter(Number.isFinite)
+      if (latest.some((at) => at >= since - 60_000)) {
         this.paymentOpenedAt = 0
         this.thankedAt = Date.now()
+        if (this.isProjectInstance) void this.loadProject({ force: true })
         return
       }
       const next = PAYMENT_RETRY_MS[attempt + 1]

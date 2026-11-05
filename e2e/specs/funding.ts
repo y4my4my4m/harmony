@@ -1,6 +1,6 @@
 // Instance funding for the funding journeys: the single instance_funding row, tiers, Stripe
-// events signed as Stripe signs them (federation-backend routes/webhooks/stripe.ts), and a stand-in
-// for the Harmony project's funding feed.
+// events signed as Stripe signs them (federation-backend routes/webhooks/stripe.ts), the project
+// fund (project_funding), and a stand-in for the Harmony project's instance and its feeds.
 
 import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
@@ -55,8 +55,16 @@ export function stripeSignature(body: string, secret = STRIPE_SECRET, t = Math.f
 
 let eventSeq = 0
 
-/** A paid Payment Link checkout of `amountCents` credited to `profileId`, posted to the backend. */
-export async function postStripeCheckout(backendUrl: string, profileId: string, amountCents = 500): Promise<Response> {
+/**
+ * A paid checkout of the Payment Link `paymentLink` for `amountCents`, credited to `profileId`,
+ * posted to the backend.
+ */
+export async function postStripeCheckout(
+  backendUrl: string,
+  profileId: string,
+  amountCents = 500,
+  paymentLink = 'plink_e2e',
+): Promise<Response> {
   eventSeq += 1
   const ref = `${Date.now().toString(36)}${eventSeq}`
   const body = JSON.stringify({
@@ -68,7 +76,7 @@ export async function postStripeCheckout(backendUrl: string, profileId: string, 
         object: 'checkout.session',
         mode: 'payment',
         payment_status: 'paid',
-        payment_link: 'plink_e2e',
+        payment_link: paymentLink,
         payment_intent: `pi_e2e_${ref}`,
         amount_total: amountCents,
         currency: 'usd',
@@ -108,7 +116,7 @@ export async function openSupportFromChat(page: Page, server: { id: string; gene
   await openChannel(page, server.id, server.generalChannelId)
   await page.locator('.funding-indicator').first().click()
   await expect(page.getByTestId('support-modal')).toBeVisible({ timeout: 15000 })
-  await expect(page.getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByTestId('support-panel-instance').getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
 }
 
 /** Opens the Support window from User settings -> My account -> Support. */
@@ -117,14 +125,62 @@ export async function openSupportFromSettings(page: Page): Promise<void> {
   await dismissAnnouncements(page)
   await page.getByTestId('settings-support-instance').click({ timeout: 30000 })
   await expect(page.getByTestId('support-modal')).toBeVisible({ timeout: 15000 })
-  await expect(page.getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByTestId('support-panel-instance').getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
+}
+
+/** The project fund's Payment Link in the funding journeys. */
+export const PROJECT_PLINK = 'plink_e2eproject'
+
+export interface ProjectFundSetup {
+  enabled?: boolean
+  goal?: number
+  links?: Array<{ platform: string; url: string; label: string }>
+}
+
+/**
+ * The project fund's one row, as an admin of the project's instance sets it: a monthly goal,
+ * PROJECT_PLINK as its Payment Link, messages on; its donations, pending donations and messages
+ * removed, so its total is the spec's own.
+ */
+export async function resetProjectFund(admin: SupabaseClient, setup: ProjectFundSetup = {}): Promise<void> {
+  for (const table of ['instance_supporter_messages', 'instance_donation_history', 'instance_pending_donations']) {
+    const { error } = await admin.from(table).delete().eq('fund', 'project')
+    if (error) throw new Error(`${table}: ${error.message}`)
+  }
+  const { error } = await admin.from('project_funding').upsert({
+    id: true,
+    enabled: setup.enabled ?? true,
+    goal_amount: setup.goal ?? 2000,
+    goal_currency: 'USD',
+    funding_period: 'monthly',
+    goal_description: 'Harmony development',
+    funding_links: setup.links ?? [
+      { platform: 'stripe', url: 'https://donate.stripe.com/test_e2e_project', label: 'One-time' },
+      { platform: 'ko-fi', url: 'https://ko-fi.com/e2e-project', label: 'Ko-fi' },
+    ],
+    supporter_messages_enabled: true,
+    supporter_messages_public: true,
+    stripe_payment_links: [PROJECT_PLINK],
+  }, { onConflict: 'id' })
+  if (error) throw new Error(`project_funding: ${error.message}`)
+}
+
+/** This month's instance donations, as the instance's progress counts them. */
+export async function instanceRaised(admin: SupabaseClient): Promise<number> {
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const { data, error } = await admin.from('instance_donation_history').select('amount').eq('fund', 'instance').gte('donated_at', start)
+  if (error) throw new Error(`instance_donation_history: ${error.message}`)
+  return (data ?? []).reduce((sum, row) => sum + Number(row.amount), 0)
 }
 
 export interface ProjectFeed {
-  /** PROJECT_FUNDING_URL for startBackend(). */
+  /** PROJECT_FUNDING_URL for startBackend(): the stand-in's /api/federation/funding/project-feed. */
   url: string
-  /** Reads of the feed so far. */
+  /** Reads of the project fund feed so far. */
   reads: number
+  /** Reads of the stand-in's own instance feed (/api/federation/funding/public) so far. */
+  publicReads: number
   stop(): Promise<void>
 }
 
@@ -138,13 +194,14 @@ function hostHolds(ip: string): Promise<boolean> {
 }
 
 /**
- * The Harmony project's GET /api/federation/funding/public, serving `feed`. The backend reads it
- * through safeFetch, which refuses loopback and private addresses, so the server listens on the
- * gateway of a Docker bridge network on E2E_FUNDING_PEER_SUBNET (default 192.0.2.0/24, TEST-NET-1),
- * as directoryPeer.ts does; a network already holding the gateway is reused. Plain http: the
- * backend runs with NODE_ENV=development.
+ * The Harmony project's instance: GET /api/federation/funding/project-feed serving `feed`, or with
+ * `proxyTo` (a backend's URL) that backend's /funding/project-feed and /funding/public. The
+ * backend reads it through safeFetch, which refuses loopback and private addresses, so the server
+ * listens on the gateway of a Docker bridge network on E2E_FUNDING_PEER_SUBNET (default
+ * 192.0.2.0/24, TEST-NET-1), as directoryPeer.ts does; a network already holding the gateway is
+ * reused. Plain http: the backend runs with NODE_ENV=development.
  */
-export async function startProjectFeed(feed: unknown): Promise<ProjectFeed> {
+export async function startProjectFeed(feed: unknown, options: { proxyTo?: string } = {}): Promise<ProjectFeed> {
   const subnet = process.env.E2E_FUNDING_PEER_SUBNET ?? '192.0.2.0/24'
   const ip = `${subnet.split('/')[0].split('.').slice(0, 3).join('.')}.1`
   const network = `${process.env.E2E_PROJECT ?? 'hme2e'}-funding-peer`
@@ -159,6 +216,7 @@ export async function startProjectFeed(feed: unknown): Promise<ProjectFeed> {
   const result: ProjectFeed = {
     url: '',
     reads: 0,
+    publicReads: 0,
     async stop() {
       await new Promise<void>((resolve) => server.close(() => resolve()))
       if (created) {
@@ -166,15 +224,28 @@ export async function startProjectFeed(feed: unknown): Promise<ProjectFeed> {
       }
     },
   }
+  const proxy = async (res: http.ServerResponse, path: string) => {
+    const upstream = await fetch(`${options.proxyTo}${path}`, { headers: { Accept: 'application/json' } })
+    res.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') ?? 'application/json' })
+    res.end(await upstream.text())
+  }
   const server = http.createServer((req, res) => {
-    if (req.method === 'GET' && req.url === '/api/federation/funding/public') {
+    const fail = () => { if (!res.headersSent) res.writeHead(502).end() }
+    if (req.method === 'GET' && req.url === '/api/federation/funding/project-feed') {
       result.reads += 1
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(feed))
+      if (options.proxyTo) void proxy(res, '/funding/project-feed').catch(fail)
+      else res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(feed))
+      return
+    }
+    if (req.method === 'GET' && req.url === '/api/federation/funding/public') {
+      result.publicReads += 1
+      if (options.proxyTo) void proxy(res, '/funding/public').catch(fail)
+      else res.writeHead(404).end()
       return
     }
     res.writeHead(404).end()
   })
   await new Promise<void>((resolve) => server.listen(0, ip, resolve))
-  result.url = `http://${ip}:${(server.address() as net.AddressInfo).port}/api/federation/funding/public`
+  result.url = `http://${ip}:${(server.address() as net.AddressInfo).port}/api/federation/funding/project-feed`
   return result
 }

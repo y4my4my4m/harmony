@@ -581,7 +581,9 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => {
       const platform = (data.platform || 'unknown').toString()
       const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1)
-      return `New ${platformLabel} donation needs review`
+      return data.fund === 'project'
+        ? `New ${platformLabel} donation to Harmony development needs review`
+        : `New ${platformLabel} donation needs review`
     },
     message: (data: any) => {
       const amount = data.amount != null ? Number(data.amount).toFixed(2) : '?'

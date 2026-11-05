@@ -13,7 +13,7 @@ import { enableFunding, startProjectFeed, type ProjectFeed } from './funding'
 test.use({ serviceWorkers: 'block' })
 
 const admin = adminClient()
-const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/public'
+const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/project-feed'
 // A run tag keeps the bodies unique across retries and other specs.
 const TAG = Math.random().toString(36).slice(2, 6)
 const BODIES = [`Thanks for Harmony ${TAG}`, `Keep building ${TAG}`]
@@ -268,7 +268,7 @@ test.describe('on the project instance', () => {
     // The instance's own message switches are there; the checkbox is drawn as its label's slider.
     await expect(page.locator('label.toggle-label', { has: page.getByTestId('admin-supporter-messages-enabled') })).toBeVisible()
     await expect.poll(() => bodies.length, { timeout: 15000 }).toBeGreaterThan(0)
-    expect(JSON.parse(bodies[0])).toEqual({ projectInstance: true })
+    expect(JSON.parse(bodies[0])).toMatchObject({ projectInstance: true, source: 'local' })
     await expect(page.getByTestId('admin-project-messages')).toHaveCount(0)
     await close(page)
   })

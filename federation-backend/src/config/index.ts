@@ -195,9 +195,9 @@ const envSchema = z.object({
   // Push relay (routes/pushRelay.ts): this instance forwards encrypted Web Push from any
   // instance to the Android app through FCM with its service account. 'true' turns it on.
   PUSH_RELAY_ENABLED: z.string().default('false').transform(v => v === 'true'),
-  // The Harmony project's public funding feed (routes/funding.ts GET /funding/public on the
-  // project's instance), shown on every instance as "Harmony development".
-  PROJECT_FUNDING_URL: z.string().url().default('https://har.mony.lol/api/federation/funding/public'),
+  // The Harmony project's development fund feed (routes/funding.ts GET /funding/project-feed on
+  // the project's instance), shown on every instance as "Harmony development".
+  PROJECT_FUNDING_URL: z.string().url().default('https://har.mony.lol/api/federation/funding/project-feed'),
   // 'auto': this is the project's instance when INSTANCE_DOMAIN is PROJECT_FUNDING_URL's host.
   PROJECT_INSTANCE: z.enum(['auto', 'true', 'false']).default('auto'),
   // Longest a public ActivityPub or WebFinger document is served from memory

@@ -128,6 +128,32 @@ describe('useFundingStore', () => {
     expect(funding.getFundingSummary).toHaveBeenCalledTimes(3)
   })
 
+  it('on the project instance a project fund donation ends the reads and reloads the project fund', async () => {
+    const opened = Date.parse('2026-11-05T12:00:00Z')
+    const paid = {
+      ...SUMMARY,
+      me: {
+        profile_id: 'p', badge: null, messages: [], donations: [],
+        project: { messages: [], donations: [{ id: 'd', donated_at: new Date(opened + 30_000).toISOString() }] },
+      },
+    }
+    const own = { projectInstance: true, source: 'local', fetchedAt: null, funding: {} }
+    funding.getProjectFunding.mockResolvedValue(own)
+    funding.getFundingSummary.mockResolvedValueOnce(SUMMARY).mockResolvedValueOnce(paid)
+    const store = useFundingStore()
+    await store.load()
+    await store.loadProject()
+    store.notePaymentOpened()
+    setVisibility('hidden')
+    await vi.advanceTimersByTimeAsync(60_000)
+    setVisibility('visible')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(funding.getFundingSummary).toHaveBeenCalledTimes(2)
+    expect(store.thankedAt).toBeGreaterThan(0)
+    expect(funding.getProjectFunding).toHaveBeenCalledTimes(2)
+    expect(funding.getProjectFunding).toHaveBeenLastCalledWith({ fresh: true })
+  })
+
   it('stops after the last retry when no donation shows', async () => {
     funding.getFundingSummary.mockResolvedValue(SUMMARY)
     const store = useFundingStore()
@@ -140,7 +166,7 @@ describe('useFundingStore', () => {
   })
 
   it('caches the project feed and remembers whether this is the project instance', async () => {
-    funding.getProjectFunding.mockResolvedValue({ projectInstance: true })
+    funding.getProjectFunding.mockResolvedValue({ projectInstance: true, source: 'local', fetchedAt: null, funding: {} })
     const store = useFundingStore()
     expect(store.isProjectInstance).toBeNull()
     await Promise.all([store.loadProject(), store.loadProject()])

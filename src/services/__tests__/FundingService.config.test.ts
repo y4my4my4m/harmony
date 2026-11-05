@@ -5,19 +5,23 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { auth, from } = vi.hoisted(() => {
+const { auth, from, rpc, upsert } = vi.hoisted(() => {
+  const upsert = vi.fn(async () => ({ error: null }))
   const query: any = {
     select: () => query,
     limit: () => query,
     maybeSingle: async () => ({ data: { id: 'f1', enabled: true }, error: null }),
+    upsert,
   }
   return {
     auth: { getSession: vi.fn() },
     from: vi.fn(() => query),
+    rpc: vi.fn(async () => ({ data: { id: 'm', body: 'hi', anonymous: false }, error: null })),
+    upsert,
   }
 })
 
-vi.mock('@/supabase', () => ({ supabase: { auth, from, rpc: vi.fn() } }))
+vi.mock('@/supabase', () => ({ supabase: { auth, from, rpc } }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: () => true }))
 
@@ -54,5 +58,25 @@ describe('fundingService.getProjectFunding', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe('the project fund', () => {
+  it('writes a message to the instance\'s fund with two arguments, to the project\'s with p_fund', async () => {
+    await fundingService.setSupporterMessage('hi', false)
+    expect(rpc).toHaveBeenLastCalledWith('set_supporter_message', { p_body: 'hi', p_anonymous: false })
+    await fundingService.setSupporterMessage('hi', true, 'project')
+    expect(rpc).toHaveBeenLastCalledWith('set_supporter_message', { p_body: 'hi', p_anonymous: true, p_fund: 'project' })
+  })
+
+  it('writes project_funding\'s one row', async () => {
+    const settings = {
+      enabled: true, goal_amount: 500, goal_currency: 'USD', funding_period: 'monthly' as const, goal_description: null,
+      funding_links: [], supporter_messages_enabled: true, supporter_messages_public: true,
+      stripe_payment_links: ['plink_1UYKJgIByukKkdhljBcFnf5I'],
+    }
+    expect(await fundingService.saveProjectFundingSettings(settings)).toEqual({ ok: true })
+    expect(from).toHaveBeenLastCalledWith('project_funding')
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: true, ...settings }), { onConflict: 'id' })
   })
 })

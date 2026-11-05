@@ -234,6 +234,7 @@
           <div class="pending-donation-header">
             <span class="pending-amount">{{ pending.currency }} {{ pending.amount.toFixed(2) }}</span>
             <span class="pending-platform">{{ pending.platform }}</span>
+            <span v-if="pending.fund === 'project'" class="section-badge" data-testid="admin-pending-project">{{ t('support.admin.project.tag') }}</span>
             <span class="pending-date">{{ formatDate(pending.received_at) }}</span>
           </div>
           <div class="pending-donation-meta">
@@ -281,9 +282,9 @@
         <span v-if="awaitingCount > 0" class="pending-count-badge" data-testid="admin-supporter-messages-awaiting">{{ awaitingCount }}</span>
       </h3>
       <p class="section-description" style="margin-bottom: 12px;">{{ t('support.admin.queueHint') }}</p>
-      <ul v-if="adminMessages.length > 0" class="admin-messages">
+      <ul v-if="instanceMessages.length > 0" class="admin-messages">
         <li
-          v-for="m in adminMessages"
+          v-for="m in instanceMessages"
           :key="m.id"
           class="admin-message"
           :data-review="m.review"
@@ -323,6 +324,205 @@
         </li>
       </ul>
       <EmptyState v-else size="sm" icon="message-circle" :title="t('support.admin.queueEmpty')" />
+    </div>
+
+    <!-- The Harmony project's development fund (project_funding): its own instance only -->
+    <div v-if="showProjectFund" class="funding-section" data-testid="admin-project-fund">
+      <h3>{{ t('support.admin.project.title') }}</h3>
+      <p class="section-description">{{ t('support.admin.project.hint') }}</p>
+      <p v-if="projectProgress" class="setting-hint" data-testid="admin-project-fund-progress">{{ projectProgress }}</p>
+      <div class="setting-row">
+        <label class="toggle-label">
+          <input v-model="projectFund.enabled" type="checkbox" data-testid="admin-project-fund-enabled" />
+          <span class="toggle-slider"></span>
+          {{ t('support.admin.project.enabled') }}
+        </label>
+      </div>
+      <div class="funding-fields">
+        <div class="funding-form-row">
+          <div class="funding-field">
+            <label :for="`${projectScope}-goal`">{{ t('support.admin.project.goal') }}</label>
+            <input
+              :id="`${projectScope}-goal`"
+              v-model.number="projectFund.goal_amount"
+              type="number"
+              class="cyber-input"
+              min="0"
+              step="1"
+              data-testid="admin-project-fund-goal"
+            />
+          </div>
+          <div class="funding-field">
+            <label :for="`${projectScope}-currency`">{{ t('support.admin.project.currency') }}</label>
+            <select :id="`${projectScope}-currency`" v-model="projectFund.goal_currency" class="cyber-select">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="JPY">JPY</option>
+            </select>
+          </div>
+          <div class="funding-field">
+            <label :for="`${projectScope}-period`">{{ t('support.admin.project.period') }}</label>
+            <select :id="`${projectScope}-period`" v-model="projectFund.funding_period" class="cyber-select">
+              <option value="monthly">{{ t('support.admin.project.periodMonthly') }}</option>
+              <option value="all">{{ t('support.admin.project.periodAll') }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="funding-field" style="margin-top: 8px;">
+          <label :for="`${projectScope}-description`">{{ t('support.admin.project.description') }}</label>
+          <input
+            :id="`${projectScope}-description`"
+            v-model="projectDescription"
+            type="text"
+            class="cyber-input"
+            maxlength="200"
+            :placeholder="t('support.admin.project.descriptionPlaceholder')"
+          />
+        </div>
+        <div class="funding-links-section" style="margin-top: 16px;">
+          <span class="funding-field-label">{{ t('support.admin.project.links') }}</span>
+          <div v-if="projectFund.funding_links.length > 0" class="funding-links-list" data-testid="admin-project-fund-links">
+            <div v-for="(link, i) in projectFund.funding_links" :key="i" class="funding-link-row project-link-row">
+              <select v-model="link.platform" class="cyber-select project-link-row__platform" :aria-label="t('support.admin.project.platform')">
+                <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
+              </select>
+              <input v-model="link.url" class="cyber-input project-link-row__url" placeholder="https://..." autocomplete="off" :aria-label="t('support.admin.project.url')" />
+              <input v-model="link.label" class="cyber-input project-link-row__label" :placeholder="t('support.admin.project.label')" autocomplete="off" :aria-label="t('support.admin.project.label')" />
+              <button class="mod-btn delete-btn" type="button" :title="t('support.admin.project.removeLink')" :aria-label="t('support.admin.project.removeLink')" @click="projectFund.funding_links.splice(i, 1)">
+                <Icon name="delete" :size="14" />
+              </button>
+            </div>
+          </div>
+          <div class="funding-link-row project-link-row" style="margin-top: 6px;">
+            <select v-model="newProjectLink.platform" class="cyber-select project-link-row__platform" :aria-label="t('support.admin.project.platform')">
+              <option value="" disabled>{{ t('support.admin.project.platform') }}</option>
+              <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
+            </select>
+            <input v-model="newProjectLink.url" class="cyber-input project-link-row__url" placeholder="https://..." autocomplete="off" :aria-label="t('support.admin.project.url')" data-testid="admin-project-fund-link-url" />
+            <input v-model="newProjectLink.label" class="cyber-input project-link-row__label" :placeholder="t('support.admin.project.label')" autocomplete="off" :aria-label="t('support.admin.project.label')" />
+            <button class="action-btn" type="button" :disabled="!canAddProjectLink" style="white-space: nowrap;" @click="addProjectLink">
+              <Icon name="plus" :size="14" /> {{ t('support.admin.project.addLink') }}
+            </button>
+          </div>
+        </div>
+        <div class="funding-field" style="margin-top: 16px;">
+          <label :for="`${projectScope}-plinks`">{{ t('support.admin.project.paymentLinks') }}</label>
+          <input
+            :id="`${projectScope}-plinks`"
+            v-model="projectPaymentLinks"
+            type="text"
+            class="cyber-input"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="plink_…"
+            :aria-invalid="paymentLinksInvalid ? 'true' : undefined"
+            :aria-describedby="`${projectScope}-plinks-hint`"
+            data-testid="admin-project-fund-plinks"
+          />
+          <span :id="`${projectScope}-plinks-hint`" class="setting-hint" :class="{ 'error-text': paymentLinksInvalid }">
+            {{ paymentLinksInvalid ? t('support.admin.project.paymentLinksInvalid') : t('support.admin.project.paymentLinksHint') }}
+          </span>
+        </div>
+        <div class="funding-field" style="margin-top: 8px;">
+          <label :for="`${projectScope}-kofi`">{{ t('support.admin.project.kofiToken') }}</label>
+          <div class="funding-link-row">
+            <input
+              :id="`${projectScope}-kofi`"
+              v-model="projectKofiToken"
+              :type="showProjectKofiToken ? 'text' : 'password'"
+              class="cyber-input"
+              autocomplete="off"
+              style="flex: 1;"
+              :aria-describedby="`${projectScope}-kofi-hint`"
+            />
+            <button
+              class="mod-btn secret-toggle"
+              type="button"
+              :aria-label="showProjectKofiToken ? t('support.admin.project.hideToken') : t('support.admin.project.showToken')"
+              :title="showProjectKofiToken ? t('support.admin.project.hideToken') : t('support.admin.project.showToken')"
+              @click="showProjectKofiToken = !showProjectKofiToken"
+            >
+              <Icon :name="showProjectKofiToken ? 'eye-off' : 'eye'" :size="14" />
+            </button>
+          </div>
+          <span :id="`${projectScope}-kofi-hint`" class="setting-hint">{{ t('support.admin.project.kofiHint') }}</span>
+        </div>
+        <div class="setting-row" style="margin-top: 8px;">
+          <label class="toggle-label">
+            <input v-model="projectFund.supporter_messages_enabled" type="checkbox" data-testid="admin-project-fund-messages" />
+            <span class="toggle-slider"></span>
+            {{ t('support.admin.project.messagesEnabled') }}
+          </label>
+        </div>
+        <div v-if="projectFund.supporter_messages_enabled" class="setting-row">
+          <label class="toggle-label">
+            <input v-model="projectFund.supporter_messages_public" type="checkbox" />
+            <span class="toggle-slider"></span>
+            {{ t('support.admin.project.messagesPublic') }}
+          </label>
+        </div>
+        <div class="report-action-buttons" style="margin-top: 12px;">
+          <button
+            type="button"
+            class="save-btn"
+            :disabled="!projectChanged || projectSaving || paymentLinksInvalid"
+            data-testid="admin-project-fund-save"
+            @click="saveProjectFund"
+          >
+            <Icon name="save" :size="16" />
+            {{ t('support.admin.project.save') }}
+          </button>
+        </div>
+      </div>
+
+      <h4 class="project-queue-title">
+        {{ t('support.admin.project.queueTitle') }}
+        <span v-if="projectAwaiting > 0" class="pending-count-badge">{{ projectAwaiting }}</span>
+      </h4>
+      <p class="section-description" style="margin-bottom: 12px;">{{ t('support.admin.project.queueHint') }}</p>
+      <ul v-if="projectQueue.length > 0" class="admin-messages" data-testid="admin-project-messages-queue">
+        <li
+          v-for="m in projectQueue"
+          :key="m.id"
+          class="admin-message"
+          :data-review="m.review"
+          data-testid="admin-project-message"
+        >
+          <div class="admin-message__text">
+            <p class="admin-message__body" data-testid="admin-supporter-message-body">{{ m.body }}</p>
+            <p class="admin-message__meta">
+              <span class="admin-message__author">{{ messageAuthor(m) }}</span>
+              <span v-if="m.amount != null">{{ m.currency }} {{ m.amount }}</span>
+              <span>{{ formatDate(m.attached_at) }}</span>
+              <span class="admin-message__state">{{ t(`support.admin.state.${m.review}`) }}</span>
+            </p>
+          </div>
+          <div class="admin-message__actions">
+            <button
+              v-if="m.review !== 'approved'"
+              type="button"
+              class="report-action-btn resolve"
+              data-testid="admin-supporter-message-approve"
+              @click="reviewMessage(m, 'approved')"
+            >
+              <Icon name="check" :size="14" />
+              {{ m.review === 'hidden' ? t('support.admin.unhide') : t('support.admin.approve') }}
+            </button>
+            <button
+              v-if="m.review !== 'hidden'"
+              type="button"
+              class="report-action-btn dismiss"
+              data-testid="admin-supporter-message-hide"
+              @click="reviewMessage(m, 'hidden')"
+            >
+              <Icon name="eye-off" :size="14" />
+              {{ t('support.admin.hide') }}
+            </button>
+          </div>
+        </li>
+      </ul>
+      <EmptyState v-else size="sm" icon="message-circle" :title="t('support.admin.project.queueEmpty')" />
     </div>
 
     <!-- Supporter Tiers -->
@@ -575,6 +775,7 @@
           <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
           <span class="donation-date">{{ formatDate(donation.donated_at) }}</span>
           <span v-if="donation.platform" class="donation-platform">{{ donation.platform }}</span>
+          <span v-if="donation.fund === 'project'" class="section-badge" data-testid="admin-donation-project">{{ t('support.admin.project.tag') }}</span>
           <span v-if="donation.note" class="donation-note">{{ donation.note }}</span>
           <div class="donation-actions">
             <button class="mod-btn" @click="startEditDonation(donation)" title="Edit"><Icon name="edit" :size="12" /></button>
@@ -617,7 +818,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
@@ -627,7 +828,9 @@ import DisplayName from '@/components/DisplayName.vue'
 import CopyIdButton from './CopyIdButton.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
-import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation, type AdminSupporterMessage } from '@/services/FundingService'
+import { fundingService, FUNDING_PLATFORMS, type FundingPlatformKey, type SupporterTier, type Supporter, type DonationRecord, type PendingDonation, type AdminSupporterMessage, type ProjectFundingSettings } from '@/services/FundingService'
+import { formatMoney } from '@/components/funding/format'
+import { uid } from '@/utils/a11y/focus'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { useFundingStore } from '@/stores/useFunding'
 import { useT } from '@/composables/useT'
@@ -661,7 +864,7 @@ const newLinkUrl = ref('')
 const newLinkLabel = ref('')
 
 // Supporter messages
-const { t } = useT()
+const { t, locale } = useT()
 const fundingStore = useFundingStore()
 const supportsMessages = hasCapability('supporter-messages')
 const messagesEnabled = ref(true)
@@ -673,7 +876,119 @@ let savedProjectMessagesShown = true
 const fundingLoaded = ref(false)
 const showProjectSwitch = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === false)
 const adminMessages = ref<AdminSupporterMessage[]>([])
-const awaitingCount = computed(() => adminMessages.value.filter((m) => m.review === 'pending').length)
+// The project's own instance also lists its project fund's messages; they have their own queue.
+const instanceMessages = computed(() => adminMessages.value.filter((m) => m.fund !== 'project'))
+const projectQueue = computed(() => adminMessages.value.filter((m) => m.fund === 'project'))
+const awaitingCount = computed(() => instanceMessages.value.filter((m) => m.review === 'pending').length)
+const projectAwaiting = computed(() => projectQueue.value.filter((m) => m.review === 'pending').length)
+
+// Harmony development fund (project_funding): only on the project's own instance.
+const showProjectFund = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === true)
+const projectScope = uid('project-fund')
+const PLINK_RE = /^plink_[A-Za-z0-9]{1,64}$/
+const PROJECT_FUND_DEFAULTS: ProjectFundingSettings = {
+  enabled: false,
+  goal_amount: null,
+  goal_currency: 'USD',
+  funding_period: 'monthly',
+  goal_description: null,
+  funding_links: [],
+  supporter_messages_enabled: true,
+  supporter_messages_public: true,
+  stripe_payment_links: [],
+}
+const projectFund = reactive<ProjectFundingSettings>({ ...PROJECT_FUND_DEFAULTS, funding_links: [] })
+const projectDescription = ref('')
+const projectPaymentLinks = ref('')
+const projectKofiToken = ref('')
+let savedProjectKofiToken = ''
+const showProjectKofiToken = ref(false)
+const newProjectLink = reactive({ platform: '', url: '', label: '' })
+const projectChanged = ref(false)
+const projectSaving = ref(false)
+const parsedPaymentLinks = computed(() => projectPaymentLinks.value.split(/[\s,]+/).filter(Boolean))
+const paymentLinksInvalid = computed(() => parsedPaymentLinks.value.some((id) => !PLINK_RE.test(id)))
+const projectProgress = computed(() => {
+  const feed = fundingStore.project?.projectInstance ? fundingStore.project.funding : null
+  if (!feed?.goal) return ''
+  return t('support.admin.project.progress', {
+    raised: formatMoney(feed.goal.raised, feed.goal.currency, locale.value),
+    goal: formatMoney(feed.goal.amount, feed.goal.currency, locale.value),
+    count: feed.supporters,
+  })
+})
+
+watch([projectFund, projectDescription, projectPaymentLinks, projectKofiToken], () => { projectChanged.value = true }, { deep: true })
+
+const loadProjectFund = async () => {
+  const [settings, token] = await Promise.all([
+    fundingService.getProjectFundingSettings(),
+    fundingService.getProjectKofiWebhookToken(),
+  ])
+  Object.assign(projectFund, PROJECT_FUND_DEFAULTS, settings ?? {})
+  projectFund.funding_links = (settings?.funding_links ?? []).map((l) => ({ ...l }))
+  projectDescription.value = settings?.goal_description ?? ''
+  projectPaymentLinks.value = (settings?.stripe_payment_links ?? []).join(', ')
+  projectKofiToken.value = token
+  savedProjectKofiToken = token
+  await nextTick()
+  projectChanged.value = false
+}
+
+watch(showProjectFund, (shown) => { if (shown) void loadProjectFund() }, { immediate: true })
+
+// The feed keeps https links only (services/projectFunding.ts cleanLinkUrl).
+const canAddProjectLink = computed(() => !!newProjectLink.platform && /^https:\/\/\S+$/.test(newProjectLink.url.trim()))
+
+const addProjectLink = () => {
+  if (!canAddProjectLink.value) return
+  const url = newProjectLink.url.trim()
+  projectFund.funding_links.push({
+    platform: newProjectLink.platform,
+    url,
+    label: newProjectLink.label.trim() || platformLabel(newProjectLink.platform),
+  })
+  newProjectLink.platform = ''
+  newProjectLink.url = ''
+  newProjectLink.label = ''
+}
+
+const saveProjectFund = async () => {
+  if (paymentLinksInvalid.value) return
+  projectSaving.value = true
+  try {
+    const result = await fundingService.saveProjectFundingSettings({
+      enabled: projectFund.enabled,
+      goal_amount: projectFund.goal_amount || null,
+      goal_currency: projectFund.goal_currency,
+      funding_period: projectFund.funding_period === 'all' ? 'all' : 'monthly',
+      goal_description: projectDescription.value.trim() || null,
+      funding_links: projectFund.funding_links
+        .filter((l) => l.url.trim())
+        .map((l) => ({ platform: l.platform, url: l.url.trim(), label: (l.label ?? '').trim() })),
+      supporter_messages_enabled: projectFund.supporter_messages_enabled,
+      supporter_messages_public: projectFund.supporter_messages_public,
+      stripe_payment_links: parsedPaymentLinks.value,
+    })
+    let tokenSaved = true
+    const token = projectKofiToken.value.trim()
+    if (result.ok && token !== savedProjectKofiToken) {
+      tokenSaved = await fundingService.setProjectKofiWebhookToken(token)
+      if (tokenSaved) savedProjectKofiToken = token
+    }
+    if (result.ok && tokenSaved) {
+      await adminService.logAdminAction({ action: 'project_fund_update', targetType: 'funding', targetId: 'project' })
+      projectChanged.value = false
+      toast.success(t('support.admin.project.saved'))
+      void fundingStore.loadProject({ force: true })
+      void fundingStore.refresh()
+    } else {
+      toast.error(result.message ?? t('support.admin.project.saveFailed'))
+    }
+  } finally {
+    projectSaving.value = false
+  }
+}
 
 const messageAuthor = (m: AdminSupporterMessage): string => {
   const who = m.display_name || m.username || m.user_id
@@ -2037,6 +2352,60 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
+}
+
+.funding-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Two classes: adminShared.css, loaded after this block, sets .cyber-input and .cyber-select to
+   width 100%. */
+.project-link-row {
+  flex-wrap: wrap;
+}
+
+.project-link-row .project-link-row__platform {
+  flex: 0 0 160px;
+  width: 160px;
+}
+
+.project-link-row .project-link-row__url {
+  flex: 1 1 200px;
+  width: auto;
+}
+
+.project-link-row .project-link-row__label {
+  flex: 0 0 140px;
+  width: 140px;
+}
+
+/* Phones: platform and label share a line under the address. */
+@media (max-width: 600px) {
+  .project-link-row .project-link-row__url {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .project-link-row .project-link-row__platform,
+  .project-link-row .project-link-row__label {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+.project-queue-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 
