@@ -1723,11 +1723,30 @@ export default defineComponent({
         (text) => renderChatMessageText(text, options),
       );
     });
+    // Parts drawn as a block below the text line: preview cards, media, files, polls, stickers.
+    const BLOCK_PART_TYPES = new Set(['file', 'poll', 'sticker', 'media_gallery', 'media_hidden']);
+    const drawsBlock = (partIndex: number): boolean => {
+      const part = displayContent.value[partIndex] as any;
+      if (!part || typeof part !== 'object') return false;
+      if (BLOCK_PART_TYPES.has(part.type)) return true;
+      if (part.type === 'embed') return !!resolveEmbedPayload(part);
+      if (part.type !== 'url' || typeof part.url !== 'string' || isCoveredLink(partIndex)) return false;
+      return !!resolveEmbedPayload(part) || isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url);
+    };
+    // Text after a block already starts on its own line: the line breaks it begins with would
+    // only add an empty gap under the block.
+    const withoutLeadingBreaks = (segments: TextSegment[]): TextSegment[] => {
+      const first = segments[0];
+      if (!first || first.type !== 'text' || !first.content) return segments;
+      const content = first.content.replace(/^(?:\s|<br\s*\/?>)+/i, '');
+      return content ? [{ ...first, content }, ...segments.slice(1)] : segments.slice(1);
+    };
     const textSegmentsAt = (partIndex: number, text: string, piece?: number): TextSegment[] => {
       const rendered = inlineRuns.value?.text[partIndex];
-      if (!rendered) return renderTextSegments(text);
-      const html = piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html;
-      return splitCodeBlockSegments(html, rendered.codeBlocks);
+      const segments = rendered
+        ? splitCodeBlockSegments(piece !== undefined && rendered.pieces ? rendered.pieces[piece]?.html ?? '' : rendered.html, rendered.codeBlocks)
+        : renderTextSegments(text);
+      return (piece === undefined || piece === 0) && drawsBlock(partIndex - 1) ? withoutLeadingBreaks(segments) : segments;
     };
     const NO_MARKS: InlineMark[] = [];
     const marksAt = (partIndex: number): InlineMark[] => inlineRuns.value?.marks[partIndex] ?? NO_MARKS;
