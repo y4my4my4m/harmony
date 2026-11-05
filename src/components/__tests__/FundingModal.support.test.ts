@@ -1,9 +1,9 @@
 /**
  * The Support window: two tabs on every instance. It speaks of support, not donations; an
  * unlabelled Stripe Payment Link reads "One-time" and carries the donor's profile id; the
- * project's links do not, except on the project's own instance, where its Harmony development
- * tab is its own project fund and takes a message for it. Supporter messages and names are
- * text: markup in them stays text.
+ * project's links are PROJECT_LINKS whatever the feed lists, and carry no profile id except on
+ * the project's own instance, where its Harmony development tab is its own project fund and
+ * takes a message for it. Supporter messages and names are text: markup in them stays text.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -29,6 +29,7 @@ vi.mock('@/services/FundingService', async (importOriginal) => ({
 }))
 
 import FundingModal from '@/components/FundingModal.vue'
+import { PROJECT_LINKS } from '@/services/FundingService'
 import { useFundingStore } from '@/stores/useFunding'
 
 const XSS = '<img src=x onerror="window.__xss=1">'
@@ -119,14 +120,31 @@ describe('FundingModal', () => {
     expect(dialog.textContent).not.toMatch(/donat/i)
   })
 
-  it('opens the project tab with the project links, which carry no profile id', async () => {
+  it('opens the project tab with the project\'s own links, never the feed\'s, which carry no profile id', async () => {
     const dialog = await open()
     ;(dialog.querySelector('[data-testid="support-tab-project"]') as HTMLElement).click()
     await flushPromises()
     const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
     expect(panel.style.display).not.toBe('none')
-    const link = panel.querySelector<HTMLAnchorElement>('[data-testid="support-links-project"] a')!
-    expect(link.href).toBe('https://buy.stripe.com/project')
+    const links = [...panel.querySelectorAll<HTMLAnchorElement>('[data-testid="support-links-project"] a')]
+    expect(links.map((a) => a.href)).toEqual(PROJECT_LINKS.map((l) => l.url))
+    expect(panel.innerHTML).not.toContain('buy.stripe.com/project')
+  })
+
+  it('shows the project\'s own links when the feed lists none, or is a fallback', async () => {
+    for (const source of ['upstream', 'fallback'] as const) {
+      const bare = structuredClone(PROJECT)
+      bare.source = source
+      bare.funding.links = []
+      service.getProjectFunding.mockResolvedValue(bare)
+      const dialog = await open()
+      const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+      const links = [...panel.querySelectorAll<HTMLAnchorElement>('[data-testid="support-links-project"] a')]
+      expect(links.map((a) => a.href)).toEqual(PROJECT_LINKS.map((l) => l.url))
+      expect(!!panel.querySelector('[data-testid="support-project-fallback"]')).toBe(source === 'fallback')
+      wrapper?.unmount()
+      document.body.innerHTML = ''
+    }
   })
 
   it('shows the project\'s messages beside its links, and drops the column when there are none', async () => {
@@ -185,6 +203,7 @@ describe('FundingModal', () => {
     const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
     const link = panel.querySelector<HTMLAnchorElement>('[data-testid="support-links-project"] a')!
     expect(new URL(link.href).searchParams.get('client_reference_id')).toBe('p-me')
+    expect(link.href.startsWith(PROJECT_LINKS[0].url)).toBe(true)
     expect(panel.querySelector('[data-testid="support-project-footnote"]')?.textContent).toContain("kept apart from harmony.test's own server funding")
     const wall = panel.querySelector('[data-testid="supporter-wall-project"]') as HTMLElement
     expect([...wall.querySelectorAll('[data-testid="supporter-message-body"]')].map((el) => el.textContent)).toEqual(['Waiting for mine', 'For Harmony'])
@@ -206,6 +225,16 @@ describe('FundingModal', () => {
     const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
     expect(panel.querySelector('[data-testid="support-message"]')).toBeNull()
     expect(panel.querySelector('[data-testid="support-project-footnote"]')?.textContent).toContain("You pay on har.mony.lol's own pages")
+  })
+
+  it('names har.mony.lol as where payment happens, whatever instance the feed names', async () => {
+    const other = structuredClone(PROJECT)
+    other.funding.instance = 'pocket.example'
+    service.getProjectFunding.mockResolvedValue(other)
+    const dialog = await open()
+    const panel = dialog.querySelector('[data-testid="support-panel-project"]') as HTMLElement
+    expect(panel.querySelector('[data-testid="support-project-footnote"]')?.textContent).toContain("You pay on har.mony.lol's own pages")
+    expect(panel.textContent).not.toContain('pocket.example')
   })
 
   it('renders supporter messages and names as text', async () => {

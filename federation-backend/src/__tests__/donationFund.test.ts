@@ -4,7 +4,8 @@ import express from 'express'
 import supertest from 'supertest'
 
 // Which fund a donation webhook records into (instance_donation_history.fund, 20261106400001):
-// on the Harmony project's own instance, a Stripe event of a project Payment Link, or of a
+// on the Harmony project's own instance (INSTANCE_DOMAIN har.mony.lol), a Stripe event of one of
+// the project's Payment Links (PROJECT_PAYMENT_LINK_IDS, whatever project_funding holds), or of a
 // subscription whose metadata.fund is harmony-development, and a Ko-fi event carrying the
 // project's own token, are the project's; everything else is the instance's.
 
@@ -17,8 +18,6 @@ const cfg = vi.hoisted(() => ({
   INSTANCE_DOMAIN: 'har.mony.lol',
   NODE_ENV: 'test',
   SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
-  PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/project-feed',
-  PROJECT_INSTANCE: 'auto',
 }))
 vi.mock('../config/index.js', () => ({ default: cfg, config: cfg }))
 vi.mock('../utils/logger.js', () => ({
@@ -162,10 +161,10 @@ const pending = () => tables.instance_pending_donations ?? []
 beforeEach(() => {
   nextId = 1
   rpcCalls = []
-  cfg.PROJECT_INSTANCE = 'auto'
+  cfg.INSTANCE_DOMAIN = 'har.mony.lol'
   tables = {
     instance_funding: [{ id: 'f1', stripe_webhook_secret: SECRET, stripe_auto_assign_tier: true, kofi_webhook_token: 'kofi-instance', kofi_auto_assign_tier: true }],
-    project_funding: [{ id: true, stripe_payment_links: [ONCE, MONTHLY], kofi_webhook_token: 'kofi-project' }],
+    project_funding: [{ id: true, enabled: true, kofi_webhook_token: 'kofi-project' }],
     profiles: [{ id: ALICE, username: 'alice', domain: 'har.mony.lol' }],
   }
 })
@@ -205,6 +204,17 @@ describe('POST /webhooks/stripe on the project\'s instance', () => {
     })])
     expect(tables.instance_supporters ?? []).toEqual([])
     expect(rpcCalls.filter((c) => c.fn === 'recompute_supporter_tier')).toEqual([])
+  })
+
+  it('the project\'s Payment Links are constants: a row naming other ids changes nothing', async () => {
+    tables.project_funding = [{ id: true, stripe_payment_links: ['plink_pocketed'], kofi_webhook_token: null }]
+    const constant = await post(sessionEvent({ payment_link: MONTHLY, payment_intent: 'pi_const' }))
+    const named = await post(sessionEvent({ payment_link: 'plink_pocketed', payment_intent: 'pi_named' }))
+    expect(constant.body).toMatchObject({ status: 'recorded', fund: 'project' })
+    expect(named.body).toMatchObject({ status: 'recorded', fund: 'instance' })
+    tables.project_funding = []
+    const without = await post(sessionEvent({ payment_link: ONCE, payment_intent: 'pi_norow' }))
+    expect(without.body).toMatchObject({ status: 'recorded', fund: 'project' })
   })
 
   it('a checkout of the instance\'s own link stays the instance\'s, with its supporter row and tier', async () => {
@@ -272,9 +282,9 @@ describe('POST /webhooks/stripe on the project\'s instance', () => {
 })
 
 describe('POST /webhooks/stripe on another instance', () => {
-  it('records a project-looking checkout and renewal as the instance\'s, without reading project_funding', async () => {
-    cfg.PROJECT_INSTANCE = 'false'
-    tables.project_funding = []
+  it('records a project-looking checkout and renewal as the instance\'s', async () => {
+    cfg.INSTANCE_DOMAIN = 'self.example'
+    Object.assign(cfg, { PROJECT_INSTANCE: 'true', PROJECT_FUNDING_URL: 'https://self.example/api/federation/funding/project-feed' })
     tables.instance_stripe_customers = [{ customer_id: 'cus_p', user_id: ALICE }]
     const once = await post(sessionEvent({ payment_link: ONCE, payment_intent: 'pi_self' }))
     const renewal = await post(invoiceEvent({
@@ -283,6 +293,8 @@ describe('POST /webhooks/stripe on another instance', () => {
     expect(once.body).toMatchObject({ status: 'recorded', fund: 'instance' })
     expect(renewal.body).toMatchObject({ status: 'recorded', fund: 'instance' })
     expect(history().every((r) => r.fund === undefined && r.supporter_id)).toBe(true)
+    delete (cfg as Record<string, unknown>).PROJECT_INSTANCE
+    delete (cfg as Record<string, unknown>).PROJECT_FUNDING_URL
   })
 })
 
@@ -300,10 +312,10 @@ describe('POST /webhooks/kofi', () => {
   })
 
   it('without a project token, or off the project\'s instance, Ko-fi stays the instance\'s', async () => {
-    tables.project_funding = [{ id: true, stripe_payment_links: [], kofi_webhook_token: null }]
+    tables.project_funding = [{ id: true, enabled: true, kofi_webhook_token: null }]
     expect((await kofi('kofi-project', '@alice', 'kofi_x')).status).toBe(401)
-    cfg.PROJECT_INSTANCE = 'false'
-    tables.project_funding = [{ id: true, stripe_payment_links: [], kofi_webhook_token: 'kofi-project' }]
+    cfg.INSTANCE_DOMAIN = 'self.example'
+    tables.project_funding = [{ id: true, enabled: true, kofi_webhook_token: 'kofi-project' }]
     expect((await kofi('kofi-project', '@alice', 'kofi_y')).status).toBe(401)
     expect((await kofi('kofi-instance', '@alice', 'kofi_z')).body).toMatchObject({ fund: 'instance' })
   })

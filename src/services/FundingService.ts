@@ -155,23 +155,36 @@ export interface ProjectFundingResponse {
   funding: PublicFunding
 }
 
-/** public.project_funding as instance admins read and write it; the Ko-fi token is apart. */
+/** The Harmony project's own instance; federation-backend services/projectFunding.ts PROJECT_DOMAIN. */
+export const PROJECT_DOMAIN = 'har.mony.lol'
+
+/**
+ * The Harmony development tab's links on every instance, never read from a feed or a database;
+ * federation-backend services/projectFunding.ts PROJECT_LINKS.
+ */
+export const PROJECT_LINKS: readonly Readonly<FundingLink>[] = Object.freeze([
+  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' }),
+  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' }),
+  Object.freeze({ platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' }),
+])
+
+/**
+ * public.project_funding as instance admins read and write it; the Ko-fi token is apart. The
+ * fund's links are PROJECT_LINKS.
+ */
 export interface ProjectFundingSettings {
   enabled: boolean
   goal_amount: number | null
   goal_currency: string
   funding_period: 'monthly' | 'all'
   goal_description: string | null
-  funding_links: FundingLink[]
   supporter_messages_enabled: boolean
   supporter_messages_public: boolean
-  /** Payment Link ids (plink_...) whose checkouts belong to the project fund. */
-  stripe_payment_links: string[]
 }
 
 const PROJECT_FUNDING_COLUMNS =
-  'enabled, goal_amount, goal_currency, funding_period, goal_description, funding_links, ' +
-  'supporter_messages_enabled, supporter_messages_public, stripe_payment_links'
+  'enabled, goal_amount, goal_currency, funding_period, goal_description, ' +
+  'supporter_messages_enabled, supporter_messages_public'
 
 /** An attached message in the admin review queue. */
 export interface AdminSupporterMessage {

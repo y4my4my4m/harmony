@@ -4,14 +4,19 @@
  *
  * Every instance publishes its own funding: links, goal and progress, supporter count, and the
  * approved supporter messages when the admin shows them publicly. An anonymous message has no
- * name; no message carries a profile id. The project's own instance also publishes the project
- * fund (project_funding, get_project_funding_summary) in the same shape. Each other instance
- * reads that feed (config.PROJECT_FUNDING_URL) server-side, so its users' addresses never reach
- * the project: through safeFetch (public addresses only, https, 5 s, 64 KiB), cached 30
- * minutes, served stale for up to 7 days when the project is unreachable, else
+ * name; no message carries a profile id. The project's own instance, PROJECT_DOMAIN, also
+ * publishes the project fund (project_funding, get_project_funding_summary) in the same shape.
+ * Each other instance reads that feed (PROJECT_FEED_URL) server-side, so its users' addresses
+ * never reach the project: through safeFetch (public addresses only, https, 5 s, 64 KiB), cached
+ * 30 minutes, served stale for up to 7 days when the project is unreachable, else
  * PROJECT_FUNDING_FALLBACK. The feed is untrusted: every field is re-validated and an invalid
  * entry is dropped. The project's messages reach this instance's clients only while
  * instance_funding.show_project_messages is on.
+ *
+ * The project fund's payment links are PROJECT_LINKS and its Stripe Payment Links
+ * PROJECT_PAYMENT_LINK_IDS, constants on every instance: no setting, database row or feed
+ * changes where a Harmony development donation goes. The feed supplies goal, progress and
+ * messages only.
  */
 
 import config from '../config/index.js';
@@ -79,20 +84,46 @@ export interface ProjectFundingResult {
   funding: PublicFunding;
 }
 
+/** The Harmony project's own instance. */
+export const PROJECT_DOMAIN = 'har.mony.lol';
+
+/** The project fund's feed on PROJECT_DOMAIN (routes/funding.ts GET /funding/project-feed). */
+export const PROJECT_FEED_URL = `https://${PROJECT_DOMAIN}/api/federation/funding/project-feed`;
+
+/** The Harmony development tab's links; src/services/FundingService.ts PROJECT_LINKS. */
+export const PROJECT_LINKS: readonly Readonly<PublicFundingLink>[] = Object.freeze([
+  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' }),
+  Object.freeze({ platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' }),
+  Object.freeze({ platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' }),
+]);
+
+/**
+ * The Payment Links of PROJECT_LINKS' Stripe entries, in order: any amount once; $1 a month per
+ * unit, quantity 1-999.
+ */
+export const PROJECT_PAYMENT_LINK_IDS: ReadonlySet<string> = new Set([
+  'plink_1UYKJgIByukKkdhljBcFnf5I',
+  'plink_1UYKRBIByukKkdhlRV8itB6j',
+]);
+
+/** A copy of PROJECT_LINKS for a response body. */
+export function projectLinks(): PublicFundingLink[] {
+  return PROJECT_LINKS.map((link) => ({ ...link }));
+}
+
+/** `feed` with PROJECT_LINKS in place of its own links. */
+export function withProjectLinks(feed: PublicFunding): PublicFunding {
+  return { ...feed, links: projectLinks() };
+}
+
 /** Served when the project's feed has never been read or is older than STALE_MS. */
 export const PROJECT_FUNDING_FALLBACK: PublicFunding = {
   version: FEED_VERSION,
-  instance: 'har.mony.lol',
+  instance: PROJECT_DOMAIN,
   enabled: true,
   goal: null,
   supporters: 0,
-  // The Harmony development product's Payment Links: plink_1UYKJgIByukKkdhljBcFnf5I (any amount,
-  // once) and plink_1UYKRBIByukKkdhlRV8itB6j ($1 a month per unit, quantity 1-999).
-  links: [
-    { platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' },
-    { platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' },
-    { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
-  ],
+  links: projectLinks(),
   messages: [],
 };
 
@@ -103,21 +134,33 @@ export const RETRY_MS = 5 * 60 * 1000;
 export const FETCH_TIMEOUT_MS = 5000;
 export const FETCH_MAX_BYTES = 64 * 1024;
 
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).host.toLowerCase();
-  } catch {
-    return null;
-  }
+export interface TestProject {
+  /** This backend stands in for the project's instance. */
+  projectInstance: boolean;
+  /** The project fund feed this backend reads in place of PROJECT_FEED_URL. */
+  feedUrl?: string;
 }
 
-/** The project's own instance: PROJECT_INSTANCE, or with 'auto' the feed URL's host is ours. */
-export function isProjectInstance(
-  cfg: { PROJECT_INSTANCE: string; PROJECT_FUNDING_URL: string; INSTANCE_DOMAIN: string } = config,
-): boolean {
-  if (cfg.PROJECT_INSTANCE === 'true') return true;
-  if (cfg.PROJECT_INSTANCE === 'false') return false;
-  return hostOf(cfg.PROJECT_FUNDING_URL) === cfg.INSTANCE_DOMAIN.toLowerCase();
+let testProject: TestProject | null = null;
+
+/**
+ * A stand-in project instance and feed for journeys, taken before the app loads. No environment
+ * variable reaches it; refused under NODE_ENV=production.
+ */
+export function setTestProject(project: TestProject | null, nodeEnv: string = config.NODE_ENV): void {
+  if (nodeEnv === 'production') throw new Error('setTestProject: not under NODE_ENV=production');
+  testProject = project;
+}
+
+/** This backend is the Harmony project's own instance: INSTANCE_DOMAIN is PROJECT_DOMAIN. */
+export function isProjectInstance(domain: string = config.INSTANCE_DOMAIN): boolean {
+  if (testProject) return testProject.projectInstance;
+  return domain.toLowerCase() === PROJECT_DOMAIN;
+}
+
+/** The project fund feed this backend reads. */
+export function projectFeedUrl(): string {
+  return testProject?.feedUrl ?? PROJECT_FEED_URL;
 }
 
 function finiteAtLeastZero(value: unknown): number | null {
@@ -314,7 +357,7 @@ export class ProjectFundingCache {
   private inflight: Promise<void> | null = null;
 
   constructor(
-    private readonly url: string = config.PROJECT_FUNDING_URL,
+    private readonly url: string = projectFeedUrl(),
     private readonly fetcher: Fetcher = fetchFeed,
     private readonly now: () => number = Date.now,
   ) {}

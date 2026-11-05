@@ -489,13 +489,15 @@ the backend cannot see. Set them to the sign-in service's own values.
 
 ### Funding
 
-| Variable | Default | What it does |
-|---|---|---|
-| `PROJECT_FUNDING_URL` | `https://har.mony.lol/api/federation/funding/project-feed` | The Harmony project's development fund feed. The backend reads it every 30 minutes, keeps the last copy for up to 7 days when the project is unreachable, and shows it in the **Harmony development** tab of the Support window; browsers never contact the project. Only `https` on a public address is read. A `.env` that sets the address of har.mony.lol's own feed, `…/funding/public`, shows har.mony.lol's server funding instead: remove the line or set this default |
-| `PROJECT_INSTANCE` | `auto` | `auto`: this instance is the project's own when `INSTANCE_DOMAIN` is the host of `PROJECT_FUNDING_URL`; it then keeps the development fund and publishes it at `/api/federation/funding/project-feed`. `true` or `false` overrides that |
+Funding has no environment variables. Every instance publishes its own funding at
+`GET /api/federation/funding/public` (JSON, readable from any origin). See
+[Instance funding](/run/funding).
 
-Every instance publishes its own funding at `GET /api/federation/funding/public`
-(JSON, readable from any origin). See [Instance funding](/run/funding).
+The **Harmony development** tab of the Support window always points at the Harmony project's own
+payment pages, built into Harmony; no setting of an instance changes them. The backend reads the
+tab's goal, progress and messages from har.mony.lol every 30 minutes, keeps the last copy for up to
+7 days when it is unreachable, and needs outbound `https` to har.mony.lol for it; browsers never
+contact the project.
 
 ### Push notifications
 

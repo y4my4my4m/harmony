@@ -4,16 +4,18 @@
  *
  * GET /funding/project-feed: the Harmony project's development fund, in the same shape and with
  * the same cache, served by the project's own instance only (404 elsewhere). Other instances
- * read it as PROJECT_FUNDING_URL.
+ * read it as PROJECT_FEED_URL.
  *
  * GET /funding/project: the Harmony project's feed for this instance's Support window. On the
  * project's own instance, the project fund read locally (source 'local'); elsewhere the cached
  * project feed with its source, its messages empty while instance_funding.show_project_messages
  * is off or when the switch cannot be read.
+ *
+ * Both project routes carry PROJECT_LINKS as the fund's links, whatever the database or the
+ * project's feed holds.
  */
 
 import { Router, type Request, type Response } from 'express';
-import config from '../config/index.js';
 import { fundingLimiter } from '../middleware/rateLimit.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -23,6 +25,7 @@ import {
   readOwnFeed,
   readProjectFeed,
   readShowProjectMessages,
+  withProjectLinks,
   type PublicFunding,
 } from '../services/projectFunding.js';
 
@@ -52,7 +55,7 @@ export function createFundingRouter(
   } = {},
 ): Router {
   const project = deps.project ?? new ProjectFundingCache();
-  const projectInstance = deps.projectInstance ?? (() => isProjectInstance(config));
+  const projectInstance = deps.projectInstance ?? (() => isProjectInstance());
   const showProjectMessages = deps.showProjectMessages ?? readShowProjectMessages;
   const now = deps.now ?? Date.now;
   const ownFeed = cachedFeed(deps.readFeed ?? readOwnFeed, now);
@@ -88,7 +91,7 @@ export function createFundingRouter(
       return;
     }
     try {
-      json(res, (await projectFeed()).body, 300);
+      json(res, withProjectLinks((await projectFeed()).body), 300);
     } catch (err) {
       unavailable(res, 'project fund feed', err);
     }
@@ -98,7 +101,7 @@ export function createFundingRouter(
     if (projectInstance()) {
       try {
         const { body, at } = await projectFeed();
-        json(res, { projectInstance: true, source: 'local', fetchedAt: new Date(at).toISOString(), funding: body }, 60);
+        json(res, { projectInstance: true, source: 'local', fetchedAt: new Date(at).toISOString(), funding: withProjectLinks(body) }, 60);
       } catch (err) {
         logger.error(`project fund: ${err instanceof Error ? err.message : String(err)}`);
         json(res, { projectInstance: true, source: 'fallback', fetchedAt: null, funding: PROJECT_FUNDING_FALLBACK }, 0);
@@ -112,7 +115,7 @@ export function createFundingRouter(
         return false;
       }),
     ]);
-    const funding = shown ? result.funding : { ...result.funding, messages: [] };
+    const funding = withProjectLinks(shown ? result.funding : { ...result.funding, messages: [] });
     json(res, { projectInstance: false, ...result, funding }, 300);
   });
 

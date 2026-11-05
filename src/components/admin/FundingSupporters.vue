@@ -380,50 +380,6 @@
             :placeholder="t('support.admin.project.descriptionPlaceholder')"
           />
         </div>
-        <div class="funding-links-section" style="margin-top: 16px;">
-          <span class="funding-field-label">{{ t('support.admin.project.links') }}</span>
-          <div v-if="projectFund.funding_links.length > 0" class="funding-links-list" data-testid="admin-project-fund-links">
-            <div v-for="(link, i) in projectFund.funding_links" :key="i" class="funding-link-row project-link-row">
-              <select v-model="link.platform" class="cyber-select project-link-row__platform" :aria-label="t('support.admin.project.platform')">
-                <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
-              </select>
-              <input v-model="link.url" class="cyber-input project-link-row__url" placeholder="https://..." autocomplete="off" :aria-label="t('support.admin.project.url')" />
-              <input v-model="link.label" class="cyber-input project-link-row__label" :placeholder="t('support.admin.project.label')" autocomplete="off" :aria-label="t('support.admin.project.label')" />
-              <button class="mod-btn delete-btn" type="button" :title="t('support.admin.project.removeLink')" :aria-label="t('support.admin.project.removeLink')" @click="projectFund.funding_links.splice(i, 1)">
-                <Icon name="delete" :size="14" />
-              </button>
-            </div>
-          </div>
-          <div class="funding-link-row project-link-row" style="margin-top: 6px;">
-            <select v-model="newProjectLink.platform" class="cyber-select project-link-row__platform" :aria-label="t('support.admin.project.platform')">
-              <option value="" disabled>{{ t('support.admin.project.platform') }}</option>
-              <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
-            </select>
-            <input v-model="newProjectLink.url" class="cyber-input project-link-row__url" placeholder="https://..." autocomplete="off" :aria-label="t('support.admin.project.url')" data-testid="admin-project-fund-link-url" />
-            <input v-model="newProjectLink.label" class="cyber-input project-link-row__label" :placeholder="t('support.admin.project.label')" autocomplete="off" :aria-label="t('support.admin.project.label')" />
-            <button class="action-btn" type="button" :disabled="!canAddProjectLink" style="white-space: nowrap;" @click="addProjectLink">
-              <Icon name="plus" :size="14" /> {{ t('support.admin.project.addLink') }}
-            </button>
-          </div>
-        </div>
-        <div class="funding-field" style="margin-top: 16px;">
-          <label :for="`${projectScope}-plinks`">{{ t('support.admin.project.paymentLinks') }}</label>
-          <input
-            :id="`${projectScope}-plinks`"
-            v-model="projectPaymentLinks"
-            type="text"
-            class="cyber-input"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="plink_…"
-            :aria-invalid="paymentLinksInvalid ? 'true' : undefined"
-            :aria-describedby="`${projectScope}-plinks-hint`"
-            data-testid="admin-project-fund-plinks"
-          />
-          <span :id="`${projectScope}-plinks-hint`" class="setting-hint" :class="{ 'error-text': paymentLinksInvalid }">
-            {{ paymentLinksInvalid ? t('support.admin.project.paymentLinksInvalid') : t('support.admin.project.paymentLinksHint') }}
-          </span>
-        </div>
         <div class="funding-field" style="margin-top: 8px;">
           <label :for="`${projectScope}-kofi`">{{ t('support.admin.project.kofiToken') }}</label>
           <div class="funding-link-row">
@@ -466,7 +422,7 @@
           <button
             type="button"
             class="save-btn"
-            :disabled="!projectChanged || projectSaving || paymentLinksInvalid"
+            :disabled="!projectChanged || projectSaving"
             data-testid="admin-project-fund-save"
             @click="saveProjectFund"
           >
@@ -885,29 +841,23 @@ const projectAwaiting = computed(() => projectQueue.value.filter((m) => m.review
 // Harmony development fund (project_funding): only on the project's own instance.
 const showProjectFund = computed(() => fundingLoaded.value && supportsMessages && fundingStore.isProjectInstance === true)
 const projectScope = uid('project-fund')
-const PLINK_RE = /^plink_[A-Za-z0-9]{1,64}$/
+// The project_funding column defaults (20261106400001).
 const PROJECT_FUND_DEFAULTS: ProjectFundingSettings = {
-  enabled: false,
+  enabled: true,
   goal_amount: null,
   goal_currency: 'USD',
   funding_period: 'monthly',
   goal_description: null,
-  funding_links: [],
   supporter_messages_enabled: true,
   supporter_messages_public: true,
-  stripe_payment_links: [],
 }
-const projectFund = reactive<ProjectFundingSettings>({ ...PROJECT_FUND_DEFAULTS, funding_links: [] })
+const projectFund = reactive<ProjectFundingSettings>({ ...PROJECT_FUND_DEFAULTS })
 const projectDescription = ref('')
-const projectPaymentLinks = ref('')
 const projectKofiToken = ref('')
 let savedProjectKofiToken = ''
 const showProjectKofiToken = ref(false)
-const newProjectLink = reactive({ platform: '', url: '', label: '' })
 const projectChanged = ref(false)
 const projectSaving = ref(false)
-const parsedPaymentLinks = computed(() => projectPaymentLinks.value.split(/[\s,]+/).filter(Boolean))
-const paymentLinksInvalid = computed(() => parsedPaymentLinks.value.some((id) => !PLINK_RE.test(id)))
 const projectProgress = computed(() => {
   const feed = fundingStore.project?.projectInstance ? fundingStore.project.funding : null
   if (!feed?.goal) return ''
@@ -918,7 +868,7 @@ const projectProgress = computed(() => {
   })
 })
 
-watch([projectFund, projectDescription, projectPaymentLinks, projectKofiToken], () => { projectChanged.value = true }, { deep: true })
+watch([projectFund, projectDescription, projectKofiToken], () => { projectChanged.value = true }, { deep: true })
 
 const loadProjectFund = async () => {
   const [settings, token] = await Promise.all([
@@ -926,9 +876,7 @@ const loadProjectFund = async () => {
     fundingService.getProjectKofiWebhookToken(),
   ])
   Object.assign(projectFund, PROJECT_FUND_DEFAULTS, settings ?? {})
-  projectFund.funding_links = (settings?.funding_links ?? []).map((l) => ({ ...l }))
   projectDescription.value = settings?.goal_description ?? ''
-  projectPaymentLinks.value = (settings?.stripe_payment_links ?? []).join(', ')
   projectKofiToken.value = token
   savedProjectKofiToken = token
   await nextTick()
@@ -937,24 +885,7 @@ const loadProjectFund = async () => {
 
 watch(showProjectFund, (shown) => { if (shown) void loadProjectFund() }, { immediate: true })
 
-// The feed keeps https links only (services/projectFunding.ts cleanLinkUrl).
-const canAddProjectLink = computed(() => !!newProjectLink.platform && /^https:\/\/\S+$/.test(newProjectLink.url.trim()))
-
-const addProjectLink = () => {
-  if (!canAddProjectLink.value) return
-  const url = newProjectLink.url.trim()
-  projectFund.funding_links.push({
-    platform: newProjectLink.platform,
-    url,
-    label: newProjectLink.label.trim() || platformLabel(newProjectLink.platform),
-  })
-  newProjectLink.platform = ''
-  newProjectLink.url = ''
-  newProjectLink.label = ''
-}
-
 const saveProjectFund = async () => {
-  if (paymentLinksInvalid.value) return
   projectSaving.value = true
   try {
     const result = await fundingService.saveProjectFundingSettings({
@@ -963,12 +894,8 @@ const saveProjectFund = async () => {
       goal_currency: projectFund.goal_currency,
       funding_period: projectFund.funding_period === 'all' ? 'all' : 'monthly',
       goal_description: projectDescription.value.trim() || null,
-      funding_links: projectFund.funding_links
-        .filter((l) => l.url.trim())
-        .map((l) => ({ platform: l.platform, url: l.url.trim(), label: (l.label ?? '').trim() })),
       supporter_messages_enabled: projectFund.supporter_messages_enabled,
       supporter_messages_public: projectFund.supporter_messages_public,
-      stripe_payment_links: parsedPaymentLinks.value,
     })
     let tokenSaved = true
     const token = projectKofiToken.value.trim()
@@ -2352,50 +2279,6 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
-}
-
-.funding-field-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-/* Two classes: adminShared.css, loaded after this block, sets .cyber-input and .cyber-select to
-   width 100%. */
-.project-link-row {
-  flex-wrap: wrap;
-}
-
-.project-link-row .project-link-row__platform {
-  flex: 0 0 160px;
-  width: 160px;
-}
-
-.project-link-row .project-link-row__url {
-  flex: 1 1 200px;
-  width: auto;
-}
-
-.project-link-row .project-link-row__label {
-  flex: 0 0 140px;
-  width: 140px;
-}
-
-/* Phones: platform and label share a line under the address. */
-@media (max-width: 600px) {
-  .project-link-row .project-link-row__url {
-    order: -1;
-    flex-basis: 100%;
-  }
-
-  .project-link-row .project-link-row__platform,
-  .project-link-row .project-link-row__label {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
-  }
 }
 
 .project-queue-title {

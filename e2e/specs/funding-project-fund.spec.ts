@@ -1,12 +1,15 @@
 // Journey: the Harmony project's development fund, kept apart from its own instance's funding.
-// On the project's instance (PROJECT_INSTANCE=true) a signed Stripe checkout of the project's
-// Payment Link and one of the instance's own link land in separate funds: the Support window has
-// both tabs, each with its own total, and the project's links credit the signed-in donor. A
-// message written in the Harmony development tab goes with the next project donation and waits
-// in Admin > Funding > Harmony development fund, apart from the instance's queue; approved there,
-// it is in the project fund's feed. A self-hosted instance reads the project fund from the
-// project's instance (/funding/project-feed), never that instance's own feed. At 375 px the tab
-// and the admin section have no sideways scroll.
+// On the project's instance (E2E_PROJECT_INSTANCE, e2e/backend-server.ts) a signed Stripe
+// checkout of the project's Payment Link and one of the instance's own link land in separate
+// funds: the Support window has both tabs, each with its own total, and the project's links
+// credit the signed-in donor. A message written in the Harmony development tab goes with the next
+// project donation and waits in Admin > Funding > Harmony development fund, apart from the
+// instance's queue; approved there, it is in the project fund's feed. The section has no link
+// fields: with the fund as installed, checkouts of both of the project's Payment Links count
+// toward it and the tab shows the project's links with no progress bar. A self-hosted instance
+// reads the project fund from the project's instance (/funding/project-feed), never that
+// instance's own feed, and shows the project's own links. At 375 px the tab and the admin section
+// have no sideways scroll.
 
 import { test, expect, type Browser, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, signIn, userClient, type SpecUser } from './harness'
@@ -14,10 +17,13 @@ import { startBackend, type Backend } from './backend'
 import { expectNoAxeViolations } from './a11y'
 import {
   enableFunding,
+  installProjectFund,
   instanceRaised,
   openSupportFromSettings,
   postStripeCheckout,
+  PROJECT_LINK_URLS,
   PROJECT_PLINK,
+  PROJECT_PLINK_MONTHLY,
   resetProjectFund,
   startProjectFeed,
   type ProjectFeed,
@@ -73,7 +79,7 @@ test.describe('on the project instance', () => {
 
   test.beforeAll(async () => {
     test.setTimeout(120_000)
-    backend = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED, PROJECT_INSTANCE: 'true' })
+    backend = await startBackend({ E2E_PROJECT_INSTANCE: 'true', E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
     staff = await createUser(admin, 'pfunda')
     donor = await createUser(admin, 'pfundd')
     await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
@@ -168,7 +174,6 @@ test.describe('on the project instance', () => {
     }, { timeout: 15000 }).toBe('approved')
 
     // The fund's settings: a new goal, saved from the section.
-    await expect(section.getByTestId('admin-project-fund-plinks')).toHaveValue(PROJECT_PLINK)
     await section.getByTestId('admin-project-fund-goal').fill('2500')
     await section.getByTestId('admin-project-fund-save').click()
     await expect.poll(async () => {
@@ -212,6 +217,51 @@ test.describe('on the project instance', () => {
     expect(await staffPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
     await close(staffPage)
   })
+
+  test('as installed: both Payment Links count toward the fund, the tab shows the project\'s links, the section has no link fields', async ({ browser }) => {
+    test.setTimeout(150_000)
+    await installProjectFund(admin)
+    expect(await (await postStripeCheckout(backend.url, donor.id, 400, PROJECT_PLINK)).json())
+      .toMatchObject({ status: 'recorded', fund: 'project' })
+    expect(await (await postStripeCheckout(backend.url, donor.id, 100, PROJECT_PLINK_MONTHLY)).json())
+      .toMatchObject({ status: 'recorded', fund: 'project' })
+    expect(await (await postStripeCheckout(backend.url, donor.id, 200, 'plink_e2e_elsewhere')).json())
+      .toMatchObject({ status: 'recorded', fund: 'instance' })
+    // The backend holds the fund's feed a minute (routes/funding.ts FEED_CACHE_MS).
+    await expect.poll(async () => {
+      const feed = await (await fetch(`${backend.url}/funding/project-feed`)).json()
+      return { enabled: feed.enabled, goal: feed.goal, supporters: feed.supporters }
+    }, { timeout: 90_000, intervals: [5000] }).toEqual({ enabled: true, goal: null, supporters: 1 })
+
+    const page = await routedPage(browser, backend)
+    await signIn(page, donor)
+    const panel = await openProjectTab(page)
+    const links = panel.getByTestId('support-links-project').getByRole('link')
+    await expect(links).toHaveCount(PROJECT_LINK_URLS.length)
+    const hrefs = (await links.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).href))).map((h) => new URL(h))
+    expect(hrefs.map((u) => u.origin + u.pathname)).toEqual(PROJECT_LINK_URLS)
+    expect(hrefs[0].searchParams.get('client_reference_id')).toBe(donor.id)
+    await expect(panel.getByTestId('support-progress')).toHaveCount(0)
+    await expect(panel.getByTestId('support-message')).toBeVisible()
+    await close(page)
+
+    const staffPage = await routedPage(browser, backend)
+    await signIn(staffPage, staff)
+    await staffPage.goto('/admin?tab=funding')
+    const section = staffPage.getByTestId('admin-project-fund')
+    await expect(section).toBeVisible({ timeout: 30000 })
+    await expect(section.getByTestId('admin-project-fund-enabled')).toBeChecked()
+    await expect(section.getByTestId('admin-project-fund-goal')).toHaveValue('')
+    await expect(section.getByTestId('admin-project-fund-messages')).toBeChecked()
+    await expect(section.getByLabel('Ko-fi verification token')).toBeAttached()
+    await expect(section.getByTestId('admin-project-fund-links')).toHaveCount(0)
+    await expect(section.getByTestId('admin-project-fund-link-url')).toHaveCount(0)
+    await expect(section.getByTestId('admin-project-fund-plinks')).toHaveCount(0)
+    expect(await section.locator('input[type="url"], input[placeholder^="https"], input[placeholder^="plink"]').count()).toBe(0)
+    await expect(section).not.toContainText('Payment Link')
+    await expect(staffPage.getByTestId('admin-project-messages')).toHaveCount(0)
+    await close(staffPage)
+  })
 })
 
 test.describe('a self-hosted instance', () => {
@@ -224,9 +274,9 @@ test.describe('a self-hosted instance', () => {
   test.beforeAll(async () => {
     test.setTimeout(150_000)
     // The project's instance, reached through a public address as har.mony.lol would be.
-    project = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED, PROJECT_INSTANCE: 'true' })
+    project = await startBackend({ E2E_PROJECT_INSTANCE: 'true', E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
     peer = await startProjectFeed(null, { proxyTo: project.url })
-    self = await startBackend({ PROJECT_FUNDING_URL: peer.url, PROJECT_INSTANCE: 'auto' })
+    self = await startBackend({ E2E_PROJECT_FEED_URL: peer.url })
     donor = await createUser(admin, 'pfunds')
     member = await createUser(admin, 'pfundm')
     await enableFunding(admin)
@@ -251,10 +301,8 @@ test.describe('a self-hosted instance', () => {
     await expect(panel.getByTestId('support-raised')).toHaveText('$9', { timeout: 15000 })
     await expect(panel.getByTestId('support-progress')).toContainText('$1,500')
     const links = panel.getByTestId('support-links-project').getByRole('link')
-    await expect(links).toHaveCount(2)
-    const first = new URL((await links.first().getAttribute('href'))!)
-    expect(first.origin + first.pathname).toBe('https://donate.stripe.com/test_e2e_project')
-    expect(first.searchParams.get('client_reference_id')).toBeNull()
+    await expect(links).toHaveCount(PROJECT_LINK_URLS.length)
+    expect(await links.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).href))).toEqual(PROJECT_LINK_URLS)
     await expect(panel.getByTestId('support-project-fallback')).toHaveCount(0)
     await expect(panel.getByTestId('support-project-footnote')).toContainText('You pay on')
 

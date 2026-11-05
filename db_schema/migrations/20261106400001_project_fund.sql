@@ -11,11 +11,14 @@
 -- stays one object and the webhook's ON CONFLICT (user_id) target stays valid. Tier, expiry and
 -- the instance's totals count 'instance' donations only.
 --
--- project_funding: the project fund's settings, one row (id true). Goal, period, description,
--- links, the two message switches as on instance_funding, the Stripe Payment Link ids
--- (plink_...) whose checkouts belong to the fund, and its own Ko-fi verification token (no
--- client privilege; get/set_project_kofi_webhook_token). RLS as instance_funding: signed-in
--- clients read, instance admins write.
+-- project_funding: the project fund's settings, one row (id true), present from install with
+-- the fund published and no goal. Publication, goal, period, description, the two message
+-- switches as on instance_funding, and its own Ko-fi verification token (no client privilege;
+-- get/set_project_kofi_webhook_token). RLS as instance_funding: signed-in clients read, instance
+-- admins write. The fund's payment links and Stripe Payment Link ids are constants of the
+-- federation backend (services/projectFunding.ts PROJECT_LINKS, PROJECT_PAYMENT_LINK_IDS) and of
+-- the client (src/services/FundingService.ts PROJECT_LINKS), not data: no row decides where a
+-- Harmony development donation goes.
 --
 -- A donor's unattached message is per fund: set_supporter_message(body, anonymous, fund); the
 -- two-argument form writes the instance's. A donation attaches the unattached message of its
@@ -75,7 +78,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_supporter_messages_unattached_fund
 CREATE TABLE IF NOT EXISTS public.project_funding (
     id boolean PRIMARY KEY DEFAULT true
         CONSTRAINT project_funding_one_row CHECK (id),
-    enabled boolean NOT NULL DEFAULT false,
+    enabled boolean NOT NULL DEFAULT true,
     goal_amount numeric(10,2)
         CONSTRAINT project_funding_goal_amount CHECK (goal_amount IS NULL OR goal_amount >= 0),
     goal_currency text NOT NULL DEFAULT 'USD'
@@ -84,15 +87,8 @@ CREATE TABLE IF NOT EXISTS public.project_funding (
         CONSTRAINT project_funding_period CHECK (funding_period IN ('monthly', 'all')),
     goal_description text
         CONSTRAINT project_funding_description CHECK (char_length(goal_description) <= 200),
-    funding_links jsonb NOT NULL DEFAULT '[]'::jsonb
-        CONSTRAINT project_funding_links_array CHECK (jsonb_typeof(funding_links) = 'array'),
     supporter_messages_enabled boolean NOT NULL DEFAULT true,
     supporter_messages_public boolean NOT NULL DEFAULT true,
-    stripe_payment_links text[] NOT NULL DEFAULT '{}'::text[]
-        CONSTRAINT project_funding_payment_links
-        CHECK (array_position(stripe_payment_links, NULL) IS NULL
-               AND array_to_string(stripe_payment_links, ',')
-                   ~ '^(plink_[A-Za-z0-9]{1,64}(,plink_[A-Za-z0-9]{1,64}){0,19})?$'),
     kofi_webhook_token text,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -111,14 +107,16 @@ CREATE POLICY "project_funding_modify_admin" ON public.project_funding
 -- sends, id included (ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id, ...), and reads them
 -- (EXCLUDED): SELECT, INSERT and UPDATE on each. CHECK (id) keeps the one row.
 REVOKE ALL ON public.project_funding FROM PUBLIC, anon, authenticated;
-GRANT SELECT (id, enabled, goal_amount, goal_currency, funding_period, goal_description, funding_links,
-              supporter_messages_enabled, supporter_messages_public, stripe_payment_links, updated_at),
-      INSERT (id, enabled, goal_amount, goal_currency, funding_period, goal_description, funding_links,
-              supporter_messages_enabled, supporter_messages_public, stripe_payment_links, updated_at),
-      UPDATE (id, enabled, goal_amount, goal_currency, funding_period, goal_description, funding_links,
-              supporter_messages_enabled, supporter_messages_public, stripe_payment_links, updated_at)
+GRANT SELECT (id, enabled, goal_amount, goal_currency, funding_period, goal_description,
+              supporter_messages_enabled, supporter_messages_public, updated_at),
+      INSERT (id, enabled, goal_amount, goal_currency, funding_period, goal_description,
+              supporter_messages_enabled, supporter_messages_public, updated_at),
+      UPDATE (id, enabled, goal_amount, goal_currency, funding_period, goal_description,
+              supporter_messages_enabled, supporter_messages_public, updated_at)
    ON public.project_funding TO authenticated;
 GRANT ALL ON public.project_funding TO service_role;
+
+INSERT INTO public.project_funding (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
 
 -- As get_kofi_webhook_token.
 CREATE OR REPLACE FUNCTION public.get_project_kofi_webhook_token()
@@ -700,7 +698,7 @@ $$;
 
 -- The project fund for its public feed (federation-backend services/projectFunding.ts buildFeed):
 -- settings, the period's total and distinct donors, and the approved project messages while
--- messages are on. NULL without a project_funding row. Donors: a profile, or for an
+-- messages are on; no links. NULL without a project_funding row. Donors: a profile, or for an
 -- unattributed webhook donation its email, else its external reference.
 CREATE OR REPLACE FUNCTION public.get_project_funding_summary()
 RETURNS jsonb
@@ -770,7 +768,6 @@ BEGIN
         'goal_currency', v_f.goal_currency,
         'funding_period', v_f.funding_period,
         'goal_description', v_f.goal_description,
-        'funding_links', v_f.funding_links,
         'supporter_messages_enabled', v_f.supporter_messages_enabled,
         'supporter_messages_public', v_f.supporter_messages_public,
         'displayed_amount', v_total,

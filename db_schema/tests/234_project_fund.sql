@@ -1,9 +1,10 @@
 -- 20261106400001_project_fund.sql: the fund of donations, pending donations and supporter
--- messages, project_funding and its privileges, messages attaching within their fund, the
--- instance's summary, tier and totals counting the instance's fund, and the project's summary.
+-- messages, project_funding as installed, its columns and privileges, messages attaching within
+-- their fund, the instance's summary, tier and totals counting the instance's fund, and the
+-- project's summary.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(52);
+SELECT plan(56);
 
 -- Fixture: alice is an instance admin, bob and mallory are not. Instance funding on with
 -- messages; bob holds an instance supporter row; one tier from 10.
@@ -11,12 +12,26 @@ UPDATE public.profiles SET is_admin = (id = '11111111-0000-0000-0000-00000000000
  WHERE id IN ('11111111-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000002',
               '33333333-0000-0000-0000-000000000003');
 DELETE FROM public.instance_funding;
-DELETE FROM public.project_funding;
 INSERT INTO public.instance_funding (enabled, goal_amount, goal_currency, funding_period)
 VALUES (true, 100, 'USD', 'all');
 INSERT INTO public.instance_supporter_tiers (name, min_amount) VALUES ('Gold 234', 10);
 INSERT INTO public.instance_supporters (user_id, is_active)
 VALUES ('22222222-0000-0000-0000-000000000002', true);
+
+-- project_funding as installed
+SELECT is((SELECT row(enabled, goal_amount, goal_description, supporter_messages_enabled,
+                      supporter_messages_public, kofi_webhook_token)::text
+             FROM public.project_funding WHERE id),
+  '(t,,,t,t,)', 'the project fund is installed published, with no goal and messages on');
+SELECT hasnt_column('public', 'project_funding', 'funding_links',
+  'the project fund''s links are not data');
+SELECT hasnt_column('public', 'project_funding', 'stripe_payment_links',
+  'the project fund''s Payment Links are not data');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is((public.set_supporter_message('Installed 234', false, 'project'))->>'fund', 'project',
+  'as installed, the project fund takes a donor''s message');
+SELECT tests.clear_authentication();
+DELETE FROM public.project_funding;
 
 -- Columns and constraints
 SELECT col_default_is('public', 'instance_donation_history', 'fund', 'instance'::text,
@@ -53,7 +68,7 @@ SELECT ok(NOT has_table_privilege('anon', 'public.project_funding', 'SELECT')
           AND NOT has_any_column_privilege('anon', 'public.project_funding', 'SELECT'),
   'anon holds no privilege on project_funding');
 SELECT ok(has_column_privilege('authenticated', 'public.project_funding', 'goal_amount', 'SELECT')
-          AND has_column_privilege('authenticated', 'public.project_funding', 'stripe_payment_links', 'UPDATE')
+          AND has_column_privilege('authenticated', 'public.project_funding', 'goal_description', 'UPDATE')
           AND has_column_privilege('authenticated', 'public.project_funding', 'id', 'UPDATE')
           AND NOT has_column_privilege('authenticated', 'public.project_funding', 'kofi_webhook_token', 'SELECT')
           AND NOT has_column_privilege('authenticated', 'public.project_funding', 'kofi_webhook_token', 'UPDATE'),
@@ -77,25 +92,20 @@ SELECT throws_ok($q$INSERT INTO public.project_funding (id, enabled) VALUES (tru
 SELECT throws_ok($q$SELECT public.set_project_kofi_webhook_token('kofi-234')$q$,
   '42501', NULL, 'a member cannot set the project''s Ko-fi token');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT lives_ok($q$INSERT INTO public.project_funding (id, enabled, goal_amount, funding_period, funding_links,
-                                                       stripe_payment_links)
-                   VALUES (true, true, 500, 'all',
-                           '[{"platform": "stripe", "url": "https://donate.stripe.com/p234", "label": "One-time"}]',
-                           ARRAY['plink_234once', 'plink_234monthly'])
+SELECT lives_ok($q$INSERT INTO public.project_funding (id, enabled, goal_amount, funding_period, goal_description)
+                   VALUES (true, true, 500, 'all', 'Harmony 234')
                    ON CONFLICT (id) DO UPDATE
                       SET id = EXCLUDED.id, enabled = EXCLUDED.enabled, goal_amount = EXCLUDED.goal_amount,
-                          funding_period = EXCLUDED.funding_period, funding_links = EXCLUDED.funding_links,
-                          stripe_payment_links = EXCLUDED.stripe_payment_links$q$,
+                          funding_period = EXCLUDED.funding_period,
+                          goal_description = EXCLUDED.goal_description$q$,
   'an instance admin creates the project fund with an upsert as PostgREST writes it');
 SELECT throws_ok($q$INSERT INTO public.project_funding (id) VALUES (false)$q$,
   '23514', NULL, 'there is one project_funding row');
-SELECT throws_ok($q$UPDATE public.project_funding SET stripe_payment_links = ARRAY['https://buy.stripe.com/x']$q$,
-  '23514', NULL, 'a payment link entry is a plink_ id');
 SELECT lives_ok($q$SELECT public.set_project_kofi_webhook_token('  kofi-234  ')$q$,
   'an instance admin sets the project''s Ko-fi token');
 SELECT is(public.get_project_kofi_webhook_token(), 'kofi-234', 'the token reads back trimmed');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT is((SELECT array_length(stripe_payment_links, 1) FROM public.project_funding), 2,
+SELECT is((SELECT goal_description FROM public.project_funding), 'Harmony 234',
   'a member reads the project fund''s settings');
 UPDATE public.project_funding SET goal_amount = 1;
 SELECT tests.clear_authentication();
@@ -205,6 +215,8 @@ SELECT is((SELECT array_agg(x->>'body') FROM jsonb_array_elements(public.get_pro
   ARRAY['For Harmony 234'], 'the project''s wall shows the project''s approved messages');
 SELECT is((public.get_project_funding_summary()->'messages'->0->>'name'), NULL,
   'an anonymous project message has no name');
+SELECT ok(NOT (public.get_project_funding_summary() ? 'funding_links'),
+  'the project''s summary carries no links');
 UPDATE public.project_funding SET supporter_messages_enabled = false;
 SELECT is(jsonb_array_length(public.get_project_funding_summary()->'messages'), 0,
   'with the project''s messages off its summary carries none');

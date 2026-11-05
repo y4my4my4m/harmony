@@ -17,7 +17,7 @@ import { expectNoAxeViolations } from './a11y'
 test.use({ serviceWorkers: 'block' })
 
 const admin = adminClient()
-const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/public'
+const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/project-feed'
 
 // A run tag keeps each body unique across retries; every body stays within 50 characters.
 const TAG = Math.random().toString(36).slice(2, 6)
@@ -39,7 +39,7 @@ let donorServer: SeededServer
 
 test.beforeAll(async () => {
   test.setTimeout(120_000)
-  backend = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED })
+  backend = await startBackend({ E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
   donor = await createUser(admin, 'donor')
   viewer = await createUser(admin, 'donorv')
   staff = await createUser(admin, 'donora')

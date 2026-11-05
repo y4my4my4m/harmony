@@ -1,10 +1,11 @@
 <!--
   FundingModal - the Support window. Two tabs: "This instance" (the admin's own funding:
   progress, payment links, an optional message, the donor's status, supporter messages, tiers)
-  and "Harmony development" (the project's development fund, read by this instance's backend;
-  payment happens on the project's pages). On the project's own instance the second tab is its
-  project fund, kept apart from the instance's: its links credit the signed-in donor and take a
-  message for the project. Wide two-column layout on desktop; a full-height sheet on phones.
+  and "Harmony development" (the project's development fund: progress and messages read by this
+  instance's backend, payment on the project's own pages, PROJECT_LINKS, which no feed or
+  instance setting changes). On the project's own instance the second tab is its project fund,
+  kept apart from the instance's: its links credit the signed-in donor and take a message for
+  the project. Wide two-column layout on desktop; a full-height sheet on phones.
   Opening it reads the funding summary once; the project feed is cached in the store.
 -->
 <template>
@@ -216,7 +217,7 @@
               :supporters="projectFeed.supporters"
             />
             <p v-if="projectFeed.goal?.description" class="support-description">{{ projectFeed.goal.description }}</p>
-            <section v-if="projectFeed.links.length" class="support-give" :aria-labelledby="projectGiveHeadingId">
+            <section class="support-give" :aria-labelledby="projectGiveHeadingId">
               <h3 :id="projectGiveHeadingId" class="support-heading">{{ t('support.heading') }}</h3>
               <SupportMessageComposer
                 v-if="projectComposerOn"
@@ -226,7 +227,7 @@
                 @saved="onProjectMessageSaved"
               />
               <SupportLinkList
-                :links="projectFeed.links"
+                :links="projectLinks"
                 :donor="projectInstance ? donor : null"
                 testid="support-links-project"
                 @open="onProjectPaymentOpened"
@@ -235,7 +236,7 @@
             <p class="support-footnote" data-testid="support-project-footnote">
               <Icon name="lock" :size="12" aria-hidden="true" />
               <span v-if="projectInstance">{{ t('support.project.ownFund', { instance: instanceDomain }) }}</span>
-              <span v-else>{{ t('support.project.paymentNote', { project: projectFeed.instance, instance: instanceDomain }) }}</span>
+              <span v-else>{{ t('support.project.paymentNote', { project: PROJECT_DOMAIN, instance: instanceDomain }) }}</span>
             </p>
             <p v-if="projectSource === 'fallback'" class="support-footnote" data-testid="support-project-fallback">
               <Icon name="info" :size="12" aria-hidden="true" />
@@ -277,6 +278,8 @@ import {
   fundingService,
   isStripeLink,
   needsHandleInMessage,
+  PROJECT_DOMAIN,
+  PROJECT_LINKS,
   type FundingLink,
   type MySupporterMessage,
 } from '@/services/FundingService'
@@ -343,6 +346,8 @@ const donor = computed(() => ({
 }))
 
 const projectFeed = computed(() => store.project?.funding ?? null)
+// The feed's own links are never shown.
+const projectLinks: FundingLink[] = PROJECT_LINKS.map((link) => ({ ...link }))
 const projectSource = computed(() => store.project?.source ?? null)
 // Empty when the project has none, its feed is unreachable, or this instance's admin turned them off.
 const projectMessages = computed(() => projectFeed.value?.messages ?? [])

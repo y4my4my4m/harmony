@@ -1,14 +1,15 @@
 // Journey: "Show Harmony's supporter messages" in Admin > Funding. On a self-hosted instance the
-// Harmony development tab shows the project's links, progress and supporter messages, read by this
-// instance's backend from the project's feed. An admin turns the messages off: the tab keeps the
-// links and progress in one column, and /funding/project carries no message, so none reaches the
-// page. Turned back on, they show again. On the project's own instance the switch is absent.
-// At 375 px the one-column tab has no sideways scroll.
+// Harmony development tab shows the project's progress and supporter messages, read by this
+// instance's backend from the project's feed, and the project's own links, not the feed's. An
+// admin turns the messages off: the tab keeps the links and progress in one column, and
+// /funding/project carries no message, so none reaches the page. Turned back on, they show again.
+// On the project's own instance the switch is absent. At 375 px the one-column tab has no
+// sideways scroll.
 
 import { test, expect, type Browser, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, dismissAnnouncements, signIn, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
-import { enableFunding, startProjectFeed, type ProjectFeed } from './funding'
+import { enableFunding, PROJECT_LINK_URLS, startProjectFeed, type ProjectFeed } from './funding'
 
 test.use({ serviceWorkers: 'block' })
 
@@ -126,7 +127,7 @@ test.describe('on a self-hosted instance', () => {
   test.beforeAll(async () => {
     test.setTimeout(120_000)
     feed = await startProjectFeed(projectFeed())
-    backend = await startBackend({ PROJECT_FUNDING_URL: feed.url, PROJECT_INSTANCE: 'auto' })
+    backend = await startBackend({ E2E_PROJECT_FEED_URL: feed.url })
     staff = await createUser(admin, 'projmsga')
     member = await createUser(admin, 'projmsgm')
     await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
@@ -171,7 +172,7 @@ test.describe('on a self-hosted instance', () => {
 
     // The admin's own window, in the page whose store read the feed with messages before the change.
     const own = await openProjectTab(staffPage.page, { inApp: true })
-    await expect(own.getByTestId('support-links-project').getByRole('link')).toHaveCount(2)
+    await expect(own.getByTestId('support-links-project').getByRole('link')).toHaveCount(PROJECT_LINK_URLS.length)
     await expect(own.getByTestId('supporter-wall-project')).toHaveCount(0)
     await expect(own).not.toContainText(BODIES[0])
     await close(staffPage.page)
@@ -179,7 +180,7 @@ test.describe('on a self-hosted instance', () => {
     const { page, bodies } = await projectPage(browser, backend)
     await signIn(page, member)
     const panel = await openProjectTab(page)
-    await expect(panel.getByTestId('support-links-project').getByRole('link')).toHaveCount(2)
+    await expect(panel.getByTestId('support-links-project').getByRole('link')).toHaveCount(PROJECT_LINK_URLS.length)
     await expect(panel.getByTestId('support-raised')).toHaveText('$640')
     await expect(panel.getByTestId('supporter-wall-project')).toHaveCount(0)
     await expect(panel).not.toContainText(BODIES[0])
@@ -187,7 +188,7 @@ test.describe('on a self-hosted instance', () => {
     for (const body of bodies) {
       const parsed = JSON.parse(body)
       expect(parsed.funding.messages).toEqual([])
-      expect(parsed.funding.links).toHaveLength(2)
+      expect(parsed.funding.links.map((l: { url: string }) => l.url)).toEqual(PROJECT_LINK_URLS)
       expect(body).not.toContain(TAG)
     }
     // One column, centred in the window.
@@ -249,7 +250,7 @@ test.describe('on the project instance', () => {
 
   test.beforeAll(async () => {
     test.setTimeout(120_000)
-    backend = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED, PROJECT_INSTANCE: 'true' })
+    backend = await startBackend({ E2E_PROJECT_INSTANCE: 'true', E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
     staff = await createUser(admin, 'projmsgp')
     await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
     await enableFunding(admin)

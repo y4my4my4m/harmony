@@ -14,7 +14,9 @@ The window has two tabs:
 | Tab | What it shows |
 |---|---|
 | **This instance** | Your goal and progress, your payment links, the member's own supporter status and history, approved supporter messages and your supporter tiers |
-| **Harmony development** | The Harmony project's development fund: its links, its goal and progress when it publishes them, and its supporters' messages unless you turn them off. Payment happens on the project's pages; your instance never handles that money |
+| **Harmony development** | The Harmony project's development fund: the project's own payment links, its goal and progress when it publishes them, and its supporters' messages unless you turn them off. Payment happens on the project's pages; your instance never handles that money |
+
+The **Harmony development** tab always points at the Harmony project's own payment pages: its one-time and monthly Stripe pages and its Ko-fi. They are built into Harmony itself. No instance setting, admin panel or feed changes them, so no instance can put its own payment links under the Harmony development name.
 
 The development fund is not har.mony.lol's own funding. On har.mony.lol the two tabs are two funds as well: **This instance** pays for that server, **Harmony development** for the project, and each counts only its own donations. See [The Harmony development fund](#the-harmony-development-fund).
 
@@ -49,14 +51,14 @@ With **Supporter messages** on, a member can add a public message to their suppo
 
 Every instance publishes its funding at `GET /api/federation/funding/public`, as JSON any website can read: the links, the goal and progress, the supporter count and, when **Show approved messages on the sign-in page** is on, the approved messages. An anonymous message has no name, and no message carries an account id.
 
-har.mony.lol also publishes the development fund, in the same form, at `GET /api/federation/funding/project-feed`. Every other instance's backend reads that feed for its **Harmony development** tab; see `PROJECT_FUNDING_URL` in [Configuration](/self-host/configuration#funding). Another instance answers that address with 404.
+har.mony.lol also publishes the development fund, in the same form, at `GET /api/federation/funding/project-feed`. Every other instance's backend reads that feed every 30 minutes for the goal, progress and messages of its **Harmony development** tab, and keeps the last copy for up to 7 days when har.mony.lol is unreachable; your members' browsers never contact the project. The tab's links never come from the feed. Another instance answers that address with 404.
 
 ## The Harmony development fund
 
-This section is for the administrators of har.mony.lol, the Harmony project's own instance (`PROJECT_INSTANCE`). Its **Funding** tab has a **Harmony development fund** section, which no other instance shows:
+This section is for the administrators of har.mony.lol, the Harmony project's own instance. Its **Funding** tab has a **Harmony development fund** section, which no other instance shows; which instance is the project's is built into Harmony, not a setting. The section starts published, with no goal (and so no progress bar) and messages on:
 
-- **Publish the fund**, the goal amount, currency and period, a description and the donation links every instance shows on its **Harmony development** tab.
-- **Stripe Payment Link ids**: the `plink_…` ids of the fund's Payment Links, from the Stripe dashboard. A checkout of one of them is the fund's. So is a subscription whose metadata has `fund` = `harmony-development`, which is how renewals are told apart: a renewal carries only its subscription. Every other Stripe payment, through the same webhook and signing secret, is the instance's.
+- **Publish progress and messages**, the goal amount, currency and period, and a description, which every instance shows on its **Harmony development** tab. The tab's payment links are not here: they are the project's own, built into Harmony.
+- A checkout of the project's one-time or monthly Payment Link is the fund's, and so is a subscription whose metadata has `fund` = `harmony-development`, which is how renewals are told apart: a renewal carries only its subscription. Every other Stripe payment, through the same webhook and signing secret, is the instance's.
 - **Ko-fi verification token**: with a token here, Ko-fi donations that carry it are the fund's. Without one, every Ko-fi donation is the instance's.
 - **Supporter messages** and their public display, as for the instance. A member of har.mony.lol writes a message for the fund on the **Harmony development** tab; it goes with their next donation to the fund within 24 hours and waits in the section's own queue, apart from the instance's.
 

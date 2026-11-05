@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 
-// The public funding feed, the project feed a self-hosted instance reads and caches, and the
-// re-validation that keeps a hostile feed's markup, links and text out.
+// The public funding feed, the project feed a self-hosted instance reads and caches, the
+// re-validation that keeps a hostile feed's markup, links and text out, and the project fund's
+// links, which are constants whatever a feed or database holds.
 
 const cfg = vi.hoisted(() => ({
   INSTANCE_DOMAIN: 'self.example',
   NODE_ENV: 'test',
-  PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/project-feed',
-  PROJECT_INSTANCE: 'auto',
   SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
 }))
 vi.mock('../config/index.js', () => ({ default: cfg, config: cfg }))
@@ -29,7 +28,8 @@ function fundingRow(result: { data: unknown; error: unknown }) {
 
 const {
   sanitizeFeed, buildFeed, isProjectInstance, ProjectFundingCache, PROJECT_FUNDING_FALLBACK,
-  FRESH_MS, STALE_MS, RETRY_MS, readShowProjectMessages,
+  FRESH_MS, STALE_MS, RETRY_MS, readShowProjectMessages, PROJECT_DOMAIN, PROJECT_FEED_URL,
+  PROJECT_LINKS, PROJECT_PAYMENT_LINK_IDS, projectFeedUrl, setTestProject,
 } = await import('../services/projectFunding.js')
 const { textProblem } = await import('../services/supporterMessageText.js')
 const { createFundingRouter } = await import('../routes/funding.js')
@@ -182,24 +182,50 @@ describe('buildFeed', () => {
   })
 })
 
-describe('PROJECT_FUNDING_FALLBACK', () => {
-  it('is the Harmony development fund\'s Payment Links and Ko-fi, and passes the feed validation', () => {
-    expect(PROJECT_FUNDING_FALLBACK.links).toEqual([
+describe('the project fund\'s constants', () => {
+  it('are the Harmony development fund\'s Payment Links and Ko-fi on har.mony.lol', () => {
+    expect(PROJECT_DOMAIN).toBe('har.mony.lol')
+    expect(PROJECT_FEED_URL).toBe('https://har.mony.lol/api/federation/funding/project-feed')
+    expect(PROJECT_LINKS).toEqual([
       { platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' },
       { platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' },
       { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
     ])
+    expect([...PROJECT_PAYMENT_LINK_IDS]).toEqual(['plink_1UYKJgIByukKkdhljBcFnf5I', 'plink_1UYKRBIByukKkdhlRV8itB6j'])
+    expect(Object.isFrozen(PROJECT_LINKS) && PROJECT_LINKS.every((l) => Object.isFrozen(l))).toBe(true)
+    expect(PROJECT_FUNDING_FALLBACK.links).toEqual(PROJECT_LINKS)
     expect(sanitizeFeed(PROJECT_FUNDING_FALLBACK)).toEqual(PROJECT_FUNDING_FALLBACK)
   })
 })
 
 describe('isProjectInstance', () => {
-  it('is the instance at the feed URL host unless configured', () => {
-    const base = { PROJECT_FUNDING_URL: 'https://har.mony.lol/api/federation/funding/project-feed', PROJECT_INSTANCE: 'auto' }
-    expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'har.mony.lol' })).toBe(true)
-    expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'self.example' })).toBe(false)
-    expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'self.example', PROJECT_INSTANCE: 'true' })).toBe(true)
-    expect(isProjectInstance({ ...base, INSTANCE_DOMAIN: 'har.mony.lol', PROJECT_INSTANCE: 'false' })).toBe(false)
+  it('is INSTANCE_DOMAIN being har.mony.lol, whatever else the configuration holds', () => {
+    expect(isProjectInstance('har.mony.lol')).toBe(true)
+    expect(isProjectInstance('HAR.MONY.LOL')).toBe(true)
+    expect(isProjectInstance('self.example')).toBe(false)
+    expect(isProjectInstance('har.mony.lol.self.example')).toBe(false)
+    expect(isProjectInstance()).toBe(false)
+    Object.assign(cfg, { PROJECT_INSTANCE: 'true', PROJECT_FUNDING_URL: 'https://self.example/api/federation/funding/project-feed' })
+    try {
+      expect(isProjectInstance()).toBe(false)
+      expect(projectFeedUrl()).toBe(PROJECT_FEED_URL)
+    } finally {
+      delete (cfg as Record<string, unknown>).PROJECT_INSTANCE
+      delete (cfg as Record<string, unknown>).PROJECT_FUNDING_URL
+    }
+  })
+
+  it('takes a journey\'s stand-in outside production only', () => {
+    try {
+      setTestProject({ projectInstance: true, feedUrl: 'http://192.0.2.1:9/api/federation/funding/project-feed' })
+      expect(isProjectInstance()).toBe(true)
+      expect(projectFeedUrl()).toBe('http://192.0.2.1:9/api/federation/funding/project-feed')
+    } finally {
+      setTestProject(null)
+    }
+    expect(isProjectInstance()).toBe(false)
+    expect(() => setTestProject({ projectInstance: true }, 'production')).toThrow(/production/)
+    expect(isProjectInstance()).toBe(false)
   })
 })
 
@@ -239,6 +265,12 @@ describe('ProjectFundingCache', () => {
     const gone = await cache.get()
     expect(gone.source).toBe('fallback')
     expect(gone.funding).toEqual(PROJECT_FUNDING_FALLBACK)
+  })
+
+  it('reads PROJECT_FEED_URL by default', async () => {
+    const fetcher = vi.fn(async () => GOOD)
+    await new ProjectFundingCache(undefined, fetcher, () => now).get()
+    expect(fetcher).toHaveBeenCalledWith(PROJECT_FEED_URL)
   })
 
   it('falls back when the first read fails or returns no feed', async () => {
@@ -292,7 +324,7 @@ describe('funding routes', () => {
       project: new ProjectFundingCache('x', fetcher), projectInstance: () => true, showProjectMessages: shown, readProjectFeed: local,
     }))
     const mine = await supertest(own).get('/funding/project')
-    expect(mine.body).toMatchObject({ projectInstance: true, source: 'local', funding: { supporters: 3 } })
+    expect(mine.body).toMatchObject({ projectInstance: true, source: 'local', funding: { supporters: 3, links: PROJECT_LINKS } })
     expect(mine.body.funding.messages).toHaveLength(2)
     expect(Date.parse(mine.body.fetchedAt)).not.toBeNaN()
     expect(fetcher).not.toHaveBeenCalled()
@@ -318,7 +350,7 @@ describe('funding routes', () => {
     expect(res.status).toBe(200)
     expect(res.headers['content-type']).toMatch(/^application\/json/)
     expect(res.headers['access-control-allow-origin']).toBe('*')
-    expect(sanitizeFeed(res.body)).toEqual(sanitizeFeed(GOOD))
+    expect(sanitizeFeed(res.body)).toEqual({ ...sanitizeFeed(GOOD), links: PROJECT_LINKS })
     await supertest(own).get('/funding/project-feed')
     expect(readProjectFeed).toHaveBeenCalledTimes(1)
     now += 60_001
@@ -345,7 +377,7 @@ describe('funding routes', () => {
     const projectSummary = {
       enabled: true, goal_amount: 2000, goal_currency: 'USD', funding_period: 'monthly',
       goal_description: 'Harmony development', displayed_amount: 640, period_end: '2026-12-01T00:00:00Z', supporter_count: 21,
-      funding_links: PROJECT_FUNDING_FALLBACK.links,
+      funding_links: [{ platform: 'stripe', url: 'https://buy.stripe.com/pocketed', label: 'One-time' }],
       supporter_messages_enabled: true, supporter_messages_public: true,
       messages: [{ id: '0b6f8a1e-0000-4000-8000-0000000000d1', body: 'For Harmony', anonymous: true, name: 'Cy', at: '2026-11-04T11:00:00Z' }],
     }
@@ -364,9 +396,28 @@ describe('funding routes', () => {
     expect(own.links.map((l: { url: string }) => l.url)).toEqual(['https://buy.stripe.com/server'])
     expect(own.messages.map((m: { body: string }) => m.body)).toEqual(['For the server'])
     expect(fund).toMatchObject({ instance: 'self.example', supporters: 21, goal: { raised: 640, description: 'Harmony development' } })
-    expect(fund.links).toEqual(PROJECT_FUNDING_FALLBACK.links)
+    expect(fund.links).toEqual(PROJECT_LINKS)
+    expect(JSON.stringify(fund)).not.toContain('pocketed')
     expect(fund.messages).toEqual([{ id: '0b6f8a1e-0000-4000-8000-0000000000d1', body: 'For Harmony', name: null, at: '2026-11-04T11:00:00.000Z' }])
     expect(local.funding).toEqual(fund)
+  })
+
+  it('GET /project carries the project\'s links, never the feed\'s, fresh, stale or fallen back', async () => {
+    let now = Date.parse('2026-11-05T00:00:00Z')
+    const fetcher = vi.fn().mockResolvedValueOnce(GOOD).mockRejectedValue(new Error('ECONNREFUSED'))
+    const project = new ProjectFundingCache('https://har.mony.lol/f', fetcher, () => now)
+    const app = express()
+    app.use('/funding', createFundingRouter({ project, projectInstance: () => false, showProjectMessages: async () => true }))
+    const seen: string[] = []
+    for (const step of [0, FRESH_MS + 1, STALE_MS]) {
+      now += step
+      const res = await supertest(app).get('/funding/project')
+      seen.push(res.body.source)
+      expect(res.body.funding.links).toEqual(PROJECT_LINKS)
+      expect(res.text).not.toContain('buy.stripe.com/abc')
+      expect(res.text).not.toContain('ko-fi.com/harmony')
+    }
+    expect(seen).toEqual(['upstream', 'stale', 'fallback'])
   })
 
   it('GET /project carries the project\'s messages only while show_project_messages is on', async () => {
@@ -382,7 +433,7 @@ describe('funding routes', () => {
     const off = await supertest(app).get('/funding/project')
     expect(off.body).toMatchObject({ projectInstance: false, source: 'upstream', funding: { instance: 'har.mony.lol', supporters: 8 } })
     expect(off.body.funding.messages).toEqual([])
-    expect(off.body.funding.links).toEqual(GOOD.links)
+    expect(off.body.funding.links).toEqual(PROJECT_LINKS)
     expect(off.body.funding.goal).toEqual(GOOD.goal)
     expect(off.text).not.toContain('Thanks for Harmony!')
     expect(off.text).not.toContain('Alice')
@@ -400,7 +451,7 @@ describe('funding routes', () => {
     }))
     const res = await supertest(app).get('/funding/project')
     expect(res.status).toBe(200)
-    expect(res.body.funding.links).toHaveLength(2)
+    expect(res.body.funding.links).toEqual(PROJECT_LINKS)
     expect(res.body.funding.messages).toEqual([])
   })
 

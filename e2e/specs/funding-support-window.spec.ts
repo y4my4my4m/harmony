@@ -1,22 +1,22 @@
 // Journey: the Support window. On a self-hosted instance it has two tabs, "This instance" and
 // "Harmony development": the instance's Stripe link carries the donor's profile id; the
-// project's links come from this instance's backend (the project's feed is unreachable here, so
-// its built-in links, said so) and carry none. Arrow keys move between the tabs. On the
-// project's own instance the second tab is its project fund. On a 375 px phone it is a full-height sheet with
-// no sideways scroll. In Paper, Skyglass and High contrast, light and dark, its text passes axe
+// project's links are the Harmony project's own and carry none (the project's feed is unreachable
+// here, which the tab says). Arrow keys move between the tabs. On the project's own instance the
+// second tab is its project fund. On a 375 px phone it is a full-height sheet with no sideways
+// scroll. In Paper, Skyglass and High contrast, light and dark, its text passes axe
 // color-contrast and Paper draws its window strip.
 
 import { test, expect, type Browser, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
-import { enableFunding, openSupportFromChat, openSupportFromSettings } from './funding'
+import { enableFunding, openSupportFromChat, openSupportFromSettings, PROJECT_LINK_URLS } from './funding'
 import { expectNoAxeViolations } from './a11y'
 
 test.use({ serviceWorkers: 'block' })
 
 const admin = adminClient()
 // Unresolvable (RFC 6761 .invalid): the backend's read of the project feed fails at once.
-const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/public'
+const UNREACHABLE_FEED = 'https://funding.e2e.invalid/api/federation/funding/project-feed'
 
 test.describe('on a self-hosted instance', () => {
   let backend: Backend
@@ -28,7 +28,7 @@ test.describe('on a self-hosted instance', () => {
 
   test.beforeAll(async () => {
     test.setTimeout(120_000)
-    backend = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED, PROJECT_INSTANCE: 'auto' })
+    backend = await startBackend({ E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
     donor = await createUser(admin, 'supwin')
     phone = await createUser(admin, 'supwinp')
     styled = await createUser(admin, 'supwins')
@@ -70,6 +70,7 @@ test.describe('on a self-hosted instance', () => {
     await expect(panel.getByTestId('support-project-fallback')).toBeVisible({ timeout: 15000 })
     const projectLinks = panel.getByTestId('support-links-project').getByRole('link')
     await expect(projectLinks.first()).toBeVisible()
+    expect(await projectLinks.evaluateAll((els) => els.map((el) => (el as HTMLAnchorElement).href))).toEqual(PROJECT_LINK_URLS)
     for (const link of await projectLinks.all()) {
       const url = new URL((await link.getAttribute('href'))!)
       expect(url.protocol).toBe('https:')
@@ -166,7 +167,7 @@ test.describe('on the project instance', () => {
 
   test.beforeAll(async () => {
     test.setTimeout(120_000)
-    backend = await startBackend({ PROJECT_FUNDING_URL: UNREACHABLE_FEED, PROJECT_INSTANCE: 'true' })
+    backend = await startBackend({ E2E_PROJECT_INSTANCE: 'true', E2E_PROJECT_FEED_URL: UNREACHABLE_FEED })
     member = await createUser(admin, 'supproj')
     await enableFunding(admin)
   })

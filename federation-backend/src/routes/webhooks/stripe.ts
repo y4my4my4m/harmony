@@ -24,9 +24,8 @@
  *
  * Fund (instance_donation_history.fund): on the Harmony project's own instance
  * (isProjectInstance), an event is the project's when
- * - a checkout session's payment_link is one of project_funding.stripe_payment_links, or its
- *   metadata.fund is PROJECT_FUND_METADATA (a Payment Link's own metadata is copied onto its
- *   sessions);
+ * - a checkout session's payment_link is one of PROJECT_PAYMENT_LINK_IDS, or its metadata.fund is
+ *   PROJECT_FUND_METADATA (a Payment Link's own metadata is copied onto its sessions);
  * - an invoice's subscription metadata.fund is PROJECT_FUND_METADATA: parent.subscription_details
  *   (API 2025-03-31 on), subscription_details (earlier), or a line's metadata. Payment Links copy
  *   subscription_data.metadata onto the subscription, and renewals carry only the invoice.
@@ -44,8 +43,7 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
-import config from '../../config/index.js';
-import { isProjectInstance } from '../../services/projectFunding.js';
+import { isProjectInstance, PROJECT_PAYMENT_LINK_IDS } from '../../services/projectFunding.js';
 import {
   recordMatchedDonation,
   recordPendingDonation,
@@ -131,8 +129,7 @@ interface StripeConfig {
 }
 
 async function loadStripeConfig(): Promise<StripeConfig | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('instance_funding')
     .select('stripe_webhook_secret, stripe_auto_assign_tier')
     .limit(1)
@@ -142,20 +139,7 @@ async function loadStripeConfig(): Promise<StripeConfig | null> {
     return null;
   }
   if (!data) return null;
-  let projectLinks: Set<string> | null = null;
-  if (isProjectInstance(config)) {
-    const project = await supabase
-      .from('project_funding')
-      .select('stripe_payment_links')
-      .limit(1)
-      .maybeSingle();
-    if (project.error) {
-      logger.error(`stripe: failed to load the project fund: ${project.error.message}`);
-      return null;
-    }
-    const links = (project.data as { stripe_payment_links?: unknown } | null)?.stripe_payment_links;
-    projectLinks = new Set(Array.isArray(links) ? links.filter((l): l is string => typeof l === 'string') : []);
-  }
+  const projectLinks = isProjectInstance() ? PROJECT_PAYMENT_LINK_IDS : null;
   return { ...(data as Omit<StripeConfig, 'projectLinks'>), projectLinks };
 }
 

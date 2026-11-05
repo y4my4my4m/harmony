@@ -36,7 +36,6 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
-import config from '../../config/index.js';
 import { isProjectInstance } from '../../services/projectFunding.js';
 import {
   recordMatchedDonation,
@@ -174,7 +173,7 @@ async function loadFundingConfig(): Promise<FundingConfig | null> {
 
 /** project_funding.kofi_webhook_token on the project's own instance; null elsewhere or unset. */
 async function loadProjectKofiToken(): Promise<string | null> {
-  if (!isProjectInstance(config)) return null;
+  if (!isProjectInstance()) return null;
   const { data, error } = await getSupabaseClient()
     .from('project_funding')
     .select('kofi_webhook_token')

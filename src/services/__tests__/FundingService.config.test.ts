@@ -5,10 +5,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { auth, from, rpc, upsert } = vi.hoisted(() => {
+const { auth, from, rpc, upsert, select } = vi.hoisted(() => {
   const upsert = vi.fn(async () => ({ error: null }))
   const query: any = {
-    select: () => query,
+    select: vi.fn(() => query),
     limit: () => query,
     maybeSingle: async () => ({ data: { id: 'f1', enabled: true }, error: null }),
     upsert,
@@ -18,6 +18,7 @@ const { auth, from, rpc, upsert } = vi.hoisted(() => {
     from: vi.fn(() => query),
     rpc: vi.fn(async () => ({ data: { id: 'm', body: 'hi', anonymous: false }, error: null })),
     upsert,
+    select: query.select,
   }
 })
 
@@ -25,7 +26,7 @@ vi.mock('@/supabase', () => ({ supabase: { auth, from, rpc } }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: () => true }))
 
-import { fundingService } from '../FundingService'
+import { fundingService, PROJECT_DOMAIN, PROJECT_LINKS } from '../FundingService'
 
 beforeEach(() => {
   from.mockClear()
@@ -69,14 +70,25 @@ describe('the project fund', () => {
     expect(rpc).toHaveBeenLastCalledWith('set_supporter_message', { p_body: 'hi', p_anonymous: true, p_fund: 'project' })
   })
 
-  it('writes project_funding\'s one row', async () => {
+  it('writes project_funding\'s one row, which holds no links', async () => {
     const settings = {
       enabled: true, goal_amount: 500, goal_currency: 'USD', funding_period: 'monthly' as const, goal_description: null,
-      funding_links: [], supporter_messages_enabled: true, supporter_messages_public: true,
-      stripe_payment_links: ['plink_1UYKJgIByukKkdhljBcFnf5I'],
+      supporter_messages_enabled: true, supporter_messages_public: true,
     }
     expect(await fundingService.saveProjectFundingSettings(settings)).toEqual({ ok: true })
     expect(from).toHaveBeenLastCalledWith('project_funding')
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: true, ...settings }), { onConflict: 'id' })
+    expect(upsert).toHaveBeenCalledWith({ id: true, ...settings, updated_at: expect.any(String) }, { onConflict: 'id' })
+    await fundingService.getProjectFundingSettings()
+    expect(select).toHaveBeenLastCalledWith(expect.not.stringMatching(/link/))
+  })
+
+  it('links to the Harmony project\'s own payment pages', () => {
+    expect(PROJECT_DOMAIN).toBe('har.mony.lol')
+    expect(PROJECT_LINKS).toEqual([
+      { platform: 'stripe', url: 'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03', label: 'One-time' },
+      { platform: 'stripe', url: 'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04', label: 'Monthly' },
+      { platform: 'ko-fi', url: 'https://ko-fi.com/y4my4my4m', label: 'Ko-fi' },
+    ])
+    expect(Object.isFrozen(PROJECT_LINKS) && PROJECT_LINKS.every((l) => Object.isFrozen(l))).toBe(true)
   })
 })

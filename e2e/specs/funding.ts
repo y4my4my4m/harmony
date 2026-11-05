@@ -128,25 +128,40 @@ export async function openSupportFromSettings(page: Page): Promise<void> {
   await expect(page.getByTestId('support-panel-instance').getByTestId('support-raised')).toBeVisible({ timeout: 15000 })
 }
 
-/** The project fund's Payment Link in the funding journeys. */
-export const PROJECT_PLINK = 'plink_e2eproject'
+/**
+ * The Harmony development fund's Payment Links (federation-backend services/projectFunding.ts
+ * PROJECT_PAYMENT_LINK_IDS): one-time and monthly.
+ */
+export const PROJECT_PLINK = 'plink_1UYKJgIByukKkdhljBcFnf5I'
+export const PROJECT_PLINK_MONTHLY = 'plink_1UYKRBIByukKkdhlRV8itB6j'
+
+/** The Harmony development tab's links, in order (src/services/FundingService.ts PROJECT_LINKS). */
+export const PROJECT_LINK_URLS = [
+  'https://donate.stripe.com/fZu8wQ29W5S97hrcqKb7y03',
+  'https://donate.stripe.com/8x25kEbKwbct59jcqKb7y04',
+  'https://ko-fi.com/y4my4my4m',
+]
 
 export interface ProjectFundSetup {
   enabled?: boolean
   goal?: number
-  links?: Array<{ platform: string; url: string; label: string }>
 }
 
-/**
- * The project fund's one row, as an admin of the project's instance sets it: a monthly goal,
- * PROJECT_PLINK as its Payment Link, messages on; its donations, pending donations and messages
- * removed, so its total is the spec's own.
- */
-export async function resetProjectFund(admin: SupabaseClient, setup: ProjectFundSetup = {}): Promise<void> {
+/** Removes the project fund's donations, pending donations and messages. */
+async function clearProjectFund(admin: SupabaseClient): Promise<void> {
   for (const table of ['instance_supporter_messages', 'instance_donation_history', 'instance_pending_donations']) {
     const { error } = await admin.from(table).delete().eq('fund', 'project')
     if (error) throw new Error(`${table}: ${error.message}`)
   }
+}
+
+/**
+ * The project fund's one row, as an admin of the project's instance sets it: a monthly goal,
+ * messages on; its donations, pending donations and messages removed, so its total is the spec's
+ * own.
+ */
+export async function resetProjectFund(admin: SupabaseClient, setup: ProjectFundSetup = {}): Promise<void> {
+  await clearProjectFund(admin)
   const { error } = await admin.from('project_funding').upsert({
     id: true,
     enabled: setup.enabled ?? true,
@@ -154,14 +169,18 @@ export async function resetProjectFund(admin: SupabaseClient, setup: ProjectFund
     goal_currency: 'USD',
     funding_period: 'monthly',
     goal_description: 'Harmony development',
-    funding_links: setup.links ?? [
-      { platform: 'stripe', url: 'https://donate.stripe.com/test_e2e_project', label: 'One-time' },
-      { platform: 'ko-fi', url: 'https://ko-fi.com/e2e-project', label: 'Ko-fi' },
-    ],
     supporter_messages_enabled: true,
     supporter_messages_public: true,
-    stripe_payment_links: [PROJECT_PLINK],
   }, { onConflict: 'id' })
+  if (error) throw new Error(`project_funding: ${error.message}`)
+}
+
+/** The project fund's row with every column at its default, and none of its donations or messages. */
+export async function installProjectFund(admin: SupabaseClient): Promise<void> {
+  await clearProjectFund(admin)
+  const { error: gone } = await admin.from('project_funding').delete().eq('id', true)
+  if (gone) throw new Error(`project_funding: ${gone.message}`)
+  const { error } = await admin.from('project_funding').insert({ id: true })
   if (error) throw new Error(`project_funding: ${error.message}`)
 }
 
@@ -175,7 +194,7 @@ export async function instanceRaised(admin: SupabaseClient): Promise<number> {
 }
 
 export interface ProjectFeed {
-  /** PROJECT_FUNDING_URL for startBackend(): the stand-in's /api/federation/funding/project-feed. */
+  /** E2E_PROJECT_FEED_URL for startBackend(): the stand-in's /api/federation/funding/project-feed. */
   url: string
   /** Reads of the project fund feed so far. */
   reads: number
