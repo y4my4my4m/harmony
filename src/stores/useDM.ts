@@ -92,11 +92,9 @@ export const useDMStore = defineStore('dm', () => {
   const conversations = ref<DMConversation[]>([])
   const currentConversationId = ref<string | null>(null)
   const currentDMMessages = ref<Message[]>([])
-  const searchResults = ref<DMUser[]>([])
   
   const loadingConversations = ref(false)
   const loadingMessages = ref(false)
-  const isSearching = ref(false)
   const allMessagesLoaded = ref(false)
   const isInitializing = ref(false)
   
@@ -174,8 +172,7 @@ export const useDMStore = defineStore('dm', () => {
       return userData?.isOnline || false
     } catch (error) {
       debug.error('Failed to check user online status:', error)
-      const user = searchResults.value.find(u => u.id === userId)
-      return user?.is_online || false
+      return false
     }
   }
 
@@ -1829,75 +1826,6 @@ export const useDMStore = defineStore('dm', () => {
     attachList(conversationId, toConversationMessages(conversationId, rows))
   }
 
-  const searchUsers = async (query: string, currentUserId: string) => {
-    try {
-      isSearching.value = true
-
-      // Strip the leading "@": input arrives as "@alice" or
-      // "@alice@mastodon.social", but the RPC matches bare usernames and
-      // "username@domain" only.
-      const normalizedQuery = query.trim().replace(/^@+/, '')
-      debug.log('Searching users via service layer:', normalizedQuery)
-
-      if (!normalizedQuery) {
-        searchResults.value = []
-        return
-      }
-
-      const users = await services.activityPub.searchUsers(normalizedQuery, 10)
-      
-      // `user_id` is absent from `FederatedUser` but present on legacy-shaped
-      // service responses; the cast bypasses the type.
-      debug.log('Raw search results from service:', users.map((u: any) => ({ id: u.id, user_id: u.user_id, username: u.username })))
-      
-      const filteredUsers = users
-        .map(user => _normalizeUserObject(user))
-        .filter(user => user.id !== currentUserId)
-
-      searchResults.value = filteredUsers
-      debug.log(`Found ${filteredUsers.length} users via service layer`)
-      
-    } catch (error) {
-      debug.error('Failed to search users via service:', error)
-      searchResults.value = []
-      
-      try {
-        debug.log('Falling back to local user search')
-        const normalizedQuery = query.trim().replace(/^@+/, '')
-        if (normalizedQuery) {
-          await _searchLocalUsers(normalizedQuery, currentUserId)
-        }
-      } catch (fallbackError) {
-        debug.error('Fallback search also failed:', fallbackError)
-      }
-    } finally {
-      isSearching.value = false
-    }
-  }
-
-  const _searchLocalUsers = async (query: string, currentUserId: string) => {
-    const { data: users, error } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-      .neq('id', currentUserId)
-      .eq('is_local', true)
-      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-      .limit(10)
-
-    if (error) throw error
-
-    searchResults.value = (users || []).map(user => ({
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name,
-      avatar_url: user.avatar_url,
-      domain: user.domain,
-      is_local: user.is_local,
-      federated_id: user.federated_id,
-      handle: user.is_local ? user.username : `${user.username}@${user.domain}`,
-      is_online: false
-    }))
-  }
 
   const createOrGetConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
@@ -2965,7 +2893,6 @@ export const useDMStore = defineStore('dm', () => {
     currentDMMessages.value = []
     resetDetached()
     currentConversationId.value = null
-    searchResults.value = []
     replyMessageCache.value.clear()
     fetchingReplyMessages.value.clear()
 
@@ -3516,10 +3443,8 @@ export const useDMStore = defineStore('dm', () => {
     conversations,
     currentConversationId,
     currentDMMessages,
-    searchResults,
     loadingConversations,
     loadingMessages,
-    isSearching,
     allMessagesLoaded,
     isInitializing,
     dmConnectionStatus,
@@ -3553,7 +3478,6 @@ export const useDMStore = defineStore('dm', () => {
     restoreConversation,
     fetchConversationMessages,
     prefetchConversationMessages,
-    searchUsers,
     createOrGetConversation,
     sendDMMessage,
     retryDMMessage,

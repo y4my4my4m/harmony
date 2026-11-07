@@ -7,6 +7,7 @@
 
 import type { RouteLocationNormalized } from 'vue-router'
 import { debug } from '@/utils/debug'
+import { isSocialPath } from '@/utils/permalinks'
 
 export interface LoadingStrategy {
   shouldLoadDMs: boolean
@@ -76,7 +77,7 @@ export class RouteAwareInitialization {
 
     // ActivityPub/Social routes
     const socialRoutes = ['Social', 'SocialHome', 'SocialLocal', 'SocialPublic', 'Notifications', 'Bookmarks', 'UserProfile']
-    if (socialRoutes.includes(routeName) || routePath.startsWith('/social/')) {
+    if (socialRoutes.includes(routeName) || isSocialPath(routePath)) {
       return {
         shouldLoadDMs: false, // ❌ Don't load DMs in social context
         shouldLoadAllServerPresence: false, // ❌ Don't load server presence in social context

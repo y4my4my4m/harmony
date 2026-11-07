@@ -87,9 +87,9 @@ const dateFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateSt
 
 useViewTitle(() => props.info?.name ?? '')
 
-/** Drive files belong to accounts of this instance: the local profile route. */
+/** Drive files belong to accounts of this instance: /@<name>. */
 function profilePath(owner: DriveCardOwner): string {
-  return `/social/profile/${encodeURIComponent(owner.username)}`
+  return `/@${encodeURIComponent(owner.username)}`
 }
 </script>
 

@@ -4,6 +4,7 @@ import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js
 import { HARMONY_NS } from '../harmonyContext.js';
 import { HARMONY_INSTANCE_ROLE, instanceRoleOf } from '../copyMirror.js';
 import { shownLinkLabel } from '../../utils/maskedLinks.js';
+import { federatedImage } from '../../utils/federatedImages.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -19,12 +20,13 @@ function normalizeShortcodeBoundaries(text: string): string {
  * Media type from a URL's file extension. Storage may serve uploads as
  * application/octet-stream, so remotes need this hint on icon/image.
  */
-function imageMediaTypeFromUrl(url: string): string | undefined {
+export function imageMediaTypeFromUrl(url: string): string | undefined {
   const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'jpg':
     case 'jpeg': return 'image/jpeg';
     case 'png': return 'image/png';
+    case 'apng': return 'image/apng';
     case 'gif': return 'image/gif';
     case 'webp': return 'image/webp';
     case 'avif': return 'image/avif';
@@ -90,6 +92,8 @@ export interface NoteExtras {
   quoteAuthorization?: string | null;
   likesCount?: number | null;
   sharesCount?: number | null;
+  /** Longest side of the photos sent, pixels (utils/federatedImages.ts); 0 or absent sends originals. */
+  imageMaxPx?: number;
 }
 
 /**
@@ -117,9 +121,9 @@ export function threadContextUrl(rootId: string): string {
   return `https://${config.INSTANCE_DOMAIN}/posts/${rootId}/context`;
 }
 
-/** Hashtag page on this instance; the SPA route, which also serves crawlers. */
-function hashtagUrl(name: string): string {
-  return `https://${config.INSTANCE_DOMAIN}/social/hashtag/${encodeURIComponent(name)}`;
+/** Hashtag page on this instance, /tags/<name> as on Mastodon (the app's HashtagView). */
+export function hashtagUrl(name: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/tags/${encodeURIComponent(name)}`;
 }
 
 /**
@@ -197,9 +201,10 @@ export function postToNote(
     note.summary = post.content_warning;
   }
 
-  const attachments = extractAttachments(post.content);
+  const imageMaxPx = extras.imageMaxPx ?? 0;
+  const attachments = extractAttachments(post.content, imageMaxPx);
   const seenAttachmentUrls = new Set(attachments.map((a) => a.url));
-  for (const media of mediaAttachmentsToAp(post.media_attachments)) {
+  for (const media of mediaAttachmentsToAp(post.media_attachments, imageMaxPx)) {
     if (!seenAttachmentUrls.has(media.url)) {
       seenAttachmentUrls.add(media.url);
       attachments.push(media);
@@ -893,7 +898,7 @@ function paragraphs(inline: string): string {
 /**
  * Helper: Extract attachments from JSONB content
  */
-function extractAttachments(content: any): any[] {
+function extractAttachments(content: any, imageMaxPx: number): any[] {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -902,17 +907,21 @@ function extractAttachments(content: any): any[] {
     .filter((item) => item.type === 'file')
     .map((item) => {
       const mediaType = getMediaType(item.fileType, item.mimeType, item.url);
-      
+      const sent = federatedImage(
+        { url: item.url, mediaType, width: item.width, height: item.height, animated: item.animated },
+        imageMaxPx,
+      );
+
       const attachment: any = {
         type: 'Document',
         mediaType,
-        url: item.url,
+        url: sent.url,
         name: firstText(item.altText, item.description), // Alt text; never the file name
       };
 
       // Add dimensions if available (important for image layout)
-      if (item.width) attachment.width = item.width;
-      if (item.height) attachment.height = item.height;
+      if (sent.width) attachment.width = sent.width;
+      if (sent.height) attachment.height = sent.height;
       
       if (item.blurhash) attachment.blurhash = item.blurhash;
       
@@ -933,27 +942,33 @@ function firstText(...values: unknown[]): string | null {
 
 /**
  * `posts.media_attachments` → AP attachments. Composer rows are
- * `{ type, url, mediaType, name, description, meta?: { focus } }` where `name`
- * is the upload's file name and `description` the alt text; `name` is never
+ * `{ type, url, mediaType, name, width?, height?, animated?, description, meta?: { focus } }`
+ * where `name` is the upload's file name and `description` the alt text; `name` is never
  * sent as alt text. Imported rows may follow the Mastodon API shape (`meta`,
- * `description`).
+ * `description`). Photos over `imageMaxPx` are sent as their render (utils/federatedImages.ts).
  */
-function mediaAttachmentsToAp(media: any): any[] {
+function mediaAttachmentsToAp(media: any, imageMaxPx: number): any[] {
   if (!Array.isArray(media)) return [];
 
   return media
     .filter((m) => m && typeof m.url === 'string' && /^https?:\/\//i.test(m.url))
     .map((m) => {
+      const mediaType = getMediaType(undefined, m.mediaType || m.mimeType || m.mime_type, m.url);
+      const sent = federatedImage({
+        url: m.url,
+        mediaType,
+        width: m.width ?? m.meta?.width ?? m.meta?.original?.width,
+        height: m.height ?? m.meta?.height ?? m.meta?.original?.height,
+        animated: m.animated,
+      }, imageMaxPx);
       const attachment: any = {
         type: 'Document',
-        mediaType: getMediaType(undefined, m.mediaType || m.mimeType || m.mime_type, m.url),
-        url: m.url,
+        mediaType,
+        url: sent.url,
         name: firstText(m.description, m.altText, m.alt),
       };
-      const width = m.width ?? m.meta?.width ?? m.meta?.original?.width;
-      const height = m.height ?? m.meta?.height ?? m.meta?.original?.height;
-      if (width) attachment.width = width;
-      if (height) attachment.height = height;
+      if (sent.width) attachment.width = sent.width;
+      if (sent.height) attachment.height = sent.height;
       if (m.blurhash) attachment.blurhash = m.blurhash;
       const focalPoint = storedFocalPoint(m);
       if (focalPoint) attachment.focalPoint = focalPoint;

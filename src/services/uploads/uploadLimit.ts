@@ -98,8 +98,9 @@ export async function checkUploadLimit(bucket: string, file: { size: number }, n
 }
 
 /**
- * Storage refused `file`: the limit as it is now, when the file exceeds it. Storage words a
- * limit refusal as a row-level security refusal (42501), or 413 past the ceiling.
+ * Storage refused `file`: the limit as it is now, when the file exceeds it. Storage answers a
+ * limit refusal with 403 (42501): storage-api v1.25-v1.29 as a row-level security refusal,
+ * v1.89 with the trigger's "upload_limit_exceeded" message; 413 past the ceiling.
  */
 export async function limitRefusal(bucket: string, file: { size: number }, name?: string): Promise<UploadLimitError | null> {
   if (!LIMITED_BUCKETS.has(bucket)) return null

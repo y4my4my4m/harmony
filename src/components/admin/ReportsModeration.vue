@@ -258,6 +258,7 @@
 </template>
 
 <script setup lang="ts">
+import { profileHandleParam } from '@/utils/permalinks'
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -653,10 +654,8 @@ const navigateToReportUser = (report: ReportWithDetails, which: 'reporter' | 're
     username = report.reported_user_username
     domain = report.reported_user_domain
   }
-  if (!username) return
-  const localDomain = runtimeConfig.domain as string
-  const handle = (domain && domain !== localDomain) ? `${username}@${domain}` : username
-  router.push({ name: 'UserProfile', params: { handle } })
+  const handle = profileHandleParam({ username, domain })
+  if (handle) router.push({ name: 'UserProfile', params: { handle } })
 }
 
 const navigateToPost = (postId: string) => {

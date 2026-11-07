@@ -874,6 +874,7 @@ import {
 } from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
+import { profileLinkFromUrl } from '@/utils/profileLinks';
 import { soleDriveLinkPart } from '@/utils/driveLinkContent';
 import { linkPreviewMedia, soleGifLinkPart, type LinkPreviewMedia } from '@/utils/gifLinks';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
@@ -1532,6 +1533,20 @@ export default defineComponent({
             url: part.url,
             normalizedUrl: part.url,
             provider: 'harmony-drive',
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
+        // An account link the database did not preview (another host of this instance, a
+        // federated message): the card reads the account itself.
+        const profile = profileLinkFromUrl(part.url);
+        if (profile) {
+          return {
+            cacheKey: `profile-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: 'harmony-profile',
+            profile,
             fetchedAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + 86400000).toISOString(),
           };

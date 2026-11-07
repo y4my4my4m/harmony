@@ -212,6 +212,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -271,9 +272,7 @@ const movedDate = computed(() =>
 )
 
 const targetLabel = computed(() => {
-  const target = preview.value?.target
-  if (!target) return ''
-  return target.is_local || !target.domain ? `@${target.username}` : `@${target.username}@${target.domain}`
+  return formatHandle(preview.value?.target, { full: true })
 })
 
 const canMove = computed(() => {

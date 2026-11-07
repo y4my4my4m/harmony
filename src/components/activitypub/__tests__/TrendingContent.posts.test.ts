@@ -13,7 +13,8 @@ const service = vi.hoisted(() => ({
   getTrendingPosts: vi.fn(),
   getTrendingHashtags: vi.fn(async () => []),
   getTrendingUsers: vi.fn(async () => []),
-  getFederatedInstances: vi.fn(async () => []),
+  getRecentInstanceDomains: vi.fn(async () => []),
+  searchInstanceDomains: vi.fn(async () => []),
 }))
 vi.mock('@/services/TrendingService', () => ({
   trendingService: service,

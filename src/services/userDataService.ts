@@ -5,11 +5,14 @@
  * context-based subscriptions.
  *
  * Presence is kept in the database, keyed by the caller's profile: each tab
- * calls presence_heartbeat every HEARTBEAT_INTERVAL and presence_offline when it
- * closes. Others' presence comes from get_presence, which answers only for
- * profiles sharing a server or a conversation with the viewer, or that it
- * follows, and changes arrive as presence:update on server-presence:{serverId}
- * and on the private user channel (DM partners).
+ * calls presence_heartbeat every HEARTBEAT_INTERVAL, and presence_offline once
+ * when it goes Offline and when it closes. Others' presence comes from
+ * get_presence, which answers only for profiles sharing a server or a
+ * conversation with the viewer, or that it follows, and changes arrive as
+ * presence:update on server-presence:{serverId} and on the private user channel
+ * (DM partners). Only profile and friends contexts receive no changes: they are
+ * re-read every HEARTBEAT_INTERVAL while the tab is shown, and when it is shown
+ * again.
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
@@ -20,7 +23,6 @@ import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
-import { realtimeApiService } from '@/services/RealtimeApiService'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
 import {
@@ -114,6 +116,8 @@ class UserDataService extends EventTarget {
   private userLoadBatchPromise: Promise<void> | null = null
 
   private heartbeatTimer: NodeJS.Timeout | null = null
+  // presence_offline sent for this tab, or in flight: its device row is gone until the next heartbeat.
+  private presenceOfflineSent = false
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
   private customStatusExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -563,6 +567,13 @@ class UserDataService extends EventTarget {
       userEventChannel.on('presence:update', (payload) => this.applyPresenceUpdate(payload)),
       userEventChannel.on('_reconnected', () => { void this.refreshContextPresence(true) }),
     ]
+    if (typeof document !== 'undefined') {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') void this.refreshContextPresence(false)
+      }
+      document.addEventListener('visibilitychange', onVisible)
+      this.presenceOffs.push(() => document.removeEventListener('visibilitychange', onVisible))
+    }
 
     await this.publishPresence()
   }
@@ -573,15 +584,21 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
 
+    const offline = userData.status === UserStatus.Offline
+    if (offline && this.presenceOfflineSent) return
+    this.presenceOfflineSent = offline
     const deviceId = getClientDeviceId()
-    const { error } = userData.status === UserStatus.Offline
+    const { error } = offline
       ? await supabase.rpc('presence_offline', { p_device_id: deviceId })
       : await supabase.rpc('presence_heartbeat', {
           p_device_id: deviceId,
           p_status: userData.status,
           p_is_mobile: !!userData.isMobile,
         })
-    if (error) debug.warn('Presence update failed:', error.message)
+    if (error) {
+      debug.warn('Presence update failed:', error.message)
+      if (offline) this.presenceOfflineSent = false
+    }
   }
 
   /** Ends this tab's presence from an unloading page, which may not finish a normal request. */
@@ -659,13 +676,13 @@ class UserDataService extends EventTarget {
   }
 
   /**
-   * Re-reads presence for subscribed contexts. Server contexts receive their
-   * members' changes on server-presence and are re-read only when `all`.
+   * Re-reads presence for subscribed contexts. Server members (server-presence) and
+   * DM partners (the user channel) receive their changes and are re-read only when `all`.
    */
   private async refreshContextPresence(all: boolean): Promise<void> {
     const ids = new Set<string>()
     for (const context of this.contexts.values()) {
-      if (!all && context.type === 'server') continue
+      if (!all && (context.type === 'server' || context.type === 'dm')) continue
       context.userIds.forEach(id => ids.add(id))
     }
     if (ids.size > 0) await this.fetchPresence([...ids])
@@ -718,33 +735,9 @@ class UserDataService extends EventTarget {
   }
 
   
-  /**
-   * Start heartbeat for both internal tracking and Redis presence.
-   * Redis heartbeats keep the server-side presence sorted set alive.
-   * Supabase Realtime Presence remains active separately for backward compat.
-   */
   private startHeartbeat(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
 
-    const mapStatusToRedis = (s: UserStatus): string => {
-      switch (s) {
-        case UserStatus.Online: return 'online'
-        case UserStatus.Away: return 'idle'
-        case UserStatus.Busy: return 'dnd'
-        case UserStatus.Invisible: return 'invisible'
-        default: return 'online'
-      }
-    }
-
-    const currentUser = this.currentUserId ? this.users.get(this.currentUserId) : null
-    const redisStatus = currentUser ? mapStatusToRedis(currentUser.status) : 'online'
-    const customSt = currentUser?.customStatus?.text
-
-    realtimeApiService.startHeartbeat(
-      redisStatus as any,
-      customSt || undefined
-    )
-    
     this.heartbeatTimer = setInterval(async () => {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
@@ -752,7 +745,9 @@ class UserDataService extends EventTarget {
           userData.lastHeartbeat = new Date().toISOString()
         }
         await this.publishPresence()
-        await this.refreshContextPresence(false)
+        if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+          await this.refreshContextPresence(false)
+        }
       }
     }, this.HEARTBEAT_INTERVAL)
   }
@@ -764,7 +759,6 @@ class UserDataService extends EventTarget {
     
     try {
       await this.updateCurrentUserStatus(UserStatus.Offline, false)
-      realtimeApiService.goOffline().catch(() => {})
     } catch (error) {
       debug.error('Failed to set offline status on connection loss:', error)
     }
@@ -1456,14 +1450,6 @@ class UserDataService extends EventTarget {
       }
 
       await this.publishPresence()
-
-      // Sync to Redis presence
-      const redisStatus = status === UserStatus.Online ? 'online'
-        : status === UserStatus.Away ? 'idle'
-        : status === UserStatus.Busy ? 'dnd'
-        : status === UserStatus.Invisible ? 'invisible'
-        : 'offline'
-      realtimeApiService.updateStatus(redisStatus as any, userData.customStatus?.text)
       
       // Backup to localStorage
       try {
@@ -1922,8 +1908,7 @@ class UserDataService extends EventTarget {
       clearInterval(this.statusExpirySweep)
       this.statusExpirySweep = null
     }
-    realtimeApiService.goOffline().catch(() => {})
-    realtimeApiService.cleanup()
+    this.presenceOfflineSent = false
 
     if (this.customStatusExpiryTimer) {
       clearTimeout(this.customStatusExpiryTimer)
@@ -1948,7 +1933,7 @@ class UserDataService extends EventTarget {
     this.presenceAuthUnsub = null
     this.presenceAccessToken = null
 
-    // Clears the beforeunload hook installed by `setupGlobalPresence`
+    // Clears the pagehide hook installed by `setupGlobalPresence`
     // (BUGS.md H31). Otherwise a logout followed by a tab close calls
     // untrack against a torn-down service. The next sign-in re-installs it.
     if (typeof window !== 'undefined' && (window as any).__harmonyPresenceCleanup) {

@@ -1445,7 +1445,7 @@ watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
     initializeCategoryStates();
     // Awaited so voice channel state is present before render.
     debug.log('Setting up voice channel broadcast for server:', newServerId);
-    await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
+    await serverUsersStore.setupVoiceChannelBroadcast(newServerId, { local: props.currentServer?.is_local_server !== false });
     debug.log('Voice channel broadcast setup complete for server:', newServerId);
     debug.log('Users in voice channels:', serverUsersStore.usersInVoiceChannels);
   }

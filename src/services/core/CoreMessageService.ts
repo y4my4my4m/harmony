@@ -6,7 +6,7 @@ import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n'
-import { discordCustomEmojiUrlFromIdentifier, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
+import { discordCustomEmojiUrlFromIdentifier, isPurgedEmojiReaction, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
 import { messageTextLength } from '@/utils/messageContentUtils'
 import { messageLimits, type MessageLimits } from '@/services/core/messageLimits'
 import {
@@ -618,6 +618,7 @@ export class CoreMessageService {
           ? reaction.emoji?.url || discordCustomEmojiUrlFromIdentifier(reaction.emoji?.content) || ''
           : remoteReactionEmojiUrl(reaction.emoji?.content, reaction.emoji?.url) || ''
         const isNative = !url
+        const removed = isPurgedEmojiReaction(reaction.emoji?.content, reaction.reactions)
         return {
           emoji_id: isNative ? null : reaction.emoji.id,
           emoji: {
@@ -625,7 +626,8 @@ export class CoreMessageService {
             name: reaction.emoji.name,
             url,
             content: reaction.emoji.content,
-            is_native: isNative
+            is_native: isNative,
+            ...(removed ? { removed } : {})
           },
           count: reaction.count,
           current_user_reacted: reaction.current_user_reacted === true,
@@ -692,6 +694,7 @@ export class CoreMessageService {
         ? reaction.emoji_url || discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) || ''
         : remoteReactionEmojiUrl(reaction.custom_emoji_content, reaction.emoji_url) || ''
       const isNative = !url
+      const removed = !reaction.emoji_id && isPurgedEmojiReaction(reaction.custom_emoji_content, reaction.users)
       groupedReactions[messageId].push({
         emoji_id: reaction.emoji_id || null,
         emoji: {
@@ -699,7 +702,8 @@ export class CoreMessageService {
           name: reaction.emoji_name || reaction.custom_emoji_content || 'unknown',
           url,
           content: reaction.custom_emoji_content,
-          is_native: isNative
+          is_native: isNative,
+          ...(removed ? { removed } : {})
         },
         count: reaction.reaction_count || 0,
         current_user_reacted: reaction.current_user_reacted === true,

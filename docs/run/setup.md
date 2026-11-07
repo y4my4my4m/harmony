@@ -126,7 +126,8 @@ Open **Server settings** → **Emoji**. Every member can see the list; adding, r
 - Select **Upload emoji**, or drop files. Several files upload at once.
 - Stored emoji are PNG, GIF, WebP, APNG or JPEG, at most 1 MB. Still images up to 25 MB are shrunk to fit; animated images must already be under 1 MB.
 - The name comes from the file name: Latin letters, digits, `_` and `-` are kept, spaces are removed, and it is cut to 20 characters. A duplicate name gets `_1`, `_2` and so on. Use **Rename emoji** to change it.
-- The instance sets how many custom emoji a server can have; 50 unless its operator changed it.
+- The instance sets how many custom emoji a server can have; 50 unless its operator changed it. Deleted emoji do not count.
+- Deleting an emoji takes it out of every emoji picker and frees its name. Messages, posts and reactions that already use it keep showing it. An instance administrator can restore it, or purge it: the image file is then deleted and those messages and reactions show a broken-image icon with the emoji's `:name:`.
 
 ## Soundboard sounds
 
@@ -136,7 +137,7 @@ Open **Server settings** → **Soundboard** (servers hosted on your own instance
 2. Set a **Name** (1 to 32 characters), an optional **Emoji**, and the **Volume**. Use **Preview** to listen.
 3. Select **Upload sound**.
 
-The emoji button opens the emoji picker: pick a standard emoji, or a custom emoji of one of your servers, of the instance, or one of your own. **Remove emoji** clears it; a sound without one shows 🔊. To change a sound later, select its pencil. A custom emoji that is deleted is removed from the sounds using it.
+The emoji button opens the emoji picker: pick a standard emoji, or a custom emoji of one of your servers, of the instance, or one of your own. **Remove emoji** clears it; a sound without one shows 🔊. To change a sound later, select its pencil. A custom emoji an instance administrator purges is removed from the sounds using it.
 
 A server holds at most 48 sounds. **Allow use in other servers** (on by default) lets members play this server's sounds in other servers they belong to, where they hold **Use External Sounds**.
 

@@ -108,7 +108,7 @@ test('a remote handle is followed as a request, a local one at once', async ({ p
     await expect(actor).toBeVisible({ timeout: 30000 })
     await expect(actor.locator('[data-testid="authorize-handle"]')).toHaveText(`@${remote.username}@${remoteDomain}`)
     await expect(actor).toContainText('lives elsewhere')
-    await expect(actor.locator('[data-testid="authorize-open-profile"]')).toHaveAttribute('href', `/social/profile/${remote.username}@${remoteDomain}`)
+    await expect(actor.locator('[data-testid="authorize-open-profile"]')).toHaveAttribute('href', `/@${remote.username}@${remoteDomain}`)
     await expect(actor.locator('[data-testid="authorize-follow"]')).toHaveText('Follow')
   })
 
@@ -126,7 +126,7 @@ test('a remote handle is followed as a request, a local one at once', async ({ p
   await test.step('a local account is followed at once', async () => {
     const domain = await instanceDomain(admin)
     await open(page, `@${target.username}@${domain}`)
-    await expect(page.locator('[data-testid="authorize-handle"]')).toHaveText(`@${target.username}`, { timeout: 30000 })
+    await expect(page.locator('[data-testid="authorize-handle"]')).toHaveText(`@${target.username}@${domain}`, { timeout: 30000 })
     await page.locator('[data-testid="authorize-follow"]').click()
     await expect(page.locator('[data-testid="authorize-follow"]')).toHaveText('Following', { timeout: 30000 })
     await expect.poll(async () => (await followRow(target.id))?.status, { timeout: 15000 }).toBe('accepted')
@@ -152,7 +152,7 @@ test('an actor URL and a post URL resolve; anything else says so', async ({ page
     await expect(card).toBeVisible({ timeout: 30000 })
     await expect(card.locator('[data-testid="authorize-post-text"]')).toHaveText(remotePost.text)
     await card.locator('[data-testid="authorize-open-post"]').click()
-    await expect(page).toHaveURL(new RegExp(`/social/post/${remotePost.id}`), { timeout: 30000 })
+    await expect(page).toHaveURL(new RegExp(`/@${remote.username}@${remoteDomain.replace(/\./g, '\\.')}/${remotePost.id}$`), { timeout: 30000 })
     await expect(page.locator('[data-testid="post-item"]').filter({ hasText: remotePost.text }).first()).toBeVisible({ timeout: 60000 })
   })
 

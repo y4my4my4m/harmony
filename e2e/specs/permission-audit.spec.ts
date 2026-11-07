@@ -16,6 +16,7 @@
 //   overrides offer Manage Permissions, Manage Webhooks and Pin Messages; a voice
 //   channel's leave out Manage Webhooks; neither offers Create Private Threads.
 
+import crypto from 'node:crypto'
 import { test, expect, type Page } from '@playwright/test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
@@ -34,6 +35,10 @@ import {
   type SpecUser,
 } from './harness'
 
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+)
 const admin = adminClient()
 
 // Bit positions in permission_bit_names().
@@ -232,11 +237,17 @@ test('each permission is refused without it and honoured with it', async () => {
   await refusedThenGranted('VIEW_AUDIT_LOG',
     (c) => c.rpc('get_server_audit_log', { p_server_id: server.id }),
     { code: '42501', message: 'VIEW_AUDIT_LOG required' }, plain, holder)
+  // create_server_emoji records an object of the caller's server folder (20261107100001).
   await refusedThenGranted('MANAGE_EMOJIS',
-    (c, as) => c.from('emojis').insert({
-      name: `audit${as.username.slice(-4)}`, url: 'https://example.com/e.png',
-      server_id: server.id, scope: 'server', uploader: as.id,
-    }),
+    async (c, as) => {
+      const path = `${server.id}/${as.id}/${crypto.randomUUID()}.png`
+      const { error } = await admin.storage.from('emojis').upload(path, PNG, { contentType: 'image/png' })
+      if (error) throw new Error(`emoji object: ${error.message}`)
+      return c.rpc('create_server_emoji', {
+        p_server_id: server.id, p_name: `audit${as.username.slice(-4)}`, p_path: path,
+        p_url: admin.storage.from('emojis').getPublicUrl(path).data.publicUrl,
+      })
+    },
     { code: '42501' }, plain, holder)
   await refusedThenGranted('MANAGE_WEBHOOKS',
     (c) => c.rpc('create_channel_webhook', { p_channel_id: server.generalChannelId, p_name: 'Audit hook' }),

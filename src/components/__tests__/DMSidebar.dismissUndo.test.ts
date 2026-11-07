@@ -42,8 +42,6 @@ vi.mock('@/stores/useDM', async () => {
     loadingConversations: false,
     isInitializing: false,
     currentConversationId: null,
-    searchResults: [],
-    isSearching: false,
     hideConversation: (id: string) => state.hide(id),
     restoreConversation: (c: unknown) => state.restore(c),
     prefetchConversationMessages: vi.fn(),

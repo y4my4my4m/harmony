@@ -123,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import Avatar from '@/components/common/Avatar.vue'
@@ -197,8 +198,7 @@ const owner = computed(() => (source.value?.kind === 'personal' ? source.value.o
 const ownerName = computed(() => owner.value?.displayName || owner.value?.username || '')
 const ownerHandle = computed(() => {
   const o = owner.value
-  if (!o) return ''
-  return !o.isLocal && o.domain ? `@${o.username}@${o.domain}` : `@${o.username}`
+  return o ? formatHandle({ username: o.username, domain: o.domain, is_local: o.isLocal }) : ''
 })
 
 const sourceLine = computed((): string => {
@@ -222,6 +222,8 @@ const sourceLine = computed((): string => {
       return t('emojiInfo.instance')
     case 'remote':
       return t('emojiInfo.remote', { domain: answer.domain })
+    case 'removed':
+      return t('emojiInfo.removed')
     default:
       return target.remoteHost ? t('emojiInfo.remote', { domain: target.remoteHost }) : t('emojiInfo.unavailable')
   }

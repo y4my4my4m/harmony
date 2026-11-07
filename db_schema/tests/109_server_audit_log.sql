@@ -134,16 +134,22 @@ SELECT is(
     'helpers', 'a role deletion is recorded');
 
 -- Overrides, emojis, settings, server ---------------------------------------------------------
+INSERT INTO storage.objects (bucket_id, name, metadata) VALUES
+  ('emojis', '55555555-0000-0000-0000-000000000005/11111111-0000-0000-0000-000000000001/f1094000-0000-4000-8000-000000000001.png',
+   '{"size": 100}');
+INSERT INTO public.instance_config (config_key, config_value) VALUES ('storage_origin', '"https://e.test"')
+ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value;
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 
 INSERT INTO public.channel_permission_overrides (channel_id, target_type, role_id, allow_permissions, deny_permissions)
 VALUES ('66666666-0000-0000-0000-000000000006', 'role', 'f1091000-0000-0000-0000-000000000002', 0, 4096);
 UPDATE public.channel_permission_overrides SET deny_permissions = 6144
  WHERE channel_id = '66666666-0000-0000-0000-000000000006' AND role_id = 'f1091000-0000-0000-0000-000000000002';
-INSERT INTO public.emojis (id, name, url, server_id, uploader)
-VALUES ('f1094000-0000-0000-0000-000000000001', 'wave109', 'https://e.test/wave.png',
-        '55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001');
-UPDATE public.emojis SET usage_count = 5 WHERE id = 'f1094000-0000-0000-0000-000000000001';
+SELECT public.create_server_emoji('55555555-0000-0000-0000-000000000005', 'wave109',
+    '55555555-0000-0000-0000-000000000005/11111111-0000-0000-0000-000000000001/f1094000-0000-4000-8000-000000000001.png',
+    'https://e.test/storage/v1/object/public/emojis/55555555-0000-0000-0000-000000000005/11111111-0000-0000-0000-000000000001/f1094000-0000-4000-8000-000000000001.png');
+SELECT public.record_emoji_usage(id, '11111111-0000-0000-0000-000000000001', '55555555-0000-0000-0000-000000000005', 'message', NULL)
+  FROM public.emojis WHERE name = 'wave109';
 UPDATE public.server_settings SET newcomer_alerts = NOT COALESCE(newcomer_alerts, false),
        default_role_id = 'f1091000-0000-0000-0000-000000000002'
  WHERE server_id = '55555555-0000-0000-0000-000000000005';

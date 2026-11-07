@@ -31,6 +31,8 @@ If you cannot join, Harmony shows a **Could not join voice** notice with the rea
 
 You can be in one call at a time, in one browser tab. Joining from a second tab fails with "You are already in a voice channel in another tab".
 
+Closing Harmony during a voice channel call leaves it. Opened again, Harmony rejoins that channel if you were connected less than 3 hours earlier. A computer that sleeps for more than 3 hours during a call leaves it when it wakes, with "Disconnected from voice".
+
 ## Join a voice channel
 
 1. Click a voice channel in the channel list. Harmony connects and the call bar appears at the bottom of the window.

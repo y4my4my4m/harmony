@@ -191,10 +191,7 @@
     <MessageInput
       ref="messageInputRef"
       v-model="messageText"
-      :placeholder-target="thread?.name || 'thread'"
       :reply-message-id="replyingToMessageId"
-      :reply-user-display-name="replyingToUserName"
-      :reply-user-id="replyingToUserId"
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
       :thread-id="props.threadId"

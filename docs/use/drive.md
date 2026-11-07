@@ -4,7 +4,7 @@ description: Find, organise, share and keep the files you send in Harmony; stora
 ---
 # Drive
 
-This page is for people using Harmony. Drive is your account's file storage on the instance: every file you send in a channel, thread or direct message, and every file you attach to a fediverse post, is in your Drive, and you can upload files to it directly. The page covers finding and organising files, storage and temporary files, attaching files from Drive, who can open your files, and sharing them. Instance operators set the storage limits; see [Configuration reference](/self-host/configuration#drive-storage).
+This page is for people using Harmony. Drive is your account's file storage on the instance: every file you send in a channel, thread or direct message, and every file you attach to a fediverse post, is in your Drive, and you can upload files to it directly. The page covers finding and organising files, storage and temporary files, attaching files from Drive, who can open your files, and sharing them. Instance operators set the storage limits; see [Configuration reference](/self-host/configuration#drive-storage). An instance can turn Drive off: the **Drive** button and **From Drive** are then absent, every file you send is kept with no storage limit, and files cannot be shared.
 
 ## Open Drive
 

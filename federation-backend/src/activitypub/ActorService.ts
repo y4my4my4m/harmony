@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor, NOTE_CONTEXT } from './converters/toActivityPub.js';
-import { actorToProfile, asNoteObject, extractMediaAttachments, isPostObjectType, noteContext, noteToContent, noteQuoteUrl, objectLanguage } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, extractMediaAttachments, isPostObjectType, noteAudience, noteContext, noteToContent, noteQuoteUrl, objectLanguage } from './converters/fromActivityPub.js';
 import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
@@ -726,6 +726,11 @@ router.post(
         max_id, 
         Math.min(Math.max(Number(limit) || 20, 1), 40)
       );
+
+      // 502 lets the client tell an unreadable outbox from its end.
+      if (result.failed) {
+        return res.status(502).json({ error: 'Remote outbox could not be read' });
+      }
 
       return res.json({
         success: true,
@@ -2647,16 +2652,22 @@ function collectionItems(doc: any): any[] | null {
   return null;
 }
 
+/** Null when the document cannot be read: network error, timeout, error status or a body that is no JSON. */
 async function fetchApJson(url: string): Promise<any | null> {
-  const response = await SignatureService.signedApFetch(url, {
-    headers: { 'Accept': AP_ACCEPT, 'User-Agent': federationUserAgent() },
-    timeoutMs: 15000,
-  });
-  if (!response.ok) {
-    logger.warn(`Fetch of ${url} failed: ${response.status}`);
+  try {
+    const response = await SignatureService.signedApFetch(url, {
+      headers: { 'Accept': AP_ACCEPT, 'User-Agent': federationUserAgent() },
+      timeoutMs: 15000,
+    });
+    if (!response.ok) {
+      logger.warn(`Fetch of ${url} failed: ${response.status}`);
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    logger.warn(`Fetch of ${url} failed:`, error);
     return null;
   }
-  return response.json();
 }
 
 /**
@@ -2706,7 +2717,7 @@ export async function fetchRecentPostsInBackground(
   supabase: any,
   maxId?: string, // presence requests the next page; the cached cursor is used
   limit: number = 20
-): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string }> {
+): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string; failed?: true }> {
   const reset = () => {
     userNextPageCache.delete(authorId);
     userFetchedUrls.delete(authorId);
@@ -2743,9 +2754,13 @@ export async function fetchRecentPostsInBackground(
       logger.info(`Fetching posts from: ${cursor.url} (offset ${cursor.offset})`);
       const page = await fetchCollectionPage(cursor.url, outboxUrl);
       pages++;
+      // null: the page could not be read (network, status, body), as opposed to an empty page.
+      // The cursor stays on it, so the next request reads it again rather than starting over.
       if (!page) {
-        reset();
-        return { hasMore: false };
+        fetchedUrls.delete(position);
+        if (savedCount > 0) break;
+        userNextPageCache.set(authorId, cursor);
+        return { hasMore: true, failed: true };
       }
 
       const slice = page.items.slice(cursor.offset, cursor.offset + (limit - batch));
@@ -2809,7 +2824,7 @@ export async function fetchRecentPostsInBackground(
   } catch (error) {
     logger.warn(`Failed to fetch outbox posts:`, error);
     reset();
-    return { hasMore: false };
+    return { hasMore: false, failed: true };
   }
 }
 
@@ -2957,6 +2972,8 @@ async function importOutboxItem(
     }
     const context = noteContext(note);
     if (context) metadata.ap_context = context;
+    const audience = noteAudience(note);
+    if (audience) metadata.ap_audience = audience;
 
     const quoteUrl = noteQuoteUrl(note);
     if (quoteUrl) {

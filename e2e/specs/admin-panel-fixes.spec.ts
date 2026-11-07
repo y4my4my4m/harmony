@@ -4,8 +4,8 @@
 // second by keyboard. Drive's storage list renders a custom emoji in a display name, pages 50
 // accounts at a time against 105 seeded holders (order, total, page 2, last page, search with
 // paging). An admin uploads an instance emoji from the Emojis tab and a regular user finds it
-// in the composer's picker. The Emojis tab at 375 px keeps its filters on one row, pads its
-// cards and has no horizontal scroll, in light and dark.
+// in the composer's picker. The Emojis tab at 375 px keeps its status and sort filters on one
+// row, wraps its kind chips, pads its cards and has no horizontal scroll, in light and dark.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
@@ -198,18 +198,20 @@ test('an admin uploads an instance emoji and a regular user finds it in the pick
   const name = `ie${tag}`
   await signIn(page, staff)
   await openAdminTab(page, 'emojis')
-  const library = page.getByTestId('instance-emoji-library')
-  await expect(library.getByTestId('emoji-count')).toBeVisible({ timeout: 20000 })
-  await library.getByTestId('emoji-upload-input').setInputFiles({ name: `${name}.png`, mimeType: 'image/png', buffer: PNG })
-  const tile = library.locator('.emoji-item').filter({ hasText: `:${name}:` })
+  const library = page.getByTestId('admin-emoji-library')
+  await expect(library.getByTestId('admin-emoji-row').first()).toBeVisible({ timeout: 20000 })
+  await library.getByTestId('admin-emoji-upload-input').setInputFiles({ name: `${name}.png`, mimeType: 'image/png', buffer: PNG })
+  const tile = library.getByTestId('admin-emoji-row').filter({ hasText: `:${name}:` })
   await expect(tile).toBeVisible({ timeout: 30000 })
+  await expect(tile).toHaveAttribute('data-kind', 'instance')
+  await expect(tile.locator('.badge.hotlinked')).toHaveCount(0)
 
   const { data: rows } = await admin.from('emojis').select('id, scope, domain, server_id, url').eq('name', name)
   expect(rows).toHaveLength(1)
   createdEmojiIds.push(rows![0].id)
   expect(rows![0]).toMatchObject({ scope: 'instance', domain: null, server_id: null })
   expect(rows![0].url).toContain('/emojis/00000000-0000-0000-0000-000000000000/')
-  await expectNoAxeViolations(page, { include: '[data-testid="instance-emoji-library"]', label: 'admin instance emojis' })
+  await expectNoAxeViolations(page, { include: '[data-testid="admin-emoji-library"]', label: 'admin emojis' })
 
   const context = await browser.newContext()
   const userPage = await context.newPage()
@@ -232,32 +234,34 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const page = await context.newPage()
     await signIn(page, staff)
     await openAdminTab(page, 'emojis')
-    const browse = page.locator('.instance-emoji-admin')
-    await expect(browse.locator('.emoji-row').first()).toBeVisible({ timeout: 20000 })
+    const library = page.getByTestId('admin-emoji-library')
+    await expect(library.getByTestId('admin-emoji-row').first()).toBeVisible({ timeout: 20000 })
 
     const layout = await page.evaluate(() => {
       const box = (el: Element | null) => el?.getBoundingClientRect() ?? null
-      const browseEl = document.querySelector('.instance-emoji-admin')!
-      const selects = [...browseEl.querySelectorAll('.emoji-filters select')].map((s) => box(s)!)
+      const libraryEl = document.querySelector('[data-testid="admin-emoji-library"]')!
+      const selects = [...libraryEl.querySelectorAll('.emoji-filters select')].map((s) => box(s)!)
+      const chips = [...libraryEl.querySelectorAll('.kind-chips button')].map((c) => box(c)!)
       return {
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         selectTops: selects.map((r) => Math.round(r.top)),
         selectRight: Math.max(...selects.map((r) => r.right)),
-        hintInset: box(browseEl.querySelector('.module-hint'))!.left - box(browseEl)!.left,
-        columns: getComputedStyle(browseEl.querySelector('.emoji-list')!).gridTemplateColumns.split(' ').length,
-        tileRight: Math.max(...[...browseEl.querySelectorAll('.emoji-row')].map((r) => box(r)!.right)),
+        chipRight: Math.max(...chips.map((r) => r.right)),
+        hintInset: box(libraryEl.querySelector('.module-hint'))!.left - box(libraryEl)!.left,
+        columns: getComputedStyle(libraryEl.querySelector('.emoji-list')!).gridTemplateColumns.split(' ').length,
+        tileRight: Math.max(...[...libraryEl.querySelectorAll('[data-testid="admin-emoji-row"]')].map((r) => box(r)!.right)),
       }
     })
     expect(layout.overflow).toBe(0)
+    expect(layout.selectTops).toHaveLength(2)
     expect(layout.selectTops[0]).toBe(layout.selectTops[1])
     expect(layout.selectRight).toBeLessThanOrEqual(375)
+    expect(layout.chipRight).toBeLessThanOrEqual(375)
     expect(layout.hintInset).toBeGreaterThanOrEqual(12)
     expect(layout.columns).toBe(1)
     expect(layout.tileRight).toBeLessThanOrEqual(375)
-    const library = page.getByTestId('instance-emoji-library')
-    await expect(library.getByTestId('emoji-upload-area')).toBeVisible({ timeout: 15000 })
-    await expectNoAxeViolations(page, { include: '.instance-emoji-admin', label: `admin emoji browser (${colorScheme})` })
-    await expectNoAxeViolations(page, { include: '[data-testid="instance-emoji-library"]', label: `admin instance emojis (${colorScheme})` })
+    await expect(library.locator('.upload-btn')).toBeVisible({ timeout: 15000 })
+    await expectNoAxeViolations(page, { include: '[data-testid="admin-emoji-library"]', label: `admin emojis (${colorScheme})` })
     await context.close()
   })
 }

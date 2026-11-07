@@ -46,6 +46,8 @@ export type EmojiSource =
   | { kind: 'personal'; owner: EmojiSourceOwner | null }
   | { kind: 'instance' }
   | { kind: 'remote'; domain: string }
+  /** remove_emoji: the emoji still shows where it was used and is offered nowhere. */
+  | { kind: 'removed' }
   | { kind: 'unavailable' }
 
 export interface EmojiSourceRef {
@@ -118,6 +120,8 @@ export function parseEmojiSource(raw: unknown): EmojiSource {
     }
     case 'instance':
       return { kind: 'instance' }
+    case 'removed':
+      return { kind: 'removed' }
     case 'remote': {
       const domain = str(row.domain)
       return domain ? { kind: 'remote', domain } : UNAVAILABLE

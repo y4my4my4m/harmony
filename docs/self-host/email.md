@@ -15,7 +15,7 @@ own services send none: the Supabase sign-in service (the `auth` container,
 |---|---|
 | Address confirmation | Someone registers and email confirmation is on. The app tells them it sent a confirmation link and returns to the sign-in page; they can sign in after following the link |
 | Password reset | Someone uses **Forgot your password?** on the sign-in page. The link opens the app's password page (`/reset-password`) |
-| Invitation | You turn on **Send by email** in the admin panel's **Invites**, or run `harmony admin invite <email> --send`. The single-use link opens the same password page, where the person chooses a password |
+| Invitation | You turn on **Send by email** in the admin panel's **Invites**, or run `harmony admin invite <email> --send`. The single-use link opens the same password page, where the person chooses a password ([Invitation and password reset links](#invitation-and-password-reset-links)) |
 
 Without SMTP the instance works, with these differences:
 
@@ -135,6 +135,45 @@ sets the same keys in that stack's `.env`.
 
 Links in the messages lead back to the app at `SITE_URL`
 (`https://chat.example.com`), which `configure.sh` sets.
+
+## Invitation and password reset links
+
+The invitation and password reset emails link to the app's password page,
+`SITE_URL/reset-password`, with the link's token in the address. Opening the
+page uses nothing up; the token is spent when the person submits their new
+password. A mail scanner or a link preview that opens the link first leaves it
+working.
+
+The sign-in service's own templates link to `https://DB_DOMAIN/auth/v1/verify`
+instead, where the first visit spends the token: when a scanner gets there
+first, the person finds **This invitation link does not work**. The self-host
+stack therefore points the sign-in service at Harmony's templates, which the
+`web` container serves:
+
+| Email | Setting of the auth service | Value |
+|---|---|---|
+| Invitation | `GOTRUE_MAILER_TEMPLATES_INVITE` | `http://web/email-templates/invite.html` |
+| Password reset | `GOTRUE_MAILER_TEMPLATES_RECOVERY` | `http://web/email-templates/recovery.html` |
+
+The sign-in service fetches each template when it sends the first message and
+keeps it in memory. When the fetch fails it sends its own template and logs
+`templatemailer_template_body_http_error` (`harmony logs auth`).
+
+To use templates of your own, set `MAILER_TEMPLATES_INVITE` and
+`MAILER_TEMPLATES_RECOVERY` in `supabase/.env` to their URLs and run
+`docker compose up -d auth`. A template is a Go HTML template; keep the
+link's form:
+
+```html
+<a href="{{ .SiteURL }}/reset-password?invite=1&amp;token_hash={{ .TokenHash }}&amp;type=invite">Choose your password</a>
+<a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&amp;type=recovery">Choose a new password</a>
+```
+
+A deployment with its own Supabase stack sets the two `GOTRUE_MAILER_TEMPLATES_*`
+variables to `https://DOMAIN/email-templates/invite.html` and
+`https://DOMAIN/email-templates/recovery.html`, which the web app serves.
+A `/auth/v1/verify` link still works when the person is the first to open it:
+the page takes the sign-in it hands over.
 
 The federation backend cannot see the sign-in service's settings. `configure.sh`
 copies `SMTP_HOST` into `federation.env` as `GOTRUE_SMTP_HOST`; the admin

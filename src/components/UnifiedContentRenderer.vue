@@ -14,6 +14,7 @@
       :class="{ 'selectable': selectable }"
       v-html="renderer.formattedHTML.value"
       @click="handleContentClick"
+      @error.capture="handleHtmlMediaError"
     ></div>
     
     <!-- Component rendering mode (for structured chat content) -->
@@ -413,6 +414,13 @@ const handleEmojiError = (e: Event) => {
   img.parentNode?.insertBefore(fallback, img);
 };
 
+// `error` does not bubble; the capture phase reaches the v-html root. The sanitizer strips
+// inline handlers, so the generated <img> cannot carry its own.
+const handleHtmlMediaError = (e: Event) => {
+  const target = e.target as HTMLElement | null;
+  if (target instanceof HTMLImageElement && target.classList.contains('emoji-icon')) handleEmojiError(e);
+};
+
 const handleLinkClick = (url: string, event: Event) => {
   emit('link-click', url, event);
 };
@@ -769,7 +777,8 @@ const formatFileSize = (bytes: number): string => {
   object-fit: contain;
 }
 
-.emoji-fallback {
+.emoji-fallback,
+.content-html :deep(.emoji-fallback) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -780,7 +789,8 @@ const formatFileSize = (bytes: number): string => {
   opacity: 0.5;
 }
 
-.emoji-fallback svg {
+.emoji-fallback svg,
+.content-html :deep(.emoji-fallback svg) {
   width: 100%;
   height: 100%;
 }

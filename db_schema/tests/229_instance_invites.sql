@@ -1,14 +1,15 @@
 -- 20261105980001_instance_invites.sql: instance_invites records who invited which address and
 -- what became of it; the admin_* invitation functions are service-role only, record links,
 -- list invitations with the auth user's state, and revoke an invitation by deleting a
--- never-used invited auth user, never an account that has confirmed or signed in.
+-- never-used invited auth user, never an account with a chosen password or a profile
+-- (20261107600001).
 --
 --   alice        fixture member (01_fixtures.sql), made an instance admin here
 --   bob          fixture member, not an admin
 --   new229       invited auth user, no profile
 --   cli229       invited auth user, recorded from the command line
 --   orphan229    invited auth user without a record (an invitation made outside Harmony)
---   joined229    invited auth user that has signed in
+--   joined229    invited auth user that has chosen a password
 --   self229      auth user that signed up itself and never confirmed
 BEGIN;
 SET LOCAL search_path = tests, public;
@@ -120,9 +121,12 @@ SELECT tests.clear_authentication();
 SELECT is((SELECT v FROM r229 WHERE k = 'admin-reads'), '4', 'an instance admin reads every invitation');
 SELECT is((SELECT v FROM r229 WHERE k = 'member-reads'), '0', 'anyone else reads none');
 
--- joined229 follows the link: GoTrue confirms the address and signs in.
+-- joined229 follows the link: GoTrue confirms the address, signs in and stores a random password;
+-- then the person chooses theirs.
 UPDATE auth.users SET confirmed_at = now() - interval '30 minutes', last_sign_in_at = now() - interval '30 minutes',
-                      confirmation_sent_at = NULL
+                      confirmation_sent_at = NULL, encrypted_password = '$2a$10$random-at-verification-joined229'
+ WHERE id = 'a2290000-0000-0000-0000-000000000004';
+UPDATE auth.users SET encrypted_password = '$2a$10$chosen-by-the-person-joined229'
  WHERE id = 'a2290000-0000-0000-0000-000000000004';
 INSERT INTO auth.users (id, instance_id, aud, role, email, invited_at, confirmation_sent_at, created_at)
 VALUES ('a2290000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
@@ -138,7 +142,7 @@ INSERT INTO r229 SELECT 'order', string_agg(status, ',' ORDER BY n)
  WHERE email LIKE '%229@test.local';
 SELECT tests.clear_authentication();
 
-SELECT is((SELECT v FROM r229 WHERE k = 'status:joined229@test.local'), 'accepted', 'a signed-in invitation is accepted');
+SELECT is((SELECT v FROM r229 WHERE k = 'status:joined229@test.local'), 'accepted', 'an invitation whose account chose a password is accepted');
 SELECT ok((SELECT accepted_at IS NOT NULL FROM public.instance_invites WHERE auth_user_id = 'a2290000-0000-0000-0000-000000000004'),
   'and its acceptance is recorded');
 SELECT is((SELECT v FROM r229 WHERE k = 'status:new229@test.local'), 'pending', 'an unused invitation is pending');
@@ -166,7 +170,7 @@ SELECT is((SELECT ARRAY[revoked_by::text, (revoked_at IS NOT NULL)::text] FROM p
 SELECT is((SELECT count(*)::int FROM public.admin_audit_log WHERE action_type = 'instance_invite_revoked'),
   2, 'each revoke is in the activity log');
 SELECT is(ARRAY[(SELECT v FROM r229 WHERE k = 'revoke-joined'), (SELECT v FROM r229 WHERE k = 'revoke-alice')],
-  ARRAY['accepted', 'accepted'], 'an account that signed in or has a profile is not revoked');
+  ARRAY['accepted', 'accepted'], 'an account with a chosen password or a profile is not revoked');
 SELECT ok(EXISTS (SELECT 1 FROM auth.users WHERE id = 'a2290000-0000-0000-0000-000000000004')
           AND EXISTS (SELECT 1 FROM auth.users WHERE id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   'and both accounts remain');

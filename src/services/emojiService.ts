@@ -154,6 +154,7 @@ async function getEmoji(emojiId: string, trackUsage?: {
             .from('emojis')
             .select()
             .eq('id', emojiId)
+            .is('deleted_at', null)
             .single();
 
         if (error) {
@@ -246,136 +247,66 @@ function storeEmojiImage(path: string, prepared: PreparedImage, options: EmojiUp
     return storePublicImage('emojis', path, prepared, options);
 }
 
-// Uploads a server emoji at <server>/<uploader>/<uuid>.<ext> and invalidates the cache.
-// Throws UploadRejectedError when the prepared file fails the emojis bucket limits.
+/**
+ * Server upload: prepareEmojiImage and storeEmojiImage write <server>/<uploader>/<uuid>.<ext> to
+ * the emojis bucket, then create_server_emoji records it under a free name. A refused record
+ * removes the object and rethrows: 42501 not a manager, 22023 a bad path or url, 23505 a file
+ * already recorded, 23514 SERVER_EMOJI_LIMIT. Throws UploadRejectedError for a file outside the
+ * bucket limits.
+ */
 async function uploadEmoji(serverId: string, userId: string, file: File, options: EmojiUploadOptions = {}): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
 
     const label = options.label ?? file.name;
     const prepared = await prepareEmojiImage(file);
-    file = prepared.file;
 
-    try {
-        const cleanedName = emojiNameFromFile(file.name);
-
-        let uniqueName = cleanedName;
-        let counter = 1;
-        while (await doesEmojiNameExist(serverId, uniqueName)) {
-            uniqueName = `${cleanedName}_${counter}`;
-            counter++;
-        }
-
-        const filePath = `${serverId}/${userId}/${uuidv4()}.${prepared.extension}`;
-        const publicUrl = await storeEmojiImage(filePath, prepared, { ...options, label });
-
-        const newEmoji = {
-            name: uniqueName,
-            url: publicUrl,
-            server_id: serverId,
-            uploader: userId,
-            file_size: file.size,
-        };
-
-        const { data: emojiData, error: fetchError } = await supabase
-            .from('emojis')
-            .insert([newEmoji])
-            .select()
-            .single();
-
-        if (fetchError) throw fetchError;
-
-        // Invalidate cache to pick up the new emoji
-        await emojiCache.invalidate({ serverId });
-
-        return emojiData;
-    } catch (error) {
-        debug.error('Error uploading emoji:', error);
-        return null;
+    const path = `${serverId}/${userId}/${uuidv4()}.${prepared.extension}`;
+    const url = await storeEmojiImage(path, prepared, { ...options, label });
+    const { data, error } = await supabase.rpc('create_server_emoji', {
+        p_server_id: serverId,
+        p_name: emojiNameFromFile(prepared.file.name),
+        p_path: path,
+        p_url: url,
+    });
+    if (error || !data) {
+        await supabase.storage.from('emojis').remove([path]);
+        throw error ?? new Error('create_server_emoji returned no row');
     }
+
+    await emojiCache.invalidate({ serverId });
+    return data as Emoji;
 }
 
-// Deletes an emoji and invalidates the cache.
+/**
+ * remove_emoji: the row, its file and every message showing it stay; the emoji leaves the
+ * picker and :name: resolution. 42501 not a manager, P0002 absent.
+ */
 async function deleteEmoji(emojiId: string): Promise<boolean> {
     try {
-        // Get emoji details before deletion for cache invalidation
         const emoji = await getEmoji(emojiId);
-        if (!emoji) {
-            debug.error('Emoji not found for deletion:', emojiId);
-            return false;
-        }
-
-        const urlParts = emoji.url.split('/');
-        const fileName = urlParts[urlParts.length - 1];
-        const filePath = `${emoji.server_id}/${emoji.uploader}/${fileName}`;
-        
-        const { error: storageError } = await supabase.storage
-            .from('emojis')
-            .remove([filePath]);
-
-        if (storageError) {
-            debug.error('Error deleting emoji from storage:', storageError);
-            // Continue with database deletion even if storage fails
-        }
-
-        const { error: dbError } = await supabase
-            .from('emojis')
-            .delete()
-            .eq('id', emojiId);
-
-        if (dbError) throw dbError;
-
-        await cleanupEmojiReferences(emoji);
-
-        debug.log('Emoji deleted successfully:', emoji.name);
+        const { error } = await supabase.rpc('remove_emoji', { p_emoji_id: emojiId });
+        if (error) throw error;
+        if (emoji) await cleanupEmojiReferences(emoji);
         return true;
-    } catch (error: any) {
-        if (error?.code === '23503') {
-            debug.error('Emoji delete blocked by foreign key references:', error);
-        } else {
-            debug.error('Error deleting emoji:', error);
-        }
+    } catch (error) {
+        debug.error('Error removing emoji:', error);
         return false;
     }
 }
 
-// Rename emoji with cache invalidation
+/** rename_emoji: 22023 invalid name, 23505 name taken, 42501 not a manager. */
 async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean> {
     const emojiCache = useEmojiCacheStore();
-    
-    try {
-        const currentEmoji = await getEmoji(emojiId);
-        if (!currentEmoji) {
-            throw new Error('Emoji not found');
-        }
-        
-        // Clean and validate the new name
-        const { name: cleanedName } = cleanFileName(`${newName}.png`);
-        
-        if (!cleanedName || cleanedName.length === 0) {
-            throw new Error('Invalid emoji name');
-        }
-        
-        // If the name isn't changing, just return success
-        if (currentEmoji.name === cleanedName) {
-            debug.log('Emoji name unchanged:', cleanedName);
-            return true;
-        }
-        
-        if (await doesEmojiNameExist(serverId, cleanedName)) {
-            throw new Error('An emoji with this name already exists');
-        }
-        
-        const { error } = await supabase
-            .from('emojis')
-            .update({ name: cleanedName })
-            .eq('id', emojiId);
 
+    try {
+        const { name: cleanedName } = cleanFileName(`${newName.replace(/\./g, '')}.png`);
+        if (!cleanedName) throw new Error('Invalid emoji name');
+
+        const { error } = await supabase.rpc('rename_emoji', { p_emoji_id: emojiId, p_name: cleanedName });
         if (error) throw error;
 
-        // Invalidate cache to reflect the changes
         await emojiCache.invalidate({ serverId });
-
-        debug.log('Emoji renamed successfully:', cleanedName);
+        invalidateEmojiResolverCache();
         return true;
     } catch (error) {
         debug.error('Error renaming emoji:', error);
@@ -383,70 +314,13 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
     }
 }
 
-// Bulk delete emojis with cache invalidation
+/** remove_emoji per id; ids it refuses land in failed. */
 async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[], failed: string[] }> {
     const results = { success: [] as string[], failed: [] as string[] };
-    
-    debug.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
-
-    const { data: emojis, error: fetchError } = await supabase
-        .from('emojis')
-        .select('*')
-        .in('id', emojiIds);
-
-    if (fetchError) {
-        debug.error('Failed to fetch emojis for bulk delete:', fetchError);
-        return { success: [], failed: emojiIds };
+    for (const id of emojiIds) {
+        if (await deleteEmoji(id)) results.success.push(id);
+        else results.failed.push(id);
     }
-
-    const emojiMap = new Map((emojis || []).map(e => [e.id, e]));
-
-    const storagePaths: string[] = [];
-    for (const emoji of emojis || []) {
-        const urlParts = emoji.url.split('/');
-        const fileName = urlParts[urlParts.length - 1];
-        storagePaths.push(`${emoji.server_id}/${emoji.uploader}/${fileName}`);
-    }
-
-    // Batch delete from storage (Supabase .remove() accepts an array)
-    if (storagePaths.length > 0) {
-        const { error: storageError } = await supabase.storage
-            .from('emojis')
-            .remove(storagePaths);
-
-        if (storageError) {
-            debug.warn('Batch storage deletion had errors:', storageError);
-        }
-    }
-
-    // Batch delete from database
-    const foundIds = (emojis || []).map(e => e.id);
-    if (foundIds.length > 0) {
-        const { error: dbError } = await supabase
-            .from('emojis')
-            .delete()
-            .in('id', foundIds);
-
-        if (dbError) {
-            debug.error('Batch DB deletion failed:', dbError);
-            results.failed = emojiIds;
-        } else {
-            results.success = foundIds;
-            results.failed = emojiIds.filter(id => !emojiMap.has(id));
-
-            for (const id of foundIds) {
-                const emoji = emojiMap.get(id);
-                if (emoji) {
-                    await cleanupEmojiReferences(emoji as Emoji);
-                }
-            }
-        }
-    } else {
-        results.failed = emojiIds;
-    }
-    
-    debug.log(`Bulk deletion completed: ${results.success.length}/${emojiIds.length} successful`);
-    
     return results;
 }
 
@@ -468,6 +342,7 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
             .from('emojis')
             .select('id')
             .eq('server_id', serverId)
+            .is('deleted_at', null)
             .eq('name', name);
 
         if (error) {

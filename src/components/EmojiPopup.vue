@@ -510,7 +510,12 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
 // Favorites and frequent picks without the custom emoji this channel refuses.
 const shownFavorites = computed(() => favoriteEmojis.value.filter((fav) =>
   !refusesEmoji({ id: fav.emoji_id, url: fav.emoji_url, server_id: fav.emoji_server_id })));
+// A frequent custom emoji (uuid) the loaded caches no longer hold was removed, or its server left.
+const FREQUENT_CUSTOM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const stillOffered = (id: string | undefined): boolean =>
+  !id || !emojiCacheStore.isInitialized || !FREQUENT_CUSTOM_ID.test(id) || emojiCacheStore.globalEmojiIndex.has(id);
 const shownFrequent = computed(() => topEmojisForPicker.value.filter((emoji) =>
+  stillOffered(emoji.id) &&
   !refusesEmoji({ id: emoji.id, url: getFrequentEmojiDisplayUrl(emoji) })));
 
 /** Unicode categories in Unicode order; a query keeps only search-index matches. */

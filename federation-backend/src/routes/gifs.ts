@@ -215,13 +215,14 @@ function promptToShortcode(prompt: string): string {
   return slug || 'ai_emoji';
 }
 
-/** Find a name not already used by this user's emoji (appends _2, _3, …). */
+/** A name none of this user's active (not removed) emoji holds; appends _2, _3, … */
 async function uniqueEmojiName(supabase: any, profileId: string, base: string): Promise<string> {
   const { data } = await supabase
     .from('emojis')
     .select('name')
     .eq('uploader', profileId)
     .eq('scope', 'user')
+    .is('deleted_at', null)
     .like('name', `${base}%`);
   const taken = new Set<string>((data || []).map((r: { name: string }) => r.name));
   if (!taken.has(base)) return base;
@@ -530,7 +531,8 @@ async function personalEmojiRoom(profileId: string): Promise<{ limit: number; he
       .from('emojis')
       .select('id', { count: 'exact', head: true })
       .eq('scope', 'user')
-      .eq('uploader', profileId),
+      .eq('uploader', profileId)
+      .is('deleted_at', null),
   ]);
   if (limitResult.error || typeof limitResult.data !== 'number') return null;
   if (countResult.error || typeof countResult.count !== 'number') return null;

@@ -234,7 +234,7 @@ describe('alsoKnownAs and movedTo', () => {
       title: 'Alice moved to @alice@new.test',
       body: 'A follow request was sent to @alice@new.test for you.',
     })
-    expect(notificationUrl('move', data)).toBe('/social/profile/alice@new.test')
+    expect(notificationUrl('move', data)).toBe('/@alice@new.test')
     expect(pushAllowedForType('move', { activitypub_desktop_follows: false })).toBe(false)
   })
 

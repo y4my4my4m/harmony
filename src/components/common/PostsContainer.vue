@@ -344,7 +344,8 @@ const startAttempt = () => {
   attemptTimer = setTimeout(() => {
     attemptTimer = null
     if (props.isLoading) return
-    failAttempt()
+    if (!props.hasMore) endAttempt()
+    else failAttempt()
   }, ATTEMPT_TIMEOUT_MS)
   emit('load-more')
 }
@@ -372,13 +373,22 @@ watch(() => props.posts.length, (length, previous) => {
   focusNewPosts = false
 })
 
+const endAttempt = () => {
+  clearAttemptTimer()
+  attemptActive = false
+  focusNewPosts = false
+}
+
+// An attempt that ends without new posts is a failure only while more are expected:
+// hasMore false means the list has ended.
 watch(() => props.isLoading, (loading) => {
   if (!attemptActive) return
   if (loading) {
     clearAttemptTimer()
     return
   }
-  failAttempt()
+  if (!props.hasMore) endAttempt()
+  else failAttempt()
 })
 
 // The next page loads once the reader has scrolled the feed and its last row is in the

@@ -87,7 +87,8 @@ describe('inbound', () => {
         { type: 'Hashtag', name: '#cats', href: 'https://m.example/tags/cats' },
       ],
     })
-    expect(parts.map((p: { type: string }) => p.type)).toEqual(['mention', 'hashtag'])
+    expect(parts.map((p: { type: string }) => p.type)).toEqual(['mention', 'text', 'hashtag'])
+    expect(parts[1]).toEqual({ type: 'text', text: ' ' })
   })
 
   it('takes no label naming another host', () => {

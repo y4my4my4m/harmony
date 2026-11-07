@@ -103,23 +103,23 @@ test('the quoted card opens the quoted post, its author and its hashtags', async
   let card = await openQuote(page)
   // On the words, clear of the hashtag in the same line.
   await card.locator('.quoted-post-content .content-html').click({ position: { x: 8, y: 8 } })
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.quoted}$`))
+  await expect(page).toHaveURL(new RegExp(`/@[^/]+/${ids.quoted}$`))
   await expect(opened(page)).toContainText(`New fediverse apps this week`, { timeout: 30_000 })
 
   card = await openQuote(page)
   await card.getByTestId('quoted-author').click()
-  await expect(page).toHaveURL(new RegExp(`/social/profile/${quoted.username}@${quoted.domain}$`))
+  await expect(page).toHaveURL(new RegExp(`/@${quoted.username}@${quoted.domain}$`))
 
   card = await openQuote(page)
   await card.locator('.hashtag').filter({ hasText: tag }).click()
-  await expect(page).toHaveURL(new RegExp(`/social/hashtag/${tag}`))
+  await expect(page).toHaveURL(new RegExp(`/tags/${tag}`))
 
   card = await openQuote(page)
   const timeLink = card.getByTestId('quoted-post-link')
   await expect(timeLink).toHaveAccessibleName(/^Quoted post by New fediverse apps, /)
   await timeLink.focus()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.quoted}$`))
+  await expect(page).toHaveURL(new RegExp(`/@[^/]+/${ids.quoted}$`))
 })
 
 test('a reply in a feed previews its parent and opens it', async ({ page }) => {
@@ -147,6 +147,6 @@ test('a reply in a feed previews its parent and opens it', async ({ page }) => {
   expect(layout.articleScroll).toBeLessThanOrEqual(0)
 
   await line.click()
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.parent}\\?highlight=${ids.reply}$`))
+  await expect(page).toHaveURL(new RegExp(`/@[^/]+/${ids.parent}\\?highlight=${ids.reply}$`))
   await expect(opened(page)).toContainText(`parent on a long domain ${marker}`, { timeout: 30_000 })
 })

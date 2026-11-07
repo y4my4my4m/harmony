@@ -90,6 +90,17 @@ describe('DeviceLinkModal phases', () => {
     expect(announcer.polite).toHaveBeenCalledWith('encryption.linkDevice.a11y.showing')
   })
 
+  it('shows the code as text to copy, labelled, beside its QR code', async () => {
+    pairing.startApproverCode.mockResolvedValue(SESSION)
+    mountModal('show')
+    await flushPromises()
+    const field = document.querySelector<HTMLTextAreaElement>('[data-testid="pairing-code-text"]')!
+    expect(field.value).toBe('HMP:x')
+    expect(field.readOnly).toBe(true)
+    expect(document.querySelector(`label[for="${field.id}"]`)?.textContent?.trim()).toBe('encryption.code.textLabel')
+    expect(document.querySelector('[data-testid="pairing-code-copy"]')).not.toBeNull()
+  })
+
   it('announces that encryption must be unlocked first', async () => {
     megolm.isUnlocked.mockReturnValue(false)
     mountModal('scan')

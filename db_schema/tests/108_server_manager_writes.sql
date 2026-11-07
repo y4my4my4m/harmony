@@ -12,6 +12,9 @@ BEGIN;
 SET LOCAL search_path = tests, public;
 SELECT plan(33);
 
+INSERT INTO storage.objects (bucket_id, name, metadata) VALUES
+  ('emojis', '55555555-0000-0000-0000-000000000005/22222222-0000-0000-0000-000000000002/f1086000-0000-4000-8000-000000000001.png', '{"size": 100}');
+
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('f1080000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'carol108@test.local'),
   ('f1080000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'frank108@test.local');
@@ -115,9 +118,9 @@ SELECT lives_ok(
 
 -- Emojis, settings --------------------------------------------------------------------------
 SELECT lives_ok(
-    $q$INSERT INTO public.emojis (id, name, url, server_id, uploader)
-       VALUES ('f1086000-0000-0000-0000-000000000001', 'wave108', 'https://e.test/wave.png',
-               '55555555-0000-0000-0000-000000000005', '22222222-0000-0000-0000-000000000002')$q$,
+    $q$SELECT public.create_server_emoji('55555555-0000-0000-0000-000000000005', 'wave108',
+         '55555555-0000-0000-0000-000000000005/22222222-0000-0000-0000-000000000002/f1086000-0000-4000-8000-000000000001.png',
+         'https://e.test/storage/v1/object/public/emojis/55555555-0000-0000-0000-000000000005/22222222-0000-0000-0000-000000000002/f1086000-0000-4000-8000-000000000001.png')$q$,
     'an emoji manager adds a server emoji');
 SELECT throws_ok(
     $q$INSERT INTO public.emojis (name, url, server_id, uploader, scope)
@@ -171,8 +174,9 @@ SELECT throws_ok(
     $q$INSERT INTO public.server_roles (server_id, name, position) VALUES ('55555555-0000-0000-0000-000000000005', 'nope', 1)$q$,
     '42501', NULL, 'a member without MANAGE_ROLES creates no role');
 SELECT throws_ok(
-    $q$INSERT INTO public.emojis (name, url, server_id, uploader)
-       VALUES ('nope108', 'https://e.test/n.png', '55555555-0000-0000-0000-000000000005', 'f1080000-0000-0000-0000-0000000000c1')$q$,
+    $q$SELECT public.create_server_emoji('55555555-0000-0000-0000-000000000005', 'nope108',
+         '55555555-0000-0000-0000-000000000005/f1080000-0000-0000-0000-0000000000c1/f1086000-0000-4000-8000-000000000002.png',
+         'https://e.test/storage/v1/object/public/emojis/55555555-0000-0000-0000-000000000005/f1080000-0000-0000-0000-0000000000c1/f1086000-0000-4000-8000-000000000002.png')$q$,
     '42501', NULL, 'nor an emoji');
 
 SELECT tests.authenticate_as('f1080000-0000-0000-0000-0000000000a2');

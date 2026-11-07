@@ -25,7 +25,8 @@ the server). The examples use `chat.example.com` as the domain:
 
 - Use your own name in place of `chat.example.com`. A bare domain such as
   `example.com` works too; the other two names then become `db.example.com`
-  and `live.example.com`.
+  and `live.example.com`. `HARMONY_DB_DOMAIN` and `HARMONY_LIVEKIT_DOMAIN`
+  choose other names for the API and for voice.
 - With an IPv6 address on the server, add matching AAAA records, or none.
   Let's Encrypt tries IPv6 first, so an AAAA record that points elsewhere, or
   exists while the server has no public IPv6, makes certificate issuance fail.
@@ -286,6 +287,8 @@ Answers:
 | `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS` | SMTP login | empty |
 | `HARMONY_SMTP_SENDER` | From address | `noreply@` the domain |
 | `HARMONY_TLS` | `acme` (Let's Encrypt) or `internal` (Caddy's own CA) | `acme` |
+| `HARMONY_DB_DOMAIN` | Name of the API: sign-in, data, uploads, the live connection | `db.` the domain |
+| `HARMONY_LIVEKIT_DOMAIN` | Name of voice and video signalling | `live.` the domain |
 
 Host and source:
 
@@ -354,8 +357,17 @@ A server without a public address can be reached through a Cloudflare Tunnel
 server uses Caddy's own ones: install with `HARMONY_TLS=internal`.
 
 - Route **every** name through the tunnel: `chat.example.com` and
-  `db.example.com`. The app calls `db.` for sign-in, data, uploads and the
-  live connection (`wss://db.example.com/realtime/v1/websocket`).
+  `db.chat.example.com`. The app calls the API name for sign-in, data,
+  uploads and the live connection (`wss://db.chat.example.com/realtime/v1/websocket`).
+- Cloudflare's free edge certificate (Universal SSL) covers `example.com` and
+  `*.example.com`, one level deep. A proxied `db.chat.example.com` or
+  `live.chat.example.com` has no certificate: browsers fail the handshake
+  (`SSL alert number 40`) and the app reports CORS errors. Use names one level
+  below the zone, for example `HARMONY_DB_DOMAIN=db-chat.example.com` and
+  `HARMONY_LIVEKIT_DOMAIN=live-chat.example.com`, or order an Advanced
+  certificate for the deeper names. The installer and `harmony doctor` detect
+  this and name the replacement. An app on the bare domain (`example.com`)
+  keeps the defaults.
 - Each name is a CNAME to `<tunnel id>.cfargotunnel.com` set to **Proxied**
   (orange cloud). A tunnel record set to DNS only resolves to
   `fd10:aec2:5dae::`, which nothing can reach: the site may load while
@@ -379,7 +391,7 @@ server uses Caddy's own ones: install with `HARMONY_TLS=internal`.
   visitors share one limit. Logs behind Caddy show that one address for
   everyone.
 - Voice and video run through LiveKit in two parts. Signaling is a WebSocket to
-  `wss://live.example.com`, which the tunnel carries like the other names. Media
+  `wss://live.chat.example.com`, which the tunnel carries like the other names. Media
   goes from each browser straight to the address LiveKit advertises, on 7882/udp
   or 7881/tcp, which neither a tunnel nor Cloudflare's proxy carries: calls then
   connect but stay silent. With a public address, forward 7881/tcp and 7882/udp

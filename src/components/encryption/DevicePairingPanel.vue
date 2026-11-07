@@ -14,12 +14,10 @@
         <span v-else>{{ $t('encryption.code.expired') }}</span>
         &middot; {{ deviceLabel }}
       </p>
+      <PairingCodeField v-if="codeText" :code="codeText" :expired="phase === 'showing' && secondsLeft <= 0" />
       <div class="pp-actions">
         <button type="button" class="btn btn-secondary btn-sm" :disabled="phase !== 'showing'" @click="begin">
           {{ $t('encryption.code.newCode') }}
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="phase !== 'showing'" @click="copyCode">
-          {{ $t('encryption.code.copyCode') }}
         </button>
       </div>
       <button type="button" class="pp-link" @click="toScan">
@@ -61,6 +59,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import QrScanner from './QrScanner.vue'
+import PairingCodeField from './PairingCodeField.vue'
 import { renderQrDataUrl } from '@/utils/qrCode'
 import { debug } from '@/utils/debug'
 import { deviceIdentityService } from '@/services/encryption/DeviceIdentityService'
@@ -79,6 +78,7 @@ type Phase = 'preparing' | 'showing' | 'scan' | 'waiting' | 'importing' | 'done'
 
 const phase = ref<Phase>('preparing')
 const qrUrl = ref('')
+const codeText = ref('')
 const error = ref('')
 const now = ref(Date.now())
 const deviceLabel = deviceIdentityService.buildLabel()
@@ -88,6 +88,9 @@ let controller: AbortController | null = null
 let ticker: ReturnType<typeof setInterval> | null = null
 let ids: { profileId: string; authUserId: string } | null = null
 let alive = true
+// Showing, scanning and answering each start a new attempt; an older one that finishes late
+// withdraws its request instead of taking over the panel.
+let attempt = 0
 
 const secondsLeft = computed(() =>
   pairing ? Math.max(0, Math.round((pairing.expiresAt - now.value) / 1000)) : 0,
@@ -107,11 +110,15 @@ async function identities() {
 }
 
 /** Withdraws an unanswered request so other devices drop their prompt. */
+function withdraw(p: NewDevicePairing) {
+  if (!p.session.spent) void deviceIdentityService.cancelPairingRequest(p.requestId)
+  p.session.discard()
+}
+
 function cancelPending() {
   controller?.abort()
   controller = null
-  if (pairing && !pairing.session.spent) void deviceIdentityService.cancelPairingRequest(pairing.requestId)
-  pairing?.session.discard()
+  if (pairing) withdraw(pairing)
   pairing = null
 }
 
@@ -148,26 +155,36 @@ function fail(err: unknown, next: Phase = 'failed') {
 }
 
 async function begin() {
+  const run = ++attempt
   cancelPending()
   error.value = ''
   qrUrl.value = ''
+  codeText.value = ''
   phase.value = 'preparing'
   try {
     const { profileId } = await identities()
     const p = await devicePairingService.startNewDevice(profileId)
-    if (!alive) return
+    if (!alive || run !== attempt) {
+      withdraw(p)
+      return
+    }
     pairing = p
-    qrUrl.value = await renderQrDataUrl(p.qrText!, 280)
+    const url = await renderQrDataUrl(p.qrText!, 280)
+    if (!alive || run !== attempt) return
+    qrUrl.value = url
+    codeText.value = p.qrText!
     phase.value = 'showing'
     await waitAndComplete(p)
   } catch (err) {
-    fail(err)
+    if (run === attempt) fail(err)
   }
 }
 
 function toScan() {
+  attempt++
   cancelPending()
   error.value = ''
+  codeText.value = ''
   phase.value = 'scan'
 }
 
@@ -188,24 +205,21 @@ async function onApproverCode(text: string) {
     error.value = t('encryption.pairing.newDeviceCode')
     return
   }
+  const run = ++attempt
   cancelPending()
   phase.value = 'waiting'
   try {
     const { profileId } = await identities()
     const p = await devicePairingService.answerApproverCode(profileId, code)
-    if (!alive) return
+    if (!alive || run !== attempt) {
+      withdraw(p)
+      return
+    }
     pairing = p
     await waitAndComplete(p)
   } catch (err) {
-    fail(err, 'scan')
+    if (run === attempt) fail(err, 'scan')
   }
-}
-
-async function copyCode() {
-  if (!pairing?.qrText) return
-  try {
-    await navigator.clipboard.writeText(pairing.qrText)
-  } catch { /* clipboard unavailable */ }
 }
 
 onMounted(() => {

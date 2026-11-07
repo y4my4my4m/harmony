@@ -3,14 +3,17 @@
 // followers-only one; the post page shows its image; an unlisted post's page is noindex. With
 // Admin > Config > Federation "Show profiles and public posts to visitors who aren't signed in"
 // off, a visitor is sent to sign in and a link-preview crawler still gets the page, noindex. A
-// signed-in browser lands in the in-app profile and post: through the proxy's cookie rule, and
-// through the page's hand-off when the cookie is missing.
+// signed-in browser stays at /@<name> and /@<name>/<post id>, in the app: through the proxy's
+// cookie rule, and through the page's hand-off when the cookie is missing. The app's earlier
+// addresses move there: /social/profile/<name> to /@<name> (for a visitor and a crawler too),
+// /social/post/<id> to /@<author>/<id>, /social/hashtag/<tag> to /tags/<tag>.
 //
-// The reverse proxy is not part of this stack. proxyLikeNginx() applies its rule to the page's
+// The reverse proxy is not part of this stack. proxyLikeNginx() applies its rules to the page's
 // document requests (dev/nginx-harmony.template.conf map $public_page_app): /@ paths go to the
 // federation backend (e2e/specs/backend.ts) unless the request carries harmony_app=1 and no
-// ActivityPub Accept, /posts/<id> always does. scripts/check-nginx-template.sh and
-// scripts/check-caddyfile.sh cover the proxies themselves.
+// ActivityPub Accept, /posts/<id> always does, /social/profile/<name> without the cookie is a 301
+// to /@<name>. scripts/check-nginx-template.sh and scripts/check-caddyfile.sh cover the proxies
+// themselves.
 //
 // PUBLIC_PAGE_SHOTS=<directory> saves both pages, light and dark, at desktop and phone width.
 
@@ -63,10 +66,10 @@ async function setPublicPages(on: boolean): Promise<void> {
   if (error) throw new Error(`public_profile_pages: ${error.message}`)
 }
 
-/** The reverse proxy's rule for /@ paths and /posts/<id>, applied to document requests. */
+/** The reverse proxy's rules for /@ paths, /posts/<id> and /social/profile/<name>, applied to document requests. */
 async function proxyLikeNginx(context: BrowserContext): Promise<void> {
   await context.route(
-    (url) => /^\/(@[^/]+(\/[^/]+)?\/?|posts\/[0-9a-f-]{36})$/.test(url.pathname),
+    (url) => /^\/(@[^/]+(\/[^/]+)?\/?|posts\/[0-9a-f-]{36}|social\/profile\/[A-Za-z0-9_]+\/?)$/.test(url.pathname),
     async (route) => {
       const request = route.request()
       if (request.resourceType() !== 'document') return route.continue()
@@ -74,6 +77,11 @@ async function proxyLikeNginx(context: BrowserContext): Promise<void> {
       const url = new URL(request.url())
       const activityPub = /application\/(activity|ld)\+json/i.test(headers.accept ?? '')
       const appCookie = /(?:^|;\s*)harmony_app=1(?:;|$)/.test(headers.cookie ?? '')
+      const oldProfile = /^\/social\/profile\/([A-Za-z0-9_]+)\/?$/.exec(url.pathname)
+      if (oldProfile) {
+        if (activityPub || appCookie) return route.continue()
+        return route.fulfill({ status: 301, headers: { Location: `/@${oldProfile[1]}` } })
+      }
       if (url.pathname.startsWith('/@') && appCookie && !activityPub) return route.continue()
       const response = await route.fetch({ url: `${backend.url}${url.pathname}${url.search}`, maxRedirects: 0 })
       await route.fulfill({ response })
@@ -184,6 +192,14 @@ test('a visitor reads the profile and its public posts', async ({ browser }) => 
 
   if (SHOTS) await shoot(page, 'profile-desktop')
 
+  // The app's earlier address moves to this page, for a crawler as for a visitor.
+  const crawler = await visitor(browser, { userAgent: DISCORDBOT })
+  const unfurl = await crawler.newPage()
+  await unfurl.goto(`/social/profile/${author.username}`)
+  expect(new URL(unfurl.url()).pathname).toBe(`/@${author.username}`)
+  await expect(unfurl.locator('meta[property="og:url"]')).toHaveAttribute('content', `https://localhost/@${author.username}`)
+  await crawler.close()
+
   // The username is matched without case and moved to its spelling. Asked of the backend: a
   // redirect fulfilled through route() navigates the page twice.
   const moved = await fetch(`${backend.url}/@${author.username.toUpperCase()}`, { redirect: 'manual' })
@@ -261,18 +277,29 @@ test('a signed-in reader lands in the app, with the cookie and through the hand-
   await signIn(page, reader)
   await expect.poll(async () => (await context.cookies()).find((c) => c.name === 'harmony_app')?.value).toBe('1')
 
-  // The cookie: the proxy serves the app, which opens the in-app profile.
+  // The cookie: the proxy serves the app, which opens the in-app profile at the same address.
   await page.goto(`/@${author.username}`)
-  await page.waitForURL(new RegExp(`/social/profile/${author.username}$`), { timeout: 30000 })
   await dismissAnnouncements(page)
   await expect(page.getByTestId('profile-follow-btn')).toBeVisible({ timeout: 30000 })
+  expect(new URL(page.url()).pathname).toBe(`/@${author.username}`)
+  await expect(page.getByTestId('profile-handle')).toHaveText(`@${author.username}@localhost`)
 
   // No cookie: the backend's page hands the session's browser to the app and sets it again.
   await context.clearCookies({ name: 'harmony_app' })
   await page.goto(`/@${author.username}/${posts.text}`)
-  await page.waitForURL(new RegExp(`/social/post/${posts.text}$`), { timeout: 30000 })
-  await expect(page.locator('body')).toContainText('Hello from the public page', { timeout: 30000 })
+  await expect(page.locator('.post-view')).toContainText('Hello from the public page', { timeout: 30000 })
+  expect(new URL(page.url()).pathname).toBe(`/@${author.username}/${posts.text}`)
   expect((await context.cookies()).find((c) => c.name === 'harmony_app')?.value).toBe('1')
+
+  // The earlier addresses move to the new ones.
+  await page.goto(`/social/profile/${author.username}`)
+  await expect(page).toHaveURL(new RegExp(`/@${author.username}$`), { timeout: 30000 })
+  await expect(page.getByTestId('profile-follow-btn')).toBeVisible({ timeout: 30000 })
+  await page.goto(`/social/post/${posts.image}`)
+  await expect(page).toHaveURL(new RegExp(`/@${author.username}/${posts.image}$`), { timeout: 30000 })
+  await expect(page.locator('.post-view')).toContainText('Tonight over the harbour', { timeout: 30000 })
+  await page.goto('/social/hashtag/harbour')
+  await expect(page).toHaveURL(/\/tags\/harbour$/, { timeout: 30000 })
 
   // Signing out clears it.
   await page.goto('/logout')

@@ -205,7 +205,7 @@
 import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { debug } from '@/utils/debug'
-import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
+import { postUrl, profileHandleParam } from '@/utils/permalinks'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -474,6 +474,7 @@ const loadPostWithContext = async () => {
     }
 
     postWithContext.value = result;
+    showPermalink(result.mainPost);
     
     const allPostIds = [
       ...result.ancestors.map(p => p.id),
@@ -823,12 +824,8 @@ const handleBookmark = async (postId: string) => {
 };
 
 const handleUserClick = (user: any) => {
-  if (!user) return
-  const handle = user.handle
-    || (user.is_local === false && user.domain
-      ? `@${user.username}@${user.domain}`
-      : `@${user.username || user.id}`)
-  router.push({ name: 'UserProfile', params: { handle } })
+  const handle = profileHandleParam(user)
+  if (handle) router.push({ name: 'UserProfile', params: { handle } })
 };
 
 const handleHashtagClick = (tag: string) => {
@@ -836,8 +833,16 @@ const handleHashtagClick = (tag: string) => {
 };
 
 const getPostUrl = (): string => {
-  const id = resolvedPostId.value || props.postId;
-  return `${resolveHarmonyBaseUrl()}/posts/${id}`;
+  const id = resolvedPostId.value || props.postId || '';
+  return postUrl(mainPost.value?.id === id ? mainPost.value : { id });
+};
+
+/** The address bar shows the post's permalink, /@author/<id>, the link people copy. */
+const showPermalink = (post: TimelinePost | null | undefined) => {
+  const handle = profileHandleParam(post?.author);
+  if (!post?.id || !handle) return;
+  if (route.name === 'PostPermalink' && route.params.handle === handle && route.params.postId === post.id) return;
+  void router.replace({ name: 'PostPermalink', params: { handle, postId: post.id }, query: route.query, hash: route.hash });
 };
 
 const sharePost = async () => {

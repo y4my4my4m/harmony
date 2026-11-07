@@ -1,5 +1,6 @@
--- 20261009300001_admin_instance_emojis.sql: instance admins list, rename and delete
--- instance-level emojis; server emojis stay out of reach. User emojis: 134_user_emojis.sql.
+-- 20261009300001_admin_instance_emojis.sql, as 20261107100001_emoji_lifecycle.sql leaves it:
+-- instance admins list every emoji (admin_list_emojis), rename instance-level ones, remove and
+-- purge any. User emojis: 134_user_emojis.sql; lifecycle details: 236_emoji_lifecycle.sql.
 --
 --   alice    instance admin from setup; owns server_1
 --   bob      member of server_1, not an admin
@@ -13,7 +14,7 @@
 --   06 inst_twin     scope instance, local; rename collision target
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(33);
+SELECT plan(36);
 
 UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
 
@@ -40,38 +41,37 @@ VALUES ('96e10000-0000-0000-0000-000000000001', 'fed_orphan', 'remote.example',
         ':fed_orphan@remote.example:', 'https://remote.example/3.png',
         '96e00000-0000-0000-0000-000000000003', now());
 
-CREATE FUNCTION pg_temp.listed(p_search text, p_source text, p_sort text, p_limit int, p_offset int)
+CREATE FUNCTION pg_temp.listed(p_search text, p_kind text, p_sort text, p_limit int, p_offset int,
+                                p_status text DEFAULT 'active')
 RETURNS text[] LANGUAGE sql AS
   $$ SELECT COALESCE(array_agg(name ORDER BY o), '{}')
-       FROM public.admin_list_instance_emojis(p_search, p_source, p_sort, p_limit, p_offset)
-            WITH ORDINALITY t(id, name, url, domain, scope, uploader, uploader_username,
-                              created_at, usage_count, reaction_count, total_count,
-                              is_ai_generated, o) $$;
+       FROM (SELECT l.name, row_number() OVER () AS o
+               FROM public.admin_list_emojis(p_search, p_kind, p_status, p_sort, p_limit, p_offset) l) t $$;
 
 -- Grants. ----------------------------------------------------------------------------
-SELECT ok(has_function_privilege('authenticated', 'public.admin_list_instance_emojis(text, text, text, integer, integer)', 'EXECUTE'),
-          'authenticated executes admin_list_instance_emojis');
-SELECT ok(NOT has_function_privilege('anon', 'public.admin_list_instance_emojis(text, text, text, integer, integer)', 'EXECUTE'),
-          'anon does not execute admin_list_instance_emojis');
+SELECT ok(has_function_privilege('authenticated', 'public.admin_list_emojis(text, text, text, text, integer, integer)', 'EXECUTE'),
+          'authenticated executes admin_list_emojis');
+SELECT ok(NOT has_function_privilege('anon', 'public.admin_list_emojis(text, text, text, text, integer, integer)', 'EXECUTE'),
+          'anon does not execute admin_list_emojis');
 SELECT ok(has_function_privilege('authenticated', 'public.admin_rename_instance_emoji(uuid, text)', 'EXECUTE'),
           'authenticated executes admin_rename_instance_emoji');
 SELECT ok(NOT has_function_privilege('anon', 'public.admin_rename_instance_emoji(uuid, text)', 'EXECUTE'),
           'anon does not execute admin_rename_instance_emoji');
-SELECT ok(has_function_privilege('authenticated', 'public.admin_delete_instance_emoji(uuid)', 'EXECUTE'),
-          'authenticated executes admin_delete_instance_emoji');
-SELECT ok(NOT has_function_privilege('anon', 'public.admin_delete_instance_emoji(uuid)', 'EXECUTE'),
-          'anon does not execute admin_delete_instance_emoji');
-SELECT ok(has_function_privilege('service_role', 'public.admin_delete_instance_emoji(uuid)', 'EXECUTE'),
-          'service_role executes admin_delete_instance_emoji');
+SELECT ok(has_function_privilege('authenticated', 'public.admin_purge_emoji(uuid)', 'EXECUTE'),
+          'authenticated executes admin_purge_emoji');
+SELECT ok(NOT has_function_privilege('anon', 'public.admin_purge_emoji(uuid)', 'EXECUTE'),
+          'anon does not execute admin_purge_emoji');
 
 -- Non-admin. -------------------------------------------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT * FROM public.admin_list_instance_emojis()$q$, '42501', NULL,
-                 'a non-admin cannot list instance emojis');
+SELECT throws_ok($q$SELECT * FROM public.admin_list_emojis()$q$, '42501', NULL,
+                 'a non-admin cannot list emojis');
 SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000001', 'hijack')$q$,
                  '42501', NULL, 'a non-admin cannot rename an instance emoji');
-SELECT throws_ok($q$SELECT public.admin_delete_instance_emoji('96e00000-0000-0000-0000-000000000003')$q$,
-                 '42501', NULL, 'a non-admin cannot delete a federated emoji');
+SELECT throws_ok($q$SELECT public.admin_purge_emoji('96e00000-0000-0000-0000-000000000003')$q$,
+                 '42501', NULL, 'a non-admin cannot purge a federated emoji');
+SELECT throws_ok($q$SELECT public.remove_emoji('96e00000-0000-0000-0000-000000000001')$q$,
+                 '42501', NULL, 'nor remove an instance emoji');
 RESET ROLE;
 SELECT tests.clear_authentication();
 
@@ -79,31 +79,34 @@ SELECT tests.clear_authentication();
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 
 SELECT is(pg_temp.listed(NULL, 'all', 'newest', 50, 0),
-          ARRAY['inst_twin', 'fed_orphan', 'inst_bridge', 'inst_local'],
-          'all instance-level emojis, newest first; server and user emojis excluded');
+          ARRAY['inst_twin', 'usr_emoji', 'srv_emoji', 'fed_orphan', 'inst_bridge', 'inst_local'],
+          'every emoji, newest first, server and personal ones included');
 SELECT is(pg_temp.listed(NULL, 'all', 'name', 50, 0),
-          ARRAY['fed_orphan', 'inst_bridge', 'inst_local', 'inst_twin'],
+          ARRAY['fed_orphan', 'inst_bridge', 'inst_local', 'inst_twin', 'srv_emoji', 'usr_emoji'],
           'name sort orders by lower(name)');
-SELECT is(pg_temp.listed(NULL, 'local', 'newest', 50, 0), ARRAY['inst_twin', 'inst_local'],
-          'local is domain IS NULL');
-SELECT is(pg_temp.listed(NULL, 'remote', 'newest', 50, 0), ARRAY['fed_orphan', 'inst_bridge'],
-          'remote is domain IS NOT NULL');
+SELECT is(pg_temp.listed(NULL, 'instance', 'newest', 50, 0), ARRAY['inst_twin', 'inst_local'],
+          'instance is this instance''s own: no server, not personal, no domain');
+SELECT is(pg_temp.listed(NULL, 'federated', 'newest', 50, 0), ARRAY['fed_orphan', 'inst_bridge'],
+          'federated is a domain without a server');
+SELECT is((SELECT kind || '|' || server_name FROM public.admin_list_emojis(NULL, 'server')), 'server|Test Server',
+          'server emojis are listed with their server');
+SELECT is(pg_temp.listed(NULL, 'personal', 'newest', 50, 0), ARRAY['usr_emoji'], 'personal is scope user');
 SELECT is(pg_temp.listed('DISCORD', 'all', 'newest', 50, 0), ARRAY['inst_bridge'],
           'search matches the domain case-insensitively');
 SELECT is(pg_temp.listed('_LOC', 'all', 'newest', 50, 0), ARRAY['inst_local'],
           'search matches a name substring case-insensitively');
 SELECT is(pg_temp.listed('%', 'all', 'newest', 50, 0), '{}'::text[],
           'search treats % literally');
-SELECT is(pg_temp.listed(NULL, 'all', 'newest', 2, 1), ARRAY['fed_orphan', 'inst_bridge'],
+SELECT is(pg_temp.listed(NULL, 'all', 'newest', 2, 1), ARRAY['usr_emoji', 'srv_emoji'],
           'limit and offset page the result');
-SELECT is((SELECT DISTINCT total_count FROM public.admin_list_instance_emojis(NULL, 'all', 'newest', 2, 1)),
-          4::bigint, 'total_count is the match count before paging');
-SELECT is((SELECT reaction_count FROM public.admin_list_instance_emojis('fed_orphan')),
+SELECT is((SELECT DISTINCT total_count FROM public.admin_list_emojis(NULL, 'all', 'active', 'newest', 2, 1)),
+          6::bigint, 'total_count is the match count before paging');
+SELECT is((SELECT reaction_count FROM public.admin_list_emojis('fed_orphan')),
           1::bigint, 'reaction_count counts referencing reactions');
-SELECT is((SELECT uploader_username FROM public.admin_list_instance_emojis('fed_orphan')),
+SELECT is((SELECT uploader_username FROM public.admin_list_emojis('fed_orphan')),
           'bob', 'uploader_username joins the uploader profile');
-SELECT throws_ok($q$SELECT * FROM public.admin_list_instance_emojis(NULL, 'servers')$q$, '22023', NULL,
-                 'an unknown source is rejected');
+SELECT throws_ok($q$SELECT * FROM public.admin_list_emojis(NULL, 'servers')$q$, '22023', NULL,
+                 'an unknown kind is rejected');
 
 -- Rename. ----------------------------------------------------------------------------
 SELECT lives_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000003', ' fed_renamed ')$q$,
@@ -121,16 +124,20 @@ SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-000
 SELECT lives_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000005', 'inst_local')$q$,
                 'a user emoji rename ignores instance names');
 
--- Delete. ----------------------------------------------------------------------------
-SELECT throws_ok($q$SELECT public.admin_delete_instance_emoji('96e00000-0000-0000-0000-000000000004')$q$,
-                 'P0002', NULL, 'a server emoji cannot be deleted here');
-SELECT lives_ok($q$SELECT public.admin_delete_instance_emoji('96e00000-0000-0000-0000-000000000003')$q$,
-                'the admin deletes a federated orphan emoji');
+-- Remove and purge. --------------------------------------------------------------------
+SELECT lives_ok($q$SELECT public.remove_emoji('96e00000-0000-0000-0000-000000000004')$q$,
+                'the admin removes a server emoji');
+SELECT is(pg_temp.listed(NULL, 'all', 'newest', 50, 0, 'removed'), ARRAY['srv_emoji'],
+          'it is listed under status removed');
+SELECT is(public.admin_purge_emoji('96e00000-0000-0000-0000-000000000003'), NULL,
+          'the admin purges a federated emoji; its file is not in this instance''s bucket');
 RESET ROLE;
 SELECT tests.clear_authentication();
 
-SELECT is((SELECT count(*)::int FROM public.reactions WHERE emoji_id = '96e00000-0000-0000-0000-000000000003'),
-          0, 'reactions on the deleted emoji cascade');
+SELECT results_eq($$SELECT emoji_id, custom_emoji_content FROM public.reactions
+                     WHERE message_id = '88888888-0000-0000-0000-000000000008'$$,
+                  $$VALUES (NULL::uuid, ':fed_renamed:')$$,
+                  'reactions on the purged emoji stay with its :name:');
 SELECT is((SELECT imported_as FROM public.remote_emojis_cache WHERE id = '96e10000-0000-0000-0000-000000000001'),
           NULL::uuid, 'the remote cache entry is importable again');
 

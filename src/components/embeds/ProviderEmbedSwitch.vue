@@ -13,6 +13,13 @@
     :invite-code="inviteCode"
     :invite-url="payload.url"
   />
+
+  <!-- An account of this instance or one it knows: /@user, /@user@domain (utils/profileLinks). -->
+  <ProfileEmbedCard
+    v-else-if="isProfile"
+    :payload="payload"
+    @load="handleEmbedLoad"
+  />
   
   <!-- Regular embed: the card, and its actions on a rail beside it -->
   <div
@@ -189,6 +196,8 @@ import { musicEmbedFor, musicProviderLabel } from '@/utils/musicEmbeds';
 import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
 import DriveLinkAttachment from './DriveLinkAttachment.vue';
+import ProfileEmbedCard from './ProfileEmbedCard.vue';
+import { profileLinkFromUrl } from '@/utils/profileLinks';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
@@ -219,6 +228,8 @@ const { registerVideo, notifyPlaybackStarted, canPopOut, popOut } = useFloatingV
 
 // /drive/file/<id> and /d/<token> on this instance.
 const driveLink = computed(() => driveLinkFromUrl(props.payload.url));
+
+const isProfile = computed(() => props.payload.provider === 'harmony-profile' || !!profileLinkFromUrl(props.payload.url));
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
@@ -274,6 +285,8 @@ const providerLabel = computed(() => {
       return 'Harmony Post';
     case 'harmony-invite':
       return 'Server Invite';
+    case 'harmony-profile':
+      return t('embeds.profile.title');
     case 'harmony-drive':
       return 'Drive File';
     case 'fediverse-post': {

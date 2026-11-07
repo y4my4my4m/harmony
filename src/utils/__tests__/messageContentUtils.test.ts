@@ -42,6 +42,25 @@ describe('messageContentUtils', () => {
       expect(messagePartsToMarkdown(parts as any)).toBe('@alice')
     })
 
+    it('keeps channel mentions as #name for the editor', () => {
+      const parts = [
+        { type: 'text' as const, text: 'see ' },
+        { type: 'channel_mention' as const, channelId: 'c1', serverId: 's1', name: 'zeta' },
+        { type: 'text' as const, text: ' now' },
+      ]
+      expect(messagePartsToMarkdown(parts as any)).toBe('see #zeta now')
+    })
+
+    it('keeps a message link of a channel mention', () => {
+      const parts = [{ type: 'channel_mention' as const, channelId: 'c1', serverId: 's1', name: 'zeta', messageId: 'm1' }]
+      expect(messagePartsToMarkdown(parts as any, { excludeFiles: true })).toMatch(/\/chat\/s1\/c1\?messageId=m1$/)
+    })
+
+    it('keeps the domain of a remote mention', () => {
+      const parts = [{ type: 'mention' as const, userId: 'u', username: 'bob', domain: 'remote.example', isLocal: false }]
+      expect(messagePartsToMarkdown(parts as any)).toBe('@bob@remote.example')
+    })
+
     it('converts file parts to placeholder', () => {
       const parts = [{ type: 'file' as const, fileType: 'image' }]
       expect(messagePartsToMarkdown(parts as any)).toBe('[image: attachment]')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseInteractionUri, postPreviewText, profileRouteHandle } from '../authorizeInteraction'
+import { parseInteractionUri, postPreviewText } from '../authorizeInteraction'
 
 const UUID = 'f0240000-0000-0000-0000-000000000001'
 
@@ -18,6 +18,8 @@ describe('parseInteractionUri', () => {
   it('reads this instance\'s post and profile URLs', () => {
     expect(parseInteractionUri(`https://harmony.test/social/post/${UUID}`, 'harmony.test')).toEqual({ kind: 'local-post', postId: UUID })
     expect(parseInteractionUri(`https://harmony.test/posts/${UUID.toUpperCase()}`, 'harmony.test')).toEqual({ kind: 'local-post', postId: UUID })
+    expect(parseInteractionUri(`https://harmony.test/@alice/${UUID}`, 'harmony.test')).toEqual({ kind: 'local-post', postId: UUID })
+    expect(parseInteractionUri(`https://harmony.test/@bob@remote.test/${UUID}`, 'harmony.test')).toEqual({ kind: 'local-post', postId: UUID })
     for (const path of ['/users/alice', '/social/profile/alice', '/@alice']) {
       expect(parseInteractionUri(`https://harmony.test${path}`, 'harmony.test')).toEqual({ kind: 'local-profile', username: 'alice' })
     }
@@ -32,14 +34,6 @@ describe('parseInteractionUri', () => {
     for (const raw of ['', '   ', 'ann', 'javascript:alert(1)', 'ftp://x.test/a', 'ann@', '@ann@exa mple.test', undefined, 7]) {
       expect(parseInteractionUri(raw, 'harmony.test')).toBeNull()
     }
-  })
-})
-
-describe('profileRouteHandle', () => {
-  it('is the username here and username@domain elsewhere', () => {
-    expect(profileRouteHandle({ username: 'alice', domain: 'harmony.test', is_local: true })).toBe('alice')
-    expect(profileRouteHandle({ username: 'tech', domain: 'lemmy.test', is_local: false })).toBe('tech@lemmy.test')
-    expect(profileRouteHandle({ username: null })).toBeNull()
   })
 })
 

@@ -46,6 +46,7 @@ vi.mock('@/composables/useAutoSuggest', () => ({
 }))
 vi.mock('@/services/drive/driveService', () => ({
   driveAvailable: () => Promise.resolve(false),
+  driveEnabled: () => Promise.resolve(false),
   driveViewUrl: () => '',
 }))
 

@@ -3,9 +3,9 @@
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
-      :channel-id="channelId"
+      :channel-id="channelId || threadChannelId"
       :conversation-id="conversationId"
-      :server-id="conversationId ? undefined : serverId"
+      :server-id="conversationId ? undefined : (serverId || serverChannelStore.currentServerId || undefined)"
       @update:replyMessageId="handleDontReply"
     />
     <FilePreview
@@ -307,7 +307,7 @@ import FilePreview from '@/components/FilePreview.vue';
 import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
 import DriveShareOffer from '@/components/drive/DriveShareOffer.vue';
 import { useDriveShareOffer, type DriveShareRoom } from '@/composables/useDriveShareOffer';
-import { driveAvailable, setDriveTemporary, type DriveFile } from '@/services/drive/driveService';
+import { driveEnabled as driveTurnedOn, setDriveTemporary, type DriveFile } from '@/services/drive/driveService';
 import { useDriveUsage } from '@/composables/useDriveUsage';
 import { useUserData } from '@/composables/useUserData';
 import { compatUrlFor } from '@/services/privateMedia';
@@ -1398,7 +1398,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     onMounted(() => {
       prepareMessageMediaUploads();
-      void driveAvailable().then((ok) => {
+      void driveTurnedOn().then((ok) => {
         driveEnabled.value = ok;
       });
     });

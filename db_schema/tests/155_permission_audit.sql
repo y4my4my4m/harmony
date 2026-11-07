@@ -28,6 +28,9 @@ BEGIN;
 SET LOCAL search_path = tests, public;
 SELECT plan(78);
 
+INSERT INTO storage.objects (bucket_id, name, metadata) VALUES
+  ('emojis', 'e1551000-0000-0000-0000-000000000001/e1550000-0000-0000-0000-000000000001/e1556000-0000-4000-8000-000000000001.png', '{"size": 100}');
+
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('a1550000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pa-mod@test.local'),
   ('a1550000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pa-pinner@test.local'),
@@ -202,12 +205,14 @@ SELECT lives_ok($q$INSERT INTO public.server_roles (server_id, name, position, p
 
 -- MANAGE_EMOJIS ----------------------------------------------------------------------------
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$INSERT INTO public.emojis (name, url, server_id, scope, uploader)
-                    VALUES ('nope', 'https://example.com/nope.png', 'e1551000-0000-0000-0000-000000000001', 'server', '22222222-0000-0000-0000-000000000002')$q$,
+SELECT throws_ok($q$SELECT public.create_server_emoji('e1551000-0000-0000-0000-000000000001', 'nope',
+                    'e1551000-0000-0000-0000-000000000001/22222222-0000-0000-0000-000000000002/e1556000-0000-4000-8000-000000000002.png',
+                    'https://example.com/storage/v1/object/public/emojis/e1551000-0000-0000-0000-000000000001/22222222-0000-0000-0000-000000000002/e1556000-0000-4000-8000-000000000002.png')$q$,
                  '42501', NULL, 'without MANAGE_EMOJIS a member adds no server emoji');
 SELECT tests.authenticate_as('a1550000-0000-0000-0000-000000000001');
-SELECT lives_ok($q$INSERT INTO public.emojis (name, url, server_id, scope, uploader)
-                   VALUES ('yes', 'https://example.com/yes.png', 'e1551000-0000-0000-0000-000000000001', 'server', 'e1550000-0000-0000-0000-000000000001')$q$,
+SELECT lives_ok($q$SELECT public.create_server_emoji('e1551000-0000-0000-0000-000000000001', 'yes',
+                   'e1551000-0000-0000-0000-000000000001/e1550000-0000-0000-0000-000000000001/e1556000-0000-4000-8000-000000000001.png',
+                   'https://example.com/storage/v1/object/public/emojis/e1551000-0000-0000-0000-000000000001/e1550000-0000-0000-0000-000000000001/e1556000-0000-4000-8000-000000000001.png')$q$,
                 'MANAGE_EMOJIS adds one');
 
 -- VIEW_AUDIT_LOG ---------------------------------------------------------------------------

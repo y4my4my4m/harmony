@@ -109,6 +109,7 @@ import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
+import { caseEmojiOrigin } from './cases/emojiOrigin.ts'
 import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
@@ -2769,6 +2770,7 @@ async function main() {
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
+    await caseEmojiOrigin({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE }, post, signedHeaders, assert, eq })
     await caseOutboundReactions(db, peer, backend)
     await caseRemoteReactionCounts(db, peer, localUrl)
     await caseDocumentCache(db, localUrl)

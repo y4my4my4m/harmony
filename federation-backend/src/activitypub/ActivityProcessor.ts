@@ -6,7 +6,7 @@ import { isPollVoteNote, preparePoll, receivePollState, receivePollVote, storeIn
 import { actorHostname } from '../utils/mentionParts.js';
 import { inboundRawContent, urlFormEmojis } from '../utils/inboundContent.js';
 import { withInboundSticker } from '../utils/stickers.js';
-import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext, noteAudience } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
@@ -22,6 +22,7 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { storedPostVisibility } from './postAccess.js';
+import { inboundEmojiOrigin } from '../utils/emojiOrigin.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
@@ -685,9 +686,10 @@ export class ActivityProcessor {
   }
 
   /**
-   * Create activity: post, DM, channel message, or poll.
+   * Create activity: post, DM, channel message, or poll. `audience` is the Group that relayed
+   * the activity (FEP-1b12), recorded ahead of the object's own audience.
    */
-  private static async processCreate(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
+  private static async processCreate(activity: any, options: { skipSpamGuard?: boolean; audience?: string } = {}): Promise<void> {
     const object = asNoteObject(activity.object);
     const supabase = getSupabaseClient();
 
@@ -718,7 +720,7 @@ export class ActivityProcessor {
         return;
       }
       logger.info(`Processing poll: ${object.id}`);
-      await this.processCreatePoll(activity, object);
+      await this.processCreatePoll(activity, object, options.audience);
       return;
     }
 
@@ -843,6 +845,8 @@ export class ActivityProcessor {
         }
         const context = noteContext(object);
         if (context) metadata.ap_context = context;
+        const audience = options.audience ?? noteAudience(object) ?? noteAudience(activity);
+        if (audience) metadata.ap_audience = audience;
         // A quote whose post could not be read keeps its target, shown as a link; one whose
         // post is deleted or not public is a plain post.
         if (quoteUrl && !quoteWithheld) {
@@ -1335,6 +1339,8 @@ export class ActivityProcessor {
       }
       const context = noteContext(remoteObject);
       if (context) metadata.ap_context = context;
+      const audience = noteAudience(remoteObject);
+      if (audience) metadata.ap_audience = audience;
       const quoteUrl = noteQuoteUrl(remoteObject);
       if (quoteUrl) {
         metadata.is_quote = true;
@@ -1988,7 +1994,7 @@ export class ActivityProcessor {
       // avoids creating url-less rows in the emojis table).
       const isCustomEmoji = !!(emojiUrl && emojiName);
       const emojiId = isCustomEmoji
-        ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id)
+        ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id, actorUrl)
         : null;
 
       // Not a favourite, so either a unicode emoji or an Emoji tag is present.
@@ -2068,7 +2074,7 @@ export class ActivityProcessor {
 
     if (isCustomEmoji) {
       // Image-backed custom emoji resolve to a row in `emojis`.
-      const emojiId = await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, userId);
+      const emojiId = await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, userId, actorUrl);
       if (!emojiId) {
         logger.error('Could not find or create emoji for message reaction');
         return;
@@ -2703,7 +2709,7 @@ export class ActivityProcessor {
   /**
    * Create of a Question. The poll is stored as a post with poll data in metadata.
    */
-  private static async processCreatePoll(activity: any, object: any): Promise<void> {
+  private static async processCreatePoll(activity: any, object: any, relayAudience?: string): Promise<void> {
     const supabase = getSupabaseClient();
 
     await this.ensureRemoteUser(normalizeActor(activity.actor));
@@ -2722,6 +2728,7 @@ export class ActivityProcessor {
     const content = noteToContent(object);
     const visibility = this.determineVisibility(object);
     const context = noteContext(object);
+    const audience = relayAudience ?? noteAudience(object) ?? noteAudience(activity);
 
     // A repeated Create refreshes the poll keys; the post's other metadata stays.
     const { data: existingPoll } = await supabase
@@ -2755,7 +2762,11 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         media_attachments: extractMediaAttachments(object.attachment),
-        metadata: { ...questionPollMetadata(object), ...(context ? { ap_context: context } : {}) },
+        metadata: {
+          ...questionPollMetadata(object),
+          ...(context ? { ap_context: context } : {}),
+          ...(audience ? { ap_audience: audience } : {}),
+        },
         ...noteEngagementColumns(object),
       });
 
@@ -3567,14 +3578,16 @@ export class ActivityProcessor {
     emojiName: string | undefined,
     emojiUrl: string | undefined,
     userId: string,
+    actorUrl: string,
   ): Promise<string | null> {
     // Only image-backed custom emoji get an `emojis` row. Unicode reactions are
     // stored via `custom_emoji_content` by the caller; creating a row for them
     // pollutes the instance emoji picker with url-less entries.
     if (!emojiUrl || !emojiName) return null;
 
-    const cleanName = emojiName.replace(/:/g, '');
-    const emojiDomain = new URL(emojiUrl).hostname;
+    const origin = inboundEmojiOrigin(emojiName, actorUrl);
+    const cleanName = origin.name;
+    const emojiDomain = origin.domain ?? new URL(emojiUrl).hostname;
 
     try {
       await supabase.rpc('upsert_remote_emoji', {
@@ -4261,7 +4274,7 @@ export class ActivityProcessor {
       return;
     }
     logger.info(`Group ${groupUrl} relays ${activity.type} of ${actorUrl}`);
-    if (activity.type === 'Create') await this.processCreate(activity);
+    if (activity.type === 'Create') await this.processCreate(activity, { audience: groupUrl });
     else if (activity.type === 'Update') await this.processUpdate(activity);
     else await this.processDelete(activity);
 

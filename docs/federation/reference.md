@@ -14,7 +14,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 `GET /.well-known/webfinger?resource=<resource>`, answered as `application/jrd+json`.
 
-- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>`, its profile page `https://<domain>/@<name>` or its page in the web app `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
+- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>`, its profile page `https://<domain>/@<name>` or the web app's earlier address of it `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
 - An `acct:` name can match a local account and a local chat server at once. The answer then carries one `rel="self"` link per actor, each tagged with its type in `properties["https://www.w3.org/ns/activitystreams#type"]` (`Person` or `Group`). A URL names one actor. Only public, federation-enabled servers resolve, by their slug or Group URL.
 - An account's `aliases` are its actor id and its profile page, and it gets a `http://webfinger.net/rel/profile-page` link to the page. A chat server has no page of its own and gets neither.
 - An account also gets the OStatus remote-follow link, `rel` `http://ostatus.org/schema/1.0/subscribe` with `template` `https://<domain>/authorize_interaction?uri={uri}`. Software that sends a user of this instance to act on an account or a post fills `{uri}` with the account's or the post's URI. The page also takes `acct:user@domain`, `@user@domain` and Lemmy's `!community@domain`. It resolves the URI (a stored row first, else WebFinger for a handle, the post or the actor fetched for a URL), shows the account with **Follow** or the post with **Open post**, and asks a signed-out visitor to sign in first. Chat servers and the instance actor get no such link.
@@ -533,13 +533,13 @@ With a focal point on an attachment, the context also maps `focalPoint` to `toot
 | `id` | `https://<domain>/posts/<uuid>` |
 | `url` | `https://<domain>/@<username>/<uuid>`, the post's public page. Requested with an ActivityPub `Accept`, that URL answers the `Note`. |
 | `attributedTo` | Author's actor id |
-| `content` | HTML: `<p>` paragraphs, `<br>` line breaks, mentions as Mastodon h-cards (`<span class="h-card"><a class="u-url mention">`), hashtags linked to `/social/hashtag/<name>`, custom emoji as `:shortcode:`, links with `rel="nofollow noopener noreferrer"` |
+| `content` | HTML: `<p>` paragraphs, `<br>` line breaks, mentions as Mastodon h-cards (`<span class="h-card"><a class="u-url mention">`), hashtags linked to `/tags/<name>`, custom emoji as `:shortcode:`, links with `rel="nofollow noopener noreferrer"` |
 | `contentMap` | `{ "<language>": content }` when the post has a language |
 | `summary`, `sensitive` | Content warning; sensitive flag (always present) |
 | `published`, `updated` | Creation time; last edit time on an edited post |
 | `to`, `cc` | See below |
 | `inReplyTo` | The parent's ActivityPub id |
-| `tag` | `Mention` (`href` the stored actor id, `name` the handle), `Hashtag`, `Emoji` |
+| `tag` | `Mention` (`href` the stored actor id, `name` the handle), `Hashtag` (`href` `https://<domain>/tags/<name>`), `Emoji` |
 | `attachment` | `Document` with `mediaType`, `url`, `name` (alt text, never the file name), `blurhash`, `focalPoint` |
 | `likes`, `shares` | Collection with `totalItems` when the count is known, else its URL |
 | `replies` | `/posts/<uuid>/replies` |

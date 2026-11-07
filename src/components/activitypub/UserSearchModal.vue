@@ -264,6 +264,8 @@ let searchTimeout: number;
 // land last and clobber the "alice" results).
 let searchSeq = 0;
 
+const SEARCH_LIMIT = 20;
+
 const performSearch = async () => {
   const query = searchQuery.value.trim();
   if (!query || query.length < 2) return;
@@ -274,46 +276,19 @@ const performSearch = async () => {
   hasMoreResults.value = false;
 
   try {
-    const handleMatch = query.match(/^@?([^@]+)@([^@]+)$/);
-
-    if (handleMatch) {
-      // Direct handle lookup
-      const [, username, domain] = handleMatch;
-      try {
-        const user = await activityPubService.getUserByHandle(`${username}@${domain}`);
-        if (seq !== searchSeq) return; // stale response
-        if (user) {
-          searchResults.value = [user];
-          addToRecentSearches(user);
-        }
-      } catch (error) {
-        debug.error('Failed to resolve user:', error);
-        // Fallback to regular search
-        await performRegularSearch(query, seq);
-      }
-    } else {
-      await performRegularSearch(query, seq);
-    }
+    // Stored profiles, and a complete remote handle looked up on its instance.
+    const results = await activityPubService.searchUsersResolvingHandle(query, SEARCH_LIMIT);
+    if (seq !== searchSeq) return;
+    searchResults.value = results;
+    hasMoreResults.value = results.length >= SEARCH_LIMIT;
   } catch (error) {
     debug.error('Search failed:', error);
+    if (seq === searchSeq) searchResults.value = [];
   } finally {
     if (seq === searchSeq) {
       isSearching.value = false;
       announceResults();
     }
-  }
-};
-
-const performRegularSearch = async (query: string, seq: number) => {
-  try {
-    // Use the activityPubService to search for users
-    const results = await activityPubService.searchUsers(query, 20);
-    if (seq !== searchSeq) return; // stale response
-    searchResults.value = results;
-    hasMoreResults.value = results.length >= 20; // More results might be available if we got the full limit
-  } catch (error) {
-    debug.error('Regular search failed:', error);
-    if (seq === searchSeq) searchResults.value = [];
   }
 };
 

@@ -5,6 +5,7 @@ import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
+import { DEFAULT_FEDERATE_IMAGE_MAX_PX, parseFederateImageMaxPx } from '@/utils/federateImageMaxPx'
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
 import { staffActivityAuthorId, staffActivityServerId } from '@/utils/staffActivity'
 
@@ -838,10 +839,11 @@ class AdminService {
         .limit(1)
         .maybeSingle();
       
-      // Defaults stand on error; PGRST116 is "no rows".
+      // PGRST116 is "no rows". webrtcLoaded false: the values are defaults, not state.
       if (webrtcError && webrtcError.code !== 'PGRST116') {
         debug.warn('Failed to fetch WebRTC settings (may be RLS issue):', webrtcError)
       }
+      const webrtcLoaded = !webrtcError || webrtcError.code === 'PGRST116'
       
       if (webrtcData) {
         webrtcSettings = {
@@ -866,6 +868,7 @@ class AdminService {
       let instanceBannerUrl = ''
       let themeColor = ''
       let maintainerName = ''
+      let defaultThemeJson = ''
       let maintainerEmail = ''
 
       let maxServerSize = 1000
@@ -891,16 +894,19 @@ class AdminService {
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
       let publicProfilePages = true
+      let federateImageMaxPx = DEFAULT_FEDERATE_IMAGE_MAX_PX
       let enableOutbound = true
       let enableInbound = true
       // False when the switches could not be read: the values above are then defaults, not state.
       let federationSwitchesLoaded = false
 
       try {
-        const { data: configData } = await supabase
+        const { data: configData, error: configReadError } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages', 'default_theme_json', 'federate_image_max_px'])
+        // Defaults written back by a later save would overwrite the stored values.
+        if (configReadError) throw configReadError
 
         if (configData) {
           configData.forEach((config) => {
@@ -1031,6 +1037,9 @@ class AdminService {
                   // On unless false, as public_page_instance() reads it.
                   publicProfilePages = !(value === false || value === 'false')
                   break
+                case 'federate_image_max_px':
+                  federateImageMaxPx = parseFederateImageMaxPx(value)
+                  break
                 case 'max_post_reactions_per_user': {
                   const n = typeof value === 'number' ? value : parseInt(String(value), 10)
                   if (!Number.isNaN(n)) {
@@ -1053,6 +1062,9 @@ class AdminService {
                 case 'maintainer_email':
                   maintainerEmail = (typeof value === 'string' ? value : String(value)) || ''
                   break
+                case 'default_theme_json':
+                  defaultThemeJson = typeof value === 'string' ? value : value ? JSON.stringify(value) : ''
+                  break
               }
             } catch (parseError) {
               debug.warn(`Failed to parse config value for ${config.config_key}:`, parseError)
@@ -1060,7 +1072,8 @@ class AdminService {
           })
         }
       } catch (configError) {
-        debug.warn('Failed to fetch instance config from database, using defaults:', configError)
+        debug.warn('Failed to fetch instance config from database:', configError)
+        throw configError
       }
 
       // The switches as the federation backend enforces them (instance_federation_switches).
@@ -1100,6 +1113,7 @@ class AdminService {
           allowCustomEmojisInDisplayNames,
           maxPostReactionsPerUser,
           publicProfilePages,
+          federateImageMaxPx,
           enableOutbound,
           enableInbound,
           federationSwitchesLoaded,
@@ -1121,7 +1135,9 @@ class AdminService {
           themeColor: themeColor,
           maintainerName: maintainerName,
           maintainerEmail: maintainerEmail,
-        }
+          defaultThemeJson,
+        },
+        webrtcLoaded,
       };
     } catch (error) {
       debug.error('Failed to get instance config:', error);

@@ -1,5 +1,6 @@
--- 20261013100001_user_emojis.sql: owners rename and delete their user-scope emojis; instance
--- admins list, rename and delete them; the AI generation ledger outlives deletions.
+-- 20261013100001_user_emojis.sql, as 20261107100001_emoji_lifecycle.sql leaves it: owners
+-- rename and remove their user-scope emojis; instance admins list, rename and purge them; the
+-- AI generation ledger outlives purges.
 --
 --   alice    instance admin from setup; owns server_1
 --   bob      member of server_1, not an admin
@@ -14,7 +15,7 @@
 --   06 bob_new        scope user, bob (20261016100004: clients insert through create_my_emoji)
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(41);
+SELECT plan(43);
 
 UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
 
@@ -33,21 +34,19 @@ INSERT INTO public.emojis (id, name, url, server_id, uploader, domain, scope, is
   ('134e0000-0000-0000-0000-000000000006', 'bob_new', 'https://cdn.test/new.png', NULL,
    '22222222-0000-0000-0000-000000000002', NULL, 'user', false, now());
 
-CREATE FUNCTION pg_temp.listed(p_search text, p_source text)
+CREATE FUNCTION pg_temp.listed(p_search text, p_kind text, p_status text DEFAULT 'active')
 RETURNS text[] LANGUAGE sql AS
   $$ SELECT COALESCE(array_agg(name ORDER BY o), '{}')
-       FROM public.admin_list_instance_emojis(p_search, p_source, 'newest', 50, 0)
-            WITH ORDINALITY t(id, name, url, domain, scope, uploader, uploader_username,
-                              created_at, usage_count, reaction_count, total_count,
-                              is_ai_generated, o) $$;
+       FROM (SELECT l.name, row_number() OVER () AS o
+               FROM public.admin_list_emojis(p_search, p_kind, p_status, 'newest', 50, 0) l) t $$;
 
 -- Grants, policies, ledger. ---------------------------------------------------------
 SELECT ok(has_function_privilege('authenticated', 'public.rename_my_emoji(uuid, text)', 'EXECUTE'),
           'authenticated executes rename_my_emoji');
 SELECT ok(NOT has_function_privilege('anon', 'public.rename_my_emoji(uuid, text)', 'EXECUTE'),
           'anon does not execute rename_my_emoji');
-SELECT ok(NOT has_function_privilege('anon', 'public.admin_list_instance_emojis(text, text, text, integer, integer)', 'EXECUTE'),
-          'anon does not execute admin_list_instance_emojis');
+SELECT ok(NOT has_function_privilege('anon', 'public.admin_list_emojis(text, text, text, text, integer, integer)', 'EXECUTE'),
+          'anon does not execute admin_list_emojis');
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_policies
                        WHERE schemaname = 'public' AND tablename = 'emojis' AND cmd = 'UPDATE'
                          AND qual LIKE '%''user''%'),
@@ -105,7 +104,9 @@ SELECT throws_ok($q$INSERT INTO public.emojis (name, url, server_id, uploader, s
 WITH d AS (DELETE FROM public.emojis WHERE id = '134e0000-0000-0000-0000-000000000003' RETURNING 1)
 SELECT is(count(*)::int, 0, 'another user''s emoji cannot be deleted') FROM d;
 WITH d AS (DELETE FROM public.emojis WHERE id = '134e0000-0000-0000-0000-000000000002' RETURNING 1)
-SELECT is(count(*)::int, 1, 'the owner deletes a personal emoji') FROM d;
+SELECT is(count(*)::int, 0, 'the owner deletes no row directly') FROM d;
+SELECT lives_ok($q$SELECT public.remove_emoji('134e0000-0000-0000-0000-000000000002')$q$,
+                'the owner removes a personal emoji');
 SELECT tests.clear_authentication();
 
 SELECT tests.authenticate_as_anon();
@@ -115,29 +116,31 @@ SELECT tests.clear_authentication();
 
 -- A non-admin. ------------------------------------------------------------------------
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT throws_ok($q$SELECT * FROM public.admin_list_instance_emojis(NULL, 'user')$q$,
+SELECT throws_ok($q$SELECT * FROM public.admin_list_emojis(NULL, 'personal')$q$,
                  '42501', NULL, 'a non-admin cannot list user emojis');
 SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('134e0000-0000-0000-0000-000000000001', 'x_x')$q$,
                  '42501', NULL, 'a non-admin cannot rename another user''s emoji');
-SELECT throws_ok($q$SELECT public.admin_delete_instance_emoji('134e0000-0000-0000-0000-000000000001')$q$,
-                 '42501', NULL, 'a non-admin cannot delete another user''s emoji');
+SELECT throws_ok($q$SELECT public.admin_purge_emoji('134e0000-0000-0000-0000-000000000001')$q$,
+                 '42501', NULL, 'a non-admin cannot purge another user''s emoji');
 SELECT tests.clear_authentication();
 
 -- The instance admin. -----------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 
-SELECT is(pg_temp.listed(NULL, 'user'), ARRAY['bob_new', 'owl', 'cat_renamed'],
-          'source user lists user-scope emojis only, newest first');
-SELECT is(pg_temp.listed('MALLO', 'user'), ARRAY['owl'],
-          'source user searches the owner''s username');
-SELECT is(pg_temp.listed('mallo', 'all'), '{}'::text[],
-          'other sources do not search usernames');
-SELECT is(pg_temp.listed(NULL, 'all'), ARRAY['inst_one'],
-          'source all still lists instance-level emojis only');
+SELECT is(pg_temp.listed(NULL, 'personal'), ARRAY['bob_new'],
+          'kind personal lists active personal uploads, newest first');
+SELECT is(pg_temp.listed(NULL, 'ai'), ARRAY['owl', 'cat_renamed'],
+          'kind ai lists AI-generated personal emojis');
+SELECT is(pg_temp.listed('MALLO', 'ai'), ARRAY['owl'],
+          'the search matches the owner''s username');
+SELECT is(pg_temp.listed('mallo', 'instance'), '{}'::text[],
+          'kind instance holds no personal emoji');
+SELECT is(pg_temp.listed(NULL, 'instance'), ARRAY['inst_one'],
+          'kind instance lists instance-level emojis only');
 SELECT is((SELECT (uploader_username, is_ai_generated, scope)::text
-             FROM public.admin_list_instance_emojis('cat_renamed', 'user')),
+             FROM public.admin_list_emojis('cat_renamed', 'ai')),
           '(bob,t,user)', 'a user emoji row carries its owner and the AI flag');
-SELECT is((SELECT is_ai_generated FROM public.admin_list_instance_emojis('inst_one', 'all')),
+SELECT is((SELECT is_ai_generated FROM public.admin_list_emojis('inst_one', 'instance')),
           false, 'instance rows report is_ai_generated false');
 
 SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('134e0000-0000-0000-0000-000000000001', 'BOB_NEW')$q$,
@@ -148,10 +151,10 @@ SELECT is((SELECT name::text FROM public.emojis WHERE id = '134e0000-0000-0000-0
           'owl', 'the admin rename is stored');
 SELECT lives_ok($q$SELECT public.admin_rename_instance_emoji('134e0000-0000-0000-0000-000000000004', 'owl')$q$,
                 'an instance rename ignores user-scope names');
-SELECT lives_ok($q$SELECT public.admin_delete_instance_emoji('134e0000-0000-0000-0000-000000000003')$q$,
-                'an admin deletes a user''s AI emoji');
-SELECT throws_ok($q$SELECT public.admin_delete_instance_emoji('134e0000-0000-0000-0000-000000000005')$q$,
-                 'P0002', NULL, 'a server emoji stays out of reach');
+SELECT lives_ok($q$SELECT public.admin_purge_emoji('134e0000-0000-0000-0000-000000000003')$q$,
+                'an admin purges a user''s AI emoji');
+SELECT is(pg_temp.listed(NULL, 'personal', 'removed'), ARRAY['inst_one'],
+          'the removed personal emoji is listed under status removed');
 SELECT tests.clear_authentication();
 
 SELECT is((SELECT count(*)::int FROM public.emojis WHERE id = '134e0000-0000-0000-0000-000000000003'),

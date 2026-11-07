@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
@@ -185,12 +186,7 @@ const startConversation = async (user: Profile) => {
   }
 }
 
-const formatUserHandle = (user: Profile): string => {
-  if (user.domain && !user.is_local) {
-    return `@${user.username}@${user.domain}`
-  }
-  return `@${user.username}`
-}
+const formatUserHandle = (user: Profile): string => formatHandle(user)
 
 const getUserOnlineStatus = (userId: string): boolean => {
   return isUserOnline(userId).value

@@ -605,7 +605,9 @@ export function renderPostPage(post: any, author: any, ctx?: PageContext, option
       post.created_at ? `<meta property="article:published_time" content="${escapeHtml(post.created_at)}">` : '',
     ].filter(Boolean).join('\n  '),
     handOff: {
-      app: localAuthor ? `/@${encodeURIComponent(author.username)}/${post.id}` : inApp,
+      app: localAuthor || author.domain
+        ? `/@${encodeURIComponent(localAuthor ? author.username : `${author.username}@${author.domain}`).replace(/%40/g, '@')}/${post.id}`
+        : inApp,
       fallback: inApp,
     },
     body: `${back}

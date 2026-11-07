@@ -160,8 +160,10 @@
 		import federation_upstream
 	}
 
-	# The SPA's profile page; remote servers may hold it as an account's `url`. ActivityPub
-	# clients get the actor from /users/<name>, browsers the SPA.
+	# The app's earlier profile page; remote servers may hold it as an account's `url`.
+	# ActivityPub clients get the actor from /users/<name>, a browser holding the app's cookie
+	# the SPA (which moves to /@<name>), everyone else, link-preview crawlers among them, a 301
+	# to /@<name>. nginx: location ~ ^/social/profile/.
 	@socialProfileAp {
 		path_regexp socialProfileAp ^/social/profile/([A-Za-z0-9_]+)/?$
 		header_regexp Accept (?i)application/(?:activity|ld)\+json
@@ -169,6 +171,22 @@
 	handle @socialProfileAp {
 		rewrite * /users/{re.socialProfileAp.1}
 		import federation_upstream
+	}
+	@socialProfilePage {
+		path_regexp socialProfilePage ^/social/profile/([A-Za-z0-9_]+)/?$
+		not expression {http.request.cookie.harmony_app} == "1"
+	}
+	handle @socialProfilePage {
+		redir * /@{re.socialProfilePage.1} 301
+	}
+	@socialProfileApp path_regexp ^/social/profile/[A-Za-z0-9_]+/?$
+	handle @socialProfileApp {
+		header {
+			+Vary "Accept, Cookie"
+			Cache-Control "private, no-cache"
+			defer
+		}
+		reverse_proxy web:80
 	}
 
 	# Public profile and post pages, /@<name> and /@<name>/<post id>: an account's and a Note's

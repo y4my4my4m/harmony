@@ -18,6 +18,24 @@ function isDmRoom(channelId: string | null | undefined): boolean {
 
 // Last voice_channel_participants upsert; a later update of the same row waits for it.
 let voiceRowWrite: PromiseLike<unknown> = Promise.resolve();
+
+// Last occupancy change this store applied, by `${channelId}|${userId}`, kept ROSTER_EVENT_TTL_MS.
+// A change applied up to ROSTER_EVENT_GRACE_MS before a roster read started wins over the read:
+// a joining client broadcasts before its row write lands.
+const occupancyEvents = new Map<string, { joined: boolean; at: number }>();
+const ROSTER_EVENT_TTL_MS = 60_000;
+const ROSTER_EVENT_GRACE_MS = 5_000;
+// Server of every channel the roster has listed.
+const channelServers = new Map<string, string>();
+// A tab shown again re-reads the roster at most this often.
+const ROSTER_VISIBLE_RELOAD_MS = 10_000;
+let rosterListenersAttached = false;
+let lastRosterReload = { serverId: '', at: 0 };
+
+function noteOccupancy(serverId: string, channelId: string, userId: string, joined: boolean): void {
+  channelServers.set(channelId, serverId);
+  occupancyEvents.set(`${channelId}|${userId}`, { joined, at: Date.now() });
+}
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -28,6 +46,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
     voiceChannelBroadcast: null as RealtimeChannel | null,
     // Server whose voice-channels topic voiceChannelBroadcast holds.
     voiceBroadcastServerId: null as string | null,
+    // That server's rows are in voice_channel_participants: it is not a remote server's copy.
+    voiceBroadcastServerLocal: true,
     // voice-channel:{channelId} topics of that server's restricted channels
     // this user can view (get_restricted_voice_channels).
     restrictedVoiceBroadcasts: {} as Record<string, RealtimeChannel>,
@@ -232,6 +252,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.voiceChannelBroadcast = null
       }
       this.voiceBroadcastServerId = null
+      this.voiceBroadcastServerLocal = true
       this.closeRestrictedVoiceBroadcasts()
       if (this.offlineBroadcastChannel) {
         this.offlineBroadcastChannel.unsubscribe()
@@ -244,6 +265,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.userProfiles = {}
       this.usersInVoiceChannels = {}
       this.voiceChannelCallStartTimes = {}
+      occupancyEvents.clear()
+      channelServers.clear()
       this.onlineUsers.clear()
 
       this.currentServerId = null
@@ -261,17 +284,22 @@ export const useServerUsersStore = defineStore('serverUsers', {
      * voice-channels:{serverId} topic (accepted members); a channel some member
      * cannot view has its own voice-channel:{channelId} topic, opened here only
      * for the restricted channels this user can view.
+     *
+     * The roster of a local server is read from voice_channel_participants here, on every
+     * (re)join of the topic, when the tab is shown again and when the network returns:
+     * a user-left sent while this client was elsewhere or offline is never replayed.
+     * A remote server's copy has no rows; its roster is the broadcasts alone.
      */
-    async setupVoiceChannelBroadcast(serverId: string) {
+    async setupVoiceChannelBroadcast(serverId: string, opts: { local?: boolean } = {}) {
       if (this.voiceChannelBroadcast) {
         await this.voiceChannelBroadcast.unsubscribe();
       }
       this.closeRestrictedVoiceBroadcasts()
+      this.attachRosterListeners()
 
       debug.log('Setting up voice channel broadcast for server:', serverId);
       void useVoiceModerationStore().load(serverId);
 
-      // Voice channel state is ephemeral (broadcast-only, no DB table for initial state).
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
           private: true,
@@ -279,11 +307,18 @@ export const useServerUsersStore = defineStore('serverUsers', {
         },
       });
       this.voiceBroadcastServerId = serverId;
+      this.voiceBroadcastServerLocal = opts.local !== false;
       this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' },
         (payload) => this.handleVoiceChannelEvent(serverId, payload.payload));
-      await this.voiceChannelBroadcast.subscribe();
+      await this.voiceChannelBroadcast.subscribe((status) => {
+        // realtime-js reports SUBSCRIBED again after each of its own rejoins.
+        if (status === 'SUBSCRIBED' && this.voiceBroadcastServerId === serverId) void this.reloadVoiceRoster(serverId);
+      });
 
-      const { data: restricted, error } = await supabase.rpc('get_restricted_voice_channels', { p_server_id: serverId });
+      const [{ data: restricted, error }] = await Promise.all([
+        supabase.rpc('get_restricted_voice_channels', { p_server_id: serverId }),
+        this.reloadVoiceRoster(serverId),
+      ]);
       if (error) {
         debug.warn('get_restricted_voice_channels failed:', error.message);
       }
@@ -327,6 +362,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
 
       if (event === 'user-joined') {
+        if (channelId && userId) noteOccupancy(serverId, channelId, userId, true);
         if (!this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = [];
         }
@@ -348,16 +384,19 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
         debug.log(`User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
       } else if (event === 'user-left') {
-        // The server removes a row LiveKit does not vouch for (reason 'reconciled'). This
-        // client is still in that call: the removal raced a reconnect, so the row returns.
+        // The database announces every deleted row: 'reconciled' for a row LiveKit or the P2P
+        // sweep does not vouch for, 'left' for a plain delete (another page or device of this
+        // user, or a delete that landed after a quick rejoin). This client is still in that
+        // call, so the row returns. A moderation reason stands.
         const voiceStore = useUnifiedVoiceChannelStore();
-        if (data?.reason === 'reconciled' && userId && userId === voiceStore.localState.userId
+        if ((data?.reason === 'reconciled' || data?.reason === 'left') && userId && userId === voiceStore.localState.userId
             && voiceStore.isConnected && voiceStore.currentChannelId === channelId
             && voiceStore.currentServerId === serverId && !voiceStore.isFederatedChannel) {
-          debug.log(`Voice row for ${channelId} removed by the server while connected; rejoining`);
-          void this.joinVoiceChannel(serverId, channelId, userId, true);
+          debug.log(`Voice row for ${channelId} removed while connected; rejoining`);
+          void this.restoreVoiceRow(serverId, channelId, userId);
           return;
         }
+        if (channelId && userId) noteOccupancy(serverId, channelId, userId, false);
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
           debug.log(`User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
@@ -388,42 +427,85 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
-    async fetchVoiceChannelState(serverId: string) {
+    /**
+     * Replaces the roster of a local server's channels with its voice_channel_participants
+     * rows. Recent occupancy changes (ROSTER_EVENT_GRACE_MS) win over the read; this
+     * client's own call is kept.
+     */
+    async reloadVoiceRoster(serverId: string): Promise<void> {
+      if (serverId === 'dm' || serverId !== this.voiceBroadcastServerId || !this.voiceBroadcastServerLocal) return;
+      const startedAt = Date.now();
+      lastRosterReload = { serverId, at: startedAt };
+      let data: Array<{ channel_id: string; user_id: string }> | null = null;
       try {
-        debug.log('Fetching voice channel state for server:', serverId);
-        // DM voice calls don't use voice_channel_participants (non-UUID IDs)
-        if (serverId === 'dm') {
-          debug.log('Skipping DB fetch for DM voice state');
-          return;
-        }
-        
-        const channelUsers: Record<string, string[]> = {};
-        
-        const { data: participantsData, error: participantsError } = await supabase
+        const result = await supabase
           .from('voice_channel_participants')
-          .select('user_id, channel_id')
+          .select('channel_id, user_id')
           .eq('server_id', serverId);
-
-        if (!participantsError && participantsData) {
-          for (const participant of participantsData) {
-            if (participant.channel_id) {
-              if (!channelUsers[participant.channel_id]) {
-                channelUsers[participant.channel_id] = [];
-              }
-              if (!channelUsers[participant.channel_id].includes(participant.user_id)) {
-                channelUsers[participant.channel_id].push(participant.user_id);
-              }
-            }
-          }
-        }
-
-        this.usersInVoiceChannels = { ...channelUsers };
-        
-        debug.log('Fetched voice channel state:', this.usersInVoiceChannels);
-        debug.log('Channels with users:', Object.keys(this.usersInVoiceChannels).length);
+        if (result.error) throw result.error;
+        data = result.data;
       } catch (error) {
-        debug.error('Error fetching voice channel state:', error);
+        debug.warn('Voice roster read failed:', error instanceof Error ? error.message : error);
+        return;
       }
+      if (!data) return;
+
+      const rosters: Record<string, string[]> = {};
+      const add = (channelId: string, userId: string) => {
+        const users = (rosters[channelId] ??= []);
+        if (!users.includes(userId)) users.push(userId);
+      };
+      for (const row of data) {
+        channelServers.set(row.channel_id, serverId);
+        add(row.channel_id, row.user_id);
+      }
+      for (const [key, change] of occupancyEvents) {
+        if (change.at < Date.now() - ROSTER_EVENT_TTL_MS) {
+          occupancyEvents.delete(key);
+          continue;
+        }
+        if (change.at < startedAt - ROSTER_EVENT_GRACE_MS) continue;
+        const [channelId, userId] = key.split('|');
+        if (channelServers.get(channelId) !== serverId) continue;
+        if (change.joined) add(channelId, userId);
+        else if (rosters[channelId]) rosters[channelId] = rosters[channelId].filter((id) => id !== userId);
+      }
+      const voiceStore = useUnifiedVoiceChannelStore();
+      const ownChannel = voiceStore.isConnected && voiceStore.currentServerId === serverId
+        ? voiceStore.currentChannelId
+        : voiceStore.optimisticServerId === serverId ? voiceStore.optimisticChannelId : null;
+      if (ownChannel && !voiceStore.isFederatedChannel && voiceStore.localState.userId) {
+        channelServers.set(ownChannel, serverId);
+        add(ownChannel, voiceStore.localState.userId);
+      }
+
+      for (const [channelId, owner] of channelServers) {
+        if (owner !== serverId) continue;
+        const users = rosters[channelId] ?? [];
+        if (users.length > 0) {
+          this.usersInVoiceChannels[channelId] = users;
+        } else if (this.usersInVoiceChannels[channelId]) {
+          delete this.usersInVoiceChannels[channelId];
+          delete this.voiceChannelCallStartTimes[channelId];
+        }
+      }
+    },
+
+    /** Re-reads the viewed server's roster when the tab is shown again or the network returns. */
+    attachRosterListeners() {
+      if (rosterListenersAttached || typeof window === 'undefined') return;
+      rosterListenersAttached = true;
+      document.addEventListener('visibilitychange', () => {
+        const store = useServerUsersStore();
+        const serverId = store.voiceBroadcastServerId;
+        if (document.visibilityState !== 'visible' || !serverId) return;
+        if (lastRosterReload.serverId === serverId && Date.now() - lastRosterReload.at < ROSTER_VISIBLE_RELOAD_MS) return;
+        void store.reloadVoiceRoster(serverId);
+      });
+      window.addEventListener('online', () => {
+        const store = useServerUsersStore();
+        if (store.voiceBroadcastServerId) void store.reloadVoiceRoster(store.voiceBroadcastServerId);
+      });
     },
 
     /**
@@ -471,6 +553,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     async joinVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
         const isFirstUser = !this.usersInVoiceChannels[channelId] || this.usersInVoiceChannels[channelId].length === 0;
+        if (!isDmRoom(channelId) && serverId !== 'dm') noteOccupancy(serverId, channelId, userId, true);
         
         if (!this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = [];
@@ -526,6 +609,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     async leaveVoiceChannel(serverId: string, channelId: string, userId: string, isLocalServer: boolean = true) {
       try {
+        if (!isDmRoom(channelId) && serverId !== 'dm') noteOccupancy(serverId, channelId, userId, false);
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
           
@@ -581,6 +665,30 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     /**
+     * Stamps this client's row as live (P2P: no LiveKit room vouches for it). A row the
+     * server removed is written back.
+     */
+    async touchVoiceParticipant(serverId: string, channelId: string, userId: string) {
+      if (isDmRoom(channelId) || serverId === 'dm') return;
+      await voiceRowWrite;
+      const { data, error } = await supabase.rpc('touch_voice_participant', { p_channel_id: channelId });
+      if (error) {
+        debug.warn('touch_voice_participant failed:', error.message);
+        return;
+      }
+      if (data === false) await this.restoreVoiceRow(serverId, channelId, userId);
+    },
+
+    /** Writes this client's row again, with its transport, while it is in the call. */
+    async restoreVoiceRow(serverId: string, channelId: string, userId: string) {
+      await this.joinVoiceChannel(serverId, channelId, userId, true);
+      if (useUnifiedVoiceChannelStore().connectionMode !== 'p2p') return;
+      await this.markVoiceTransport(channelId, userId, 'p2p');
+      const { error } = await supabase.rpc('touch_voice_participant', { p_channel_id: channelId });
+      if (error) debug.warn('touch_voice_participant failed:', error.message);
+    },
+
+    /**
      * Leave from an unloading page: the row delete outlives the page (fetch keepalive),
      * and user-left goes out on the open voice topic.
      */
@@ -618,6 +726,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
      */
     cleanupDisconnectedUser(serverId: string, channelId: string, userId: string) {
       debug.log(`Cleaning up disconnected user ${userId} from channel ${channelId}`);
+      if (!isDmRoom(channelId) && serverId !== 'dm') noteOccupancy(serverId, channelId, userId, false);
       
       if (this.usersInVoiceChannels[channelId]) {
         this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);

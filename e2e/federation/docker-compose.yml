@@ -53,7 +53,7 @@ services:
       PGRST_LOG_LEVEL: error
 
   livekit:
-    image: ${HMFED_LIVEKIT_IMAGE:-livekit/livekit-server:v1.9.4}
+    image: ${HMFED_LIVEKIT_IMAGE:-livekit/livekit-server:v1.13.11}
     environment:
       LIVEKIT_CONFIG: |
         port: 7880

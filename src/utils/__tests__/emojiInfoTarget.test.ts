@@ -35,6 +35,22 @@ describe('emojiInfoTargetFromPart', () => {
       .toEqual({ kind: 'custom', id: null, name: 'blob', url: 'https://fedi.example/e/blob.png', remoteHost: 'fedi.example' })
   })
 
+  it('names the sending instance, not the storage host serving the image', () => {
+    const target = emojiInfoTargetFromPart(
+      { id: 'remote:eyes', name: 'eyes', url: 'https://db.mony.lol/storage/v1/object/public/emojis/e.png', domain: 'har.mony.lol' },
+      'here.test',
+    )
+    expect(target).toMatchObject({ kind: 'custom', id: null, remoteHost: 'har.mony.lol' })
+  })
+
+  it('takes the host of an IRI id over the image host', () => {
+    const target = emojiInfoTargetFromPart(
+      { id: 'https://mastodon.example/emojis/42', name: 'blob', url: 'https://files.mastodon.example/e/blob.png' },
+      'here.test',
+    )
+    expect(target).toMatchObject({ kind: 'custom', id: null, remoteHost: 'mastodon.example' })
+  })
+
   it('gives no host hint for an image this instance serves', () => {
     const target = emojiInfoTargetFromPart({ id: 'remote:blob', name: 'blob', url: 'https://here.test/e/blob.png' }, 'here.test')
     expect(target).toMatchObject({ kind: 'custom', id: null, remoteHost: null })

@@ -23,15 +23,15 @@ export function resolveNotificationRoute(notification: RoutableNotification): st
   if (type === 'activitypub_follow_request') return '/social/follow-requests'
   if (type === 'activitypub_follow') {
     const handle = profileHandle(data.follower)
-    if (handle) return `/social/profile/${handle}`
+    if (handle) return `/@${handle}`
   }
   if (type === 'activitypub_follow_accepted') {
     const handle = profileHandle(data.sender)
-    if (handle) return `/social/profile/${handle}`
+    if (handle) return `/@${handle}`
   }
   if (type === 'move') {
     const handle = profileHandle(data.target)
-    if (handle) return `/social/profile/${handle}`
+    if (handle) return `/@${handle}`
   }
 
   const postId = data.post_id || data.post?.id

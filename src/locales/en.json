@@ -173,7 +173,8 @@
       "submit": "Set password and continue",
       "done": "Password set. Next, pick your username.",
       "invalidTitle": "This invitation link does not work",
-      "invalidBody": "The link was already used, has expired or was revoked. Ask the person who invited you for a new one."
+      "invalidBody": "The link was already used, has expired or was revoked. Ask the person who invited you for a new one.",
+      "subtitleNoEmail": "You were invited to make an account here. Choose the password you will sign in with."
     }
   },
   "server": {
@@ -1640,7 +1641,7 @@
     "myBotsDescription": "Manage bots you have created",
     "myEmojis": {
       "title": "My emojis",
-      "description": "Your personal emojis: the ones you upload here and the ones you generate with AI in the emoji picker. You can use them in every server and conversation. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
+      "description": "Your personal emojis: the ones you upload here and the ones you generate with AI in the emoji picker. You can use them in every server and conversation. Renaming or deleting one leaves earlier messages and reactions as they are: they keep showing the image.",
       "loading": "Loading your emojis…",
       "empty": "You have no personal emojis yet. Upload one, or generate one with AI in the emoji picker.",
       "uploadsOff": "Personal emojis are turned off on this instance.",
@@ -1655,7 +1656,7 @@
       "renamed": "Renamed :{from}: to :{to}:",
       "deleted": "Deleted :{name}:",
       "deleteTitle": "Delete emoji",
-      "confirmDelete": "Delete :{name}:? Reactions with it are removed, and earlier messages that use it show the :{name}: text instead of the image.",
+      "confirmDelete": "Delete :{name}:? It leaves your emoji picker. Earlier messages and reactions that use it keep showing it.",
       "retry": "Try again",
       "errors": {
         "load": "Could not load your emojis.",
@@ -2438,6 +2439,11 @@
     "trendingFilters": "Filters",
     "trendingTimeRange": "Time range",
     "trendingSource": "Source",
+    "trendingSourceSearch": "Search instances",
+    "trendingSourceActive": "Active in these results",
+    "trendingSourceRecent": "Recently seen",
+    "trendingSourceMatches": "Matching instances",
+    "trendingSourceSearching": "Searching…",
     "clearFilters": "Clear filters",
     "trendingNoPosts": "Nothing trending yet",
     "trendingNoPostsHint": "Posts that get replies, boosts or favorites show up here.",
@@ -2814,7 +2820,11 @@
       "followingUnfollow": "Following {'@'}{handle}, unfollow",
       "requestedCancel": "Requested {'@'}{handle}, cancel request",
       "loadFailed": "Failed to load profile. The user might not exist or be unavailable.",
-      "postsBy": "Posts by {name}"
+      "postsBy": "Posts by {name}",
+      "copyHandle": "Copy handle",
+      "copyHandleNamed": "Copy handle {handle}",
+      "handleCopied": "Copied {handle}",
+      "handleCopyFailed": "Couldn't copy the handle"
     },
     "followA11y": {
       "requests": "Requests",
@@ -3136,7 +3146,8 @@
     "copied": "Copied {text}",
     "copyFailed": "Couldn't copy",
     "copyLink": "Copy image link",
-    "linkCopied": "Image link copied"
+    "linkCopied": "Image link copied",
+    "removed": "Removed from where it came from. Messages that used it still show it."
   },
   "inbox": {
     "title": "Notifications",
@@ -4729,10 +4740,6 @@
         "title": "No federation health data",
         "description": "Metrics appear once inbound or outbound federation activity is recorded."
       },
-      "remoteEmoji": {
-        "title": "No remote emoji found",
-        "description": "Emoji from remote instances appear here as you interact with federated content."
-      },
       "tiers": {
         "title": "No tiers configured"
       },
@@ -5033,7 +5040,9 @@
       "expiresIn": "Expires in {time}",
       "expired": "This code expired.",
       "newCode": "New code",
-      "copyCode": "Copy code"
+      "copyCode": "Copy code",
+      "copyFailed": "Could not copy. The code is selected: copy it from the field yourself.",
+      "textLabel": "Pairing code"
     },
     "linkDevice": {
       "title": "Link a new device",
@@ -5042,9 +5051,9 @@
       "scanHint": "Point the camera at the QR code on the new device.",
       "scanPasteLabel": "Or paste the code copied from the new device",
       "showInstead": "New device has a camera? Show a code for it to scan instead",
-      "showLead": "On the new device, choose {another}, then {scanInstead}, and point its camera here. Anyone signed in to your account who scans this code can receive your keys, so keep it to yourself.",
+      "showLead": "On the new device, choose {another}, then {scanInstead}, and point its camera here, or copy the code below and paste it there. Anyone signed in to your account who scans or pastes this code can receive your keys, so keep it to yourself.",
       "showLeadAnother": "Another device",
-      "showLeadScanInstead": "Scan a code from it instead",
+      "showLeadScanInstead": "Scan or paste a code from it instead",
       "qrAlt": "Device linking QR code",
       "scanInstead": "Scan the new device's code instead",
       "newDevice": "New device",
@@ -5075,9 +5084,9 @@
       }
     },
     "pairing": {
-      "lead": "On a device where you're already signed in, choose {scanCode} on the new-login prompt, or {linkDevice} under Privacy → Your devices, and scan this code.",
+      "lead": "On a device where you're already signed in, choose {scanCode} on the new-login prompt, or {linkDevice} under Privacy → Your devices, and scan this code, or copy the code below and paste it there.",
       "qrAlt": "Device pairing QR code",
-      "scanInstead": "Other device can't scan? Scan a code from it instead",
+      "scanInstead": "Other device can't scan? Scan or paste a code from it instead",
       "scanHint": "On your signed-in device choose Link a device, then Show a code, and point this camera at it.",
       "scanPasteLabel": "Or paste the code from your other device",
       "showInstead": "Show a code on this device instead",
@@ -5252,6 +5261,8 @@
       "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay.",
       "publicProfilePages": "Show profiles and public posts to visitors who aren't signed in",
       "publicProfilePagesHint": "When off, visitors are sent to sign in. Link previews and federation are unaffected.",
+      "federateImageMaxPx": "Largest photo side sent to other servers (px)",
+      "federateImageMaxPxHint": "Larger photos in posts are sent resized to fit, as JPEG, PNG or WebP like the original; the original stays here. Up to 2000. 0 sends originals. Each post keeps the size in force when it was made.",
       "federationOutbound": "Send to other instances",
       "federationOutboundHint": "Off: nothing is delivered to other instances.",
       "federationInbound": "Receive from other instances",
@@ -5260,6 +5271,7 @@
       "federationCloseConfirmTitle": "Close federation?",
       "federationCloseConfirmMessage": "Every server here stops federating and removes its members from other instances, and every member here leaves servers hosted elsewhere. Turning a switch back on reopens the servers; nobody removed comes back.",
       "federationCloseConfirm": "Close federation",
+      "configLoadFailed": "Could not read the current settings. Reload before saving.",
       "customOAuthTitle": "Your own sign-in providers",
       "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
       "customOAuthEmpty": "None yet.",
@@ -5381,66 +5393,9 @@
     },
     "instanceEmojis": {
       "tab": "Emojis",
-      "title": "Instance emojis",
-      "hint": "Instance-wide and imported emojis: admin uploads, Discord bridge and bot emojis, and emojis from federated reactions and posts. Server emojis stay with their servers; personal and AI-generated emojis are listed under User emojis. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
-      "refresh": "Refresh",
-      "source": {
-        "label": "Source",
-        "all": "All sources",
-        "local": "Local",
-        "remote": "Remote and bridged",
-        "user": "User emojis"
-      },
-      "sort": {
-        "label": "Sort",
-        "newest": "Newest first",
-        "name": "Name (A-Z)"
-      },
-      "empty": "No instance emojis match.",
-      "emptyUser": "No user emojis match.",
-      "localBadge": "local",
-      "personalBadge": "personal",
-      "aiBadge": "AI",
-      "aiGenerated": "AI-generated",
-      "uploadedBy": "by {user}",
-      "ownedBy": "owned by {user}",
-      "noOwner": "deleted account",
-      "reactions": "no reactions | {count} reaction | {count} reactions",
-      "rename": "Rename",
-      "newName": "New name",
       "previous": "Previous",
       "next": "Next",
-      "range": "{from}-{to} of {total}",
-      "renamed": "Emoji renamed",
-      "deleted": "Emoji deleted",
-      "deleteTitle": "Delete emoji",
-      "confirmDelete": "Delete :{name}:? Earlier messages that use it show the :{name}: text instead of the image.",
-      "confirmDeleteInUse": "Delete :{name}:? Its {count} reaction is removed, and earlier messages that use it show the :{name}: text instead of the image. | Delete :{name}:? Its {count} reactions are removed, and earlier messages that use it show the :{name}: text instead of the image.",
-      "confirmDeleteUser": "Delete :{name}: from {user}'s emojis? Earlier messages that use it show the :{name}: text instead of the image.",
-      "confirmDeleteUserInUse": "Delete :{name}: from {user}'s emojis? Its {count} reaction is removed, and earlier messages that use it show the :{name}: text instead of the image. | Delete :{name}: from {user}'s emojis? Its {count} reactions are removed, and earlier messages that use it show the :{name}: text instead of the image.",
-      "errors": {
-        "load": "Could not load instance emojis.",
-        "rename": "Could not rename the emoji.",
-        "delete": "Could not delete the emoji.",
-        "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
-        "nameTaken": "Another instance emoji already uses that name.",
-        "nameTakenUser": "The owner already has an emoji with that name.",
-        "notAdmin": "Only instance admins can upload instance emojis.",
-        "duplicateFile": "That file is already an instance emoji."
-      },
-      "searchLabel": "Search emoji",
-      "searchHint": "Name or domain",
-      "searchHintUser": "Name or owner",
-      "browseTitle": "All emojis on this instance",
-      "loading": "Loading emojis",
-      "library": {
-        "description": "Every local user finds these in the emoji picker under this instance's name.",
-        "listLabel": "Local instance emojis",
-        "empty": "No instance emojis yet",
-        "emptyHint": "Upload one above. Every local user can use it.",
-        "loading": "Loading instance emojis",
-        "retry": "Try again"
-      }
+      "range": "{from}-{to} of {total}"
     },
     "copyId": {
       "user": "Copy user ID",
@@ -5450,6 +5405,155 @@
       "serverCopied": "Server ID copied",
       "userFailed": "Couldn't copy the user ID",
       "serverFailed": "Couldn't copy the server ID"
+    },
+    "emojis": {
+      "title": "Emojis",
+      "description": "Every custom emoji on this instance: uploads, imports, emojis cached from other instances, server emojis and personal ones. Removing an emoji takes it out of every picker; earlier messages and reactions keep showing it, and it can be restored. Purging deletes the emoji and its file: earlier messages and reactions then show a broken-image icon.",
+      "refresh": "Refresh",
+      "retry": "Try again",
+      "loading": "Loading emojis",
+      "empty": "No emojis match.",
+      "emptyNotImported": "No emojis from other instances are waiting to be imported.",
+      "searchLabel": "Search emojis",
+      "searchHint": "Name, server, owner or domain",
+      "newName": "New name",
+      "brokenImage": "The image could not be loaded",
+      "hotlinkedHint": "The image is loaded from another site. Re-host copies it to this instance.",
+      "kinds": {
+        "label": "Kind",
+        "all": "All",
+        "instance": "Instance",
+        "imported": "Imported",
+        "federated": "Federated cache",
+        "server": "Server",
+        "personal": "Personal",
+        "ai": "AI generated",
+        "not_imported": "Not imported"
+      },
+      "status": {
+        "label": "Status",
+        "active": "Active",
+        "removed": "Removed"
+      },
+      "sort": {
+        "label": "Sort",
+        "newest": "Newest first",
+        "oldest": "Oldest first",
+        "name": "Name (A-Z)",
+        "usage": "Most used"
+      },
+      "badges": {
+        "hotlinked": "hotlinked",
+        "removed": "removed"
+      },
+      "meta": {
+        "server": "in {server}",
+        "from": "from {domain}",
+        "uploadedBy": "by {user}",
+        "ownedBy": "owned by {user}",
+        "noOwner": "deleted account",
+        "usage": "never used | used once | used {count} times",
+        "seen": "seen {count} time | seen {count} times",
+        "reactions": "no reactions | {count} reaction | {count} reactions",
+        "removedBy": "removed by {user} on {date}",
+        "removedOn": "removed on {date}"
+      },
+      "titles": {
+        "rename": "Rename",
+        "remove": "Remove",
+        "restore": "Restore",
+        "purge": "Purge",
+        "rehost": "Re-host",
+        "import": "Import"
+      },
+      "actions": {
+        "rename": "Rename {name}",
+        "remove": "Remove {name}",
+        "restore": "Restore {name}",
+        "purge": "Purge {name}",
+        "rehost": "Re-host {name}",
+        "import": "Import {name}",
+        "select": "Select {name}"
+      },
+      "bulk": {
+        "select": "Select",
+        "selectPage": "Select all on this page",
+        "selected": "{count} selected | {count} selected",
+        "remove": "Remove selected",
+        "restore": "Restore selected",
+        "purge": "Purge selected"
+      },
+      "upload": {
+        "button": "Upload",
+        "label": "Upload instance emojis",
+        "uploading": "Uploading {name}…",
+        "uploadingMany": "Uploading {current} of {total}…",
+        "uploaded": "Uploaded {name}",
+        "uploadedMany": "{count} emoji uploaded | {count} emojis uploaded",
+        "failed": "Could not upload the emoji.",
+        "failedMany": "{count} upload failed | {count} uploads failed",
+        "notImage": "{count} file is not an image and was skipped | {count} files are not images and were skipped",
+        "tooLarge": "{count} file is too large and was skipped | {count} files are too large and were skipped",
+        "noValid": "No image files to upload."
+      },
+      "confirm": {
+        "removeTitle": "Remove emoji",
+        "remove": "Remove {name}? It leaves every emoji picker. Earlier messages and reactions keep showing it, and it can be restored.",
+        "removeMany": "Remove {count} emoji? It leaves every emoji picker. Earlier messages and reactions keep showing it, and it can be restored. | Remove {count} emojis? They leave every emoji picker. Earlier messages and reactions keep showing them, and they can be restored.",
+        "removeButton": "Remove",
+        "purgeTitle": "Purge emoji",
+        "purge": "Purge {name}? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon.",
+        "purgeMany": "Purge {count} emoji? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon. | Purge {count} emojis? The emojis and their files are deleted for good. Earlier messages and reactions that use them then show a broken-image icon.",
+        "purgeButton": "Purge",
+        "importTitle": "Import {name}",
+        "import": "This downloads a copy of the image from {domain} into this instance's storage and adds it to the instance emojis. Leave the name empty to keep {name}.",
+        "importLabel": "Name (without colons)",
+        "importButton": "Import"
+      },
+      "done": {
+        "renamed": "Renamed to {name}",
+        "removed": "Removed {name}",
+        "removedMany": "{count} emoji removed | {count} emojis removed",
+        "restored": "Restored {name}",
+        "restoredMany": "{count} emoji restored | {count} emojis restored",
+        "purged": "Purged {name}",
+        "purgedMany": "{count} emoji purged | {count} emojis purged",
+        "rehosted": "{name} is now hosted on this instance",
+        "imported": "Imported {name}"
+      },
+      "errors": {
+        "load": "Could not load emojis.",
+        "rename": "Could not rename the emoji.",
+        "remove": "Could not remove the emoji.",
+        "restore": "Could not restore the emoji.",
+        "purge": "Could not purge the emoji.",
+        "purgeFile": "{name} is purged, but its file could not be deleted.",
+        "purgeFiles": "{count} file could not be deleted. | {count} files could not be deleted.",
+        "bulk": "{count} emoji could not be changed. | {count} emojis could not be changed.",
+        "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
+        "nameTaken": "Another active emoji already uses that name.",
+        "limit": "The emoji limit is reached.",
+        "notAllowed": "You are not allowed to change this emoji.",
+        "notFound": "The emoji no longer exists.",
+        "notAdmin": "Only instance admins can upload instance emojis.",
+        "duplicateFile": "That file is already an instance emoji.",
+        "backend": {
+          "not_authenticated": "Your session has expired. Sign in again.",
+          "admin_required": "Only instance admins can do this.",
+          "insufficient_aal": "Confirm your second factor, then try again.",
+          "not_found": "The emoji no longer exists.",
+          "already_imported": "This emoji is already imported.",
+          "name_taken": "An instance emoji already uses that name.",
+          "invalid_name": "Names are 2 to 64 letters, digits, _ or -.",
+          "not_instance": "Only instance emojis can be re-hosted.",
+          "not_hotlinked": "This emoji is already hosted on this instance.",
+          "unsupported_image": "The remote image is not a PNG, GIF, WebP or JPEG.",
+          "too_large": "The remote image is larger than the emoji size limit.",
+          "fetch_failed": "The remote image could not be downloaded.",
+          "internal_error": "Something went wrong. Try again later.",
+          "network_error": "The server could not be reached."
+        }
+      }
     }
   },
   "discordBridge": {
@@ -6198,6 +6302,7 @@
       "join": "Join thread",
       "edit": "Edit thread",
       "splitView": "Open in split view",
+      "openFullView": "Open in full view",
       "close": "Close thread",
       "reopen": "Reopen thread",
       "lock": "Lock thread",
@@ -6319,7 +6424,14 @@
     "quotedPost": "Quoted post",
     "openMedia": "Open media {index} of {total}",
     "playOnSite": "Play on {site}",
-    "playInX": "Play in X's player"
+    "playInX": "Play in X's player",
+    "profile": {
+      "title": "Profile",
+      "label": "Profile of {name}",
+      "loading": "Loading profile…",
+      "unavailable": "This profile isn't available",
+      "open": "Open profile"
+    }
   },
   "outsideLink": {
     "title": "Leaving Harmony",
@@ -7367,6 +7479,8 @@
   },
   "driveAdmin": {
     "settings": "Drive storage",
+    "enabled": "Drive is turned on",
+    "offHint": "Drive is off: its pages and file picker are hidden and files cannot be shared. Every upload is kept, with no storage limit; the upload size limits still apply. Files already in Drive stay and return when Drive is turned on.",
     "quotaUser": "Storage per account",
     "quotaModerator": "Storage per instance moderator",
     "quotaAdmin": "Storage per instance admin",
@@ -7768,7 +7882,7 @@
     "copy": "Copy",
     "copied": "Invitation link copied",
     "copyFailed": "Could not copy the link; select it and copy it yourself",
-    "singleUse": "Send it only to this person: whoever opens it first makes the account.",
+    "singleUse": "Send it only to this person: whoever chooses a password with it first makes the account.",
     "pendingTitle": "Pending invitations ({count})",
     "refresh": "Refresh",
     "loading": "Loading invitations…",
@@ -7808,7 +7922,7 @@
       "emailUnavailable": "This instance cannot send email. Create a link instead.",
       "authRateLimited": "The auth service has sent too many emails; try again later.",
       "rateLimited": "Too many invitation changes; try again later.",
-      "inviteAccepted": "This person has already signed in; the invitation can no longer change.",
+      "inviteAccepted": "This person has already chosen a password; the invitation can no longer change.",
       "inviteGone": "This invitation no longer exists.",
       "adminRequired": "Only instance admins invite people.",
       "authFailed": "The auth service refused: {detail}",

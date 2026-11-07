@@ -63,6 +63,7 @@ app.use('/admin/invites', router)
 const ADMIN = { id: 'p-admin', is_admin: true, is_suspended: false }
 const USER_ID = '0b0d1d6e-0000-4000-8000-000000000009'
 const SENT = '2026-11-05T10:00:00.000Z'
+const HASH = 'ab'.repeat(28)
 const auth = { Authorization: 'Bearer token' }
 
 function account(over: Record<string, unknown> = {}) {
@@ -83,7 +84,10 @@ beforeEach(() => {
   advertised.mockReturnValue({ data: { config_value: false }, error: null })
   settings.mockResolvedValue(new Response(JSON.stringify({ disable_signup: true }), { status: 200 }))
   generateLink.mockResolvedValue({
-    data: { user: { id: USER_ID, confirmation_sent_at: SENT }, properties: { action_link: 'https://db.harmony.test/auth/v1/verify?token=t&type=invite' } },
+    data: {
+      user: { id: USER_ID, confirmation_sent_at: SENT },
+      properties: { action_link: 'https://db.harmony.test/auth/v1/verify?token=t&type=invite', hashed_token: HASH },
+    },
     error: null,
   })
   inviteUserByEmail.mockResolvedValue({ data: { user: { id: USER_ID, confirmation_sent_at: SENT } }, error: null })
@@ -181,7 +185,7 @@ describe('admin invites: creating', () => {
       expect(generateLink).not.toHaveBeenCalled()
     })
 
-  it('makes a single-use link to /reset-password and records it', async () => {
+  it('makes a single-use link to /reset-password naming the token, not GoTrue\'s /verify link, and records it', async () => {
     rpcAnswers({ admin_instance_invite_account: [], admin_record_instance_invite: 'i1' })
     const res = await supertest(app).post('/admin/invites').set(auth).send({ email: '  Ada@Example.org ' })
     expect(res.status).toBe(201)
@@ -191,7 +195,7 @@ describe('admin invites: creating', () => {
     expect(rpc).toHaveBeenCalledWith('admin_record_instance_invite', {
       p_auth_user_id: USER_ID, p_email: 'ada@example.org', p_delivery: 'link', p_action: 'create', p_admin_id: 'p-admin',
     })
-    expect(res.body.link).toBe('https://db.harmony.test/auth/v1/verify?token=t&type=invite')
+    expect(res.body.link).toBe(`https://harmony.test/reset-password?invite=1&token_hash=${HASH}&type=invite`)
     expect(res.body.expires_at).toBe('2026-11-06T10:00:00.000Z')
     expect(res.body.invite).toMatchObject({ id: 'i1', delivery: 'link', recorded: true })
   })
@@ -201,6 +205,14 @@ describe('admin invites: creating', () => {
     rpcAnswers({ admin_instance_invite_account: [], admin_record_instance_invite: 'i1' })
     await supertest(app).post('/admin/invites').set(auth).send({ email: 'ada@example.org' })
     expect(generateLink.mock.calls[0][0].options.redirectTo).toBe('https://app.harmony.test/reset-password?invite=1')
+  })
+
+  it('answers auth_failed when GoTrue returns no token hash', async () => {
+    rpcAnswers({ admin_instance_invite_account: [] })
+    generateLink.mockResolvedValue({ data: { user: { id: USER_ID }, properties: { action_link: 'https://x/verify' } }, error: null })
+    const res = await supertest(app).post('/admin/invites').set(auth).send({ email: 'ada@example.org' })
+    expect(res.status).toBe(502)
+    expect(rpc).not.toHaveBeenCalledWith('admin_record_instance_invite', expect.anything())
   })
 
   it.each([
@@ -294,7 +306,27 @@ describe('admin invites: new link', () => {
       type: 'invite', email: 'ada@example.org', options: { redirectTo: 'https://harmony.test/reset-password?invite=1' },
     })
     expect(rpc).toHaveBeenCalledWith('admin_record_instance_invite', expect.objectContaining({ p_action: 'reissue', p_delivery: 'link' }))
-    expect(res.body.link).toContain('type=invite')
+    expect(res.body.link).toBe(`https://harmony.test/reset-password?invite=1&token_hash=${HASH}&type=invite`)
+  })
+
+  it('re-issues a recovery link when the address was confirmed without a password', async () => {
+    rpcAnswers({ admin_instance_invite_account: [account()], admin_record_instance_invite: 'i1' })
+    const RECOVERY_SENT = '2026-11-07T08:00:00.000Z'
+    generateLink
+      .mockResolvedValueOnce({ data: { user: null, properties: null }, error: { status: 422, code: 'email_exists', message: 'A user with this email address has already been registered' } })
+      .mockResolvedValueOnce({
+        data: { user: { id: USER_ID, confirmation_sent_at: SENT, recovery_sent_at: RECOVERY_SENT }, properties: { hashed_token: 'cd'.repeat(28) } },
+        error: null,
+      })
+    const res = await supertest(app).post(`/admin/invites/${USER_ID}/link`).set(auth)
+    expect(res.status).toBe(200)
+    expect(generateLink.mock.calls.map((c) => c[0].type)).toEqual(['invite', 'recovery'])
+    expect(generateLink.mock.calls[1][0]).toEqual({
+      type: 'recovery', email: 'ada@example.org', options: { redirectTo: 'https://harmony.test/reset-password?invite=1' },
+    })
+    expect(res.body.link).toBe(`https://harmony.test/reset-password?invite=1&token_hash=${'cd'.repeat(28)}&type=recovery`)
+    expect(res.body.expires_at).toBe('2026-11-08T08:00:00.000Z')
+    expect(rpc).toHaveBeenCalledWith('admin_record_instance_invite', expect.objectContaining({ p_action: 'reissue' }))
   })
 
   it('refuses an invitation already accepted', async () => {

@@ -21,7 +21,10 @@ services:
   # can hand them each other's freed addresses; Kong then answers 502 for that
   # service, sign-in included, until the entry expires: 6 min 42 s measured
   # after auth moved from .17 to .20. KONG_DNS_VALID_TTL bounds the cache.
+  # 2.8.5, the last 2.8 release, in place of the stack's 2.8.1: same declarative
+  # config format, Alpine 3.18 base in place of 3.16.
   kong:
+    image: kong:2.8.5
     ports: !reset []
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -49,15 +52,45 @@ services:
     shm_size: 1g
     depends_on:
       vector: { condition: service_healthy, required: false }
+  # Database UI. Studio and postgres-meta at upstream's 2026-11-06 releases in place of
+  # the stack's 2025.06.30 / v0.91.0 (trivy HIGH+CRITICAL: Studio 1221 -> 275, meta 144 -> 82).
+  # Studio from 2026 reads the database's address itself and listens on HOSTNAME;
+  # meta keeps the stack's supabase_admin connection.
   studio:
+    image: supabase/studio:2026.11.02-sha-a05e7ec
     depends_on:
       analytics: { condition: service_healthy, required: false }
+    environment:
+      HOSTNAME: "0.0.0.0"
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
+      PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
+      PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
   meta:
+    image: supabase/postgres-meta:v0.100.0
     depends_on:
       analytics: { condition: service_healthy, required: false }
+  # Image: REALTIME_IMAGE and STORAGE_IMAGE in supabase/.env, which configure.sh sets
+  # to the stack's own image from REALTIME_MIN / STORAGE_MIN on and to that minimum
+  # below it; the pinned upstream stack runs realtime v2.34.47 and storage-api v1.25.7,
+  # both with published authorization bypasses. Each brings its own schema forward on
+  # start. Realtime from v2.148 refuses to boot without METRICS_JWT_SECRET; upstream's
+  # stack sets it to JWT_SECRET.
+  # Realtime from v2.76 caps presence calls per client, by default 5 per 30 s; past the
+  # cap a track gets no reply and no later one reaches the peer (measured on v2.148.3:
+  # the sixth and every later call within 50 s). Typing indicators track twice per
+  # burst, on and off after 3 s idle (TypingIndicatorService), so up to 20 calls in 30 s
+  # from one context.
   realtime:
+    image: ${REALTIME_IMAGE:-supabase/realtime:v2.148.3}
     depends_on:
       analytics: { condition: service_healthy, required: false }
+    environment:
+      METRICS_JWT_SECRET: ${JWT_SECRET}
+      CLIENT_PRESENCE_MAX_CALLS: "60"
+      CLIENT_PRESENCE_WINDOW_MS: "30000"
 
   # PostgREST copies its app settings into every request transaction; with this
   # one, any SQL run through the API can read the JWT secret as
@@ -73,13 +106,23 @@ services:
   # recreates storage and writes the same number into
   # instance_config.upload_ceiling_bytes, above which no upload limit goes.
   storage:
+    image: ${STORAGE_IMAGE:-supabase/storage-api:v1.89.12}
     environment:
       FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
 
   # Animated emoji and large images: frames count toward the source resolution
-  # limit (megapixels).
+  # limit (megapixels). v4.0.21, upstream's release with storage-api v1.89.12, in place
+  # of the stack's v3.8.0: it decodes every uploaded image. v4 drops the
+  # IMGPROXY_ENABLE_WEBP_DETECTION name the stack sets; IMGPROXY_AUTO_WEBP carries its value.
+  # From v3.12 a source outside IMGPROXY_PREFERRED_FORMATS (default jpeg,png,gif) is
+  # re-encoded when the request names no format and the client does not take WebP:
+  # WebP became JPEG (alpha lost) and animated WebP became GIF. webp and avif in the
+  # list keep them, as v3.8 did.
   imgproxy:
+    image: darthsim/imgproxy:v4.0.21
     environment:
+      IMGPROXY_AUTO_WEBP: ${IMGPROXY_ENABLE_WEBP_DETECTION:-true}
+      IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif
       IMGPROXY_MAX_SRC_RESOLUTION: 50
       IMGPROXY_MAX_ANIMATION_FRAMES: 120
 
@@ -91,7 +134,7 @@ services:
   # Sign-in with the instance's own OAuth 2.0 / OIDC providers: `harmony auth
   # add-provider`. GoTrue keeps them in auth.custom_oauth_providers.
   # Image: GOTRUE_IMAGE in supabase/.env, which configure.sh sets to the stack's
-  # own image from v2.196.0 on and to v2.196.0 below it (the pinned upstream
+  # own image from v2.197.0 on and to v2.197.0 below it (the pinned upstream
   # stack runs v2.177.0); custom providers exist from 2.187.0, issuers with a
   # trailing slash (Authentik) work from 2.190.0, and JWKS with keys of other
   # algorithms from 2.196.0. Its own migrations bring the auth schema forward on
@@ -103,8 +146,16 @@ services:
   # A provider named there joins only accounts of its own domain, never an
   # account by email address; add-provider writes custom:ID=custom:ID. A value
   # GoTrue cannot parse stops it from starting.
+  #
+  # Invitation and password reset emails: GoTrue fetches each template over HTTP
+  # (GOTRUE_MAILER_TEMPLATES_*) and falls back to its own when the fetch fails.
+  # The web image serves Harmony's (public/email-templates/), whose link opens
+  # SITE_URL/reset-password with the token hash; the page redeems it when the
+  # password is submitted. GoTrue's own link is a GET of /auth/v1/verify, which
+  # spends the token for the first fetcher, mail scanners included.
+  # MAILER_TEMPLATES_INVITE / MAILER_TEMPLATES_RECOVERY in supabase/.env replace them.
   auth:
-    image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.196.0}
+    image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -123,3 +174,5 @@ services:
       GOTRUE_EXTERNAL_TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
       GOTRUE_EXTERNAL_TWITCH_SECRET: ${TWITCH_SECRET:-}
       GOTRUE_EXTERNAL_TWITCH_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+      GOTRUE_MAILER_TEMPLATES_INVITE: ${MAILER_TEMPLATES_INVITE:-http://web/email-templates/invite.html}
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: ${MAILER_TEMPLATES_RECOVERY:-http://web/email-templates/recovery.html}

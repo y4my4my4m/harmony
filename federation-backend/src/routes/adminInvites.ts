@@ -7,16 +7,19 @@
  *   DELETE /:userId               withdraws an open invitation by deleting its unused auth user
  *
  * Instance admins only: a token GoTrue accepts at the account's assurance level, whose local
- * profile is an admin and not suspended. GoTrue's admin API makes the invited user and its link
- * (generate_link type invite; /invite when GoTrue emails it) with redirect
- * APP_URL/reset-password?invite=1, the same as `harmony admin invite`. Errors answer { error: <code> }.
+ * profile is an admin and not suspended. GoTrue's admin API makes the invited user and its token
+ * (generate_link type invite; /invite when GoTrue emails it). The link handed out is
+ * APP_URL/reset-password?invite=1&token_hash=…&type=…, the same as `harmony admin invite`, not
+ * GoTrue's action_link: a GET of /auth/v1/verify spends the token, and link previews and mail
+ * scanners GET every link they see. The page redeems the token with a POST when the person
+ * submits a password. Errors answer { error: <code> }.
  */
 
 import { Router, Request, Response } from 'express';
-import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
+import { getSupabaseClient } from '../config/supabase.js';
 import { createStrictKeyedLimit } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { bearerToken } from '../utils/sessionAssurance.js';
+import { requireInstanceAdmin, tokenAal, type InstanceAdmin } from '../utils/instanceAdmin.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -60,6 +63,16 @@ export function inviteRedirect(): string {
   return `${config.APP_URL ?? `https://${config.INSTANCE_DOMAIN}`}/reset-password?invite=1`;
 }
 
+export type InviteLinkType = 'invite' | 'recovery';
+
+/** The password page naming the token: GoTrue's hashed_token, redeemed by verifyOtp({ token_hash, type }). */
+export function inviteLink(hashedToken: string, type: InviteLinkType): string {
+  const url = new URL(inviteRedirect());
+  url.searchParams.set('token_hash', hashedToken);
+  url.searchParams.set('type', type);
+  return url.toString();
+}
+
 /** When a link made at sentAt stops working; null without a time. */
 export function linkExpiry(sentAt: string | null | undefined, lifetimeSeconds = config.GOTRUE_MAILER_OTP_EXP): string | null {
   if (!sentAt) return null;
@@ -67,55 +80,11 @@ export function linkExpiry(sentAt: string | null | undefined, lifetimeSeconds = 
   return Number.isNaN(at) ? null : new Date(at + lifetimeSeconds * 1000).toISOString();
 }
 
-interface Admin {
-  profileId: string;
-}
+type Admin = InstanceAdmin;
 
-/** The `aal` claim of a JWT GoTrue has already verified; null when absent or unreadable. */
-export function tokenAal(token: string): string | null {
-  try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'));
-    return typeof payload?.aal === 'string' ? payload.aal : null;
-  } catch {
-    return null;
-  }
-}
+const instanceAdmin = requireInstanceAdmin;
 
-async function instanceAdmin(req: Request, res: Response): Promise<Admin | null> {
-  const token = bearerToken(req.headers.authorization);
-  if (!token) {
-    res.status(401).json({ error: 'not_authenticated' });
-    return null;
-  }
-  const { data, error } = await getSupabaseClientWithAuth(token).auth.getUser();
-  if (error || !data?.user) {
-    res.status(401).json({ error: 'not_authenticated' });
-    return null;
-  }
-  // GoTrue's /user answers aal1 tokens too (the client lists factors mid-challenge); the
-  // service-role calls below bypass the PostgREST pre-request, so the claim is checked here.
-  const verifiedFactor = (data.user.factors ?? []).some((f: { status?: string }) => f.status === 'verified');
-  if (verifiedFactor && tokenAal(token) !== 'aal2') {
-    res.status(403).json({ error: 'insufficient_aal' });
-    return null;
-  }
-  const { data: profile, error: profileError } = await getSupabaseClient()
-    .from('profiles')
-    .select('id, is_admin, is_suspended')
-    .eq('auth_user_id', data.user.id)
-    .eq('is_local', true)
-    .maybeSingle();
-  if (profileError) {
-    logger.error('Admin invites: reading the caller failed:', profileError);
-    res.status(500).json({ error: 'internal_error' });
-    return null;
-  }
-  if (!profile?.is_admin || profile.is_suspended) {
-    res.status(403).json({ error: 'admin_required' });
-    return null;
-  }
-  return { profileId: profile.id };
-}
+export { tokenAal };
 
 interface InviteRow {
   id: string | null;
@@ -288,12 +257,12 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     user = data.user;
   } else {
     const { data, error } = await supabase.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo } });
-    if (error || !data?.user || !data.properties?.action_link) {
+    if (error || !data?.user || !data.properties?.hashed_token) {
       gotrueFailure(res, error ?? {}, 'account_exists');
       return;
     }
     user = data.user;
-    link = data.properties.action_link;
+    link = inviteLink(data.properties.hashed_token, 'invite');
   }
 
   const delivery = send ? 'email' : 'link';
@@ -333,20 +302,26 @@ router.post('/:userId/link', asyncHandler(async (req: Request, res: Response) =>
     return;
   }
 
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: 'invite',
-    email: account.email,
-    options: { redirectTo: inviteRedirect() },
-  });
-  if (error || !data?.user || !data.properties?.action_link) {
+  const options = { redirectTo: inviteRedirect() };
+  let type: InviteLinkType = 'invite';
+  let { data, error } = await supabase.auth.admin.generateLink({ type, email: account.email, options });
+  // GoTrue makes no invite token for a confirmed address (email_exists). Any GET of a
+  // /auth/v1/verify invitation link confirms the address without a password; a recovery token
+  // signs the person in on the same page.
+  if (error?.code === 'email_exists' || error?.code === 'user_already_exists') {
+    type = 'recovery';
+    ({ data, error } = await supabase.auth.admin.generateLink({ type, email: account.email, options }));
+  }
+  if (error || !data?.user || !data.properties?.hashed_token) {
     gotrueFailure(res, error ?? {}, 'invite_accepted');
     return;
   }
   const id = await record(account.auth_user_id, account.email, 'link', 'reissue', admin);
+  const sentAt = type === 'recovery' ? data.user.recovery_sent_at : data.user.confirmation_sent_at;
   res.json({
     invite: { id, auth_user_id: account.auth_user_id, email: account.email, delivery: 'link', recorded: id !== null },
-    link: data.properties.action_link,
-    expires_at: linkExpiry(data.user.confirmation_sent_at ?? new Date().toISOString()),
+    link: inviteLink(data.properties.hashed_token, type),
+    expires_at: linkExpiry(sentAt ?? new Date().toISOString()),
   });
 }));
 

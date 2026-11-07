@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Presence comes from the database: this tab heartbeats its own presence, reads
 // others through get_presence, and applies presence:update events. No Realtime
-// Presence topic is opened, and profiles.status takes manual choices only.
+// Presence topic is opened, and profiles.status takes manual choices only. An Offline
+// tab says so once; only profile and friends contexts are polled, while shown.
 
 const { ME, FRIEND, STRANGER } = vi.hoisted(() => ({
   ME: 'aaaaaaaa-0000-4000-8000-000000000001',
@@ -84,9 +85,6 @@ vi.mock('@/services/UserEventChannel', () => ({
   userEventChannel: {
     on: (type: string, cb: (p: any) => void) => { userEvents.handlers[type] = cb; return () => { delete userEvents.handlers[type] } },
   },
-}))
-vi.mock('@/services/RealtimeApiService', () => ({
-  realtimeApiService: { startHeartbeat: vi.fn(), updateStatus: vi.fn(), goOffline: vi.fn(async () => {}), cleanup: vi.fn() },
 }))
 vi.mock('@/services/ActivityTracker', () => ({ activityTracker: new EventTarget() }))
 vi.mock('@/services/unifiedEmojiService', () => ({ loadEmojiData: vi.fn(), isLoaded: { value: true } }))
@@ -288,5 +286,69 @@ describe('status expiry', () => {
     expect(users.get(FRIEND).customStatus).toBeUndefined()
     expect(users.get(STRANGER).customStatus?.text).toBe('lunch')
     expect(seen).toEqual([FRIEND])
+  })
+})
+
+describe('presence requests over time', () => {
+  const MINUTE = 60_000
+  const count = (fn: string) => db.calls.filter((c) => c.fn === fn).length
+  function setVisibility(state: 'visible' | 'hidden') {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
+  async function startWithFakeTimers() {
+    await userDataService.cleanup()
+    vi.useFakeTimers()
+    await userDataService.initialize(ME, 'me')
+    db.calls.length = 0
+  }
+
+  it('an idle tab gone Offline sends presence_offline once, and again after it was back', async () => {
+    try {
+      await startWithFakeTimers()
+      await (userDataService as any).handleAutomaticStatusChange({ status: UserStatus.Offline, reason: 'inactivity', inactiveTime: 15 * MINUTE })
+      await vi.advanceTimersByTimeAsync(3 * MINUTE)
+      expect(count('presence_offline')).toBe(1)
+      expect(count('presence_heartbeat')).toBe(0)
+
+      await userDataService.updateCurrentUserStatus(UserStatus.Online, false)
+      await vi.advanceTimersByTimeAsync(MINUTE)
+      expect(count('presence_heartbeat')).toBe(2)
+      await userDataService.updateCurrentUserStatus(UserStatus.Offline, false)
+      await vi.advanceTimersByTimeAsync(2 * MINUTE)
+      expect(count('presence_offline')).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('polls get_presence for profile and friends contexts while shown, never for servers or DMs', async () => {
+    try {
+      await startWithFakeTimers()
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      await userDataService.subscribeToContext('dm-1', 'dm', [FRIEND])
+      db.calls.length = 0
+      await vi.advanceTimersByTimeAsync(3 * MINUTE)
+      expect(count('get_presence')).toBe(0)
+
+      await userDataService.subscribeToContext('friends', 'friends', [STRANGER])
+      db.calls.length = 0
+      await vi.advanceTimersByTimeAsync(2 * MINUTE)
+      expect(db.calls.filter((c) => c.fn === 'get_presence').map((c) => c.args.p_profile_ids)).toEqual([[STRANGER], [STRANGER]])
+
+      setVisibility('hidden')
+      db.calls.length = 0
+      await vi.advanceTimersByTimeAsync(3 * MINUTE)
+      expect(count('get_presence')).toBe(0)
+      expect(count('presence_heartbeat')).toBe(3)
+
+      setVisibility('visible')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(count('get_presence')).toBe(1)
+    } finally {
+      setVisibility('visible')
+      vi.useRealTimers()
+    }
   })
 })

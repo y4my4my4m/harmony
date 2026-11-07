@@ -41,6 +41,8 @@ RUN npm run build-only
 
 # --- serve stage -------------------------------------------------------------
 FROM nginx:alpine AS serve
+# Alpine fixes newer than the base image.
+RUN apk upgrade --no-cache
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY self-host/web-nginx.conf /etc/nginx/conf.d/default.conf
 COPY self-host/web-entrypoint.d/40-harmony-config.sh /docker-entrypoint.d/40-harmony-config.sh

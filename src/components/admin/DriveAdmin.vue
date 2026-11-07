@@ -8,6 +8,11 @@
         <h2>{{ t('driveAdmin.settings') }}</h2>
       </header>
       <form class="drive-admin__grid" @submit.prevent="save">
+        <div class="drive-admin__toggle">
+          <span :id="`${uid}-enabled`">{{ t('driveAdmin.enabled') }}</span>
+          <ToggleSwitch v-model="form.drive_enabled" :labelledby="`${uid}-enabled`" data-testid="drive-admin-enabled" />
+        </div>
+        <p v-if="!form.drive_enabled" class="drive-admin__hint" data-testid="drive-admin-off-hint">{{ t('driveAdmin.offHint') }}</p>
         <label>
           <span>{{ t('driveAdmin.quotaUser') }}</span>
           <span class="drive-admin__unit"><input v-model.number="form.drive_quota_user_mb" type="number" min="0" step="1" class="drive-input" data-testid="drive-admin-quota-user" /> MB</span>
@@ -32,7 +37,7 @@
           <span :id="`${uid}-links`">{{ t('driveAdmin.linkSharing') }}</span>
           <ToggleSwitch v-model="form.drive_link_sharing" :labelledby="`${uid}-links`" />
         </div>
-        <p class="drive-admin__hint">{{ t('driveAdmin.hint') }}</p>
+        <p v-if="form.drive_enabled" class="drive-admin__hint">{{ t('driveAdmin.hint') }}</p>
         <div class="drive-admin__actions">
           <span v-if="saved" class="drive-admin__saved" role="status">{{ t('driveAdmin.saved') }}</span>
           <button type="submit" class="drive-btn drive-btn--primary" :disabled="saving" data-testid="drive-admin-save">{{ t('driveAdmin.save') }}</button>
@@ -151,7 +156,8 @@ import { useT } from '@/composables/useT'
 import { formatBytes } from '@/components/drive/driveFormat'
 import '@/components/drive/drive.css'
 
-const KEYS = ['drive_quota_user_mb', 'drive_quota_moderator_mb', 'drive_quota_admin_mb', 'drive_ephemeral_days', 'drive_ephemeral_daily_mb', 'drive_link_sharing'] as const
+const KEYS = ['drive_enabled', 'drive_quota_user_mb', 'drive_quota_moderator_mb', 'drive_quota_admin_mb', 'drive_ephemeral_days', 'drive_ephemeral_daily_mb', 'drive_link_sharing'] as const
+const FLAGS = new Set<string>(['drive_enabled', 'drive_link_sharing'])
 
 const { t } = useT()
 const uid = useId()
@@ -162,6 +168,7 @@ const form = reactive({
   drive_ephemeral_days: 30,
   drive_ephemeral_daily_mb: 2048,
   drive_link_sharing: true,
+  drive_enabled: true,
 })
 /** Row of admin_drive_usage; bigint columns arrive as numbers. */
 interface UsageRow {
@@ -194,7 +201,7 @@ async function load(): Promise<void> {
   for (const row of data ?? []) {
     const key = row.config_key as typeof KEYS[number]
     const value = row.config_value
-    if (key === 'drive_link_sharing') form.drive_link_sharing = value !== false && value !== 'false'
+    if (FLAGS.has(key)) (form as Record<string, number | boolean>)[key] = value !== false && value !== 'false' && value !== 0 && value !== '0'
     else if (Number.isFinite(Number(value))) (form as Record<string, number | boolean>)[key] = Number(value)
   }
   const [b] = await Promise.all([

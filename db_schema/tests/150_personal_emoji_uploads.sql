@@ -195,12 +195,12 @@ SELECT tests.clear_authentication();
 
 SELECT pg_temp.set_limit('5');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-WITH d AS (DELETE FROM public.emojis
-            WHERE uploader = '22222222-0000-0000-0000-000000000002' AND scope = 'user' AND name = 'renamed_150'
-           RETURNING 1)
-SELECT is(count(*)::int, 1, 'the owner deletes a personal emoji') FROM d;
+SELECT lives_ok($q$SELECT public.remove_emoji(
+                     (SELECT id FROM public.emojis WHERE uploader = '22222222-0000-0000-0000-000000000002'
+                         AND scope = 'user' AND name = 'renamed_150'))$q$,
+                'the owner removes a personal emoji');
 SELECT lives_ok($q$SELECT public.create_my_emoji('fifth', pg_temp.bob('05'), pg_temp.url(pg_temp.bob('05')))$q$,
-                'a deletion makes room');
+                'a removal makes room');
 SELECT tests.clear_authentication();
 
 SELECT pg_temp.set_limit('0');

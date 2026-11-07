@@ -585,6 +585,7 @@ watch(
       .select('id, name, url')
       .in('name', codes)
       .not('url', 'is', null)
+      .is('deleted_at', null)
     resolvedPinnedEmojis.value = (data || []).map((e: any) => ({ id: e.id, name: e.name, url: e.url }))
   },
   { immediate: true },

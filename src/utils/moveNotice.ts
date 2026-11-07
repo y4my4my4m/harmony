@@ -6,6 +6,7 @@
  */
 
 import { i18n } from '@/i18n'
+import { formatHandle } from '@/utils/handles'
 
 interface MovedAccountData {
   username?: string | null
@@ -21,8 +22,7 @@ export interface MoveNoticeData {
 }
 
 export function moveNoticeHandle(account: MovedAccountData | null | undefined): string | null {
-  if (!account?.username) return null
-  return account.domain && account.is_local !== true ? `@${account.username}@${account.domain}` : `@${account.username}`
+  return formatHandle(account) || null
 }
 
 export function moveNoticeText(data: MoveNoticeData = {}): { title: string; message: string } {

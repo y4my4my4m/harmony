@@ -27,7 +27,9 @@ export function resetDriveUsage(): void {
 }
 
 export function useDriveUsage() {
-  const full = computed(() => !!usage.value && usage.value.used_bytes >= usage.value.quota_bytes)
+  // Drive off has no storage limit: nothing is full.
+  const full = computed(() =>
+    !!usage.value && usage.value.enabled !== false && usage.value.used_bytes >= usage.value.quota_bytes)
   const fraction = computed(() =>
     usage.value && usage.value.quota_bytes > 0 ? Math.min(1, usage.value.used_bytes / usage.value.quota_bytes) : 0)
   return { usage, full, fraction, refresh: refreshDriveUsage }

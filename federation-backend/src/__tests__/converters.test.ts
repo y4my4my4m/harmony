@@ -216,8 +216,8 @@ describe('toActivityPub converters', () => {
         ],
       }, author)
       expect(note.content).toContain('<span class="h-card" translate="no"><a href="https://mastodon.social/users/bob" class="u-url mention">@bob@mastodon.social</a></span>')
-      expect(note.content).toContain('<a href="https://harmony.test/social/hashtag/caf%C3%A9" class="mention hashtag" rel="tag">#<span>café</span></a>')
-      expect(note.tag).toContainEqual({ type: 'Hashtag', href: 'https://harmony.test/social/hashtag/caf%C3%A9', name: '#café' })
+      expect(note.content).toContain('<a href="https://harmony.test/tags/caf%C3%A9" class="mention hashtag" rel="tag">#<span>café</span></a>')
+      expect(note.tag).toContainEqual({ type: 'Hashtag', href: 'https://harmony.test/tags/caf%C3%A9', name: '#café' })
     })
 
     it('advertises a FEP-044f quote policy by visibility', () => {
@@ -656,6 +656,30 @@ describe('fromActivityPub converters', () => {
       expect(text).toContain('Hello')
       expect(text).toContain('bold')
       expect(text).not.toContain('<strong>')
+    })
+
+    it('keeps line breaks between consecutive links', () => {
+      const note = {
+        content: '<p>Bills</p><p><a href="https://paypal.me/x">https://paypal.me/x</a><br /><a href="https://ko-fi.com/y">https://ko-fi.com/y</a></p>',
+      }
+      const parts = noteToContent(note)
+      const urls = parts.filter((p: any) => p.type === 'url').map((p: any) => p.url)
+      expect(urls).toEqual(['https://paypal.me/x', 'https://ko-fi.com/y'])
+      const between = parts[parts.findIndex((p: any) => p.type === 'url') + 1]
+      expect(between).toEqual({ type: 'text', text: '\n' })
+    })
+
+    it('keeps the space between two adjacent mentions', () => {
+      const note = {
+        content: '<p><a href="https://a.example/users/alice">@alice@a.example</a> <a href="https://b.example/users/bob">@bob@b.example</a></p>',
+        tag: [
+          { type: 'Mention', href: 'https://a.example/users/alice', name: '@alice@a.example' },
+          { type: 'Mention', href: 'https://b.example/users/bob', name: '@bob@b.example' },
+        ],
+      }
+      const parts = noteToContent(note)
+      expect(parts.map((p: any) => p.type)).toEqual(['mention', 'text', 'mention'])
+      expect(parts[1].text).toBe(' ')
     })
 
     it('unescapes HTML entities', () => {

@@ -19,6 +19,7 @@ import {
   loadQuoteTarget,
   announceActivityId,
   quoteRequestFor,
+  audienceInbox,
 } from '../../listeners/FederationHandlers.js';
 import { enrichPostLinkPreviews } from '../../listeners/DatabaseListener.js';
 import {
@@ -240,7 +241,8 @@ async function resolveMentions(post: any, handles: MentionHandle[]): Promise<Men
  * Deliver to the post's audience: followers unless the post is direct, plus
  * every mentioned remote user. A direct post's content never goes to
  * followers' inboxes. A public or unlisted reply or quote also reaches the
- * remote author it answers or quotes, as Mastodon's StatusReachFinder does.
+ * remote author it answers or quotes, as Mastodon's StatusReachFinder does,
+ * and a reply in a community thread the community's inbox (FEP-1b12 audience).
  */
 async function deliverToAudience(
   post: any,
@@ -254,6 +256,9 @@ async function deliverToAudience(
   const inboxes = recipients.map((r) => r.inbox);
   if (post.visibility === 'public' || post.visibility === 'unlisted') {
     inboxes.push(...await interactedAuthorInboxes(post));
+    const audience = typeof activity.object?.audience === 'string' ? activity.object.audience : null;
+    const community = audience ? await audienceInbox(audience) : null;
+    if (community) inboxes.push(community);
   }
   await deliverToInboxes(inboxes, activity, author);
 }

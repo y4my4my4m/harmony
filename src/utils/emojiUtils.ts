@@ -43,6 +43,17 @@ export function remoteReactionEmojiUrl(
   return discordCdnUrl(remoteUrl) ?? discordCustomEmojiUrlFromIdentifier(identifier)
 }
 
+const SHORTCODE_CONTENT_RE = /^:[^:\s]+:$/
+
+/**
+ * A reaction group whose emoji an admin purged (admin_purge_emoji): custom_emoji_content
+ * ':<name>:' and metadata.emoji_removed on a reactor, set by prepare_emoji_deletion.
+ */
+export function isPurgedEmojiReaction(content: unknown, actors: unknown): boolean {
+  if (typeof content !== 'string' || !SHORTCODE_CONTENT_RE.test(content) || !Array.isArray(actors)) return false
+  return actors.some((a) => (a as { metadata?: { emoji_removed?: unknown } } | null)?.metadata?.emoji_removed === true)
+}
+
 function getEmojiTransformQuality(): number {
   try {
     const store = useInstanceSettingsStore()

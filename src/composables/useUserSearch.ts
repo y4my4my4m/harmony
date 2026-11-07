@@ -14,7 +14,10 @@ export interface UserSearchResult {
 }
 
 export interface UseUserSearchOptions {
-  /** Accounts of this instance only: search_local_users. Otherwise search_federated_users. */
+  /**
+   * Accounts of this instance only: search_local_users. Otherwise search_federated_users, and a
+   * complete remote handle nothing stored matches is looked up on its instance.
+   */
   localOnly?: boolean
   /** Ids left out of `results`; read reactively. */
   exclude?: () => Iterable<string | null | undefined>
@@ -38,7 +41,7 @@ async function searchLocalUsers(query: string, limit = 8): Promise<UserSearchRes
 }
 
 async function searchFederatedUsers(query: string, limit: number): Promise<UserSearchResult[]> {
-  const users = await activityPubService.searchUsers(query, limit)
+  const users = await activityPubService.searchUsersResolvingHandle(query, limit)
   return users.map((user) => ({
     id: user.id,
     username: user.username,

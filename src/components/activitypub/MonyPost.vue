@@ -35,7 +35,7 @@
       <div class="post-header">
         <RouterLink :to="profileRoute(displayAuthor)" class="author-info">
           <Avatar
-            :src="displayAuthor.avatar_url"
+            :src="displayAuthorAvatar"
             alt=""
             size="md"
           />
@@ -148,7 +148,7 @@
             <div class="quoted-post-header">
               <RouterLink v-if="quotedAuthor" :to="profileRoute(quotedAuthor)" class="quoted-author-link" data-testid="quoted-author">
                 <Avatar
-                  :src="quotedAuthor.avatar_url"
+                  :src="quotedAuthorAvatar"
                   alt=""
                   size="sm"
                 />
@@ -262,6 +262,12 @@
             :key="`drive-${item.url}`"
             :link="item.link"
             :url="item.url"
+          />
+
+          <ProfileEmbedCard
+            v-for="item in profileEmbeds"
+            :key="`profile-${item.url}`"
+            :payload="item"
           />
 
           <!-- Link preview cards. Variant is `thumbnail` (small horizontal
@@ -817,7 +823,7 @@ import { usePostReactionLimit } from '@/composables/useReactionLimits';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { services } from '@/services';
 import { supabase } from '@/supabase';
-import type { TimelinePost, DisplayNamePart } from '@/types';
+import type { TimelinePost, DisplayNamePart, EmbedPayload } from '@/types';
 import type { ReplyContext } from '@/types/activitypub';
 import { replyContextCache, requestReplyContext } from '@/services/replyContext';
 
@@ -825,6 +831,8 @@ import { replyContextCache, requestReplyContext } from '@/services/replyContext'
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import DriveLinkAttachment from '@/components/embeds/DriveLinkAttachment.vue';
+import ProfileEmbedCard from '@/components/embeds/ProfileEmbedCard.vue';
+import { profileLinkFromUrl } from '@/utils/profileLinks';
 import { driveLinkFromUrl, driveLinkPath, type DriveLinkRef } from '@/services/drive/driveLinks';
 import { driveLinkUrlsIn, withoutSoleDriveLink } from '@/utils/driveLinkContent';
 import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
@@ -1163,6 +1171,19 @@ const quotedAuthor = computed(() => {
   return props.post.reblog_author || props.post.reblog?.author || null;
 });
 
+// reblog_author and reblog.author are copies taken when the boost or quote was written;
+// the cached profile carries the current avatar. post.author is a live join.
+const liveAvatar = (author: { id?: string; avatar_url?: string | null } | null | undefined) => {
+  if (!author) return null;
+  const profile = author.id ? getUserProfile(author.id).value : null;
+  return profile && profile.avatar_url !== undefined ? profile.avatar_url : author.avatar_url ?? null;
+};
+
+const displayAuthorAvatar = computed(() =>
+  isPureReblog.value && props.post.reblog_author ? liveAvatar(props.post.reblog_author) : displayAuthor.value?.avatar_url ?? null
+);
+const quotedAuthorAvatar = computed(() => liveAvatar(quotedAuthor.value));
+
 const quotedCreatedAt = computed(() => {
   return props.post.reblog?.created_at || props.post.created_at;
 });
@@ -1352,6 +1373,32 @@ const driveEmbeds = computed(() => {
       return true;
     });
 });
+// Account links of this instance (utils/profileLinks): the stored card, else one the card
+// component fills. Previewed links only, as Drive links.
+const profileEmbeds = computed((): EmbedPayload[] => {
+  const seen = new Set<string>();
+  const stored = new Map(postEmbeds.value.map((e) => [e.url, e as unknown as EmbedPayload]));
+  const urls = [
+    ...(Array.isArray(displayContent.value) ? displayContent.value : [])
+      .filter((part: any) => part?.type === 'url' && typeof part.url === 'string' && part.preview !== false && part.preview !== 'false')
+      .map((part: any) => part.url as string),
+    ...postEmbeds.value.map((e) => e.url),
+  ];
+  const cards: EmbedPayload[] = [];
+  for (const url of urls) {
+    const profile = url ? profileLinkFromUrl(url) : null;
+    if (!profile) continue;
+    const key = `${profile.username}@${profile.domain ?? ''}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const embed = stored.get(url);
+    cards.push(embed?.provider === 'harmony-profile' ? embed : {
+      cacheKey: `profile-${url}`, url, normalizedUrl: url, provider: 'harmony-profile', profile,
+      fetchedAt: '', expiresAt: '',
+    });
+  }
+  return cards;
+});
 // A preview of something the post already shows repeats it: an attachment draws in
 // MonyMediaGallery, and with no attachment a direct media link draws inline in MonyContent.
 // Beside a gallery, withoutGalleryMedia strips direct media links from the text: the card is
@@ -1360,7 +1407,7 @@ const cardEmbeds = computed(() => {
   const gallery = new Set((displayMediaAttachments.value as any[]).map((m) => mediaUrlPath(String(m.url))));
   const shown = (url: string) => gallery.size === 0 ? isDirectMediaUrl(url) : gallery.has(mediaUrlPath(url));
   return postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any) && !driveLinkFromUrl(e.url)
-    && !(e.url && shown(e.url)));
+    && !profileLinkFromUrl(e.url) && !(e.url && shown(e.url)));
 });
 
 // When the post also has a media attachment, render link cards in the

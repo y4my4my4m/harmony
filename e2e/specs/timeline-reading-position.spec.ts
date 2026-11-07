@@ -154,7 +154,7 @@ test('a timeline keeps its pages and the reading position across a tab switch an
 
   await test.step('opening a post and going Back returns to the same post', async () => {
     await pressInPlace(page, article(page, 47).locator('.post-time').first(), false)
-    await page.waitForURL(/\/social\/post\//, { timeout: 30000 })
+    await page.waitForURL(/\/(social\/post|@[^/]+)\/[0-9a-f-]{36}/, { timeout: 30000 })
     await expect(page.locator('article[aria-current="true"]')).toContainText(label(47), { timeout: 30000 })
 
     await insertPosts([{
@@ -198,7 +198,7 @@ test.describe('on a phone', () => {
 
     await test.step('open a post and tap Back', async () => {
       await pressInPlace(page, article(page, 16).locator('.post-time').first(), true)
-      await page.waitForURL(/\/social\/post\//, { timeout: 30000 })
+      await page.waitForURL(/\/(social\/post|@[^/]+)\/[0-9a-f-]{36}/, { timeout: 30000 })
       await page.getByRole('button', { name: 'Back' }).first().tap()
       await page.waitForURL(/\/social\/home/, { timeout: 30000 })
       await expect(homeFeed(page)).toBeVisible({ timeout: 30000 })

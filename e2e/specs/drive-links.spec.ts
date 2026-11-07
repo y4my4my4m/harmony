@@ -282,7 +282,7 @@ test('Anyone with the link: the public page, Show my name, expiry, and OpenGraph
       const shown = anonymous.getByTestId('drive-link-owner')
       await expect(shown).toContainText(`Shared by ${owner.displayName}`, { timeout: 30000 })
       await expect(shown.locator(`img[alt=":${emojiName}:"]`)).toHaveAttribute('src', 'https://emoji.e2e.test/wave.png')
-      await expect(anonymous.getByTestId('drive-link-owner-name')).toHaveAttribute('href', `/social/profile/${owner.username}`)
+      await expect(anonymous.getByTestId('drive-link-owner-name')).toHaveAttribute('href', `/@${owner.username}`)
     })
 
     await test.step('an expiry shows on the page; once passed, the file is restricted again', async () => {

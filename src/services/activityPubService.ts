@@ -31,6 +31,8 @@ import type {
 import type { ProfileMediaCursor, ProfileMediaRow } from '@/utils/profileMedia';
 import { debug } from '@/utils/debug'
 import { remoteCountFields } from '@/utils/profileCounts'
+import { parseHandle } from '@/utils/mentionGrammar'
+import { formatHandle } from '@/utils/handles'
 
 interface ProfileCacheEntry {
   profile: FederatedUser;
@@ -43,6 +45,35 @@ interface ProfileCacheEntry {
 function isQuoteMetadata(metadata: any): boolean {
   const flag = metadata?.is_quote;
   return flag === true || flag === 'true';
+}
+
+interface RemoteHandle {
+  username: string;
+  domain: string;
+  /** `username@domain`, lower case. */
+  key: string;
+}
+
+// A host lookups go to: two or more labels, the last of two or more letters. A partly typed
+// host ("har.mo") passes too; unresolvedHandles keeps a miss from repeating.
+const LOOKUP_HOST = /\.[a-z]{2,}$/;
+
+const OUTBOX_IMPORT_ATTEMPTS = 3;
+const OUTBOX_IMPORT_BACKOFF_MS = 600;
+
+/** The handle `query` names when it is complete and of another instance than `localDomain`. */
+export function remoteHandleOf(query: string, localDomain: string): RemoteHandle | null {
+  const parsed = parseHandle(`@${query.trim().replace(/^@+/, '')}`);
+  if (!parsed?.domain || !LOOKUP_HOST.test(parsed.domain)) return null;
+  const username = parsed.username.toLowerCase();
+  const domain = parsed.domain;
+  if (domain === (localDomain ?? '').toLowerCase()) return null;
+  return { username, domain, key: `${username}@${domain}` };
+}
+
+function sameHandle(user: FederatedUser, handle: RemoteHandle): boolean {
+  return (user.username ?? '').toLowerCase() === handle.username
+    && (user.domain ?? '').toLowerCase() === handle.domain;
 }
 
 // Deduplicates concurrent fetches of the same profile.
@@ -58,6 +89,10 @@ export class ActivityPubService {
   private profileCache: Map<string, ProfileCacheEntry> = new Map();
   private inFlightRequests: Map<string, InFlightRequest> = new Map();
   private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  // Remote handles a lookup did not resolve, with the time of the miss. /lookup-user spends
+  // discoveryLimiter's 30 per minute per client address.
+  private unresolvedHandles: Map<string, number> = new Map();
+  private readonly UNRESOLVED_HANDLE_TTL = 60 * 1000;
 
   constructor() {
     this.currentDomain = runtimeConfig.domain as string;
@@ -641,19 +676,35 @@ export class ActivityPubService {
     outboxUrl: string,
     options: { maxId?: string | null; limit?: number } = {}
   ): Promise<{ hasMore: boolean; oldestId: string | null }> {
-    const response = await fetch(apiUrl('/api/federation/fetch-posts'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: authorId,
-        outbox_url: outboxUrl,
-        max_id: options.maxId ?? undefined,
-        limit: options.limit ?? 20,
-      }),
+    const body = JSON.stringify({
+      user_id: authorId,
+      outbox_url: outboxUrl,
+      max_id: options.maxId ?? undefined,
+      limit: options.limit ?? 20,
     });
-    if (!response.ok) throw new Error(`Outbox import failed: ${response.status}`);
-    const result = await response.json();
-    return { hasMore: result?.has_more === true, oldestId: result?.oldest_id ?? null };
+    // A network error, 429 or 5xx is retried twice before the reader sees an error.
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < OUTBOX_IMPORT_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, OUTBOX_IMPORT_BACKOFF_MS * attempt));
+      let response: Response;
+      try {
+        response = await fetch(apiUrl('/api/federation/fetch-posts'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
+      if (response.ok) {
+        const result = await response.json();
+        return { hasMore: result?.has_more === true, oldestId: result?.oldest_id ?? null };
+      }
+      lastError = new Error(`Outbox import failed: ${response.status}`);
+      if (response.status !== 429 && response.status < 500) break;
+    }
+    throw lastError;
   }
 
   // Soft delete; the Delete activity is emitted by a database trigger.
@@ -1292,9 +1343,46 @@ export class ActivityPubService {
       display_name: user.display_name,
       domain: user.domain,
       avatar_url: user.avatar_url,
-      handle: user.handle,
+      // search_federated_users' handle is username@domain for every account.
+      handle: this.formatUserHandle(user.username, user.domain),
       is_local: user.is_local,
     })) as FederatedUser[];
+  }
+
+  /**
+   * searchUsers, plus a remote lookup of a complete `user@domain` handle of another instance
+   * that no stored profile matches. search_federated_users reads stored profiles only, and an
+   * instance stores a remote account once it has met it. The looked-up account comes first.
+   */
+  async searchUsersResolvingHandle(query: string, limit: number = 10): Promise<FederatedUser[]> {
+    const users = await this.searchUsers(query, limit);
+    const handle = remoteHandleOf(query, this.currentDomain);
+    if (!handle || users.some((user) => sameHandle(user, handle))) return users;
+
+    const missedAt = this.unresolvedHandles.get(handle.key);
+    if (missedAt !== undefined && Date.now() - missedAt < this.UNRESOLVED_HANDLE_TTL) return users;
+
+    let remote: FederatedUser | null = null;
+    try {
+      remote = await this.getUserByHandle(handle.key);
+    } catch (error) {
+      debug.warn(`Lookup of ${handle.key} failed:`, error);
+    }
+    if (!remote?.id) {
+      this.unresolvedHandles.set(handle.key, Date.now());
+      return users;
+    }
+    this.unresolvedHandles.delete(handle.key);
+
+    // The lookup stored the profile: the same query now returns it in searchUsers' shape.
+    // A split-domain account is stored under its account domain and stays absent; the
+    // looked-up copy stands in, its display name as text.
+    const again = await this.searchUsers(query, limit).catch(() => users);
+    const found = again.find((user) => user.id === remote!.id) ?? {
+      ...remote,
+      display_name: typeof remote.display_name === 'string' ? remote.display_name : remote.username,
+    };
+    return [found, ...again.filter((user) => user.id !== found.id)].slice(0, limit);
   }
 
   /**
@@ -1764,12 +1852,9 @@ export class ActivityPubService {
     return await authContextService.getCurrentProfileId();
   }
 
-  // Local handles omit the domain: @user, not @user@thisdomain.
+  // Local handles omit the domain: @user, not @user@thisdomain (utils/handles.formatHandle).
   formatUserHandle(username: string, domain: string): string {
-    if (domain === this.currentDomain) {
-      return `@${username}`;
-    }
-    return `@${username}@${domain}`;
+    return formatHandle({ username, domain }) || `@${username}`;
   }
 
   // A handle without a domain part resolves to the current domain.

@@ -199,7 +199,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
             if (allRequestedIds.includes(cached.serverId)) {
               this.updateServerCache(
                 cached.serverId,
-                cached.emojis as Emoji[],
+                (cached.emojis as Emoji[]).filter((e) => !e.deleted_at),
                 { name: cached.serverName, icon: cached.serverIcon, allow_cross_server_emojis: cached.allowCrossServer },
               );
               hydratedServerIds.push(cached.serverId);
@@ -343,6 +343,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         .from('emojis')
         .select('*')
         .in('server_id', serverIds)
+        .is('deleted_at', null)
         .order('name');
 
       if (error) {
@@ -440,6 +441,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
             .select('*')
             .eq('scope', 'instance')
             .is('domain', null)
+            .is('deleted_at', null)
             .order('name') as any,
         ];
         if (profileId) {
@@ -449,6 +451,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
               .select('*')
               .eq('scope', 'user')
               .eq('uploader', profileId)
+              .is('deleted_at', null)
               .order('created_at', { ascending: false }) as any,
           );
         }
@@ -598,7 +601,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           await this.handleEmojiInsert(newEmoji);
           break;
         case 'UPDATE':
-          await this.handleEmojiUpdateEntry(newEmoji);
+          // remove_emoji is an UPDATE setting deleted_at; restore_emoji clears it.
+          if (newEmoji?.deleted_at) await this.handleEmojiDelete(newEmoji);
+          else await this.handleEmojiUpdateEntry(newEmoji);
           break;
         case 'DELETE':
           await this.handleEmojiDelete(oldEmoji);

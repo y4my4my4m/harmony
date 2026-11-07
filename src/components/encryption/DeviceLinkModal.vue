@@ -47,6 +47,7 @@
           <span v-if="secondsLeft > 0">{{ $t('encryption.code.expiresIn', { time: countdown }) }}</span>
           <span v-else>{{ $t('encryption.code.expired') }}</span>
         </p>
+        <PairingCodeField v-if="codeText" :code="codeText" :expired="secondsLeft <= 0" />
         <div class="dl-actions">
           <button type="button" class="btn btn-secondary btn-sm" @click="toShow">{{ $t('encryption.code.newCode') }}</button>
         </div>
@@ -114,6 +115,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import QrScanner from './QrScanner.vue'
+import PairingCodeField from './PairingCodeField.vue'
 import { renderQrDataUrl } from '@/utils/qrCode'
 import { debug } from '@/utils/debug'
 import { userEventChannel } from '@/services/UserEventChannel'
@@ -142,6 +144,7 @@ const phase = ref<Phase>('checking')
 const error = ref('')
 const link = ref<PendingLink | null>(null)
 const qrUrl = ref('')
+const codeText = ref('')
 const now = ref(Date.now())
 const needUnlockKey = ref('')
 const showPhraseEntry = ref(false)
@@ -336,9 +339,11 @@ async function startShowing() {
   // Closed meanwhile: no code is started and no polling outlives the dialog.
   if (!alive) return
   qrUrl.value = ''
+  codeText.value = ''
   session = await devicePairingService.startApproverCode(profileId)
   qrUrl.value = await renderQrDataUrl(session.text(), 280)
   if (!alive) return
+  codeText.value = session.text()
   phase.value = 'show'
   pollTimer = setInterval(() => void search(), 2000)
   offRequest = userEventChannel.on('device:approval_request', () => void search())

@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { profileHandleParam } from '@/utils/permalinks'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -203,8 +204,8 @@ const handleDelete = async (post: TimelinePost) => {
 }
 
 const handleUserClick = (user: any) => {
-  const handle = user.is_local ? `@${user.username}` : `@${user.username}@${user.domain}`
-  router.push({ name: 'UserProfile', params: { handle } })
+  const handle = profileHandleParam(user)
+  if (handle) router.push({ name: 'UserProfile', params: { handle } })
 }
 
 const handleHashtagClick = (tag: string) => {

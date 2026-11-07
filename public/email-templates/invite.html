@@ -1,0 +1,11 @@
+<!--
+  GoTrue invitation email (GOTRUE_MAILER_TEMPLATES_INVITE): Go html/template with GoTrue's
+  mail data. The link opens the app's password page with the token hash; the page redeems the
+  token (POST /verify) when the password is submitted. GoTrue's ConfirmationURL is a GET
+  of /verify, which spends the token for whoever fetches it first: mail scanners and link
+  previews included.
+-->
+<h2>You have been invited</h2>
+<p>You have been invited to make an account on {{ .SiteURL }}.</p>
+<p><a href="{{ .SiteURL }}/reset-password?invite=1&amp;token_hash={{ .TokenHash }}&amp;type=invite">Choose your password</a></p>
+<p>The link works once. If you did not expect this invitation, ignore this email.</p>

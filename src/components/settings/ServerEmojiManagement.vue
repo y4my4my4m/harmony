@@ -125,6 +125,12 @@ const adapter: EmojiLibraryAdapter<Emoji> = {
     if (!(await deleteEmoji(emoji.id))) throw new Error('delete refused')
   },
   removeMany: (emojis) => bulkDeleteEmojis(emojis.map((e) => e.id)),
+  describeError(operation, error) {
+    const message = (error as { message?: unknown } | null)?.message
+    const limit = typeof message === 'string' ? /^SERVER_EMOJI_LIMIT: at most (\d+)/.exec(message) : null
+    if (operation === 'upload' && limit) return t('server.maxEmojisReached', { max: Number(limit[1]) })
+    return null
+  },
 }
 
 const texts = computed<EmojiLibraryTexts>(() => ({

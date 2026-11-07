@@ -424,7 +424,7 @@ import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
 import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
-import { driveAvailable, driveViewUrl, type DriveFile } from '@/services/drive/driveService';
+import { driveEnabled as driveTurnedOn, driveViewUrl, type DriveFile } from '@/services/drive/driveService';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -590,7 +590,7 @@ const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttac
 const driveEnabled = ref(false);
 const drivePickerOpen = ref(false);
 const photoDetailsSettings = usePhotoDetailsSettingsStore();
-void driveAvailable().then((ok) => { driveEnabled.value = ok; });
+void driveTurnedOn().then((ok) => { driveEnabled.value = ok; });
 
 /**
  * Post media from Drive is reused as is; a chat file is copied into post media when the post is

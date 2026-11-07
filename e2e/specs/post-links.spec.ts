@@ -1,6 +1,8 @@
-// Journey: a post's menu says which link it copies. "Copy link" is the post on this instance
-// and names this instance's host; a post from another server adds "Copy original link" and
-// "Open original", which name that server's host. A local post has no original.
+// Journey: a post's menu says which link it copies. "Copy link" is the post on this instance,
+// its permalink /@author/<id> (/@author@domain/<id> for a remote author), and names this
+// instance's host; a post from another server adds "Copy original link" and "Open original",
+// which name that server's host. A local post has no original. The post page's address is the
+// same permalink.
 
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Page } from '@playwright/test'
@@ -85,7 +87,8 @@ test('a remote post offers its link here and its original, each naming its host'
   await expect(copyHere).toContainText('Copy link')
   await expect(copyHere).toContainText(here)
   await copyHere.click()
-  expect((await recorded(page)).copied).toEqual([`${new URL(page.url()).origin}/posts/${remotePostId}`])
+  expect((await recorded(page)).copied).toEqual([`${new URL(page.url()).origin}/@${remote.username}@${DOMAIN}/${remotePostId}`])
+  expect(new URL(page.url()).pathname).toBe(`/@${remote.username}@${DOMAIN}/${remotePostId}`)
 
   const menuAgain = await openMenu(page, remotePostId)
   const copyOriginal = menuAgain.getByTestId('post-copy-original-link')
@@ -108,4 +111,7 @@ test('a local post offers its link here only', async ({ page }) => {
   await expect(menu.getByTestId('post-copy-link')).toContainText(new URL(page.url()).host)
   await expect(menu.getByTestId('post-copy-original-link')).toHaveCount(0)
   await expect(menu.getByTestId('post-open-original')).toHaveCount(0)
+  await menu.getByTestId('post-copy-link').click()
+  expect((await recorded(page)).copied).toEqual([`${new URL(page.url()).origin}/@${viewer.username}/${localPostId}`])
+  await expect(page).toHaveURL(new RegExp(`/@${viewer.username}/${localPostId}$`))
 })

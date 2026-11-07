@@ -554,7 +554,7 @@ for (const [label, skin, highContrast] of [['default', null, false], ['paper', '
 
       await test.step('Admin: Instance stickers as Instance emojis', async () => {
         await page.goto('/admin?tab=emojis')
-        const emojiModule = page.getByTestId('instance-emoji-library')
+        const emojiModule = page.getByTestId('admin-emoji-library')
         await expect(emojiModule).toBeVisible({ timeout: BOOT_MS })
         const moduleStyle = await css(emojiModule, 'background-color', 'border-top-color', 'border-radius')
         const moduleTitle = await css(emojiModule.locator('.module-header h2'), 'font-size', 'font-weight')

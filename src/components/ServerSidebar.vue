@@ -112,6 +112,7 @@
       </div>
 
       <div
+        v-if="driveOn"
         class="header-item-wrapper"
         @mouseenter="showSidebarTooltip($event, t('drive.title'))"
         @focusin="showSidebarTooltip($event, t('drive.title'))"
@@ -244,6 +245,7 @@ import { useDMStore } from '@/stores/useDM';
 import { useProfileStore } from '@/stores/useProfile';
 import { dmButtonTarget, lastDm, rememberLastDm } from '@/utils/lastDm';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
+import { useDriveEnabled } from '@/composables/useDriveEnabled';
 import { useDesktopUpdater } from '@/composables/useDesktopUpdater';
 import { useI18n } from 'vue-i18n';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
@@ -451,6 +453,8 @@ watch(
 const goToToday = () => {
   router.push({ name: 'Today' });
 };
+
+const driveOn = useDriveEnabled();
 
 const goToDrive = () => {
   router.push({ name: 'Drive' });

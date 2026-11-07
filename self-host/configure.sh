@@ -10,8 +10,9 @@
 # Re-running merges: a key already present keeps its value and a missing key is
 # added. Secrets of an existing install are never regenerated. Answers are
 # written as given; values derived from the domain are rewritten only when the
-# domain changes. A new supabase/.env has sign-up disabled (DISABLE_SIGNUP):
-# `harmony registration` applies REGISTRATION once an admin exists.
+# domain changes. URLs naming DB_DOMAIN or LIVEKIT_DOMAIN always follow them.
+# A new supabase/.env has sign-up disabled (DISABLE_SIGNUP): `harmony
+# registration` applies REGISTRATION once an admin exists.
 #
 # Usage:
 #   bash configure.sh                      interactive
@@ -42,6 +43,9 @@
 #                           (docker-compose.build.yml), 0 returns to images
 #   HARMONY_HTTP_PORT       [address:]port Caddy publishes for 80 (default 80)
 #   HARMONY_HTTPS_PORT      [address:]port Caddy publishes for 443 (default 443)
+#   HARMONY_DB_DOMAIN       API name (sign-in, data, uploads, realtime), default
+#                           db.DOMAIN
+#   HARMONY_LIVEKIT_DOMAIN  LiveKit name, default live.DOMAIN
 #   SUPABASE_REF            supabase/supabase commit, tag or branch
 #
 # Host requirements: Docker with Compose 2.24.4+, git, openssl.
@@ -58,9 +62,17 @@ SUPABASE_REPO="${SUPABASE_REPO:-https://github.com/supabase/supabase}"
 SUPABASE_REF_DEFAULT=31b6368049a1d9f5ef409383567b3f9bdaf018e9
 SUPABASE_REF="${SUPABASE_REF:-$SUPABASE_REF_DEFAULT}"
 COMPOSE_MIN=2.24.4
-# GoTrue release supabase-overrides.yml needs: custom OAuth/OIDC providers whose key sets mix
-# algorithms (2.196.0).
-GOTRUE_MIN=2.196.0
+# Releases supabase-overrides.yml runs at least, in place of the pinned stack's older ones.
+# GoTrue: custom OAuth/OIDC providers whose key sets mix algorithms (2.196.0); upstream's
+# release on 2026-11-06 (2.197.0, Go library fixes: trivy HIGH 34 -> 12).
+# storage-api: GHSA-8rrf-w776-x75g (unauthenticated writes through signed resumable
+# uploads, < 1.80.2), GHSA-3m3f-pjv4-x2fp (< 1.89.10), GHSA-2p28-q2vx-mw6w (< 1.84.14).
+# Realtime: GHSA-9vjf-j9f7-j42c (forged frames from any broadcaster, <= 2.137.14),
+# GHSA-rcr8-2525-4r7p (< 2.111.2). Both are the versions of upstream's own stack on
+# 2026-11-06, which runs them on Postgres 17; Harmony's CI runs them on 15.8.1.060.
+GOTRUE_MIN=2.197.0
+STORAGE_MIN=1.89.12
+REALTIME_MIN=2.148.3
 # Memory Logflare and vector take, as the log collection question states it (lib.sh ANALYTICS_RAM).
 ANALYTICS_RAM="0.7-2 GB"
 
@@ -271,6 +283,32 @@ DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%/}"
 [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] ||
 	die "'$DOMAIN' is not a domain name (letters, digits, hyphens, at least one dot)"
 
+DOMAIN_CHANGED=false
+[[ -n "$OLD_DOMAIN" && "$OLD_DOMAIN" != "$DOMAIN" ]] && DOMAIN_CHANGED=true
+$DOMAIN_CHANGED && warn "domain changes from $OLD_DOMAIN to $DOMAIN: URLs derived from it are rewritten. Federated accounts keep the old domain in their ids; a domain is meant to stay."
+
+# API and LiveKit names: the answer, else the configured name while the domain stays, else
+# db.DOMAIN and live.DOMAIN. Cloudflare's Universal SSL covers one level below the zone, so a
+# proxied db.chat.example.com has no edge certificate; db-chat.example.com does.
+OLD_DB_DOMAIN="$(env_get "$ENV_FILE" DB_DOMAIN)"; OLD_DB_DOMAIN="${OLD_DB_DOMAIN:-${OLD_DOMAIN:+db.$OLD_DOMAIN}}"
+OLD_LIVEKIT_DOMAIN="$(env_get "$ENV_FILE" LIVEKIT_DOMAIN)"; OLD_LIVEKIT_DOMAIN="${OLD_LIVEKIT_DOMAIN:-${OLD_DOMAIN:+live.$OLD_DOMAIN}}"
+DB_DOMAIN="${HARMONY_DB_DOMAIN:-}"; LIVEKIT_DOMAIN="${HARMONY_LIVEKIT_DOMAIN:-}"
+if ! $DOMAIN_CHANGED; then
+	DB_DOMAIN="${DB_DOMAIN:-$OLD_DB_DOMAIN}"; LIVEKIT_DOMAIN="${LIVEKIT_DOMAIN:-$OLD_LIVEKIT_DOMAIN}"
+fi
+DB_DOMAIN="$(printf '%s' "${DB_DOMAIN:-db.$DOMAIN}" | lower)"; DB_DOMAIN="${DB_DOMAIN#https://}"; DB_DOMAIN="${DB_DOMAIN%/}"
+LIVEKIT_DOMAIN="$(printf '%s' "${LIVEKIT_DOMAIN:-live.$DOMAIN}" | lower)"; LIVEKIT_DOMAIN="${LIVEKIT_DOMAIN#wss://}"; LIVEKIT_DOMAIN="${LIVEKIT_DOMAIN%/}"
+for name in "$DB_DOMAIN" "$LIVEKIT_DOMAIN"; do
+	[[ "$name" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] ||
+		die "'$name' is not a domain name (HARMONY_DB_DOMAIN / HARMONY_LIVEKIT_DOMAIN)"
+done
+[[ "$DB_DOMAIN" != "$DOMAIN" && "$LIVEKIT_DOMAIN" != "$DOMAIN" && "$DB_DOMAIN" != "$LIVEKIT_DOMAIN" ]] ||
+	die "DOMAIN, DB_DOMAIN and LIVEKIT_DOMAIN must be three different names ($DOMAIN, $DB_DOMAIN, $LIVEKIT_DOMAIN)"
+LIVEKIT_CHANGED=$DOMAIN_CHANGED
+[[ -n "$OLD_LIVEKIT_DOMAIN" && "$OLD_LIVEKIT_DOMAIN" != "$LIVEKIT_DOMAIN" ]] && LIVEKIT_CHANGED=true
+[[ -n "$OLD_DOMAIN" && "$OLD_DB_DOMAIN" != "$DB_DOMAIN" ]] &&
+	warn "API name changes from $OLD_DB_DOMAIN to $DB_DOMAIN: OAuth providers need the new callback, https://$DB_DOMAIN/auth/v1/callback"
+
 prompt INSTANCE_NAME "Instance display name" "${HARMONY_INSTANCE_NAME:-$(env_get "$ENV_FILE" INSTANCE_NAME)}"
 INSTANCE_NAME="${INSTANCE_NAME:-Harmony}"
 # Env files hold the name unquoted: compose expands $, cuts at " #", and reads
@@ -285,13 +323,13 @@ ADMIN_EMAIL="${ADMIN_EMAIL#mailto:}"
 
 if $INTERACTIVE; then
 	echo
-	info "TLS: Caddy fetches public certificates (Let's Encrypt) for $DOMAIN and db.$DOMAIN,"
+	info "TLS: Caddy fetches public certificates (Let's Encrypt) for $DOMAIN and $DB_DOMAIN,"
 	info "or uses its own local CA for LAN/NAS setups without public DNS."
 fi
 prompt TLS_CHOICE "Public HTTPS via Let's Encrypt? (y = public DNS + ports 80/443 reachable, n = local CA)" "$TLS_DEFAULT"
 if [[ "$(yes_no "$TLS_CHOICE")" == true ]]; then CADDY_TLS="$ADMIN_EMAIL"; else CADDY_TLS=internal; fi
 
-prompt VOICE_CHOICE "Enable voice/video (LiveKit; needs live.$DOMAIN in DNS, UDP 7882 and TCP 7881 open)?" "${HARMONY_VOICE:-$( [[ "$(yes_no "${VOICE_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
+prompt VOICE_CHOICE "Enable voice/video (LiveKit; needs $LIVEKIT_DOMAIN in DNS, UDP 7882 and TCP 7881 open)?" "${HARMONY_VOICE:-$( [[ "$(yes_no "${VOICE_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_VOICE="$(yes_no "$VOICE_CHOICE")"
 prompt BOTS_CHOICE "Enable the bot gateway (bots, Discord bridge)?" "${HARMONY_BOTS:-$( [[ "$(yes_no "${BOTS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_BOTS="$(yes_no "$BOTS_CHOICE")"
@@ -385,12 +423,6 @@ for p in "$HTTP_PORT" "$HTTPS_PORT"; do
 	[[ "$p" =~ ^(([0-9.]+|\[[0-9a-fA-F:]+\]):)?[0-9]+$ ]] || die "port '$p' is not [address:]port (HARMONY_HTTP_PORT / HARMONY_HTTPS_PORT)"
 done
 
-DOMAIN_CHANGED=false
-[[ -n "$OLD_DOMAIN" && "$OLD_DOMAIN" != "$DOMAIN" ]] && DOMAIN_CHANGED=true
-$DOMAIN_CHANGED && warn "domain changes from $OLD_DOMAIN to $DOMAIN: URLs derived from it are rewritten. Federated accounts keep the old domain in their ids; a domain is meant to stay."
-
-DB_DOMAIN="db.$DOMAIN"
-LIVEKIT_DOMAIN="live.$DOMAIN"
 PROFILES=""
 $ENABLE_VOICE && PROFILES="voice"
 $ENABLE_BOTS && PROFILES="${PROFILES:+$PROFILES,}bots"
@@ -530,8 +562,8 @@ else
 	env_set "$SB_ENV" ANON_KEY "$ANON_KEY"
 	env_set "$SB_ENV" SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
 	env_domain "$SB_ENV" SITE_URL "https://$DOMAIN"
-	env_domain "$SB_ENV" API_EXTERNAL_URL "https://$DB_DOMAIN"
-	env_domain "$SB_ENV" SUPABASE_PUBLIC_URL "https://$DB_DOMAIN"
+	env_set "$SB_ENV" API_EXTERNAL_URL "https://$DB_DOMAIN"
+	env_set "$SB_ENV" SUPABASE_PUBLIC_URL "https://$DB_DOMAIN"
 	env_domain "$SB_ENV" ADDITIONAL_REDIRECT_URLS "https://$DOMAIN"
 	# Keys a newer upstream .env.example introduced, with upstream's defaults.
 	added=()
@@ -587,22 +619,26 @@ if [[ "$(yes_no "$OLD_AUTOCONFIRM")" == true || "$(yes_no "$(env_get "$SB_ENV" E
 		fi
 	fi
 fi
-# gotrue_image_for STACK_COMPOSE CURRENT: GOTRUE_IMAGE, the auth image supabase-overrides.yml
-# runs. The stack's own supabase/gotrue image from GOTRUE_MIN on, otherwise GOTRUE_MIN; a
-# CURRENT image at least as new stays, so the override never downgrades.
-gotrue_image_for() {
-	local img cur="$2"
-	img="$({ grep -oE 'supabase/gotrue:v[0-9]+\.[0-9]+\.[0-9]+' "$1" 2>/dev/null || true; } | head -1)"
-	[[ -n "$img" ]] && version_ge "${img##*:v}" "$GOTRUE_MIN" || img="supabase/gotrue:v$GOTRUE_MIN"
-	if [[ "$cur" =~ ^supabase/gotrue:v([0-9]+\.[0-9]+\.[0-9]+)$ ]] && version_ge "${BASH_REMATCH[1]}" "${img##*:v}"; then
+# stack_image_for REPO MIN STACK_COMPOSE CURRENT: the REPO image supabase-overrides.yml runs.
+# The stack's own REPO image from MIN on, otherwise REPO:vMIN; a CURRENT image at least as
+# new stays, so the override never downgrades.
+stack_image_for() {
+	local repo="$1" min="$2" img cur="$4"
+	img="$({ grep -oE "${repo}:v[0-9]+\.[0-9]+\.[0-9]+" "$3" 2>/dev/null || true; } | head -1)"
+	[[ -n "$img" ]] && version_ge "${img##*:v}" "$min" || img="$repo:v$min"
+	if [[ "$cur" =~ ^${repo}:v([0-9]+\.[0-9]+\.[0-9]+)$ ]] && version_ge "${BASH_REMATCH[1]}" "${img##*:v}"; then
 		img="$cur"
 	fi
 	printf '%s' "$img"
 }
-cur_gotrue="$(env_get "$SB_ENV" GOTRUE_IMAGE)"
-gotrue_img="$(gotrue_image_for "$SUPABASE_DIR/docker-compose.yml" "$cur_gotrue")"
-[[ "$cur_gotrue" == "$gotrue_img" ]] || info "supabase/.env: GOTRUE_IMAGE=$gotrue_img"
-env_set "$SB_ENV" GOTRUE_IMAGE "$gotrue_img"
+for spec in GOTRUE_IMAGE:supabase/gotrue:$GOTRUE_MIN STORAGE_IMAGE:supabase/storage-api:$STORAGE_MIN \
+	REALTIME_IMAGE:supabase/realtime:$REALTIME_MIN; do
+	IFS=: read -r var repo min <<<"$spec"
+	cur_img="$(env_get "$SB_ENV" "$var")"
+	new_img="$(stack_image_for "$repo" "$min" "$SUPABASE_DIR/docker-compose.yml" "$cur_img")"
+	[[ "$cur_img" == "$new_img" ]] || info "supabase/.env: $var=$new_img"
+	env_set "$SB_ENV" "$var" "$new_img"
+done
 chmod 600 "$SB_ENV"
 ok "self-host/supabase/.env"
 
@@ -611,8 +647,8 @@ ok "self-host/supabase/.env"
 # =============================================================================
 [[ -f "$ENV_FILE" ]] || { env_touch "$ENV_FILE"; printf '# Written by configure.sh; re-running it keeps existing values.\n' >> "$ENV_FILE"; }
 env_set     "$ENV_FILE" DOMAIN "$DOMAIN"
-env_domain  "$ENV_FILE" DB_DOMAIN "$DB_DOMAIN"
-env_domain  "$ENV_FILE" LIVEKIT_DOMAIN "$LIVEKIT_DOMAIN"
+env_set     "$ENV_FILE" DB_DOMAIN "$DB_DOMAIN"
+env_set     "$ENV_FILE" LIVEKIT_DOMAIN "$LIVEKIT_DOMAIN"
 env_set     "$ENV_FILE" INSTANCE_NAME "$INSTANCE_NAME"
 env_set     "$ENV_FILE" ADMIN_EMAIL "$ADMIN_EMAIL"
 env_set     "$ENV_FILE" CADDY_TLS "$CADDY_TLS"
@@ -653,7 +689,7 @@ env_set     "$FED_ENV" INSTANCE_NAME "$INSTANCE_NAME"
 env_domain  "$FED_ENV" API_BASE_URL "https://$DOMAIN"
 env_domain  "$FED_ENV" CORS_ORIGIN "https://$DOMAIN"
 env_default "$FED_ENV" SUPABASE_URL http://supabase-kong:8000
-env_domain  "$FED_ENV" PUBLIC_SUPABASE_URL "https://$DB_DOMAIN"
+env_set     "$FED_ENV" PUBLIC_SUPABASE_URL "https://$DB_DOMAIN"
 env_set     "$FED_ENV" SUPABASE_ANON_KEY "$ANON_KEY"
 env_set     "$FED_ENV" SUPABASE_SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
 env_default "$FED_ENV" REDIS_URL "redis://:$REDIS_PASSWORD@redis:6379"
@@ -677,7 +713,7 @@ env_default "$FED_ENV" LIVEKIT_API_KEY "$LIVEKIT_API_KEY"
 env_default "$FED_ENV" LIVEKIT_API_SECRET "$LIVEKIT_API_SECRET"
 if $ENABLE_VOICE; then
 	env_default "$FED_ENV" LIVEKIT_URL ws://livekit:7880
-	env_domain  "$FED_ENV" LIVEKIT_PUBLIC_URL "wss://$LIVEKIT_DOMAIN"
+	env_set     "$FED_ENV" LIVEKIT_PUBLIC_URL "wss://$LIVEKIT_DOMAIN"
 else
 	# The backend treats LiveKit as configured when key, secret and URL are set.
 	env_del "$FED_ENV" LIVEKIT_URL
@@ -695,7 +731,7 @@ if $ENABLE_BOTS; then
 	env_default "$BOT_ENV" SUPABASE_URL http://supabase-kong:8000
 	env_set     "$BOT_ENV" SUPABASE_SERVICE_ROLE_KEY "$SERVICE_ROLE_KEY"
 	# Storage URLs handed to bots and bridges: SUPABASE_URL replaced by this.
-	env_domain  "$BOT_ENV" PUBLIC_URL "https://$DB_DOMAIN"
+	env_set     "$BOT_ENV" PUBLIC_URL "https://$DB_DOMAIN"
 	# Base of the bridge pairing URLs (wss://DOMAIN/bot-gateway/gateway).
 	env_domain  "$BOT_ENV" INSTANCE_DOMAIN "$DOMAIN"
 	# Link previews of bot messages. The gateway sends its secret only over
@@ -730,9 +766,9 @@ if $ENABLE_VOICE; then
 	lk_secret="$(env_get "$FED_ENV" LIVEKIT_API_SECRET)"
 	redis_pw="$(env_get "$ENV_FILE" REDIS_PASSWORD)"
 	if [[ -f "$LIVEKIT_YAML" ]]; then
-		if $DOMAIN_CHANGED; then
+		if $LIVEKIT_CHANGED; then
 			tmp="$(mktemp "$LIVEKIT_YAML.XXXXXX")"
-			O="  domain: live.$OLD_DOMAIN" N="  domain: $LIVEKIT_DOMAIN" awk '
+			O="  domain: $OLD_LIVEKIT_DOMAIN" N="  domain: $LIVEKIT_DOMAIN" awk '
 				$0 == ENVIRON["O"] { print ENVIRON["N"]; next } { print }' "$LIVEKIT_YAML" > "$tmp"
 			mv "$tmp" "$LIVEKIT_YAML"
 		fi
@@ -784,7 +820,7 @@ echo
 if [[ -d "$DB_DATA_DIR" ]]; then
 	info "Existing install: 'docker compose up -d' applies configuration changes; 'harmony update' also updates the code."
 	$LISTENER_NEW && warn "a new harmony_listener password was generated; run 'bash bootstrap.sh' once to set it"
-	$DOMAIN_CHANGED && warn "files are now served from https://$DB_DOMAIN; once the stack is up, 'bash bootstrap.sh --migrations-only' moves instance_config.storage_origin there, and sticker and emoji uploads are refused until it does"
+	[[ -n "$OLD_DB_DOMAIN" && "$OLD_DB_DOMAIN" != "$DB_DOMAIN" ]] && warn "files are now served from https://$DB_DOMAIN; once the stack is up, 'bash bootstrap.sh --migrations-only' moves instance_config.storage_origin there, and sticker and emoji uploads are refused until it does"
 	$VAPID_NEW && info "Push notifications use a new VAPID key; restart the federation services (update.sh does)."
 else
 	info "Next steps (in self-host/):"

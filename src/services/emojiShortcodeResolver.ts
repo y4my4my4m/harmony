@@ -207,28 +207,21 @@ export function findEmojiByName(name: string): Emoji | null {
   return null
 }
 
+/**
+ * usable_emojis: active rows the caller may put in content (own personal, this instance's,
+ * servers they belong to), ordered server_id then id as the cache disambiguates name~N.
+ */
 async function fetchEmojiFromDb(parsed: ParsedEmojiShortcode): Promise<Emoji | null> {
-  if (parsed.isUuid) {
-    const { data, error } = await supabase
-      .from('emojis')
-      .select('id, name, url, server_id')
-      .eq('id', parsed.token)
-      .maybeSingle()
-    if (error) throw error
-    return data?.url ? (data as Emoji) : null
-  }
-
-  const { data, error } = await supabase
-    .from('emojis')
-    .select('id, name, url, server_id')
-    .eq('name', parsed.baseName)
-    .order('server_id', { ascending: true })
-    .order('id', { ascending: true })
-
+  const { data, error } = await supabase.rpc(
+    'usable_emojis',
+    parsed.isUuid ? { p_ids: [parsed.token] } : { p_names: [parsed.baseName] },
+  )
   if (error) throw error
-  if (!data?.length) return null
+  const rows = (data ?? []) as Emoji[]
+  if (!rows.length) return null
+  if (parsed.isUuid) return rows[0]?.url ? rows[0] : null
 
-  const row = pickCustomEmoji(data, parsed)
+  const row = pickCustomEmoji(rows, parsed)
   return row?.url ? (row as Emoji) : null
 }
 

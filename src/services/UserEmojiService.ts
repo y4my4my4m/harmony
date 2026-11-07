@@ -41,6 +41,7 @@ export async function listMyEmojis(profileId: string): Promise<MyEmoji[]> {
     .select(COLUMNS)
     .eq('scope', 'user')
     .eq('uploader', profileId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []).map(toMyEmoji)
@@ -75,36 +76,33 @@ export async function renameMyEmoji(id: string, name: string): Promise<void> {
 }
 
 /**
- * Deletes through the emojis_delete_user_scope policy. RLS filters a row the caller does
- * not own out of the delete, so an empty result raises P0002. The storage object stays,
- * as on admin_delete_instance_emoji: federated copies of posts reference its URL.
+ * remove_emoji: the row and its file stay, so messages and federated copies showing it keep
+ * rendering; it leaves the picker, :name: resolution and the personal cap. P0002 absent,
+ * 42501 not the caller's.
  */
-export async function deleteMyEmoji(emoji: MyEmoji, profileId: string): Promise<void> {
-  const { success } = await deleteMyEmojis([emoji], profileId)
-  if (!success.length) throw Object.assign(new Error('Emoji not found'), { code: 'P0002' })
+export async function deleteMyEmoji(emoji: MyEmoji, _profileId: string): Promise<void> {
+  const { error } = await supabase.rpc('remove_emoji', { p_emoji_id: emoji.id })
+  if (error) throw error
+  await cleanupEmojiReferences({ id: emoji.id, name: emoji.name, url: emoji.url ?? '', scope: 'user' })
 }
 
-/** One delete for several of the caller's emojis; ids RLS filtered out land in failed. */
+/** remove_emoji for each; ids it refuses land in failed. */
 export async function deleteMyEmojis(
   emojis: MyEmoji[],
-  profileId: string,
+  _profileId: string,
 ): Promise<{ success: string[]; failed: string[] }> {
-  const ids = emojis.map((e) => e.id)
-  const { data, error } = await supabase
-    .from('emojis')
-    .delete()
-    .in('id', ids)
-    .eq('scope', 'user')
-    .eq('uploader', profileId)
-    .select('id')
-  if (error) throw error
-  const deleted = new Set((data ?? []).map((row: { id: string }) => row.id))
+  const success: string[] = []
+  const failed: string[] = []
   for (const emoji of emojis) {
-    if (deleted.has(emoji.id)) {
-      await cleanupEmojiReferences({ id: emoji.id, name: emoji.name, url: emoji.url ?? '', scope: 'user' })
+    const { error } = await supabase.rpc('remove_emoji', { p_emoji_id: emoji.id })
+    if (error) {
+      failed.push(emoji.id)
+      continue
     }
+    success.push(emoji.id)
+    await cleanupEmojiReferences({ id: emoji.id, name: emoji.name, url: emoji.url ?? '', scope: 'user' })
   }
-  return { success: ids.filter((id) => deleted.has(id)), failed: ids.filter((id) => !deleted.has(id)) }
+  return { success, failed }
 }
 
 /** Refetches the picker's personal groups and drops resolved :name: lookups. */

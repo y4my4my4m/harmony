@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { stickerNoteExtension } from '../utils/stickers.js';
 import { fileAttachmentsToAp } from '../utils/privateMedia.js';
-import { linkPreviewService } from '../services/LinkPreviewService.js';
+import { isAuthServiceLink, linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
@@ -1496,7 +1496,7 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   const eligibleUrls = urlParts.filter((part: any) => {
     try {
       const host = new URL(part.url).hostname.toLowerCase();
-      return host !== instanceDomain && !existingEmbeds[part.url];
+      return host !== instanceDomain && !isAuthServiceLink(part.url) && !existingEmbeds[part.url];
     } catch {
       return false;
     }
@@ -1581,7 +1581,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
   const eligibleUrls = urlParts.filter((part: any) => {
     try {
       const host = new URL(part.url).hostname.toLowerCase();
-      return host !== instanceDomain && !existingEmbeds[part.url];
+      return host !== instanceDomain && !isAuthServiceLink(part.url) && !existingEmbeds[part.url];
     } catch {
       return false;
     }

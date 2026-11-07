@@ -513,6 +513,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -681,7 +682,7 @@ const newFollowersLabel = computed(() => {
 })
 
 const handle = (p: Pick<TodayProfile, 'username' | 'domain' | 'isLocal'>) =>
-  p.username ? (p.isLocal || !p.domain ? `@${p.username}` : `@${p.username}@${p.domain}`) : ''
+  formatHandle({ username: p.username, domain: p.domain, is_local: p.isLocal })
 
 const voiceParticipantsLabel = (voice: TodayVoiceChannel) => {
   const names = voice.participants.map(nameOf)

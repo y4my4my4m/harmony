@@ -36,6 +36,7 @@ import { HARMONY_CONTEXT } from './harmonyContext.js';
 import { parseChannelPosition } from './copyMirror.js';
 import { groupIsPublic, HARMONY_PUBLIC } from './serverDirectory.js';
 import { isPollVoteNote, preparePoll, receivePollEnd, receivePollVote, storeInboundPoll } from './messagePolls.js';
+import { inboundEmojiOrigin } from '../utils/emojiOrigin.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -1509,15 +1510,15 @@ async function processReactionActivity(
     if (existingEmoji) {
       reactionData.emoji_id = existingEmoji.id;
     } else {
-      const cleanName = (emojiName || emoji).replace(/:/g, '');
+      const origin = inboundEmojiOrigin(emojiName || emoji, actorUrl);
       const { data: newEmoji } = await supabase
         .from('emojis')
         .insert({
-          name: cleanName,
+          name: origin.name,
           url: emojiUrl,
           server_id: null,
           uploader: user.id,
-          domain: new URL(emojiUrl).hostname,
+          domain: origin.domain ?? new URL(emojiUrl).hostname,
         })
         .select('id')
         .single();

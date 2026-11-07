@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { effectScope, ref } from 'vue'
 
 const searchUsers = vi.fn()
-vi.mock('@/services/activityPubService', () => ({ activityPubService: { searchUsers: (...a: unknown[]) => searchUsers(...a) } }))
+vi.mock('@/services/activityPubService', () => ({ activityPubService: { searchUsersResolvingHandle: (...a: unknown[]) => searchUsers(...a) } }))
 
 import { supabase } from '@/supabase'
 import { normalizeUserQuery, useUserSearch, type UseUserSearchOptions } from '@/composables/useUserSearch'

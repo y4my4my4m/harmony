@@ -178,16 +178,17 @@ certificates, Federation, Services, Security, Versions.
 
 ### DNS
 
-One line per name: the domain, `db.` the domain, and `live.` the domain with
-voice on. With internal TLS (a LAN install or a Cloudflare Tunnel), each
-FAIL here is a WARN, except a tunnel record set to DNS only, and a name
+One line per name: the domain, `DB_DOMAIN`, and `LIVEKIT_DOMAIN` with voice
+on. With internal TLS (a LAN install or a Cloudflare Tunnel), each FAIL here
+is a WARN, except a tunnel record set to DNS only or a name Cloudflare has no
+certificate for, and a name
 pointing at another public address passes as a proxy or tunnel in front of
 the server.
 
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `public IP` | The server's public IPv4 can be looked up | WARN when it cannot (not run with `--offline`) | `HARMONY_PUBLIC_IP=x.x.x.x harmony doctor` |
-| the name | Its A, AAAA and CNAME records | FAIL with no record; FAIL when no A record holds the server's IPv4; WARN when an AAAA record differs from the server's IPv6; WARN when an AAAA record exists and the server has no public IPv6 (Let's Encrypt tries IPv6 first); FAIL for a Cloudflare Tunnel record set to DNS only: a CNAME to `<tunnel id>.cfargotunnel.com`, which resolves to `fd10:aec2:5dae::` only (when nothing resolves here, Cloudflare's DNS-over-HTTPS resolver is asked for the CNAME, except with `--offline`); WARN when the name resolves only to private addresses. Loopback answers come from `/etc/hosts` (cloud-init writes `127.0.1.1 <fqdn>`) and are set aside: the public records are then read over DNS-over-HTTPS, or, with `--offline`, WARN | Create or correct the A record (DNS only, not proxied, while certificates are issued); correct or remove the AAAA record; set a tunnel record to Proxied ([Behind a Cloudflare Tunnel](/self-host/install#cloudflare-tunnel)); for `/etc/hosts`, `dig +short NAME` from another machine |
+| the name | Its A, AAAA and CNAME records | FAIL with no record; FAIL when no A record holds the server's IPv4; WARN when an AAAA record differs from the server's IPv6; WARN when an AAAA record exists and the server has no public IPv6 (Let's Encrypt tries IPv6 first); FAIL for a Cloudflare Tunnel record set to DNS only: a CNAME to `<tunnel id>.cfargotunnel.com`, which resolves to `fd10:aec2:5dae::` only (when nothing resolves here, Cloudflare's DNS-over-HTTPS resolver is asked for the CNAME, except with `--offline`); FAIL for a name two or more levels below its Cloudflare zone whose TLS handshake fails with alert 40: Universal SSL covers the zone and `*.zone` only (the zone comes from the SOA over DNS-over-HTTPS; not run with `--offline`); WARN when the name resolves only to private addresses. Loopback answers come from `/etc/hosts` (cloud-init writes `127.0.1.1 <fqdn>`) and are set aside: the public records are then read over DNS-over-HTTPS, or, with `--offline`, WARN | Create or correct the A record (DNS only, not proxied, while certificates are issued); correct or remove the AAAA record; set a tunnel record to Proxied ([Behind a Cloudflare Tunnel](/self-host/install#cloudflare-tunnel)); for a name without an edge certificate, `HARMONY_DB_DOMAIN=` or `HARMONY_LIVEKIT_DOMAIN=` a name one level below the zone and `harmony install`, or an Advanced certificate; for `/etc/hosts`, `dig +short NAME` from another machine |
 
 ### TLS certificates
 
@@ -257,7 +258,9 @@ Postgres, and for the exposure itself.
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `release` | `HARMONY_VERSION` against the latest GitHub release (not run with `--offline`) | WARN when GitHub is unreachable; WARN when a newer release exists; OK on `edge` | `harmony update` |
-| `gotrue` | The auth service's image against the Supabase stack's own `supabase/gotrue` image | WARN when the service runs an older one | `bash configure.sh --non-interactive` (sets `GOTRUE_IMAGE`), then `docker compose up -d auth` |
+| `gotrue` | The auth service's image against `GOTRUE_IMAGE`'s minimum (the Supabase stack's own `supabase/gotrue` image when newer) | WARN when the service runs an older one | `bash configure.sh --non-interactive` (sets `GOTRUE_IMAGE`), then `docker compose up -d auth` |
+| `storage` | The storage service's image against `STORAGE_IMAGE`'s minimum, the same way | WARN when the service runs an older one | `bash configure.sh --non-interactive` (sets `STORAGE_IMAGE`), then `docker compose up -d storage` |
+| `realtime` | The realtime service's image against `REALTIME_IMAGE`'s minimum, the same way | WARN when the service runs an older one | `bash configure.sh --non-interactive` (sets `REALTIME_IMAGE`), then `docker compose up -d realtime` |
 | `supabase` | The Supabase stack's commit (`supabase/.harmony-supabase-ref`) against the commit `configure.sh` pins | WARN when they differ | `harmony backup`, then `bash configure.sh --refresh-supabase && docker compose up -d` |
 
 ## harmony backup
@@ -391,10 +394,11 @@ harmony admin invite <email> [--send]
 ```
 
 Creates a single-use invitation for the address, as **Invites** in the admin
-panel does. The link signs the person in on
-`https://DOMAIN/reset-password?invite=1`, where they choose a password and
-then a username. It expires 24 hours after it is made, unless the sign-in
-service sets `GOTRUE_MAILER_OTP_EXP`.
+panel does. The link opens `https://DOMAIN/reset-password?invite=1&token_hash=…`,
+where the person chooses a password and then a username. Opening it uses
+nothing up, so a link preview or mail scanner that opens it first leaves it
+working; the token is spent when the password is submitted. It expires 24 hours
+after it is made, unless the sign-in service sets `GOTRUE_MAILER_OTP_EXP`.
 
 | Option | Effect |
 |---|---|
@@ -403,7 +407,10 @@ service sets `GOTRUE_MAILER_OTP_EXP`.
 
 An address whose account exists stops the command with `an account with the
 address … exists; nothing was created`. An address already invited gets a new
-link, and the one before stops working. The invitation is listed in the admin
+link, and the one before stops working. An invitation whose
+`/auth/v1/verify` link was opened without a password being chosen stays open,
+and the command makes it a new link; with `--send` it stops and asks you to run
+it without `--send`. The invitation is listed in the admin
 panel under **Invites**, invited by **Command line**; on a database not yet
 updated, the command warns that it was not recorded, and the panel lists it
 as made outside Harmony.
@@ -651,7 +658,7 @@ built-in sign-in provider without an entry in `PROVIDER_LINKING_DOMAINS` gets
 
 | Environment variable | Effect |
 |---|---|
-| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
+| `HARMONY_DOMAIN`, `HARMONY_INSTANCE_NAME`, `HARMONY_ADMIN_EMAIL`, `HARMONY_TLS`, `HARMONY_VOICE`, `HARMONY_BOTS`, `HARMONY_DISCORD`, `HARMONY_ANALYTICS`, `HARMONY_REGISTRATION`, `HARMONY_DB_DOMAIN`, `HARMONY_LIVEKIT_DOMAIN`, `HARMONY_SMTP_HOST`, `HARMONY_SMTP_PORT`, `HARMONY_SMTP_USER`, `HARMONY_SMTP_PASS`, `HARMONY_SMTP_SENDER` | Answers, as for the [installer](/self-host/install#scripted-installs); each defaults to the configured value. SMTP changes only when `HARMONY_SMTP_HOST` is set |
 | `HARMONY_VERSION` | Image tag; default from the checkout: `X.Y.Z` at tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout (`docker-compose.build.yml`); `0` returns to published images |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |

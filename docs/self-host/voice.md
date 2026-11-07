@@ -26,7 +26,10 @@ to LiveKit directly.
 4. LiveKit reports departures to the backend's `/api/livekit/webhook`, which
    updates the channel's participant list within seconds. The worker also
    compares that list with LiveKit's rooms every 60 seconds
-   (`VOICE_RECONCILE_INTERVAL_SECONDS`).
+   (`VOICE_RECONCILE_INTERVAL_SECONDS`). A client on P2P is in no LiveKit
+   room: it checks in every minute, and the database (pg_cron
+   `voice-participant-sweep`) removes it from the list after 3 minutes
+   without one.
 
 `WEBRTC_MODE` in `federation.env` picks the transport. Every participant in a
 room uses the same one:
@@ -64,7 +67,7 @@ docker compose up -d
 `configure.sh` then:
 
 - sets `ENABLE_VOICE=true` and adds the `voice` profile, which starts
-  `harmony-livekit` (`livekit/livekit-server:v1.9.4`)
+  `harmony-livekit` (`livekit/livekit-server:v1.13.11`)
 - writes `self-host/livekit.yaml` from `webrtc/livekit.yaml.example`: the
   key pair from `federation.env` under `keys`, the stack's Redis with its
   password, TURN off, and a webhook to

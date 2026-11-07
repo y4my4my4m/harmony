@@ -43,6 +43,10 @@
           <Icon name="copy" class="action-item-icon" />
           Copy user ID
         </div>
+        <div v-if="copyHandleText" class="action-item" data-testid="profile-menu-copy-handle" @click="copyHandleFromMenu">
+          <Icon name="at-sign" class="action-item-icon" />
+          {{ t('activitypub.profileA11y.copyHandle') }}
+        </div>
         <div v-if="isInServerContext && canInvite" class="action-item" @click="openInviteModal">
           <Icon name="share" class="action-item-icon" />
           Send server invite
@@ -96,7 +100,8 @@
                 </span>
               </h1>
               <p class="username">
-                {{ displayHandle }}
+                <span data-testid="profile-modal-handle">{{ displayHandle }}</span>
+                <CopyHandleButton :account="handleAccount" />
                 <BridgeSourceBadge v-if="isBridgedDiscord" source="discord" />
                 <span
                   v-if="isLockedAccount"
@@ -483,6 +488,10 @@ import { useMovedAccount } from '@/composables/useMovedAccount'
 import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { isMassMentionWord } from '@/utils/massMentions'
+import { formatHandle } from '@/utils/handles'
+import { profileUrl } from '@/utils/permalinks'
+import CopyHandleButton from './common/CopyHandleButton.vue'
+import { copyableHandle, useCopyHandle, type CopyHandleAccount } from '@/composables/useCopyHandle'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
 
@@ -745,9 +754,9 @@ function getProfileUrl(user: FederatedUser | User | null): string {
   
   const fed = user as FederatedUser
   
-  // Local users: this frontend's profile page.
+  // Local users: this instance's /@<name>.
   if (fed.is_local || fed.domain === currentDomain || !fed.domain) {
-    return `https://${currentDomain}/social/profile/${fed.username || (user as User).username}`
+    return profileUrl({ username: fed.username || (user as User).username, is_local: true }) ?? '#'
   }
   
   // Remote users: the AP actor's human-readable 'url' field.
@@ -783,29 +792,28 @@ const isCurrentUser = computed(() => {
   return props.user.id === getCurrentUser.value?.id
 })
 
+/** The account the handle names; null for a bridged Discord account or without a username. */
+const handleAccount = computed((): CopyHandleAccount | null => {
+  if (!props.user || isBridgedDiscord.value) return null
+  const u = props.user as any
+  const username = u.username || getUser(props.user.id).value?.username
+  if (!username || username === 'Unknown' || username === 'unknown') return null
+  return { username, domain: u.domain, is_local: !isFederatedUser(props.user), handle: u.handle, id: props.user.id }
+})
+
+// The full handle, @user@domain, local accounts included.
 const displayHandle = computed(() => {
   if (!props.user) return '@unknown'
-  const u = props.user as any
-
-  if (isBridgedDiscord.value) {
-    const username = u.username || 'unknown'
-    return `@${username}`
-  }
-
-  // Remote federated users: @username@domain
-  if (isFederatedUser(props.user)) {
-    if (u.handle) return u.handle
-    const username = u.username || getUser(props.user.id).value?.username
-    const domain = u.domain
-    if (username && domain) return `@${username}@${domain}`
-  }
-
-  // Local users: @username; one named everyone or here with the host, unlike the mass mention.
-  const username = u.username || getUser(props.user.id).value?.username
-  if (username && isMassMentionWord(username) && currentDomain) return `@${username}@${currentDomain}`
-  if (username && username !== 'Unknown' && username !== 'unknown') return `@${username}`
-  return '@unknown'
+  if (isBridgedDiscord.value) return `@${(props.user as any).username || 'unknown'}`
+  return handleAccount.value ? formatHandle(handleAccount.value, { full: true }) : '@unknown'
 })
+
+const copyHandleText = computed(() => copyableHandle(handleAccount.value))
+const copyHandle = useCopyHandle()
+const copyHandleFromMenu = async () => {
+  showActionsMenu.value = false
+  await copyHandle(copyHandleText.value)
+}
 
 const displayAbout = computed(() => {
   if (!props.user) return null

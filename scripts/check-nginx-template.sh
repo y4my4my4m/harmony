@@ -169,8 +169,12 @@ PROFILE=/social/profile/fx_alice
 log "/social/profile/<name> routing"
 expect_accept "$AP_MASTODON"         $PROFILE 'backend /users/fx_alice'
 expect_accept 'application/ld+json'  $PROFILE 'backend /users/fx_alice'
-expect_accept 'text/html,*/*;q=0.8'  $PROFILE 'SPA'
+# Without the app's cookie a 301 to /@<name>, which wget follows to the backend's page.
+expect_accept 'text/html,*/*;q=0.8'  $PROFILE 'backend /@fx_alice'
+expect "$DISCORD" $PROFILE 'backend /@fx_alice'
+expect "$DISCORD" $PROFILE/ 'backend /@fx_alice'
 expect_accept "$AP_MASTODON"         /social/profile/fx_alice@remote.example 'SPA'
+expect "$FIREFOX" /tags/art 'SPA'
 
 # expect_with <path> <first line of the body> [header...]
 expect_with() {
@@ -199,6 +203,8 @@ expect_with /@fx_alice 'backend /@fx_alice' 'Cookie: harmony_app=0'
 expect_with /@fx_alice 'backend /@fx_alice' 'Cookie: not_harmony_app=1'
 expect "$DISCORD" /@fx_alice 'backend /@fx_alice'
 expect_with /@fx_alice/a/b 'SPA'
+expect_with $PROFILE 'SPA' "$APP_COOKIE"
+expect_with $PROFILE 'backend /users/fx_alice' 'Accept: application/activity+json' "$APP_COOKIE"
 expect_with /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001' "$APP_COOKIE"
 # A browser at an actor id goes to its public page.
 expect_with /users/fx_alice 'backend /@fx_alice'
@@ -213,6 +219,15 @@ for h in 'Vary: Accept, Cookie' 'Cache-Control: private, no-cache' 'X-Frame-Opti
     printf 'ok   SPA answer for /@<name> carries %s\n' "$h"
   else
     err "SPA answer for /@fx_alice lacks $h"
+    FAILED=$((FAILED + 1))
+  fi
+done
+headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" --header "$APP_COOKIE" http://127.0.0.1:8443$PROFILE 2>&1 || true)"
+for h in 'Vary: Accept, Cookie' 'Cache-Control: private, no-cache' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
+  if grep -qi "$h" <<<"$headers"; then
+    printf 'ok   SPA answer for /social/profile/<name> carries %s\n' "$h"
+  else
+    err "SPA answer for $PROFILE lacks $h"
     FAILED=$((FAILED + 1))
   fi
 done
@@ -278,7 +293,7 @@ expect_headers() {
 
 log "cache lifetimes"
 # The document revalidates on every load wherever it is served, keeping the server-level headers.
-for p in / /index.html /chat/00000000-0000-0000-0000-000000000001 /invite/ABCD1234 $DRIVE_LINK $POST $PROFILE; do
+for p in / /index.html /chat/00000000-0000-0000-0000-000000000001 /invite/ABCD1234 $DRIVE_LINK $POST; do
   expect_headers "$p" 'Cache-Control: no-cache' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff' '!max-age' '!Expires'
 done
 expect_headers /assets/index-AbCd_-12.js 'Cache-Control: public, max-age=31536000, immutable' 'X-Content-Type-Options: nosniff'
@@ -304,4 +319,4 @@ for p in /youtube-embed.html /embed-player.html; do
 done
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name>, /@<name> and the ActivityPub-only paths, and sets cache lifetimes"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /d/<token>, /social/post/<id>, /social/profile/<name>, /@<name>, /tags/<tag> and the ActivityPub-only paths, and sets cache lifetimes"

@@ -296,6 +296,21 @@
         </span>
       </div>
       <div class="setting-group">
+        <label for="federate-image-max-px">{{ $t('admin.instance.federateImageMaxPx') }}</label>
+        <input
+          id="federate-image-max-px"
+          v-model.number="config.federation.federateImageMaxPx"
+          type="number"
+          class="cyber-input"
+          min="0"
+          :max="FEDERATE_IMAGE_RENDER_MAX"
+          step="1"
+          aria-describedby="federate-image-max-px-hint"
+          data-testid="federate-image-max-px-input"
+        />
+        <span id="federate-image-max-px-hint" class="setting-hint">{{ $t('admin.instance.federateImageMaxPxHint') }}</span>
+      </div>
+      <div class="setting-group">
         <label class="toggle-label">
           <input type="checkbox" v-model="config.federation.allowCustomEmojisInDisplayNames" />
           <span class="toggle-slider"></span>
@@ -734,7 +749,7 @@ harmony auth remove-provider authentik</code></pre>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
@@ -754,6 +769,7 @@ import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
+import { DEFAULT_FEDERATE_IMAGE_MAX_PX, FEDERATE_IMAGE_RENDER_MAX, parseFederateImageMaxPx } from '@/utils/federateImageMaxPx'
 import type { CustomOAuthProvider } from '@/utils/customOAuthProviders'
 
 const authStore = useAuthStore()
@@ -780,7 +796,11 @@ const refreshTrendingPosts = async () => {
   }
 }
 
-const configChanged = ref(false)
+// instance_config keys and WebRTC settings as last loaded or saved. A save writes only the
+// keys that differ, so a value changed elsewhere since the load is never reverted.
+const savedConfigPayload = ref<Record<string, unknown> | null>(null)
+const savedWebrtc = ref<Record<string, unknown> | null>(null)
+const configLoadFailed = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
 const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc' | 'uploads'>('general')
@@ -846,6 +866,7 @@ const config = ref({
     allowCustomEmojisInDisplayNames: true,
     maxPostReactionsPerUser: 10,
     publicProfilePages: true,
+    federateImageMaxPx: DEFAULT_FEDERATE_IMAGE_MAX_PX as number | string,
     enableOutbound: true,
     enableInbound: true
   },
@@ -857,14 +878,65 @@ const config = ref({
   }
 })
 
-// Watch for config changes
-watch(config, () => {
-  configChanged.value = true
-}, { deep: true })
+const configPayload = (): Record<string, unknown> => ({
+  max_server_size: config.value.chat.maxServerSize,
+  max_message_length: config.value.chat.maxMessageLength,
+  max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
+  allow_file_uploads: config.value.chat.allowFileUploads,
+  enable_voice_channels: config.value.chat.enableVoiceChannels,
+  bridge_attachment_mode: config.value.chat.bridgeAttachmentMode,
+  gif_ads_enabled: config.value.chat.gifAdsEnabled,
+  gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
+  gif_clips_enabled: config.value.chat.gifClipsEnabled,
+  gif_memes_enabled: config.value.chat.gifMemesEnabled,
+  gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
+  gif_ai_emoji_generation_enabled: config.value.chat.gifAiEmojiGenerationEnabled,
+  max_post_length: config.value.federation.maxPostLength,
+  federation_retry_attempts: config.value.federation.retryAttempts,
+  max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
+  max_personal_emojis_per_user: parsePersonalEmojiLimit(config.value.federation.maxPersonalEmojisPerUser),
+  max_stickers_per_server: parseStickerCap('server', config.value.federation.maxStickersPerServer),
+  max_instance_stickers: parseStickerCap('instance', config.value.federation.maxInstanceStickers),
+  max_personal_stickers_per_user: parseStickerCap('user', config.value.federation.maxPersonalStickersPerUser),
+  custom_emoji_transform_quality: Math.min(
+    100,
+    Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
+  ),
+  allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+  public_profile_pages: config.value.federation.publicProfilePages,
+  federate_image_max_px: parseFederateImageMaxPx(config.value.federation.federateImageMaxPx),
+  max_post_reactions_per_user: Math.min(
+    100,
+    Math.max(1, Math.round(Number(config.value.federation.maxPostReactionsPerUser) || 10))
+  ),
+})
+
+const webrtcPayload = (): Record<string, unknown> => ({
+  mode: config.value.webrtc.mode,
+  livekitUrl: config.value.webrtc.livekitUrl,
+  allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
+  maxStageListeners: config.value.webrtc.maxStageListeners,
+})
+
+const changedKeys = (current: Record<string, unknown>, saved: Record<string, unknown> | null) =>
+  saved ? Object.keys(current).filter((key) => JSON.stringify(current[key]) !== JSON.stringify(saved[key])) : []
+
+const federationSwitchesChanged = () => switchesLoaded.value
+  && (config.value.federation.enableInbound !== savedFederation.value.inbound
+    || config.value.federation.enableOutbound !== savedFederation.value.outbound)
+
+// Save stays disabled until the stored values are read.
+const configChanged = computed(() => savedConfigPayload.value !== null && (
+  changedKeys(configPayload(), savedConfigPayload.value).length > 0
+  || (savedWebrtc.value !== null && changedKeys(webrtcPayload(), savedWebrtc.value).length > 0)
+  || federationSwitchesChanged()
+))
 
 const loadInstanceConfig = async () => {
   try {
     const cfg = await adminService.getInstanceConfig()
+    configLoadFailed.value = !cfg
+    if (!cfg) toast.error(t('admin.instance.configLoadFailed'))
     if (cfg) {
       if (cfg.chat) {
         config.value.chat = { ...config.value.chat, ...cfg.chat }
@@ -877,6 +949,8 @@ const loadInstanceConfig = async () => {
       if (cfg.webrtc) {
         config.value.webrtc = { ...config.value.webrtc, ...cfg.webrtc }
       }
+      savedConfigPayload.value = configPayload()
+      savedWebrtc.value = cfg.webrtcLoaded === false ? null : webrtcPayload()
     }
     if (cfg?.instance) {
       instanceConfig.value = {
@@ -950,9 +1024,7 @@ const saveConfig = async () => {
     }))) return
     
     // Only switches that were read and changed are written.
-    const switchesChanged = switchesLoaded.value
-      && (enableInbound !== savedFederation.value.inbound || enableOutbound !== savedFederation.value.outbound)
-    if (switchesChanged) {
+    if (federationSwitchesChanged()) {
       const fedSuccess = await adminService.updateFederationSettings({
         userId,
         inboundEnabled: enableInbound,
@@ -966,46 +1038,29 @@ const saveConfig = async () => {
       savedFederation.value = { inbound: enableInbound, outbound: enableOutbound }
     }
 
-    await adminService.setInstanceConfigs({
-      max_server_size: config.value.chat.maxServerSize,
-      max_message_length: config.value.chat.maxMessageLength,
-      max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
-      allow_file_uploads: config.value.chat.allowFileUploads,
-      enable_voice_channels: config.value.chat.enableVoiceChannels,
-      bridge_attachment_mode: config.value.chat.bridgeAttachmentMode,
-      gif_ads_enabled: config.value.chat.gifAdsEnabled,
-      gif_klipy_watermark_enabled: config.value.chat.gifKlipyWatermarkEnabled,
-      gif_clips_enabled: config.value.chat.gifClipsEnabled,
-      gif_memes_enabled: config.value.chat.gifMemesEnabled,
-      gif_ai_emojis_enabled: config.value.chat.gifAiEmojisEnabled,
-      gif_ai_emoji_generation_enabled: config.value.chat.gifAiEmojiGenerationEnabled,
-      max_post_length: config.value.federation.maxPostLength,
-      federation_retry_attempts: config.value.federation.retryAttempts,
-      max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
-      max_personal_emojis_per_user: parsePersonalEmojiLimit(config.value.federation.maxPersonalEmojisPerUser),
-      max_stickers_per_server: parseStickerCap('server', config.value.federation.maxStickersPerServer),
-      max_instance_stickers: parseStickerCap('instance', config.value.federation.maxInstanceStickers),
-      max_personal_stickers_per_user: parseStickerCap('user', config.value.federation.maxPersonalStickersPerUser),
-      custom_emoji_transform_quality: Math.min(
-        100,
-        Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
-      ),
-      allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
-      public_profile_pages: config.value.federation.publicProfilePages,
-      max_post_reactions_per_user: Math.min(
-        100,
-        Math.max(1, Math.round(Number(config.value.federation.maxPostReactionsPerUser) || 10))
-      ),
-    }, userId)
+    if (!savedConfigPayload.value) return
+    const payload = configPayload()
+    const keys = changedKeys(payload, savedConfigPayload.value)
+    if (keys.length > 0) {
+      await adminService.setInstanceConfigs(Object.fromEntries(keys.map((key) => [key, payload[key]])), userId)
+      savedConfigPayload.value = { ...savedConfigPayload.value, ...Object.fromEntries(keys.map((key) => [key, payload[key]])) }
+    }
 
-    await adminService.updateWebRTCSettings({
-      mode: config.value.webrtc.mode,
-      livekitUrl: config.value.webrtc.livekitUrl,
-      allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
-      maxStageListeners: config.value.webrtc.maxStageListeners
-    })
+    const webrtc = webrtcPayload()
+    if (savedWebrtc.value && changedKeys(webrtc, savedWebrtc.value).length > 0) {
+      const webrtcSaved = await adminService.updateWebRTCSettings({
+        mode: config.value.webrtc.mode,
+        livekitUrl: config.value.webrtc.livekitUrl,
+        allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
+        maxStageListeners: config.value.webrtc.maxStageListeners
+      })
+      if (!webrtcSaved) {
+        toast.error('Failed to save voice settings')
+        return
+      }
+      savedWebrtc.value = webrtc
+    }
 
-    configChanged.value = false
     toast.success('Configuration saved')
     debug.log('Configuration saved:', config.value)
     

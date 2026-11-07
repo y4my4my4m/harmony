@@ -9,7 +9,7 @@
 
 import config from '../config/index.js';
 import { shownLinkLabel } from './maskedLinks.js';
-import { safeAttrUrlOutbound } from '../activitypub/converters/toActivityPub.js';
+import { hashtagUrl, imageMediaTypeFromUrl, safeAttrUrlOutbound } from '../activitypub/converters/toActivityPub.js';
 
 /**
  * Escape HTML entities to prevent XSS
@@ -177,21 +177,23 @@ export function extractActivityPubTags(content: any, mentionActorUrls?: Map<stri
     } else if (part.type === 'hashtag' && part.tag) {
       tags.push({
         type: 'Hashtag',
-        href: `https://${config.INSTANCE_DOMAIN}/tags/${part.tag}`,
+        href: hashtagUrl(part.tag),
         name: `#${part.tag}`
       });
     } else if (part.type === 'emoji' && part.emoji && typeof part.emoji === 'object') {
-      // Add custom emoji as ActivityPub Emoji tag
       const emoji = part.emoji;
-      if (emoji.url && (emoji.name || emoji.display_name)) {
+      if (typeof emoji.url === 'string' && /^https?:\/\//i.test(emoji.url) && (emoji.name || emoji.display_name)) {
         const emojiName = emoji.name || emoji.display_name;
+        // An emojis row id is a uuid, not an IRI, and no route serves /emojis/<id>: the image URL
+        // stands in, as in toActivityPub's message tags. Mastodon keeps the tag id as
+        // CustomEmoji#uri and keys the emoji on shortcode and domain; it does not fetch the id.
         tags.push({
           type: 'Emoji',
-          id: emoji.id || emoji.url, // Use emoji ID if available, else URL
+          id: typeof emoji.id === 'string' && /^https?:\/\//i.test(emoji.id) ? emoji.id : emoji.url,
           name: `:${emojiName}:`,
           icon: {
             type: 'Image',
-            mediaType: 'image/png',
+            mediaType: imageMediaTypeFromUrl(emoji.url) || 'image/png',
             url: emoji.url
           }
         });

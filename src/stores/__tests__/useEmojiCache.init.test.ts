@@ -12,6 +12,7 @@ vi.mock('@/supabase', () => {
     const builder: any = {
       select: () => builder,
       in: (_col: string, v: string[]) => { ids = v; return builder },
+      is: () => builder,
       order: () => builder,
       then: (resolve: (r: any) => void) => {
         const data = table === 'emojis'

@@ -1,8 +1,10 @@
 /**
  * The links a post menu offers, each with the host it points at: the post on this instance
- * (`/posts/:id`, served to browsers and crawlers alike), and for a post from another server the
- * page on that server (its `url`, else its ActivityPub id).
+ * (its permalink /@author/<id>, utils/permalinks.ts; /posts/<id> without an author), and for a
+ * post from another server the page on that server (its `url`, else its ActivityPub id).
  */
+import { postPath } from '@/utils/permalinks'
+import type { HandleOwner } from '@/utils/handles'
 
 export interface PostLink {
   url: string
@@ -21,6 +23,7 @@ interface LinkablePost {
   is_local?: boolean | null
   url?: string | null
   ap_id?: string | null
+  author?: HandleOwner | null
 }
 
 interface BoostWrapper extends LinkablePost {
@@ -52,7 +55,7 @@ export function boostLinkTarget(wrapper: BoostWrapper): LinkablePost {
 /** `post` is the post shown: for a pure boost, `boostLinkTarget` of the wrapper. */
 export function postLinks(post: LinkablePost, harmonyBase: string): PostLinks {
   const base = harmonyBase.replace(/\/$/, '')
-  const here = { url: `${base}/posts/${post.id}`, host: hostOf(base) ?? base }
+  const here = { url: `${base}${postPath(post)}`, host: hostOf(base) ?? base }
   if (post.is_local === true) return { here, original: null }
   const url = post.url || post.ap_id
   const host = url ? hostOf(url) : null

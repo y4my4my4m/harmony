@@ -96,7 +96,7 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `PUT` | [`/channels/{channel.id}/permission-overrides`](#set-a-permission-override) | `manage_channels` | Create, replace or clear an override |
 | `DELETE` | [`/channels/{channel.id}/permission-overrides/role/{role.id}`](#delete-a-role-override) | `manage_channels` | Delete a role's override |
 | `GET` | [`/emojis`](#list-emojis) | Token | List the instance's emoji, or look one up |
-| `POST` | [`/emojis`](#create-emoji) | Token | Create an instance emoji |
+| `POST` | [`/emojis`](#create-emoji) | Token | Record an emoji of another instance |
 | `GET` | [`/servers/{server.id}/emojis`](#list-server-emojis) | Installed | List a server's emoji with their Discord links |
 | `POST` | [`/servers/{server.id}/emojis/discord`](#import-a-discord-emoji) | The server's Discord bridge bot | Import a Discord emoji as a server emoji |
 | `GET` | [`/users/@me`](#get-current-bot) | Token | Read the bot itself |
@@ -591,12 +591,12 @@ Returns `204`. Deleting lifts every deny bit the override carried, so each must 
 
 `GET /emojis`
 
-Returns every emoji row of the instance, every column. Every account can read every emoji row.
+Returns every emoji row of the instance, every column, except removed ones (a server manager, the owner of a personal emoji or an instance admin removed it; `deleted_at` is set). Every account can read every emoji row.
 
 | Query | Description |
 |---|---|
 | `url` | Only emoji whose image URL equals this value. |
-| `id` | Return this one emoji as an object instead of an array. `404` `Emoji not found` when absent, `400` when not a UUID. |
+| `id` | Return this one emoji as an object instead of an array, removed or not (`deleted_at`). `404` `Emoji not found` when absent, `400` when not a UUID. |
 
 ### Create emoji
 
@@ -605,10 +605,10 @@ Returns every emoji row of the instance, every column. Every account can read ev
 | Field | Type | Description |
 |---|---|---|
 | `name` | string | Required. |
-| `url` | string | Required. Image URL. |
-| `domain` | string | Source instance domain. |
+| `url` | string | Required. http(s) image URL, at most 2048 characters. |
+| `domain` | string | Required. The instance the emoji comes from. |
 
-Creates an instance-wide emoji (`scope` `instance`, no server) credited to the bot's owner. A non-null `server_id` in the body answers `403`. Returns `201` with `id`, `created_at`, `name`, `url`, `server_id`, `uploader`, `domain`, `scope`.
+Records an emoji of another instance (`scope` `instance`, no server, the given `domain`) credited to the bot's owner. It is not offered to local accounts. A missing or empty `domain` answers `400`; a non-null `server_id` in the body answers `403`. Returns `201` with `id`, `created_at`, `name`, `url`, `server_id`, `uploader`, `domain`, `scope`.
 
 ### List server emojis
 

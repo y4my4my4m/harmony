@@ -1,7 +1,7 @@
-// Journey: Admin → Emojis, remote emoji importer. A cached remote emoji whose image is gone
-// is drawn as the broken-emoji icon after one failed request. The error handler used to set
-// the image to /emoji-placeholder.png, which does not exist; that failure re-entered the
-// handler, so each dead image requested the placeholder without end.
+// Journey: Admin → Emojis, Not imported. A cached remote emoji whose image is gone is drawn as
+// the broken-image icon after one failed request. The error handler used to set the image to
+// /emoji-placeholder.png, which does not exist; that failure re-entered the handler, so each
+// dead image requested the placeholder without end.
 
 import crypto from 'node:crypto'
 import { test, expect } from '@playwright/test'
@@ -53,10 +53,16 @@ test('a remote emoji whose image is gone shows the broken icon after one request
 
   await signIn(page, staff)
   await page.goto('/admin?tab=emojis')
-  const card = page.locator('.emoji-card').filter({ hasText: `:${SHORTCODE}:` })
+  const library = page.getByTestId('admin-emoji-library')
+  await library.getByTestId('admin-emoji-kind-not_imported').click()
+  await expect(library.getByTestId('admin-emoji-kind-not_imported')).toHaveAttribute('aria-pressed', 'true')
+  await library.getByRole('searchbox', { name: 'Search emojis' }).fill(SHORTCODE)
+  const card = library.getByTestId('admin-emoji-row').filter({ hasText: `:${SHORTCODE}:` })
   await expect(card).toBeVisible({ timeout: 30000 })
-  await expect(card.getByTestId('emoji-importer-broken')).toBeVisible({ timeout: 10000 })
+  await expect(card).toHaveAttribute('data-kind', 'not_imported')
+  await expect(card.getByTestId('admin-emoji-broken')).toBeVisible({ timeout: 10000 })
   await expect(card.getByRole('img', { name: `:${SHORTCODE}:` })).toBeVisible()
+  await expect(card.getByRole('button', { name: `Import :${SHORTCODE}:` })).toBeVisible()
 
   // A loop would keep requesting; a settled page has made one request for the dead image.
   await page.waitForTimeout(2000)

@@ -165,9 +165,8 @@
     "MANAGE_EMOJIS": {
       "scope": "server",
       "sql": [
-        "policy:emojis:emojis_insert_server_manager",
-        "policy:emojis:emojis_update_server_manager",
-        "policy:emojis:emojis_delete_server_manager",
+        "function:create_server_emoji",
+        "function:can_manage_emoji",
         "policy:storage.objects:Users can upload emojis",
         "policy:storage.objects:Users can delete emojis",
         "function:can_manage_server_sounds",
@@ -185,7 +184,8 @@
         "db_schema/tests/155_permission_audit.sql",
         "db_schema/tests/108_server_manager_writes.sql",
         "db_schema/tests/116_soundboard.sql",
-        "db_schema/tests/148_soundboard_custom_emoji.sql"
+        "db_schema/tests/148_soundboard_custom_emoji.sql",
+        "db_schema/tests/236_emoji_lifecycle.sql"
       ],
       "e2e": [
         "e2e/specs/permission-audit.spec.ts"

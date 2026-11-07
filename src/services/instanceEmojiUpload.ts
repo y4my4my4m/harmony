@@ -6,7 +6,7 @@ import {
   storeEmojiImage,
   type EmojiUploadOptions,
 } from '@/services/emojiService'
-import { INSTANCE_EMOJI_FOLDER, type InstanceEmojiRow } from '@/services/InstanceEmojiAdminService'
+import { INSTANCE_EMOJI_FOLDER, type AdminEmojiRow } from '@/services/InstanceEmojiAdminService'
 
 /**
  * Admin upload: prepareEmojiImage and storeEmojiImage write <INSTANCE_EMOJI_FOLDER>/<uuid>.<ext>
@@ -14,7 +14,7 @@ import { INSTANCE_EMOJI_FOLDER, type InstanceEmojiRow } from '@/services/Instanc
  * object and rethrows: 42501 not an admin, 22023 a bad path or url, 23505 a file already
  * recorded. Throws UploadRejectedError for a file outside the bucket limits.
  */
-export async function uploadInstanceEmoji(file: File, options: EmojiUploadOptions = {}): Promise<InstanceEmojiRow> {
+export async function uploadInstanceEmoji(file: File, options: EmojiUploadOptions = {}): Promise<AdminEmojiRow> {
   const prepared = await prepareEmojiImage(file)
   const path = `${INSTANCE_EMOJI_FOLDER}/${uuidv4()}.${prepared.extension}`
   const url = await storeEmojiImage(path, prepared, { label: file.name, ...options })
@@ -30,16 +30,22 @@ export async function uploadInstanceEmoji(file: File, options: EmojiUploadOption
   const row = data as Record<string, any>
   return {
     id: row.id,
+    kind: 'instance',
     name: row.name,
     url: row.url,
     domain: null,
     scope: 'instance',
+    server_id: null,
+    server_name: null,
     uploader: row.uploader ?? null,
     uploader_username: null,
     created_at: row.created_at,
     usage_count: row.usage_count ?? 0,
     reaction_count: 0,
-    total_count: 0,
+    deleted_at: null,
+    deleted_by_username: null,
+    imported_from: null,
+    hotlinked: false,
     is_ai_generated: false,
   }
 }

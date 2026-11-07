@@ -65,9 +65,17 @@ function emptyQuery() {
   return builder
 }
 
+/** usable_emojis arguments, by call. */
+const rpcCalls: Array<Record<string, unknown>> = []
+
 beforeEach(() => {
   inCalls.length = 0
+  rpcCalls.length = 0
   vi.mocked(supabase.from).mockImplementation(() => emptyQuery())
+  vi.mocked(supabase.rpc).mockImplementation((async (fn: string, args: Record<string, unknown>) => {
+    if (fn === 'usable_emojis') rpcCalls.push(args)
+    return { data: [], error: null }
+  }) as any)
 })
 
 describe('Discord custom emoji in message text', () => {
@@ -131,7 +139,8 @@ describe('Discord custom emoji in message text', () => {
 
   it('looks up no emojis rows for the pieces of a token', async () => {
     await resolveEmojisData(`:discord:heh:${ID}: :discord:a:wave:${ID2}: :blobcat:`)
-    expect(inCalls).toEqual([['name', ['blobcat']]])
+    expect(rpcCalls).toEqual([{ p_names: ['blobcat'] }])
+    expect(inCalls).toEqual([])
   })
 
   it('round-trips through the edit and source text forms', async () => {

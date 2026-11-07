@@ -140,7 +140,7 @@ test('a quote of your post notifies you and opens the quote', async ({ page }) =
     const item = page.locator('[data-testid="notification-panel"] [data-testid="notification-item"][data-type="activitypub_quote"]')
       .filter({ hasText: `remote words ${marker}` })
     await item.locator('[data-row-hit]').click()
-    await expect(page).toHaveURL(new RegExp(`/social/post/${remoteId}$`), { timeout: 15000 })
+    await expect(page).toHaveURL(new RegExp(`/@[^/]+/${remoteId}$`), { timeout: 15000 })
   })
 
   await test.step('a quote arriving live shows a toast that opens it', async () => {
@@ -149,7 +149,7 @@ test('a quote of your post notifies you and opens the quote', async ({ page }) =
     const toast = page.locator('[data-testid="notification-toast-activitypub_quote"]')
     await expect(toast).toContainText('quoted your post', { timeout: 10000 })
     await toast.locator('.toast-open').click()
-    await expect(page).toHaveURL(new RegExp(`/social/post/${liveId}$`), { timeout: 15000 })
+    await expect(page).toHaveURL(new RegExp(`/@[^/]+/${liveId}$`), { timeout: 15000 })
   })
 
   await test.step('Settings lists Quotes among the Fediverse notification types', async () => {

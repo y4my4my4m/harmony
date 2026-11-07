@@ -10,11 +10,22 @@ import { fetchKlipyMediaBySlug } from './KlipyService.js';
 import { fetchSocialPreview, socialPlatformOf, type EmbedMedia, type EmbedSocialPost } from './socialEmbeds.js';
 
 export type EmbedProvider =
-  | 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
+  | 'harmony-post' | 'harmony-profile' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
   | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal'
   | 'x' | 'instagram' | 'bluesky';
 
 export type { EmbedMedia, EmbedSocialPost } from './socialEmbeds.js';
+
+/**
+ * Posts and accounts of this instance, as src/utils/embedDetection.ts and profileLinks.ts read
+ * them and detect_embed_provider (db_schema 20261107200001) classifies them.
+ */
+const HARMONY_POST_PATH = /^\/(?:posts|social\/post|@[^/]+)\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$/;
+const HARMONY_PROFILE_PATHS = [
+  /^\/@[A-Za-z0-9_.~-]{1,64}(?:@[A-Za-z0-9.-]+(?::\d{1,5})?)?\/?$/,
+  /^\/(?:social\/)?profile\/@?[A-Za-z0-9_.~-]{1,64}(?:@[A-Za-z0-9.-]+(?::\d{1,5})?)?\/?$/,
+  /^\/users\/[A-Za-z0-9_]{1,64}\/?$/,
+];
 
 /** Hosts of provider player pages a payload may name in `player`. */
 const PLAYER_HOSTS = new Set([
@@ -103,12 +114,15 @@ export interface EmbedPayload {
       color?: string | null;
     };
   };
+  /** The account of a harmony-profile link; src/types/chat.ts HarmonyProfileSummary. */
+  profile?: Record<string, unknown>;
   fediverse?: FediverseEmbedData;
   localPostId?: string;
 }
 
 const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   'harmony-post': 5 * 60 * 1000, // 5 minutes
+  'harmony-profile': 5 * 60 * 1000,
   'fediverse-post': 30 * 60 * 1000, // 30 minutes
   youtube: 6 * 60 * 60 * 1000, // 6 hours
   spotify: 6 * 60 * 60 * 1000,
@@ -244,6 +258,34 @@ function isNonApDomain(hostname: string): boolean {
   return false;
 }
 
+function hostOf(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Links a fetch would act on rather than read: any path under /auth/v1/ (Supabase's sign-in
+ * service) and anything on this instance's API host when that is not the instance's own
+ * domain. A GET of GoTrue's /auth/v1/verify spends the invitation, password reset or sign-in
+ * token in the link.
+ */
+export function isAuthServiceLink(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`);
+  } catch {
+    return false;
+  }
+  if (/\/auth\/v1(\/|$)/i.test(url.pathname)) return true;
+  const host = url.hostname.toLowerCase();
+  if (host === config.INSTANCE_DOMAIN.toLowerCase()) return false;
+  return host === hostOf(config.PUBLIC_SUPABASE_URL) || host === hostOf(config.SUPABASE_URL);
+}
+
 function isActivityPubObject(obj: any): boolean {
   if (!obj || typeof obj !== 'object') return false;
   const ctx = obj['@context'];
@@ -283,6 +325,19 @@ class LinkPreviewService {
     // SSRF protection: reject private/internal URLs
     validateExternalUrl(normalizedUrl, { allowPlainHttp: true });
 
+    if (isAuthServiceLink(normalizedUrl)) {
+      return {
+        cacheKey: '',
+        url,
+        normalizedUrl,
+        provider: 'generic',
+        title: url,
+        failed: true,
+        fetchedAt: '',
+        expiresAt: '',
+      };
+    }
+
     const provider = this.detectProvider(normalizedUrl);
     const cacheKey = `${provider}:${normalizedUrl}`;
 
@@ -294,6 +349,8 @@ class LinkPreviewService {
     let payload: EmbedPayload;
     if (provider === 'harmony-post') {
       payload = await this.buildHarmonyEmbed(normalizedUrl);
+    } else if (provider === 'harmony-profile') {
+      payload = await this.buildHarmonyProfileEmbed(normalizedUrl);
     } else if (provider === 'youtube') {
       payload = await this.fetchOEmbed(normalizedUrl, 'https://www.youtube.com/oembed');
     } else if (provider === 'spotify') {
@@ -366,8 +423,10 @@ class LinkPreviewService {
   private detectProvider(url: string): EmbedProvider {
     const urlObj = new URL(url);
     const host = urlObj.hostname.toLowerCase();
-    if (host === this.instanceDomain && /^\/(?:posts|@[A-Za-z0-9_]+)\/[0-9a-fA-F-]{36}/.test(urlObj.pathname)) {
-      return 'harmony-post';
+    if (host === this.instanceDomain) {
+      const path = urlObj.pathname;
+      if (HARMONY_POST_PATH.test(path)) return 'harmony-post';
+      if (HARMONY_PROFILE_PATHS.some((re) => re.test(path))) return 'harmony-profile';
     }
     if (host.includes('youtube.com') || host === 'youtu.be') {
       return 'youtube';
@@ -514,9 +573,21 @@ class LinkPreviewService {
     }
   }
 
+  /**
+   * The account card of a profile link to this instance: fetch_link_preview's snapshot
+   * (db_schema 20261107200001), public fields of an account the public pages show. A hidden or
+   * unknown account has none.
+   */
+  private async buildHarmonyProfileEmbed(url: string): Promise<EmbedPayload> {
+    const { data, error } = await this.supabase.rpc('fetch_link_preview', { p_url: url });
+    if (error) throw new Error(`fetch_link_preview: ${error.message}`);
+    if (!data || data.provider !== 'harmony-profile') throw new Error('Profile unavailable for embedding');
+    return data as EmbedPayload;
+  }
+
   private async buildHarmonyEmbed(url: string): Promise<EmbedPayload> {
-    // /posts/<id>, the Note's id, or /@<name>/<id>, its public page.
-    const pathMatch = new URL(url).pathname.match(/^\/(?:posts|@[A-Za-z0-9_]+)\/([0-9a-fA-F-]{36})/);
+    // /posts/<id>, the Note's id, /social/post/<id>, or /@<name>[@<domain>]/<id>, its page.
+    const pathMatch = new URL(url).pathname.match(HARMONY_POST_PATH);
     if (!pathMatch) {
       throw new Error('Invalid Harmony post URL');
     }

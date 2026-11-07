@@ -44,7 +44,9 @@
       <div class="form-header">
         <h2 :id="formTitleId" class="form-title">{{ isInvite ? t('auth.invite.title') : t('auth.resetYourPassword') }}</h2>
         <p class="form-subtitle" data-testid="reset-subtitle">
-          {{ isInvite ? t('auth.invite.subtitle', { email: inviteEmail }) : t('auth.reset.enterNew') }}
+          {{ !isInvite ? t('auth.reset.enterNew')
+            : inviteEmail ? t('auth.invite.subtitle', { email: inviteEmail })
+            : t('auth.invite.subtitleNoEmail') }}
         </p>
       </div>
 
@@ -308,9 +310,22 @@ const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
 let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
-// An invitation link (admin panel, `harmony admin invite`) redirects to /reset-password?invite=1:
+// Invitation and password-reset links name their token: ?token_hash=…&type=invite|recovery.
+// Opening the page spends nothing; the token is redeemed (verifyOtp, a POST) when the password
+// is submitted. GoTrue's own /auth/v1/verify link is spent by the first GET, link previews and
+// mail scanners included; such links still arrive here with the session in the hash.
+type LinkToken = { hash: string, type: 'invite' | 'recovery' }
+const TOKEN_TYPES = new Set(['invite', 'recovery'])
+const pendingToken = ref<LinkToken | null>(
+  typeof route.query.token_hash === 'string' && route.query.token_hash
+    && typeof route.query.type === 'string' && TOKEN_TYPES.has(route.query.type)
+    ? { hash: route.query.token_hash, type: route.query.type as LinkToken['type'] }
+    : null,
+)
+
+// An invitation link (admin panel, `harmony admin invite`) opens /reset-password?invite=1:
 // the person chooses a first password and stays signed in.
-const isInvite = ref(route.query.invite === '1')
+const isInvite = ref(route.query.invite === '1' || pendingToken.value?.type === 'invite')
 const inviteEmail = ref('')
 const invalidTitle = computed(() => (isInvite.value ? t('auth.invite.invalidTitle') : t('auth.reset.invalidTitle')))
 
@@ -390,6 +405,11 @@ onMounted(async () => {
     }
   })
   authStateListener = authListenerData.data
+
+  if (pendingToken.value) {
+    isValidToken.value = true
+    return
+  }
 
   // 500ms for Supabase to process hash fragments.
   await new Promise(resolve => setTimeout(resolve, 500))
@@ -505,6 +525,8 @@ const handleResetPassword = async () => {
     confirmInput.value?.focus()
     return
   }
+
+  if (pendingToken.value && !(await redeemToken(pendingToken.value))) return
   
   if (requiresMFA.value) {
     debug.log('User has MFA - showing 2FA verification modal')
@@ -530,6 +552,40 @@ const handleResetPassword = async () => {
   }
   
   await performPasswordReset()
+}
+
+/** Exchanges the link's token for a session. False when the link is dead or unreachable. */
+async function redeemToken(token: LinkToken): Promise<boolean> {
+  isLoading.value = true
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash: token.hash, type: token.type })
+    if (error || !data.session) {
+      debug.error('Link token refused:', error)
+      // GoTrue answers a used, expired or unknown token with a 4xx; 429 is its rate limit.
+      const status = error?.status ?? 0
+      if (error && !(status >= 400 && status < 500 && status !== 429)) {
+        passwordError.value = t('auth.reset.verifyFailed')
+        return false
+      }
+      isError.value = true
+      errorMessage.value = isInvite.value ? t('auth.invite.invalidBody') : t('auth.reset.invalidBody')
+      authStateListener?.subscription.unsubscribe()
+      return false
+    }
+    pendingToken.value = null
+    // The auth store's SIGNED_IN handler clears it; the router keeps the page until a password is set.
+    isPasswordResetMode.value = true
+    authStore.isPasswordResetMode = true
+    await detectInvite(data.session)
+    await checkMFAStatus()
+    return true
+  } catch (error: any) {
+    debug.error('Link token check failed:', error)
+    passwordError.value = t('auth.reset.verifyFailed')
+    return false
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const performPasswordReset = async () => {

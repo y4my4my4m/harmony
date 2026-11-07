@@ -86,7 +86,7 @@ describe('DrivePublicPage', () => {
     const owner = wrapper.get('[data-testid="drive-link-owner"]')
     expect(owner.text()).toContain('Shared by Alice')
     expect(owner.get('img.display-name-emoji').attributes('alt')).toBe(':wave:')
-    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/social/profile/alice')
+    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/@alice')
   })
 
   it('says a link that opens nothing does not work', () => {

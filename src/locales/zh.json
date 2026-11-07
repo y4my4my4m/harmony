@@ -173,7 +173,8 @@
       "submit": "设置密码并继续",
       "done": "密码已设置。接下来请选择用户名。",
       "invalidTitle": "此邀请链接无法使用",
-      "invalidBody": "链接已被使用、已过期或已被撤销。请向邀请你的人索取新链接。"
+      "invalidBody": "链接已被使用、已过期或已被撤销。请向邀请你的人索取新链接。",
+      "subtitleNoEmail": "你受邀在此创建账号。请设置用于登录的密码。"
     }
   },
   "server": {
@@ -2208,7 +2209,7 @@
     "myBotsDescription": "管理您创建的机器人",
     "myEmojis": {
       "title": "我的表情",
-      "description": "你的个人表情：你在这里上传的表情，以及你在表情选择器中用 AI 生成的表情。你可以在任何服务器和对话中使用它们。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "description": "你的个人表情：你在这里上传的表情，以及你在表情选择器中用 AI 生成的表情。你可以在所有服务器和对话中使用它们。重命名或删除表情不会改变之前的消息和回应：它们仍显示该图片。",
       "loading": "正在加载你的表情…",
       "empty": "你还没有个人表情。上传一个，或在表情选择器中用 AI 生成一个。",
       "uploadsOff": "此实例已关闭个人表情。",
@@ -2223,7 +2224,7 @@
       "renamed": "已将 :{from}: 重命名为 :{to}:",
       "deleted": "已删除 :{name}:",
       "deleteTitle": "删除表情",
-      "confirmDelete": "删除 :{name}:？使用它的回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
+      "confirmDelete": "删除 :{name}:？它会从你的表情选择器中消失。使用它的之前消息和回应仍会显示它。",
       "retry": "重试",
       "errors": {
         "load": "无法加载你的表情。",
@@ -2381,6 +2382,11 @@
     "trendingFilters": "筛选",
     "trendingTimeRange": "时间范围",
     "trendingSource": "来源",
+    "trendingSourceSearch": "搜索实例",
+    "trendingSourceActive": "在这些结果中活跃",
+    "trendingSourceRecent": "最近出现的实例",
+    "trendingSourceMatches": "匹配的实例",
+    "trendingSourceSearching": "搜索中…",
     "clearFilters": "清除筛选",
     "trendingNoPosts": "暂无热门内容",
     "trendingNoPostsHint": "获得回复、转发或收藏的帖子会显示在这里。",
@@ -2760,7 +2766,11 @@
       "followingUnfollow": "关注中 {'@'}{handle}，取消关注",
       "requestedCancel": "已请求 {'@'}{handle}，取消请求",
       "loadFailed": "无法加载个人资料。该用户可能不存在或暂时不可用。",
-      "postsBy": "{name} 的帖子"
+      "postsBy": "{name} 的帖子",
+      "copyHandle": "复制账号",
+      "copyHandleNamed": "复制账号 {handle}",
+      "handleCopied": "已复制 {handle}",
+      "handleCopyFailed": "无法复制账号"
     },
     "followA11y": {
       "requests": "请求",
@@ -3082,7 +3092,8 @@
     "copied": "已复制 {text}",
     "copyFailed": "无法复制",
     "copyLink": "复制图片链接",
-    "linkCopied": "已复制图片链接"
+    "linkCopied": "已复制图片链接",
+    "removed": "已从来源中移除。使用过它的消息仍会显示它。"
   },
   "inbox": {
     "title": "通知",
@@ -4733,10 +4744,6 @@
         "title": "暂无联邦健康数据",
         "description": "记录到入站或出站联邦活动后，指标会显示在这里。"
       },
-      "remoteEmoji": {
-        "title": "未找到远程表情",
-        "description": "当您与联邦内容互动时，来自远程实例的表情会显示在这里。"
-      },
       "tiers": {
         "title": "未配置任何等级"
       },
@@ -5037,7 +5044,9 @@
       "expiresIn": "{time}后过期",
       "expired": "此代码已过期。",
       "newCode": "新代码",
-      "copyCode": "复制代码"
+      "copyCode": "复制代码",
+      "copyFailed": "无法复制。代码已选中，请从输入框中手动复制。",
+      "textLabel": "配对代码"
     },
     "linkDevice": {
       "title": "关联新设备",
@@ -5046,9 +5055,9 @@
       "scanHint": "将摄像头对准新设备上的 QR 码。",
       "scanPasteLabel": "或粘贴从新设备复制的代码",
       "showInstead": "新设备有摄像头？改为显示代码供其扫描",
-      "showLead": "在新设备上选择“{another}”，然后选择“{scanInstead}”，并将其摄像头对准此处。任何登录了您账户的人扫描此代码都能获取您的密钥，因此请勿给他人看。",
+      "showLead": "在新设备上选择“{another}”，然后选择“{scanInstead}”，并将其摄像头对准此处，或复制下方的代码并粘贴到那台设备上。任何登录了您账户的人扫描或粘贴此代码都能获取您的密钥，因此请勿给他人看。",
       "showLeadAnother": "另一台设备",
-      "showLeadScanInstead": "改为扫描其代码",
+      "showLeadScanInstead": "改为扫描或粘贴其代码",
       "qrAlt": "设备关联 QR 码",
       "scanInstead": "改为扫描新设备的代码",
       "newDevice": "新设备",
@@ -5079,9 +5088,9 @@
       }
     },
     "pairing": {
-      "lead": "在已登录的设备上，在新登录提示中选择“{scanCode}”，或在“隐私 → 您的设备”中选择“{linkDevice}”，然后扫描此代码。",
+      "lead": "在已登录的设备上，在新登录提示中选择“{scanCode}”，或在“隐私 → 您的设备”中选择“{linkDevice}”，然后扫描此代码，或复制下方的代码并粘贴到那台设备上。",
       "qrAlt": "设备配对 QR 码",
-      "scanInstead": "另一台设备无法扫描？改为扫描其代码",
+      "scanInstead": "另一台设备无法扫描？改为扫描或粘贴其代码",
       "scanHint": "在已登录的设备上选择“关联设备”，然后选择“显示代码”，并将此摄像头对准它。",
       "scanPasteLabel": "或粘贴来自另一台设备的代码",
       "showInstead": "改为在此设备上显示代码",
@@ -5256,6 +5265,8 @@
       "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。",
       "publicProfilePages": "向未登录的访客显示个人资料和公开帖子",
       "publicProfilePagesHint": "关闭后，访客会被引导至登录页。链接预览和联邦不受影响。",
+      "federateImageMaxPx": "发送到其他服务器的照片最长边（像素）",
+      "federateImageMaxPxHint": "帖子中更大的照片会缩小到合适尺寸后发送，格式与原图相同（JPEG、PNG 或 WebP）；原图保留在本站。最大 2000。0 表示发送原图。每条帖子保持发布时的设置。",
       "federationOutbound": "向其他实例发送",
       "federationOutboundHint": "关闭：不向其他实例投递任何内容。",
       "federationInbound": "从其他实例接收",
@@ -5264,6 +5275,7 @@
       "federationCloseConfirmTitle": "关闭联邦？",
       "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
       "federationCloseConfirm": "关闭联邦",
+      "configLoadFailed": "无法读取当前设置。请在保存前重新加载。",
       "customOAuthTitle": "自有登录提供方",
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
@@ -5385,66 +5397,9 @@
     },
     "instanceEmojis": {
       "tab": "表情",
-      "title": "实例表情",
-      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情由各自的服务器管理；个人表情和 AI 生成的表情列在“用户表情”下。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
-      "refresh": "刷新",
-      "source": {
-        "label": "来源",
-        "all": "所有来源",
-        "local": "本地",
-        "remote": "远程和桥接",
-        "user": "用户表情"
-      },
-      "sort": {
-        "label": "排序",
-        "newest": "最新优先",
-        "name": "名称 (A-Z)"
-      },
-      "empty": "没有匹配的实例表情。",
-      "emptyUser": "没有匹配的用户表情。",
-      "localBadge": "本地",
-      "personalBadge": "个人",
-      "aiBadge": "AI",
-      "aiGenerated": "AI 生成",
-      "uploadedBy": "由 {user} 上传",
-      "ownedBy": "所有者 {user}",
-      "noOwner": "已删除的账户",
-      "reactions": "无回应 | {count} 个回应 | {count} 个回应",
-      "rename": "重命名",
-      "newName": "新名称",
       "previous": "上一页",
       "next": "下一页",
-      "range": "第 {from}-{to} 个，共 {total} 个",
-      "renamed": "表情已重命名",
-      "deleted": "表情已删除",
-      "deleteTitle": "删除表情",
-      "confirmDelete": "删除 :{name}:？使用它的旧消息将显示 :{name}: 文本而不是图片。",
-      "confirmDeleteInUse": "删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。 | 删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。",
-      "confirmDeleteUser": "从 {user} 的表情中删除 :{name}:？之前使用它的消息会显示 :{name}: 文本而不是图片。",
-      "confirmDeleteUserInUse": "从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。 | 从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
-      "errors": {
-        "load": "无法加载实例表情。",
-        "rename": "无法重命名表情。",
-        "delete": "无法删除表情。",
-        "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
-        "nameTaken": "另一个实例表情已使用该名称。",
-        "nameTakenUser": "所有者已有同名的表情。",
-        "notAdmin": "只有实例管理员可以上传实例表情。",
-        "duplicateFile": "该文件已是实例表情。"
-      },
-      "searchLabel": "搜索表情",
-      "searchHint": "名称或域名",
-      "searchHintUser": "名称或所有者",
-      "browseTitle": "本实例的所有表情",
-      "loading": "正在加载表情",
-      "library": {
-        "description": "所有本地用户都能在表情选择器中以本实例的名称找到它们。",
-        "listLabel": "本地实例表情",
-        "empty": "还没有实例表情",
-        "emptyHint": "在上方上传。所有本地用户都可以使用。",
-        "loading": "正在加载实例表情",
-        "retry": "重试"
-      }
+      "range": "第 {from}-{to} 个，共 {total} 个"
     },
     "copyId": {
       "user": "复制用户 ID",
@@ -5454,6 +5409,155 @@
       "serverCopied": "已复制服务器 ID",
       "userFailed": "无法复制用户 ID",
       "serverFailed": "无法复制服务器 ID"
+    },
+    "emojis": {
+      "title": "表情",
+      "description": "本实例的所有自定义表情：上传的、导入的、从其他实例缓存的表情、服务器表情和个人表情。移除的表情会从所有选择器中消失；之前的消息和回应仍会显示它，并且可以恢复。彻底删除会删除表情及其文件：之前的消息和回应随后会显示损坏图片图标。",
+      "refresh": "刷新",
+      "retry": "重试",
+      "loading": "正在加载表情",
+      "empty": "没有匹配的表情。",
+      "emptyNotImported": "没有等待导入的其他实例表情。",
+      "searchLabel": "搜索表情",
+      "searchHint": "名称、服务器、所有者或域名",
+      "newName": "新名称",
+      "brokenImage": "无法加载图片",
+      "hotlinkedHint": "图片从其他网站加载。“在此托管”会将其复制到本实例。",
+      "kinds": {
+        "label": "类型",
+        "all": "全部",
+        "instance": "实例",
+        "imported": "已导入",
+        "federated": "联邦缓存",
+        "server": "服务器",
+        "personal": "个人",
+        "ai": "AI 生成",
+        "not_imported": "未导入"
+      },
+      "status": {
+        "label": "状态",
+        "active": "有效",
+        "removed": "已移除"
+      },
+      "sort": {
+        "label": "排序",
+        "newest": "最新优先",
+        "oldest": "最早优先",
+        "name": "名称 (A-Z)",
+        "usage": "最常用"
+      },
+      "badges": {
+        "hotlinked": "外部链接",
+        "removed": "已移除"
+      },
+      "meta": {
+        "server": "位于 {server}",
+        "from": "来自 {domain}",
+        "uploadedBy": "由 {user} 上传",
+        "ownedBy": "所有者 {user}",
+        "noOwner": "已删除的账户",
+        "usage": "从未使用 | 使用过 1 次 | 使用过 {count} 次",
+        "seen": "出现 {count} 次 | 出现 {count} 次",
+        "reactions": "没有回应 | {count} 个回应 | {count} 个回应",
+        "removedBy": "{user} 于 {date} 移除",
+        "removedOn": "于 {date} 移除"
+      },
+      "titles": {
+        "rename": "重命名",
+        "remove": "移除",
+        "restore": "恢复",
+        "purge": "彻底删除",
+        "rehost": "在此托管",
+        "import": "导入"
+      },
+      "actions": {
+        "rename": "重命名 {name}",
+        "remove": "移除 {name}",
+        "restore": "恢复 {name}",
+        "purge": "彻底删除 {name}",
+        "rehost": "在此托管 {name}",
+        "import": "导入 {name}",
+        "select": "选择 {name}"
+      },
+      "bulk": {
+        "select": "选择",
+        "selectPage": "选择本页全部",
+        "selected": "已选择 {count} 个 | 已选择 {count} 个",
+        "remove": "移除所选",
+        "restore": "恢复所选",
+        "purge": "彻底删除所选"
+      },
+      "upload": {
+        "button": "上传",
+        "label": "上传实例表情",
+        "uploading": "正在上传 {name}…",
+        "uploadingMany": "正在上传第 {current} 个，共 {total} 个…",
+        "uploaded": "已上传 {name}",
+        "uploadedMany": "已上传 {count} 个表情 | 已上传 {count} 个表情",
+        "failed": "无法上传表情。",
+        "failedMany": "{count} 个上传失败 | {count} 个上传失败",
+        "notImage": "已跳过 {count} 个非图片文件 | 已跳过 {count} 个非图片文件",
+        "tooLarge": "已跳过 {count} 个过大的文件 | 已跳过 {count} 个过大的文件",
+        "noValid": "没有可上传的图片文件。"
+      },
+      "confirm": {
+        "removeTitle": "移除表情",
+        "remove": "移除 {name}？它会从所有表情选择器中消失。之前的消息和回应仍会显示它，并且可以恢复。",
+        "removeMany": "移除 {count} 个表情？它们会从所有表情选择器中消失。之前的消息和回应仍会显示它们，并且可以恢复。 | 移除 {count} 个表情？它们会从所有表情选择器中消失。之前的消息和回应仍会显示它们，并且可以恢复。",
+        "removeButton": "移除",
+        "purgeTitle": "彻底删除表情",
+        "purge": "彻底删除 {name}？表情及其文件将被永久删除。使用它的之前消息和回应随后会显示损坏图片图标。",
+        "purgeMany": "彻底删除 {count} 个表情？表情及其文件将被永久删除。使用它们的之前消息和回应随后会显示损坏图片图标。 | 彻底删除 {count} 个表情？表情及其文件将被永久删除。使用它们的之前消息和回应随后会显示损坏图片图标。",
+        "purgeButton": "彻底删除",
+        "importTitle": "导入 {name}",
+        "import": "将从 {domain} 下载图片副本到本实例的存储，并添加到实例表情中。名称留空则保留 {name}。",
+        "importLabel": "名称（不含冒号）",
+        "importButton": "导入"
+      },
+      "done": {
+        "renamed": "已重命名为 {name}",
+        "removed": "已移除 {name}",
+        "removedMany": "已移除 {count} 个表情 | 已移除 {count} 个表情",
+        "restored": "已恢复 {name}",
+        "restoredMany": "已恢复 {count} 个表情 | 已恢复 {count} 个表情",
+        "purged": "已彻底删除 {name}",
+        "purgedMany": "已彻底删除 {count} 个表情 | 已彻底删除 {count} 个表情",
+        "rehosted": "{name} 现已托管在本实例",
+        "imported": "已导入 {name}"
+      },
+      "errors": {
+        "load": "无法加载表情。",
+        "rename": "无法重命名表情。",
+        "remove": "无法移除表情。",
+        "restore": "无法恢复表情。",
+        "purge": "无法彻底删除表情。",
+        "purgeFile": "{name} 已彻底删除，但无法删除其文件。",
+        "purgeFiles": "有 {count} 个文件无法删除。 | 有 {count} 个文件无法删除。",
+        "bulk": "有 {count} 个表情无法更改。 | 有 {count} 个表情无法更改。",
+        "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
+        "nameTaken": "另一个有效表情已使用该名称。",
+        "limit": "已达到表情数量上限。",
+        "notAllowed": "你无权更改此表情。",
+        "notFound": "该表情已不存在。",
+        "notAdmin": "只有实例管理员可以上传实例表情。",
+        "duplicateFile": "该文件已是实例表情。",
+        "backend": {
+          "not_authenticated": "你的会话已过期，请重新登录。",
+          "admin_required": "只有实例管理员可以执行此操作。",
+          "insufficient_aal": "请确认你的第二验证因素后重试。",
+          "not_found": "该表情已不存在。",
+          "already_imported": "该表情已导入。",
+          "name_taken": "已有实例表情使用该名称。",
+          "invalid_name": "名称为 2 到 64 个字母、数字、_ 或 -。",
+          "not_instance": "只有实例表情可以在此托管。",
+          "not_hotlinked": "该表情已托管在本实例。",
+          "unsupported_image": "远程图片不是 PNG、GIF、WebP 或 JPEG。",
+          "too_large": "远程图片超过表情大小上限。",
+          "fetch_failed": "无法下载远程图片。",
+          "internal_error": "出了点问题，请稍后重试。",
+          "network_error": "无法连接到服务器。"
+        }
+      }
     }
   },
   "discordBridge": {
@@ -6202,6 +6306,7 @@
       "join": "加入子区",
       "edit": "编辑子区",
       "splitView": "在分屏视图中打开",
+      "openFullView": "在全屏视图中打开",
       "close": "关闭子区",
       "reopen": "重新打开子区",
       "lock": "锁定子区",
@@ -6323,7 +6428,14 @@
     "quotedPost": "引用的帖子",
     "openMedia": "打开媒体 {index}/{total}",
     "playOnSite": "在 {site} 上播放",
-    "playInX": "在 X 播放器中播放"
+    "playInX": "在 X 播放器中播放",
+    "profile": {
+      "title": "个人资料",
+      "label": "{name} 的个人资料",
+      "loading": "正在加载个人资料…",
+      "unavailable": "此个人资料不可用",
+      "open": "打开个人资料"
+    }
   },
   "outsideLink": {
     "title": "即将离开 Harmony",
@@ -6962,6 +7074,8 @@
   },
   "driveAdmin": {
     "settings": "Drive 存储",
+    "enabled": "启用 Drive",
+    "offHint": "Drive 已关闭：其页面和文件选择器被隐藏，文件无法共享。所有上传都会保留，没有存储上限；上传大小限制仍然适用。已在 Drive 中的文件会保留，重新启用 Drive 后恢复。",
     "quotaUser": "每个账户的存储空间",
     "quotaModerator": "每位实例版主的存储空间",
     "quotaAdmin": "每位实例管理员的存储空间",
@@ -7772,7 +7886,7 @@
     "copy": "复制",
     "copied": "已复制邀请链接",
     "copyFailed": "无法复制链接；请选中后自行复制",
-    "singleUse": "只发给这个人：最先打开链接的人会创建账号。",
+    "singleUse": "只发给这个人：最先用此链接设置密码的人会创建账号。",
     "pendingTitle": "待处理的邀请（{count}）",
     "refresh": "刷新",
     "loading": "正在加载邀请…",
@@ -7812,7 +7926,7 @@
       "emailUnavailable": "此实例无法发送邮件。请改为创建链接。",
       "authRateLimited": "认证服务发送的邮件过多；请稍后再试。",
       "rateLimited": "邀请更改过于频繁；请稍后再试。",
-      "inviteAccepted": "此人已经登录；邀请无法再更改。",
+      "inviteAccepted": "此人已经设置了密码；邀请无法再更改。",
       "inviteGone": "此邀请已不存在。",
       "adminRequired": "只有实例管理员可以邀请他人。",
       "authFailed": "认证服务拒绝了请求：{detail}",

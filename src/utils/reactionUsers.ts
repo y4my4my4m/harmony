@@ -1,5 +1,6 @@
 import type { ReactionActor, ReactionGroup } from '@/types'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
+import { formatHandle } from '@/utils/handles'
 
 /** metadata.discord_user of a reaction bridged from Discord. */
 export type DiscordReactionUser = NonNullable<NonNullable<ReactionActor['metadata']>['discord_user']>
@@ -59,8 +60,7 @@ export function formatUserHandle(
 ): string | null {
   const username = user?.username?.trim()
   if (!username) return null
-  if (user?.isLocal === false && user.domain) return `@${username}@${user.domain}`
-  return `@${username}`
+  return formatHandle({ username, domain: user?.domain, is_local: user?.isLocal })
 }
 
 export function toReactionUser(actor: ReactionActor, resolvers: ReactionUserResolvers): ReactionUser {

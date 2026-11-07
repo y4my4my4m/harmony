@@ -181,6 +181,16 @@ export function noteContext(note: any): string | null {
 }
 
 /**
+ * FEP-1b12 `audience` of an object or activity: the Group (Lemmy community) it was posted to.
+ * The first entry of an array; http(s) only.
+ */
+export function noteAudience(value: any): string | null {
+  const audience = Array.isArray(value?.audience) ? value.audience[0] : value?.audience;
+  const iri = iriOf(audience);
+  return iri && /^https?:\/\//i.test(iri) ? iri : null;
+}
+
+/**
  * HTML without its FEP-044f fallback element: the first <p> or <span> of class quote-inline
  * and everything nested in it. Applied only to a Note that carries a quote.
  */
@@ -347,7 +357,7 @@ export function noteToContent(note: any): any[] {
     // Add text before this tag (with URL detection)
     if (tagPos.position > currentIndex) {
       const textBefore = cleanText.substring(currentIndex, tagPos.position);
-      if (textBefore.trim()) {
+      if (textBefore) {
         splitTextWithUrls(parts, textBefore, links);
       }
     }
@@ -399,7 +409,7 @@ export function noteToContent(note: any): any[] {
   // Add remaining text after all tags (with URL detection)
   if (currentIndex < cleanText.length) {
     const remaining = cleanText.substring(currentIndex);
-    if (remaining.trim()) {
+    if (remaining) {
       splitTextWithUrls(parts, remaining, links);
     }
   }
@@ -471,7 +481,7 @@ function splitTextWithUrls(parts: any[], text: string, links: LabelledLink[] = [
   while ((match = urlRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
       const before = text.substring(lastIndex, match.index);
-      if (before.trim()) parts.push({ type: 'text', text: before });
+      if (before) parts.push({ type: 'text', text: before });
     }
 
     let url = match[0];
@@ -483,7 +493,7 @@ function splitTextWithUrls(parts: any[], text: string, links: LabelledLink[] = [
 
   if (lastIndex < text.length) {
     const remaining = text.substring(lastIndex);
-    if (remaining.trim()) parts.push({ type: 'text', text: remaining });
+    if (remaining) parts.push({ type: 'text', text: remaining });
   }
 }
 

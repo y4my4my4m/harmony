@@ -45,12 +45,12 @@
             @update:model-value="setQuery({ range: $event })"
           />
 
-          <SocialSelect
+          <InstanceSourcePicker
             v-if="showSourceFilter"
             :model-value="source"
-            :options="sourceOptions"
             :label="t('activitypub.trendingSource')"
-            icon="globe"
+            :post-domains="postDomains"
+            :people-domains="peopleDomains"
             :active="source !== ''"
             data-testid="trending-source"
             @update:model-value="setQuery({ source: $event })"
@@ -257,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, onMounted } from 'vue'
+import { computed, reactive, ref, shallowRef, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
@@ -276,8 +276,10 @@ import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Composer from './Composer.vue'
 import SocialSelect, { type SocialSelectOption } from './SocialSelect.vue'
+import InstanceSourcePicker from './InstanceSourcePicker.vue'
 import type { TimelinePost, FederatedUser } from '@/types'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { rankPeopleDomains, rankPostDomains } from '@/utils/instanceSourceRanking'
 
 type TrendingTab = 'posts' | 'hashtags' | 'people'
 
@@ -392,32 +394,6 @@ const rangeOptions = computed<SocialSelectOption[]>(() =>
   TIME_RANGES.map(range => ({ value: range, label: rangeLabel(range) })),
 )
 
-// Sources ---------------------------------------------------------------------------------
-const knownDomains = ref<string[]>([])
-
-const sourceDomains = computed(() => {
-  const local = runtimeConfig.domain?.toLowerCase()
-  const set = new Set(knownDomains.value.filter(d => d && d !== local))
-  if (source.value && source.value !== 'local') set.add(source.value)
-  return Array.from(set).sort((a, b) => a.localeCompare(b))
-})
-
-const sourceOptions = computed<SocialSelectOption[]>(() => [
-  { value: '', label: t('activitypub.allInstances') },
-  { value: 'local', label: t('activitypub.thisInstance') },
-  ...sourceDomains.value.map(domain => ({ value: domain, label: domain })),
-])
-
-const loadKnownDomains = async () => {
-  if (!federationEnabled.value || knownDomains.value.length > 0) return
-  try {
-    const instances = await trendingService.getFederatedInstances({ limit: 100, filter: 'active' })
-    knownDomains.value = instances.map(i => String(i.domain || '').toLowerCase()).filter(Boolean)
-  } catch (error) {
-    debug.warn('Failed to load instance domains for the trending source filter:', error)
-  }
-}
-
 const isHidden = (id: string | undefined): boolean =>
   !!id && (activityPubStore.mutedUsers.has(id) || activityPubStore.blockedUsers.has(id))
 
@@ -440,6 +416,14 @@ const posts = reactive({
 const visiblePosts = computed(() =>
   posts.items.filter(p => !isHidden(p.author_id || p.author?.id))
 )
+
+// Sources ---------------------------------------------------------------------------------
+// Suggestions rank the rows of the last unfiltered load; rows filtered to one source
+// would rank only that source.
+const sampledPosts = shallowRef<TimelinePost[]>([])
+const sampledPeople = shallowRef<FederatedUser[]>([])
+const postDomains = computed(() => rankPostDomains(sampledPosts.value, runtimeConfig.domain))
+const peopleDomains = computed(() => rankPeopleDomains(sampledPeople.value, runtimeConfig.domain))
 
 const postsQuery = () => ({
   timeRange: timeRange.value,
@@ -616,6 +600,13 @@ const people = reactive({
 
 const visiblePeople = computed(() => people.items.filter(u => !isHidden(u.id)))
 
+watch(visiblePosts, items => {
+  if (source.value === '') sampledPosts.value = items
+})
+watch(visiblePeople, items => {
+  if (source.value === '') sampledPeople.value = items
+})
+
 const peopleQuery = () => ({
   limit: PEOPLE_PAGE,
   instance: source.value && source.value !== 'local' ? source.value : undefined,
@@ -685,12 +676,7 @@ const refresh = () => {
   }
 }
 
-onMounted(() => {
-  ensureLoaded()
-  void loadKnownDomains()
-})
-
-watch(federationEnabled, () => void loadKnownDomains())
+onMounted(ensureLoaded)
 
 // Navigation ------------------------------------------------------------------------------
 const openHashtag = (tag: string) => {

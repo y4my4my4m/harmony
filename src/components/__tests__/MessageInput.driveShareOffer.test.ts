@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 
 const drive = vi.hoisted(() => ({
   driveAvailable: vi.fn(async () => true),
+  driveEnabled: vi.fn(async () => true),
   getDriveFileCard: vi.fn(),
   getDriveShareGap: vi.fn(),
   shareDriveFile: vi.fn(async () => ({})),
