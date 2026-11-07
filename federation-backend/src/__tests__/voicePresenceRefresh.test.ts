@@ -8,7 +8,7 @@ vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({}) }))
 vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
-vi.mock('../activitypub/DeliveryQueue.js', () => ({ DeliveryQueue: { deliverEach: vi.fn() } }))
+vi.mock('../activitypub/DeliveryQueue.js', () => ({ DeliveryQueue: { deliverOnce: vi.fn() } }))
 vi.mock('../services/FederationSwitches.js', () => ({ federationSwitches: vi.fn(async () => ({ inbound: true, outbound: true })) }))
 vi.mock('../services/voiceParticipantSweep.js', () => ({ voiceRosterUnverified: () => false }))
 vi.mock('../activitypub/VoiceActivityHandler.js', () => ({
@@ -60,7 +60,9 @@ describe('refreshVoicePresence', () => {
     expect(annSigner).toBe('u1')
     expect(annItems.map((i) => i.inbox)).toEqual(['https://a.test/inbox', 'https://b.test/inbox'])
     expect(annItems[0].activity).toBe(annItems[1].activity)
-    expect(annItems[0].activity).toMatchObject({ actor: 'https://host.test/users/ann', object: { id: 'c1', serverId: 's1' } })
+    expect(annItems[0].activity).toMatchObject({
+      actor: 'https://host.test/users/ann', object: { id: 'c1', serverId: 's1' }, 'harmony:refresh': true,
+    })
 
     const [bobItems, bobSigner] = deliver.mock.calls[1] as unknown as [Array<{ inbox: string; activity: any }>, string]
     expect(bobSigner).toBe('u2')

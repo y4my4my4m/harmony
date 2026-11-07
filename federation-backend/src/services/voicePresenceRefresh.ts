@@ -1,13 +1,14 @@
 /**
- * Re-announces this instance's voice callers to the instances holding copies of its
- * servers. A copy drops a caller's row 30 minutes after the last announcement
- * (sweep_stale_voice_participants, 20261108100001); a VoiceChannelJoin every
- * PRESENCE_REFRESH_MS keeps live callers listed there, and a lost VoiceChannelLeave
- * lists a departed one for at most that long.
+ * Re-announces this instance's voice callers to the Harmony 1.9.4+ instances holding copies
+ * of its servers. A copy drops a caller's row 30 minutes after the last announcement
+ * (sweep_stale_voice_participants, 20261108100001); a VoiceChannelJoin marked harmony:refresh
+ * every PRESENCE_REFRESH_MS restamps live callers' rows there and creates none, so a lost
+ * VoiceChannelLeave lists a departed caller for at most 30 minutes and a late refresh lists
+ * nobody.
  *
- * One voice_presence_refresh_targets call per run returns every (caller, instance)
- * pair; each caller's activity is built once and delivered to its instances through
- * DeliveryQueue.deliverEach.
+ * One voice_presence_refresh_targets call per run returns every (caller, instance) pair;
+ * each caller's activity is built once and delivered once to each of its instances
+ * (DeliveryQueue.deliverOnce). A failed delivery is not queued: the next run replaces it.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -58,9 +59,12 @@ export async function refreshVoicePresence(deps: RefreshDeps): Promise<RefreshRe
       const actor = t.federated_id || `https://${deps.instanceDomain}/users/${t.username}`;
       caller = {
         userId: t.user_id,
-        activity: VoiceActivityHandler.createVoiceChannelJoin(
-          actor, t.channel_id, t.channel_name ?? '', t.server_id, t.server_name ?? '',
-        ),
+        activity: {
+          ...VoiceActivityHandler.createVoiceChannelJoin(
+            actor, t.channel_id, t.channel_name ?? '', t.server_id, t.server_name ?? '',
+          ),
+          'harmony:refresh': true,
+        },
         inboxes: new Set(),
       };
       callers.set(key, caller);
@@ -93,7 +97,9 @@ async function tick(): Promise<void> {
     const result = await refreshVoicePresence({
       supabase: getSupabaseClient(),
       instanceDomain: config.INSTANCE_DOMAIN,
-      deliver: (items, signer) => DeliveryQueue.deliverEach(items, signer),
+      deliver: async (items, signer) => {
+        await Promise.all(items.map((item) => DeliveryQueue.deliverOnce(item.activity, item.inbox, signer)))
+      },
     });
     if (!result.ok) logger.warn(`Voice presence refresh failed: ${result.reason}`);
     else if (result.deliveries > 0) {

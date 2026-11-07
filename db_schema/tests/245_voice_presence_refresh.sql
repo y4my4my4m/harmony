@@ -4,16 +4,28 @@
 --
 --   alice  owns hall245 (federated) and closed245 (federation off)
 --   bob    member of hall245, in its open channel
---   rena   on peer245.test, member of hall245
+--   rena   on peer245.test (Harmony 1.9.4), member of hall245
+--   olaf   on old245.test (Harmony 1.9.3), member of hall245
+--   mia    on masto245.test (Mastodon), member of hall245
 --   copy245  a remote server's copy hosted on peer245.test
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(17);
+SELECT plan(18);
 GRANT USAGE ON SCHEMA tests TO service_role;
 
 INSERT INTO public.profiles (id, username, display_name, is_local, domain, federated_id, shared_inbox_url) VALUES
   ('24500000-0000-0000-0000-0000000000f1', 'rena245', 'Rena', false, 'peer245.test',
    'https://peer245.test/users/rena245', 'https://peer245.test/inbox');
+INSERT INTO public.profiles (id, username, display_name, is_local, domain, federated_id, shared_inbox_url) VALUES
+  ('24500000-0000-0000-0000-0000000000f2', 'olaf245', 'Olaf', false, 'old245.test',
+   'https://old245.test/users/olaf245', 'https://old245.test/inbox'),
+  ('24500000-0000-0000-0000-0000000000f3', 'mia245', 'Mia', false, 'masto245.test',
+   'https://masto245.test/users/mia245', 'https://masto245.test/inbox');
+INSERT INTO public.federated_instances (domain, software, version) VALUES
+  ('peer245.test', 'harmony', '1.9.4'),
+  ('old245.test', 'harmony', '1.9.3'),
+  ('masto245.test', 'mastodon', '4.5.1')
+ON CONFLICT (domain) DO UPDATE SET software = EXCLUDED.software, version = EXCLUDED.version;
 INSERT INTO public.servers (id, name, owner, public, federation_enabled) VALUES
   ('24500000-0000-0000-0000-00000000a001', 'hall245', '11111111-0000-0000-0000-000000000001', true, true),
   ('24500000-0000-0000-0000-00000000a002', 'closed245', '11111111-0000-0000-0000-000000000001', true, false);
@@ -23,7 +35,9 @@ INSERT INTO public.servers (id, name, public, federation_enabled, is_local_serve
 INSERT INTO public.user_servers (server_id, user_id, status) VALUES
   ('24500000-0000-0000-0000-00000000a001', '22222222-0000-0000-0000-000000000002', 'accepted'),
   ('24500000-0000-0000-0000-00000000a001', '24500000-0000-0000-0000-0000000000f1', 'accepted'),
-  ('24500000-0000-0000-0000-00000000a002', '24500000-0000-0000-0000-0000000000f1', 'accepted')
+  ('24500000-0000-0000-0000-00000000a002', '24500000-0000-0000-0000-0000000000f1', 'accepted'),
+  ('24500000-0000-0000-0000-00000000a001', '24500000-0000-0000-0000-0000000000f2', 'accepted'),
+  ('24500000-0000-0000-0000-00000000a001', '24500000-0000-0000-0000-0000000000f3', 'accepted')
 ON CONFLICT (user_id, server_id) DO UPDATE SET status = 'accepted';
 
 -- hall245: open, hidden from @everyone (bit 1 VIEW_CHANNEL); closed245 and the copy one each.
@@ -74,6 +88,8 @@ SELECT is((SELECT row(channel_id, channel_name, server_name, user_id, instance, 
   '(24500000-0000-0000-0000-0000000000c1,voice245,hall245,22222222-0000-0000-0000-000000000002,peer245.test,https://peer245.test/inbox)',
   'the pair names the channel, server, caller and the instance inbox');
 SELECT ok((SELECT username IS NOT NULL FROM targets245), 'the caller''s username for the actor fallback');
+SELECT ok(NOT EXISTS (SELECT 1 FROM targets245 WHERE instance IN ('old245.test', 'masto245.test')),
+  'an instance on Harmony 1.9.3 or other software gets no re-announcement');
 SELECT ok(NOT EXISTS (SELECT 1 FROM targets245 WHERE user_id = '11111111-0000-0000-0000-000000000001'
                                                AND channel_id = '24500000-0000-0000-0000-0000000000c1'),
   'a caller joined under 2 minutes ago is not re-announced');

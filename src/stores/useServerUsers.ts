@@ -461,26 +461,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         channelServers.set(row.channel_id, serverId);
         add(row.channel_id, row.user_id);
       }
-      for (const [key, change] of occupancyEvents) {
-        if (change.at < Date.now() - ROSTER_EVENT_TTL_MS) {
-          occupancyEvents.delete(key);
-          continue;
-        }
-        if (change.at < startedAt - ROSTER_EVENT_GRACE_MS) continue;
-        const [channelId, userId] = key.split('|');
-        if (channelServers.get(channelId) !== serverId) continue;
-        if (change.joined) add(channelId, userId);
-        else if (rosters[channelId]) rosters[channelId] = rosters[channelId].filter((id) => id !== userId);
-      }
-      const voiceStore = useUnifiedVoiceChannelStore();
-      const ownChannel = voiceStore.isConnected && voiceStore.currentServerId === serverId
-        ? voiceStore.currentChannelId
-        : voiceStore.optimisticServerId === serverId ? voiceStore.optimisticChannelId : null;
-      if (ownChannel && voiceStore.localState.userId) {
-        channelServers.set(ownChannel, serverId);
-        add(ownChannel, voiceStore.localState.userId);
-      }
-
+      // Before the recent changes below: one arriving during this read is applied.
       if (!this.voiceBroadcastServerLocal) {
         const unread = new Set<string>();
         for (const [channelId, owner] of channelServers) {
@@ -509,6 +490,26 @@ export const useServerUsersStore = defineStore('serverUsers', {
             }
           }
         }
+      }
+
+      for (const [key, change] of occupancyEvents) {
+        if (change.at < Date.now() - ROSTER_EVENT_TTL_MS) {
+          occupancyEvents.delete(key);
+          continue;
+        }
+        if (change.at < startedAt - ROSTER_EVENT_GRACE_MS) continue;
+        const [channelId, userId] = key.split('|');
+        if (channelServers.get(channelId) !== serverId) continue;
+        if (change.joined) add(channelId, userId);
+        else if (rosters[channelId]) rosters[channelId] = rosters[channelId].filter((id) => id !== userId);
+      }
+      const voiceStore = useUnifiedVoiceChannelStore();
+      const ownChannel = voiceStore.isConnected && voiceStore.currentServerId === serverId
+        ? voiceStore.currentChannelId
+        : voiceStore.optimisticServerId === serverId ? voiceStore.optimisticChannelId : null;
+      if (ownChannel && voiceStore.localState.userId) {
+        channelServers.set(ownChannel, serverId);
+        add(ownChannel, voiceStore.localState.userId);
       }
 
       for (const [channelId, owner] of channelServers) {

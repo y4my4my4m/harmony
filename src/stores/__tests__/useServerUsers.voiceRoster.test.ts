@@ -34,6 +34,8 @@ const db = vi.hoisted(() => ({
   // profiles.is_local = true
   localIds: [] as string[],
   profileReads: [] as string[][],
+  // Resolves the next profiles read when set; the read waits for it.
+  profilesHold: null as null | Promise<void>,
 }))
 const voice = vi.hoisted(() => ({
   isConnected: false,
@@ -72,6 +74,7 @@ vi.mock('@/supabase', () => {
             eq: async () => {
               if (table !== 'profiles') throw new Error(`unexpected read of ${table}`)
               db.profileReads.push(ids)
+              if (db.profilesHold) await db.profilesHold
               return { data: ids.filter((id) => db.localIds.includes(id)).map((id) => ({ id })), error: null }
             },
           }),
@@ -119,6 +122,7 @@ beforeEach(() => {
   db.touchAnswer = true
   db.localIds = []
   db.profileReads.length = 0
+  db.profilesHold = null
   Object.assign(voice, {
     isConnected: false, currentChannelId: null, currentServerId: null,
     optimisticChannelId: null, optimisticServerId: null, isFederatedChannel: false, connectionMode: 'livekit',
@@ -251,6 +255,28 @@ describe('voice roster from the database', () => {
     await flush()
     await flush()
     expect(store.getUsersInVoiceChannel('c1')).toEqual(['neighbour'])
+  })
+
+  it('keeps a join that arrives while the locality read is in flight', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    db.rows = [{ server_id: S, channel_id: 'c1', user_id: 'hostA' }]
+    db.localIds = ['neighbour']
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S, { local: false })
+    await flush()
+    deliver(S, { event: 'user-joined', userId: 'neighbour', channelId: 'c1' })
+    vi.setSystemTime(Date.now() + 60_000)
+
+    let release = () => {}
+    db.profilesHold = new Promise<void>((resolve) => { release = resolve })
+    topic(S).status?.('SUBSCRIBED')
+    await flush()
+    expect(db.profileReads).toEqual([['neighbour']])
+    deliver(S, { event: 'user-joined', userId: 'hostB', channelId: 'c1' })
+    release()
+    await flush()
+    await flush()
+    expect([...store.getUsersInVoiceChannel('c1')].sort()).toEqual(['hostA', 'hostB', 'neighbour'])
   })
 
   it('keeps this client in its own call on a copy', async () => {
