@@ -32,6 +32,9 @@ const MiB = 1024 * 1024
 const DEFAULT_MB = 16
 const MODERATOR_MB = 24
 const FILE_BYTES = 18 * MiB
+// storage-api v1.89 relays the trigger's own 42501 message; v1.25-v1.29 replaced it with
+// "new row violates row-level security policy".
+const REFUSAL = /^upload_limit_exceeded: \d+ bytes, limit \d+ bytes$/
 // Uploads: single-request object POSTs and TUS creation and PATCHes.
 const STORAGE = (url: URL) => /\/storage\/v1\/(object\/message_media\/|upload\/resumable)/.test(url.pathname)
 
@@ -162,7 +165,7 @@ test('storage refuses a member\'s file over the limit sent straight to its API',
   await test.step('a single-request upload: refused once its bytes arrive, no object left', async () => {
     const path = `c/${server.generalChannelId}/${member.id}/${randomUUID()}.zip`
     const { error } = await client.storage.from('message_media').upload(path, file.buffer, { contentType: 'application/zip' })
-    expect(error).toMatchObject({ statusCode: '403', message: 'new row violates row-level security policy' })
+    expect(error).toMatchObject({ statusCode: '403', message: REFUSAL })
     const { data: listed } = await admin.storage.from('message_media').list(`c/${server.generalChannelId}/${member.id}`)
     expect((listed ?? []).map((o) => o.name)).not.toContain(path.split('/').pop())
     expect((await owned(path)).data).toEqual([])
@@ -190,7 +193,7 @@ test('storage refuses a member\'s file over the limit sent straight to its API',
     })
     const over = await create(FILE_BYTES, `${randomUUID()}.zip`)
     expect(over.status).toBe(403)
-    expect(await over.text()).toBe('new row violates row-level security policy')
+    expect(await over.text()).toMatch(REFUSAL)
 
     const within = await create(DEFAULT_MB * MiB, `${randomUUID()}.zip`)
     expect(within.status).toBe(201)

@@ -258,7 +258,7 @@ SELECT is_empty($q$SELECT 1 FROM public.get_batch_message_reactions(ARRAY['f4030
     'get_batch_message_reactions returns nothing for a hidden message');
 SELECT throws_ok(
     $q$INSERT INTO public.reactions (message_id, user_id, custom_emoji_content)
-       VALUES ('f4030000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000002', 'y')$q$,
+       VALUES ('f4030000-0000-0000-0000-000000000001', '22222222-0000-0000-0000-000000000002', '👍')$q$,
     '42501'::char(5), NULL, 'a plain member cannot react to a hidden message');
 
 SELECT tests.authenticate_as('f4000000-0000-0000-0000-0000000000a2');

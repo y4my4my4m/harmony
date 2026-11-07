@@ -38,6 +38,17 @@ describe('postLinks', () => {
   })
 })
 
+describe('postLinks permalinks', () => {
+  // tests/setup.ts: VITE_DOMAIN harmony.test.
+  it('names a post with an author by its permalink', () => {
+    const base = 'https://harmony.test'
+    expect(postLinks({ id: 'p1', is_local: true, author: { username: 'ann', domain: 'harmony.test', is_local: true } }, base).here)
+      .toEqual({ url: 'https://harmony.test/@ann/p1', host: 'harmony.test' })
+    expect(postLinks({ id: 'p2', is_local: false, url: 'https://mastodon.social/@bob/2', author: { username: 'bob', domain: 'mastodon.social', is_local: false } }, base).here)
+      .toEqual({ url: 'https://harmony.test/@bob@mastodon.social/p2', host: 'harmony.test' })
+  })
+})
+
 describe('boostLinkTarget', () => {
   it('names the boosted post from its snapshot', () => {
     const reblog = { id: 'orig', url: 'https://mastodon.social/@ann/2' }

@@ -3,6 +3,7 @@
  * confirmation names the scope, lists what happens and to whom, and says where it is recorded.
  */
 import type { HostedServer, HostedServerMember, HostedServerMessage } from '@/services/HostedServerStaffService'
+import { formatHandle } from '@/utils/handles'
 
 type Translate = (key: string, ...args: unknown[]) => string
 
@@ -29,8 +30,7 @@ export function memberName(member: Pick<HostedServerMember, 'display_name' | 'us
 
 /** @user for a local account, @user@domain for one of another instance. */
 export function memberHandle(member: Pick<HostedServerMember, 'username' | 'domain' | 'is_local'>): string {
-  if (!member.username) return ''
-  return member.is_local || !member.domain ? `@${member.username}` : `@${member.username}@${member.domain}`
+  return formatHandle(member)
 }
 
 export function staffActionCopy(action: StaffAction, instance: string, t: Translate): StaffActionCopy {

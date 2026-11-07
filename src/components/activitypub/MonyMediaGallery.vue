@@ -51,7 +51,7 @@
       >
         <img
           v-if="media.type === 'image'"
-          :src="media.preview_url || media.url"
+          :src="media.preview_url || getAttachmentThumbnailUrl(media.url, undefined, media.mime_type)"
           :alt="mediaName(media)"
           class="media-image"
           :style="coverStyle(media)"
@@ -173,6 +173,7 @@ import { useLightbox, type LightboxMedia } from '@/composables/useLightbox';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { storageDownloadUrl } from '@/utils/storageDownloadUrl';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
+import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import { uid } from '@/utils/a11y/focus';
 
 interface Props {

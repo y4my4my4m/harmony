@@ -5,7 +5,9 @@ import type { SpecUser } from './harness'
 
 /**
  * Sets up end-to-end encryption for the signed-in user through the Megolm service module the
- * app loaded (by the URL Vite served it under).
+ * app loaded (by the URL Vite served it under). A page that already holds this user's keys
+ * unlocks them itself on load (tryAutoUnlock); that unlock replaces the recovery state a setup
+ * running beside it depends on, so the setup waits for it and is skipped once it unlocks.
  */
 export async function setUpEncryption(page: Page, user: SpecUser): Promise<void> {
   await page.evaluate(async (authUserId) => {
@@ -14,6 +16,8 @@ export async function setUpEncryption(page: Page, user: SpecUser): Promise<void>
     const url = served ?? '/src/services/encryption/MegolmMessageEncryptionService.ts'
     const service = (await import(/* @vite-ignore */ url)).megolmMessageEncryptionService as any
     if (!service.isInitialized()) await service.initialize(authUserId)
+    await service.whenInitSettled(15_000)
+    if (service.isUnlocked()) return
     await service.setupNewEncryption()
     if (!service.isUnlocked()) throw new Error('encryption setup left the keys locked')
   }, user.id)

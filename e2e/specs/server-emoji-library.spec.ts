@@ -87,7 +87,8 @@ test('the owner uploads, renames and deletes a server emoji; 0 is no limit', asy
   await expect(dialog).toBeHidden()
   await expect(page.getByText('No custom emojis yet')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Custom emojis' })).toBeFocused()
+  // Removal keeps the row and its file for messages that used it (remove_emoji).
   await expect
-    .poll(async () => (await admin.from('emojis').select('id').eq('server_id', server.id)).data?.length)
-    .toBe(0)
+    .poll(async () => (await admin.from('emojis').select('deleted_at').eq('server_id', server.id)).data?.map((r) => r.deleted_at !== null))
+    .toEqual([true])
 })

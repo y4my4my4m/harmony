@@ -6,6 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
+import { createI18n } from 'vue-i18n'
+import en from '@/locales/en.json'
 import type { InviteInfo } from '@/services/inviteService'
 import ServerInviteCard from '../ServerInviteCard.vue'
 
@@ -56,8 +58,10 @@ function info(extra: Partial<InviteInfo> = {}): InviteInfo {
 
 async function render(resolved: InviteInfo) {
   getInviteInfo.mockResolvedValue({ info: resolved })
+  const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
   const wrapper = mount(ServerInviteCard, {
     props: { inviteCode: resolved.code, inviteUrl: `https://harmony.test/invite/${resolved.code}` },
+    global: { plugins: [i18n] },
   })
   await flushPromises()
   return wrapper
@@ -73,6 +77,27 @@ describe('ServerInviteCard counts', () => {
     expect(wrapper.find('.server-name').text()).toBe('Lounge')
     expect(wrapper.find('.online-count').text()).toBe('3 online')
     expect(wrapper.find('.member-count').text()).toContain('12 members')
+    expect(wrapper.find('article').attributes('aria-label')).toBe('Invite to Lounge')
+    expect(wrapper.find('.join-button').text()).toBe('Join server')
+  })
+
+  it('offers Go to server to a member', async () => {
+    const wrapper = await render(info({ isMember: true }))
+    expect(wrapper.find('.join-button').exists()).toBe(false)
+    expect(wrapper.find('.joined-button').text()).toBe('Go to server')
+  })
+
+  it('shows the invalid state with the reason', async () => {
+    getInviteInfo.mockResolvedValue({ error: 'This invite has been revoked' })
+    const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
+    const wrapper = mount(ServerInviteCard, {
+      props: { inviteCode: 'GONE1234', inviteUrl: 'https://harmony.test/invite/GONE1234' },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+    expect(wrapper.find('.error-title').text()).toBe('Invalid invite')
+    expect(wrapper.find('.error-message').text()).toBe('This invite has been revoked')
+    expect(wrapper.find('.server-name').exists()).toBe(false)
   })
 
   it('shows zero online', async () => {

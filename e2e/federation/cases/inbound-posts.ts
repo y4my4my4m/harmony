@@ -5,6 +5,7 @@
 // is read back through PostgREST.
 //
 //   - an anchor whose text is not its URL is stored as a url part with that text as its label;
+//   - links on consecutive lines keep the newline between them as a text part;
 //   - a Create(Note) of 3000 characters is stored intact, and an Update growing a stored
 //     note past max_post_length (500) applies;
 //   - a media-only Note (empty content, one image) keeps its attachment, in the content and
@@ -152,6 +153,20 @@ export async function caseInboundPosts(ctx: InboundPostsContext) {
       eq(urls.map((p) => `${p.url} ${p.label ?? '(no label)'}`).join(', '),
         'https://example.com/docs the docs, https://example.com/a/long/path (no label)',
         'link text is the label; a shortened URL and a label naming another host are not')
+    }
+
+    console.log('\ninbound links on consecutive lines -> the line break between them is kept')
+    {
+      const id = `${peer.base}/notes/linklines-${crypto.randomUUID()}`
+      eq(await deliver(create(note(id, peer.actorUrl, {
+        content: '<p><a href="https://paypal.me/x">https://paypal.me/x</a><br />'
+          + '<a href="https://patreon.com/y">https://patreon.com/y</a></p>',
+      }))), 202, 'the Create with two links on two lines is accepted (202)')
+      const parts = ((await postByApId(id))?.content as Array<{ type: string; url?: string; text?: string }> ?? [])
+      const first = parts.findIndex((p) => p.type === 'url')
+      eq(JSON.stringify(parts.slice(first, first + 3).map((p) => (p.type === 'url' ? p.url : { type: p.type, text: p.text }))),
+        JSON.stringify(['https://paypal.me/x', { type: 'text', text: '\n' }, 'https://patreon.com/y']),
+        'the two links are url parts with a newline text part between them')
     }
 
     console.log('\ninbound media-only and sensitive Notes -> attachments in content and media_attachments')

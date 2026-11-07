@@ -1,8 +1,9 @@
 /**
  * Public profile and post pages, the HTML of
  *   GET /@:username            a local account and its public posts (?before=<post id> pages)
- *   GET /@:username/:postId    one post of that account
+ *   GET /@:username/:postId    one post of that account; /@user@domain/:postId of a remote one
  *   GET /posts/:postId         one post, local or remote (its ActivityPub id)
+ * /@user@domain, a remote account, is the app's: sign in, and back.
  *
  * ActivityPub requests pass on (next()) to ActorService and OutboxHandler, which answer the
  * same URLs with the actor and the Note. instance_config public_profile_pages false sends
@@ -32,6 +33,8 @@ const router = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USERNAME_RE = /^[A-Za-z0-9_]{1,64}$/;
+/** user@domain: a remote account, as utils/profileLinks.ts in the app reads it. */
+const REMOTE_HANDLE_RE = /^([A-Za-z0-9_.~-]{1,64})@([A-Za-z0-9.-]+(?::\d{1,5})?)$/;
 
 /**
  * Link-preview crawlers: the list of $invite_unfurl in dev/nginx-harmony.template.conf.
@@ -129,8 +132,7 @@ router.get(
     if (wantsActivityPub(req)) return next();
     const username = String(req.params.username ?? '');
     if (!USERNAME_RE.test(username)) {
-      // A remote account (@user@domain) is the app's: shown to signed-in readers.
-      if (/^[^@/]+@[^@/]+$/.test(username)) return res.redirect(302, `/social/profile/${encodeURIComponent(username).replace(/%40/g, '@')}`);
+      if (REMOTE_HANDLE_RE.test(username)) return sendToSignIn(req, res);
       return sendHtml(res, 404, renderStatusPage(context(req, null), 'not_found'), true);
     }
     const before = typeof req.query.before === 'string' && UUID_RE.test(req.query.before) ? req.query.before.toLowerCase() : null;
@@ -166,8 +168,9 @@ router.get(
 );
 
 /**
- * HTML of one post. `username` is the account named in the URL (/@<username>/<id>); a post of
- * another account, or of a remote one, is not found there.
+ * HTML of one post. `username` is the account named in the URL: /@<username>/<id> for a local
+ * author, /@<username>@<domain>/<id> for a remote one; a post of another account is not found
+ * there. null: /posts/<id>, any author.
  */
 export async function sendPublicPostPage(req: Request, res: Response, postId: string, username: string | null): Promise<void> {
   if (!UUID_RE.test(postId)) {
@@ -185,16 +188,18 @@ export async function sendPublicPostPage(req: Request, res: Response, postId: st
   const local = author && author.is_local !== false && post.is_local !== false;
   // A post the page does not show (followers-only, direct) may be one a signed-in reader sees.
   const inApp = { app: `/social/post/${postId.toLowerCase()}`, fallback: `/social/post/${postId.toLowerCase()}` };
-  if (!post || !author || (username !== null && !local)) {
+  const remote = username === null ? null : REMOTE_HANDLE_RE.exec(username);
+  if (!post || !author || (username !== null && Boolean(local) === Boolean(remote))) {
     sendHtml(res, 404, renderStatusPage(ctx, 'not_found', inApp), true);
     return;
   }
-  if (username !== null && author.username !== username) {
-    if (author.username.toLowerCase() !== username.toLowerCase()) {
+  const named = remote ? `${author.username}@${author.domain ?? ''}` : author.username;
+  if (username !== null && named !== username) {
+    if (named.toLowerCase() !== username.toLowerCase()) {
       sendHtml(res, 404, renderStatusPage(ctx, 'not_found', inApp), true);
       return;
     }
-    res.redirect(301, `/@${encodeURIComponent(author.username)}/${post.id}`);
+    res.redirect(301, `/@${encodeURIComponent(named).replace(/%40/g, '@')}/${post.id}`);
     return;
   }
 
@@ -214,7 +219,9 @@ router.get(
   asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (wantsActivityPub(req)) return next();
     const username = String(req.params.username ?? '');
-    if (!USERNAME_RE.test(username)) return sendHtml(res, 404, renderStatusPage(context(req, null), 'not_found'), true);
+    if (!USERNAME_RE.test(username) && !REMOTE_HANDLE_RE.test(username)) {
+      return sendHtml(res, 404, renderStatusPage(context(req, null), 'not_found'), true);
+    }
     return sendPublicPostPage(req, res, String(req.params.postId ?? ''), username);
   })
 );

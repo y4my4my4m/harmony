@@ -85,6 +85,11 @@ VALUES ('f1532000-0000-0000-0000-0000000000c1', 'f1530000-0000-0000-0000-0000000
 -- into server_1.
 INSERT INTO public.servers (id, name, owner)
 VALUES ('f1535000-0000-0000-0000-000000000001', 'Other server', '11111111-0000-0000-0000-000000000001');
+-- A member of the other server: check_content_emoji_parts turns emoji of servers the sender is
+-- not in into text before this permission is read.
+INSERT INTO public.user_servers (user_id, server_id, status)
+VALUES ('33333333-0000-0000-0000-000000000003', 'f1535000-0000-0000-0000-000000000001', 'accepted')
+ON CONFLICT (user_id, server_id) DO NOTHING;
 INSERT INTO public.emojis (id, name, url, server_id, scope, uploader, discord_emoji_id) VALUES
   ('f1534000-0000-0000-0000-000000000001', 'local153', 'https://cdn.test/local.png', '55555555-0000-0000-0000-000000000005', 'server', NULL, NULL),
   ('f1534000-0000-0000-0000-000000000002', 'other153', 'https://cdn.test/other.png', 'f1535000-0000-0000-0000-000000000001', 'server', NULL, NULL),
@@ -380,15 +385,17 @@ SELECT throws_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', 
 SELECT throws_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
                     pg_temp.emoji('f1534000-0000-0000-0000-000000000004', 'https://cdn.test/mine.png'))$q$,
                  '42501', 'Missing permission: USE_EXTERNAL_EMOJIS', 'a personal emoji is refused');
+INSERT INTO m153 VALUES ('remote_text', pg_temp.post_id('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
+                                                         pg_temp.emoji('remote:blobcat', 'https://remote.test/blobcat.png')));
+SELECT is((SELECT content -> 1 FROM public.messages WHERE id = (SELECT id FROM m153 WHERE k = 'remote_text')),
+          '{"type": "text", "text": ":e:"}'::jsonb, 'a remote emoji a client writes is text');
 SELECT throws_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
-                    pg_temp.emoji('remote:blobcat', 'https://remote.test/blobcat.png'))$q$,
-                 '42501', 'Missing permission: USE_EXTERNAL_EMOJIS', 'a remote emoji is refused');
-SELECT throws_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
-                    pg_temp.emoji(NULL, 'https://cdn.discordapp.com/emojis/900000000000009999.png'))$q$,
+                    '[{"type":"emoji","emoji":{"id":null,"name":"blob153","domain":"discord.com","url":"https://cdn.discordapp.com/emojis/900000000000009999.png"}}]')$q$,
                  '42501', 'Missing permission: USE_EXTERNAL_EMOJIS', 'a Discord emoji the server has not imported is refused');
-SELECT throws_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
-                    pg_temp.emoji('f1534000-0000-0000-0000-000000000001', 'https://cdn.test/other.png'))$q$,
-                 '42501', 'Missing permission: USE_EXTERNAL_EMOJIS', 'a local emoji id with another image is refused');
+INSERT INTO m153 VALUES ('forged_url', pg_temp.post_id('33333333-0000-0000-0000-000000000003', 'f1530000-0000-0000-0000-0000000000a3',
+                                                        pg_temp.emoji('f1534000-0000-0000-0000-000000000001', 'https://cdn.test/other.png')));
+SELECT is((SELECT content -> 1 -> 'emoji' ->> 'url' FROM public.messages WHERE id = (SELECT id FROM m153 WHERE k = 'forged_url')),
+          'https://cdn.test/local.png', 'a local emoji id with another image takes the emoji''s own image');
 SELECT lives_ok($q$SELECT pg_temp.post('33333333-0000-0000-0000-000000000003', '66666666-0000-0000-0000-000000000006',
                    pg_temp.emoji('f1534000-0000-0000-0000-000000000002', 'https://cdn.test/other.png'))$q$,
                 'another server''s emoji posts where the member holds USE_EXTERNAL_EMOJIS');

@@ -231,6 +231,7 @@
 </template>
 
 <script setup lang="ts">
+import { profileHandleParam } from '@/utils/permalinks'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -248,7 +249,6 @@ import { userDataService } from '@/services/userDataService'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
-import { runtimeConfig } from '@/services/runtimeConfig'
 import { useT } from '@/composables/useT'
 import UploadLimitDialog from './UploadLimitDialog.vue'
 
@@ -431,10 +431,8 @@ const moderateUser = async (user: any, action: string) => {
 }
 
 const navigateToUserPosts = (user: any) => {
-  const handle = (user.domain && user.domain !== runtimeConfig.domain as string)
-    ? `${user.username}@${user.domain}`
-    : user.username
-  router.push({ name: 'UserProfile', params: { handle } })
+  const handle = profileHandleParam(user)
+  if (handle) router.push({ name: 'UserProfile', params: { handle } })
 }
 
 const navigateToUserServers = async (user: AdminUser) => {

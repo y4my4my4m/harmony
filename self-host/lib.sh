@@ -96,9 +96,9 @@ version_ge() {
 
 compose_version() { docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//'; }
 
-# Auth image of the Supabase stack in supabase/ (supabase/gotrue:vX.Y.Z); empty when absent.
-stack_gotrue_image() {
-	{ grep -oE 'supabase/gotrue:v[0-9]+\.[0-9]+\.[0-9]+' "$SELF_HOST_DIR/supabase/docker-compose.yml" 2>/dev/null || true; } | head -1
+# stack_image REPO: REPO's image in the Supabase stack in supabase/ (REPO:vX.Y.Z); empty when absent.
+stack_image() {
+	{ grep -oE "$1:v[0-9]+\.[0-9]+\.[0-9]+" "$SELF_HOST_DIR/supabase/docker-compose.yml" 2>/dev/null || true; } | head -1
 }
 
 # shellcheck source=linking.sh
@@ -487,6 +487,35 @@ canonical_name() {
 tunnel_dns_only() {
 	[[ "$(canonical_name "$1" "${2:-}")" == *.cfargotunnel.com ]] && return 0
 	[[ " $(resolve6 "$1" | tr '\n' ' ') " == *" fd10:aec2:5dae:: "* ]]
+}
+
+# cloudflare_zone NAME: the zone NAME belongs to when Cloudflare hosts it, from the SOA in
+# Cloudflare's DNS-over-HTTPS answer (Answer at the apex, Authority below it). Empty when the
+# SOA's primary nameserver is not *.ns.cloudflare.com, or nothing answers.
+cloudflare_zone() {
+	command -v curl >/dev/null || return 0
+	{ curl -fsS --max-time 6 -H 'accept: application/dns-json' \
+		"https://cloudflare-dns.com/dns-query?name=$1&type=SOA" 2>/dev/null || true; } |
+		{ grep -o '"name": *"[^"]*", *"type": *6,[^}]*"data": *"[^" ]*\.ns\.cloudflare\.com\.' || true; } |
+		sed 's/^"name": *"\([^"]*\)".*/\1/; s/\.$//' | head -1 | lower
+}
+
+# edge_cert_missing NAME: NAME lies two or more labels below its Cloudflare zone and a TLS
+# handshake with it fails with alert 40 (handshake failure), Cloudflare's answer for a proxied
+# name no edge certificate covers. Universal SSL covers the zone and *.zone only; deeper names
+# need an Advanced certificate. Caddy without a certificate answers alert 80 instead. Sets
+# EDGE_ZONE and EDGE_FLAT, NAME one level below the zone (db.chat.example.com ->
+# db-chat.example.com).
+edge_cert_missing() {
+	local zone rest err
+	EDGE_ZONE=""; EDGE_FLAT=""
+	zone="$(cloudflare_zone "$1")"
+	[[ -n "$zone" && "$1" == *."$zone" ]] || return 1
+	rest="${1%."$zone"}"
+	[[ "$rest" == *.* ]] || return 1
+	err="$(curl -sS -o /dev/null --max-time 8 "https://$1/" 2>&1 >/dev/null)" && return 1
+	[[ "$err" == *"handshake failure"* ]] || return 1
+	EDGE_ZONE="$zone"; EDGE_FLAT="${rest//./-}.$zone"
 }
 
 # DNS names the instance serves: DOMAIN, DB_DOMAIN and, with voice, LIVEKIT_DOMAIN.

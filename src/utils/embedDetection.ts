@@ -60,8 +60,24 @@ export function detectEmbedProviderFromUrl(input: string | URL): EmbedProvider {
   return 'generic';
 }
 
+/** A host of this instance: its domain, an alternate domain, or the stored instance's. */
+export function isHarmonyHost(url: URL): boolean {
+  if (harmonyDomains.has(url.hostname.toLowerCase())) return true;
+  const stored = getStoredInstance();
+  if (!stored) return false;
+  try {
+    return new URL(stored.origin).host.toLowerCase() === url.host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+// A post of this instance (posts.id): /posts/<id>, /social/post/<id>, /@user/<id> and
+// /@user@domain/<id> (utils/permalinks.ts).
+const HARMONY_POST_PATH = /^\/(?:posts|social\/post|@[^/]+)\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$/;
+
 export function isHarmonyPostUrl(url: URL): boolean {
-  return harmonyDomains.has(url.hostname.toLowerCase()) && /^\/(social\/)?posts\/[a-zA-Z0-9-]+/.test(url.pathname);
+  return isHarmonyHost(url) && HARMONY_POST_PATH.test(url.pathname);
 }
 
 export function isHarmonyInviteUrl(url: URL): boolean {
@@ -83,8 +99,7 @@ export function getHarmonyPostId(url: URL): string | null {
   if (!isHarmonyPostUrl(url)) {
     return null;
   }
-  const match = url.pathname.match(/^\/(social\/)?posts\/([a-zA-Z0-9-]+)/);
-  return match ? match[2] : null;
+  return HARMONY_POST_PATH.exec(url.pathname)?.[1].toLowerCase() ?? null;
 }
 
 export function isYouTubeUrl(url: URL): boolean {

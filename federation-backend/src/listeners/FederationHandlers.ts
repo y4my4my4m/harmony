@@ -14,6 +14,7 @@ import {
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { createQuoteRequestActivity, ensureStamp, quotePermitted, stampUrl } from '../activitypub/quoteAuthorization.js';
+import { postImageMaxPx } from '../utils/federatedImages.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -67,6 +68,58 @@ async function resolveContext(note: any, post: any): Promise<void> {
     .maybeSingle();
   const named = root?.is_local === false ? root.metadata?.ap_context : null;
   if (typeof named === 'string' && /^https?:\/\//.test(named)) note.context = named;
+}
+
+/**
+ * The FEP-1b12 community of a thread: the Group its remote parent, else its remote root, was
+ * posted to (posts.metadata.ap_audience). Null outside a community thread.
+ */
+async function threadAudience(post: any): Promise<string | null> {
+  const ids = [post.in_reply_to, post.conversation_root_id]
+    .filter((id, i, all): id is string => typeof id === 'string' && !!id && all.indexOf(id) === i);
+  if (ids.length === 0) return null;
+  const { data } = await getSupabaseClient()
+    .from('posts')
+    .select('id, is_local, metadata')
+    .in('id', ids);
+  for (const id of ids) {
+    const row = (data ?? []).find((r: any) => r.id === id);
+    const named = row?.is_local === false ? row.metadata?.ap_audience : null;
+    if (typeof named === 'string' && /^https?:\/\//.test(named)) return named;
+  }
+  return null;
+}
+
+/**
+ * A public or unlisted reply in a community thread names the community as its audience and
+ * cc's it. Lemmy announces a comment to the community's followers only from the community's
+ * own instance (RawAnnouncableActivities::receive), and requires a public comment.
+ */
+async function resolveAudience(note: any, post: any): Promise<void> {
+  if (post.visibility !== 'public' && post.visibility !== 'unlisted') return;
+  const audience = await threadAudience(post);
+  if (!audience) return;
+  note.audience = audience;
+  const to: string[] = Array.isArray(note.to) ? note.to : [];
+  const cc: string[] = Array.isArray(note.cc) ? note.cc : [];
+  if (!to.includes(audience) && !cc.includes(audience)) note.cc = [...cc, audience];
+}
+
+/**
+ * Shared inbox, else inbox, of the remote actor `audience` names. An actor not stored yet is
+ * fetched and stored. Null for a local or unresolvable actor.
+ */
+export async function audienceInbox(audience: string): Promise<string | null> {
+  const { data: stored } = await getSupabaseClient()
+    .from('profiles')
+    .select('is_local, inbox_url, shared_inbox_url')
+    .eq('federated_id', audience)
+    .maybeSingle();
+  if (stored) return stored.is_local === false ? stored.shared_inbox_url || stored.inbox_url || null : null;
+  const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
+  const fetched = await ActivityProcessor.refreshRemoteActor(audience);
+  const actor = fetched?.actor;
+  return actor ? actor.endpoints?.sharedInbox || actor.inbox || null : null;
 }
 
 /** The quoted post of a local quote, and its author's actor and inbox when remote. */
@@ -131,8 +184,8 @@ function countOrNull(value: unknown): number | null {
 /**
  * The Note of a local post, as every outbound path serves it: Create, Update, outbox,
  * GET /posts/:id and featured. Mentions name the stored actor ids, inReplyTo the parent's
- * AP id, a quote its target and stamp; likes and shares carry their counts. `updated` marks
- * an edited post.
+ * AP id, a quote its target and stamp; likes and shares carry their counts; photos over the
+ * post's image cap are their renders. `updated` marks an edited post.
  */
 export async function buildLocalNote(post: any, author: any): Promise<any> {
   const noteId = post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`;
@@ -142,9 +195,11 @@ export async function buildLocalNote(post: any, author: any): Promise<any> {
     quoteAuthorization,
     likesCount: countOrNull(post.favorites_count),
     sharesCount: countOrNull(post.reblogs_count),
+    imageMaxPx: await postImageMaxPx(post),
   });
   await resolveInReplyTo(note, post);
   await resolveContext(note, post);
+  await resolveAudience(note, post);
   if (Array.isArray(post.edit_history) && post.edit_history.length > 0) {
     const updatedAt = Date.parse(post.updated_at);
     if (Number.isFinite(updatedAt)) note.updated = new Date(updatedAt).toISOString();
@@ -181,6 +236,7 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
     published: post.created_at,
     to: note.to || ['https://www.w3.org/ns/activitystreams#Public'],
     cc: note.cc || [`${authorUrl}/followers`],
+    ...(note.audience ? { audience: note.audience } : {}),
     object: note,
   };
 }
@@ -461,6 +517,7 @@ export async function createPostUpdateActivity(post: any, author: any): Promise<
     published: new Date().toISOString(),
     to: note.to || ['https://www.w3.org/ns/activitystreams#Public'],
     cc: note.cc || [`${authorUrl}/followers`],
+    ...(note.audience ? { audience: note.audience } : {}),
     object: note,
   };
 }

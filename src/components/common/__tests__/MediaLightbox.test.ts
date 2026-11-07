@@ -1,10 +1,11 @@
 /**
- * MediaLightbox and its host: images, videos and audio in one list, previous and next,
- * the inline player's position carried in and handed back, the fullscreen control only
- * where fullscreen exists, touch gestures, and openLightbox rendering through
- * MediaLightboxHost in the opener's portal container.
+ * MediaLightbox and its host: images, videos, audio, PDFs and other files in one list,
+ * previous and next, zoom and rotation for images only, the inline player's position carried
+ * in and handed back, autoplay, the fullscreen control only where fullscreen exists, touch
+ * gestures, and openLightbox rendering through MediaLightboxHost in the opener's portal
+ * container.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
@@ -146,18 +147,170 @@ describe('MediaLightbox', () => {
     expect(document.querySelector('[data-testid="lightbox-download"]')).toBeNull()
   })
 
-  it('zooms an image from the toolbar and resets on the next item', async () => {
+  it('zooms and rotates an image from the toolbar and resets on the next item', async () => {
     const wrapper = mountViewer()
     wrapper.setProps({ 'onUpdate:index': (i: number) => wrapper.setProps({ index: i }) })
     await flushPromises()
+    const image = () => document.querySelector<HTMLElement>('img.media-image')!
     button('a11y.lightbox.zoomIn')!.click()
     await nextTick()
-    expect(document.querySelector<HTMLElement>('img.media-image')!.style.transform).toContain('scale(1.25)')
+    expect(image().style.transform).toContain('scale(1.25)')
+    button('a11y.lightbox.rotateRight')!.click()
+    await nextTick()
+    expect(image().style.transform).toContain('rotate(90deg)')
+    expect(button('a11y.lightbox.zoomOut')!.disabled).toBe(false)
     button('a11y.lightbox.next')!.click()
     await flushPromises()
     button('a11y.lightbox.previous')!.click()
     await flushPromises()
-    expect(document.querySelector<HTMLElement>('img.media-image')!.style.transform).toContain('scale(1)')
+    expect(image().style.transform).toBe('translate3d(0px, 0px, 0) rotate(0deg) scale(1)')
+    expect(button('a11y.lightbox.zoomOut')!.disabled).toBe(true)
+  })
+
+  it('offers zoom and rotation for images only', async () => {
+    const all: LightboxItem[] = [
+      ...ITEMS,
+      { src: 'https://x.test/d.pdf', type: 'pdf', name: 'd.pdf' },
+      { src: 'https://x.test/e.zip', type: 'file', name: 'e.zip' },
+    ]
+    const wrapper = mountViewer({ imgs: all })
+    const tools: Record<string, boolean> = {}
+    for (let i = 0; i < all.length; i++) {
+      await wrapper.setProps({ index: i })
+      await flushPromises()
+      tools[(all[i] as { type: string }).type] = !!button('a11y.lightbox.zoomIn') && !!button('a11y.lightbox.rotateRight')
+    }
+    expect(tools).toEqual({ image: true, video: false, audio: false, pdf: false, file: false })
+  })
+
+  it('shows a PDF in a frame and another file as a card that downloads it', async () => {
+    // happy-dom would fetch the framed PDF.
+    const happyDOM = (window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }).happyDOM
+    happyDOM.settings.disableIframePageLoading = true
+    onTestFinished(() => { happyDOM.settings.disableIframePageLoading = false })
+    vi.mocked(downloadMediaFromUrl).mockClear()
+    const download = vi.fn()
+    const items: LightboxItem[] = [
+      { src: 'https://x.test/d.pdf', type: 'pdf', name: 'd.pdf' },
+      { src: 'https://x.test/e.zip', type: 'file', name: 'e.zip' },
+    ]
+    const wrapper = mountViewer({ imgs: items, download })
+    await flushPromises()
+    const frame = document.querySelector<HTMLIFrameElement>('iframe.media-pdf-frame')!
+    expect(frame.getAttribute('src')).toBe('https://x.test/d.pdf')
+    expect(frame.getAttribute('title')).toBe('d.pdf')
+
+    await wrapper.setProps({ index: 1 })
+    await flushPromises()
+    const card = document.querySelector<HTMLElement>('.media-file-card')!
+    expect(card.querySelector('.media-file-name')?.textContent).toBe('e.zip')
+    expect(card.querySelector('.media-file-note')?.textContent).toBe('a11y.lightbox.noPreview')
+    card.querySelector<HTMLButtonElement>('.media-file-download')!.click()
+    document.querySelector<HTMLButtonElement>('[data-testid="lightbox-download"]')!.click()
+    expect(download).toHaveBeenNthCalledWith(1, 1)
+    expect(download).toHaveBeenNthCalledWith(2, 1)
+    expect(downloadMediaFromUrl).not.toHaveBeenCalled()
+  })
+
+  it('starts video and audio on their own under autoplay', async () => {
+    const wrapper = mountViewer({ imgs: [ITEMS[1], ITEMS[2]], autoplay: true })
+    await flushPromises()
+    const video = stubMedia(document.querySelector<HTMLVideoElement>('video.media-video')!)
+    video.dispatchEvent(new Event('loadedmetadata'))
+    expect(video.play).toHaveBeenCalled()
+    await wrapper.setProps({ index: 1 })
+    await flushPromises()
+    const audio = stubMedia(document.querySelector<HTMLVideoElement>('video.media-audio-element')!)
+    audio.dispatchEvent(new Event('loadedmetadata'))
+    expect(audio.play).toHaveBeenCalled()
+  })
+
+  it('waits for a source still signing, then shows it', async () => {
+    const signed = ref('')
+    const item = { type: 'image' as const, name: 'late.png', get src() { return signed.value } }
+    mountViewer({ imgs: [item] })
+    await flushPromises()
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).not.toBeNull()
+    expect(document.querySelector('img.media-image')).toBeNull()
+    signed.value = 'https://x.test/late.png'
+    await flushPromises()
+    expect(document.querySelector('img.media-image')?.getAttribute('src')).toBe('https://x.test/late.png')
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).toBeNull()
+  })
+
+  it('shows an item without a readable source as a file card that downloads it', async () => {
+    const unavailable = ref(false)
+    const download = vi.fn()
+    const item = { type: 'image' as const, name: 'lost.png', src: '', get unavailable() { return unavailable.value } }
+    mountViewer({ imgs: [item], download })
+    await flushPromises()
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).not.toBeNull()
+    unavailable.value = true
+    await flushPromises()
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).toBeNull()
+    const card = document.querySelector<HTMLElement>('.media-file-card')!
+    expect(card.querySelector('.media-file-name')?.textContent).toBe('lost.png')
+    expect(card.querySelector('.media-file-note')?.textContent).toBe('a11y.lightbox.noPreview')
+    expect(button('a11y.lightbox.zoomIn')).toBeUndefined()
+    card.querySelector<HTMLButtonElement>('.media-file-download')!.click()
+    expect(download).toHaveBeenCalledWith(0)
+  })
+
+  describe('loop and rememberMute', () => {
+    const MUTE_KEY = 'harmony-lightbox-video-muted'
+    /** The video of the viewer mounted last. */
+    const video = () => [...document.querySelectorAll<HTMLVideoElement>('video.media-video')].pop()!
+
+    beforeEach(() => localStorage.removeItem(MUTE_KEY))
+    afterEach(() => localStorage.removeItem(MUTE_KEY))
+
+    it('repeats the video and opens muted as the viewer was last left', async () => {
+      localStorage.setItem(MUTE_KEY, 'true')
+      mountViewer({ imgs: [ITEMS[1]], loop: true, rememberMute: true })
+      await flushPromises()
+      expect(video().loop).toBe(true)
+      expect(video().muted).toBe(true)
+
+      video().muted = false
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('false')
+
+      mountViewer({ imgs: [ITEMS[1]], loop: true, rememberMute: true })
+      await flushPromises()
+      expect(video().muted).toBe(false)
+      video().muted = true
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('true')
+    })
+
+    it('keeps the muted state across the items of one opening', async () => {
+      const wrapper = mountViewer({ imgs: [ITEMS[1], { ...ITEMS[1], src: 'https://x.test/f.webm' }], rememberMute: true })
+      await flushPromises()
+      video().muted = true
+      video().dispatchEvent(new Event('volumechange'))
+      await wrapper.setProps({ index: 1 })
+      await flushPromises()
+      expect(video().getAttribute('src')).toBe('https://x.test/f.webm')
+      expect(video().muted).toBe(true)
+    })
+
+    it('neither repeats nor reads or writes the muted state by default', async () => {
+      localStorage.setItem(MUTE_KEY, 'true')
+      mountViewer({ imgs: [ITEMS[1]] })
+      await flushPromises()
+      expect(video().loop).toBe(false)
+      expect(video().muted).toBe(false)
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('true')
+    })
+
+    it('opens unmuted when storage is blocked', async () => {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+      onTestFinished(() => getItem.mockRestore())
+      mountViewer({ imgs: [ITEMS[1]], rememberMute: true })
+      await flushPromises()
+      expect(video().muted).toBe(false)
+    })
   })
 })
 

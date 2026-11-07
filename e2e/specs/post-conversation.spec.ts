@@ -54,7 +54,8 @@ test.afterAll(async () => {
 const opened = (page: Page) => page.locator('.post-view article[aria-current="true"]')
 const threadPosts = (page: Page) => page.locator('.post-view .thread-post')
 const threadPost = (page: Page, body: string) => threadPosts(page).filter({ hasText: body })
-const postUrl = (id: string) => new RegExp(`/social/post/${id}(\\?|$)`)
+// A post page ends on its permalink, /@author/<id>.
+const postUrl = (id: string) => new RegExp(`/@[^/]+/${id}(\\?|$)`)
 
 async function expectThread(page: Page, main: string, shown: string[], hidden: string[] = []) {
   await expect(opened(page)).toContainText(main, { timeout: 90_000 })
@@ -84,7 +85,7 @@ test('a reply opened from its notification leads to the whole conversation', asy
   await expect(bar).toContainText('4 posts in this conversation')
   await bar.getByRole('link', { name: 'View full conversation' }).click()
 
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.root}\\?highlight=${ids.first}`))
+  await expect(page).toHaveURL(new RegExp(`/@[^/]+/${ids.root}\\?highlight=${ids.first}`))
   await expectThread(page, text.root, [text.root, text.first, text.deep, text.second])
   await expect(bar).toHaveCount(0)
   const highlighted = page.locator('.post-view .thread-post.highlighted-post')

@@ -16,7 +16,11 @@
 //     Create{Note{name, inReplyTo}}, to the author alone, signed by the voter; a second vote
 //     is refused; the author's Update replaces the counts and a closed poll takes no vote;
 //   - FEP-7888: local posts carry context /posts/<root>/context, served as the thread's
-//     OrderedCollection; a reply in a thread whose remote root named a context carries it.
+//     OrderedCollection; a reply in a thread whose remote root named a context carries it;
+//   - FEP-1b12 replies: a post keeps the community it names as audience, a comment the Group
+//     that relayed it; a local public reply to a comment by a member of a third host names the
+//     community as audience, cc's it and reaches the community's inbox; a followers-only
+//     reply does not.
 //
 // WebFinger is https on the account's domain: a TLS proxy container on the stack network
 // forwards to the community host (outboundFederation.ts startWebFingerProxy). The federate-*
@@ -176,12 +180,16 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
   const quiet = host.addActor('/c/fx_quiet', 'Group', 'fx_quiet')
   const ann = host.addActor('/u/fx_ann_lemmy', 'Person', 'fx_ann_lemmy')
   const carol = host.addActor('/u/fx_pollster', 'Person', 'fx_pollster', { webfinger: `acct:fx_pollster@${proxyIp}` })
+  // A community member on another host: the parent author's inbox is not the community's.
+  const memberHost = new CommunityHost()
+  await memberHost.start(new URL(ctx.peer.base).hostname)
+  const bea = memberHost.addActor('/u/fx_bea', 'Person', 'fx_bea')
   const staticPage = host.url('/post/static')
   host.docs.set(staticPage, { id: staticPage, type: 'Page', attributedTo: ann, name: 'static', content: '<p>static</p>', to: [PUBLIC] })
 
   // Rows of an earlier run on this stack name that run's port; profiles.domain carries none.
   for (const domain of [proxyIp, new URL(host.base).hostname]) {
-    await db.from('profiles').delete().in('username', ['fx_tech', 'fx_quiet', 'fx_ann_lemmy', 'fx_pollster']).eq('domain', domain)
+    await db.from('profiles').delete().in('username', ['fx_tech', 'fx_quiet', 'fx_ann_lemmy', 'fx_pollster', 'fx_bea']).eq('domain', domain)
   }
 
   // The inbox admits 60 deliveries a minute from one signing host, shared with the peer: a 429
@@ -427,6 +435,53 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
       ...ctx.peer.captured.slice(peerBefore2).map((c) => ({ ...c, body: JSON.parse(c.raw.toString('utf-8')) })),
     ], localReply.data.id)
     eq(replyCreate?.body?.object?.context, remoteContext, 'a local reply carries the context its remote root named')
+
+    // FEP-1b12 REPLIES ---------------------------------------------------------------------
+    console.log('\nFEP-1b12 replies -> audience on the reply, delivered to the community')
+    eq(stored?.metadata?.ap_audience, group, 'the post keeps the community it names as audience')
+    const beaCommentId = memberHost.url(`/comment/${crypto.randomUUID()}`)
+    const beaComment = {
+      id: beaCommentId, type: 'Note', attributedTo: bea, content: '<p>from another instance</p>', inReplyTo: pageId,
+      to: [PUBLIC], cc: [], published: new Date().toISOString(),
+    }
+    memberHost.docs.set(beaCommentId, beaComment)
+    const beaCreate = { id: memberHost.url(`/activities/create/${crypto.randomUUID()}`), type: 'Create', actor: bea, to: [PUBLIC], cc: [group], object: beaComment }
+    eq(await deliver(announce(beaCreate), group), 202, 'the Group\'s Announce of a comment from another host is taken')
+    const beaRow = await postBy(beaCommentId)
+    eq(beaRow?.in_reply_to, stored?.id, 'the comment is a reply of the post')
+    eq(beaRow?.metadata?.ap_audience, group, 'a comment naming no audience keeps the Group that relayed it')
+
+    const communityReply = await alice.from('posts').insert({
+      author_id: ctx.ids.alice, visibility: 'public', is_local: true, in_reply_to: beaRow?.id,
+      content: [{ type: 'text', text: 'reply in the community' }],
+    }).select('id').single()
+    if (communityReply.error) return ctx.fail('fx_alice replies to the comment', communityReply.error.message)
+    const communityBefore = host.captured.length
+    const memberBefore = memberHost.captured.length
+    await runPost(communityReply.data.id)
+    const toCommunity = created(host.since(communityBefore), communityReply.data.id)
+    assert(toCommunity?.url === '/inbox', 'the reply reaches the community\'s shared inbox',
+      JSON.stringify(host.since(communityBefore).map((d) => `${d.url} ${d.body?.type}`)))
+    eq(toCommunity?.body?.object?.inReplyTo, beaCommentId, 'the reply answers the comment')
+    eq(toCommunity?.body?.object?.audience, group, 'the Note names the community as audience')
+    eq(toCommunity?.body?.audience, group, 'and so does the Create')
+    assert(toCommunity?.body?.object?.cc?.includes(group) && toCommunity?.body?.cc?.includes(group),
+      'the community is cc\'d on the Note and the Create', JSON.stringify({ note: toCommunity?.body?.object?.cc, create: toCommunity?.body?.cc }))
+    assert(toCommunity?.body?.object?.to?.includes(PUBLIC), 'the reply is public', JSON.stringify(toCommunity?.body?.object?.to))
+    if (toCommunity) {
+      const v = await ctx.verifySignature(toCommunity.headers.signature, toCommunity.headers, 'POST', toCommunity.url, toCommunity.raw)
+      eq(v.actorUrl, local('/users/fx_alice'), 'the reply is signed by its author')
+    }
+    assert(!!created(memberHost.since(memberBefore), communityReply.data.id), 'the comment\'s author receives the reply too')
+
+    const privateReply = await alice.from('posts').insert({
+      author_id: ctx.ids.alice, visibility: 'followers', is_local: true, in_reply_to: beaRow?.id,
+      content: [{ type: 'text', text: 'followers-only reply in the community' }],
+    }).select('id').single()
+    if (privateReply.error) return ctx.fail('fx_alice replies to the comment, followers only', privateReply.error.message)
+    const privateBefore = host.captured.length
+    await runPost(privateReply.data.id)
+    eq(created(host.since(privateBefore), privateReply.data.id), undefined, 'a followers-only reply does not reach the community')
   } catch (e) {
     ctx.fail('remote interactions', (e as Error)?.stack ?? e)
   } finally {
@@ -436,5 +491,6 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
     tap.close()
     await db.from('follows').delete().eq('follower_id', ctx.ids.remote).eq('following_id', ctx.ids.alice)
     await host.stop()
+    await memberHost.stop()
   }
 }

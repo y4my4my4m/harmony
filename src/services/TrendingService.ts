@@ -2,6 +2,7 @@ import { supabase } from '@/supabase';
 import type { TimelinePost, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { ilikeContains, normalizeDomainQuery } from '@/utils/instanceSourceRanking'
 
 // INTERFACES
 
@@ -508,6 +509,37 @@ class TrendingService {
       debug.error('Failed to get federated instances:', error);
       return [];
     }
+  }
+
+  /** Unblocked instance domains, most recently seen first. Throws on a failed request. */
+  async getRecentInstanceDomains(limit: number = 8): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('federated_instances')
+      .select('domain')
+      .not('is_blocked', 'is', true)
+      .order('last_seen_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data || []).map(row => String(row.domain || '')).filter(Boolean);
+  }
+
+  /**
+   * Unblocked instance domains containing `query` (normalizeDomainQuery), most recently
+   * seen first. The pattern travels as one URL-encoded ilike value, outside any or=()
+   * list, so ',' and ')' in it need no quoting. Throws on a failed request.
+   */
+  async searchInstanceDomains(query: string, limit: number = 20): Promise<string[]> {
+    const fragment = normalizeDomainQuery(query);
+    if (!fragment) return [];
+    const { data, error } = await supabase
+      .from('federated_instances')
+      .select('domain')
+      .not('is_blocked', 'is', true)
+      .ilike('domain', ilikeContains(fragment))
+      .order('last_seen_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data || []).map(row => String(row.domain || '')).filter(Boolean);
   }
 
   private instanceByDomainCache = new Map<string, any | null>();

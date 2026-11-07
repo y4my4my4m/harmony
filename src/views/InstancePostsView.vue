@@ -33,6 +33,7 @@
 <script setup lang="ts">
 // Public posts by accounts of one instance, as this instance holds them
 // (activityPubService.getInstanceActivity), newest first.
+import { profileHandleParam } from '@/utils/permalinks'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -135,8 +136,8 @@ async function handleDelete(post: TimelinePost) {
 }
 
 function handleUserClick(user: any) {
-  const handle = user.is_local ? `@${user.username}` : `@${user.username}@${user.domain}`
-  router.push({ name: 'UserProfile', params: { handle } })
+  const handle = profileHandleParam(user)
+  if (handle) router.push({ name: 'UserProfile', params: { handle } })
 }
 
 function handleHashtagClick(tag: string) {

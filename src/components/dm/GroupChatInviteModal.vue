@@ -202,6 +202,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
@@ -335,12 +336,9 @@ const clearAllSelections = () => {
   selectedUsers.value = []
 }
 
-const formatUserHandle = (user: Pick<DMUser, 'username'> & { handle?: string | null; domain?: string | null; is_local?: boolean }): string => {
-  if (!user.is_local && user.handle) {
-    return user.handle
-  }
-  return user.is_local ? `@${user.username}` : `@${user.username}@${user.domain || 'unknown'}`
-}
+// Search results: the full handle.
+const formatUserHandle = (user: Pick<DMUser, 'username'> & { handle?: string | null; domain?: string | null; is_local?: boolean }): string =>
+  formatHandle(user, { full: true })
 
 const stripShortcodes = (text: string): string => {
   if (!text) return text

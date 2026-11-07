@@ -30,7 +30,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: {} }),
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(() => Promise.resolve()) }),
 }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: vi.fn() }) }))
 vi.mock('@/composables/usePostInteractions', () => ({

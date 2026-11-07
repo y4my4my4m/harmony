@@ -1,65 +1,101 @@
 /**
- * DrivePreview hands its video to the media viewer: the preview pauses, the viewer starts
- * at the preview's time and keeps it playing, and the position comes back on close.
+ * DrivePreview is the media viewer over the files of the view: it opens at the start file
+ * under its name, steps with the arrow keys, renders each kind as the viewer does (zoom and
+ * rotation for images only), downloads through Drive, and signs only the file on screen.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+
+vi.mock('@/services/privateMedia', () => ({
+  mediaPartSource: vi.fn((part: { path: string }) => `https://signed.test/${part.path}`),
+  mediaPartSigningFailed: vi.fn(() => false),
+}))
+
 import DrivePreview from '../DrivePreview.vue'
+import { mediaPartSource } from '@/services/privateMedia'
 import type { DriveFile } from '@/services/drive/driveService'
 
 enableAutoUnmount(afterEach)
 
-afterEach(() => {
+const happyDOM = (window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }).happyDOM
+
+beforeEach(() => {
   document.body.innerHTML = ''
+  vi.mocked(mediaPartSource).mockClear()
+  // happy-dom would fetch the framed PDF.
+  happyDOM.settings.disableIframePageLoading = true
 })
 
-// happy-dom has no media pipeline: time and play state are stubbed per element.
-function stubMedia(media: HTMLMediaElement, time = 0, playing = false) {
-  let paused = !playing
-  let current = time
-  Object.defineProperty(media, 'duration', { configurable: true, get: () => 60 })
-  Object.defineProperty(media, 'paused', { configurable: true, get: () => paused })
-  Object.defineProperty(media, 'ended', { configurable: true, get: () => false })
-  Object.defineProperty(media, 'currentTime', {
-    configurable: true,
-    get: () => current,
-    set: (v: number) => { current = v },
-  })
-  media.play = vi.fn(() => { paused = false; return Promise.resolve() })
-  media.pause = vi.fn(() => { paused = true })
-  return media
+afterEach(() => {
+  happyDOM.settings.disableIframePageLoading = false
+})
+
+const file = (id: string, name: string, kind: DriveFile['kind'], mime: string) =>
+  ({ id, bucket: 'message_media', path: `u/owner/${name}`, name, mime_type: mime, kind, state: 'ready' }) as DriveFile
+
+const FILES = [
+  file('f1', 'harbour.png', 'image', 'image/png'),
+  file('f2', 'notes.pdf', 'document', 'application/pdf'),
+  file('f3', 'backup.zip', 'other', 'application/zip'),
+  file('f4', 'clip.webm', 'video', 'video/webm'),
+]
+
+const viewer = () => document.querySelector<HTMLElement>('[data-testid="media-viewer"] [role="dialog"]')!
+const name = () => document.querySelector('.lightbox-name')?.textContent
+const press = (key: string) => viewer().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+const tool = (label: string) => viewer().querySelector(`button[aria-label="${label}"]`)
+
+function open(startId = 'f2') {
+  return mount(DrivePreview, { props: { files: FILES, startId }, attachTo: document.body })
 }
 
-const clip = {
-  id: 'f1',
-  bucket: 'user_media',
-  path: 'u/owner/clip.mp4',
-  name: 'clip.mp4',
-  mime_type: 'video/mp4',
-  kind: 'video',
-  state: 'ready',
-} as DriveFile
-
 describe('DrivePreview', () => {
-  it('pauses its video and hands the position to the viewer and back', async () => {
-    mount(DrivePreview, { props: { files: [clip], startId: clip.id }, attachTo: document.body })
+  it('opens at the start file under its name and steps through the files with the arrow keys', async () => {
+    open()
     await flushPromises()
-    const inline = stubMedia(document.querySelector<HTMLVideoElement>('video.drive-preview__media')!, 7, true)
+    expect(name()).toBe('notes.pdf')
+    expect(document.querySelector('iframe.media-pdf-frame')?.getAttribute('src')).toBe('https://signed.test/u/owner/notes.pdf')
+    expect(tool('a11y.lightbox.zoomIn')).toBeNull()
 
-    document.querySelector<HTMLButtonElement>('[data-testid="drive-preview-lightbox"]')!.click()
+    press('ArrowLeft')
     await flushPromises()
-    expect(inline.pause).toHaveBeenCalled()
-    expect(inline.paused).toBe(true)
+    expect(name()).toBe('harbour.png')
+    expect(document.querySelector('img.media-image')?.getAttribute('src')).toBe('https://signed.test/u/owner/harbour.png')
+    expect(tool('a11y.lightbox.zoomIn')).not.toBeNull()
+    expect(tool('a11y.lightbox.rotateRight')).not.toBeNull()
 
-    const big = stubMedia(document.querySelector<HTMLVideoElement>('video.media-video')!)
-    big.dispatchEvent(new Event('loadedmetadata'))
-    expect(big.currentTime).toBe(7)
-    expect(big.play).toHaveBeenCalled()
-
-    big.currentTime = 20
-    document.querySelector<HTMLButtonElement>('[data-testid="media-viewer"] .close-btn')!.click()
+    press('ArrowRight')
     await flushPromises()
-    expect(document.querySelector('[data-testid="media-viewer"]')).toBeNull()
-    expect(inline.currentTime).toBe(20)
+    press('ArrowRight')
+    await flushPromises()
+    expect(name()).toBe('backup.zip')
+    expect(document.querySelector('.media-file-card .media-file-note')?.textContent).toBe('a11y.lightbox.noPreview')
+
+    press('ArrowRight')
+    await flushPromises()
+    expect(document.querySelector('video.media-video')?.getAttribute('src')).toBe('https://signed.test/u/owner/clip.webm')
+    expect(tool('a11y.lightbox.rotateRight')).toBeNull()
+  })
+
+  it('signs only the file on screen, and nothing for a file without a preview', async () => {
+    const signed = () => new Set(vi.mocked(mediaPartSource).mock.calls.map(([part]) => part?.path))
+    open('f3')
+    await flushPromises()
+    expect(signed()).toEqual(new Set())
+    press('ArrowLeft')
+    await flushPromises()
+    expect(signed()).toEqual(new Set(['u/owner/notes.pdf']))
+  })
+
+  it('downloads the file on screen through Drive and closes on Escape', async () => {
+    const wrapper = open('f3')
+    await flushPromises()
+    document.querySelector<HTMLButtonElement>('[data-testid="lightbox-download"]')!.click()
+    document.querySelector<HTMLButtonElement>('.media-file-download')!.click()
+    expect(wrapper.emitted('download')).toEqual([[FILES[2]], [FILES[2]]])
+
+    press('Escape')
+    await flushPromises()
+    expect(wrapper.emitted('close')).toHaveLength(1)
   })
 })

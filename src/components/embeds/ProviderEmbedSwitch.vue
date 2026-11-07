@@ -7,11 +7,25 @@
     @embed-loaded="handleEmbedLoad"
   />
 
+  <!-- A server on another Harmony instance: the card its host answered (utils/remoteInvite). -->
+  <RemoteServerInviteCard
+    v-else-if="isRemoteInvite"
+    :payload="payload"
+    @load="handleEmbedLoad"
+  />
+
   <!-- Server Invite Card - special handling without header/collapse -->
   <ServerInviteCard
     v-else-if="isServerInvite && inviteCode"
     :invite-code="inviteCode"
     :invite-url="payload.url"
+  />
+
+  <!-- An account of this instance or one it knows: /@user, /@user@domain (utils/profileLinks). -->
+  <ProfileEmbedCard
+    v-else-if="isProfile"
+    :payload="payload"
+    @load="handleEmbedLoad"
   />
   
   <!-- Regular embed: the card, and its actions on a rail beside it -->
@@ -180,7 +194,7 @@ import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
 import type { EmbedPayload } from '@/types';
-import { parseEmbedUrl, buildYouTubePlayerSrc, isYouTubePlayerOrigin, isYouTubeShort } from '@/utils/embedDetection';
+import { parseEmbedUrl, buildYouTubePlayerSrc, isYouTubePlayerOrigin, isYouTubeShort, isHarmonyHost } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
@@ -188,9 +202,12 @@ import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
 import { musicEmbedFor, musicProviderLabel } from '@/utils/musicEmbeds';
 import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
+import RemoteServerInviteCard from './RemoteServerInviteCard.vue';
 import DriveLinkAttachment from './DriveLinkAttachment.vue';
+import ProfileEmbedCard from './ProfileEmbedCard.vue';
+import { profileLinkFromUrl } from '@/utils/profileLinks';
+import { remoteInviteLink } from '@/utils/remoteInvite';
 import { driveLinkFromUrl } from '@/services/drive/driveLinks';
-import { runtimeConfig } from '@/services/runtimeConfig';
 
 const props = defineProps<{
   payload: EmbedPayload;
@@ -220,19 +237,20 @@ const { registerVideo, notifyPlaybackStarted, canPopOut, popOut } = useFloatingV
 // /drive/file/<id> and /d/<token> on this instance.
 const driveLink = computed(() => driveLinkFromUrl(props.payload.url));
 
+const isRemoteInvite = computed(() => props.payload.provider === 'harmony-remote-invite' && !!remoteInviteLink(props.payload.url));
+
+const isProfile = computed(() => props.payload.provider === 'harmony-profile' || !!profileLinkFromUrl(props.payload.url));
+
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
   if (props.payload.provider === 'harmony-invite') return true;
   
   try {
     const url = new URL(props.payload.url);
-    // Match /invite/CODE pattern on any harmony instance
-    const inviteMatch = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
-    if (inviteMatch) {
-      const harmonyDomains = [runtimeConfig.domain as string, 'har.mony.local', 'localhost'];
-      const isHarmonyDomain = harmonyDomains.some(d => url.hostname.includes(d)) || 
-                              url.origin === window.location.origin;
-      return isHarmonyDomain;
+    // An invite of this instance: its own hosts exactly (a lookalike host such as
+    // har.mony.lol.example.com is another site), or the page's origin.
+    if (/^\/invite\/[A-Za-z0-9]+$/.test(url.pathname)) {
+      return isHarmonyHost(url) || url.origin === window.location.origin;
     }
   } catch {
     // Invalid URL
@@ -273,7 +291,10 @@ const providerLabel = computed(() => {
     case 'harmony-post':
       return 'Harmony Post';
     case 'harmony-invite':
+    case 'harmony-remote-invite':
       return 'Server Invite';
+    case 'harmony-profile':
+      return t('embeds.profile.title');
     case 'harmony-drive':
       return 'Drive File';
     case 'fediverse-post': {

@@ -181,18 +181,7 @@
     </div>
 
     <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
-      <!-- Both lists hold rows of the emojis table: a change in one, or an import, reloads the other. -->
-      <InstanceEmojiLibrary ref="emojiLibrary" @changed="emojiBrowse?.load()" />
-      <InstanceEmojiAdmin ref="emojiBrowse" @changed="emojiLibrary?.refresh()" />
-      <div class="admin-module emoji-module">
-        <div class="module-header">
-          <Icon name="emoji" :size="20" />
-          <h2>Remote emoji importer</h2>
-        </div>
-        <div class="emoji-content">
-          <EmojiImporter @imported="emojiLibrary?.refresh(); emojiBrowse?.load()" />
-        </div>
-      </div>
+      <AdminEmojiLibrary />
     </div>
 
     <div v-else-if="activeAdminTab === 'stickers'" class="admin-grid single">
@@ -232,9 +221,7 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import ActivityLog from '@/components/admin/ActivityLog.vue'
 
 // Modules load lazily per tab so opening the panel only fetches Overview.
-const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/EmojiImporter.vue'))
-const InstanceEmojiAdmin = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiAdmin.vue'))
-const InstanceEmojiLibrary = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiLibrary.vue'))
+const AdminEmojiLibrary = defineAsyncComponent(() => import('@/components/admin/AdminEmojiLibrary.vue'))
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))
@@ -255,8 +242,6 @@ const StickerSettings = defineAsyncComponent(() => import('@/components/stickers
 import { adminService } from '@/services/AdminService'
 import { useProfileStore } from '@/stores/useProfile'
 
-const emojiLibrary = ref<{ refresh: () => Promise<void> } | null>(null)
-const emojiBrowse = ref<{ load: () => Promise<void> } | null>(null)
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -2214,24 +2199,6 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-/* Emoji Importer Module */
-.emoji-module {
-  grid-column: 1 / -1;
-  max-height: 1130px;
-}
-
-
-
-
-
-
-
-
-
-.emoji-content {
-  padding: 0;
-  overflow-y: auto;
-}
 
 
 

@@ -53,7 +53,8 @@ function hostHolds(ip: string): Promise<boolean> {
   })
 }
 
-export async function startDirectoryPeer(groups: PeerGroup[]): Promise<DirectoryPeer> {
+/** `name` is NodeInfo metadata.nodeName. */
+export async function startDirectoryPeer(groups: PeerGroup[], opts: { name?: string } = {}): Promise<DirectoryPeer> {
   const subnet = process.env.E2E_PEER_SUBNET ?? '198.51.100.0/24'
   const ip = `${subnet.split('/')[0].split('.').slice(0, 3).join('.')}.1`
   const network = `${process.env.E2E_PROJECT ?? 'hme2e'}-directory-peer`
@@ -111,7 +112,10 @@ export async function startDirectoryPeer(groups: PeerGroup[]): Promise<Directory
     if (url === '/nodeinfo/2.1') {
       return {
         type: 'application/json',
-        body: { version: '2.1', software: { name: 'harmony', version: '1.9.3' }, protocols: ['activitypub'], metadata: { serverDirectory: `${base()}/servers/directory` } },
+        body: {
+          version: '2.1', software: { name: 'harmony', version: '1.9.3' }, protocols: ['activitypub'],
+          metadata: { serverDirectory: `${base()}/servers/directory`, ...(opts.name ? { nodeName: opts.name } : {}) },
+        },
       }
     }
     if (url === '/servers/directory') {

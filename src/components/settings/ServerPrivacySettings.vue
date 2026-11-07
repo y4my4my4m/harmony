@@ -331,8 +331,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emit = defineEmits<Emits>()
 
-// Why the server cannot be listed now; null when it can. update_server clears the flag when the
-// server stops being public or federated.
+// Why the server cannot be listed now; null when it can. The flag is kept while the server is
+// private or unfederated (20261107900001) and applies again once it is neither.
 const directoryRequirement = computed(() => {
   if (!instanceDirectoryOpen.value) return t('server.federationDiscoverableInstanceOff')
   if (!props.isPublic) return t('server.federationDiscoverableNeedsPublic')
@@ -343,10 +343,6 @@ const directoryRequirement = computed(() => {
 const handleDirectoryToggle = (event: Event) => {
   if (!props.permissions.canChangePrivacySettings || directoryRequirement.value) return
   emit('update:federationDiscoverable', (event.target as HTMLInputElement).checked)
-}
-
-function unlist() {
-  if (props.federationDiscoverable) emit('update:federationDiscoverable', false)
 }
 
 const federatedMemberCount = ref(0)
@@ -426,13 +422,11 @@ const handleFederationToggle = (event: Event) => {
     return
   }
 
-  if (!newValue) unlist()
   emit('update:federationEnabled', newValue)
 }
 
 function confirmDisableFederation() {
   showDisableWarning.value = false
-  unlist()
   emit('update:federationEnabled', false)
 }
 
@@ -448,7 +442,6 @@ const setCategory = (value: ServerCategory | null) => {
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   if (!props.permissions.canChangePrivacySettings) return
   const newPublicState = mode === 'public-directory'
-  if (!newPublicState) unlist()
   emit('update:isPublic', newPublicState)
 }
 </script>

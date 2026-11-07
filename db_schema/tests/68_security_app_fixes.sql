@@ -223,14 +223,13 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.can_manage_group_i
   'can_manage_group_icon is not a client RPC');
 
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT public.import_remote_emoji('f6840000-0000-0000-0000-000000000001')$q$,
-  '42501', NULL, 'a non-admin cannot import an instance emoji');
-SELECT throws_ok($q$SELECT public.import_remote_emoji('f6840000-0000-0000-0000-000000000001', NULL,
-                     '55555555-0000-0000-0000-000000000005')$q$,
-  '42501', NULL, 'a member cannot import into a server they do not own');
-SELECT isnt(public.import_remote_emoji('f6840000-0000-0000-0000-000000000002', NULL,
-              'f6810000-0000-0000-0000-000000000001'), NULL,
-  'a server owner imports into their server');
+-- 20261107100001: imports re-host through the federation backend (service_role).
+SELECT throws_ok($q$SELECT public.import_remote_emoji('f6840000-0000-0000-0000-000000000001', NULL, NULL, NULL, NULL)$q$,
+  '42501', NULL, 'a client session cannot import an emoji');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.import_remote_emoji(uuid, text, text, text, uuid)', 'EXECUTE'),
+  'authenticated holds no EXECUTE on import_remote_emoji');
+SELECT ok(has_function_privilege('service_role', 'public.import_remote_emoji(uuid, text, text, text, uuid)', 'EXECUTE'),
+  'service_role does');
 SELECT throws_ok($q$SELECT public.register_recovery_key('11111111-0000-0000-0000-000000000001', 'code')$q$,
   '42501', NULL, 'a recovery key cannot be registered for another user');
 SELECT lives_ok($q$SELECT public.register_recovery_key('22222222-0000-0000-0000-000000000002', 'code')$q$,

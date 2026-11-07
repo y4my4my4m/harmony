@@ -725,14 +725,30 @@ export class VoiceActivityHandler {
       return;
     }
 
+    // last_seen_at: the host re-announces every 10 minutes (voicePresenceRefresh.ts); the
+    // minute sweep drops a copy row unannounced for 30. A re-announcement (harmony:refresh)
+    // restamps the row it finds and writes none: one arriving after the caller's leave lists
+    // nobody.
+    if ((activity as unknown as Record<string, unknown>)['harmony:refresh'] === true) {
+      const { error } = await supabase
+        .from('voice_channel_participants')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('channel_id', channel.id)
+        .eq('user_id', user.id);
+      if (error) logger.debug(`voice presence refresh for ${actorUrl} not stored: ${error.message}`);
+      return;
+    }
+
     try {
+      const now = new Date().toISOString();
       await supabase
         .from('voice_channel_participants')
         .upsert({
           channel_id: channel.id,
           server_id: channel.server_id,
           user_id: user.id,
-          joined_at: new Date().toISOString(),
+          joined_at: now,
+          last_seen_at: now,
           is_federated: true,
         }, {
           onConflict: 'channel_id,user_id',

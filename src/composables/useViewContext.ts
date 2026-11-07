@@ -27,6 +27,7 @@ import { watch } from 'vue'
 import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isSocialPath } from '@/utils/permalinks'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
@@ -353,7 +354,7 @@ export interface RouteViewContext {
 }
 
 const SETTINGS_ROUTES = new Set(['UserSettings', 'ServerSettings', 'AdminPanel'])
-const POST_ROUTES = new Set(['PostDetail', 'DirectPost'])
+const POST_ROUTES = new Set(['PostDetail', 'DirectPost', 'PostPermalink'])
 
 type RouteLike = Pick<RouteLocationNormalizedLoaded, 'name' | 'path' | 'params'>
 
@@ -387,7 +388,7 @@ export function viewContextForRoute(route: RouteLike): RouteViewContext {
   if (POST_ROUTES.has(name) && postId) {
     return { viewType: 'activitypub_home', clear: { postId } }
   }
-  if (route.path.startsWith('/social') || route.path.startsWith('/posts/')) {
+  if (isSocialPath(route.path)) {
     return { viewType: 'activitypub_home' }
   }
   if (SETTINGS_ROUTES.has(name)) {

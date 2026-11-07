@@ -1,9 +1,11 @@
-// Journey: "Discoverable across federation" in a server's Privacy settings (migration
-// 20261105100001). The switch is unavailable while the server is invite-only or does not
-// federate, and says why. The owner makes the server public and federated, lists it and saves:
-// the instance's directory (GET /servers/directory, e2e/specs/backend.ts) lists its Group and the
-// Group says discoverable. Unlisted, the server leaves the directory at once and the Group no
-// longer says discoverable; made private while listed, the listing goes with it.
+// Journey: "Discoverable across federation" in a server's Privacy settings (migrations
+// 20261105100001, 20261107900001). A new server carries it on. The switch is unavailable while the
+// server is invite-only or does not federate, and says why. Made public and federated, the server
+// is listed without the switch being touched: the instance's directory (GET /servers/directory,
+// e2e/specs/backend.ts) lists its Group and the Group says discoverable. Turned off, the server
+// leaves the directory at once, the Group no longer says discoverable, the audit log records it,
+// and it stays off through an invite-only spell. Turned on and made private, the listing goes and
+// returns once the server is public again.
 
 import { test, expect, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
@@ -70,18 +72,22 @@ async function save(page: Page) {
   expect((await saved).ok()).toBe(true)
 }
 
-test('the owner lists the server across federation and the instance directory follows', async ({ page }) => {
+test('a public, federated server is listed by default and its owner\'s choice stays', async ({ page }) => {
   test.setTimeout(180_000)
   const group = `https://localhost/servers/${server.id}`
+
+  expect((await stored()).federation_discoverable).toBe(true)
 
   await signIn(page, owner)
   await page.goto(`/server/${server.id}?section=privacy`)
   await expect(page.getByText('Discoverable across federation', { exact: true })).toBeVisible({ timeout: 30000 })
+  await expect(page.getByText(/On by default; it applies while the server is public and federated\./)).toBeVisible()
 
   await test.step('an invite-only server cannot be listed and says why', async () => {
     await expect(toggle(page)).toBeDisabled()
     await expect(toggle(page)).not.toBeChecked()
     await expect(requirement(page)).toHaveText('Make the server public to list it.')
+    expect(await listedGroups()).not.toContain(group)
   })
 
   await test.step('public but not federated, it still cannot', async () => {
@@ -90,19 +96,19 @@ test('the owner lists the server across federation and the instance directory fo
     await expect(toggle(page)).toBeDisabled()
   })
 
-  await test.step('public and federated, the owner lists it and saves', async () => {
+  await test.step('public and federated, it is listed without touching the switch', async () => {
     await flip(page, 'server-federation-toggle', true)
     await expect(requirement(page)).toBeHidden()
     await expect(toggle(page)).toBeEnabled()
+    await expect(toggle(page)).toBeChecked()
     await expect(page.getByRole('switch', { name: 'Discoverable across federation' })).toBeAttached()
-    await flip(page, 'server-directory-toggle', true)
     await save(page)
     await expect.poll(stored).toEqual({ public: true, federation_enabled: true, federation_discoverable: true })
     await expect.poll(listedGroups).toContain(group)
     expect((await groupDocument()).discoverable).toBe(true)
   })
 
-  await test.step('unlisted, it leaves the directory at once', async () => {
+  await test.step('turned off, it leaves the directory at once and the audit log records it', async () => {
     await flip(page, 'server-directory-toggle', false)
     await save(page)
     await expect.poll(stored).toMatchObject({ federation_discoverable: false })
@@ -110,18 +116,36 @@ test('the owner lists the server across federation and the instance directory fo
     const doc = await groupDocument()
     expect('discoverable' in doc).toBe(false)
     expect(doc['harmony:public']).toBe(true)
+    const { data: audit } = await admin.from('server_audit_log').select('actor_id, changes')
+      .eq('server_id', server.id).not('changes->federation_discoverable', 'is', null)
+    expect(audit).toEqual([{ actor_id: owner.id, changes: { federation_discoverable: { old: true, new: false } } }])
   })
 
-  await test.step('made private while listed, the listing goes with it', async () => {
+  await test.step('the owner\'s off stays off through an invite-only spell', async () => {
+    await choose(page, 'Invite only')
+    await save(page)
+    await choose(page, 'Public directory')
+    await save(page)
+    await expect.poll(stored).toEqual({ public: true, federation_enabled: true, federation_discoverable: false })
+    await expect(toggle(page)).toBeEnabled()
+    await expect(toggle(page)).not.toBeChecked()
+    expect(await listedGroups()).not.toContain(group)
+  })
+
+  await test.step('turned on and made private, the listing goes, and returns with the server public', async () => {
     await flip(page, 'server-directory-toggle', true)
     await save(page)
-    await expect.poll(stored).toMatchObject({ federation_discoverable: true })
+    await expect.poll(listedGroups).toContain(group)
     await choose(page, 'Invite only')
     await expect(toggle(page)).toBeDisabled()
     await expect(toggle(page)).not.toBeChecked()
     await save(page)
-    await expect.poll(stored).toEqual({ public: false, federation_enabled: true, federation_discoverable: false })
+    await expect.poll(stored).toEqual({ public: false, federation_enabled: true, federation_discoverable: true })
     expect(await listedGroups()).not.toContain(group)
     expect((await groupDocument()).discoverable).toBe(false)
+    await choose(page, 'Public directory')
+    await expect(toggle(page)).toBeChecked()
+    await save(page)
+    await expect.poll(listedGroups).toContain(group)
   })
 })

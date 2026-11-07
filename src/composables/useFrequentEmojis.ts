@@ -25,6 +25,21 @@ const MAX_STORED_EMOJIS = 50  // Maximum emojis to track
 const frequentEmojis = ref<EmojiUsage[]>([])
 const isInitialized = ref(false)
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * An entry a reaction can be written from: a unicode emoji, an emojis id, a `:shortcode:`
+ * or a `discord:name:id`. Clicking a bridged Discord pill recorded its display name as the
+ * id (reactionGroupKey before 1.9.4); such a bare name is no emoji and the server refuses it.
+ */
+function isReactableEntry(entry: unknown): entry is EmojiUsage {
+  if (!entry || typeof entry !== 'object') return false
+  const { id, native } = entry as Partial<EmojiUsage>
+  if (typeof id !== 'string' || !id) return false
+  if (typeof native === 'string' && native) return true
+  return UUID_RE.test(id) || id.startsWith('discord:') || /^:.+:$/.test(id) || !/[A-Za-z]/.test(id)
+}
+
 /**
  * Load frequent emojis from localStorage
  */
@@ -34,7 +49,8 @@ function loadFrequentEmojis(): void {
   try {
     const stored = userStorage.getItem(STORAGE_KEY)
     if (stored) {
-      frequentEmojis.value = JSON.parse(stored)
+      const parsed: unknown = JSON.parse(stored)
+      frequentEmojis.value = Array.isArray(parsed) ? parsed.filter(isReactableEntry) : []
     }
     isInitialized.value = true
     debug.log('Loaded frequent emojis:', frequentEmojis.value.length)

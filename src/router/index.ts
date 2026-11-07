@@ -3,6 +3,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { rememberPostAuthRedirect, consumePostAuthRedirect } from '@/utils/postAuthRedirect';
 import { claimPublicPageHop } from '@/utils/appSessionCookie';
+import { localDomain } from '@/utils/handles';
+import { tagPath } from '@/utils/permalinks';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import {
   ViewType,
@@ -10,22 +12,43 @@ import {
 } from '@/types/viewTypes';
 import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
 
+/** The /@ segment as the app spells it: no leading @, no domain of this instance, decoded. */
+export function canonicalProfileParam(raw: string): string {
+  let handle = raw;
+  try {
+    handle = decodeURIComponent(raw);
+  } catch {
+    // Kept as given.
+  }
+  handle = handle.trim().replace(/^@+/, '');
+  const domain = localDomain();
+  const at = handle.indexOf('@');
+  if (domain && at > 0 && handle.slice(at + 1).toLowerCase() === domain) handle = handle.slice(0, at);
+  return handle;
+}
+
 /**
- * /@<name> and /@<name>/<post id> in the app: the in-app profile or post. Signed out, the
- * page reloads once for the backend's public page; the proxy served the app on a cookie this
- * session no longer backs, and main.ts has cleared it.
+ * /@<handle> and /@<handle>/<post id>, the in-app profile and post (utils/permalinks.ts).
+ * Signed out, the page reloads once for the backend's public page: the proxy served the app
+ * on a cookie this session no longer backs, and main.ts has cleared it. Otherwise, signed
+ * out, sign in.
  */
-export function publicPageEntry(to: RouteLocationNormalized): RouteLocationRaw | false {
-  const username = String(to.params.username ?? '');
-  const postId = typeof to.params.postId === 'string' && to.params.postId ? to.params.postId : null;
-  if (!useAuthStore().isLoggedIn && !isTauriRuntime() && claimPublicPageHop(to.fullPath)) {
+export function publicPageEntry(to: RouteLocationNormalized): RouteLocationRaw | boolean {
+  const raw = String(to.params.handle ?? '');
+  const handle = canonicalProfileParam(raw);
+  if (handle !== raw) {
+    return { name: to.name ?? undefined, params: { ...to.params, handle }, query: to.query, hash: to.hash };
+  }
+  if (useAuthStore().isLoggedIn) return true;
+  if (!isTauriRuntime() && claimPublicPageHop(to.fullPath)) {
     window.location.replace(to.fullPath);
     return false;
   }
-  return postId
-    ? { name: 'PostDetail', params: { postId }, replace: true }
-    : { name: 'UserProfile', params: { handle: username }, replace: true };
+  rememberPostAuthRedirect(to.fullPath);
+  return { name: 'Login', query: { redirect: to.fullPath } };
 }
+
+const UUID_PARAM = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -311,7 +334,6 @@ const router = createRouter({
             if (post?.id) {
               return {
                 name: 'PostDetail',
-          meta: { titleKey: 'activitypub.post' },
                 params: { postId: post.id },
                 query: to.query,
                 replace: true,
@@ -344,19 +366,25 @@ const router = createRouter({
             viewType: ViewType.POST
           })
         },
+        // Earlier addresses of a profile and a hashtag.
         {
           path: 'profile/:handle',
-          name: 'UserProfile',
-          meta: { titleKey: 'activitypub.profile' },
-          component: () => import('@/views/UserProfileView.vue'),
-          props: route => ({
-            profileHandle: route.params.handle as string,
-            currentView: CurrentView.PROFILE,
-            viewType: ViewType.PROFILE
-          })
+          redirect: route => ({ name: 'UserProfile', params: { handle: route.params.handle }, query: route.query, hash: route.hash })
         },
         {
           path: 'hashtag/:tag',
+          redirect: route => ({ path: tagPath(String(route.params.tag)), query: route.query, hash: route.hash })
+        }
+      ]
+    },
+    // Hashtag page, /tags/<tag> as on Mastodon.
+    {
+      path: '/tags/:tag',
+      component: () => import('@/layouts/SocialLayout.vue'),
+      meta: { requiresAuth: true, providesMain: true },
+      children: [
+        {
+          path: '',
           name: 'HashtagView',
           meta: { titleKey: 'a11y.title.hashtag' },
           component: () => import('@/views/HashtagView.vue'),
@@ -368,25 +396,47 @@ const router = createRouter({
         }
       ]
     },
-    // ActivityPub User Profile Routes (served by nginx; browser fallback only)
+    // An account and its posts: /@user, /@user@domain, /@user/<post id> (utils/permalinks.ts).
+    // The federation backend serves the same URLs to visitors without the app's cookie
+    // (src/publicPages/). meta.publicPage: sign-in is publicPageEntry's, not requiresAuth's.
+    {
+      path: '/@:handle',
+      component: () => import('@/layouts/SocialLayout.vue'),
+      meta: { requiresAuth: false, providesMain: true, publicPage: true },
+      children: [
+        {
+          path: '',
+          name: 'UserProfile',
+          meta: { titleKey: 'activitypub.profile' },
+          component: () => import('@/views/UserProfileView.vue'),
+          props: route => ({
+            profileHandle: route.params.handle as string,
+            currentView: CurrentView.PROFILE,
+            viewType: ViewType.PROFILE
+          })
+        },
+        {
+          path: `:postId${UUID_PARAM}`,
+          name: 'PostPermalink',
+          meta: { titleKey: 'activitypub.post' },
+          component: () => import('@/views/PostView.vue'),
+          props: route => ({
+            postId: route.params.postId as string,
+            contextType: (route.query.context as any) || 'thread',
+            highlightReply: route.query.highlight as string,
+            timestamp: route.query.t ? parseInt(route.query.t as string) : null,
+            currentView: CurrentView.POST,
+            viewType: ViewType.POST
+          })
+        }
+      ]
+    },
+    // An actor id in a browser; the proxy sends it to /@<name> first.
     {
       path: '/users/:username',
       name: 'ActivityPubUser',
-      redirect: route => {
-        // For browser access, redirect to the proper Vue app profile route
-        const username = route.params.username as string;
-        return `/social/profile/${username}`;
-      },
+      redirect: route => ({ name: 'UserProfile', params: { handle: route.params.username } }),
       meta: { requiresAuth: false }
-    },
-    // Public profile and post pages (federation-backend src/publicPages/). The proxy serves the
-    // app here to a browser holding the app's cookie: the in-app profile or post.
-    {
-      path: '/@:username/:postId?',
-      name: 'PublicPage',
-      component: { render: () => null },
-      meta: { requiresAuth: false },
-      beforeEnter: (to) => publicPageEntry(to)
     },
     // Legacy route redirects
     {
@@ -402,13 +452,9 @@ const router = createRouter({
       name: 'Explore',
       redirect: '/social/trending'
     },
-    // Profile redirect for backward compatibility
     {
       path: '/profile/:handle',
-      redirect: route => {
-        const handle = route.params.handle as string;
-        return `/social/profile/${handle}`;
-      }
+      redirect: route => ({ name: 'UserProfile', params: { handle: route.params.handle }, query: route.query })
     },
     // Settings and Admin (standalone routes)
     {
@@ -443,7 +489,12 @@ const router = createRouter({
       path: '/drive/:section?/:id?',
       name: 'Drive',
       component: () => import('@/views/DriveView.vue'),
-      meta: { requiresAuth: true, titleKey: 'drive.title' }
+      meta: { requiresAuth: true, titleKey: 'drive.title' },
+      // instance_config.drive_enabled off: Drive has no page.
+      beforeEnter: async () => {
+        const { driveEnabled } = await import('@/services/drive/driveService')
+        return (await driveEnabled()) ? true : { path: '/' }
+      }
     },
     // A Drive file's address: the file for a reader, the public page while anyone with the link
     // may open it.
@@ -537,6 +588,18 @@ const PROFILE_EXEMPT_ROUTES = new Set([
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const isLoggedIn = authStore.isLoggedIn;
+
+  if (to.meta.publicPage) {
+    const entry = publicPageEntry(to);
+    if (entry === false) {
+      next(false);
+      return;
+    }
+    if (entry !== true) {
+      next(entry);
+      return;
+    }
+  }
 
   if (authStore.isPasswordResetMode && to.name !== 'ResetPassword' && to.name !== 'Login') {
     next({ name: 'ResetPassword' });

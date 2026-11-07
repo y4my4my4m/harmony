@@ -32,6 +32,19 @@
               </div>
             </div>
             <div class="header-actions">
+              <button
+                v-if="canOpenFullView"
+                type="button"
+                class="action-btn"
+                data-testid="thread-open-full-view"
+                :title="t('chatNav.thread.openFullView')"
+                :aria-label="t('chatNav.thread.openFullView')"
+                @click="openFullView"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+              </button>
               <button 
                 ref="optionsButtonEl"
                 type="button"
@@ -237,10 +250,7 @@
           <MessageInput
             ref="messageInputRef"
             v-model="messageText"
-            :placeholder-target="thread?.name || 'thread'"
             :reply-message-id="replyingToMessageId"
-            :reply-user-display-name="replyingToUserName"
-            :reply-user-id="replyingToUserId"
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
@@ -294,6 +304,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { isModerationRejectionCode, moderationRejectionFromError } from '@/services/AutoModService'
 import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
@@ -395,6 +406,7 @@ const notifySendFailure = (error: unknown) => {
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const serverChannelStore = useServerChannelStore()
+const router = useRouter()
 const { canManageChannels } = useServerPermissions()
 const mediaHidden = useServerMediaHidden(() => serverChannelStore.currentServerId)
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
@@ -1078,6 +1090,25 @@ const formatTimestamp = (date: Date | string) => {
 const close = () => {
   cleanupSubscription() // Unsubscribe when closing
   emit('close')
+}
+
+// The server of the thread's channel; the current server when that channel is not loaded.
+const threadServerId = computed(() => {
+  const channelId = thread.value?.channel_id
+  const channel = channelId ? serverChannelStore.channels.find(c => c.id === channelId) : undefined
+  return channel?.server_id ?? serverChannelStore.currentServerId ?? null
+})
+
+const canOpenFullView = computed(() =>
+  !!thread.value?.id && !isDraftMode.value && !isOptimisticThreadId(thread.value.id) && !!threadServerId.value,
+)
+
+const openFullView = () => {
+  const threadId = thread.value?.id
+  const serverId = threadServerId.value
+  if (!threadId || !serverId) return
+  close()
+  void router.push({ name: 'ThreadView', params: { serverId, threadId } })
 }
 
 // MessageDisplay event handlers

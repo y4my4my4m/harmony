@@ -26,6 +26,7 @@ const serverUsers = vi.hoisted(() => ({
   joinVoiceChannel: vi.fn(async () => true),
   leaveVoiceChannel: vi.fn(async () => true),
   markVoiceTransport: vi.fn(async () => undefined),
+  touchVoiceParticipant: vi.fn(async () => undefined),
   getCallStartTime: vi.fn(() => null),
 }))
 
@@ -103,6 +104,7 @@ describe('voice roster and transport state', () => {
     expect(s.allUsers).toEqual([])
     expect(s.connectionStats.total).toBe(1)
     expect(serverUsers.markVoiceTransport).toHaveBeenCalledWith('chan', 'me', 'p2p')
+    await vi.waitFor(() => expect(serverUsers.touchVoiceParticipant).toHaveBeenCalledWith('server', 'chan', 'me'))
   })
 
   it('keeps the remote participants the transport reports', async () => {

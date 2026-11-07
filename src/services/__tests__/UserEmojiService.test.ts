@@ -1,8 +1,8 @@
 /**
  * UserEmojiService: lists the caller's user-scope emojis, uploads through the shared emoji
  * pipeline and create_my_emoji (a refused record removes the object), renames through
- * rename_my_emoji, deletes through the owner RLS policy (an empty result is P0002) and
- * refreshes the picker's personal groups.
+ * rename_my_emoji, removes through remove_emoji (the row and file stay) and refreshes the
+ * picker's personal groups.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -77,6 +77,7 @@ describe('UserEmojiService', () => {
       ['select', ['id, name, url, is_ai_generated, usage_count, file_size, created_at']],
       ['eq', ['scope', 'user']],
       ['eq', ['uploader', 'me']],
+      ['is', ['deleted_at', null]],
       ['order', ['created_at', { ascending: false }]],
     ])
     expect(rows[0].usage_count).toBe(0)
@@ -117,28 +118,24 @@ describe('UserEmojiService', () => {
     await expect(renameMyEmoji('e1', 'dup')).rejects.toMatchObject({ code: '23505' })
   })
 
-  it('deletes the owned row and clears its references', async () => {
-    const { b, calls } = builder({ data: [{ id: 'e1' }], error: null })
-    from.mockReturnValue(b)
+  it('removes through remove_emoji and clears its references', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
     await deleteMyEmoji(EMOJI, 'me')
-    expect(calls).toEqual([
-      ['delete', []],
-      ['in', ['id', ['e1']]],
-      ['eq', ['scope', 'user']],
-      ['eq', ['uploader', 'me']],
-      ['select', ['id']],
-    ])
+    expect(rpc).toHaveBeenCalledWith('remove_emoji', { p_emoji_id: 'e1' })
+    expect(from).not.toHaveBeenCalled()
+    expect(storageFrom).not.toHaveBeenCalled()
     expect(pipeline.cleanupEmojiReferences).toHaveBeenCalledWith({ id: 'e1', name: 'cat', url: 'https://cdn.test/1.png', scope: 'user' })
   })
 
-  it('raises P0002 when RLS filters the row out', async () => {
-    from.mockReturnValue(builder({ data: [], error: null }).b)
-    await expect(deleteMyEmoji(EMOJI, 'me')).rejects.toMatchObject({ code: 'P0002' })
+  it('rethrows a refusal and keeps the references', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not yours' } })
+    await expect(deleteMyEmoji(EMOJI, 'me')).rejects.toMatchObject({ code: '42501' })
     expect(pipeline.cleanupEmojiReferences).not.toHaveBeenCalled()
   })
 
-  it('deletes several in one request and reports the ones RLS kept', async () => {
-    from.mockReturnValue(builder({ data: [{ id: 'e1' }], error: null }).b)
+  it('removes several and reports the ones refused', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0002', message: 'gone' } })
     const result = await deleteMyEmojis([EMOJI, { ...EMOJI, id: 'e2', name: 'dog' }], 'me')
     expect(result).toEqual({ success: ['e1'], failed: ['e2'] })
     expect(pipeline.cleanupEmojiReferences).toHaveBeenCalledTimes(1)

@@ -10,6 +10,7 @@
 //   - each follows row is its own Follow id, the Undo names it, a re-follow is a new id;
 //   - a Follow of a chat server's Group is answered with the Group's Reject;
 //   - a deleted post is a Tombstone with a context, formerType and deleted;
+//   - a Note's url is its page /@<name>/<id>, a Hashtag's href the tag page /tags/<tag>;
 //   - the Create a delivery carries is served at its id, as the outbox lists it;
 //   - NodeInfo counts signed-up, unsuspended, undeleted accounts and names the homepage;
 //   - a delivery an inbox answers 503 is queued for 17 attempts.
@@ -225,6 +226,17 @@ export async function caseApConformance(ctx: ApConformanceContext): Promise<void
       eq(JSON.stringify(gone.json), JSON.stringify({
         '@context': AS, id: `${base}/posts/${POST_DELETED}`, type: 'Tombstone', formerType: 'Note', deleted: deletedAt,
       }), 'with a Tombstone carrying its context, formerType and deleted')
+
+      await db.from('posts').update({
+        content: [{ type: 'text', text: `post ${POST_PUBLIC} ` }, { type: 'hashtag', name: 'fxtag' }],
+      }).eq('id', POST_PUBLIC)
+      const note = await ap(`/posts/${POST_PUBLIC}`)
+      eq(note.json?.url, `${base}/@fx_alice/${POST_PUBLIC}`, 'a Note\'s url is its page /@<name>/<id>')
+      eq(note.json?.id, `${base}/posts/${POST_PUBLIC}`, 'its id stays /posts/<id>')
+      eq(JSON.stringify((note.json?.tag ?? []).filter((t: any) => t.type === 'Hashtag')),
+        JSON.stringify([{ type: 'Hashtag', href: `${base}/tags/fxtag`, name: '#fxtag' }]),
+        'a Hashtag names the tag page /tags/<tag>')
+      assert(String(note.json?.content ?? '').includes(`href="${base}/tags/fxtag"`), 'the content links /tags/<tag>', note.json?.content)
 
       const create = await ap(`/users/fx_alice/activities/${POST_PUBLIC}`)
       eq(create.status, 200, 'the Create of a public post is served at its id')

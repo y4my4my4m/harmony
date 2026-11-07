@@ -1,6 +1,6 @@
 /**
  * self-host account linking of sign-in providers (admin.sh auth, linking.sh, configure.sh,
- * doctor.sh check_auth_linking) and the auth image choice (configure.sh gotrue_image_for).
+ * doctor.sh check_auth_linking) and the stack image choice (configure.sh stack_image_for).
  *
  * GoTrue 2.196.0 puts a provider without a PROVIDER_LINKING_DOMAINS pair in the "default" domain,
  * where a first sign-in joins the existing account with the same address; with
@@ -70,23 +70,36 @@ describe('lib.sh linking_*', () => {
   })
 })
 
-describe('configure.sh gotrue_image_for', () => {
+describe('configure.sh stack_image_for', () => {
   const configure = readFileSync(join(SELF_HOST, 'configure.sh'), 'utf8')
-  const fn = /^gotrue_image_for\(\) \{\n[\s\S]*?\n\}\n/m.exec(configure)?.[0] ?? ''
+  const fn = /^stack_image_for\(\) \{\n[\s\S]*?\n\}\n/m.exec(configure)?.[0] ?? ''
   const min = /^GOTRUE_MIN=(.+)$/m.exec(configure)?.[1] ?? ''
+  const overrides = readFileSync(join(SELF_HOST, 'supabase-overrides.yml'), 'utf8')
   let dir: string
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'gotrue-image-')) })
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
   const choose = (stackImage: string, current = '') => {
     writeFileSync(join(dir, 'compose.yml'), `services:\n  auth:\n    image: ${stackImage}\n`)
-    return lib(`GOTRUE_MIN=${min}\n${fn}\ngotrue_image_for '${join(dir, 'compose.yml')}' '${current}'`).out
+    return lib(`${fn}\nstack_image_for supabase/gotrue '${min}' '${join(dir, 'compose.yml')}' '${current}'`).out
   }
 
-  it('is defined, with the minimum the overrides name', () => {
+  it('is defined, with the minimums the overrides name', () => {
     expect(fn).not.toBe('')
-    expect(readFileSync(join(SELF_HOST, 'supabase-overrides.yml'), 'utf8'))
-      .toContain(`image: \${GOTRUE_IMAGE:-supabase/gotrue:v${min}}`)
+    for (const [v, repo, m] of [['GOTRUE_IMAGE', 'supabase/gotrue', 'GOTRUE_MIN'],
+      ['STORAGE_IMAGE', 'supabase/storage-api', 'STORAGE_MIN'], ['REALTIME_IMAGE', 'supabase/realtime', 'REALTIME_MIN']]) {
+      const ver = new RegExp(`^${m}=(.+)$`, 'm').exec(configure)?.[1]
+      expect(ver).toMatch(/^\d+\.\d+\.\d+$/)
+      expect(overrides).toContain(`image: \${${v}:-${repo}:v${ver}}`)
+      expect(configure).toContain(`${v}:${repo}:$${m}`)
+    }
+  })
+
+  it('reads only its own repository from the stack', () => {
+    writeFileSync(join(dir, 'compose.yml'),
+      'services:\n  auth:\n    image: supabase/gotrue:v2.300.0\n  storage:\n    image: supabase/storage-api:v1.25.7\n')
+    const out = lib(`${fn}\nstack_image_for supabase/storage-api 1.89.12 '${join(dir, 'compose.yml')}' ''`).out
+    expect(out).toBe('supabase/storage-api:v1.89.12')
   })
 
   it('raises an older stack to the minimum and never runs older than a newer stack', () => {

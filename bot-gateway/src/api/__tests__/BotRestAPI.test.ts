@@ -161,7 +161,7 @@ describe('POST /emojis', () => {
 
     const res = await supertest(makeApp())
       .post('/api/v1/emojis')
-      .send({ name: 'blobcat', url: EMOJI_ROW.url })
+      .send({ name: 'blobcat', url: EMOJI_ROW.url, domain: 'remote.test' })
 
     expect(res.status).toBe(500)
   })
@@ -171,7 +171,7 @@ describe('POST /emojis', () => {
 
     const res = await supertest(makeApp())
       .post('/api/v1/emojis')
-      .send({ name: 'blobcat', url: EMOJI_ROW.url })
+      .send({ name: 'blobcat', url: EMOJI_ROW.url, domain: 'remote.test' })
 
     expect(res.status).toBe(500)
   })

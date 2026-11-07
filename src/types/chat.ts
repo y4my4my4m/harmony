@@ -285,7 +285,7 @@ export interface UrlContent {
 }
 
 export type EmbedProvider =
-  | 'harmony-post' | 'harmony-invite' | 'harmony-drive' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
+  | 'harmony-post' | 'harmony-profile' | 'harmony-invite' | 'harmony-remote-invite' | 'harmony-drive' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
   | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit'
   | 'x' | 'instagram' | 'bluesky';
 
@@ -373,6 +373,51 @@ export interface HarmonyEmbedSummary {
   };
 }
 
+/**
+ * The account of a profile link to this instance (provider harmony-profile). The database's
+ * snapshot (fetch_link_preview) carries every field; a card the client builds has username
+ * and domain only and reads the rest.
+ */
+export interface HarmonyProfileSummary {
+  username: string;
+  /** null: an account of this instance. */
+  domain: string | null;
+  id?: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  is_local?: boolean;
+  federated_id?: string | null;
+  followers_count?: number | null;
+  following_count?: number | null;
+  posts_count?: number | null;
+  locked?: boolean;
+}
+
+/**
+ * The server card of an invite link to another Harmony instance (provider
+ * harmony-remote-invite). Mirrors RemoteInviteCard in
+ * federation-backend/src/services/remoteInvitePreview.ts.
+ */
+export interface RemoteInviteSummary {
+  status: 'valid' | 'invalid' | 'closed';
+  code: string;
+  /** host[:port] of the link: the instance hosting the server. */
+  domain: string;
+  instance: { name: string; icon: string | null };
+  /** Valid cards only. */
+  server?: {
+    name: string;
+    description: string | null;
+    icon: string | null;
+    memberCount: number | null;
+    /** Null from hosts before 1.9.4. */
+    onlineCount: number | null;
+    /** The Group's actor id, on `domain`. */
+    id: string | null;
+  };
+}
+
 export interface EmbedPayload {
   cacheKey: string;
   url: string;
@@ -403,6 +448,8 @@ export interface EmbedPayload {
   /** The post of an X, Instagram or Bluesky link. */
   social?: EmbedSocialPost;
   harmony?: HarmonyEmbedSummary;
+  profile?: HarmonyProfileSummary;
+  remoteInvite?: RemoteInviteSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;
   localPostId?: string;

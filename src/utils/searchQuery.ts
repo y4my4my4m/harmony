@@ -312,6 +312,8 @@ export interface SearchMember {
   id: string
   username: string
   displayName?: string
+  domain?: string | null
+  isLocal?: boolean | null
 }
 
 export interface SearchChannel {

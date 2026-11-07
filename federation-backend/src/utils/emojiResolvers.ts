@@ -73,7 +73,8 @@ export function formatEmojiForFederation(
 }
 
 /**
- * Resolve an emoji for outbound federation by querying the DB.
+ * Resolve an emoji for outbound federation by querying the DB. A removed emoji (deleted_at)
+ * still resolves: the reaction already holds it, and its Undo names the same emoji.
  *
  * @param emojiId            - UUID from the emojis table (nullable)
  * @param customEmojiContent - The `custom_emoji_content` field from the
@@ -122,11 +123,13 @@ export async function resolveLocalProfileEmojis(profile: any, supabase?: any): P
 
   const shortcodes = [...new Set(matches.map(m => m[1]))];
 
+  // Removed emoji (deleted_at) are offered nowhere, profiles included.
   const { data: dbEmojis } = await db
     .from('emojis')
     .select('id, name, url')
     .in('name', shortcodes)
-    .not('url', 'is', null);
+    .not('url', 'is', null)
+    .is('deleted_at', null);
 
   const customEmojiMap = new Map<string, { id: string; name: string; url: string }>();
   if (dbEmojis) {

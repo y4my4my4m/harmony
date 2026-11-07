@@ -162,7 +162,7 @@ export function generateActorJson(user: FederatedUser): ActivityPubActor {
     endpoints: {
       sharedInbox: `${ACTIVITYPUB_CONFIG.baseUrl}${ACTIVITYPUB_CONFIG.endpoints.sharedInbox}`
     },
-    url: `${ACTIVITYPUB_CONFIG.baseUrl}/social/profile/${user.username}`
+    url: `${ACTIVITYPUB_CONFIG.baseUrl}/@${user.username}`
   } as ActivityPubActor;
 }
 

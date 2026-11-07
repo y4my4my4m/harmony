@@ -122,6 +122,7 @@ test('the group chat picker shows a found account with its avatar', async ({ pag
   await page.getByTestId('group-invite-search').fill(friend.username.slice(0, -3))
   const result = page.getByTestId('group-invite-result').filter({ hasText: friend.username })
   await expect(result).toHaveCount(1, { timeout: 10000 })
+  await expect(result).toContainText(`@${friend.username}@localhost`)
   await expectFriendAvatar(page, result.locator('.avatar-container img'))
 
   await result.click()
@@ -150,6 +151,7 @@ test('the list member picker shows a found account with its avatar and adds it',
 
   const result = page.getByTestId('list-member-result').filter({ hasText: friend.username })
   await expect(result).toHaveCount(1, { timeout: 10000 })
+  await expect(result.locator('.user-handle')).toHaveText(`@${friend.username}@localhost`)
   await expectFriendAvatar(page, result.locator('.avatar-container img'))
 
   await result.getByRole('button', { name: /^Add / }).click()

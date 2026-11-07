@@ -189,6 +189,7 @@
       :owner="detailEntry.owner"
       :own-id="ownId"
       @close="drive.clearSelection()"
+      @open="detailEntry && openPreview(detailEntry)"
       @rename="(file, name) => rename(file.id, name)"
       @keep="(file) => keep([file.id])"
       @share="(file) => (shareFile = file)"

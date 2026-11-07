@@ -6,8 +6,8 @@
 // cancels an inline rename without closing settings, results are announced, focus stays on
 // the row's controls (then the list heading once it empties), and the picker shows the new
 // name and then nothing without a reload.
-// An instance admin finds another user's AI emoji only under the User emojis source, deletes
-// it, and the deletion is audited as user_emoji_delete.
+// An instance admin finds another user's AI emoji under the AI generated kind (not under
+// Instance), removes it (a soft delete, audited as emoji_remove) and restores it from Removed.
 //
 // The stack has no AI backend: emoji images come from the dev server and no generation
 // runs. axe covers the settings section, its rename form and the admin list.
@@ -160,55 +160,71 @@ test('the owner renames and deletes an AI emoji by keyboard; the picker follows'
   await expect(section).toContainText('You have no personal emojis yet.')
   await expect(live).toHaveText(`Deleted :${newName}:`, { timeout: 5000 })
   await expect(section.getByRole('heading', { name: 'Your emojis' })).toBeFocused()
+  // Removal keeps the row for messages that used it (remove_emoji).
   await expect
-    .poll(async () => (await admin.from('emojis').select('id').eq('id', ownerEmojiId)).data?.length)
-    .toBe(0)
+    .poll(async () => (await admin.from('emojis').select('deleted_at').eq('id', ownerEmojiId).single()).data?.deleted_at)
+    .not.toBeNull()
 
   await page.goBack()
   await expect(page).toHaveURL(new RegExp(`/chat/${server.id}`))
   await pickerShows(page, null, [newName, aiName])
 })
 
-test('an instance admin finds a user AI emoji under User emojis and deletes it', async ({ page }) => {
+test('an instance admin finds a user AI emoji under AI generated, removes and restores it', async ({ page }) => {
   test.setTimeout(180_000)
   await signIn(page, moderator)
   await page.goto('/admin')
   await page.getByRole('tab', { name: 'Emojis' }).click()
-  const panel = page.locator('.instance-emoji-admin')
+  const panel = page.getByTestId('admin-emoji-library')
   await expect(panel).toBeVisible({ timeout: 20000 })
+  const kinds = panel.getByRole('group', { name: 'Kind' })
 
-  await panel.getByRole('searchbox').fill(otherName)
-  await expect(panel.locator('.empty-state')).toHaveText('No instance emojis match.', { timeout: 10000 })
-
-  await panel.getByRole('combobox', { name: 'Source' }).selectOption('user')
-  const search = panel.getByRole('searchbox', { name: 'Search emoji' })
-  await expect(search).toHaveValue(otherName)
-  await expect(search).toHaveAttribute('placeholder', 'Name or owner')
-  const row = panel.locator('.emoji-row').filter({ hasText: `:${otherName}:` })
+  const search = panel.getByRole('searchbox', { name: 'Search emojis' })
+  await search.fill(otherName)
+  const row = panel.getByTestId('admin-emoji-row').filter({ hasText: `:${otherName}:` })
   await expect(row).toBeVisible({ timeout: 10000 })
-  await expect(panel.locator('.emoji-row')).toHaveCount(1)
+  await expect(row).toHaveAttribute('data-kind', 'ai')
+
+  await kinds.getByRole('button', { name: 'Instance', exact: true }).click()
+  await expect(panel.getByTestId('admin-emoji-empty')).toContainText('No emojis match.', { timeout: 10000 })
+
+  await kinds.getByRole('button', { name: 'AI generated' }).click()
+  await expect(kinds.getByRole('button', { name: 'AI generated' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(search).toHaveValue(otherName)
+  await expect(row).toBeVisible({ timeout: 10000 })
+  await expect(panel.getByTestId('admin-emoji-row')).toHaveCount(1)
   await expect(row).toContainText(`owned by @${other.username}`)
-  await expect(row.locator('.badge.ai')).toContainText('AI-generated')
-  await expect(row.locator('.badge.personal')).toHaveText('personal')
-  await expectNoAxeViolations(page, { include: '.instance-emoji-admin', label: 'admin user emojis' })
+  await expect(row.locator('.badge.kind')).toHaveText('AI generated')
+  await expectNoAxeViolations(page, { include: '[data-testid="admin-emoji-library"]', label: 'admin user emojis' })
 
-  await row.getByRole('button', { name: 'Delete' }).click()
+  await row.getByRole('button', { name: `Remove :${otherName}:` }).click()
   const dialog = page.getByRole('alertdialog')
-  await expect(dialog).toContainText(`Delete :${otherName}: from @${other.username}'s emojis?`)
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(dialog).toContainText(`Remove :${otherName}:?`)
+  await dialog.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(dialog).toBeHidden()
-  await expect(panel.locator('.empty-state')).toHaveText('No user emojis match.', { timeout: 10000 })
+  await expect(panel.getByTestId('admin-emoji-empty')).toContainText('No emojis match.', { timeout: 10000 })
 
-  await expect
-    .poll(async () => (await admin.from('emojis').select('id').eq('id', otherEmojiId)).data?.length)
-    .toBe(0)
+  // Soft delete: the row stays, marked removed.
+  const removedAt = async () => {
+    const { data } = await admin.from('emojis').select('deleted_at').eq('id', otherEmojiId).single()
+    return data ? data.deleted_at : 'row missing'
+  }
+  await expect.poll(async () => typeof (await removedAt())).toBe('string')
+  expect(await removedAt()).not.toBe('row missing')
   await expect
     .poll(async () => {
       const { data } = await admin
         .from('admin_audit_log')
         .select('action_type, admin_id, action_details')
         .eq('target_id', otherEmojiId)
-      return data?.map((r) => [r.action_type, r.admin_id, r.action_details?.owner_username])
+      return data?.map((r) => [r.action_type, r.admin_id, r.action_details?.scope])
     })
-    .toEqual([['user_emoji_delete', moderator.id, other.username]])
+    .toEqual([['emoji_remove', moderator.id, 'user']])
+
+  await panel.getByRole('combobox', { name: 'Status' }).selectOption('removed')
+  await expect(row).toBeVisible({ timeout: 10000 })
+  await expect(row).toContainText(`removed by @${moderator.username}`)
+  await row.getByRole('button', { name: `Restore :${otherName}:` }).click()
+  await expect(panel.getByTestId('admin-emoji-empty')).toContainText('No emojis match.', { timeout: 10000 })
+  await expect.poll(removedAt).toBeNull()
 })

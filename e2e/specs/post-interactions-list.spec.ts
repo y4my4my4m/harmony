@@ -100,12 +100,12 @@ test('the author lists who favourited and boosted the post', async ({ page }) =>
   await expect(accounts).toHaveCount(3)
   await expect(accounts.nth(0)).toContainText('Remote Fan')
   await expect(accounts.nth(0)).toContainText(`@${remote.username}@${DOMAIN}`)
-  await expect(accounts.nth(0)).toHaveAttribute('href', new RegExp(`/social/profile/${remote.username}(@|%40)${DOMAIN.replace('.', '\\.')}$`))
+  await expect(accounts.nth(0)).toHaveAttribute('href', new RegExp(`/@${remote.username}(@|%40)${DOMAIN.replace('.', '\\.')}$`))
   await expect(accounts.nth(1)).toContainText(cal.displayName)
   await expect(accounts.nth(1)).toContainText(`@${cal.username}`)
-  await expect(accounts.nth(1)).toHaveAttribute('href', `/social/profile/${cal.username}`)
+  await expect(accounts.nth(1)).toHaveAttribute('href', `/@${cal.username}`)
   await expect(accounts.nth(2)).toContainText(bea.displayName)
-  await expect(accounts.nth(2)).toHaveAttribute('href', `/social/profile/${bea.username}`)
+  await expect(accounts.nth(2)).toHaveAttribute('href', `/@${bea.username}`)
   await expect(panel.getByTestId('post-interactions-elsewhere')).toHaveText("2 more on other instances aren't listed here.")
 
   await page.keyboard.press('ArrowRight')
@@ -114,7 +114,7 @@ test('the author lists who favourited and boosted the post', async ({ page }) =>
   await expect(boostsTab).toBeFocused()
   await expect(accounts).toHaveCount(1)
   await expect(accounts.first()).toContainText(cal.displayName)
-  await expect(accounts.first()).toHaveAttribute('href', `/social/profile/${cal.username}`)
+  await expect(accounts.first()).toHaveAttribute('href', `/@${cal.username}`)
   await expect(panel.getByTestId('post-interactions-elsewhere')).toHaveCount(0)
 
   await page.keyboard.press('Escape')
@@ -125,7 +125,7 @@ test('the author lists who favourited and boosted the post', async ({ page }) =>
   await expect(dialog.getByRole('tab', { name: /Boosts/ })).toHaveAttribute('aria-selected', 'true')
   await dialog.getByTestId('post-interactions-account').first().click()
   await expect(dialog).toBeHidden()
-  await expect(page).toHaveURL(new RegExp(`/social/profile/${cal.username}$`))
+  await expect(page).toHaveURL(new RegExp(`/@${cal.username}$`))
 })
 
 test('a backdrop click closes the dialog', async ({ page }) => {

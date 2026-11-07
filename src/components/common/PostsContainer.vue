@@ -109,6 +109,7 @@
           <span>{{ isLoading ? t('activitypub.loadingMore') : t('activitypub.loadMoreMonies') }}</span>
         </button>
       </div>
+      <p v-else-if="endText && posts.length > 0" class="feed-end feed-column" data-testid="feed-end">{{ endText }}</p>
     </template>
   </div>
 </template>
@@ -147,6 +148,8 @@ interface Props {
    * Rows are windowed against it.
    */
   scrollRoot?: HTMLElement | null
+  /** Shown under the last post once the list has ended. */
+  endText?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -344,7 +347,8 @@ const startAttempt = () => {
   attemptTimer = setTimeout(() => {
     attemptTimer = null
     if (props.isLoading) return
-    failAttempt()
+    if (!props.hasMore) endAttempt()
+    else failAttempt()
   }, ATTEMPT_TIMEOUT_MS)
   emit('load-more')
 }
@@ -372,13 +376,22 @@ watch(() => props.posts.length, (length, previous) => {
   focusNewPosts = false
 })
 
+const endAttempt = () => {
+  clearAttemptTimer()
+  attemptActive = false
+  focusNewPosts = false
+}
+
+// An attempt that ends without new posts is a failure only while more are expected:
+// hasMore false means the list has ended.
 watch(() => props.isLoading, (loading) => {
   if (!attemptActive) return
   if (loading) {
     clearAttemptTimer()
     return
   }
-  failAttempt()
+  if (!props.hasMore) endAttempt()
+  else failAttempt()
 })
 
 // The next page loads once the reader has scrolled the feed and its last row is in the
@@ -653,6 +666,14 @@ onUnmounted(() => {
   .skeleton-line {
     animation: none;
   }
+}
+
+.feed-end {
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 .loading-more {

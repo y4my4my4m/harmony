@@ -8,7 +8,6 @@ import SkipLink from '../SkipLink.vue'
 import AppToolbar from '../AppToolbar.vue'
 import { composedTitle, pushViewTitle, setRouteTitle, setTitleInstance, setTitleUnread } from '@/utils/a11y/documentTitle'
 import { toastRole } from '@/utils/a11y/toastRole'
-import { patchRoleButtons, roleButtonKeyActivation } from '@/utils/a11y/roleButtons'
 
 vi.mock('@/components/common/Icon.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -109,29 +108,6 @@ describe('toastRole', () => {
     expect(toastRole(undefined)).toBe('status')
   })
 })
-
-describe('roleButtons', () => {
-  it('gives role=button divs a tab stop, a translated name and key activation', () => {
-    document.body.innerHTML = '<div class="modal"><div role="button" aria-label="zoom in button"></div></div>'
-    const modal = document.querySelector('.modal')!
-    const button = modal.querySelector<HTMLElement>('[role="button"]')!
-    patchRoleButtons(modal, (original) => (original === 'zoom in button' ? 'Zoom in' : undefined))
-    expect(button.getAttribute('tabindex')).toBe('0')
-    expect(button.getAttribute('aria-label')).toBe('Zoom in')
-    patchRoleButtons(modal, (original) => (original === 'zoom in button' ? 'Vergrößern' : undefined))
-    expect(button.getAttribute('aria-label')).toBe('Vergrößern')
-
-    const clicked = vi.fn()
-    button.addEventListener('click', clicked)
-    const handler = roleButtonKeyActivation(() => modal)
-    document.addEventListener('keydown', handler)
-    button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
-    button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }))
-    expect(clicked).toHaveBeenCalledTimes(2)
-    document.removeEventListener('keydown', handler)
-  })
-})
-
 
 describe('AppToolbar', () => {
   const Host = (homeEnd = true) => defineComponent({

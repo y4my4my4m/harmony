@@ -406,6 +406,11 @@ check_dns() {
 		if tunnel_dns_only "$name" "$doh"; then
 			# The tunnel serves only proxied names.
 			report FAIL "$name" "a Cloudflare Tunnel name set to DNS only: it resolves to fd10:aec2:5dae::, which nothing can reach" "Cloudflare, DNS: set the $name record to Proxied (orange cloud)"
+		elif [[ -n "$doh" && -n "$a4$a6" ]] && edge_cert_missing "$name"; then
+			local rename="an Advanced certificate for $name (Cloudflare, SSL/TLS, Edge Certificates)"
+			[[ "$name" == "$DB_DOMAIN" ]] && rename="HARMONY_DB_DOMAIN=$EDGE_FLAT harmony install, with $EDGE_FLAT routed like $name; or $rename"
+			[[ "$name" == "$LIVEKIT_DOMAIN" ]] && rename="HARMONY_LIVEKIT_DOMAIN=$EDGE_FLAT harmony install, with $EDGE_FLAT routed like $name; or $rename"
+			report FAIL "$name" "Cloudflare proxies it but has no certificate for it: Universal SSL covers $EDGE_ZONE and *.$EDGE_ZONE, one level deep" "$rename"
 		elif [[ -z "$a4$a6" && -n "$DNS_LOCAL" ]]; then
 			report WARN "$name" "this server's /etc/hosts maps it to $DNS_LOCAL, which hides its public records" "run doctor without --offline, or from another machine: dig +short $name"
 		elif [[ -z "$a4$a6" ]]; then
@@ -726,15 +731,23 @@ check_versions() {
 			report OK release "running ${VERSION}; latest release ${latest}"
 		fi
 	fi
-	local stack_gt run_gt
-	stack_gt="$(stack_gotrue_image)"
-	run_gt="$(docker inspect -f '{{.Config.Image}}' "$(svc_id auth)" 2>/dev/null)"
-	if [[ -n "$stack_gt" && "$run_gt" == supabase/gotrue:v* ]] && ! version_ge "${run_gt##*:v}" "${stack_gt##*:v}"; then
-		report WARN gotrue "the auth service runs $run_gt, older than the Supabase stack's $stack_gt" \
-			"bash configure.sh --non-interactive (sets GOTRUE_IMAGE), then docker compose up -d auth"
-	elif [[ -n "$run_gt" ]]; then
-		report OK gotrue "auth service on $run_gt"
-	fi
+	local spec name svc repo var min stack_img run_img
+	# The image configure.sh sets: the stack's own from its *_MIN on, otherwise *_MIN.
+	for spec in gotrue:auth:supabase/gotrue:GOTRUE_IMAGE:GOTRUE_MIN \
+		storage:storage:supabase/storage-api:STORAGE_IMAGE:STORAGE_MIN \
+		realtime:realtime:supabase/realtime:REALTIME_IMAGE:REALTIME_MIN; do
+		IFS=: read -r name svc repo var min <<<"$spec"
+		min="$(sed -n "s/^$min=//p" "$SELF_HOST_DIR/configure.sh")"
+		stack_img="$(stack_image "$repo")"
+		version_ge "${stack_img##*:v}" "$min" || stack_img="$repo:v$min"
+		run_img="$(docker inspect -f '{{.Config.Image}}' "$(svc_id "$svc")" 2>/dev/null)"
+		if [[ "$run_img" == "$repo":v* ]] && ! version_ge "${run_img##*:v}" "${stack_img##*:v}"; then
+			report WARN "$name" "the $svc service runs $run_img, older than $stack_img" \
+				"bash configure.sh --non-interactive (sets $var), then docker compose up -d $svc"
+		elif [[ -n "$run_img" ]]; then
+			report OK "$name" "$svc service on $run_img"
+		fi
+	done
 	pinned="$(sed -n 's/^SUPABASE_REF_DEFAULT=//p' "$SELF_HOST_DIR/configure.sh")"
 	cur="$(cat "$SELF_HOST_DIR/supabase/.harmony-supabase-ref" 2>/dev/null)"
 	if [[ -n "$cur" && "$cur" != "$pinned" ]]; then

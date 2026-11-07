@@ -13,8 +13,6 @@ vi.mock('vue-i18n', () => ({
 
 import MonyMediaGallery from '../MonyMediaGallery.vue'
 
-const stubs = { MonyMediaLightbox: true }
-
 describe('MonyMediaGallery focal points', () => {
   it('positions local and remote images in a grid', () => {
     const wrapper = mount(MonyMediaGallery, {
@@ -25,7 +23,6 @@ describe('MonyMediaGallery focal points', () => {
           { id: '3', type: 'image', url: 'https://r/3.jpg' },
         ] as any,
       },
-      global: { stubs },
     })
     const images = wrapper.findAll('img.media-image')
     expect(images[0].attributes('style')).toContain('object-position: 75% 25%')
@@ -36,7 +33,6 @@ describe('MonyMediaGallery focal points', () => {
   it('leaves a single item centred', () => {
     const wrapper = mount(MonyMediaGallery, {
       props: { mediaAttachments: [{ id: '1', type: 'image', url: 'https://s/1.webp', meta: { focus: { x: 1, y: 1 } } }] as any },
-      global: { stubs },
     })
     expect(wrapper.get('img.media-image').attributes('style')).toBeUndefined()
   })

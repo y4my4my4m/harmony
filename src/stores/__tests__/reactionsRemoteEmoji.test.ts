@@ -12,7 +12,8 @@ vi.mock('vue-i18n', () => ({
 }))
 
 import { discordCdnUrl, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
-import { useReactionsStore } from '@/stores/useReactions'
+import { matchesMessageReactionGroup, useReactionsStore } from '@/stores/useReactions'
+import { reactionGroupKey } from '@/utils/reactionUsers'
 import { CoreMessageService } from '@/services/core/CoreMessageService'
 
 const PARTY = 'discord:party:1234567890'
@@ -71,6 +72,24 @@ describe('realtime reaction from the bridge', () => {
     await store.handleRealtimeUpdate(payload(extra))
     return store.getMessageReactions('m1')[0]?.emoji?.url
   }
+
+  it('keys a bridged pill built from realtime by its identifier, not its display name', async () => {
+    const store = useReactionsStore()
+    store.bulkSetReactions({ m1: [] })
+    await store.handleRealtimeUpdate(payload({ metadata: { remote_emoji_url: GIF, remote_emoji_name: 'party', discord_user: { id: '8' } } }))
+    const group = store.getMessageReactions('m1')[0]!
+    expect(group.emoji?.name).toBe('party')
+    expect(reactionGroupKey(group)).toBe(PARTY)
+    expect(matchesMessageReactionGroup(group, PARTY)).toBe(true)
+    expect(matchesMessageReactionGroup(group, 'party')).toBe(false)
+  })
+
+  it('matches a fetched bridged pill, whose identifier sits in emoji_id', () => {
+    const fetched = { emoji_id: PARTY, emoji: { id: PARTY, name: 'party', content: PARTY, url: PNG } } as any
+    expect(reactionGroupKey(fetched)).toBe(PARTY)
+    expect(matchesMessageReactionGroup(fetched, PARTY)).toBe(true)
+    expect(matchesMessageReactionGroup({ emoji_id: CUSTOM_ID, emoji: { name: 'x' } } as any, PARTY)).toBe(false)
+  })
 
   it('renders the animated url the bridge stored', async () => {
     expect(await chipUrl({ emoji_url: GIF, metadata: { remote_emoji_url: GIF, discord_user: { id: '8' } } })).toBe(GIF)

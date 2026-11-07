@@ -259,20 +259,22 @@ const members = ref<SearchMember[]>([])
 
 const loadMembers = () => {
   const out = new Map<string, SearchMember>()
-  const add = (id?: string | null, username?: string | null, displayName?: string | null) => {
+  type Who = { id?: string | null; username?: string | null; displayName?: string | null; domain?: string | null; isLocal?: boolean | null }
+  const add = ({ id, username, displayName, domain, isLocal }: Who) => {
     if (!id || !username || out.has(id)) return
-    out.set(id, { id, username, displayName: displayName || undefined })
+    out.set(id, { id, username, displayName: displayName || undefined, domain: domain ?? null, isLocal: isLocal ?? null })
   }
+  const profileWho = (p?: { id?: string | null; username?: string | null; display_name?: string | null; domain?: string | null; is_local?: boolean | null } | null): Who =>
+    ({ id: p?.id, username: p?.username, displayName: p?.display_name, domain: p?.domain, isLocal: p?.is_local })
   if (props.conversationId) {
-    const me = profileStore.profile
-    add(me?.id, me?.username, me?.display_name)
+    add(profileWho(profileStore.profile as any))
     const conv = dmStore.conversations.find(c => c.id === props.conversationId)
-    add(conv?.other_user?.id, conv?.other_user?.username, conv?.other_user?.display_name)
-    for (const p of conv?.participants ?? []) add(p.id, p.username, p.display_name)
+    add(profileWho(conv?.other_user as any))
+    for (const p of conv?.participants ?? []) add(profileWho(p as any))
   } else {
     const inServer = props.serverId ? userDataService.getUsersInContext(props.serverId) : []
     for (const u of inServer.length ? inServer : userDataService.getAllUsers()) {
-      add(u.id, u.username, u.displayName)
+      add({ id: u.id, username: u.username, displayName: u.displayName, domain: u.domain, isLocal: u.isLocal })
     }
   }
   members.value = [...out.values()]

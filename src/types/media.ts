@@ -46,6 +46,10 @@ export interface Emoji {
   scope?: 'server' | 'instance' | 'user';
   /** True for emoji created via the Klipy AI generation API. */
   is_ai_generated?: boolean;
+  /** Set by remove_emoji: the row and file stay for old content; the emoji is offered nowhere. */
+  deleted_at?: string | null;
+  /** Reaction groups only: the emoji was purged; custom_emoji_content keeps its :name:. */
+  removed?: boolean;
   /**
    * Native unicode emoji codepoint(s) when this `Emoji` is a wrapper around
    * a system emoji rather than a custom server emoji. Set by reaction code

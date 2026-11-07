@@ -5,6 +5,7 @@ import { withoutStickerFallbacks } from '@/utils/stickerParts';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { isSingleEmojiSequence } from '@/utils/unicodeEmoji';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { getMessageShareUrl } from '@/utils/messageShareUrl';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
@@ -114,10 +115,19 @@ export function messagePartsToMarkdown(
         // is a legacy field name kept around for back-compat by some code paths.
         if ((part as any).mention) return (part as any).mention;
         if (part.username && isMassMentionWord(part.username) && !(part as any).isBridged) return massWordHandle(part);
+        // A bare @username of a remote mention re-parses as a local user.
+        if (part.username && part.isLocal === false && part.domain) return `@${part.username}@${part.domain}`;
         return part.username ? `@${part.username}` : '';
 
       case 'role_mention':
         return part.roleId ? `@role:${part.roleId}` : '';
+
+      case 'channel_mention':
+        // A message link re-parses through matchChannelUrl and keeps its messageId.
+        if (part.messageId) {
+          return getMessageShareUrl({ messageId: part.messageId, serverId: part.serverId, channelId: part.channelId }) ?? (part.name ? `#${part.name}` : '');
+        }
+        return part.name ? `#${part.name}` : '';
 
       case 'url':
         // <url> (no preview) and [label](url) are send-time syntax; an edit keeps them.
@@ -211,6 +221,9 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
 
       case 'role_mention':
         return part.roleName ? `@${part.roleName}` : '';
+
+      case 'channel_mention':
+        return part.name ? `#${part.name}` : '';
       
       case 'url':
         return part.url ? urlPartPlainText(part) : '';
@@ -245,6 +258,8 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
       }
       case 'emoji': return discordEmojiPartText(part.emoji) ?? `:${part.emoji?.name || 'emoji'}:`;
       case 'hashtag': return `#${part.name}`;
+      case 'channel_mention': return part.name ? `#${part.name}` : '';
+      case 'role_mention': return part.roleId ? `@role:${part.roleId}` : '';
       default: return '';
     }
   }).join('');

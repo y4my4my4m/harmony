@@ -32,6 +32,11 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 # --- runtime -----------------------------------------------------------------
 FROM node:${NODE_VERSION}-alpine
 ENV NODE_ENV=production
+# Alpine fixes newer than the base image. npm, npx and corepack are absent: CMD runs
+# node, and npm's bundled tar, pacote and sigstore carried the image's critical CVEs.
+RUN apk upgrade --no-cache \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY package.json ./
 COPY --from=deps /app/node_modules ./node_modules

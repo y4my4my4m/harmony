@@ -82,7 +82,7 @@
         <template v-else-if="s.kind === 'member'">
           <Avatar :src="getUserAvatarUrl(s.member.id).value" size="mini" />
           <DisplayName :user-id="s.member.id" :fallback="s.member.displayName || s.member.username" truncate />
-          <span class="search-option-hint">@{{ s.member.username }}</span>
+          <span class="search-option-hint">{{ memberHandle(s.member) }}</span>
         </template>
         <template v-else-if="s.kind === 'channel'">
           <Icon name="hash" :size="14" class="search-option-icon" />
@@ -110,6 +110,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { useUserData } from '@/composables/useUserData'
+import { formatHandle } from '@/utils/handles'
 import {
   FILTER_KEYS,
   HAS_VALUES,
@@ -145,6 +146,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'submit'): void
 }>()
+
+const memberHandle = (m: SearchMember) => formatHandle({ username: m.username, domain: m.domain, is_local: m.isLocal })
 
 const tokens = defineModel<SearchToken[]>('tokens', { required: true })
 const draft = defineModel<string>('text', { required: true })

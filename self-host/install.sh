@@ -34,6 +34,8 @@
 #   HARMONY_SMTP_HOST, HARMONY_SMTP_PORT (587), HARMONY_SMTP_USER,
 #   HARMONY_SMTP_PASS, HARMONY_SMTP_SENDER (noreply@DOMAIN)
 #   HARMONY_TLS               acme|internal, default acme (internal: Caddy's own CA, LAN)
+#   HARMONY_DB_DOMAIN         API name, default db.DOMAIN
+#   HARMONY_LIVEKIT_DOMAIN    LiveKit name, default live.DOMAIN
 # Host and source:
 #   HARMONY_DIR               install directory, default /opt/harmony
 #   HARMONY_REPO              git URL, default https://github.com/y4my4my4m/harmony.git
@@ -301,6 +303,16 @@ questions() {
 		interactive || die "HARMONY_DOMAIN is required: the domain of the instance, e.g. chat.example.com"
 		warn "'$DOMAIN' is not a domain name"; cur=""
 	done
+	# Same defaults as configure.sh, which validates them.
+	DB_DOMAIN="${HARMONY_DB_DOMAIN:-}"; LIVEKIT_DOMAIN="${HARMONY_LIVEKIT_DOMAIN:-}"
+	if [[ "$DOMAIN" == "$(env_get "$ENV_FILE" DOMAIN)" ]]; then
+		DB_DOMAIN="${DB_DOMAIN:-$(env_get "$ENV_FILE" DB_DOMAIN)}"
+		LIVEKIT_DOMAIN="${LIVEKIT_DOMAIN:-$(env_get "$ENV_FILE" LIVEKIT_DOMAIN)}"
+	fi
+	DB_DOMAIN="$(printf '%s' "${DB_DOMAIN:-db.$DOMAIN}" | lower)"
+	LIVEKIT_DOMAIN="$(printf '%s' "${LIVEKIT_DOMAIN:-live.$DOMAIN}" | lower)"
+	valid_domain "$DB_DOMAIN" || die "HARMONY_DB_DOMAIN '$DB_DOMAIN' is not a domain name"
+	valid_domain "$LIVEKIT_DOMAIN" || die "HARMONY_LIVEKIT_DOMAIN '$LIVEKIT_DOMAIN' is not a domain name"
 
 	cur="${HARMONY_ADMIN_EMAIL:-$(env_get "$ENV_FILE" ADMIN_EMAIL)}"
 	while :; do
@@ -346,7 +358,7 @@ questions() {
 	ask INSTANCE_NAME "Instance name (shown in the app; changeable in the admin panel)" "${cur:-Harmony}"
 
 	echo
-	info "Voice and video calls need one more DNS name (live.$DOMAIN) and ports 7881/tcp, 7882/udp."
+	info "Voice and video calls need one more DNS name ($LIVEKIT_DOMAIN) and ports 7881/tcp, 7882/udp."
 	cur="$(yn "${HARMONY_VOICE:-$(env_get "$ENV_FILE" ENABLE_VOICE)}" y)"
 	if ask_yn "Enable voice and video?" "$cur"; then VOICE=y; else VOICE=n; fi
 
@@ -409,19 +421,24 @@ questions() {
 }
 
 check_dns() {
-	local names=("$DOMAIN" "db.$DOMAIN") name a4 bad=() tunnel=() pub via what
-	truthy "$VOICE" && names+=("live.$DOMAIN")
+	local names name a4 bad=() tunnel=() deep=() pub via what zone flat_db flat_lk
 	echo
 	info "Checking DNS..."
 	pub="$(public_ip4)"
 	while :; do
-		bad=(); tunnel=(); via=false
+		names=("$DOMAIN" "$DB_DOMAIN"); truthy "$VOICE" && names+=("$LIVEKIT_DOMAIN")
+		bad=(); tunnel=(); deep=(); via=false; zone=""; flat_db=""; flat_lk=""
 		for name in "${names[@]}"; do
 			dns_addrs "$name" doh
 			a4="$DNS4"
 			if tunnel_dns_only "$name" doh; then
 				tunnel+=("$name")
 				printf '   %-32s %s\n' "$name" "Cloudflare Tunnel record set to DNS only"
+			elif [[ -n "$a4" ]] && edge_cert_missing "$name"; then
+				deep+=("$name"); zone="$EDGE_ZONE"
+				[[ "$name" == "$DB_DOMAIN" ]] && flat_db="$EDGE_FLAT"
+				[[ "$name" == "$LIVEKIT_DOMAIN" ]] && flat_lk="$EDGE_FLAT"
+				printf '   %-32s %s\n' "$name" "Cloudflare proxies it but serves no certificate for it"
 			elif [[ -z "$a4" ]]; then
 				bad+=("$name")
 				printf '   %-32s %s\n' "$name" "no A record"
@@ -440,7 +457,20 @@ check_dns() {
 		if [[ -z "$pub" ]]; then
 			warn "could not determine this server's public IP (set HARMONY_PUBLIC_IP to check DNS against it)"
 		fi
+		if [[ ${#deep[@]} -gt 0 ]]; then
+			echo
+			warn "Cloudflare's free certificate (Universal SSL) covers $zone and *.$zone, one level deep. Browsers cannot connect to ${deep[*]}: use names one level below $zone, or order an Advanced certificate for them (Cloudflare, SSL/TLS, Edge Certificates)."
+			if [[ -n "$flat_db$flat_lk" ]]; then
+				local renamed="${flat_db:+$flat_db }${flat_lk}"
+				if interactive && ask_yn "Use ${renamed% } instead? Each needs a Proxied record, routed like the others" y; then
+					DB_DOMAIN="${flat_db:-$DB_DOMAIN}"; LIVEKIT_DOMAIN="${flat_lk:-$LIVEKIT_DOMAIN}"
+					continue
+				fi
+				interactive || warn "Set HARMONY_DB_DOMAIN${flat_lk:+ and HARMONY_LIVEKIT_DOMAIN} (e.g. ${renamed% }) and re-run the installer."
+			fi
+		fi
 		if [[ ${#bad[@]} -eq 0 && ${#tunnel[@]} -eq 0 ]]; then
+			if [[ ${#deep[@]} -gt 0 ]]; then return; fi
 			if $via; then ok "DNS resolves every name"; else ok "DNS points at this server"; fi
 			return
 		fi
@@ -485,7 +515,7 @@ smtp_shown() {
 summary_of_answers() {
 	echo
 	info "Settings"
-	printf '   %-14s %s\n' "URL" "https://$DOMAIN" "Admin" "${ADMIN_USERNAME:-existing} <$ADMIN_EMAIL>" \
+	printf '   %-14s %s\n' "URL" "https://$DOMAIN" "API" "https://$DB_DOMAIN" "Admin" "${ADMIN_USERNAME:-existing} <$ADMIN_EMAIL>" \
 		"Name" "$INSTANCE_NAME" "Voice" "$VOICE" "Bots" "$BOTS" "Discord host" "$DISCORD" \
 		"Log collection" "$ANALYTICS" \
 		"Email (SMTP)" "$(smtp_shown)" \
@@ -502,7 +532,8 @@ install_stack() {
 	export HARMONY_DOMAIN="$DOMAIN" HARMONY_ADMIN_EMAIL="$ADMIN_EMAIL" HARMONY_INSTANCE_NAME="$INSTANCE_NAME" \
 		HARMONY_TLS="$TLS" HARMONY_VOICE="$VOICE" HARMONY_BOTS="$BOTS" HARMONY_DISCORD="$DISCORD" \
 		HARMONY_ANALYTICS="$ANALYTICS" \
-		HARMONY_REGISTRATION="$REGISTRATION" HARMONY_HTTP_PORT="$HTTP_PORT" HARMONY_HTTPS_PORT="$HTTPS_PORT"
+		HARMONY_REGISTRATION="$REGISTRATION" HARMONY_HTTP_PORT="$HTTP_PORT" HARMONY_HTTPS_PORT="$HTTPS_PORT" \
+		HARMONY_DB_DOMAIN="$DB_DOMAIN" HARMONY_LIVEKIT_DOMAIN="$LIVEKIT_DOMAIN"
 	info "Writing the configuration..."
 	bash "$SELF_HOST_DIR/configure.sh" --non-interactive </dev/null
 	if $ANALYTICS_UNCHOSEN && ! truthy "$ANALYTICS"; then analytics_default_off; fi
@@ -581,7 +612,7 @@ final_summary() {
 	fi
 	printf '   %-16s %s\n' "Registration" "$REGISTRATION (change: $CLI registration open|invite|closed)"
 	printf '   %-16s %s\n' "Admin panel" "in the app: user menu, Admin (instance name, rules, federation)"
-	printf '   %-16s %s\n' "Database UI" "https://db.$DOMAIN  user supabase, password in supabase/.env (DASHBOARD_PASSWORD)"
+	printf '   %-16s %s\n' "Database UI" "https://$DB_DOMAIN  user supabase, password in supabase/.env (DASHBOARD_PASSWORD)"
 	echo
 	printf '   %-16s %s\n' "Secrets" "$SELF_HOST_DIR/{.env,federation.env,supabase/.env,...}"
 	printf '   %-16s %s\n' "" "the only copy; '$CLI backup' saves them with the database"

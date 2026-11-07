@@ -181,7 +181,7 @@ test('the old account moves and its follower follows the new one', async ({ brow
     await expect(notice).toContainText(`@${newAccount.username}`, { timeout: 30000 })
 
     await notice.locator('[data-testid="moved-account-go"]').click()
-    await expect(fanPage).toHaveURL(new RegExp(`/social/profile/${newAccount.username}$`), {
+    await expect(fanPage).toHaveURL(new RegExp(`/@${newAccount.username}$`), {
       timeout: 30000,
     })
     await expect(fanPage.locator('[data-testid="profile-follow-btn"] .follow-label')).toHaveText(

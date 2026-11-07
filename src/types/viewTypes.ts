@@ -166,7 +166,7 @@ export const getViewPath = (state: ViewState): string => {
     case ViewType.EXPLORE:
       return `/social/${state.currentView}`;
     case ViewType.PROFILE:
-      return `/profile/${state.profileHandle}`;
+      return `/@${state.profileHandle}`;
     case ViewType.POST:
       return `/social/post/${state.postId}`;
     case ViewType.BOOKMARKS:

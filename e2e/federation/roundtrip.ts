@@ -56,6 +56,8 @@
 // (cases/groupAuthored.ts).
 // Server directories are published and read, signed, and a listed Group is joined from one
 // (cases/discovery.ts).
+// An invite link to a server on another Harmony instance is stored as that server's card, read
+// from the host's invite answer (cases/remoteInviteCard.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
@@ -109,10 +111,13 @@ import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
+import { caseEmojiOrigin } from './cases/emojiOrigin.ts'
+import { caseChannelReactionUndo } from './cases/channelReactionUndo.ts'
 import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
+import { caseVoicePresenceRefresh } from './cases/voicePresenceRefresh.ts'
 import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
@@ -133,6 +138,7 @@ import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
+import { caseRemoteInviteCard } from './cases/remoteInviteCard.ts'
 import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
 
@@ -2769,6 +2775,7 @@ async function main() {
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
+    await caseEmojiOrigin({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE }, post, signedHeaders, assert, eq })
     await caseOutboundReactions(db, peer, backend)
     await caseRemoteReactionCounts(db, peer, localUrl)
     await caseDocumentCache(db, localUrl)
@@ -2835,6 +2842,16 @@ async function main() {
         bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
       },
     })
+    // Its two signed presences spend the peer's inbox budget too.
+    await caseVoicePresenceRefresh({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, localAlice: LOCAL_ALICE,
+      peerSends: (target, activity) => peerSends(peer, target, activity),
+      verifySignature: backend.verifySignature, assert, eq,
+      ids: {
+        alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedVoice: PRIV_VOICE,
+        remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
+      },
+    })
     await caseSoundboardTokenGrants({
       db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
       member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
@@ -2849,6 +2866,10 @@ async function main() {
     await caseChannelPermissions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
+    })
+    await caseChannelReactionUndo({
+      db, peer, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, assert, eq,
+      ids: { alice: ALICE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
     })
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,
@@ -2962,6 +2983,11 @@ async function main() {
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, pubServer: PUB_SERVER, privServer: PRIV_SERVER },
+    })
+    await caseRemoteInviteCard({
+      db, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      ids: { alice: ALICE, aliceAuth: ALICE_AUTH, pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL },
     })
     await casePolls({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,

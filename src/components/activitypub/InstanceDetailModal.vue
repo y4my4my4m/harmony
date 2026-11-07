@@ -153,7 +153,7 @@
                   />
                   <template v-else>{{ post.author?.display_name || post.author?.username || 'Unknown' }}</template>
                   <template v-if="post.author?.username">
-                    <span class="post-author-handle">{{ post.author.domain && post.author.domain !== currentDomain ? `@${post.author.username}@${post.author.domain}` : `@${post.author.username}` }}</span>
+                    <span class="post-author-handle">{{ formatHandle(post.author, { full: true }) }}</span>
                   </template>
                 </span>
               </div>
@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { openLink } from '@/services/outsideLinks';
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -209,10 +210,8 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
 import { instanceBannerStyle, instanceIconUrl } from '@/utils/instanceBranding';
-import { runtimeConfig } from '@/services/runtimeConfig';
 
 const router = useRouter();
-const currentDomain = runtimeConfig.domain as string;
 
 interface Props {
   instance: FederatedInstance;

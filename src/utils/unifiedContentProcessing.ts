@@ -290,27 +290,22 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   const uncachedTokens = Array.from(uniqueEmojiTokens).filter(token => !emojiDataMap[token]);
 
   try {
+    // usable_emojis: active rows the sender may use; the database rewrites any other part.
     if (uncachedIds.length > 0) {
-      const { data: emojisByIds } = await supabase
-        .from('emojis')
-        .select('*')
-        .in('id', uncachedIds);
-      
+      const { data: emojisByIds } = await supabase.rpc('usable_emojis', { p_ids: uncachedIds });
+
       if (emojisByIds) {
-        emojisByIds.forEach(emoji => {
+        (emojisByIds as Array<{ id: string }>).forEach(emoji => {
           emojiDataMap[emoji.id] = emoji;
         });
       }
     }
-    
+
     if (uncachedTokens.length > 0) {
       const baseNames = [...new Set(uncachedTokens.map(t => parseEmojiShortcodeToken(t).baseName))];
-      const { data: emojisByNames } = await supabase
-        .from('emojis')
-        .select('*')
-        .in('name', baseNames)
-        .order('server_id', { ascending: true })
-        .order('id', { ascending: true });
+      const { data: emojisByNames } = (await supabase.rpc('usable_emojis', { p_names: baseNames })) as {
+        data: Array<{ id: string; name: string; url: string; server_id: string | null }> | null
+      };
 
       if (emojisByNames) {
         const byBaseName = new Map<string, typeof emojisByNames>();
@@ -915,8 +910,8 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         
       case 'hashtag': {
         const currentDomain = runtimeConfig.domain as string;
-        const href = `https://${currentDomain}/tags/${part.name}`;
-        return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${part.name}</span></a>`;
+        const href = `https://${currentDomain}/tags/${encodeURIComponent(part.name)}`;
+        return `<a href="${escapeHtml(href)}" class="mention hashtag" rel="tag">#<span>${escapeHtml(part.name)}</span></a>`;
       }
         
       case 'emoji': {

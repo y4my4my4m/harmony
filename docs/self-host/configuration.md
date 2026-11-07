@@ -72,6 +72,7 @@ in `public.instance_config` and apply when you click **Save**.
 
 | Setting | Key | Default | Meaning |
 |---|---|---|---|
+| **Drive is turned on** | `drive_enabled` | `true` | Off, Drive is no feature of the instance: the Drive page, the rail button, **From Drive** and temporary attachments are hidden, files cannot be shared with people or by link, and existing shares and links stop opening. Every upload is kept, with no storage limit and no temporary files; the [upload limits](#upload-limits) still apply. Temporary files do not expire while it is off; turned on again, those past their date expire on the next run. Files already in Drive stay and return with Drive |
 | **Storage per account** | `drive_quota_user_mb` | `1024` | Storage of an account that is neither instance admin nor moderator, in MB |
 | **Storage per instance moderator** | `drive_quota_moderator_mb` | `25600` | Storage of an instance moderator, in MB |
 | **Storage per instance admin** | `drive_quota_admin_mb` | `102400` | Storage of an instance admin, in MB |
@@ -181,6 +182,21 @@ temporary files count until they expire.
 `max_instance_stickers` (`50`) and `max_personal_stickers_per_user` (`0`, personal stickers
 off). [Stickers](/self-host/stickers) describes them with the file limits.
 
+### Photo size sent to other servers
+
+**Config** → **Federation** → **Largest photo side sent to other servers (px)**,
+`instance_config.federate_image_max_px`, default `1920`. A JPEG, PNG or still WebP
+in a post that is larger on its longest side goes to other servers as a resized copy
+that fits inside that many pixels square, from storage's image renderer
+(`/storage/v1/render/image/public/…?format=origin`, the original's format). The
+original stays in storage and Harmony shows it in the viewer. GIFs, animated images,
+videos and photos over 50 megapixels go as uploaded, and so do photos without a
+recorded size: those posted before 1.9.4 and Drive files attached unchanged. `0` sends
+every original. Storage's renderer stops at 2000 pixels (storage-api's
+`IMAGE_TRANSFORMATION_LIMIT_MAX_SIZE`), so a larger value acts as `2000`. Each post
+keeps the value in force when its photos were attached, so an edit or a server
+fetching it later gets the same URLs after a change.
+
 ## Change a setting
 
 ### With harmony config
@@ -212,6 +228,8 @@ docker compose up -d
 | `HARMONY_INSTANCE_NAME` | Display name |
 | `HARMONY_ADMIN_EMAIL` | Let's Encrypt contact and Web Push (VAPID) contact |
 | `HARMONY_TLS` | `acme` (Let's Encrypt) or `internal` (Caddy's local CA) |
+| `HARMONY_DB_DOMAIN` | API name; default the configured one, else `db.DOMAIN` |
+| `HARMONY_LIVEKIT_DOMAIN` | LiveKit name; default the configured one, else `live.DOMAIN` |
 | `HARMONY_VOICE` | `y` or `n`: LiveKit voice and video |
 | `HARMONY_BOTS` | `y` or `n`: the bot gateway |
 | `HARMONY_DISCORD` | `y` or `n`: Discord bridge hosting; `y` turns bots on |
@@ -264,12 +282,16 @@ are recomputed on every run, and a hand edit of them is lost:
 | `bot-gateway.env` | `BRIDGE_HOST_SECRET` | `discord-bridge.env`; removed while hosting is off |
 | `supabase/.env` | `SMTP_*` | The email answers, when email is configured in that run |
 
-Values derived from the domain (`DB_DOMAIN`, `LIVEKIT_DOMAIN`,
-`INSTANCE_DOMAIN`, `API_BASE_URL`, `CORS_ORIGIN`, `PUBLIC_SUPABASE_URL`,
-`LIVEKIT_PUBLIC_URL`, `PUBLIC_URL`, `FEDERATION_BACKEND_URL`, `SITE_URL`,
-`API_EXTERNAL_URL`, `SUPABASE_PUBLIC_URL`, `ADDITIONAL_REDIRECT_URLS`, and
-the `domain:` line of `livekit.yaml`) are rewritten only when the domain
-changes.
+Values derived from the domain (`INSTANCE_DOMAIN`, `API_BASE_URL`,
+`CORS_ORIGIN`, `FEDERATION_BACKEND_URL`, `SITE_URL`,
+`ADDITIONAL_REDIRECT_URLS`) are rewritten only when the domain changes. A
+changed domain resets `DB_DOMAIN` and `LIVEKIT_DOMAIN` to `db.DOMAIN` and
+`live.DOMAIN` unless `HARMONY_DB_DOMAIN` and `HARMONY_LIVEKIT_DOMAIN` name
+others. The URLs built from those two names (`API_EXTERNAL_URL`,
+`SUPABASE_PUBLIC_URL`, `PUBLIC_SUPABASE_URL`, `PUBLIC_URL`,
+`LIVEKIT_PUBLIC_URL`, and the `domain:` line of `livekit.yaml`) are rewritten
+on every run to match them. A new API name changes the OAuth callback: update
+it at each provider ([OAuth](/self-host/oauth)).
 
 ::: warning
 `REDIS_PASSWORD` in `.env` also appears inside `REDIS_URL` in
@@ -357,15 +379,18 @@ values.
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
 | `PROVIDER_LINKING_DOMAINS` | `github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
-| `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.196.0` on, otherwise `supabase/gotrue:v2.196.0`. A newer image set by hand stays |
+| `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
+| `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.89.12` on, otherwise `supabase/storage-api:v1.89.12`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
+| `REALTIME_IMAGE` | `configure.sh` | The realtime service's image: the Supabase stack's own `supabase/realtime` image from `v2.148.3` on, otherwise `supabase/realtime:v2.148.3`. A newer image set by hand stays |
 
 ### Sign-in service version
 
 `supabase-overrides.yml` runs the sign-in service (`auth`) on
 `GOTRUE_IMAGE` from `supabase/.env`. `configure.sh` (and so `harmony update`)
-sets it to `supabase/gotrue:v2.196.0` while the Supabase stack's own image is
+sets it to `supabase/gotrue:v2.197.0` while the Supabase stack's own image is
 older, as the pinned upstream stack's `v2.177.0` is: sign-in through your own
-identity provider needs it. From `v2.196.0` on, the stack's own image runs, so
+identity provider needs `v2.196.0`, and `v2.197.0` carries newer Go library
+fixes. From `v2.197.0` on, the stack's own image runs, so
 a newer stack is never downgraded. On start the sign-in service carries the
 `auth` schema forward with its own migrations, which add tables and nullable
 columns. `supabase-overrides.yml` also sets
@@ -373,6 +398,30 @@ columns. `supabase-overrides.yml` also sets
 those providers' callback. The providers themselves are not configuration
 files: `harmony auth add-provider` stores them in the sign-in service. See
 [Your own identity provider](/self-host/oauth#your-own-identity-provider).
+
+### Storage and realtime versions
+
+The pinned upstream stack runs `supabase/storage-api:v1.25.7` and
+`supabase/realtime:v2.34.47`, both with published authorization bypasses:
+unauthenticated uploads and overwrites through signed resumable upload routes
+([GHSA-8rrf-w776-x75g](https://github.com/supabase/storage/security/advisories/GHSA-8rrf-w776-x75g)),
+reads of any bucket through a presigned upload URL
+([GHSA-3m3f-pjv4-x2fp](https://github.com/supabase/storage/security/advisories/GHSA-3m3f-pjv4-x2fp)),
+and forged Realtime events from any client that may broadcast on a channel
+([GHSA-9vjf-j9f7-j42c](https://github.com/supabase/realtime/security/advisories/GHSA-9vjf-j9f7-j42c)).
+`supabase-overrides.yml` runs both services on `STORAGE_IMAGE` and
+`REALTIME_IMAGE` from `supabase/.env`, which `configure.sh` (and so
+`harmony update`) sets to `v1.89.12` and `v2.148.3` while the stack's own
+images are older. Each service brings its own schema (`storage`, `realtime`)
+forward on start; no data moves.
+
+Realtime from `v2.76` also caps how often one client may update its presence,
+by default 5 times in 30 seconds; past the cap, typing indicators stop
+reaching the other people in the chat. `supabase-overrides.yml` raises the cap
+to 60 (`CLIENT_PRESENCE_MAX_CALLS`).
+
+Studio, postgres-meta, imgproxy and Kong run newer releases than the pinned
+stack's as well; [Docker Compose](/self-host/docker-compose) lists each change.
 
 ## Web app
 

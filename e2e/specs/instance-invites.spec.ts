@@ -1,27 +1,36 @@
-// Journey: instance invitations from the admin panel (migration 20261105980001, federation-backend
-// routes/adminInvites.ts).
+// Journey: instance invitations from the admin panel (migrations 20261105980001 and
+// 20261107600001, federation-backend routes/adminInvites.ts).
 //
-// An instance admin creates a single-use link for an address on Admin > Invites; a new browser
-// opens it, chooses a password on /reset-password?invite=1, lands signed in on profile creation,
-// and signs in later with that password. The invitation moves from pending to accepted. A new
-// link voids the one before, a revoked invitation's link fails and its unused account is gone;
-// with SMTP set, Send by email has GoTrue email the invitation instead of showing a link;
-// an address with an account is refused with nothing created. Members and moderators reach
+// An instance admin creates a single-use link for an address on Admin > Invites. The link is the
+// app's /reset-password?invite=1&token_hash=…: a link preview that fetches it first spends
+// nothing, a phone then opens it, chooses a password, lands signed in on profile creation, and
+// signs in later with that password. The invitation moves from pending to accepted once a
+// password is set. A new link voids the one before, a revoked invitation's link fails and its
+// unused account is gone; with SMTP set, Send by email has GoTrue email the invitation instead
+// of showing a link; an address with an account is refused with nothing created. A GoTrue
+// /auth/v1/verify link still works for the person who opens it first; one a preview fetched
+// leaves the invitation pending, and its new link (a recovery token) signs the person up. A link
+// posted in a channel goes through the preview pass unspent. Members and moderators reach
 // neither the page nor the routes. The page passes axe colour contrast with no skin in dark and
 // light, Paper, Skyglass and high contrast, and at 375 px it has no horizontal scroll.
 //
 // Run with E2E_DISABLE_SIGNUP=true (e2e/stack.sh) the stack is an invite-only instance: GoTrue
 // refuses sign-up and the whole journey runs against it. The first test records which mode ran.
-// The stack's GoTrue reports its external URL without the gateway's /auth/v1 prefix; links are
-// opened at /auth/v1/verify.
+// The stack's GoTrue reports its external URL without the gateway's /auth/v1 prefix; its
+// /verify links are opened at /auth/v1/verify. The stack's API and app both live on localhost,
+// which the backend's previewer never fetches (SSRF guard): the preview case guards the pass,
+// and linkPreview.authLinks.test.ts covers the sign-in service hosts.
 
-import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { test, expect, devices, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import {
   adminClient,
   createUser,
   deleteUser,
   dismissAnnouncements,
+  openChannel,
+  seedServer,
+  sendMessage,
   signIn,
   userClient,
   type SpecUser,
@@ -37,6 +46,8 @@ const admin = adminClient()
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173'
 const SUPABASE_URL = process.env.E2E_SUPABASE_URL || process.env.TEST_SUPABASE_URL || ''
 const ANON_KEY = process.env.E2E_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_ANON_KEY || ''
+const SERVICE_KEY = process.env.E2E_SUPABASE_SERVICE_ROLE_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY || ''
+const PHONE: BrowserContextOptions = { ...devices['Pixel 7'], serviceWorkers: 'block' }
 const tag = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 const address = (name: string) => `${name}${tag}@e2e.harmony.local`
 const NEW_PASSWORD = 'invited-password-12345'
@@ -76,9 +87,10 @@ test.afterAll(async () => {
   for (const user of [staff, member, moderator]) await deleteUser(admin, user)
 })
 
-const verifyUrl = (link: string) => {
+/** The link as a browser reaches it: GoTrue's /verify links sit behind the gateway's /auth/v1. */
+const reachable = (link: string) => {
   const url = new URL(link)
-  url.pathname = '/auth/v1/verify'
+  if (url.pathname === '/verify') url.pathname = '/auth/v1/verify'
   return url.toString()
 }
 
@@ -106,11 +118,69 @@ async function createInvite(page: Page, email: string) {
   return body as { link: string; expires_at: string; invite: { id: string; auth_user_id: string } }
 }
 
-async function openLink(browser: Browser, link: string) {
-  const context = await browser.newContext({ serviceWorkers: 'block' })
+async function openLink(browser: Browser, link: string, options: BrowserContextOptions = { serviceWorkers: 'block' }) {
+  const context = await browser.newContext(options)
   const page = await context.newPage()
-  await page.goto(verifyUrl(link))
+  await page.goto(reachable(link))
   return { context, page }
+}
+
+async function choosePassword(page: Page) {
+  await page.getByLabel('New password', { exact: true }).fill(NEW_PASSWORD)
+  await page.getByLabel('Confirm new password', { exact: true }).fill(NEW_PASSWORD)
+  await page.getByRole('button', { name: 'Set password and continue' }).click()
+}
+
+/** From the password page through profile creation to the chat. */
+async function finishSignUp(page: Page, email: string, username: string) {
+  await choosePassword(page)
+  await expect(page).toHaveURL(/new-profile/, { timeout: 30000 })
+  await expect(page.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText(`Signed in as ${email}.`)).toBeVisible()
+  await page.locator('[data-testid="profile-display-name"]').fill(username)
+  await page.locator('[data-testid="profile-username"]').fill(username)
+  await expect(page.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 15000 })
+  await page.locator('[data-testid="profile-submit"]').click()
+  await expect(page).toHaveURL(/\/chat/, { timeout: 60000 })
+}
+
+const deadLinkHeading = (page: Page) =>
+  page.getByRole('heading', { level: 2, name: 'This invitation link does not work' })
+
+/** What GoTrue's admin API says the link did to the account: nothing, for an unspent one. */
+async function authState(authUserId: string) {
+  const { data } = await admin.auth.admin.getUserById(authUserId)
+  return {
+    confirmed: !!data.user?.email_confirmed_at,
+    signedIn: !!data.user?.last_sign_in_at,
+  }
+}
+
+async function listed(email: string) {
+  const res = await fetch(`${backend.url}/admin/invites`, { headers: { Authorization: `Bearer ${await tokenOf(staff)}` } })
+  expect(res.status).toBe(200)
+  const body = await res.json() as { invites: Array<{ email: string; status: string; account_username: string | null }> }
+  return body.invites.find((i) => i.email === email)
+}
+
+async function inviteByRoute(email: string) {
+  invitedEmails.push(email)
+  const res = await fetch(`${backend.url}/admin/invites`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await tokenOf(staff)}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  expect(res.status).toBe(201)
+  return await res.json() as { link: string; invite: { id: string; auth_user_id: string } }
+}
+
+/** A /auth/v1/verify invitation link as GoTrue makes it, the form every link had before. */
+async function gotrueLink(email: string): Promise<string> {
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'invite', email, options: { redirectTo: `${BASE_URL}/reset-password?invite=1` },
+  })
+  if (error || !data.properties?.action_link) throw new Error(`generateLink: ${error?.message}`)
+  return data.properties.action_link
 }
 
 // A routed page's requests still in flight fail the test when its context closes under them.
@@ -125,7 +195,7 @@ async function tokenOf(user: SpecUser): Promise<string> {
   return data.session!.access_token
 }
 
-test('an admin invites by link; the person chooses a password and lands signed in', async ({ page, browser, context }) => {
+test('an admin invites by link; a preview spends nothing; the person chooses a password on a phone', async ({ page, browser, context, request }) => {
   test.setTimeout(240_000)
   test.info().annotations.push({ type: 'sign-up', description: signupDisabled ? 'disabled (invite-only instance)' : 'enabled' })
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE_URL })
@@ -161,6 +231,7 @@ test('an admin invites by link; the person chooses a password and lands signed i
   await test.step('the admin creates a link; it expires when GoTrue says', async () => {
     issued = await createInvite(page, email)
     expect(issued.link).toContain('type=invite')
+    expect(new URL(issued.link).pathname).toBe('/reset-password')
     const { data } = await admin.auth.admin.getUserById(issued.invite.auth_user_id)
     const sentAt = Date.parse(data.user!.confirmation_sent_at!)
     expect(Date.parse(issued.expires_at) - sentAt).toBe(86400 * 1000)
@@ -181,23 +252,34 @@ test('an admin invites by link; the person chooses a password and lands signed i
     expect(log).toEqual([{ action_type: 'instance_invite_created', admin_id: staff.id }])
   })
 
-  await test.step('a new browser opens the link, chooses a password and lands signed in', async () => {
-    const guest = await openLink(browser, issued.link)
+  await test.step('a link preview fetches the link first; the invitation is untouched', async () => {
+    const fetched = await request.get(reachable(issued.link), { maxRedirects: 0 })
+    expect(fetched.status()).toBeLessThan(400)
+    expect(await authState(issued.invite.auth_user_id)).toEqual({ confirmed: false, signedIn: false })
+  })
+
+  await test.step('a phone opens the link: the password form, the invitation still pending', async () => {
+    const guest = await openLink(browser, issued.link, PHONE)
     const p = guest.page
     await expect(p.getByRole('heading', { level: 2, name: 'Welcome! Choose a password' })).toBeVisible({ timeout: 30000 })
-    await expect(p.getByTestId('reset-subtitle')).toContainText(email)
-    await p.getByLabel('New password', { exact: true }).fill(NEW_PASSWORD)
-    await p.getByLabel('Confirm new password', { exact: true }).fill(NEW_PASSWORD)
-    await p.getByRole('button', { name: 'Set password and continue' }).click()
+    await expect(p.getByTestId('reset-subtitle')).toContainText('You were invited to make an account here.')
+    expect(await authState(issued.invite.auth_user_id)).toEqual({ confirmed: false, signedIn: false })
+    expect((await listed(email))?.status).toBe('pending')
+    await panel.getByRole('button', { name: 'Refresh' }).click()
+    await expect(panel.getByTestId(`invite-${email}`)).toBeVisible()
 
-    await expect(p).toHaveURL(/new-profile/, { timeout: 30000 })
-    await expect(p.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 15000 })
-    await expect(p.getByText(`Signed in as ${email}.`)).toBeVisible()
-    await p.locator('[data-testid="profile-display-name"]').fill('Ada Invited')
-    await p.locator('[data-testid="profile-username"]').fill(username)
-    await expect(p.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 15000 })
-    await p.locator('[data-testid="profile-submit"]').click()
-    await expect(p).toHaveURL(/\/chat/, { timeout: 60000 })
+    await test.step('it chooses a password and lands signed in', async () => {
+      await choosePassword(p)
+      await expect(p).toHaveURL(/new-profile/, { timeout: 30000 })
+      expect((await listed(email))?.status).toBe('accepted')
+      await expect(p.locator('[data-testid="new-profile-card"]')).toBeVisible({ timeout: 15000 })
+      await expect(p.getByText(`Signed in as ${email}.`)).toBeVisible()
+      await p.locator('[data-testid="profile-display-name"]').fill('Ada Invited')
+      await p.locator('[data-testid="profile-username"]').fill(username)
+      await expect(p.locator('[data-testid="username-available"]')).toBeVisible({ timeout: 15000 })
+      await p.locator('[data-testid="profile-submit"]').click()
+      await expect(p).toHaveURL(/\/chat/, { timeout: 60000 })
+    })
     await guest.context.close()
   })
 
@@ -247,9 +329,11 @@ test('a new link voids the one before; a revoked link fails and its account is g
 
   await test.step('the first link no longer works', async () => {
     const guest = await openLink(browser, first.link)
-    await expect(guest.page.getByRole('heading', { level: 2, name: 'This invitation link does not work' }))
-      .toBeVisible({ timeout: 30000 })
+    await expect(guest.page.getByRole('heading', { level: 2, name: 'Welcome! Choose a password' })).toBeVisible({ timeout: 30000 })
+    await choosePassword(guest.page)
+    await expect(deadLinkHeading(guest.page)).toBeVisible({ timeout: 30000 })
     await guest.context.close()
+    expect(await authState(first.invite.auth_user_id)).toEqual({ confirmed: false, signedIn: false })
   })
 
   await test.step('revoking asks first, then lists it as revoked', async () => {
@@ -264,8 +348,8 @@ test('a new link voids the one before; a revoked link fails and its account is g
 
   await test.step('the second link fails and the unused account is gone', async () => {
     const guest = await openLink(browser, second)
-    await expect(guest.page.getByRole('heading', { level: 2, name: 'This invitation link does not work' }))
-      .toBeVisible({ timeout: 30000 })
+    await choosePassword(guest.page)
+    await expect(deadLinkHeading(guest.page)).toBeVisible({ timeout: 30000 })
     await expect(guest.page.locator('p.form-subtitle')).toContainText('Ask the person who invited you for a new one.')
     await guest.context.close()
     const { data } = await admin.auth.admin.getUserById(first.invite.auth_user_id)
@@ -274,6 +358,109 @@ test('a new link voids the one before; a revoked link fails and its account is g
       .eq('target_id', first.invite.id).order('created_at')
     expect(log?.map((r) => r.action_type)).toEqual(['instance_invite_created', 'instance_invite_reissued', 'instance_invite_revoked'])
   })
+})
+
+test('a GoTrue /verify link still works for the person who opens it first', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const email = address('gil')
+  const username = `gil${tag}`.replace(/[^a-z0-9]/g, '')
+  await inviteByRoute(email)
+  const legacy = await gotrueLink(email)
+
+  const guest = await openLink(browser, legacy)
+  await expect(guest.page.getByRole('heading', { level: 2, name: 'Welcome! Choose a password' })).toBeVisible({ timeout: 30000 })
+  await expect(guest.page.getByTestId('reset-subtitle')).toContainText(email)
+  await finishSignUp(guest.page, email, username)
+  await guest.context.close()
+  const row = await listed(email)
+  expect([row?.status, row?.account_username]).toEqual(['accepted', username])
+})
+
+test('an invitation a preview spent through GoTrue\'s /verify link stays pending; its new link signs the person up', async ({ browser, request }) => {
+  test.setTimeout(180_000)
+  const email = address('hal')
+  const username = `hal${tag}`.replace(/[^a-z0-9]/g, '')
+  const issued = await inviteByRoute(email)
+
+  await test.step('a preview fetches a /verify link: GoTrue confirms and signs in, no password set', async () => {
+    const fetched = await request.get(reachable(await gotrueLink(email)), { maxRedirects: 0 })
+    expect(fetched.status()).toBeLessThan(400)
+    expect(await authState(issued.invite.auth_user_id)).toEqual({ confirmed: true, signedIn: true })
+  })
+
+  await test.step('the invitation is still pending and can be revoked or re-issued', async () => {
+    expect((await listed(email))?.status).toBe('pending')
+  })
+
+  let fresh = ''
+  await test.step('a new link is a recovery token on the same page', async () => {
+    const res = await fetch(`${backend.url}/admin/invites/${issued.invite.auth_user_id}/link`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await tokenOf(staff)}` },
+    })
+    expect(res.status).toBe(200)
+    fresh = (await res.json()).link
+    expect(fresh).toContain('/reset-password?invite=1&token_hash=')
+    expect(fresh).toContain('type=recovery')
+    expect((await request.get(fresh, { maxRedirects: 0 })).status()).toBeLessThan(400)
+  })
+
+  await test.step('the person opens it on a phone and signs up', async () => {
+    const guest = await openLink(browser, fresh, PHONE)
+    await expect(guest.page.getByRole('heading', { level: 2, name: 'Welcome! Choose a password' })).toBeVisible({ timeout: 30000 })
+    await finishSignUp(guest.page, email, username)
+    await guest.context.close()
+    const row = await listed(email)
+    expect([row?.status, row?.account_username]).toEqual(['accepted', username])
+  })
+})
+
+test('an invitation link posted in a channel goes through the preview pass unspent', async ({ browser, page }) => {
+  test.setTimeout(180_000)
+  const email = address('ivy')
+  const username = `ivy${tag}`.replace(/[^a-z0-9]/g, '')
+  const issued = await inviteByRoute(email)
+  const server = await seedServer(admin, staff, `Invites ${staff.username}`)
+
+  let messageId = ''
+  await test.step('the admin posts the link in a channel', async () => {
+    await backend.route(page)
+    await signIn(page, staff)
+    await openChannel(page, server.id, server.generalChannelId)
+    const posted = await sendMessage(page, issued.link)
+    messageId = (await posted.getAttribute('data-message-id'))!
+    const { data } = await admin.from('messages').select('content').eq('id', messageId).single()
+    const parts = (data?.content ?? []) as Array<{ type: string; url?: string }>
+    expect(parts.filter((part) => part.type === 'url').map((part) => part.url)).toEqual([issued.link])
+  })
+
+  await test.step('the composer preview and the message preview pass run over it', async () => {
+    await fetch(`${backend.url}/link-preview`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await tokenOf(staff)}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: issued.link }),
+    })
+    const pass = await fetch(`${backend.url}/link-preview/enrich-message`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId }),
+    })
+    expect(pass.status).toBe(200)
+    const { data } = await admin.from('messages').select('metadata').eq('id', messageId).single()
+    expect(data?.metadata?.embeds?.[issued.link]).toBeUndefined()
+    expect(await authState(issued.invite.auth_user_id)).toEqual({ confirmed: false, signedIn: false })
+    expect((await listed(email))?.status).toBe('pending')
+  })
+
+  await test.step('the person opens the link from the channel and signs up', async () => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+    const guest = await openLink(browser, issued.link, PHONE)
+    await expect(guest.page.getByRole('heading', { level: 2, name: 'Welcome! Choose a password' })).toBeVisible({ timeout: 30000 })
+    await finishSignUp(guest.page, email, username)
+    await guest.context.close()
+    expect((await listed(email))?.status).toBe('accepted')
+  })
+  await admin.from('servers').delete().eq('id', server.id)
 })
 
 test('with SMTP set, Send by email has the sign-in service email the invitation', async ({ page }) => {

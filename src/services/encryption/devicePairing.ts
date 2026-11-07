@@ -231,8 +231,16 @@ function buf(b: Uint8Array): ArrayBuffer {
 
 // Codes.
 
+/**
+ * The code without whitespace: base64url and the prefix contain none, and a code copied from a
+ * chat or a narrow field can carry line breaks, spaces or zero-width characters.
+ */
+function compact(text: string): string {
+  return text.replace(/[\s\u200B-\u200D\u2060\uFEFF]+/g, '')
+}
+
 export function looksLikePairingCode(text: string): boolean {
-  return text.trim().startsWith(PAIRING_PREFIX)
+  return compact(text).startsWith(PAIRING_PREFIX)
 }
 
 export function encodePairingCode(code: PairingCode): string {
@@ -254,7 +262,7 @@ export function encodePairingCode(code: PairingCode): string {
 }
 
 export function decodePairingCode(text: string): PairingCode {
-  const t = text.trim()
+  const t = compact(text)
   if (!t.startsWith(PAIRING_PREFIX)) throw new PairingError('malformed', 'Not a Harmony pairing code')
   let b: Uint8Array
   try {

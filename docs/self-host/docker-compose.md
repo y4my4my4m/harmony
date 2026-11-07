@@ -73,11 +73,14 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 |---|---|
 | `db` | `shm_size: 1g`. Docker gives a container 64 MB of `/dev/shm`; parallel VACUUM, index builds and hash joins on a large table need more and otherwise fail with "could not resize shared memory segment". Starts without `vector` |
 | `functions`, `supavisor` | Moved to a profile nothing enables: defined, never started. The federation backend replaces Edge Functions; Supavisor would publish Postgres on the host |
-| `kong` | No host ports; Caddy reaches Kong as `supabase-kong:8000`. `KONG_DNS_VALID_TTL: 5`: Kong looks up a service's address again after 5 seconds instead of the 600 seconds Docker's DNS answers carry, so a service an update recreates on another address answers within seconds rather than with 502 for up to 10 minutes |
+| `kong` | Image `kong:2.8.5`, the last 2.8 release, in place of the stack's `2.8.1`. No host ports; Caddy reaches Kong as `supabase-kong:8000`. `KONG_DNS_VALID_TTL: 5`: Kong looks up a service's address again after 5 seconds instead of the 600 seconds Docker's DNS answers carry, so a service an update recreates on another address answers within seconds rather than with 502 for up to 10 minutes |
 | `analytics`, `vector` | Profile `logs`, started only with [log collection](/self-host/#log-collection) on; `analytics` publishes no host port. `kong`, `auth`, `rest`, `realtime`, `meta` and `studio` start without them (`required: false`) |
+| `storage` | Image `STORAGE_IMAGE` (at least `supabase/storage-api:v1.89.12`); `FILE_SIZE_LIMIT` from `supabase/.env` |
+| `realtime` | Image `REALTIME_IMAGE` (at least `supabase/realtime:v2.148.3`); `METRICS_JWT_SECRET: ${JWT_SECRET}`, without which v2.148 does not start; `CLIENT_PRESENCE_MAX_CALLS: 60` per 30 s, so typing indicators keep reaching the chat (default 5) |
 | `rest` | `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
-| `imgproxy` | `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images |
-| `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.196.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
+| `imgproxy` | Image `darthsim/imgproxy:v4.0.21` in place of the stack's `v3.8.0`. `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images; `IMGPROXY_AUTO_WEBP` from `IMGPROXY_ENABLE_WEBP_DETECTION`, a name v4 no longer reads; `IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif`, so WebP and AVIF stay WebP and AVIF for clients that do not ask for WebP |
+| `studio`, `meta` | Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
+| `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.197.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
 
 ### Networks and volumes
 
@@ -211,7 +214,7 @@ case-sensitively.
 | `/threads/UUID`, `/threads/UUID/members`, `/channels/UUID/threads` | federation server | Chat threads as `ChatThread`s; 406 without an ActivityPub `Accept` |
 | `/invite/CODE` from a link-preview crawler | federation server | Decided by `User-Agent`; everyone else gets the web app |
 | `/social/post/UUID` with an ActivityPub `Accept`, or from a link-preview crawler | federation server, rewritten to `/posts/UUID` | Everyone else gets the web app |
-| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | Everyone else gets the web app |
+| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | The web app's earlier profile address. With the cookie `harmony_app=1` the web app, any other request a 301 to `/@NAME` |
 | `/@NAME`, `/@NAME/ID` with the cookie `harmony_app=1` and no ActivityPub `Accept` | web app | The app sets the cookie while signed in |
 | `/@NAME`, `/@NAME/ID`, any other request | federation server, path unchanged | An account's and a post's `url`: the actor and the `Note` for ActivityPub, the public page for everyone else |
 | `/health...`, `/link-preview...` | federation server | Prefixes without a trailing slash |

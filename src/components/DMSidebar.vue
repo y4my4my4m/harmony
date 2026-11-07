@@ -42,7 +42,6 @@
           :placeholder="$t('dm.searchUsersPlaceholder')"
           :aria-label="t('chatNav.dm.searchLabel')"
           class="search-input"
-          @input="handleSearch"
           @keydown.escape="closeSearch"
         />
         <button 
@@ -61,7 +60,7 @@
 
       <!-- Search Results (filtered to exclude blocked users) -->
       <div v-if="searchQuery" class="search-results">
-        <div v-if="dmStore.isSearching" class="search-loading" role="status">
+        <div v-if="searchingUsers" class="search-loading" role="status">
           {{ $t('common.search') }}...
         </div>
         <EmptyState
@@ -94,7 +93,7 @@
               </div>
             </div>
             <div v-if="user.display_name || !user.is_local" class="username">
-              {{ !user.is_local && user.handle ? user.handle : user.username }}
+              {{ formatHandle(user, { full: true }) }}
             </div>
           </div>
         </button>
@@ -291,6 +290,7 @@ import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { useUserSearch } from '@/composables/useUserSearch'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
@@ -306,6 +306,7 @@ import { isUndecrypted } from '@/utils/channelEncryption'
 import { pollPreview } from '@/utils/messagePoll'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 import { focusElement, uid } from '@/utils/a11y/focus'
+import { formatHandle } from '@/utils/handles'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -346,8 +347,12 @@ watch(showUserSearch, async (open) => {
   userSearchInputRef.value?.focus()
 })
 const showGroupChatModal = ref(false)
-const searchQuery = ref('')
-const searchTimeout = ref<NodeJS.Timeout | null>(null)
+const {
+  query: searchQuery,
+  results: userResults,
+  searching: searchingUsers,
+  clear: clearUserSearch,
+} = useUserSearch({ limit: 10, debounceMs: 300, exclude: () => [getCurrentUser.value?.id] })
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
@@ -380,7 +385,7 @@ const joinCallFromList = async (conversationId: string) => {
 const filteredSearchResults = computed(() => {
   // Access the count to ensure reactivity when blocked users change
   blockedUsersCount.value
-  return dmStore.searchResults.filter(user => !activityPubStore.isBlocked(user.id))
+  return userResults.value.filter(user => !activityPubStore.isBlocked(user.id))
 })
 
 // Helper functions for conversation display
@@ -434,22 +439,8 @@ const getConversationUserStatus = (conversation: DMConversation): 'online' | 'aw
 }
 
 // Methods
-const handleSearch = () => {
-  if (searchTimeout.value) {
-    clearTimeout(searchTimeout.value)
-  }
-
-  searchTimeout.value = setTimeout(() => {
-    const currentUser = getCurrentUser.value
-    if (searchQuery.value.trim() && currentUser?.id) {
-      dmStore.searchUsers(searchQuery.value.trim(), currentUser.id)
-    }
-  }, 300)
-}
-
 const clearSearch = () => {
-  searchQuery.value = ''
-  dmStore.searchResults = []
+  clearUserSearch()
 }
 
 const closeSearch = () => {
@@ -457,7 +448,7 @@ const closeSearch = () => {
   clearSearch()
 }
 
-const startConversation = async (user: DMUser) => {
+const startConversation = async (user: Pick<DMUser, 'id'>) => {
   const currentUser = getCurrentUser.value
   if (!currentUser?.id) return
 
@@ -731,9 +722,6 @@ const handleConversationHover = async (conversationId: string) => {
 onUnmounted(() => {
   cancelConversationPrefetch()
   if (undoTimer) clearTimeout(undoTimer)
-  if (searchTimeout.value) {
-    clearTimeout(searchTimeout.value)
-  }
 })
 
 // Removed automatic presence updates - now handled on-demand during hover

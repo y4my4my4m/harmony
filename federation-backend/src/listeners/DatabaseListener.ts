@@ -15,7 +15,7 @@ import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { stickerNoteExtension } from '../utils/stickers.js';
 import { fileAttachmentsToAp } from '../utils/privateMedia.js';
-import { linkPreviewService } from '../services/LinkPreviewService.js';
+import { isAuthServiceLink, linkPreviewService } from '../services/LinkPreviewService.js';
 import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
@@ -1375,6 +1375,7 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
     );
     const activity = createLikeActivity(
       user, objectUrl, emojiContent, emojiData ?? undefined, recipientUrls,
+      dmReactionLikeId(user, reaction.id),
     );
 
     await Promise.allSettled(
@@ -1387,6 +1388,11 @@ export async function handleNewMessageReaction(reaction: any): Promise<void> {
   } catch (error) {
     logger.error('Failed to handle message reaction:', error);
   }
+}
+
+/** Id of the Like a DM reaction federates as; random for a row without an id. */
+function dmReactionLikeId(user: { username: string }, reactionId: string | undefined): string | undefined {
+  return reactionId ? `https://${config.INSTANCE_DOMAIN}/users/${user.username}/reactions/${reactionId}` : undefined;
 }
 
 /** Sends Undo Like for a removed DM reaction to every remote participant. */
@@ -1431,7 +1437,8 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
           username,
           domain,
           is_local,
-          inbox_url
+          inbox_url,
+          federated_id
         )
       `)
       .eq('conversation_id', message.conversation_id)
@@ -1450,8 +1457,22 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
     const objectUrl = message.metadata?.ap_id
       || `https://${domain}/messages/${message.id}`;
 
+    // The Undo names the Like the reaction went out as: same id, content and Emoji tag.
+    // The receiver (ActivityProcessor.removeMessageReactions) matches the row by that emoji;
+    // a bare Like reads as the heart.
+    const { content: emojiContent, emojiData } = await resolveOutboundEmoji(
+      deletedReaction.emoji_id,
+      deletedReaction.custom_emoji_content,
+    );
+    const recipientUrls = remoteParticipants.map(
+      (p: any) => p.federated_id || `https://${p.domain}/users/${p.username}`,
+    );
+    const like = createLikeActivity(
+      user, objectUrl, emojiContent, emojiData ?? undefined, recipientUrls,
+      dmReactionLikeId(user, deletedReaction.id),
+    );
     const { createUndoLikeActivity } = await import('./FederationHandlers.js');
-    const activity = createUndoLikeActivity(user, objectUrl);
+    const activity = createUndoLikeActivity(user, objectUrl, like);
 
     await Promise.allSettled(
       remoteParticipants.map((participant: any) => {
@@ -1496,7 +1517,7 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   const eligibleUrls = urlParts.filter((part: any) => {
     try {
       const host = new URL(part.url).hostname.toLowerCase();
-      return host !== instanceDomain && !existingEmbeds[part.url];
+      return host !== instanceDomain && !isAuthServiceLink(part.url) && !existingEmbeds[part.url];
     } catch {
       return false;
     }
@@ -1581,7 +1602,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
   const eligibleUrls = urlParts.filter((part: any) => {
     try {
       const host = new URL(part.url).hostname.toLowerCase();
-      return host !== instanceDomain && !existingEmbeds[part.url];
+      return host !== instanceDomain && !isAuthServiceLink(part.url) && !existingEmbeds[part.url];
     } catch {
       return false;
     }

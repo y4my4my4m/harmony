@@ -19,8 +19,6 @@ vi.mock('@/stores/useDM', () => ({
     loadingConversations: false,
     isInitializing: false,
     currentConversationId: null,
-    searchResults: [],
-    isSearching: false,
     hideConversation: vi.fn(),
     prefetchConversationMessages: vi.fn(),
     loadConversationUserProfile: vi.fn(async () => false),

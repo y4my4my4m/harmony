@@ -25,10 +25,11 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   }),
 }))
 
-const route = vi.hoisted(() => ({ current: null as null | { params: Record<string, string>; query: Record<string, string> } }))
+const route = vi.hoisted(() => ({ current: null as null | { name?: string; params: Record<string, string>; query: Record<string, string> } }))
+const router = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(() => Promise.resolve()) }))
 vi.mock('vue-router', () => ({
   useRoute: () => route.current,
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => router,
 }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: vi.fn() }) }))
 vi.mock('@/composables/usePostInteractions', () => ({
@@ -102,6 +103,22 @@ describe('PostView post links', () => {
     expect(store.getPostWithContext).toHaveBeenCalledTimes(2)
     expect(store.getPostWithContext).toHaveBeenLastCalledWith('root-1', expect.objectContaining({ context: 'thread' }))
     expect(shownIds(wrapper)).toEqual(['root-1', 'reply-1', 'reply-1a', 'reply-2', 'reply-3'])
+  })
+
+  it('shows the post\'s permalink, /@author/<id>, in the address bar once loaded', async () => {
+    store.getPostWithContext.mockResolvedValue(thread('reply-1'))
+    route.current = reactive({ name: 'PostDetail', params: { postId: 'reply-1' }, query: { highlight: 'x' } })
+    mountView()
+    await flushPromises()
+    expect(router.replace).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'PostPermalink', params: { handle: 'ana', postId: 'reply-1' }, query: { highlight: 'x' },
+    }))
+
+    router.replace.mockClear()
+    route.current = reactive({ name: 'PostPermalink', params: { handle: 'ana', postId: 'reply-1' }, query: {} })
+    mountView()
+    await flushPromises()
+    expect(router.replace).not.toHaveBeenCalled()
   })
 
   it('loads once when a link changes the post and the highlight together', async () => {

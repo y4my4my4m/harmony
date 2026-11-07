@@ -11,7 +11,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const IMAGE = process.env.E2E_LIVEKIT_IMAGE ?? 'livekit/livekit-server:v1.9.4'
+const IMAGE = process.env.E2E_LIVEKIT_IMAGE ?? 'livekit/livekit-server:v1.13.11'
 // livekit-server refuses secrets shorter than 32 characters.
 const KEY = 'e2ekey'
 const SECRET = 'e2e-livekit-secret-0123456789abcdef'
@@ -29,6 +29,8 @@ export interface LiveKitOptions {
    * A long interval keeps SFU-reported speaking out of reach of an assertion window.
    */
   speakerUpdateMs?: number
+  /** Receives the server's webhooks (livekit-server webhook.urls, signed with KEY). */
+  webhookUrl?: string
 }
 
 export async function startLiveKit(options: LiveKitOptions = {}): Promise<LiveKit> {
@@ -47,6 +49,7 @@ export async function startLiveKit(options: LiveKitOptions = {}): Promise<LiveKi
     `  update_interval: ${options.speakerUpdateMs ?? 500}`,
     'keys:',
     `  ${KEY}: ${SECRET}`,
+    ...(options.webhookUrl ? ['webhook:', `  api_key: ${KEY}`, '  urls:', `    - ${options.webhookUrl}`] : []),
     'logging:',
     '  level: warn',
   ].join('\n')

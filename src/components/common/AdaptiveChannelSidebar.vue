@@ -146,6 +146,8 @@
 </template>
 
 <script setup lang="ts">
+import { profilePath } from '@/utils/permalinks'
+import { formatHandle } from '@/utils/handles'
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { useRoute } from 'vue-router';
@@ -253,36 +255,9 @@ const currentUser = computed(() => {
   return null
 });
 
-const currentUserHandle = computed(() => {
-  if (!currentUser.value) return '';
-  
-  const domain = currentUser.value.domain || runtimeConfig.domain as string;
-  const username = currentUser.value.username;
-  
-  if (!username) return '';
-  
-  return domain === runtimeConfig.domain as string
-    ? `@${username}`
-    : `@${username}@${domain}`;
-});
+const currentUserHandle = computed(() => formatHandle(currentUser.value));
 
-const getUserProfilePath = () => {
-  if (!currentUser.value?.username) return '/social/home';
-  
-  const domain = currentUser.value.domain || runtimeConfig.domain as string;
-  const username = currentUser.value.username;
-  
-  const handle = domain === runtimeConfig.domain as string
-    ? username 
-    : `${username}@${domain}`;
-    
-  return `/social/profile/${handle}`;
-};
-
-// eslint-disable-next-line unused-imports/no-unused-vars
-const getProfileUrl = (handle: string) => {
-  return `/social/profile/${handle}`;
-};
+const getUserProfilePath = () => profilePath(currentUser.value) ?? '/social/home';
 
 
 const postsCount = computed(() => (currentUser.value as any)?.posts_count ?? 0);

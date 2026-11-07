@@ -1,6 +1,7 @@
 import { ref, reactive, shallowReactive, computed, onMounted, onBeforeUnmount, watch, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
+import { isSocialPath } from '@/utils/permalinks'
 import { useViewport } from '@/composables/useViewport'
 
 const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
@@ -212,8 +213,7 @@ export function useLayoutState() {
   const route = useRoute()
 
   const isActivityPubRoute = (): boolean => {
-    const p = route.path
-    return p.startsWith('/social') || p.startsWith('/posts')
+    return isSocialPath(route.path)
   }
 
   // Without a registered right panel (DM, Today, settings) the right-sidebar
@@ -275,7 +275,7 @@ export function useLayoutState() {
         return
       }
       if (isMobile.value) return
-      if (path.startsWith('/social') || path.startsWith('/posts')) {
+      if (isSocialPath(path)) {
         restoreActivityPubRightSidebar()
       } else if (path.startsWith('/chat')) {
         restoreChatRightSidebar()

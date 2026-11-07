@@ -165,3 +165,51 @@ describe('federation switches', () => {
     expect(admin.updateFederationSettings).not.toHaveBeenCalled()
   })
 })
+
+describe('saving writes only what changed', () => {
+  it('sends only the edited key, never the other switches', async () => {
+    admin.getInstanceConfig.mockResolvedValue({
+      chat: { maxMessageLength: 2000, allowFileUploads: false, gifClipsEnabled: true },
+      federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded: true, publicProfilePages: true },
+      webrtc: { mode: 'sfu', livekitUrl: 'wss://lk.example', allowFederatedVoice: false, maxStageListeners: 50 },
+      instance: { name: 'Harmony Test', registrationOpen: true },
+    })
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    expect(wrapper.get('button.save-btn').attributes('disabled')).toBeDefined()
+    await wrapper.get('input[type="number"]').setValue(3000)
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.setInstanceConfigs).toHaveBeenCalledTimes(1)
+    expect((admin.setInstanceConfigs.mock.calls[0] as unknown as [Record<string, unknown>])[0]).toEqual({ max_server_size: 3000 })
+    expect(admin.updateWebRTCSettings).not.toHaveBeenCalled()
+    expect(admin.updateFederationSettings).not.toHaveBeenCalled()
+  })
+
+  it('offers no save when the stored values could not be read', async () => {
+    admin.getInstanceConfig.mockResolvedValue(null)
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    await wrapper.get('input[type="number"]').setValue(3000)
+    expect(wrapper.get('button.save-btn').attributes('disabled')).toBeDefined()
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.setInstanceConfigs).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
+  })
+})
+
+describe('voice settings that could not be read', () => {
+  it('says so and offers no voice field to edit', async () => {
+    admin.getInstanceConfig.mockResolvedValue({
+      chat: {}, federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded: true },
+      webrtc: {}, webrtcLoaded: false, instance: { name: 'Harmony Test', registrationOpen: true },
+    })
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    await wrapper.findAll('button.config-tab-btn').find((b) => b.text() === 'Voice & video')!.trigger('click')
+    expect(wrapper.get('[data-testid="webrtc-unread"]').text()).toContain('could not be read')
+    expect((wrapper.get('select').element as HTMLSelectElement).disabled).toBe(true)
+    expect(admin.updateWebRTCSettings).not.toHaveBeenCalled()
+  })
+})

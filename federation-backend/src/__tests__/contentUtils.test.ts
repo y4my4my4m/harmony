@@ -213,6 +213,27 @@ describe('contentUtils', () => {
       expect(tags[0].icon.url).toBe('https://cdn.example.com/blobcat.png')
     })
 
+    it('names an emoji tag by its image URL, not the row uuid, with the media type of its extension', () => {
+      const url = (ext: string) => `https://db.harmony.test/storage/v1/object/public/emojis/00000000-0000-0000-0000-000000000000/a.${ext}`
+      const content = ['png', 'apng', 'gif', 'webp', 'jpg', 'jpeg', 'bin'].map((ext) => ({
+        type: 'emoji',
+        emoji: { name: `e_${ext}`, url: url(ext), id: '5e000000-0000-0000-0000-000000000001' },
+      }))
+      const tags = extractActivityPubTags(content)
+      expect(tags.map((t) => t.id)).toEqual(content.map((p) => p.emoji.url))
+      expect(tags.map((t) => t.icon.mediaType)).toEqual([
+        'image/png', 'image/apng', 'image/gif', 'image/webp', 'image/jpeg', 'image/jpeg', 'image/png',
+      ])
+    })
+
+    it('keeps an IRI id and drops an emoji part without an http(s) image', () => {
+      const tags = extractActivityPubTags([
+        { type: 'emoji', emoji: { name: 'blob', url: 'https://m.test/blob.png', id: 'https://m.test/emojis/1' } },
+        { type: 'emoji', emoji: { name: 'evil', url: 'javascript:alert(1)', id: 'x' } },
+      ])
+      expect(tags.map((t) => [t.id, t.name])).toEqual([['https://m.test/emojis/1', ':blob:']])
+    })
+
     it('skips text parts', () => {
       const content = [{ type: 'text', text: 'hello' }]
       expect(extractActivityPubTags(content)).toHaveLength(0)

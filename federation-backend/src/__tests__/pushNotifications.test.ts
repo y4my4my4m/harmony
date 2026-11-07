@@ -212,9 +212,9 @@ describe('notification deep links', () => {
   it('opens social posts and profiles', () => {
     expect(notificationUrl('activitypub_reply', { post_id: 'p1' })).toBe('/social/post/p1');
     expect(notificationUrl('activitypub_follow', { follower: { username: 'bob', domain: 'remote.social', is_local: false } }))
-      .toBe('/social/profile/bob@remote.social');
+      .toBe('/@bob@remote.social');
     expect(notificationUrl('activitypub_follow', { follower: { username: 'amy', is_local: true, domain: 'harmony.test' } }))
-      .toBe('/social/profile/amy');
+      .toBe('/@amy');
     expect(notificationUrl('activitypub_follow_request', {})).toBe('/social/follow-requests');
   });
 

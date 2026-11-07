@@ -18,7 +18,7 @@ import MonyMediaGallery from '../MonyMediaGallery.vue'
 
 enableAutoUnmount(afterEach)
 
-const stubs = { MonyMediaLightbox: true, Icon: true }
+const stubs = { Icon: true }
 const images = [
   { id: '1', type: 'image', url: 'https://s/1.webp', description: 'A cat on a wall' },
   { id: '2', type: 'image', url: 'https://s/2.webp' },

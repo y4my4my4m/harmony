@@ -201,7 +201,7 @@ test('a preview opens the parent with the reply highlighted', async ({ page }) =
   const agreed = preview(page, text.agreed)
   await expect(agreed).toBeVisible({ timeout: 90_000 })
   await agreed.click()
-  await expect(page).toHaveURL(new RegExp(`/social/post/${ids.parent}\\?highlight=${ids.agreed}$`))
+  await expect(page).toHaveURL(new RegExp(`/@[^/]+/${ids.parent}\\?highlight=${ids.agreed}$`))
   await expect(page.locator('.post-view article[aria-current="true"]')).toContainText(text.parent, { timeout: 30_000 })
   await expect(page.locator(`.thread-post.highlighted-post[data-post-id="${ids.agreed}"]`)).toContainText(text.agreed)
   await page.unrouteAll({ behavior: 'ignoreErrors' })

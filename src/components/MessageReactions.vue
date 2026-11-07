@@ -27,8 +27,18 @@
         @touchend="handlePillTouchEnd"
         @touchcancel.passive="cancelPillPress"
       >
+        <!-- Purged emoji: the image is gone, its :name: stays -->
+        <Icon
+          v-if="reactionGroup.emoji?.removed"
+          name="image-off"
+          class="reaction-emoji-broken"
+          data-testid="reaction-emoji-removed"
+          role="img"
+          :aria-label="reactionGroup.emoji.content || reactionGroup.emoji.name"
+          :title="reactionGroup.emoji.content || reactionGroup.emoji.name"
+        />
         <!-- Custom server emoji with URL (priority) -->
-        <template v-if="reactionGroup.emoji?.url && !(reactionGroup.emoji as any)?.is_native">
+        <template v-else-if="reactionGroup.emoji?.url && !(reactionGroup.emoji as any)?.is_native">
           <Icon 
             v-if="brokenEmojiUrls.has(reactionGroup.emoji.url)" 
             name="image-off" 

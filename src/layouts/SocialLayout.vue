@@ -373,6 +373,7 @@ const routeBasedProps = computed(() => {
     // Post routes
     'PostView': { currentView: 'post', viewType: 'post' },
     'PostDetail': { currentView: 'post', viewType: 'post' }, // Legacy support
+    'PostPermalink': { currentView: 'post', viewType: 'post' },
     'ConversationThread': { currentView: 'conversation', viewType: 'conversation' }, // Legacy support
     
     // Legacy routes
@@ -392,7 +393,7 @@ const routeBasedProps = computed(() => {
   if (routePath.includes('/social/mentions')) return { currentView: 'mentions', viewType: 'mentions' }
   if (routePath.includes('/social/bookmarks')) return { currentView: 'bookmarks', viewType: 'bookmarks' }
   if (routePath.includes('/social/trending')) return { currentView: 'trending', viewType: 'explore' }
-  if (routePath.includes('/social/profile/')) return { currentView: 'profile', viewType: 'profile' }
+  if (routePath.startsWith('/@')) return { currentView: 'profile', viewType: 'profile' }
   
   // Default.
   return { currentView: 'home', viewType: 'timeline' }

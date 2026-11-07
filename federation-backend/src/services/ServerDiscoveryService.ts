@@ -49,6 +49,7 @@ import {
 } from '../activitypub/copyMirror.js';
 import { CopyMirrorService } from './CopyMirrorService.js';
 import { groupIsPublic } from '../activitypub/serverDirectory.js';
+import { loadInvitePreview } from './invitePreview.js';
 
 const router = Router();
 
@@ -407,6 +408,8 @@ router.get(
       .select('*', { count: 'exact', head: true })
       .eq('server_id', server.id)
       .eq('status', 'accepted');
+    // get_invite_preview's count: members whose published presence is not offline.
+    const preview = await loadInvitePreview(invite.code);
 
     const { data: categories } = await supabase
       .from('channel_categories')
@@ -494,6 +497,7 @@ router.get(
         icon: getFullServerIconUrl(server.icon),
         banner: getFullServerBannerUrl(server.banner),
         memberCount: memberCount || 0,
+        onlineCount: preview.status === 'valid' ? preview.preview.onlineCount : null,
         rules: serverRules,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,

@@ -245,7 +245,7 @@ test('a timeline shows the reply count, which opens the post', async ({ page }) 
   await expect(count).toHaveText('2')
   await count.click()
 
-  await page.waitForURL(new RegExp(`/social/post/${post.id}`), { timeout: 15000 })
+  await page.waitForURL(new RegExp(`/(social/post|@[^/]+)/${post.id}`), { timeout: 15000 })
   await expect(page.getByText('held reply').first()).toBeVisible({ timeout: APP_LOAD_MS })
   await expect(page.locator('.thread-post')).toHaveCount(3)
   expect(starts).toHaveLength(0)

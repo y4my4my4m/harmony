@@ -1,5 +1,6 @@
 import type { ReactionActor, ReactionGroup } from '@/types'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
+import { formatHandle } from '@/utils/handles'
 
 /** metadata.discord_user of a reaction bridged from Discord. */
 export type DiscordReactionUser = NonNullable<NonNullable<ReactionActor['metadata']>['discord_user']>
@@ -38,10 +39,21 @@ export interface ReactionUserResolvers {
   preload?: (actors: ReactionActor[]) => void
 }
 
-/** Pill identity within a message: emoji_id for a custom emoji, the emoji name otherwise. */
+/**
+ * Pill identity within a message: emoji_id for a custom emoji, else the stored
+ * custom_emoji_content. A bridged Discord pill names itself by its display name
+ * (metadata.remote_emoji_name), which is no reaction a client can write.
+ */
 export function reactionGroupKey(group: Pick<ReactionGroup, 'emoji_id' | 'emoji'>): string {
   if (group.emoji_id) return group.emoji_id
-  return group.emoji?.name || 'unknown'
+  return reactionGroupContent(group) || 'unknown'
+}
+
+/** custom_emoji_content of a pill without an emojis row; its name when the content is absent. */
+export function reactionGroupContent(group: Pick<ReactionGroup, 'emoji'>): string {
+  const emoji = group.emoji as { content?: unknown; name?: unknown } | undefined
+  if (typeof emoji?.content === 'string' && emoji.content) return emoji.content
+  return typeof emoji?.name === 'string' ? emoji.name : ''
 }
 
 /** Distinct Harmony profile ids among the actors; bridged Discord rows excluded. */
@@ -59,8 +71,7 @@ export function formatUserHandle(
 ): string | null {
   const username = user?.username?.trim()
   if (!username) return null
-  if (user?.isLocal === false && user.domain) return `@${username}@${user.domain}`
-  return `@${username}`
+  return formatHandle({ username, domain: user?.domain, is_local: user?.isLocal })
 }
 
 export function toReactionUser(actor: ReactionActor, resolvers: ReactionUserResolvers): ReactionUser {

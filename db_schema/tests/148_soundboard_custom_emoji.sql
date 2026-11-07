@@ -210,10 +210,11 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.guard_server_sound
           AND NOT has_function_privilege('authenticated', 'public.server_audit_sounds()', 'EXECUTE'),
           'the trigger functions stay internal');
 
--- Emoji deletion --------------------------------------------------------------------------------
+-- Emoji purge (20261107100001: removal keeps the row; an admin purge deletes it) ---------------
+UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT lives_ok($q$DELETE FROM public.emojis WHERE id = 'e1480000-0000-0000-0000-000000000001'$q$,
-                'the server owner deletes an emoji sounds use');
+SELECT lives_ok($q$SELECT public.admin_purge_emoji('e1480000-0000-0000-0000-000000000001')$q$,
+                'an admin purges an emoji sounds use');
 SELECT tests.clear_authentication();
 SELECT is((SELECT count(*) FROM public.server_sounds
             WHERE id IN ('b1480000-0000-0000-0000-000000000002', 'b1480000-0000-0000-0000-000000000003')

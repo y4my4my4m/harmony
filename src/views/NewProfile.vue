@@ -24,6 +24,7 @@
       novalidate
       :aria-busy="isCreatingProfile"
       @submit.prevent="createProfile"
+      @focusin="revealFocusedField"
     >
       <header class="np-header">
         <img :src="instanceIcon" alt="" class="instance-icon" width="40" height="40" />
@@ -241,6 +242,14 @@ async function loadInstanceDomain(): Promise<string | null> {
   if (error || data?.config_value == null) return null;
   const raw = typeof data.config_value === 'string' ? data.config_value : String(data.config_value);
   return raw.replace(/"/g, '').trim() || null;
+}
+
+// An on-screen keyboard covers the lower half of a phone or TV screen: a field taking focus
+// moves to the middle.
+function revealFocusedField(event: FocusEvent) {
+  const field = event.target;
+  if (!(field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && field.type !== 'file'))) return;
+  requestAnimationFrame(() => field.scrollIntoView({ block: 'center' }));
 }
 
 onMounted(async () => {
@@ -542,7 +551,6 @@ async function finishSetup(userId: string, created: unknown) {
   padding: var(--space-12) var(--space-4) var(--space-8);
   background: var(--background-tertiary);
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 .profile-card {
@@ -749,6 +757,17 @@ async function finishSetup(userId: string, created: unknown) {
   min-height: 44px;
   justify-content: center;
   gap: var(--space-2);
+}
+
+/* A short screen keeps the button in view while the fields scroll under it; the ring in
+   the card's colour hides them there. */
+@media (max-height: 700px) {
+  .submit-btn {
+    position: sticky;
+    bottom: var(--space-3);
+    z-index: 1;
+    box-shadow: 0 0 0 var(--space-3) var(--background-primary);
+  }
 }
 
 .np-spinner {

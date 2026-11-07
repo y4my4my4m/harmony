@@ -29,4 +29,6 @@ export type {
   DirectoryPage,
   DirectoryPeer,
   DirectoryRefusal,
+  AdvertisedServer,
+  AdvertisedPage,
 } from './FederationServerService'

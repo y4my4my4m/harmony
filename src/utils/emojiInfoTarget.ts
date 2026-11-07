@@ -4,9 +4,10 @@
  *
  *   default   a unicode emoji; glyph is the character sequence
  *   custom    an uploaded or federated emoji; `id` (emojis.id) when it has one,
- *             else the card asks by url. remoteHost: the image's host for a federated
- *             part (`remote:<name>` id) served from another host; the url is already
- *             in the page.
+ *             else the card asks by url. remoteHost: the instance a federated part
+ *             (`remote:<name>` or IRI id) comes from: its `domain`, else the host of an
+ *             IRI id, else the image's host. The image host is a storage host or CDN
+ *             (db.example for example.org), so it is the last resort.
  *   discord   a Discord emoji bridged in by the Discord bridge
  */
 import { discordEmojiRefFromPart, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji'
@@ -50,14 +51,15 @@ export function emojiInfoTargetFromPart(
 ): EmojiInfoTarget | null {
   if (!emoji || typeof emoji !== 'object') return null
   const discord = discordEmojiRefFromPart(emoji)
-  const e = emoji as { id?: unknown; name?: unknown; url?: unknown }
+  const e = emoji as { id?: unknown; name?: unknown; url?: unknown; domain?: unknown }
   if (discord) return { kind: 'discord', name: discord.name, url: str(e.url), token: `:${discordEmojiToken(discord)}:` }
   const url = str(e.url)
   const name = str(e.name)
   if (!url || !name) return null
   const id = str(e.id)
   if (UUID_RE.test(id)) return { kind: 'custom', id, name, url }
-  const host = id.startsWith('remote') ? hostOf(url) : null
+  const domain = str(e.domain).trim().toLowerCase()
+  const host = domain || (/^https?:\/\//i.test(id) ? hostOf(id) : null) || (id.startsWith('remote') ? hostOf(url) : null)
   return { kind: 'custom', id: null, name, url, remoteHost: host && host !== localHost.toLowerCase() ? host : null }
 }
 

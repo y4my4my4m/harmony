@@ -47,6 +47,7 @@ const LABELLED_FIELDS = new Set([
   'manage_messages', 'embed_links', 'attach_files', 'mention_everyone', 'add_reactions',
   'manage_channels', 'kick_members', 'ban_members', 'manage_roles', 'allowed_channel_ids',
   'max_uses', 'expires_at', 'temporary', 'emoji', 'emoji_id', 'volume', 'allow_cross_server_sounds',
+  'federation_discoverable',
 ])
 
 /** Shown in the sentence itself, or a channel type number with no user-facing meaning. */

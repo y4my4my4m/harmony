@@ -1,10 +1,12 @@
 <!--
-  MediaLightbox - full-window viewer for images, video and audio.
+  MediaLightbox - full-window viewer for images, video, audio, PDFs and other files.
 
-  Images zoom by pinch, double tap, double click, the wheel and the toolbar, and rotate in
-  90° steps. Video and audio play in Harmony's player (VideoControls), or the browser's own
-  controls when Appearance asks for them. On touch, a horizontal swipe steps through the
-  items and a downward swipe closes the viewer (leaves fullscreen first while fullscreen).
+  Images zoom by pinch, double tap, double click, the wheel and the toolbar, pan when zoomed,
+  and rotate in 90° steps (composables/useMediaZoom, useMediaGestures). Video and audio play
+  in Harmony's player (VideoControls), or the browser's own controls when Appearance asks for
+  them. A PDF shows in the browser's reader; any other file shows its name and a download
+  button. On touch, a horizontal swipe steps through the items and a downward swipe closes
+  the viewer (leaves fullscreen first while fullscreen).
 
   `origin` is the inline player of the start item: the viewer starts there, pauses it while
   open, and hands the position back on close. The fullscreen control fills the screen with
@@ -20,7 +22,7 @@
         v-if="visible"
         ref="overlayEl"
         class="media-lightbox-overlay"
-        :class="{ 'is-fullscreen': fullscreen, 'is-dragging': dragging, 'is-zoomed': zoom.scale > 1 }"
+        :class="{ 'is-fullscreen': fullscreen, 'is-dragging': dragging, 'is-zoomed': zoomed }"
         :style="{ '--lightbox-shade': String(shade) }"
         data-testid="media-viewer"
         data-block-sidebar-gestures
@@ -40,7 +42,7 @@
               <p v-if="currentName" class="lightbox-name" :title="currentName">{{ currentName }}</p>
             </div>
             <div class="lightbox-tools">
-              <slot name="actions" :src="currentSrc" :index="index" />
+              <slot name="actions" :index="index" />
               <template v-if="isImage">
                 <button
                   type="button"
@@ -48,7 +50,7 @@
                   :aria-label="t('a11y.lightbox.zoomOut')"
                   :title="t('a11y.lightbox.zoomOut')"
                   :disabled="zoom.scale <= MIN_SCALE"
-                  @click="zoomBy(1 / ZOOM_STEP)"
+                  @click="zoomer.zoomBy(1 / ZOOM_STEP)"
                 >
                   <Icon name="zoom-out" :size="20" />
                 </button>
@@ -59,7 +61,7 @@
                   :title="t('a11y.lightbox.zoomIn')"
                   :disabled="zoom.scale >= MAX_SCALE"
                   data-testid="lightbox-zoom-in"
-                  @click="zoomBy(ZOOM_STEP)"
+                  @click="zoomer.zoomBy(ZOOM_STEP)"
                 >
                   <Icon name="zoom-in" :size="20" />
                 </button>
@@ -68,13 +70,13 @@
                   class="lightbox-tool"
                   :aria-label="t('a11y.lightbox.rotateRight')"
                   :title="t('a11y.lightbox.rotateRight')"
-                  @click="rotateBy(90)"
+                  @click="zoomer.rotateBy(90)"
                 >
                   <Icon name="rotate-cw" :size="20" />
                 </button>
               </template>
               <button
-                v-if="download && currentSrc && !isEmbed"
+                v-if="canDownload"
                 type="button"
                 class="lightbox-tool"
                 :aria-label="t('a11y.lightbox.download')"
@@ -129,14 +131,15 @@
           <div
             ref="stageEl"
             class="lightbox-stage"
-            @pointerdown="onPointerDown"
-            @wheel="onWheel"
-            @dblclick="onDoubleClick"
-            @click="onStageClick"
+            @pointerdown="gestures.onPointerDown"
+            @wheel="gestures.onWheel"
+            @dblclick="gestures.onDoubleClick"
+            @click="gestures.onStageClick"
           >
             <div class="lightbox-slide" :style="slideStyle">
+              <LoadingSpinner v-if="currentItem && pending" :key="`pending-${index}`" />
               <img
-                v-if="currentItem && isImage"
+                v-else-if="currentItem && isImage"
                 ref="imageEl"
                 :key="`image-${index}`"
                 :src="currentSrc"
@@ -144,7 +147,7 @@
                 class="media-content media-image"
                 :style="imageStyle"
                 draggable="false"
-                @load="onImageLoad"
+                @load="zoomer.measure()"
               />
               <!-- An X video this browser plays in X's embedded post, framed on the click. -->
               <div
@@ -154,6 +157,27 @@
                 class="media-embed-frame"
               >
                 <XPostFrame :src="currentSrc" :poster="currentPoster" :label="mediaLabel" />
+              </div>
+              <iframe
+                v-else-if="currentItem && isPdf"
+                ref="frameEl"
+                :key="`pdf-${index}`"
+                :src="currentSrc"
+                :title="mediaLabel"
+                class="media-pdf-frame"
+              />
+              <div
+                v-else-if="currentItem && isFile"
+                ref="frameEl"
+                :key="`file-${index}`"
+                class="media-file-card"
+              >
+                <Icon name="file" :size="48" />
+                <p v-if="currentName" class="media-file-name">{{ currentName }}</p>
+                <p class="media-file-note">{{ t('a11y.lightbox.noPreview') }}</p>
+                <button v-if="canDownload" type="button" class="media-file-download" @click="downloadCurrent">
+                  <Icon name="download" :size="16" />{{ t('a11y.lightbox.download') }}
+                </button>
               </div>
               <div
                 v-else-if="currentItem"
@@ -180,9 +204,10 @@
                   :autoplay="autoplayCurrent"
                   playsinline
                   data-vp="1"
-                  :loop="isGifv"
-                  :muted="isGifv"
+                  :loop="isGifv || loop"
+                  :muted="isGifv || mutedLast"
                   @loadedmetadata="onMediaLoaded"
+                  @volumechange="onVolumeChange"
                 >
                   {{ t('a11y.lightbox.videoUnsupported') }}
                 </video>
@@ -202,13 +227,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useT } from '@/composables/useT';
 import Icon from '@/components/common/Icon.vue';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import VideoControls from '@/components/common/VideoControls.vue';
 import XPostFrame from '@/components/embeds/XPostFrame.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useDialog } from '@/composables/useDialog';
+import { useMediaZoom } from '@/composables/useMediaZoom';
+import { useMediaGestures } from '@/composables/useMediaGestures';
 import { isTopLayerElement } from '@/utils/a11y/layers';
 import { focusProgrammatically } from '@/utils/a11y/focus';
 import { usePortalTarget } from '@/composables/usePortalTarget';
@@ -221,30 +249,24 @@ import {
   onFullscreenChange,
   toggleFullscreen,
 } from '@/utils/mediaFullscreen';
-import {
-  DOUBLE_TAP_SCALE,
-  IDENTITY,
-  MAX_SCALE,
-  MIN_SCALE,
-  TAP_SLOP,
-  ZOOM_STEP,
-  clampPan,
-  classifySwipe,
-  isDoubleTap,
-  pinchOf,
-  zoomAt,
-  type Point,
-  type Size,
-  type Tap,
-  type ZoomState,
-} from '@/utils/lightboxGestures';
+import { MAX_SCALE, MIN_SCALE, ZOOM_STEP, type Size } from '@/utils/lightboxGestures';
+
+/** `unavailable`: no source can be read (signing failed); the item shows as a file card. */
+interface ItemFields { src: string; alt?: string; name?: string; unavailable?: boolean }
 
 export type LightboxItem =
   | string
-  | { src: string; type?: 'image'; alt?: string; name?: string }
-  | { src: string; type: 'video'; poster?: string; isGifv?: boolean; alt?: string; name?: string }
-  | { src: string; type: 'audio'; poster?: string; alt?: string; name?: string }
-  | { src: string; type: 'embed'; poster?: string; alt?: string; name?: string };
+  | (ItemFields & { type?: 'image' })
+  | (ItemFields & { type: 'video'; poster?: string; isGifv?: boolean })
+  | (ItemFields & { type: 'audio'; poster?: string })
+  | (ItemFields & { type: 'embed'; poster?: string })
+  | (ItemFields & { type: 'pdf' })
+  | (ItemFields & { type: 'file' });
+
+type ItemType = 'image' | 'video' | 'audio' | 'embed' | 'pdf' | 'file';
+
+/** localStorage: 'true' while the viewer's video and audio play muted, under `rememberMute`. */
+const MUTE_KEY = 'harmony-lightbox-video-muted';
 
 interface Props {
   visible: boolean;
@@ -253,13 +275,30 @@ interface Props {
   alts?: string[];
   /** Inline player of the item at the opening index; see the header. */
   origin?: HTMLMediaElement | null;
-  /** Download button for the current item. */
-  download?: boolean;
+  /**
+   * Download button for the current item. True: the item's `src` saves under its name. A
+   * function: called with the index instead, for items whose download URL differs from `src`.
+   */
+  download?: boolean | ((index: number) => void);
+  /** Video and audio start on their own, unless reduced motion is asked for. */
+  autoplay?: boolean;
+  /** Video and audio repeat. */
+  loop?: boolean;
+  /** Video and audio start muted when the viewer was last left muted (MUTE_KEY). */
+  rememberMute?: boolean;
   /** Teleport target. Default: the portal target of the subtree (usePortalTarget). */
   to?: string | HTMLElement;
 }
 
-const props = withDefaults(defineProps<Props>(), { alts: undefined, origin: null, download: false, to: undefined });
+const props = withDefaults(defineProps<Props>(), {
+  alts: undefined,
+  origin: null,
+  download: false,
+  autoplay: false,
+  loop: false,
+  rememberMute: false,
+  to: undefined,
+});
 
 const emit = defineEmits<{
   hide: [];
@@ -279,8 +318,9 @@ const imageEl = ref<HTMLImageElement | null>(null);
 const frameEl = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 
-function itemType(item: LightboxItem | undefined): 'image' | 'video' | 'audio' | 'embed' {
+function itemType(item: LightboxItem | undefined): ItemType {
   if (!item || typeof item === 'string') return 'image';
+  if (item.unavailable) return 'file';
   return item.type ?? 'image';
 }
 
@@ -290,11 +330,15 @@ const currentType = computed(() => itemType(currentItem.value));
 const isImage = computed(() => !!currentItem.value && currentType.value === 'image');
 const isAudio = computed(() => currentType.value === 'audio');
 const isEmbed = computed(() => currentType.value === 'embed');
+const isPdf = computed(() => currentType.value === 'pdf');
+const isFile = computed(() => currentType.value === 'file');
 const currentSrc = computed(() => {
   const item = currentItem.value;
   if (!item) return '';
   return typeof item === 'string' ? item : item.src;
 });
+/** The source is not known yet (a private object still signing); a file card reads none. */
+const pending = computed(() => !isFile.value && !currentSrc.value);
 const currentName = computed(() => {
   const item = currentItem.value;
   return item && typeof item === 'object' && item.name ? item.name : '';
@@ -319,14 +363,41 @@ const positionText = computed(() => t('a11y.lightbox.position', { current: index
 const dialogLabel = computed(() =>
   items.value.length > 1 ? `${t('a11y.lightbox.label')}, ${positionText.value}` : t('a11y.lightbox.label'),
 );
+const canDownload = computed(
+  () => !!props.download && !isEmbed.value && (typeof props.download === 'function' || !!currentSrc.value),
+);
 
-// GIF-style clips start on their own unless reduced motion is asked for, by the OS or the
-// appearance setting. Other media wait for the play control.
+// GIF-style clips, and every video and audio item under `autoplay`, start on their own unless
+// reduced motion is asked for, by the OS or the appearance setting. Other media wait for the
+// play control.
 function prefersReducedMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.getAttribute('data-reduce-motion') === 'true') return true;
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
-const autoplayCurrent = computed(() => isGifv.value && !prefersReducedMotion());
+const autoplayCurrent = computed(
+  () => (isGifv.value || (props.autoplay && isPlayable(currentItem.value))) && !prefersReducedMotion(),
+);
+
+function readMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+const mutedLast = ref(props.rememberMute && readMuted());
+
+function onVolumeChange() {
+  const media = videoRef.value;
+  if (!props.rememberMute || !media || isGifv.value) return;
+  mutedLast.value = media.muted;
+  try {
+    localStorage.setItem(MUTE_KEY, String(media.muted));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 useDialog({
   open: () => props.visible,
@@ -436,7 +507,7 @@ function next() {
 // The leaving item's position is read before its element is replaced.
 watch(index, (_now, before) => {
   saveCurrentPosition(before);
-  resetZoom();
+  zoomer.reset();
 }, { flush: 'pre' });
 
 watch(
@@ -449,17 +520,8 @@ watch(
 );
 
 // --- Zoom, pan and swipe ---------------------------------------------------------------
-const zoom = reactive<ZoomState>({ ...IDENTITY });
-const drag = reactive({ x: 0, y: 0 });
-const dragging = ref(false);
-const gestureActive = ref(false);
-
-function stageBox(): DOMRect | null {
-  return stageEl.value?.getBoundingClientRect() ?? null;
-}
-
 function stageSize(): Size {
-  const box = stageBox();
+  const box = stageEl.value?.getBoundingClientRect();
   return { width: box?.width ?? 0, height: box?.height ?? 0 };
 }
 
@@ -468,17 +530,9 @@ function contentSize(): Size {
   return { width: img?.offsetWidth ?? 0, height: img?.offsetHeight ?? 0 };
 }
 
-/** Scale that fits a quarter-turned image back into the stage. */
-const turnFit = ref(1);
-function measureTurnFit() {
-  const turned = (((Math.round(zoom.rotation / 90) % 4) + 4) % 4) % 2 === 1;
-  const content = contentSize();
-  const stage = stageSize();
-  if (!turned || !content.width || !content.height || !stage.width || !stage.height) {
-    turnFit.value = 1;
-    return;
-  }
-  turnFit.value = Math.min(1, stage.width / content.height, stage.height / content.width);
+/** Window of the document that shows the viewer: the main one, or the call pop-out's. */
+function viewWindow(): Window {
+  return overlayEl.value?.ownerDocument.defaultView ?? window;
 }
 
 // Touch adjustment retargets taps to the nearest clickable ancestor (the stage), so the
@@ -490,51 +544,31 @@ function onMedia(clientX: number, clientY: number): boolean {
   return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
 }
 
-function toStage(clientX: number, clientY: number): Point {
-  const box = stageBox();
-  if (!box) return { x: 0, y: 0 };
-  return { x: clientX - (box.left + box.width / 2), y: clientY - (box.top + box.height / 2) };
-}
+const zoomer = useMediaZoom({ content: contentSize, stage: stageSize });
+const { zoom, zoomed } = zoomer;
 
-function applyZoom(state: ZoomState) {
-  const fit = turnFit.value;
-  const clamped = clampPan({ ...state, scale: state.scale * fit }, contentSize(), stageSize());
-  zoom.scale = state.scale;
-  zoom.x = clamped.x;
-  zoom.y = clamped.y;
-  zoom.rotation = state.rotation;
-}
-
-function resetZoom() {
-  Object.assign(zoom, IDENTITY);
-  turnFit.value = 1;
-}
-
-function zoomBy(factor: number, focus: Point = { x: 0, y: 0 }) {
-  applyZoom(zoomAt({ ...zoom }, zoom.scale * factor, focus));
-}
-
-function rotateBy(degrees: number) {
-  zoom.rotation += degrees;
-  zoom.x = 0;
-  zoom.y = 0;
-  measureTurnFit();
-  applyZoom({ ...zoom });
-}
-
-function toggleZoomAt(point: Point) {
-  if (zoom.scale > MIN_SCALE) applyZoom({ ...zoom, scale: MIN_SCALE, x: 0, y: 0 });
-  else applyZoom(zoomAt({ ...zoom }, DOUBLE_TAP_SCALE, point));
-}
-
-function onImageLoad() {
-  measureTurnFit();
-}
+const gestures = useMediaGestures({
+  zoomer,
+  zoomable: () => isImage.value && !!imageEl.value,
+  stage: () => stageEl.value,
+  onMedia,
+  view: viewWindow,
+  hasPrevious: () => hasPrevious.value,
+  hasNext: () => hasNext.value,
+  previous: prev,
+  next,
+  dismiss: () => {
+    if (fullscreen.value) void exitFullscreen(videoRef.value);
+    else onHide();
+  },
+  close: onHide,
+});
+const { drag, dragging, gestureActive } = gestures;
 
 const imageStyle = computed(() => ({
-  transform: `translate3d(${zoom.x}px, ${zoom.y}px, 0) rotate(${zoom.rotation}deg) scale(${zoom.scale * turnFit.value})`,
+  transform: zoomer.transform.value,
   transition: gestureActive.value ? 'none' : undefined,
-  cursor: zoom.scale > MIN_SCALE ? 'grab' : 'zoom-in',
+  cursor: zoomed.value ? 'grab' : 'zoom-in',
 }));
 
 const slideStyle = computed(() =>
@@ -547,252 +581,27 @@ const shade = computed(() => {
   return drag.y > 0 ? Math.max(0.35, 1 - drag.y / height) : 1;
 });
 
-/** `hold`: two or more fingers on media that does not zoom; nothing happens until all lift. */
-interface Gesture {
-  kind: 'swipe' | 'pan' | 'pinch' | 'hold';
-  start: Point;
-  time: number;
-  origin: ZoomState;
-  moved: boolean;
-  axis: 'x' | 'y' | null;
-  pinchDistance: number;
-  pinchCenter: Point;
-}
-
-const pointers = new Map<number, Point>();
-let gesture: Gesture | null = null;
-let lastTap: Tap | null = null;
-let suppressClick = false;
-// Time of the last touch release; Chrome follows a double tap with a dblclick.
-let lastTouchAt = -Infinity;
-
-function startGesture(kind: Gesture['kind'], point: Point, time: number, extra: Partial<Gesture> = {}) {
-  gesture = {
-    kind,
-    start: point,
-    time,
-    origin: { ...zoom },
-    moved: false,
-    axis: null,
-    pinchDistance: 0,
-    pinchCenter: { x: 0, y: 0 },
-    ...extra,
-  };
-  gestureActive.value = kind !== 'swipe';
-}
-
-/** Window of the document that shows the viewer: the main one, or the call pop-out's. */
-function viewWindow(): Window {
-  return overlayEl.value?.ownerDocument.defaultView ?? window;
-}
-
-// The call pop-out forwards no pointermove or pointerup to the main window (callPopout.ts).
-let listening: Window | null = null;
-function listen(on: boolean) {
-  if (listening) {
-    listening.removeEventListener('pointermove', onPointerMove);
-    listening.removeEventListener('pointerup', onPointerUp);
-    listening.removeEventListener('pointercancel', onPointerUp);
-    listening = null;
-  }
-  if (!on) return;
-  listening = viewWindow();
-  listening.addEventListener('pointermove', onPointerMove);
-  listening.addEventListener('pointerup', onPointerUp);
-  listening.addEventListener('pointercancel', onPointerUp);
-}
-
-function onPointerDown(event: PointerEvent) {
-  // A touch swipe or pinch is followed by no click; its suppression ends with the next press.
-  suppressClick = false;
-  if (event.pointerType === 'mouse' && event.button !== 0) return;
-  const target = event.target as Element | null;
-  // The player's controls, the browser's video controls, the toolbar and nav buttons keep
-  // their own pointer handling.
-  if (target?.closest('.hv-dock, button, a, input, video, [role="slider"]')) return;
-  // A mouse drags a zoomed image; it never swipes.
-  if (event.pointerType === 'mouse' && zoom.scale <= MIN_SCALE) return;
-  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (pointers.size === 1) {
-    startGesture(zoom.scale > MIN_SCALE ? 'pan' : 'swipe', { x: event.clientX, y: event.clientY }, event.timeStamp);
-    listen(true);
-  } else if (pointers.size === 2) {
-    // A second finger ends the swipe: it pinches an image and holds anything else.
-    drag.x = 0;
-    drag.y = 0;
-    dragging.value = false;
-    if (!isImage.value) {
-      startGesture('hold', { x: event.clientX, y: event.clientY }, event.timeStamp);
-      return;
-    }
-    const [a, b] = [...pointers.values()];
-    const pinch = pinchOf(a, b);
-    startGesture('pinch', pinch.center, event.timeStamp, {
-      moved: true,
-      pinchDistance: pinch.distance,
-      pinchCenter: toStage(pinch.center.x, pinch.center.y),
-    });
-  }
-}
-
-function onPointerMove(event: PointerEvent) {
-  if (!gesture || !pointers.has(event.pointerId)) return;
-  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (gesture.kind === 'hold') return;
-
-  if (gesture.kind === 'pinch') {
-    if (pointers.size < 2 || gesture.pinchDistance <= 0) return;
-    const [a, b] = [...pointers.values()];
-    const pinch = pinchOf(a, b);
-    const center = toStage(pinch.center.x, pinch.center.y);
-    const scaled = zoomAt(gesture.origin, gesture.origin.scale * (pinch.distance / gesture.pinchDistance), gesture.pinchCenter);
-    applyZoom({
-      ...scaled,
-      x: scaled.x + center.x - gesture.pinchCenter.x,
-      y: scaled.y + center.y - gesture.pinchCenter.y,
-    });
-    return;
-  }
-
-  const dx = event.clientX - gesture.start.x;
-  const dy = event.clientY - gesture.start.y;
-  if (!gesture.moved && Math.hypot(dx, dy) < TAP_SLOP) return;
-  gesture.moved = true;
-
-  if (gesture.kind === 'pan') {
-    applyZoom({ ...gesture.origin, x: gesture.origin.x + dx, y: gesture.origin.y + dy });
-    return;
-  }
-
-  gesture.axis ??= Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
-  dragging.value = true;
-  if (gesture.axis === 'x') {
-    // Past either end the slide resists.
-    const edge = (dx > 0 && !hasPrevious.value) || (dx < 0 && !hasNext.value);
-    drag.x = edge ? dx * 0.25 : dx;
-    drag.y = 0;
-  } else {
-    drag.x = 0;
-    drag.y = Math.max(0, dy);
-  }
-}
-
-function onPointerUp(event: PointerEvent) {
-  if (!pointers.has(event.pointerId)) return;
-  pointers.delete(event.pointerId);
-  const current = gesture;
-  if (!current) {
-    if (pointers.size === 0) listen(false);
-    return;
-  }
-
-  if (current.kind === 'hold') {
-    suppressClick = true;
-    if (pointers.size === 0) endGesture();
-    return;
-  }
-
-  if (current.kind === 'pinch') {
-    suppressClick = true;
-    if (pointers.size === 1) {
-      // The finger left on the glass pans on.
-      const [rest] = [...pointers.values()];
-      startGesture('pan', rest, event.timeStamp, { moved: true });
-      return;
-    }
-    if (zoom.scale < MIN_SCALE * 1.02) applyZoom({ ...zoom, scale: MIN_SCALE, x: 0, y: 0 });
-    endGesture();
-    return;
-  }
-  if (pointers.size > 0) return;
-  if (event.pointerType !== 'mouse') lastTouchAt = event.timeStamp;
-
-  if (!current.moved) {
-    if (event.pointerType !== 'mouse' && isImage.value && onMedia(event.clientX, event.clientY)) {
-      const tap: Tap = { x: event.clientX, y: event.clientY, time: event.timeStamp };
-      if (isDoubleTap(lastTap, tap)) {
-        lastTap = null;
-        toggleZoomAt(toStage(tap.x, tap.y));
-      } else {
-        lastTap = tap;
-      }
-    }
-    endGesture();
-    return;
-  }
-
-  suppressClick = true;
-  let stepped = false;
-  if (current.kind === 'swipe') {
-    const action = classifySwipe(drag.x, drag.y, event.timeStamp - current.time, stageSize());
-    if (action === 'previous' && hasPrevious.value) {
-      prev();
-      stepped = true;
-    } else if (action === 'next' && hasNext.value) {
-      next();
-      stepped = true;
-    } else if (action === 'close') {
-      if (fullscreen.value) void exitFullscreen(videoRef.value);
-      else onHide();
-    }
-  }
-  endGesture(stepped);
-}
-
-/** `stepped`: the swipe changed the item, which shows in place instead of sliding back. */
-function endGesture(stepped = false) {
-  gesture = null;
-  gestureActive.value = false;
-  drag.x = 0;
-  drag.y = 0;
-  if (stepped) viewWindow().requestAnimationFrame(() => { dragging.value = false; });
-  else dragging.value = false;
-  pointers.clear();
-  listen(false);
-}
-
-function onWheel(event: WheelEvent) {
-  if (!isImage.value || !imageEl.value) return;
-  event.preventDefault();
-  const factor = event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-  zoomBy(factor, toStage(event.clientX, event.clientY));
-}
-
-function onDoubleClick(event: MouseEvent) {
-  if (!isImage.value || !onMedia(event.clientX, event.clientY)) return;
-  // Touch double taps are recognised from pointer events.
-  if (event.timeStamp - lastTouchAt < 800) return;
-  toggleZoomAt(toStage(event.clientX, event.clientY));
-}
-
-// A click on the stage outside the media closes, unless it ended a drag.
-function onStageClick(event: MouseEvent) {
-  if (suppressClick) {
-    suppressClick = false;
-    return;
-  }
-  if (!onMedia(event.clientX, event.clientY)) onHide();
-}
-
 // --- Fullscreen ------------------------------------------------------------------------
 const fullscreen = ref(false);
 const fullscreenTarget = () => overlayEl.value;
+/** Items without a player: fullscreen takes the whole viewer. */
+const still = computed(() => isImage.value || isPdf.value);
 
 const canFullscreenCurrent = ref(false);
 function measureFullscreen() {
-  canFullscreenCurrent.value = canFullscreen(isImage.value ? null : videoRef.value);
+  canFullscreenCurrent.value = canFullscreen(still.value ? null : videoRef.value);
   fullscreen.value = isFullscreen(overlayEl.value, videoRef.value);
 }
 
 // Videos in Harmony's player carry their own fullscreen control.
 const showFullscreenTool = computed(
-  () => canFullscreenCurrent.value && (isImage.value || isAudio.value || isGifv.value || nativeVideoControls.value),
+  () => canFullscreenCurrent.value && (still.value || isAudio.value || isGifv.value || nativeVideoControls.value),
 );
 
 function toggleViewerFullscreen() {
   const target = overlayEl.value;
   if (!target) return;
-  void toggleFullscreen(target, isImage.value ? null : videoRef.value);
+  void toggleFullscreen(target, still.value ? null : videoRef.value);
 }
 
 function onNativeFullscreen() {
@@ -808,6 +617,10 @@ watch(overlayEl, (el, old) => {
 });
 
 function downloadCurrent() {
+  if (typeof props.download === 'function') {
+    props.download(index.value);
+    return;
+  }
   const src = currentSrc.value;
   if (!src) return;
   void downloadMediaFromUrl(src, currentName.value || filenameFromUrl(src, 'media'));
@@ -822,25 +635,20 @@ function handleKeydown(e: KeyboardEvent) {
   if ((e.target as Element | null)?.closest?.('video, .hv')) return;
   if (e.key === 'ArrowLeft') prev();
   else if (e.key === 'ArrowRight') next();
-  else if (isImage.value && (e.key === '+' || e.key === '=')) zoomBy(ZOOM_STEP);
-  else if (isImage.value && e.key === '-') zoomBy(1 / ZOOM_STEP);
-  else if (isImage.value && e.key === '0') resetZoom();
+  else if (isImage.value && (e.key === '+' || e.key === '=')) zoomer.zoomBy(ZOOM_STEP);
+  else if (isImage.value && e.key === '-') zoomer.zoomBy(1 / ZOOM_STEP);
+  else if (isImage.value && e.key === '0') zoomer.reset();
   else return;
   e.preventDefault();
   e.stopImmediatePropagation();
 }
 
 // Rotation and orientation changes keep the zoomed image inside the stage.
-function onResize() {
-  measureTurnFit();
-  applyZoom({ ...zoom });
-}
-
 let resizing: Window | null = null;
 function listenResize(view: Window | null) {
-  resizing?.removeEventListener('resize', onResize);
+  resizing?.removeEventListener('resize', zoomer.refit);
   resizing = view;
-  resizing?.addEventListener('resize', onResize);
+  resizing?.addEventListener('resize', zoomer.refit);
 }
 
 let removeFullscreenListener: (() => void) | null = null;
@@ -856,7 +664,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown, true);
   listenResize(null);
   removeFullscreenListener?.();
-  listen(false);
+  gestures.stop();
   if (fullscreen.value) void exitFullscreen(videoRef.value);
   endSession();
 });
@@ -868,7 +676,9 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgb(0 0 0 / calc(0.95 * var(--lightbox-shade)));
+  background: rgb(var(--viewer-scrim) / calc(var(--viewer-scrim-alpha) * var(--lightbox-shade)));
+  -webkit-backdrop-filter: blur(var(--viewer-blur));
+  backdrop-filter: blur(var(--viewer-blur));
   color: #fff;
   transition: background-color 0.2s ease;
 }
@@ -950,7 +760,7 @@ onBeforeUnmount(() => {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.1);
+  background: var(--viewer-control-bg);
   color: #fff;
   cursor: pointer;
   transition: background 0.2s;
@@ -964,7 +774,7 @@ onBeforeUnmount(() => {
 
 .lightbox-tool:hover:not(:disabled),
 .nav-btn:hover {
-  background: rgb(255 255 255 / 0.2);
+  background: var(--viewer-control-bg-hover);
 }
 
 .lightbox-tool:disabled {
@@ -976,11 +786,6 @@ onBeforeUnmount(() => {
 .nav-btn:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
-}
-
-/* Rendered by the actions slot: sits in the toolbar row. */
-.lightbox-tools :deep(.lightbox-download-btn) {
-  position: static;
 }
 
 .nav-btn {
@@ -1066,6 +871,62 @@ onBeforeUnmount(() => {
 
 .media-video-frame .media-video {
   display: block;
+}
+
+.media-pdf-frame {
+  width: min(960px, 100cqw);
+  height: 100cqh;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.media-file-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: min(420px, 100cqw);
+  padding: var(--space-6);
+  text-align: center;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.media-file-card p {
+  margin: 0;
+}
+
+.media-file-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #fff;
+}
+
+.media-file-download {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--viewer-control-bg);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.media-file-download:hover {
+  background: var(--viewer-control-bg-hover);
+}
+
+.media-file-download:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 /* The largest box of the video's aspect inside the stage, small videos included. */

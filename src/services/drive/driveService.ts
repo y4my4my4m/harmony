@@ -90,6 +90,8 @@ export interface DriveFolder {
 }
 
 export interface DriveUsage {
+  /** instance_config.drive_enabled; absent from servers before 1.9.4, which have Drive on. */
+  enabled?: boolean
   used_bytes: number
   quota_bytes: number
   ephemeral_bytes: number
@@ -218,24 +220,56 @@ export interface DriveListQuery {
 /** PostgREST code for a function the schema cache does not hold. */
 const MISSING_FUNCTION = 'PGRST202'
 
-let available: Promise<boolean> | null = null
+interface DriveProbe {
+  /** The schema has Drive: uploads are Drive rows, with gone states and hash reuse. */
+  available: boolean
+  /** Drive is a feature of the instance: its pages, picker, temporary files and sharing. */
+  enabled: boolean
+}
 
-/** Whether the instance has Drive; asked once per session. */
-export function driveAvailable(): Promise<boolean> {
-  available ??= (async () => {
-    try {
-      const { error } = await supabase.rpc('get_my_drive_usage')
-      return !error || error.code !== MISSING_FUNCTION
-    } catch {
-      return false
+let probe: Promise<DriveProbe> | null = null
+
+async function askDrive(): Promise<{ result: DriveProbe; keep: boolean }> {
+  try {
+    const { data, error } = await supabase.rpc('get_my_drive_usage')
+    if (!error) {
+      return { result: { available: true, enabled: (data as Partial<DriveUsage> | null)?.enabled !== false }, keep: true }
     }
-  })()
-  return available
+    if (error.code === MISSING_FUNCTION) return { result: { available: false, enabled: false }, keep: true }
+    return { result: { available: true, enabled: true }, keep: false }
+  } catch {
+    return { result: { available: false, enabled: false }, keep: false }
+  }
+}
+
+/**
+ * One get_my_drive_usage per session. The answer of a failed call other than a missing
+ * function (signed out, network) is not kept: the next caller asks again.
+ */
+function probeDrive(): Promise<DriveProbe> {
+  if (!probe) {
+    const asked: Promise<DriveProbe> = askDrive().then(({ result, keep }) => {
+      if (!keep && probe === asked) probe = null
+      return result
+    })
+    probe = asked
+  }
+  return probe
+}
+
+/** Whether the instance has Drive's schema; asked once per session. True while Drive is off. */
+export async function driveAvailable(): Promise<boolean> {
+  return (await probeDrive()).available
+}
+
+/** Whether Drive is turned on for the instance (instance_config.drive_enabled). */
+export async function driveEnabled(): Promise<boolean> {
+  return (await probeDrive()).enabled
 }
 
 /** Forgets the capability answer; sign-out and tests. */
 export function resetDriveAvailability(): void {
-  available = null
+  probe = null
 }
 
 function fail(error: { message: string; code?: string } | null): void {

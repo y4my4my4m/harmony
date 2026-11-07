@@ -2410,7 +2410,8 @@ export class BotRestAPI {
   // EMOJI METHODS
   
   // Every emojis row is readable by every account (policy emojis_select_all), so every row
-  // is visible to a bot.
+  // is visible to a bot. ?id= answers a removed emoji too, with its deleted_at; the list holds
+  // active emoji only.
   private async getEmojis(req: BotRequest, res: Response) {
     try {
       const { url, id } = req.query
@@ -2430,7 +2431,7 @@ export class BotRestAPI {
         return res.json(emoji)
       }
       
-      let query = supabase.from('emojis').select('*')
+      let query = supabase.from('emojis').select('*').is('deleted_at', null)
       
       // Filtering by url answers "does this Discord emoji already exist".
       if (url && typeof url === 'string') {
@@ -2459,6 +2460,7 @@ export class BotRestAPI {
       .from('emojis')
       .select('id, name, url, server_id, discord_emoji_id')
       .eq('server_id', serverId)
+      .is('deleted_at', null)
     if (error) return res.status(500).json({ error: error.message })
     res.json(data ?? [])
   }
@@ -2528,6 +2530,11 @@ export class BotRestAPI {
       if (server_id !== null && server_id !== undefined) {
         return res.status(403).json({ error: 'Bots can only create federated emojis (server_id must be null)' })
       }
+
+      // Without a domain the row would be an instance emoji, offered to every local account.
+      if (typeof domain !== 'string' || !domain.trim()) {
+        return res.status(400).json({ error: 'domain is required: the instance the federated emoji comes from' })
+      }
       
       // RPC is SECURITY DEFINER; it bypasses RLS.
       const { data: newEmoji, error: insertError } = await supabase
@@ -2535,12 +2542,12 @@ export class BotRestAPI {
           p_name: name,
           p_url: url,
           p_created_by: botId,
-          p_domain: domain || null
+          p_domain: domain.trim()
         })
       
       if (insertError) {
         console.error('Emoji insert error:', insertError);
-        return res.status(500).json({ error: insertError.message })
+        return res.status(insertError.code === '22023' ? 400 : 500).json({ error: insertError.message })
       }
       
       // RPC returns an array.

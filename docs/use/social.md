@@ -17,7 +17,7 @@ Open the social side with the **Fediverse** button in the server rail. Its sideb
 | **Home** | Posts by the accounts you follow, and your own posts. |
 | **Local** | Posts by accounts on this instance. |
 | **Federated** | Public and unlisted posts from this instance and from the other servers it knows. |
-| **Trending** | Posts that get replies, boosts or favorites, trending hashtags, and people, with filters for time range and source. **Explore** in the sidebar opens this tab. |
+| **Trending** | Posts that get replies, boosts or favorites, trending hashtags, and people, with filters for time range and source. The source filter suggests the instances with the most posts in the list; type in it to find any other known instance. **Explore** in the sidebar opens this tab. |
 | **Instances** | The servers this instance federates with. |
 
 Other views:
@@ -105,6 +105,21 @@ Quote approval follows FEP-044f, the scheme Mastodon uses:
 
 - When someone on another server quotes your post, their server asks this instance for approval, and Harmony answers on its own from the post's visibility. **Public** and **Unlisted** posts: anyone may quote. **Followers only**: your accepted followers. **Mentioned people only**: nobody. An account you block is always refused. Harmony has no setting or request list for quote approval; the visibility of each post decides.
 - When you quote a post from another server, Harmony asks that server for approval. An approval is attached to your post and sent out again with it. If the author's server refuses, your post stays up without an approval.
+
+## Addresses and handles
+
+Profiles, posts and hashtags have the addresses Mastodon uses, on your instance's domain:
+
+| Address | What it opens |
+|---|---|
+| `/@name` | A profile on this instance. Visitors who aren't signed in see its public page. |
+| `/@name@example.social` | A profile on another server, as this instance knows it. Visitors sign in first. |
+| `/@name/ID`, `/@name@example.social/ID` | A post. **Copy link** in a post's menu copies this address. |
+| `/tags/tag` | A hashtag. |
+
+Earlier addresses, `/social/profile/…`, `/social/post/…` and `/social/hashtag/…`, open the same pages and change to the new address.
+
+A profile shows the account's full handle, `@name@domain`, accounts on this instance included: the form people on other servers type to find or mention it. **Copy handle**, the copy button beside the handle on a profile and on a profile card, and the item of the same name in the profile card's menu, copies it. People search lists accounts by the same handle. A link to a profile in a message shows a card with the account's name, handle, bio and counts, **Follow** and **Open profile**.
 
 ## Follow people
 

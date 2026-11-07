@@ -29,7 +29,7 @@ services:
   # The version the self-host stack runs (self-host/supabase-overrides.yml): custom
   # OAuth/OIDC providers need 2.187.0 or later.
   auth:
-    image: ${E2E_GOTRUE_IMAGE:-supabase/gotrue:v2.196.0}
+    image: ${E2E_GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
     depends_on:
       db:
         condition: service_healthy
@@ -98,7 +98,7 @@ services:
   # migrations bring the storage schema forward on start; stack.sh starts it before the
   # schema build so the ALTERs in scripts/test-db/supabase-compat.sql find the columns.
   storage:
-    image: ${E2E_STORAGE_IMAGE:-supabase/storage-api:v1.29.0}
+    image: ${E2E_STORAGE_IMAGE:-supabase/storage-api:v1.89.12}
     depends_on:
       db:
         condition: service_healthy
@@ -121,12 +121,13 @@ services:
       - storage-data:/var/lib/storage
 
   imgproxy:
-    image: ${E2E_IMGPROXY_IMAGE:-darthsim/imgproxy:v3.8.0}
+    image: ${E2E_IMGPROXY_IMAGE:-darthsim/imgproxy:v4.0.21}
     environment:
       IMGPROXY_BIND: ":5001"
       IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
       IMGPROXY_USE_ETAG: "true"
-      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+      IMGPROXY_AUTO_WEBP: "true"
+      IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif
       IMGPROXY_MAX_ANIMATION_FRAMES: "120"
     volumes:
       - storage-data:/var/lib/storage

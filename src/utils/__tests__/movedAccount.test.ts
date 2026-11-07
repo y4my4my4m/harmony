@@ -51,6 +51,6 @@ describe('move notifications', () => {
   })
 
   it('opens the new account\'s profile', () => {
-    expect(resolveNotificationRoute({ type: 'move', data })).toBe('/social/profile/new@new.test')
+    expect(resolveNotificationRoute({ type: 'move', data })).toBe('/@new@new.test')
   })
 })

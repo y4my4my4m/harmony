@@ -82,7 +82,7 @@
           <Avatar :src="user.avatar_url" size="sm" class="user-avatar" />
           <div class="user-info">
             <span class="user-name">{{ user.display_name || user.username }}</span>
-            <span class="user-handle">@{{ user.is_local === false && user.handle ? user.handle : user.username }}</span>
+            <span class="user-handle">{{ formatHandle(user, { full: true }) }}</span>
           </div>
           <button
             type="button"
@@ -152,6 +152,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'

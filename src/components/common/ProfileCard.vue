@@ -54,7 +54,8 @@
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
         <p class="user-handle">
-          {{ displayHandle }}
+          <span class="user-handle-text">{{ displayHandle }}</span>
+          <CopyHandleButton v-if="!isCompact" :account="user" :size="13" />
           <span v-if="isMoved" class="moved-pill">{{ t('accountMigration.profile.movedBadge') }}</span>
         </p>
         <RemoteInstanceBadge
@@ -215,6 +216,9 @@ import { plainDisplayName } from '@/utils/plainDisplayName'
 import type { User, FederatedUser } from '@/types'
 import { profileCount } from '@/utils/profileCounts'
 import { getBannerUrl } from '@/utils/bannerUtils'
+import { formatHandle } from '@/utils/handles'
+import { profileHandleParam } from '@/utils/permalinks'
+import CopyHandleButton from './CopyHandleButton.vue'
 
 const { t } = useI18n()
 
@@ -308,12 +312,8 @@ const displayName = computed(() => plainDisplayName(props.user.display_name, pro
 /** "user" or "user@domain", without the leading @. */
 const plainHandle = computed(() => displayHandle.value.replace(/^@/, ''))
 
-const displayHandle = computed(() => {
-  if (isFederatedUser.value) {
-    return (props.user as FederatedUser).handle
-  }
-  return `@${props.user.username || 'unknown'}`
-})
+// Full, @user@domain, on a card; the compact layout of a dense list drops this instance's domain.
+const displayHandle = computed(() => formatHandle(props.user as FederatedUser, { full: !props.isCompact }) || '@unknown')
 
 const displayBio = computed(() => {
   return props.user.bio || ''
@@ -484,9 +484,7 @@ const handleMessage = async () => {
 const handleMention = () => {
   if (isFederatedUser.value) {
     const fed = props.user as FederatedUser
-    const handle = fed.handle || `@${fed.username}${fed.domain ? '@' + fed.domain : ''}`
-    const mentionText = handle.startsWith('@') ? handle : `@${handle}`
-    activityPubStore.openComposer({ content: `${mentionText} ` })
+    activityPubStore.openComposer({ content: `${formatHandle(fed)} ` })
     router.push('/social/home')
     emit('mention', fed)
   }
@@ -494,9 +492,8 @@ const handleMention = () => {
 
 const handleViewProfile = () => {
   if (isFederatedUser.value) {
-    const federatedUser = props.user as FederatedUser
-    const handle = (federatedUser.handle || '').replace(/^@/, '')
-    router.push({ name: 'UserProfile', params: { handle } })
+    const handle = profileHandleParam(props.user as FederatedUser)
+    if (handle) router.push({ name: 'UserProfile', params: { handle } })
   } else {
     emit('click', props.user)
   }

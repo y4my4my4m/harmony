@@ -138,7 +138,8 @@ export const useServerStore = defineStore('server', {
       const { data, error } = await supabase
         .from('emojis')
         .select('*')
-        .eq('server_id', serverId);
+        .eq('server_id', serverId)
+        .is('deleted_at', null);
 
       if (error) throw error;
       return data;

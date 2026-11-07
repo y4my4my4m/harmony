@@ -8,7 +8,7 @@ Answer yes to voice during install, or later through `harmony config`. `self-hos
 
 - writes `self-host/livekit.yaml` from `livekit.yaml.example`: the API key pair from `federation.env` under `keys`, `rtc.tcp_port` 7881, `rtc.udp_port` 7882 (one UDP port, multiplexed), TURN off, Redis at `redis:6379` with `REDIS_PASSWORD`, and a webhook to `http://federation-server:3001/api/livekit/webhook`
 - sets `LIVEKIT_URL=ws://livekit:7880` and `LIVEKIT_PUBLIC_URL=wss://live.DOMAIN` in `federation.env`
-- adds the `voice` profile, which starts `harmony-livekit` (`livekit/livekit-server:v1.9.4`)
+- adds the `voice` profile, which starts `harmony-livekit` (`livekit/livekit-server:v1.13.11`)
 
 Caddy serves signalling at `live.DOMAIN` and proxies it to `livekit:7880`. The host needs:
 

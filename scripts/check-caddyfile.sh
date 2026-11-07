@@ -160,8 +160,11 @@ expect_ua "$DISCORD" /drive/file/00000000-0000-0000-0000-000000000001 'SPA'
 log "/social/profile/<name>"
 expect "$AP"   /social/profile/fx_alice 'backend /users/fx_alice'
 expect 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' /social/profile/fx_alice 'backend /users/fx_alice'
-expect "$HTML" /social/profile/fx_alice 'SPA'
+# Without the app's cookie a 301 to /@<name>, which wget follows to the backend's page.
+expect "$HTML" /social/profile/fx_alice 'backend /@fx_alice'
+expect_ua "$DISCORD" /social/profile/fx_alice 'backend /@fx_alice'
 expect "$AP"   /social/profile/fx_alice@remote.example 'SPA'
+expect "$HTML" /tags/art 'SPA'
 
 # expect_with <path> <first line of the body> [header...]
 expect_with() {
@@ -192,6 +195,8 @@ for p in /@fx_alice /@fx_alice/ '/@fx_alice?before=00000000-0000-0000-0000-00000
 done
 expect_with /@fx_alice 'backend /@fx_alice' "Accept: $HTML" 'Cookie: harmony_app=0'
 expect_with /@fx_alice/a/b 'SPA' "Accept: $HTML"
+expect_with /social/profile/fx_alice 'SPA' "Accept: $HTML" "$APP_COOKIE"
+expect_with /social/profile/fx_alice 'backend /users/fx_alice' "Accept: $AP" "$APP_COOKIE"
 expect_with $POST "backend $POST" "Accept: $HTML" "$APP_COOKIE"
 # A browser at an actor id goes to its public page.
 expect_with /users/fx_alice 'backend /@fx_alice' "Accept: $HTML"

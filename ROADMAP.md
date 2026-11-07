@@ -27,11 +27,14 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 4. **Notify moderators of new reports.**
    `create_report`, `create_federated_report` and `create_federated_server_report` insert the report and notify nobody; only the reporter hears back (`report_update`). The pending count (`get_pending_reports_count`) shows only inside the admin Reports screen. Notify instance staff for instance reports and the server's moderators (`can_current_user_moderate_server_reports`) for server-scoped ones, with a notification type they can mute, and a pending-count badge on the moderation entry.
 
+5. **Warn before posting a sign-in link.**
+   Invitation and password-reset links carry a single-use token: whoever opens one first can claim the account, and a self-hoster pasted one into a public support channel. The composer recognises Harmony and GoTrue sign-in links (`/auth/v1/verify?token=…`, `/reset-password?…token_hash=…`) in any message and asks before sending, with "Send anyway" and a short explanation; a link already posted shows a muted "sign-in link" hint instead of a preview.
+
 *(Discord bridge issues, including mention resolution (`BUGS.md` H41, H42), are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
 
 ## Later (scale & polish)
 
-5. **First-class instance asset packs.**
+6. **First-class instance asset packs.**
     Today, instance operators can drop background images into
     `public/backgrounds/{login,404,offline}/` and emoji folders into
     `public/assets/emojis/<pack>/` and the build picks them up. Make this
@@ -40,36 +43,39 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
     line), and an `/about` page that auto-renders the required
     attributions for non-permissive packs.
 
-6. **Channel sidebar virtualisation.**
+7. **Channel sidebar virtualisation.**
     Servers with hundreds of channels render every row. `@tanstack/vue-virtual` already virtualises the message list and the followers view.
 
-7. **Group DMs across instances.**
+8. **Group DMs across instances.**
     Local and remote participants in one group DM are wired through DB triggers and `federation-backend` listeners, specified in `docs/federation/reference.md`, with authorization unit tests. No federation round-trip case covers a mixed group DM.
 
-8. **Admin instance discovery.**
+9. **Admin instance discovery.**
     Currently uses `fediverse.observer`. Optional: add `instances.social`, `fediverse.info`, or a unified list view.
 
-9. **Group encryption: forward secrecy and membership changes.**
+10. **Group encryption: forward secrecy and membership changes.**
     Each sender has its own session key, with a distinct key per message, rotated every 100 messages or 7 days. Its gaps are no forward secrecy within a session, no post-compromise security, key distribution over static ECDH, and a re-share to every member on each membership change. See *Interoperable end-to-end encryption* under v2.0.
 
-10. **Compact sign-in providers on phones.**
+11. **Compact sign-in providers on phones.**
     With three or more sign-in providers (Google, Twitch, GitHub and an instance's custom ones), the full-width buttons push the email form and Log in below the fold on a 375×812 screen. Show the built-in providers as one row of icon buttons with accessible names, custom providers one line each, and keep the email form in view.
 
-11. **Project news through the fediverse.**
+12. **Project news through the fediverse.**
     Releases and funding drives are posted by the official Harmony fediverse account, which any user can follow, not pushed into self-hosted instances' announcements. Optionally, a "What's new in Harmony" panel in the admin dashboard for instance admins only.
+
+13. **Lemmy interop against a real server** (maybe; low priority).
+    Community follows, FEP-1b12 announces, comments and replies carrying the community as `audience` are tested only against the round trip's simulated Lemmy Group (`e2e/federation/cases/remoteInteractions.ts`). A local Lemmy server would check follows, posts, comments, replies, votes, edits and deletes in both directions, and what Lemmy makes of a Harmony post that mentions `!community@host`.
 
 ## Community features
 
-12. **Forum channels.**
+14. **Forum channels.**
     A channel whose posts are threads, each with a title and tags, listed by activity. Standalone threads (`create_channel_thread`) already give threads a parent of their own; a forum channel type, tag definitions per channel and a post list view remain.
 
-13. **Scheduled events.**
+15. **Scheduled events.**
     Server events with a start time, location (voice channel or text) and RSVPs, with reminders through notifications. Federate as ActivityPub `Event` so Mobilizon and Gancio users can see and join them.
 
-14. **Followable announcement channels.**
+16. **Followable announcement channels.**
     A channel other servers (and fediverse accounts) can follow; its posts are relayed into the follower's chosen channel. The channel is an ActivityPub actor with an outbox, so Mastodon users can follow it directly.
 
-15. **Federated Drive sharing.**
+17. **Federated Drive sharing.**
     "Share with @user@other.instance" sends a direct message carrying the Drive file; the remote server fetches it as it fetches a federated DM attachment (signed fetch, domain admitted by the room rules). Per-user privacy is the remote server's to honour, as for DMs. "Anyone with the link" already reaches fediverse users.
 
 *(Outgoing webhooks, push for the official Android app from any instance and reactions on public post pages shipped in 1.9.0.)*
@@ -82,7 +88,7 @@ Scoped for discussion; nothing here is committed. Each item names the public spe
 - **Bluesky through Bridgy Fed.** A per-account setting, off by default, that opts public posts into [Bridgy Fed](https://fed.brid.gy/docs). Chat, direct messages and non-public posts are never bridged.
 - **Bridges beyond Discord.** Bridge v2 relayed authors generalised beyond Discord, and a per-member opt-out in bridged servers. Then a Matrix bridge (application service) in relay mode.
 - **Account portability.** Import and export of follows, blocks and mutes in Mastodon's CSV formats, and of posts as ActivityStreams. Later, copying posts between servers with [LOLA](https://swicg.github.io/activitypub-data-portability/lola) (W3C Social Web CG draft), which requires Harmony to act as an OAuth authorization server.
-- **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 12), a public feedback forum on a Harmony server that anyone on a federating instance can join.
+- **Feedback.** GitHub Discussions for ideas, and an instance setting for the in-app report link. With forum channels (item 14), a public feedback forum on a Harmony server that anyone on a federating instance can join.
 - **Signed objects, then portable identity.** Ed25519 keys under `assertionMethod` (FEP-521a) and integrity proofs (FEP-8b32) on activities a Group relays. Portable objects with DID-based ids and several gateways ([FEP-ef61](https://codeberg.org/fediverse/fep/src/branch/main/fep/ef61/fep-ef61.md)) remain research, aimed at chat servers that outlive their host instance.
 
 ## Deferred features

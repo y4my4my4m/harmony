@@ -178,12 +178,14 @@ describe('auditChangeLines', () => {
       action: 'server.update', target_type: 'server',
       changes: {
         public: { old: false, new: true },
+        federation_discoverable: { old: true, new: false },
         description: { new: 'hello' },
         icon: { old: 'a.png', new: 'b.png' },
       },
     }), t, date)
     expect(lines).toEqual([
       { field: 'serverAuditLog.fields.public', from: 'serverAuditLog.value.off', to: 'serverAuditLog.value.on' },
+      { field: 'serverAuditLog.fields.federation_discoverable', from: 'serverAuditLog.value.on', to: 'serverAuditLog.value.off' },
       { field: 'serverAuditLog.fields.description', from: null, to: 'hello' },
       { field: 'serverAuditLog.fields.icon', from: null, to: 'serverAuditLog.value.changed' },
     ])

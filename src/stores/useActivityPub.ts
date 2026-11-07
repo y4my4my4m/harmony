@@ -13,6 +13,7 @@ import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
 import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
 import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
+import { readPhotoSize } from '@/utils/photoSize';
 import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
 import { storedObjectSource } from '@/services/privateMedia';
 import { uploadStorageObject } from '@/services/uploads/storageUpload';
@@ -1644,7 +1645,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       for (const post of posts) {
         if (post.author_id) authorIds.add(post.author_id);
         if (post.author?.id) authorIds.add(post.author.id);
-        if ((post as any).reblog_author_id) authorIds.add((post as any).reblog_author_id);
+        if (post.reblog_author?.id) authorIds.add(post.reblog_author.id);
+        if (post.reblog?.author?.id) authorIds.add(post.reblog.author.id);
         if (post.reblog?.author_id) authorIds.add(post.reblog.author_id);
       }
       if (authorIds.size === 0) return;
@@ -2160,6 +2162,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         const fileExt = file.name.split('.').pop() || 'bin';
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
         const filePath = `${authUserId}/posts/${fileName}`;
+        const size = file.type.startsWith('image/')
+          ? await file.arrayBuffer().then((b) => readPhotoSize(new Uint8Array(b)), () => null)
+          : null;
 
         try {
           const { data, error } = await uploadStorageObject('user_media', filePath, file, {
@@ -2196,6 +2201,8 @@ export const useActivityPubStore = defineStore('activitypub', {
             url: publicUrl,
             mediaType: file.type,
             name: file.name,
+            ...(size ? { width: size.width, height: size.height } : {}),
+            ...(size?.animated ? { animated: true } : {}),
           }, description, focus);
         } catch (error: any) {
           debug.error(`Failed to upload file "${file.name}":`, error);

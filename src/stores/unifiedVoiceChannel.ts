@@ -40,6 +40,18 @@ import { useVoiceModerationStore } from './voiceModeration';
 const DM_PRESENCE_WAIT_MS = 5000;
 
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
+const VOICE_SESSION_HEARTBEAT_MS = 2000;
+let lastSessionTick = 0;
+
+// A session last seen connected longer ago than this is not resumed: neither on app start nor
+// in a tab whose machine slept through it (the session heartbeat's ticks stopped meanwhile).
+// livekit-client 2.16 otherwise reconnects after a sleep with its saved token.
+export const VOICE_REJOIN_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+
+// A P2P client's row is vouched for by touch_voice_participant; sweep_stale_voice_participants
+// removes one unseen for 3 minutes.
+export const VOICE_P2P_TOUCH_MS = 60_000;
+let lastVoiceTouch = 0;
 
 let keybindListenersSetup = false;
 let inputModeWatchStop: WatchStopHandle | null = null;
@@ -593,7 +605,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.isEncrypted = webrtcManager.isE2EEEnabled();
       this.applyAudioPrefs();
       if (this.connectionMode === 'p2p' && serverId !== 'dm') {
-        void serverUsersStore.markVoiceTransport(channelId, userId, 'p2p');
+        lastVoiceTouch = Date.now();
+        void serverUsersStore.markVoiceTransport(channelId, userId, 'p2p')
+          .then(() => serverUsersStore.touchVoiceParticipant(serverId, channelId, userId));
       }
       debug.log(`[VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
@@ -1550,15 +1564,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // From authStore: localState.userId can still be empty here.
       const currentUserId = authStore.session?.user?.id;
 
-      // A closing page leaves its server voice channel; a crash or kill is left to the
-      // server's LiveKit reconciliation.
+      // A closing page leaves its server voice channel, joined or still joining: the row is
+      // written before the transport connects. A crash or kill is left to the server's LiveKit
+      // reconciliation.
       if (typeof window !== 'undefined') {
         window.addEventListener('pagehide', () => {
-          const serverId = this.currentServerId;
-          const channelId = this.currentChannelId;
-          if (!this.isConnected || !serverId || !channelId || serverId === 'dm' || this.isFederatedChannel) return;
-          serverUsersStore.leaveVoiceChannelOnUnload(
-            serverId, channelId, this.localState.userId, authStore.session?.access_token);
+          const serverId = this.isConnected ? this.currentServerId : this.optimisticServerId;
+          const channelId = this.isConnected ? this.currentChannelId : this.optimisticChannelId;
+          const userId = this.localState.userId || authStore.session?.user?.id;
+          if (!serverId || !channelId || !userId || serverId === 'dm' || this.isFederatedChannel) return;
+          serverUsersStore.leaveVoiceChannelOnUnload(serverId, channelId, userId, authStore.session?.access_token);
         });
       }
       
@@ -1967,17 +1982,32 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     startVoiceSessionHeartbeat(): void {
       this.stopVoiceSessionHeartbeat();
-      
+      lastSessionTick = Date.now();
+
       voiceSessionHeartbeat = setInterval(() => {
+        const now = Date.now();
+        const gap = now - lastSessionTick;
+        lastSessionTick = now;
+        if (gap > VOICE_REJOIN_MAX_AGE_MS) {
+          void this.dropLostVoiceConnection();
+          return;
+        }
         if (this.isConnected && this.currentChannelId) {
           const activeSession = {
             tabId: this.getTabId(),
             channelId: this.currentChannelId,
-            timestamp: Date.now()
+            timestamp: now
           };
           userStorage.setItem('active-voice-session', JSON.stringify(activeSession));
+
+          const serverId = this.currentServerId;
+          if (this.connectionMode === 'p2p' && serverId && serverId !== 'dm' && !this.isFederatedChannel
+              && now - lastVoiceTouch >= VOICE_P2P_TOUCH_MS) {
+            lastVoiceTouch = now;
+            void useServerUsersStore().touchVoiceParticipant(serverId, this.currentChannelId, this.localState.userId);
+          }
         }
-      }, 2000);
+      }, VOICE_SESSION_HEARTBEAT_MS);
     },
 
     stopVoiceSessionHeartbeat(): void {
@@ -2010,10 +2040,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       try {
         const { channelId, serverId, channelName, timestamp } = JSON.parse(savedState);
-        
-        const dayInMs = 24 * 60 * 60 * 1000;
-        if (Date.now() - timestamp > dayInMs) {
-          debug.log('⏰ Saved voice channel state too old, clearing');
+
+        // Last seen connected: the session heartbeat's stamp for this channel, else the join.
+        let lastConnected = typeof timestamp === 'number' ? timestamp : 0;
+        try {
+          const active = JSON.parse(userStorage.getItem('active-voice-session') ?? 'null');
+          if (active?.channelId === channelId && typeof active.timestamp === 'number') {
+            lastConnected = Math.max(lastConnected, active.timestamp);
+          }
+        } catch {
+          // An unreadable session marker leaves the join time.
+        }
+        if (!(Date.now() - lastConnected <= VOICE_REJOIN_MAX_AGE_MS)) {
+          debug.log('Saved voice channel state too old, clearing');
           this.clearVoiceChannelState();
           return false;
         }

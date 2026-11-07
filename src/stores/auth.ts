@@ -6,7 +6,6 @@ import { debug } from '@/utils/debug';
 import { i18n } from '@/i18n';
 import { userStorage } from '@/utils/userScopedStorage';
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup';
-import { realtimeApiService } from '@/services/RealtimeApiService';
 
 let sessionRejectionSubscribed = false;
 
@@ -520,31 +519,26 @@ export const useAuthStore = defineStore('auth', {
     setupOfflineHandlers(_userId: string) {
       this.cleanupOfflineHandlers();
       
-      const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
-        // Best-effort Redis offline (keepalive lets it finish after page unload).
-        // If this fails, the Redis TTL key auto-expires after 90s.
-        realtimeApiService.goOffline().catch(() => {})
-
+      const handlePageHide = () => {
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
         }
       };
 
-      // No unload listener: Chrome refuses it (Permissions-Policy unload) and it blocks the
-      // back/forward cache elsewhere; pagehide fires in every case unload would.
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      window.addEventListener('pagehide', handleBeforeUnload);
+      // pagehide alone: it fires in every case unload would, once per close. No unload
+      // listener: Chrome refuses it (Permissions-Policy unload) and it blocks the
+      // back/forward cache elsewhere. beforeunload also fires for a navigation the user
+      // then cancels.
+      window.addEventListener('pagehide', handlePageHide);
 
       (window as any).__harmonyOfflineHandlers = {
-        beforeunload: handleBeforeUnload,
-        pagehide: handleBeforeUnload
+        pagehide: handlePageHide
       };
     },
 
     cleanupOfflineHandlers() {
       const handlers = (window as any).__harmonyOfflineHandlers;
       if (handlers) {
-        window.removeEventListener('beforeunload', handlers.beforeunload);
         window.removeEventListener('pagehide', handlers.pagehide);
         delete (window as any).__harmonyOfflineHandlers;
       }

@@ -173,7 +173,8 @@
       "submit": "Passwort festlegen und weiter",
       "done": "Passwort festgelegt. Wähle als Nächstes deinen Benutzernamen.",
       "invalidTitle": "Dieser Einladungslink funktioniert nicht",
-      "invalidBody": "Der Link wurde schon benutzt, ist abgelaufen oder wurde widerrufen. Bitte die Person, die dich eingeladen hat, um einen neuen."
+      "invalidBody": "Der Link wurde schon benutzt, ist abgelaufen oder wurde widerrufen. Bitte die Person, die dich eingeladen hat, um einen neuen.",
+      "subtitleNoEmail": "Du wurdest eingeladen, hier ein Konto anzulegen. Wähle das Passwort, mit dem du dich anmeldest."
     }
   },
   "server": {
@@ -399,7 +400,7 @@
     "federationHandle": "Server-Handle",
     "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können.",
     "federationDiscoverable": "Über die Föderation auffindbar",
-    "federationDiscoverableDesc": "Diesen Server im Serververzeichnis dieser Instanz aufführen, damit Leute auf anderen Harmony-Instanzen ihn finden und ihm beitreten können.",
+    "federationDiscoverableDesc": "Diesen Server im Serververzeichnis dieser Instanz aufführen, damit Leute auf anderen Harmony-Instanzen ihn finden und ihm beitreten können. Standardmäßig an; gilt, solange der Server öffentlich und föderiert ist.",
     "federationDiscoverableNeedsPublic": "Mach den Server öffentlich, um ihn aufzuführen.",
     "federationDiscoverableNeedsFederation": "Schalte die Föderation ein, um ihn aufzuführen.",
     "federationDiscoverableInstanceOff": "Die Föderation ist auf dieser Instanz aus, daher führt ihr Verzeichnis keinen Server auf.",
@@ -730,7 +731,12 @@
       "disableConsequence5": "Sie auch nach erneutem Aktivieren der Föderation draußen lassen, bis sie über eine Einladung wieder beitreten",
       "disableConfirm": "Föderation deaktivieren"
     },
-    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein."
+    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein.",
+    "settingsNavGroups": {
+      "expression": "Ausdruck",
+      "integrations": "Integrationen",
+      "moderation": "Moderation"
+    }
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -2208,7 +2214,7 @@
     "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
     "myEmojis": {
       "title": "Meine Emojis",
-      "description": "Deine persönlichen Emojis: die, die du hier hochlädst, und die, die du in der Emoji-Auswahl mit KI erzeugst. Du kannst sie auf jedem Server und in jeder Unterhaltung verwenden. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "description": "Deine persönlichen Emojis: die, die du hier hochlädst, und die, die du in der Emoji-Auswahl mit KI erzeugst. Du kannst sie in jedem Server und jeder Unterhaltung verwenden. Umbenennen oder Löschen lässt ältere Nachrichten und Reaktionen unverändert: Sie zeigen weiterhin das Bild.",
       "loading": "Deine Emojis werden geladen…",
       "empty": "Du hast noch keine persönlichen Emojis. Lade eines hoch oder erzeuge eines mit KI in der Emoji-Auswahl.",
       "uploadsOff": "Persönliche Emojis sind auf dieser Instanz deaktiviert.",
@@ -2223,7 +2229,7 @@
       "renamed": ":{from}: in :{to}: umbenannt",
       "deleted": ":{name}: gelöscht",
       "deleteTitle": "Emoji löschen",
-      "confirmDelete": ":{name}: löschen? Reaktionen damit werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDelete": ":{name}: löschen? Es verschwindet aus deiner Emoji-Auswahl. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen es weiterhin.",
       "retry": "Erneut versuchen",
       "errors": {
         "load": "Deine Emojis konnten nicht geladen werden.",
@@ -2381,6 +2387,11 @@
     "trendingFilters": "Filter",
     "trendingTimeRange": "Zeitraum",
     "trendingSource": "Quelle",
+    "trendingSourceSearch": "Instanzen suchen",
+    "trendingSourceActive": "Aktiv in diesen Ergebnissen",
+    "trendingSourceRecent": "Zuletzt gesehen",
+    "trendingSourceMatches": "Passende Instanzen",
+    "trendingSourceSearching": "Suche läuft…",
     "clearFilters": "Filter zurücksetzen",
     "trendingNoPosts": "Noch keine Trends",
     "trendingNoPostsHint": "Beiträge mit Antworten, Boosts oder Favoriten erscheinen hier.",
@@ -2530,6 +2541,7 @@
     "loadFailedTitle": "Beiträge konnten nicht geladen werden",
     "loadFailedMessage": "Prüfe deine Verbindung und versuche es erneut.",
     "loadMoreFailed": "Weitere Beiträge konnten nicht geladen werden.",
+    "profilePostsEnd": "Keine älteren Beiträge von {name}.",
     "loadingMore": "Weitere Beiträge werden geladen",
     "noBookmarksYet": "Noch keine Lesezeichen",
     "noBookmarksHint": "Setze ein Lesezeichen für einen Beitrag, um ihn später hier zu finden.",
@@ -2760,7 +2772,11 @@
       "followingUnfollow": "Folge ich {'@'}{handle}, entfolgen",
       "requestedCancel": "Angefragt {'@'}{handle}, Anfrage zurückziehen",
       "loadFailed": "Profil konnte nicht geladen werden. Die Person existiert vielleicht nicht oder ist nicht erreichbar.",
-      "postsBy": "Beiträge von {name}"
+      "postsBy": "Beiträge von {name}",
+      "copyHandle": "Handle kopieren",
+      "copyHandleNamed": "Handle {handle} kopieren",
+      "handleCopied": "{handle} kopiert",
+      "handleCopyFailed": "Das Handle konnte nicht kopiert werden"
     },
     "followA11y": {
       "requests": "Anfragen",
@@ -3031,6 +3047,7 @@
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
     "reactionNotAllowed": "In diesem Kanal kannst du dich nur bestehenden Reaktionen anschließen.",
     "externalNotAllowed": "In diesem Kanal kannst du nur Unicode-Emojis und die Emojis dieses Servers verwenden.",
+    "reactionNotEmoji": "Nur Emojis können Reaktionen sein.",
     "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "aiGenerate": "Generieren",
@@ -3082,7 +3099,8 @@
     "copied": "{text} kopiert",
     "copyFailed": "Kopieren fehlgeschlagen",
     "copyLink": "Bildlink kopieren",
-    "linkCopied": "Bildlink kopiert"
+    "linkCopied": "Bildlink kopiert",
+    "removed": "Dort entfernt, wo es herkam. Nachrichten, die es verwenden, zeigen es weiterhin."
   },
   "inbox": {
     "title": "Benachrichtigungen",
@@ -3419,7 +3437,22 @@
       "federationOff": "Diese Instanz föderiert gerade nicht, daher lassen sich andere Instanzen nicht durchsuchen.",
       "noDirectory": "{domain} veröffentlicht kein Serververzeichnis.",
       "unreachable": "{domain} hat nicht geantwortet. Versuch es später erneut.",
-      "failed": "Etwas ist schiefgelaufen. Versuch es erneut."
+      "failed": "Etwas ist schiefgelaufen. Versuch es erneut.",
+      "allInstances": "Alle Instanzen",
+      "filterLabel": "Server filtern",
+      "filterPlaceholder": "Name, Thema oder Instanz",
+      "loadingAdvertised": "Verzeichnisse bekannter Instanzen werden gelesen…",
+      "advertisedStats": "{count} Server auf {instances} | {count} Server auf {instances}",
+      "instanceCount": "{count} Instanz | {count} Instanzen",
+      "advertisedMatches": "{count} Server passt | {count} Server passen",
+      "advertisedPending": "{count} Instanz wird noch gelesen… | {count} Instanzen werden noch gelesen…",
+      "advertisedFailed": "{count} Instanz hat nicht geantwortet, ihre Server fehlen. | {count} Instanzen haben nicht geantwortet, ihre Server fehlen.",
+      "noMatchTitle": "Keine passenden Server",
+      "noMatch": "Kein Server auf einer bekannten Instanz passt zu „{query}“.",
+      "advertisedEmptyTitle": "Noch keine Server aufgeführt",
+      "advertisedEmpty": "Hier erscheinen Server, deren Besitzer sie über die Föderation aufführen. Keine Instanz, die diese kennt, führt bisher einen auf: Durchsuche oben eine andere Instanz über ihre Domain.",
+      "hostedOn": "Gehostet auf {instance}",
+      "advertisedErrorTitle": "Bekannte Instanzen konnten nicht gelesen werden"
     },
     "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
     "inviteLink": "Einladungslink",
@@ -4604,7 +4637,8 @@
       "max_uses": "Maximale Nutzungen",
       "expires_at": "Läuft ab",
       "temporary": "Vorübergehende Mitgliedschaft",
-      "messages_deleted": "Gelöschte Nachrichten"
+      "messages_deleted": "Gelöschte Nachrichten",
+      "federation_discoverable": "Über die Föderation auffindbar"
     },
     "value": {
       "none": "keine",
@@ -4732,10 +4766,6 @@
       "federationHealth": {
         "title": "Keine Daten zum Föderationszustand",
         "description": "Metriken erscheinen, sobald eingehende oder ausgehende Föderationsaktivität erfasst wird."
-      },
-      "remoteEmoji": {
-        "title": "Keine Remote-Emojis gefunden",
-        "description": "Emojis von Remote-Instanzen erscheinen hier, wenn du mit föderierten Inhalten interagierst."
       },
       "tiers": {
         "title": "Keine Stufen konfiguriert"
@@ -5037,7 +5067,9 @@
       "expiresIn": "Läuft ab in {time}",
       "expired": "Dieser Code ist abgelaufen.",
       "newCode": "Neuer Code",
-      "copyCode": "Code kopieren"
+      "copyCode": "Code kopieren",
+      "copyFailed": "Kopieren nicht möglich. Der Code ist markiert: kopiere ihn selbst aus dem Feld.",
+      "textLabel": "Kopplungscode"
     },
     "linkDevice": {
       "title": "Neues Gerät verknüpfen",
@@ -5046,9 +5078,9 @@
       "scanHint": "Richte die Kamera auf den QR-Code auf dem neuen Gerät.",
       "scanPasteLabel": "Oder füge den vom neuen Gerät kopierten Code ein",
       "showInstead": "Hat das neue Gerät eine Kamera? Zeige stattdessen einen Code zum Scannen an",
-      "showLead": "Wähle auf dem neuen Gerät {another}, dann {scanInstead}, und richte seine Kamera hierher. Jeder, der bei deinem Konto angemeldet ist und diesen Code scannt, kann deine Schlüssel erhalten – behalte ihn also für dich.",
+      "showLead": "Wähle auf dem neuen Gerät {another}, dann {scanInstead}, und richte seine Kamera hierher, oder kopiere den Code unten und füge ihn dort ein. Jeder, der bei deinem Konto angemeldet ist und diesen Code scannt oder einfügt, kann deine Schlüssel erhalten – behalte ihn also für dich.",
       "showLeadAnother": "Anderes Gerät",
-      "showLeadScanInstead": "Stattdessen einen Code davon scannen",
+      "showLeadScanInstead": "Stattdessen einen Code davon scannen oder einfügen",
       "qrAlt": "QR-Code zur Geräteverknüpfung",
       "scanInstead": "Stattdessen den Code des neuen Geräts scannen",
       "newDevice": "Neues Gerät",
@@ -5079,9 +5111,9 @@
       }
     },
     "pairing": {
-      "lead": "Wähle auf einem Gerät, auf dem du bereits angemeldet bist, in der Meldung zur neuen Anmeldung {scanCode} oder unter Privatsphäre → Deine Geräte {linkDevice} und scanne diesen Code.",
+      "lead": "Wähle auf einem Gerät, auf dem du bereits angemeldet bist, in der Meldung zur neuen Anmeldung {scanCode} oder unter Privatsphäre → Deine Geräte {linkDevice} und scanne diesen Code, oder kopiere den Code unten und füge ihn dort ein.",
       "qrAlt": "QR-Code zur Gerätekopplung",
-      "scanInstead": "Das andere Gerät kann nicht scannen? Scanne stattdessen einen Code davon",
+      "scanInstead": "Das andere Gerät kann nicht scannen? Scanne oder füge stattdessen einen Code davon ein",
       "scanHint": "Wähle auf deinem angemeldeten Gerät „Gerät verknüpfen“, dann „Code anzeigen“, und richte diese Kamera darauf.",
       "scanPasteLabel": "Oder füge den Code von deinem anderen Gerät ein",
       "showInstead": "Stattdessen einen Code auf diesem Gerät anzeigen",
@@ -5256,6 +5288,8 @@
       "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten.",
       "publicProfilePages": "Profile und öffentliche Beiträge Besuchern ohne Anmeldung zeigen",
       "publicProfilePagesHint": "Ausgeschaltet werden Besucher zur Anmeldung geschickt. Linkvorschauen und Föderation bleiben unverändert.",
+      "federateImageMaxPx": "Längste Fotoseite für andere Server (px)",
+      "federateImageMaxPxHint": "Größere Fotos in Beiträgen werden passend verkleinert gesendet, als JPEG, PNG oder WebP wie das Original; das Original bleibt hier. Bis zu 2000. 0 sendet Originale. Jeder Beitrag behält die Größe, die beim Erstellen galt.",
       "federationOutbound": "An andere Instanzen senden",
       "federationOutboundHint": "Aus: An andere Instanzen wird nichts zugestellt.",
       "federationInbound": "Von anderen Instanzen empfangen",
@@ -5264,6 +5298,8 @@
       "federationCloseConfirmTitle": "Föderation schließen?",
       "federationCloseConfirmMessage": "Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und jedes Mitglied hier verlässt Server, die anderswo gehostet werden. Wird ein Schalter wieder eingeschaltet, öffnen die Server wieder; Entfernte kehren nicht zurück.",
       "federationCloseConfirm": "Föderation schließen",
+      "configLoadFailed": "Die aktuellen Einstellungen konnten nicht gelesen werden. Vor dem Speichern neu laden.",
+      "webrtcLoadFailed": "Die Spracheinstellungen konnten nicht gelesen werden und lassen sich hier daher nicht ändern. Lade die Seite neu, um es erneut zu versuchen.",
       "customOAuthTitle": "Eigene Anmeldeanbieter",
       "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
       "customOAuthEmpty": "Noch keine.",
@@ -5385,66 +5421,9 @@
     },
     "instanceEmojis": {
       "tab": "Emojis",
-      "title": "Instanz-Emojis",
-      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server-Emojis verwalten ihre Server; persönliche und mit KI erzeugte Emojis stehen unter Nutzer-Emojis. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
-      "refresh": "Aktualisieren",
-      "source": {
-        "label": "Quelle",
-        "all": "Alle Quellen",
-        "local": "Lokal",
-        "remote": "Entfernt und überbrückt",
-        "user": "Nutzer-Emojis"
-      },
-      "sort": {
-        "label": "Sortierung",
-        "newest": "Neueste zuerst",
-        "name": "Name (A-Z)"
-      },
-      "empty": "Keine passenden Instanz-Emojis.",
-      "emptyUser": "Keine Nutzer-Emojis gefunden.",
-      "localBadge": "lokal",
-      "personalBadge": "persönlich",
-      "aiBadge": "KI",
-      "aiGenerated": "Mit KI erzeugt",
-      "uploadedBy": "von {user}",
-      "ownedBy": "gehört {user}",
-      "noOwner": "gelöschtes Konto",
-      "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
-      "rename": "Umbenennen",
-      "newName": "Neuer Name",
       "previous": "Zurück",
       "next": "Weiter",
-      "range": "{from}-{to} von {total}",
-      "renamed": "Emoji umbenannt",
-      "deleted": "Emoji gelöscht",
-      "deleteTitle": "Emoji löschen",
-      "confirmDelete": ":{name}: löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
-      "confirmDeleteInUse": ":{name}: löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
-      "confirmDeleteUser": ":{name}: aus den Emojis von {user} löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
-      "confirmDeleteUserInUse": ":{name}: aus den Emojis von {user} löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: aus den Emojis von {user} löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
-      "errors": {
-        "load": "Instanz-Emojis konnten nicht geladen werden.",
-        "rename": "Das Emoji konnte nicht umbenannt werden.",
-        "delete": "Das Emoji konnte nicht gelöscht werden.",
-        "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
-        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits.",
-        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen.",
-        "notAdmin": "Nur Instanz-Admins können Instanz-Emojis hochladen.",
-        "duplicateFile": "Diese Datei ist bereits ein Instanz-Emoji."
-      },
-      "searchLabel": "Emoji durchsuchen",
-      "searchHint": "Name oder Domain",
-      "searchHintUser": "Name oder Besitzer",
-      "browseTitle": "Alle Emojis dieser Instanz",
-      "loading": "Emojis werden geladen",
-      "library": {
-        "description": "Alle lokalen Nutzer finden diese Emojis in der Emoji-Auswahl unter dem Namen dieser Instanz.",
-        "listLabel": "Lokale Instanz-Emojis",
-        "empty": "Noch keine Instanz-Emojis",
-        "emptyHint": "Lade oben eines hoch. Alle lokalen Nutzer können es verwenden.",
-        "loading": "Instanz-Emojis werden geladen",
-        "retry": "Erneut versuchen"
-      }
+      "range": "{from}-{to} von {total}"
     },
     "copyId": {
       "user": "Nutzer-ID kopieren",
@@ -5454,6 +5433,155 @@
       "serverCopied": "Server-ID kopiert",
       "userFailed": "Nutzer-ID konnte nicht kopiert werden",
       "serverFailed": "Server-ID konnte nicht kopiert werden"
+    },
+    "emojis": {
+      "title": "Emojis",
+      "description": "Alle benutzerdefinierten Emojis dieser Instanz: Uploads, Importe, von anderen Instanzen zwischengespeicherte Emojis, Server-Emojis und persönliche Emojis. Ein entferntes Emoji verschwindet aus jeder Auswahl; ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. Endgültiges Löschen entfernt das Emoji und seine Datei: ältere Nachrichten und Reaktionen zeigen dann ein Symbol für ein fehlendes Bild.",
+      "refresh": "Aktualisieren",
+      "retry": "Erneut versuchen",
+      "loading": "Emojis werden geladen",
+      "empty": "Keine passenden Emojis.",
+      "emptyNotImported": "Keine Emojis anderer Instanzen warten auf den Import.",
+      "searchLabel": "Emojis suchen",
+      "searchHint": "Name, Server, Besitzer oder Domain",
+      "newName": "Neuer Name",
+      "brokenImage": "Das Bild konnte nicht geladen werden",
+      "hotlinkedHint": "Das Bild wird von einer anderen Website geladen. „Neu hosten“ kopiert es auf diese Instanz.",
+      "kinds": {
+        "label": "Art",
+        "all": "Alle",
+        "instance": "Instanz",
+        "imported": "Importiert",
+        "federated": "Föderierter Cache",
+        "server": "Server",
+        "personal": "Persönlich",
+        "ai": "KI-generiert",
+        "not_imported": "Nicht importiert"
+      },
+      "status": {
+        "label": "Status",
+        "active": "Aktiv",
+        "removed": "Entfernt"
+      },
+      "sort": {
+        "label": "Sortierung",
+        "newest": "Neueste zuerst",
+        "oldest": "Älteste zuerst",
+        "name": "Name (A–Z)",
+        "usage": "Meistgenutzt"
+      },
+      "badges": {
+        "hotlinked": "extern verlinkt",
+        "removed": "entfernt"
+      },
+      "meta": {
+        "server": "in {server}",
+        "from": "von {domain}",
+        "uploadedBy": "von {user}",
+        "ownedBy": "gehört {user}",
+        "noOwner": "gelöschtes Konto",
+        "usage": "nie verwendet | einmal verwendet | {count}-mal verwendet",
+        "seen": "{count}-mal gesehen | {count}-mal gesehen",
+        "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
+        "removedBy": "entfernt von {user} am {date}",
+        "removedOn": "entfernt am {date}"
+      },
+      "titles": {
+        "rename": "Umbenennen",
+        "remove": "Entfernen",
+        "restore": "Wiederherstellen",
+        "purge": "Endgültig löschen",
+        "rehost": "Neu hosten",
+        "import": "Importieren"
+      },
+      "actions": {
+        "rename": "{name} umbenennen",
+        "remove": "{name} entfernen",
+        "restore": "{name} wiederherstellen",
+        "purge": "{name} endgültig löschen",
+        "rehost": "{name} neu hosten",
+        "import": "{name} importieren",
+        "select": "{name} auswählen"
+      },
+      "bulk": {
+        "select": "Auswählen",
+        "selectPage": "Alle auf dieser Seite auswählen",
+        "selected": "{count} ausgewählt | {count} ausgewählt",
+        "remove": "Auswahl entfernen",
+        "restore": "Auswahl wiederherstellen",
+        "purge": "Auswahl endgültig löschen"
+      },
+      "upload": {
+        "button": "Hochladen",
+        "label": "Instanz-Emojis hochladen",
+        "uploading": "{name} wird hochgeladen…",
+        "uploadingMany": "{current} von {total} wird hochgeladen…",
+        "uploaded": "{name} hochgeladen",
+        "uploadedMany": "{count} Emoji hochgeladen | {count} Emojis hochgeladen",
+        "failed": "Das Emoji konnte nicht hochgeladen werden.",
+        "failedMany": "{count} Upload fehlgeschlagen | {count} Uploads fehlgeschlagen",
+        "notImage": "{count} Datei ist kein Bild und wurde übersprungen | {count} Dateien sind keine Bilder und wurden übersprungen",
+        "tooLarge": "{count} Datei ist zu groß und wurde übersprungen | {count} Dateien sind zu groß und wurden übersprungen",
+        "noValid": "Keine Bilddateien zum Hochladen."
+      },
+      "confirm": {
+        "removeTitle": "Emoji entfernen",
+        "remove": "{name} entfernen? Es verschwindet aus jeder Emoji-Auswahl. Ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen.",
+        "removeMany": "{count} Emoji entfernen? Es verschwindet aus jeder Emoji-Auswahl. Ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. | {count} Emojis entfernen? Sie verschwinden aus jeder Emoji-Auswahl. Ältere Nachrichten und Reaktionen zeigen sie weiterhin, und sie lassen sich wiederherstellen.",
+        "removeButton": "Entfernen",
+        "purgeTitle": "Emoji endgültig löschen",
+        "purge": "{name} endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
+        "purgeMany": "{count} Emoji endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild. | {count} Emojis endgültig löschen? Die Emojis und ihre Dateien werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die sie verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
+        "purgeButton": "Endgültig löschen",
+        "importTitle": "{name} importieren",
+        "import": "Eine Kopie des Bildes wird von {domain} in den Speicher dieser Instanz heruntergeladen und zu den Instanz-Emojis hinzugefügt. Lass den Namen leer, um {name} zu behalten.",
+        "importLabel": "Name (ohne Doppelpunkte)",
+        "importButton": "Importieren"
+      },
+      "done": {
+        "renamed": "Umbenannt in {name}",
+        "removed": "{name} entfernt",
+        "removedMany": "{count} Emoji entfernt | {count} Emojis entfernt",
+        "restored": "{name} wiederhergestellt",
+        "restoredMany": "{count} Emoji wiederhergestellt | {count} Emojis wiederhergestellt",
+        "purged": "{name} endgültig gelöscht",
+        "purgedMany": "{count} Emoji endgültig gelöscht | {count} Emojis endgültig gelöscht",
+        "rehosted": "{name} liegt jetzt auf dieser Instanz",
+        "imported": "{name} importiert"
+      },
+      "errors": {
+        "load": "Emojis konnten nicht geladen werden.",
+        "rename": "Das Emoji konnte nicht umbenannt werden.",
+        "remove": "Das Emoji konnte nicht entfernt werden.",
+        "restore": "Das Emoji konnte nicht wiederhergestellt werden.",
+        "purge": "Das Emoji konnte nicht endgültig gelöscht werden.",
+        "purgeFile": "{name} ist gelöscht, aber seine Datei konnte nicht entfernt werden.",
+        "purgeFiles": "{count} Datei konnte nicht entfernt werden. | {count} Dateien konnten nicht entfernt werden.",
+        "bulk": "{count} Emoji konnte nicht geändert werden. | {count} Emojis konnten nicht geändert werden.",
+        "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
+        "nameTaken": "Ein anderes aktives Emoji verwendet diesen Namen bereits.",
+        "limit": "Das Emoji-Limit ist erreicht.",
+        "notAllowed": "Du darfst dieses Emoji nicht ändern.",
+        "notFound": "Das Emoji existiert nicht mehr.",
+        "notAdmin": "Nur Instanz-Administratoren können Instanz-Emojis hochladen.",
+        "duplicateFile": "Diese Datei ist bereits ein Instanz-Emoji.",
+        "backend": {
+          "not_authenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an.",
+          "admin_required": "Das können nur Instanz-Administratoren.",
+          "insufficient_aal": "Bestätige deinen zweiten Faktor und versuche es erneut.",
+          "not_found": "Das Emoji existiert nicht mehr.",
+          "already_imported": "Dieses Emoji ist bereits importiert.",
+          "name_taken": "Ein Instanz-Emoji verwendet diesen Namen bereits.",
+          "invalid_name": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
+          "not_instance": "Nur Instanz-Emojis können neu gehostet werden.",
+          "not_hotlinked": "Dieses Emoji liegt bereits auf dieser Instanz.",
+          "unsupported_image": "Das entfernte Bild ist kein PNG, GIF, WebP oder JPEG.",
+          "too_large": "Das entfernte Bild überschreitet die Größengrenze für Emojis.",
+          "fetch_failed": "Das entfernte Bild konnte nicht heruntergeladen werden.",
+          "internal_error": "Etwas ist schiefgelaufen. Versuche es später erneut.",
+          "network_error": "Der Server ist nicht erreichbar."
+        }
+      }
     }
   },
   "discordBridge": {
@@ -6202,6 +6330,7 @@
       "join": "Thread beitreten",
       "edit": "Thread bearbeiten",
       "splitView": "In geteilter Ansicht öffnen",
+      "openFullView": "In Vollansicht öffnen",
       "close": "Thread schließen",
       "reopen": "Thread wieder öffnen",
       "lock": "Thread sperren",
@@ -6323,7 +6452,30 @@
     "quotedPost": "Zitierter Beitrag",
     "openMedia": "Medium {index} von {total} öffnen",
     "playOnSite": "Auf {site} abspielen",
-    "playInX": "Im Player von X abspielen"
+    "playInX": "Im Player von X abspielen",
+    "profile": {
+      "title": "Profil",
+      "label": "Profil von {name}",
+      "loading": "Profil wird geladen…",
+      "unavailable": "Dieses Profil ist nicht verfügbar",
+      "open": "Profil öffnen"
+    },
+    "invite": {
+      "label": "Einladung zu {name}",
+      "online": "{count} online",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "join": "Server beitreten",
+      "open": "Zum Server",
+      "joining": "Beitreten …",
+      "invalid": "Ungültige Einladung",
+      "loading": "Einladung wird geladen …"
+    },
+    "remoteInvite": {
+      "hostedOn": "Gehostet auf {instance}",
+      "notFound": "Einladung nicht gefunden oder abgelaufen",
+      "closedTitle": "Für andere Instanzen geschlossen",
+      "closedMessage": "Nur Personen auf {instance} können diesem Server beitreten."
+    }
   },
   "outsideLink": {
     "title": "Harmony verlassen",
@@ -6769,12 +6921,11 @@
       "next": "Weiter",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
-      "resetZoom": "Zoom und Drehung zurücksetzen",
-      "rotateLeft": "Nach links drehen",
       "rotateRight": "Nach rechts drehen",
       "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden.",
       "download": "Herunterladen",
-      "audio": "Audio"
+      "audio": "Audio",
+      "noPreview": "Keine Vorschau für diese Datei."
     },
     "pwa": {
       "installApp": "Harmony-App installieren",
@@ -6962,6 +7113,8 @@
   },
   "driveAdmin": {
     "settings": "Drive-Speicher",
+    "enabled": "Drive ist eingeschaltet",
+    "offHint": "Drive ist aus: Seiten und Dateiauswahl sind ausgeblendet, Dateien können nicht geteilt werden. Jeder Upload bleibt erhalten, ohne Speicherlimit; die Upload-Größenlimits gelten weiter. Dateien in Drive bleiben und kehren zurück, wenn Drive wieder eingeschaltet wird.",
     "quotaUser": "Speicher pro Konto",
     "quotaModerator": "Speicher pro Instanz-Moderator",
     "quotaAdmin": "Speicher pro Instanz-Admin",
@@ -7223,12 +7376,6 @@
       "resetText": "Der aktuelle Link funktioniert dann für niemanden mehr, auch dort nicht, wo er schon gepostet wurde. Wer die Datei sehen kann, kann den neuen Link kopieren.",
       "until": "Bis {date}",
       "searchPeopleHint": "Name oder Benutzername"
-    },
-    "preview": {
-      "previous": "Vorherige Datei",
-      "next": "Nächste Datei",
-      "none": "Keine Vorschau für diese Datei.",
-      "fullScreen": "Im Vollbild ansehen"
     },
     "picker": {
       "title": "Aus Drive auswählen",
@@ -7772,7 +7919,7 @@
     "copy": "Kopieren",
     "copied": "Einladungslink kopiert",
     "copyFailed": "Der Link konnte nicht kopiert werden; markiere ihn und kopiere ihn selbst",
-    "singleUse": "Schicke ihn nur an diese Person: Wer ihn zuerst öffnet, legt das Konto an.",
+    "singleUse": "Schicke ihn nur an diese Person: Wer damit zuerst ein Passwort wählt, legt das Konto an.",
     "pendingTitle": "Offene Einladungen ({count})",
     "refresh": "Aktualisieren",
     "loading": "Einladungen werden geladen…",
@@ -7812,7 +7959,7 @@
       "emailUnavailable": "Diese Instanz kann keine E-Mails senden. Erstelle stattdessen einen Link.",
       "authRateLimited": "Der Anmeldedienst hat zu viele E-Mails gesendet; versuche es später erneut.",
       "rateLimited": "Zu viele Änderungen an Einladungen; versuche es später erneut.",
-      "inviteAccepted": "Diese Person hat sich bereits angemeldet; die Einladung lässt sich nicht mehr ändern.",
+      "inviteAccepted": "Diese Person hat bereits ein Passwort gewählt; die Einladung lässt sich nicht mehr ändern.",
       "inviteGone": "Diese Einladung gibt es nicht mehr.",
       "adminRequired": "Nur Instanz-Admins laden Personen ein.",
       "authFailed": "Der Anmeldedienst hat abgelehnt: {detail}",

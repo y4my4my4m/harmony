@@ -165,10 +165,11 @@ describe('GET /@:username', () => {
     expect(res.headers.location).toBe(`/@alice?before=${POST_ID}`)
   })
 
-  it('sends a remote handle to the app', async () => {
+  it('sends a visitor at a remote handle to sign in and back', async () => {
     const res = await get('/@bob@remote.example')
     expect(res.status).toBe(302)
-    expect(res.headers.location).toBe('/social/profile/bob@remote.example')
+    expect(res.headers.location).toBe(`/login?redirect=${encodeURIComponent('/@bob@remote.example')}`)
+    expect(res.headers['cache-control']).toBe('no-store')
     expect(rpc).not.toHaveBeenCalled()
   })
 
@@ -269,6 +270,24 @@ describe('GET /@:username/:postId', () => {
     answer = { data: postPage({}, { is_local: false, author: remote }), error: null }
     const res = await get(`/@alice/${POST_ID}`)
     expect(res.status).toBe(404)
+  })
+
+  it('renders a remote post under its author\'s handle, noindex, handing a reader to /@user@domain/<id>', async () => {
+    const remote = { ...alice, is_local: false, domain: 'remote.example' }
+    answer = { data: postPage({}, { is_local: false, author: remote }), error: null }
+    const res = await get(`/@alice@remote.example/${POST_ID}`)
+    expect(res.status).toBe(200)
+    expect(res.headers['x-robots-tag']).toBe('noindex, noarchive')
+    expect(res.text).toContain(`"/@alice@remote.example/${POST_ID}"`)
+    const spelled = await get(`/@Alice@Remote.Example/${POST_ID}`)
+    expect(spelled.status).toBe(301)
+    expect(spelled.headers.location).toBe(`/@alice@remote.example/${POST_ID}`)
+    expect((await get(`/@alice@elsewhere.example/${POST_ID}`)).status).toBe(404)
+  })
+
+  it('does not find a local post under a remote address', async () => {
+    answer = { data: postPage(), error: null }
+    expect((await get(`/@alice@remote.example/${POST_ID}`)).status).toBe(404)
   })
 
   it('answers a malformed post id 404 without a read', async () => {

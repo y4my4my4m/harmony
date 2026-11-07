@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import express from 'express'
+import supertest from 'supertest'
 
 // Remote profile import: an outbox read in 20-item pages loses no item, an
-// Announce stores its original first, and the featured collection pins the
-// account's posts.
+// Announce stores its original first, a page that cannot be read fails the
+// request and is read again by the next one, and the featured collection pins
+// the account's posts.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test', VERSION: 'test', NODE_ENV: 'test' },
@@ -112,7 +115,8 @@ vi.mock('../config/supabase.js', () => ({
   getSupabaseClientWithAuth: () => fakeSupabase(),
 }))
 
-const { fetchRecentPostsInBackground, syncFeaturedCollection } = await import('../activitypub/ActorService.js')
+const { fetchRecentPostsInBackground, syncFeaturedCollection, default: actorRouter } = await import('../activitypub/ActorService.js')
+const { SignatureService } = await import('../activitypub/SignatureService.js')
 
 const HOST = 'https://mastodon.test'
 const ACTOR = `${HOST}/users/alice`
@@ -236,6 +240,73 @@ describe('outbox import', () => {
     expect(result.hasMore).toBe(false)
     expect(fetchedUrls).not.toContain('https://evil.test/page')
     expect(tables.posts).toEqual([])
+  })
+})
+
+describe('unreadable outbox', () => {
+  const PAGE_2 = `${OUTBOX}?page=true&max_id=1`
+
+  it('fails the request, and the next one reads the page it could not', async () => {
+    serveOutbox(Array.from({ length: 45 }, (_, i) => create(i + 1)))
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+    expect(storedApIds()).toHaveLength(20)
+
+    const page2 = served.get(PAGE_2)
+    served.delete(PAGE_2)
+    const failed = await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase, 'more')
+    expect(failed.failed).toBe(true)
+    expect(storedApIds()).toHaveLength(20)
+
+    served.set(PAGE_2, page2)
+    fetchedUrls.length = 0
+    const resumed = await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase, 'more')
+    expect(resumed.failed).toBeUndefined()
+    expect(resumed.hasMore).toBe(true)
+    expect(fetchedUrls).toEqual([PAGE_2])
+    expect(storedApIds()).toHaveLength(40)
+  })
+
+  it('fails on a network error', async () => {
+    serveOutbox([create(1)])
+    vi.mocked(SignatureService.signedApFetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+    const result = await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+    expect(result.failed).toBe(true)
+    expect(tables.posts).toEqual([])
+  })
+
+  it('keeps what an earlier page of the request stored', async () => {
+    serveOutbox(Array.from({ length: 45 }, (_, i) => create(i + 1)))
+    served.delete(PAGE_2)
+    const result = await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase, undefined, 40)
+    expect(result.failed).toBeUndefined()
+    expect(result.hasMore).toBe(true)
+    expect(storedApIds()).toHaveLength(20)
+  })
+
+  it('ends without failing at the end of an outbox that was read', async () => {
+    serveOutbox([create(1)])
+    await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase)
+    const result = await fetchRecentPostsInBackground(AUTHOR_ID, OUTBOX, supabase, 'more')
+    expect(result).toMatchObject({ hasMore: false })
+    expect(result.failed).toBeUndefined()
+  })
+})
+
+describe('POST /fetch-posts', () => {
+  const request = () => supertest(express().use(express.json()).use('/', actorRouter))
+    .post('/fetch-posts')
+    .send({ user_id: AUTHOR_ID, outbox_url: OUTBOX })
+
+  it('answers 502 when the outbox cannot be read', async () => {
+    const res = await request()
+    expect(res.status).toBe(502)
+  })
+
+  it('answers 200 with has_more false at the end of the outbox', async () => {
+    serveOutbox([create(1)])
+    const res = await request()
+    expect(res.status).toBe(200)
+    expect(res.body.has_more).toBe(false)
   })
 })
 

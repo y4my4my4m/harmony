@@ -130,6 +130,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatHandle } from '@/utils/handles'
 import { computed, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
@@ -213,9 +214,8 @@ const { action: followAction } = useFollowAction(() => props.user);
 
 // Computed
 
-const handle = computed(() => {
-  return props.user.is_local ? `${props.user.username}` : `${props.user.username}@${props.user.domain}`;
-});
+// Without the leading @.
+const handle = computed(() => formatHandle(props.user).slice(1));
 
 const isCurrentUser = computed(() => {
   return authStore.session?.user?.id === props.user.id;

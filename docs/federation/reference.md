@@ -14,7 +14,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 `GET /.well-known/webfinger?resource=<resource>`, answered as `application/jrd+json`.
 
-- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>`, its profile page `https://<domain>/@<name>` or its page in the web app `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
+- `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>`, its profile page `https://<domain>/@<name>` or the web app's earlier address of it `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
 - An `acct:` name can match a local account and a local chat server at once. The answer then carries one `rel="self"` link per actor, each tagged with its type in `properties["https://www.w3.org/ns/activitystreams#type"]` (`Person` or `Group`). A URL names one actor. Only public, federation-enabled servers resolve, by their slug or Group URL.
 - An account's `aliases` are its actor id and its profile page, and it gets a `http://webfinger.net/rel/profile-page` link to the page. A chat server has no page of its own and gets neither.
 - An account also gets the OStatus remote-follow link, `rel` `http://ostatus.org/schema/1.0/subscribe` with `template` `https://<domain>/authorize_interaction?uri={uri}`. Software that sends a user of this instance to act on an account or a post fills `{uri}` with the account's or the post's URI. The page also takes `acct:user@domain`, `@user@domain` and Lemmy's `!community@domain`. It resolves the URI (a stored row first, else WebFinger for a handle, the post or the actor fetched for a URL), shows the account with **Follow** or the post with **Open post**, and asks a signed-out visitor to sign in first. Chat servers and the instance actor get no such link.
@@ -65,7 +65,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 `GET /servers/directory` lists the chat servers the instance offers to other instances, as an `OrderedCollection` of `Group` summaries. NodeInfo names it in `metadata.serverDirectory`, and the [instance actor](#actors) in `streams` and `harmony:directory`. Responses carry `Cache-Control: no-cache`.
 
-A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner turned on **Discoverable across federation**; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
+A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner has not turned off **Discoverable across federation**, which is on by default; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
 
 | Request | Answer |
 |---|---|
@@ -107,6 +107,14 @@ Harmony reads another instance's directory as follows, and other consumers shoul
 - A join goes through the Group's own document and inbox, as for any server joined by URL.
 
 Pages are cached for 2 minutes, a domain's directory URL for 10 minutes. The directory is read for a signed-in local user only, and not at all while either of the reading instance's federation switches is off.
+
+**Other instances** opens on the servers every known instance lists: the instances in `federated_instances` whose NodeInfo names a directory, none of them blocked. The reading instance's federation backend reads the first page of each, as above, and merges them; the browser fetches nothing from those instances but icons.
+
+| Request | Answer |
+|---|---|
+| `GET /api/federation/directory/servers?q=<text>&offset=<n>&limit=<n>` | `{ items, total, nextOffset, instances, pending, failed, federationOff }` |
+
+Each item is an entry as `GET /api/federation/directory/remote` gives it plus `instance` (`domain`, `name` from NodeInfo `metadata.nodeName`, `icon`). Groups blocked on the reading instance are left out, of `total` too. Member counts are each instance's own claim: every instance's three largest servers come first, then the rest, each part ordered by member count, most first, then by name. `q` keeps those whose name, summary, handle, category or instance contains it, and the order applies to what it keeps. `limit` is 30 by default and at most 60. An instance's servers are kept for 15 minutes; after that they are served while they are read again, for up to 6 hours after the last good read, and a failed read is tried again after 2 minutes. At most four instances are read at once, each read (NodeInfo, directory and page, bodies included) ending after 20 seconds as failed, and a request waits up to 5 seconds for instances it holds nothing of: `pending` counts those still being read, `failed` names those that could not be read. The order changes as instances answer, so while `pending` is above 0 the app reads the rows it shows again from offset 0. While either federation switch is off the answer is empty with `federationOff: true`.
 
 An instance that serves the directory lists `server-directory` in the `capabilities` of `GET /api/federation/instance-info`. Harmony's apps show **Discoverable across federation** and **Other instances** only on such an instance.
 
@@ -533,13 +541,13 @@ With a focal point on an attachment, the context also maps `focalPoint` to `toot
 | `id` | `https://<domain>/posts/<uuid>` |
 | `url` | `https://<domain>/@<username>/<uuid>`, the post's public page. Requested with an ActivityPub `Accept`, that URL answers the `Note`. |
 | `attributedTo` | Author's actor id |
-| `content` | HTML: `<p>` paragraphs, `<br>` line breaks, mentions as Mastodon h-cards (`<span class="h-card"><a class="u-url mention">`), hashtags linked to `/social/hashtag/<name>`, custom emoji as `:shortcode:`, links with `rel="nofollow noopener noreferrer"` |
+| `content` | HTML: `<p>` paragraphs, `<br>` line breaks, mentions as Mastodon h-cards (`<span class="h-card"><a class="u-url mention">`), hashtags linked to `/tags/<name>`, custom emoji as `:shortcode:`, links with `rel="nofollow noopener noreferrer"` |
 | `contentMap` | `{ "<language>": content }` when the post has a language |
 | `summary`, `sensitive` | Content warning; sensitive flag (always present) |
 | `published`, `updated` | Creation time; last edit time on an edited post |
 | `to`, `cc` | See below |
 | `inReplyTo` | The parent's ActivityPub id |
-| `tag` | `Mention` (`href` the stored actor id, `name` the handle), `Hashtag`, `Emoji` |
+| `tag` | `Mention` (`href` the stored actor id, `name` the handle), `Hashtag` (`href` `https://<domain>/tags/<name>`), `Emoji` |
 | `attachment` | `Document` with `mediaType`, `url`, `name` (alt text, never the file name), `blurhash`, `focalPoint` |
 | `likes`, `shares` | Collection with `totalItems` when the count is known, else its URL |
 | `replies` | `/posts/<uuid>/replies` |
@@ -736,6 +744,7 @@ A private chat server is joined by invite. Harmony resolves an invite link `http
     "icon": null,
     "banner": null,
     "memberCount": 42,
+    "onlineCount": 7,
     "rules": [],
     "channels": [
       { "id": "https://chat.example.com/servers/<uuid>/channels/<channel>", "localId": "<channel>", "name": "general", "type": "text", "category": null, "categoryId": null, "order": 0, "description": null }
@@ -746,6 +755,10 @@ A private chat server is joined by invite. Harmony resolves an invite link `http
 ```
 
 The preview lists only what `@everyone` can view. Before showing it, the resolving instance fetches `server.id` and requires a `Group` on the same host as the invite, with its inbox on that host. The `Join` then carries `harmony:inviteCode`, and the host checks the code again.
+
+`onlineCount` counts members whose presence is not offline; hosts before 1.9.4 leave it out. A server closed to other instances answers 403 with `"code": "federation_disabled"`.
+
+An invite link in a message shows as the server's card when the link's host names `harmony` as its software in NodeInfo. The instance storing the message reads this answer for the link's preview (provider `harmony-remote-invite`): the server's name, icon, description, counts and `id`, and the host's NodeInfo `nodeName` and `icon` for the line under the button. The card reads the answer again through the viewer's own instance, cached for a minute.
 
 ## Voice
 

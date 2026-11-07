@@ -63,7 +63,7 @@
           <p v-if="postText" class="authorize-post-text" data-testid="authorize-post-text">{{ postText }}</p>
           <div class="authorize-actions">
             <router-link
-              :to="`/social/post/${state.post.id}`"
+              :to="postPath(state.post)"
               class="authorize-button"
               data-testid="authorize-open-post"
             >
@@ -89,7 +89,9 @@ import { runtimeConfig } from '@/services/runtimeConfig'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useProfileStore } from '@/stores/useProfile'
 import { services } from '@/services'
-import { parseInteractionUri, postPreviewText, profileRouteHandle } from '@/utils/authorizeInteraction'
+import { parseInteractionUri, postPreviewText } from '@/utils/authorizeInteraction'
+import { formatHandle } from '@/utils/handles'
+import { postPath, profilePath as profilePathOf } from '@/utils/permalinks'
 import { debug } from '@/utils/debug'
 import type { FederatedUser, TimelinePost } from '@/types'
 
@@ -115,10 +117,8 @@ const uriText = computed(() => {
   return typeof value === 'string' ? value : Array.isArray(value) ? String(value[0] ?? '') : ''
 })
 
-const handleOf = (user: { username?: string; domain?: string | null; is_local?: boolean } | null | undefined) => {
-  if (!user?.username) return ''
-  return user.is_local === false && user.domain ? `@${user.username}@${user.domain}` : `@${user.username}`
-}
+const handleOf = (user: { username?: string; domain?: string | null; is_local?: boolean } | null | undefined) =>
+  formatHandle(user, { full: true })
 
 const actor = computed(() => (state.value.status === 'actor' ? state.value.user : null))
 const fullHandle = computed(() => handleOf(actor.value as any))
@@ -130,10 +130,7 @@ const bioText = computed(() => {
   const bio = actor.value?.bio as unknown
   return typeof bio === 'string' ? bio : ''
 })
-const profilePath = computed(() => {
-  const handle = actor.value ? profileRouteHandle(actor.value as any) : null
-  return handle ? `/social/profile/${handle}` : null
-})
+const profilePath = computed(() => (actor.value ? profilePathOf(actor.value as any) : null))
 const isSelf = computed(() => !!actor.value && actor.value.id === profileStore.profile?.id)
 const followLabel = computed(() => relation.value === 'following'
   ? t('activitypub.following')

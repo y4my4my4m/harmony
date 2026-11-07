@@ -14,6 +14,7 @@ import {
   generatePairingKeyPair,
   generateSecret,
   isCodeExpired,
+  looksLikePairingCode,
   sealBundle,
   tokenHash,
   verifyProof,
@@ -79,6 +80,22 @@ describe('pairing codes', () => {
     expect(Array.from(back.accountTag)).toEqual(Array.from(await accountTag('profile-1')))
     expect(Array.from(back.secret)).toEqual(Array.from(session.secret))
     expect(back.expiresAt).toBe(session.expiresAt)
+  })
+
+  it('reads a code broken by line breaks, spaces and zero-width characters', async () => {
+    const session = await NewDevicePairingSession.create()
+    const code = await session.code(REQUEST_ID, NOW + 600_000)
+    const text = encodePairingCode(code)
+    const wrapped = [`  ${text.slice(0, 30)}\r\n`, `${text.slice(30, 61)} `, `\t${text.slice(61, 80)}​`, `${text.slice(80)}\n`].join('')
+    expect(looksLikePairingCode(wrapped)).toBe(true)
+    const back = decodePairingCode(wrapped) as NewDeviceCode
+    expect(back.requestId).toBe(REQUEST_ID)
+    expect(Array.from(back.secret)).toEqual(Array.from(session.secret))
+
+    const approver = await ApproverCodeSession.create('profile-1', NOW)
+    const spaced = approver.text().replace(/(.{8})/g, '$1 ')
+    expect(Array.from((decodePairingCode(spaced) as { secret: Uint8Array }).secret)).toEqual(Array.from(approver.secret))
+    expect(looksLikePairingCode(`H M P :${text.slice(4)}`)).toBe(true)
   })
 
   it('refuses text that is not a pairing code', () => {

@@ -12,7 +12,7 @@ export type InteractionTarget =
   | { kind: 'url'; url: string }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
-const LOCAL_POST = new RegExp(`^/(?:social/post|posts)/(${UUID})/?$`, 'i')
+const LOCAL_POST = new RegExp(`^/(?:social/post|posts|@[^/]+)/(${UUID})/?$`, 'i')
 const LOCAL_PROFILE = /^\/(?:social\/profile|users|@)\/?([A-Za-z0-9_]+)\/?$/
 
 /** What `raw` names; null when it is neither a handle nor an http(s) URL. */
@@ -46,12 +46,6 @@ export function parseInteractionUri(raw: unknown, instanceDomain: string | undef
   return { kind: 'url', url: url.href }
 }
 
-/** The /social/profile/:handle segment of an account: `user` here, `user@domain` elsewhere. */
-export function profileRouteHandle(user: { username?: string | null; domain?: string | null; is_local?: boolean | null }): string | null {
-  if (!user?.username) return null
-  const handle = user.domain && user.is_local !== true ? `${user.username}@${user.domain}` : user.username
-  return encodeURIComponent(handle).replace(/%40/g, '@')
-}
 
 /** The text of a post's content parts, for a preview. */
 export function postPreviewText(content: unknown, max = 280): string {

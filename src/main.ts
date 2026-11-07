@@ -20,9 +20,6 @@ import { setAppSessionCookie } from '@/utils/appSessionCookie'
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
 
-import VueEasyLightbox from 'vue-easy-lightbox';
-import './assets/vue-easy-lightbox.css';
-
 import VueLazyLoad from 'vue3-lazyload';
 import MasonryWall from '@yeger/vue-masonry-wall'
 
@@ -34,6 +31,7 @@ import { webrtcManager } from '@/services/webrtcManager';
 import { livekitWebRTC } from '@/services/livekitWebRTC';
 import { detectAvailablePacks } from '@/services/emojiPackService';
 import { installRenderFallback } from '@/utils/renderFallback';
+import { installTvEdgeScroll, isFireTvUserAgent } from '@/utils/tvEdgeScroll';
 import { toastRole } from '@/utils/a11y/toastRole';
 import { installOverlayHistory } from '@/utils/overlayHistory';
 import { isMobileLayout } from '@/composables/useLayoutState';
@@ -46,6 +44,7 @@ if (typeof window !== 'undefined') {
 }
 
 installRenderFallback();
+if (isFireTvUserAgent(navigator.userAgent)) installTvEdgeScroll();
 // Copying rendered messages and posts writes custom emoji as their tokens.
 void import('@/utils/emojiClipboard').then(({ installRenderedEmojiCopy }) => installRenderedEmojiCopy());
 
@@ -94,7 +93,6 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(i18n);
 
-app.use(VueEasyLightbox);
 app.use(MasonryWall)
 
 app.use(VueLazyLoad, {

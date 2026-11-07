@@ -30,6 +30,10 @@ Type in the composer at the bottom of the channel and send:
 - Every file you send is kept in your Drive and counts toward your storage. The clock button on an attachment makes it temporary instead: it is deleted after a number of days the instance sets, 30 by default. When your Drive is full, every upload is temporary. See [Storage and temporary files](/use/drive#storage-and-temporary-files).
 - **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. The **Stickers** tab also lists the server's, the instance's and your own custom stickers above KLIPY's; see [Stickers](/use/stickers). **Emoji picker**, beside it, inserts emoji into your message.
 
+## Profile links
+
+A link to a profile on your instance, `https://<your instance>/@name` or `https://<your instance>/@name@example.social` for an account on another server, shows a profile card: avatar, display name, full handle, the start of the bio, counts, **Follow** and **Open profile**. An account that is suspended or unknown shows **This profile isn't available**. A link to a post, `/@name/ID`, shows the post. See [Addresses and handles](/use/social#addresses-and-handles).
+
 ## Music links
 
 A link to a music service plays in that service's own player inside the message, in place of the preview card:

@@ -234,7 +234,7 @@ services:
   # ports below, livekit.yaml's rtc.tcp_port and rtc.udp_port (one UDP port,
   # multiplexed). The generated livekit.yaml leaves TURN off.
   livekit:
-    image: livekit/livekit-server:v1.9.4
+    image: livekit/livekit-server:v1.13.11
     container_name: harmony-livekit
     restart: unless-stopped
     command: --config /etc/livekit.yaml

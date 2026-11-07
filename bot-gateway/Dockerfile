@@ -23,10 +23,7 @@ RUN npm run build-only \
  && find dist -type f \( -name '*.d.ts' -o -name '*.d.ts.map' \) -delete
 
 # --- production dependencies, on the target platform -------------------------
-# bcrypt is a native addon. Toolchain for platforms without a prebuilt binary;
-# it stays in this stage.
 FROM node:${NODE_VERSION}-alpine AS deps
-RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
@@ -34,6 +31,11 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 # --- runtime -----------------------------------------------------------------
 FROM node:${NODE_VERSION}-alpine
 ENV NODE_ENV=production
+# Alpine fixes newer than the base image. npm, npx and corepack are absent: CMD runs
+# node, and npm's bundled tar, pacote and sigstore carried the image's critical CVEs.
+RUN apk upgrade --no-cache \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY package.json ./
 COPY --from=deps /app/node_modules ./node_modules

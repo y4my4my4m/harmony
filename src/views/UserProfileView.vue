@@ -174,7 +174,8 @@
                     </span>
                   </div>
                   <p class="user-handle">
-                    {{ user.handle }}
+                    <span data-testid="profile-handle">{{ formatHandle(user, { full: true }) }}</span>
+                    <CopyHandleButton :account="user" :size="15" />
                     <span
                       v-if="user.manually_approves_followers"
                       class="locked-badge"
@@ -300,6 +301,7 @@
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :scroll-root="scrollContainerRef"
+              :end-text="t('activitypub.profilePostsEnd', { name: plainDisplayName })"
               :empty-title="postsWithheld ? t('empty.profilePosts.withheldTitle') : t('activitypub.noMoniesHereYet')"
               :empty-message="postsWithheld
                 ? t('empty.profilePosts.withheld', { domain: user.domain })
@@ -446,6 +448,8 @@ import MovedAccountNotice from '@/components/activitypub/MovedAccountNotice.vue'
 import RemoteListNote from '@/components/activitypub/RemoteListNote.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import CopyHandleButton from '@/components/common/CopyHandleButton.vue';
+import { formatHandle } from '@/utils/handles';
 import SocialMenu from '@/components/activitypub/SocialMenu.vue';
 import { useMenuButton } from '@/composables/useMenu';
 import { tablistKeydown } from '@/utils/tablistKeydown';
@@ -1141,8 +1145,8 @@ const loadMorePosts = async () => {
         hasMorePostsRef.value = result.hasMore && emptyOutboxImports < MAX_EMPTY_OUTBOX_IMPORTS;
       }
     } catch (fetchError) {
+      // hasMore stays true: the feed shows the error with Retry rather than an end.
       debug.error('Remote fetch error:', fetchError);
-      hasMorePostsRef.value = false;
     } finally {
       isLoadingMoreRemote.value = false;
     }
@@ -1252,7 +1256,7 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
     name: 'UserProfile', 
     params: { handle } 
   }).then(() => {
-    debug.log(`Navigation completed to: /social/profile/${handle}`);
+    debug.log(`Navigation completed to: /@${handle}`);
   }).catch((error) => {
     debug.error(`Navigation failed:`, error);
   });

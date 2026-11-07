@@ -555,6 +555,14 @@ watch(
   }
 )
 
+// The full thread view has no channel or conversation param.
+watch(
+  () => route.params.threadId,
+  (threadId, prevThreadId) => {
+    if (threadId && threadId !== prevThreadId) closeMobileSidebars()
+  }
+)
+
 // Sync route params to store when navigating to /chat/:serverId/:channelId
 watch(
   () => route.params.serverId as string | undefined,

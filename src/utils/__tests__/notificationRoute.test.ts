@@ -37,9 +37,9 @@ describe('resolveNotificationRoute', () => {
 
   it('opens followers by handle and follow requests in their list', () => {
     expect(route('activitypub_follow', { follower: { username: 'bob', domain: 'remote.social', is_local: false } }))
-      .toBe('/social/profile/bob@remote.social')
+      .toBe('/@bob@remote.social')
     expect(route('activitypub_follow_accepted', { sender: { username: 'amy', is_local: true, domain: 'harmony.test' } }))
-      .toBe('/social/profile/amy')
+      .toBe('/@amy')
     expect(route('activitypub_follow_request', { follower: { username: 'x' } })).toBe('/social/follow-requests')
   })
 

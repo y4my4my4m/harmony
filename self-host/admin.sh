@@ -229,20 +229,40 @@ out({ ok: true, email: user.email });
 '
 
 # An address with a confirmed account gets 422 email_exists and nothing is made; one already
-# invited gets a new link. The invitation is recorded in instance_invites (source cli), as the
-# admin panel records its own; without that table (database not updated) it is listed there as
-# made outside Harmony.
+# invited gets a new link. The printed link is the password page naming GoTrue's hashed_token,
+# not its /auth/v1/verify action_link, which any GET spends (link previews, mail scanners);
+# the page redeems the token when the password is submitted. An invited address confirmed by
+# such a GET, with no password and no profile, gets a recovery token instead (GoTrue makes no
+# invite token for a confirmed address). The invitation is recorded in instance_invites
+# (source cli), as the admin panel records its own; without that table (database not updated)
+# it is listed there as made outside Harmony.
 NODE_INVITE='
 const email = arg("email").toLowerCase();
 const redirect = arg("redirect");
 const send = arg("send") === "1";
-const r = send
+const linkTo = (hash, type) => {
+  const u = new URL(redirect);
+  u.searchParams.set("token_hash", hash);
+  u.searchParams.set("type", type);
+  return u.toString();
+};
+let type = "invite";
+let r = send
   ? await call("POST", `/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { body: { email } })
-  : await call("POST", "/auth/v1/admin/generate_link", { body: { type: "invite", email, redirect_to: redirect } });
-if (r.json?.error_code === "email_exists") fail(`an account with the address ${email} exists; nothing was created`);
+  : await call("POST", "/auth/v1/admin/generate_link", { body: { type, email, redirect_to: redirect } });
+if (r.json?.error_code === "email_exists") {
+  const a = await call("POST", "/rest/v1/rpc/admin_instance_invite_account", { body: { p_email: email } });
+  const open = a.ok && Array.isArray(a.json) && a.json.length > 0
+    && a.json.every((x) => x.invited && !x.accepted && !x.has_profile && !x.revoked);
+  if (!open) fail(`an account with the address ${email} exists; nothing was created`);
+  if (send) fail(`the invitation for ${email} was opened but no password was chosen; run without --send for a new link`);
+  type = "recovery";
+  r = await call("POST", "/auth/v1/admin/generate_link", { body: { type, email, redirect_to: redirect } });
+}
 if (!r.ok) fail(send ? "sending the invitation failed" : "creating the invitation failed", r);
-const link = send ? null : (r.json?.action_link ?? r.json?.properties?.action_link);
-if (!send && !link) fail("GoTrue returned no invitation link", r);
+const hash = send ? null : (r.json?.hashed_token ?? r.json?.properties?.hashed_token);
+if (!send && !hash) fail("GoTrue returned no invitation token", r);
+const link = send ? null : linkTo(hash, type);
 const userId = r.json?.id ?? r.json?.user?.id;
 const rec = userId
   ? await call("POST", "/rest/v1/rpc/admin_record_instance_invite", {
@@ -518,8 +538,8 @@ invite() {
 		die "--send needs SMTP (harmony config); without it, send the printed link yourself"
 	fi
 	local res
-	# The link signs the person in on /reset-password, where they choose a password; the admin
-	# panel's invitations land on the same page.
+	# The link opens /reset-password, where the person chooses a password; the admin panel's
+	# invitations land on the same page.
 	node_call res "$NODE_INVITE" email "$email" redirect "https://$domain/reset-password?invite=1" send "$send"
 	[[ "$(json_field "$res" recorded)" == true ]] ||
 		warn "not recorded in instance_invites (harmony update brings the table); the admin panel lists it as made outside Harmony"

@@ -35,6 +35,7 @@ import embedMediaRouter from './routes/embedMedia.js';
 import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
 import adminInvitesRouter from './routes/adminInvites.js';
+import adminEmojisRouter from './routes/adminEmojis.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -49,6 +50,7 @@ import serverDirectoryRouter from './activitypub/serverDirectory.js';
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
 import directoryRouter from './routes/directory.js';
+import remoteInviteRouter from './routes/remoteInvite.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
@@ -142,6 +144,8 @@ export function createApp(): Application {
   app.use('/api/federation/account', accountMigrationRouter);
   app.use('/admin/invites', adminInvitesRouter);
   app.use('/api/federation/admin/invites', adminInvitesRouter);
+  app.use('/admin/emojis', adminEmojisRouter);
+  app.use('/api/federation/admin/emojis', adminEmojisRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json
@@ -176,6 +180,7 @@ export function createApp(): Application {
   app.use('/', threadRouter);
   app.use('/', instanceProbeRouter);
   app.use('/', directoryRouter);
+  app.use('/', remoteInviteRouter);
   app.use('/', actorRouter);
   app.use('/', inboxRouter);
 
