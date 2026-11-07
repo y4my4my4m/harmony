@@ -199,6 +199,18 @@ test('a member whose row delete never lands is removed when LiveKit reports them
   await b.context().close()
 })
 
+test('a page closed while its call is still connecting leaves no seat behind', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const page = await openAs(browser, alice)
+  // The token never arrives: the row is written, the transport never connects.
+  await page.route('**/api/livekit/token', () => {})
+  await joinLounge(page)
+  await seated(alice)
+  await page.close()
+  await unseated(alice)
+  await page.context().close()
+})
+
 test('a call last seen connected over 3 hours ago is not resumed on app start; one within 3 hours is', async ({ browser }) => {
   test.setTimeout(150_000)
   const context = await browser.newContext()

@@ -604,7 +604,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
@@ -756,7 +756,11 @@ watch(
 
 // Funding management methods
 const loadFundingData = async () => {
-  const config = await fundingService.getFundingConfig()
+  const [config, kofiToken, stripeSecret] = await Promise.all([
+    fundingService.getFundingConfig(),
+    fundingService.getKofiWebhookToken(),
+    fundingService.getStripeWebhookSecret(),
+  ])
   if (config) {
     fundingEnabled.value = config.enabled
     fundingShowInBar.value = config.show_in_context_bar
@@ -773,19 +777,30 @@ const loadFundingData = async () => {
     messagesEnabled.value = config.supporter_messages_enabled !== false
     messagesPublic.value = config.supporter_messages_public !== false
   }
-  if (supportsMessages) adminMessages.value = await fundingService.adminListSupporterMessages()
-  kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
-  savedKofiWebhookToken = kofiWebhookToken.value
-  stripeWebhookSecret.value = await fundingService.getStripeWebhookSecret()
-  savedStripeWebhookSecret = stripeWebhookSecret.value
-  supporterTiers.value = await fundingService.getTiers()
-  supporters.value = await fundingService.getSupporters()
-  donationHistory.value = await fundingService.getDonationHistory()
-  donationStats.value = await fundingService.getDonationStats()
-  pendingDonations.value = await fundingService.getPendingDonations()
-  pendingDonationCount.value = pendingDonations.value.filter(p => !p.resolved_at).length
-  // Reset after populating to avoid false dirty state from watchers
+  kofiWebhookToken.value = kofiToken
+  savedKofiWebhookToken = kofiToken
+  stripeWebhookSecret.value = stripeSecret
+  savedStripeWebhookSecret = stripeSecret
+  // The change watcher runs before the next render: the loaded values mark nothing changed,
+  // and an edit made while the lists below load is kept.
+  await nextTick()
   fundingChanged.value = false
+
+  const [messages, tiers, supporterList, history, stats, pending] = await Promise.all([
+    supportsMessages ? fundingService.adminListSupporterMessages() : Promise.resolve(adminMessages.value),
+    fundingService.getTiers(),
+    fundingService.getSupporters(),
+    fundingService.getDonationHistory(),
+    fundingService.getDonationStats(),
+    fundingService.getPendingDonations(),
+  ])
+  adminMessages.value = messages
+  supporterTiers.value = tiers
+  supporters.value = supporterList
+  donationHistory.value = history
+  donationStats.value = stats
+  pendingDonations.value = pending
+  pendingDonationCount.value = pending.filter(p => !p.resolved_at).length
 }
 
 const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {

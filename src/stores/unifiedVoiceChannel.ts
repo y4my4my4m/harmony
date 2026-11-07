@@ -1564,15 +1564,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // From authStore: localState.userId can still be empty here.
       const currentUserId = authStore.session?.user?.id;
 
-      // A closing page leaves its server voice channel; a crash or kill is left to the
-      // server's LiveKit reconciliation.
+      // A closing page leaves its server voice channel, joined or still joining: the row is
+      // written before the transport connects. A crash or kill is left to the server's LiveKit
+      // reconciliation.
       if (typeof window !== 'undefined') {
         window.addEventListener('pagehide', () => {
-          const serverId = this.currentServerId;
-          const channelId = this.currentChannelId;
-          if (!this.isConnected || !serverId || !channelId || serverId === 'dm' || this.isFederatedChannel) return;
-          serverUsersStore.leaveVoiceChannelOnUnload(
-            serverId, channelId, this.localState.userId, authStore.session?.access_token);
+          const serverId = this.isConnected ? this.currentServerId : this.optimisticServerId;
+          const channelId = this.isConnected ? this.currentChannelId : this.optimisticChannelId;
+          const userId = this.localState.userId || authStore.session?.user?.id;
+          if (!serverId || !channelId || !userId || serverId === 'dm' || this.isFederatedChannel) return;
+          serverUsersStore.leaveVoiceChannelOnUnload(serverId, channelId, userId, authStore.session?.access_token);
         });
       }
       
