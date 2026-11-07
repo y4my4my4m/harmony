@@ -110,6 +110,7 @@ import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseEmojiOrigin } from './cases/emojiOrigin.ts'
+import { caseChannelReactionUndo } from './cases/channelReactionUndo.ts'
 import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
@@ -2851,6 +2852,10 @@ async function main() {
     await caseChannelPermissions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
+    })
+    await caseChannelReactionUndo({
+      db, peer, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, assert, eq,
+      ids: { alice: ALICE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
     })
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,

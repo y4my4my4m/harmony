@@ -2536,6 +2536,7 @@
     "loadFailedTitle": "Beiträge konnten nicht geladen werden",
     "loadFailedMessage": "Prüfe deine Verbindung und versuche es erneut.",
     "loadMoreFailed": "Weitere Beiträge konnten nicht geladen werden.",
+    "profilePostsEnd": "Keine älteren Beiträge von {name}.",
     "loadingMore": "Weitere Beiträge werden geladen",
     "noBookmarksYet": "Noch keine Lesezeichen",
     "noBookmarksHint": "Setze ein Lesezeichen für einen Beitrag, um ihn später hier zu finden.",

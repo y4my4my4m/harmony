@@ -11,7 +11,7 @@ import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleMessageReactionJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, reaction_id, message_id, user_id, emoji } = data;
+  const { type, reaction_id, message_id, user_id, emoji_id, custom_emoji_content } = data;
 
   logger.info(`Processing message reaction job: ${type} for reaction ${reaction_id}`);
 
@@ -50,7 +50,8 @@ export async function handleMessageReactionJob(data: FederationJobData): Promise
         id: reaction_id,
         message_id,
         user_id,
-        emoji
+        emoji_id,
+        custom_emoji_content,
       });
     }
 

@@ -23,10 +23,67 @@ interface ReactionPayload {
 }
 
 interface ReactionDeletePayload {
+  /** Id of the deleted row; names the Like being undone. */
+  reaction_id?: string;
   message_id: string;
   user_id: string;
-  emoji_id?: string;
+  emoji_id?: string | null;
+  /** The deleted row's custom_emoji_content; the row is gone when the job runs. */
+  custom_emoji_content?: string | null;
 }
+
+/**
+ * The Like a channel reaction federates as. Its id derives from the reaction row, so the
+ * Undo names the same activity, and the Undo carries the same content and Emoji tag: the
+ * receiver (ActivityProcessor.removeMessageReactions) matches the row to remove by that
+ * emoji, not by id.
+ */
+function reactionLike(
+  userApId: string,
+  messageApId: string,
+  reactionId: string | undefined,
+  emojiContent: string,
+  emojiData: { name: string; url: string } | null,
+): Record<string, unknown> {
+  return {
+    id: reactionId ? `${userApId}/reactions/${reactionId}` : `${userApId}/activities/${crypto.randomUUID()}`,
+    type: 'Like',
+    actor: userApId,
+    object: messageApId,
+    content: emojiContent,
+    _misskey_reaction: emojiContent,
+    tag: emojiData ? [{
+      type: 'Emoji',
+      id: emojiData.url,
+      name: emojiContent,
+      icon: { type: 'Image', mediaType: emojiMediaType(emojiData.url), url: emojiData.url },
+    }] : undefined,
+  };
+}
+
+/** Image type by the file extension of an emoji URL; PNG when it names none. */
+function emojiMediaType(url: string): string {
+  const ext = /\.([a-z0-9]+)(?:[?#]|$)/i.exec(url)?.[1]?.toLowerCase();
+  switch (ext) {
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'avif': return 'image/avif';
+    case 'svg': return 'image/svg+xml';
+    default: return 'image/png';
+  }
+}
+
+const REACTION_CONTEXT = [
+  'https://www.w3.org/ns/activitystreams',
+  {
+    harmony: HARMONY_NS,
+    'toot': 'http://joinmastodon.org/ns#',
+    'Emoji': 'toot:Emoji',
+    'misskey': 'https://misskey-hub.net/ns#',
+    '_misskey_reaction': 'misskey:_misskey_reaction',
+  },
+];
 
 /**
  * Inboxes a local user's reaction goes to. On a remote server's channel, the server's own
@@ -119,31 +176,9 @@ export async function handleChannelReactionFederation(
       reaction.custom_emoji_content,
     );
 
-    const emojiTags = emojiData ? [{
-      type: 'Emoji',
-      id: emojiData.url,
-      name: emojiContent,
-      icon: { type: 'Image', mediaType: 'image/png', url: emojiData.url },
-    }] : undefined;
-
     const activity: any = {
-      '@context': [
-        'https://www.w3.org/ns/activitystreams',
-        {
-          harmony: HARMONY_NS,
-          'toot': 'http://joinmastodon.org/ns#',
-          'Emoji': 'toot:Emoji',
-          'misskey': 'https://misskey-hub.net/ns#',
-          '_misskey_reaction': 'misskey:_misskey_reaction',
-        },
-      ],
-      id: `${userApId}/activities/${crypto.randomUUID()}`,
-      type: 'Like',
-      actor: userApId,
-      object: messageApId,
-      content: emojiContent,
-      _misskey_reaction: emojiContent,
-      tag: emojiTags,
+      '@context': REACTION_CONTEXT,
+      ...reactionLike(userApId, messageApId, reaction_id, emojiContent, emojiData),
       published: new Date().toISOString(),
     };
 
@@ -172,7 +207,7 @@ export async function handleChannelReactionRemoval(
   payload: ReactionDeletePayload
 ): Promise<void> {
   try {
-    const { message_id, user_id, emoji_id } = payload;
+    const { reaction_id, message_id, user_id, emoji_id, custom_emoji_content } = payload;
     const supabase = getSupabaseClient();
     const hostDomain = config.INSTANCE_DOMAIN;
 
@@ -215,43 +250,21 @@ export async function handleChannelReactionRemoval(
       return;
     }
 
-    // Try to get custom_emoji_content from the reaction (may already be deleted)
-    const { data: existingReaction } = await supabase
-      .from('reactions')
-      .select('custom_emoji_content')
-      .eq('message_id', message_id)
-      .eq('user_id', user_id)
-      .maybeSingle();
-
-    const { content: emojiContent } = await resolveOutboundEmoji(
+    const { content: emojiContent, emojiData } = await resolveOutboundEmoji(
       emoji_id,
-      existingReaction?.custom_emoji_content,
+      custom_emoji_content,
     );
 
     const userApId = user.federated_id || `https://${hostDomain}/users/${user.username}`;
     const messageApId = message.metadata?.ap_id || `https://${hostDomain}/messages/${message_id}`;
+    const undone = reactionLike(userApId, messageApId, reaction_id, emojiContent, emojiData);
 
-    const originalLikeId = `${userApId}/likes/${message_id}`;
-    
     const undoActivity = {
-      '@context': [
-        'https://www.w3.org/ns/activitystreams',
-        {
-          'misskey': 'https://misskey-hub.net/ns#',
-          '_misskey_reaction': 'misskey:_misskey_reaction',
-        },
-      ],
+      '@context': REACTION_CONTEXT,
       id: `${userApId}/activities/${crypto.randomUUID()}`,
       type: 'Undo',
       actor: userApId,
-      object: {
-        id: originalLikeId,
-        type: 'Like',
-        actor: userApId,
-        object: messageApId,
-        content: emojiContent,
-        _misskey_reaction: emojiContent,
-      },
+      object: undone,
       published: new Date().toISOString(),
     };
 

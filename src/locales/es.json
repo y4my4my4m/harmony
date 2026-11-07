@@ -2595,6 +2595,7 @@
     "loadFailedTitle": "No se pudieron cargar las publicaciones",
     "loadFailedMessage": "Comprueba tu conexión e inténtalo de nuevo.",
     "loadMoreFailed": "No se pudieron cargar más publicaciones.",
+    "profilePostsEnd": "No hay publicaciones más antiguas de {name}.",
     "loadingMore": "Cargando más publicaciones",
     "noBookmarksYet": "Aún no hay marcadores",
     "noBookmarksHint": "Añade una publicación a marcadores para encontrarla aquí más tarde.",

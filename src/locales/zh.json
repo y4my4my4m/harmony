@@ -2536,6 +2536,7 @@
     "loadFailedTitle": "无法加载帖子",
     "loadFailedMessage": "请检查您的网络连接并重试。",
     "loadMoreFailed": "无法加载更多帖子。",
+    "profilePostsEnd": "{name} 没有更早的帖子了。",
     "loadingMore": "正在加载更多帖子",
     "noBookmarksYet": "暂无书签",
     "noBookmarksHint": "将帖子加入书签，以后可以在这里找到。",

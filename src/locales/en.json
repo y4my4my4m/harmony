@@ -2649,6 +2649,7 @@
     "loadFailedTitle": "Couldn't load posts",
     "loadFailedMessage": "Check your connection and try again.",
     "loadMoreFailed": "Couldn't load more posts.",
+    "profilePostsEnd": "No older posts from {name}.",
     "loadingMore": "Loading more posts",
     "noBookmarksYet": "No bookmarks yet",
     "noBookmarksHint": "Bookmark a post to find it here later.",

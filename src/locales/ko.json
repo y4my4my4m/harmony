@@ -2536,6 +2536,7 @@
     "loadFailedTitle": "게시물을 불러오지 못했습니다",
     "loadFailedMessage": "연결 상태를 확인하고 다시 시도하세요.",
     "loadMoreFailed": "게시물을 더 불러오지 못했습니다.",
+    "profilePostsEnd": "{name}님의 이전 게시물이 더 없습니다.",
     "loadingMore": "게시물 더 불러오는 중",
     "noBookmarksYet": "아직 북마크가 없습니다",
     "noBookmarksHint": "게시물을 북마크하면 나중에 여기에서 찾을 수 있습니다.",

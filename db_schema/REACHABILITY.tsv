@@ -187,6 +187,7 @@ check_encryption_policy	invoker	jsonb	service_role	service key	nothing reference
 check_key_consistency	definer	TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)	service_role	client	rpc in federation-backend/src/queue/handlers/maintenanceHandler.ts, federation-backend/src/routes/health.ts
 check_message_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_check_message_emoji_reaction_limit)
 check_message_sticker_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (check_message_sticker_parts)
+check_reaction_emoji	definer	trigger	service_role	trigger	trigger public.reactions BEFORE INSERT/UPDATE (b_reactions_emoji_check)
 claim_ap_activity	definer	boolean	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 claim_device_recovery_trust	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 claim_outgoing_webhook_delivery	definer	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	service_role	client	rpc in federation-backend/src/services/OutgoingWebhookSender.ts
@@ -741,6 +742,7 @@ queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_ou
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
 queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public.notifications AFTER UPDATE STATEMENT (trg_queue_push_dismissal_on_read)
+reaction_content_well_formed	invoker	boolean	-	trigger	called by check_reaction_emoji
 recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/donations.ts, src/services/FundingService.ts
 record_ai_emoji_generation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT (record_ai_emoji_generation)
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts

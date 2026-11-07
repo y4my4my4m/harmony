@@ -2595,6 +2595,7 @@
     "loadFailedTitle": "投稿を読み込めませんでした",
     "loadFailedMessage": "接続を確認して、もう一度お試しください。",
     "loadMoreFailed": "さらに投稿を読み込めませんでした。",
+    "profilePostsEnd": "{name}さんのこれより古い投稿はありません。",
     "loadingMore": "さらに投稿を読み込み中",
     "noBookmarksYet": "ブックマークはまだありません",
     "noBookmarksHint": "投稿をブックマークすると、後でここから見つけられます。",

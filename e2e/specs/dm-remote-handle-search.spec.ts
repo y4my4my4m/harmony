@@ -101,6 +101,9 @@ test('the DM sidebar looks up a remote handle this instance has not met', async 
     await search(page, '')
     await search(page, `${remote.username}@${remoteDomain}`)
     await expect(results.filter({ hasText: remote.username })).toHaveCount(1, { timeout: 30000 })
+    await search(page, '')
+    await search(page, `@${remote.username}@${remoteDomain}`)
+    await expect(results.filter({ hasText: remote.username })).toHaveCount(1, { timeout: 30000 })
     expect(lookups).toHaveLength(1)
   })
 

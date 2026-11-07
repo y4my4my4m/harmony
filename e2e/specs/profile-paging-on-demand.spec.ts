@@ -180,6 +180,7 @@ test('a remote profile with one post ends without an error', async ({ page }) =>
   await expect.poll(imports, { timeout: 15000 }).toBe(1)
   await expect(page.getByTestId('feed-footer')).toHaveCount(0, { timeout: 15000 })
   await expect(page.getByText(LOAD_FAILED)).toHaveCount(0)
+  await expect(page.getByTestId('feed-end')).toHaveText('No older posts from Solo.')
 })
 
 test('a failed outbox import is sent again before the error shows', async ({ page }) => {
@@ -203,6 +204,7 @@ test('a failed outbox import is sent again before the error shows', async ({ pag
     await footer.getByTestId('feed-load-more').click()
     await expect(footer).toContainText(LOAD_FAILED, { timeout: 15000 })
     await expect(footer.getByRole('button', { name: 'Retry' })).toBeVisible()
+    await expect(page.getByTestId('feed-end')).toHaveCount(0)
     expect(imports()).toBe(3)
     await page.waitForTimeout(3000)
     expect(imports()).toBe(3)

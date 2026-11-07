@@ -2536,6 +2536,7 @@
     "loadFailedTitle": "Impossible de charger les publications",
     "loadFailedMessage": "Vérifiez votre connexion et réessayez.",
     "loadMoreFailed": "Impossible de charger plus de publications.",
+    "profilePostsEnd": "Aucune publication plus ancienne de {name}.",
     "loadingMore": "Chargement de publications supplémentaires",
     "noBookmarksYet": "Aucun marque-page pour le moment",
     "noBookmarksHint": "Ajoutez une publication aux marque-pages pour la retrouver ici plus tard.",

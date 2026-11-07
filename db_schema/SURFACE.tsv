@@ -187,6 +187,7 @@ check_encryption_policy	p_server_id uuid	jsonb	invoker	public, extensions, pg_te
 check_key_consistency		TABLE(user_id uuid, username text, has_public_key boolean, has_private_key boolean)	definer	public, pg_temp	service_role	client
 check_message_emoji_reaction_limit		trigger	definer	public, pg_temp	service_role	trigger
 check_message_sticker_parts		trigger	definer	public, pg_temp	service_role	trigger
+check_reaction_emoji		trigger	definer	public, pg_temp	service_role	trigger
 claim_ap_activity	p_ap_id text	boolean	definer	public, pg_temp	service_role	client
 claim_device_recovery_trust	p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
 claim_outgoing_webhook_delivery	p_delivery_id uuid	TABLE(delivery_id uuid, webhook_id uuid, url text, secret text, event text, payload jsonb, attempts integer, created_at timestamp with time zone, defer_ms integer)	definer	public, pg_temp	service_role	client
@@ -741,6 +742,7 @@ queue_outgoing_webhook_ping	p_webhook outgoing_webhooks	uuid	definer	public, pg_
 queue_push_dismissal	p_user_id uuid, p_ids uuid[]	void	definer	public, pg_temp	service_role	unreferenced
 queue_push_dismissal_on_delete		trigger	definer	public, pg_temp	service_role	trigger
 queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigger
+reaction_content_well_formed	p_content text	boolean	invoker	public, pg_temp		unreferenced
 recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 record_ai_emoji_generation		trigger	definer	public, pg_temp	service_role	trigger
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client

@@ -301,6 +301,7 @@
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :scroll-root="scrollContainerRef"
+              :end-text="t('activitypub.profilePostsEnd', { name: plainDisplayName })"
               :empty-title="postsWithheld ? t('empty.profilePosts.withheldTitle') : t('activitypub.noMoniesHereYet')"
               :empty-message="postsWithheld
                 ? t('empty.profilePosts.withheld', { domain: user.domain })

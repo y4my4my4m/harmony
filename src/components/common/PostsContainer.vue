@@ -109,6 +109,7 @@
           <span>{{ isLoading ? t('activitypub.loadingMore') : t('activitypub.loadMoreMonies') }}</span>
         </button>
       </div>
+      <p v-else-if="endText && posts.length > 0" class="feed-end feed-column" data-testid="feed-end">{{ endText }}</p>
     </template>
   </div>
 </template>
@@ -147,6 +148,8 @@ interface Props {
    * Rows are windowed against it.
    */
   scrollRoot?: HTMLElement | null
+  /** Shown under the last post once the list has ended. */
+  endText?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -663,6 +666,14 @@ onUnmounted(() => {
   .skeleton-line {
     animation: none;
   }
+}
+
+.feed-end {
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 .loading-more {
