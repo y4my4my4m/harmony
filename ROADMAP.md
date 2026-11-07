@@ -27,6 +27,9 @@ These ship before anything else. Each has a corresponding entry in `BUGS.md`.
 4. **Notify moderators of new reports.**
    `create_report`, `create_federated_report` and `create_federated_server_report` insert the report and notify nobody; only the reporter hears back (`report_update`). The pending count (`get_pending_reports_count`) shows only inside the admin Reports screen. Notify instance staff for instance reports and the server's moderators (`can_current_user_moderate_server_reports`) for server-scoped ones, with a notification type they can mute, and a pending-count badge on the moderation entry.
 
+5. **Warn before posting a sign-in link.**
+   Invitation and password-reset links carry a single-use token: whoever opens one first can claim the account, and a self-hoster pasted one into a public support channel. The composer recognises Harmony and GoTrue sign-in links (`/auth/v1/verify?token=…`, `/reset-password?…token_hash=…`) in any message and asks before sending, with "Send anyway" and a short explanation; a link already posted shows a muted "sign-in link" hint instead of a preview.
+
 *(Discord bridge issues, including mention resolution (`BUGS.md` H41, H42), are tracked in [harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge).)*
 
 ## Later (scale & polish)
