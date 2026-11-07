@@ -117,6 +117,7 @@ import { caseQuoteNotifications } from './cases/notif.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
 import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
+import { caseVoicePresenceRefresh } from './cases/voicePresenceRefresh.ts'
 import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { casePrivateCategories } from './cases/privateCategories.ts'
@@ -2839,6 +2840,16 @@ async function main() {
       ids: {
         hostedServer: PRIV_SERVER, hostedVoice: PRIV_VOICE, ownerAuth: ALICE_AUTH, remote: REMOTE,
         bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
+      },
+    })
+    // Its two signed presences spend the peer's inbox budget too.
+    await caseVoicePresenceRefresh({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, localAlice: LOCAL_ALICE,
+      peerSends: (target, activity) => peerSends(peer, target, activity),
+      verifySignature: backend.verifySignature, assert, eq,
+      ids: {
+        alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedVoice: PRIV_VOICE,
+        remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
       },
     })
     await caseSoundboardTokenGrants({

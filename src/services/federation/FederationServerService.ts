@@ -480,16 +480,18 @@ export class FederationServerService {
   }
 
   /**
-   * The servers the known instances list, merged by this instance's backend. `unsupported`: the
-   * backend serves no merged list (before 1.9.4).
+   * The servers the known instances list, merged by this instance's backend; `limit` rows, the
+   * backend's default when absent. `unsupported`: the backend serves no merged list (before 1.9.4).
    */
   async listAdvertisedServers(
     query = '',
     offset = 0,
+    limit?: number,
   ): Promise<{ ok: true; page: AdvertisedPage } | { ok: false; unsupported: boolean }> {
     const params = new URLSearchParams()
     if (query.trim()) params.set('q', query.trim())
     if (offset > 0) params.set('offset', String(offset))
+    if (limit) params.set('limit', String(limit))
     try {
       const search = params.toString()
       const response = await fetch(federationApi(`/directory/servers${search ? `?${search}` : ''}`), {

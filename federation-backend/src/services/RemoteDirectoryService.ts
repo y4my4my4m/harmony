@@ -195,13 +195,17 @@ export function directoryEntry(item: any, domain: string): RemoteDirectoryEntry 
   };
 }
 
-/** NodeInfo 2.1 or 2.0 of `domain`: null when it publishes none, undefined when it did not answer. */
-export async function fetchNodeinfo(domain: string): Promise<any | null | undefined> {
+/**
+ * NodeInfo 2.1 or 2.0 of `domain`: null when it publishes none, undefined when it did not answer.
+ * `signal` aborts both reads, bodies included.
+ */
+export async function fetchNodeinfo(domain: string, signal?: AbortSignal): Promise<any | null | undefined> {
   try {
     const wellKnown = await safeFetch(`https://${domain}/.well-known/nodeinfo`, {
       headers: { Accept: 'application/json' },
       timeoutMs: NODEINFO_TIMEOUT_MS,
       maxBodyBytes: NODEINFO_MAX_BYTES,
+      signal,
     });
     if (!wellKnown.ok) return wellKnown.status === 404 ? null : undefined;
     const links = (await wellKnown.json())?.links;
@@ -215,6 +219,7 @@ export async function fetchNodeinfo(domain: string): Promise<any | null | undefi
       headers: { Accept: 'application/json' },
       timeoutMs: NODEINFO_TIMEOUT_MS,
       maxBodyBytes: NODEINFO_MAX_BYTES,
+      signal,
     });
     if (!nodeinfo.ok) return undefined;
     return await nodeinfo.json();
@@ -230,13 +235,13 @@ async function recordDirectory(domain: string, url: string | null): Promise<void
 }
 
 /** The directory `domain`'s NodeInfo names. */
-export async function lookupDirectory(domain: string, opts: { fresh?: boolean } = {}): Promise<DirectoryLookup> {
+export async function lookupDirectory(domain: string, opts: { fresh?: boolean; signal?: AbortSignal } = {}): Promise<DirectoryLookup> {
   const key = `srvdir:url:${domain}`;
   if (!opts.fresh) {
     const hit = await cache.getAsync<DirectoryLookup>(key);
     if (hit) return hit;
   }
-  const nodeinfo = await fetchNodeinfo(domain);
+  const nodeinfo = await fetchNodeinfo(domain, opts.signal);
   if (nodeinfo === undefined) return { status: 'unreachable' };
   const url = urlOnDomain(nodeinfo?.metadata?.serverDirectory, domain);
   const answer: DirectoryLookup = url
@@ -252,11 +257,12 @@ export async function lookupDirectory(domain: string, opts: { fresh?: boolean } 
   return answer;
 }
 
-async function fetchCollectionDoc(url: string, domain: string): Promise<any | null> {
+async function fetchCollectionDoc(url: string, domain: string, signal?: AbortSignal): Promise<any | null> {
   try {
     const response = await SignatureService.signedApFetch(url, {
       timeoutMs: DIRECTORY_TIMEOUT_MS,
       maxBodyBytes: DIRECTORY_MAX_BYTES,
+      signal,
     });
     const fetched = await readApDocument(response, url);
     if (!fetched || urlHost(fetched.finalUrl) !== domain || urlHost(fetched.doc?.id) !== domain) return null;
@@ -288,14 +294,16 @@ export async function groupsBlockedHere(ids: string[]): Promise<Set<string>> {
 
 /**
  * One page of the directory at `url` on `domain`: the collection's first page, or the page at
- * `url` itself. Null when it cannot be read.
+ * `url` itself. Null when it cannot be read. `signal` aborts the reads, bodies included.
  */
-export async function readDirectoryPage(domain: string, directory: string, url: string): Promise<RemoteDirectoryPage | null> {
+export async function readDirectoryPage(
+  domain: string, directory: string, url: string, signal?: AbortSignal,
+): Promise<RemoteDirectoryPage | null> {
   const key = `srvdir:page:${url}`;
   const hit = await cache.getAsync<RemoteDirectoryPage>(key);
   if (hit) return hit;
 
-  const doc = await fetchCollectionDoc(url, domain);
+  const doc = await fetchCollectionDoc(url, domain, signal);
   if (!doc) return null;
 
   let page: any = null;
@@ -310,7 +318,7 @@ export async function readDirectoryPage(domain: string, directory: string, url: 
       page = doc.first;
     } else {
       const first = urlOnDomain(linkOf(doc.first), domain);
-      page = first ? await fetchCollectionDoc(first, domain) : null;
+      page = first ? await fetchCollectionDoc(first, domain, signal) : null;
     }
   }
   if (!page) return null;

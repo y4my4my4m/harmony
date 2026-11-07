@@ -46,7 +46,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     voiceChannelBroadcast: null as RealtimeChannel | null,
     // Server whose voice-channels topic voiceChannelBroadcast holds.
     voiceBroadcastServerId: null as string | null,
-    // That server's rows are in voice_channel_participants: it is not a remote server's copy.
+    // That server is not a remote server's copy.
     voiceBroadcastServerLocal: true,
     // voice-channel:{channelId} topics of that server's restricted channels
     // this user can view (get_restricted_voice_channels).
@@ -285,10 +285,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
      * cannot view has its own voice-channel:{channelId} topic, opened here only
      * for the restricted channels this user can view.
      *
-     * The roster of a local server is read from voice_channel_participants here, on every
-     * (re)join of the topic, when the tab is shown again and when the network returns:
-     * a user-left sent while this client was elsewhere or offline is never replayed.
-     * A remote server's copy has no rows; its roster is the broadcasts alone.
+     * The roster is read from voice_channel_participants here, on every (re)join of the
+     * topic, when the tab is shown again and when the network returns: a user-left sent
+     * while this client was elsewhere or offline is never replayed. `local: false` names a
+     * remote server's copy (reloadVoiceRoster).
      */
     async setupVoiceChannelBroadcast(serverId: string, opts: { local?: boolean } = {}) {
       if (this.voiceChannelBroadcast) {
@@ -429,9 +429,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
     /**
      * Replaces the roster of a server's channels with its voice_channel_participants rows.
-     * A remote server copy holds the rows its host's presence activities wrote
-     * (VoiceActivityHandler.recordRemotePresence). Recent occupancy changes
-     * (ROSTER_EVENT_GRACE_MS) win over the read; this client's own call is kept.
+     * Recent occupancy changes (ROSTER_EVENT_GRACE_MS) win over the read; this client's own
+     * call is kept. A remote server's copy holds rows for its host's people only
+     * (VoiceActivityHandler.recordRemotePresence); this instance's callers there write no row,
+     * are known from their broadcasts and request-state answers, and stay listed.
      */
     async reloadVoiceRoster(serverId: string): Promise<void> {
       if (serverId === 'dm' || serverId !== this.voiceBroadcastServerId) return;
@@ -475,9 +476,39 @@ export const useServerUsersStore = defineStore('serverUsers', {
       const ownChannel = voiceStore.isConnected && voiceStore.currentServerId === serverId
         ? voiceStore.currentChannelId
         : voiceStore.optimisticServerId === serverId ? voiceStore.optimisticChannelId : null;
-      if (ownChannel && !voiceStore.isFederatedChannel && voiceStore.localState.userId) {
+      if (ownChannel && voiceStore.localState.userId) {
         channelServers.set(ownChannel, serverId);
         add(ownChannel, voiceStore.localState.userId);
+      }
+
+      if (!this.voiceBroadcastServerLocal) {
+        const unread = new Set<string>();
+        for (const [channelId, owner] of channelServers) {
+          if (owner !== serverId) continue;
+          for (const userId of this.usersInVoiceChannels[channelId] ?? []) {
+            if (!rosters[channelId]?.includes(userId)) unread.add(userId);
+          }
+        }
+        if (unread.size > 0) {
+          // One read for every listed caller without a row.
+          const { data: locals, error } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('id', [...unread])
+            .eq('is_local', true);
+          if (error) {
+            debug.warn('Voice roster locality read failed:', error.message);
+            return;
+          }
+          if (serverId !== this.voiceBroadcastServerId) return;
+          const local = new Set((locals ?? []).map((row: { id: string }) => row.id));
+          for (const [channelId, owner] of channelServers) {
+            if (owner !== serverId) continue;
+            for (const userId of this.usersInVoiceChannels[channelId] ?? []) {
+              if (local.has(userId)) add(channelId, userId);
+            }
+          }
+        }
       }
 
       for (const [channelId, owner] of channelServers) {

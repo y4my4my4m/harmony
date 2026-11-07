@@ -334,7 +334,6 @@ const router = createRouter({
             if (post?.id) {
               return {
                 name: 'PostDetail',
-          meta: { titleKey: 'activitypub.post' },
                 params: { postId: post.id },
                 query: to.query,
                 replace: true,

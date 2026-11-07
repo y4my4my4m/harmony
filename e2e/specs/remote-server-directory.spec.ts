@@ -13,8 +13,11 @@
 // - Join opens Join remote server on the server's Group; joining sends a signed Join to its inbox
 //   and opens the server.
 // - At phone width the tab and its list fit the screen.
+// - With GET /directory/servers stubbed: an instance that answers after Load more still shows its
+//   servers above the rows already shown (the rows on screen are read again from the top), and
+//   a failed read for a new filter shows the error, not the previous filter's servers.
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 import crypto from 'node:crypto'
 import { adminClient, createUser, deleteUser, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
 import { startBackend, type Backend } from './backend'
@@ -184,4 +187,73 @@ test('at phone width Other instances fits the screen', async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(0)
   const input = await dialog.getByTestId('remote-directory-domain').evaluate((el) => getComputedStyle(el).fontSize)
   expect(input).toBe('16px')
+})
+
+test('an instance that answers late shows above the rows already loaded; a failed filter shows the error', async ({ page }) => {
+  test.setTimeout(120_000)
+  const domain = `late-${crypto.randomUUID().slice(0, 8)}.e2e.test`
+  const entry = (name: string, members: number) => ({
+    id: `https://${domain}/servers/${crypto.randomUUID()}`, name, summary: '', icon: null, memberCount: members,
+    handle: null, category: null, instance: { domain, name: null, icon: null },
+  })
+  const early = Array.from({ length: 40 }, (_, i) => entry(`Early ${String(i).padStart(2, '0')}`, 100 - i))
+  const late = entry('Late Arrival', 500)
+  const ranked = [late, ...early]
+  const answer = (items: unknown[], extra: Record<string, unknown>) =>
+    ({ json: { items, failed: [], federationOff: false, ...extra } })
+  let arrived = false
+  let filterFailures = 0
+  const asked: string[] = []
+
+  await backend.route(page)
+  await page.route('**/api/federation/directory/servers**', (route: Route) => {
+    const params = new URL(route.request().url()).searchParams
+    const offset = Number(params.get('offset') ?? 0)
+    const limit = Number(params.get('limit') ?? 30)
+    const q = params.get('q') ?? ''
+    asked.push(`q=${q} offset=${offset} limit=${limit}`)
+    if (q === 'zed' && filterFailures++ === 0) return route.fulfill({ status: 429, json: { error: 'Too many requests' } })
+    if (q === 'zed') return route.fulfill(answer([entry('Zed Lounge', 3)], { total: 1, nextOffset: null, instances: 2, pending: 0 }))
+    if (!arrived) {
+      // The late instance answers while page two is read.
+      if (offset > 0) arrived = true
+      const items = early.slice(offset, offset + limit)
+      return route.fulfill(answer(items, {
+        total: early.length, nextOffset: offset + limit < early.length ? offset + limit : null, instances: 1, pending: 1,
+      }))
+    }
+    return route.fulfill(answer(ranked.slice(offset, offset + limit), {
+      total: ranked.length, nextOffset: offset + limit < ranked.length ? offset + limit : null, instances: 2, pending: 0,
+    }))
+  })
+  await signIn(page, user)
+  await page.goto(`/chat/${home.id}/${home.generalChannelId}`)
+  const dialog = await openOtherInstances(page)
+  const cards = dialog.getByTestId('remote-directory-server')
+
+  await test.step('Load more while an instance is still read, then it answers: its server leads, nothing is skipped', async () => {
+    await expect(cards).toHaveCount(30, { timeout: 30000 })
+    await expect(dialog.getByRole('status').filter({ hasText: 'Still reading 1 instance' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Load more' }).click()
+    await expect(cards.first()).toContainText(late.name, { timeout: 15000 })
+    await expect(cards).toHaveCount(40)
+    await expect(dialog.getByRole('status').filter({ hasText: 'Still reading' })).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Load more' }).click()
+    await expect(cards).toHaveCount(41)
+    await expect(cards.last()).toContainText('Early 39')
+    await expect(dialog.getByRole('button', { name: 'Load more' })).toHaveCount(0)
+    expect(asked).toContain('q= offset=0 limit=40')
+  })
+
+  await test.step('a failed read for a new filter shows the error; Retry reads it', async () => {
+    await dialog.getByRole('searchbox', { name: 'Filter servers' }).fill('zed')
+    const error = dialog.getByTestId('remote-directory-advertised-error')
+    await expect(error).toContainText("Couldn't read the known instances", { timeout: 15000 })
+    await expect(cards).toHaveCount(0)
+    await expect(dialog.getByRole('searchbox', { name: 'Filter servers' })).toHaveValue('zed')
+    await error.getByRole('button', { name: 'Retry' }).click()
+    await expect(cards).toHaveCount(1, { timeout: 15000 })
+    await expect(cards.first()).toContainText('Zed Lounge')
+    await expect(error).toHaveCount(0)
+  })
 })

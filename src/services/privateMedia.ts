@@ -374,6 +374,11 @@ function failed(variant: MediaVariant, path: string): boolean {
   return !!entry && !entry.url
 }
 
+/** Signing the original of a private part failed; retried FAILURE_RETRY_MS later. Reactive. */
+export function mediaPartSigningFailed(part: MediaPartLike | null | undefined): boolean {
+  return isPrivateMediaPart(part) && !localSources.has(part.path) && failed('original', part.path)
+}
+
 /** A part's `url` when it is a fetchable http(s) URL. */
 function partHttpUrl(part: MediaPartLike): string | undefined {
   return typeof part.url === 'string' && /^https?:\/\//i.test(part.url) ? part.url : undefined

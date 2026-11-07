@@ -4,7 +4,8 @@
 // through the files and each step resets the image; Download saves the file under its name; a
 // PDF shows in a frame and a text file shows a card with its own Download; Escape closes and
 // focus returns to the file. The picture in Details opens the same viewer at its file. The
-// scrim is the viewer's blurred dark one. On a phone, opened from Details, a swipe steps
+// scrim is the viewer's blurred dark one. A file shows a spinner while its original signs and,
+// once signing fails, its card with a Download that still saves it. On a phone, opened from Details, a swipe steps
 // through the files, a pinch and a double tap zoom, one finger pans a zoomed image, a swipe
 // down closes, and Back closes without leaving Drive.
 //
@@ -13,7 +14,7 @@
 
 import { randomUUID } from 'node:crypto'
 import zlib from 'node:zlib'
-import { test, expect, devices, type Download, type Page } from '@playwright/test'
+import { test, expect, devices, type Download, type Page, type Route } from '@playwright/test'
 import { adminClient, createUser, deleteUser, dismissAnnouncements, signIn, userClient, type SpecUser } from './harness'
 
 function pngChunk(type: string, data: Buffer): Buffer {
@@ -239,6 +240,34 @@ test('a Drive file opens in the media viewer: zoom, pan, rotate, step, download 
     await expect(viewer(page)).toBeHidden()
     await expect(opener).toBeFocused()
   })
+})
+
+test('a file whose original fails to sign shows its card with Download, after a spinner', async ({ page }) => {
+  test.setTimeout(120_000)
+  await openDrive(page)
+  // createSignedUrls: the batch endpoint signs originals; Download signs alone, under the path.
+  const held: Route[] = []
+  let refuse = false
+  await page.route((url) => url.pathname.endsWith('/storage/v1/object/sign/message_media'), (route) => {
+    if (refuse) return route.abort()
+    held.push(route)
+  })
+
+  await openFile(page, 'harbour.png')
+  await opened(page, 'harbour.png')
+  await expect(viewer(page).getByRole('status')).toBeVisible()
+  await expect(viewer(page).locator('.media-file-card')).toHaveCount(0)
+  await expect.poll(() => held.length).toBeGreaterThan(0)
+
+  refuse = true
+  for (const route of held.splice(0)) await route.abort()
+  const card = viewer(page).locator('.media-file-card')
+  await expect(card).toContainText('No preview for this file.')
+  await expect(viewer(page).getByRole('status')).toHaveCount(0)
+  await expect(image(page)).toHaveCount(0)
+  await expect(viewer(page).getByRole('button', { name: 'Zoom in' })).toHaveCount(0)
+  const download = await downloadOf(page, () => card.getByRole('button', { name: 'Download' }).click())
+  expect(download.suggestedFilename()).toBe('harbour.png')
 })
 
 test.describe('on a phone', () => {

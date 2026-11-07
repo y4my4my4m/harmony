@@ -725,14 +725,18 @@ export class VoiceActivityHandler {
       return;
     }
 
+    // last_seen_at: the host re-announces every 10 minutes (voicePresenceRefresh.ts); the
+    // minute sweep drops a copy row unannounced for 30.
     try {
+      const now = new Date().toISOString();
       await supabase
         .from('voice_channel_participants')
         .upsert({
           channel_id: channel.id,
           server_id: channel.server_id,
           user_id: user.id,
-          joined_at: new Date().toISOString(),
+          joined_at: now,
+          last_seen_at: now,
           is_federated: true,
         }, {
           onConflict: 'channel_id,user_id',

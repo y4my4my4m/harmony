@@ -120,7 +120,7 @@ The footer offers **Join by URL** for servers on other instances and **Create yo
 
 When your instance federates, the window has two tabs: **This instance**, the list above, and **Other instances**, the server directories of other Harmony instances. Arrow keys move between the tabs.
 
-1. The tab opens on the servers listed by every instance yours knows, most members first, each with its icon, handle, description, member count and the instance that hosts it. **Filter servers** narrows them by name, topic or instance. **Load more** shows the next ones.
+1. The tab opens on the servers listed by every instance yours knows, most members first (each instance's three largest ahead of the rest), each with its icon, handle, description, member count and the instance that hosts it. **Filter servers** narrows them by name, topic or instance. **Load more** shows the next ones.
 2. To see one instance's directory, pick it under **Known instances**, or enter its domain under **Instance**, such as `example.social`, and select **Browse**. **All instances** returns to the merged list.
 3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
 

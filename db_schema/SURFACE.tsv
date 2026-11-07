@@ -1051,6 +1051,7 @@ voice_moderation_federate		trigger	definer	public, pg_temp	service_role	trigger
 voice_participant_grants	p_channels uuid[], p_users uuid[]	TABLE(channel_id uuid, user_id uuid, reason text, can_speak boolean, can_stream boolean, can_soundboard boolean, can_external_sounds boolean, server_muted boolean, server_deafened boolean)	definer	public, pg_temp	service_role	client
 voice_participant_joined_at		trigger	invoker	public, pg_temp	service_role	trigger
 voice_participant_left_announce		trigger	definer	public, pg_temp	service_role	trigger
+voice_presence_refresh_targets		TABLE(channel_id uuid, channel_name text, server_id uuid, server_name text, user_id uuid, username text, federated_id text, instance text, shared_inbox text)	definer	public, pg_temp	service_role	client
 voice_remove_member	p_server_id uuid, p_user_id uuid, p_reason text, p_to_channel uuid	uuid	definer	public, pg_temp	service_role	client
 vote_message_poll	p_poll_id uuid, p_option_ids uuid[]	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean, remote boolean)	definer	public, pg_temp	authenticated+service_role	client
 vote_remote_poll	p_post_id uuid, p_choices integer[]	jsonb	definer	public, pg_temp	authenticated+service_role	client

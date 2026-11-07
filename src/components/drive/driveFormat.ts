@@ -1,5 +1,5 @@
 import { supabase } from '@/supabase'
-import { mediaPartSource } from '@/services/privateMedia'
+import { mediaPartSigningFailed, mediaPartSource } from '@/services/privateMedia'
 import { publicImageUrl } from '@/utils/storageImageUtils'
 import type { DriveFile, DriveFileKind } from '@/services/drive/driveService'
 import type { LightboxItem } from '@/components/common/MediaLightbox.vue'
@@ -58,7 +58,8 @@ export function driveMediaSource(file: DriveFileSource): string | undefined {
 
 /**
  * A file as an item of the media viewer (MediaLightbox). `src` reads on access, so only the item
- * on screen signs its original; it is empty while signing and for gone files.
+ * on screen signs its original; it is empty while signing. A gone file, or one whose original
+ * failed to sign, is `unavailable` and shows as a file card with Download.
  */
 export function driveViewerItem(file: DriveFileSource & { mime_type?: string | null }, name: string): LightboxItem {
   const type = file.kind === 'image' || file.kind === 'video' || file.kind === 'audio'
@@ -69,6 +70,9 @@ export function driveViewerItem(file: DriveFileSource & { mime_type?: string | n
     name,
     get src() {
       return driveMediaSource(file) ?? ''
+    },
+    get unavailable() {
+      return file.state === 'gone' || (file.bucket !== 'user_media' && mediaPartSigningFailed({ path: file.path }))
     },
   }
 }

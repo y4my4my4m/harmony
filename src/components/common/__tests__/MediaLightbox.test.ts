@@ -237,6 +237,81 @@ describe('MediaLightbox', () => {
     expect(document.querySelector('img.media-image')?.getAttribute('src')).toBe('https://x.test/late.png')
     expect(document.querySelector('.media-lightbox-overlay [role="status"]')).toBeNull()
   })
+
+  it('shows an item without a readable source as a file card that downloads it', async () => {
+    const unavailable = ref(false)
+    const download = vi.fn()
+    const item = { type: 'image' as const, name: 'lost.png', src: '', get unavailable() { return unavailable.value } }
+    mountViewer({ imgs: [item], download })
+    await flushPromises()
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).not.toBeNull()
+    unavailable.value = true
+    await flushPromises()
+    expect(document.querySelector('.media-lightbox-overlay [role="status"]')).toBeNull()
+    const card = document.querySelector<HTMLElement>('.media-file-card')!
+    expect(card.querySelector('.media-file-name')?.textContent).toBe('lost.png')
+    expect(card.querySelector('.media-file-note')?.textContent).toBe('a11y.lightbox.noPreview')
+    expect(button('a11y.lightbox.zoomIn')).toBeUndefined()
+    card.querySelector<HTMLButtonElement>('.media-file-download')!.click()
+    expect(download).toHaveBeenCalledWith(0)
+  })
+
+  describe('loop and rememberMute', () => {
+    const MUTE_KEY = 'harmony-lightbox-video-muted'
+    /** The video of the viewer mounted last. */
+    const video = () => [...document.querySelectorAll<HTMLVideoElement>('video.media-video')].pop()!
+
+    beforeEach(() => localStorage.removeItem(MUTE_KEY))
+    afterEach(() => localStorage.removeItem(MUTE_KEY))
+
+    it('repeats the video and opens muted as the viewer was last left', async () => {
+      localStorage.setItem(MUTE_KEY, 'true')
+      mountViewer({ imgs: [ITEMS[1]], loop: true, rememberMute: true })
+      await flushPromises()
+      expect(video().loop).toBe(true)
+      expect(video().muted).toBe(true)
+
+      video().muted = false
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('false')
+
+      mountViewer({ imgs: [ITEMS[1]], loop: true, rememberMute: true })
+      await flushPromises()
+      expect(video().muted).toBe(false)
+      video().muted = true
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('true')
+    })
+
+    it('keeps the muted state across the items of one opening', async () => {
+      const wrapper = mountViewer({ imgs: [ITEMS[1], { ...ITEMS[1], src: 'https://x.test/f.webm' }], rememberMute: true })
+      await flushPromises()
+      video().muted = true
+      video().dispatchEvent(new Event('volumechange'))
+      await wrapper.setProps({ index: 1 })
+      await flushPromises()
+      expect(video().getAttribute('src')).toBe('https://x.test/f.webm')
+      expect(video().muted).toBe(true)
+    })
+
+    it('neither repeats nor reads or writes the muted state by default', async () => {
+      localStorage.setItem(MUTE_KEY, 'true')
+      mountViewer({ imgs: [ITEMS[1]] })
+      await flushPromises()
+      expect(video().loop).toBe(false)
+      expect(video().muted).toBe(false)
+      video().dispatchEvent(new Event('volumechange'))
+      expect(localStorage.getItem(MUTE_KEY)).toBe('true')
+    })
+
+    it('opens unmuted when storage is blocked', async () => {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+      onTestFinished(() => getItem.mockRestore())
+      mountViewer({ imgs: [ITEMS[1]], rememberMute: true })
+      await flushPromises()
+      expect(video().muted).toBe(false)
+    })
+  })
 })
 
 describe('openLightbox through MediaLightboxHost', () => {

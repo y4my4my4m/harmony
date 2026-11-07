@@ -141,6 +141,9 @@
       :visible="true"
       :imgs="lightboxItems"
       download
+      autoplay
+      loop
+      remember-mute
       @hide="closeLightbox"
     >
       <template #actions="{ index }">

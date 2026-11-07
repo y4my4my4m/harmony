@@ -10,8 +10,8 @@
  * removed. Rows with metadata.transport = 'p2p' are skipped: a client on the
  * P2P fallback is never in a LiveKit room. Rows of a remote server's copy
  * (servers.is_local_server false) are skipped: the call runs on the host's
- * LiveKit, and the host's VoiceChannelLeave removes the row
- * (VoiceActivityHandler).
+ * LiveKit; the host's VoiceChannelLeave removes the row (VoiceActivityHandler),
+ * else sweep_stale_voice_participants once the host stops re-announcing it.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

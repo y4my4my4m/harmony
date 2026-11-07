@@ -204,9 +204,10 @@
                   :autoplay="autoplayCurrent"
                   playsinline
                   data-vp="1"
-                  :loop="isGifv"
-                  :muted="isGifv"
+                  :loop="isGifv || loop"
+                  :muted="isGifv || mutedLast"
                   @loadedmetadata="onMediaLoaded"
+                  @volumechange="onVolumeChange"
                 >
                   {{ t('a11y.lightbox.videoUnsupported') }}
                 </video>
@@ -250,16 +251,22 @@ import {
 } from '@/utils/mediaFullscreen';
 import { MAX_SCALE, MIN_SCALE, ZOOM_STEP, type Size } from '@/utils/lightboxGestures';
 
+/** `unavailable`: no source can be read (signing failed); the item shows as a file card. */
+interface ItemFields { src: string; alt?: string; name?: string; unavailable?: boolean }
+
 export type LightboxItem =
   | string
-  | { src: string; type?: 'image'; alt?: string; name?: string }
-  | { src: string; type: 'video'; poster?: string; isGifv?: boolean; alt?: string; name?: string }
-  | { src: string; type: 'audio'; poster?: string; alt?: string; name?: string }
-  | { src: string; type: 'embed'; poster?: string; alt?: string; name?: string }
-  | { src: string; type: 'pdf'; alt?: string; name?: string }
-  | { src: string; type: 'file'; alt?: string; name?: string };
+  | (ItemFields & { type?: 'image' })
+  | (ItemFields & { type: 'video'; poster?: string; isGifv?: boolean })
+  | (ItemFields & { type: 'audio'; poster?: string })
+  | (ItemFields & { type: 'embed'; poster?: string })
+  | (ItemFields & { type: 'pdf' })
+  | (ItemFields & { type: 'file' });
 
 type ItemType = 'image' | 'video' | 'audio' | 'embed' | 'pdf' | 'file';
+
+/** localStorage: 'true' while the viewer's video and audio play muted, under `rememberMute`. */
+const MUTE_KEY = 'harmony-lightbox-video-muted';
 
 interface Props {
   visible: boolean;
@@ -275,6 +282,10 @@ interface Props {
   download?: boolean | ((index: number) => void);
   /** Video and audio start on their own, unless reduced motion is asked for. */
   autoplay?: boolean;
+  /** Video and audio repeat. */
+  loop?: boolean;
+  /** Video and audio start muted when the viewer was last left muted (MUTE_KEY). */
+  rememberMute?: boolean;
   /** Teleport target. Default: the portal target of the subtree (usePortalTarget). */
   to?: string | HTMLElement;
 }
@@ -284,6 +295,8 @@ const props = withDefaults(defineProps<Props>(), {
   origin: null,
   download: false,
   autoplay: false,
+  loop: false,
+  rememberMute: false,
   to: undefined,
 });
 
@@ -307,6 +320,7 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 
 function itemType(item: LightboxItem | undefined): ItemType {
   if (!item || typeof item === 'string') return 'image';
+  if (item.unavailable) return 'file';
   return item.type ?? 'image';
 }
 
@@ -363,6 +377,27 @@ function prefersReducedMotion(): boolean {
 const autoplayCurrent = computed(
   () => (isGifv.value || (props.autoplay && isPlayable(currentItem.value))) && !prefersReducedMotion(),
 );
+
+function readMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+const mutedLast = ref(props.rememberMute && readMuted());
+
+function onVolumeChange() {
+  const media = videoRef.value;
+  if (!props.rememberMute || !media || isGifv.value) return;
+  mutedLast.value = media.muted;
+  try {
+    localStorage.setItem(MUTE_KEY, String(media.muted));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 useDialog({
   open: () => props.visible,
@@ -751,11 +786,6 @@ onBeforeUnmount(() => {
 .nav-btn:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
-}
-
-/* Rendered by the actions slot: sits in the toolbar row. */
-.lightbox-tools :deep(.lightbox-download-btn) {
-  position: static;
 }
 
 .nav-btn {

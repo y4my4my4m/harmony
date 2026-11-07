@@ -5,7 +5,8 @@ import supertest from 'supertest'
 // Servers advertised by the known instances, merged (routes/directory.ts GET /directory/servers,
 // services/AdvertisedDirectoryService.ts): every known instance's listed Groups with the
 // instance that hosts each, blocked instances never read, partial answers when one fails, kept
-// fresh 15 minutes and served stale while read again, at most four instances read at once.
+// fresh 15 minutes and served stale while read again, at most four instances read at once, each
+// read aborted at its deadline, at most three of one instance's servers ahead of the others.
 
 const cfg = vi.hoisted(() => ({ INSTANCE_DOMAIN: 'harmony.test', NODE_ENV: 'test', DIRECTORY_ALLOW_PORTS: false }))
 vi.mock('../config/index.js', () => ({ default: cfg }))
@@ -51,9 +52,21 @@ vi.mock('../config/supabase.js', () => ({
     from: (table: string) => {
       let rows = [...(tables[table] ?? [])]
       const q: any = {
-        select: () => q,
+        // servers!inner(...) embeds the row server_id names and keeps rows that have one.
+        select: (cols = '') => {
+          if (cols.includes('servers!inner')) {
+            rows = rows
+              .map((r) => ({ ...r, servers: (tables.servers ?? []).find((s) => s.id === r.server_id) }))
+              .filter((r) => r.servers)
+          }
+          return q
+        },
         in: (col: string, values: unknown[]) => { rows = rows.filter((r) => values.includes(r[col])); return q },
-        eq: (col: string, value: unknown) => { rows = rows.filter((r) => r[col] === value); return q },
+        eq: (col: string, value: unknown) => {
+          const [embed, field] = col.split('.')
+          rows = rows.filter((r) => (field ? r[embed]?.[field] : r[col]) === value)
+          return q
+        },
         not: (col: string, op: string, value: unknown) => {
           if (col === 'metadata->>server_directory') rows = rows.filter((r) => r.metadata?.server_directory != null)
           else if (op === 'is') rows = rows.filter((r) => r[col] !== value)
@@ -88,8 +101,14 @@ interface Peer {
   down?: boolean
   /** Awaited before the directory page answers. */
   gate?: () => Promise<void>
+  /**
+   * The directory page sends its headers, then no body: 'signal' ends the body read when the
+   * request's signal aborts, 'deaf' never ends it.
+   */
+  stall?: 'signal' | 'deaf'
 }
 const peers: Record<string, Peer> = {}
+const stalled: Array<{ domain: string; signal?: AbortSignal }> = []
 let inFlight = 0
 let maxInFlight = 0
 
@@ -102,12 +121,19 @@ function installFetches() {
     if (!peer || peer.down) return response({}, 503)
     return response({ links: [{ rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1', href: `https://${host(url)}/nodeinfo/2.1` }] })
   })
-  signedApFetch.mockImplementation(async (url: string) => {
+  signedApFetch.mockImplementation(async (url: string, opts: { signal?: AbortSignal } = {}) => {
     const domain = host(url)
     const peer = peers[domain]
     if (!peer) return response({}, 404, 'text/html', url)
     if (url.endsWith('/nodeinfo/2.1')) {
       return response({ software: { name: 'harmony' }, metadata: { serverDirectory: dir(domain), nodeName: peer.name, icon: peer.icon } })
+    }
+    if (url === dir(domain) && peer.stall) {
+      stalled.push({ domain, signal: opts.signal })
+      const body = new Promise<never>((_, reject) => {
+        if (peer.stall === 'signal') opts.signal?.addEventListener('abort', () => reject(opts.signal!.reason), { once: true })
+      })
+      return { ...response({}, 200, AP, url), json: () => body }
     }
     if (url === dir(domain)) {
       inFlight++
@@ -139,6 +165,13 @@ function known(domain: string, extra: Record<string, unknown> = {}) {
 }
 
 let app: express.Express
+
+/** Timeouts faked too, for the read deadline and WAIT_MS. */
+function fakeTimeouts() {
+  const now = Date.now()
+  vi.useRealTimers()
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'], now })
+}
 const get = (path: string, auth = 'Bearer member') => supertest(app).get(path).set('Authorization', auth)
 const pageReads = (domain: string) => signedApFetch.mock.calls.filter(([url]) => url === dir(domain)).length
 
@@ -154,6 +187,7 @@ beforeEach(async () => {
   installFetches()
   inFlight = 0
   maxInFlight = 0
+  stalled.length = 0
   switches.inbound = true
   switches.outbound = true
   const { default: router } = await import('../routes/directory.js')
@@ -296,6 +330,88 @@ describe('GET /directory/servers', () => {
     tables.servers = [{ id: 'copy-a1', ap_id: 'https://a.test/servers/a1', is_local_server: false }]
     tables.instance_server_blocks = [{ server_id: 'copy-a1', blocked: true }]
     expect((await get('/directory/servers')).body.items.map((i: any) => i.handle)).toEqual(['a2@a.test'])
+  })
+
+  it('frees the slot of an instance that stalls after its headers at the deadline, and reads the one queued behind', async () => {
+    fakeTimeouts()
+    const { advertisedServers, READ_DEADLINE_MS, WAIT_MS } = await import('../services/AdvertisedDirectoryService.js')
+    for (const [i, stall] of (['signal', 'signal', 'deaf', 'deaf'] as const).entries()) {
+      peers[`slow${i}.test`] = { stall, groups: [{ slug: `slow${i}` }] }
+    }
+    peers['late.test'] = { groups: [{ slug: 'late', members: 7 }] }
+    tables.federated_instances = Object.keys(peers).map((d) => known(d))
+    const opts = { query: '', offset: 0, limit: 30 }
+
+    const waiting = advertisedServers(opts)
+    await vi.advanceTimersByTimeAsync(WAIT_MS)
+    expect(await waiting).toMatchObject({ items: [], pending: 5, failed: [] })
+    expect(stalled.map((s) => s.domain)).toEqual(['slow0.test', 'slow1.test', 'slow2.test', 'slow3.test'])
+    expect(pageReads('late.test')).toBe(0)
+
+    await vi.advanceTimersByTimeAsync(READ_DEADLINE_MS - WAIT_MS)
+    expect(pageReads('late.test')).toBe(1)
+    expect(stalled.every((s) => s.signal?.aborted)).toBe(true)
+    const after = await advertisedServers(opts)
+    expect(after.items.map((i) => i.handle)).toEqual(['late@late.test'])
+    expect(after).toMatchObject({ instances: 1, pending: 0 })
+    expect([...after.failed].sort()).toEqual(['slow0.test', 'slow1.test', 'slow2.test', 'slow3.test'])
+  })
+
+  it('a timed-out read keeps the servers of the last good one', async () => {
+    fakeTimeouts()
+    const { advertisedServers, READ_DEADLINE_MS, FRESH_MS } = await import('../services/AdvertisedDirectoryService.js')
+    peers['a.test'] = { groups: [{ slug: 'kept' }] }
+    tables.federated_instances = [known('a.test')]
+    const opts = { query: '', offset: 0, limit: 30 }
+    expect((await advertisedServers(opts)).items.map((i) => i.handle)).toEqual(['kept@a.test'])
+
+    vi.setSystemTime(Date.now() + FRESH_MS)
+    store.clear()
+    peers['a.test'].stall = 'signal'
+    expect((await advertisedServers(opts)).items.map((i) => i.handle)).toEqual(['kept@a.test'])
+    await vi.advanceTimersByTimeAsync(READ_DEADLINE_MS)
+    expect(stalled[0]?.signal?.aborted).toBe(true)
+    expect((await advertisedServers(opts)).items.map((i) => i.handle)).toEqual(['kept@a.test'])
+  })
+
+  it('puts at most three of one instance\'s servers ahead of every other instance\'s first three', async () => {
+    peers['loud.test'] = { groups: Array.from({ length: 6 }, (_, i) => ({ slug: `loud${i}`, members: 1_000_000_000 - i })) }
+    peers['a.test'] = { groups: [{ slug: 'a1', members: 50 }, { slug: 'a2', members: 40 }] }
+    peers['b.test'] = { groups: [{ slug: 'b1', members: 20 }] }
+    tables.federated_instances = [known('loud.test'), known('a.test'), known('b.test')]
+
+    const res = await get('/directory/servers')
+    expect(res.body.items.map((i: any) => i.handle)).toEqual([
+      'loud0@loud.test', 'loud1@loud.test', 'loud2@loud.test', 'a1@a.test', 'a2@a.test', 'b1@b.test',
+      'loud3@loud.test', 'loud4@loud.test', 'loud5@loud.test',
+    ])
+    const filtered = await get('/directory/servers?q=loud')
+    expect(filtered.body.items.map((i: any) => i.handle)).toEqual([
+      'loud0@loud.test', 'loud1@loud.test', 'loud2@loud.test', 'loud3@loud.test', 'loud4@loud.test', 'loud5@loud.test',
+    ])
+  })
+
+  it('counts and pages without the Groups blocked after their instance was read', async () => {
+    peers['a.test'] = { groups: [5, 4, 3, 2, 1].map((members) => ({ slug: `a${members}`, members })) }
+    tables.federated_instances = [known('a.test')]
+    expect((await get('/directory/servers?limit=2')).body).toMatchObject({ total: 5, nextOffset: 2 })
+    tables.servers = [
+      { id: 'copy-a5', ap_id: 'https://a.test/servers/a5', is_local_server: false },
+      { id: 'copy-a4', ap_id: 'https://a.test/servers/a4', is_local_server: false },
+      { id: 'local-a3', ap_id: 'https://a.test/servers/a3', is_local_server: true },
+    ]
+    tables.instance_server_blocks = [
+      { server_id: 'copy-a5', blocked: true },
+      { server_id: 'copy-a4', blocked: true },
+      { server_id: 'local-a3', blocked: true },
+    ]
+
+    const first = await get('/directory/servers?limit=2')
+    expect(first.body.items.map((i: any) => i.handle)).toEqual(['a3@a.test', 'a2@a.test'])
+    expect(first.body).toMatchObject({ total: 3, nextOffset: 2 })
+    const rest = await get('/directory/servers?limit=2&offset=2')
+    expect(rest.body.items.map((i: any) => i.handle)).toEqual(['a1@a.test'])
+    expect(rest.body.nextOffset).toBeNull()
   })
 
   it('lists nothing and reads nothing while federation is off, and refuses without a session', async () => {

@@ -112,7 +112,7 @@
 
         <!-- Every known instance's listed servers, merged by this instance's backend. -->
         <template v-else-if="advertisedSupported">
-          <div v-if="advertised && (advertised.total > 0 || filter)" class="remote-directory__filter">
+          <div v-if="filter || (advertised && advertised.total > 0)" class="remote-directory__filter">
             <label :for="`${inputId}-filter`" class="remote-directory__label">{{ $t('federation.directory.filterLabel') }}</label>
             <input
               :id="`${inputId}-filter`"
@@ -144,7 +144,7 @@
             :description="$t('federation.directory.failed')"
             :action-label="$t('common.retry')"
             data-testid="remote-directory-advertised-error"
-            @action="loadAdvertised"
+            @action="loadAdvertised()"
           />
 
           <template v-else-if="advertised">
@@ -278,6 +278,8 @@ const emit = defineEmits<{
 const PENDING_RETRY_MS = 3_000
 const PENDING_RETRIES = 3
 const FILTER_DEBOUNCE_MS = 300
+/** MAX_LIMIT of GET /directory/servers. */
+const ADVERTISED_MAX_ROWS = 60
 
 const { t } = useI18n()
 const serverChannelStore = useServerChannelStore()
@@ -300,6 +302,8 @@ const advertisedItems = ref<AdvertisedServer[]>([])
 const advertisedLoading = ref(false)
 const advertisedError = ref(false)
 const filter = ref('')
+/** The filter, trimmed, that `advertised` answers. */
+const advertisedQuery = ref('')
 let advertisedGeneration = 0
 let filterTimer: ReturnType<typeof setTimeout> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
@@ -408,46 +412,73 @@ function showAll() {
   view.value = 'all'
 }
 
-/** The first page of the merged list for the current filter. */
-async function loadAdvertised() {
+/**
+ * The first `rows` servers of the merged list for the current filter, the first page for 0. The
+ * answer replaces the list: servers of an instance read since an earlier answer sort anywhere in
+ * it, so that answer's offsets no longer hold.
+ */
+async function loadAdvertised(rows = 0) {
   clearTimeout(retryTimer)
   const mine = ++advertisedGeneration
+  const query = filter.value.trim()
   advertisedLoading.value = true
   try {
-    const answer = await federationServerService.listAdvertisedServers(filter.value)
+    const limit = rows > 0 ? Math.min(rows, ADVERTISED_MAX_ROWS) : undefined
+    const answer = await federationServerService.listAdvertisedServers(query, 0, limit)
     if (mine !== advertisedGeneration) return
     if (!answer.ok) {
       if (answer.unsupported) advertisedSupported.value = false
-      else advertisedError.value = true
+      else {
+        advertisedError.value = true
+        if (query !== advertisedQuery.value) {
+          advertised.value = null
+          advertisedItems.value = []
+        }
+      }
       return
     }
     const result = answer.page
     advertisedError.value = false
     if (result.federationOff) federationOff.value = true
     advertised.value = result
+    advertisedQuery.value = query
     advertisedItems.value = result.items
-    if (result.pending > 0 && retries < PENDING_RETRIES) {
-      retries++
-      retryTimer = setTimeout(() => { void loadAdvertised() }, PENDING_RETRY_MS)
-    }
+    retryWhilePending(result)
   } finally {
     if (mine === advertisedGeneration) advertisedLoading.value = false
   }
 }
 
+/** Reads the rows on screen again while `result` counts instances still being read. */
+function retryWhilePending(result: AdvertisedPage) {
+  if (result.pending === 0 || retries >= PENDING_RETRIES) return
+  retries++
+  retryTimer = setTimeout(() => { void loadAdvertised(advertisedItems.value.length) }, PENDING_RETRY_MS)
+}
+
 async function loadMoreAdvertised() {
-  const offset = advertised.value?.nextOffset
-  if (offset == null || advertisedLoading.value) return
+  const current = advertised.value
+  const offset = current?.nextOffset
+  if (!current || offset == null || advertisedLoading.value) return
   clearTimeout(retryTimer)
   const mine = ++advertisedGeneration
   advertisedLoading.value = true
   try {
-    const answer = await federationServerService.listAdvertisedServers(filter.value, offset)
-    if (mine !== advertisedGeneration || !answer.ok) return
+    const answer = await federationServerService.listAdvertisedServers(advertisedQuery.value, offset)
+    if (mine !== advertisedGeneration) return
+    if (!answer.ok) {
+      retryWhilePending(current)
+      return
+    }
     const result = answer.page
+    if (result.instances !== current.instances) {
+      void loadAdvertised(offset + result.items.length)
+      return
+    }
     const seen = new Set(advertisedItems.value.map((s) => s.id))
     advertisedItems.value = [...advertisedItems.value, ...result.items.filter((s) => !seen.has(s.id))]
     advertised.value = result
+    retryWhilePending(result)
   } finally {
     if (mine === advertisedGeneration) advertisedLoading.value = false
   }

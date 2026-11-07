@@ -8,6 +8,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/services/privateMedia', () => ({
   mediaPartSource: vi.fn((part: { path: string }) => `https://signed.test/${part.path}`),
+  mediaPartSigningFailed: vi.fn(() => false),
 }))
 
 import DrivePreview from '../DrivePreview.vue'

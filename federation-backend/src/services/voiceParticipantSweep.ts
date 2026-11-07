@@ -23,6 +23,12 @@ export const STALE_RESYNC_MS = 30_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
+let reconcileFailing = false;
+
+/** The last reconciliation run failed: rows may name callers LiveKit no longer has. */
+export function voiceRosterUnverified(): boolean {
+  return voiceReconcileEnabled() && reconcileFailing;
+}
 
 /** Off when LiveKit is not configured or clients never use it (WEBRTC_MODE=p2p). */
 export function voiceReconcileEnabled(): boolean {
@@ -63,9 +69,11 @@ async function tick(): Promise<void> {
   running = true;
   try {
     const result = await reconcileVoiceNow();
+    reconcileFailing = !result.ok;
     if (!result.ok) logger.warn(`Voice participant sweep skipped: ${result.reason}`);
     else if (result.removed > 0) logger.info(`Voice participant sweep removed ${result.removed} of ${result.checked} rows`);
   } catch (error) {
+    reconcileFailing = true;
     logger.error('Voice participant sweep failed:', error);
   }
   try {

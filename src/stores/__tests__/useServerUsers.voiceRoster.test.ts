@@ -31,6 +31,9 @@ const db = vi.hoisted(() => ({
   writes: [] as Array<{ op: string; row?: any }>,
   rpcs: [] as Array<{ fn: string; args: any }>,
   touchAnswer: true as boolean,
+  // profiles.is_local = true
+  localIds: [] as string[],
+  profileReads: [] as string[][],
 }))
 const voice = vi.hoisted(() => ({
   isConnected: false,
@@ -63,8 +66,15 @@ vi.mock('@/supabase', () => {
         if (fn === 'touch_voice_participant') return { data: db.touchAnswer, error: null }
         return { data: [], error: null }
       },
-      from: () => ({
+      from: (table: string) => ({
         select: () => ({
+          in: (_col: string, ids: string[]) => ({
+            eq: async () => {
+              if (table !== 'profiles') throw new Error(`unexpected read of ${table}`)
+              db.profileReads.push(ids)
+              return { data: ids.filter((id) => db.localIds.includes(id)).map((id) => ({ id })), error: null }
+            },
+          }),
           eq: async (_col: string, serverId: string) => {
             db.reads.push(serverId)
             if (db.hold) await db.hold
@@ -107,6 +117,8 @@ beforeEach(() => {
   db.rpcs.length = 0
   db.hold = null
   db.touchAnswer = true
+  db.localIds = []
+  db.profileReads.length = 0
   Object.assign(voice, {
     isConnected: false, currentChannelId: null, currentServerId: null,
     optimisticChannelId: null, optimisticServerId: null, isFederatedChannel: false, connectionMode: 'livekit',
@@ -213,6 +225,59 @@ describe('voice roster from the database', () => {
     topic(S).status?.('SUBSCRIBED')
     await flush()
     expect(store.getUsersInVoiceChannel('c2')).toEqual(['remote'])
+  })
+
+  it("keeps this instance's callers on a copy, whose rows name the host's people only", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    db.rows = [{ server_id: S, channel_id: 'c1', user_id: 'hostA' }]
+    db.localIds = ['neighbour', 'me']
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S, { local: false })
+    await flush()
+    deliver(S, { event: 'user-joined', userId: 'neighbour', channelId: 'c1' })
+    deliver(S, { event: 'user-joined', userId: 'hostB', channelId: 'c1' })
+
+    // Past the grace: the read decides. hostB has no row and is the host's; hostA left.
+    vi.setSystemTime(Date.now() + 60_000)
+    db.rows = [{ server_id: S, channel_id: 'c1', user_id: 'hostA' }]
+    topic(S).status?.('SUBSCRIBED')
+    await flush()
+    await flush()
+    expect([...store.getUsersInVoiceChannel('c1')].sort()).toEqual(['hostA', 'neighbour'])
+    expect(db.profileReads).toEqual([['neighbour', 'hostB']])
+
+    db.rows = []
+    topic(S).status?.('SUBSCRIBED')
+    await flush()
+    await flush()
+    expect(store.getUsersInVoiceChannel('c1')).toEqual(['neighbour'])
+  })
+
+  it('keeps this client in its own call on a copy', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    Object.assign(voice, { isConnected: true, currentChannelId: 'c1', currentServerId: S, isFederatedChannel: true })
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S, { local: false })
+    await flush()
+    expect(store.getUsersInVoiceChannel('c1')).toEqual(['me'])
+
+    vi.setSystemTime(Date.now() + 60_000)
+    topic(S).status?.('SUBSCRIBED')
+    await flush()
+    await flush()
+    expect(store.getUsersInVoiceChannel('c1')).toEqual(['me'])
+  })
+
+  it('reads no profiles for a local server or a copy whose rows cover the roster', async () => {
+    db.rows = [{ server_id: S, channel_id: 'c1', user_id: 'hostA' }, { server_id: T, channel_id: 't1', user_id: 'x' }]
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S, { local: false })
+    await flush()
+    topic(S).status?.('SUBSCRIBED')
+    await flush()
+    await store.setupVoiceChannelBroadcast(T)
+    await flush()
+    expect(db.profileReads).toEqual([])
   })
 })
 

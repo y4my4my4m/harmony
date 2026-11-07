@@ -10,18 +10,22 @@
  *
  * Each instance's servers are kept FRESH_MS. Past that they are still served, up to STALE_MS
  * after the last good read, while one read runs in the background; a failed read is tried again
- * after RETRY_MS. At most CONCURRENCY instances are read at once. A request waits up to WAIT_MS
- * for the instances it holds nothing of, then answers with the rest: `pending` counts instances
- * still being read, `failed` names those whose directory could not be read.
+ * after RETRY_MS. At most CONCURRENCY instances are read at once, each read whole (NodeInfo,
+ * directory, page; headers and bodies) within READ_DEADLINE_MS or aborted and counted as
+ * failed. A request waits up to WAIT_MS for the instances it holds nothing of, then answers with
+ * the rest: `pending` counts instances still being read, `failed` names those whose directory
+ * could not be read.
  *
- * The merged list holds each Group once, most members first, then by name; `query` keeps those
- * whose name, summary, handle, category or instance contains it, case and width folded.
+ * The merged list holds each Group once, Groups blocked here left out. `query` keeps those whose
+ * name, summary, handle, category or instance contains it, case and width folded. Member counts
+ * are each peer's own claim: every instance's first LEAD_PER_INSTANCE servers come first, then
+ * the rest, each part most members first, then by name.
  */
 
+import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { validateExternalHostname } from '../utils/ssrfProtection.js';
 import {
-  groupsBlockedHere,
   listDirectoryPeers,
   lookupDirectory,
   readDirectoryPage,
@@ -33,6 +37,8 @@ export const STALE_MS = 6 * 3600_000;
 export const RETRY_MS = 2 * 60_000;
 export const WAIT_MS = 5_000;
 export const CONCURRENCY = 4;
+export const READ_DEADLINE_MS = 20_000;
+export const LEAD_PER_INSTANCE = 3;
 
 export const DEFAULT_LIMIT = 30;
 export const MAX_LIMIT = 60;
@@ -96,32 +102,46 @@ function usable(s: Snapshot | undefined, now: number): boolean {
   return !!s && s.readAt > 0 && now - s.readAt < STALE_MS;
 }
 
+interface InstanceRead {
+  servers: RemoteDirectoryEntry[];
+  name: string | null;
+  icon: string | null;
+}
+
+async function readInstance(domain: string, signal: AbortSignal): Promise<InstanceRead | null> {
+  try {
+    validateExternalHostname(domain.replace(/:\d+$/, ''));
+    const lookup = await lookupDirectory(domain, { signal });
+    if (lookup.status !== 'found') return null;
+    const page = await readDirectoryPage(domain, lookup.url, lookup.url, signal);
+    return page ? { servers: page.items, name: lookup.name ?? null, icon: lookup.icon ?? null } : null;
+  } catch (err) {
+    logger.debug(`Advertised servers of ${domain} not read: ${(err as Error)?.message ?? err}`);
+    return null;
+  }
+}
+
 /** Reads `domain`'s first directory page into its snapshot; one read per domain at a time. */
 function refresh(domain: string): Promise<void> {
   const running = reading.get(domain);
   if (running) return running;
   const read = slot(async () => {
-    let servers: RemoteDirectoryEntry[] | null = null;
-    let name: string | null = null;
-    let icon: string | null = null;
-    try {
-      validateExternalHostname(domain.replace(/:\d+$/, ''));
-      const lookup = await lookupDirectory(domain);
-      if (lookup.status === 'found') {
-        const page = await readDirectoryPage(domain, lookup.url, lookup.url);
-        if (page) {
-          servers = page.items;
-          name = lookup.name ?? null;
-          icon = lookup.icon ?? null;
-        }
-      }
-    } catch (err) {
-      logger.debug(`Advertised servers of ${domain} not read: ${(err as Error)?.message ?? err}`);
-    }
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // The race frees the slot when a step ignores the signal (DNS, the database).
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
+        abort.abort(new Error(`not read within ${READ_DEADLINE_MS} ms`));
+        logger.debug(`Advertised servers of ${domain} not read within ${READ_DEADLINE_MS} ms`);
+        resolve(null);
+      }, READ_DEADLINE_MS);
+    });
+    const got = await Promise.race([readInstance(domain, abort.signal), deadline]);
+    clearTimeout(timer);
     const at = Date.now();
     const previous = snapshots.get(domain);
-    snapshots.set(domain, servers
-      ? { servers, name, icon, readAt: at, checkedAt: at, ok: true }
+    snapshots.set(domain, got
+      ? { ...got, readAt: at, checkedAt: at, ok: true }
       : { servers: previous?.servers ?? [], name: previous?.name ?? null, icon: previous?.icon ?? null,
           readAt: previous?.readAt ?? 0, checkedAt: at, ok: false });
   }).finally(() => reading.delete(domain));
@@ -145,6 +165,30 @@ function byMembers(a: AdvertisedServer, b: AdvertisedServer): number {
   return (b.memberCount ?? -1) - (a.memberCount ?? -1)
     || a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
     || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+/** Every instance's first LEAD_PER_INSTANCE by members, then the rest; both by members. */
+function ranked(servers: AdvertisedServer[]): AdvertisedServer[] {
+  const lead: AdvertisedServer[] = [];
+  const rest: AdvertisedServer[] = [];
+  const counted = new Map<string, number>();
+  for (const server of [...servers].sort(byMembers)) {
+    const n = counted.get(server.instance.domain) ?? 0;
+    counted.set(server.instance.domain, n + 1);
+    (n < LEAD_PER_INSTANCE ? lead : rest).push(server);
+  }
+  return [...lead, ...rest];
+}
+
+/** Group ids of the copies this instance blocks; one query whatever the directories hold. */
+async function blockedGroups(): Promise<Set<string>> {
+  const { data, error } = await getSupabaseClient()
+    .from('instance_server_blocks')
+    .select('servers!inner(ap_id)')
+    .eq('blocked', true)
+    .eq('servers.is_local_server', false);
+  if (error) logger.warn(`Blocked copies not read: ${error.message}`);
+  return new Set((data ?? []).map((row: any) => row.servers?.ap_id).filter((id): id is string => typeof id === 'string'));
 }
 
 function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -186,6 +230,8 @@ export async function advertisedServers(opts: { query: string; offset: number; l
     if (!listed.has(domain) && !reading.has(domain) && !usable(snapshot, now)) snapshots.delete(domain);
   }
 
+  // A Group blocked since its instance was read.
+  const blocked = snapshots.size > 0 ? await blockedGroups() : new Set<string>();
   const merged: AdvertisedServer[] = [];
   const seen = new Set<string>();
   const failed: string[] = [];
@@ -201,19 +247,16 @@ export async function advertisedServers(opts: { query: string; offset: number; l
     instances++;
     const instance: AdvertisedInstance = { domain: peer.domain, name: snapshot.name, icon: snapshot.icon ?? peer.icon };
     for (const server of snapshot.servers) {
-      if (seen.has(server.id)) continue;
+      if (seen.has(server.id) || blocked.has(server.id)) continue;
       seen.add(server.id);
       merged.push({ ...server, instance });
     }
   }
 
-  const found = (opts.query ? merged.filter((s) => matches(s, opts.query)) : merged).sort(byMembers);
-  const slice = found.slice(opts.offset, opts.offset + opts.limit);
-  // A Group blocked since its instance was read.
-  const blocked = slice.length > 0 ? await groupsBlockedHere(slice.map((s) => s.id)) : new Set<string>();
+  const found = ranked(opts.query ? merged.filter((s) => matches(s, opts.query)) : merged);
   const end = opts.offset + opts.limit;
   return {
-    items: slice.filter((s) => !blocked.has(s.id)),
+    items: found.slice(opts.offset, end),
     total: found.length,
     nextOffset: end < found.length ? end : null,
     instances,

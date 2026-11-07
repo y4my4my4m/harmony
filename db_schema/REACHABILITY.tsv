@@ -1051,6 +1051,7 @@ voice_moderation_federate	definer	trigger	service_role	trigger	trigger public.se
 voice_participant_grants	definer	TABLE(channel_id uuid, user_id uuid, reason text, can_speak boolean, can_stream boolean, can_soundboard boolean, can_external_sounds boolean, server_muted boolean, server_deafened boolean)	service_role	client	rpc in federation-backend/src/services/voiceGrantSync.ts
 voice_participant_joined_at	invoker	trigger	service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT/UPDATE (a_voice_participants_joined_at)
 voice_participant_left_announce	definer	trigger	service_role	trigger	trigger public.voice_channel_participants AFTER DELETE (z_voice_participants_left)
+voice_presence_refresh_targets	definer	TABLE(channel_id uuid, channel_name text, server_id uuid, server_name text, user_id uuid, username text, federated_id text, instance text, shared_inbox text)	service_role	client	rpc in federation-backend/src/services/voicePresenceRefresh.ts
 voice_remove_member	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/services/voiceGrantSync.ts
 vote_message_poll	definer	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean, remote boolean)	authenticated+service_role	client	rpc in src/services/MessagePollService.ts
 vote_remote_poll	definer	jsonb	authenticated+service_role	client	rpc in src/services/RemotePollService.ts
