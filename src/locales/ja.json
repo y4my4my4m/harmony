@@ -3023,6 +3023,7 @@
     "messageReactionLimit": "このメッセージには {count} 種類のリアクションがあります。既存のリアクションに追加してください。",
     "reactionNotAllowed": "このチャンネルでは既存のリアクションにのみ追加できます。",
     "externalNotAllowed": "このチャンネルではUnicode絵文字とこのサーバーの絵文字のみ使用できます。",
+    "reactionNotEmoji": "リアクションには絵文字のみ使えます。",
     "postReactionLimit": "この投稿に {count} 件のリアクションを付けています。追加するには1つ削除してください。",
     "search": "絵文字を検索...",
     "recent": "最近使った絵文字",
@@ -5277,6 +5278,7 @@
       "federationCloseConfirmMessage": "このインスタンスの全サーバーが連合を停止して他のインスタンスのメンバーを外し、このインスタンスの全メンバーが他所でホストされているサーバーから退出します。スイッチを再びオンにするとサーバーは再開しますが、外されたメンバーは戻りません。",
       "federationCloseConfirm": "連合を閉じる",
       "configLoadFailed": "現在の設定を読み込めませんでした。保存する前に再読み込みしてください。",
+      "webrtcLoadFailed": "音声設定を読み込めなかったため、ここでは変更できません。ページを再読み込みしてもう一度お試しください。",
       "customOAuthTitle": "独自のサインインプロバイダー",
       "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
       "customOAuthEmpty": "まだありません。",
@@ -6436,6 +6438,22 @@
       "loading": "プロフィールを読み込み中…",
       "unavailable": "このプロフィールは表示できません",
       "open": "プロフィールを開く"
+    },
+    "invite": {
+      "label": "{name} への招待",
+      "online": "{count} 人オンライン",
+      "members": "{count} メンバー",
+      "join": "サーバーに参加",
+      "open": "サーバーへ移動",
+      "joining": "参加中…",
+      "invalid": "無効な招待",
+      "loading": "招待を読み込み中…"
+    },
+    "remoteInvite": {
+      "hostedOn": "{instance} でホスト",
+      "notFound": "招待が見つからないか、期限切れです",
+      "closedTitle": "他のインスタンスには非公開",
+      "closedMessage": "このサーバーには {instance} のユーザーのみ参加できます。"
     }
   },
   "outsideLink": {

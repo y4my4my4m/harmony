@@ -475,6 +475,24 @@ export class FederationServerService {
     }
   }
 
+  /**
+   * The server card of an invite link to another Harmony instance, as this instance's backend
+   * answers it (GET /remote-invite); null without one.
+   */
+  async remoteInviteCard(url: string): Promise<unknown> {
+    try {
+      const response = await fetch(federationApi(`/remote-invite?${new URLSearchParams({ url })}`), {
+        headers: { Accept: 'application/json', ...(await this.bearer()) },
+      })
+      if (!response.ok) return null
+      const data = await response.json().catch(() => null)
+      return data?.invite ?? null
+    } catch (error) {
+      debug.warn('Error reading a remote invite:', error)
+      return null
+    }
+  }
+
   // LEAVE REMOTE SERVER
 
   /**

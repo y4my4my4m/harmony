@@ -694,9 +694,12 @@ harmony auth remove-provider authentik</code></pre>
 
     <div v-if="configTab === 'webrtc'" class="config-section">
       <h3>WebRTC / voice settings</h3>
+      <p v-if="webrtcUnread" class="setting-hint federation-closed-warning" role="status" data-testid="webrtc-unread">
+        {{ t('admin.instance.webrtcLoadFailed') }}
+      </p>
       <div class="setting-group">
         <label>WebRTC mode</label>
-        <select v-model="config.webrtc.mode" class="cyber-input">
+        <select v-model="config.webrtc.mode" class="cyber-input" :disabled="webrtcUnread">
           <option value="hybrid">Hybrid (SFU when configured, else P2P)</option>
           <option value="sfu">SFU only (LiveKit)</option>
           <option value="p2p">P2P only (peer-to-peer)</option>
@@ -708,7 +711,7 @@ harmony auth remove-provider authentik</code></pre>
       <div class="setting-group">
         <label>LiveKit server URL</label>
         <input 
-          v-model="config.webrtc.livekitUrl" 
+          v-model="config.webrtc.livekitUrl" :disabled="webrtcUnread" 
           type="text" 
           class="cyber-input"
           placeholder="wss://livekit.yourdomain.com"
@@ -720,7 +723,7 @@ harmony auth remove-provider authentik</code></pre>
       <div class="setting-group">
         <label>Max stage listeners</label>
         <input 
-          v-model.number="config.webrtc.maxStageListeners" 
+          v-model.number="config.webrtc.maxStageListeners" :disabled="webrtcUnread" 
           type="number" 
           class="cyber-input"
         />
@@ -730,7 +733,7 @@ harmony auth remove-provider authentik</code></pre>
       </div>
       <div class="setting-row">
         <label class="toggle-label">
-          <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" />
+          <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" :disabled="webrtcUnread" />
           <span class="toggle-slider"></span>
           Allow federated voice calls
           <span class="setting-hint-inline">
@@ -924,6 +927,9 @@ const changedKeys = (current: Record<string, unknown>, saved: Record<string, unk
 const federationSwitchesChanged = () => switchesLoaded.value
   && (config.value.federation.enableInbound !== savedFederation.value.inbound
     || config.value.federation.enableOutbound !== savedFederation.value.outbound)
+
+// The voice settings could not be read: they are shown as defaults and cannot be saved.
+const webrtcUnread = computed(() => savedConfigPayload.value !== null && savedWebrtc.value === null)
 
 // Save stays disabled until the stored values are read.
 const configChanged = computed(() => savedConfigPayload.value !== null && (

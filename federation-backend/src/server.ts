@@ -50,6 +50,7 @@ import serverDirectoryRouter from './activitypub/serverDirectory.js';
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
 import directoryRouter from './routes/directory.js';
+import remoteInviteRouter from './routes/remoteInvite.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
@@ -179,6 +180,7 @@ export function createApp(): Application {
   app.use('/', threadRouter);
   app.use('/', instanceProbeRouter);
   app.use('/', directoryRouter);
+  app.use('/', remoteInviteRouter);
   app.use('/', actorRouter);
   app.use('/', inboxRouter);
 

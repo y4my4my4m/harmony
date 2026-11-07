@@ -3042,6 +3042,7 @@
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
     "reactionNotAllowed": "In diesem Kanal kannst du dich nur bestehenden Reaktionen anschließen.",
     "externalNotAllowed": "In diesem Kanal kannst du nur Unicode-Emojis und die Emojis dieses Servers verwenden.",
+    "reactionNotEmoji": "Nur Emojis können Reaktionen sein.",
     "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "aiGenerate": "Generieren",
@@ -5277,6 +5278,7 @@
       "federationCloseConfirmMessage": "Jeder Server hier hört auf zu föderieren und entfernt seine Mitglieder anderer Instanzen, und jedes Mitglied hier verlässt Server, die anderswo gehostet werden. Wird ein Schalter wieder eingeschaltet, öffnen die Server wieder; Entfernte kehren nicht zurück.",
       "federationCloseConfirm": "Föderation schließen",
       "configLoadFailed": "Die aktuellen Einstellungen konnten nicht gelesen werden. Vor dem Speichern neu laden.",
+      "webrtcLoadFailed": "Die Spracheinstellungen konnten nicht gelesen werden und lassen sich hier daher nicht ändern. Lade die Seite neu, um es erneut zu versuchen.",
       "customOAuthTitle": "Eigene Anmeldeanbieter",
       "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
       "customOAuthEmpty": "Noch keine.",
@@ -6436,6 +6438,22 @@
       "loading": "Profil wird geladen…",
       "unavailable": "Dieses Profil ist nicht verfügbar",
       "open": "Profil öffnen"
+    },
+    "invite": {
+      "label": "Einladung zu {name}",
+      "online": "{count} online",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "join": "Server beitreten",
+      "open": "Zum Server",
+      "joining": "Beitreten …",
+      "invalid": "Ungültige Einladung",
+      "loading": "Einladung wird geladen …"
+    },
+    "remoteInvite": {
+      "hostedOn": "Gehostet auf {instance}",
+      "notFound": "Einladung nicht gefunden oder abgelaufen",
+      "closedTitle": "Für andere Instanzen geschlossen",
+      "closedMessage": "Nur Personen auf {instance} können diesem Server beitreten."
     }
   },
   "outsideLink": {

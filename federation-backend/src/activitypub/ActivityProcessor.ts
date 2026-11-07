@@ -22,7 +22,7 @@ import { membershipOutlivesRemove, removalReason, removedByStaff } from './membe
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { storedPostVisibility } from './postAccess.js';
-import { inboundEmojiOrigin } from '../utils/emojiOrigin.js';
+import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
@@ -3585,7 +3585,11 @@ export class ActivityProcessor {
     // pollutes the instance emoji picker with url-less entries.
     if (!emojiUrl || !emojiName) return null;
 
-    const origin = inboundEmojiOrigin(emojiName, actorUrl);
+    const origin = inboundEmojiOrigin(emojiName, actorUrl, config.INSTANCE_DOMAIN);
+    if (origin.own) {
+      const local = await ownEmojiId(supabase, emojiUrl);
+      if (local) return local;
+    }
     const cleanName = origin.name;
     const emojiDomain = origin.domain ?? new URL(emojiUrl).hostname;
 

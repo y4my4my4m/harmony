@@ -3023,6 +3023,7 @@
     "messageReactionLimit": "Este mensaje tiene {count} reacciones distintas. Súmate a una de ellas.",
     "reactionNotAllowed": "En este canal solo puedes sumarte a reacciones existentes.",
     "externalNotAllowed": "En este canal solo puedes usar emojis Unicode y los de este servidor.",
+    "reactionNotEmoji": "Solo los emojis pueden ser reacciones.",
     "postReactionLimit": "Tienes {count} reacciones en esta publicación. Quita una para añadir otra.",
     "search": "Buscar emoji...",
     "recent": "Recientes",
@@ -5277,6 +5278,7 @@
       "federationCloseConfirmMessage": "Cada servidor de aquí deja de federar y elimina a sus miembros de otras instancias, y cada miembro de aquí abandona los servidores alojados en otros sitios. Al volver a activar un interruptor, los servidores se reabren; nadie eliminado vuelve.",
       "federationCloseConfirm": "Cerrar la federación",
       "configLoadFailed": "No se pudo leer la configuración actual. Recarga antes de guardar.",
+      "webrtcLoadFailed": "No se pudo leer la configuración de voz, así que no se puede cambiar aquí. Recarga la página para intentarlo de nuevo.",
       "customOAuthTitle": "Proveedores de inicio de sesión propios",
       "customOAuthHint": "Proveedores OpenID Connect u OAuth 2.0 en los que confía esta instancia, como Authentik, Keycloak o Better Auth. Sus botones aparecen en la página de inicio de sesión después de los anteriores. Sus secretos de cliente permanecen en el servidor, así que se añaden y se quitan allí.",
       "customOAuthEmpty": "Ninguno todavía.",
@@ -6436,6 +6438,22 @@
       "loading": "Cargando perfil…",
       "unavailable": "Este perfil no está disponible",
       "open": "Abrir perfil"
+    },
+    "invite": {
+      "label": "Invitación a {name}",
+      "online": "{count} en línea",
+      "members": "{count} miembro | {count} miembros",
+      "join": "Unirse al servidor",
+      "open": "Ir al servidor",
+      "joining": "Uniéndote…",
+      "invalid": "Invitación no válida",
+      "loading": "Cargando invitación…"
+    },
+    "remoteInvite": {
+      "hostedOn": "Alojado en {instance}",
+      "notFound": "Invitación no encontrada o caducada",
+      "closedTitle": "Cerrado a otras instancias",
+      "closedMessage": "Solo las personas de {instance} pueden unirse a este servidor."
     }
   },
   "outsideLink": {

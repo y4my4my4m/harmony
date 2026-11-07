@@ -1092,13 +1092,20 @@ const close = () => {
   emit('close')
 }
 
+// The server of the thread's channel; the current server when that channel is not loaded.
+const threadServerId = computed(() => {
+  const channelId = thread.value?.channel_id
+  const channel = channelId ? serverChannelStore.channels.find(c => c.id === channelId) : undefined
+  return channel?.server_id ?? serverChannelStore.currentServerId ?? null
+})
+
 const canOpenFullView = computed(() =>
-  !!thread.value?.id && !isDraftMode.value && !isOptimisticThreadId(thread.value.id) && !!serverChannelStore.currentServerId,
+  !!thread.value?.id && !isDraftMode.value && !isOptimisticThreadId(thread.value.id) && !!threadServerId.value,
 )
 
 const openFullView = () => {
   const threadId = thread.value?.id
-  const serverId = serverChannelStore.currentServerId
+  const serverId = threadServerId.value
   if (!threadId || !serverId) return
   close()
   void router.push({ name: 'ThreadView', params: { serverId, threadId } })

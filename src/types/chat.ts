@@ -285,7 +285,7 @@ export interface UrlContent {
 }
 
 export type EmbedProvider =
-  | 'harmony-post' | 'harmony-profile' | 'harmony-invite' | 'harmony-drive' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
+  | 'harmony-post' | 'harmony-profile' | 'harmony-invite' | 'harmony-remote-invite' | 'harmony-drive' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
   | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit'
   | 'x' | 'instagram' | 'bluesky';
 
@@ -394,6 +394,30 @@ export interface HarmonyProfileSummary {
   locked?: boolean;
 }
 
+/**
+ * The server card of an invite link to another Harmony instance (provider
+ * harmony-remote-invite). Mirrors RemoteInviteCard in
+ * federation-backend/src/services/remoteInvitePreview.ts.
+ */
+export interface RemoteInviteSummary {
+  status: 'valid' | 'invalid' | 'closed';
+  code: string;
+  /** host[:port] of the link: the instance hosting the server. */
+  domain: string;
+  instance: { name: string; icon: string | null };
+  /** Valid cards only. */
+  server?: {
+    name: string;
+    description: string | null;
+    icon: string | null;
+    memberCount: number | null;
+    /** Null from hosts before 1.9.4. */
+    onlineCount: number | null;
+    /** The Group's actor id, on `domain`. */
+    id: string | null;
+  };
+}
+
 export interface EmbedPayload {
   cacheKey: string;
   url: string;
@@ -425,6 +449,7 @@ export interface EmbedPayload {
   social?: EmbedSocialPost;
   harmony?: HarmonyEmbedSummary;
   profile?: HarmonyProfileSummary;
+  remoteInvite?: RemoteInviteSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;
   localPostId?: string;

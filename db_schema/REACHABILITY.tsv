@@ -167,7 +167,7 @@ cancel_device_pairing_request	definer	boolean	authenticated+service_role	client	
 cancel_my_account_redirect	definer	jsonb	authenticated+service_role	client	rpc in federation-backend/src/routes/accountMigration.ts
 carry_over_moved_membership	definer	text	service_role	client	rpc in federation-backend/src/activitypub/ServerInboxHandler.ts
 cascade_delete_reblogs	definer	trigger	service_role	trigger	trigger public.posts AFTER UPDATE (cascade_delete_reblogs_trigger)
-channel_grants_everyone	definer	boolean	service_role	client, trigger	called by broadcast_message_event, enforce_message_content_permissions, enforce_reaction_external_emoji, +1
+channel_grants_everyone	definer	boolean	service_role	client, trigger	called by broadcast_message_event, enforce_message_content_permissions, reaction_external_emoji_allowed, +1
 channel_inherits_category_permissions	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (a_channels_inherit_category_permissions)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
 channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
@@ -405,7 +405,7 @@ execute_channel_webhook	definer	jsonb	service_role	client	rpc in federation-back
 existing_sticker_ids	definer	TABLE(id uuid, url text)	anon+authenticated+service_role	client	rpc in src/services/stickerService.ts
 export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 export_server_template	definer	jsonb	authenticated+service_role	client	rpc in src/services/serverTemplateService.ts
-external_emoji_keys	definer	text[]	service_role	trigger	called by enforce_message_content_permissions, enforce_reaction_external_emoji
+external_emoji_keys	definer	text[]	service_role	trigger	called by enforce_message_content_permissions, reaction_external_emoji_allowed
 extract_hashtags_from_content	invoker	text[]	anon+authenticated+service_role	trigger	called by process_post_hashtags
 extract_message_text	invoker	text	anon+authenticated+service_role	trigger	called by handle_channel_message_notifications, handle_local_post_mention_notifications, handle_message_federation, +7
 extract_url_host	invoker	text	anon+authenticated+service_role	client, trigger	called by detect_embed_provider, process_local_link_previews
@@ -743,6 +743,7 @@ queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dism
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
 queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public.notifications AFTER UPDATE STATEMENT (trg_queue_push_dismissal_on_read)
 reaction_content_well_formed	invoker	boolean	-	trigger	called by check_reaction_emoji
+reaction_external_emoji_allowed	definer	boolean	-	trigger	called by check_reaction_emoji, enforce_reaction_external_emoji
 recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/donations.ts, src/services/FundingService.ts
 record_ai_emoji_generation	definer	trigger	service_role	trigger	trigger public.emojis AFTER INSERT (record_ai_emoji_generation)
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts

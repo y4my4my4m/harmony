@@ -5,7 +5,7 @@
 // server and joining a federated pill already on the message all work; the reaction bar shows
 // no refused name.
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import {
   adminClient,
   addMember,
@@ -107,4 +107,61 @@ test('a client reaction names a real emoji', async ({ page }) => {
     await expect(bar).not.toContainText('RIP')
     await expect(bar).not.toContainText('monkaSTEER')
   })
+})
+
+/** Hands a reaction_event payload to the page's subscription on `topic`, as broadcast_reaction_event sends it. */
+async function deliverReaction(page: Page, topic: string, payload: Record<string, unknown>) {
+  await page.evaluate(async ({ topic, payload }) => {
+    const served = performance.getEntriesByType('resource').map((e) => e.name)
+      .find((n) => n.includes('/src/services/RealtimeConnectionManager.ts'))
+    const mod = await import(/* @vite-ignore */ served ?? '/src/services/RealtimeConnectionManager.ts')
+    const sub = (mod.realtimeConnectionManager as any).subscriptions.get(topic)
+    if (!sub) throw new Error(`no subscription on ${topic}`)
+    const handler = sub.config.broadcasts.find((b: any) => b.event === 'reaction_event').handler
+    await handler(payload)
+  }, { topic, payload })
+}
+
+test('a bridged pill that arrives over realtime is joined by its identifier', async ({ page }) => {
+  test.setTimeout(120_000)
+  const snowflake = '923456789012345678'
+  const identifier = `discord:pepe2:${snowflake}`
+  const cdn = `https://cdn.discordapp.com/emojis/${snowflake}.png`
+  const text = `bridged ${Date.now().toString(36)}`
+  const { data: msg, error } = await admin.from('messages').insert({
+    channel_id: server.generalChannelId, user_id: owner.id, content: [{ type: 'text', text }],
+  }).select('id').single()
+  if (error || !msg) throw new Error(`message: ${error?.message}`)
+  await page.route('https://cdn.discordapp.com/**', (route) => route.fulfill({ path: 'public/default_server.webp', contentType: 'image/webp' }))
+
+  await signIn(page, member)
+  await openChannel(page, server.id, server.generalChannelId)
+  const row = messageList(page).getByRole('article').filter({ hasText: text })
+  await expect(row).toBeVisible({ timeout: 20000 })
+
+  // The bridge's row, written after the page loaded: the pill is built from the realtime event.
+  const metadata = { remote_emoji_name: 'pepe2', remote_emoji_url: cdn, discord_user: { id: '41', username: 'dana' } }
+  const { data: bridged, error: bridgeError } = await admin.from('reactions').insert({
+    message_id: msg.id, user_id: owner.id, custom_emoji_content: identifier, metadata,
+  }).select('id').single()
+  if (bridgeError || !bridged) throw new Error(`bridged reaction: ${bridgeError?.message}`)
+  await deliverReaction(page, `channel-messages-${server.generalChannelId}`, {
+    type: 'reaction:insert', op: 'INSERT', reaction_id: bridged.id, message_id: msg.id, user_id: owner.id,
+    emoji_id: null, custom_emoji_content: identifier, emoji_name: 'pepe2', emoji_url: cdn, metadata,
+    username: owner.username, display_name: owner.displayName,
+  })
+  const pill = row.getByTestId('message-reactions').locator('.reaction')
+  await expect(pill).toHaveCount(1, { timeout: 10000 })
+
+  const sent = page.waitForRequest((r) => r.url().includes('/rest/v1/reactions') && r.method() === 'POST')
+  await pill.click()
+  const body = JSON.parse((await sent).postData() || '[]')
+  expect((Array.isArray(body) ? body[0] : body).custom_emoji_content).toBe(identifier)
+
+  await expect.poll(async () => {
+    const { data } = await admin.from('reactions').select('custom_emoji_content').eq('message_id', msg.id).eq('user_id', member.id)
+    return (data ?? []).map((r) => r.custom_emoji_content)
+  }, { timeout: 15000 }).toEqual([identifier])
+  await expect(pill).toHaveCount(1)
+  await expect(pill.getByTestId('reaction-count')).toHaveText('2')
 })

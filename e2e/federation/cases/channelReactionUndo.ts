@@ -5,9 +5,6 @@
 //   - a custom emoji reaction: Like id .../reactions/<row id> with an Emoji tag; its Undo
 //     carries the same id, content and tag;
 //   - a unicode reaction: its Undo carries that emoji, not the heart.
-//
-// Before, the job's custom_emoji_content was dropped and the deleted row re-read, so every
-// Undo named the heart under a fresh id and no tag: removals never reached member instances.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import path from 'node:path'

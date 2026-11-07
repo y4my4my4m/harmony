@@ -11,6 +11,7 @@ import { isReactionLimitError, MESSAGE_REACTION_KINDS } from '@/utils/reactionLi
 import { moderationRejectionFromError } from '@/services/AutoModService'
 import { i18n } from '@/i18n'
 import { useToast } from 'vue-toastification'
+import { reactionGroupContent, reactionGroupKey } from '@/utils/reactionUsers'
 
 interface MessageReactionInput {
   emojiId: string
@@ -31,10 +32,12 @@ const actorKey = (actor: ActorInput): string =>
 const reactionKey = (r: ReactionActor): string =>
   r.metadata?.discord_user?.id || r.user_id || r.bot_id || r.reaction_id || ''
 
+// A pill fetched from the server carries a non-uuid content in emoji_id (a Discord
+// identifier with an image); one built from realtime carries it in emoji.content.
 function matchesEmoji(group: ReactionGroup, emojiId: string): boolean {
-  return isUuid(emojiId)
-    ? group.emoji_id === emojiId
-    : !group.emoji_id && group.emoji?.name === emojiId
+  if (isUuid(emojiId)) return group.emoji_id === emojiId
+  if (group.emoji_id && isUuid(group.emoji_id)) return false
+  return group.emoji_id === emojiId || reactionGroupContent(group) === emojiId
 }
 
 /** The chip a picked emoji id toggles. */
@@ -206,7 +209,7 @@ export const useReactionsStore = defineStore('reactions', () => {
     },
     matchesEmoji: (group, emoji) => matchesEmoji(group, emoji.emojiId),
     hasReacted: (group) => group.current_user_reacted ?? false,
-    groupKey: (g) => (g.emoji_id || g.emoji?.name || (g.emoji as any)?.content || 'unknown'),
+    groupKey: (g) => reactionGroupKey(g),
     emojiKey: (emoji) => emoji.emojiId,
     entityIdFromRealtime: (payload) => payload?.message_id || payload?.new?.message_id || payload?.old?.message_id,
     realtimeReconcileDelayMs: 400,
@@ -240,6 +243,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       } else if (!result.success && result.reason?.includes('Missing permission: USE_EXTERNAL_EMOJIS')) {
         // enforce_reaction_external_emoji: another server's emoji without USE_EXTERNAL_EMOJIS.
         useToast().info(i18n.global.t('emoji.externalNotAllowed'))
+      } else if (!result.success && result.reason?.includes('REACTION_EMOJI')) {
+        // check_reaction_emoji: no emoji, or a removed one.
+        useToast().info(i18n.global.t('emoji.reactionNotEmoji'))
       }
       return result
     },

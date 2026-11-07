@@ -193,7 +193,8 @@ export function directoryEntry(item: any, domain: string): RemoteDirectoryEntry 
   };
 }
 
-async function fetchNodeinfo(domain: string): Promise<any | null | undefined> {
+/** NodeInfo 2.1 or 2.0 of `domain`: null when it publishes none, undefined when it did not answer. */
+export async function fetchNodeinfo(domain: string): Promise<any | null | undefined> {
   try {
     const wellKnown = await safeFetch(`https://${domain}/.well-known/nodeinfo`, {
       headers: { Accept: 'application/json' },

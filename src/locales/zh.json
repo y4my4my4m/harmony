@@ -3042,6 +3042,7 @@
     "messageReactionLimit": "此消息已有 {count} 种不同的反应。请在现有反应中选择一个。",
     "reactionNotAllowed": "在此频道中只能加入已有的反应。",
     "externalNotAllowed": "此频道只能使用 Unicode 表情符号和本服务器的表情符号。",
+    "reactionNotEmoji": "只有表情符号可以作为回应。",
     "postReactionLimit": "您已对此帖子添加 {count} 个反应。请移除一个后再添加。",
     "search": "搜索表情...",
     "aiGenerate": "生成",
@@ -5277,6 +5278,7 @@
       "federationCloseConfirmMessage": "此处的每个服务器停止联邦并移除来自其他实例的成员，此处的每个成员退出托管在别处的服务器。重新打开任一开关会重新开放这些服务器；被移除的人不会回来。",
       "federationCloseConfirm": "关闭联邦",
       "configLoadFailed": "无法读取当前设置。请在保存前重新加载。",
+      "webrtcLoadFailed": "无法读取语音设置，因此无法在此更改。请重新加载页面后重试。",
       "customOAuthTitle": "自有登录提供方",
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
@@ -6436,6 +6438,22 @@
       "loading": "正在加载个人资料…",
       "unavailable": "此个人资料不可用",
       "open": "打开个人资料"
+    },
+    "invite": {
+      "label": "加入 {name} 的邀请",
+      "online": "{count} 人在线",
+      "members": "{count} 名成员",
+      "join": "加入服务器",
+      "open": "前往服务器",
+      "joining": "正在加入…",
+      "invalid": "无效邀请",
+      "loading": "正在加载邀请…"
+    },
+    "remoteInvite": {
+      "hostedOn": "托管于 {instance}",
+      "notFound": "未找到邀请或邀请已过期",
+      "closedTitle": "不对其他实例开放",
+      "closedMessage": "只有 {instance} 上的用户可以加入此服务器。"
     }
   },
   "outsideLink": {

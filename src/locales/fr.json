@@ -3042,6 +3042,7 @@
     "messageReactionLimit": "Ce message a {count} réactions différentes. Ajoutez-vous à l'une d'elles.",
     "reactionNotAllowed": "Dans ce salon, vous pouvez seulement vous ajouter aux réactions existantes.",
     "externalNotAllowed": "Dans ce salon, seuls les émojis Unicode et ceux de ce serveur sont utilisables.",
+    "reactionNotEmoji": "Seuls les emojis peuvent servir de réactions.",
     "postReactionLimit": "Vous avez {count} réactions sur cette publication. Retirez-en une pour en ajouter une autre.",
     "search": "Rechercher des émojis...",
     "aiGenerate": "Générer",
@@ -5277,6 +5278,7 @@
       "federationCloseConfirmMessage": "Chaque serveur d’ici cesse de fédérer et retire ses membres d’autres instances, et chaque membre d’ici quitte les serveurs hébergés ailleurs. Réactiver un interrupteur rouvre les serveurs ; les personnes retirées ne reviennent pas.",
       "federationCloseConfirm": "Fermer la fédération",
       "configLoadFailed": "Impossible de lire les paramètres actuels. Rechargez avant d’enregistrer.",
+      "webrtcLoadFailed": "Les paramètres vocaux n’ont pas pu être lus et ne peuvent donc pas être modifiés ici. Rechargez la page pour réessayer.",
       "customOAuthTitle": "Vos propres fournisseurs de connexion",
       "customOAuthHint": "Fournisseurs OpenID Connect ou OAuth 2.0 auxquels cette instance fait confiance, comme Authentik, Keycloak ou Better Auth. Leurs boutons suivent ceux ci-dessus sur la page de connexion. Leurs secrets client restent sur le serveur : on les ajoute et on les retire là-bas.",
       "customOAuthEmpty": "Aucun pour l’instant.",
@@ -6436,6 +6438,22 @@
       "loading": "Chargement du profil…",
       "unavailable": "Ce profil n'est pas disponible",
       "open": "Ouvrir le profil"
+    },
+    "invite": {
+      "label": "Invitation à {name}",
+      "online": "{count} en ligne",
+      "members": "{count} membre | {count} membres",
+      "join": "Rejoindre le serveur",
+      "open": "Aller au serveur",
+      "joining": "Adhésion en cours…",
+      "invalid": "Invitation invalide",
+      "loading": "Chargement de l'invitation…"
+    },
+    "remoteInvite": {
+      "hostedOn": "Hébergé sur {instance}",
+      "notFound": "Invitation introuvable ou expirée",
+      "closedTitle": "Fermé aux autres instances",
+      "closedMessage": "Seules les personnes de {instance} peuvent rejoindre ce serveur."
     }
   },
   "outsideLink": {

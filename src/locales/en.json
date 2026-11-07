@@ -3096,6 +3096,7 @@
     "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
     "reactionNotAllowed": "You can only join existing reactions in this channel.",
     "externalNotAllowed": "Only unicode and this server's emoji can be used in this channel.",
+    "reactionNotEmoji": "Only emoji can be reactions.",
     "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "aiGenerate": "Generate",
@@ -5273,6 +5274,7 @@
       "federationCloseConfirmMessage": "Every server here stops federating and removes its members from other instances, and every member here leaves servers hosted elsewhere. Turning a switch back on reopens the servers; nobody removed comes back.",
       "federationCloseConfirm": "Close federation",
       "configLoadFailed": "Could not read the current settings. Reload before saving.",
+      "webrtcLoadFailed": "The voice settings could not be read, so they cannot be changed here. Reload the page to try again.",
       "customOAuthTitle": "Your own sign-in providers",
       "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
       "customOAuthEmpty": "None yet.",
@@ -6432,6 +6434,22 @@
       "loading": "Loading profile…",
       "unavailable": "This profile isn't available",
       "open": "Open profile"
+    },
+    "invite": {
+      "label": "Invite to {name}",
+      "online": "{count} online",
+      "members": "{count} member | {count} members",
+      "join": "Join server",
+      "open": "Go to server",
+      "joining": "Joining…",
+      "invalid": "Invalid invite",
+      "loading": "Loading invite…"
+    },
+    "remoteInvite": {
+      "hostedOn": "Hosted on {instance}",
+      "notFound": "Invite not found or has expired",
+      "closedTitle": "Closed to other instances",
+      "closedMessage": "Only people on {instance} can join this server."
     }
   },
   "outsideLink": {

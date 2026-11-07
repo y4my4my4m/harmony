@@ -8,9 +8,10 @@ import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import { parseMetaTags, tagAttributes } from '../utils/htmlMeta.js';
 import { fetchKlipyMediaBySlug } from './KlipyService.js';
 import { fetchSocialPreview, socialPlatformOf, type EmbedMedia, type EmbedSocialPost } from './socialEmbeds.js';
+import { resolveRemoteInvite, type RemoteInviteCard } from './remoteInvitePreview.js';
 
 export type EmbedProvider =
-  | 'harmony-post' | 'harmony-profile' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
+  | 'harmony-post' | 'harmony-profile' | 'harmony-remote-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
   | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal'
   | 'x' | 'instagram' | 'bluesky';
 
@@ -116,6 +117,8 @@ export interface EmbedPayload {
   };
   /** The account of a harmony-profile link; src/types/chat.ts HarmonyProfileSummary. */
   profile?: Record<string, unknown>;
+  /** The server card of a harmony-remote-invite link (services/remoteInvitePreview.ts). */
+  remoteInvite?: RemoteInviteCard;
   fediverse?: FediverseEmbedData;
   localPostId?: string;
 }
@@ -123,6 +126,7 @@ export interface EmbedPayload {
 const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   'harmony-post': 5 * 60 * 1000, // 5 minutes
   'harmony-profile': 5 * 60 * 1000,
+  'harmony-remote-invite': 5 * 60 * 1000,
   'fediverse-post': 30 * 60 * 1000, // 30 minutes
   youtube: 6 * 60 * 60 * 1000, // 6 hours
   spotify: 6 * 60 * 60 * 1000,
@@ -365,9 +369,10 @@ class LinkPreviewService {
     } else if (provider === 'x' || provider === 'instagram' || provider === 'bluesky') {
       payload = await this.fetchPostPreview(normalizedUrl) ?? await this.fetchGenericPreview(normalizedUrl);
     } else {
-      const klipyPayload = await this.fetchKlipyPreview(normalizedUrl);
-      const wikipediaPayload = klipyPayload ? null : await this.fetchWikipediaPreview(normalizedUrl);
-      payload = klipyPayload ?? wikipediaPayload ?? await this.fetchGenericPreview(normalizedUrl);
+      payload = await this.fetchRemoteInvitePreview(normalizedUrl)
+        ?? await this.fetchKlipyPreview(normalizedUrl)
+        ?? await this.fetchWikipediaPreview(normalizedUrl)
+        ?? await this.fetchGenericPreview(normalizedUrl);
     }
 
     payload.cacheKey = cacheKey;
@@ -457,6 +462,29 @@ class LinkPreviewService {
     // Everything else goes through generic, which auto-discovers AP via
     // <link rel="alternate" type="application/activity+json"> in the HTML.
     return 'generic';
+  }
+
+  /**
+   * The server card of an invite link to another Harmony instance. Null for any other link,
+   * which is read as a page; a Harmony host that does not answer leaves no card.
+   */
+  private async fetchRemoteInvitePreview(url: string): Promise<EmbedPayload | null> {
+    const lookup = await resolveRemoteInvite(url).catch((err) => {
+      logger.debug(`Remote invite lookup failed for ${url}: ${(err as Error)?.message ?? err}`);
+      return null;
+    });
+    if (!lookup || lookup.status === 'none') return null;
+    const base = { cacheKey: '', url, normalizedUrl: url, provider: 'harmony-remote-invite' as const, fetchedAt: '', expiresAt: '' };
+    if (lookup.status === 'unavailable') return { ...base, failed: true };
+    const { card } = lookup;
+    return {
+      ...base,
+      ...(card.server ? { title: card.server.name } : {}),
+      ...(card.server?.description ? { description: card.server.description } : {}),
+      ...(card.server?.icon ? { icon: card.server.icon } : {}),
+      siteName: card.instance.name,
+      remoteInvite: card,
+    };
   }
 
   /**

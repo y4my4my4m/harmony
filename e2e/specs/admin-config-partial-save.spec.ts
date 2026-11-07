@@ -2,8 +2,6 @@
 // never touched stays on after a save of another field; a value another admin stored after
 // this page loaded is not reverted by this page's save.
 //
-// The form wrote every instance_config key it knew, from its own copy, on each save.
-//
 // instance_config is snapshotted before and restored after.
 
 import { test, expect, type Page } from '@playwright/test'
@@ -61,10 +59,10 @@ test('a save writes the edited field and leaves the switches as stored', async (
   test.setTimeout(120_000)
   await setConfig('gif_clips_enabled', true)
   await setConfig('gif_ai_emojis_enabled', true)
-  await setConfig('max_server_size', 1000)
+  await setConfig('max_server_size', 1111)
   await signIn(page, staff)
   await openGeneral(page)
-  await expect(serverSizeField(page)).toHaveValue('1000', { timeout: 20000 })
+  await expect(serverSizeField(page)).toHaveValue('1111', { timeout: 20000 })
 
   await serverSizeField(page).fill('1234')
   await save(page)
@@ -77,10 +75,10 @@ test('a save writes the edited field and leaves the switches as stored', async (
 test('a save does not revert a value stored after the page loaded', async ({ page }) => {
   test.setTimeout(120_000)
   await setConfig('gif_memes_enabled', false)
-  await setConfig('max_server_size', 1000)
+  await setConfig('max_server_size', 1111)
   await signIn(page, staff)
   await openGeneral(page)
-  await expect(serverSizeField(page)).toHaveValue('1000', { timeout: 20000 })
+  await expect(serverSizeField(page)).toHaveValue('1111', { timeout: 20000 })
 
   // Another admin turns memes on meanwhile.
   await setConfig('gif_memes_enabled', true)
@@ -94,7 +92,7 @@ test('a save does not revert a value stored after the page loaded', async ({ pag
 
 test('nothing is saved while the stored values are unread', async ({ page }) => {
   test.setTimeout(120_000)
-  await setConfig('max_server_size', 1000)
+  await setConfig('max_server_size', 1111)
   await signIn(page, staff)
   await page.route('**/rest/v1/instance_config*', (route) =>
     route.request().method() === 'GET' && route.request().url().includes('config_key=in.')
@@ -105,5 +103,5 @@ test('nothing is saved while the stored values are unread', async ({ page }) => 
   await expect(page.locator('.Vue-Toastification__toast--error').first()).toBeVisible({ timeout: 20000 })
   await serverSizeField(page).fill('4321')
   await expect(page.locator('.config-section').getByRole('button', { name: 'Save changes' }).first()).toBeDisabled()
-  expect(await readConfig('max_server_size')).toBe(1000)
+  expect(await readConfig('max_server_size')).toBe(1111)
 })

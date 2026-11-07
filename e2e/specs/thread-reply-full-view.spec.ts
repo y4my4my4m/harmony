@@ -2,9 +2,6 @@
 // member of another instance, or from a local member, names its author above the composer in
 // the side panel and in the full thread view; the stored reply points at that message. The
 // thread side panel opens the full thread view, also for a thread the sidebar no longer lists.
-//
-// The composer's reply bar resolved the replied message through the channel or conversation
-// it was given; the thread composers gave neither and the bar read "Deleted User".
 
 import crypto from 'node:crypto'
 import { test, expect, type Page, type Locator } from '@playwright/test'

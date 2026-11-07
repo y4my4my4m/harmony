@@ -56,6 +56,8 @@
 // (cases/groupAuthored.ts).
 // Server directories are published and read, signed, and a listed Group is joined from one
 // (cases/discovery.ts).
+// An invite link to a server on another Harmony instance is stored as that server's card, read
+// from the host's invite answer (cases/remoteInviteCard.ts).
 // The instance's federation switches refuse, drop and close against the peer
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
@@ -135,6 +137,7 @@ import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
+import { caseRemoteInviteCard } from './cases/remoteInviteCard.ts'
 import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
 
@@ -2969,6 +2972,11 @@ async function main() {
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
       ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, pubServer: PUB_SERVER, privServer: PRIV_SERVER },
+    })
+    await caseRemoteInviteCard({
+      db, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      ids: { alice: ALICE, aliceAuth: ALICE_AUTH, pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL },
     })
     await casePolls({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,

@@ -743,6 +743,7 @@ queue_push_dismissal	p_user_id uuid, p_ids uuid[]	void	definer	public, pg_temp	s
 queue_push_dismissal_on_delete		trigger	definer	public, pg_temp	service_role	trigger
 queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigger
 reaction_content_well_formed	p_content text	boolean	invoker	public, pg_temp		unreferenced
+reaction_external_emoji_allowed	p_message_id uuid, p_emoji_id uuid, p_content text	boolean	definer	public, pg_temp		unreferenced
 recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 record_ai_emoji_generation		trigger	definer	public, pg_temp	service_role	trigger
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client

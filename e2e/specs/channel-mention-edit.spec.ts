@@ -2,9 +2,6 @@
 // message links #zeta, and the saved edit still holds the channel_mention part; a link to a
 // message in a channel keeps its messageId. A mention of a member of another instance keeps
 // its domain, so the edit does not re-point it at a local account of the same name.
-//
-// The edit text came from messagePartsToMarkdown, which had no channel_mention case and wrote
-// a remote mention as a bare @username.
 
 import crypto from 'node:crypto'
 import { test, expect, type Page } from '@playwright/test'

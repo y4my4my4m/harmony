@@ -11,7 +11,7 @@ import { logger } from '../utils/logger.js';
 /** Codes invite links carry. Minted codes are 8 of [A-Z0-9]. */
 export const INVITE_CODE = /^[A-Za-z0-9_-]{3,64}$/;
 
-const INVITE_PATH = /^\/invite\/([A-Za-z0-9_-]{3,64})\/?$/;
+export const INVITE_PATH = /^\/invite\/([A-Za-z0-9_-]{3,64})\/?$/;
 
 const TTL_SECONDS = 60;
 

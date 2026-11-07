@@ -736,6 +736,7 @@ A private chat server is joined by invite. Harmony resolves an invite link `http
     "icon": null,
     "banner": null,
     "memberCount": 42,
+    "onlineCount": 7,
     "rules": [],
     "channels": [
       { "id": "https://chat.example.com/servers/<uuid>/channels/<channel>", "localId": "<channel>", "name": "general", "type": "text", "category": null, "categoryId": null, "order": 0, "description": null }
@@ -746,6 +747,10 @@ A private chat server is joined by invite. Harmony resolves an invite link `http
 ```
 
 The preview lists only what `@everyone` can view. Before showing it, the resolving instance fetches `server.id` and requires a `Group` on the same host as the invite, with its inbox on that host. The `Join` then carries `harmony:inviteCode`, and the host checks the code again.
+
+`onlineCount` counts members whose presence is not offline; hosts before 1.9.4 leave it out. A server closed to other instances answers 403 with `"code": "federation_disabled"`.
+
+An invite link in a message shows as the server's card when the link's host names `harmony` as its software in NodeInfo. The instance storing the message reads this answer for the link's preview (provider `harmony-remote-invite`): the server's name, icon, description, counts and `id`, and the host's NodeInfo `nodeName` and `icon` for the line under the button. The card reads the answer again through the viewer's own instance, cached for a minute.
 
 ## Voice
 
