@@ -117,6 +117,25 @@ export interface DirectoryPeer {
   icon: string | null
 }
 
+/** A server listed by one of the known instances (federation-backend GET /directory/servers). */
+export interface AdvertisedServer extends DirectoryServer {
+  instance: { domain: string; name: string | null; icon: string | null }
+}
+
+export interface AdvertisedPage {
+  items: AdvertisedServer[]
+  /** Servers matching the query across every instance read. */
+  total: number
+  nextOffset: number | null
+  /** Instances whose servers are listed. */
+  instances: number
+  /** Instances still being read. */
+  pending: number
+  /** Instances whose directory could not be read. */
+  failed: string[]
+  federationOff: boolean
+}
+
 export type DirectoryRefusal =
   | 'invalid_domain'
   | 'own_instance'
@@ -457,6 +476,42 @@ export class FederationServerService {
     } catch (error) {
       debug.error('Error browsing a server directory:', error)
       return { ok: false, refusal: 'unknown' }
+    }
+  }
+
+  /**
+   * The servers the known instances list, merged by this instance's backend. `unsupported`: the
+   * backend serves no merged list (before 1.9.4).
+   */
+  async listAdvertisedServers(
+    query = '',
+    offset = 0,
+  ): Promise<{ ok: true; page: AdvertisedPage } | { ok: false; unsupported: boolean }> {
+    const params = new URLSearchParams()
+    if (query.trim()) params.set('q', query.trim())
+    if (offset > 0) params.set('offset', String(offset))
+    try {
+      const search = params.toString()
+      const response = await fetch(federationApi(`/directory/servers${search ? `?${search}` : ''}`), {
+        headers: { Accept: 'application/json', ...(await this.bearer()) },
+      })
+      if (!response.ok) return { ok: false, unsupported: response.status === 404 }
+      const data = await response.json()
+      return {
+        ok: true,
+        page: {
+          items: Array.isArray(data.items) ? data.items : [],
+          total: typeof data.total === 'number' ? data.total : 0,
+          nextOffset: typeof data.nextOffset === 'number' ? data.nextOffset : null,
+          instances: typeof data.instances === 'number' ? data.instances : 0,
+          pending: typeof data.pending === 'number' ? data.pending : 0,
+          failed: Array.isArray(data.failed) ? data.failed : [],
+          federationOff: data.federationOff === true,
+        },
+      }
+    } catch (error) {
+      debug.error('Error listing advertised servers:', error)
+      return { ok: false, unsupported: false }
     }
   }
 

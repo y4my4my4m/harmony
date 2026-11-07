@@ -32,7 +32,7 @@ The bottom of the sidebar shows how much of your storage you use, and how much y
 
 Click a file to select it; Ctrl+click (Cmd+click on macOS) adds to the selection and Shift+click extends it. With one file selected, **Details** opens beside the list: a preview, the name, type, size and date added, **Where it's used**, **Sharing**, and buttons for the file. **Where it's used** lists the messages and posts that send the file; select one to jump to it.
 
-Double-click a file, or press Enter, to open it full size. **Previous file** and **Next file**, or the Left and Right arrow keys, move through the files of the view. Right-click a file for its menu: **Open**, **Download**, **Rename**, **Share**, **Move**, **Keep in Drive** for a temporary file, and **Move to trash**.
+Double-click a file, press Enter, or select the picture in **Details** to open the file in the media viewer, the one photos in messages open in. **Previous** and **Next**, the Left and Right arrow keys, or a swipe on a touch screen move through the files of the view. Pictures zoom, pan and rotate; a PDF shows in the viewer; any other file shows its name and **Download**. Right-click a file for its menu: **Open**, **Download**, **Rename**, **Share**, **Move**, **Keep in Drive** for a temporary file, and **Move to trash**.
 
 ## Upload and organise files
 

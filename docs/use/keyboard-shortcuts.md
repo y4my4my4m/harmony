@@ -157,7 +157,9 @@ Starting a reply, pinning, unpinning and copying are announced to screen readers
 
 | Where | Keys | Action |
 |---|---|---|
-| Media viewer | Left / Right | Previous or next image or video. |
+| Media viewer | Left / Right | Previous or next item. |
+| Media viewer | `+` or `=` / `-` | Zoom a picture in or out. |
+| Media viewer | `0` | Reset a picture's zoom and rotation. |
 | Media viewer | Escape | Close the viewer. |
 | Crop and image editing dialogs | Arrow keys | Move the crop area. Hold Shift for larger steps. |
 | Crop and image editing dialogs | `+` or `=` / `-` | Zoom in or out. |

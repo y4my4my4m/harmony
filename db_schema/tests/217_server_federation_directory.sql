@@ -1,8 +1,9 @@
 -- 20261105100001_server_federation_directory.sql: servers.federation_discoverable, written
--- through update_server only while the server is public and federated; the directory
--- federation_server_directory lists local, public, federated, unsuspended servers with the flag
--- on while both instance switches are on; record_instance_directory stores a peer's directory
--- URL on its federated_instances row; a change of the flag queues the Group's Update.
+-- through update_server; the directory federation_server_directory lists local, public,
+-- federated, unsuspended servers with the flag on while both instance switches are on;
+-- record_instance_directory stores a peer's directory URL on its federated_instances row; a
+-- change of the flag queues the Group's Update. The flag's default and its persistence across
+-- private and unfederated states are 20261107900001 (244_server_directory_default_on.sql).
 --
 --   alice    fixture profile (01_fixtures.sql), owner of every server below
 --   bob      fixture member of the fixture server without MANAGE_SERVER
@@ -10,7 +11,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(23);
+SELECT plan(22);
 
 CREATE TABLE tests.jobs217 (name text, data jsonb);
 CREATE OR REPLACE FUNCTION public.queue_federation_job(
@@ -28,16 +29,18 @@ DELETE FROM public.instance_config
  WHERE config_key IN ('enable_inbound_federation', 'enable_outbound_federation', 'federation_settings');
 
 SELECT col_not_null('public', 'servers', 'federation_discoverable', 'federation_discoverable is not null');
-SELECT col_default_is('public', 'servers', 'federation_discoverable', 'false', 'servers are not listed by default');
-SELECT is((SELECT federation_discoverable FROM public.servers WHERE id = '55555555-0000-0000-0000-000000000005'),
-  false, 'an existing server is not listed');
+SELECT is((SELECT count(*)::int FROM public.federation_server_directory() d
+            WHERE d.id = '55555555-0000-0000-0000-000000000005'),
+  0, 'a private fixture server is not listed');
 
--- s1 listed, most members; s2 listed; s3 public and federated, not listed; s4 private, s5
--- federation off, s6 suspended, s7 a remote copy: the flag forced on each, none listed.
+-- s1 listed, most members; s2 listed; s3 public and federated, not listed; s1-s3 start with the
+-- flag off. s4 private, s5 federation off, s6 suspended, s7 a remote copy: the flag on each, none
+-- listed.
+INSERT INTO public.servers (id, name, owner, public, federation_enabled, federation_discoverable) VALUES
+  ('f2170000-0000-0000-0000-0000000000a1', 'Listed Hall', '11111111-0000-0000-0000-000000000001', true, true, false),
+  ('f2170000-0000-0000-0000-0000000000a2', 'Listed Den', '11111111-0000-0000-0000-000000000001', true, true, false),
+  ('f2170000-0000-0000-0000-0000000000a3', 'Unlisted', '11111111-0000-0000-0000-000000000001', true, true, false);
 INSERT INTO public.servers (id, name, owner, public, federation_enabled) VALUES
-  ('f2170000-0000-0000-0000-0000000000a1', 'Listed Hall', '11111111-0000-0000-0000-000000000001', true, true),
-  ('f2170000-0000-0000-0000-0000000000a2', 'Listed Den', '11111111-0000-0000-0000-000000000001', true, true),
-  ('f2170000-0000-0000-0000-0000000000a3', 'Unlisted', '11111111-0000-0000-0000-000000000001', true, true),
   ('f2170000-0000-0000-0000-0000000000a4', 'Private', '11111111-0000-0000-0000-000000000001', false, true),
   ('f2170000-0000-0000-0000-0000000000a5', 'Closed', '11111111-0000-0000-0000-000000000001', true, false),
   ('f2170000-0000-0000-0000-0000000000a6', 'Suspended', '11111111-0000-0000-0000-000000000001', true, true);
@@ -63,12 +66,12 @@ SELECT is((public.update_server('f2170000-0000-0000-0000-0000000000a1', '{"feder
   'true', 'the owner lists a public, federated server');
 SELECT lives_ok($$SELECT public.update_server('f2170000-0000-0000-0000-0000000000a2', '{"federation_discoverable": true}')$$,
   'and a second one');
-SELECT throws_ok($$SELECT public.update_server('55555555-0000-0000-0000-000000000005', '{"federation_discoverable": true}')$$,
-  '22023', NULL, 'a private server is not listed');
+SELECT is((public.update_server('55555555-0000-0000-0000-000000000005', '{"federation_discoverable": false}') ->> 'federation_discoverable'),
+  'false', 'a private server takes the flag');
 SELECT throws_ok($$SELECT public.update_server('f2170000-0000-0000-0000-0000000000a3', '{"federation_discoverable": "yes"}')$$,
   '22023', NULL, 'the flag is a boolean');
-SELECT throws_ok($$SELECT public.update_server('f2170000-0000-0000-0000-0000000000a3', '{"federation_discoverable": true, "public": false}')$$,
-  '22023', NULL, 'listing and making private in one change is refused');
+SELECT is((public.update_server('f2170000-0000-0000-0000-0000000000a3', '{"federation_discoverable": true, "public": false}') ->> 'federation_discoverable'),
+  'true', 'listing and making private in one change is taken');
 SELECT tests.clear_authentication();
 
 SELECT is((SELECT count(*)::int FROM tests.jobs217
@@ -103,14 +106,14 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.federation_server_
           AND has_function_privilege('service_role', 'public.federation_server_directory(integer, integer)', 'EXECUTE'),
   'only the service role reads the directory');
 
--- Making a listed server private or closing its federation unlists it.
+-- Making a listed server private or closing its federation unlists it; the flag stays.
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT public.update_server('f2170000-0000-0000-0000-0000000000a2', '{"public": false}');
 SELECT public.update_server('f2170000-0000-0000-0000-0000000000a1', '{"federation_enabled": false}');
 SELECT tests.clear_authentication();
 SELECT is((SELECT array_agg(federation_discoverable ORDER BY id) FROM public.servers
             WHERE id IN ('f2170000-0000-0000-0000-0000000000a1', 'f2170000-0000-0000-0000-0000000000a2')),
-  ARRAY[false, false], 'making a listed server private or closing its federation clears the flag');
+  ARRAY[true, true], 'making a listed server private or closing its federation keeps the flag');
 SELECT is((SELECT count(*)::int FROM public.federation_server_directory()), 0, 'and nothing is listed');
 
 -- record_instance_directory

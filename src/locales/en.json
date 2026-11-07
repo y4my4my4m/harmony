@@ -353,7 +353,7 @@
     "federationHandle": "Server handle",
     "federationHandleDesc": "Share this handle so people on other instances can find and join this server.",
     "federationDiscoverable": "Discoverable across federation",
-    "federationDiscoverableDesc": "List this server in this instance's server directory, so people on other Harmony instances can find and join it.",
+    "federationDiscoverableDesc": "List this server in this instance's server directory, so people on other Harmony instances can find and join it. On by default; it applies while the server is public and federated.",
     "federationDiscoverableNeedsPublic": "Make the server public to list it.",
     "federationDiscoverableNeedsFederation": "Turn on federation to list it.",
     "federationDiscoverableInstanceOff": "Federation is off on this instance, so its directory lists no server.",
@@ -731,7 +731,12 @@
       "disableConsequence5": "Keep them out if you turn federation back on, until they rejoin with an invite",
       "disableConfirm": "Disable federation"
     },
-    "federationInstanceOff": "Federation is off on this instance; its admins turn it back on."
+    "federationInstanceOff": "Federation is off on this instance; its admins turn it back on.",
+    "settingsNavGroups": {
+      "expression": "Expression",
+      "integrations": "Integrations",
+      "moderation": "Moderation"
+    }
   },
   "channel": {
     "create": "Create channel",
@@ -3423,7 +3428,22 @@
       "federationOff": "This instance doesn't federate right now, so other instances can't be browsed.",
       "noDirectory": "{domain} doesn't publish a server directory.",
       "unreachable": "{domain} didn't answer. Try again later.",
-      "failed": "Something went wrong. Try again."
+      "failed": "Something went wrong. Try again.",
+      "allInstances": "All instances",
+      "filterLabel": "Filter servers",
+      "filterPlaceholder": "Name, topic or instance",
+      "loadingAdvertised": "Reading the directories of known instances…",
+      "advertisedStats": "{count} server on {instances} | {count} servers on {instances}",
+      "instanceCount": "{count} instance | {count} instances",
+      "advertisedMatches": "{count} server matches | {count} servers match",
+      "advertisedPending": "Still reading {count} instance… | Still reading {count} instances…",
+      "advertisedFailed": "{count} instance didn't answer, so its servers aren't shown. | {count} instances didn't answer, so their servers aren't shown.",
+      "noMatchTitle": "No matching servers",
+      "noMatch": "No server on a known instance matches “{query}”.",
+      "advertisedEmptyTitle": "No servers listed yet",
+      "advertisedEmpty": "Servers whose owners list them across federation appear here. No instance this one knows lists one yet: browse another instance by its domain above.",
+      "hostedOn": "Hosted on {instance}",
+      "advertisedErrorTitle": "Couldn't read the known instances"
     },
     "haveInviteLink": "Have an invite link? Paste it here",
     "inviteLink": "Invite link",
@@ -4617,7 +4637,8 @@
       "max_uses": "Max uses",
       "expires_at": "Expires",
       "temporary": "Temporary membership",
-      "messages_deleted": "Messages deleted"
+      "messages_deleted": "Messages deleted",
+      "federation_discoverable": "Discoverable across federation"
     },
     "value": {
       "none": "none",
@@ -6896,12 +6917,11 @@
       "next": "Next",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom and rotation",
-      "rotateLeft": "Rotate left",
       "rotateRight": "Rotate right",
       "videoUnsupported": "This video cannot be played here.",
       "download": "Download",
-      "audio": "Audio"
+      "audio": "Audio",
+      "noPreview": "No preview for this file."
     },
     "pwa": {
       "installApp": "Install Harmony app",
@@ -7268,12 +7288,6 @@
       "resetText": "The current link stops working for everyone, including where it was already posted. People who can see the file can copy the new link.",
       "until": "Until {date}",
       "searchPeopleHint": "Name or username"
-    },
-    "preview": {
-      "previous": "Previous file",
-      "next": "Next file",
-      "none": "No preview for this file.",
-      "fullScreen": "View full screen"
     },
     "picker": {
       "title": "Choose from Drive",

@@ -6,7 +6,7 @@
  * `content_media` (file parts from the post content). One tile per post, as on X: the
  * first item is the cover, the rest open in the lightbox.
  */
-import type { MediaAttachment } from '@/types'
+import type { LightboxItem } from '@/components/common/MediaLightbox.vue'
 import { attachmentObjectPosition } from '@/utils/focalPoint'
 
 export interface ProfileMediaRow {
@@ -255,17 +255,12 @@ export function buildLightboxSequence(
   return { entries, startByPostId }
 }
 
-/** MonyMediaLightbox input. */
-export function toLightboxAttachment(entry: LightboxEntry, index: number): MediaAttachment {
+/** MediaLightbox item of an entry. */
+export function toLightboxItem(entry: LightboxEntry): LightboxItem {
   const { item } = entry
-  return {
-    id: `${entry.postId}:${index}`,
-    type: item.kind === 'gif' && item.isVideoFile ? 'gifv' : item.isVideoFile ? 'video' : 'image',
-    url: item.url,
-    preview_url: item.previewUrl ?? undefined,
-    description: item.alt || undefined,
-    mime_type: item.mimeType ?? undefined,
-  }
+  const alt = item.alt || undefined
+  if (!item.isVideoFile) return { src: item.url, type: 'image', alt }
+  return { src: item.url, type: 'video', alt, poster: item.previewUrl ?? undefined, isGifv: item.kind === 'gif' }
 }
 
 /** m:ss, or h:mm:ss from an hour up. */

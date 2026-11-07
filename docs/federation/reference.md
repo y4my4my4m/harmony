@@ -65,7 +65,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 
 `GET /servers/directory` lists the chat servers the instance offers to other instances, as an `OrderedCollection` of `Group` summaries. NodeInfo names it in `metadata.serverDirectory`, and the [instance actor](#actors) in `streams` and `harmony:directory`. Responses carry `Cache-Control: no-cache`.
 
-A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner turned on **Discoverable across federation**; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
+A server is listed while all of these hold: it is hosted on this instance, public, federation-enabled and not suspended; its owner has not turned off **Discoverable across federation**, which is on by default; both instance federation switches are on. Otherwise the collection is empty. Groups are ordered by accepted members, most first, then by creation time, oldest first.
 
 | Request | Answer |
 |---|---|
@@ -107,6 +107,14 @@ Harmony reads another instance's directory as follows, and other consumers shoul
 - A join goes through the Group's own document and inbox, as for any server joined by URL.
 
 Pages are cached for 2 minutes, a domain's directory URL for 10 minutes. The directory is read for a signed-in local user only, and not at all while either of the reading instance's federation switches is off.
+
+**Other instances** opens on the servers every known instance lists: the instances in `federated_instances` whose NodeInfo names a directory, none of them blocked. The reading instance's federation backend reads the first page of each, as above, and merges them; the browser fetches nothing from those instances but icons.
+
+| Request | Answer |
+|---|---|
+| `GET /api/federation/directory/servers?q=<text>&offset=<n>&limit=<n>` | `{ items, total, nextOffset, instances, pending, failed, federationOff }` |
+
+Each item is an entry as `GET /api/federation/directory/remote` gives it plus `instance` (`domain`, `name` from NodeInfo `metadata.nodeName`, `icon`). Items are ordered by member count, most first, then by name; `q` keeps those whose name, summary, handle, category or instance contains it. `limit` is 30 by default and at most 60. An instance's servers are kept for 15 minutes; after that they are served while they are read again, for up to 6 hours after the last good read, and a failed read is tried again after 2 minutes. At most four instances are read at once, and a request waits up to 5 seconds for instances it holds nothing of: `pending` counts those still being read, `failed` names those that could not be read. While either federation switch is off the answer is empty with `federationOff: true`.
 
 An instance that serves the directory lists `server-directory` in the `capabilities` of `GET /api/federation/instance-info`. Harmony's apps show **Discoverable across federation** and **Other instances** only on such an instance.
 

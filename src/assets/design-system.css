@@ -280,6 +280,17 @@
   --tooltip-arrow: #2b2d31;
 }
 
+/* Media viewer (MediaLightbox): a dark blurred scrim in every theme and skin, white controls.
+   --viewer-scrim is space-separated RGB channels; white text over the scrim on a white page
+   measures 16:1. */
+:root {
+  --viewer-scrim: 0 0 0;
+  --viewer-scrim-alpha: 0.88;
+  --viewer-blur: 24px;
+  --viewer-control-bg: rgb(255 255 255 / 0.1);
+  --viewer-control-bg-hover: rgb(255 255 255 / 0.2);
+}
+
 /* Text on primary/accent background (e.g. active nav item) – always light for contrast */
 :root {
   --text-on-primary: #ffffff;
@@ -447,6 +458,7 @@ input[type="range"] {
   --background-secondary-alpha: var(--background-secondary);
   --background-tertiary-alpha: var(--background-tertiary);
   --background-senary-alpha: var(--background-senary);
+  --viewer-scrim-alpha: 0.95;
 }
 
 /*

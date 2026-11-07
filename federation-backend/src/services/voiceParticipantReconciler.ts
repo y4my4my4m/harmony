@@ -8,7 +8,10 @@
  *
  * Any failure to read LiveKit or the database ends the run with nothing
  * removed. Rows with metadata.transport = 'p2p' are skipped: a client on the
- * P2P fallback is never in a LiveKit room.
+ * P2P fallback is never in a LiveKit room. Rows of a remote server's copy
+ * (servers.is_local_server false) are skipped: the call runs on the host's
+ * LiveKit, and the host's VoiceChannelLeave removes the row
+ * (VoiceActivityHandler).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -45,6 +48,7 @@ export type ReconcileResult =
 
 interface Row {
   channel_id: string;
+  server_id: string | null;
   user_id: string;
   joined_at: string;
   metadata: Record<string, unknown> | null;
@@ -101,7 +105,7 @@ export async function reconcileVoiceParticipants(opts: ReconcileOptions): Promis
 
   let query = supabase
     .from('voice_channel_participants')
-    .select('channel_id, user_id, joined_at, metadata')
+    .select('channel_id, server_id, user_id, joined_at, metadata')
     .lt('joined_at', latestCutoff.toISOString());
   if (opts.channelIds) {
     if (opts.channelIds.length === 0) return { ok: true, checked: 0, removed: 0 };
@@ -110,7 +114,20 @@ export async function reconcileVoiceParticipants(opts: ReconcileOptions): Promis
   const { data: rowData, error: rowError } = await query;
   if (rowError) return { ok: false, reason: `participant read failed: ${rowError.message}` };
 
-  const rows = ((rowData ?? []) as Row[]).filter((row) => row.metadata?.transport !== 'p2p');
+  const candidates = ((rowData ?? []) as Row[]).filter((row) => row.metadata?.transport !== 'p2p');
+  if (candidates.length === 0) return { ok: true, checked: 0, removed: 0 };
+
+  const serverIds = [...new Set(candidates.map((row) => row.server_id).filter((id): id is string => !!id))];
+  const { data: serverData, error: serverError } = serverIds.length > 0
+    ? await supabase.from('servers').select('id, is_local_server').in('id', serverIds)
+    : { data: [], error: null };
+  if (serverError) return { ok: false, reason: `server read failed: ${serverError.message}` };
+  const remoteCopies = new Set(
+    ((serverData ?? []) as Array<{ id: string; is_local_server: boolean | null }>)
+      .filter((server) => server.is_local_server === false)
+      .map((server) => server.id),
+  );
+  const rows = candidates.filter((row) => !row.server_id || !remoteCopies.has(row.server_id));
   if (rows.length === 0) return { ok: true, checked: 0, removed: 0 };
 
   const userIds = [...new Set(rows.map((row) => row.user_id))];

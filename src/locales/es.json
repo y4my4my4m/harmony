@@ -367,7 +367,7 @@
     "federationHandle": "Identificador del servidor",
     "federationHandleDesc": "Comparte este identificador para que personas de otras instancias puedan encontrar este servidor y unirse a él.",
     "federationDiscoverable": "Descubrible en la federación",
-    "federationDiscoverableDesc": "Incluye este servidor en el directorio de servidores de esta instancia, para que personas de otras instancias de Harmony puedan encontrarlo y unirse.",
+    "federationDiscoverableDesc": "Incluye este servidor en el directorio de servidores de esta instancia, para que personas de otras instancias de Harmony puedan encontrarlo y unirse. Activado por defecto; se aplica mientras el servidor sea público y federado.",
     "federationDiscoverableNeedsPublic": "Haz público el servidor para incluirlo.",
     "federationDiscoverableNeedsFederation": "Activa la federación para incluirlo.",
     "federationDiscoverableInstanceOff": "La federación está desactivada en esta instancia, así que su directorio no incluye ningún servidor.",
@@ -731,7 +731,12 @@
       "disableConsequence5": "Los mantendrá fuera aunque vuelvas a activar la federación, hasta que se unan de nuevo con una invitación",
       "disableConfirm": "Desactivar la federación"
     },
-    "federationInstanceOff": "La federación está desactivada en esta instancia; sus administradores la vuelven a activar."
+    "federationInstanceOff": "La federación está desactivada en esta instancia; sus administradores la vuelven a activar.",
+    "settingsNavGroups": {
+      "expression": "Expresión",
+      "integrations": "Integraciones",
+      "moderation": "Moderación"
+    }
   },
   "channel": {
     "create": "Crear canal",
@@ -3432,7 +3437,22 @@
       "federationOff": "Esta instancia no federa ahora mismo, así que no se pueden explorar otras instancias.",
       "noDirectory": "{domain} no publica un directorio de servidores.",
       "unreachable": "{domain} no respondió. Inténtalo más tarde.",
-      "failed": "Algo salió mal. Inténtalo de nuevo."
+      "failed": "Algo salió mal. Inténtalo de nuevo.",
+      "allInstances": "Todas las instancias",
+      "filterLabel": "Filtrar servidores",
+      "filterPlaceholder": "Nombre, tema o instancia",
+      "loadingAdvertised": "Leyendo los directorios de las instancias conocidas…",
+      "advertisedStats": "{count} servidor en {instances} | {count} servidores en {instances}",
+      "instanceCount": "{count} instancia | {count} instancias",
+      "advertisedMatches": "{count} servidor coincide | {count} servidores coinciden",
+      "advertisedPending": "Aún leyendo {count} instancia… | Aún leyendo {count} instancias…",
+      "advertisedFailed": "{count} instancia no respondió, así que sus servidores no aparecen. | {count} instancias no respondieron, así que sus servidores no aparecen.",
+      "noMatchTitle": "Ningún servidor coincide",
+      "noMatch": "Ningún servidor de una instancia conocida coincide con «{query}».",
+      "advertisedEmptyTitle": "Aún no hay servidores incluidos",
+      "advertisedEmpty": "Aquí aparecen los servidores que sus dueños incluyen en la federación. Ninguna instancia que esta conoce incluye uno todavía: explora otra instancia por su dominio arriba.",
+      "hostedOn": "Alojado en {instance}",
+      "advertisedErrorTitle": "No se pudieron leer las instancias conocidas"
     },
     "haveInviteLink": "¿Tienes un enlace de invitación? Pégalo aquí",
     "inviteLink": "Enlace de invitación",
@@ -4617,7 +4637,8 @@
       "max_uses": "Usos máximos",
       "expires_at": "Caduca",
       "temporary": "Membresía temporal",
-      "messages_deleted": "Mensajes eliminados"
+      "messages_deleted": "Mensajes eliminados",
+      "federation_discoverable": "Descubrible en la federación"
     },
     "value": {
       "none": "ninguno",
@@ -6900,12 +6921,11 @@
       "next": "Siguiente",
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
-      "resetZoom": "Restablecer zoom y rotación",
-      "rotateLeft": "Girar a la izquierda",
       "rotateRight": "Girar a la derecha",
       "videoUnsupported": "Este vídeo no se puede reproducir aquí.",
       "download": "Descargar",
-      "audio": "Audio"
+      "audio": "Audio",
+      "noPreview": "No hay vista previa para este archivo."
     },
     "pwa": {
       "installApp": "Instalar la app de Harmony",
@@ -7356,12 +7376,6 @@
       "resetText": "El enlace actual deja de funcionar para todos, también donde ya se publicó. Quienes pueden ver el archivo pueden copiar el enlace nuevo.",
       "until": "Hasta el {date}",
       "searchPeopleHint": "Nombre o nombre de usuario"
-    },
-    "preview": {
-      "previous": "Archivo anterior",
-      "next": "Archivo siguiente",
-      "none": "No hay vista previa para este archivo.",
-      "fullScreen": "Ver a pantalla completa"
     },
     "picker": {
       "title": "Elegir de Drive",

@@ -428,12 +428,13 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     /**
-     * Replaces the roster of a local server's channels with its voice_channel_participants
-     * rows. Recent occupancy changes (ROSTER_EVENT_GRACE_MS) win over the read; this
-     * client's own call is kept.
+     * Replaces the roster of a server's channels with its voice_channel_participants rows.
+     * A remote server copy holds the rows its host's presence activities wrote
+     * (VoiceActivityHandler.recordRemotePresence). Recent occupancy changes
+     * (ROSTER_EVENT_GRACE_MS) win over the read; this client's own call is kept.
      */
     async reloadVoiceRoster(serverId: string): Promise<void> {
-      if (serverId === 'dm' || serverId !== this.voiceBroadcastServerId || !this.voiceBroadcastServerLocal) return;
+      if (serverId === 'dm' || serverId !== this.voiceBroadcastServerId) return;
       const startedAt = Date.now();
       lastRosterReload = { serverId, at: startedAt };
       let data: Array<{ channel_id: string; user_id: string }> | null = null;

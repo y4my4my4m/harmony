@@ -199,14 +199,20 @@ describe('voice roster from the database', () => {
     expect(store.getUsersInVoiceChannel('c2')).toEqual(['me'])
   })
 
-  it('reads nothing for a remote server, whose roster is the broadcasts', async () => {
+  it("reads a remote server copy's roster: its host's presence rows", async () => {
+    // Someone on the host joined while this client viewed another server; the row is all there is.
+    db.rows = [{ server_id: S, channel_id: 'c1', user_id: 'spartzy' }]
     const store = useServerUsersStore()
     await store.setupVoiceChannelBroadcast(S, { local: false })
-    deliver(S, { event: 'user-joined', userId: 'remote', channelId: 'c1' })
+    await flush()
+    expect(db.reads).toEqual([S])
+    expect(store.getUsersInVoiceChannel('c1')).toEqual(['spartzy'])
+
+    db.rows = []
+    deliver(S, { event: 'user-joined', userId: 'remote', channelId: 'c2' })
     topic(S).status?.('SUBSCRIBED')
     await flush()
-    expect(db.reads).toEqual([])
-    expect(store.getUsersInVoiceChannel('c1')).toEqual(['remote'])
+    expect(store.getUsersInVoiceChannel('c2')).toEqual(['remote'])
   })
 })
 

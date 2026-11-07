@@ -45,7 +45,7 @@ A chat server lives on one instance, the one where it was created. That instance
 ### Joining
 
 - A **public** server with federation enabled can be found by its handle, `slug@host`, shown in **Server settings** → **Privacy settings** → **Server handle**. The handle resolves through WebFinger.
-- A public, federated server whose owner turns on **Discoverable across federation** is listed in its host's server directory, an ActivityPub collection that NodeInfo names (see [Server directory](/federation/reference#server-directory)). People on other Harmony instances browse it under **Discover communities** → **Other instances** and join from there; their own instance reads the directory for them.
+- A public, federated server is listed in its host's server directory, an ActivityPub collection that NodeInfo names (see [Server directory](/federation/reference#server-directory)), unless its owner turns off **Discoverable across federation**. People on other Harmony instances find it under **Discover communities** → **Other instances**, which lists the servers of every instance theirs knows, and join from there; their own instance reads the directories for them.
 - A **private** server needs an invite link. The joining instance first checks that the invite's server is a genuine `Group` on the same host as the link. The `Join` it sends carries the invite code, and the host checks the code (expiry, use count, revocation) before it accepts.
 - The host refuses a `Join` from a suspended account, from a banned account, and from an account that moved from a banned account.
 

@@ -400,7 +400,7 @@
     "federationHandle": "서버 핸들",
     "federationHandleDesc": "이 핸들을 공유하면 다른 인스턴스의 사람들이 이 서버를 찾아 참여할 수 있습니다.",
     "federationDiscoverable": "연합 전체에서 검색 가능",
-    "federationDiscoverableDesc": "이 인스턴스의 서버 디렉터리에 이 서버를 올려 다른 Harmony 인스턴스의 사람들이 찾아 참여할 수 있게 합니다.",
+    "federationDiscoverableDesc": "이 인스턴스의 서버 디렉터리에 이 서버를 올려 다른 Harmony 인스턴스의 사람들이 찾아 참여할 수 있게 합니다. 기본으로 켜져 있으며, 서버가 공개이고 연합 중일 때 적용됩니다.",
     "federationDiscoverableNeedsPublic": "올리려면 서버를 공개로 설정하세요.",
     "federationDiscoverableNeedsFederation": "올리려면 연합을 켜세요.",
     "federationDiscoverableInstanceOff": "이 인스턴스의 연합이 꺼져 있어 디렉터리에 서버가 올라가지 않습니다.",
@@ -731,7 +731,12 @@
       "disableConsequence5": "연합을 다시 켜도 돌아오지 않으며, 초대로 다시 가입해야 합니다",
       "disableConfirm": "연합 비활성화"
     },
-    "federationInstanceOff": "이 인스턴스에서 연합이 꺼져 있습니다. 관리자가 다시 켤 수 있습니다."
+    "federationInstanceOff": "이 인스턴스에서 연합이 꺼져 있습니다. 관리자가 다시 켤 수 있습니다.",
+    "settingsNavGroups": {
+      "expression": "표현",
+      "integrations": "연동",
+      "moderation": "모더레이션"
+    }
   },
   "channel": {
     "create": "채널 만들기",
@@ -3432,7 +3437,22 @@
       "federationOff": "이 인스턴스가 지금 연합하지 않아 다른 인스턴스를 둘러볼 수 없습니다.",
       "noDirectory": "{domain}은(는) 서버 디렉터리를 게시하지 않습니다.",
       "unreachable": "{domain}이(가) 응답하지 않았습니다. 나중에 다시 시도하세요.",
-      "failed": "문제가 발생했습니다. 다시 시도하세요."
+      "failed": "문제가 발생했습니다. 다시 시도하세요.",
+      "allInstances": "모든 인스턴스",
+      "filterLabel": "서버 필터",
+      "filterPlaceholder": "이름, 주제 또는 인스턴스",
+      "loadingAdvertised": "알려진 인스턴스의 디렉터리를 읽는 중…",
+      "advertisedStats": "{instances}의 서버 {count}개 | {instances}의 서버 {count}개",
+      "instanceCount": "인스턴스 {count}개 | 인스턴스 {count}개",
+      "advertisedMatches": "일치하는 서버 {count}개 | 일치하는 서버 {count}개",
+      "advertisedPending": "인스턴스 {count}개를 아직 읽는 중… | 인스턴스 {count}개를 아직 읽는 중…",
+      "advertisedFailed": "인스턴스 {count}개가 응답하지 않아 해당 서버가 표시되지 않습니다. | 인스턴스 {count}개가 응답하지 않아 해당 서버가 표시되지 않습니다.",
+      "noMatchTitle": "일치하는 서버 없음",
+      "noMatch": "알려진 인스턴스에 “{query}”와 일치하는 서버가 없습니다.",
+      "advertisedEmptyTitle": "아직 올라온 서버가 없습니다",
+      "advertisedEmpty": "소유자가 연합 전체에 올린 서버가 여기에 표시됩니다. 이 인스턴스가 아는 인스턴스 중 아직 서버를 올린 곳이 없습니다. 위에서 도메인으로 다른 인스턴스를 둘러보세요.",
+      "hostedOn": "{instance}에서 호스팅",
+      "advertisedErrorTitle": "알려진 인스턴스를 읽지 못했습니다"
     },
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
     "inviteLink": "초대 링크",
@@ -4617,7 +4637,8 @@
       "max_uses": "최대 사용 횟수",
       "expires_at": "만료",
       "temporary": "임시 멤버십",
-      "messages_deleted": "삭제된 메시지"
+      "messages_deleted": "삭제된 메시지",
+      "federation_discoverable": "연합 전체에서 검색 가능"
     },
     "value": {
       "none": "없음",
@@ -6900,12 +6921,11 @@
       "next": "다음",
       "zoomIn": "확대",
       "zoomOut": "축소",
-      "resetZoom": "확대/축소 및 회전 초기화",
-      "rotateLeft": "왼쪽으로 회전",
       "rotateRight": "오른쪽으로 회전",
       "videoUnsupported": "이 동영상은 여기에서 재생할 수 없습니다.",
       "download": "다운로드",
-      "audio": "오디오"
+      "audio": "오디오",
+      "noPreview": "이 파일은 미리보기를 지원하지 않습니다."
     },
     "pwa": {
       "installApp": "Harmony 앱 설치",
@@ -7356,12 +7376,6 @@
       "resetText": "이미 게시된 곳을 포함해 현재 링크는 누구에게도 작동하지 않게 됩니다. 파일을 볼 수 있는 사람은 새 링크를 복사할 수 있습니다.",
       "until": "{date}까지",
       "searchPeopleHint": "이름 또는 사용자 이름"
-    },
-    "preview": {
-      "previous": "이전 파일",
-      "next": "다음 파일",
-      "none": "이 파일은 미리보기를 지원하지 않습니다.",
-      "fullScreen": "전체 화면으로 보기"
     },
     "picker": {
       "title": "Drive에서 선택",

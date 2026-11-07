@@ -8,8 +8,12 @@
  *   GET /directory/peers
  *        200 { peers: [{ domain, software, icon }], federationOff }: known instances that publish
  *        a directory. Up to a few peers' NodeInfo is read first, for at most PEER_REFRESH_WAIT_MS.
+ *   GET /directory/servers[?q=<text>][&offset=<n>][&limit=<n>]
+ *        200 { items, total, nextOffset, instances, pending, failed, federationOff }: the servers
+ *        the known instances list, merged (services/AdvertisedDirectoryService.ts). Each item is
+ *        a /directory/remote item with `instance` { domain, name, icon }. limit is at most 60.
  *
- * Both answer 401 without a local session. Nothing is fetched while either instance federation
+ * All answer 401 without a local session. Nothing is fetched while either instance federation
  * switch is off: a server found there could not be joined.
  */
 
@@ -29,6 +33,7 @@ import {
   readDirectoryPage,
   refreshPeerDirectories,
 } from '../services/RemoteDirectoryService.js';
+import { advertisedServers, parseAdvertisedQuery } from '../services/AdvertisedDirectoryService.js';
 
 const PEER_REFRESH_WAIT_MS = 4_000;
 
@@ -36,6 +41,16 @@ const router = Router();
 
 function refuse(res: Response, status: number, code: string, error: string): void {
   res.status(status).json({ error, code });
+}
+
+/** Reads the NodeInfo of due peers, for at most PEER_REFRESH_WAIT_MS. */
+async function refreshPeers(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    refreshPeerDirectories(),
+    new Promise<void>((resolve) => { timer = setTimeout(resolve, PEER_REFRESH_WAIT_MS); }),
+  ]);
+  clearTimeout(timer);
 }
 
 router.get(
@@ -112,13 +127,28 @@ router.get(
       res.json({ peers: [], federationOff: true });
       return;
     }
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      refreshPeerDirectories(),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, PEER_REFRESH_WAIT_MS); }),
-    ]);
-    clearTimeout(timer);
+    await refreshPeers();
     res.json({ peers: await listDirectoryPeers(), federationOff: false });
+  }),
+);
+
+router.get(
+  '/directory/servers',
+  discoveryLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    if (!(await localProfileIdFromBearer(req.headers.authorization))) {
+      refuse(res, 401, 'unauthorized', 'Sign in to browse other instances');
+      return;
+    }
+    const { inbound, outbound } = await federationSwitches();
+    if (!inbound || !outbound) {
+      res.json({ items: [], total: 0, nextOffset: null, instances: 0, pending: 0, failed: [], federationOff: true });
+      return;
+    }
+    await refreshPeers();
+    const page = await advertisedServers(parseAdvertisedQuery(req.query as Record<string, unknown>));
+    res.json({ ...page, federationOff: false });
   }),
 );
 

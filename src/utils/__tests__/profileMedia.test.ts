@@ -6,7 +6,7 @@ import {
   normalizeAttachment,
   normalizeContentPart,
   profileMediaCursor,
-  toLightboxAttachment,
+  toLightboxItem,
   toProfileMediaTile,
   toProfileMediaTiles,
   type ProfileMediaRow,
@@ -181,10 +181,10 @@ describe('buildLightboxSequence', () => {
     expect(startByPostId.get('p2')).toBe(2)
   })
 
-  it('maps entries to lightbox attachments', () => {
+  it('maps entries to media viewer items', () => {
     const { entries } = buildLightboxSequence(tiles, () => false)
-    expect(toLightboxAttachment(entries[3], 3)).toMatchObject({ id: 'p3:3', type: 'gifv', url: 'https://h/3.mp4' })
-    expect(toLightboxAttachment(entries[0], 0)).toMatchObject({ type: 'image', description: undefined })
+    expect(toLightboxItem(entries[3])).toMatchObject({ type: 'video', isGifv: true, src: 'https://h/3.mp4' })
+    expect(toLightboxItem(entries[0])).toEqual({ type: 'image', src: entries[0].item.url, alt: undefined })
   })
 })
 

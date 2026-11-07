@@ -16,7 +16,7 @@
           class="drive-details__open"
           :aria-label="t('drive.card.view', { name })"
           data-testid="drive-details-open-media"
-          @click="openLightbox"
+          @click="emit('open', file)"
         >
           <img :src="src" :alt="name" class="drive-details__media" draggable="false" />
         </button>
@@ -26,7 +26,7 @@
           class="drive-details__open drive-details__video"
           :aria-label="t('drive.card.play', { name })"
           data-testid="drive-details-open-media"
-          @click="openLightbox"
+          @click="emit('open', file)"
         >
           <video :src="`${src}#t=0.5`" class="drive-details__media" preload="metadata" muted playsinline tabindex="-1" aria-hidden="true" />
           <span class="drive-details__play" aria-hidden="true"><Icon name="play" :size="22" /></span>
@@ -129,7 +129,6 @@
         </button>
       </template>
     </footer>
-    <MediaLightbox v-if="lightbox.item.value" :visible="true" :imgs="[lightbox.item.value]" @hide="lightbox.close()" />
   </aside>
 </template>
 
@@ -137,7 +136,6 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
-import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import { useT } from '@/composables/useT'
 import { useCopyDriveLink } from '@/composables/useCopyDriveLink'
 import {
@@ -149,13 +147,14 @@ import {
 } from '@/services/drive/driveService'
 import DriveFileThumb from './DriveFileThumb.vue'
 import { daysUntil, driveMediaSource, driveThumbnail, formatBytes } from './driveFormat'
-import { useDriveLightbox } from './useDriveLightbox'
 import { driveShareSummary } from '@/utils/driveShareSummary'
 
 const props = defineProps<{ file: DriveFile; owner: DriveOwner | null; ownId: string | null }>()
 
 const emit = defineEmits<{
   close: []
+  /** View the file full size, among the files of the view. */
+  open: [file: DriveFile]
   rename: [file: DriveFile, name: string]
   keep: [file: DriveFile]
   share: [file: DriveFile]
@@ -168,7 +167,6 @@ const emit = defineEmits<{
 const { t, locale } = useT()
 const router = useRouter()
 const copyLink = useCopyDriveLink()
-const lightbox = useDriveLightbox()
 const usage = ref<DriveFileUsage | null>(null)
 const usageLoading = ref(false)
 const editing = ref(false)
@@ -206,10 +204,6 @@ watch(() => [props.file.id, props.file.updated_at], () => {
   editing.value = false
   void loadUsage()
 }, { immediate: true })
-
-function openLightbox(): void {
-  lightbox.open(props.file, name.value)
-}
 
 function startRename(): void {
   if (!owned.value) return

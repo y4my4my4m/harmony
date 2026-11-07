@@ -120,11 +120,11 @@ The footer offers **Join by URL** for servers on other instances and **Create yo
 
 When your instance federates, the window has two tabs: **This instance**, the list above, and **Other instances**, the server directories of other Harmony instances. Arrow keys move between the tabs.
 
-1. Under **Instance**, enter another instance's domain, such as `example.social`, and select **Browse**. Or pick one under **Known instances**: the instances yours knows that publish a server directory.
-2. The list shows the servers whose owners list them across federation, each with its icon, handle, description and member count. **Load more** reads the next page.
+1. The tab opens on the servers listed by every instance yours knows, most members first, each with its icon, handle, description, member count and the instance that hosts it. **Filter servers** narrows them by name, topic or instance. **Load more** shows the next ones.
+2. To see one instance's directory, pick it under **Known instances**, or enter its domain under **Instance**, such as `example.social`, and select **Browse**. **All instances** returns to the merged list.
 3. **Join** opens **Join remote server** with that server filled in; see [Join a server on another instance](#join-a-server-on-another-instance). **Open** switches to a server you are already in.
 
-An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list.
+An instance that publishes no directory, does not answer, or is blocked on yours shows why in place of the list. In the merged list, a line under the count says how many instances did not answer.
 
 ## Find your way around
 

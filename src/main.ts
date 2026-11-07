@@ -20,9 +20,6 @@ import { setAppSessionCookie } from '@/utils/appSessionCookie'
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
 
-import VueEasyLightbox from 'vue-easy-lightbox';
-import './assets/vue-easy-lightbox.css';
-
 import VueLazyLoad from 'vue3-lazyload';
 import MasonryWall from '@yeger/vue-masonry-wall'
 
@@ -96,7 +93,6 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(i18n);
 
-app.use(VueEasyLightbox);
 app.use(MasonryWall)
 
 app.use(VueLazyLoad, {

@@ -400,7 +400,7 @@
     "federationHandle": "Server-Handle",
     "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können.",
     "federationDiscoverable": "Über die Föderation auffindbar",
-    "federationDiscoverableDesc": "Diesen Server im Serververzeichnis dieser Instanz aufführen, damit Leute auf anderen Harmony-Instanzen ihn finden und ihm beitreten können.",
+    "federationDiscoverableDesc": "Diesen Server im Serververzeichnis dieser Instanz aufführen, damit Leute auf anderen Harmony-Instanzen ihn finden und ihm beitreten können. Standardmäßig an; gilt, solange der Server öffentlich und föderiert ist.",
     "federationDiscoverableNeedsPublic": "Mach den Server öffentlich, um ihn aufzuführen.",
     "federationDiscoverableNeedsFederation": "Schalte die Föderation ein, um ihn aufzuführen.",
     "federationDiscoverableInstanceOff": "Die Föderation ist auf dieser Instanz aus, daher führt ihr Verzeichnis keinen Server auf.",
@@ -731,7 +731,12 @@
       "disableConsequence5": "Sie auch nach erneutem Aktivieren der Föderation draußen lassen, bis sie über eine Einladung wieder beitreten",
       "disableConfirm": "Föderation deaktivieren"
     },
-    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein."
+    "federationInstanceOff": "Die Föderation ist auf dieser Instanz aus; ihre Admins schalten sie wieder ein.",
+    "settingsNavGroups": {
+      "expression": "Ausdruck",
+      "integrations": "Integrationen",
+      "moderation": "Moderation"
+    }
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -3432,7 +3437,22 @@
       "federationOff": "Diese Instanz föderiert gerade nicht, daher lassen sich andere Instanzen nicht durchsuchen.",
       "noDirectory": "{domain} veröffentlicht kein Serververzeichnis.",
       "unreachable": "{domain} hat nicht geantwortet. Versuch es später erneut.",
-      "failed": "Etwas ist schiefgelaufen. Versuch es erneut."
+      "failed": "Etwas ist schiefgelaufen. Versuch es erneut.",
+      "allInstances": "Alle Instanzen",
+      "filterLabel": "Server filtern",
+      "filterPlaceholder": "Name, Thema oder Instanz",
+      "loadingAdvertised": "Verzeichnisse bekannter Instanzen werden gelesen…",
+      "advertisedStats": "{count} Server auf {instances} | {count} Server auf {instances}",
+      "instanceCount": "{count} Instanz | {count} Instanzen",
+      "advertisedMatches": "{count} Server passt | {count} Server passen",
+      "advertisedPending": "{count} Instanz wird noch gelesen… | {count} Instanzen werden noch gelesen…",
+      "advertisedFailed": "{count} Instanz hat nicht geantwortet, ihre Server fehlen. | {count} Instanzen haben nicht geantwortet, ihre Server fehlen.",
+      "noMatchTitle": "Keine passenden Server",
+      "noMatch": "Kein Server auf einer bekannten Instanz passt zu „{query}“.",
+      "advertisedEmptyTitle": "Noch keine Server aufgeführt",
+      "advertisedEmpty": "Hier erscheinen Server, deren Besitzer sie über die Föderation aufführen. Keine Instanz, die diese kennt, führt bisher einen auf: Durchsuche oben eine andere Instanz über ihre Domain.",
+      "hostedOn": "Gehostet auf {instance}",
+      "advertisedErrorTitle": "Bekannte Instanzen konnten nicht gelesen werden"
     },
     "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
     "inviteLink": "Einladungslink",
@@ -4617,7 +4637,8 @@
       "max_uses": "Maximale Nutzungen",
       "expires_at": "Läuft ab",
       "temporary": "Vorübergehende Mitgliedschaft",
-      "messages_deleted": "Gelöschte Nachrichten"
+      "messages_deleted": "Gelöschte Nachrichten",
+      "federation_discoverable": "Über die Föderation auffindbar"
     },
     "value": {
       "none": "keine",
@@ -6900,12 +6921,11 @@
       "next": "Weiter",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
-      "resetZoom": "Zoom und Drehung zurücksetzen",
-      "rotateLeft": "Nach links drehen",
       "rotateRight": "Nach rechts drehen",
       "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden.",
       "download": "Herunterladen",
-      "audio": "Audio"
+      "audio": "Audio",
+      "noPreview": "Keine Vorschau für diese Datei."
     },
     "pwa": {
       "installApp": "Harmony-App installieren",
@@ -7356,12 +7376,6 @@
       "resetText": "Der aktuelle Link funktioniert dann für niemanden mehr, auch dort nicht, wo er schon gepostet wurde. Wer die Datei sehen kann, kann den neuen Link kopieren.",
       "until": "Bis {date}",
       "searchPeopleHint": "Name oder Benutzername"
-    },
-    "preview": {
-      "previous": "Vorherige Datei",
-      "next": "Nächste Datei",
-      "none": "Keine Vorschau für diese Datei.",
-      "fullScreen": "Im Vollbild ansehen"
     },
     "picker": {
       "title": "Aus Drive auswählen",

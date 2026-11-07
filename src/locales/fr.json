@@ -400,7 +400,7 @@
     "federationHandle": "Identifiant du serveur",
     "federationHandleDesc": "Partagez cet identifiant pour que les personnes d'autres instances puissent trouver et rejoindre ce serveur.",
     "federationDiscoverable": "Découvrable dans la fédération",
-    "federationDiscoverableDesc": "Inscrire ce serveur dans l'annuaire des serveurs de cette instance, pour que les personnes d'autres instances Harmony puissent le trouver et le rejoindre.",
+    "federationDiscoverableDesc": "Inscrire ce serveur dans l'annuaire des serveurs de cette instance, pour que les personnes d'autres instances Harmony puissent le trouver et le rejoindre. Activé par défaut ; s'applique tant que le serveur est public et fédéré.",
     "federationDiscoverableNeedsPublic": "Rendez le serveur public pour l'inscrire.",
     "federationDiscoverableNeedsFederation": "Activez la fédération pour l'inscrire.",
     "federationDiscoverableInstanceOff": "La fédération est désactivée sur cette instance : son annuaire n'inscrit aucun serveur.",
@@ -731,7 +731,12 @@
       "disableConsequence5": "Les tenir à l’écart même si vous réactivez la fédération, jusqu’à ce qu’ils reviennent avec une invitation",
       "disableConfirm": "Désactiver la fédération"
     },
-    "federationInstanceOff": "La fédération est désactivée sur cette instance ; ses admins la réactivent."
+    "federationInstanceOff": "La fédération est désactivée sur cette instance ; ses admins la réactivent.",
+    "settingsNavGroups": {
+      "expression": "Expression",
+      "integrations": "Intégrations",
+      "moderation": "Modération"
+    }
   },
   "channel": {
     "create": "Créer un canal",
@@ -3432,7 +3437,22 @@
       "federationOff": "Cette instance ne fédère pas en ce moment : les autres instances ne peuvent pas être parcourues.",
       "noDirectory": "{domain} ne publie pas d'annuaire de serveurs.",
       "unreachable": "{domain} n'a pas répondu. Réessayez plus tard.",
-      "failed": "Une erreur est survenue. Réessayez."
+      "failed": "Une erreur est survenue. Réessayez.",
+      "allInstances": "Toutes les instances",
+      "filterLabel": "Filtrer les serveurs",
+      "filterPlaceholder": "Nom, sujet ou instance",
+      "loadingAdvertised": "Lecture des annuaires des instances connues…",
+      "advertisedStats": "{count} serveur sur {instances} | {count} serveurs sur {instances}",
+      "instanceCount": "{count} instance | {count} instances",
+      "advertisedMatches": "{count} serveur correspond | {count} serveurs correspondent",
+      "advertisedPending": "Lecture de {count} instance en cours… | Lecture de {count} instances en cours…",
+      "advertisedFailed": "{count} instance n'a pas répondu : ses serveurs n'apparaissent pas. | {count} instances n'ont pas répondu : leurs serveurs n'apparaissent pas.",
+      "noMatchTitle": "Aucun serveur correspondant",
+      "noMatch": "Aucun serveur d'une instance connue ne correspond à « {query} ».",
+      "advertisedEmptyTitle": "Aucun serveur inscrit pour l'instant",
+      "advertisedEmpty": "Les serveurs que leurs propriétaires inscrivent dans la fédération apparaissent ici. Aucune instance connue de celle-ci n'en inscrit encore : parcourez une autre instance par son domaine ci-dessus.",
+      "hostedOn": "Hébergé sur {instance}",
+      "advertisedErrorTitle": "Impossible de lire les instances connues"
     },
     "haveInviteLink": "Vous avez un lien d'invitation ? Collez-le ici",
     "inviteLink": "Lien d'invitation",
@@ -4617,7 +4637,8 @@
       "max_uses": "Utilisations max.",
       "expires_at": "Expire",
       "temporary": "Adhésion temporaire",
-      "messages_deleted": "Messages supprimés"
+      "messages_deleted": "Messages supprimés",
+      "federation_discoverable": "Découvrable dans la fédération"
     },
     "value": {
       "none": "aucun",
@@ -6900,12 +6921,11 @@
       "next": "Suivant",
       "zoomIn": "Zoom avant",
       "zoomOut": "Zoom arrière",
-      "resetZoom": "Réinitialiser le zoom et la rotation",
-      "rotateLeft": "Pivoter à gauche",
       "rotateRight": "Pivoter à droite",
       "videoUnsupported": "Cette vidéo ne peut pas être lue ici.",
       "download": "Télécharger",
-      "audio": "Audio"
+      "audio": "Audio",
+      "noPreview": "Aucun aperçu pour ce fichier."
     },
     "pwa": {
       "installApp": "Installer l'application Harmony",
@@ -7356,12 +7376,6 @@
       "resetText": "Le lien actuel cesse de fonctionner pour tout le monde, y compris là où il a déjà été publié. Les personnes qui voient le fichier peuvent copier le nouveau lien.",
       "until": "Jusqu'au {date}",
       "searchPeopleHint": "Nom ou nom d'utilisateur"
-    },
-    "preview": {
-      "previous": "Fichier précédent",
-      "next": "Fichier suivant",
-      "none": "Aucun aperçu pour ce fichier.",
-      "fullScreen": "Voir en plein écran"
     },
     "picker": {
       "title": "Choisir dans Drive",

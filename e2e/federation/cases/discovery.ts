@@ -1,19 +1,23 @@
-// Server directories across federation (migration 20261105100001, activitypub/serverDirectory.ts,
-// services/RemoteDirectoryService.ts), each way.
+// Server directories across federation (migrations 20261105100001 and 20261107900001,
+// activitypub/serverDirectory.ts, services/RemoteDirectoryService.ts,
+// services/AdvertisedDirectoryService.ts), each way.
 //
 //   publishing   the peer reads https://<local>/servers/directory, unsigned and signed: an
 //                OrderedCollection whose first page holds exactly the listed Groups; NodeInfo
-//                metadata.serverDirectory and the instance actor's streams name it. A listed
-//                Group says discoverable true, a public unlisted one leaves it out, a private one
+//                metadata.serverDirectory and the instance actor's streams name it. A new public,
+//                federated server is listed without its owner doing anything. A listed Group says
+//                discoverable true, a public one its owner unlisted leaves it out, a private one
 //                says false; harmony:public says whether anyone may join. Listing and unlisting
 //                through update_server reach the peer as the Group's Update; unlisting removes the
 //                Group from the collection at once. With outbound federation off nothing is listed.
 //   reading      a directory host behind a TLS proxy on the stack network publishes NodeInfo and a
 //                collection of four Groups, one listed on its own host. /directory/remote reads it
 //                signed by the instance actor and answers that one, then from its cache; the host
-//                is listed by /directory/peers; blocked, it is refused and unlisted. fx_bob joins
-//                the listed Group by its id through /servers/join: a signed Join reaches its inbox
-//                and the copy is public.
+//                is listed by /directory/peers, and /directory/servers merges its listed Group
+//                with the host named, filtered by text; blocked, it is refused, unlisted and out of
+//                the merged list; with federation off the merged list is empty and says so. fx_bob
+//                joins the listed Group by its id through /servers/join: a signed Join reaches its
+//                inbox and the copy is public.
 //
 // Registered from roundtrip.ts; the harness carries what this module needs of it.
 
@@ -145,11 +149,12 @@ export async function caseDiscovery(ctx: DiscoveryContext): Promise<void> {
   }
 
   try {
-    const listing = await alice.rpc('update_server', { p_server_id: listed, p_changes: { federation_discoverable: true } })
-    eq(listing.data?.federation_discoverable, true, 'the owner lists a public, federated server through update_server')
-    const refused = await alice.rpc('update_server', { p_server_id: ids.privServer, p_changes: { federation_discoverable: true } })
-    eq(refused.error?.code, '22023', 'a private server is not listed')
-    await tap.take((j) => j.name === 'federate-server-update' && j.data?.server_id === listed, 2000)
+    const { data: defaults } = await db.from('servers').select('id, federation_discoverable').in('id', [listed, ids.privServer])
+    assert((defaults ?? []).length === 2 && (defaults ?? []).every((r: any) => r.federation_discoverable === true),
+      'a new server, public or private, carries the flag on', JSON.stringify(defaults))
+    const unlisting = await alice.rpc('update_server', { p_server_id: ids.pubServer, p_changes: { federation_discoverable: false } })
+    eq(unlisting.data?.federation_discoverable, false, 'the owner unlists a public, federated server through update_server')
+    await tap.take((j) => j.name === 'federate-server-update' && j.data?.server_id === ids.pubServer, 2000)
 
     const before = await readDirectory(false)
     eq(before.collection.status, 200, 'the directory answers')
@@ -157,7 +162,7 @@ export async function caseDiscovery(ctx: DiscoveryContext): Promise<void> {
     eq(before.collection.json?.id, directory, 'under its own id')
     eq(before.page?.json?.type, 'OrderedCollectionPage', 'its first page is an OrderedCollectionPage')
     eq(JSON.stringify(before.ids), JSON.stringify([groupOf(listed)]),
-      'the peer sees exactly the listed Group: not the suspended, the unfederated, the unlisted or the private one')
+      'the peer sees exactly the Group listed by default: not the suspended, the unfederated, the unlisted or the private one')
     const item = before.page?.json?.orderedItems?.[0]
     assert(item?.type === 'Group' && item.discoverable === true && item['harmony:public'] === true
       && item.name === 'Directory Hall' && item.inbox === `${groupOf(listed)}/inbox` && typeof item['harmony:memberCount'] === 'number',
@@ -332,12 +337,44 @@ export async function caseDiscovery(ctx: DiscoveryContext): Promise<void> {
     assert((peers.json?.peers ?? []).some((p: any) => p.domain === proxyIp),
       'the host is listed among the known instances that publish a directory', JSON.stringify(peers.json))
 
+    const unsignedMerged = await fetch(`${localUrl}/directory/servers`)
+    eq(unsignedMerged.status, 401, 'the merged list needs a session')
+    const merged = await call('/directory/servers')
+    eq(merged.status, 200, 'the merged list of the known instances answers')
+    const ofHost = (merged.json?.items ?? []).filter((i: any) => i.instance?.domain === proxyIp)
+    eq(JSON.stringify(ofHost.map((i: any) => i.id)), JSON.stringify([joinableId]),
+      'it holds exactly the host\'s listed Group, with nothing typed')
+    assert(ofHost[0]?.name === `Remote ${joinable.slice(-6)}` && ofHost[0]?.memberCount === 3
+      && ofHost[0]?.handle === `g${joinable.slice(-6)}@${proxyIp}` && ofHost[0]?.instance?.name === null,
+    'an item is the directory entry plus the instance that hosts it', JSON.stringify(ofHost[0]))
+    assert(!(merged.json?.failed ?? []).includes(proxyIp) && merged.json?.federationOff === false,
+      'the host is not among the failed', JSON.stringify(merged.json))
+    const named = await call(`/directory/servers?q=${encodeURIComponent(`REMOTE ${joinable.slice(-6)}`)}`)
+    eq(JSON.stringify((named.json?.items ?? []).map((i: any) => i.id)), JSON.stringify([joinableId]),
+      'a filter by its name keeps it, case folded')
+    eq((await call('/directory/servers?q=no-server-is-called-this')).json?.total, 0, 'a filter matching nothing leaves none')
+
     await db.from('federated_instances').update({ is_blocked: true }).eq('domain', proxyIp)
     const blocked = await browse()
     eq(blocked.json?.code, 'instance_blocked', 'a blocked instance\'s directory is not read')
     assert(!((await call('/directory/peers')).json?.peers ?? []).some((p: any) => p.domain === proxyIp),
       'and it is not listed among the known instances')
+    assert(!((await call('/directory/servers')).json?.items ?? []).some((i: any) => i.instance?.domain === proxyIp),
+      'nor are its servers in the merged list')
     await db.from('federated_instances').update({ is_blocked: false }).eq('domain', proxyIp)
+
+    await db.from('instance_config').upsert(
+      { config_key: 'enable_inbound_federation', config_value: false }, { onConflict: 'config_key' })
+    invalidateFederationSwitches()
+    const closedMerged = await call('/directory/servers')
+    eq(JSON.stringify([closedMerged.json?.federationOff, closedMerged.json?.items?.length]), '[true,0]',
+      'with inbound federation off the merged list is empty and says federation is off')
+    await db.from('instance_config').upsert(
+      { config_key: 'enable_inbound_federation', config_value: true }, { onConflict: 'config_key' })
+    invalidateFederationSwitches()
+    eq(JSON.stringify(((await call('/directory/servers')).json?.items ?? [])
+      .filter((i: any) => i.instance?.domain === proxyIp).map((i: any) => i.id)), JSON.stringify([joinableId]),
+    'and it comes back with federation')
 
     const before = hostRequests.length
     const join = await fetch(`${localUrl}/servers/join`, {

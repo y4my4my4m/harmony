@@ -31,19 +31,31 @@
       </form>
 
       <div
-        v-if="peers.length > 0"
+        v-if="peers.length > 0 || (advertisedSupported && view === 'instance')"
         class="remote-directory__peers"
         role="group"
         :aria-labelledby="`${inputId}-peers`"
       >
         <span :id="`${inputId}-peers`" class="remote-directory__peers-label">{{ $t('federation.directory.knownInstances') }}</span>
         <button
+          v-if="advertisedSupported"
+          type="button"
+          class="peer-chip"
+          :class="{ 'peer-chip--active': view === 'all' }"
+          :aria-pressed="view === 'all'"
+          data-testid="remote-directory-all"
+          @click="showAll"
+        >
+          <Icon name="globe" :size="14" />
+          {{ $t('federation.directory.allInstances') }}
+        </button>
+        <button
           v-for="peer in peers"
           :key="peer.domain"
           type="button"
           class="peer-chip"
-          :class="{ 'peer-chip--active': peer.domain === page?.domain }"
-          :aria-pressed="peer.domain === page?.domain"
+          :class="{ 'peer-chip--active': view === 'instance' && peer.domain === page?.domain }"
+          :aria-pressed="view === 'instance' && peer.domain === page?.domain"
           data-testid="remote-directory-peer"
           @click="browse(peer.domain)"
         >
@@ -61,41 +73,124 @@
         :description="$t('federation.directory.federationOff')"
       />
 
-      <EmptyState
-        v-else-if="refusal"
-        tone="error"
-        icon="alert-triangle"
-        role="alert"
-        :title="refusalTitle"
-        :description="refusalText"
-        data-testid="remote-directory-error"
-      />
+      <template v-else>
+        <!-- One instance's directory, browsed by domain or known instance. -->
+        <template v-if="view === 'instance'">
+          <EmptyState
+            v-if="refusal"
+            tone="error"
+            icon="alert-triangle"
+            role="alert"
+            :title="refusalTitle"
+            :description="refusalText"
+            data-testid="remote-directory-error"
+          />
 
-      <div
-        v-else-if="loading && !page"
-        class="remote-directory__loading"
-        role="status"
-        aria-busy="true"
-      >
-        <Icon name="spinner" :size="20" class="spin" />
-        <span>{{ $t('federation.directory.loading', { domain: pendingDomain }) }}</span>
-      </div>
+          <div
+            v-else-if="loading && !page"
+            class="remote-directory__loading"
+            role="status"
+            aria-busy="true"
+          >
+            <Icon name="spinner" :size="20" class="spin" />
+            <span>{{ $t('federation.directory.loading', { domain: pendingDomain }) }}</span>
+          </div>
 
-      <template v-else-if="page">
-        <p class="remote-directory__stats" aria-live="polite" data-testid="remote-directory-stats">
-          {{ $t('federation.directory.serversOn', { domain: page.domain, count: page.totalItems ?? items.length }, page.totalItems ?? items.length) }}
-        </p>
+          <template v-else-if="page">
+            <p class="remote-directory__stats" aria-live="polite" data-testid="remote-directory-stats">
+              {{ $t('federation.directory.serversOn', { domain: page.domain, count: page.totalItems ?? items.length }, page.totalItems ?? items.length) }}
+            </p>
+
+            <EmptyState
+              v-if="items.length === 0"
+              icon="compass"
+              :title="$t('federation.directory.emptyTitle')"
+              :description="$t('federation.directory.empty', { domain: page.domain })"
+            />
+          </template>
+        </template>
+
+        <!-- Every known instance's listed servers, merged by this instance's backend. -->
+        <template v-else-if="advertisedSupported">
+          <div v-if="advertised && (advertised.total > 0 || filter)" class="remote-directory__filter">
+            <label :for="`${inputId}-filter`" class="remote-directory__label">{{ $t('federation.directory.filterLabel') }}</label>
+            <input
+              :id="`${inputId}-filter`"
+              v-model="filter"
+              class="remote-directory__input"
+              type="search"
+              autocomplete="off"
+              spellcheck="false"
+              :placeholder="$t('federation.directory.filterPlaceholder')"
+              data-testid="remote-directory-filter"
+            />
+          </div>
+
+          <div
+            v-if="advertisedLoading && !advertised"
+            class="remote-directory__loading"
+            role="status"
+            aria-busy="true"
+          >
+            <Icon name="spinner" :size="20" class="spin" />
+            <span>{{ $t('federation.directory.loadingAdvertised') }}</span>
+          </div>
+
+          <EmptyState
+            v-else-if="advertisedError && !advertised"
+            tone="error"
+            icon="alert-triangle"
+            :title="$t('federation.directory.advertisedErrorTitle')"
+            :description="$t('federation.directory.failed')"
+            :action-label="$t('common.retry')"
+            data-testid="remote-directory-advertised-error"
+            @action="loadAdvertised"
+          />
+
+          <template v-else-if="advertised">
+            <p
+              v-if="advertised.total > 0"
+              class="remote-directory__stats"
+              aria-live="polite"
+              data-testid="remote-directory-stats"
+            >
+              {{ advertisedStats }}
+            </p>
+            <p v-if="advertised.pending > 0" class="remote-directory__note" role="status">
+              <Icon name="spinner" :size="13" class="spin" />
+              {{ $t('federation.directory.advertisedPending', { count: advertised.pending }, advertised.pending) }}
+            </p>
+            <p v-else-if="advertised.failed.length > 0" class="remote-directory__note" data-testid="remote-directory-partial">
+              {{ $t('federation.directory.advertisedFailed', { count: advertised.failed.length }, advertised.failed.length) }}
+            </p>
+
+            <EmptyState
+              v-if="advertisedItems.length === 0 && filter"
+              icon="search"
+              :title="$t('federation.directory.noMatchTitle')"
+              :description="$t('federation.directory.noMatch', { query: filter.trim() })"
+              data-testid="remote-directory-no-match"
+            />
+            <EmptyState
+              v-else-if="advertisedItems.length === 0 && advertised.pending === 0"
+              icon="globe"
+              :title="$t('federation.directory.advertisedEmptyTitle')"
+              :description="$t('federation.directory.advertisedEmpty')"
+              data-testid="remote-directory-nothing"
+            />
+          </template>
+        </template>
 
         <EmptyState
-          v-if="items.length === 0"
-          icon="compass"
-          :title="$t('federation.directory.emptyTitle')"
-          :description="$t('federation.directory.empty', { domain: page.domain })"
+          v-else
+          icon="globe"
+          :title="$t('federation.directory.introTitle')"
+          :description="$t('federation.directory.intro')"
         />
 
-        <ul v-else class="remote-directory__list">
+        <ul v-if="listed.length > 0" class="remote-directory__list">
           <li
-            v-for="(server, index) in items"
+            v-for="(server, index) in listed"
             :key="server.id"
             class="remote-server"
             data-testid="remote-directory-server"
@@ -111,6 +206,10 @@
               <p v-if="server.memberCount !== null" class="remote-server__members">
                 <Icon name="users" :size="13" />
                 {{ $t('federation.directory.members', { count: server.memberCount }, server.memberCount) }}
+              </p>
+              <p v-if="'instance' in server" class="remote-server__instance" data-testid="remote-directory-instance">
+                <span class="remote-server__instance-icon"><InstanceIcon :src="server.instance.icon" :size="14" /></span>
+                {{ $t('federation.directory.hostedOn', { instance: server.instance.name || server.instance.domain }) }}
               </p>
             </div>
             <!-- Named by its own text, then the server's name: "Join <name>". -->
@@ -139,26 +238,19 @@
           </li>
         </ul>
 
-        <div v-if="page.next" class="remote-directory__more">
-          <button type="button" class="btn btn-secondary" :disabled="loading" @click="loadMore">
-            <Icon v-if="loading" name="spinner" :size="16" class="spin" />
+        <div v-if="hasMore" class="remote-directory__more">
+          <button type="button" class="btn btn-secondary" :disabled="busy" @click="view === 'all' ? loadMoreAdvertised() : loadMore()">
+            <Icon v-if="busy" name="spinner" :size="16" class="spin" />
             <span>{{ $t('federation.directory.loadMore') }}</span>
           </button>
         </div>
       </template>
-
-      <EmptyState
-        v-else
-        icon="globe"
-        :title="$t('federation.directory.introTitle')"
-        :description="$t('federation.directory.intro')"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useId } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import InstanceIcon from '@/components/common/InstanceIcon.vue'
@@ -166,6 +258,8 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import {
   federationServerService,
   remoteServerUuid,
+  type AdvertisedPage,
+  type AdvertisedServer,
   type DirectoryPage,
   type DirectoryPeer,
   type DirectoryRefusal,
@@ -180,10 +274,16 @@ const emit = defineEmits<{
   open: [serverId: string]
 }>()
 
+/** Rereads while instances are still being read, this far apart, at most this often. */
+const PENDING_RETRY_MS = 3_000
+const PENDING_RETRIES = 3
+const FILTER_DEBOUNCE_MS = 300
+
 const { t } = useI18n()
 const serverChannelStore = useServerChannelStore()
 const inputId = `remote-directory-${useId()}`
 
+const view = ref<'all' | 'instance'>('all')
 const domainInput = ref('')
 const pendingDomain = ref('')
 const peers = ref<DirectoryPeer[]>([])
@@ -194,11 +294,31 @@ const refusal = ref<DirectoryRefusal | null>(null)
 const federationOff = ref(false)
 let generation = 0
 
+const advertisedSupported = ref(true)
+const advertised = ref<AdvertisedPage | null>(null)
+const advertisedItems = ref<AdvertisedServer[]>([])
+const advertisedLoading = ref(false)
+const advertisedError = ref(false)
+const filter = ref('')
+let advertisedGeneration = 0
+let filterTimer: ReturnType<typeof setTimeout> | undefined
+let retryTimer: ReturnType<typeof setTimeout> | undefined
+let retries = 0
+
+const listed = computed<Array<DirectoryServer | AdvertisedServer>>(() =>
+  view.value === 'all' ? (advertisedSupported.value ? advertisedItems.value : []) : items.value)
+
+const busy = computed(() => (view.value === 'all' ? advertisedLoading.value : loading.value))
+
+const hasMore = computed(() => view.value === 'all'
+  ? advertisedSupported.value && advertised.value?.nextOffset != null
+  : !!page.value?.next)
+
 /** Group id -> local copy id, for the listed servers the user is already in. */
 const joinedIds = computed(() => {
   const local = new Map(serverChannelStore.servers.map((s: { id: string; federation_inbox_url?: string }) => [s.id, s]))
   const joined = new Map<string, string>()
-  for (const server of items.value) {
+  for (const server of listed.value) {
     const uuid = remoteServerUuid(server.id)
     const copy = uuid ? local.get(uuid) : undefined
     if (copy) joined.set(server.id, copy.id)
@@ -208,6 +328,16 @@ const joinedIds = computed(() => {
     }
   }
   return joined
+})
+
+const advertisedStats = computed(() => {
+  const current = advertised.value
+  if (!current) return ''
+  if (filter.value.trim()) {
+    return t('federation.directory.advertisedMatches', { count: current.total }, current.total)
+  }
+  const instances = t('federation.directory.instanceCount', { count: current.instances }, current.instances)
+  return t('federation.directory.advertisedStats', { count: current.total, instances }, current.total)
 })
 
 const refusalTitle = computed(() =>
@@ -230,6 +360,7 @@ async function browse(input: string) {
   const domain = input.trim()
   if (!domain) return
   const mine = ++generation
+  view.value = 'instance'
   domainInput.value = domain
   pendingDomain.value = domain
   refusal.value = null
@@ -271,10 +402,75 @@ async function loadMore() {
   }
 }
 
+function showAll() {
+  ++generation
+  loading.value = false
+  view.value = 'all'
+}
+
+/** The first page of the merged list for the current filter. */
+async function loadAdvertised() {
+  clearTimeout(retryTimer)
+  const mine = ++advertisedGeneration
+  advertisedLoading.value = true
+  try {
+    const answer = await federationServerService.listAdvertisedServers(filter.value)
+    if (mine !== advertisedGeneration) return
+    if (!answer.ok) {
+      if (answer.unsupported) advertisedSupported.value = false
+      else advertisedError.value = true
+      return
+    }
+    const result = answer.page
+    advertisedError.value = false
+    if (result.federationOff) federationOff.value = true
+    advertised.value = result
+    advertisedItems.value = result.items
+    if (result.pending > 0 && retries < PENDING_RETRIES) {
+      retries++
+      retryTimer = setTimeout(() => { void loadAdvertised() }, PENDING_RETRY_MS)
+    }
+  } finally {
+    if (mine === advertisedGeneration) advertisedLoading.value = false
+  }
+}
+
+async function loadMoreAdvertised() {
+  const offset = advertised.value?.nextOffset
+  if (offset == null || advertisedLoading.value) return
+  clearTimeout(retryTimer)
+  const mine = ++advertisedGeneration
+  advertisedLoading.value = true
+  try {
+    const answer = await federationServerService.listAdvertisedServers(filter.value, offset)
+    if (mine !== advertisedGeneration || !answer.ok) return
+    const result = answer.page
+    const seen = new Set(advertisedItems.value.map((s) => s.id))
+    advertisedItems.value = [...advertisedItems.value, ...result.items.filter((s) => !seen.has(s.id))]
+    advertised.value = result
+  } finally {
+    if (mine === advertisedGeneration) advertisedLoading.value = false
+  }
+}
+
+watch(filter, () => {
+  clearTimeout(filterTimer)
+  retries = 0
+  filterTimer = setTimeout(() => { void loadAdvertised() }, FILTER_DEBOUNCE_MS)
+})
+
 onMounted(async () => {
+  void loadAdvertised()
   const result = await federationServerService.listDirectoryPeers()
   peers.value = result.peers
   if (result.federationOff) federationOff.value = true
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(filterTimer)
+  clearTimeout(retryTimer)
+  advertisedGeneration++
+  generation++
 })
 </script>
 
@@ -422,6 +618,25 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 
+.remote-directory__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.remote-directory__filter .remote-directory__input {
+  flex: none;
+}
+
+.remote-directory__note {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
 .remote-directory__list {
   list-style: none;
   margin: 0;
@@ -505,6 +720,24 @@ onMounted(async () => {
   gap: 4px;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.remote-server__instance {
+  margin: var(--space-1) 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.remote-server__instance-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-flex;
 }
 
 .remote-server__action {

@@ -400,7 +400,7 @@
     "federationHandle": "服务器标识",
     "federationHandleDesc": "分享此标识，让其他实例的用户可以找到并加入此服务器。",
     "federationDiscoverable": "在联邦中可被发现",
-    "federationDiscoverableDesc": "将此服务器列入本实例的服务器目录，让其他 Harmony 实例的用户可以找到并加入。",
+    "federationDiscoverableDesc": "将此服务器列入本实例的服务器目录，让其他 Harmony 实例的用户可以找到并加入。默认开启；在服务器公开且启用联邦时生效。",
     "federationDiscoverableNeedsPublic": "将服务器设为公开后才能列入。",
     "federationDiscoverableNeedsFederation": "开启联邦后才能列入。",
     "federationDiscoverableInstanceOff": "本实例已关闭联邦，其目录不列出任何服务器。",
@@ -731,7 +731,12 @@
       "disableConsequence5": "即使重新启用联邦，他们也不会自动回来，需通过邀请重新加入",
       "disableConfirm": "停用联邦"
     },
-    "federationInstanceOff": "此实例的联邦已关闭；由其管理员重新开启。"
+    "federationInstanceOff": "此实例的联邦已关闭；由其管理员重新开启。",
+    "settingsNavGroups": {
+      "expression": "表达",
+      "integrations": "集成",
+      "moderation": "审核"
+    }
   },
   "channel": {
     "create": "创建频道",
@@ -3432,7 +3437,22 @@
       "federationOff": "本实例目前未开启联邦，无法浏览其他实例。",
       "noDirectory": "{domain} 未发布服务器目录。",
       "unreachable": "{domain} 没有响应，请稍后再试。",
-      "failed": "出了点问题，请重试。"
+      "failed": "出了点问题，请重试。",
+      "allInstances": "所有实例",
+      "filterLabel": "筛选服务器",
+      "filterPlaceholder": "名称、主题或实例",
+      "loadingAdvertised": "正在读取已知实例的目录…",
+      "advertisedStats": "{instances}上有 {count} 个服务器 | {instances}上有 {count} 个服务器",
+      "instanceCount": "{count} 个实例 | {count} 个实例",
+      "advertisedMatches": "{count} 个服务器匹配 | {count} 个服务器匹配",
+      "advertisedPending": "仍在读取 {count} 个实例… | 仍在读取 {count} 个实例…",
+      "advertisedFailed": "{count} 个实例未响应，其服务器未显示。 | {count} 个实例未响应，其服务器未显示。",
+      "noMatchTitle": "没有匹配的服务器",
+      "noMatch": "已知实例上没有与“{query}”匹配的服务器。",
+      "advertisedEmptyTitle": "尚无列出的服务器",
+      "advertisedEmpty": "所有者在联邦中列出的服务器会显示在这里。本实例已知的实例中还没有列出服务器：可以在上方按域名浏览其他实例。",
+      "hostedOn": "托管于 {instance}",
+      "advertisedErrorTitle": "无法读取已知实例"
     },
     "haveInviteLink": "有邀请链接吗? 粘贴在此处",
     "inviteLink": "邀请链接",
@@ -4617,7 +4637,8 @@
       "max_uses": "最大使用次数",
       "expires_at": "过期时间",
       "temporary": "临时成员资格",
-      "messages_deleted": "已删除的消息"
+      "messages_deleted": "已删除的消息",
+      "federation_discoverable": "在联邦中可被发现"
     },
     "value": {
       "none": "无",
@@ -6900,12 +6921,11 @@
       "next": "下一项",
       "zoomIn": "放大",
       "zoomOut": "缩小",
-      "resetZoom": "重置缩放和旋转",
-      "rotateLeft": "向左旋转",
       "rotateRight": "向右旋转",
       "videoUnsupported": "此视频无法在这里播放。",
       "download": "下载",
-      "audio": "音频"
+      "audio": "音频",
+      "noPreview": "此文件无法预览。"
     },
     "pwa": {
       "installApp": "安装 Harmony 应用",
@@ -7356,12 +7376,6 @@
       "resetText": "当前链接将对所有人失效，包括已经发布过的地方。能查看此文件的人可以复制新链接。",
       "until": "至 {date}",
       "searchPeopleHint": "名称或用户名"
-    },
-    "preview": {
-      "previous": "上一个文件",
-      "next": "下一个文件",
-      "none": "此文件无法预览。",
-      "fullScreen": "全屏查看"
     },
     "picker": {
       "title": "从 Drive 选择",

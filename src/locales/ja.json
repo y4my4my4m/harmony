@@ -400,7 +400,7 @@
     "federationHandle": "サーバーハンドル",
     "federationHandleDesc": "このハンドルを共有すると、他のインスタンスのユーザーがこのサーバーを見つけて参加できます。",
     "federationDiscoverable": "連合全体で見つけられるようにする",
-    "federationDiscoverableDesc": "このインスタンスのサーバーディレクトリにこのサーバーを掲載し、他の Harmony インスタンスのユーザーが見つけて参加できるようにします。",
+    "federationDiscoverableDesc": "このインスタンスのサーバーディレクトリにこのサーバーを掲載し、他の Harmony インスタンスのユーザーが見つけて参加できるようにします。既定でオンで、サーバーが公開かつ連合中のときに適用されます。",
     "federationDiscoverableNeedsPublic": "掲載するにはサーバーを公開にしてください。",
     "federationDiscoverableNeedsFederation": "掲載するには連合をオンにしてください。",
     "federationDiscoverableInstanceOff": "このインスタンスでは連合がオフのため、ディレクトリにはサーバーが掲載されません。",
@@ -731,7 +731,12 @@
       "disableConsequence5": "連合を再び有効にしても戻りません。招待から再参加する必要があります",
       "disableConfirm": "連合を無効にする"
     },
-    "federationInstanceOff": "このインスタンスでは連合がオフです。再開できるのは管理者です。"
+    "federationInstanceOff": "このインスタンスでは連合がオフです。再開できるのは管理者です。",
+    "settingsNavGroups": {
+      "expression": "表現",
+      "integrations": "連携",
+      "moderation": "モデレーション"
+    }
   },
   "channel": {
     "create": "チャンネルを作成",
@@ -3432,7 +3437,22 @@
       "federationOff": "このインスタンスは現在連合していないため、他のインスタンスを見ることはできません。",
       "noDirectory": "{domain} はサーバーディレクトリを公開していません。",
       "unreachable": "{domain} から応答がありませんでした。後でもう一度お試しください。",
-      "failed": "問題が発生しました。もう一度お試しください。"
+      "failed": "問題が発生しました。もう一度お試しください。",
+      "allInstances": "すべてのインスタンス",
+      "filterLabel": "サーバーを絞り込む",
+      "filterPlaceholder": "名前、トピック、インスタンス",
+      "loadingAdvertised": "既知のインスタンスのディレクトリを読み込み中…",
+      "advertisedStats": "{instances}のサーバー {count} 件 | {instances}のサーバー {count} 件",
+      "instanceCount": "{count} 個のインスタンス | {count} 個のインスタンス",
+      "advertisedMatches": "一致するサーバー {count} 件 | 一致するサーバー {count} 件",
+      "advertisedPending": "{count} 個のインスタンスを読み込み中… | {count} 個のインスタンスを読み込み中…",
+      "advertisedFailed": "{count} 個のインスタンスが応答しなかったため、そのサーバーは表示されていません。 | {count} 個のインスタンスが応答しなかったため、そのサーバーは表示されていません。",
+      "noMatchTitle": "一致するサーバーはありません",
+      "noMatch": "既知のインスタンスに「{query}」に一致するサーバーはありません。",
+      "advertisedEmptyTitle": "掲載されているサーバーはまだありません",
+      "advertisedEmpty": "オーナーが連合全体に掲載しているサーバーがここに表示されます。このインスタンスが知っているインスタンスには、まだ掲載がありません。上でドメインを入力して他のインスタンスを見てください。",
+      "hostedOn": "{instance} でホスト",
+      "advertisedErrorTitle": "既知のインスタンスを読み込めませんでした"
     },
     "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
     "inviteLink": "招待リンク",
@@ -4617,7 +4637,8 @@
       "max_uses": "最大使用回数",
       "expires_at": "有効期限",
       "temporary": "一時的なメンバーシップ",
-      "messages_deleted": "削除されたメッセージ"
+      "messages_deleted": "削除されたメッセージ",
+      "federation_discoverable": "連合全体で見つけられるようにする"
     },
     "value": {
       "none": "なし",
@@ -6900,12 +6921,11 @@
       "next": "次へ",
       "zoomIn": "拡大",
       "zoomOut": "縮小",
-      "resetZoom": "ズームと回転をリセット",
-      "rotateLeft": "左に回転",
       "rotateRight": "右に回転",
       "videoUnsupported": "この動画はここでは再生できません。",
       "download": "ダウンロード",
-      "audio": "オーディオ"
+      "audio": "オーディオ",
+      "noPreview": "このファイルのプレビューはありません。"
     },
     "pwa": {
       "installApp": "Harmony アプリをインストール",
@@ -7356,12 +7376,6 @@
       "resetText": "現在のリンクは、すでに投稿された場所も含め、誰に対しても使えなくなります。ファイルを見られる人は新しいリンクをコピーできます。",
       "until": "{date} まで",
       "searchPeopleHint": "名前またはユーザー名"
-    },
-    "preview": {
-      "previous": "前のファイル",
-      "next": "次のファイル",
-      "none": "このファイルのプレビューはありません。",
-      "fullScreen": "全画面で表示"
     },
     "picker": {
       "title": "Drive から選択",

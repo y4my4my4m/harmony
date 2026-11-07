@@ -135,10 +135,12 @@
       </div>
     </template>
 
-    <MonyMediaLightbox
+    <MediaLightbox
+      v-if="lightboxOpen"
       v-model:index="lightboxIndex"
-      :visible="lightboxOpen"
-      :media="lightboxMedia"
+      :visible="true"
+      :imgs="lightboxItems"
+      download
       @hide="closeLightbox"
     >
       <template #actions="{ index }">
@@ -146,13 +148,14 @@
           v-if="lightbox.entries[index]"
           :to="{ name: 'PostDetail', params: { postId: lightbox.entries[index].postId } }"
           class="lightbox-post-link"
+          :aria-label="t('activitypub.viewPost')"
           @click="lightboxOpen = false"
         >
-          <Icon name="message-square" :size="16" />
-          {{ t('activitypub.viewPost') }}
+          <Icon name="message-square" :size="18" />
+          <span class="lightbox-post-text" aria-hidden="true">{{ t('activitypub.viewPost') }}</span>
         </RouterLink>
       </template>
-    </MonyMediaLightbox>
+    </MediaLightbox>
   </section>
 </template>
 
@@ -162,7 +165,7 @@ import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
-import MonyMediaLightbox from './MonyMediaLightbox.vue';
+import MediaLightbox from '@/components/common/MediaLightbox.vue';
 import { activityPubService } from '@/services/activityPubService';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import { debug } from '@/utils/debug';
@@ -171,7 +174,7 @@ import {
   formatMediaDuration,
   mergeProfileMediaTiles,
   profileMediaCursor,
-  toLightboxAttachment,
+  toLightboxItem,
   toProfileMediaTiles,
   type ProfileMediaCursor,
   type ProfileMediaItem,
@@ -239,7 +242,7 @@ function isHidden(tile: ProfileMediaTile): boolean {
 }
 
 const lightbox = computed(() => buildLightboxSequence(tiles.value, isHidden));
-const lightboxMedia = computed(() => lightbox.value.entries.map(toLightboxAttachment));
+const lightboxItems = computed(() => lightbox.value.entries.map(toLightboxItem));
 
 function thumbnailFor(item: ProfileMediaItem): string {
   if (item.previewUrl) return item.previewUrl;
@@ -705,20 +708,31 @@ onBeforeUnmount(() => {
 .lightbox-post-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  height: 40px;
+  min-width: 44px;
+  height: 44px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-full);
-  background: rgba(45, 45, 45, 0.92);
+  background: var(--viewer-control-bg);
   color: #fff;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
 .lightbox-post-link:hover {
-  background: rgba(61, 61, 61, 0.95);
+  background: var(--viewer-control-bg-hover);
+}
+
+@media (max-width: 480px) {
+  .lightbox-post-link {
+    padding: 0;
+  }
+
+  .lightbox-post-text {
+    display: none;
+  }
 }
 
 .lightbox-post-link:focus-visible {

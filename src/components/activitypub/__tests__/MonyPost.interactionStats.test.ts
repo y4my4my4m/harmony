@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { mount, RouterLinkStub } from '@vue/test-utils'
-import { defineComponent, reactive, ref, computed } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { createI18n } from 'vue-i18n'
 import en from '@/locales/en.json'
 
@@ -14,10 +14,6 @@ vi.mock('@/router', () => ({ default: { push: vi.fn() } }))
 
 vi.mock('vue-toastification', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
-}))
-
-vi.mock('vue-easy-lightbox', () => ({
-  default: defineComponent({ name: 'VueEasyLightbox', render: () => null }),
 }))
 
 vi.mock('@/composables/useUserData', () => ({

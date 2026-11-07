@@ -70,19 +70,27 @@
         :class="{ 'mobile-hidden': isMobile && !showSidebar }"
       >
         <nav class="settings-nav" :aria-label="$t('settings.a11y.sections')" data-testid="server-settings-nav">
-          <ul class="nav-list">
-            <li v-for="section in availableSections" :key="section.id">
-              <button
-                type="button"
-                class="nav-item"
-                :class="{ active: activeSection === section.id }"
-                :aria-current="activeSection === section.id ? 'page' : undefined"
-                @click="setActiveSection(section.id)"
-              >
-                {{ section.label }}
-              </button>
-            </li>
-          </ul>
+          <div
+            v-for="group in sectionGroups"
+            :key="group.id"
+            class="nav-section"
+            :data-testid="`server-settings-nav-${group.id}`"
+          >
+            <h2 v-if="group.label" :id="`${navId}-${group.id}`" class="nav-section-title">{{ group.label }}</h2>
+            <ul class="nav-list" :aria-labelledby="group.label ? `${navId}-${group.id}` : undefined">
+              <li v-for="section in group.sections" :key="section.id">
+                <button
+                  type="button"
+                  class="nav-item"
+                  :class="{ active: activeSection === section.id }"
+                  :aria-current="activeSection === section.id ? 'page' : undefined"
+                  @click="setActiveSection(section.id)"
+                >
+                  {{ section.label }}
+                </button>
+              </li>
+            </ul>
+          </div>
         </nav>
       </div>
 
@@ -286,7 +294,7 @@
 <script setup lang="ts">
 import { hasOpenLayer } from '@/utils/a11y/layers'
 import { hasCapability } from '@/services/instanceCapabilities'
-import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
+import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick, useId } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -477,44 +485,69 @@ watch(() => props.serverId, (serverId) => {
   if (serverId) void readServerStickers(serverId)
 }, { immediate: true })
 
-// Available sections based on permissions
-const availableSections = computed(() => {
+type SectionGroup = 'general' | 'expression' | 'integrations' | 'moderation' | 'advanced'
+
+interface SettingsSection {
+  id: string
+  label: string
+  group: SectionGroup
+}
+
+// Available sections based on permissions, in nav order.
+const availableSections = computed<SettingsSection[]>(() => {
   const p = permissions.value
   // A copy offers what describes this instance's view of it: the overview and its emojis.
   if (isCopy.value) {
     return [
-      { id: 'overview', label: t('server.overview') },
-      { id: 'emoji', label: t('server.emoji') },
+      { id: 'overview', label: t('server.overview'), group: 'general' },
+      { id: 'emoji', label: t('server.emoji'), group: 'general' },
       // This instance's tools for a server hosted elsewhere: instance staff only.
-      ...(isInstanceStaff.value ? [{ id: 'instance', label: t('instanceServer.panel.title', { instance: getInstanceDomain() }) }] : []),
+      ...(isInstanceStaff.value
+        ? [{ id: 'instance', label: t('instanceServer.panel.title', { instance: getInstanceDomain() }), group: 'general' as const }]
+        : []),
     ]
   }
   return [
-    { id: 'overview', label: t('server.overview') },
-    { id: 'roles', label: t('server.roles', 'Roles') },
-    // get_server_bans requires BAN_MEMBERS.
-    ...(p.canManageBans ? [{ id: 'bans', label: t('server.bans') }] : []),
-    ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
-    ...(p.canViewAuditLog ? [{ id: 'audit-log', label: t('serverAuditLog.navLabel') }] : []),
-    // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
-    ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
+    { id: 'overview', label: t('server.overview'), group: 'general' },
     // Served by the server's home instance; set_server_welcome refuses remote servers.
     ...(p.canEditBasicInfo && server.value.is_local_server !== false
-      ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
+      ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel'), group: 'general' as const }]
       : []),
-    { id: 'emoji', label: t('server.emoji') },
+    { id: 'privacy', label: t('server.privacySettings'), group: 'general' },
+    { id: 'roles', label: t('server.roles', 'Roles'), group: 'general' },
+    { id: 'emoji', label: t('server.emoji'), group: 'expression' },
     // MANAGE_EMOJIS manages them (can_manage_server_stickers).
-    ...(serverStickers.value ? [{ id: 'stickers', label: t('stickers.manage.navLabel') }] : []),
+    ...(serverStickers.value ? [{ id: 'stickers', label: t('stickers.manage.navLabel'), group: 'expression' as const }] : []),
     // server_sounds holds local servers' sounds only.
-    ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
-    { id: 'privacy', label: t('server.privacySettings') },
+    ...(server.value.is_local_server !== false
+      ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel'), group: 'expression' as const }]
+      : []),
     // list_outgoing_webhooks requires MANAGE_WEBHOOKS on a local server.
-    ...(p.canManageWebhooks && hasCapability('outgoing-webhooks') ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel') }] : []),
+    ...(p.canManageWebhooks && hasCapability('outgoing-webhooks')
+      ? [{ id: 'outgoing-webhooks', label: t('outgoingWebhooks.navLabel'), group: 'integrations' as const }]
+      : []),
     // The discord_bridge_* RPCs require MANAGE_SERVER.
-    ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),
-    { id: 'advanced', label: t('server.advancedSettings') }
+    ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel'), group: 'integrations' as const }] : []),
+    // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
+    ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title'), group: 'moderation' as const }] : []),
+    ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports'), group: 'moderation' as const }] : []),
+    // get_server_bans requires BAN_MEMBERS.
+    ...(p.canManageBans ? [{ id: 'bans', label: t('server.bans'), group: 'moderation' as const }] : []),
+    ...(p.canViewAuditLog ? [{ id: 'audit-log', label: t('serverAuditLog.navLabel'), group: 'moderation' as const }] : []),
+    { id: 'advanced', label: t('server.advancedSettings'), group: 'advanced' },
   ]
 })
+
+const navId = `server-settings-nav-${useId()}`
+const SECTION_GROUPS: SectionGroup[] = ['general', 'expression', 'integrations', 'moderation', 'advanced']
+
+const sectionGroups = computed(() => SECTION_GROUPS
+  .map((id) => ({
+    id,
+    label: id === 'general' || id === 'advanced' ? null : t(`server.settingsNavGroups.${id}`),
+    sections: availableSections.value.filter((s) => s.group === id),
+  }))
+  .filter((g) => g.sections.length > 0))
 
 // ?section= opens that section once it is available: permissions can load after the view does.
 // A section the user picked first stays.
@@ -1001,12 +1034,29 @@ watch(hasUnsavedEdits, (newValue) => {
   background-color: var(--background-secondary);
   border-right: 1px solid var(--background-quaternary);
   padding: 24px 0;
+  overflow-y: auto;
   transition: transform 0.3s ease;
 }
 
 .settings-nav {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-section-title {
+  margin: 0 0 4px;
+  padding: 0 24px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .nav-item {

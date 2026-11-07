@@ -29,6 +29,7 @@ import { readApDocument, urlHost } from '../utils/apOrigin.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { HARMONY_PUBLIC } from '../activitypub/serverDirectory.js';
+import { brandingUrl } from '../activitypub/instanceBranding.js';
 import { BlockedInstancesCache } from './BlockedInstancesCache.js';
 
 const NODEINFO_TIMEOUT_MS = 5_000;
@@ -81,7 +82,8 @@ export interface DirectoryPeer {
 }
 
 export type DirectoryLookup =
-  | { status: 'found'; url: string }
+  /** `name` and `icon` are NodeInfo metadata.nodeName and metadata.icon. */
+  | { status: 'found'; url: string; name?: string | null; icon?: string | null }
   | { status: 'none' }
   | { status: 'unreachable' };
 
@@ -237,7 +239,14 @@ export async function lookupDirectory(domain: string, opts: { fresh?: boolean } 
   const nodeinfo = await fetchNodeinfo(domain);
   if (nodeinfo === undefined) return { status: 'unreachable' };
   const url = urlOnDomain(nodeinfo?.metadata?.serverDirectory, domain);
-  const answer: DirectoryLookup = url ? { status: 'found', url } : { status: 'none' };
+  const answer: DirectoryLookup = url
+    ? {
+        status: 'found',
+        url,
+        name: plainText(nodeinfo?.metadata?.nodeName, MAX_NAME) || null,
+        icon: iconUrl(brandingUrl(domain, nodeinfo?.metadata?.icon)),
+      }
+    : { status: 'none' };
   cache.set(key, answer, url ? DIRECTORY_URL_TTL_S : NO_DIRECTORY_TTL_S);
   await recordDirectory(domain, url);
   return answer;
@@ -259,7 +268,7 @@ async function fetchCollectionDoc(url: string, domain: string): Promise<any | nu
 }
 
 /** Ids of Groups whose copy this instance blocks. */
-async function groupsBlockedHere(ids: string[]): Promise<Set<string>> {
+export async function groupsBlockedHere(ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const supabase = getSupabaseClient();
   const { data: copies } = await supabase

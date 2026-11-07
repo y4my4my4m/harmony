@@ -88,8 +88,8 @@ beforeEach(() => {
   }
 })
 
-function row(channel_id: string, user_id: string, ageMs: number, metadata: Row = {}) {
-  tables.voice_channel_participants.push({ channel_id, user_id, joined_at: ago(ageMs), metadata })
+function row(channel_id: string, user_id: string, ageMs: number, metadata: Row = {}, server_id: string | null = null) {
+  tables.voice_channel_participants.push({ channel_id, server_id, user_id, joined_at: ago(ageMs), metadata })
 }
 
 const run = (roomService: any, extra: Row = {}) =>
@@ -136,6 +136,15 @@ describe('reconcileVoiceParticipants', () => {
     const result = await run(fakeRoomService({}))
     expect(result).toEqual({ ok: true, checked: 2, removed: 2 })
     expect(remaining()).toEqual([])
+  })
+
+  it("leaves the rows of a remote server's copy to its host", async () => {
+    tables.servers = [{ id: 'copy', is_local_server: false }, { id: 'local', is_local_server: true }]
+    row(CH1, CAROL, 10 * 60_000, {}, 'copy')
+    row(CH2, ALICE, 10 * 60_000, {}, 'local')
+    const result = await run(fakeRoomService({}))
+    expect(result).toEqual({ ok: true, checked: 1, removed: 1 })
+    expect(remaining()).toEqual([`${CH1}/${CAROL}`])
   })
 
   it('leaves a row inside the grace period', async () => {
