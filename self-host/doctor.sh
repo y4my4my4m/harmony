@@ -196,6 +196,17 @@ check_containers() {
 	fi
 }
 
+# --- instance limits -----------------------------------------------------------
+# Rate limits count rows of an unlogged table; purge-automod trims it.
+check_activity_purge() {
+	if [[ "$(db_sql -c "SELECT count(*) FROM cron.job WHERE jobname = 'purge-automod'" 2>/dev/null)" == "1" ]]; then
+		report OK "activity purge" "purge-automod is scheduled"
+	else
+		report WARN "activity purge" "purge-automod is not scheduled: automod_recent_activity grows without bound" \
+			"SELECT cron.schedule('purge-automod', '*/10 * * * *', 'SELECT public.automod_purge()');"
+	fi
+}
+
 # --- database ------------------------------------------------------------------
 check_database() {
 	section "Database"
@@ -323,6 +334,7 @@ check_database() {
 	fi
 
 	check_storage_origin
+	check_activity_purge
 
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
@@ -381,6 +393,13 @@ check_database() {
 	fi
 	if [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," != *",logs,"* && -n "$(compose --profile logs ps -q analytics vector 2>/dev/null)" ]]; then
 		report WARN "log collection" "analytics or vector runs though log collection is off in .env; it keeps filling the database" "harmony analytics off --delete-logs"
+	fi
+
+	# Supabase Studio: one shared password, no limit on guesses, the whole database behind it.
+	if [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," == *",studio,"* ]]; then
+		report WARN studio "Supabase Studio is public at https://$(env_get "$ENV_FILE" DB_DOMAIN), behind one password that reaches the whole database" "harmony studio off when you are done with it"
+	elif [[ -n "$(compose --profile studio ps -q studio meta 2>/dev/null)" ]]; then
+		report WARN studio "studio or meta runs though Studio is off in .env" "harmony studio off"
 	fi
 }
 
@@ -566,6 +585,7 @@ check_services() {
 		report FAIL auth "https://$DB_DOMAIN/auth/v1/health: HTTP $code" "harmony logs auth; harmony logs kong"
 	fi
 	check_auth_linking
+	check_signup_limits
 
 	# The cache answers every public storage read with X-Cache-Status, a miss included.
 	fetch local "https://$DB_DOMAIN/storage/v1/object/public/avatars/doctor-probe" "$TMP/media" -D "$TMP/media.h" >/dev/null
@@ -664,6 +684,39 @@ check_auth_linking() {
 		report OK "auth linking" "$builtin${builtin:+${custom:+ }}$custom join existing accounts by verified address; the others are kept apart"
 	else
 		report OK "auth linking" "your sign-in providers keep their accounts apart"
+	fi
+}
+
+# Sign-up limits run in GoTrue's before-user-created hook and key on Sb-Forwarded-For.
+check_signup_limits() {
+	local env fn on enforce
+	env="$(auth_env)"
+	if [[ -z "$env" ]] || ! db_ready; then
+		return
+	fi
+	if ! grep -qx 'GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED=true' <<<"$env" \
+		|| ! grep -qx 'GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED=true' <<<"$env"; then
+		report WARN "signup limits" "the auth service does not run the sign-up hook with the client's address" "docker compose up -d auth"
+		return
+	fi
+	fn="$(db_sql -c "SELECT to_regprocedure('public.before_user_created_hook(jsonb)') IS NOT NULL" 2>/dev/null)"
+	if [[ "$fn" != t ]]; then
+		report FAIL "signup limits" "the auth service calls public.before_user_created_hook, which does not exist: every sign-up fails" "bash bootstrap.sh --migrations-only"
+		return
+	fi
+	# bootstrap.sh leaves a function that allows every account until the migration has run.
+	if [[ "$(db_sql -c "SELECT to_regclass('public.signup_ledger') IS NOT NULL" 2>/dev/null)" != t ]]; then
+		report WARN "signup limits" "sign-ups work, without limits: their migration has not run" "bash bootstrap.sh --migrations-only"
+		return
+	fi
+	on="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'signup_limits_enabled'" 2>/dev/null)"
+	enforce="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'signup_enforce_caps'" 2>/dev/null)"
+	if [[ "$on" == false ]]; then
+		report OK "signup limits" "off (Admin, Invites)"
+	elif [[ "$enforce" == true ]]; then
+		report OK "signup limits" "hook on, network and domain caps refuse"
+	else
+		report OK "signup limits" "hook on, network and domain caps observe"
 	fi
 }
 

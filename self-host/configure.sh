@@ -31,6 +31,9 @@
 #   HARMONY_ANALYTICS       y | n   (Supabase log collection, Logflare + vector:
 #                                   profile logs; default n, also on an install
 #                                   configured before this answer existed)
+#   HARMONY_STUDIO          y | n   (Supabase Studio + postgres-meta: profile studio;
+#                                   default n, also on an install configured before
+#                                   this setting existed; no question asks it)
 #   HARMONY_REGISTRATION    open | invite | closed
 #   HARMONY_SMTP_HOST       SMTP server; set to configure email, unset keeps
 #   HARMONY_SMTP_PORT       default 587
@@ -260,6 +263,7 @@ ANALYTICS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
 # Configured without ENABLE_ANALYTICS: log collection runs unasked (lib.sh analytics_unchosen).
 ANALYTICS_UNCHOSEN=false
 [[ -n "$OLD_DOMAIN" ]] && ! env_has "$ENV_FILE" ENABLE_ANALYTICS && ANALYTICS_UNCHOSEN=true
+STUDIO_CHOICE="${HARMONY_STUDIO:-$(env_get "$ENV_FILE" ENABLE_STUDIO)}"
 REGISTRATION_DEFAULT="$(env_get "$ENV_FILE" REGISTRATION)"
 OLD_SMTP_HOST="$(env_get "$SB_ENV" SMTP_HOST)"
 OLD_AUTOCONFIRM="$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"
@@ -353,6 +357,7 @@ if $INTERACTIVE; then
 fi
 prompt ANALYTICS_CHOICE "Run Supabase log collection (about ${ANALYTICS_RAM} more RAM)?" "${HARMONY_ANALYTICS:-$( [[ "$(yes_no "${ANALYTICS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_ANALYTICS="$(yes_no "$ANALYTICS_CHOICE")"
+ENABLE_STUDIO="$(yes_no "${STUDIO_CHOICE:-n}")"
 
 if $INTERACTIVE; then
 	echo
@@ -428,6 +433,7 @@ $ENABLE_VOICE && PROFILES="voice"
 $ENABLE_BOTS && PROFILES="${PROFILES:+$PROFILES,}bots"
 $ENABLE_DISCORD_BRIDGE && PROFILES="${PROFILES:+$PROFILES,}discord"
 $ENABLE_ANALYTICS && PROFILES="${PROFILES:+$PROFILES,}logs"
+$ENABLE_STUDIO && PROFILES="${PROFILES:+$PROFILES,}studio"
 
 # =============================================================================
 # Supabase stack
@@ -656,6 +662,7 @@ env_set     "$ENV_FILE" ENABLE_VOICE "$ENABLE_VOICE"
 env_set     "$ENV_FILE" ENABLE_BOTS "$ENABLE_BOTS"
 env_set     "$ENV_FILE" ENABLE_DISCORD_BRIDGE "$ENABLE_DISCORD_BRIDGE"
 env_set     "$ENV_FILE" ENABLE_ANALYTICS "$ENABLE_ANALYTICS"
+env_set     "$ENV_FILE" ENABLE_STUDIO "$ENABLE_STUDIO"
 env_set     "$ENV_FILE" REGISTRATION "$REGISTRATION"
 # Read by docker compose itself: `docker compose up -d` starts these profiles.
 env_set     "$ENV_FILE" COMPOSE_PROFILES "$PROFILES"
@@ -836,5 +843,9 @@ else
 		info "DNS: $DOMAIN and $DB_DOMAIN must point at this host."
 	fi
 fi
-info "Supabase Studio: https://$DB_DOMAIN (user supabase, DASHBOARD_PASSWORD in supabase/.env)"
+if $ENABLE_STUDIO; then
+	info "Supabase Studio: https://$DB_DOMAIN (user supabase, DASHBOARD_PASSWORD in supabase/.env)"
+else
+	info "Supabase Studio: off. 'harmony studio on' starts it."
+fi
 info "Back up self-host/*.env, livekit.yaml and supabase/.env (harmony backup does): they hold the only copy of the secrets."

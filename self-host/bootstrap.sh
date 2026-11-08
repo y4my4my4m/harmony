@@ -194,6 +194,22 @@ info "Applying migrations..."
 docker exec "$DB_CONTAINER" rm -rf /tmp/db_schema 2>/dev/null || true
 docker cp "$REPO_DIR/db_schema" "$DB_CONTAINER:/tmp/db_schema" >/dev/null
 
+# The auth service calls public.before_user_created_hook (supabase-overrides.yml), and any recreate
+# of it takes the checkout's settings, also after a migration failed. Without the function every
+# sign-up answers 500 (measured). This one allows every account until 20261109100001 replaces it.
+psql_exec -q >/dev/null <<'SQL' || warn "could not check public.before_user_created_hook; sign-ups need it"
+DO $$
+BEGIN
+    IF to_regprocedure('public.before_user_created_hook(jsonb)') IS NULL THEN
+        CREATE FUNCTION public.before_user_created_hook(event jsonb) RETURNS jsonb
+            LANGUAGE sql AS $f$ SELECT '{}'::jsonb $f$;
+        REVOKE ALL ON FUNCTION public.before_user_created_hook(jsonb) FROM PUBLIC, anon, authenticated;
+        GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+        GRANT EXECUTE ON FUNCTION public.before_user_created_hook(jsonb) TO supabase_auth_admin;
+    END IF;
+END $$;
+SQL
+
 psql_exec -q >/dev/null <<'SQL'
 CREATE SCHEMA IF NOT EXISTS supabase_migrations;
 CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (

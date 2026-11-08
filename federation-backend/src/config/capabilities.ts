@@ -32,6 +32,15 @@ export const CAPABILITIES = [
   'federated-polls',
   // get_funding_summary and the supporter message RPCs (20261106100001).
   'supporter-messages',
+  // Sign-up limits: the signup_* keys of instance_config and signup_refusal_counts, read by
+  // before_user_created_hook (20261109100001). On an older instance a save would have no effect.
+  'signup-limits',
+  // Instance limits: antispam account_* and bot keys, admin_set_limit_exempt, limit_exempt_accounts,
+  // profiles.dm_policy, max_servers_per_user, max_bots_per_user, drive_instance_limit_mb (20261109200001).
+  'instance-limits',
+  // The admin panel's signup review and bulk suspension: staff_recent_signups, staff_signup_groups,
+  // staff_signup_daily, staff_bulk_suspend_preview, staff_bulk_set_suspended (20261109500001).
+  'signup-review',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

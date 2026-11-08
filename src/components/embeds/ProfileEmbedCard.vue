@@ -63,6 +63,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { moderationRejectionFromError } from '@/services/AutoModService'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -198,7 +199,9 @@ async function toggleFollowState(): Promise<void> {
   try {
     const result = await toggleFollow(id, requested.value)
     if (result.error) {
-      toast.error(t(wasFollowing ? 'activitypub.unfollowFailed' : 'activitypub.followFailed'))
+      if (!moderationRejectionFromError({ message: result.error })) {
+        toast.error(t(wasFollowing ? 'activitypub.unfollowFailed' : 'activitypub.followFailed'))
+      }
       return
     }
     requested.value = !!result.pending

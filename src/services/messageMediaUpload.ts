@@ -11,6 +11,7 @@ import {
 } from '@/services/privateMedia'
 import {
   driveAvailable,
+  driveRefusesUploads,
   findDriveFilesByHash,
   isDriveHashBlocked,
   sha256OfBlob,
@@ -221,6 +222,10 @@ export function startMessageMediaUpload(
       if (metadata.sha256 && error instanceof StorageUploadError && error.status < 500
         && await isDriveHashBlocked(metadata.sha256).catch(() => false)) {
         throw new Error(i18n.global.t('drive.errors.blocked') as string)
+      }
+      if (error instanceof StorageUploadError && error.status < 500
+        && await driveRefusesUploads().catch(() => false)) {
+        throw new Error(i18n.global.t('drive.errors.full') as string)
       }
       throw error
     }

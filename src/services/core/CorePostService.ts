@@ -3,6 +3,7 @@ import { supabase } from '@/supabase'
 import type { TimelinePost, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { authContextService } from '@/services/AuthContextService'
+import { notifyModerationRejection } from '@/services/AutoModService'
 import {
   DEFAULT_MAX_POST_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
@@ -287,7 +288,10 @@ export class CorePostService {
           })
 
         // 23505: the favourite exists, written since the probe (a reaction implies one).
-        if (error && error.code !== '23505') throw this.createError('ADD_LIKE_FAILED', error.message, error)
+        if (error && error.code !== '23505') {
+          notifyModerationRejection(error)
+          throw this.createError('ADD_LIKE_FAILED', error.message, error)
+        }
         liked = true
       }
 

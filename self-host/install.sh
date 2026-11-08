@@ -612,7 +612,7 @@ final_summary() {
 	fi
 	printf '   %-16s %s\n' "Registration" "$REGISTRATION (change: $CLI registration open|invite|closed)"
 	printf '   %-16s %s\n' "Admin panel" "in the app: user menu, Admin (instance name, rules, federation)"
-	printf '   %-16s %s\n' "Database UI" "https://$DB_DOMAIN  user supabase, password in supabase/.env (DASHBOARD_PASSWORD)"
+	printf '   %-16s %s\n' "Database UI" "off; '$CLI studio on' starts it at https://$DB_DOMAIN"
 	echo
 	printf '   %-16s %s\n' "Secrets" "$SELF_HOST_DIR/{.env,federation.env,supabase/.env,...}"
 	printf '   %-16s %s\n' "" "the only copy; '$CLI backup' saves them with the database"

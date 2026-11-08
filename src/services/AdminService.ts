@@ -872,6 +872,8 @@ class AdminService {
       let maintainerEmail = ''
 
       let maxServerSize = 1000
+      let maxServersPerUser = 100
+      let maxBotsPerUser = 25
       let maxMessageLength = 2000
       let maxMediaAttachmentsPerPost = 20
       let allowFileUploads = true
@@ -904,7 +906,7 @@ class AdminService {
         const { data: configData, error: configReadError } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages', 'default_theme_json', 'federate_image_max_px'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'custom_oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_servers_per_user', 'max_bots_per_user', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'max_stickers_per_server', 'max_instance_stickers', 'max_personal_stickers_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email', 'public_profile_pages', 'default_theme_json', 'federate_image_max_px'])
         // Defaults written back by a later save would overwrite the stored values.
         if (configReadError) throw configReadError
 
@@ -964,6 +966,12 @@ class AdminService {
                   break
                 case 'max_server_size':
                   maxServerSize = typeof value === 'number' ? value : parseInt(String(value), 10) || 1000
+                  break
+                case 'max_servers_per_user':
+                  maxServersPerUser = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
+                  break
+                case 'max_bots_per_user':
+                  maxBotsPerUser = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
                   break
                 case 'max_message_length':
                   maxMessageLength = typeof value === 'number' ? value : parseInt(String(value), 10) || 2000
@@ -1089,6 +1097,8 @@ class AdminService {
       return {
         chat: {
           maxServerSize,
+          maxServersPerUser,
+          maxBotsPerUser,
           maxMessageLength,
           maxMediaAttachmentsPerPost,
           allowFileUploads,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { authErrorMessage } from '@/utils/authErrorMessage'
+import { authErrorMessage, decodeCallbackError } from '@/utils/authErrorMessage'
 
 describe('authErrorMessage', () => {
   it('keeps a readable GoTrue message', () => {
@@ -24,5 +24,16 @@ describe('authErrorMessage', () => {
 
   it('falls back when nothing is usable', () => {
     expect(authErrorMessage(null, 'Failed to update password')).toBe('Failed to update password')
+  })
+})
+
+describe('decodeCallbackError', () => {
+  it('undoes the second encoding of GoTrue\'s callback redirect', () => {
+    expect(decodeCallbackError('tomorrow%2C or ask this instance%27s admin')).toBe("tomorrow, or ask this instance's admin")
+  })
+
+  it('leaves plain text and a stray percent sign alone', () => {
+    expect(decodeCallbackError('Signups not allowed for this instance')).toBe('Signups not allowed for this instance')
+    expect(decodeCallbackError('100% full')).toBe('100% full')
   })
 })

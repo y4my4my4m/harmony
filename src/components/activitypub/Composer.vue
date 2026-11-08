@@ -400,6 +400,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useToast } from 'vue-toastification';
+import { moderationRejectionFromError } from '@/services/AutoModService';
 import { useProfileStore } from '@/stores/useProfile';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { useActivityPubStore, type ComposerDraft } from '@/stores/useActivityPub';
@@ -1013,7 +1014,7 @@ const handleSubmit = async () => {
     debug.error('Failed to create post:', error);
     // Failures go to a toast; inline text would shift the action buttons and
     // overflow the toolbar. The composer is not reset, so the draft survives.
-    toast.error(error?.message || t('activitypub.failedToSendPost'));
+    toast.error(moderationRejectionFromError(error)?.message || error?.message || t('activitypub.failedToSendPost'));
   } finally {
     isPosting.value = false;
   }

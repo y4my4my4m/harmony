@@ -77,6 +77,10 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: "10000"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "10000"
       GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: "10000"
+      # As in self-host/supabase-overrides.yml. See gateway.conf for the header.
+      GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_URI: pg-functions://postgres/public/before_user_created_hook
       GOTRUE_LOG_LEVEL: info
 
   rest:

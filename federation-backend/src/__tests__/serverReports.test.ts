@@ -170,6 +170,21 @@ describe('flag helpers for server reports', () => {
     })
   })
 
+  it('carries username_hoarding as harmony:reason', () => {
+    const activity = flag.buildServerFlagActivity({
+      baseUrl: 'https://harmony.test',
+      reportId: REPORT,
+      actor: 'https://harmony.test/users/instance.actor',
+      groupUri: GROUP,
+      authorUri: 'https://host.test/users/troll',
+      messageUri: `https://host.test/messages/${MESSAGE}`,
+      comment: 'names for sale',
+      reason: 'username_hoarding',
+    })
+    expect(activity['harmony:reason']).toBe('username_hoarding')
+    expect(activity.content).toBe('names for sale')
+  })
+
   it('builds the Resolve with an id fixed per resolution', () => {
     const resolve = flag.buildResolveActivity({
       groupUri: GROUP,

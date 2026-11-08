@@ -23,8 +23,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   runs communities' bridges once hosting is enabled in Admin, Instance.
 - Prebuilt images on GHCR: `harmony-web`, `harmony-federation` and
   `harmony-bot-gateway` for amd64 and arm64.
+- **Instance limits.** Ceilings on what one local account creates and how fast it writes, set in
+  the admin panel: servers (100) and bots (25) per account, and rates for messages, posts,
+  reactions, follows, server joins, new servers and conversations with strangers. Bots have an
+  overall REST ceiling (600 per minute; 3,000 for a linked Discord bridge). An admin can exempt an
+  account in **Users**. **Stored files across the instance** adds an optional Drive total.
+- **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
+  people you follow, or only people you follow. It also applies to other instances.
 
 ### Notes for self-hosters
+- Instance limits are on after updating, at values well above ordinary use. Stored `antispam`
+  values stay as they are; the tighter new-account limits start only on a new install. A script
+  writing as a normal account or a v1 or non-Discord bridge can reach them: raise the limit under
+  **Anti-spam**, or exempt the account in **Users**.
+- Clients can no longer insert into `public.bots`. `create_bot` is the way to make a bot.
 - `self-host/` runs Harmony's services from `ghcr.io/y4my4my4m/harmony-*`
   images instead of building them: `HARMONY_VERSION` in `.env` follows the
   checkout (`X.Y.Z` on a release tag, `edge` on master). `HARMONY_BUILD=1

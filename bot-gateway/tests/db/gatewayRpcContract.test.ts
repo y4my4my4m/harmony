@@ -293,19 +293,19 @@ describe('create_federated_emoji', () => {
 })
 
 describe('check_and_increment_bot_rate_limit', () => {
-  // Returns true when the request must be refused.
+  // Returns the seconds to wait; 0 admits.
   it('admits the first request in a window and refuses the next', () => {
     const bucket = `/api/v1/contract/${Date.now()}`
     const first = sql(
       `SELECT public.check_and_increment_bot_rate_limit('${BOT_ID}', '${bucket}', 1, 60)`,
     )
     expect(first.ok, why(first)).toBe(true)
-    expect(first.rows[0][0]).toBe('f')
+    expect(first.rows[0][0]).toBe('0')
 
     const second = sql(
       `SELECT public.check_and_increment_bot_rate_limit('${BOT_ID}', '${bucket}', 1, 60)`,
     )
     expect(second.ok, why(second)).toBe(true)
-    expect(second.rows[0][0]).toBe('t')
+    expect(Number(second.rows[0][0])).toBeGreaterThan(0)
   })
 })

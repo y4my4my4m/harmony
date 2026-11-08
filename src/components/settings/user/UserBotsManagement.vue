@@ -434,6 +434,7 @@ import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import { notifyModerationRejection } from '@/services/AutoModService'
 import { formatDistanceToNow } from 'date-fns'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -1028,7 +1029,7 @@ async function createBot() {
     toast.success(t('bots.create.success', { name: botName(bot) }))
   } catch (error) {
     debug.error('Failed to create bot:', error)
-    toast.error(t('bots.create.failed'))
+    if (!notifyModerationRejection(error)) toast.error(t('bots.create.failed'))
   } finally {
     creating.value = false
   }

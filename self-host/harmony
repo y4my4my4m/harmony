@@ -32,6 +32,8 @@
 #   harmony analytics [on | off [--delete-logs]]
 #                                   Supabase log collection (Logflare + vector);
 #                                   without an argument, whether it runs
+#   harmony studio [on | off]       Supabase Studio, the database UI; off by default;
+#                                   without an argument, whether it runs
 #   harmony version
 #
 # Each command is a thin layer over the scripts beside this file.
@@ -42,7 +44,7 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 # shellcheck source=lib.sh
 source "$(dirname "$SELF")/lib.sh"
 
-usage() { sed -n '2,37p' "$SELF" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,39p' "$SELF" | sed 's/^# \{0,1\}//'; }
 
 need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
 
@@ -218,6 +220,40 @@ cmd_analytics() {
 	esac
 }
 
+# Supabase Studio: ENABLE_STUDIO and the `studio` profile in .env. Off removes the containers, as
+# cmd_analytics does.
+cmd_studio() {
+	need_config
+	local want="${1:-}" profiles url
+	profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	url="https://$(env_get "$ENV_FILE" DB_DOMAIN)"
+	case "$want" in
+		"")
+			if [[ ",$profiles," == *",studio,"* ]]; then
+				printf 'Supabase Studio: on, at %s. harmony studio off stops it.\n' "$url"
+			else
+				printf 'Supabase Studio: off. harmony studio on starts it at %s.\n' "$url"
+			fi
+			;;
+		on)
+			env_set "$ENV_FILE" ENABLE_STUDIO true
+			env_set "$ENV_FILE" COMPOSE_PROFILES "$(profiles_with "$profiles" studio on)"
+			info "Starting studio and meta..."
+			compose up -d studio meta
+			ok "Supabase Studio: $url (user supabase, DASHBOARD_PASSWORD in supabase/.env)."
+			warn "Anyone with that password can read and change the whole database. When you are done: harmony studio off"
+			;;
+		off)
+			env_set "$ENV_FILE" ENABLE_STUDIO false
+			env_set "$ENV_FILE" COMPOSE_PROFILES "$(profiles_with "$profiles" studio off)"
+			info "Removing studio and meta..."
+			compose --profile studio rm -sf studio meta >/dev/null
+			ok "Supabase Studio is off."
+			;;
+		*) die "usage: harmony studio [on | off]" ;;
+	esac
+}
+
 cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
@@ -239,6 +275,7 @@ case "$cmd" in
 	auth) need_config; exec bash "$SELF_HOST_DIR/admin.sh" auth "$@" ;;
 	config) cmd_config "$@" ;;
 	analytics) cmd_analytics "$@" ;;
+	studio) cmd_studio "$@" ;;
 	version) git -C "$REPO_DIR" describe --tags --always 2>/dev/null; env_get "$ENV_FILE" HARMONY_VERSION ;;
 	-h|--help|help|"") usage ;;
 	*) die "unknown command: $cmd (harmony help)" ;;

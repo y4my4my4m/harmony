@@ -64,7 +64,7 @@ upper() { tr '[:lower:]' '[:upper:]'; }
 reserved_username() {
 	local name="$1" host labels label
 	case "$name" in
-		everyone|here|system|harmony|admin|admins|administrator|mod|mods|moderator|moderators|staff|root) return 0 ;;
+		everyone|here|system|harmony|admin|admins|administrator|mod|mods|moderator|moderators|staff|root|discord|google|apple|microsoft|openai|chatgpt|gemini|grok|meta|amazon|android|windows|ios|linux|facebook|instagram|youtube|twitter|tiktok|whatsapp|telegram|reddit|github|paypal|netflix|spotify|samsung|nintendo|playstation|xbox|anthropic|cloudflare|mastodon|bluesky|twitch) return 0 ;;
 	esac
 	host="$(printf '%s' "${2%%:*}" | lower)"
 	[[ -n "$host" ]] || return 1
@@ -171,6 +171,25 @@ profiles_with() {
 # it; no profile held it back).
 analytics_unchosen() {
 	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^ENABLE_ANALYTICS=' "$ENV_FILE"
+}
+
+# --- Supabase Studio -------------------------------------------------------------
+# studio and meta, compose profile `studio` (supabase-overrides.yml), ENABLE_STUDIO in .env.
+
+# studio_unchosen: a configured install whose .env has no ENABLE_STUDIO. Releases up to 1.9.4 wrote
+# no such key and ran Studio on every install.
+studio_unchosen() {
+	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^ENABLE_STUDIO=' "$ENV_FILE"
+}
+
+# studio_default_off: an install that never chose Studio (studio_unchosen before configure.sh) and
+# now has it off. Removes the containers.
+studio_default_off() {
+	if compose --profile studio rm -sf studio meta >/dev/null 2>&1; then
+		ok "Supabase Studio is off now: it ran without having been chosen. harmony studio on starts it."
+	else
+		warn "Supabase Studio is off in .env, but its containers were not removed: harmony studio off"
+	fi
 }
 
 # Bytes of the _supabase database plus the write-ahead log.

@@ -44,6 +44,12 @@
     "learnMore": "En savoir plus"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "Trop de comptes ont été créés depuis ce réseau aujourd’hui. Réessayez demain ou demandez une invitation à l’administration de cette instance.",
+      "domainCap": "Trop de comptes ont été créés avec ce domaine de messagerie aujourd’hui. Réessayez demain ou demandez une invitation à l’administration de cette instance.",
+      "mailboxCap": "Cette boîte mail a atteint la limite de comptes de cette instance.",
+      "blockedDomain": "Ce fournisseur de messagerie ne permet pas de s’inscrire sur cette instance. Utilisez une autre adresse."
+    },
     "login": "Connexion",
     "register": "S'inscrire",
     "logout": "Déconnexion",
@@ -2340,6 +2346,15 @@
       "changesReset": "Modifications du profil réinitialisées",
       "handleCopied": "Identifiant copié",
       "copyFailed": "Impossible de copier"
+    },
+    "dmPolicy": {
+      "title": "Messages directs",
+      "label": "Qui peut démarrer une conversation avec vous",
+      "description": "Vos conversations existantes continuent de fonctionner. L'équipe de l'instance peut toujours vous joindre. Une personne d'une autre instance refusée par ce réglage n'en est pas informée.",
+      "everyone": "Tout le monde",
+      "known": "Membres de serveurs et personnes que je suis",
+      "following": "Seulement les personnes que je suis",
+      "failed": "Impossible d'enregistrer ce réglage"
     }
   },
   "navigation": {
@@ -2932,7 +2947,8 @@
       "illegal_content": "Contenu illégal",
       "impersonation": "Usurpation d'identité",
       "nsfw": "Contenu inapproprié/NSFW",
-      "other": "Autre"
+      "other": "Autre",
+      "username_hoarding": "Accaparement de noms d'utilisateur ou revente de comptes"
     },
     "reportSource": {
       "fromInstance": "de {domain}",
@@ -4486,9 +4502,12 @@
     },
     "timedOut": "Vous êtes exclu temporairement de ce serveur jusqu'à {time} et ne pouvez pas envoyer de messages, réagir ni lancer de fils.",
     "antispam": {
-      "rateLimited": "Les nouveaux comptes ne peuvent envoyer que quelques messages à la fois. Réessayez dans {seconds} s.",
+      "rateLimited": "Vous allez trop vite. Réessayez dans {seconds} s.",
       "linksBlocked": "Les nouveaux comptes ne peuvent pas encore publier de liens.",
-      "strangerMentions": "Les nouveaux comptes peuvent mentionner au plus {count} personnes qui ne les suivent pas."
+      "strangerMentions": "Les nouveaux comptes peuvent mentionner au plus {count} personnes qui ne les suivent pas.",
+      "serverLimit": "Un compte peut posséder au plus {count} serveurs sur cette instance.",
+      "botLimit": "Un compte peut posséder au plus {count} bots sur cette instance.",
+      "dmNotAllowed": "Cette personne n'accepte de nouvelles conversations que de personnes qu'elle connaît."
     },
     "alert": {
       "raid": "Raid possible : {joins} membres ont rejoint en {seconds} secondes.",
@@ -5351,7 +5370,7 @@
     },
     "antiSpam": {
       "title": "Anti-spam",
-      "hint": "Limites à l'échelle de l'instance. Les propriétaires de serveurs configurent leur propre AutoMod dans les Paramètres du serveur ; ces limites s'y ajoutent, pour chaque serveur, MP et publication. Chaque limite ici est désactivée ou permissive tant que vous ne la modifiez pas.",
+      "hint": "Limites à l'échelle de l'instance. Les propriétaires de serveurs configurent leur propre AutoMod dans les Paramètres du serveur ; ces limites s'y ajoutent, pour chaque serveur, MP et publication.",
       "loadingSettings": "Chargement des paramètres...",
       "saved": "Paramètres anti-spam enregistrés",
       "newAccounts": {
@@ -5364,6 +5383,27 @@
         "strangerMentionsHint": "Un inconnu est toute personne, locale ou distante, qui ne suit pas l'auteur.",
         "blockLinks": "Les nouveaux comptes ne peuvent pas publier de liens",
         "staffExempt": "Les administrateurs et modérateurs de l'instance ne sont jamais limités."
+      },
+      "accounts": {
+        "title": "Tous les comptes locaux",
+        "hint": "Plafonds bien au-dessus d'un usage normal. Au-delà, une écriture est refusée jusqu'à la fin de la fenêtre. 0 = aucune limite. Les administrateurs de l'instance, les modérateurs et les comptes exemptés dans Utilisateurs ne sont jamais limités.",
+        "messagesPerMinute": "Messages par minute",
+        "postsPerHour": "Publications par heure",
+        "postsPerHourHint": "Les partages ne comptent pas.",
+        "reactionsPerMinute": "Réactions et favoris par minute",
+        "followsPerHour": "Abonnements par heure",
+        "joinsPerHour": "Arrivées sur des serveurs par heure",
+        "serversPerHour": "Serveurs créés par heure",
+        "strangerDmsPerHour": "Nouvelles conversations avec des inconnus par heure",
+        "strangerDmsHint": "Un inconnu ne suit pas le compte, ne partage aucun serveur avec lui et n'a aucune conversation avec lui.",
+        "newStrangerDmsPerHour": "Idem, pour les nouveaux comptes",
+        "newStrangerDmsHint": "Compte aussi les personnes qui partagent seulement un serveur avec le nouveau compte : rejoindre un serveur public donne accès à tous ses membres."
+      },
+      "bots": {
+        "title": "Bots",
+        "hint": "Requêtes par minute sur toutes les routes d'un bot, en plus de la limite par route. Un bot dont le propriétaire est exempté n'a pas ce plafond. 0 = aucune limite.",
+        "requestsPerMinute": "Requêtes par minute, par bot",
+        "bridgeRequestsPerMinute": "Requêtes par minute, par pont Discord lié"
       },
       "federation": {
         "title": "Spam de mentions fédéré",
@@ -5418,6 +5458,13 @@
         "loadQueue": "Échec du chargement de la file d'examen",
         "review": "Échec de l'examen"
       }
+    },
+    "limitExempt": {
+      "add": "Exempter {name} des limites de l'instance",
+      "remove": "Appliquer les limites de l'instance à {name}",
+      "added": "{name} est exempté des limites de l'instance",
+      "removed": "Les limites de l'instance s'appliquent de nouveau à {name}",
+      "failed": "Impossible de modifier l'exemption"
     },
     "instanceEmojis": {
       "tab": "Emojis",
@@ -7118,6 +7165,7 @@
     "quotaUser": "Stockage par compte",
     "quotaModerator": "Stockage par modérateur de l'instance",
     "quotaAdmin": "Stockage par administrateur de l'instance",
+    "instanceLimit": "Fichiers stockés sur toute l'instance (0 = aucune limite)",
     "ephemeralDays": "Les fichiers temporaires sont conservés",
     "days": "jours",
     "ephemeralDaily": "Téléversements temporaires par jour une fois le Drive plein",
@@ -7276,7 +7324,8 @@
     "errors": {
       "load": "Impossible de charger Drive",
       "temporary": "Cette modification n'a pas été enregistrée : {reason}",
-      "blocked": "Ce fichier a été retiré par les modérateurs de l'instance."
+      "blocked": "Ce fichier a été retiré par les modérateurs de l'instance.",
+      "full": "Le stockage est plein : ce téléversement a été refusé. Libérez de l'espace dans Drive ou contactez un administrateur de l'instance."
     },
     "details": {
       "label": "Détails du fichier",
@@ -7893,6 +7942,36 @@
       "paused": "pendant la pause"
     }
   },
+  "adminSignupLimits": {
+    "title": "Limites d’inscription",
+    "intro": "Rend plus coûteuse la création de comptes en masse. Une personne avec un deuxième compte ou un compte de test reste bien en dessous. Les invitations et le fournisseur d’identité propre à cette instance ne sont pas limités. Les inscriptions via Google, GitHub et Twitch ne comptent que pour la limite par réseau.",
+    "hookNote": "S’applique dès que le service d’authentification exécute le hook d’inscription ; harmony doctor le vérifie. Les clients d’un réseau privé ne sont pas limités.",
+    "enabled": "Appliquer les limites d’inscription",
+    "ipCap": "Comptes par réseau sur 24 heures",
+    "ipCapHint": "Un réseau est une adresse IPv4 ou un /56 IPv6. 0 signifie aucune limite.",
+    "mailboxCap": "Comptes par boîte mail sur 30 jours",
+    "mailboxCapHint": "me+test{'@'}example.org compte comme me{'@'}example.org, et Gmail ignore les points. 0 signifie aucune limite.",
+    "domainCap": "Comptes par domaine de messagerie sur 24 heures",
+    "domainCapHint": "Repère qui contrôle de nombreuses boîtes sur un domaine. Les grands fournisseurs comme Gmail ne comptent pas. 0 signifie aucune limite.",
+    "enforceCaps": "Refuser les comptes au-delà des limites par réseau et par domaine",
+    "enforceCapsHint": "Désactivé : ces comptes sont autorisés et comptés ci-dessous. Un campus ou un bureau peut partager une adresse ou un domaine de messagerie. La limite par boîte mail et les listes de domaines refusent toujours.",
+    "blockDisposable": "Refuser les adresses e-mail jetables",
+    "blockDisposableHint": "Une liste intégrée de domaines de messagerie temporaire.",
+    "blockedDomains": "Autres domaines de messagerie à refuser",
+    "blockedDomainsHint": "Un domaine par ligne. Ses sous-domaines sont aussi refusés.",
+    "save": "Enregistrer les limites",
+    "saved": "Limites d’inscription enregistrées",
+    "saveFailed": "Impossible d’enregistrer les limites d’inscription.",
+    "loadFailed": "Impossible de charger les limites d’inscription.",
+    "invalidCap": "Saisissez un nombre entier de 0 à 1000.",
+    "invalidDomain": "{domain} n’est pas un nom de domaine.",
+    "wouldRefuseTitle": "Au-delà d’une limite, autorisés, ces 7 derniers jours",
+    "refusalsTitle": "Refusées ces 7 derniers jours",
+    "refusalIpCap": "Limite par réseau",
+    "refusalDomainCap": "Limite par domaine",
+    "refusalMailboxCap": "Limite par boîte mail",
+    "refusalBlockedDomain": "Domaine de messagerie refusé"
+  },
   "adminInvites": {
     "tab": "Invitations",
     "title": "Inviter des personnes",
@@ -8149,6 +8228,114 @@
       "members": "{count} membre | {count} membres",
       "here": "Membres en ligne qui voient le salon",
       "unknown": "Ce n'est pas un rôle de ce serveur"
+    }
+  },
+  "adminSignups": {
+    "tab": "Inscriptions",
+    "title": "Inscriptions récentes",
+    "intro": "Comptes créés sur cette instance, du plus récent au plus ancien, avec leur domaine e-mail et leur activité. Les adresses e-mail et les adresses IP ne sont pas affichées. Un groupe invite à regarder de plus près, ce n'est pas une preuve : un jour d'affluence ou un fournisseur commun peuvent y ressembler.",
+    "limitsLink": "Les limites d’inscription sont dans l’onglet Invitations.",
+    "windowLabel": "Période",
+    "window": "{count} jour | {count} jours",
+    "searchLabel": "Rechercher dans les inscriptions",
+    "searchHint": "Nom d'utilisateur, nom ou domaine e-mail",
+    "loadError": "Impossible de charger ces données.",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "filters": {
+      "label": "État",
+      "all": "Tous",
+      "active": "Actifs",
+      "suspended": "Suspendus"
+    },
+    "daily": {
+      "title": "Par jour (UTC)",
+      "day": "Jour",
+      "signups": "Inscriptions",
+      "domains": "Domaines e-mail",
+      "topDomain": "Plus grand domaine",
+      "peakHour": "Heure la plus chargée",
+      "suspended": "Suspendus",
+      "refused": "Refusés",
+      "wouldRefuse": "Au-delà d’une limite, autorisés"
+    },
+    "groups": {
+      "title": "Groupes",
+      "empty": "Aucun groupe de {count} comptes ou plus sur cette période.",
+      "kindDomain": "Domaine e-mail",
+      "kindServer": "Ont rejoint dans l'heure suivant l'inscription",
+      "size": "{count} compte | {count} comptes",
+      "priorDomain": "{count} compte antérieur sur ce domaine | {count} comptes antérieurs sur ce domaine",
+      "priorServer": "{count} membre d'avant cette période | {count} membres d'avant cette période",
+      "suspended": "{count} suspendus",
+      "span": "Du {from} au {to}",
+      "show": "Afficher",
+      "showLabel": "Afficher le groupe {label}",
+      "select": "Tout sélectionner",
+      "selectLabel": "Tout sélectionner dans le groupe {label}",
+      "filterActive": "Groupe {label} affiché",
+      "clear": "Tout afficher"
+    },
+    "rows": {
+      "title": "{count} compte | {count} comptes",
+      "empty": "Aucune inscription sur cette période.",
+      "emptySearch": "Aucune inscription ne correspond.",
+      "selectAccount": "Sélectionner {name}",
+      "staff": "Équipe",
+      "suspended": "Suspendu",
+      "unconfirmed": "E-mail non confirmé",
+      "noEmail": "Pas d'e-mail",
+      "signedUp": "Inscription : {time}",
+      "posts": "{count} publication | {count} publications",
+      "messages": "{count} message | {count} messages",
+      "servers": "Dans {count} serveur | Dans {count} serveurs",
+      "owns": "Propriétaire de {count} serveur | Propriétaire de {count} serveurs",
+      "firstServer": "A rejoint {server} après {minutes} min"
+    },
+    "selection": {
+      "count": "{count} sélectionnés",
+      "limit": "Au plus {count} comptes à la fois.",
+      "suspend": "Suspendre…",
+      "unsuspend": "Lever la suspension…",
+      "clear": "Effacer la sélection"
+    },
+    "dialog": {
+      "suspendTitle": "Suspendre {count} compte | Suspendre {count} comptes",
+      "unsuspendTitle": "Lever la suspension de {count} compte | Lever la suspension de {count} comptes",
+      "affectedSuspend": "Seront suspendus",
+      "affectedUnsuspend": "Suspension levée pour",
+      "activity": "{posts} publications, {messages} messages",
+      "nothing": "Cette action ne s'applique à aucun des comptes sélectionnés.",
+      "skippedTitle": "Exclus",
+      "skip": {
+        "self": "Votre propre compte",
+        "staff": "Équipe de l'instance",
+        "remote": "Compte d'une autre instance",
+        "no_sign_in": "Sans connexion",
+        "deleted": "Supprimé par l'équipe",
+        "already_suspended": "Déjà suspendu",
+        "not_suspended": "Non suspendu",
+        "not_found": "Compte introuvable"
+      },
+      "ownedTitle": "Leurs serveurs restent ouverts",
+      "ownedHint": "Les membres continuent d'utiliser ces serveurs. Pour en fermer un, utilisez l'onglet Serveurs.",
+      "ownedMembers": "{count} membre | {count} membres",
+      "consequences": {
+        "signedOut": "Leur session est fermée maintenant, et l'application la ferme à nouveau s'ils se reconnectent.",
+        "follows": "{count} abonnement avec des comptes locaux est supprimé. La levée de la suspension ne le restaure pas. | {count} abonnements avec des comptes locaux sont supprimés. La levée de la suspension ne les restaure pas.",
+        "timelines": "Leurs publications quittent les fils et les pages publiques ici. Leurs messages restent dans les salons.",
+        "federation": "Rien n'est envoyé aux autres instances : ce qu'elles ont déjà reçu reste, ainsi que les abonnés distants.",
+        "unsuspend": "Ils peuvent se reconnecter. Les abonnements supprimés par la suspension ne sont pas restaurés."
+      },
+      "reason": "Motif (obligatoire)",
+      "reasonHint": "Le même motif est enregistré pour chaque compte dans le journal d'activité.",
+      "confirmSuspend": "Suspendre {count} compte | Suspendre {count} comptes",
+      "confirmUnsuspend": "Lever la suspension de {count} compte | Lever la suspension de {count} comptes",
+      "failed": "Échec : {error}"
+    },
+    "done": {
+      "suspended": "{count} compte suspendu | {count} comptes suspendus",
+      "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes"
     }
   }
 }

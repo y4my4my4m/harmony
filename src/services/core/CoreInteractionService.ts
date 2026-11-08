@@ -2,6 +2,7 @@
 import { supabase } from '@/supabase'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
+import { notifyModerationRejection } from '@/services/AutoModService'
 
 export interface FollowResult {
   following: boolean
@@ -124,6 +125,7 @@ export class CoreInteractionService {
         if (error.code === '42501') {
           throw this.createError('BLOCKED', 'A block stands between you and this user', error)
         }
+        if (notifyModerationRejection(error)) throw error
         throw this.createError('FOLLOW_FAILED', 'Failed to follow user', error)
       }
 

@@ -10,7 +10,9 @@
 #      are the Supabase stack's own unless older than supabase-overrides.yml
 #      needs. An install whose .env has no ENABLE_ANALYTICS
 #      gets log collection off: analytics and vector are removed and the logs
-#      they stored deleted (analytics_default_off, lib.sh)
+#      they stored deleted (analytics_default_off, lib.sh). One with no
+#      ENABLE_STUDIO gets Studio off: studio and meta are removed
+#      (studio_default_off, lib.sh)
 #   3. pull the images (or build Harmony's with HARMONY_BUILD=1); the running
 #      stack is untouched
 #   4. back up the database and the config files into backups/
@@ -86,10 +88,12 @@ main() {
 
 	# --- 2. configuration --------------------------------------------------------
 	STEP=configure
-	local unchosen=false
+	local unchosen=false studio_unset=false
 	analytics_unchosen && unchosen=true
+	studio_unchosen && studio_unset=true
 	bash "$SCRIPT_DIR/configure.sh" --non-interactive </dev/null
 	if $unchosen && ! truthy "$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"; then analytics_default_off; fi
+	if $studio_unset && ! truthy "$(env_get "$ENV_FILE" ENABLE_STUDIO)"; then studio_default_off; fi
 
 	# --- 3. images ---------------------------------------------------------------
 	STEP=images

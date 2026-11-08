@@ -4,6 +4,7 @@ import { canUserCreateInvites, getInviteConstraints } from './permissionsService
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n';
 import { suspendedServerNotice } from '@/utils/serverSuspensionNotice';
+import { moderationRejectionFromError } from '@/services/AutoModService';
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -126,8 +127,9 @@ async function acceptInvite(code: string): Promise<{ success: boolean; serverId?
 
     if (error) {
       const known = INVITE_ERRORS.find(([marker]) => (error.message || '').includes(marker));
-      if (!known) debug.error('Error redeeming invite:', error);
-      return { success: false, error: known ? known[1]() : 'Failed to join server' };
+      const rejection = moderationRejectionFromError(error);
+      if (!known && !rejection) debug.error('Error redeeming invite:', error);
+      return { success: false, error: known ? known[1]() : rejection?.message ?? 'Failed to join server' };
     }
 
     const serverId = (data as { server_id?: string } | null)?.server_id;

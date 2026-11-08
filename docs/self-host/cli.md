@@ -38,6 +38,7 @@ harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [-
 harmony config
 harmony config --upload-ceiling [SIZE]
 harmony analytics [on | off [--delete-logs]]
+harmony studio [on | off]
 harmony version
 harmony help
 ```
@@ -90,6 +91,11 @@ logs they stored (as `harmony analytics off --delete-logs`) and prints one
 line with the space freed. `HARMONY_ANALYTICS=y harmony update`, or
 `harmony analytics on` afterwards, keeps it on. `ENABLE_ANALYTICS=true` stays
 on.
+
+An instance whose `.env` has no `ENABLE_STUDIO` ran Supabase Studio without
+choosing it. The update writes `ENABLE_STUDIO=false`, removes `studio` and `meta`
+and prints one line. `HARMONY_STUDIO=y harmony update`, or `harmony studio on`
+afterwards, keeps it on. Nothing in the database changes.
 
 | Option | Effect |
 |---|---|
@@ -164,6 +170,7 @@ certificates, Federation, Services, Security, Versions.
 |---|---|---|---|
 | `database` | Postgres answers | FAIL; the other database checks are skipped | `harmony logs db` |
 | `migrations` | Every file in `db_schema/migrations/` is recorded in `supabase_migrations.schema_migrations` | FAIL when some are not applied; WARN when the database has migrations the checkout lacks (the code is older than the database) | `bash bootstrap.sh --migrations-only` (`harmony update` runs it); for the WARN, `harmony update` |
+| `activity purge` | The `purge-automod` pg_cron job exists; [instance limits](/self-host/configuration#instance-limits) count rows it trims | WARN when absent | Schedule `public.automod_purge()` every 10 minutes |
 | `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
 | `security-notices` | The new-sign-in and second-factor triggers exist on `auth.sessions` and `auth.mfa_factors` | FAIL when one is missing: no security notice for a new sign-in or a changed second factor | Run `db_schema/migrations/20261025100003_auth_triggers_converge.sql` as printed (safe to re-run; `harmony update` runs it once) |
 | `storage-policies` | The message media, soundboard, personal emoji and Drive policies on `storage.objects` and `storage.buckets`, the `message_media` and `soundboard` buckets and the Drive triggers on `storage.objects` exist | FAIL when one is missing: the uploads and reads that depend on it fail; a missing `storage_objects_session_aal` lets a session short of its second factor reach storage. FAIL when `storage.objects` or `storage.buckets` is missing | Run `db_schema/migrations/20261025100004_storage_converge.sql` as printed: it creates what is missing, replaces a superseded policy definition and keeps a bucket's configured limits. `harmony update` runs it once. With a table missing, `harmony logs storage` first |
@@ -175,6 +182,7 @@ certificates, Federation, Services, Security, Versions.
 | `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
 | `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
 | `log collection` | `analytics` or `vector` runs while `COMPOSE_PROFILES` lacks `logs` | WARN: it keeps filling the database | `harmony analytics off --delete-logs` |
+| `studio` | Supabase Studio is on, or `studio` or `meta` runs while `COMPOSE_PROFILES` lacks `studio` | WARN: it is public behind one password that reaches the whole database | `harmony studio off` |
 
 ### DNS
 
@@ -225,6 +233,7 @@ server's own port only.
 | `email` | always | `SMTP_HOST` in `supabase/.env` is set and accepts a TCP connection on `SMTP_PORT` (default 587) | WARN with no SMTP server: `harmony config`. WARN when unreachable: check the host and port; many VPS providers block outgoing 25 and 587 until asked |
 | `auth` | always | `https://db.DOMAIN/auth/v1/health` answers 200 | FAIL: `harmony logs auth`; `harmony logs kong` |
 | `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and while `ENABLE_EMAIL_AUTOCONFIRM=true` no provider joins accounts by address: neither one of your own on the sign-in page nor a built-in one the auth service has on (`GOTRUE_EXTERNAL_<ID>_ENABLED`, with a button or without) | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth linking ID --separate-accounts` for a built-in one, `harmony auth add-provider ID --separate-accounts` for your own |
+| `signup limits` | always | The auth service runs the sign-up hook with `Sb-Forwarded-For` on, and `public.before_user_created_hook` exists | WARN when the service lacks them: `docker compose up -d auth`. FAIL without the function, as every sign-up then fails, and WARN while the migration has not run and sign-ups work without limits: `bash bootstrap.sh --migrations-only`. OK says whether the network and domain caps observe or refuse, or that an admin turned the limits off |
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
@@ -600,6 +609,23 @@ See [Log collection](/self-host/#log-collection) for what it costs.
 it for `configure.sh`. On an instance that never answered it, `harmony config`,
 `harmony install` and `harmony update` default it to `n` and delete the
 stored logs.
+
+## harmony studio
+
+```text
+harmony studio [on | off]
+```
+
+Turns Supabase Studio, the database browser, on or off: sets `ENABLE_STUDIO` and
+the `studio` profile in `.env`, then starts `studio` and `meta`, or stops and
+removes them. Without an argument it prints whether it runs. It is off on a new
+instance, and an update turns it off on an instance that never chose it.
+
+While it runs, Studio is public at `https://DB_DOMAIN`, with one shared password
+(`DASHBOARD_PASSWORD`) and no limit on guesses, and that password reaches the whole
+database. Turn it on when you need it and off afterwards. Harmony does not use
+Studio or `meta`: the app, the federation backend and every `harmony` command
+work without them.
 
 ## harmony version
 

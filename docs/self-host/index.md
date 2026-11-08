@@ -45,7 +45,7 @@ The Supabase containers:
 | `storage` | `supabase-storage` | Uploaded files: avatars, attachments, emoji |
 | `imgproxy` | `supabase-imgproxy` | Image resizing |
 | `kong` | `supabase-kong` | The API gateway Caddy serves at the `db.` name |
-| `meta`, `studio` | `supabase-meta`, `supabase-studio` | Supabase Studio, a database browser |
+| `meta`, `studio` | `supabase-meta`, `supabase-studio` | Supabase Studio, a database browser. Profile `studio`, off unless you run `harmony studio on` |
 | `analytics`, `vector` | `supabase-analytics`, `supabase-vector` | Supabase's log collection (Logflare), for Studio's Logs pages. Profile `logs`, off unless chosen at install; see [Log collection](#log-collection) |
 
 Supabase's Edge Functions and Supavisor stay defined but never start: the
@@ -65,7 +65,7 @@ An instance answers on three names under one domain. With
 | Name | Serves |
 |---|---|
 | `chat.example.com` | The web app, the federation endpoints, and the bot gateway under `/bot-gateway/` |
-| `db.chat.example.com` | The Supabase API through Kong: sign-in, data, realtime, uploads; Supabase Studio at its root |
+| `db.chat.example.com` | The Supabase API through Kong: sign-in, data, realtime, uploads; Supabase Studio at its root while it is on |
 | `live.chat.example.com` | LiveKit signalling; only with voice on |
 
 ```mermaid
@@ -146,7 +146,7 @@ cores, after the database schema loads:
 | Services | Memory, idle | Images on disk |
 |---|---|---|
 | Harmony: `caddy`, `web`, `media-cache`, `federation-server`, `federation-worker`, `redis` | 170 MB | 0.5 GB |
-| Supabase: `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, `meta`, `studio` | 790 MB | 4.3 GB |
+| Supabase: `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, and `meta`, `studio` while on | 790 MB with Studio on | 4.3 GB |
 | Voice: `livekit` | 17 MB, more during calls | 75 MB |
 | Bots and Discord bridge hosting: `bot-gateway`, `discord-bridge-host` | 85 MB with no bridge running | 0.37 GB |
 | Log collection: `analytics`, `vector` | 0.7 GB, rising; 1.9 GB measured on a production instance | 0.57 GB |
@@ -278,8 +278,9 @@ The `.env` files and `livekit.yaml` hold the only copy of the instance's
 secrets; `harmony backup` saves them with the database.
 [Configuration](/self-host/configuration) describes their keys.
 
-Supabase Studio is at `https://db.chat.example.com`: user `supabase`,
-password `DASHBOARD_PASSWORD` from `supabase/.env`.
+Supabase Studio is off by default. `harmony studio on` starts it at
+`https://db.chat.example.com`: user `supabase`, password `DASHBOARD_PASSWORD`
+from `supabase/.env`. See [Supabase Studio](/self-host/monitoring#supabase-studio).
 
 ## Ways to install
 
@@ -306,6 +307,8 @@ password `DASHBOARD_PASSWORD` from `supabase/.env`.
   [Discord bridges](/self-host/discord-bridges): optional features.
 - [Stickers](/self-host/stickers): instance stickers, sticker limits, personal
   stickers and sticker reports.
+- [Sign-up limits](/self-host/signup-limits): accounts per network and inbox, disposable
+  email domains, the client address and per-IP limits.
 - [The harmony command](/self-host/cli): every subcommand and flag, and every
   check `harmony doctor` runs.
 - [Monitoring](/self-host/monitoring): watching an instance.

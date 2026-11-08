@@ -31,6 +31,16 @@
         <label>Max server size</label>
         <input v-model.number="config.chat.maxServerSize" type="number" class="cyber-input" />
       </div>
+      <div v-if="limitsSupported" class="setting-group">
+        <label>Servers one account can own</label>
+        <input v-model.number="config.chat.maxServersPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-servers-per-user" />
+        <span class="setting-hint">Local servers, instance admins and moderators excepted. 0 = no limit. Default: 100.</span>
+      </div>
+      <div v-if="limitsSupported" class="setting-group">
+        <label>Bots one account can own</label>
+        <input v-model.number="config.chat.maxBotsPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-bots-per-user" />
+        <span class="setting-hint">Channel webhooks and linked Discord bridges are not counted. 0 = no limit. Default: 25.</span>
+      </div>
       <div class="setting-group">
         <label>Max message length</label>
         <input v-model.number="config.chat.maxMessageLength" type="number" class="cyber-input" />
@@ -752,6 +762,7 @@ harmony auth remove-provider authentik</code></pre>
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -845,6 +856,8 @@ const customOAuthCallbackUrl = `${(runtimeConfig.supabaseUrl || '').replace(/\/+
 const config = ref({
   chat: {
     maxServerSize: 1000,
+    maxServersPerUser: 100,
+    maxBotsPerUser: 25,
     maxMessageLength: 2000,
     maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
@@ -881,8 +894,14 @@ const config = ref({
   }
 })
 
+const limitsSupported = hasCapability('instance-limits')
+
 const configPayload = (): Record<string, unknown> => ({
   max_server_size: config.value.chat.maxServerSize,
+  ...(limitsSupported ? {
+    max_servers_per_user: config.value.chat.maxServersPerUser,
+    max_bots_per_user: config.value.chat.maxBotsPerUser,
+  } : {}),
   max_message_length: config.value.chat.maxMessageLength,
   max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
   allow_file_uploads: config.value.chat.allowFileUploads,

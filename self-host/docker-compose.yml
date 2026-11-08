@@ -55,6 +55,8 @@ services:
       LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:-live.${DOMAIN}}
       # A contact email (public ACME) or "internal" (Caddy's own CA).
       CADDY_TLS: ${CADDY_TLS:-internal}
+      # A proxy with a public address in front of Caddy. Private peers and Cloudflare are built in.
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-}
       # true defines the LiveKit site; false leaves its domain without one.
       ENABLE_VOICE: ${ENABLE_VOICE:-false}
     volumes:

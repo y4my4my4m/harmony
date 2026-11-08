@@ -101,6 +101,42 @@ async function main() {
     console.log(`  auth user ${user.username} -> ${authId}`)
   }
 
+  // Journeys burst from accounts minutes old. instance-limits.spec.ts sets the limits it tests.
+  const { data: antispam } = await admin
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'antispam')
+    .single()
+  check(
+    'instance limits off',
+    await admin.from('instance_config').upsert(
+      [
+        {
+          config_key: 'antispam',
+          config_value: {
+            ...antispam.config_value,
+            new_account_messages_per_minute: 0,
+            new_account_posts_per_hour: 0,
+            new_account_max_stranger_mentions: 0,
+            new_account_stranger_dms_per_hour: 0,
+            account_messages_per_minute: 0,
+            account_posts_per_hour: 0,
+            account_reactions_per_minute: 0,
+            account_follows_per_hour: 0,
+            account_joins_per_hour: 0,
+            account_servers_per_hour: 0,
+            account_stranger_dms_per_hour: 0,
+            bot_requests_per_minute: 0,
+            bridge_requests_per_minute: 0,
+          },
+        },
+        { config_key: 'max_servers_per_user', config_value: 0 },
+        { config_key: 'max_bots_per_user', config_value: 0 },
+      ],
+      { onConflict: 'config_key' },
+    ),
+  )
+
   check(
     'profiles',
     await admin.from('profiles').upsert(

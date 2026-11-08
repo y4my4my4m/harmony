@@ -56,7 +56,12 @@ services:
   # the stack's 2025.06.30 / v0.91.0 (trivy HIGH+CRITICAL: Studio 1221 -> 275, meta 144 -> 82).
   # Studio from 2026 reads the database's address itself and listens on HOSTNAME;
   # meta keeps the stack's supabase_admin connection.
+  # Both run only under the `studio` profile (ENABLE_STUDIO in .env, `harmony studio on|off`).
+  # Kong serves Studio at the root of DB_DOMAIN behind basic-auth, with one shared password and no
+  # rate-limiting plugin, and Studio's SQL editor reaches the whole database. No other service
+  # depends on either; Kong answers 503 on their routes while they are absent.
   studio:
+    profiles: [studio]
     image: supabase/studio:2026.11.02-sha-a05e7ec
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -69,6 +74,7 @@ services:
       PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
       PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
   meta:
+    profiles: [studio]
     image: supabase/postgres-meta:v0.100.0
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -154,11 +160,30 @@ services:
   # password is submitted. GoTrue's own link is a GET of /auth/v1/verify, which
   # spends the token for the first fetcher, mail scanners included.
   # MAILER_TEMPLATES_INVITE / MAILER_TEMPLATES_RECOVERY in supabase/.env replace them.
+  #
+  # Client address: with GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED GoTrue's per-IP limiters and
+  # hook metadata read Sb-Forwarded-For, which Caddy overwrites on DB_DOMAIN. Kong 2.8.5 forwards
+  # it unchanged, replaces X-Real-IP with its peer and appends to X-Forwarded-For, whose first
+  # value (what GoTrue otherwise reads) a client chooses. The header turns on GoTrue's per-IP limits
+  # on sign-in, /verify, /recover, /otp and MFA; without it they do not run, which is what a
+  # request of the instance's own services, a private client and a token refresh get.
+  # GOTRUE_RATE_LIMIT_HEADER is unset: it applies only without the header. Limits per address are
+  # GoTrue's defaults; RATE_LIMIT_OTP also sets recover, resend, magic link, OTP and PUT /user.
+  # RATE_LIMIT_EMAIL_SENT: one budget per hour for all mail of the instance (mail.go sendEmail, when
+  # autoconfirm is off), default 30, so one burst blocks other people's confirmations and resets. 28
+  # sign-ups in one hour were measured on prod.
+  # Hook: public.before_user_created_hook (20261109100001), which refuses sign-ups by the limits
+  # in Admin, Invites. update.sh migrates before it recreates this service; a missing
+  # function fails every sign-up.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
+      GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_URI: pg-functions://postgres/public/before_user_created_hook
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${RATE_LIMIT_EMAIL_SENT:-100}
       GOTRUE_CUSTOM_OAUTH_ENABLED: "true"
       GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: ${API_EXTERNAL_URL}/auth/v1
       GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS: ${PROVIDER_LINKING_DOMAINS:-}

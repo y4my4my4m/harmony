@@ -38,6 +38,32 @@
       </div>
     </div>
 
+    <div v-if="dmPolicySupported" class="settings-section">
+      <h3 class="section-title">{{ $t('settings.dmPolicy.title') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <label class="setting-label" :for="`${a11yId}-dm-policy`">{{ $t('settings.dmPolicy.label') }}</label>
+          <p class="setting-description" :id="`${a11yId}-dm-policy-desc`">{{ $t('settings.dmPolicy.description') }}</p>
+        </div>
+        <div class="setting-control">
+          <select
+            :id="`${a11yId}-dm-policy`"
+            v-model="dmPolicy"
+            class="form-select"
+            :aria-describedby="`${a11yId}-dm-policy-desc`"
+            :disabled="dmPolicySaving || !profile?.id"
+            data-testid="dm-policy-select"
+            @change="onDmPolicyChange"
+          >
+            <option value="everyone">{{ $t('settings.dmPolicy.everyone') }}</option>
+            <option value="known">{{ $t('settings.dmPolicy.known') }}</option>
+            <option value="following">{{ $t('settings.dmPolicy.following') }}</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- Encryption Settings -->
     <div class="settings-section security-section">
       <h3 class="section-title">
@@ -193,6 +219,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
@@ -234,6 +261,10 @@ const { t } = useI18n()
 const stripUrlTrackers = ref(true)
 const requireFollowApproval = ref(false)
 const followApprovalSaving = ref(false)
+const dmPolicySupported = hasCapability('instance-limits')
+const dmPolicy = ref('everyone')
+const dmPolicySaving = ref(false)
+let savedDmPolicy = 'everyone'
 const blockedUsers = ref<User[]>([])
 const mutedUsers = ref<User[]>([])
 const activityPubStore = useActivityPubStore()
@@ -294,6 +325,17 @@ watch(() => props.profile?.id, async (profileId) => {
   else requireFollowApproval.value = data?.manually_approves_followers === true
 }, { immediate: true })
 
+watch(() => props.profile?.id, async (profileId) => {
+  if (!profileId || !dmPolicySupported) return
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('dm_policy')
+    .eq('id', profileId)
+    .maybeSingle()
+  if (error) debug.error('Failed to load who can start a DM:', error)
+  else dmPolicy.value = savedDmPolicy = data?.dm_policy ?? 'everyone'
+}, { immediate: true })
+
 // Applied on toggle. The database federates the change and, when approval is
 // turned off, accepts the requests still waiting.
 const onFollowApprovalChange = async (value: boolean) => {
@@ -314,6 +356,28 @@ const onFollowApprovalChange = async (value: boolean) => {
     toast.error(t('activitypub.followApprovalFailed'))
   } finally {
     followApprovalSaving.value = false
+  }
+}
+
+const onDmPolicyChange = async () => {
+  const profileId = props.profile?.id
+  if (!profileId) return
+  const previous = savedDmPolicy
+  dmPolicySaving.value = true
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ dm_policy: dmPolicy.value })
+      .eq('id', profileId)
+    if (error) throw error
+    savedDmPolicy = dmPolicy.value
+    toast.success(t('settings.toasts.privacyUpdated'))
+  } catch (error: any) {
+    debug.error('Failed to save who can start a DM:', error)
+    dmPolicy.value = previous
+    toast.error(t('settings.dmPolicy.failed'))
+  } finally {
+    dmPolicySaving.value = false
   }
 }
 

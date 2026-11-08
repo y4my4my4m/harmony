@@ -4501,6 +4501,17 @@ export class ActivityProcessor {
     return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
   }
 
+  /** Recipients whose profiles.dm_policy admits the sender. A failed check delivers as before. */
+  private static async dmRecipientsAllowing(senderId: string, recipientIds: string[]): Promise<string[]> {
+    const { data, error } = await getSupabaseClient()
+      .rpc('dm_recipients_allowing', { p_sender: senderId, p_recipients: recipientIds });
+    if (error || !Array.isArray(data)) {
+      logger.warn(`dm_recipients_allowing failed: ${error?.message ?? 'no result'}`);
+      return recipientIds;
+    }
+    return data;
+  }
+
   private static async handleDirectMessage(
     object: any,
     authorId: string,
@@ -4551,6 +4562,13 @@ export class ActivityProcessor {
 
     // Group vs 1:1 is decided by sender metadata or recipient count.
     const isGroup = object['harmony:conversationType'] === 'group' || recipientIds.length > 1;
+
+    const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
+    if (allowedIds.length === 0) {
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      return;
+    }
+
     let conversationId: string | null = null;
 
     if (isGroup) {
@@ -4558,7 +4576,7 @@ export class ActivityProcessor {
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_federated_group_conversation', {
           p_actor_id: authorId,
-          p_local_recipient_ids: recipientIds,
+          p_local_recipient_ids: allowedIds,
           p_remote_conversation_id: remoteConvId
         });
       if (convError || !convId) {
@@ -4576,7 +4594,7 @@ export class ActivityProcessor {
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_dm_conversation', {
           p_user1_id: authorId,
-          p_user2_id: recipientIds[0]
+          p_user2_id: allowedIds[0]
         });
       if (convError || !convId) {
         logger.error(`Failed to get/create DM conversation:`, convError);
@@ -4663,13 +4681,19 @@ export class ActivityProcessor {
       return;
     }
 
+    const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
+    if (allowedIds.length === 0) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      return;
+    }
+
     const remoteConversationId = object.metadata?.conversation_id || null;
 
     const { data: conversationId, error: convError } = await supabase.rpc(
       'get_or_create_federated_group_conversation',
       {
         p_actor_id: authorId,
-        p_local_recipient_ids: recipientIds,
+        p_local_recipient_ids: allowedIds,
         p_remote_conversation_id: remoteConversationId,
       }
     );
@@ -4687,7 +4711,7 @@ export class ActivityProcessor {
 
     const conversationName = object.metadata?.conversation_name || 'a group conversation';
 
-    for (const userId of recipientIds) {
+    for (const userId of allowedIds) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
         p_notification_type: 'dm',
         p_to_user_id: userId,
@@ -4711,7 +4735,7 @@ export class ActivityProcessor {
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
-    logger.info(`Group invite processed: conversation ${conversationId}, ${recipientIds.length} recipient(s)`);
+    logger.info(`Group invite processed: conversation ${conversationId}, ${allowedIds.length} recipient(s)`);
   }
 
   /**

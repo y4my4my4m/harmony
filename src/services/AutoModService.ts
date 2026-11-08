@@ -6,6 +6,7 @@
  * row (zero rows returned) or raises AUTOMOD_BLOCKED / MEMBER_TIMED_OUT /
  * ANTISPAM_*. Nothing here decides whether a message may be sent.
  */
+import { useToast } from 'vue-toastification'
 import { supabase } from '@/supabase'
 import { syncVoiceMember } from '@/services/voice/voiceModerationApi'
 import { i18n } from '@/i18n'
@@ -132,6 +133,16 @@ export interface InstanceAntiSpamSettings {
   new_account_posts_per_hour: number
   new_account_max_stranger_mentions: number
   new_account_block_links: boolean
+  new_account_stranger_dms_per_hour: number
+  account_messages_per_minute: number
+  account_posts_per_hour: number
+  account_reactions_per_minute: number
+  account_follows_per_hour: number
+  account_joins_per_hour: number
+  account_servers_per_hour: number
+  account_stranger_dms_per_hour: number
+  bot_requests_per_minute: number
+  bridge_requests_per_minute: number
   federation_spam_mode: 'off' | 'flag' | 'hold' | 'reject'
   federation_max_mentions: number
   federation_new_actor_days: number
@@ -331,6 +342,9 @@ export type ModerationRejectionCode =
   | 'ANTISPAM_RATE_LIMITED'
   | 'ANTISPAM_LINKS_BLOCKED'
   | 'ANTISPAM_STRANGER_MENTIONS'
+  | 'SERVER_LIMIT_REACHED'
+  | 'BOT_LIMIT_REACHED'
+  | 'DM_NOT_ALLOWED'
   | 'RULES_NOT_ACCEPTED'
 
 export interface ModerationRejection {
@@ -340,7 +354,7 @@ export interface ModerationRejection {
 }
 
 const REJECTION_PATTERN =
-  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
+  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|SERVER_LIMIT_REACHED|BOT_LIMIT_REACHED|DM_NOT_ALLOWED|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
 
 export function isModerationRejectionCode(code: string | null | undefined): boolean {
   return !!code && REJECTION_PATTERN.test(code)
@@ -410,11 +424,25 @@ export function moderationRejectionFromError(error: any): ModerationRejection | 
       return { code, message: t('automod.antispam.linksBlocked') }
     case 'ANTISPAM_STRANGER_MENTIONS':
       return { code, message: t('automod.antispam.strangerMentions', { count: arg ?? '0' }) }
+    case 'SERVER_LIMIT_REACHED':
+      return { code, message: t('automod.antispam.serverLimit', { count: arg ?? '0' }) }
+    case 'BOT_LIMIT_REACHED':
+      return { code, message: t('automod.antispam.botLimit', { count: arg ?? '0' }) }
+    case 'DM_NOT_ALLOWED':
+      return { code, message: t('automod.antispam.dmNotAllowed') }
     // 20261006300001_welcome_server_and_rules.sql; arg is the server id.
     case 'RULES_NOT_ACCEPTED':
       return { code, message: t('serverWelcome.rulesRequired'), details: { serverId: arg ?? null } }
   }
   return null
+}
+
+/** Shows a refusal by moderation or an instance limit. False for any other error. */
+export function notifyModerationRejection(error: unknown): boolean {
+  const rejection = moderationRejectionFromError(error)
+  if (!rejection) return false
+  useToast().error(rejection.message)
+  return true
 }
 
 /**

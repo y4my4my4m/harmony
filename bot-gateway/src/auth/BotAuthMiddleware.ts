@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
+import { MemoryStore, type Options } from 'express-rate-limit'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 
@@ -96,35 +97,46 @@ export async function botRateLimit(req: BotRequest, res: Response, next: NextFun
     return res.status(401).json({ error: 'Missing Authorization header' })
   }
 
-  const isRateLimited = await checkRateLimit(req.bot.id, rateLimitBucket(req))
-  if (isRateLimited) {
+  const retryAfter = await checkRateLimit(req.bot.id, rateLimitBucket(req))
+  if (retryAfter > 0) {
+    res.setHeader('Retry-After', String(retryAfter))
     return res.status(429).json({
       error: 'Rate limit exceeded',
-      retry_after: 60
+      retry_after: retryAfter
     })
   }
 
   next()
 }
 
+// Route buckets, counted here while the rate-limit RPC fails. The overall ceiling is a database
+// setting and has no count here.
+const localCounts = new MemoryStore()
+localCounts.init({ windowMs: config.rateLimit.windowMs } as Options)
+
+async function countLocally(botId: string, bucket: string, maxRequests: number, windowSeconds: number): Promise<number> {
+  const { totalHits, resetTime } = await localCounts.increment(`${botId}:${bucket}`)
+  if (totalHits <= maxRequests) return 0
+  return resetTime ? Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000)) : windowSeconds
+}
+
 /**
- * Returns true when the request must be refused with 429.
+ * Seconds the request must wait before a retry; 0 admits it.
  *
- * check_and_increment_bot_rate_limit combines the upsert, window reset and
- * limit check into one statement under an exclusive row lock; a read-modify-write
- * here would let a burst through twice.
+ * check_and_increment_bot_rate_limit counts the route bucket and the bot's overall bucket in one
+ * call. A database older than migration 20261109200001 answers a boolean, true for a full window.
  *
  * Window and limit come from config.rateLimit (RATE_LIMIT_WINDOW_MS,
  * RATE_LIMIT_MAX_REQUESTS). Window is passed in seconds, floored at 1.
  *
- * Fails open: an RPC error admits the request rather than taking the bot API
- * offline.
+ * An RPC error counts in this process, so a limiter fault neither stops the bot API nor removes
+ * the route limit. 5xx here would lose relayed messages: the bridge retries no POST on 5xx.
  */
-async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
-  try {
-    const windowSeconds = Math.max(1, Math.floor(config.rateLimit.windowMs / 1000))
-    const maxRequests = config.rateLimit.maxRequests
+async function checkRateLimit(botId: string, bucket: string): Promise<number> {
+  const windowSeconds = Math.max(1, Math.floor(config.rateLimit.windowMs / 1000))
+  const maxRequests = config.rateLimit.maxRequests
 
+  try {
     const { data, error } = await supabase.rpc('check_and_increment_bot_rate_limit', {
       p_bot_id: botId,
       p_bucket: bucket,
@@ -134,13 +146,13 @@ async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
 
     if (error) {
       console.error('Rate limit RPC error:', error)
-      return false
+      return countLocally(botId, bucket, maxRequests, windowSeconds)
     }
 
-    return data === true
+    if (typeof data === 'number') return data
+    return data === true ? windowSeconds : 0
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return false
+    return countLocally(botId, bucket, maxRequests, windowSeconds)
   }
 }
-

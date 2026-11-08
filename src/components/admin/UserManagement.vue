@@ -74,6 +74,19 @@
           >
             <Icon name="upload" :size="16" />
           </button>
+          <button
+            v-if="isAdmin && limitExemptSupported"
+            type="button"
+            class="mod-btn"
+            :class="{ 'limit-exempt-on': exemptIds.has(user.id) }"
+            :title="t(exemptIds.has(user.id) ? 'admin.limitExempt.remove' : 'admin.limitExempt.add', { name: user.display_name || user.username })"
+            :aria-label="t(exemptIds.has(user.id) ? 'admin.limitExempt.remove' : 'admin.limitExempt.add', { name: user.display_name || user.username })"
+            :aria-pressed="exemptIds.has(user.id)"
+            data-testid="user-limit-exempt"
+            @click="toggleLimitExempt(user)"
+          >
+            <Icon name="zap" :size="16" />
+          </button>
         </div>
         <div v-if="canModerate(user)" class="user-actions">
           <button
@@ -231,10 +244,12 @@
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { profileHandleParam } from '@/utils/permalinks'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
@@ -263,6 +278,31 @@ const toast = useToast()
 const { t } = useT()
 const uploadLimitUser = ref<AdminUser | null>(null)
 const openUploadLimit = (user: AdminUser) => { uploadLimitUser.value = user }
+
+const limitExemptSupported = hasCapability('instance-limits')
+const exemptIds = ref(new Set<string>())
+
+watch(isAdmin, async (admin) => {
+  if (!admin || !limitExemptSupported) return
+  const { data, error } = await supabase.from('limit_exempt_accounts').select('profile_id')
+  if (error) debug.error('Failed to load limit exemptions:', error)
+  else exemptIds.value = new Set((data ?? []).map((row) => row.profile_id))
+}, { immediate: true })
+
+const toggleLimitExempt = async (user: AdminUser) => {
+  const exempt = !exemptIds.value.has(user.id)
+  const { error } = await supabase.rpc('admin_set_limit_exempt', { p_profile: user.id, p_exempt: exempt })
+  if (error) {
+    debug.error('Failed to change limit exemption:', error)
+    toast.error(t('admin.limitExempt.failed'))
+    return
+  }
+  const next = new Set(exemptIds.value)
+  if (exempt) next.add(user.id)
+  else next.delete(user.id)
+  exemptIds.value = next
+  toast.success(t(exempt ? 'admin.limitExempt.added' : 'admin.limitExempt.removed', { name: user.display_name || user.username }))
+}
 const { confirm, prompt } = useConfirmDialog()
 
 const userSearch = ref('')
@@ -1049,6 +1089,13 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 
+
+.mod-btn.limit-exempt-on,
+.mod-btn.limit-exempt-on:hover {
+  background: var(--harmony-primary-fill);
+  border-color: var(--harmony-primary-fill);
+  color: var(--text-on-primary);
+}
 
 .mod-btn.warning-btn {
   background: color-mix(in srgb, var(--warning) 15%, transparent);

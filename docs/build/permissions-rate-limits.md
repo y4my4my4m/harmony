@@ -145,16 +145,19 @@ The REST API counts requests per bot in buckets. A bucket is one route, and for 
 
 Each bucket allows 100 requests per 60-second window. The window starts at the first request in the bucket and resets when it ends. An instance can change both numbers with the gateway's `RATE_LIMIT_MAX_REQUESTS` and `RATE_LIMIT_WINDOW_MS` settings; see [Configuration](/self-host/configuration).
 
+All routes of one bot also share an overall ceiling per 60 seconds: 600 requests by default, 3,000 for the bot of a linked [Discord bridge](/run/discord-bridge). Requests refused by a route's bucket count toward it. An instance admin sets both numbers under **Instance admin** → **Anti-spam**. The ceiling never reads below the route limit per minute. A bot whose owner is [exempt](/run/moderation#exempt-an-account) has no overall ceiling.
+
 A request over the limit answers:
 
 ```http
 HTTP/1.1 429 Too Many Requests
 Content-Type: application/json
+Retry-After: 17
 
-{ "error": "Rate limit exceeded", "retry_after": 60 }
+{ "error": "Rate limit exceeded", "retry_after": 17 }
 ```
 
-`retry_after` is always `60`, whatever the window or the time left in it. No rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway cannot reach its rate-limit store, it lets the request through.
+`retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number; the overall ceiling does not apply until the check works again.
 
 The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route.
 

@@ -206,6 +206,7 @@ import { formatHandle } from '@/utils/handles'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { notifyModerationRejection } from '@/services/AutoModService'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useUserSearch, type UserSearchResult } from '@/composables/useUserSearch'
@@ -411,6 +412,7 @@ const createGroupConversation = async () => {
     }
   } catch (error) {
     debug.error('Failed to create group conversation:', error);
+    if (notifyModerationRejection(error)) return;
     throw error;
   }
 };
@@ -448,6 +450,7 @@ const addUsersToConversation = async () => {
     }
   } catch (error) {
     debug.error('Failed to add users to conversation:', error)
+    if (notifyModerationRejection(error)) return
     toast.error('Failed to add users to conversation')
     throw error
   }

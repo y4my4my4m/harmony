@@ -115,6 +115,12 @@ export async function caseServerReports(ctx: ServerReportsContext): Promise<void
   eq(await send(groupInbox, flag(flagId), peer.instanceKey.privateKey, peer.instanceActorUrl), 202, 'redelivery is acknowledged (202)')
   eq((await filed(flagId)).length, 1, 'and files no second report')
 
+  const hoardFlagId = `${peer.base}/flags/${crypto.randomUUID()}/server`
+  const hoardFlag = JSON.stringify({ ...JSON.parse(flag(hoardFlagId)), 'harmony:reason': 'username_hoarding', content: 'names for sale' })
+  eq(await send(groupInbox, hoardFlag, peer.instanceKey.privateKey, peer.instanceActorUrl), 202, 'a Flag naming username_hoarding is taken (202)')
+  const hoard = (await db.from('reports').select('reason, category, comment').eq('ap_id', hoardFlagId)).data?.[0]
+  eq(`${hoard?.reason}/${hoard?.category}/${hoard?.comment}`, 'username_hoarding/violation/names for sale', 'and keeps the reason, category violation')
+
   const forgedId = `${peer.base}/flags/${crypto.randomUUID()}/server`
   const forged = await ctx.post(groupInbox, ctx.signedHeaders(groupInbox, flag(forgedId), peer.key.privateKey, `${peer.actorUrl}#main-key`), flag(forgedId))
   assert(forged.status === 401 || forged.status === 403, 'a Flag in the instance actor\'s name signed by a user key is refused', forged.status)

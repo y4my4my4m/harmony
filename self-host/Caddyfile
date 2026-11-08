@@ -13,9 +13,22 @@
 # matcher would fold case.
 # =============================================================================
 
+# {client_ip} is the peer address, or the rightmost X-Forwarded-For entry outside
+# trusted_proxies when the peer is inside them; entries further left are the client's own.
+# Private peers (a proxy on this host or LAN, a Cloudflare Tunnel's cloudflared) and Cloudflare
+# edges are trusted: such a client gets its real address with nothing configured. A private peer
+# can name any address, and without this it is exempt from every limit anyway.
+# CADDY_TRUSTED_PROXIES adds a proxy with a public address.
+# Ranges: cloudflare.com/ips-v4, ips-v6, 2026-11-08.
+{
+	servers {
+		trusted_proxies static private_ranges {$CADDY_TRUSTED_PROXIES:} 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		trusted_proxies_strict
+	}
+}
+
 # X-Real-IP is the address the federation backend keys its rate limits on
-# (TRUST_PROXY names the trusted peers). {client_ip} is the peer address unless
-# global trusted_proxies is set, then the forwarded client.
+# (TRUST_PROXY names the trusted peers).
 (federation_upstream) {
 	reverse_proxy federation-server:3001 {
 		header_up X-Real-IP {client_ip}
@@ -343,8 +356,29 @@
 		reverse_proxy media-cache:8080
 	}
 
+	# Sb-Forwarded-For: the client address of GoTrue's per-IP limiters and its sign-up hook.
+	# Always overwritten; Kong 2.8.5 forwards a client's value unchanged. Absent, so no limiter
+	# runs, for a private address (the instance's LAN) and for a token refresh (auth-js signs out on a 429 there, and a refresh token cannot be
+	# guessed). Same rule as dev/nginx-auth-client-ip.template.conf.
+	@privateClient client_ip private_ranges
+	handle @privateClient {
+		reverse_proxy supabase-kong:8000 {
+			header_up -Sb-Forwarded-For
+		}
+	}
+	@tokenRefresh {
+		path /auth/v1/token
+		expression {http.request.uri.query} == "grant_type=refresh_token"
+	}
+	handle @tokenRefresh {
+		reverse_proxy supabase-kong:8000 {
+			header_up -Sb-Forwarded-For
+		}
+	}
 	handle {
-		reverse_proxy supabase-kong:8000
+		reverse_proxy supabase-kong:8000 {
+			header_up Sb-Forwarded-For {client_ip}
+		}
 	}
 }
 

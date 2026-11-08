@@ -44,6 +44,12 @@
     "learnMore": "Learn more"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "Too many accounts were created from this network today. Try again tomorrow, or ask this instance's admin for an invitation.",
+      "domainCap": "Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance's admin for an invitation.",
+      "mailboxCap": "This email inbox has reached the limit of accounts on this instance.",
+      "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address."
+    },
     "login": "Login",
     "register": "Register",
     "logout": "Log out",
@@ -2394,6 +2400,15 @@
       "changesReset": "Profile changes reset",
       "handleCopied": "Handle copied",
       "copyFailed": "Could not copy"
+    },
+    "dmPolicy": {
+      "title": "Direct messages",
+      "label": "Who can start a conversation with you",
+      "description": "Conversations you already have keep working. Instance staff can always reach you. Someone on another instance refused by this setting gets no notice.",
+      "everyone": "Everyone",
+      "known": "Server members and people I follow",
+      "following": "Only people I follow",
+      "failed": "Could not save who can start a conversation with you"
     }
   },
   "navigation": {
@@ -2986,7 +3001,8 @@
       "illegal_content": "Illegal content",
       "impersonation": "Impersonation",
       "nsfw": "Inappropriate/NSFW content",
-      "other": "Other"
+      "other": "Other",
+      "username_hoarding": "Username hoarding or account trading"
     },
     "reportSource": {
       "fromInstance": "from {domain}",
@@ -4486,9 +4502,12 @@
     },
     "timedOut": "You are timed out in this server until {time} and cannot send messages, react or start threads.",
     "antispam": {
-      "rateLimited": "New accounts can only send a few messages at a time. Try again in {seconds} s.",
+      "rateLimited": "You're doing that too quickly. Try again in {seconds} s.",
       "linksBlocked": "New accounts cannot post links yet.",
-      "strangerMentions": "New accounts can mention at most {count} people who do not follow them."
+      "strangerMentions": "New accounts can mention at most {count} people who do not follow them.",
+      "serverLimit": "An account can own at most {count} servers on this instance.",
+      "botLimit": "An account can own at most {count} bots on this instance.",
+      "dmNotAllowed": "This person only accepts new conversations from people they know."
     },
     "alert": {
       "raid": "Possible raid: {joins} members joined within {seconds} seconds.",
@@ -5347,7 +5366,7 @@
     },
     "antiSpam": {
       "title": "Anti-spam",
-      "hint": "Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it, to every server, DM and post. Every limit here is off or permissive until you change it.",
+      "hint": "Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it, to every server, DM and post.",
       "loadingSettings": "Loading settings...",
       "saved": "Anti-spam settings saved",
       "newAccounts": {
@@ -5360,6 +5379,27 @@
         "strangerMentionsHint": "A stranger is anyone who does not follow the author, local or remote.",
         "blockLinks": "New accounts cannot post links",
         "staffExempt": "Instance admins and moderators are never limited."
+      },
+      "accounts": {
+        "title": "Every local account",
+        "hint": "Ceilings for ordinary use to stay far below. Past one, a write is refused until the window passes. 0 = no limit. Instance admins, moderators and accounts exempted in Users are never limited.",
+        "messagesPerMinute": "Messages per minute",
+        "postsPerHour": "Posts per hour",
+        "postsPerHourHint": "Boosts are not counted.",
+        "reactionsPerMinute": "Reactions and favourites per minute",
+        "followsPerHour": "Follows per hour",
+        "joinsPerHour": "Server joins per hour",
+        "serversPerHour": "Servers created per hour",
+        "strangerDmsPerHour": "New conversations with strangers per hour",
+        "strangerDmsHint": "A stranger does not follow the account, shares no server with it and has no conversation with it.",
+        "newStrangerDmsPerHour": "Same, for new accounts",
+        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member."
+      },
+      "bots": {
+        "title": "Bots",
+        "hint": "Requests per minute across all routes of one bot, on top of the per-route limit. A bot whose owner is exempt has no such ceiling. 0 = no limit.",
+        "requestsPerMinute": "Requests per minute, per bot",
+        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord bridge"
       },
       "federation": {
         "title": "Federation mention spam",
@@ -5414,6 +5454,13 @@
         "loadQueue": "Failed to load the review queue",
         "review": "Review failed"
       }
+    },
+    "limitExempt": {
+      "add": "Exempt {name} from instance limits",
+      "remove": "Apply instance limits to {name}",
+      "added": "{name} is exempt from instance limits",
+      "removed": "Instance limits apply to {name} again",
+      "failed": "Could not change the exemption"
     },
     "instanceEmojis": {
       "tab": "Emojis",
@@ -7188,7 +7235,8 @@
     "errors": {
       "load": "Drive could not be loaded",
       "temporary": "That change did not save: {reason}",
-      "blocked": "This file was removed by the instance moderators."
+      "blocked": "This file was removed by the instance moderators.",
+      "full": "Storage is full, so this upload was refused. Free up space in Drive, or ask an instance admin."
     },
     "details": {
       "label": "File details",
@@ -7517,6 +7565,7 @@
     "quotaUser": "Storage per account",
     "quotaModerator": "Storage per instance moderator",
     "quotaAdmin": "Storage per instance admin",
+    "instanceLimit": "Stored files across the instance (0 = no limit)",
     "ephemeralDays": "Temporary files are kept",
     "days": "days",
     "ephemeralDaily": "Temporary uploads per day once Drive is full",
@@ -7889,6 +7938,36 @@
       "paused": "while paused"
     }
   },
+  "adminSignupLimits": {
+    "title": "Sign-up limits",
+    "intro": "Raises the cost of creating accounts in bulk. One person with a second or test account stays well under these. Invitations and this instance's own identity provider are not limited. Google, GitHub and Twitch sign-ups count toward the network limit only.",
+    "hookNote": "Applies once the auth service runs the sign-up hook; harmony doctor checks it. Clients on a private network are not limited.",
+    "enabled": "Apply sign-up limits",
+    "ipCap": "Accounts per network in 24 hours",
+    "ipCapHint": "A network is one IPv4 address or one IPv6 /56. 0 is no limit.",
+    "mailboxCap": "Accounts per email inbox in 30 days",
+    "mailboxCapHint": "me+test{'@'}example.org counts as me{'@'}example.org, and Gmail ignores dots. 0 is no limit.",
+    "domainCap": "Accounts per email domain in 24 hours",
+    "domainCapHint": "Spots one operator with many mailboxes on a domain. Large mail providers such as Gmail are not counted. 0 is no limit.",
+    "enforceCaps": "Refuse accounts past the network and domain caps",
+    "enforceCapsHint": "Off: those accounts are allowed and counted below. A campus or office can share one address or one email domain. The inbox cap and the domain lists always refuse.",
+    "blockDisposable": "Refuse disposable email addresses",
+    "blockDisposableHint": "A built-in list of temporary-mail domains.",
+    "blockedDomains": "More email domains to refuse",
+    "blockedDomainsHint": "One domain per line. Its subdomains are refused too.",
+    "save": "Save limits",
+    "saved": "Sign-up limits saved",
+    "saveFailed": "Could not save the sign-up limits.",
+    "loadFailed": "Could not load the sign-up limits.",
+    "invalidCap": "Enter a whole number from 0 to 1000.",
+    "invalidDomain": "{domain} is not a domain name.",
+    "wouldRefuseTitle": "Past a cap, allowed, in the last 7 days",
+    "refusalsTitle": "Refused in the last 7 days",
+    "refusalIpCap": "Network limit",
+    "refusalDomainCap": "Domain limit",
+    "refusalMailboxCap": "Inbox limit",
+    "refusalBlockedDomain": "Refused email domain"
+  },
   "adminInvites": {
     "tab": "Invites",
     "title": "Invite people",
@@ -8145,6 +8224,114 @@
       "members": "{count} member | {count} members",
       "here": "Members who are online and can see the channel",
       "unknown": "Not a role of this server"
+    }
+  },
+  "adminSignups": {
+    "tab": "Signups",
+    "title": "Recent signups",
+    "intro": "Accounts created on this instance, newest first, with their email domain and activity. Email addresses and IP addresses are not shown. A group is a reason to look, not proof: a popular day or a shared provider can look the same.",
+    "limitsLink": "Sign-up limits are in the Invites tab.",
+    "windowLabel": "Period",
+    "window": "{count} day | {count} days",
+    "searchLabel": "Search signups",
+    "searchHint": "Username, name or email domain",
+    "loadError": "This could not be loaded.",
+    "previous": "Previous",
+    "next": "Next",
+    "filters": {
+      "label": "Status",
+      "all": "All",
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "daily": {
+      "title": "Per day (UTC)",
+      "day": "Day",
+      "signups": "Signups",
+      "domains": "Email domains",
+      "topDomain": "Largest domain",
+      "peakHour": "Busiest hour",
+      "suspended": "Suspended",
+      "refused": "Refused",
+      "wouldRefuse": "Past a cap, allowed"
+    },
+    "groups": {
+      "title": "Groups",
+      "empty": "No groups of {count} or more in this period.",
+      "kindDomain": "Email domain",
+      "kindServer": "Joined within an hour of signing up",
+      "size": "{count} account | {count} accounts",
+      "priorDomain": "{count} earlier account on this domain | {count} earlier accounts on this domain",
+      "priorServer": "{count} member from before this period | {count} members from before this period",
+      "suspended": "{count} suspended",
+      "span": "{from} to {to}",
+      "show": "Show",
+      "showLabel": "Show the group {label}",
+      "select": "Select all",
+      "selectLabel": "Select all in the group {label}",
+      "filterActive": "Showing the group {label}",
+      "clear": "Show everyone"
+    },
+    "rows": {
+      "title": "{count} account | {count} accounts",
+      "empty": "No signups in this period.",
+      "emptySearch": "No signups match.",
+      "selectAccount": "Select {name}",
+      "staff": "Staff",
+      "suspended": "Suspended",
+      "unconfirmed": "Email not confirmed",
+      "noEmail": "No email",
+      "signedUp": "Signed up {time}",
+      "posts": "{count} post | {count} posts",
+      "messages": "{count} message | {count} messages",
+      "servers": "In {count} server | In {count} servers",
+      "owns": "Owns {count} server | Owns {count} servers",
+      "firstServer": "Joined {server} after {minutes} min"
+    },
+    "selection": {
+      "count": "{count} selected",
+      "limit": "At most {count} accounts at a time.",
+      "suspend": "Suspend…",
+      "unsuspend": "Unsuspend…",
+      "clear": "Clear selection"
+    },
+    "dialog": {
+      "suspendTitle": "Suspend {count} account | Suspend {count} accounts",
+      "unsuspendTitle": "Unsuspend {count} account | Unsuspend {count} accounts",
+      "affectedSuspend": "Will be suspended",
+      "affectedUnsuspend": "Will be unsuspended",
+      "activity": "{posts} posts, {messages} messages",
+      "nothing": "None of the selected accounts can take this action.",
+      "skippedTitle": "Left out",
+      "skip": {
+        "self": "Your own account",
+        "staff": "Instance staff",
+        "remote": "Account of another instance",
+        "no_sign_in": "Has no sign-in",
+        "deleted": "Deleted by staff",
+        "already_suspended": "Already suspended",
+        "not_suspended": "Not suspended",
+        "not_found": "Account not found"
+      },
+      "ownedTitle": "Servers they own stay open",
+      "ownedHint": "Members keep using these servers. To close one, use the Servers tab.",
+      "ownedMembers": "{count} member | {count} members",
+      "consequences": {
+        "signedOut": "They are signed out now, and the app signs them out again if they sign in.",
+        "follows": "{count} follow with local accounts is removed. Unsuspending does not restore it. | {count} follows with local accounts are removed. Unsuspending does not restore them.",
+        "timelines": "Their posts leave timelines and public pages here. Their messages stay in channels.",
+        "federation": "Nothing is sent to other instances: what those instances already received stays, and so do remote followers.",
+        "unsuspend": "They can sign in again. Follows removed by the suspension are not restored."
+      },
+      "reason": "Reason (required)",
+      "reasonHint": "The same reason is recorded for each account in the activity log.",
+      "confirmSuspend": "Suspend {count} account | Suspend {count} accounts",
+      "confirmUnsuspend": "Unsuspend {count} account | Unsuspend {count} accounts",
+      "failed": "This failed: {error}"
+    },
+    "done": {
+      "suspended": "{count} account suspended | {count} accounts suspended",
+      "unsuspended": "{count} account unsuspended | {count} accounts unsuspended"
     }
   }
 }

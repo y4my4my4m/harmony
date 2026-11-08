@@ -72,6 +72,18 @@ A recovery code turns two-factor off in one step: the code is spent, and your au
 
 Harmony also sends you a security notice for a new sign-in, for two-factor turned on or off, for a recovery code used or replaced, and for a password change.
 
+## Who can start a conversation
+
+**User settings** → **Privacy** → **Direct messages** sets who can start a conversation with you:
+
+| Choice | Who |
+|---|---|
+| **Everyone** | Anyone, on this instance or another. The default |
+| **Server members and people I follow** | People who share a server with you, and people you follow |
+| **Only people I follow** | People you follow |
+
+Conversations you already have keep working, whichever you choose. Someone refused on this instance is told you limit who can reach you. Someone on another instance is not told: their message is not delivered. Instance admins and moderators can always start a conversation with you.
+
 ## End-to-end encryption
 
 End-to-end encryption keeps message text readable only on the devices of the people in the channel or conversation. The server stores ciphertext it cannot read.

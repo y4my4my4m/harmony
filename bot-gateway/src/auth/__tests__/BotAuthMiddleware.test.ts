@@ -214,14 +214,25 @@ describe('botAuthMiddleware', () => {
     })
   })
 
-  // Deliberate: a database hiccup must not take the bot API offline.
-  it('lets the request through when the rate-limit RPC fails', async () => {
+  it('answers the seconds the RPC reports, in the body and in Retry-After', async () => {
     routeRpc({
       verify_bot_token: () => ({ data: VALID_VERIFICATION, error: null }),
-      check_and_increment_bot_rate_limit: () => ({
-        data: null,
-        error: { code: '42P01', message: 'relation "bot_rate_limits" does not exist' },
-      }),
+      check_and_increment_bot_rate_limit: () => ({ data: 17, error: null }),
+    })
+
+    const res = await supertest(makeApp())
+      .get('/api/v1/probe')
+      .set('Authorization', `Bot ${TOKEN}`)
+
+    expect(res.status).toBe(429)
+    expect(res.body.retry_after).toBe(17)
+    expect(res.headers['retry-after']).toBe('17')
+  })
+
+  it('admits the request when the RPC reports 0 seconds', async () => {
+    routeRpc({
+      verify_bot_token: () => ({ data: VALID_VERIFICATION, error: null }),
+      check_and_increment_bot_rate_limit: () => ({ data: 0, error: null }),
     })
 
     const res = await supertest(makeApp())
@@ -229,5 +240,66 @@ describe('botAuthMiddleware', () => {
       .set('Authorization', `Bot ${TOKEN}`)
 
     expect(res.status).toBe(200)
+  })
+
+  describe('when the rate-limit RPC fails', () => {
+    const FAILING = {
+      data: null,
+      error: { code: '42P01', message: 'relation "bot_rate_limits" does not exist' },
+    }
+    const limit = mocks.config.rateLimit.maxRequests
+
+    afterEach(() => {
+      mocks.config.rateLimit.maxRequests = limit
+    })
+
+    it('counts in this process: admits up to the route limit, then refuses with the time left', async () => {
+      mocks.config.rateLimit.maxRequests = 2
+      routeRpc({
+        verify_bot_token: () => ({
+          data: { ...VALID_VERIFICATION, bot_id: '00000000-0000-0000-0000-0000000000b1' },
+          error: null,
+        }),
+        check_and_increment_bot_rate_limit: () => FAILING,
+      })
+      const app = makeApp()
+      const send = () => supertest(app).get('/api/v1/probe').set('Authorization', `Bot ${TOKEN}`)
+
+      expect((await send()).status).toBe(200)
+      expect((await send()).status).toBe(200)
+
+      const refused = await send()
+      expect(refused.status).toBe(429)
+      expect(refused.body.retry_after).toBeGreaterThan(0)
+      expect(refused.body.retry_after).toBeLessThanOrEqual(60)
+    })
+
+    it('counts one bot apart from another', async () => {
+      mocks.config.rateLimit.maxRequests = 1
+      let botId = '00000000-0000-0000-0000-0000000000b2'
+      routeRpc({
+        verify_bot_token: () => ({ data: { ...VALID_VERIFICATION, bot_id: botId }, error: null }),
+        check_and_increment_bot_rate_limit: () => FAILING,
+      })
+      const app = makeApp()
+      const send = () => supertest(app).get('/api/v1/probe').set('Authorization', `Bot ${TOKEN}`)
+
+      expect((await send()).status).toBe(200)
+      expect((await send()).status).toBe(429)
+      botId = '00000000-0000-0000-0000-0000000000b3'
+      expect((await send()).status).toBe(200)
+    })
+
+    it('logs the failure', async () => {
+      routeRpc({
+        verify_bot_token: () => ({ data: VALID_VERIFICATION, error: null }),
+        check_and_increment_bot_rate_limit: () => FAILING,
+      })
+
+      await supertest(makeApp()).get('/api/v1/probe').set('Authorization', `Bot ${TOKEN}`)
+
+      const logged = (console.error as any).mock.calls.flat().map((v: unknown) => JSON.stringify(v)).join(' ')
+      expect(logged).toContain('42P01')
+    })
   })
 })

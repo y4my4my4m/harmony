@@ -44,6 +44,12 @@
     "learnMore": "Mehr erfahren"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "Aus diesem Netzwerk wurden heute zu viele Konten erstellt. Versuche es morgen erneut oder bitte die Administration dieser Instanz um eine Einladung.",
+      "domainCap": "Mit dieser E-Mail-Domain wurden heute zu viele Konten erstellt. Versuche es morgen erneut oder bitte die Administration dieser Instanz um eine Einladung.",
+      "mailboxCap": "Dieses E-Mail-Postfach hat die Kontogrenze dieser Instanz erreicht.",
+      "blockedDomain": "Mit diesem E-Mail-Anbieter ist auf dieser Instanz keine Registrierung möglich. Verwende eine andere Adresse."
+    },
     "login": "Anmelden",
     "register": "Registrieren",
     "logout": "Abmelden",
@@ -2340,6 +2346,15 @@
       "changesReset": "Profiländerungen zurückgesetzt",
       "handleCopied": "Handle kopiert",
       "copyFailed": "Kopieren fehlgeschlagen"
+    },
+    "dmPolicy": {
+      "title": "Direktnachrichten",
+      "label": "Wer eine Unterhaltung mit dir beginnen kann",
+      "description": "Bestehende Unterhaltungen funktionieren weiter. Das Team der Instanz kann dich immer erreichen. Personen auf anderen Instanzen, die diese Einstellung abweist, erhalten keinen Hinweis.",
+      "everyone": "Alle",
+      "known": "Servermitglieder und Personen, denen ich folge",
+      "following": "Nur Personen, denen ich folge",
+      "failed": "Die Einstellung konnte nicht gespeichert werden"
     }
   },
   "navigation": {
@@ -2932,7 +2947,8 @@
       "illegal_content": "Illegale Inhalte",
       "impersonation": "Identitätsdiebstahl",
       "nsfw": "Unangemessene/NSFW-Inhalte",
-      "other": "Sonstiges"
+      "other": "Sonstiges",
+      "username_hoarding": "Horten von Benutzernamen oder Kontohandel"
     },
     "reportSource": {
       "fromInstance": "von {domain}",
@@ -4486,9 +4502,12 @@
     },
     "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden, nicht reagieren und keine Threads starten.",
     "antispam": {
-      "rateLimited": "Neue Konten können nur wenige Nachrichten auf einmal senden. Versuche es in {seconds} s erneut.",
+      "rateLimited": "Das geht zu schnell. Versuche es in {seconds} s erneut.",
       "linksBlocked": "Neue Konten können noch keine Links posten.",
-      "strangerMentions": "Neue Konten können höchstens {count} Personen erwähnen, die ihnen nicht folgen."
+      "strangerMentions": "Neue Konten können höchstens {count} Personen erwähnen, die ihnen nicht folgen.",
+      "serverLimit": "Ein Konto kann auf dieser Instanz höchstens {count} Server besitzen.",
+      "botLimit": "Ein Konto kann auf dieser Instanz höchstens {count} Bots besitzen.",
+      "dmNotAllowed": "Diese Person nimmt neue Unterhaltungen nur von Personen an, die sie kennt."
     },
     "alert": {
       "raid": "Möglicher Raid: {joins} Mitglieder sind innerhalb von {seconds} Sekunden beigetreten.",
@@ -5351,7 +5370,7 @@
     },
     "antiSpam": {
       "title": "Anti-Spam",
-      "hint": "Instanzweite Limits. Serverbesitzer konfigurieren ihren eigenen AutoMod in den Servereinstellungen; diese Limits gelten zusätzlich für jeden Server, jede DM und jeden Beitrag. Jedes Limit hier ist aus oder großzügig, bis du es änderst.",
+      "hint": "Instanzweite Limits. Serverbesitzer konfigurieren ihren eigenen AutoMod in den Servereinstellungen; diese Limits gelten zusätzlich für jeden Server, jede DM und jeden Beitrag.",
       "loadingSettings": "Einstellungen werden geladen...",
       "saved": "Anti-Spam-Einstellungen gespeichert",
       "newAccounts": {
@@ -5364,6 +5383,27 @@
         "strangerMentionsHint": "Fremd ist jeder, der dem Verfasser nicht folgt, ob lokal oder remote.",
         "blockLinks": "Neue Konten können keine Links posten",
         "staffExempt": "Instanz-Admins und -Moderatoren werden nie eingeschränkt."
+      },
+      "accounts": {
+        "title": "Jedes lokale Konto",
+        "hint": "Obergrenzen, die normale Nutzung weit unterschreitet. Darüber wird ein Schreibvorgang abgelehnt, bis das Zeitfenster vorbei ist. 0 = kein Limit. Instanz-Admins, Moderatoren und unter „Benutzer“ ausgenommene Konten werden nie begrenzt.",
+        "messagesPerMinute": "Nachrichten pro Minute",
+        "postsPerHour": "Beiträge pro Stunde",
+        "postsPerHourHint": "Geteilte Beiträge zählen nicht.",
+        "reactionsPerMinute": "Reaktionen und Favoriten pro Minute",
+        "followsPerHour": "Neue Follows pro Stunde",
+        "joinsPerHour": "Serverbeitritte pro Stunde",
+        "serversPerHour": "Erstellte Server pro Stunde",
+        "strangerDmsPerHour": "Neue Unterhaltungen mit Fremden pro Stunde",
+        "strangerDmsHint": "Fremde folgen dem Konto nicht, teilen keinen Server mit ihm und haben keine Unterhaltung mit ihm.",
+        "newStrangerDmsPerHour": "Dasselbe für neue Konten",
+        "newStrangerDmsHint": "Zählt auch Personen, die nur einen Server mit dem neuen Konto teilen: Wer einem öffentlichen Server beitritt, erreicht alle Mitglieder."
+      },
+      "bots": {
+        "title": "Bots",
+        "hint": "Anfragen pro Minute über alle Routen eines Bots, zusätzlich zum Limit pro Route. Ein Bot, dessen Besitzer ausgenommen ist, hat diese Obergrenze nicht. 0 = kein Limit.",
+        "requestsPerMinute": "Anfragen pro Minute, pro Bot",
+        "bridgeRequestsPerMinute": "Anfragen pro Minute, pro verknüpfter Discord-Bridge"
       },
       "federation": {
         "title": "Erwähnungsspam aus der Föderation",
@@ -5418,6 +5458,13 @@
         "loadQueue": "Prüfwarteschlange konnte nicht geladen werden",
         "review": "Prüfung fehlgeschlagen"
       }
+    },
+    "limitExempt": {
+      "add": "{name} von Instanzlimits ausnehmen",
+      "remove": "Instanzlimits wieder auf {name} anwenden",
+      "added": "{name} ist von Instanzlimits ausgenommen",
+      "removed": "Instanzlimits gelten wieder für {name}",
+      "failed": "Die Ausnahme konnte nicht geändert werden"
     },
     "instanceEmojis": {
       "tab": "Emojis",
@@ -7118,6 +7165,7 @@
     "quotaUser": "Speicher pro Konto",
     "quotaModerator": "Speicher pro Instanz-Moderator",
     "quotaAdmin": "Speicher pro Instanz-Admin",
+    "instanceLimit": "Gespeicherte Dateien der gesamten Instanz (0 = kein Limit)",
     "ephemeralDays": "Temporäre Dateien werden aufbewahrt",
     "days": "Tage",
     "ephemeralDaily": "Temporäre Uploads pro Tag bei vollem Drive",
@@ -7276,7 +7324,8 @@
     "errors": {
       "load": "Drive konnte nicht geladen werden",
       "temporary": "Die Änderung wurde nicht gespeichert: {reason}",
-      "blocked": "Diese Datei wurde von den Moderatoren der Instanz entfernt."
+      "blocked": "Diese Datei wurde von den Moderatoren der Instanz entfernt.",
+      "full": "Der Speicher ist voll, daher wurde dieser Upload abgelehnt. Gib in Drive Platz frei oder wende dich an einen Instanz-Admin."
     },
     "details": {
       "label": "Dateidetails",
@@ -7893,6 +7942,36 @@
       "paused": "während der Pause"
     }
   },
+  "adminSignupLimits": {
+    "title": "Registrierungslimits",
+    "intro": "Macht das massenhafte Anlegen von Konten teurer. Eine Person mit einem zweiten Konto oder einem Testkonto bleibt deutlich darunter. Einladungen und der eigene Identitätsanbieter dieser Instanz sind nicht begrenzt. Registrierungen über Google, GitHub und Twitch zählen nur zum Netzwerklimit.",
+    "hookNote": "Gilt, sobald der Auth-Dienst den Registrierungs-Hook ausführt; harmony doctor prüft das. Clients in einem privaten Netz sind nicht begrenzt.",
+    "enabled": "Registrierungslimits anwenden",
+    "ipCap": "Konten pro Netzwerk in 24 Stunden",
+    "ipCapHint": "Ein Netzwerk ist eine IPv4-Adresse oder ein IPv6-/56. 0 bedeutet kein Limit.",
+    "mailboxCap": "Konten pro E-Mail-Postfach in 30 Tagen",
+    "mailboxCapHint": "me+test{'@'}example.org zählt als me{'@'}example.org, und Gmail ignoriert Punkte. 0 bedeutet kein Limit.",
+    "domainCap": "Konten pro E-Mail-Domain in 24 Stunden",
+    "domainCapHint": "Erkennt Betreiber mit vielen Postfächern auf einer Domain. Große Anbieter wie Gmail werden nicht gezählt. 0 bedeutet kein Limit.",
+    "enforceCaps": "Konten über dem Netzwerk- und Domainlimit ablehnen",
+    "enforceCapsHint": "Aus: Diese Konten werden zugelassen und unten gezählt. Ein Campus oder Büro kann sich eine Adresse oder E-Mail-Domain teilen. Das Postfachlimit und die Domainlisten lehnen immer ab.",
+    "blockDisposable": "Wegwerf-E-Mail-Adressen ablehnen",
+    "blockDisposableHint": "Eine integrierte Liste von Domains für temporäre E-Mail-Adressen.",
+    "blockedDomains": "Weitere abzulehnende E-Mail-Domains",
+    "blockedDomainsHint": "Eine Domain pro Zeile. Ihre Subdomains werden ebenfalls abgelehnt.",
+    "save": "Limits speichern",
+    "saved": "Registrierungslimits gespeichert",
+    "saveFailed": "Die Registrierungslimits konnten nicht gespeichert werden.",
+    "loadFailed": "Die Registrierungslimits konnten nicht geladen werden.",
+    "invalidCap": "Gib eine ganze Zahl von 0 bis 1000 ein.",
+    "invalidDomain": "{domain} ist kein Domainname.",
+    "wouldRefuseTitle": "Über einem Limit, zugelassen, in den letzten 7 Tagen",
+    "refusalsTitle": "In den letzten 7 Tagen abgelehnt",
+    "refusalIpCap": "Netzwerklimit",
+    "refusalDomainCap": "Domainlimit",
+    "refusalMailboxCap": "Postfachlimit",
+    "refusalBlockedDomain": "Abgelehnte E-Mail-Domain"
+  },
   "adminInvites": {
     "tab": "Einladungen",
     "title": "Personen einladen",
@@ -8149,6 +8228,114 @@
       "members": "{count} Mitglied | {count} Mitglieder",
       "here": "Mitglieder, die online sind und den Kanal sehen",
       "unknown": "Keine Rolle dieses Servers"
+    }
+  },
+  "adminSignups": {
+    "tab": "Anmeldungen",
+    "title": "Neue Anmeldungen",
+    "intro": "Auf dieser Instanz erstellte Konten, neueste zuerst, mit E-Mail-Domain und Aktivität. E-Mail-Adressen und IP-Adressen werden nicht angezeigt. Eine Gruppe ist ein Anlass, genauer hinzusehen, kein Beweis: Ein beliebter Tag oder ein gemeinsamer Anbieter kann genauso aussehen.",
+    "limitsLink": "Registrierungslimits stehen im Tab Einladungen.",
+    "windowLabel": "Zeitraum",
+    "window": "{count} Tag | {count} Tage",
+    "searchLabel": "Anmeldungen durchsuchen",
+    "searchHint": "Benutzername, Name oder E-Mail-Domain",
+    "loadError": "Das konnte nicht geladen werden.",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "filters": {
+      "label": "Status",
+      "all": "Alle",
+      "active": "Aktiv",
+      "suspended": "Suspendiert"
+    },
+    "daily": {
+      "title": "Pro Tag (UTC)",
+      "day": "Tag",
+      "signups": "Anmeldungen",
+      "domains": "E-Mail-Domains",
+      "topDomain": "Größte Domain",
+      "peakHour": "Stärkste Stunde",
+      "suspended": "Suspendiert",
+      "refused": "Abgelehnt",
+      "wouldRefuse": "Über einem Limit, erlaubt"
+    },
+    "groups": {
+      "title": "Gruppen",
+      "empty": "Keine Gruppen ab {count} Konten in diesem Zeitraum.",
+      "kindDomain": "E-Mail-Domain",
+      "kindServer": "Innerhalb einer Stunde nach der Anmeldung beigetreten",
+      "size": "{count} Konto | {count} Konten",
+      "priorDomain": "{count} früheres Konto auf dieser Domain | {count} frühere Konten auf dieser Domain",
+      "priorServer": "{count} Mitglied aus der Zeit vor diesem Zeitraum | {count} Mitglieder aus der Zeit vor diesem Zeitraum",
+      "suspended": "{count} suspendiert",
+      "span": "{from} bis {to}",
+      "show": "Anzeigen",
+      "showLabel": "Gruppe {label} anzeigen",
+      "select": "Alle auswählen",
+      "selectLabel": "Alle auswählen in der Gruppe {label}",
+      "filterActive": "Gruppe {label} wird angezeigt",
+      "clear": "Alle anzeigen"
+    },
+    "rows": {
+      "title": "{count} Konto | {count} Konten",
+      "empty": "Keine Anmeldungen in diesem Zeitraum.",
+      "emptySearch": "Keine passenden Anmeldungen.",
+      "selectAccount": "{name} auswählen",
+      "staff": "Team",
+      "suspended": "Suspendiert",
+      "unconfirmed": "E-Mail nicht bestätigt",
+      "noEmail": "Keine E-Mail",
+      "signedUp": "Angemeldet {time}",
+      "posts": "{count} Beitrag | {count} Beiträge",
+      "messages": "{count} Nachricht | {count} Nachrichten",
+      "servers": "In {count} Server | In {count} Servern",
+      "owns": "Besitzt {count} Server | Besitzt {count} Server",
+      "firstServer": "{server} nach {minutes} Min. beigetreten"
+    },
+    "selection": {
+      "count": "{count} ausgewählt",
+      "limit": "Höchstens {count} Konten auf einmal.",
+      "suspend": "Suspendieren…",
+      "unsuspend": "Suspendierung aufheben…",
+      "clear": "Auswahl aufheben"
+    },
+    "dialog": {
+      "suspendTitle": "{count} Konto suspendieren | {count} Konten suspendieren",
+      "unsuspendTitle": "Suspendierung von {count} Konto aufheben | Suspendierung von {count} Konten aufheben",
+      "affectedSuspend": "Wird suspendiert",
+      "affectedUnsuspend": "Suspendierung wird aufgehoben",
+      "activity": "{posts} Beiträge, {messages} Nachrichten",
+      "nothing": "Für keines der ausgewählten Konten ist diese Aktion möglich.",
+      "skippedTitle": "Ausgelassen",
+      "skip": {
+        "self": "Dein eigenes Konto",
+        "staff": "Team der Instanz",
+        "remote": "Konto einer anderen Instanz",
+        "no_sign_in": "Keine Anmeldung möglich",
+        "deleted": "Vom Team gelöscht",
+        "already_suspended": "Bereits suspendiert",
+        "not_suspended": "Nicht suspendiert",
+        "not_found": "Konto nicht gefunden"
+      },
+      "ownedTitle": "Ihre Server bleiben offen",
+      "ownedHint": "Mitglieder nutzen diese Server weiter. Zum Schließen den Tab „Server“ verwenden.",
+      "ownedMembers": "{count} Mitglied | {count} Mitglieder",
+      "consequences": {
+        "signedOut": "Sie werden sofort abgemeldet, und die App meldet sie bei einer neuen Anmeldung wieder ab.",
+        "follows": "{count} Folgebeziehung mit lokalen Konten wird entfernt. Das Aufheben der Suspendierung stellt sie nicht wieder her. | {count} Folgebeziehungen mit lokalen Konten werden entfernt. Das Aufheben der Suspendierung stellt sie nicht wieder her.",
+        "timelines": "Ihre Beiträge verschwinden hier aus Timelines und öffentlichen Seiten. Ihre Nachrichten bleiben in den Kanälen.",
+        "federation": "An andere Instanzen wird nichts gesendet: Was dort bereits angekommen ist, bleibt, ebenso entfernte Follower.",
+        "unsuspend": "Sie können sich wieder anmelden. Durch die Suspendierung entfernte Folgebeziehungen werden nicht wiederhergestellt."
+      },
+      "reason": "Grund (erforderlich)",
+      "reasonHint": "Derselbe Grund wird für jedes Konto im Aktivitätsprotokoll festgehalten.",
+      "confirmSuspend": "{count} Konto suspendieren | {count} Konten suspendieren",
+      "confirmUnsuspend": "Suspendierung von {count} Konto aufheben | Suspendierung von {count} Konten aufheben",
+      "failed": "Fehlgeschlagen: {error}"
+    },
+    "done": {
+      "suspended": "{count} Konto suspendiert | {count} Konten suspendiert",
+      "unsuspended": "Suspendierung von {count} Konto aufgehoben | Suspendierung von {count} Konten aufgehoben"
     }
   }
 }

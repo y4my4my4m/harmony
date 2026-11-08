@@ -20,6 +20,9 @@ export const KNOWN_CAPABILITIES = [
   'instance-invites',
   'federated-polls',
   'supporter-messages',
+  'signup-limits',
+  'instance-limits',
+  'signup-review',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
 import { i18n } from '@/i18n';
+import { notifyModerationRejection } from '@/services/AutoModService';
 import { immutableObjectPath, immutableUploadOptions, prepareImageUpload } from '@/utils/imageResize'
 import { removeReplacedObject } from '@/utils/storageImageUtils'
 import { uploadStorageObject } from '@/services/uploads/storageUpload'
@@ -165,6 +166,7 @@ export const useServerStore = defineStore('server', {
             toast.error(suspendedServerNotice());
             return false;
           }
+          if (notifyModerationRejection(error)) return false;
           throw error;
         }
 

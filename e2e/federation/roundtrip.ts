@@ -62,6 +62,7 @@
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
+// A remote stranger's DM stops at the recipient's setting (cases/dmPolicy.ts).
 // A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
 // are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
@@ -141,6 +142,7 @@ import { caseDiscovery } from './cases/discovery.ts'
 import { caseRemoteInviteCard } from './cases/remoteInviteCard.ts'
 import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
+import { caseDmPolicy } from './cases/dmPolicy.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2871,6 +2873,8 @@ async function main() {
       db, peer, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, assert, eq,
       ids: { alice: ALICE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
     })
+    await caseDmPolicy({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq })
+
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,
       handleNewDM: backend.handleNewDM, assert, eq,

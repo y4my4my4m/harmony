@@ -79,7 +79,7 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 | `realtime` | Image `REALTIME_IMAGE` (at least `supabase/realtime:v2.148.3`); `METRICS_JWT_SECRET: ${JWT_SECRET}`, without which v2.148 does not start; `CLIENT_PRESENCE_MAX_CALLS: 60` per 30 s, so typing indicators keep reaching the chat (default 5) |
 | `rest` | `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
 | `imgproxy` | Image `darthsim/imgproxy:v4.0.21` in place of the stack's `v3.8.0`. `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images; `IMGPROXY_AUTO_WEBP` from `IMGPROXY_ENABLE_WEBP_DETECTION`, a name v4 no longer reads; `IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif`, so WebP and AVIF stay WebP and AVIF for clients that do not ask for WebP |
-| `studio`, `meta` | Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
+| `studio`, `meta` | Profile `studio`, started only with `harmony studio on`. Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
 | `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.197.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
 
 ### Networks and volumes
@@ -146,10 +146,12 @@ Then choose one of:
   talks to Caddy over HTTPS, with Caddy on its own certificate authority
   (`HARMONY_TLS=internal`).
 
-Caddy sets `X-Real-IP` to the address of the peer that connected to it, and
-the federation backend keys its rate limits on that header. Behind another
-proxy every request carries that proxy's address, so the per-client limits
-count all clients together.
+Caddy sets `X-Real-IP` and `Sb-Forwarded-For` to the client's address: the
+federation backend keys its rate limits on the first, the auth service its
+per-IP limits and [sign-up limits](/self-host/signup-limits) on the second. A
+proxy on a private address that appends to `X-Forwarded-For` needs nothing more.
+A proxy with a public address goes in `CADDY_TRUSTED_PROXIES` in `.env` for
+Caddy to see past it.
 
 `harmony doctor` reaches Caddy through `HARMONY_HTTPS_PORT` for its local
 checks.
@@ -161,8 +163,9 @@ checks.
   against the server's own address.
 - Afterwards Cloudflare's proxy can front the domain and `db.` with SSL/TLS
   mode **Full (strict)**. Leave `live.` DNS only.
-- Behind the proxy, `X-Real-IP` carries Cloudflare's addresses, so the
-  federation backend's rate limits see those instead of your users'.
+- Caddy trusts Cloudflare's published ranges, so `X-Real-IP` and
+  `Sb-Forwarded-For` carry your users' addresses. The ranges are in
+  `self-host/Caddyfile`.
 
 Storage serves public objects at
 `/storage/v1/object/public/BUCKET/PATH` and resized images at
@@ -251,6 +254,9 @@ location /api/federation/ {
 - Proxy everything to Kong (`supabase-kong:8000` on the Compose network,
   port 8000 on the host in the upstream stack), with WebSocket upgrades:
   Supabase Realtime runs over a WebSocket at `/realtime/v1/websocket`.
+- Overwrite `Sb-Forwarded-For` with the client's address. The auth service's
+  per-IP limits and [sign-up limits](/self-host/signup-limits#client-address) read it,
+  and a client's own value passes Kong unchanged.
 - Refuse `/auth/v1/logout` unless the query is exactly `scope=local`.
   GoTrue's logout accepts a token without the second factor, and its default
   global scope ends every session of the account, so a password alone could
@@ -425,7 +431,8 @@ UPDATE public.instance_config
 
 The first local profile created on the instance becomes its admin
 (`promote_first_user_to_admin`). Keep sign-up disabled (`DISABLE_SIGNUP=true`
-in Supabase's `.env`), add your account in Supabase Studio with its address
+in Supabase's `.env`), add your account in Supabase Studio (`harmony studio on`,
+then `harmony studio off` when done) with its address
 confirmed, sign in to Harmony and choose a username. Then open sign-up if you
 want it, and set `instance_config.open_registration` to match.
 
