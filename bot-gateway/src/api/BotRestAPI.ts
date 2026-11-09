@@ -160,9 +160,9 @@ interface ThreadRow {
   created_at: string
 }
 
-/** A Discord snowflake: 1 to 20 digits. */
 export { botContentParts, claimsBridgeAuthor, embedPart, typedMassMentionParts } from './messageContent.js'
 
+/** A Discord snowflake: 1 to 20 digits. */
 const SNOWFLAKE_RE = /^[0-9]{1,20}$/
 
 // channels.type (0 text, 1 voice, 2 category) as Discord's GUILD_TEXT, GUILD_VOICE, GUILD_CATEGORY.

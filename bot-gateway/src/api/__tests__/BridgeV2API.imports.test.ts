@@ -247,6 +247,35 @@ describe('Bridge v2 import endpoints', () => {
       expect(res.body.skipped).toEqual([M1])
     })
 
+    it('refuses a job that is not running before preparing anything', async () => {
+      db.tables.discord_bridge_imports[0].state = 'paused'
+      const res = await post([message({ content: [{ type: 'url', url: CDN }] })])
+      expect(res.status).toBe(409)
+      expect(res.body.code).toBe('import_not_running')
+      expect(mocks.applyPolicy).not.toHaveBeenCalled()
+      expect(mocks.rpc.mock.calls.some(([n]) => n === 'bridge_import_messages')).toBe(false)
+    })
+
+    it('skips ids already in the channel without preparing them', async () => {
+      db.tables.messages = [
+        { id: 'm1', channel_id: GENERAL, metadata: { discord_message_id: M1 }, is_deleted: false },
+        { id: 'm3', channel_id: GENERAL, metadata: { discord_message_id: '300000000000000003' }, is_deleted: true },
+      ]
+      rpcHandlers.bridge_import_messages = (args) => ({
+        data: { inserted: args.p_messages.map((m: any) => ({ discord_message_id: m.discord_message_id, id: 'row' })), skipped: [] },
+        error: null,
+      })
+      const res = await post([message(), message({ discord_message_id: M2 }), message({ discord_message_id: '300000000000000003' })])
+      expect(res.status).toBe(200)
+      expect(mocks.applyPolicy).toHaveBeenCalledTimes(2)
+      expect(rpcCalls('bridge_import_messages')[0].p_messages.map((m: any) => m.discord_message_id)).toEqual([M2, '300000000000000003'])
+      expect(res.body.skipped).toEqual([M1])
+
+      const all = await post([message()])
+      expect(all.body).toEqual({ inserted: [], skipped: [M1] })
+      expect(rpcCalls('bridge_import_messages')).toHaveLength(1)
+    })
+
     it('answers an all-empty batch without calling the RPC', async () => {
       const res = await post([message({ content: [] })])
       expect(res.status).toBe(200)

@@ -107,7 +107,8 @@ export class FakeQuery implements PromiseLike<FakeResult> {
   }
 
   in(column: string, values: readonly unknown[]): this {
-    this.filters.push((row) => values.includes(row[column]))
+    const [base, key] = column.split('->>')
+    this.filters.push((row) => values.includes(key === undefined ? row[column] : row[base]?.[key]))
     return this
   }
 

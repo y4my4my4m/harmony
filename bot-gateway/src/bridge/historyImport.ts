@@ -160,7 +160,7 @@ export function createHistoryImportRouter(): Router {
     const invalid = () => res.status(400).json({ code: 'invalid_batch' })
     const raw = (req.body as { messages?: unknown } | undefined)?.messages
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_BATCH) return invalid()
-    const items: PreparedInput[] = []
+    let items: PreparedInput[] = []
     for (const entry of raw) {
       const item = validateMessage(entry)
       if (!item) return invalid()
@@ -168,9 +168,11 @@ export function createHistoryImportRouter(): Router {
     }
 
     // The job's channel is the one the content pipeline resolves mentions and mirrors media in.
+    // A job that is not running is refused before any attachment is mirrored (the RPC guard
+    // still covers a race).
     const { data: job, error: jobError } = await supabase
       .from('discord_bridge_imports')
-      .select('harmony_channel_id')
+      .select('harmony_channel_id, state')
       .eq('id', req.params.id)
       .eq('bridge_id', bridgeId(req))
       .maybeSingle()
@@ -178,8 +180,30 @@ export function createHistoryImportRouter(): Router {
       console.error('discord_bridge_imports select failed:', jobError.code, jobError.message)
       return res.status(500).json({ error: 'Import request failed' })
     }
-    const channelId = (job as { harmony_channel_id?: string } | null)?.harmony_channel_id
-    if (!channelId) return res.status(404).json({ code: 'import_not_found' })
+    const found = job as { harmony_channel_id?: string; state?: string } | null
+    if (!found?.harmony_channel_id) return res.status(404).json({ code: 'import_not_found' })
+    if (found.state !== 'running') return notRunning(res)
+    const channelId = found.harmony_channel_id
+
+    // Discord ids already in the channel (a live relay or an earlier attempt) are skipped
+    // without preparing or mirroring their content.
+    const { data: existing, error: existingError } = await supabase
+      .from('messages')
+      .select('metadata, is_deleted')
+      .eq('channel_id', channelId)
+      .in('metadata->>discord_message_id', items.map((item) => item.discord_message_id))
+    if (existingError) {
+      console.error('messages select failed:', existingError.code, existingError.message)
+      return res.status(500).json({ error: 'Import request failed' })
+    }
+    const present = new Set(
+      ((existing ?? []) as Array<{ metadata?: { discord_message_id?: string } | null; is_deleted?: boolean | null }>)
+        .filter((row) => row.is_deleted !== true)
+        .map((row) => row.metadata?.discord_message_id),
+    )
+    const already = items.filter((item) => present.has(item.discord_message_id)).map((item) => item.discord_message_id)
+    items = items.filter((item) => !present.has(item.discord_message_id))
+    if (items.length === 0) return res.json({ inserted: [], skipped: already })
 
     // Imported messages are bridge-authored: the discord_user key keeps typed @everyone as text.
     const prepared: Array<unknown[] | null> = new Array(items.length).fill(null)
@@ -195,7 +219,7 @@ export function createHistoryImportRouter(): Router {
     }
 
     const messages: Record<string, unknown>[] = []
-    const dropped: string[] = []
+    const dropped: string[] = [...already]
     items.forEach((item, i) => {
       const content = prepared[i]
       if (!Array.isArray(content) || content.length === 0) dropped.push(item.discord_message_id)
