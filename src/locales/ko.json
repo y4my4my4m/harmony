@@ -6229,7 +6229,11 @@
       "bridgeExists": "이 서버에는 다른 방식으로 설정된 Discord 브리지가 이미 있습니다. 이 인스턴스의 봇을 사용하려면 먼저 연결을 끊으세요.",
       "instanceFull": "이 인스턴스의 봇이 이미 허용된 수만큼의 Discord 서버에 있습니다. 인스턴스 관리자에게 문의하거나 직접 만든 Discord 봇을 사용하세요.",
       "instanceOff": "이 인스턴스는 지금 Discord 봇을 제공하지 않습니다. 직접 만든 Discord 봇을 사용하세요.",
-      "link": "Discord 연결을 시작하지 못했습니다. 다시 시도하세요."
+      "link": "Discord 연결을 시작하지 못했습니다. 다시 시도하세요.",
+      "import": "가져오기를 시작하지 못했습니다.",
+      "cancelImport": "가져오기를 취소하지 못했습니다.",
+      "pairNotImportable": "이 쌍은 기록을 가져올 수 없습니다. Discord 메시지를 Harmony로 가져오는 쌍의 암호화되지 않은 채널만 가능합니다.",
+      "importChanged": "그 사이 가져오기 상태가 바뀌어 새로 고쳤습니다. 다시 시도하세요."
     },
     "time": {
       "secondsAgo": "방금 | {count}초 전 | {count}초 전",
@@ -6338,6 +6342,45 @@
       "settingsSaved": "Discord 봇 설정을 저장했습니다",
       "saveFailed": "Discord 봇 설정을 저장하지 못했습니다",
       "redirectLabel": "리디렉션 주소"
+    },
+    "import": {
+      "button": "기록 가져오기",
+      "buttonLabel": "#{channel} 기록 가져오기",
+      "importAll": "모두 가져오기",
+      "cancelAll": "모두 취소",
+      "cancel": "취소",
+      "cancelLabel": "#{channel} 가져오기 취소",
+      "cancelling": "취소하는 중…",
+      "waiting": "대기 중",
+      "running": "가져오는 중… {percent}%",
+      "runningUnknown": "가져오는 중…",
+      "threadsRunning": "스레드를 가져오는 중…",
+      "repliesRunning": "답글을 연결하는 중…",
+      "progressLabel": "#{channel} 가져오기 진행률",
+      "backTo": "{date}까지 가져옴",
+      "messages": "메시지 {count}개 | 메시지 {count}개",
+      "threads": "스레드 {done} / {total}",
+      "done": "메시지 {count}개를 가져왔습니다 | 메시지 {count}개를 가져왔습니다",
+      "failed": "가져오기가 중단되었습니다: {reason}",
+      "failedUnknown": "가져오기가 중단되었습니다",
+      "cancelled": "취소됨",
+      "paused": "일시 중지됨: 브리지를 기다리는 중",
+      "retry": "다시 시도",
+      "retryLabel": "#{channel} 가져오기 다시 시도",
+      "resume": "재개",
+      "resumeLabel": "#{channel} 가져오기 재개",
+      "again": "다시 가져오기",
+      "againLabel": "#{channel} 기록 다시 가져오기",
+      "reasons": {
+        "pair_removed": "채널 쌍이 제거되었습니다",
+        "channel_encrypted": "채널이 암호화되었습니다"
+      },
+      "ineligible": {
+        "direction": "Discord 메시지를 Harmony로 가져오는 쌍만 기록을 가져올 수 있습니다",
+        "encrypted": "암호화된 채널은 기록을 가져올 수 없습니다"
+      },
+      "needsUpdate": "기록을 가져오려면 브리지를 2.6.0 이상으로 업데이트하세요",
+      "mirrorNote": "가져온 파일은 이 인스턴스의 저장소에 복사됩니다."
     }
   },
   "imageEditor": {

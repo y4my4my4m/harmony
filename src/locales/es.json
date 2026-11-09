@@ -6229,7 +6229,11 @@
       "bridgeExists": "Este servidor ya tiene un puente de Discord configurado de otra forma. Desconéctalo primero para usar el bot de esta instancia.",
       "instanceFull": "El bot de esta instancia ya está en tantos servidores de Discord como permite. Pregunta a la administración de la instancia o usa un bot de Discord propio.",
       "instanceOff": "Esta instancia no ofrece su bot de Discord en este momento. Usa un bot de Discord propio.",
-      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo."
+      "link": "No se pudo iniciar la vinculación con Discord. Vuelve a intentarlo.",
+      "import": "No se pudo iniciar la importación.",
+      "cancelImport": "No se pudo cancelar la importación.",
+      "pairNotImportable": "Este par no puede importar historial. Solo pueden hacerlo los canales sin cifrar en pares que traen mensajes de Discord a Harmony.",
+      "importChanged": "La importación cambió mientras tanto y se actualizó. Inténtalo de nuevo."
     },
     "time": {
       "secondsAgo": "ahora mismo | hace {count} segundo | hace {count} segundos",
@@ -6338,6 +6342,45 @@
       "settingsSaved": "Ajustes del bot de Discord guardados",
       "saveFailed": "No se pudieron guardar los ajustes del bot de Discord",
       "redirectLabel": "Dirección de redirección"
+    },
+    "import": {
+      "button": "Importar historial",
+      "buttonLabel": "Importar el historial de #{channel}",
+      "importAll": "Importar todo",
+      "cancelAll": "Cancelar todo",
+      "cancel": "Cancelar",
+      "cancelLabel": "Cancelar la importación de #{channel}",
+      "cancelling": "Cancelando…",
+      "waiting": "En espera",
+      "running": "Importando… {percent} %",
+      "runningUnknown": "Importando…",
+      "threadsRunning": "Importando hilos…",
+      "repliesRunning": "Vinculando respuestas…",
+      "progressLabel": "Progreso de la importación de #{channel}",
+      "backTo": "Hasta {date}",
+      "messages": "{count} mensaje | {count} mensajes",
+      "threads": "Hilos {done} de {total}",
+      "done": "{count} mensaje importado | {count} mensajes importados",
+      "failed": "Importación detenida: {reason}",
+      "failedUnknown": "Importación detenida",
+      "cancelled": "Cancelada",
+      "paused": "En pausa: esperando al puente",
+      "retry": "Reintentar",
+      "retryLabel": "Reintentar la importación de #{channel}",
+      "resume": "Reanudar",
+      "resumeLabel": "Reanudar la importación de #{channel}",
+      "again": "Importar de nuevo",
+      "againLabel": "Importar de nuevo el historial de #{channel}",
+      "reasons": {
+        "pair_removed": "se quitó el par de canales",
+        "channel_encrypted": "el canal ahora está cifrado"
+      },
+      "ineligible": {
+        "direction": "Solo los pares que traen mensajes de Discord a Harmony pueden importar historial",
+        "encrypted": "Los canales cifrados no pueden importar historial"
+      },
+      "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
+      "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia."
     }
   },
   "imageEditor": {

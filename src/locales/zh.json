@@ -6229,7 +6229,11 @@
       "bridgeExists": "此服务器已经有以其他方式设置的 Discord 桥接。要使用此实例的机器人，请先断开它。",
       "instanceFull": "此实例的机器人已加入允许的最大数量的 Discord 服务器。请联系实例管理员，或改用您自己的 Discord 机器人。",
       "instanceOff": "此实例目前不提供它的 Discord 机器人。请改用您自己的 Discord 机器人。",
-      "link": "无法开始与 Discord 关联。请重试。"
+      "link": "无法开始与 Discord 关联。请重试。",
+      "import": "无法开始导入。",
+      "cancelImport": "无法取消导入。",
+      "pairNotImportable": "此配对无法导入历史记录。只有把 Discord 消息带到 Harmony 的配对中未加密的频道才可以。",
+      "importChanged": "导入状态已发生变化，已刷新。请重试。"
     },
     "time": {
       "secondsAgo": "刚刚 | {count} 秒前 | {count} 秒前",
@@ -6338,6 +6342,45 @@
       "settingsSaved": "Discord 机器人设置已保存",
       "saveFailed": "无法保存 Discord 机器人设置",
       "redirectLabel": "重定向地址"
+    },
+    "import": {
+      "button": "导入历史记录",
+      "buttonLabel": "导入 #{channel} 的历史记录",
+      "importAll": "全部导入",
+      "cancelAll": "全部取消",
+      "cancel": "取消",
+      "cancelLabel": "取消 #{channel} 的导入",
+      "cancelling": "正在取消…",
+      "waiting": "等待中",
+      "running": "正在导入… {percent}%",
+      "runningUnknown": "正在导入…",
+      "threadsRunning": "正在导入主题帖…",
+      "repliesRunning": "正在关联回复…",
+      "progressLabel": "#{channel} 的导入进度",
+      "backTo": "已回溯到 {date}",
+      "messages": "{count} 条消息 | {count} 条消息",
+      "threads": "主题帖 {done} / {total}",
+      "done": "已导入 {count} 条消息 | 已导入 {count} 条消息",
+      "failed": "导入已停止：{reason}",
+      "failedUnknown": "导入已停止",
+      "cancelled": "已取消",
+      "paused": "已暂停：等待桥接",
+      "retry": "重试",
+      "retryLabel": "重试导入 #{channel}",
+      "resume": "继续",
+      "resumeLabel": "继续导入 #{channel}",
+      "again": "重新导入",
+      "againLabel": "重新导入 #{channel} 的历史记录",
+      "reasons": {
+        "pair_removed": "频道配对已移除",
+        "channel_encrypted": "该频道现已加密"
+      },
+      "ineligible": {
+        "direction": "只有把 Discord 消息带到 Harmony 的配对才能导入历史记录",
+        "encrypted": "加密频道无法导入历史记录"
+      },
+      "needsUpdate": "请将桥接更新到 2.6.0 或更高版本以导入历史记录",
+      "mirrorNote": "导入的文件会复制到此实例的存储中。"
     }
   },
   "imageEditor": {

@@ -55,7 +55,15 @@
 
     <section ref="pairsSection" class="db-card" aria-labelledby="bridge-pairs-title">
       <h3 id="bridge-pairs-title" class="db-card-title">{{ t('discordBridge.status.pairsTitle') }}</h3>
-      <BridgeChannelPairs :bridge="bridge" :pairs="pairs" :harmony-channels="harmonyChannels" @changed="emit('changed')" />
+      <BridgeChannelPairs
+        :bridge="bridge"
+        :pairs="pairs"
+        :harmony-channels="harmonyChannels"
+        :imports="imports"
+        :encrypted-channel-ids="encryptedChannelIds"
+        :attachment-mode="attachmentMode"
+        @changed="emit('changed')"
+      />
     </section>
 
     <section class="db-card" aria-labelledby="bridge-settings-title">
@@ -108,6 +116,7 @@ import {
 import { formatAgo } from './bridgeTime'
 import BridgeProblemList from './BridgeProblemList.vue'
 import BridgeChannelPairs from './BridgeChannelPairs.vue'
+import type { ImportJob } from './bridgeApi'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeConnectSelf from './BridgeConnectSelf.vue'
 import BridgeConnectHosted from './BridgeConnectHosted.vue'
@@ -117,6 +126,9 @@ const props = defineProps<{
   bridge: DiscordBridgeRow
   pairs: BridgePairRow[]
   harmonyChannels: HarmonyChannelOption[]
+  imports?: ImportJob[]
+  encryptedChannelIds?: string[]
+  attachmentMode?: string | null
   now: number
   harmonyUrl: string
 }>()

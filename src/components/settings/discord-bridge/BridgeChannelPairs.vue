@@ -27,7 +27,34 @@
 
       <!-- Existing pairs -->
       <p v-if="pairs.length === 0" class="db-text empty" data-testid="pairs-empty">{{ t('discordBridge.pairs.empty') }}</p>
-      <ul v-else class="pair-list" :aria-label="t('discordBridge.pairs.listLabel')">
+      <template v-else>
+      <div v-if="importsSupported" class="import-toolbar" data-testid="import-toolbar">
+        <p v-if="attachmentMode === 'mirror'" class="db-muted" data-testid="import-mirror-note">{{ t('discordBridge.import.mirrorNote') }}</p>
+        <div class="db-actions">
+          <button
+            v-if="importablePairCount > 0"
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="busy"
+            data-testid="import-all"
+            @click="startImport(null)"
+          >
+            {{ t('discordBridge.import.importAll') }}
+          </button>
+          <button
+            v-if="activeJobCount > 0"
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="busy"
+            data-testid="cancel-all"
+            @click="cancelImport(null)"
+          >
+            {{ t('discordBridge.import.cancelAll') }}
+          </button>
+        </div>
+      </div>
+      <p v-else class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
+      <ul class="pair-list" :aria-label="t('discordBridge.pairs.listLabel')">
         <li v-for="row in pairRows" :key="row.pair.id" class="pair" data-testid="pair-row" :data-harmony="row.pair.harmony_channel_id">
           <div class="pair-main">
             <span class="pair-channel">
@@ -65,12 +92,23 @@
               <span>{{ t('discordBridge.pairs.remove') }}</span>
             </button>
           </div>
+          <BridgeImportControls
+            v-if="importsSupported"
+            :pair="row.pair"
+            :job="row.job"
+            :block="row.block"
+            :channel-name="row.harmonyName"
+            :busy="busy"
+            @start="(id: string) => startImport([id])"
+            @cancel="(job: ImportJob) => cancelImport(job.id)"
+          />
           <ul v-if="row.issues.length || !row.discord" class="pair-fixes">
             <li v-if="!row.discord">{{ t('discordBridge.pairs.discordGoneFix') }}</li>
             <li v-for="issue in row.issues" :key="issue">{{ t(`discordBridge.pairs.issue.${issue}.fix`, { channel: `#${row.discordName}` }) }}</li>
           </ul>
         </li>
       </ul>
+      </template>
 
       <!-- Same-name helper -->
       <div v-if="matches.length" class="match-box" data-testid="name-matches">
@@ -183,13 +221,20 @@ import {
   type PairDirection,
   type SnapshotChannel,
 } from '@/utils/discordBridgeSetup'
-import { pairChannels, unpairChannel } from './bridgeApi'
+import { cancelImports, pairChannels, startImports, unpairChannel, type ImportJob } from './bridgeApi'
+import BridgeImportControls from './BridgeImportControls.vue'
+import { bridgeSupportsImport, importBlock, isImportablePair } from './importProgress'
 import { bridgeErrorKey } from './bridgeErrors'
 
 const props = defineProps<{
   bridge: DiscordBridgeRow
   pairs: BridgePairRow[]
   harmonyChannels: HarmonyChannelOption[]
+  imports?: ImportJob[]
+  /** Harmony channels whose messages are end-to-end encrypted; they cannot import. */
+  encryptedChannelIds?: string[]
+  /** bridge_attachment_mode; null when the caller cannot read it. */
+  attachmentMode?: string | null
 }>()
 
 const emit = defineEmits<{ changed: [] }>()
@@ -244,6 +289,23 @@ const selectedIssues = computed<ChannelIssue[]>(() =>
   selectedDiscord.value ? discordChannelIssues(selectedDiscord.value, direction.value) : [],
 )
 
+const importsSupported = computed(() => bridgeSupportsImport(props.bridge.bridge_version))
+
+/** The pair's newest job; a restarted job keeps its row, so there is normally one. */
+function jobFor(pair: BridgePairRow): ImportJob | null {
+  const jobs = (props.imports ?? []).filter((j) => j.harmony_channel_id === pair.harmony_channel_id)
+  return jobs.reduce<ImportJob | null>((newest, j) => (!newest || j.created_at >= newest.created_at ? j : newest), null)
+}
+
+function channelFor(pair: BridgePairRow): { encrypted: boolean } {
+  return { encrypted: (props.encryptedChannelIds ?? []).includes(pair.harmony_channel_id) }
+}
+
+const importablePairCount = computed(() => props.pairs.filter((p) => isImportablePair(p, channelFor(p))).length)
+const activeJobCount = computed(
+  () => (props.imports ?? []).filter((j) => j.state === 'queued' || j.state === 'running' || j.state === 'paused').length,
+)
+
 const pairRows = computed(() =>
   props.pairs.map((pair) => {
     const discord = discordChannels.value.find((c) => c.id === pair.discord_channel_id) ?? null
@@ -251,6 +313,8 @@ const pairRows = computed(() =>
     return {
       pair,
       discord,
+      job: jobFor(pair),
+      block: importBlock(pair, channelFor(pair)),
       harmonyName: harmony?.name ?? pair.harmony_channel_id,
       discordName: discord?.name ?? pair.discord_channel_name ?? pair.discord_channel_id,
       issues: discord ? discordChannelIssues(discord, pair.direction) : [],
@@ -299,6 +363,32 @@ async function remove(pair: BridgePairRow) {
   } finally {
     busy.value = false
   }
+}
+
+async function startImport(harmonyChannelIds: string[] | null) {
+  busy.value = true
+  try {
+    await startImports(props.bridge.id, harmonyChannelIds)
+  } catch (error) {
+    debug.error('discord_bridge_import_start failed:', error)
+    toast.error(t(bridgeErrorKey(error, 'discordBridge.errors.import')))
+  } finally {
+    busy.value = false
+  }
+  emit('changed')
+}
+
+async function cancelImport(importId: string | null) {
+  busy.value = true
+  try {
+    await cancelImports(props.bridge.id, importId)
+  } catch (error) {
+    debug.error('discord_bridge_import_cancel failed:', error)
+    toast.error(t(bridgeErrorKey(error, 'discordBridge.errors.cancelImport')))
+  } finally {
+    busy.value = false
+  }
+  emit('changed')
 }
 
 async function pairMatches() {
@@ -394,6 +484,17 @@ async function pairMatches() {
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.import-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-toolbar .db-muted {
+  margin: 0;
 }
 
 .match-box {

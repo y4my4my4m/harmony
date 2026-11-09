@@ -6225,7 +6225,11 @@
       "bridgeExists": "This server already has a Discord bridge set up another way. Disconnect it first to use this instance's bot.",
       "instanceFull": "This instance's bot is already in as many Discord servers as it allows. Ask the instance's admin, or use a Discord bot of your own instead.",
       "instanceOff": "This instance doesn't offer its Discord bot at the moment. Use a Discord bot of your own instead.",
-      "link": "Couldn't start linking with Discord. Try again."
+      "link": "Couldn't start linking with Discord. Try again.",
+      "import": "Couldn't start the import.",
+      "cancelImport": "Couldn't cancel the import.",
+      "pairNotImportable": "This pair can't import history. Only unencrypted channels in pairs that bring Discord messages to Harmony can.",
+      "importChanged": "The import changed in the meantime. It has been refreshed; try again."
     },
     "time": {
       "secondsAgo": "just now | {count} second ago | {count} seconds ago",
@@ -6334,6 +6338,45 @@
       "settingsSaved": "Discord bot settings saved",
       "saveFailed": "Couldn't save the Discord bot settings",
       "redirectLabel": "Redirect address"
+    },
+    "import": {
+      "button": "Import history",
+      "buttonLabel": "Import history for #{channel}",
+      "importAll": "Import all",
+      "cancelAll": "Cancel all",
+      "cancel": "Cancel",
+      "cancelLabel": "Cancel the import for #{channel}",
+      "cancelling": "Cancelling…",
+      "waiting": "Waiting",
+      "running": "Importing… {percent}%",
+      "runningUnknown": "Importing…",
+      "threadsRunning": "Importing threads…",
+      "repliesRunning": "Linking replies…",
+      "progressLabel": "Import progress for #{channel}",
+      "backTo": "Back to {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Threads {done} of {total}",
+      "done": "Imported {count} message | Imported {count} messages",
+      "failed": "Import stopped: {reason}",
+      "failedUnknown": "Import stopped",
+      "cancelled": "Cancelled",
+      "paused": "Paused: waiting for the bridge",
+      "retry": "Try again",
+      "retryLabel": "Try the import again for #{channel}",
+      "resume": "Resume",
+      "resumeLabel": "Resume the import for #{channel}",
+      "again": "Import again",
+      "againLabel": "Import history again for #{channel}",
+      "reasons": {
+        "pair_removed": "the channel pair was removed",
+        "channel_encrypted": "the channel is now encrypted"
+      },
+      "ineligible": {
+        "direction": "Only pairs that bring Discord messages to Harmony can import history",
+        "encrypted": "Encrypted channels can't import history"
+      },
+      "needsUpdate": "Update the bridge to 2.6.0 or later to import history",
+      "mirrorNote": "Imported files are copied into this instance's storage."
     }
   },
   "imageEditor": {

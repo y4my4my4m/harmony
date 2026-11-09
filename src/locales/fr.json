@@ -6229,7 +6229,11 @@
       "bridgeExists": "Ce serveur a déjà une passerelle Discord configurée autrement. Déconnectez-la d'abord pour utiliser le bot de cette instance.",
       "instanceFull": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord.",
       "instanceOff": "Cette instance ne propose pas son bot Discord pour le moment. Utilisez plutôt votre propre bot Discord.",
-      "link": "Impossible de lancer la liaison avec Discord. Réessayez."
+      "link": "Impossible de lancer la liaison avec Discord. Réessayez.",
+      "import": "Impossible de démarrer l'importation.",
+      "cancelImport": "Impossible d'annuler l'importation.",
+      "pairNotImportable": "Cette paire ne peut pas importer d'historique. Seuls les salons non chiffrés dans des paires qui amènent les messages Discord vers Harmony le peuvent.",
+      "importChanged": "L'importation a changé entre-temps et a été actualisée. Réessaie."
     },
     "time": {
       "secondsAgo": "à l'instant | il y a {count} seconde | il y a {count} secondes",
@@ -6338,6 +6342,45 @@
       "settingsSaved": "Réglages du bot Discord enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages du bot Discord",
       "redirectLabel": "Adresse de redirection"
+    },
+    "import": {
+      "button": "Importer l'historique",
+      "buttonLabel": "Importer l'historique de #{channel}",
+      "importAll": "Tout importer",
+      "cancelAll": "Tout annuler",
+      "cancel": "Annuler",
+      "cancelLabel": "Annuler l'importation de #{channel}",
+      "cancelling": "Annulation…",
+      "waiting": "En attente",
+      "running": "Importation… {percent} %",
+      "runningUnknown": "Importation…",
+      "threadsRunning": "Importation des fils…",
+      "repliesRunning": "Liaison des réponses…",
+      "progressLabel": "Progression de l'importation de #{channel}",
+      "backTo": "Jusqu'à {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Fils {done} sur {total}",
+      "done": "{count} message importé | {count} messages importés",
+      "failed": "Importation arrêtée : {reason}",
+      "failedUnknown": "Importation arrêtée",
+      "cancelled": "Annulée",
+      "paused": "En pause : en attente du pont",
+      "retry": "Réessayer",
+      "retryLabel": "Réessayer l'importation de #{channel}",
+      "resume": "Reprendre",
+      "resumeLabel": "Reprendre l'importation de #{channel}",
+      "again": "Importer à nouveau",
+      "againLabel": "Importer à nouveau l'historique de #{channel}",
+      "reasons": {
+        "pair_removed": "la paire de salons a été retirée",
+        "channel_encrypted": "le salon est désormais chiffré"
+      },
+      "ineligible": {
+        "direction": "Seules les paires qui amènent les messages Discord vers Harmony peuvent importer l'historique",
+        "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
+      },
+      "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance."
     }
   },
   "imageEditor": {

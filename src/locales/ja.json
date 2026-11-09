@@ -6229,7 +6229,11 @@
       "bridgeExists": "このサーバーには別の方法で設定された Discord ブリッジがすでにあります。このインスタンスのボットを使うには、先にそれを切断してください。",
       "instanceFull": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。",
       "instanceOff": "このインスタンスは現在 Discord ボットを提供していません。自分の Discord ボットを使ってください。",
-      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。"
+      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。",
+      "import": "インポートを開始できませんでした。",
+      "cancelImport": "インポートをキャンセルできませんでした。",
+      "pairNotImportable": "このペアは履歴をインポートできません。Discord のメッセージを Harmony に取り込むペアの、暗号化されていないチャンネルだけが対象です。",
+      "importChanged": "インポートの状態が変わったため更新しました。もう一度お試しください。"
     },
     "time": {
       "secondsAgo": "たった今 | {count} 秒前 | {count} 秒前",
@@ -6338,6 +6342,45 @@
       "settingsSaved": "Discord ボットの設定を保存しました",
       "saveFailed": "Discord ボットの設定を保存できませんでした",
       "redirectLabel": "リダイレクト先のアドレス"
+    },
+    "import": {
+      "button": "履歴をインポート",
+      "buttonLabel": "#{channel} の履歴をインポート",
+      "importAll": "すべてインポート",
+      "cancelAll": "すべてキャンセル",
+      "cancel": "キャンセル",
+      "cancelLabel": "#{channel} のインポートをキャンセル",
+      "cancelling": "キャンセル中…",
+      "waiting": "待機中",
+      "running": "インポート中… {percent}%",
+      "runningUnknown": "インポート中…",
+      "threadsRunning": "スレッドをインポート中…",
+      "repliesRunning": "返信を関連付け中…",
+      "progressLabel": "#{channel} のインポートの進捗",
+      "backTo": "{date} まで遡り済み",
+      "messages": "{count} 件のメッセージ | {count} 件のメッセージ",
+      "threads": "スレッド {done} / {total}",
+      "done": "{count} 件のメッセージをインポートしました | {count} 件のメッセージをインポートしました",
+      "failed": "インポートが停止しました: {reason}",
+      "failedUnknown": "インポートが停止しました",
+      "cancelled": "キャンセルしました",
+      "paused": "一時停止中: ブリッジを待っています",
+      "retry": "再試行",
+      "retryLabel": "#{channel} のインポートを再試行",
+      "resume": "再開",
+      "resumeLabel": "#{channel} のインポートを再開",
+      "again": "再度インポート",
+      "againLabel": "#{channel} の履歴を再度インポート",
+      "reasons": {
+        "pair_removed": "チャンネルのペアが削除されました",
+        "channel_encrypted": "チャンネルが暗号化されました"
+      },
+      "ineligible": {
+        "direction": "Discord のメッセージを Harmony に取り込むペアだけが履歴をインポートできます",
+        "encrypted": "暗号化されたチャンネルは履歴をインポートできません"
+      },
+      "needsUpdate": "履歴をインポートするには、ブリッジを 2.6.0 以降に更新してください",
+      "mirrorNote": "インポートしたファイルは、このインスタンスのストレージにコピーされます。"
     }
   },
   "imageEditor": {
