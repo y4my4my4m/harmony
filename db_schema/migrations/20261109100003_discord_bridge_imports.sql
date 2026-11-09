@@ -20,7 +20,7 @@
 --   the pair's Discord channel changed  reset as for done
 -- Cancel: queued and paused become cancelled; running gets cancel_requested; finished jobs are
 -- untouched. Update: transitions queued->running, running->paused|done|failed, running->cancelled
--- only with cancel_requested, paused->running.
+-- only with cancel_requested, paused->running; running->running is a no-op for the state (other keys still apply).
 --
 -- Errors (the exception message is the code, so the gateway can map it):
 --   pair_not_importable  22023  DETAIL = the Discord channel id
@@ -236,7 +236,10 @@ BEGIN
 
     IF p_patch ? 'state' THEN
         v_state := p_patch ->> 'state';
-        IF NOT (   (v_row.state = 'queued' AND v_state = 'running')
+        -- running -> running is an idempotent no-op: a restarted bridge resumes a job left running
+        -- and begins by patching that state. Every other same-state write is invalid.
+        IF NOT (   (v_row.state = 'running' AND v_state = 'running')
+                OR (v_row.state = 'queued' AND v_state = 'running')
                 OR (v_row.state = 'running' AND v_state IN ('paused', 'done', 'failed'))
                 OR (v_row.state = 'running' AND v_state = 'cancelled' AND v_row.cancel_requested)
                 OR (v_row.state = 'paused' AND v_state = 'running')) THEN
@@ -328,6 +331,8 @@ BEGIN
         SELECT array_agg(p.discord_channel_id) INTO v_discord_ids
           FROM public.discord_bridge_channels p
          WHERE p.bridge_id = v_bridge.id AND p.harmony_channel_id = ANY (p_harmony_channel_ids);
+        -- array_agg over no rows is NULL, which the internal start reads as "every pair".
+        v_discord_ids := COALESCE(v_discord_ids, ARRAY[]::text[]);
 
         -- A channel with no pair cannot be imported either.
         SELECT h INTO v_missing

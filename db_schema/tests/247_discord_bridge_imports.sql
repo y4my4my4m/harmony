@@ -8,7 +8,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(27);
+SELECT plan(29);
 
 INSERT INTO public.channels (id, server_id, name, type) VALUES
   ('f2470000-0000-0000-0000-000000000002', '55555555-0000-0000-0000-000000000005', 'p247b', 0),
@@ -66,6 +66,8 @@ SELECT throws_ok($q$SELECT * FROM public.discord_bridge_import_start('f2470000-0
 SELECT throws_ok($q$SELECT * FROM public.discord_bridge_import_start('f2470000-0000-0000-0000-0000000000d1',
                         ARRAY['f2470000-0000-0000-0000-0000000000ff']::uuid[])$q$,
                  '22023', 'pair_not_importable', 'an unpaired channel named explicitly raises pair_not_importable');
+SELECT is((SELECT count(*)::int FROM public.discord_bridge_import_start('f2470000-0000-0000-0000-0000000000d1', '{}'::uuid[])),
+          0, 'starting an empty channel list queues nothing');
 SELECT tests.clear_authentication();
 
 -- Restart rules ----------------------------------------------------------------------------------
@@ -155,6 +157,11 @@ SELECT ok((SELECT state = 'running' AND start_discord_message_id = '247000000000
                   (SELECT id FROM i247 WHERE harmony_channel_id = 'f2470000-0000-0000-0000-000000000002'),
                   '{"state":"running","start_discord_message_id":"2470000000000005000","thread_cursor":{"after":"7"}}')),
           'queued to running applies the cursors in the patch');
+SELECT ok((SELECT state = 'running' AND thread_cursor = '{"after":"9"}'
+             FROM public.discord_bridge_import_update('f2470000-0000-0000-0000-0000000000d1',
+                  (SELECT id FROM i247 WHERE harmony_channel_id = 'f2470000-0000-0000-0000-000000000002'),
+                  '{"state":"running","thread_cursor":{"after":"9"}}')),
+          'running to running is a no-op for the state and the other keys still apply');
 SELECT throws_ok($q$SELECT public.discord_bridge_import_update('f2470000-0000-0000-0000-0000000000d1',
                         (SELECT id FROM i247 WHERE harmony_channel_id = 'f2470000-0000-0000-0000-000000000002'),
                         '{"state":"cancelled"}')$q$,
