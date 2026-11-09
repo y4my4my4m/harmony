@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll, afterEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 
@@ -111,6 +111,9 @@ const db: Record<string, any[]> = {
   server_actor_keys: [PUB, PRIV, CLOSED].map(id => ({ server_id: id, public_key: `PUBLIC-${id}`, private_key: `PRIVATE-${id}` })),
 }
 
+/** channel_host_flags rows; undefined fails the read. */
+let CHANNEL_FLAGS: Record<string, unknown>[] | undefined = []
+
 /** federation_history_cutoffs answers, by server then actor ('anon' for no member). */
 let HISTORY: Record<string, Record<string, Record<string, string>>> = {}
 
@@ -119,6 +122,10 @@ const rpc = vi.fn(async (name: string, args: any) => {
     const reader = args.p_actor_ap_id ?? 'anon'
     return { data: HISTORY[args.p_server_id]?.[reader] ?? {}, error: null }
   }
+  if (name === 'channel_host_flags') {
+    return CHANNEL_FLAGS ? { data: CHANNEL_FLAGS, error: null } : { data: null, error: { message: 'flags down' } }
+  }
+  if (name === 'category_host_flags') return { data: [], error: null }
   if (name !== 'federation_group_access') return { data: null, error: { message: 'unexpected rpc' } }
   const server = db.servers.find(s => s.id === args.p_server_id)
   if (!server) return { data: [], error: null }
@@ -288,7 +295,7 @@ describe('channel routes', () => {
   it('asks for access as the key owner, and as nobody when the signature fails', async () => {
     await get(`/servers/${PRIV}/channels/${PRIV_OPEN}`, 'vip')
     await get(`/servers/${PRIV}/channels/${PRIV_OPEN}`, 'badsig')
-    expect(rpc.mock.calls.map(c => (c[1] as any).p_actor_ap_id)).toEqual([ACTORS.vip, null])
+    expect(rpc.mock.calls.filter(c => c[0] === 'federation_group_access').map(c => (c[1] as any).p_actor_ap_id)).toEqual([ACTORS.vip, null])
   })
 })
 
@@ -336,6 +343,27 @@ describe('Group document', () => {
     } else {
       expect(res.headers['cache-control']).toBe('private, no-store')
     }
+  })
+
+  describe('channel flags', () => {
+    afterEach(() => { CHANNEL_FLAGS = [] })
+
+    it('an entry carries its channel\'s flags, and a plain entry neither key', async () => {
+      const [flagged, plain] = [...readable(PUB, 'vip')]
+      CHANNEL_FLAGS = [{ channel_id: flagged, messages: true, voice: true, is_private: true }]
+      const res = await get(`/servers/${PUB}`, 'vip')
+      const entry = (id: string) => res.body['harmony:channels'].find((c: any) => c.localId === id)
+      expect(entry(flagged)['harmony:encryption']).toEqual({ messages: true, voice: true })
+      expect(entry(flagged)['harmony:private']).toBe(true)
+      expect(entry(plain)).not.toHaveProperty(['harmony:encryption'])
+      expect(entry(plain)).not.toHaveProperty(['harmony:private'])
+    })
+
+    it('serves no document when they cannot be read: an absent property would clear them on a copy', async () => {
+      CHANNEL_FLAGS = undefined
+      const res = await get(`/servers/${PUB}`, 'vip')
+      expect(res.status).toBe(500)
+    })
   })
 
   it('is 404 for an unknown server', async () => {

@@ -97,6 +97,46 @@ describe('fetchServerByUrl', () => {
   })
 })
 
+describe('fetchServerByUrl at a path other than the id', () => {
+  const id = 'https://remote.test/servers/22222222-2222-4222-8222-222222222222'
+  const group = (name: string, inbox = `${id}/inbox`) => ({ id, type: 'Group', name, inbox })
+  const signedFetch = vi.mocked(SignatureService.signedApFetch)
+
+  it('takes the Group from the document at its id', async () => {
+    signedFetch.mockReset()
+    signedFetch
+      .mockResolvedValueOnce(json(group('forged', 'https://remote.test/uploads/inbox')) as any)
+      .mockResolvedValueOnce(json(group('real')) as any)
+    const found = await ServerDiscoveryService.fetchServerByUrl('https://remote.test/uploads/x.json')
+    expect(found?.name).toBe('real')
+    expect(found?.inbox).toBe(`${id}/inbox`)
+    expect(signedFetch.mock.calls[1][0]).toBe(id)
+  })
+
+  it('is null when the id serves nothing', async () => {
+    signedFetch.mockReset()
+    signedFetch
+      .mockResolvedValueOnce(json(group('forged')) as any)
+      .mockResolvedValueOnce(new Response('', { status: 404 }) as any)
+    expect(await ServerDiscoveryService.fetchServerByUrl('https://remote.test/uploads/x.json')).toBeNull()
+  })
+
+  it('is null when the id serves another Group', async () => {
+    signedFetch.mockReset()
+    signedFetch
+      .mockResolvedValueOnce(json(group('forged')) as any)
+      .mockResolvedValueOnce(json({ ...group('other'), id: `${id}0` }) as any)
+    expect(await ServerDiscoveryService.fetchServerByUrl('https://remote.test/uploads/x.json')).toBeNull()
+  })
+
+  it('fetches once when the document is at its id', async () => {
+    signedFetch.mockReset()
+    signedFetch.mockResolvedValueOnce(json(group('real')) as any)
+    expect((await ServerDiscoveryService.fetchServerByUrl(id))?.name).toBe('real')
+    expect(signedFetch).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('syncRemoteServer', () => {
   it('only writes channels under the Group\'s own id', async () => {
     vi.mocked(SignatureService.signedApFetch).mockResolvedValue(json({

@@ -139,6 +139,8 @@ import { warmLazyUi } from '@/utils/warmLazyUi'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
+import { setEmojiStill } from '@/utils/stillEmoji'
+import { emojiAnimationEnabled } from '@/composables/useVisualTheme'
 import { installOutsideLinks } from '@/services/outsideLinks'
 import OutsideLinkDialog from '@/components/OutsideLinkDialog.vue'
 import { callPopout } from '@/components/voice/callPopout'
@@ -218,6 +220,7 @@ let hapticClickHandler: ((e: Event) => void) | null = null
 let identityChangedHandler: ((e: Event) => void) | null = null
 let uninstallLinkInterceptor: (() => void) | null = null
 let uninstallInterfaceSounds: (() => void) | null = null
+let stopEmojiStillWatch: (() => void) | null = null
 
 const router = useRouter()
 useRouteA11y(router)
@@ -306,6 +309,7 @@ onMounted(() => {
   // a new PWA window / external browser
   uninstallLinkInterceptor = installInternalLinkInterceptor(router)
   installOutsideLinks()
+  stopEmojiStillWatch = watch(emojiAnimationEnabled, (animated) => setEmojiStill(!animated), { immediate: true })
   uninstallInterfaceSounds = installInterfaceSounds()
 })
 
@@ -321,6 +325,8 @@ onUnmounted(() => {
   uninstallLinkInterceptor?.()
   uninstallLinkInterceptor = null
   uninstallInterfaceSounds?.()
+  stopEmojiStillWatch?.()
+  setEmojiStill(false)
   uninstallInterfaceSounds = null
 })
 

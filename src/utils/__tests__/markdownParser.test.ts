@@ -156,3 +156,27 @@ describe('markdownParser', () => {
     })
   })
 })
+
+describe('parseMarkdownWithMarkers backslash escapes', () => {
+  it('reads an escaped marker as text, the backslash kept for the composer', () => {
+    expect(parseMarkdownWithMarkers('\\*a\\*')).toEqual([{ type: 'text', content: '\\*a\\*' }])
+    expect(parseMarkdownWithMarkers('\\*\\*a\\*\\*')).toEqual([{ type: 'text', content: '\\*\\*a\\*\\*' }])
+  })
+
+  it('reads no emoji from an escaped shortcode', () => {
+    expect(parseMarkdownWithMarkers('\\:smile:')).toEqual([{ type: 'text', content: '\\:smile:' }])
+  })
+
+  it('still reads an unescaped marker beside an escaped one', () => {
+    const tokens = parseMarkdownWithMarkers('\\*a\\* **b**')
+    expect(tokens.map((t) => t.type)).toEqual(['text', 'bold'])
+    expect(tokens[0].content).toBe('\\*a\\* ')
+    expect(tokens[1].content).toBe('b')
+  })
+
+  it('keeps a backslash in code, closing the code at the next backtick', () => {
+    const tokens = parseMarkdownWithMarkers('`\\` *b*')
+    expect(tokens[0]).toMatchObject({ type: 'code', content: '\\' })
+    expect(tokens.map((t) => t.type)).toEqual(['code', 'text', 'italic'])
+  })
+})

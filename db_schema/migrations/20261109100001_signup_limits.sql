@@ -22,6 +22,10 @@
 -- ip_cap observe unless signup_enforce_caps is on: the account is allowed and
 -- signup_refusal_counts.would_refuse counts it, because a campus or an office shares one address or
 -- one domain. Setting one cap to 0 enforces the other alone.
+--   blocked_network (403) the client address is in an entry of the JSON array
+--                         signup_blocked_networks: an address or a CIDR range, IPv4 or IPv6. Applies
+--                         to any provider but custom:* and sso:*. An entry that does not parse matches
+--                         nothing. Sign-ins of existing accounts are not read.
 --   blocked_domain (422)  address at a domain of signup_disposable_domains while
 --                         signup_block_disposable_email is on, or of the JSON array
 --                         signup_blocked_email_domains. A subdomain matches its parent.
@@ -117,7 +121,7 @@ CREATE POLICY signup_ledger_service_role ON public.signup_ledger
 CREATE TABLE IF NOT EXISTS public.signup_refusal_counts (
     day date NOT NULL,
     reason text NOT NULL CONSTRAINT signup_refusal_counts_reason_check
-        CHECK (reason IN ('blocked_domain', 'mail_host', 'mailbox_cap', 'domain_cap', 'ip_cap')),
+        CHECK (reason IN ('blocked_network', 'blocked_domain', 'mail_host', 'mailbox_cap', 'domain_cap', 'ip_cap')),
     refusals integer NOT NULL DEFAULT 0,
     would_refuse integer NOT NULL DEFAULT 0,
     PRIMARY KEY (day, reason)
@@ -233,7 +237,8 @@ INSERT INTO public.instance_config (config_key, config_value, description) VALUE
     ('signup_limit_own_providers', 'false'::jsonb, 'Whether sign-ups through this instance''s own identity providers count toward the network cap'),
     ('signup_block_disposable_email', 'true'::jsonb, 'Whether sign-up refuses the domains in signup_disposable_domains'),
     ('signup_blocked_email_domains', '[]'::jsonb, 'Further email domains sign-up refuses'),
-    ('signup_blocked_mail_hosts', '[]'::jsonb, 'Further mail hosts sign-up refuses: a domain whose MX is at one, or under one')
+    ('signup_blocked_mail_hosts', '[]'::jsonb, 'Further mail hosts sign-up refuses: a domain whose MX is at one, or under one'),
+    ('signup_blocked_networks', '[]'::jsonb, 'Client addresses and CIDR ranges sign-up refuses')
 ON CONFLICT (config_key) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -259,6 +264,20 @@ BEGIN
         v_local := replace(v_local, '.', '');
     END IF;
     RETURN encode(extensions.digest(convert_to(v_local || '@' || v_domain, 'UTF8'), 'sha256'), 'hex');
+END;
+$$;
+
+-- A malformed entry raises in the cast, and the hook allows on any error: it stays local here.
+CREATE OR REPLACE FUNCTION public.signup_network_contains(p_network text, p_ip inet)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = pg_temp
+AS $$
+BEGIN
+    RETURN p_ip <<= btrim(p_network)::inet;
+EXCEPTION WHEN invalid_text_representation THEN
+    RETURN false;
 END;
 $$;
 
@@ -327,7 +346,8 @@ BEGIN
       FROM public.instance_config
      WHERE config_key IN ('signup_limits_enabled', 'signup_daily_ip_cap', 'signup_mailbox_cap', 'signup_daily_domain_cap',
                           'signup_enforce_caps', 'signup_limit_own_providers', 'signup_block_disposable_email',
-                          'signup_blocked_email_domains', 'signup_trusted_email_domains', 'signup_blocked_mail_hosts');
+                          'signup_blocked_email_domains', 'signup_trusted_email_domains', 'signup_blocked_mail_hosts',
+                          'signup_blocked_networks');
 
     IF btrim(v_config ->> 'signup_limits_enabled', '"') = 'false' THEN
         RETURN '{}'::jsonb;
@@ -340,7 +360,19 @@ BEGIN
         RETURN '{}'::jsonb;
     END IF;
 
-    IF coalesce(v_provider, 'email') IN ('email', 'phone') THEN
+    IF EXISTS (
+        SELECT 1
+          FROM jsonb_array_elements_text(
+                   CASE WHEN jsonb_typeof(v_config -> 'signup_blocked_networks') = 'array'
+                        THEN v_config -> 'signup_blocked_networks' ELSE '[]'::jsonb END) AS n(entry)
+         WHERE public.signup_network_contains(n.entry, v_ip))
+    THEN
+        v_reason := 'blocked_network';
+        v_code := 403;
+        v_message := 'Sign-ups from this network are not available on this instance. Ask this instance''s admin for an invitation.';
+    END IF;
+
+    IF v_reason IS NULL AND coalesce(v_provider, 'email') IN ('email', 'phone') THEN
         IF v_domain IS NOT NULL THEN
             SELECT array_agg(array_to_string(p.parts[i:], '.')) INTO v_domains
               FROM (SELECT string_to_array(v_domain, '.') AS parts) p, generate_subscripts(p.parts, 1) AS i;
@@ -486,6 +518,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.signup_mailbox_hash(text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.signup_network_contains(text, inet) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.purge_signup_ledger() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.purge_signup_ledger() TO service_role;
 REVOKE ALL ON FUNCTION public.before_user_created_hook(jsonb) FROM PUBLIC, anon, authenticated, service_role;

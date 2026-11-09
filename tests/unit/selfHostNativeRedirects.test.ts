@@ -24,7 +24,7 @@ describe('configure.sh and the native apps\' sign-in redirects', () => {
     const sb = join(root, 'self-host', 'supabase')
     mkdirSync(sb, { recursive: true })
     mkdirSync(join(root, 'bin'))
-    for (const f of ['configure.sh', 'linking.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
+    for (const f of ['configure.sh', 'linking.sh', 'modes.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
     writeFileSync(join(root, 'bin', 'docker'), '#!/usr/bin/env bash\n[ "$*" != "compose version --short" ] || echo 2.30.0\n')
     chmodSync(join(root, 'bin', 'docker'), 0o755)
     writeFileSync(join(sb, 'docker-compose.yml'), 'services:\n  auth:\n    image: supabase/gotrue:v2.196.0\n')

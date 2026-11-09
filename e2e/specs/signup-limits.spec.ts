@@ -24,6 +24,8 @@ const DOMAIN_CAP_TEXT =
   'Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance\'s admin for an invitation.'
 const INBOX_TEXT = 'This email inbox has reached the limit of accounts on this instance.'
 const DOMAIN_TEXT = 'This email provider cannot be used to sign up on this instance. Use another address.'
+const BLOCKED_NETWORK_TEXT =
+  'Sign-ups from this network are not available on this instance. Ask this instance\'s admin for an invitation.'
 
 function randomNetwork(): { address: string; cidr: string } {
   const group = () => (1 + Math.floor(Math.random() * 0xfffe)).toString(16)
@@ -142,6 +144,7 @@ test.beforeAll(async () => {
   await setConfig('signup_block_disposable_email', true)
   await setConfig('signup_blocked_email_domains', [])
   await setConfig('signup_blocked_mail_hosts', [])
+  await setConfig('signup_blocked_networks', [])
   await setConfig('signup_trusted_email_domains', [])
 
   staff = await createUser(admin, 'siglimit')
@@ -506,6 +509,35 @@ test('an admin changes the limits and the next sign-up follows them', async ({ r
     await expect.poll(() => readConfig('signup_trusted_email_domains'), { timeout: 15000 }).toEqual([])
     await expect(card.locator('[data-testid="signup-limits-error"]')).toHaveText('')
     expect(await readConfig('signup_blocked_mail_hosts')).toEqual([mailHost])
+  })
+
+  await test.step('an address range is saved and followed, for new accounts only', async () => {
+    const range = randomNetwork()
+    const networks = card.locator('[data-testid="signup-limits-networks"]')
+
+    await networks.fill('0.0.0.0/0')
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect(card.locator('[data-testid="signup-limits-error"]')).toContainText('0.0.0.0/0')
+    await expect(networks).toHaveAttribute('aria-invalid', 'true')
+
+    await networks.fill(range.cidr.toUpperCase())
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect(networks).toHaveValue(range.cidr, { timeout: 15000 })
+    expect(await readConfig('signup_blocked_networks')).toEqual([range.cidr])
+
+    expect(await signUpThroughApi(request, range.address, `${RUN}net@gmail.com`)).toEqual({ status: 403, msg: BLOCKED_NETWORK_TEXT })
+    expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}other@gmail.com`)).status).toBe(200)
+
+    const signIn = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      headers: { apikey: ANON_KEY, 'content-type': 'application/json', 'x-e2e-client-ip': range.address },
+      data: { email: staff.email, password: PASSWORD },
+    })
+    expect(signIn.status()).toBe(200)
+
+    await networks.fill('')
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect.poll(() => readConfig('signup_blocked_networks'), { timeout: 15000 }).toEqual([])
+    await expect(card.locator('[data-testid="signup-refusals-network"]')).toBeVisible()
   })
 
   await test.step('with enforcement off, the full network signs up', async () => {

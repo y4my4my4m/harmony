@@ -22,6 +22,7 @@ vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/ColorPicker.vue', () => stub('ColorPicker'))
 vi.mock('@/components/admin/NewcomerAlertsDefault.vue', () => stub('NewcomerAlertsDefault'))
 vi.mock('@/components/settings/discord-bridge/BridgeAdminSection.vue', () => stub('BridgeAdminSection'))
+vi.mock('@/components/admin/UploadLimitsAdmin.vue', () => stub('UploadLimitsAdmin'))
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -193,7 +194,6 @@ describe('saving writes only what changed', () => {
     admin.getInstanceConfig.mockResolvedValue(null)
     const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
     await flushPromises()
-    await wrapper.get('input[type="number"]').setValue(3000)
     expect(wrapper.get('button.save-btn').attributes('disabled')).toBeDefined()
     await wrapper.get('button.save-btn').trigger('click')
     await flushPromises()
@@ -248,6 +248,51 @@ describe('federated calls', () => {
     await flushPromises()
     expect(admin.updateWebRTCSettings).toHaveBeenCalledTimes(1)
     expect((admin.updateWebRTCSettings.mock.calls[0] as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('allowFederatedVoice')
+  })
+})
+
+describe('inputs before the stored values are read', () => {
+  const stored = () => ({
+    chat: { maxServerSize: 1111 },
+    federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded: true },
+    webrtc: {},
+    instance: { name: 'Harmony Test', registrationOpen: true },
+  })
+  const locked = (wrapper: ReturnType<typeof mount>) => wrapper.get('fieldset.config-section').attributes('disabled') !== undefined
+  const failure = (wrapper: ReturnType<typeof mount>) => wrapper.find('[data-testid="config-load-failed"]')
+
+  it('locks them until the load returns', async () => {
+    let finish: (value: unknown) => void = () => {}
+    admin.getInstanceConfig.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    expect(locked(wrapper)).toBe(true)
+    expect(failure(wrapper).exists()).toBe(false)
+    finish(stored())
+    await flushPromises()
+    expect(locked(wrapper)).toBe(false)
+    expect((wrapper.get('input[type="number"]').element as HTMLInputElement).value).toBe('1111')
+    expect(failure(wrapper).exists()).toBe(false)
+  })
+
+  it.each([
+    ['returns nothing', () => admin.getInstanceConfig.mockResolvedValue(null)],
+    ['throws', () => admin.getInstanceConfig.mockRejectedValue(new Error('boom'))],
+  ])('stays locked and says so when the load %s', async (_, arrange) => {
+    arrange()
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    expect(locked(wrapper)).toBe(true)
+    expect(failure(wrapper).text()).toBe(en.admin.instance.configLoadFailed)
+    expect(toast.error).toHaveBeenCalledWith(en.admin.instance.configLoadFailed)
+  })
+
+  it('leaves the upload limits tab free when the load fails', async () => {
+    admin.getInstanceConfig.mockResolvedValue(null)
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    await wrapper.findAll('button.config-tab-btn').find((b) => b.text() === en.uploadLimits.title)!.trigger('click')
+    expect(wrapper.find('fieldset.config-section').exists()).toBe(false)
   })
 })
 

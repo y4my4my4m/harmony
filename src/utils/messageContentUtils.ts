@@ -1,3 +1,4 @@
+import { unescapeMarkup } from '@/utils/markupEscapes';
 import type { MessagePart, MentionContent } from '@/types';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
@@ -211,7 +212,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
 
     switch (part.type) {
       case 'text':
-        return part.text || '';
+        return unescapeMarkup(part.text || '');
       
       case 'emoji':
         return part.emoji?.name ? `:${part.emoji.name}:` : '';

@@ -812,6 +812,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { styleRect } from '@/utils/appZoom';
 import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
+import { retryQuotedPost } from '@/services/quoteRetry';
 import { cardClickIgnored } from '@/utils/cardClick';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
@@ -1524,7 +1525,18 @@ watch(() => replyPost.value.id, () => {
   if (!props.hideReplyContext && !props.isInThread) requestReplyContext(replyPost.value);
 }, { immediate: true });
 
+// A remote quote holding no quoted post: its read failed, or the path that stored it reads none.
+const retryUnreadQuote = async () => {
+  const post = props.post;
+  if (post.is_local !== false || post.reblog || !post.metadata?.is_quote || !quoteTargetUrl(post)) return;
+  const answer = await retryQuotedPost(post.id);
+  if (answer?.status === 'resolved') {
+    Object.assign(post, { reblog: answer.reblog, reblog_author: answer.reblog_author, metadata: answer.metadata });
+  }
+};
+
 onMounted(() => {
+  void retryUnreadQuote();
   // For pure reblogs, fetch the user's interaction state with the original post
   if (isPureReblog.value) {
     loadOriginalPostInteractions();

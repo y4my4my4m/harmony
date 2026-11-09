@@ -120,6 +120,21 @@
       />
       <span :id="`${uid}-hosts-hint`" class="sl-hint">{{ t('adminSignupLimits.blockedMailHostsHint') }}</span>
 
+      <label class="sl-label" :for="`${uid}-networks`">{{ t('adminSignupLimits.blockedNetworks') }}</label>
+      <textarea
+        :id="`${uid}-networks`"
+        v-model="form.blockedNetworks"
+        class="sl-input"
+        rows="3"
+        autocapitalize="off"
+        spellcheck="false"
+        :disabled="!form.enabled"
+        :aria-invalid="domainError === 'networks' ? 'true' : undefined"
+        :aria-describedby="`${uid}-networks-hint`"
+        data-testid="signup-limits-networks"
+      />
+      <span :id="`${uid}-networks-hint`" class="sl-hint">{{ t('adminSignupLimits.blockedNetworksHint') }}</span>
+
       <label class="sl-label" :for="`${uid}-trusted`">{{ t('adminSignupLimits.trustedDomains') }}</label>
       <textarea
         :id="`${uid}-trusted`"
@@ -177,6 +192,10 @@
           <dt>{{ t('adminSignupLimits.refusalMailHost') }}</dt>
           <dd data-testid="signup-refusals-mail-host">{{ refusals.refused.mail_host }}</dd>
         </div>
+        <div>
+          <dt>{{ t('adminSignupLimits.refusalBlockedNetwork') }}</dt>
+          <dd data-testid="signup-refusals-network">{{ refusals.refused.blocked_network }}</dd>
+        </div>
       </dl>
     </div>
   </section>
@@ -194,7 +213,7 @@ import {
   type SignupLimits,
   type SignupRefusals,
 } from '@/services/SignupLimitsService'
-import { parseBlockedDomains, parseSignupCap, SIGNUP_CAP_MAX } from '@/utils/signupLimits'
+import { parseBlockedDomains, parseBlockedNetworks, parseSignupCap, SIGNUP_CAP_MAX } from '@/utils/signupLimits'
 import { debug } from '@/utils/debug'
 
 interface Form {
@@ -206,6 +225,7 @@ interface Form {
   blockDisposable: boolean
   blockedDomains: string
   blockedMailHosts: string
+  blockedNetworks: string
   trustedDomains: string
 }
 
@@ -220,7 +240,7 @@ const refusals = ref<SignupRefusals | null>(null)
 const loadError = ref('')
 const formError = ref('')
 const capError = ref<'ip' | 'mailbox' | 'domain' | null>(null)
-const domainError = ref<'blocked' | 'hosts' | 'trusted' | null>(null)
+const domainError = ref<'blocked' | 'hosts' | 'networks' | 'trusted' | null>(null)
 const saving = ref(false)
 
 function toForm(limits: SignupLimits): Form {
@@ -228,6 +248,7 @@ function toForm(limits: SignupLimits): Form {
     ...limits,
     blockedDomains: limits.blockedDomains.join('\n'),
     blockedMailHosts: limits.blockedMailHosts.join('\n'),
+    blockedNetworks: limits.blockedNetworks.join('\n'),
     trustedDomains: limits.trustedDomains.join('\n'),
   }
 }
@@ -260,6 +281,13 @@ async function save() {
     return
   }
 
+  const networks = parseBlockedNetworks(form.value.blockedNetworks)
+  if (networks.invalid !== null) {
+    domainError.value = 'networks'
+    formError.value = t('adminSignupLimits.invalidNetwork', { network: networks.invalid })
+    return
+  }
+
   const next: SignupLimits = {
     enabled: form.value.enabled,
     ipCap,
@@ -269,6 +297,7 @@ async function save() {
     blockDisposable: form.value.blockDisposable,
     blockedDomains: blocked.domains,
     blockedMailHosts: hosts.domains,
+    blockedNetworks: networks.networks,
     trustedDomains: trusted.domains,
   }
   saving.value = true

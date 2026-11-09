@@ -107,7 +107,8 @@ and a checkout on a branch fast-forwards to its upstream.
 | Environment variable | Effect |
 |---|---|
 | `HARMONY_REMOTE` | Git remote to fetch, default `origin` |
-| `HARMONY_SKIP_BACKUP=1` | No backup before migrating |
+| `HARMONY_SKIP_BACKUP=1` | No backup before migrating, and no old update backup deleted |
+| `HARMONY_KEEP_UPDATE_BACKUPS=N` | Update backups kept of each kind, default 5; `0` keeps all. Also read from `.env` |
 | `HARMONY_BUILD=1` or `0` | Switch to building Harmony's images from the checkout, or back to published images |
 | `HARMONY_VERSION` | Image tag for this run, instead of the one derived from the checkout |
 
@@ -154,6 +155,7 @@ certificates, Federation, Services, Security, Versions.
 | `compose` | The Docker Compose version | FAIL when missing or older than 2.24.4 | Upgrade the `docker-compose-plugin` package, or re-run `https://get.docker.com` |
 | `memory` | RAM, available memory and swap | WARN under 1900 MB of RAM; with no swap and under 3900 MB; with under 256 MB available | A larger server or a 2 GB swap file; `docker stats` names the service using the memory |
 | `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free; WARN under 5 GB or over 90% used | Delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `files` | The files the containers read are readable to every user: the files git tracks in the checkout and their directories, and `self-host/supabase/` less its data, its `.env` files, `test.http` and `docker-compose.override.yml` | FAIL when one in `supabase/` is not (`supabase-db` and `kong` run as their own users), or one anywhere with `HARMONY_BUILD=1`; WARN otherwise. Names the first | `bash configure.sh --non-interactive` in `self-host/` (keeps every answer; `harmony update` runs it). See [A restrictive umask](/self-host/troubleshooting#umask) |
 | `backup` | The newest backup in `self-host/backups` | WARN when there is none, or when it is more than 7 days old | `harmony backup`, then copy it off the server; [schedule it](/self-host/update-backup#schedule-backups) |
 
 ### Containers
@@ -169,6 +171,7 @@ certificates, Federation, Services, Security, Versions.
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `database` | Postgres answers | FAIL; the other database checks are skipped | `harmony logs db` |
+| `db init` | `authenticator` has a password, which Supabase's `supabase/volumes/db/roles.sql` sets when Postgres creates the database | FAIL when it has none: the init scripts did not run, and auth, rest, Realtime and storage cannot sign in | A new database, on an install that holds no data yet: see [A restrictive umask](/self-host/troubleshooting#umask) |
 | `migrations` | Every file in `db_schema/migrations/` is recorded in `supabase_migrations.schema_migrations` | FAIL when some are not applied; WARN when the database has migrations the checkout lacks (the code is older than the database) | `bash bootstrap.sh --migrations-only` (`harmony update` runs it); for the WARN, `harmony update` |
 | `activity purge` | The `purge-automod` pg_cron job exists; [instance limits](/self-host/configuration#instance-limits) count rows it trims | WARN when absent | Schedule `public.automod_purge()` every 10 minutes |
 | `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
@@ -733,6 +736,8 @@ at once.
 |---|---|
 | `HARMONY_REF` | Target tag, branch or commit (`harmony update --version` sets it) |
 | `HARMONY_REMOTE` | Git remote, default `origin` |
-| `HARMONY_SKIP_BACKUP=1` | No backup before migrating |
+| `HARMONY_SKIP_BACKUP=1` | No backup before migrating, and no old update backup deleted |
+| `HARMONY_KEEP_UPDATE_BACKUPS=N` | Update backups kept of each kind, default 5; `0` keeps all. Also read from `.env` |
 
-Nothing in it deletes volumes, data directories or backups.
+Nothing in it deletes volumes, data directories or any backup other than its
+own past the number kept.

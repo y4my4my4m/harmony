@@ -43,6 +43,8 @@ let broadcasts: Array<{ channel: string; msg: any; private?: boolean }> = []
 let granted: Record<string, Set<string>> = {}
 // Channels channel_is_restricted reports; undefined fails the lookup.
 let restrictedChannels: Set<string> | undefined = new Set()
+// Channels channel_voice_encrypted reports; undefined fails the lookup.
+let voiceEncryptedChannels: Set<string> | undefined = new Set()
 let nextId = 1
 
 const read = (row: Row, col: string) => {
@@ -60,6 +62,11 @@ function fakeSupabase() {
       if (fn === 'channel_is_restricted') {
         return Promise.resolve(restrictedChannels
           ? { data: restrictedChannels.has(args.p_channel_id), error: null }
+          : { data: null, error: { message: 'lookup failed' } })
+      }
+      if (fn === 'channel_voice_encrypted') {
+        return Promise.resolve(voiceEncryptedChannels
+          ? { data: voiceEncryptedChannels.has(args.p_channel_id), error: null }
           : { data: null, error: { message: 'lookup failed' } })
       }
       return Promise.resolve({
@@ -195,6 +202,7 @@ beforeEach(() => {
   vi.mocked(DeliveryQueue.enqueue).mockReset()
   vi.mocked(DeliveryQueue.deliverOnce).mockReset().mockResolvedValue({ delivered: true, retry: false })
   vi.mocked(DeliveryQueue.deliverAsInstanceActor).mockReset().mockResolvedValue({ delivered: true, retry: false })
+  voiceEncryptedChannels = new Set()
   tables = {
     profiles: [
       { id: 'alice-id', username: 'alice', is_local: true, auth_user_id: 'alice-auth', federated_id: LOCAL_ALICE, updated_at: FRESH },
@@ -627,6 +635,34 @@ describe('VoiceChannelJoin on a local server', () => {
       expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
     })
 
+    it('tells a member of an encrypted voice channel why, and mints no token', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      voiceEncryptedChannels = new Set([V])
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual([
+        'This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.',
+      ])
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+      expect(tables.voice_channel_participants).toEqual([])
+    })
+
+    it('refuses when the channel\'s encryption cannot be read, naming no check', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      voiceEncryptedChannels = undefined
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(['Not authorized for this room'])
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+    })
+
+    it('tells someone otherwise refused nothing of the channel\'s encryption', async () => {
+      voiceEncryptedChannels = new Set([V])
+      tables.user_servers[0].status = 'pending'
+      await join()
+      tables.user_servers[0].status = 'accepted'
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(Array(2).fill('Not authorized for this room'))
+    })
+
     it('tells a banned, timed-out or pending member the same thing', async () => {
       grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
       tables.server_bans.push({ id: 'ban-1', server_id: S, user_id: 'mallory-id' })
@@ -710,6 +746,24 @@ describe('VoiceChannelJoin on a local server', () => {
       vi.mocked(DeliveryQueue.deliverAsInstanceActor).mockResolvedValueOnce({ delivered: false, retry: false })
       await expect(join()).resolves.toBeUndefined()
     })
+  })
+})
+
+describe('Federated tokens for a voice channel', () => {
+  beforeEach(() => {
+    tables.user_servers.push({ server_id: S, user_id: 'mallory-id', status: 'accepted' })
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+  })
+
+  it('are granted while the channel\'s voice is not encrypted', async () => {
+    const token = await livekitService.generateFederatedToken({ actorId: MALLORY, roomName: `channel-${V}`, roomType: 'voice_channel' })
+    expect(jwtPayload(token).video).toMatchObject({ room: `channel-${V}`, canPublish: true })
+  })
+
+  it('are refused once it is', async () => {
+    voiceEncryptedChannels = new Set([V])
+    await expect(livekitService.generateFederatedToken({ actorId: MALLORY, roomName: `channel-${V}`, roomType: 'voice_channel' }))
+      .rejects.toThrow('permission denied')
   })
 })
 

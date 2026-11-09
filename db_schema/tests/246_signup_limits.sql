@@ -3,7 +3,7 @@
 -- 198.51.100.0/24 and 2001:db8::/32 are documentation ranges and count as public here.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(137);
+SELECT plan(152);
 
 CREATE TEMP TABLE r246 (reason text, msg text);
 CREATE FUNCTION tests.ev246(ip text, email text, provider text DEFAULT 'email') RETURNS jsonb
@@ -39,6 +39,8 @@ SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 's
   'the network and domain caps observe by default');
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'signup_blocked_mail_hosts'), '[]'::jsonb,
   'no further mail host is refused by default');
+SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'signup_blocked_networks'), '[]'::jsonb,
+  'no address is refused by default');
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'signup_trusted_email_domains'), '[]'::jsonb,
   'no domain is never-limited by default');
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'signup_limit_own_providers'), 'false'::jsonb,
@@ -306,6 +308,30 @@ SELECT ok(has_table_privilege('service_role', 'public.signup_mail_hosts', 'UPDAT
 SELECT ok(NOT has_table_privilege('authenticated', 'public.signup_mail_hosts', 'SELECT'), 'members read none');
 SELECT ok(NOT has_table_privilege('anon', 'public.signup_mail_hosts', 'SELECT'), 'nor does anon');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.signup_disposable_mail_hosts', 'SELECT'), 'nor the host list');
+
+-- Refused addresses. --------------------------------------------------------------------------------
+DELETE FROM public.signup_ledger;
+DELETE FROM public.signup_refusal_counts;
+UPDATE public.instance_config SET config_value = '["203.0.113.60", "198.51.100.0/24", "2001:db8:60::/64", "not an address", "203.0.113.61/99"]'::jsonb
+ WHERE config_key = 'signup_blocked_networks';
+SELECT is(tests.code246('203.0.113.60', 'a246@gmail.com'), 403, 'a listed address is refused, at a large provider too');
+SELECT is(tests.gate246('203.0.113.60', 'a246@gmail.com') #>> '{error,message}',
+  'Sign-ups from this network are not available on this instance. Ask this instance''s admin for an invitation.',
+  'with the text src/utils/signupLimits.ts maps');
+SELECT is(tests.code246('198.51.100.77', 'b246@network246.example'), 403, 'an address in a listed range is refused');
+SELECT is(tests.code246('2001:db8:60::abcd', 'c246@network246.example'), 403, 'and in an IPv6 range');
+SELECT is(tests.code246('203.0.113.60', 'oauth246@gmail.com', 'google'), 403, 'a sign-up through Google too');
+SELECT is(tests.gate246('203.0.113.59', 'd246@network246.example'), '{}'::jsonb, 'the next address is not');
+SELECT is(tests.gate246('2001:db8:61::1', 'e246@network246.example'), '{}'::jsonb, 'nor another IPv6 range');
+SELECT is(tests.gate246('203.0.113.61', 'f246@network246.example'), '{}'::jsonb, 'a malformed entry matches nothing and breaks nothing');
+SELECT is(tests.gate246('203.0.113.60', 'idp246@network246.example', 'custom:authentik'), '{}'::jsonb, 'an instance''s own identity provider is not read');
+SELECT is(tests.gate246('10.0.0.9', 'invite246@network246.example'), '{}'::jsonb, 'nor the instance''s own request');
+SELECT is(tests.refused246('blocked_network'), 5, 'each refusal is counted');
+SELECT is((SELECT count(*)::integer FROM public.signup_ledger WHERE network = '203.0.113.60/32'), 0, 'a refusal adds no ledger row');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.signup_network_contains(text, inet)', 'EXECUTE'), 'the helper is internal');
+UPDATE public.instance_config SET config_value = '"not an array"'::jsonb WHERE config_key = 'signup_blocked_networks';
+SELECT is(tests.gate246('203.0.113.60', 'g246@network246.example'), '{}'::jsonb, 'a stored value that is not a list refuses nothing');
+UPDATE public.instance_config SET config_value = '[]'::jsonb WHERE config_key = 'signup_blocked_networks';
 
 -- Never limited. ----------------------------------------------------------------------------------
 DELETE FROM public.signup_ledger;

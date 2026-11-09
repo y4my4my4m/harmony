@@ -48,7 +48,8 @@
       "ipCap": "Trop de comptes ont été créés depuis ce réseau aujourd’hui. Réessayez demain ou demandez une invitation à l’administration de cette instance.",
       "domainCap": "Trop de comptes ont été créés avec ce domaine de messagerie aujourd’hui. Réessayez demain ou demandez une invitation à l’administration de cette instance.",
       "mailboxCap": "Cette boîte mail a atteint la limite de comptes de cette instance.",
-      "blockedDomain": "Ce fournisseur de messagerie ne permet pas de s’inscrire sur cette instance. Utilisez une autre adresse."
+      "blockedDomain": "Ce fournisseur de messagerie ne permet pas de s’inscrire sur cette instance. Utilisez une autre adresse.",
+      "blockedNetwork": "Les inscriptions depuis ce réseau ne sont pas disponibles sur cette instance. Demandez une invitation à l'administration de cette instance."
     },
     "login": "Connexion",
     "register": "S'inscrire",
@@ -1663,6 +1664,8 @@
       "mirrorLinkHost": "Miroir pour les publications {site}",
       "renderEmoticonsAsEmoji": "Afficher les émoticônes des autres en emoji",
       "renderEmoticonsAsEmojiDesc": "Affiche :) :D <3 et similaires sous forme d'emojis dans les messages. Le texte d'origine est conservé.",
+      "animateEmoji": "Animer les emojis personnalisés",
+      "animateEmojiDesc": "Désactivé, les emojis animés affichent leur première image. Seul votre affichage change.",
       "inviteBannerBg": "Bannière du serveur dans la fenêtre d'invitation",
       "inviteBannerBgDesc": "Afficher une bannière du serveur floutée et assombrie derrière la fenêtre d'invitation lorsque le serveur en possède une.",
       "quickReact": "Réaction rapide",
@@ -3570,6 +3573,16 @@
       },
       "newLink": "Créer un nouveau lien",
       "newLinkHint": "Crée un lien avec ces paramètres. Les liens existants restent valides jusqu'à leur expiration ou leur révocation.",
+      "widgets": {
+        "toggle": "Ajouter à votre site web",
+        "hint": "Collez l'un de ces éléments dans votre site. Il affiche le nom et le nombre de membres de ce serveur, et renvoie vers cette invitation. Tout le monde peut les voir.",
+        "expiring": "Ce lien expire ou a une limite d'utilisations, et le widget cessera alors de fonctionner. Pour un site web, créez un lien sans expiration.",
+        "badge": "Badge",
+        "markdown": "Badge pour Markdown (README, forums)",
+        "join": "Bouton Rejoindre",
+        "icon": "Petite icône",
+        "card": "Carte (iframe)"
+      },
       "creating": "Création…",
       "created": "Nouveau lien d'invitation créé",
       "createFailed": "Impossible de créer un lien d'invitation",
@@ -4037,6 +4050,10 @@
     "lock": {
       "messages": "Chiffré de bout en bout",
       "voice": "La voix et la vidéo sont chiffrées de bout en bout"
+    },
+    "home": {
+      "voice": "Ce salon est chiffré de bout en bout sur son instance d’origine : les comptes d’autres instances ne peuvent donc pas rejoindre ses appels.",
+      "messages": "Ce salon est chiffré de bout en bout sur son instance d’origine : les comptes d’autres instances ne peuvent donc ni lire ni envoyer ses messages."
     },
     "status": {
       "active": "Chiffré de bout en bout",
@@ -5096,7 +5113,7 @@
       "enterPhrase": "Saisir la phrase de récupération",
       "scanHint": "Pointez la caméra vers le QR code sur le nouvel appareil.",
       "scanPasteLabel": "Ou collez le code copié depuis le nouvel appareil",
-      "showInstead": "Le nouvel appareil a une caméra ? Affichez plutôt un code à scanner",
+      "showInstead": "Afficher plutôt un code à scanner ou à copier",
       "showLead": "Sur le nouvel appareil, choisissez {another}, puis {scanInstead}, et pointez sa caméra ici, ou copiez le code ci-dessous et collez-le là-bas. Toute personne connectée à votre compte qui scanne ou colle ce code peut recevoir vos clés : gardez-le pour vous.",
       "showLeadAnother": "Un autre appareil",
       "showLeadScanInstead": "Scanner ou coller plutôt un code depuis celui-ci",
@@ -6379,6 +6396,8 @@
       "deleteCategory": "Supprimer la catégorie"
     },
     "thread": {
+      "goToStart": "Aller au premier message",
+      "showInChannel": "Afficher dans le salon",
       "leave": "Quitter le fil",
       "join": "Rejoindre le fil",
       "edit": "Modifier le fil",
@@ -6613,7 +6632,7 @@
       "staysKeys": "Clés de chiffrement de bout en bout",
       "staysBots": "Les bots qui vous appartiennent",
       "staysServers": "Les serveurs qui vous appartiennent",
-      "staysFollowing": "Les comptes que vous suivez",
+      "staysFollowing": "Les comptes que vous suivez. Téléchargez vos données, puis importez la liste sur le nouveau compte.",
       "ownedServersWarning": "Vous possédez {servers}. La propriété ne déménage pas ; transférez-la avant si le nouveau compte doit en être propriétaire. | Vous possédez {servers}. La propriété ne déménage pas ; transférez-les avant si le nouveau compte doit en être propriétaire.",
       "cooldown": "Après un déménagement, le suivant n'est possible qu'au bout de 30 jours.",
       "exportFirst": "Téléchargez d'abord vos données",
@@ -6625,7 +6644,10 @@
       "noPassword": "Votre compte n'a pas de mot de passe. Le déménagement nécessite une connexion dans les dix dernières minutes.",
       "confirm": "Déménager mon compte",
       "moving": "Déménagement…",
-      "success": "Ce compte pointe désormais vers {handle}. Les abonnés sont en cours de transfert."
+      "success": "Ce compte pointe désormais vers {handle}. Les abonnés sont en cours de transfert.",
+      "staysInteractions": "Les favoris, les partages et les signets",
+      "staysProfile": "Votre nom affiché, votre bio, votre avatar, votre bannière et vos champs de profil. Un nouveau compte sur Harmony peut les copier après le déménagement.",
+      "staysBlocks": "Les comptes que vous avez bloqués ou masqués"
     },
     "moved": {
       "title": "Ce compte a déménagé",
@@ -6656,7 +6678,14 @@
       "move_cooldown": "Votre dernier déménagement date de moins de 30 jours. Réessayez dans {count} jour. | Votre dernier déménagement date de moins de 30 jours. Réessayez dans {count} jours.",
       "too_many_attempts": "Trop de tentatives. Réessayez dans {count} minute. | Trop de tentatives. Réessayez dans {count} minutes.",
       "wrong_password": "Ce mot de passe est incorrect.",
-      "generic": "Une erreur est survenue. Réessayez."
+      "generic": "Une erreur est survenue. Réessayez.",
+      "import_running": "Une importation est déjà en cours.",
+      "too_many_accounts": "Un fichier peut contenir au plus 20 000 comptes.",
+      "no_accounts": "Ce fichier ne contient aucun compte.",
+      "account_moved": "Ce compte a déménagé. Importez sur le nouveau compte.",
+      "import_rate_limited": "Trop d'importations aujourd'hui. Réessayez dans {count} heure. | Trop d'importations aujourd'hui. Réessayez dans {count} heures.",
+      "not_verified": "Ce déménagement n'a pas pu être confirmé.",
+      "nothing_to_copy": "Il n'y avait rien à copier."
     },
     "profile": {
       "moved": "{name} a déménagé vers {target}",
@@ -6671,6 +6700,72 @@
       "short": "Compte déménagé",
       "someone": "Un compte",
       "newAccount": "un nouveau compte"
+    },
+    "import": {
+      "title": "Importer les comptes que vous suivez",
+      "description": "Suivez les comptes d'une liste de votre ancien compte. Sur Mastodon, exportez vos abonnements en CSV dans Importer et exporter. Sur Harmony, utilisez le ZIP de votre téléchargement de données. Les publications et les favoris ne sont pas importés.",
+      "choose": "Choisir un fichier",
+      "found": "{count} compte trouvé dans ce fichier. | {count} comptes trouvés dans ce fichier.",
+      "foundHint": "Les comptes verrouillés et ceux d'autres serveurs reçoivent une demande d'abonnement. Les comptes qui vous bloquent, ou que vous bloquez, sont ignorés.",
+      "start": "Lancer l'importation",
+      "starting": "Démarrage…",
+      "running": "Importation : {done} sur {total} traités",
+      "waiting": "En attente de la limite horaire d'abonnements. Reprise dans environ {count} minute. | En attente de la limite horaire d'abonnements. Reprise dans environ {count} minutes.",
+      "finished": "Importation terminée",
+      "stopped": "Importation arrêtée. Les abonnements déjà faits restent.",
+      "cancel": "Arrêter l'importation",
+      "counts": {
+        "followed": "Désormais suivis",
+        "requested": "Demandes envoyées",
+        "already": "Déjà suivis ou demandés",
+        "failed": "Impossibles à suivre",
+        "cancelled": "Non traités"
+      },
+      "failures": "{count} compte n'a pas pu être suivi | {count} comptes n'ont pas pu être suivis",
+      "moreFailures": "Et {count} de plus.",
+      "reasons": {
+        "invalid_handle": "Pas une adresse de compte",
+        "not_found": "Compte introuvable",
+        "instance_blocked": "Ce serveur ne fédère pas avec ce serveur-là",
+        "federation_off": "La fédération est désactivée sur ce serveur",
+        "unreachable": "Son serveur n'a pas répondu",
+        "unavailable": "Le compte est supprimé ou suspendu",
+        "self": "C'est votre propre compte",
+        "moved": "Le compte a déménagé",
+        "blocked": "Un blocage existe entre vous",
+        "declined": "Il a déjà refusé votre demande d'abonnement"
+      },
+      "fileErrors": {
+        "file_too_large": "Ce fichier est trop volumineux.",
+        "unrecognized_file": "Ce fichier n'est pas une liste d'abonnements. Utilisez following_accounts.csv de Mastodon ou le ZIP d'un téléchargement de données Harmony.",
+        "wrong_list": "Cela ressemble à une autre liste, comme des blocages ou des masquages. Utilisez la liste des comptes que vous suivez.",
+        "no_accounts": "Ce fichier ne contient aucun compte."
+      }
+    },
+    "copy": {
+      "title": "Copier votre ancien profil",
+      "description": "{handle} a déménagé vers ce compte. Vous pouvez copier ici les informations de son profil. Rien ne change tant que vous ne confirmez pas.",
+      "origin": "Ancien compte",
+      "fields": {
+        "display_name": "Nom affiché",
+        "bio": "Bio",
+        "avatar": "Avatar",
+        "banner": "Bannière",
+        "profile_fields": "Champs de profil"
+      },
+      "same": "Déjà identique",
+      "adds": "Ajouté à ce profil",
+      "replaces": "Remplace ce que ce profil contient",
+      "nothing": "L'ancien compte n'a aucune information de profil à copier.",
+      "review": "Copier la sélection",
+      "confirmTitle": "Copier depuis {handle} ?",
+      "confirmAdds": "{field} : ajouté à ce profil.",
+      "confirmReplaces": "{field} : remplace ce que ce profil contient maintenant.",
+      "confirmWarning": "Ce que ce profil contient maintenant est écrasé et ne peut pas être restauré.",
+      "confirm": "Copier vers ce profil",
+      "copying": "Copie…",
+      "done": "Informations du profil copiées",
+      "partial": "Copié, sauf : {fields}. Ces éléments n'ont pas pu être lus depuis l'ancien serveur."
     }
   },
   "polls": {
@@ -7967,6 +8062,8 @@
     "blockedDomainsHint": "Un domaine par ligne. Ses sous-domaines sont aussi refusés.",
     "blockedMailHosts": "Autres serveurs de messagerie à refuser",
     "blockedMailHostsHint": "Un hôte par ligne. Refuse tout domaine de messagerie dont les serveurs sont sur cet hôte ou en dessous : erinn.biz couvre aussi recv1.erinn.biz. N'indiquez pas de service partagé comme google.com, outlook.com ou cloudflare.net : cela refuserait tous ses utilisateurs.",
+    "blockedNetworks": "Adresses et plages à refuser",
+    "blockedNetworksHint": "Une par ligne, par exemple 203.0.113.7 ou 2001:db8:1:2::/64. Refuse les nouveaux comptes depuis cette adresse et rien d'autre : les personnes qui ont déjà un compte peuvent toujours se connecter. Une adresse peut couvrir tout un campus, un bureau ou un opérateur mobile, alors ne bloquez une plage que si vous êtes sûr.",
     "trustedDomains": "Domaines de messagerie jamais limités",
     "trustedDomainsHint": "Un domaine par ligne, pour un campus ou une entreprise refusés à tort ou arrivant en même temps. Ses sous-domaines comptent aussi. Ignore la limite par domaine, la liste jetable et les listes de serveurs de messagerie. Un domaine à refuser reste refusé, et la limite par boîte s'applique.",
     "save": "Enregistrer les limites",
@@ -7975,13 +8072,15 @@
     "loadFailed": "Impossible de charger les limites d’inscription.",
     "invalidCap": "Saisissez un nombre entier de 0 à 1000.",
     "invalidDomain": "{domain} n’est pas un nom de domaine.",
+    "invalidNetwork": "{network} n'est ni une adresse ni une plage utilisable. Une plage est /8 ou plus étroite en IPv4, /16 ou plus étroite en IPv6.",
     "wouldRefuseTitle": "Au-delà d’une limite, autorisés, ces 7 derniers jours",
     "refusalsTitle": "Refusées ces 7 derniers jours",
     "refusalIpCap": "Limite par réseau",
     "refusalDomainCap": "Limite par domaine",
     "refusalMailboxCap": "Limite par boîte mail",
     "refusalBlockedDomain": "Domaine de messagerie refusé",
-    "refusalMailHost": "Serveur de messagerie"
+    "refusalMailHost": "Serveur de messagerie",
+    "refusalBlockedNetwork": "Adresse refusée"
   },
   "adminInvites": {
     "tab": "Invitations",

@@ -6,7 +6,7 @@
 --   mallory      in no conversation
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(28);
+SELECT plan(22);
 
 -- Service-only functions: no client EXECUTE. ------------------------------------------
 SELECT ok(NOT EXISTS (
@@ -86,48 +86,16 @@ SELECT ok(EXISTS (SELECT 1 FROM public.conversation_participants
                      AND user_id = '33333333-0000-0000-0000-000000000003'),
   'the service path wrote the row');
 
--- create_federated_profile. --------------------------------------------------------------
-SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT is(public.create_federated_profile(
-            p_username => 'remote', p_domain => 'remote.example',
-            p_federated_id => 'https://remote.example/users/remote',
-            p_public_key => 'FORGED-KEY', p_inbox_url => 'https://evil.example/inbox',
-            p_display_name => 'Forged'),
-  'f6510000-0000-0000-0000-000000000001'::uuid,
-  'a client call for an existing profile returns it');
-SELECT is(public.create_federated_profile(
-            p_username => 'someone', p_domain => 'remote.example',
-            p_federated_id => 'https://remote.example/users/remote',
-            p_public_key => 'FORGED-KEY'),
-  'f6510000-0000-0000-0000-000000000001'::uuid,
-  'a client call naming an existing federated_id returns that profile');
-SELECT throws_ok($q$SELECT public.create_federated_profile(p_username => 'x', p_domain => 'a.example',
-                   p_federated_id => 'https://b.example/users/x')$q$,
-  '22023', NULL, 'a federated_id on another domain is refused');
-SELECT throws_ok($q$SELECT public.create_federated_profile(p_username => 'x', p_domain => 'a.example',
-                   p_federated_id => 'http://a.example/users/x')$q$,
-  '22023', NULL, 'a non-https federated_id is refused');
+-- create_federated_profile: no client path since 20261109600001. --------------------------
+SELECT ok(NOT has_function_privilege('authenticated',
+  'public.create_federated_profile(text, text, text, text, text, text, text, text, text, text, text, text, text)', 'EXECUTE'),
+  'authenticated cannot call create_federated_profile');
+
 SELECT isnt(public.create_federated_profile(
-              p_username => 'newbie', p_domain => 'new.example', p_display_name => 'New',
-              p_federated_id => 'https://new.example/users/newbie',
-              p_public_key => 'CLIENT-KEY', p_inbox_url => 'https://evil.example/inbox'),
-  NULL, 'a client creates a missing remote profile');
-SELECT tests.clear_authentication();
-
-SELECT is((SELECT public_key || '|' || inbox_url || '|' || display_name FROM public.profiles
-            WHERE id = 'f6510000-0000-0000-0000-000000000001'),
-  'REAL-KEY|https://remote.example/users/remote/inbox|Remote',
-  'client calls leave an existing profile untouched');
-SELECT is((SELECT row(public_key, inbox_url, is_local)::text FROM public.profiles
-            WHERE username = 'newbie' AND domain = 'new.example'),
-  '(,,f)', 'a client-created profile carries no key or inbox');
-
-SELECT is(public.create_federated_profile(
             p_username => 'newbie', p_domain => 'new.example',
             p_federated_id => 'https://new.example/users/newbie',
             p_public_key => 'FETCHED-KEY', p_inbox_url => 'https://new.example/users/newbie/inbox'),
-  (SELECT id FROM public.profiles WHERE username = 'newbie' AND domain = 'new.example'),
-  'the service path upserts');
+  NULL, 'the service path upserts');
 SELECT is((SELECT public_key FROM public.profiles WHERE username = 'newbie' AND domain = 'new.example'),
   'FETCHED-KEY', 'the service path writes the fetched key');
 

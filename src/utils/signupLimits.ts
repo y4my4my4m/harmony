@@ -14,6 +14,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'auth.signupRefused.mailboxCap',
   'This email provider cannot be used to sign up on this instance. Use another address.':
     'auth.signupRefused.blockedDomain',
+  'Sign-ups from this network are not available on this instance. Ask this instance\'s admin for an invitation.':
+    'auth.signupRefused.blockedNetwork',
 }
 
 export function signupRefusalKey(error: unknown): string | null {
@@ -49,4 +51,43 @@ export function parseBlockedDomains(text: string): ParsedDomains {
     seen.add(domain)
   }
   return { domains: [...seen].sort(), invalid: null }
+}
+
+const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/
+/** Below these a typo in the prefix refuses a large part of the internet. */
+const MIN_PREFIX_V4 = 8
+const MIN_PREFIX_V6 = 16
+
+function isIpv6(text: string): boolean {
+  if (!text.includes(':') || !/^[0-9a-f:.]+$/.test(text)) return false
+  try {
+    return new URL(`http://[${text}]/`).hostname.startsWith('[')
+  } catch {
+    return false
+  }
+}
+
+export interface ParsedNetworks {
+  networks: string[]
+  /** The first entry that is not an address or an accepted range. */
+  invalid: string | null
+}
+
+/** One address or CIDR range per line (commas and spaces also separate); case dropped, sorted. */
+export function parseBlockedNetworks(text: string): ParsedNetworks {
+  const seen = new Set<string>()
+  for (const entry of text.split(/[\s,]+/)) {
+    const value = entry.trim().toLowerCase()
+    if (!value) continue
+    const [address, prefix, extra] = value.split('/')
+    const v4 = IPV4.test(address)
+    const v6 = !v4 && isIpv6(address)
+    const bits = prefix === undefined ? null : /^\d{1,3}$/.test(prefix) ? Number(prefix) : Number.NaN
+    const inRange = bits === null
+      || (v4 && bits >= MIN_PREFIX_V4 && bits <= 32)
+      || (v6 && bits >= MIN_PREFIX_V6 && bits <= 128)
+    if (extra !== undefined || (!v4 && !v6) || !inRange) return { networks: [], invalid: entry.trim() }
+    seen.add(value)
+  }
+  return { networks: [...seen].sort(), invalid: null }
 }

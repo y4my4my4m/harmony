@@ -34,6 +34,23 @@ export function activityReference(value: unknown): string | null {
   return typeof id === 'string' && id ? id : null;
 }
 
+export interface AccountHandle {
+  username: string;
+  /** Lowercased; null for a bare local username. */
+  domain: string | null;
+}
+
+/** `user`, `user@host` or `@user@host`. */
+export function parseAccountHandle(raw: unknown): AccountHandle | null {
+  if (typeof raw !== 'string') return null;
+  const parts = raw.trim().replace(/^@/, '').split('@');
+  if (parts.length > 2) return null;
+  const [username, domain] = parts;
+  if (!username || username.length > 64 || !/^[A-Za-z0-9_.-]+$/.test(username)) return null;
+  if (domain !== undefined && !/^[a-z0-9.-]+(:\d+)?$/i.test(domain)) return null;
+  return { username, domain: domain ? domain.toLowerCase() : null };
+}
+
 /** Actor URI of a local account on this instance. */
 export function localActorUri(username: string): string {
   return `https://${config.INSTANCE_DOMAIN}/users/${username}`;

@@ -55,7 +55,7 @@ A chat server lives on one instance, the one where it was created. That instance
 |---|---|---|
 | Joining member's instance | Host | `Join` (with the invite code for a private server), `Leave` |
 | Host | Joining member's instance | `Accept` or `Reject` of the `Join` |
-| Host | Each instance with a member who can view the channel | Messages, edits, reactions and threads in that channel |
+| Host | Each instance whose accepted members can all view the channel | Messages, edits, reactions and threads in that channel |
 | Member's instance | Host | The member's messages, edits and threads |
 | Host | Other member instances | Messages, edits and reactions it accepted from members on other instances |
 | Host | Member instances | Channel and category creation, changes and removal; server name, description, icon and banner |
@@ -81,7 +81,9 @@ Kicking or banning a member from another instance tells their instance too; the 
 
 End-to-end encryption does not federate. Device keys and session keys stay on each instance, and no ActivityPub activity carries them.
 
-- Messages in an encrypted channel are never queued for federation, so remote members do not receive them.
+- Messages in an encrypted channel are never queued for federation, so remote members do not receive them. The host refuses a plaintext message to that channel from another instance, and the copy's message box says why.
+- A host refuses a join from another instance to a voice channel whose voice is encrypted, and removes anyone from another instance already connected when encryption turns on. Their audio would cross the voice server in plaintext, and they could not hear the call.
+- A copy of the server shows the channel's lock and private mark, from `harmony:encryption` and `harmony:private` ([Group](/federation/reference#group-chat-server)). It stores no encryption setting of its own.
 - In a direct message with someone on another instance, Harmony warns before you turn encryption on. Encrypted messages to that person are delivered as ciphertext marked `harmony:encrypted`, which their instance cannot decrypt.
 
 ## Interoperability with Mastodon and other software
@@ -166,9 +168,19 @@ Harmony supports the same account migration as Mastodon: `alsoKnownAs` aliases a
 | What moves | What stays behind |
 |---|---|
 | Followers, on this instance and on instances that support account moves | Posts, messages and direct messages |
-| Harmony server memberships, roles and nicknames, when the new account joins the server | End-to-end encryption keys |
+| Harmony server memberships, roles and nicknames, when the new account joins the server | Likes, boosts and bookmarks |
+| | Display name, bio, avatar, banner and profile fields |
+| | Accounts you follow |
+| | Blocks and mutes the moving account made |
+| | End-to-end encryption keys |
 | | Bots and servers you own |
-| | The accounts you follow |
+
+This matches Mastodon's move worker, which moves followers, and the blocks and mutes that local users made of the old account. Harmony copies those blocks and mutes to the new account. Posts and likes are never imported.
+
+Two steps on the new account recover more. [Social](/use/social#import-the-accounts-you-follow) has the how-to.
+
+- **Following import** takes Mastodon's `following_accounts.csv` or Harmony's data export. A queued job resolves each account on the server through WebFinger and follows it the way a person does: a `Follow` activity, pending until `Accept` for a remote or locked account, refused when a block stands between the two. Like Mastodon's `FollowService`, it refuses a deleted, suspended or moved account. The job paces itself at the instance's follow limit.
+- **Copying the old profile** has no Mastodon equivalent. It is offered only when the old account's `movedTo` names this account and this account's `alsoKnownAs` names the old one. It reads what Harmony stores for the old account, asks for confirmation, stores the images again on this instance and federates the result as `Update(Person)`.
 
 A server ban follows the account too: the host refuses a `Join` from an account that moved from a banned one. After a move, another move is possible after 30 days. **Cancel redirect** removes the redirect; followers who already moved stay with the new account.
 

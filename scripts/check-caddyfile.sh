@@ -98,6 +98,22 @@ expect() {
   fi
 }
 
+# expect_frame_header <path> <present|absent>: X-Frame-Options on the response.
+expect_frame_header() {
+  local headers='' state=absent
+  for _ in $(seq 1 20); do
+    headers="$(docker exec "$PREFIX" wget -S -q -O /dev/null --no-check-certificate "https://$DOMAIN$1" 2>&1)" && [ -n "$headers" ] && break
+    sleep 0.5
+  done
+  printf '%s' "$headers" | grep -qi 'x-frame-options' && state=present
+  if [ "$state" = "$2" ]; then
+    printf 'ok   X-Frame-Options %-12.12s %s\n' "$2" "$1"
+  else
+    err "$1: X-Frame-Options expected $2, was $state"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
 # expect_ua <user agent> <path> <first line of the body>
 expect_ua() {
   local got=''
@@ -303,6 +319,10 @@ expect_private() {
 }
 expect_private 'sbff=[203.0.113.9]' --header 'X-Forwarded-For: 198.51.100.2, 203.0.113.9'
 expect_private 'sbff=[]'
+
+# Invite widgets are framed by other sites; their page carries frame-ancestors instead.
+expect_frame_header /api/federation/widget/invite/ABCD1234 absent
+expect_frame_header /api/federation/instance-info present
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
 log "self-host/Caddyfile routes the ActivityPub-only paths to the federation backend"

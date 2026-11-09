@@ -48,7 +48,8 @@
       "ipCap": "Aus diesem Netzwerk wurden heute zu viele Konten erstellt. Versuche es morgen erneut oder bitte die Administration dieser Instanz um eine Einladung.",
       "domainCap": "Mit dieser E-Mail-Domain wurden heute zu viele Konten erstellt. Versuche es morgen erneut oder bitte die Administration dieser Instanz um eine Einladung.",
       "mailboxCap": "Dieses E-Mail-Postfach hat die Kontogrenze dieser Instanz erreicht.",
-      "blockedDomain": "Mit diesem E-Mail-Anbieter ist auf dieser Instanz keine Registrierung möglich. Verwende eine andere Adresse."
+      "blockedDomain": "Mit diesem E-Mail-Anbieter ist auf dieser Instanz keine Registrierung möglich. Verwende eine andere Adresse.",
+      "blockedNetwork": "Registrierungen aus diesem Netzwerk sind auf dieser Instanz nicht möglich. Bitte die Admins dieser Instanz um eine Einladung."
     },
     "login": "Anmelden",
     "register": "Registrieren",
@@ -1663,6 +1664,8 @@
       "mirrorLinkHost": "Spiegel für Beiträge auf {site}",
       "renderEmoticonsAsEmoji": "Emoticons anderer als Emoji anzeigen",
       "renderEmoticonsAsEmojiDesc": "Zeigt :) :D <3 und Ähnliches in Nachrichten als Emoji an. Der Originaltext bleibt erhalten.",
+      "animateEmoji": "Eigene Emoji animieren",
+      "animateEmojiDesc": "Aus: Animierte Emoji zeigen ihr erstes Bild. Das ändert nur deine Ansicht.",
       "inviteBannerBg": "Serverbanner im Einladungsdialog",
       "inviteBannerBgDesc": "Ein unscharfes, abgedunkeltes Serverbanner hinter dem Einladungsdialog anzeigen, wenn der Server eines hat.",
       "quickReact": "Schnellreaktion",
@@ -3570,6 +3573,16 @@
       },
       "newLink": "Neuen Link erstellen",
       "newLinkHint": "Erstellt einen Link mit diesen Einstellungen. Bestehende Links funktionieren weiter, bis sie ablaufen oder du sie widerrufst.",
+      "widgets": {
+        "toggle": "Zu deiner Website hinzufügen",
+        "hint": "Füge eines davon in deine Seite ein. Es zeigt den Namen und die Mitgliederzahl dieses Servers und verlinkt auf diese Einladung. Jeder kann das sehen.",
+        "expiring": "Dieser Link läuft ab oder hat ein Nutzungslimit, danach funktioniert das Widget nicht mehr. Erstelle für eine Website einen Link ohne Ablauf.",
+        "badge": "Abzeichen",
+        "markdown": "Abzeichen für Markdown (README, Foren)",
+        "join": "Beitreten-Schaltfläche",
+        "icon": "Kleines Symbol",
+        "card": "Karte (iframe)"
+      },
       "creating": "Wird erstellt…",
       "created": "Neuer Einladungslink erstellt",
       "createFailed": "Einladungslink konnte nicht erstellt werden",
@@ -4037,6 +4050,10 @@
     "lock": {
       "messages": "Ende-zu-Ende-verschlüsselt",
       "voice": "Sprache und Video sind Ende-zu-Ende-verschlüsselt"
+    },
+    "home": {
+      "voice": "Dieser Kanal ist auf seiner Heimatinstanz Ende-zu-Ende-verschlüsselt, daher können Konten anderer Instanzen seinen Anrufen nicht beitreten.",
+      "messages": "Dieser Kanal ist auf seiner Heimatinstanz Ende-zu-Ende-verschlüsselt, daher können Konten anderer Instanzen seine Nachrichten weder lesen noch senden."
     },
     "status": {
       "active": "Ende-zu-Ende-verschlüsselt",
@@ -5096,7 +5113,7 @@
       "enterPhrase": "Wiederherstellungsphrase eingeben",
       "scanHint": "Richte die Kamera auf den QR-Code auf dem neuen Gerät.",
       "scanPasteLabel": "Oder füge den vom neuen Gerät kopierten Code ein",
-      "showInstead": "Hat das neue Gerät eine Kamera? Zeige stattdessen einen Code zum Scannen an",
+      "showInstead": "Stattdessen einen Code zum Scannen oder Kopieren anzeigen",
       "showLead": "Wähle auf dem neuen Gerät {another}, dann {scanInstead}, und richte seine Kamera hierher, oder kopiere den Code unten und füge ihn dort ein. Jeder, der bei deinem Konto angemeldet ist und diesen Code scannt oder einfügt, kann deine Schlüssel erhalten – behalte ihn also für dich.",
       "showLeadAnother": "Anderes Gerät",
       "showLeadScanInstead": "Stattdessen einen Code davon scannen oder einfügen",
@@ -6379,6 +6396,8 @@
       "deleteCategory": "Kategorie löschen"
     },
     "thread": {
+      "goToStart": "Zur ersten Nachricht",
+      "showInChannel": "Im Kanal anzeigen",
       "leave": "Thread verlassen",
       "join": "Thread beitreten",
       "edit": "Thread bearbeiten",
@@ -6613,7 +6632,7 @@
       "staysKeys": "Schlüssel der Ende-zu-Ende-Verschlüsselung",
       "staysBots": "Bots, die dir gehören",
       "staysServers": "Server, die dir gehören",
-      "staysFollowing": "Die Konten, denen du folgst",
+      "staysFollowing": "Die Konten, denen du folgst. Lade deine Daten herunter und importiere die Liste dann im neuen Konto.",
       "ownedServersWarning": "Dir gehört {servers}. Der Besitz zieht nicht mit um; übertrage ihn vorher, wenn das neue Konto ihn besitzen soll. | Dir gehören {servers}. Der Besitz zieht nicht mit um; übertrage sie vorher, wenn das neue Konto sie besitzen soll.",
       "cooldown": "Nach einem Umzug ist der nächste erst nach 30 Tagen möglich.",
       "exportFirst": "Lade zuerst deine Daten herunter",
@@ -6625,7 +6644,10 @@
       "noPassword": "Dein Konto hat kein Passwort. Für den Umzug ist eine Anmeldung innerhalb der letzten zehn Minuten nötig.",
       "confirm": "Mein Konto umziehen",
       "moving": "Umzug läuft…",
-      "success": "Dieses Konto verweist jetzt auf {handle}. Die Follower werden übertragen."
+      "success": "Dieses Konto verweist jetzt auf {handle}. Die Follower werden übertragen.",
+      "staysInteractions": "Likes, Boosts und Lesezeichen",
+      "staysProfile": "Dein Anzeigename, deine Biografie, dein Avatar, dein Banner und deine Profilfelder. Ein neues Konto auf Harmony kann sie nach dem Umzug kopieren.",
+      "staysBlocks": "Konten, die du blockiert oder stummgeschaltet hast"
     },
     "moved": {
       "title": "Dieses Konto ist umgezogen",
@@ -6656,7 +6678,14 @@
       "move_cooldown": "Dein letzter Umzug liegt weniger als 30 Tage zurück. Versuche es in {count} Tag erneut. | Dein letzter Umzug liegt weniger als 30 Tage zurück. Versuche es in {count} Tagen erneut.",
       "too_many_attempts": "Zu viele Versuche. Versuche es in {count} Minute erneut. | Zu viele Versuche. Versuche es in {count} Minuten erneut.",
       "wrong_password": "Das Passwort ist nicht korrekt.",
-      "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
+      "generic": "Etwas ist schiefgelaufen. Versuche es erneut.",
+      "import_running": "Es läuft bereits ein Import.",
+      "too_many_accounts": "Eine Datei kann höchstens 20.000 Konten enthalten.",
+      "no_accounts": "Diese Datei enthält keine Konten.",
+      "account_moved": "Dieses Konto ist umgezogen. Importiere im neuen Konto.",
+      "import_rate_limited": "Heute zu viele Importe. Versuche es in {count} Stunde erneut. | Heute zu viele Importe. Versuche es in {count} Stunden erneut.",
+      "not_verified": "Dieser Umzug konnte nicht bestätigt werden.",
+      "nothing_to_copy": "Es gab nichts zu kopieren."
     },
     "profile": {
       "moved": "{name} ist zu {target} umgezogen",
@@ -6671,6 +6700,72 @@
       "short": "Konto umgezogen",
       "someone": "Ein Konto",
       "newAccount": "ein neues Konto"
+    },
+    "import": {
+      "title": "Konten importieren, denen du folgst",
+      "description": "Folge den Konten auf einer Liste deines alten Kontos. Exportiere auf Mastodon unter Import und Export die Liste „Folge ich“ als CSV. Nutze auf Harmony die ZIP-Datei aus deinem Datendownload. Beiträge und Likes werden nicht importiert.",
+      "choose": "Datei auswählen",
+      "found": "{count} Konto in dieser Datei gefunden. | {count} Konten in dieser Datei gefunden.",
+      "foundHint": "Gesperrte Konten und Konten auf anderen Servern erhalten eine Folgeanfrage. Konten, die dich blockieren oder die du blockierst, werden übersprungen.",
+      "start": "Import starten",
+      "starting": "Wird gestartet…",
+      "running": "Import läuft: {done} von {total} erledigt",
+      "waiting": "Wartet auf das stündliche Folgelimit. Geht in etwa {count} Minute weiter. | Wartet auf das stündliche Folgelimit. Geht in etwa {count} Minuten weiter.",
+      "finished": "Import abgeschlossen",
+      "stopped": "Import gestoppt. Bereits gestartete Follows bleiben bestehen.",
+      "cancel": "Import stoppen",
+      "counts": {
+        "followed": "Jetzt gefolgt",
+        "requested": "Folgeanfragen gesendet",
+        "already": "Bereits gefolgt oder angefragt",
+        "failed": "Folgen nicht möglich",
+        "cancelled": "Nicht verarbeitet"
+      },
+      "failures": "{count} Konto konnte nicht gefolgt werden | {count} Konten konnte nicht gefolgt werden",
+      "moreFailures": "Und {count} weitere.",
+      "reasons": {
+        "invalid_handle": "Keine Kontoadresse",
+        "not_found": "Konto nicht gefunden",
+        "instance_blocked": "Dieser Server föderiert nicht mit jenem Server",
+        "federation_off": "Die Föderation ist auf diesem Server ausgeschaltet",
+        "unreachable": "Sein Server hat nicht geantwortet",
+        "unavailable": "Das Konto ist gelöscht oder gesperrt",
+        "self": "Das ist dein eigenes Konto",
+        "moved": "Das Konto ist umgezogen",
+        "blocked": "Zwischen euch besteht eine Blockierung",
+        "declined": "Es hat deine Folgeanfrage früher abgelehnt"
+      },
+      "fileErrors": {
+        "file_too_large": "Diese Datei ist zu groß.",
+        "unrecognized_file": "Diese Datei ist keine Liste von Konten, denen du folgst. Nutze following_accounts.csv von Mastodon oder die ZIP-Datei aus einem Harmony-Datendownload.",
+        "wrong_list": "Das sieht nach einer anderen Liste aus, etwa Blockierungen oder Stummschaltungen. Nutze die Liste der Konten, denen du folgst.",
+        "no_accounts": "Diese Datei enthält keine Konten."
+      }
+    },
+    "copy": {
+      "title": "Altes Profil kopieren",
+      "description": "{handle} ist zu diesem Konto umgezogen. Du kannst seine Profilangaben hierher kopieren. Nichts ändert sich, bis du bestätigst.",
+      "origin": "Altes Konto",
+      "fields": {
+        "display_name": "Anzeigename",
+        "bio": "Biografie",
+        "avatar": "Avatar",
+        "banner": "Banner",
+        "profile_fields": "Profilfelder"
+      },
+      "same": "Bereits gleich",
+      "adds": "Wird diesem Profil hinzugefügt",
+      "replaces": "Ersetzt, was dieses Profil hat",
+      "nothing": "Das alte Konto hat keine Profilangaben zum Kopieren.",
+      "review": "Auswahl kopieren",
+      "confirmTitle": "Von {handle} kopieren?",
+      "confirmAdds": "{field}: neu in diesem Profil.",
+      "confirmReplaces": "{field}: ersetzt, was dieses Profil jetzt hat.",
+      "confirmWarning": "Was dieses Profil jetzt hat, wird überschrieben und kann nicht wiederhergestellt werden.",
+      "confirm": "In dieses Profil kopieren",
+      "copying": "Wird kopiert…",
+      "done": "Profilangaben kopiert",
+      "partial": "Kopiert, außer: {fields}. Diese konnten nicht vom alten Server gelesen werden."
     }
   },
   "polls": {
@@ -7967,6 +8062,8 @@
     "blockedDomainsHint": "Eine Domain pro Zeile. Ihre Subdomains werden ebenfalls abgelehnt.",
     "blockedMailHosts": "Weitere abzulehnende Mailserver",
     "blockedMailHostsHint": "Ein Host pro Zeile. Lehnt jede E-Mail-Domain ab, deren Mailserver auf diesem Host oder darunter liegen: erinn.biz umfasst auch recv1.erinn.biz. Trage keine gemeinsam genutzten Dienste wie google.com, outlook.com oder cloudflare.net ein: Das lehnt alle ab, die sie nutzen.",
+    "blockedNetworks": "Abzulehnende Adressen und Bereiche",
+    "blockedNetworksHint": "Einer pro Zeile, zum Beispiel 203.0.113.7 oder 2001:db8:1:2::/64. Lehnt neue Konten von dort ab und sonst nichts: Wer schon ein Konto hat, kann sich weiter anmelden. Eine Adresse kann ein ganzer Campus, ein Büro oder ein Mobilfunkanbieter sein, also sperre einen Bereich nur, wenn du sicher bist.",
     "trustedDomains": "Nie begrenzte E-Mail-Domains",
     "trustedDomainsHint": "Eine Domain pro Zeile, für einen Campus oder eine Firma, die zu Unrecht abgelehnt wird oder gemeinsam beitritt. Subdomains zählen mit. Überspringt das Domain-Limit, die Wegwerf-Liste und die Mailserver-Listen. Eine zum Ablehnen eingetragene Domain bleibt abgelehnt, und das Postfachlimit gilt.",
     "save": "Limits speichern",
@@ -7975,13 +8072,15 @@
     "loadFailed": "Die Registrierungslimits konnten nicht geladen werden.",
     "invalidCap": "Gib eine ganze Zahl von 0 bis 1000 ein.",
     "invalidDomain": "{domain} ist kein Domainname.",
+    "invalidNetwork": "{network} ist keine Adresse und kein nutzbarer Bereich. Ein Bereich ist /8 oder enger bei IPv4, /16 oder enger bei IPv6.",
     "wouldRefuseTitle": "Über einem Limit, zugelassen, in den letzten 7 Tagen",
     "refusalsTitle": "In den letzten 7 Tagen abgelehnt",
     "refusalIpCap": "Netzwerklimit",
     "refusalDomainCap": "Domainlimit",
     "refusalMailboxCap": "Postfachlimit",
     "refusalBlockedDomain": "Abgelehnte E-Mail-Domain",
-    "refusalMailHost": "Mailserver"
+    "refusalMailHost": "Mailserver",
+    "refusalBlockedNetwork": "Abgelehnte Adresse"
   },
   "adminInvites": {
     "tab": "Einladungen",

@@ -46,6 +46,12 @@ export const CAPABILITIES = [
   // Deleting accounts from the signup review, which frees their usernames:
   // admin_delete_accounts_preview, admin_delete_accounts (20261109800001).
   'account-removal',
+  // A copy's channels and categories as their host describes them: channels.host_flags and
+  // channel_categories.host_flags (20261109900001).
+  'channel-host-flags',
+  // Following import and copying a moved account's profile: start_following_import,
+  // get_my_following_import, cancel_my_following_import, POST /account/profile/copy (20261109700001).
+  'following-import',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

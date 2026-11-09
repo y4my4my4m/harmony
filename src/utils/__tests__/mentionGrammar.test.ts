@@ -10,6 +10,12 @@ import {
 const handles = (t: string) => findHandles(t).map(h => (h.domain ? `${h.username}@${h.domain}` : h.username))
 
 describe('mentionGrammar', () => {
+  it('reads no handle after a backslash', () => {
+    expect(handles('\\\\@bob')).toEqual([])
+    expect(handles('\\\\@bob@host.example')).toEqual([])
+    expect(handles('\\\\@bob @carol')).toEqual(['carol'])
+  })
+
   it('takes every label of a subdomain host', () => {
     expect(handles('deployed @doesnm@chat.understars.dev')).toEqual(['doesnm@chat.understars.dev'])
     expect(handles('@a@x.y.z.example.co.uk hi')).toEqual(['a@x.y.z.example.co.uk'])

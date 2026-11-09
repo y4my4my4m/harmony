@@ -18,6 +18,8 @@
 #   4. back up the database and the config files into backups/
 #   5. apply new migrations while the old containers keep running
 #   6. recreate the containers whose image or configuration changed
+#   7. delete update backups past the newest 5 of each kind, when this run wrote
+#      one (prune_update_backups, lib.sh)
 #
 # Usage:
 #   bash update.sh                        see "Target" below
@@ -29,8 +31,10 @@
 #
 #   HARMONY_REMOTE        git remote to fetch (default origin)
 #   HARMONY_SKIP_BACKUP=1 no backup (one was taken some other way)
+#   HARMONY_KEEP_UPDATE_BACKUPS=N update backups kept of each kind (also read
+#                         from .env; default 5, 0 keeps all)
 #
-# Nothing here deletes volumes, data directories or backups.
+# Nothing here deletes volumes, data directories or any other backup.
 # =============================================================================
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -130,6 +134,7 @@ main() {
 	compose ps --format 'table {{.Name}}\t{{.Image}}\t{{.Status}}'
 
 	STEP=done
+	[[ -z "$BACKUP_PATH" ]] || prune_update_backups
 	echo
 	ok "Update complete ($(env_get "$ENV_FILE" HARMONY_VERSION))."
 	info "Check the instance: harmony doctor"

@@ -10,6 +10,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { actorHostname } from '../utils/mentionParts.js';
 import { inboundRawContent } from '../utils/inboundContent.js';
+import { copyOfGroup } from './copyOfGroup.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { SignatureService } from './SignatureService.js';
@@ -37,6 +38,7 @@ import { parseChannelPosition } from './copyMirror.js';
 import { groupIsPublic, HARMONY_PUBLIC } from './serverDirectory.js';
 import { isPollVoteNote, preparePoll, receivePollEnd, receivePollVote, storeInboundPoll } from './messagePolls.js';
 import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
+import { sameOrigin } from '../utils/apOrigin.js';
 
 // Permission bit positions in server_roles.permissions (mirror src/services/RoleService.ts)
 const PERM_ADMINISTRATOR = 0n;
@@ -814,6 +816,13 @@ async function processCreateActivity(
     return;
   }
 
+  // The Group re-emits this id under its own authority. Another host's id would name that
+  // host's message on every copy. Mirrors ActivityProcessor's rule on the shared inbox.
+  if (!sameOrigin(object.id, actorUrl)) {
+    logDenied('channel message', actorUrl, `${object.id} is not on the actor's host`);
+    return;
+  }
+
   const remoteAuthor = await ActivityProcessor['ensureRemoteUser'](actorUrl);
   logger.debug(`ensureRemoteUser returned: ${remoteAuthor ? `id=${remoteAuthor.id}, username=${remoteAuthor.username}` : 'null'}`);
 
@@ -999,6 +1008,20 @@ async function processCreateActivity(
   const voiceFromAp = harmonyVoiceMessageFromObject(object);
   if (voiceFromAp) {
     Object.assign(messageMetadata, voiceFromAp);
+  }
+
+  // A member instance holds no session key: trg_enforce_channel_encryption would refuse this row.
+  if (!isEncrypted) {
+    const { data: channelEncrypted, error: encryptionError } = await supabase
+      .rpc('channel_messages_encrypted', { p_channel_id: channel.id });
+    if (encryptionError) {
+      logger.error(`Encryption of channel ${channel.id} not read: ${encryptionError.message}`);
+      return;
+    }
+    if (channelEncrypted === true) {
+      logger.info(`Server message ${object.id} from ${author.username} refused: channel ${channel.id} is encrypted`);
+      return;
+    }
   }
 
   // Array response: the server's AutoMod drops a blocked row (zero rows), and PostgREST
@@ -1263,15 +1286,18 @@ async function processUpdateActivity(
       return;
     }
     
-    const { data: existingServer } = await supabase
-      .from('servers')
-      .select('id')
-      .eq('id', serverIdMatch[1])
-      .eq('is_local_server', false)
-      .maybeSingle();
+    const existingServer = await copyOfGroup(supabase, object.id);
     
     if (!existingServer) {
       logger.warn(`Remote server not found for Update: ${object.id}`);
+      return;
+    }
+
+    // The check above authorized this inbox's server, not the copy named by object.id.
+    // Only the copy's own Group may change it.
+    const groupActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+    if (!existingServer.ap_id || !SignatureService.verifyActorMatch(groupActor, existingServer.ap_id)) {
+      logger.warn(`Rejecting Update(Group) of ${existingServer.id}: ${groupActor} is not its Group`);
       return;
     }
     

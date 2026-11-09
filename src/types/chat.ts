@@ -63,6 +63,13 @@ export interface ServerFolder {
   servers?: Server[];
 }
 
+/** A copy's channel or category as its home instance describes it; a key is absent when false. */
+export interface ChannelHostFlags {
+  messages?: boolean;
+  voice?: boolean;
+  private?: boolean;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -79,6 +86,7 @@ export interface Channel {
   ap_id?: string;
   is_remote?: boolean;
   federation_status?: string;
+  host_flags?: ChannelHostFlags;
 }
 
 
@@ -88,6 +96,7 @@ export interface Category {
   order: number;
   server_id: string;
   expanded: boolean;
+  host_flags?: ChannelHostFlags;
 }
 /**
  * Profile field (ActivityPub PropertyValue attachment).

@@ -10,6 +10,7 @@ export interface SignupLimits {
   blockDisposable: boolean
   blockedDomains: string[]
   blockedMailHosts: string[]
+  blockedNetworks: string[]
   trustedDomains: string[]
 }
 
@@ -19,6 +20,7 @@ export type SignupRefusalReason =
   | 'mailbox_cap'
   | 'blocked_domain'
   | 'mail_host'
+  | 'blocked_network'
 export interface SignupRefusals {
   refused: Record<SignupRefusalReason, number>
   /** Past an observing cap and allowed. */
@@ -34,6 +36,7 @@ const KEYS: Record<keyof SignupLimits, string> = {
   blockDisposable: 'signup_block_disposable_email',
   blockedDomains: 'signup_blocked_email_domains',
   blockedMailHosts: 'signup_blocked_mail_hosts',
+  blockedNetworks: 'signup_blocked_networks',
   trustedDomains: 'signup_trusted_email_domains',
 }
 
@@ -46,6 +49,7 @@ export const SIGNUP_LIMIT_DEFAULTS: Readonly<SignupLimits> = {
   blockDisposable: true,
   blockedDomains: [],
   blockedMailHosts: [],
+  blockedNetworks: [],
   trustedDomains: [],
 }
 
@@ -80,6 +84,7 @@ export async function loadSignupLimits(): Promise<SignupLimits> {
     blockDisposable: asFlag(stored.get(KEYS.blockDisposable), SIGNUP_LIMIT_DEFAULTS.blockDisposable),
     blockedDomains: asDomains(stored.get(KEYS.blockedDomains)),
     blockedMailHosts: asDomains(stored.get(KEYS.blockedMailHosts)),
+    blockedNetworks: asDomains(stored.get(KEYS.blockedNetworks)),
     trustedDomains: asDomains(stored.get(KEYS.trustedDomains)),
   }
 }
@@ -100,7 +105,7 @@ export async function saveSignupLimits(
 }
 
 function noCounts(): Record<SignupRefusalReason, number> {
-  return { ip_cap: 0, domain_cap: 0, mailbox_cap: 0, blocked_domain: 0, mail_host: 0 }
+  return { ip_cap: 0, domain_cap: 0, mailbox_cap: 0, blocked_domain: 0, mail_host: 0, blocked_network: 0 }
 }
 
 /** Counts per reason over the last `days` UTC days, today included. */

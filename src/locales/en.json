@@ -48,7 +48,8 @@
       "ipCap": "Too many accounts were created from this network today. Try again tomorrow, or ask this instance's admin for an invitation.",
       "domainCap": "Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance's admin for an invitation.",
       "mailboxCap": "This email inbox has reached the limit of accounts on this instance.",
-      "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address."
+      "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address.",
+      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation."
     },
     "login": "Login",
     "register": "Register",
@@ -1739,6 +1740,8 @@
       "mirrorLinkHost": "Mirror for {site} posts",
       "renderEmoticonsAsEmoji": "Show emoticons others send as emoji",
       "renderEmoticonsAsEmojiDesc": "Display :) :D <3 and similar in messages as emoji. The original text is kept.",
+      "animateEmoji": "Animate custom emoji",
+      "animateEmojiDesc": "Off, animated emoji show their first frame. Only you see the difference.",
       "inviteBannerBg": "Server banner in invite dialog",
       "inviteBannerBgDesc": "Show a blurred, darkened server banner behind the invite dialog when the server has one.",
       "quickReact": "Quick react",
@@ -3561,6 +3564,16 @@
       },
       "newLink": "Create new link",
       "newLinkHint": "Creates a link with these settings. Existing links keep working until they expire or you revoke them.",
+      "widgets": {
+        "toggle": "Add to your website",
+        "hint": "Paste one of these into your site. It shows this server's name and member count, and links to this invite. Anyone can see them.",
+        "expiring": "This link expires or has a use limit, and the widget stops working when it does. For a website, make a link that never expires.",
+        "badge": "Badge",
+        "markdown": "Badge for Markdown (README, forums)",
+        "join": "Join button",
+        "icon": "Small icon",
+        "card": "Card (iframe)"
+      },
       "creating": "Creating…",
       "created": "New invite link created",
       "createFailed": "Couldn't create an invite link",
@@ -4037,6 +4050,10 @@
     "lock": {
       "messages": "End-to-end encrypted",
       "voice": "Voice and video are end-to-end encrypted"
+    },
+    "home": {
+      "voice": "This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.",
+      "messages": "This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot read or send its messages."
     },
     "status": {
       "active": "End-to-end encrypted",
@@ -5092,7 +5109,7 @@
       "enterPhrase": "Enter recovery phrase",
       "scanHint": "Point the camera at the QR code on the new device.",
       "scanPasteLabel": "Or paste the code copied from the new device",
-      "showInstead": "New device has a camera? Show a code for it to scan instead",
+      "showInstead": "Show a code to scan or copy instead",
       "showLead": "On the new device, choose {another}, then {scanInstead}, and point its camera here, or copy the code below and paste it there. Anyone signed in to your account who scans or pastes this code can receive your keys, so keep it to yourself.",
       "showLeadAnother": "Another device",
       "showLeadScanInstead": "Scan or paste a code from it instead",
@@ -6375,6 +6392,8 @@
       "deleteCategory": "Delete category"
     },
     "thread": {
+      "goToStart": "Go to first message",
+      "showInChannel": "Show in channel",
       "leave": "Leave thread",
       "join": "Join thread",
       "edit": "Edit thread",
@@ -6609,7 +6628,7 @@
       "staysKeys": "End-to-end encryption keys",
       "staysBots": "Bots you own",
       "staysServers": "Servers you own",
-      "staysFollowing": "The accounts you follow",
+      "staysFollowing": "The accounts you follow. Download your data, then import the list on the new account.",
       "ownedServersWarning": "You own {servers}. Ownership does not move; transfer it first if the new account should own it. | You own {servers}. Ownership does not move; transfer them first if the new account should own them.",
       "cooldown": "After a move, another move is possible after 30 days.",
       "exportFirst": "Download your data first",
@@ -6621,7 +6640,10 @@
       "noPassword": "Your account has no password. Moving needs a sign-in within the last ten minutes.",
       "confirm": "Move my account",
       "moving": "Moving…",
-      "success": "This account now points to {handle}. Followers are being moved."
+      "success": "This account now points to {handle}. Followers are being moved.",
+      "staysInteractions": "Likes, boosts and bookmarks",
+      "staysProfile": "Your display name, bio, avatar, banner and profile fields. A new account on Harmony can copy them after the move.",
+      "staysBlocks": "Accounts you blocked or muted"
     },
     "moved": {
       "title": "This account has moved",
@@ -6652,7 +6674,14 @@
       "move_cooldown": "You moved less than 30 days ago. Try again in {count} day. | You moved less than 30 days ago. Try again in {count} days.",
       "too_many_attempts": "Too many attempts. Try again in {count} minute. | Too many attempts. Try again in {count} minutes.",
       "wrong_password": "That password is not correct.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "import_running": "An import is already running.",
+      "too_many_accounts": "A file can list at most 20,000 accounts.",
+      "no_accounts": "That file lists no accounts.",
+      "account_moved": "This account has moved. Import on the new account.",
+      "import_rate_limited": "Too many imports today. Try again in {count} hour. | Too many imports today. Try again in {count} hours.",
+      "not_verified": "That move could not be confirmed.",
+      "nothing_to_copy": "There was nothing to copy."
     },
     "profile": {
       "moved": "{name} has moved to {target}",
@@ -6667,6 +6696,72 @@
       "short": "Account moved",
       "someone": "An account",
       "newAccount": "a new account"
+    },
+    "import": {
+      "title": "Import the accounts you follow",
+      "description": "Follow the accounts on a list from your old account. On Mastodon, export Follows as a CSV under Import and export. On Harmony, use the ZIP from your data download. Posts and likes are not imported.",
+      "choose": "Choose file",
+      "found": "{count} account found in this file. | {count} accounts found in this file.",
+      "foundHint": "Locked accounts and accounts on other servers get a follow request. Accounts that block you, or that you block, are skipped.",
+      "start": "Start import",
+      "starting": "Starting…",
+      "running": "Importing: {done} of {total} done",
+      "waiting": "Waiting for the hourly follow limit. It continues in about {count} minute. | Waiting for the hourly follow limit. It continues in about {count} minutes.",
+      "finished": "Import finished",
+      "stopped": "Import stopped. Follows already made stay.",
+      "cancel": "Stop import",
+      "counts": {
+        "followed": "Now following",
+        "requested": "Follow requests sent",
+        "already": "Already followed or requested",
+        "failed": "Could not follow",
+        "cancelled": "Not processed"
+      },
+      "failures": "{count} account could not be followed | {count} accounts could not be followed",
+      "moreFailures": "And {count} more.",
+      "reasons": {
+        "invalid_handle": "Not an account address",
+        "not_found": "Account not found",
+        "instance_blocked": "This server does not federate with that server",
+        "federation_off": "Federation is off on this server",
+        "unreachable": "Its server did not answer",
+        "unavailable": "The account is deleted or suspended",
+        "self": "This is your own account",
+        "moved": "The account has moved",
+        "blocked": "A block stands between you",
+        "declined": "It declined your follow request earlier"
+      },
+      "fileErrors": {
+        "file_too_large": "That file is too large.",
+        "unrecognized_file": "That file is not a following list. Use following_accounts.csv from Mastodon or the ZIP from a Harmony data download.",
+        "wrong_list": "That looks like a different list, such as blocks or mutes. Use the list of accounts you follow.",
+        "no_accounts": "That file lists no accounts."
+      }
+    },
+    "copy": {
+      "title": "Copy your old profile",
+      "description": "{handle} moved to this account. You can copy any of its profile details here. Nothing changes until you confirm.",
+      "origin": "Old account",
+      "fields": {
+        "display_name": "Display name",
+        "bio": "Bio",
+        "avatar": "Avatar",
+        "banner": "Banner",
+        "profile_fields": "Profile fields"
+      },
+      "same": "Already the same",
+      "adds": "Adds to this profile",
+      "replaces": "Replaces what this profile has",
+      "nothing": "The old account has no profile details to copy.",
+      "review": "Copy selected",
+      "confirmTitle": "Copy from {handle}?",
+      "confirmAdds": "{field}: added to this profile.",
+      "confirmReplaces": "{field}: replaces what this profile has now.",
+      "confirmWarning": "What this profile has now is overwritten and cannot be restored.",
+      "confirm": "Copy to this profile",
+      "copying": "Copying…",
+      "done": "Profile details copied",
+      "partial": "Copied, except: {fields}. Those could not be read from the old server."
     }
   },
   "polls": {
@@ -7963,6 +8058,8 @@
     "blockedDomainsHint": "One domain per line. Its subdomains are refused too.",
     "blockedMailHosts": "More mail hosts to refuse",
     "blockedMailHostsHint": "One host per line. Refuses any email domain whose mail servers are at this host or under it: erinn.biz also covers recv1.erinn.biz. Do not list a shared service such as google.com, outlook.com or cloudflare.net: that refuses everyone using it.",
+    "blockedNetworks": "Addresses and ranges to refuse",
+    "blockedNetworksHint": "One per line, such as 203.0.113.7 or 2001:db8:1:2::/64. Refuses new accounts from it and nothing else: people who already have an account keep signing in. One address can be a whole campus, office or mobile carrier, so block a range only when you are sure.",
     "trustedDomains": "Email domains never limited",
     "trustedDomainsHint": "One domain per line, for a campus or company wrongly refused or joining at once. Its subdomains count too. Skips the domain cap, the disposable list and the mail host lists. A domain listed to refuse stays refused, and the inbox limit applies.",
     "save": "Save limits",
@@ -7971,13 +8068,15 @@
     "loadFailed": "Could not load the sign-up limits.",
     "invalidCap": "Enter a whole number from 0 to 1000.",
     "invalidDomain": "{domain} is not a domain name.",
+    "invalidNetwork": "{network} is not an address or a usable range. A range is /8 or narrower for IPv4, /16 or narrower for IPv6.",
     "wouldRefuseTitle": "Past a cap, allowed, in the last 7 days",
     "refusalsTitle": "Refused in the last 7 days",
     "refusalIpCap": "Network limit",
     "refusalDomainCap": "Domain limit",
     "refusalMailboxCap": "Inbox limit",
     "refusalBlockedDomain": "Refused email domain",
-    "refusalMailHost": "Mail host"
+    "refusalMailHost": "Mail host",
+    "refusalBlockedNetwork": "Refused address"
   },
   "adminInvites": {
     "tab": "Invites",

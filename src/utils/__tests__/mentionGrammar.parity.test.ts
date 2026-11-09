@@ -10,6 +10,7 @@ const SAMPLES = [
   '@@bob x@y @a@b@c @a@-b.c @a@b..c @Bob@Chat.Example.COM',
   'https://mastodon.social/@user/123 mastodon.social/@user',
   'é@x @ü @x_y-z@host-1.example',
+  '\\@bob \\\\@carol @dave',
   '',
 ]
 

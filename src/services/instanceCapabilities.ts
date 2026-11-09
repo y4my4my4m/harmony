@@ -25,6 +25,8 @@ export const KNOWN_CAPABILITIES = [
   'invite-widgets',
   'signup-review',
   'account-removal',
+  'channel-host-flags',
+  'following-import',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

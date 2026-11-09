@@ -1,4 +1,5 @@
 import { config } from '../../config/index.js';
+import { sameOrigin } from '../../utils/apOrigin.js';
 import { decodeHtmlEntities, escapeHtml } from '../../utils/contentUtils.js';
 import { anchorLinkLabel } from '../../utils/maskedLinks.js';
 import { findHandles } from '../../utils/mentionGrammar.js';
@@ -172,6 +173,15 @@ export function noteUrl(note: any): string | null {
   const html = candidates.find((u: any) => u && typeof u === 'object' && u.mediaType === 'text/html') ?? candidates[0];
   const iri = iriOf(html);
   return iri && /^https?:\/\//i.test(iri) ? iri : null;
+}
+
+/**
+ * `noteUrl` when it is on the host of the Note's id. posts.url is a lookup key: a url on another
+ * host claims that host's post. Lemmy also puts a link post's target there.
+ */
+export function ownNoteUrl(note: any): string | null {
+  const url = noteUrl(note);
+  return url && sameOrigin(url, note?.id) ? url : null;
 }
 
 /** FEP-7888 `context` of a Note, as a reference or an embedded collection's id; http(s) only. */

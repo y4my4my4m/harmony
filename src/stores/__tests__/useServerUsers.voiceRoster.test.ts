@@ -319,7 +319,7 @@ describe('database user-left for this client', () => {
     await flush()
     expect(db.writes.map((w) => [w.op, w.row?.user_id, w.row?.channel_id])).toEqual([['upsert', 'me', 'c1']])
     expect(store.getUsersInVoiceChannel('c1')).toEqual(['me', 'bob'])
-    expect(topic(S).sent.map((m) => `${m.payload.event}:${m.payload.userId}`)).toEqual(['user-joined:me'])
+    expect(topic(S).sent).toEqual([])
   })
 
   it('marks a P2P row again and stamps it when writing it back', async () => {

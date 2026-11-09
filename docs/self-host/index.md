@@ -223,7 +223,7 @@ needs about 1 Mbit/s.
 | Database | `supabase/volumes/db/data` | Messages, posts, reactions, the search index, accounts and posts from other servers | Nothing; **Admin** → **Overview** shows its size |
 | Uploads | `supabase/volumes/storage`; the bucket instead when storage runs on S3 or Cloudflare R2 | Attachments, avatars, banners, emoji, stickers, Drive | [Upload limits](/self-host/configuration#upload-limits) and [Drive storage](/self-host/configuration#drive-storage) per account |
 | Media cache | Docker volume `media-cache-data` | Public files other servers fetch | 2 GB (`media-cache.conf`) |
-| Backups | `self-host/backups` | Each `harmony backup`, and each `harmony update` (database only) | Nothing; [Delete old backups](/self-host/update-backup#delete-old-backups) |
+| Backups | `self-host/backups` | Each `harmony backup`, and each `harmony update` (database only) | `harmony update` keeps its newest 5 of each kind; nothing bounds the others ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
 | Container output | `/var/lib/docker/containers` | Every service's log lines | Nothing, unless Docker rotates them (below) |
 | Log collection, when on | `_supabase._analytics`, and write-ahead log | Every request | Write-ahead log: 4 GB (`max_slot_wal_keep_size`). Stored logs: nothing; `harmony analytics off --delete-logs` deletes them |
 | Images | Docker's data directory | Each update downloads new images | `docker image prune` |

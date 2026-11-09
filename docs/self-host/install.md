@@ -79,7 +79,9 @@ In order:
 8. **Shows the settings** and asks to confirm.
 9. **Writes the configuration** with `configure.sh`: the `.env` files,
    `livekit.yaml`, and the Supabase stack in `self-host/supabase/`, with
-   fresh random secrets.
+   fresh random secrets. The secret files are mode 0600 and the files the
+   containers read readable to them, whatever the umask
+   ([A restrictive umask](/self-host/troubleshooting#umask)).
 10. **Downloads the images and starts the stack**; several GB on a first run.
 11. **Loads the database** with `bootstrap.sh`: applies the migrations,
     creates the `harmony_listener` role and, on a new database, writes the

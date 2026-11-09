@@ -68,6 +68,11 @@
         <span v-if="suspension.reason" class="server-suspended-reason">{{ t('hostStaff.suspendedReason', { reason: suspension.reason }) }}</span>
       </span>
     </div>
+    <!-- A copy's channel encrypted on its home instance: the host refuses a plaintext message. -->
+    <div v-else-if="encryptedOnHome" class="message-readonly-banner" role="status" data-testid="home-encrypted-note">
+      <Icon name="lock" :size="18" />
+      <span>{{ t('channelEncryption.home.messages') }}</span>
+    </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
          SEND_MESSAGES_IN_THREADS on a thread's channel.
          Backend RLS and triggers enforce it; this is UX, not security. -->
@@ -587,6 +592,13 @@ const suspension = computed<{ instance: string; reason: string | null } | null>(
   const server = serverChannelStore.servers?.find(s => s.id === serverId)
     ?? (serverChannelStore.currentServer?.id === serverId ? serverChannelStore.currentServer : null)
   return serverSuspension(server, instanceSettingsStore.settings.domain)
+})
+
+const encryptedOnHome = computed(() => {
+  if (props.conversationId) return false
+  const channelId = props.threadId ? props.threadChannelId : props.channelId
+  if (!channelId) return false
+  return serverChannelStore.channels.find(c => c.id === channelId)?.host_flags?.messages === true
 })
 
 const readOnlyPlaceholder = computed(() => {

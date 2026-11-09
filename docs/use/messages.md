@@ -118,6 +118,8 @@ The channel shows a "started a thread" notice, and the new thread opens.
 - **View all threads** in the channel header lists every thread in the channel, including closed ones. Threads you joined come first; the rest are under **Older threads**. **Search for thread name** filters the list.
 - A thread drops off the sidebar list after 24 hours without a new message, or when it is closed. It stays in **View all threads**.
 
+A thread's first message scrolls with its replies. A long thread opens at the latest reply; **Go to first message** in the thread menu (⋮) returns to the start, and **Show in channel** opens the first message in its channel.
+
 ### Join, mute or leave a thread
 
 Sending a message in a thread makes you a member. Members are notified of new replies, within the notification level of the channel ([Notifications and apps](/use/notifications-apps)).
@@ -216,6 +218,8 @@ The attachment shows an **ALT** badge once it has a description. An image sent w
 
 Type `@` to open suggestions, then pick a person or a role. Roles, `@everyone` and `@here` are listed above people, and the first entry is selected, so <kbd>Enter</kbd> or <kbd>Tab</kbd> on a name that a role and a person share picks the role. Each entry is marked **Role** or shows the person's picture, and screen readers announce it as a role or a member.
 
+Suggestions match display names as well as usernames, in any script and across spaces: `@ひらがな` or `@Eugen Ro` finds the member, and picking inserts their username.
+
 | Mention | How to write it | Who is notified |
 |---|---|---|
 | A person on your instance | `@username`, or pick from the list | That person. |
@@ -298,6 +302,10 @@ Rules worth knowing:
 - Single `_underscores_` italicise only at word boundaries, so `snake_case_names` stay as typed. A single `*` next to a letter or digit, as in `2*3*4`, stays as typed.
 - Headings (`#`), lists and tables are not formatted; they show as typed.
 
+### Show a character as typed
+
+Put a backslash before a character to show it as typed, with no formatting: `\*not italic\*`, `\# heading`, `\> not a quote`, `\@name`, `\#channel`, `\:emoji:`. An escaped mention pings nobody. `\https://example.com` shows the address without linking it. Inside code a backslash is a backslash.
+
 ### Code blocks
 
 Put three backticks on a line, optionally followed by a language name, then the code, then three backticks on their own line:
@@ -331,4 +339,4 @@ Two switches in **User settings** → **Appearance** → **Message display** han
 | **Convert emoticons I send** | Replaces emoticons with emoji when you send or edit a message. Code, links and email addresses are left alone. |
 | **Show emoticons others send as emoji** | Displays emoticons in received messages as emoji. The original text is kept. |
 
-The **Greentext** switch, also on unless you turn it off, is in the same section.
+The **Greentext** switch, also on unless you turn it off, is in the same section. So is **Animate custom emoji**: off, animated emoji show their first frame on your screen, which leaves them unchanged for everyone else.

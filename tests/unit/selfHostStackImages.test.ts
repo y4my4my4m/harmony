@@ -86,7 +86,7 @@ describe('configure.sh and a short JWT secret', () => {
     mkdirSync(sb, { recursive: true })
     mkdirSync(join(dir, 'bin'))
     mkdirSync(join(dir, 'webrtc'))
-    for (const f of ['configure.sh', 'linking.sh']) copyFileSync(join(selfHost, f), join(dir, 'self-host', f))
+    for (const f of ['configure.sh', 'linking.sh', 'modes.sh']) copyFileSync(join(selfHost, f), join(dir, 'self-host', f))
     copyFileSync(join(root, 'webrtc', 'livekit.yaml.example'), join(dir, 'webrtc', 'livekit.yaml.example'))
     writeFileSync(join(dir, 'bin', 'docker'), '#!/usr/bin/env bash\n[ "$*" != "compose version --short" ] || echo 2.30.0\n')
     chmodSync(join(dir, 'bin', 'docker'), 0o755)

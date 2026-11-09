@@ -18,6 +18,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { normalizeActor } from './converters/fromActivityPub.js';
+import { sameOrigin } from '../utils/apOrigin.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -164,6 +165,11 @@ export async function processQuoteRequest(
   const quotingPostUri = typeof instrument === 'string' ? instrument : instrument?.id;
   if (!actorUrl || !postId || typeof quotingPostUri !== 'string' || !/^https?:\/\//i.test(quotingPostUri)) {
     logger.info(`QuoteRequest ${activity.id} names no local post or quote post; ignored`);
+    return;
+  }
+  // The stamp names this URI as the quoting post: the requester's host speaks only for its own.
+  if (!sameOrigin(quotingPostUri, actorUrl)) {
+    logger.info(`QuoteRequest ${activity.id}: quote post ${quotingPostUri} is not on the host of ${actorUrl}; ignored`);
     return;
   }
   if (instrument && typeof instrument === 'object') {

@@ -424,6 +424,32 @@ describe('storing a remote post', () => {
 })
 
 describe('POST /fetch-reactions', () => {
+  it('writes nothing onto a row whose URL is not the one fetched, nor onto a local post', async () => {
+    const before = { remote_reactions: { ':kept:': { count: 1, reactors: [] } }, remote_reactions_fetched_at: new Date().toISOString() }
+    tables.posts.push(
+      { id: 'other', ap_id: 'https://other.test/notes/1', is_local: false, visibility: 'public', metadata: before },
+      { id: 'mine', ap_id: null, is_local: true, visibility: 'public', metadata: {} },
+    )
+    const other = await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'other' })
+    expect(other.status).toBe(200)
+    expect(other.body.cached).toBeUndefined()
+    expect(JSON.stringify(other.body)).not.toContain(':kept:')
+    expect(tables.posts.find((p) => p.id === 'other')!).toMatchObject({ metadata: before })
+    expect(tables.posts.find((p) => p.id === 'other')!.remote_favorites_count).toBeUndefined()
+    await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'mine' })
+    expect(tables.posts.find((p) => p.id === 'mine')!.metadata).toEqual({})
+    await supertest(app()).post('/fetch-reactions-batch').send({ posts: [{ post_ap_id: POST, post_id: 'mine' }] })
+    expect(tables.posts.find((p) => p.id === 'mine')!.metadata).toEqual({})
+  })
+
+  it('reads a followers-only post back to no anonymous caller', async () => {
+    const held = { remote_reactions: { ':kept:': { count: 1, reactors: [] } }, remote_reactions_fetched_at: new Date().toISOString() }
+    tables.posts.push({ id: 'private', ap_id: POST, is_local: false, visibility: 'followers', metadata: held })
+    const res = await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'private' })
+    expect(JSON.stringify(res.body)).not.toContain(':kept:')
+    expect(tables.posts.find((p) => p.id === 'private')!.metadata).toEqual(held)
+  })
+
   it('stores the shares figure beside the likes figure', async () => {
     const res = await supertest(app()).post('/fetch-reactions').send({ post_ap_id: POST, post_id: 'post-1' })
     expect(res.status).toBe(200)

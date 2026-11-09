@@ -10,6 +10,7 @@ import {
   type ChannelWriteKind,
 } from './channelWriteAuthz.js';
 import { HARMONY_NS } from './harmonyContext.js';
+import { copyOfGroup } from './copyOfGroup.js';
 
 /** A server's Group actor: https://<host>/servers/<uuid>. */
 const GROUP_ACTOR = /\/servers\/([a-f0-9-]{36})$/i;
@@ -189,15 +190,9 @@ export async function handleThreadActivity(
   const loadGroupThread = async (
     threadApId: string,
   ): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
-    const serverId = actorUrl.match(GROUP_ACTOR)?.[1];
-    if (!serverId) return { ok: false, error: 'Signer is not a Group' };
-    const { data: server } = await supabase
-      .from('servers')
-      .select('id, ap_id')
-      .eq('id', serverId)
-      .eq('is_local_server', false)
-      .maybeSingle();
-    if (!server?.ap_id || !SignatureService.verifyActorMatch(actorUrl, server.ap_id)) {
+    if (!GROUP_ACTOR.test(actorUrl)) return { ok: false, error: 'Signer is not a Group' };
+    const server = await copyOfGroup(supabase, actorUrl);
+    if (!server?.ap_id) {
       return { ok: false, error: 'Signer is not the Group of a copy here' };
     }
     const ownPrefix = `https://${config.INSTANCE_DOMAIN}/threads/`;

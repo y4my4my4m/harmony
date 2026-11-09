@@ -105,6 +105,21 @@ services:
   # the sixth and every later call within 50 s). Typing indicators track twice per
   # burst, on and off after 3 s idle (TypingIndicatorService), so up to 20 calls in 30 s
   # from one context.
+  # Realtime sleeps CHANNEL_ERROR_BACKOFF_MS, default 5000, on every refused join while the
+  # socket process waits for the reply: joins, leaves, heartbeats and delivery on that socket
+  # queue behind it (measured on v2.148.3 and v2.153.6: delivery gap 5 s per refusal; 100 ms: 0.13 s).
+  # A client past max_channels_per_client rejoins faster than the queue drains and misses
+  # heartbeats.
+  # TENANT_MAX_*: the stack's SEED_SELF_HOST deletes and re-creates the tenant row from these on
+  # every start, so SQL on _realtime.tenants lasts until the next start. All count the whole
+  # instance. Measured on v2.153.6 at the defaults 200 / 100 / 100:
+  # CONCURRENT_USERS, sockets holding a channel: past it HTTP 429 after 2 s and no live delivery.
+  # 9000 stays under the stack's RLIMIT_NOFILE 10000. Memory: about 0.5 MB per socket at 7 topics.
+  # JOINS_PER_SECOND, 60 s average on 5 s ticks: past it joins are refused, the socket is dropped
+  # and handshakes get 429. After a restart 1000 clients at 7 topics: 0 of 1000 rejoined in 240 s.
+  # EVENTS_PER_SECOND, 60 s average of realtime.send rows, client sends and deliveries, 1 + subscribers
+  # per message: past it every realtime.send is dropped for up to 60 s and channels close on their
+  # next delivery. Editing a server writes one row per member.
   realtime:
     image: ${REALTIME_IMAGE:-supabase/realtime:v2.153.6}
     depends_on:
@@ -113,6 +128,10 @@ services:
       METRICS_JWT_SECRET: ${JWT_SECRET}
       CLIENT_PRESENCE_MAX_CALLS: "60"
       CLIENT_PRESENCE_WINDOW_MS: "30000"
+      CHANNEL_ERROR_BACKOFF_MS: "100"
+      TENANT_MAX_CONCURRENT_USERS: "9000"
+      TENANT_MAX_JOINS_PER_SECOND: "100000"
+      TENANT_MAX_EVENTS_PER_SECOND: "1000000"
 
   # PostgREST copies its app settings into every request transaction; with this
   # one, any SQL run through the API can read the JWT secret as

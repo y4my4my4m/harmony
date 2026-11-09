@@ -28,6 +28,7 @@ import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
+import { normalizeSearchText } from '@/utils/searchTokens';
 
 export { clearBridgedUsersCache };
 
@@ -211,27 +212,17 @@ export function useAutoSuggest(
   const triggers: AutoSuggestTrigger[] = [];
   
   if (finalConfig.enableEmojis) {
-    // The `(?<=^|[^a-zA-Z0-9_+-])` lookbehind restricts the match to a `:` that
-    // opens a shortcode. Without it the closing `:` of `:joy:` matches with an
+    // The `(?<=^|[^a-zA-Z0-9_+\\-])` lookbehind restricts the match to a `:` that
+    // opens a shortcode, and not one a backslash escapes. Without it the closing `:` of `:joy:` matches with an
     // empty capture group, and an empty query lists every cached custom emoji.
     // `:joy:` yields no match; `:joy` matches with query `joy`.
     triggers.push({
       char: ':',
-      pattern: /(?<=^|[^a-zA-Z0-9_+-]):([a-zA-Z0-9_+-]*)$/,
+      pattern: /(?<=^|[^a-zA-Z0-9_+\\-]):([a-zA-Z0-9_+-]*)$/,
       type: 'emoji'
     });
   }
   
-  if (finalConfig.enableMentions) {
-    triggers.push({
-      char: '@',
-      // \s* before $ tolerates trailing whitespace: contenteditable (ActivityPub Composer)
-      // reports the cursor after a trailing space; textarea (chat) gives exact selectionStart.
-      pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)\s*$/,
-      type: 'mention'
-    });
-  }
-
   if (finalConfig.mode === 'chat' && finalConfig.enableCommands) {
     triggers.push({
       char: '/',
@@ -249,6 +240,23 @@ export function useAutoSuggest(
       // insert starts.
       pattern: /(?<=^|\s)#([\p{L}\p{N}_-]*)$/u,
       type: 'channel'
+    });
+  }
+
+  if (finalConfig.enableMentions) {
+    triggers.push({
+      char: '@',
+      // \s* before $ tolerates trailing whitespace: contenteditable (ActivityPub Composer)
+      // reports the cursor after a trailing space; textarea (chat) gives exact selectionStart.
+      // The query is any text a display name holds. Chat filters known members, so it may run
+      // over spaces, up to four words; ActivityPub searches the server per keystroke, one word.
+      // Listed last: `@bob #dev` is a channel query, not a member named "bob #dev". U+FF20 is the
+      // @ of a Japanese input mode. The lookbehind keeps the whitespace out of the
+      // match: match.index is the @.
+      pattern: finalConfig.mode === 'chat'
+        ? /(?<=^|\s)[@＠]((?:[^\s@＠]+(?: [^\s@＠]+){0,3})?)\s*$/u
+        : /(?<=^|\s)[@＠]([^\s@＠]*)\s*$/u,
+      type: 'mention'
     });
   }
 
@@ -365,7 +373,7 @@ export function useAutoSuggest(
       return [];
     }
     // Chat mode filters on the query; ActivityPub renders search results, empty until they arrive.
-    const query = (state.value.query || '').toLowerCase();
+    const query = normalizeSearchText(state.value.query || '');
     if (finalConfig.mode === 'chat' && !query) {
       return [];
     }
@@ -396,8 +404,8 @@ export function useAutoSuggest(
         }
         seenUsers.add(userData.id);
         
-        const displayName = userData.displayName?.toLowerCase() || '';
-        const usernameStr = userData.username?.toLowerCase() || '';
+        const displayName = normalizeSearchText(userData.displayName || '');
+        const usernameStr = normalizeSearchText(userData.username || '');
 
         if (displayName.includes(query) || usernameStr.includes(query)) {
           const isLocal = userData.isLocal;
@@ -429,8 +437,8 @@ export function useAutoSuggest(
         }
         seenUsers.add(bridgedKey);
         
-        const displayName = bridgedUser.displayName?.toLowerCase() || '';
-        const usernameStr = bridgedUser.username?.toLowerCase() || '';
+        const displayName = normalizeSearchText(bridgedUser.displayName || '');
+        const usernameStr = normalizeSearchText(bridgedUser.username || '');
         
         if (displayName.includes(query) || usernameStr.includes(query)) {
           // Discord mentions store `@d!ID:username`: the id drives translation, the username display.
@@ -464,7 +472,7 @@ export function useAutoSuggest(
       for (const role of serverRoles.value) {
         if (!canMentionAll && (role.is_default || !role.mentionable)) continue;
 
-        const roleName = role.name?.toLowerCase() || '';
+        const roleName = normalizeSearchText(role.name || '');
         
         if (roleName.includes(query)) {
           suggestions.push({
@@ -504,10 +512,10 @@ export function useAutoSuggest(
           if (a.isRole && !b.isRole) return -1;
           if (!a.isRole && b.isRole) return 1;
           
-          const aDisplay = (a.display_name || '').toLowerCase();
-          const bDisplay = (b.display_name || '').toLowerCase();
-          const aUsername = (a.username || '').toLowerCase();
-          const bUsername = (b.username || '').toLowerCase();
+          const aDisplay = normalizeSearchText(a.display_name || '');
+          const bDisplay = normalizeSearchText(b.display_name || '');
+          const aUsername = normalizeSearchText(a.username || '');
+          const bUsername = normalizeSearchText(b.username || '');
 
           if (aDisplay === query || aUsername === query) return -1;
           if (bDisplay === query || bUsername === query) return 1;
@@ -852,18 +860,9 @@ export function useAutoSuggest(
         
         debug.log('[DEBUG] Trigger found!', { type: trigger.type, query, matchIndex: match.index });
         
-        let triggerPosition = match.index;
-        
-        if (trigger.type === 'mention') {
-          // The mention pattern can consume a leading whitespace char; the insert
-          // position starts at the '@'.
-          const matchText = match[0];
-          if (matchText.startsWith(' ') || matchText.startsWith('\t')) {
-            triggerPosition = match.index + 1;
-          }
-        }
-        // The emoji and channel patterns' matches start at ':' and '#'; their index needs no adjustment.
-        
+        // Each pattern's match starts at its trigger character.
+        const triggerPosition = match.index;
+
         // An open popup keeps its position; the suggestions watcher re-places it
         // once per list change instead of forcing layout on every keystroke.
         const keepPosition = state.value.isActive && state.value.triggerType === trigger.type;
@@ -963,10 +962,12 @@ export function useAutoSuggest(
       
       const triggerStart = state.value.triggerPosition;
       
-      // Trigger text runs from the trigger char to the next space, newline, or end of text.
+      // Trigger text runs over the query, which may hold spaces, to the next space, newline, or
+      // end of text.
       const textFromTrigger = currentText.substring(triggerStart);
-      const endMatch = textFromTrigger.match(/^[^\s\n]*/);
-      const triggerLength = endMatch ? endMatch[0].length : 1;
+      const queryEnd = 1 + state.value.query.length;
+      const endMatch = textFromTrigger.substring(queryEnd).match(/^[^\s\n]*/);
+      const triggerLength = queryEnd + (endMatch ? endMatch[0].length : 0);
       const triggerEnd = triggerStart + triggerLength;
       
       debug.log('selectSuggestion detailed debug:', {

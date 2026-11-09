@@ -24,8 +24,12 @@
     </button>
   </div>
   <div class="config-sections">
+    <p v-if="configLoadFailed" class="setting-hint federation-closed-warning" style="margin-bottom: 16px;" role="status" data-testid="config-load-failed">
+      {{ t('admin.instance.configLoadFailed') }}
+    </p>
+
     <!-- General / Chat Settings -->
-    <div v-if="configTab === 'general'" class="config-section">
+    <fieldset v-if="configTab === 'general'" class="config-section" :disabled="!configLoaded">
       <h3>Chat settings</h3>
       <div class="setting-group">
         <label>Max server size</label>
@@ -206,10 +210,10 @@
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
 
     <!-- Federation Settings -->
-    <div v-if="configTab === 'federation'" class="config-section">
+    <fieldset v-if="configTab === 'federation'" class="config-section" :disabled="!configLoaded">
       <h3>Federation settings</h3>
       <div class="setting-group">
         <label>Max post length</label>
@@ -382,10 +386,10 @@
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
 
     <!-- Instance Branding -->
-    <div v-if="configTab === 'branding'" class="config-section">
+    <fieldset v-if="configTab === 'branding'" class="config-section" :disabled="!configLoaded">
       <h3>Instance branding</h3>
       <div class="setting-group">
         <label>Instance name</label>
@@ -510,7 +514,8 @@
 
         <div class="setting-group">
           <span class="form-label-text" aria-hidden="true">Theme color</span>
-          <div style="display: flex; align-items: center; gap: 12px;">
+          <!-- Its sliders are not form controls: a disabled fieldset leaves them live. -->
+          <div style="display: flex; align-items: center; gap: 12px;" :inert="!configLoaded">
             <ColorPicker
               label="Theme color"
               :color="instanceConfig.themeColor || '#0EA5E9'"
@@ -619,10 +624,10 @@
         <Icon name="save" :size="16" />
         {{ savingBranding ? 'Saving…' : 'Save branding' }}
       </button>
-    </div>
+    </fieldset>
 
     <!-- OAuth Providers -->
-    <div v-if="configTab === 'oauth'" class="config-section">
+    <fieldset v-if="configTab === 'oauth'" class="config-section" :disabled="!configLoaded">
       <h3>OAuth providers</h3>
       <p class="setting-hint" style="margin-bottom: 16px;">
         Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
@@ -695,14 +700,14 @@
 harmony auth providers
 harmony auth remove-provider authentik</code></pre>
       </section>
-    </div>
+    </fieldset>
 
     <!-- WebRTC / Voice Settings -->
     <div v-if="configTab === 'uploads'" class="config-section">
       <UploadLimitsAdmin />
     </div>
 
-    <div v-if="configTab === 'webrtc'" class="config-section">
+    <fieldset v-if="configTab === 'webrtc'" class="config-section" :disabled="!configLoaded">
       <h3>WebRTC / voice settings</h3>
       <p v-if="webrtcUnread" class="setting-hint federation-closed-warning" role="status" data-testid="webrtc-unread">
         {{ t('admin.instance.webrtcLoadFailed') }}
@@ -751,7 +756,7 @@ harmony auth remove-provider authentik</code></pre>
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
   </div>
 </div>
 </template>
@@ -811,6 +816,9 @@ const refreshTrendingPosts = async () => {
 const savedConfigPayload = ref<Record<string, unknown> | null>(null)
 const savedWebrtc = ref<Record<string, unknown> | null>(null)
 const configLoadFailed = ref(false)
+// Inputs are locked until the stored values are read: the load overwrites them, and defaults
+// shown for unread values must not reach a save.
+const configLoaded = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
 const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc' | 'uploads'>('general')
@@ -1032,9 +1040,11 @@ const loadInstanceConfig = async () => {
       oauthProvidersChanged.value = false
       customOAuthProviders.value = cfg.instance.customOAuthProviders || []
     }
+    configLoaded.value = !!cfg
   } catch (error) {
     debug.error('Failed to load instance config:', error)
-    // Keep defaults if loading fails
+    configLoadFailed.value = true
+    toast.error(t('admin.instance.configLoadFailed'))
   }
 }
 
@@ -1763,8 +1773,16 @@ onMounted(() => {
 
 
 
+/* Fieldset defaults: border, padding, min-content minimum width. */
 .config-section {
-  margin-bottom: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.config-section:disabled {
+  opacity: 0.6;
 }
 
 

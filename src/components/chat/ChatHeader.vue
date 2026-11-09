@@ -189,6 +189,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Channel, Server } from '@/types'
+import { channelLockKey } from '@/utils/channelEncryption'
 import Icon from '@/components/common/Icon.vue'
 import ChatMenu from '@/components/chat/ChatMenu.vue'
 import { useMenuButton } from '@/composables/useMenu'
@@ -225,12 +226,8 @@ const { canManageChannels, canManageWebhooks } = useServerPermissions()
 const channelEncryptionStore = useChannelEncryptionStore()
 
 // i18n key for the lock icon's label; null for a channel without encryption.
-const lockKey = computed((): string | null => {
-  const state = channelEncryptionStore.stateFor(props.channel?.id)
-  if (!state) return null
-  if (Number(props.channel?.type) === 1 && state.voiceEncrypted) return 'channelEncryption.lock.voice'
-  return state.messagesEncrypted ? 'channelEncryption.lock.messages' : null
-})
+const lockKey = computed((): string | null =>
+  channelLockKey(props.channel, channelEncryptionStore.stateFor(props.channel?.id)))
 
 // State
 const showMembersList = ref(false)

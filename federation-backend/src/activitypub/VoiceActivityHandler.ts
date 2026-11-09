@@ -10,6 +10,7 @@ import config from '../config/index.js';
 import { livekitService, TokenRefused } from '../services/LiveKitService.js';
 import {
   authorizeVoiceChannel,
+  VOICE_ENCRYPTED_REFUSAL,
   eitherBlocks,
   isLiveKitUrl,
   mintVoiceJoinId,
@@ -68,6 +69,8 @@ export interface CallToken {
 // Reasons sent to the joining user. The first matches LiveKitService's refusal of a token.
 const VOICE_JOIN_NOT_AUTHORIZED = 'Not authorized for this room';
 const VOICE_JOIN_UNAVAILABLE = 'Voice is not available on this server';
+const VOICE_JOIN_ENCRYPTED =
+  'This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.';
 
 function hostnameOf(url: unknown): string | null {
   if (typeof url !== 'string') return null;
@@ -547,8 +550,8 @@ export class VoiceActivityHandler {
    * Federated server voice channel join.
    *
    * On a server hosted here: authorizeVoiceChannel (membership, ban, timeout,
-   * VIEW_CHANNEL + CONNECT, federation_enabled), then a LiveKit token whose
-   * grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
+   * VIEW_CHANNEL + CONNECT, federation_enabled, voice not encrypted), then a LiveKit
+   * token whose grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
    *
    * On a remote server's local copy: a presence notice. The sender must be on
    * the server's host and an accepted member of the copy.
@@ -610,7 +613,11 @@ export class VoiceActivityHandler {
     });
     if (!decision.ok) {
       logger.warn(`Voice join by ${actorUrl} to ${channel.id} refused: ${decision.reason}`);
-      await this.sendVoiceChannelJoinReject(activity, VOICE_JOIN_NOT_AUTHORIZED, user);
+      await this.sendVoiceChannelJoinReject(
+        activity,
+        decision.reason === VOICE_ENCRYPTED_REFUSAL ? VOICE_JOIN_ENCRYPTED : VOICE_JOIN_NOT_AUTHORIZED,
+        user,
+      );
       return;
     }
 

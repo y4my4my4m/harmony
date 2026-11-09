@@ -1,7 +1,7 @@
 <template>
   <div
     class="message-display"
-    :class="{ 'touch-actions': isMobile }"
+    :class="{ 'touch-actions': isMobile, 'has-list-start': !!$slots['list-start'] }"
     data-region="messages"
     ref="messageDisplayContainer"
     data-chat-messages
@@ -10,6 +10,11 @@
     @click="dismissMobileActions"
     data-testid="message-list"
   >
+    <!-- Content scrolled above the rows: a thread's starter message. -->
+    <div v-if="$slots['list-start']" ref="listStartRef" data-testid="message-list-start">
+      <slot name="list-start" />
+    </div>
+
     <!-- Loading skeletons when initially loading messages -->
     <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
       <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">
@@ -26,7 +31,7 @@
     </div>
     
     <EmptyState
-      v-else-if="!isLoading && messages.length === 0"
+      v-else-if="!isLoading && messages.length === 0 && !$slots['list-start']"
       class="no-messages"
       icon="message-circle"
       :title="$t('message.noMessagesHere')"
@@ -104,7 +109,7 @@
           top: 0,
           left: 0,
           width: '100%',
-          transform: `translateY(${virtualRow.start}px)`
+          transform: `translateY(${virtualRow.start - listStartHeight}px)`
         }"
       >
       <template v-for="item in [displayItems[virtualRow.index]]" :key="item.key ?? virtualRow.index">
@@ -1755,8 +1760,11 @@ const applyScroll = (el: HTMLElement) => {
   if (isDetached.value) next.pinned = false;
   if (next.pinned !== pinState.pinned) {
     setPinned(next.pinned);
-    // A deliberate scroll-up ends the post-open grace window.
-    if (!next.pinned) openFollowBottomUntil = 0;
+    // A deliberate scroll-up ends the post-open grace window and the landing retries.
+    if (!next.pinned) {
+      openFollowBottomUntil = 0;
+      seatGeneration++;
+    }
   }
 };
 
@@ -1923,9 +1931,53 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   if (!el || !list || pinState.pinned) return false;
   const listOffset = styleRect(list).top - styleRect(el).top + el.scrollTop;
   // The total size excludes this resize until virtual-core records it after this call.
-  return correctForItemResize(el, listOffset, item.start, delta, () => {
+  return correctForItemResize(el, listOffset, item.start - listStartHeight.value, delta, () => {
     list.style.height = `${rowVirtualizer.value.getTotalSize() + delta}px`;
   });
+};
+
+// --- LIST START SLOT ---
+const listStartRef = ref<HTMLElement | null>(null);
+// Height of the list-start slot, px: the virtualizer's scroll margin.
+const listStartHeight = ref(0);
+
+// A taller slot pushes every row down: a view below the slot moves with them, a pinned view
+// re-seats at the end.
+const measureListStart = () => {
+  const el = messageDisplayContainer.value;
+  const height = listStartRef.value?.offsetHeight ?? 0;
+  const delta = height - listStartHeight.value;
+  if (!delta || !el) return;
+  const below = el.scrollTop > listStartHeight.value;
+  listStartHeight.value = height;
+  if (pinState.pinned) {
+    queueStickToBottom();
+  } else if (below) {
+    el.scrollTop += delta;
+  }
+};
+
+let listStartObserver: ResizeObserver | null = null;
+watch(listStartRef, (el) => {
+  listStartObserver?.disconnect();
+  listStartObserver = null;
+  if (!el) {
+    listStartHeight.value = 0;
+    return;
+  }
+  listStartObserver = new ResizeObserver(measureListStart);
+  listStartObserver.observe(el);
+  measureListStart();
+}, { flush: 'post' });
+
+/** Shows the top of the content: the list-start slot, then the oldest loaded row. */
+const scrollToStart = () => {
+  const el = messageDisplayContainer.value;
+  if (!el) return;
+  seatGeneration++;
+  openFollowBottomUntil = 0;
+  setPinned(false);
+  el.scrollTop = 0;
 };
 
 // --- VIRTUAL SCROLLING ---
@@ -1968,6 +2020,8 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
       getScrollElement: () => messageDisplayContainer.value,
       estimateSize: () => 60,
       overscan: 15,
+      // Row starts include this; the list element sits below the list-start slot.
+      scrollMargin: listStartHeight.value,
       initialOffset: frozenInitialOffset.value,
       // Stable per-item keys. Otherwise the measurement cache is keyed by
       // INDEX: prepending a history page shifts every row's index, so each row
@@ -4361,7 +4415,7 @@ const closeInviteModal = () => {
   showInviteModal.value = false;
 };
 
-defineExpose({ editLastOwnMessage });
+defineExpose({ editLastOwnMessage, scrollToStart });
 </script>
 
 <style scoped>
@@ -4373,6 +4427,10 @@ defineExpose({ editLastOwnMessage });
   padding: 20px 0 10px 0;
   min-height: 0; /* Important for flex child with overflow */
   contain: layout paint;
+}
+
+.message-display.has-list-start {
+  padding-top: 0;
 }
 
 /* Phone layout on a touch screen: a long press opens the message action bar, as

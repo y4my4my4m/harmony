@@ -76,6 +76,28 @@
             :aria-label="t('chatNav.thread.options')"
             v-click-outside="() => showOptions = false"
           >
+            <button type="button" role="menuitem" @click="goToStart" class="option-item" data-testid="thread-go-to-start">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              {{ t('chatNav.thread.goToStart') }}
+            </button>
+            <button
+              v-if="canShowInChannel"
+              type="button"
+              role="menuitem"
+              class="option-item"
+              data-testid="thread-show-in-channel"
+              @click="showInChannel"
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              {{ t('chatNav.thread.showInChannel') }}
+            </button>
+
+            <div class="options-divider" role="separator"></div>
+
             <!-- One element for join and leave: membership resolves after the panel opens,
                  and a swapped element would drop the focus a keyboard user holds on it. -->
             <button type="button" role="menuitem" @click="isMember ? leaveThread() : joinThread()" class="option-item">
@@ -169,81 +191,83 @@
             </button>
           </div>
 
-          <!-- Parent Message (Original message that started the thread) -->
-          <div class="parent-message" v-if="displayParentMessage">
-            <div class="message-avatar">
-              <Avatar 
-                :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
-                :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
-                size="sm"
-                :interactive="!parentForeignAuthor"
-              />
-            </div>
-            <div class="message-main">
-              <div class="message-meta">
-                <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
-                <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
-                  <DisplayName :userId="displayParentMessage.user_id" />
-                  <FederatedUserBadge :user-id="displayParentMessage.user_id" />
-                </span>
-                <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
-              </div>
-              <div class="message-content">
-                <UnifiedMessageContent
-                  :content="displayParentMessage.content"
-                  :message-id="displayParentMessage.id"
-                  :media-hidden="mediaHidden"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Divider with count (only show when thread exists) -->
-          <div class="thread-divider" v-if="!isDraftMode">
-            <div class="divider-line"></div>
-            <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
-            <div class="divider-line"></div>
-          </div>
-          
-          <!-- Draft mode hint -->
-          <div class="draft-hint" v-if="isDraftMode">
-            <div class="divider-line"></div>
-            <span class="hint-text">{{ t('chatNav.thread.draftHint') }}</span>
-            <div class="divider-line"></div>
-          </div>
-
           <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
           <div class="thread-messages" ref="messagesContainer">
-            <div v-if="loading" class="loading-state" role="status">
-              <LoadingSpinner :size="32" />
-              <p>{{ t('chatNav.thread.loading') }}</p>
-            </div>
-            
-            <template v-else>
-              <button 
-                v-if="hasMore" 
-                class="load-more-btn"
-                @click="loadMore"
-                :disabled="loadingMore"
-              >
-                {{ loadingMore ? t('chatNav.thread.loadingOlder') : t('chatNav.thread.loadOlder') }}
-              </button>
-              
-              <!-- Use the same MessageDisplay component as the main chat -->
-              <MessageDisplay
-                ref="threadMessageDisplayRef"
-                :messages="messages"
-                :current-user-id="currentUserId"
-                :channel-id="thread?.channel_id"
-                :thread-id="thread?.id"
-                :is-loading="loading"
-                :hide-thread-actions="true"
-                :enable-read-divider="false"
-                @send-reaction="handleSendReaction"
-                @toggle-emoji-list="handleToggleEmojiList"
-                @replying-to="handleReplyingTo"
-              />
-            </template>
+            <!-- Use the same MessageDisplay component as the main chat -->
+            <MessageDisplay
+              ref="threadMessageDisplayRef"
+              :messages="messages"
+              :current-user-id="currentUserId"
+              :channel-id="thread?.channel_id"
+              :thread-id="thread?.id"
+              :is-loading="loading"
+              :hide-thread-actions="true"
+              :enable-read-divider="false"
+              @send-reaction="handleSendReaction"
+              @toggle-emoji-list="handleToggleEmojiList"
+              @replying-to="handleReplyingTo"
+            >
+              <template #list-start>
+                <div
+                  v-if="displayParentMessage"
+                  ref="parentMessageEl"
+                  class="parent-message"
+                  :class="{ highlighted: parentHighlighted }"
+                  tabindex="-1"
+                  data-testid="thread-parent-message"
+                >
+                  <div class="message-avatar">
+                    <Avatar 
+                      :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
+                      :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
+                      size="sm"
+                      :interactive="!parentForeignAuthor"
+                    />
+                  </div>
+                  <div class="message-main">
+                    <div class="message-meta">
+                      <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                      <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
+                        <DisplayName :userId="displayParentMessage.user_id" />
+                        <FederatedUserBadge :user-id="displayParentMessage.user_id" />
+                      </span>
+                      <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
+                    </div>
+                    <div class="message-content">
+                      <UnifiedMessageContent
+                        :content="displayParentMessage.content"
+                        :message-id="displayParentMessage.id"
+                        :media-hidden="mediaHidden"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Divider with count (only show when thread exists) -->
+                <div class="thread-divider" v-if="!isDraftMode">
+                  <div class="divider-line"></div>
+                  <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
+                  <div class="divider-line"></div>
+                </div>
+          
+                <!-- Draft mode hint -->
+                <div class="draft-hint" v-if="isDraftMode">
+                  <div class="divider-line"></div>
+                  <span class="hint-text">{{ t('chatNav.thread.draftHint') }}</span>
+                  <div class="divider-line"></div>
+                </div>
+
+
+                <button
+                  v-if="hasMore && !loading"
+                  class="load-more-btn"
+                  @click="loadMore"
+                  :disabled="loadingMore"
+                >
+                  {{ loadingMore ? t('chatNav.thread.loadingOlder') : t('chatNav.thread.loadOlder') }}
+                </button>
+              </template>
+            </MessageDisplay>
           </div>
 
           <!-- Message Input - Reuse MessageInput component (DRY) -->
@@ -1103,6 +1127,33 @@ const canOpenFullView = computed(() =>
   !!thread.value?.id && !isDraftMode.value && !isOptimisticThreadId(thread.value.id) && !!threadServerId.value,
 )
 
+const parentMessageEl = ref<HTMLElement | null>(null)
+const parentHighlighted = ref(false)
+let parentHighlightTimer: ReturnType<typeof setTimeout> | null = null
+
+const goToStart = () => {
+  showOptions.value = false
+  threadMessageDisplayRef.value?.scrollToStart()
+  const parent = parentMessageEl.value
+  if (!parent) return
+  parent.focus({ preventScroll: true })
+  parentHighlighted.value = true
+  if (parentHighlightTimer) clearTimeout(parentHighlightTimer)
+  parentHighlightTimer = setTimeout(() => { parentHighlighted.value = false }, 1500)
+}
+
+const canShowInChannel = computed(() => !!displayParentMessage.value && !isDraftMode.value && !!thread.value?.channel_id && !!threadServerId.value)
+
+const showInChannel = () => {
+  const messageId = displayParentMessage.value?.id
+  const channelId = thread.value?.channel_id
+  const serverId = threadServerId.value
+  if (!messageId || !channelId || !serverId) return
+  showOptions.value = false
+  close()
+  void router.push({ name: 'ChatChannel', params: { serverId, channelId }, query: { messageId } })
+}
+
 const openFullView = () => {
   const threadId = thread.value?.id
   const serverId = threadServerId.value
@@ -1695,9 +1746,13 @@ onUnmounted(() => {
 .parent-message {
   display: flex;
   gap: 16px;
-  padding: 16px;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 16px 16px 8px;
+  outline: none;
+  transition: background-color 0.3s ease;
+}
+
+.parent-message.highlighted {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.04));
 }
 
 .parent-message .message-avatar {
@@ -1742,8 +1797,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
-  background: var(--background-primary);
+  padding: 4px 16px 8px;
 }
 
 .divider-line {
@@ -1764,7 +1818,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--background-primary);
 }
 
 .hint-text {
@@ -1774,13 +1827,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Thread Messages - styled exactly like main chat */
+/* Thread Messages - styled exactly like main chat. MessageDisplay is the scroller. */
 .thread-messages {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  padding: 16px 0;
+  overflow: hidden;
   min-height: 0;
 }
 

@@ -103,6 +103,8 @@ stack_image() {
 
 # shellcheck source=linking.sh
 source "$SELF_HOST_DIR/linking.sh"
+# shellcheck source=modes.sh
+source "$SELF_HOST_DIR/modes.sh"
 
 # --- upload ceiling -----------------------------------------------------------
 # FILE_SIZE_LIMIT in supabase/.env: the largest object storage-api accepts, bytes,
@@ -552,6 +554,43 @@ latest_backup() {
 		[[ -f "$m" ]] && last="${m%/manifest}"
 	done
 	printf '%s' "$last"
+}
+
+# Deletes complete update backups (TIME-OLD-to-NEW) past the newest HARMONY_KEEP_UPDATE_BACKUPS
+# (environment, then .env; default 5, 0 keeps all). OLD-to-OLD, written by a run at an unchanged
+# commit, counts apart: only an OLD-to-NEW dump holds the schema a rollback returns to. A failed
+# deletion warns; the update has already succeeded.
+prune_update_backups() {
+	local keep="${HARMONY_KEEP_UPDATE_BACKUPS:-$(env_get "$ENV_FILE" HARMONY_KEEP_UPDATE_BACKUPS)}"
+	keep="${keep:-5}"
+	if [[ ! "$keep" =~ ^[0-9]+$ ]]; then
+		warn "HARMONY_KEEP_UPDATE_BACKUPS is not a number ($keep); no backup deleted"
+		return 0
+	fi
+	keep=$((10#$keep))
+	(( keep > 0 )) || return 0
+	local re='^[0-9]{8}-[0-9]{6}-([0-9a-f]+)-to-([0-9a-f]+)(-[0-9]+)?$'
+	local i dir m changed=0 same=0 freed
+	local -a all=() old=()
+	for m in "$BACKUP_DIR"/*/manifest; do
+		[[ -f "$m" ]] && all+=("${m%/manifest}")
+	done
+	for (( i = ${#all[@]} - 1; i >= 0; i-- )); do
+		dir="${all[i]}"
+		[[ "${dir##*/}" =~ $re ]] || continue
+		if [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+			same=$((same + 1)); (( same > keep )) && old+=("$dir")
+		else
+			changed=$((changed + 1)); (( changed > keep )) && old+=("$dir")
+		fi
+	done
+	[[ ${#old[@]} -gt 0 ]] || return 0
+	freed="$(du -shc "${old[@]}" 2>/dev/null | tail -1 | cut -f1 || true)"
+	if rm -rf -- "${old[@]}"; then
+		info "Old update backups deleted: ${#old[@]} ($freed freed). HARMONY_KEEP_UPDATE_BACKUPS in .env sets how many stay."
+	else
+		warn "Some old update backups in $BACKUP_DIR were not deleted."
+	fi
 }
 
 # wait_healthy SERVICE [TRIES]: 0 once the service runs and its health check,

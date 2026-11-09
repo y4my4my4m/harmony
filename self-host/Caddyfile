@@ -60,9 +60,9 @@
 	}
 
 	# nginx adds these on every response; `?` keeps a value the upstream set.
-	# The YouTube relay and the player page are framed by the native apps and carry
-	# frame-ancestors instead.
-	@notYouTubeRelay not path /youtube-embed.html /embed-player.html
+	# The YouTube relay and the player page are framed by the native apps, and invite widgets by
+	# any website; these carry frame-ancestors instead.
+	@notYouTubeRelay not path /youtube-embed.html /embed-player.html /api/federation/widget/*
 	header @notYouTubeRelay {
 		?X-Frame-Options SAMEORIGIN
 		?X-Content-Type-Options nosniff

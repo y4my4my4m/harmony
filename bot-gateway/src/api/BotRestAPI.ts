@@ -1971,8 +1971,9 @@ export class BotRestAPI {
   /**
    * The bot is a bridge bot (bot_type 'bridge') and its bridge relays the channel: a
    * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
-   * bridge's bot, a v1 discord_bridge_pairings row of the channel's server. False on any
-   * failed lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
+   * bridge's bot, a v1 discord_bridge_pairings row of the channel's server whose bot the pairing's
+   * creator or the server's owner owns or installed. A pairing names no bot. False on any failed
+   * lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
    */
   private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
     if (!channelId) return false
@@ -1986,7 +1987,7 @@ export class BotRestAPI {
   private async lookupBridgePair(botId: string, channelId: string): Promise<boolean> {
     const { data: bot, error: botError } = await supabase
       .from('bots')
-      .select('bot_type')
+      .select('bot_type, owner_id')
       .eq('id', botId)
       .maybeSingle()
     if (botError || bot?.bot_type !== 'bridge') return false
@@ -2011,10 +2012,24 @@ export class BotRestAPI {
     if (!serverId) return false
     const { data: pairing, error: pairingError } = await supabase
       .from('discord_bridge_pairings')
-      .select('server_id')
+      .select('created_by')
       .eq('server_id', serverId)
       .maybeSingle()
-    return !pairingError && !!pairing
+    if (pairingError || !pairing) return false
+
+    const { data: server } = await supabase
+      .from('servers')
+      .select('owner')
+      .eq('id', serverId)
+      .maybeSingle()
+    const { data: install } = await supabase
+      .from('bot_server_permissions')
+      .select('installed_by')
+      .eq('bot_id', botId)
+      .eq('server_id', serverId)
+      .maybeSingle()
+    const trusted = [pairing.created_by, server?.owner].filter(Boolean)
+    return trusted.includes(bot.owner_id) || trusted.includes(install?.installed_by)
   }
 
   private async channelServerId(channelId: string): Promise<string | null> {

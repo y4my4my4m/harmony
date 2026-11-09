@@ -48,7 +48,8 @@
       "ipCap": "今天从此网络创建的账号过多。请明天再试，或向此实例的管理员申请邀请。",
       "domainCap": "今天使用此电子邮件域名创建的账号过多。请明天再试，或向此实例的管理员申请邀请。",
       "mailboxCap": "此邮箱已达到此实例的账号数量上限。",
-      "blockedDomain": "此电子邮件服务商不能用于在此实例注册。请使用其他地址。"
+      "blockedDomain": "此电子邮件服务商不能用于在此实例注册。请使用其他地址。",
+      "blockedNetwork": "此实例不接受来自该网络的注册。请向此实例的管理员申请邀请。"
     },
     "login": "登录",
     "register": "注册",
@@ -1663,6 +1664,8 @@
       "mirrorLinkHost": "{site} 帖子的镜像",
       "renderEmoticonsAsEmoji": "将他人发送的表情符号显示为表情",
       "renderEmoticonsAsEmojiDesc": "在消息中将 :) :D <3 等显示为表情。原始文本保持不变。",
+      "animateEmoji": "播放自定义表情动画",
+      "animateEmojiDesc": "关闭后，动态表情只显示第一帧。只影响你自己看到的内容。",
       "inviteBannerBg": "邀请对话框中的服务器横幅",
       "inviteBannerBgDesc": "服务器有横幅时，在邀请对话框背后显示模糊、变暗的服务器横幅。",
       "quickReact": "快速反应",
@@ -3570,6 +3573,16 @@
       },
       "newLink": "创建新链接",
       "newLinkHint": "使用这些设置创建链接。现有链接在过期或被您撤销前仍然有效。",
+      "widgets": {
+        "toggle": "添加到你的网站",
+        "hint": "将其中一个粘贴到你的网站。它会显示此服务器的名称和成员数,并链接到此邀请。任何人都能看到。",
+        "expiring": "此链接会过期或有使用次数限制,届时小部件将停止工作。网站请使用永不过期的链接。",
+        "badge": "徽章",
+        "markdown": "Markdown 徽章(README、论坛)",
+        "join": "加入按钮",
+        "icon": "小图标",
+        "card": "卡片(iframe)"
+      },
       "creating": "创建中…",
       "created": "已创建新的邀请链接",
       "createFailed": "无法创建邀请链接",
@@ -4037,6 +4050,10 @@
     "lock": {
       "messages": "端到端加密",
       "voice": "语音和视频已端到端加密"
+    },
+    "home": {
+      "voice": "此频道在其所属实例上已端到端加密，因此其他实例的账号无法加入通话。",
+      "messages": "此频道在其所属实例上已端到端加密，因此其他实例的账号无法读取或发送消息。"
     },
     "status": {
       "active": "端到端加密",
@@ -5096,7 +5113,7 @@
       "enterPhrase": "输入恢复短语",
       "scanHint": "将摄像头对准新设备上的 QR 码。",
       "scanPasteLabel": "或粘贴从新设备复制的代码",
-      "showInstead": "新设备有摄像头？改为显示代码供其扫描",
+      "showInstead": "改为显示可扫描或复制的代码",
       "showLead": "在新设备上选择“{another}”，然后选择“{scanInstead}”，并将其摄像头对准此处，或复制下方的代码并粘贴到那台设备上。任何登录了您账户的人扫描或粘贴此代码都能获取您的密钥，因此请勿给他人看。",
       "showLeadAnother": "另一台设备",
       "showLeadScanInstead": "改为扫描或粘贴其代码",
@@ -6379,6 +6396,8 @@
       "deleteCategory": "删除分类"
     },
     "thread": {
+      "goToStart": "转到第一条消息",
+      "showInChannel": "在频道中显示",
       "leave": "离开子区",
       "join": "加入子区",
       "edit": "编辑子区",
@@ -6613,7 +6632,7 @@
       "staysKeys": "端到端加密密钥",
       "staysBots": "你拥有的机器人",
       "staysServers": "你拥有的服务器",
-      "staysFollowing": "你关注的账号",
+      "staysFollowing": "你关注的账号。下载你的数据，然后在新账号上导入列表。",
       "ownedServersWarning": "你拥有 {servers}。所有权不会迁移；如果希望由新账号拥有，请先转让。",
       "cooldown": "迁移后需等待 30 天才能再次迁移。",
       "exportFirst": "先下载你的数据",
@@ -6625,7 +6644,10 @@
       "noPassword": "你的账号没有密码。迁移需要在最近十分钟内登录过。",
       "confirm": "迁移我的账号",
       "moving": "正在迁移…",
-      "success": "此账号现已指向 {handle}。正在迁移关注者。"
+      "success": "此账号现已指向 {handle}。正在迁移关注者。",
+      "staysInteractions": "点赞、转发和书签",
+      "staysProfile": "你的显示名称、简介、头像、横幅和资料字段。Harmony 上的新账号可以在迁移后复制它们。",
+      "staysBlocks": "你屏蔽或静音的账号"
     },
     "moved": {
       "title": "此账号已迁移",
@@ -6656,7 +6678,14 @@
       "move_cooldown": "距上次迁移不足 30 天。请在 {count} 天后重试。",
       "too_many_attempts": "尝试次数过多。请在 {count} 分钟后重试。",
       "wrong_password": "密码不正确。",
-      "generic": "出了点问题，请重试。"
+      "generic": "出了点问题，请重试。",
+      "import_running": "已有导入正在进行。",
+      "too_many_accounts": "一个文件最多可列出 20,000 个账号。",
+      "no_accounts": "该文件没有列出账号。",
+      "account_moved": "此账号已迁移。请在新账号上导入。",
+      "import_rate_limited": "今天导入次数过多。请在 {count} 小时后重试。",
+      "not_verified": "无法确认这次迁移。",
+      "nothing_to_copy": "没有可复制的内容。"
     },
     "profile": {
       "moved": "{name} 已迁移到 {target}",
@@ -6671,6 +6700,72 @@
       "short": "账号已迁移",
       "someone": "某个账号",
       "newAccount": "一个新账号"
+    },
+    "import": {
+      "title": "导入你关注的账号",
+      "description": "关注旧账号列表中的账号。在 Mastodon 上，请在“导入和导出”中将关注列表导出为 CSV。在 Harmony 上，请使用数据下载中的 ZIP。帖子和点赞不会导入。",
+      "choose": "选择文件",
+      "found": "在此文件中找到 {count} 个账号。",
+      "foundHint": "已锁定的账号和其他服务器上的账号会收到关注请求。屏蔽了你或被你屏蔽的账号会被跳过。",
+      "start": "开始导入",
+      "starting": "正在开始…",
+      "running": "正在导入：已完成 {done} / {total}",
+      "waiting": "正在等待每小时关注上限。大约 {count} 分钟后继续。",
+      "finished": "导入完成",
+      "stopped": "导入已停止。已完成的关注会保留。",
+      "cancel": "停止导入",
+      "counts": {
+        "followed": "已关注",
+        "requested": "已发送关注请求",
+        "already": "已关注或已请求",
+        "failed": "无法关注",
+        "cancelled": "未处理"
+      },
+      "failures": "{count} 个账号无法关注",
+      "moreFailures": "另有 {count} 个。",
+      "reasons": {
+        "invalid_handle": "不是账号地址",
+        "not_found": "未找到账号",
+        "instance_blocked": "此服务器不与该服务器联合",
+        "federation_off": "此服务器已关闭联合",
+        "unreachable": "其服务器没有响应",
+        "unavailable": "账号已删除或已停用",
+        "self": "这是你自己的账号",
+        "moved": "账号已迁移",
+        "blocked": "你们之间存在屏蔽",
+        "declined": "对方之前拒绝了你的关注请求"
+      },
+      "fileErrors": {
+        "file_too_large": "文件太大。",
+        "unrecognized_file": "该文件不是关注列表。请使用 Mastodon 的 following_accounts.csv 或 Harmony 数据下载中的 ZIP。",
+        "wrong_list": "这看起来是其他列表，例如屏蔽或静音列表。请使用你关注的账号列表。",
+        "no_accounts": "该文件没有列出账号。"
+      }
+    },
+    "copy": {
+      "title": "复制旧资料",
+      "description": "{handle} 已迁移到此账号。你可以将其资料信息复制到这里。确认之前不会有任何更改。",
+      "origin": "旧账号",
+      "fields": {
+        "display_name": "显示名称",
+        "bio": "简介",
+        "avatar": "头像",
+        "banner": "横幅",
+        "profile_fields": "资料字段"
+      },
+      "same": "已相同",
+      "adds": "添加到此资料",
+      "replaces": "替换此资料的内容",
+      "nothing": "旧账号没有可复制的资料信息。",
+      "review": "复制所选项",
+      "confirmTitle": "从 {handle} 复制？",
+      "confirmAdds": "{field} 将添加到此资料。",
+      "confirmReplaces": "{field} 将替换此资料当前的内容。",
+      "confirmWarning": "此资料当前的内容将被覆盖，且无法恢复。",
+      "confirm": "复制到此资料",
+      "copying": "正在复制…",
+      "done": "资料信息已复制",
+      "partial": "已复制，但以下内容无法从旧服务器读取：{fields}。"
     }
   },
   "polls": {
@@ -7967,6 +8062,8 @@
     "blockedDomainsHint": "每行一个域名。其子域名也会被拒绝。",
     "blockedMailHosts": "其他要拒绝的邮件服务器",
     "blockedMailHostsHint": "每行一个主机。拒绝邮件服务器位于此主机或其下的任何邮箱域名:erinn.biz 也包括 recv1.erinn.biz。不要填写 google.com、outlook.com 或 cloudflare.net 等共享服务,否则其所有用户都会被拒绝。",
+    "blockedNetworks": "要拒绝的地址和范围",
+    "blockedNetworksHint": "每行一个,例如 203.0.113.7 或 2001:db8:1:2::/64。只拒绝来自那里的新账号:已有账号的人仍可登录。一个地址可能由整个校园、办公室或移动运营商共用,因此只有在确定时才封锁范围。",
     "trustedDomains": "不受限制的电子邮件域名",
     "trustedDomainsHint": "每行一个域名,用于被误拒或同时加入的校园或公司。子域名也算在内。跳过域名上限、临时邮箱列表和邮件服务器列表。列入拒绝名单的域名仍被拒绝,收件箱上限仍然适用。",
     "save": "保存限制",
@@ -7975,13 +8072,15 @@
     "loadFailed": "无法加载注册限制。",
     "invalidCap": "请输入 0 到 1000 之间的整数。",
     "invalidDomain": "{domain} 不是域名。",
+    "invalidNetwork": "{network} 不是地址或可用范围。IPv4 范围须为 /8 或更窄,IPv6 须为 /16 或更窄。",
     "wouldRefuseTitle": "超过限制但已允许，最近 7 天",
     "refusalsTitle": "最近 7 天被拒绝",
     "refusalIpCap": "网络限制",
     "refusalDomainCap": "域名限制",
     "refusalMailboxCap": "邮箱限制",
     "refusalBlockedDomain": "被拒绝的电子邮件域名",
-    "refusalMailHost": "邮件服务器"
+    "refusalMailHost": "邮件服务器",
+    "refusalBlockedNetwork": "被拒绝的地址"
   },
   "adminInvites": {
     "tab": "邀请",

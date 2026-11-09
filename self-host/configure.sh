@@ -145,6 +145,8 @@ b64url_decode() {
 lower() { tr '[:upper:]' '[:lower:]'; }
 # shellcheck source=linking.sh
 source "$SCRIPT_DIR/linking.sh"
+# shellcheck source=modes.sh
+source "$SCRIPT_DIR/modes.sh"
 
 # HS256 JWT for a Supabase role, valid for 10 years.
 sign_jwt() {
@@ -495,6 +497,14 @@ else
 		warn "self-host/supabase is at ${cur_ref:0:12}, this release pins ${SUPABASE_REF:0:12}; run configure.sh --refresh-supabase after a backup"
 fi
 
+# Under a umask of 077 or 027 git and tar leave the files the containers read private to their
+# owner (modes.sh).
+if ! public_readable; then
+	warn "chmod could not give all $PUBLIC_CHANGED files and directories the containers read o+r; run configure.sh as their owner or root (harmony doctor names the first)"
+elif (( PUBLIC_CHANGED )); then
+	ok "$PUBLIC_CHANGED files and directories the containers read made readable to them (o+r)"
+fi
+
 # =============================================================================
 # Secrets
 # =============================================================================
@@ -823,6 +833,7 @@ if $ENABLE_VOICE; then
 		mv "$tmp" "$LIVEKIT_YAML"
 		ok "self-host/livekit.yaml"
 	fi
+	chmod 600 "$LIVEKIT_YAML"
 fi
 
 # =============================================================================

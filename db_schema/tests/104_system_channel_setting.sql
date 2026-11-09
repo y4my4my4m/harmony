@@ -61,9 +61,9 @@ SELECT ok(NOT has_function_privilege('anon', 'public.kick_server_member(uuid,uui
           AND has_function_privilege('authenticated', 'public.kick_server_member(uuid,uuid,text,integer)', 'EXECUTE')
           AND has_function_privilege('authenticated', 'public.ban_server_member(uuid,uuid,text,integer)', 'EXECUTE'),
           'kick_server_member and ban_server_member are for authenticated, not anon');
-SELECT ok(has_function_privilege('authenticated', 'public.get_default_channel(uuid)', 'EXECUTE')
-          AND has_function_privilege('anon', 'public.get_default_channel(uuid)', 'EXECUTE'),
-          'get_default_channel keeps its grants');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.get_default_channel(uuid)', 'EXECUTE')
+          AND NOT has_function_privilege('anon', 'public.get_default_channel(uuid)', 'EXECUTE'),
+          'get_default_channel is for definers since 20261109600001');
 
 -- Writes. -----------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');

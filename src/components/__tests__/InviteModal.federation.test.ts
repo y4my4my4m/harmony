@@ -50,7 +50,12 @@ vi.mock('@/composables/useVisualTheme', async () => {
 })
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ servers: stores.servers }) }))
 vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => stores.instance }))
-vi.mock('@/services/instanceConfig', () => ({ getInstanceDomain: () => 'harmony.test' }))
+vi.mock('@/services/instanceConfig', () => ({
+  getInstanceDomain: () => 'harmony.test',
+  getStoredInstance: () => null,
+  isTauriRuntime: () => false,
+  refreshStoredInstance: async () => null,
+}))
 vi.mock('@/components/common/BaseModal.vue', async () => {
   const { defineComponent, h } = await import('vue')
   return { default: defineComponent({ name: 'BaseModal', setup: (_props, { slots }) => () => h('div', slots.default?.()) }) }

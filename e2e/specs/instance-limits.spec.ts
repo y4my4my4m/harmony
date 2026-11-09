@@ -510,7 +510,8 @@ test('an admin tunes the limits in the panel', async ({ page }) => {
   await test.step('Config > General', async () => {
     await page.goto('/admin?tab=config')
     const servers = page.getByTestId('config-max-servers-per-user')
-    await expect(servers).toBeVisible({ timeout: 30000 })
+    // Enabled once the stored values are read.
+    await expect(servers).toBeEnabled({ timeout: 30000 })
     await servers.fill('50')
     await page.getByTestId('config-max-bots-per-user').fill('5')
     await page.getByRole('button', { name: 'Save changes' }).first().click()

@@ -20,6 +20,7 @@ import { ActivityProcessor } from '../activitypub/ActivityProcessor.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { getCategoryRecipientGroups, getChannelRecipientGroups, getRemoteMemberGroups } from '../utils/federationUtils.js';
 import { HARMONY_CONTEXT } from '../activitypub/harmonyContext.js';
+import { categoryFlagProperties, channelFlagProperties } from '../activitypub/channelFlags.js';
 import { channelPosition, HARMONY_ROLES } from '../activitypub/copyMirror.js';
 import { loadApRoles } from '../activitypub/GroupService.js';
 import { DIRECTORY_CONTEXT, groupDiscoverability, instanceFederationOpen } from '../activitypub/serverDirectory.js';
@@ -708,6 +709,12 @@ async function channelChangeRecipients(channel: any): Promise<any[]> {
     : getChannelRecipientGroups(channel.id);
 }
 
+/** harmony:encryption and harmony:private of a channel, or of a category (type 2). */
+async function channelChangeFlags(channel: any): Promise<Record<string, unknown>> {
+  const read = channel.type === 2 ? categoryFlagProperties : channelFlagProperties;
+  return (await read(getSupabaseClient(), [channel.id])).get(channel.id) ?? {};
+}
+
 /**
  * Update(harmony:Category) for a channel's category, sent ahead of the
  * channel's own activity to the channel's recipients. A category reaches an
@@ -738,6 +745,7 @@ async function enqueueChannelCategory(channel: any, serverUrl: string, groups: a
       name: category.name,
       ...channelPosition(category.order),
       category: null,
+      ...(await channelChangeFlags({ id: category.id, type: 2 })),
     },
     published: new Date().toISOString(),
   };
@@ -793,6 +801,7 @@ export async function handleChannelCreated(channel: any): Promise<void> {
         description: channel.description,
         ...channelPosition(channel.order),
         category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
+        ...(await channelChangeFlags(channel)),
       },
       published: new Date().toISOString(),
     };
@@ -851,6 +860,7 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
         description: channel.description,
         ...channelPosition(channel.order),
         category: channel.category ? `${serverUrl}/channels/${channel.category}` : null,
+        ...(await channelChangeFlags(channel)),
       },
       published: new Date().toISOString(),
     };

@@ -154,3 +154,49 @@ describe('parseContentToMessageParts mention right boundary', () => {
     ])
   })
 })
+
+describe('parseContentToMessageParts backslash escapes', () => {
+  it('reads no mention from an escaped @', async () => {
+    const parts = await parse('hi \\@alice and @alice')
+    expect(mentions(parts)).toHaveLength(1)
+    expect(plain(parts)).toBe('hi \\@alice and <alice@harmony.test>')
+  })
+
+  it('reads no role mention, Discord mention or @here from an escaped token', async () => {
+    for (const text of [
+      '\\@role:00000000-0000-4000-8000-000000000001',
+      '\\@role:here',
+      '\\@d!123:bob',
+    ]) {
+      const parts = await parse(text)
+      expect(parts).toEqual([{ type: 'text', text }])
+    }
+  })
+
+  it('reads no channel from an escaped #', async () => {
+    const parts = await parseContentToMessageParts('\\#general #general', {}, {}, {}, {}, {
+      hashtags: 'channels',
+      channelDataMap: { general: { id: 'c1', serverId: 's1', name: 'general' } },
+    })
+    expect(parts.filter((p: any) => p.type === 'channel_mention')).toHaveLength(1)
+    expect(parts[0]).toEqual({ type: 'text', text: '\\#general ' })
+  })
+
+  it('reads no hashtag from an escaped #', async () => {
+    const parts = await parseContentToMessageParts('\\#cats #dogs', {}, {}, {})
+    expect(parts.filter((p: any) => p.type === 'hashtag').map((p: any) => p.name)).toEqual(['dogs'])
+  })
+
+  it('reads no link from an escaped URL', async () => {
+    const parts = await parse('\\https://x.example/a https://y.example/b')
+    const urls = parts.filter((p: any) => p.type === 'url').map((p: any) => p.url)
+    expect(urls).toEqual(['https://y.example/b'])
+  })
+
+  it('reads no emoji from an escaped shortcode', async () => {
+    const token = ':discord:party_blob:123456789012345678:'
+    const parts = await parseContentToMessageParts(`\\${token} ${token}`, {}, {})
+    expect(parts.filter((p: any) => p.type === 'emoji')).toHaveLength(1)
+    expect((parts[0] as any).text).toBe(`\\${token} `)
+  })
+})

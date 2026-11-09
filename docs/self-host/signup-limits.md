@@ -28,6 +28,7 @@ Set them in **Admin, Invites, Sign-up limits**. A change applies to the next sig
 | **Refuse disposable email addresses** | `signup_block_disposable_email` | `true` | HTTP 422 for the domains in `signup_disposable_domains` and the mail hosts in `signup_disposable_mail_hosts` |
 | **More email domains to refuse** | `signup_blocked_email_domains` | `[]` | HTTP 422 for these domains. Applies with the disposable list off |
 | **More mail hosts to refuse** | `signup_blocked_mail_hosts` | `[]` | HTTP 422 for a domain whose mail servers are at these hosts. Applies with the disposable list off |
+| **Addresses and ranges to refuse** | `signup_blocked_networks` | `[]` | HTTP 403 for a new account from these addresses or CIDR ranges, by any sign-up method except your own identity provider. Applies with the disposable list off |
 | **Email domains never limited** | `signup_trusted_email_domains` | `[]` | Nothing. Skips the domain cap, the disposable list and both mail host lists |
 
 - The network and domain caps observe by default, because a campus or an office shares one address and
@@ -42,6 +43,10 @@ Set them in **Admin, Invites, Sign-up limits**. A change applies to the next sig
   at a sign-up once the answer is seven days old. Until the first answer, sign-ups on that domain pass.
   Without a worker, or if the lookup fails, they keep passing. [Reviewing signups](/run/signup-review)
   shows the mail host of each email domain group, so you can see what to add here.
+- **Addresses and ranges to refuse** stops new accounts and nothing else: people who already have an
+  account keep signing in. One address can be a whole campus, office or mobile carrier, so block a range
+  only when you are sure. Rotating proxies change address on every request, so this does not stop them.
+  To refuse all traffic from an address, use your firewall or proxy: Harmony's panel has no such control.
 - A **network** is one IPv4 address or one IPv6 /56.
 - An **inbox** is the address without its `+tag`. For Gmail, dots do not count and
   `googlemail.com` is `gmail.com`. `me+a@example.org` and `me+b@example.org` are one inbox;

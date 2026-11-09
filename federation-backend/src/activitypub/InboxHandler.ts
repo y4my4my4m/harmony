@@ -15,6 +15,7 @@ import { relayedActivity } from './groupRelay.js';
 import { isVoiceMemberActivity } from './voiceModerationFederation.js';
 import { isStoredActivityType } from './activityTypes.js';
 import { confirmForwardedActivity, FORWARDABLE_TYPES } from './forwardedActivity.js';
+import { activityIdHeldByAnother, activityIdIsStorable } from './inboxClaim.js';
 import { sameUrl } from '../utils/apOrigin.js';
 import { storedPostVisibility } from './postAccess.js';
 
@@ -578,37 +579,42 @@ async function handleInbox(
     normalizedType = 'EmojiReaction';
   }
 
-  const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
-    p_ap_id: activity.id,
-    p_ap_type: normalizedType,
-    p_actor_ap_id: actorUrl,
-    p_activity_data: activity,
-    p_origin_domain: originDomain,
-    p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
-    p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
-    p_is_local: false,
-  });
+  let claimActive = false;
+  if (activityIdIsStorable(activity.id, actorUrl)) {
+    const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
+      p_ap_id: activity.id,
+      p_ap_type: normalizedType,
+      p_actor_ap_id: actorUrl,
+      p_activity_data: activity,
+      p_origin_domain: originDomain,
+      p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
+      p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+      p_is_local: false,
+    });
 
-  if (storeError) {
-    logger.error('Failed to store activity:', storeError);
-    res.status(500).json({ error: 'Failed to store activity' });
-    return;
-  }
+    if (storeError) {
+      logger.error('Failed to store activity:', storeError);
+      res.status(500).json({ error: 'Failed to store activity' });
+      return;
+    }
 
-  const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
-    p_ap_id: activity.id,
-  });
-  if (!claimError && claimed === false) {
-    logger.info(`Skipping already-processed ${activity.type} activity ${activity.id}`);
-    res.status(202).json({ message: 'Activity already processed' });
-    return;
+    const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
+      p_ap_id: activity.id,
+    });
+    if (!claimError && claimed === false && !(await activityIdHeldByAnother(supabase, activity.id, actorUrl as string))) {
+      logger.info(`Skipping already-processed ${activity.type} activity ${activity.id}`);
+      res.status(202).json({ message: 'Activity already processed' });
+      return;
+    }
+    if (claimError) {
+      logger.warn(
+        `claim_ap_activity unavailable; processing ${activity.type} ${activity.id} without idempotency guard: ${claimError.message}`
+      );
+    }
+    claimActive = !claimError && claimed !== false;
+  } else {
+    logger.info(`Not storing ${activity.type} ${activity.id}: not on the host of ${actorUrl}`);
   }
-  if (claimError) {
-    logger.warn(
-      `claim_ap_activity unavailable; processing ${activity.type} ${activity.id} without idempotency guard: ${claimError.message}`
-    );
-  }
-  const claimActive = !claimError;
 
   try {
     await ActivityProcessor.processIncomingActivity(activity);

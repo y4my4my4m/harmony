@@ -10,6 +10,7 @@ import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
+import { cache } from '../utils/cache.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter, reactionsLimiter, repliesLimiter, repliesStatusLimiter } from '../middleware/rateLimit.js';
@@ -93,7 +94,7 @@ async function markRemoteReactionsAttempted(
  * account whose actor is served from `domain` (a split-domain account named
  * by its web domain). Null when absent or ambiguous.
  */
-async function findStoredRemoteAccount(supabase: any, username: string, domain: string): Promise<any | null> {
+export async function findStoredRemoteAccount(supabase: any, username: string, domain: string): Promise<any | null> {
   const { data: exact } = await supabase
     .from('profiles')
     .select('*')
@@ -550,6 +551,18 @@ router.post(
   })
 );
 
+/**
+ * The row a reactions request reads and writes: the remote post it fetches. A followers-only or
+ * direct post answers only a session that reads it. Undefined otherwise; the fetched reactions are
+ * then returned and no row is touched.
+ */
+async function reactionsRowId(req: Request, row: any, postApId: string): Promise<string | undefined> {
+  if (!row || row.is_local === true) return undefined;
+  if (row.ap_id !== postApId && row.url !== postApId && row.metadata?.original_ap_id !== postApId) return undefined;
+  if (!isPublicVisibility(row.visibility) && !(await bearerReadsPost(req, row.id))) return undefined;
+  return row.id;
+}
+
 /** Whether the request's `Bearer` session reads post `postId` under RLS. */
 async function bearerReadsPost(req: Request, postId: string): Promise<boolean> {
   const token = bearerToken(req.headers.authorization);
@@ -775,7 +788,7 @@ router.post(
     if (idsToLookup.length > 0) {
       const { data } = await supabase
         .from('posts')
-        .select('id, metadata, favorites_count, replies_count, reblogs_count')
+        .select('id, ap_id, url, is_local, visibility, metadata, favorites_count, replies_count, reblogs_count')
         .in('id', idsToLookup);
       for (const row of data || []) {
         postRowsById.set(row.id, row);
@@ -799,7 +812,10 @@ router.post(
           queueBackgroundReplyCrawl(entry.post_ap_id);
         } catch { /* not a fetchable URL; the reactions read below reports it */ }
 
-        const cachedRow = entry.post_id ? postRowsById.get(entry.post_id) : null;
+        const postId = entry.post_id
+          ? await reactionsRowId(req, postRowsById.get(entry.post_id), entry.post_ap_id)
+          : undefined;
+        const cachedRow = postId ? postRowsById.get(postId) : null;
 
         // TTL cache hit: no outbound HTTP. The aggregated `remote_reactions`
         // is on the row already SELECTed.
@@ -818,12 +834,12 @@ router.post(
         }
 
         try {
-          const reactions = await fetchRemotePostReactions(entry.post_ap_id, entry.post_id, supabase);
+          const reactions = await fetchRemotePostReactions(entry.post_ap_id, postId, supabase);
 
           let remote_reactions: Record<string, any> | null = null;
           let updatedPost: any = null;
 
-          if (entry.post_id) {
+          if (postId) {
             // Re-read AFTER the fetch: `fetchRemotePostReactions` may have
             // written metadata. The Misskey path writes remote_reactions
             // in-line; the standard AP path returns raw reactions that are
@@ -831,7 +847,7 @@ router.post(
             const { data } = await supabase
               .from('posts')
               .select('metadata, favorites_count, replies_count, reblogs_count')
-              .eq('id', entry.post_id)
+              .eq('id', postId)
               .single();
             updatedPost = data ?? null;
             remote_reactions = updatedPost?.metadata?.remote_reactions || null;
@@ -839,7 +855,7 @@ router.post(
 
           if (!remote_reactions && reactions.length > 0) {
             remote_reactions = aggregateRemoteReactions(reactions);
-            if (entry.post_id) {
+            if (postId) {
               await supabase
                 .from('posts')
                 .update({
@@ -849,12 +865,12 @@ router.post(
                     remote_reactions_fetched_at: new Date().toISOString(),
                   },
                 })
-                .eq('id', entry.post_id);
+                .eq('id', postId);
             }
-          } else if (!remote_reactions && reactions.length === 0 && entry.post_id) {
+          } else if (!remote_reactions && reactions.length === 0 && postId) {
             // Successful fetch with zero reactions still marks the TTL cache;
             // an empty post is not re-hit on every refresh.
-            await markRemoteReactionsAttempted(entry.post_id, supabase);
+            await markRemoteReactionsAttempted(postId, supabase);
           }
 
           results[entry.post_ap_id] = {
@@ -870,7 +886,7 @@ router.post(
           logger.error(`Batch fetch-reactions failed for ${entry.post_ap_id}:`, error.message);
           // TTL-cache the failure: a broken remote (HTML 404 served as 200,
           // malformed JSON) is not re-tried on every refresh.
-          await markRemoteReactionsAttempted(entry.post_id, supabase);
+          await markRemoteReactionsAttempted(postId, supabase);
           results[entry.post_ap_id] = { success: false, error: error.message };
         }
       })
@@ -891,7 +907,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     logger.debug(`fetch-reactions raw body: ${JSON.stringify(req.body)}`);
     
-    const { post_ap_id, post_id } = req.body;
+    const { post_ap_id } = req.body;
 
     if (!post_ap_id) {
       logger.warn(`fetch-reactions missing post_ap_id, body was: ${JSON.stringify(req.body)}`);
@@ -899,6 +915,7 @@ router.post(
     }
 
     const supabase = getSupabaseClient();
+    let post_id: string | undefined;
 
     // Local posts already hold their reactions in the database.
     try {
@@ -910,14 +927,18 @@ router.post(
     } catch { /* invalid URL, proceed */ }
 
     try {
+      const { data: cached } = req.body.post_id
+        ? await supabase
+            .from('posts')
+            .select('id, ap_id, url, is_local, visibility, metadata, favorites_count, replies_count, reblogs_count')
+            .eq('id', req.body.post_id)
+            .maybeSingle()
+        : { data: null };
+      post_id = await reactionsRowId(req, cached, post_ap_id);
+
       // TTL cache: rows refreshed within REACTIONS_TTL_MS return the stored
       // aggregate without touching the network.
       if (post_id) {
-        const { data: cached } = await supabase
-          .from('posts')
-          .select('metadata, favorites_count, replies_count, reblogs_count')
-          .eq('id', post_id)
-          .maybeSingle();
         if (cached && isReactionsCacheFresh(cached.metadata)) {
           logger.debug(`fetch-reactions cache HIT for ${post_ap_id}`);
           return res.json({
@@ -1232,14 +1253,16 @@ async function fetchMisskeyReactions(
             normalizedFullCode = `${shortcode}@${domain}`;
           }
           
-          await supabase.rpc('upsert_remote_emoji', {
-            p_shortcode: shortcode,
-            p_origin_domain: originDomain,
-            p_full_code: normalizedFullCode,
-            p_url: emojiUrl,
-          });
-          
-          logger.debug(`Cached remote emoji: ${shortcode}@${originDomain}`);
+          // Only the origin's own document writes the origin's row.
+          if (originDomain === domain) {
+            await supabase.rpc('upsert_remote_emoji', {
+              p_shortcode: shortcode,
+              p_origin_domain: originDomain,
+              p_full_code: normalizedFullCode,
+              p_url: emojiUrl,
+            });
+            logger.debug(`Cached remote emoji: ${shortcode}@${originDomain}`);
+          }
         } catch (cacheError) {
           // Cache write failure is non-fatal.
           logger.debug(`Could not cache emoji ${emoji}: ${cacheError}`);
@@ -1990,6 +2013,33 @@ router.post(
       result: replyCrawlBody(result),
       ...replyTargetCounts(target ? await readReplyTarget(supabase, post_ap_id) : null),
     });
+  })
+);
+
+const QUOTE_RETRY_COOLDOWN_S = 600;
+const QUOTE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Second read of the quoted post of a stored remote quote, asked by a client showing it.
+ * POST /resolve-quote (proxied via /api/federation/resolve-quote)
+ * Body: { post_id: string }
+ *
+ * Reads only the URL the stored post names, one try per post per QUOTE_RETRY_COOLDOWN_S. `status`
+ * is 'resolved' (with `reblog`, `reblog_author`, `metadata`), 'withheld', 'unavailable', 'none' or
+ * 'recent' (tried within the cooldown).
+ */
+router.post(
+  '/resolve-quote',
+  repliesLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const postId = req.body?.post_id;
+    if (typeof postId !== 'string' || !QUOTE_ID.test(postId)) {
+      return res.status(400).json({ error: 'post_id is required' });
+    }
+    const key = `quote-retry:${postId}`;
+    if (await cache.getAsync<boolean>(key)) return res.json({ status: 'recent' });
+    cache.set(key, true, QUOTE_RETRY_COOLDOWN_S);
+    return res.json(await ActivityProcessor.resolveStoredQuote(postId));
   })
 );
 

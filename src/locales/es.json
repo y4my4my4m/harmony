@@ -48,7 +48,8 @@
       "ipCap": "Se han creado demasiadas cuentas desde esta red hoy. Vuelve a intentarlo mañana o pide una invitación a la administración de esta instancia.",
       "domainCap": "Hoy se han creado demasiadas cuentas con este dominio de correo. Vuelve a intentarlo mañana o pide una invitación a la administración de esta instancia.",
       "mailboxCap": "Este buzón de correo ha alcanzado el límite de cuentas de esta instancia.",
-      "blockedDomain": "Este proveedor de correo no se puede usar para registrarse en esta instancia. Usa otra dirección."
+      "blockedDomain": "Este proveedor de correo no se puede usar para registrarse en esta instancia. Usa otra dirección.",
+      "blockedNetwork": "Los registros desde esta red no están disponibles en esta instancia. Pide una invitación a la administración de esta instancia."
     },
     "login": "Iniciar sesión",
     "register": "Registrarse",
@@ -1663,6 +1664,8 @@
       "mirrorLinkHost": "Espejo para publicaciones de {site}",
       "renderEmoticonsAsEmoji": "Mostrar como emoji los emoticonos de otros",
       "renderEmoticonsAsEmojiDesc": "Muestra :) :D <3 y similares como emojis en los mensajes. El texto original se conserva.",
+      "animateEmoji": "Animar emojis personalizados",
+      "animateEmojiDesc": "Desactivado, los emojis animados muestran su primer fotograma. Solo cambia lo que ves tú.",
       "inviteBannerBg": "Banner del servidor en el diálogo de invitación",
       "inviteBannerBgDesc": "Muestra un banner del servidor desenfocado y oscurecido detrás del diálogo de invitación cuando el servidor tiene uno.",
       "quickReact": "Reacción rápida",
@@ -3570,6 +3573,16 @@
       },
       "newLink": "Crear enlace nuevo",
       "newLinkHint": "Crea un enlace con estos ajustes. Los enlaces existentes siguen funcionando hasta que caduquen o los revoques.",
+      "widgets": {
+        "toggle": "Añadir a tu sitio web",
+        "hint": "Pega uno de estos en tu sitio. Muestra el nombre y el número de miembros de este servidor, y enlaza a esta invitación. Cualquiera puede verlos.",
+        "expiring": "Este enlace caduca o tiene un límite de usos, y el widget dejará de funcionar cuando eso ocurra. Para un sitio web, crea un enlace que no caduque.",
+        "badge": "Insignia",
+        "markdown": "Insignia para Markdown (README, foros)",
+        "join": "Botón de unirse",
+        "icon": "Icono pequeño",
+        "card": "Tarjeta (iframe)"
+      },
       "creating": "Creando…",
       "created": "Nuevo enlace de invitación creado",
       "createFailed": "No se pudo crear un enlace de invitación",
@@ -4037,6 +4050,10 @@
     "lock": {
       "messages": "Cifrado de extremo a extremo",
       "voice": "La voz y el video están cifrados de extremo a extremo"
+    },
+    "home": {
+      "voice": "Este canal está cifrado de extremo a extremo en su instancia de origen, por lo que las cuentas de otras instancias no pueden unirse a sus llamadas.",
+      "messages": "Este canal está cifrado de extremo a extremo en su instancia de origen, por lo que las cuentas de otras instancias no pueden leer ni enviar sus mensajes."
     },
     "status": {
       "active": "Cifrado de extremo a extremo",
@@ -5096,7 +5113,7 @@
       "enterPhrase": "Introducir frase de recuperación",
       "scanHint": "Apunta la cámara al código QR del dispositivo nuevo.",
       "scanPasteLabel": "O pega el código copiado del dispositivo nuevo",
-      "showInstead": "¿El dispositivo nuevo tiene cámara? Muestra un código para que lo escanee",
+      "showInstead": "Mostrar en su lugar un código para escanear o copiar",
       "showLead": "En el dispositivo nuevo, elige {another}, luego {scanInstead} y apunta su cámara aquí, o copia el código de abajo y pégalo allí. Cualquiera con sesión iniciada en tu cuenta que escanee o pegue este código puede recibir tus claves, así que no lo compartas.",
       "showLeadAnother": "Otro dispositivo",
       "showLeadScanInstead": "Escanear o pegar un código de él",
@@ -6379,6 +6396,8 @@
       "deleteCategory": "Eliminar categoría"
     },
     "thread": {
+      "goToStart": "Ir al primer mensaje",
+      "showInChannel": "Mostrar en el canal",
       "leave": "Salir del hilo",
       "join": "Unirse al hilo",
       "edit": "Editar hilo",
@@ -6613,7 +6632,7 @@
       "staysKeys": "Claves de cifrado de extremo a extremo",
       "staysBots": "Los bots que posees",
       "staysServers": "Los servidores que posees",
-      "staysFollowing": "Las cuentas que sigues",
+      "staysFollowing": "Las cuentas que sigues. Descarga tus datos y luego importa la lista en la cuenta nueva.",
       "ownedServersWarning": "Eres propietario de {servers}. La propiedad no se muda; transfiérela antes si la cuenta nueva debe ser la propietaria. | Eres propietario de {servers}. La propiedad no se muda; transfiérelos antes si la cuenta nueva debe ser la propietaria.",
       "cooldown": "Después de una mudanza, la siguiente es posible tras 30 días.",
       "exportFirst": "Descarga tus datos primero",
@@ -6625,7 +6644,10 @@
       "noPassword": "Tu cuenta no tiene contraseña. Mudarse requiere haber iniciado sesión en los últimos diez minutos.",
       "confirm": "Mudar mi cuenta",
       "moving": "Mudando…",
-      "success": "Esta cuenta ahora apunta a {handle}. Se están mudando los seguidores."
+      "success": "Esta cuenta ahora apunta a {handle}. Se están mudando los seguidores.",
+      "staysInteractions": "Me gusta, impulsos y marcadores",
+      "staysProfile": "Tu nombre visible, biografía, avatar, banner y campos del perfil. Una cuenta nueva en Harmony puede copiarlos después de la mudanza.",
+      "staysBlocks": "Las cuentas que bloqueaste o silenciaste"
     },
     "moved": {
       "title": "Esta cuenta se ha mudado",
@@ -6656,7 +6678,14 @@
       "move_cooldown": "Te mudaste hace menos de 30 días. Inténtalo de nuevo en {count} día. | Te mudaste hace menos de 30 días. Inténtalo de nuevo en {count} días.",
       "too_many_attempts": "Demasiados intentos. Inténtalo de nuevo en {count} minuto. | Demasiados intentos. Inténtalo de nuevo en {count} minutos.",
       "wrong_password": "La contraseña no es correcta.",
-      "generic": "Algo salió mal. Inténtalo de nuevo."
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "import_running": "Ya hay una importación en curso.",
+      "too_many_accounts": "Un archivo puede incluir como máximo 20.000 cuentas.",
+      "no_accounts": "Ese archivo no incluye ninguna cuenta.",
+      "account_moved": "Esta cuenta se ha mudado. Importa en la cuenta nueva.",
+      "import_rate_limited": "Demasiadas importaciones hoy. Inténtalo de nuevo en {count} hora. | Demasiadas importaciones hoy. Inténtalo de nuevo en {count} horas.",
+      "not_verified": "No se pudo confirmar esa mudanza.",
+      "nothing_to_copy": "No había nada que copiar."
     },
     "profile": {
       "moved": "{name} se ha mudado a {target}",
@@ -6671,6 +6700,72 @@
       "short": "Cuenta mudada",
       "someone": "Una cuenta",
       "newAccount": "una cuenta nueva"
+    },
+    "import": {
+      "title": "Importar las cuentas que sigues",
+      "description": "Sigue las cuentas de una lista de tu cuenta antigua. En Mastodon, exporta Seguidos como CSV en Importar y exportar. En Harmony, usa el ZIP de tu descarga de datos. Las publicaciones y los me gusta no se importan.",
+      "choose": "Elegir archivo",
+      "found": "{count} cuenta encontrada en este archivo. | {count} cuentas encontradas en este archivo.",
+      "foundHint": "Las cuentas bloqueadas y las de otros servidores reciben una solicitud de seguimiento. Se omiten las cuentas que te bloquean o que bloqueas.",
+      "start": "Iniciar importación",
+      "starting": "Iniciando…",
+      "running": "Importando: {done} de {total} listas",
+      "waiting": "Esperando el límite de seguimientos por hora. Continúa en aproximadamente {count} minuto. | Esperando el límite de seguimientos por hora. Continúa en aproximadamente {count} minutos.",
+      "finished": "Importación terminada",
+      "stopped": "Importación detenida. Los seguimientos ya hechos se mantienen.",
+      "cancel": "Detener importación",
+      "counts": {
+        "followed": "Ahora sigues",
+        "requested": "Solicitudes enviadas",
+        "already": "Ya seguidas o solicitadas",
+        "failed": "No se pudieron seguir",
+        "cancelled": "Sin procesar"
+      },
+      "failures": "{count} cuenta no se pudo seguir | {count} cuentas no se pudieron seguir",
+      "moreFailures": "Y {count} más.",
+      "reasons": {
+        "invalid_handle": "No es una dirección de cuenta",
+        "not_found": "Cuenta no encontrada",
+        "instance_blocked": "Este servidor no federa con ese servidor",
+        "federation_off": "La federación está desactivada en este servidor",
+        "unreachable": "Su servidor no respondió",
+        "unavailable": "La cuenta está eliminada o suspendida",
+        "self": "Es tu propia cuenta",
+        "moved": "La cuenta se ha mudado",
+        "blocked": "Hay un bloqueo entre ustedes",
+        "declined": "Rechazó tu solicitud de seguimiento anteriormente"
+      },
+      "fileErrors": {
+        "file_too_large": "Ese archivo es demasiado grande.",
+        "unrecognized_file": "Ese archivo no es una lista de cuentas seguidas. Usa following_accounts.csv de Mastodon o el ZIP de una descarga de datos de Harmony.",
+        "wrong_list": "Parece otra lista, como bloqueos o silencios. Usa la lista de cuentas que sigues.",
+        "no_accounts": "Ese archivo no incluye ninguna cuenta."
+      }
+    },
+    "copy": {
+      "title": "Copiar tu perfil antiguo",
+      "description": "{handle} se mudó a esta cuenta. Puedes copiar aquí los datos de su perfil. Nada cambia hasta que confirmes.",
+      "origin": "Cuenta antigua",
+      "fields": {
+        "display_name": "Nombre visible",
+        "bio": "Biografía",
+        "avatar": "Avatar",
+        "banner": "Banner",
+        "profile_fields": "Campos del perfil"
+      },
+      "same": "Ya es igual",
+      "adds": "Se añade a este perfil",
+      "replaces": "Reemplaza lo que tiene este perfil",
+      "nothing": "La cuenta antigua no tiene datos de perfil para copiar.",
+      "review": "Copiar selección",
+      "confirmTitle": "¿Copiar desde {handle}?",
+      "confirmAdds": "{field}: se añade a este perfil.",
+      "confirmReplaces": "{field}: reemplaza lo que este perfil tiene ahora.",
+      "confirmWarning": "Lo que este perfil tiene ahora se sobrescribe y no se puede restaurar.",
+      "confirm": "Copiar a este perfil",
+      "copying": "Copiando…",
+      "done": "Datos del perfil copiados",
+      "partial": "Copiado, excepto: {fields}. No se pudieron leer del servidor antiguo."
     }
   },
   "polls": {
@@ -7967,6 +8062,8 @@
     "blockedDomainsHint": "Un dominio por línea. También se rechazan sus subdominios.",
     "blockedMailHosts": "Más servidores de correo que rechazar",
     "blockedMailHostsHint": "Un host por línea. Rechaza cualquier dominio de correo cuyos servidores estén en este host o por debajo: erinn.biz también cubre recv1.erinn.biz. No incluyas servicios compartidos como google.com, outlook.com o cloudflare.net: rechazaría a todos los que los usan.",
+    "blockedNetworks": "Direcciones y rangos que rechazar",
+    "blockedNetworksHint": "Uno por línea, como 203.0.113.7 o 2001:db8:1:2::/64. Rechaza cuentas nuevas desde ahí y nada más: quien ya tiene cuenta sigue iniciando sesión. Una dirección puede ser todo un campus, una oficina o un operador móvil, así que bloquea un rango solo si estás seguro.",
     "trustedDomains": "Dominios de correo nunca limitados",
     "trustedDomainsHint": "Un dominio por línea, para un campus o empresa rechazados por error o que se unen a la vez. Sus subdominios también cuentan. Omite el límite por dominio, la lista de desechables y las listas de servidores de correo. Un dominio en la lista de rechazo sigue rechazado, y se aplica el límite por buzón.",
     "save": "Guardar límites",
@@ -7975,13 +8072,15 @@
     "loadFailed": "No se pudieron cargar los límites de registro.",
     "invalidCap": "Introduce un número entero de 0 a 1000.",
     "invalidDomain": "{domain} no es un nombre de dominio.",
+    "invalidNetwork": "{network} no es una dirección ni un rango válido. Un rango es /8 o más estrecho en IPv4, /16 o más estrecho en IPv6.",
     "wouldRefuseTitle": "Superaron un límite y se permitieron, últimos 7 días",
     "refusalsTitle": "Rechazados en los últimos 7 días",
     "refusalIpCap": "Límite de red",
     "refusalDomainCap": "Límite de dominio",
     "refusalMailboxCap": "Límite de buzón",
     "refusalBlockedDomain": "Dominio de correo rechazado",
-    "refusalMailHost": "Servidor de correo"
+    "refusalMailHost": "Servidor de correo",
+    "refusalBlockedNetwork": "Dirección rechazada"
   },
   "adminInvites": {
     "tab": "Invitaciones",

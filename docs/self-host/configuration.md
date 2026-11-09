@@ -221,7 +221,7 @@ off). [Stickers](/self-host/stickers) describes them with the file limits.
 **Invites** → **Sign-up limits** holds `signup_limits_enabled`, `signup_daily_ip_cap` (`5`),
 `signup_mailbox_cap` (`5`), `signup_daily_domain_cap` (`10`), `signup_enforce_caps` (`false`: the network
 and domain caps observe), `signup_block_disposable_email`, `signup_blocked_email_domains`,
-`signup_blocked_mail_hosts` and `signup_trusted_email_domains`. `signup_limit_own_providers` (`false`) has no control in the panel.
+`signup_blocked_mail_hosts`, `signup_blocked_networks` and `signup_trusted_email_domains`. `signup_limit_own_providers` (`false`) has no control in the panel.
 [Sign-up limits](/self-host/signup-limits) describes them and the client address they need.
 
 ### Photo size sent to other servers
@@ -393,6 +393,7 @@ the sign-in service. A Supabase stack without it needs the
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |
 | `HARMONY_HTTP_PORT` | `80` | `[address:]port` Caddy publishes for port 80 |
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
+| `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
 | `SUPABASE_ANON_KEY` | required | Supabase anon key for the web container; copied from `supabase/.env` |
 | `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`) for the web container |
 | `TERMS_URL`, `PRIVACY_URL` | empty | Legal links for the web container; see the table above for which value applies |
@@ -465,6 +466,21 @@ Realtime from `v2.76` also caps how often one client may update its presence,
 by default 5 times in 30 seconds; past the cap, typing indicators stop
 reaching the other people in the chat. `supabase-overrides.yml` raises the cap
 to 60 (`CLIENT_PRESENCE_MAX_CALLS`).
+
+Realtime holds a connection for 5 seconds each time it refuses a channel join,
+and nothing reaches that client meanwhile. Opening a link to a channel the
+reader may not see costs two refusals. `supabase-overrides.yml` lowers the hold
+to 100 ms (`CHANNEL_ERROR_BACKOFF_MS`).
+
+Realtime's own limits count the whole instance, and its defaults are small: 200
+connected clients, 100 channel joins per second and 100 messages per second. Past
+the first, new clients get no live updates. Past the second, a restart can keep
+disconnecting everyone. Past the third, live messages stop for up to a minute for
+everyone, and one edit of a server with a few thousand members is enough.
+`supabase-overrides.yml` raises them to 9000, 100000 and 1000000
+(`TENANT_MAX_CONCURRENT_USERS`, `TENANT_MAX_JOINS_PER_SECOND`,
+`TENANT_MAX_EVENTS_PER_SECOND`). Realtime rewrites its limits from these settings
+each time it starts, so `harmony update` applies them and SQL changes do not last.
 
 Studio, postgres-meta, imgproxy and Kong run newer releases than the pinned
 stack's as well; [Docker Compose](/self-host/docker-compose) lists each change.

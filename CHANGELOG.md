@@ -8,6 +8,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
+  a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
+  shows the server's name and counts and links to the invite.
+- **Animate custom emoji** in **User settings** → **Appearance**. Off, animated emoji show their
+  first frame, on your screen only. **Reduce motion** does the same.
+- **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
+  and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
+  backslashes.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the
@@ -28,18 +36,53 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   reactions, follows, server joins, new servers and conversations with strangers. Bots have an
   overall REST ceiling (600 per minute; 3,000 for a linked Discord bridge). An admin can exempt an
   account in **Users**. **Stored files across the instance** adds an optional Drive total.
+- **Following import.** **Account migration** takes Mastodon's `following_accounts.csv` or Harmony's
+  data export and follows the accounts on it in the background, with the result per account. Locked
+  and remote accounts get a request; blocks apply. Posts and likes are not imported, as on Mastodon.
+- **Copy your old profile.** After a confirmed move, the new account can copy the old one's display
+  name, bio, avatar, banner and profile fields. It is optional and asks before replacing anything.
 - **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
   people you follow, or only people you follow. It also applies to other instances.
 - **Sign-up limits.** Disposable email addresses and a sixth account on one inbox in 30 days are
   refused. Disposable mail is also recognized by the mail server behind a domain, so a service's new
   domains are refused too. Accounts per network and per domain in a day are counted, and refused only
   if an admin turns that on, so a campus or office signing up together is not affected. An admin can
-  add domains and mail hosts to refuse, and list domains that are never limited.
+  add domains, mail hosts, addresses and ranges to refuse, and list domains that are never limited.
   **Admin** → **Invites** → **Sign-up limits**.
+- **Signups tab for staff.** **Admin** → **Signups** lists recent accounts with their email domain,
+  shows groups created together, and suspends or unsuspends a selection with one reason. Members can
+  report an account for username hoarding or trading.
 - **Delete accounts and free their usernames.** Administrators can delete selected accounts in
   **Admin** → **Signups**. The usernames become free at once.
 
 ### Fixed
+- **Live updates no longer stop for a whole instance.** Realtime allowed 200 connected clients, 100
+  channel joins and 100 messages per second across an instance. Past those, new clients got no live
+  updates, a restart could keep disconnecting everyone, and live messages stopped for up to a minute:
+  one edit of a server with a few thousand members was enough. `harmony update` raises all three.
+- **Encrypted channels across instances.** A server hosted on another instance now shows the lock
+  on encrypted channels and the private mark on hidden ones. Accounts from other instances can no
+  longer join an encrypted voice channel, where they heard nothing and were heard in plaintext;
+  they are told why, and anyone already connected is removed when encryption turns on. In an
+  encrypted text channel the message box says why they cannot post, instead of the message
+  vanishing.
+- **Threads read as one conversation.** The starter message scrolls with the replies instead of
+  holding the top of the panel and the full view, and the gap under the reply count is gone. The
+  thread menu has **Go to first message** and **Show in channel**. The full view's thread menu now
+  opens at all; a click on it used to close it again.
+- **Links to threads and messages read as references**: `#channel › thread` for a thread or a
+  message in one, `#channel` for a message in another server or a DM. A link to a place you cannot
+  read stays a plain URL.
+- **Mention suggestions take any display name**: kana, kanji, Hangul, accents, full-width letters
+  and names with spaces, also while an input method is still composing, and with the full-width
+  ＠ of a Japanese input mode.
+- **Default emoji in reply previews** use your emoji pack instead of the system's.
+- **Formatting no longer runs inside inline code**: `` `*a*` `` shows its asterisks.
+- **Scrolling up right after opening a channel** no longer pulls you back to the newest message.
+- **Quoted posts show in place.** A quote reached through a boost, a search or a profile stored
+  only a link to the quoted post, as did one whose read failed. The post is now read when you see it.
+- **Device linking** on one computer: the signed-in device's button now reads **Show a code to scan
+  or copy instead**. It said the new device needed a camera.
 - **Refused voice joins across instances.** A person refused by a voice channel on another instance
   now sees the reason at once instead of waiting 20 seconds for a timeout, and no longer stays
   listed in the channel. Works when the hosting instance runs this version.
@@ -49,6 +92,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Installing and updating on arm64.** Harmony 1.9.4's gateway image, `kong:2.8.5`, has no arm64
   build, so `harmony install` and `harmony update` stopped at the image pull on arm64 servers. The
   stack now runs `kong:3.9.4`, and CI checks every image for amd64 and arm64.
+- **Messages pausing after a link to a channel you cannot open.** Each channel the server refused
+  stopped everything else on the connection for 5 seconds, messages included, up to 30 seconds for
+  one link. A refusal now costs about 100 ms and is not retried.
+- **Servers with some 90 or more private voice channels.** Opening one took the slots live chat
+  needs and could leave the connection stuck for minutes. Harmony now follows 60 private voice
+  channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
 - **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
@@ -57,7 +106,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   connection dies mid-write, Realtime v2.153.6, imgproxy v4.0.22, and with log collection on,
   Logflare 1.50.15 and Vector 0.53.0.
 
+### Security
+- Federation, API routes and database functions check what a request acts on, not only who sent
+  it. Update to this release.
+
 ### Notes for self-hosters
+- Supabase Studio is off unless you choose it. An install that never chose has it removed by
+  `harmony update`, which prints one line; `harmony studio on` brings it back.
+- Sign-up limits and the auth service's per-address limits read the client's address from
+  `Sb-Forwarded-For`, which the bundled Caddy sets. Behind another proxy, follow
+  [The client address](https://docs.mony.lol/self-host/signup-limits#client-address).
+- `harmony update` deletes its own old backups after it succeeds, keeping the newest 5 that changed
+  the version and the newest 5 of runs with no new code. The first update on this version can delete
+  many at once. To keep them all, set `HARMONY_KEEP_UPDATE_BACKUPS=0` in `self-host/.env` before
+  updating. Backups from `harmony backup` and restores stay.
 - If you worked around the arm64 error with `docker-compose.arm64.yml`, delete that file and the
   `COMPOSE_FILE` line it needed from `.env`. The instance keeps working if you leave them, on Kong
   2.8.1.

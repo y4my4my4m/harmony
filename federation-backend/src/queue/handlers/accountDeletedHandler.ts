@@ -7,6 +7,7 @@
  *    the delivery queue's retries sign the same way). delivered_at marks the fan-out done.
  * 2. Avatar and banner objects under the account's folders. Message and post attachments
  *    stay with the content that references them.
+ * 3. Following import rows, which name the accounts the person followed.
  *
  * Delivery precedes the storage purge: a storage failure retries the job without sending
  * the Delete twice.
@@ -48,6 +49,9 @@ export async function handleAccountDeletedJob(data: AccountDeletedJobData): Prom
 
   const folders = Array.from(new Set([data.auth_user_id, data.profile_id].filter((v): v is string => !!v)));
   await purgeProfileMedia(folders);
+
+  const { error: importsError } = await supabase.from('following_imports').delete().eq('profile_id', data.profile_id);
+  if (importsError) throw importsError;
 }
 
 async function purgeProfileMedia(folders: string[]): Promise<void> {

@@ -336,7 +336,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // @username@domain    remote user
   // @username           local user
   const mentionRegex = new RegExp(
-    `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
+    `((?<!\\\\)@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
     'gu',
   );
   

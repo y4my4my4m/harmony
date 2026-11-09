@@ -377,3 +377,62 @@ describe('renderChatMessageText - unicode emoji under the Twemoji pack', () => {
     expect(images(renderChatMessageText('™ © ❤', twemoji).renderedText)).toEqual([]);
   });
 });
+
+describe('renderChatMessageText backslash escapes', () => {
+  const render = (text: string) =>
+    renderChatMessageText(text, {
+      isNativePack: true,
+      emojiServiceLoaded: false,
+      resolveEmoji: () => ({ display: { type: 'native', content: '' } }),
+      isSingleEmoji: false,
+      greentextEnabled: true,
+    }).renderedText;
+
+  it.each([
+    ['\\*\\*a\\*\\*', '**a**', 'md-bold'],
+    ['\\*a\\*', '*a*', 'md-italic'],
+    ['\\_a\\_', '_a_', 'md-italic'],
+    ['\\_\\_a\\_\\_', '__a__', 'md-underline'],
+    ['\\~\\~a\\~\\~', '~~a~~', 'md-strikethrough'],
+    ['\\+\\+a\\+\\+', '++a++', 'md-underline'],
+    ['\\|\\|a\\|\\|', '||a||', 'md-spoiler'],
+    ['\\`a\\`', '`a`', 'md-code'],
+  ])('%j draws no markup', (typed, shown, markup) => {
+    const html = render(typed);
+    expect(html).not.toContain(markup);
+    expect(html).toBe(shown);
+  });
+
+  it('draws no quote or greentext from an escaped line start', () => {
+    expect(render('\\> a')).toBe('&gt; a');
+    expect(render('\\>a')).toBe('&gt;a');
+    expect(render('\\>\\>\\> a')).toBe('&gt;&gt;&gt; a');
+  });
+
+  it('leaves an unescaped marker working beside an escaped one', () => {
+    expect(render('\\*a\\* **b**')).toBe('*a* <strong class="md-bold">b</strong>');
+  });
+
+  it('keeps inline code verbatim', () => {
+    expect(render('`\\*a\\*`')).toBe('<code class="md-code">\\*a\\*</code>');
+  });
+
+  it('reads no formatting inside inline code', () => {
+    expect(render('`*a* **b** _c_ ~~d~~ ||e|| ++f++`')).toBe('<code class="md-code">*a* **b** _c_ ~~d~~ ||e|| ++f++</code>');
+    expect(render('**a `b*c` d**')).toBe('<strong class="md-bold">a <code class="md-code">b*c</code> d</strong>');
+  });
+
+  it('shows a backslash for an escaped backslash', () => {
+    expect(render('\\\\')).toBe('\\');
+    expect(render('\\\\*a*')).toBe('\\<em class="md-italic">a</em>');
+  });
+
+  it('keeps the shrug whole, without italics', () => {
+    expect(render('¯\\_(ツ)_/¯')).toBe('¯\\_(ツ)_/¯');
+  });
+
+  it('cannot smuggle markup through a mask', () => {
+    expect(render('\\<img src=x onerror=alert(1)\\>')).not.toContain('<img');
+    expect(render('\\<script>')).toBe('&lt;script&gt;');
+  });
+});

@@ -14,7 +14,7 @@
  * reads the mention parts for notifications. Clients render mentions only from the decrypted
  * payload and never from the parts beside the ciphertext.
  */
-import type { MessagePart } from '@/types'
+import type { ChannelHostFlags, MessagePart } from '@/types'
 import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 export type ServerEncryptionMode = 'disabled' | 'optional' | 'required' | 'required_local_only'
@@ -52,6 +52,21 @@ export interface ResolvedChannelEncryption {
   /** The server floor fixes voiceEncrypted. */
   voiceLocked: boolean
   historyVisibility: HistoryVisibility
+}
+
+/**
+ * i18n key of a channel's lock, or null for a channel without encryption. host_flags speak for a
+ * copy, where no local setting exists and state resolves as off; type 1 is a voice channel.
+ */
+export function channelLockKey(
+  channel: { type?: unknown; host_flags?: ChannelHostFlags } | null | undefined,
+  state: Pick<ResolvedChannelEncryption, 'messagesEncrypted' | 'voiceEncrypted'> | null,
+): string | null {
+  const voiceChannel = Number(channel?.type) === 1
+  if (voiceChannel && channel?.host_flags?.voice) return 'channelEncryption.home.voice'
+  if (channel?.host_flags?.messages) return 'channelEncryption.home.messages'
+  if (voiceChannel && state?.voiceEncrypted) return 'channelEncryption.lock.voice'
+  return state?.messagesEncrypted ? 'channelEncryption.lock.messages' : null
 }
 
 export interface EffectiveChannelEncryption extends ResolvedChannelEncryption {

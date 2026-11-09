@@ -870,7 +870,6 @@ class UserDataService extends EventTarget {
    * Setup server broadcast channel.
    *
    * This channel is BROADCAST-ONLY. It receives:
-   *   - profile_update broadcasts from peers
    *   - presence_event broadcasts from the database: member join/leave,
    *     profile updates, emoji changes, and presence:update for members
    *
@@ -907,7 +906,6 @@ class UserDataService extends EventTarget {
     if (!context) return
 
     const channel = supabase.channel(channelName, { config: { private: true } })
-      .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
       .on('broadcast', { event: 'presence_event' }, (payload) => {
         const data = payload.payload ?? payload
         const type = data?.type as string
@@ -1097,62 +1095,6 @@ class UserDataService extends EventTarget {
     }
   }
 
-  /** Receives profile changes broadcast by other clients. */
-  private async handleProfileUpdateBroadcast(serverId: string, payload: any): Promise<void> {
-    const { userId, ...profileUpdates } = payload.payload
-
-    if (!userId || userId === this.currentUserId) {
-      // Own broadcasts and invalid payloads are ignored.
-      return
-    }
-    
-    debug.log(`Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
-    
-    const userData = this.users.get(userId)
-    if (userData) {
-      if (profileUpdates.displayName !== undefined) {
-        userData.displayName = profileUpdates.displayName
-        userData.displayNameParts = this.resolveDisplayNameParts(profileUpdates.displayName, userData.displayNameEmojis)
-      }
-      if (profileUpdates.avatarUrl !== undefined) {
-        userData.avatarUrl = profileUpdates.avatarUrl
-      }
-      if (profileUpdates.bannerUrl !== undefined) {
-        userData.bannerUrl = profileUpdates.bannerUrl
-      }
-      if (profileUpdates.bio !== undefined) {
-        userData.bio = profileUpdates.bio
-      }
-      if (profileUpdates.color !== undefined) {
-        userData.color = profileUpdates.color
-      }
-      if (profileUpdates.username !== undefined) {
-        userData.username = profileUpdates.username
-      }
-      if ('customStatus' in profileUpdates) {
-        userData.customStatus = profileUpdates.customStatus
-      }
-      
-      userData.lastCacheUpdate = new Date().toISOString()
-      userData.source = 'presence'
-      
-      this.emitEvent('user-updated', { userId })
-      
-      debug.log(`Updated user data for ${userData.displayName} from broadcast`)
-    } else {
-      debug.log(`Loading fresh user data for ${userId} after profile broadcast`)
-      await this.loadUsersData([userId])
-
-      this.emitEvent('user-updated', { userId })
-    }
-
-    this.emitEvent('context-updated', { 
-      contextId: serverId, 
-      type: 'profile-broadcast', 
-      userId 
-    })
-  }
-  
   /** Resolves true when any id needed a fetch. */
   private async loadUsersData(userIds: string[]): Promise<boolean> {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -1524,8 +1466,6 @@ class UserDataService extends EventTarget {
       // Local state is already updated; execution continues.
     }
 
-    await this.broadcastProfileToContexts({ customStatus })
-    
     this.emitEvent('custom-status-changed', { userId: this.currentUserId, customStatus })
     debug.log('Custom status updated and broadcast')
   }
@@ -1611,8 +1551,8 @@ class UserDataService extends EventTarget {
   
   
   /**
-   * Broadcasts only to contexts the user shares, so only users who can
-   * already see this user receive the update.
+   * Updates this client's cache. Other clients learn the change from the database
+   * (broadcast_profile_change).
    */
   async updateCurrentUserProfile(profileData: {
     displayName?: string
@@ -1640,55 +1580,7 @@ class UserDataService extends EventTarget {
     if (profileData.username !== undefined) userData.username = profileData.username
     userData.lastCacheUpdate = new Date().toISOString()
     
-    try {
-      await this.broadcastProfileToContexts(profileData)
-      
-      this.emitEvent('user-updated', { userId: this.currentUserId })
-      debug.log('Profile updated and broadcast to relevant contexts')
-      
-    } catch (error) {
-      debug.error('Failed to broadcast profile update:', error)
-      throw error
-    }
-  }
-  
-  /**
-   * Uses broadcast events, not presence tracking. Only users in the same
-   * server/DM contexts receive the update.
-   */
-  private async broadcastProfileToContexts(profileData: {
-    displayName?: string
-    avatarUrl?: string
-    bannerUrl?: string
-    bio?: string
-    color?: string
-    username?: string
-    customStatus?: CustomUserStatus | undefined
-  }): Promise<void> {
-    if (!this.currentUserId) return
-    
-    debug.log(`Broadcasting profile update to ${this.contexts.size} contexts`)
-    
-    for (const context of this.contexts.values()) {
-      if (context.channel && context.userIds.has(this.currentUserId)) {
-        try {
-          await context.channel.send({
-            type: 'broadcast',
-            event: 'profile_update',
-            payload: {
-              userId: this.currentUserId,
-              ...profileData
-            }
-          })
-          
-          debug.log(`Profile broadcast to ${context.type} context: ${context.id}`)
-        } catch (error) {
-          debug.error(`Failed to broadcast profile to context ${context.id}:`, error)
-        }
-      }
-    }
-    
-    debug.log(`Profile broadcast completed to ${this.contexts.size} context channels`)
+    this.emitEvent('user-updated', { userId: this.currentUserId })
   }
   
   getUser(userId: string): UserData | null {

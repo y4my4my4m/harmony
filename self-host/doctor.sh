@@ -139,6 +139,8 @@ check_host() {
 		[[ "$mount" == "$(df -P "$SELF_HOST_DIR" | awk 'NR==2 {print $6}')" && "$dir" != "$SELF_HOST_DIR" ]] && break
 	done
 
+	check_files
+
 	local last age
 	last="$(latest_backup)"
 	if [[ -z "$last" ]]; then
@@ -151,6 +153,22 @@ check_host() {
 			report OK backup "last backup $(basename "$last") ($age days old)"
 		fi
 	fi
+}
+
+# Public files without the modes the containers need (modes.sh): FAIL for supabase/, whose
+# supabase-db and kong run as their own users, and for an install that builds its images.
+check_files() {
+	local p level=WARN
+	local -a unread=()
+	while IFS= read -r -d '' p; do unread+=("${p#./}"); done < <(public_unreadable)
+	if [[ ${#unread[@]} -eq 0 ]]; then
+		report OK files "the checkout and supabase/ are readable to the containers"
+		return
+	fi
+	for p in "${unread[@]}"; do [[ "$p" != self-host/supabase* ]] || level=FAIL; done
+	[[ "$(env_get "$ENV_FILE" COMPOSE_FILE)" != *docker-compose.build.yml* ]] || level=FAIL
+	report "$level" files "${#unread[@]} files or directories the containers read lack o+r (first: ${unread[0]}); a container that runs as another user cannot read them" \
+		"bash $SELF_HOST_DIR/configure.sh --non-interactive (keeps every answer; harmony update runs it)"
 }
 
 # --- containers ----------------------------------------------------------------
@@ -208,12 +226,25 @@ check_activity_purge() {
 }
 
 # --- database ------------------------------------------------------------------
+# supabase/volumes/db/roles.sql sets authenticator's password when Postgres creates the database;
+# the image skips its init scripts on every later start.
+check_db_init() {
+	if [[ "$(db_sql -c "SELECT rolpassword IS NULL FROM pg_authid WHERE rolname = 'authenticator'" 2>/dev/null)" == t ]]; then
+		report FAIL "db init" "authenticator has no password: Supabase's init scripts (supabase/volumes/db/*.sql) did not run when the database was created, and auth, rest, realtime and storage cannot sign in" \
+			"an install with no data yet, in self-host/: docker compose down; mv supabase/volumes/db/data supabase/volumes/db/data.failed; bash install.sh (https://docs.mony.lol/self-host/troubleshooting#umask)"
+	else
+		report OK "db init" "Supabase's init scripts ran (authenticator has a password)"
+	fi
+}
+
 check_database() {
 	section "Database"
 	if ! db_ready; then
 		report FAIL database "Postgres does not answer" "harmony logs db"
 		return
 	fi
+	check_db_init
+
 	local applied files missing=() extra=0 v f
 	applied="$(db_sql -c 'SELECT version FROM supabase_migrations.schema_migrations' 2>/dev/null)"
 	for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
