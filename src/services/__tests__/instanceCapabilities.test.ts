@@ -22,8 +22,10 @@ async function load(stored: Record<string, unknown> | null, native = true) {
   localStorage.clear()
   if (native) vi.stubGlobal('__TAURI_INTERNALS__', {})
   if (stored) localStorage.setItem('harmony.instance', JSON.stringify(stored))
-  // main.ts loads i18n before the app starts; instanceCapabilities imports it when it speaks.
-  await import('@/i18n')
+  // main.ts loads i18n and waits for its messages before the app starts; instanceCapabilities
+  // imports it when it speaks. The messages arrive through a dynamic import, so wait as main.ts does.
+  const { waitForInitialLocale } = await import('@/i18n')
+  await waitForInitialLocale()
   return import('@/services/instanceCapabilities')
 }
 
