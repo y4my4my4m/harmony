@@ -29,6 +29,9 @@ create_notification_structured	service key	service_role
 create_notification_with_spam_prevention	service key	service_role
 current_user_is_member_of_server	http anon	anon+authenticated+service_role
 disable_federation_triggers	service key	service_role
+discord_bridge_import_cancel_internal	service key	service_role
+discord_bridge_import_start_internal	service key	service_role
+discord_bridge_import_update	service key	service_role
 enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role
 enforce_request_assurance	http anon	anon+authenticated+service_role
