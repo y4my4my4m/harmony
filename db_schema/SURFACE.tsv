@@ -16,7 +16,11 @@ add_server_owner_membership		trigger	definer	public, pg_temp	service_role	trigge
 add_user_prekeys	p_user_id uuid, p_device_id text, p_prekeys jsonb	integer	definer	public, pg_temp	service_role	unreferenced
 add_user_to_conversation	conversation_uuid uuid, user_uuid uuid, user_role text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_add_supporter	p_user_id uuid, p_tier_id uuid, p_amount numeric, p_platform text	uuid	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_accounts	p_profile_ids uuid[], p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_accounts_preview	p_profile_ids uuid[]	TABLE(id uuid, username text, display_name text, avatar_url text, skip_reason text, post_count integer, message_count integer, local_follows integer, remote_followers integer, owned_servers jsonb)	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_caller		uuid	definer	public, pg_temp		unreferenced
 admin_delete_outgoing_webhook	p_webhook_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_skip_reason	p_caller uuid, p_profile profiles	text	definer	public, pg_temp		unreferenced
 admin_drive_remove_file	p_file uuid, p_block boolean, p_reason text, p_bucket text, p_path text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_drive_unblock_hash	p_sha256 text	boolean	definer	public, pg_temp	authenticated+service_role	client
 admin_drive_usage	p_search text, p_limit integer, p_offset integer, p_profile uuid	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
@@ -412,6 +416,7 @@ enforce_server_sound_limit		trigger	definer	public, pg_temp	service_role	trigger
 enforce_sticker_limit		trigger	definer	public, pg_temp	service_role	trigger
 enqueue_outgoing_webhook_event	p_event text, p_server_id uuid, p_channel_id uuid, p_bot_ids uuid[], p_payload jsonb	integer	definer	public, pg_temp	service_role	client
 ensure_realtime_partitions		integer	definer	pg_catalog, pg_temp		unreferenced
+erase_account	p_auth_id uuid	void	definer	pg_catalog, public, pg_temp		unreferenced
 execute_channel_webhook	p_webhook_id uuid, p_token_hash text, p_content text, p_username text, p_avatar_url text, p_suppress_embeds boolean	jsonb	definer	public, pg_temp	service_role	client
 existing_sticker_ids	p_ids uuid[]	TABLE(id uuid, url text)	definer	public, pg_temp	anon+authenticated+service_role	client
 export_my_messages	p_export_id uuid, p_after_created_at timestamp with time zone, p_after_id uuid, p_limit integer	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
@@ -936,7 +941,7 @@ staff_server_members	p_server_id uuid, p_search text, p_limit integer, p_offset 
 staff_server_messages	p_server_id uuid, p_channel_id uuid, p_author_id uuid, p_before timestamp with time zone, p_limit integer	TABLE(id uuid, channel_id uuid, channel_name text, thread_id uuid, user_id uuid, bot_id uuid, author_username text, author_display_name text, author_avatar_url text, author_domain text, content jsonb, encrypted boolean, created_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
 staff_set_server_suspended	p_server_id uuid, p_suspended boolean, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 staff_signup_daily	p_days integer	TABLE(day date, signups integer, suspended integer, email_domains integer, top_domain_count integer, peak_hour_count integer, refused integer, would_refuse integer)	definer	public, pg_temp	authenticated+service_role	client
-staff_signup_groups	p_days integer, p_min_size integer	TABLE(kind text, key text, label text, size integer, suspended integer, prior_count integer, first_at timestamp with time zone, last_at timestamp with time zone, member_ids uuid[])	definer	public, pg_temp	authenticated+service_role	client
+staff_signup_groups	p_days integer, p_min_size integer	TABLE(kind text, key text, label text, size integer, suspended integer, prior_count integer, first_at timestamp with time zone, last_at timestamp with time zone, member_ids uuid[], mail_hosts text[])	definer	public, pg_temp	authenticated+service_role	client
 stamp_post_federate_image_cap		trigger	definer	public, pg_temp	service_role	trigger
 start_dm_call_message	p_conversation_id uuid, p_call_type text	uuid	definer	public, pg_temp	authenticated+service_role	client
 sticker_check_text	p_name text, p_description text	void	invoker	public, pg_temp	service_role	unreferenced

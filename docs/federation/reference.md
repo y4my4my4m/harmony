@@ -266,7 +266,7 @@ Harmony does not send RFC 9421 signatures. Every outbound request, signed or not
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
 | Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, `Remove` of a member, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
-| `Flag` | The instance actor |
+| `Flag`, `harmony:VoiceChannelJoinReject` | The instance actor |
 | `GET` on behalf of a member: a private server's Group, channels and members | That member |
 | Any other `GET` (actors, keys, objects, collections, NodeInfo) | The instance actor |
 | Deliveries of a deleted account (its actor `Delete`) | The account's retained key, under its original `keyId` |
@@ -400,6 +400,7 @@ Chat-server activities:
 | `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances with a member who can view the channel |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
+| `harmony:VoiceChannelJoinReject` | Instance actor | The `Join` id; `reason` text for the joining account | Host refuses a voice join | The joining account's host, once, not retried |
 | `harmony:VoiceMemberMove` / `harmony:VoiceMemberDisconnect` / `harmony:VoiceMemberState` | Group | The member | A moderator moves, disconnects, server-mutes or server-deafens a member of another instance, or the member leaves voice another way (see [Voice moderation](#voice-moderation)) | The member's instance, at its copy's inbox |
 | `harmony:VoiceCallInvite` / `Accept` / `Reject` / `End` | Account | `harmony:VoiceCall`, or the invite id | A direct-message call | The other party |
 
@@ -764,7 +765,7 @@ An invite link in a message shows as the server's card when the link's host name
 
 Voice media goes through LiveKit, not ActivityPub; the activities exchange tokens.
 
-**Voice channels.** A member's instance sends `harmony:VoiceChannelJoin` to the Group inbox with a join id it minted. The host checks membership and channel permissions and answers with `harmony:VoiceChannelJoinAccept`: `actor` the server owner, `object` the join id, `result` a `harmony:VoiceToken` (`livekitUrl`, `token`, `roomName`, `expiresAt`, four hours ahead). Otherwise it answers `harmony:VoiceChannelJoinReject`. The answer is delivered once, to an inbox on the joining actor's host, and only the instance the join was sent to can answer it.
+**Voice channels.** A member's instance sends `harmony:VoiceChannelJoin` to the Group inbox with a join id it minted. The host checks membership and channel permissions and answers with `harmony:VoiceChannelJoinAccept`: `actor` the server owner, `object` the join id, `result` a `harmony:VoiceToken` (`livekitUrl`, `token`, `roomName`, `expiresAt`, four hours ahead). Otherwise it answers `harmony:VoiceChannelJoinReject`: `actor` the instance actor, `object` the join id, `reason` text shown to the joining account. The reason says nothing of which check failed. The answer is delivered once, to an inbox on the joining actor's host, and only the instance the join was sent to can answer it. Hosts before 1.9.5 send no refusal; the joining client gives up after 20 seconds.
 
 **Direct-message calls.** The caller's LiveKit hosts the room `federated-dm-<conversation uuid>-<milliseconds>`.
 
@@ -773,7 +774,7 @@ Voice media goes through LiveKit, not ActivityPub; the activities exchange token
 3. On accept, the callee's instance sends `POST /api/livekit/federated-token` to the caller's origin with `{ "actorId": "<callee>", "roomName": "<room>", "roomType": "dm_call" }`, signed with the callee's key. The caller's instance grants a token when `actorId` is the signer, the signer is the recipient of a live call for that room, and the signer is in the conversation. The answer is `{ "token", "wsUrl", "roomName", "identity" }`.
 4. The callee's instance delivers `harmony:VoiceCallAccept`. `harmony:VoiceCallReject` and `harmony:VoiceCallAccept` are accepted only from the call's remote recipient, `harmony:VoiceCallEnd` only from the other party.
 
-With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites and refuses federated call tokens.
+With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites, refuses federated call tokens, and answers a voice channel join with `harmony:VoiceChannelJoinReject`.
 
 ### Voice moderation
 

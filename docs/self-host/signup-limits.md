@@ -25,24 +25,38 @@ Set them in **Admin, Invites, Sign-up limits**. A change applies to the next sig
 | **Accounts per email inbox in 30 days** | `signup_mailbox_cap` | `5` | HTTP 422 past the cap. `0` is no cap |
 | **Accounts per email domain in 24 hours** | `signup_daily_domain_cap` | `10` | Past the cap, in a rolling 24 hours: counted, or HTTP 429 with enforcement on. `0` is no cap |
 | **Refuse accounts past the network and domain caps** | `signup_enforce_caps` | `false` | Enforcement. Off, those two caps only observe |
-| **Refuse disposable email addresses** | `signup_block_disposable_email` | `true` | HTTP 422 for the domains in `signup_disposable_domains` |
+| **Refuse disposable email addresses** | `signup_block_disposable_email` | `true` | HTTP 422 for the domains in `signup_disposable_domains` and the mail hosts in `signup_disposable_mail_hosts` |
 | **More email domains to refuse** | `signup_blocked_email_domains` | `[]` | HTTP 422 for these domains. Applies with the disposable list off |
+| **More mail hosts to refuse** | `signup_blocked_mail_hosts` | `[]` | HTTP 422 for a domain whose mail servers are at these hosts. Applies with the disposable list off |
+| **Email domains never limited** | `signup_trusted_email_domains` | `[]` | Nothing. Skips the domain cap, the disposable list and both mail host lists |
 
 - The network and domain caps observe by default, because a campus or an office shares one address and
   one email domain. An account past either is allowed and counted, and the panel shows these counts
   apart from refusals. To refuse past them, turn enforcement on; to enforce one alone, set the other
-  to `0`. The inbox cap and the domain lists always refuse.
+  to `0`. The inbox cap and the domain and mail host lists always refuse.
+- A **mail host** is where a domain's email is delivered, its MX record. A disposable mail service
+  puts many domains on one host, so one entry covers the domains it has and the ones it adds. An entry
+  also matches its subdomains: `erinn.biz` covers `recv1.erinn.biz`. Do not list a shared service such
+  as `google.com`, `outlook.com` or `cloudflare.net`: that refuses everyone using it.
+- The federation worker looks up a domain's mail servers the first time the domain signs up, and again
+  at a sign-up once the answer is seven days old. Until the first answer, sign-ups on that domain pass.
+  Without a worker, or if the lookup fails, they keep passing. [Reviewing signups](/run/signup-review)
+  shows the mail host of each email domain group, so you can see what to add here.
 - A **network** is one IPv4 address or one IPv6 /56.
 - An **inbox** is the address without its `+tag`. For Gmail, dots do not count and
   `googlemail.com` is `gmail.com`. `me+a@example.org` and `me+b@example.org` are one inbox;
   `m.e@example.org` and `me@example.org` are two.
 - The domain cap spots one operator with many mailboxes on a domain of their own, from any network.
-  Large mail providers are not counted: `signup_common_email_domains` lists them.
-- A blocked domain also matches its subdomains. The domain cap counts each subdomain on its own.
+- Large mail providers, ISP mail and privacy alias services are not counted, and their mail hosts are
+  not read: `signup_common_email_domains` lists them.
+- A blocked or never-limited domain also matches its subdomains. The domain cap counts each subdomain on
+  its own. A domain on both lists is refused, and the inbox cap applies to a never-limited domain.
 - The inbox count starts with the accounts of the last 30 days when the migration runs.
-- The disposable list is a snapshot of
-  [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains)
-  (CC0), 10167 domains.
+- The disposable list holds only domains with direct evidence: their mail is delivered at a host of a
+  known disposable service, or a disposable site was seen offering them in the last 12 months
+  ([FakeFilter](https://github.com/7c/fakefilter)). Domains that are only on public lists stay out,
+  because those lists include real businesses. It changes with Harmony's updates. A disposable domain
+  outside it can still sign up until its mail host is known or you add it.
 
 The panel shows, for the last 7 days, accounts past an observing cap and refusals per limit. [Reviewing signups](/run/signup-review) shows them per day, beside the accounts created.
 
@@ -80,6 +94,10 @@ docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres \
 `signup_ledger` has one row per allowed account: the time, the network, the email domain and a
 SHA-256 of the inbox, with no link to the account. The network and domain are erased after 24 hours
 and the row after 30 days, hourly under `pg_cron` and on every allowed sign-up. `signup_refusal_counts` has counts per day and limit for 90 days.
+
+`signup_mail_hosts` has one row per email domain met at sign-up, large providers apart: the domain and
+its public MX hosts. A row with no lookup for 30 days is deleted. The lookup is an ordinary DNS query
+from your server.
 
 ## The client address {#client-address}
 

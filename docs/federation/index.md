@@ -203,4 +203,4 @@ While either switch is off, the instance's server directory lists no server, and
 
 Turning either switch back on turns federation on again for the servers the closing turned off. Nobody removed comes back; they rejoin with an invite.
 
-Two environment settings of the federation backend also apply: `ALLOW_FEDERATED_VOICE` turns federated direct-message calls on or off (on by default), and `REQUIRE_VALID_SIGNATURES` cannot be turned off in production. See [Configuration](/self-host/configuration).
+Two environment settings of the federation backend also apply: `ALLOW_FEDERATED_VOICE` turns voice with other instances on or off, both their people joining voice channels here and direct-message calls (on by default), and `REQUIRE_VALID_SIGNATURES` cannot be turned off in production. See [Configuration](/self-host/configuration).

@@ -37,6 +37,7 @@ import { handleInstanceLeaveJob } from './handlers/instanceLeaveHandler.js';
 import { handleOutgoingWebhookJob } from './handlers/outgoingWebhookHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
+import { handleSignupMailHostJob } from '../services/signupMailHosts.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 import { handleGroupUpdateJob } from './handlers/groupUpdateHandler.js';
 import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHandler.js';
@@ -82,6 +83,7 @@ export type JobType =
   | 'release-held-activity'
   | 'account-deleted'
   | 'account-moved'
+  | 'signup-mail-host'
   | 'delete-message-media'
   | 'drive-hash'
   | 'drive-purge'
@@ -133,6 +135,7 @@ const JOB_TYPES: JobType[] = [
   'release-held-activity',
   'account-deleted',
   'account-moved',
+  'signup-mail-host',
   'delete-message-media',
   'drive-hash',
   'drive-purge',
@@ -273,6 +276,7 @@ class BullMQManagerService {
     this.handlerMap.set('release-held-activity', handleReleaseHeldActivityJob as unknown as HandlerFn);
     this.handlerMap.set('account-deleted', handleAccountDeletedJob as unknown as HandlerFn);
     this.handlerMap.set('account-moved', handleAccountMovedJob as unknown as HandlerFn);
+    this.handlerMap.set('signup-mail-host', handleSignupMailHostJob as unknown as HandlerFn);
     this.handlerMap.set('delete-message-media', handleMessageMediaCleanupJob as unknown as HandlerFn);
     this.handlerMap.set('drive-hash', handleDriveHashJob as unknown as HandlerFn);
     this.handlerMap.set('drive-purge', handleDrivePurgeJob as unknown as HandlerFn);
@@ -477,6 +481,16 @@ class BullMQManagerService {
       .limit(20);
     for (const row of unmigrated ?? []) {
       await this.addJob('account-moved', { type: 'create', migration_id: row.id });
+    }
+
+    // Mail host lookups owed: a notify lost, a failed lookup coming due, a domain of the backfill.
+    const { data: owedMailHosts } = await supabase
+      .from('signup_mail_hosts')
+      .select('domain')
+      .lte('due_at', twoSecondsAgo)
+      .limit(50);
+    for (const row of owedMailHosts ?? []) {
+      await this.addJob('signup-mail-host', { type: 'update', domain: row.domain });
     }
 
     // Poll votes whose notify was lost or whose job gave up; same five-minute margin.

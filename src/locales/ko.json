@@ -5319,6 +5319,12 @@
       "federationCloseConfirm": "연합 닫기",
       "configLoadFailed": "현재 설정을 읽을 수 없습니다. 저장하기 전에 새로고침하세요.",
       "webrtcLoadFailed": "음성 설정을 읽을 수 없어 여기에서 변경할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",
+      "federatedCallsLabel": "다른 인스턴스와의 통화",
+      "federatedCallsOn": "켜짐. 다른 인스턴스의 사람들이 이곳의 음성 채널과 통화에 참여할 수 있습니다.",
+      "federatedCallsOff": "꺼짐. 다른 인스턴스의 사람들은 거절되며 그 사실을 안내받습니다.",
+      "federatedCallsNoLivekit": "꺼짐. 이 인스턴스에는 LiveKit 서버가 없습니다.",
+      "federatedCallsUnread": "현재 상태를 읽을 수 없습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",
+      "federatedCallsHint": "연합 백엔드 환경의 ALLOW_FEDERATED_VOICE가 결정합니다.",
       "customOAuthTitle": "자체 로그인 제공자",
       "customOAuthHint": "이 인스턴스가 신뢰하는 OpenID Connect 또는 OAuth 2.0 제공자(Authentik, Keycloak, Better Auth 등)입니다. 로그인 페이지에서 위 버튼들 다음에 표시됩니다. 클라이언트 시크릿은 서버에 남으므로 추가와 삭제는 서버에서 합니다.",
       "customOAuthEmpty": "아직 없습니다.",
@@ -7954,11 +7960,15 @@
     "domainCap": "24시간 동안 이메일 도메인당 계정 수",
     "domainCapHint": "한 도메인에서 많은 메일함을 쓰는 대량 생성을 찾아냅니다. Gmail 같은 대형 제공업체는 계산하지 않습니다. 0은 제한 없음입니다.",
     "enforceCaps": "네트워크 및 도메인 한도를 넘는 계정 거부",
-    "enforceCapsHint": "끄면 이 계정은 허용되고 아래에 집계됩니다. 캠퍼스나 사무실은 주소 하나나 이메일 도메인 하나를 함께 쓸 수 있습니다. 메일함 한도와 도메인 목록은 항상 거부합니다.",
+    "enforceCapsHint": "끄면 해당 계정은 허용되고 아래에 집계됩니다. 캠퍼스나 사무실은 주소 하나나 이메일 도메인 하나를 공유할 수 있습니다. 받은편지함 한도와 도메인·메일 서버 목록은 항상 거부합니다.",
     "blockDisposable": "일회용 이메일 주소 거부",
-    "blockDisposableHint": "임시 메일 도메인의 기본 제공 목록입니다.",
+    "blockDisposableHint": "일회용 메일 도메인과 그 뒤의 메일 서버를 담은 내장 목록입니다.",
     "blockedDomains": "추가로 거부할 이메일 도메인",
     "blockedDomainsHint": "한 줄에 도메인 하나씩 입력합니다. 하위 도메인도 거부됩니다.",
+    "blockedMailHosts": "추가로 거부할 메일 서버",
+    "blockedMailHostsHint": "한 줄에 호스트 하나. 메일 서버가 이 호스트 또는 그 하위에 있는 이메일 도메인을 거부합니다. erinn.biz는 recv1.erinn.biz도 포함합니다. google.com, outlook.com, cloudflare.net 같은 공용 서비스는 넣지 마세요. 이용자 전체가 거부됩니다.",
+    "trustedDomains": "제한하지 않는 이메일 도메인",
+    "trustedDomainsHint": "한 줄에 도메인 하나. 잘못 거부되었거나 한꺼번에 가입하는 캠퍼스나 회사용입니다. 하위 도메인도 포함됩니다. 도메인 한도, 일회용 목록, 메일 서버 목록을 건너뜁니다. 거부 목록의 도메인은 계속 거부되며 받은편지함 한도는 적용됩니다.",
     "save": "제한 저장",
     "saved": "가입 제한을 저장했습니다",
     "saveFailed": "가입 제한을 저장할 수 없습니다.",
@@ -7970,7 +7980,8 @@
     "refusalIpCap": "네트워크 한도",
     "refusalDomainCap": "도메인 한도",
     "refusalMailboxCap": "메일함 한도",
-    "refusalBlockedDomain": "거부된 이메일 도메인"
+    "refusalBlockedDomain": "거부된 이메일 도메인",
+    "refusalMailHost": "메일 서버"
   },
   "adminInvites": {
     "tab": "초대",
@@ -8274,7 +8285,8 @@
       "select": "모두 선택",
       "selectLabel": "모두 선택: 그룹 {label}",
       "filterActive": "그룹 {label} 표시 중",
-      "clear": "모두 표시"
+      "clear": "모두 표시",
+      "mailHost": "메일 서버: {hosts}"
     },
     "rows": {
       "title": "계정 {count}개",
@@ -8297,7 +8309,8 @@
       "limit": "한 번에 최대 {count}개 계정까지 가능합니다.",
       "suspend": "정지…",
       "unsuspend": "정지 해제…",
-      "clear": "선택 해제"
+      "clear": "선택 해제",
+      "delete": "삭제…"
     },
     "dialog": {
       "suspendTitle": "계정 {count}개 정지",
@@ -8315,7 +8328,8 @@
         "deleted": "스태프가 삭제함",
         "already_suspended": "이미 정지됨",
         "not_suspended": "정지되지 않음",
-        "not_found": "계정을 찾을 수 없음"
+        "not_found": "계정을 찾을 수 없음",
+        "owns_server": "다른 멤버가 있는 서버를 소유함"
       },
       "ownedTitle": "소유한 서버는 계속 열려 있습니다",
       "ownedHint": "멤버는 이 서버를 계속 사용합니다. 닫으려면 서버 탭을 사용하세요.",
@@ -8325,17 +8339,27 @@
         "follows": "로컬 계정과의 팔로우 {count}개가 삭제됩니다. 정지를 해제해도 복원되지 않습니다.",
         "timelines": "게시물은 이곳의 타임라인과 공개 페이지에서 사라집니다. 메시지는 채널에 남습니다.",
         "federation": "다른 인스턴스에는 아무것도 전송되지 않습니다. 이미 받은 내용과 원격 팔로워는 그대로 유지됩니다.",
-        "unsuspend": "다시 로그인할 수 있습니다. 정지로 삭제된 팔로우는 복원되지 않습니다."
+        "unsuspend": "다시 로그인할 수 있습니다. 정지로 삭제된 팔로우는 복원되지 않습니다.",
+        "deleteSignIn": "더 이상 로그인할 수 없습니다. 되돌릴 수 없습니다.",
+        "deleteNames": "사용자 이름이 해제되어 누구나 등록할 수 있습니다.",
+        "deleteContent": "프로필은 Deleted User가 됩니다. 메시지와 게시물은 그 이름으로 남습니다.",
+        "deleteFederation": "이들을 팔로우하는 인스턴스에 계정이 사라졌음을 알립니다."
       },
       "reason": "사유 (필수)",
       "reasonHint": "같은 사유가 계정별로 활동 기록에 남습니다.",
       "confirmSuspend": "계정 {count}개 정지",
       "confirmUnsuspend": "계정 {count}개 정지 해제",
-      "failed": "실패했습니다: {error}"
+      "failed": "실패했습니다: {error}",
+      "deleteTitle": "계정 {count}개 삭제",
+      "affectedDelete": "삭제될 계정",
+      "confirmDelete": "계정 {count}개 삭제",
+      "ownedDeleteTitle": "다른 멤버가 없는 소유 서버는 삭제됩니다",
+      "deleteUnderstand": "되돌릴 수 없음을 이해했습니다"
     },
     "done": {
       "suspended": "계정 {count}개를 정지했습니다",
-      "unsuspended": "계정 {count}개의 정지를 해제했습니다"
+      "unsuspended": "계정 {count}개의 정지를 해제했습니다",
+      "deleted": "계정 {count}개를 삭제했습니다"
     }
   }
 }

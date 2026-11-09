@@ -141,10 +141,10 @@ SELECT is((SELECT count(*)::int FROM tests.jobs49 WHERE name LIKE 'federate-%'),
           0, 'dismissals are not federation jobs, so maintenance windows leave them running');
 
 -- Account deletion ----------------------------------------------------------------------
--- delete_my_account anonymizes the profile instead of deleting it and clears push targets
+-- erase_account anonymizes the profile instead of deleting it and clears push targets
 -- by user, which covers every transport. 55_account_security.sql runs it; this reads the
 -- body.
-SELECT ok((SELECT prosrc FROM pg_proc WHERE oid = 'public.delete_my_account(text)'::regprocedure)
+SELECT ok((SELECT prosrc FROM pg_proc WHERE oid = 'public.erase_account(uuid)'::regprocedure)
           ~ 'DELETE FROM public\.push_subscriptions +WHERE user_id = v_profile\.id',
           'account deletion clears push targets by user, whatever their transport');
 SELECT is((SELECT confdeltype::text FROM pg_constraint

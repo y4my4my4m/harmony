@@ -1,5 +1,6 @@
 
 import { supabase } from '@/supabase';
+import { jsonbArrayLiteral } from '@/utils/pgArrayLiteral'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
@@ -827,7 +828,6 @@ class AdminService {
       let webrtcSettings = {
         mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
         livekitUrl: '',
-        allowFederatedVoice: true,
         maxStageListeners: 100000
       };
       
@@ -849,7 +849,6 @@ class AdminService {
         webrtcSettings = {
           mode: webrtcData.webrtc_mode || 'hybrid',
           livekitUrl: webrtcData.livekit_url || '',
-          allowFederatedVoice: webrtcData.allow_federated_voice ?? true,
           maxStageListeners: webrtcData.max_stage_listeners || 100000
         };
       }
@@ -1158,14 +1157,12 @@ class AdminService {
   async updateWebRTCSettings(settings: {
     mode?: 'sfu' | 'p2p' | 'hybrid';
     livekitUrl?: string;
-    allowFederatedVoice?: boolean;
     maxStageListeners?: number;
   }): Promise<boolean> {
     try {
       const payload = {
         webrtc_mode: settings.mode,
         livekit_url: settings.livekitUrl,
-        allow_federated_voice: settings.allowFederatedVoice,
         max_stage_listeners: settings.maxStageListeners,
         updated_at: new Date().toISOString()
       };
@@ -1287,7 +1284,7 @@ class AdminService {
 
       const { error } = await supabase.rpc('batch_set_instance_config', {
         p_keys: keys,
-        p_values: values,
+        p_values: values.some(Array.isArray) ? jsonbArrayLiteral(values) : values,
       })
 
       if (error) {

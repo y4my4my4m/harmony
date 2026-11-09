@@ -168,6 +168,7 @@ test('a moderator suspends a group with one reason; staff are left out', async (
   const byDomain = groupCard(panel, domain)
   await byDomain.getByTestId('signup-group-select').click()
   await expect(panel.getByTestId('signup-selection')).toContainText('5 selected')
+  await expect(panel.getByTestId('signup-bulk-delete')).toHaveCount(0)
   await panel.getByTestId('signup-bulk-suspend').click()
 
   const dialog = page.getByTestId('bulk-suspend-dialog')
@@ -293,4 +294,100 @@ test('a member reports username hoarding and staff read the reason', async ({ br
   await dismissAnnouncements(staffPage)
   await expect(staffPage.getByText('Username hoarding or account trading').first()).toBeVisible({ timeout: 30000 })
   await context.close()
+})
+
+test('an admin deletes hoarded accounts; the names are free and the server keeps its owner', async ({ browser, page }) => {
+  test.setTimeout(180_000)
+  const hoardDomain = `hoarddel-${tag}.example`
+  const accounts: SpecUser[] = []
+  for (let i = 0; i < 3; i++) accounts.push(await useDomain(await createUser(admin, `srvdel${i}`), hoardDomain))
+  const owner = await useDomain(await createUser(admin, 'srvdelown'), hoardDomain)
+  const held = await seedServer(admin, owner, `Kept ${tag}`)
+  await addMember(admin, accounts[0], held.id)
+  await addMember(admin, member, held.id)
+  const heldClient = await userClient(accounts[1])
+  const { error: hostError } = await admin.from('signup_mail_hosts').upsert(
+    { domain: hoardDomain, hosts: ['recv1.throwaway-host.example'], checked_at: new Date().toISOString(), due_at: null },
+    { onConflict: 'domain' })
+  expect(hostError).toBeNull()
+
+  const moderator = await userClient(staffMod)
+  const refused = await moderator.rpc('admin_delete_accounts', { p_profile_ids: [accounts[2].id], p_reason: 'x' })
+  expect(refused.error?.code).toBe('42501')
+
+  try {
+    await signIn(page, staffAdmin)
+    const panel = await openSignups(page)
+    const card = groupCard(panel, hoardDomain)
+    await expect(card.getByTestId('signup-group-mail-host')).toHaveText('Mail host: recv1.throwaway-host.example')
+    await card.getByTestId('signup-group-select').click()
+    await panel.getByTestId('signup-bulk-delete').click()
+
+    const dialog = page.getByTestId('bulk-suspend-dialog')
+    const affected = dialog.getByTestId('bulk-affected')
+    for (const user of accounts) await expect(affected).toContainText(user.username)
+    await expect(affected).not.toContainText(owner.username)
+    await expect(dialog.getByTestId('bulk-skipped')).toContainText(owner.username)
+    await expect(dialog.getByTestId('bulk-skipped')).toContainText('Owns a server with other members')
+    await expect(dialog.getByTestId('bulk-consequences')).toContainText('Their usernames become free')
+    await expectNoAxeViolations(page, { include: '[data-testid="bulk-suspend-dialog"]', label: 'delete dialog' })
+
+    const confirm = page.getByTestId('bulk-confirm')
+    await dialog.getByTestId('bulk-reason').fill(REASON)
+    await expect(confirm).toBeDisabled()
+    await dialog.getByTestId('bulk-understand').check()
+    await expect(confirm).toHaveText('Delete 3 accounts')
+    await confirm.click()
+    await expect(dialog).toHaveCount(0)
+    await expect(panel.locator(`[data-username="${accounts[0].username}"]`)).toHaveCount(0)
+    await expect(panel.locator(`[data-username="${owner.username}"]`)).toBeVisible()
+
+    const { data: rows } = await admin.from('profiles')
+      .select('id, username, display_name, auth_user_id, deleted_at')
+      .in('id', accounts.map((u) => u.id))
+    for (const row of rows ?? []) {
+      expect(row.username).toMatch(/^deleted_/)
+      expect(row.display_name).toBe('Deleted User')
+      expect(row.auth_user_id).toBeNull()
+      expect(row.deleted_at).not.toBeNull()
+    }
+    expect(rows).toHaveLength(3)
+
+    const { data: log } = await admin.from('admin_audit_log')
+      .select('admin_id, action_details, target_id')
+      .eq('action_type', 'user_delete')
+      .in('target_id', accounts.map((u) => u.id))
+    expect(log).toHaveLength(3)
+    for (const entry of log ?? []) {
+      expect(entry.admin_id).toBe(staffAdmin.id)
+      expect(entry.action_details).toMatchObject({ reason: REASON, bulk: true })
+    }
+
+    expect((await heldClient.from('profiles').select('id').eq('id', staffAdmin.id)).error).not.toBeNull()
+
+    const signInPage = await (await browser.newContext()).newPage()
+    await signInPage.goto('/login')
+    await signInPage.locator('[data-testid="auth-email"]').fill(accounts[2].email)
+    await signInPage.locator('[data-testid="auth-password"]').fill(accounts[2].password)
+    await signInPage.locator('[data-testid="auth-submit"]').click()
+    await expect(signInPage.locator('[data-testid="auth-form-error"]')).toBeVisible({ timeout: 30000 })
+    await signInPage.context().close()
+
+    const { data: freed, error: authError } = await admin.auth.admin.createUser({
+      email: `newcomer-${tag}@example.org`,
+      password: accounts[2].password,
+      email_confirm: true,
+    })
+    expect(authError).toBeNull()
+    const { data: mine } = await admin.from('profiles').select('domain').eq('id', staffAdmin.id).single()
+    const { error: takeError } = await admin.from('profiles').insert(
+      { id: freed.user!.id, auth_user_id: freed.user!.id, username: accounts[2].username, display_name: 'Newcomer', is_local: true, domain: mine?.domain })
+    expect(takeError).toBeNull()
+    await admin.auth.admin.deleteUser(freed.user!.id)
+
+    const { data: kept } = await admin.from('servers').select('owner').eq('id', held.id).single()
+    expect(kept?.owner).toBe(owner.id)
+  } finally {
+    await deleteUser(admin, owner)
+  }
 })

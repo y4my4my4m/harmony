@@ -5319,6 +5319,12 @@
       "federationCloseConfirm": "Fermer la fédération",
       "configLoadFailed": "Impossible de lire les paramètres actuels. Rechargez avant d’enregistrer.",
       "webrtcLoadFailed": "Les paramètres vocaux n’ont pas pu être lus et ne peuvent donc pas être modifiés ici. Rechargez la page pour réessayer.",
+      "federatedCallsLabel": "Appels avec d’autres instances",
+      "federatedCallsOn": "Activés. Les personnes d’autres instances peuvent rejoindre ici les salons vocaux et les appels.",
+      "federatedCallsOff": "Désactivés. Les personnes d’autres instances sont refusées et en sont informées.",
+      "federatedCallsNoLivekit": "Désactivés. Cette instance n’a pas de serveur LiveKit.",
+      "federatedCallsUnread": "L’état actuel n’a pas pu être lu. Rechargez la page pour réessayer.",
+      "federatedCallsHint": "ALLOW_FEDERATED_VOICE dans l’environnement du backend de fédération en décide.",
       "customOAuthTitle": "Vos propres fournisseurs de connexion",
       "customOAuthHint": "Fournisseurs OpenID Connect ou OAuth 2.0 auxquels cette instance fait confiance, comme Authentik, Keycloak ou Better Auth. Leurs boutons suivent ceux ci-dessus sur la page de connexion. Leurs secrets client restent sur le serveur : on les ajoute et on les retire là-bas.",
       "customOAuthEmpty": "Aucun pour l’instant.",
@@ -7954,11 +7960,15 @@
     "domainCap": "Comptes par domaine de messagerie sur 24 heures",
     "domainCapHint": "Repère qui contrôle de nombreuses boîtes sur un domaine. Les grands fournisseurs comme Gmail ne comptent pas. 0 signifie aucune limite.",
     "enforceCaps": "Refuser les comptes au-delà des limites par réseau et par domaine",
-    "enforceCapsHint": "Désactivé : ces comptes sont autorisés et comptés ci-dessous. Un campus ou un bureau peut partager une adresse ou un domaine de messagerie. La limite par boîte mail et les listes de domaines refusent toujours.",
+    "enforceCapsHint": "Désactivé : ces comptes sont autorisés et comptés ci-dessous. Un campus ou un bureau peut partager une adresse ou un domaine de messagerie. La limite par boîte et les listes de domaines et de serveurs de messagerie refusent toujours.",
     "blockDisposable": "Refuser les adresses e-mail jetables",
-    "blockDisposableHint": "Une liste intégrée de domaines de messagerie temporaire.",
+    "blockDisposableHint": "Une liste intégrée de domaines de messagerie temporaire et des serveurs qui les hébergent.",
     "blockedDomains": "Autres domaines de messagerie à refuser",
     "blockedDomainsHint": "Un domaine par ligne. Ses sous-domaines sont aussi refusés.",
+    "blockedMailHosts": "Autres serveurs de messagerie à refuser",
+    "blockedMailHostsHint": "Un hôte par ligne. Refuse tout domaine de messagerie dont les serveurs sont sur cet hôte ou en dessous : erinn.biz couvre aussi recv1.erinn.biz. N'indiquez pas de service partagé comme google.com, outlook.com ou cloudflare.net : cela refuserait tous ses utilisateurs.",
+    "trustedDomains": "Domaines de messagerie jamais limités",
+    "trustedDomainsHint": "Un domaine par ligne, pour un campus ou une entreprise refusés à tort ou arrivant en même temps. Ses sous-domaines comptent aussi. Ignore la limite par domaine, la liste jetable et les listes de serveurs de messagerie. Un domaine à refuser reste refusé, et la limite par boîte s'applique.",
     "save": "Enregistrer les limites",
     "saved": "Limites d’inscription enregistrées",
     "saveFailed": "Impossible d’enregistrer les limites d’inscription.",
@@ -7970,7 +7980,8 @@
     "refusalIpCap": "Limite par réseau",
     "refusalDomainCap": "Limite par domaine",
     "refusalMailboxCap": "Limite par boîte mail",
-    "refusalBlockedDomain": "Domaine de messagerie refusé"
+    "refusalBlockedDomain": "Domaine de messagerie refusé",
+    "refusalMailHost": "Serveur de messagerie"
   },
   "adminInvites": {
     "tab": "Invitations",
@@ -8274,7 +8285,8 @@
       "select": "Tout sélectionner",
       "selectLabel": "Tout sélectionner dans le groupe {label}",
       "filterActive": "Groupe {label} affiché",
-      "clear": "Tout afficher"
+      "clear": "Tout afficher",
+      "mailHost": "Serveur de messagerie : {hosts}"
     },
     "rows": {
       "title": "{count} compte | {count} comptes",
@@ -8297,7 +8309,8 @@
       "limit": "Au plus {count} comptes à la fois.",
       "suspend": "Suspendre…",
       "unsuspend": "Lever la suspension…",
-      "clear": "Effacer la sélection"
+      "clear": "Effacer la sélection",
+      "delete": "Supprimer…"
     },
     "dialog": {
       "suspendTitle": "Suspendre {count} compte | Suspendre {count} comptes",
@@ -8315,7 +8328,8 @@
         "deleted": "Supprimé par l'équipe",
         "already_suspended": "Déjà suspendu",
         "not_suspended": "Non suspendu",
-        "not_found": "Compte introuvable"
+        "not_found": "Compte introuvable",
+        "owns_server": "Possède un serveur avec d'autres membres"
       },
       "ownedTitle": "Leurs serveurs restent ouverts",
       "ownedHint": "Les membres continuent d'utiliser ces serveurs. Pour en fermer un, utilisez l'onglet Serveurs.",
@@ -8325,17 +8339,27 @@
         "follows": "{count} abonnement avec des comptes locaux est supprimé. La levée de la suspension ne le restaure pas. | {count} abonnements avec des comptes locaux sont supprimés. La levée de la suspension ne les restaure pas.",
         "timelines": "Leurs publications quittent les fils et les pages publiques ici. Leurs messages restent dans les salons.",
         "federation": "Rien n'est envoyé aux autres instances : ce qu'elles ont déjà reçu reste, ainsi que les abonnés distants.",
-        "unsuspend": "Ils peuvent se reconnecter. Les abonnements supprimés par la suspension ne sont pas restaurés."
+        "unsuspend": "Ils peuvent se reconnecter. Les abonnements supprimés par la suspension ne sont pas restaurés.",
+        "deleteSignIn": "Ils ne peuvent plus se connecter. Cette action est irréversible.",
+        "deleteNames": "Leurs noms d'utilisateur deviennent libres et n'importe qui peut les prendre.",
+        "deleteContent": "Leurs profils deviennent Deleted User. Les messages et publications restent sous ce nom.",
+        "deleteFederation": "Les instances qui les suivent sont informées de la disparition des comptes."
       },
       "reason": "Motif (obligatoire)",
       "reasonHint": "Le même motif est enregistré pour chaque compte dans le journal d'activité.",
       "confirmSuspend": "Suspendre {count} compte | Suspendre {count} comptes",
       "confirmUnsuspend": "Lever la suspension de {count} compte | Lever la suspension de {count} comptes",
-      "failed": "Échec : {error}"
+      "failed": "Échec : {error}",
+      "deleteTitle": "Supprimer {count} compte | Supprimer {count} comptes",
+      "affectedDelete": "Seront supprimés",
+      "confirmDelete": "Supprimer {count} compte | Supprimer {count} comptes",
+      "ownedDeleteTitle": "Leurs serveurs sans autres membres sont supprimés",
+      "deleteUnderstand": "Je comprends que cette action est irréversible"
     },
     "done": {
       "suspended": "{count} compte suspendu | {count} comptes suspendus",
-      "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes"
+      "unsuspended": "Suspension levée pour {count} compte | Suspension levée pour {count} comptes",
+      "deleted": "{count} compte supprimé | {count} comptes supprimés"
     }
   }
 }

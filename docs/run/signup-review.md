@@ -1,6 +1,6 @@
 ---
 title: Reviewing signups
-description: For instance administrators and moderators. See recent accounts, spot groups created together, and suspend or unsuspend many accounts with one reason.
+description: For instance administrators and moderators. See recent accounts, spot groups created together, suspend or unsuspend many accounts with one reason, and delete accounts to free their usernames.
 ---
 
 # Reviewing signups
@@ -71,6 +71,28 @@ Each changed account gets its own entry in the activity log, with the reason and
 To close a server a suspended account owns, go to **Servers**, open the server, and suspend or delete it (see [Moderation](/run/moderation)). A server has no way to pass to a new owner from this tab.
 
 A suspension is reversible except for the follows. Before suspending, the dialog says how many follows will be removed.
+
+## Delete accounts and free their usernames
+
+Administrators can delete selected accounts. Moderators cannot. Use this when someone is holding usernames they do not use, once you have asked them to stop or decided not to.
+
+1. Tick the accounts, or use **Select all** on a group.
+2. Choose **Delete…**.
+3. Read the dialog: who will be deleted and who is left out and why.
+4. Enter one reason, and tick the box saying you understand.
+5. Confirm.
+
+| What | Result |
+|---|---|
+| Sign-in | Gone. The person cannot sign in again with that account |
+| Username | Free at once. Anyone can register it |
+| Profile | Becomes **Deleted User** |
+| Messages and posts | Stay, under that name |
+| Servers they own with no other members | Deleted |
+| Instances that follow them | Told the account is gone |
+| Their email inbox | Still counts toward the accounts-per-inbox limit |
+
+This cannot be undone. Accounts that own a server with other members are left out: transfer the server first. The other exclusions are the same as for a suspension, except that a suspended account or one marked deleted in **Users** can be deleted here. Each deleted account gets an entry in the activity log with the reason and the username it held.
 
 ## Reports about hoarding
 

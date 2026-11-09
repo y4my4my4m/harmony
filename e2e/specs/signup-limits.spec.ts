@@ -12,7 +12,7 @@
 // after; other keys belong to specs that may run alongside.
 
 import { test, expect, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { adminClient, createUser, deleteUser, loadApp, signIn, PASSWORD, type SpecUser } from './harness'
+import { adminClient, createUser, deleteUser, loadApp, seedServer, signIn, PASSWORD, type SpecUser } from './harness'
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 const SUPABASE_URL = process.env.E2E_SUPABASE_URL ?? process.env.TEST_SUPABASE_URL ?? ''
@@ -50,6 +50,14 @@ async function setConfig(key: string, value: unknown): Promise<void> {
 async function readConfig(key: string): Promise<unknown> {
   const { data } = await admin.from('instance_config').select('config_value').eq('config_key', key).maybeSingle()
   return data?.config_value
+}
+
+/** The federation worker's answer; this stack runs no worker. */
+async function setMailHosts(domain: string, hosts: string[]): Promise<void> {
+  const { error } = await admin
+    .from('signup_mail_hosts')
+    .upsert({ domain, hosts, checked_at: new Date().toISOString(), due_at: null }, { onConflict: 'domain' })
+  if (error) throw new Error(`${domain}: ${error.message}`)
 }
 
 async function accountExists(email: string): Promise<boolean> {
@@ -133,6 +141,8 @@ test.beforeAll(async () => {
   await setConfig('signup_enforce_caps', true)
   await setConfig('signup_block_disposable_email', true)
   await setConfig('signup_blocked_email_domains', [])
+  await setConfig('signup_blocked_mail_hosts', [])
+  await setConfig('signup_trusted_email_domains', [])
 
   staff = await createUser(admin, 'siglimit')
   const { error: promoteError } = await admin.from('profiles').update({ is_admin: true }).eq('id', staff.id)
@@ -351,6 +361,58 @@ test('observing, an account past the two caps is allowed and counted', async ({ 
   }
 })
 
+test('a campus, a company and a conference join at once; a throwaway mail service is refused', async ({ browser, request }) => {
+  test.setTimeout(180_000)
+  const throwaway = `throwaway-${RUN}.example`
+
+  // Enforcement off, as on a new instance: the daily caps only count.
+  await setConfig('signup_enforce_caps', false)
+  try {
+    await test.step('a campus on one network and many department subdomains', async () => {
+      const campus = randomNetwork().address
+      for (let i = 0; i < 8; i++) {
+        expect((await signUpThroughApi(request, campus, `${RUN}c${i}@dept${i}.campus-${RUN}.example`)).status).toBe(200)
+      }
+    })
+
+    await test.step('a company at home, on many networks and one domain', async () => {
+      for (let i = 0; i < 12; i++) {
+        expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}h${i}@studio-${RUN}.example`)).status).toBe(200)
+      }
+    })
+
+    await test.step('a conference on one network and many domains', async () => {
+      const conference = randomNetwork().address
+      for (let i = 0; i < 8; i++) {
+        expect((await signUpThroughApi(request, conference, `${RUN}k@company${i}-${RUN}.example`)).status).toBe(200)
+      }
+    })
+
+    await test.step('a domain not yet looked up passes, and a lookup is owed', async () => {
+      expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}a@${throwaway}`)).status).toBe(200)
+      const { data } = await admin.from('signup_mail_hosts').select('checked_at, due_at').eq('domain', throwaway).single()
+      expect(data?.checked_at).toBeNull()
+      expect(data?.due_at).not.toBeNull()
+    })
+
+    await test.step('once its mail host is known, the form refuses it from any network', async () => {
+      await setMailHosts(throwaway, [`recv-${RUN}.erinn.biz`])
+      const address = randomNetwork().address
+      const form = await openRegister(browser, address)
+      await expectRefused(form, address, `${RUN}b@${throwaway}`, DOMAIN_TEXT)
+      await form.page.context().close()
+    })
+
+    await test.step('a shared mail service is not refused', async () => {
+      const routed = `routed-${RUN}.example`
+      await setMailHosts(routed, ['route1.mx.cloudflare.net', 'route2.mx.cloudflare.net'])
+      expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}a@${routed}`)).status).toBe(200)
+    })
+  } finally {
+    await setConfig('signup_enforce_caps', true)
+  }
+})
+
 test('an admin changes the limits and the next sign-up follows them', async ({ request, page }) => {
   test.setTimeout(180_000)
 
@@ -371,6 +433,8 @@ test('an admin changes the limits and the next sign-up follows them', async ({ r
     await expect(card.locator('[data-testid="signup-would-refuse-domain-cap"]')).not.toHaveText('0')
     await expect(card.locator('[data-testid="signup-refusals-mailbox-cap"]')).not.toHaveText('0')
     await expect(card.locator('[data-testid="signup-refusals-blocked-domain"]')).not.toHaveText('0')
+    await expect(card.locator('[data-testid="signup-limits-mail-hosts"]')).toHaveValue('')
+    await expect(card.locator('[data-testid="signup-refusals-mail-host"]')).not.toHaveText('0')
   })
 
   await test.step('bad values are refused where they were typed', async () => {
@@ -403,6 +467,45 @@ test('an admin changes the limits and the next sign-up follows them', async ({ r
 
   await test.step('the further domain is refused', async () => {
     expect(await signUpThroughApi(request, NETWORK_C.address, `${RUN}@${BLOCKED_DOMAIN}`)).toEqual({ status: 422, msg: DOMAIN_TEXT })
+  })
+
+  await test.step('a mail host and a never-limited domain are saved and followed', async () => {
+    const mailHost = `mailhost-${RUN}.example`
+    const hosted = `hosted-${RUN}.example`
+    const trusted = `trusted-${RUN}.example`
+    const hosts = card.locator('[data-testid="signup-limits-mail-hosts"]')
+    const never = card.locator('[data-testid="signup-limits-trusted"]')
+    await setMailHosts(hosted, [`mx1.${mailHost}`])
+    await setMailHosts(trusted, [`mx1.${mailHost}`])
+
+    await hosts.fill('nodot')
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect(card.locator('[data-testid="signup-limits-error"]')).toHaveText('nodot is not a domain name.')
+    await expect(hosts).toHaveAttribute('aria-invalid', 'true')
+
+    await hosts.fill(mailHost.toUpperCase())
+    await never.fill('nodot')
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect(card.locator('[data-testid="signup-limits-error"]')).toHaveText('nodot is not a domain name.')
+    await expect(never).toHaveAttribute('aria-invalid', 'true')
+
+    await never.fill(`@${trusted.toUpperCase()}\n`)
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect(never).toHaveValue(trusted, { timeout: 15000 })
+    await expect(hosts).toHaveValue(mailHost)
+    expect(await readConfig('signup_blocked_mail_hosts')).toEqual([mailHost])
+    expect(await readConfig('signup_trusted_email_domains')).toEqual([trusted])
+
+    expect(await signUpThroughApi(request, randomNetwork().address, `${RUN}a@${hosted}`)).toEqual({ status: 422, msg: DOMAIN_TEXT })
+    expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}a@${trusted}`)).status).toBe(200)
+    expect((await signUpThroughApi(request, randomNetwork().address, `${RUN}b@${trusted}`)).status).toBe(200)
+
+    // One list alone: a jsonb[] argument of only lists reads as a further dimension.
+    await never.fill('')
+    await card.locator('[data-testid="signup-limits-save"]').click()
+    await expect.poll(() => readConfig('signup_trusted_email_domains'), { timeout: 15000 }).toEqual([])
+    await expect(card.locator('[data-testid="signup-limits-error"]')).toHaveText('')
+    expect(await readConfig('signup_blocked_mail_hosts')).toEqual([mailHost])
   })
 
   await test.step('with enforcement off, the full network signs up', async () => {

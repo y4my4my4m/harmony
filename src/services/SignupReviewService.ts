@@ -11,6 +11,7 @@ export const BULK_LIMIT = 200
 export const SIGNUP_GROUP_MIN_SIZE = 3
 
 export type SignupStatus = 'all' | 'active' | 'suspended'
+export type BulkAction = 'suspend' | 'unsuspend' | 'delete'
 
 export interface SignupDay {
   day: string
@@ -34,6 +35,8 @@ export interface SignupGroup {
   first_at: string
   last_at: string
   member_ids: string[]
+  /** MX hosts of an email domain, once looked up. */
+  mail_hosts: string[] | null
 }
 
 export interface RecentSignup {
@@ -68,6 +71,7 @@ export interface OwnedServer {
 
 export type BulkSkipReason =
   | 'self' | 'staff' | 'remote' | 'no_sign_in' | 'deleted' | 'already_suspended' | 'not_suspended' | 'not_found'
+  | 'owns_server'
 
 export interface BulkPreviewRow {
   id: string
@@ -88,6 +92,12 @@ export interface BulkResult {
   changed: { id: string; username: string }[]
   skipped: { id: string; username: string | null; reason: BulkSkipReason }[]
   sessions_revoked: number
+}
+
+export interface BulkDeleteResult {
+  batch_id: string
+  deleted: { id: string; username: string }[]
+  skipped: { id: string; username: string | null; reason: BulkSkipReason }[]
 }
 
 export async function listSignupDays(days: number): Promise<SignupDay[]> {
@@ -142,4 +152,20 @@ export async function bulkSetSuspended(ids: string[], suspended: boolean, reason
   })
   if (error) throw new Error(error.message)
   return data as BulkResult
+}
+
+/** Instance admins only: the server refuses a moderator. */
+export async function previewBulkDelete(ids: string[]): Promise<BulkPreviewRow[]> {
+  const { data, error } = await supabase.rpc('admin_delete_accounts_preview', { p_profile_ids: ids })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as BulkPreviewRow[]
+}
+
+export async function bulkDeleteAccounts(ids: string[], reason: string): Promise<BulkDeleteResult> {
+  const { data, error } = await supabase.rpc('admin_delete_accounts', {
+    p_profile_ids: ids,
+    p_reason: reason,
+  })
+  if (error) throw new Error(error.message)
+  return data as BulkDeleteResult
 }

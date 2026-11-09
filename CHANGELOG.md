@@ -30,8 +30,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   account in **Users**. **Stored files across the instance** adds an optional Drive total.
 - **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
   people you follow, or only people you follow. It also applies to other instances.
+- **Sign-up limits.** Disposable email addresses and a sixth account on one inbox in 30 days are
+  refused. Disposable mail is also recognized by the mail server behind a domain, so a service's new
+  domains are refused too. Accounts per network and per domain in a day are counted, and refused only
+  if an admin turns that on, so a campus or office signing up together is not affected. An admin can
+  add domains and mail hosts to refuse, and list domains that are never limited.
+  **Admin** → **Invites** → **Sign-up limits**.
+- **Delete accounts and free their usernames.** Administrators can delete selected accounts in
+  **Admin** → **Signups**. The usernames become free at once.
 
 ### Fixed
+- **Refused voice joins across instances.** A person refused by a voice channel on another instance
+  now sees the reason at once instead of waiting 20 seconds for a timeout, and no longer stays
+  listed in the channel. Works when the hosting instance runs this version.
+- **Federated calls in the admin panel.** The **Allow federated voice calls** switch under
+  **Config** → **Voice & video** never changed anything. The tab now shows the state the backend
+  reports; `ALLOW_FEDERATED_VOICE` decides it.
 - **Installing and updating on arm64.** Harmony 1.9.4's gateway image, `kong:2.8.5`, has no arm64
   build, so `harmony install` and `harmony update` stopped at the image pull on arm64 servers. The
   stack now runs `kong:3.9.4`, and CI checks every image for amd64 and arm64.

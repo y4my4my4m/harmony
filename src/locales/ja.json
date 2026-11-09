@@ -5319,6 +5319,12 @@
       "federationCloseConfirm": "連合を閉じる",
       "configLoadFailed": "現在の設定を読み込めませんでした。保存する前に再読み込みしてください。",
       "webrtcLoadFailed": "音声設定を読み込めなかったため、ここでは変更できません。ページを再読み込みしてもう一度お試しください。",
+      "federatedCallsLabel": "他のインスタンスとの通話",
+      "federatedCallsOn": "オン。他のインスタンスのユーザーは、ここのボイスチャンネルや通話に参加できます。",
+      "federatedCallsOff": "オフ。他のインスタンスのユーザーの参加は拒否され、その旨が伝えられます。",
+      "federatedCallsNoLivekit": "オフ。このインスタンスには LiveKit サーバーがありません。",
+      "federatedCallsUnread": "現在の状態を読み込めませんでした。ページを再読み込みしてもう一度お試しください。",
+      "federatedCallsHint": "連合バックエンドの環境変数 ALLOW_FEDERATED_VOICE で決まります。",
       "customOAuthTitle": "独自のサインインプロバイダー",
       "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
       "customOAuthEmpty": "まだありません。",
@@ -7954,11 +7960,15 @@
     "domainCap": "24時間あたりのメールドメインごとのアカウント数",
     "domainCapHint": "1 つのドメインで多数のメールボックスを使う大量作成を検出します。Gmail などの大手プロバイダーは数えません。0 は制限なしです。",
     "enforceCaps": "ネットワークとドメインの上限を超えるアカウントを拒否する",
-    "enforceCapsHint": "オフの場合、これらのアカウントは許可され、下に集計されます。キャンパスやオフィスでは 1 つのアドレスやメールドメインを共有することがあります。メールボックスの上限とドメインのリストは常に拒否します。",
+    "enforceCapsHint": "オフ:該当アカウントは許可され、下に集計されます。キャンパスやオフィスでは1つのアドレスやメールドメインを共有することがあります。受信箱の上限とドメイン・メールサーバーのリストは常に拒否します。",
     "blockDisposable": "使い捨てメールアドレスを拒否する",
-    "blockDisposableHint": "一時メールドメインの組み込みリストです。",
+    "blockDisposableHint": "使い捨てメールのドメインと、その裏のメールサーバーの組み込みリストです。",
     "blockedDomains": "追加で拒否するメールドメイン",
     "blockedDomainsHint": "1 行に 1 ドメインずつ入力します。サブドメインも拒否されます。",
+    "blockedMailHosts": "拒否するメールサーバーの追加",
+    "blockedMailHostsHint": "1行に1ホスト。メールサーバーがこのホストまたはその配下にあるメールドメインを拒否します。erinn.biz は recv1.erinn.biz も含みます。google.com、outlook.com、cloudflare.net などの共用サービスは指定しないでください。利用者全員が拒否されます。",
+    "trustedDomains": "制限しないメールドメイン",
+    "trustedDomainsHint": "1行に1ドメイン。誤って拒否された、または一斉に参加するキャンパスや企業向けです。サブドメインも含みます。ドメインの上限、使い捨てリスト、メールサーバーのリストを適用しません。拒否リストのドメインは拒否されたままで、受信箱の上限は適用されます。",
     "save": "制限を保存",
     "saved": "登録の制限を保存しました",
     "saveFailed": "登録の制限を保存できませんでした。",
@@ -7970,7 +7980,8 @@
     "refusalIpCap": "ネットワークの制限",
     "refusalDomainCap": "ドメインの制限",
     "refusalMailboxCap": "メールボックスの制限",
-    "refusalBlockedDomain": "拒否されたメールドメイン"
+    "refusalBlockedDomain": "拒否されたメールドメイン",
+    "refusalMailHost": "メールサーバー"
   },
   "adminInvites": {
     "tab": "招待",
@@ -8274,7 +8285,8 @@
       "select": "すべて選択",
       "selectLabel": "すべて選択: グループ {label}",
       "filterActive": "グループ {label} を表示中",
-      "clear": "すべて表示"
+      "clear": "すべて表示",
+      "mailHost": "メールサーバー:{hosts}"
     },
     "rows": {
       "title": "{count} アカウント",
@@ -8297,7 +8309,8 @@
       "limit": "一度に操作できるのは {count} アカウントまでです。",
       "suspend": "停止…",
       "unsuspend": "停止を解除…",
-      "clear": "選択を解除"
+      "clear": "選択を解除",
+      "delete": "削除…"
     },
     "dialog": {
       "suspendTitle": "{count} アカウントを停止",
@@ -8315,7 +8328,8 @@
         "deleted": "スタッフにより削除済み",
         "already_suspended": "すでに停止中",
         "not_suspended": "停止されていません",
-        "not_found": "アカウントが見つかりません"
+        "not_found": "アカウントが見つかりません",
+        "owns_server": "他のメンバーがいるサーバーを所有しています"
       },
       "ownedTitle": "所有サーバーは開いたままです",
       "ownedHint": "メンバーはこれらのサーバーを引き続き利用できます。閉じるには「サーバー」タブを使ってください。",
@@ -8325,17 +8339,27 @@
         "follows": "ローカルアカウントとのフォロー {count} 件が削除されます。停止を解除しても元に戻りません。",
         "timelines": "投稿はここのタイムラインと公開ページから消えます。メッセージはチャンネルに残ります。",
         "federation": "他のインスタンスには何も送信されません。すでに受信された内容とリモートのフォロワーはそのまま残ります。",
-        "unsuspend": "再度サインインできるようになります。停止で削除されたフォローは元に戻りません。"
+        "unsuspend": "再度サインインできるようになります。停止で削除されたフォローは元に戻りません。",
+        "deleteSignIn": "サインインできなくなります。この操作は取り消せません。",
+        "deleteNames": "ユーザー名は解放され、誰でも登録できるようになります。",
+        "deleteContent": "プロフィールは Deleted User になります。メッセージと投稿はその名前で残ります。",
+        "deleteFederation": "フォローしているインスタンスには、アカウントがなくなったことが通知されます。"
       },
       "reason": "理由 (必須)",
       "reasonHint": "同じ理由が各アカウントについてアクティビティログに記録されます。",
       "confirmSuspend": "{count} アカウントを停止",
       "confirmUnsuspend": "{count} アカウントの停止を解除",
-      "failed": "失敗しました: {error}"
+      "failed": "失敗しました: {error}",
+      "deleteTitle": "{count}件のアカウントを削除",
+      "affectedDelete": "削除されるアカウント",
+      "confirmDelete": "{count}件のアカウントを削除",
+      "ownedDeleteTitle": "他のメンバーがいない所有サーバーは削除されます",
+      "deleteUnderstand": "この操作は取り消せないことを理解しました"
     },
     "done": {
       "suspended": "{count} アカウントを停止しました",
-      "unsuspended": "{count} アカウントの停止を解除しました"
+      "unsuspended": "{count} アカウントの停止を解除しました",
+      "deleted": "{count}件のアカウントを削除しました"
     }
   }
 }

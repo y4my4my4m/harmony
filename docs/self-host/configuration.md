@@ -60,7 +60,7 @@ Some settings exist both as a variable and in the database:
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
-| Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
+| Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. **Voice & video** shows the state of federated calls; the backend does not read the mode it stores |
 | Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
 | Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
 
@@ -220,7 +220,8 @@ off). [Stickers](/self-host/stickers) describes them with the file limits.
 
 **Invites** → **Sign-up limits** holds `signup_limits_enabled`, `signup_daily_ip_cap` (`5`),
 `signup_mailbox_cap` (`5`), `signup_daily_domain_cap` (`10`), `signup_enforce_caps` (`false`: the network
-and domain caps observe), `signup_block_disposable_email` and `signup_blocked_email_domains`. `signup_limit_own_providers` (`false`) has no control in the panel.
+and domain caps observe), `signup_block_disposable_email`, `signup_blocked_email_domains`,
+`signup_blocked_mail_hosts` and `signup_trusted_email_domains`. `signup_limit_own_providers` (`false`) has no control in the panel.
 [Sign-up limits](/self-host/signup-limits) describes them and the client address they need.
 
 ### Photo size sent to other servers
@@ -610,7 +611,7 @@ See [Push notifications](/self-host/push).
 | `LIVEKIT_URL` | unset | LiveKit as the backend reaches it, e.g. `ws://livekit:7880`. LiveKit counts as configured when key, secret and this URL are all set |
 | `LIVEKIT_PUBLIC_URL` | `LIVEKIT_URL` | URL clients connect to, e.g. `wss://live.chat.example.com` |
 | `WEBRTC_MODE` | `hybrid` | `sfu` (LiveKit only), `p2p` (peer-to-peer only) or `hybrid` (LiveKit when configured, else peer-to-peer) |
-| `ALLOW_FEDERATED_VOICE` | `true` | Calls with users on other instances |
+| `ALLOW_FEDERATED_VOICE` | `true` | Calls with users on other instances, and their joining voice channels here |
 | `VOICE_RECONCILE_INTERVAL_SECONDS` | `60` | Worker: seconds between checks of the voice participant list against LiveKit's rooms; `0` turns the check off |
 
 See [Voice and video](/self-host/voice).

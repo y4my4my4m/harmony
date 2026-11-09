@@ -5315,6 +5315,12 @@
       "federationCloseConfirm": "Close federation",
       "configLoadFailed": "Could not read the current settings. Reload before saving.",
       "webrtcLoadFailed": "The voice settings could not be read, so they cannot be changed here. Reload the page to try again.",
+      "federatedCallsLabel": "Calls with other instances",
+      "federatedCallsOn": "On. People from other instances can join voice channels and calls here.",
+      "federatedCallsOff": "Off. People from other instances are refused and told so.",
+      "federatedCallsNoLivekit": "Off. This instance has no LiveKit server.",
+      "federatedCallsUnread": "The current state could not be read. Reload the page to try again.",
+      "federatedCallsHint": "ALLOW_FEDERATED_VOICE in the federation backend's environment decides this.",
       "customOAuthTitle": "Your own sign-in providers",
       "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
       "customOAuthEmpty": "None yet.",
@@ -7950,11 +7956,15 @@
     "domainCap": "Accounts per email domain in 24 hours",
     "domainCapHint": "Spots one operator with many mailboxes on a domain. Large mail providers such as Gmail are not counted. 0 is no limit.",
     "enforceCaps": "Refuse accounts past the network and domain caps",
-    "enforceCapsHint": "Off: those accounts are allowed and counted below. A campus or office can share one address or one email domain. The inbox cap and the domain lists always refuse.",
+    "enforceCapsHint": "Off: those accounts are allowed and counted below. A campus or office can share one address or one email domain. The inbox cap and the domain and mail host lists always refuse.",
     "blockDisposable": "Refuse disposable email addresses",
-    "blockDisposableHint": "A built-in list of temporary-mail domains.",
+    "blockDisposableHint": "A built-in list of temporary-mail domains and the mail hosts behind them.",
     "blockedDomains": "More email domains to refuse",
     "blockedDomainsHint": "One domain per line. Its subdomains are refused too.",
+    "blockedMailHosts": "More mail hosts to refuse",
+    "blockedMailHostsHint": "One host per line. Refuses any email domain whose mail servers are at this host or under it: erinn.biz also covers recv1.erinn.biz. Do not list a shared service such as google.com, outlook.com or cloudflare.net: that refuses everyone using it.",
+    "trustedDomains": "Email domains never limited",
+    "trustedDomainsHint": "One domain per line, for a campus or company wrongly refused or joining at once. Its subdomains count too. Skips the domain cap, the disposable list and the mail host lists. A domain listed to refuse stays refused, and the inbox limit applies.",
     "save": "Save limits",
     "saved": "Sign-up limits saved",
     "saveFailed": "Could not save the sign-up limits.",
@@ -7966,7 +7976,8 @@
     "refusalIpCap": "Network limit",
     "refusalDomainCap": "Domain limit",
     "refusalMailboxCap": "Inbox limit",
-    "refusalBlockedDomain": "Refused email domain"
+    "refusalBlockedDomain": "Refused email domain",
+    "refusalMailHost": "Mail host"
   },
   "adminInvites": {
     "tab": "Invites",
@@ -8270,7 +8281,8 @@
       "select": "Select all",
       "selectLabel": "Select all in the group {label}",
       "filterActive": "Showing the group {label}",
-      "clear": "Show everyone"
+      "clear": "Show everyone",
+      "mailHost": "Mail host: {hosts}"
     },
     "rows": {
       "title": "{count} account | {count} accounts",
@@ -8293,7 +8305,8 @@
       "limit": "At most {count} accounts at a time.",
       "suspend": "Suspend…",
       "unsuspend": "Unsuspend…",
-      "clear": "Clear selection"
+      "clear": "Clear selection",
+      "delete": "Delete…"
     },
     "dialog": {
       "suspendTitle": "Suspend {count} account | Suspend {count} accounts",
@@ -8311,7 +8324,8 @@
         "deleted": "Deleted by staff",
         "already_suspended": "Already suspended",
         "not_suspended": "Not suspended",
-        "not_found": "Account not found"
+        "not_found": "Account not found",
+        "owns_server": "Owns a server with other members"
       },
       "ownedTitle": "Servers they own stay open",
       "ownedHint": "Members keep using these servers. To close one, use the Servers tab.",
@@ -8321,17 +8335,27 @@
         "follows": "{count} follow with local accounts is removed. Unsuspending does not restore it. | {count} follows with local accounts are removed. Unsuspending does not restore them.",
         "timelines": "Their posts leave timelines and public pages here. Their messages stay in channels.",
         "federation": "Nothing is sent to other instances: what those instances already received stays, and so do remote followers.",
-        "unsuspend": "They can sign in again. Follows removed by the suspension are not restored."
+        "unsuspend": "They can sign in again. Follows removed by the suspension are not restored.",
+        "deleteSignIn": "They can no longer sign in. This cannot be undone.",
+        "deleteNames": "Their usernames become free for anyone to register.",
+        "deleteContent": "Their profiles become Deleted User. Messages and posts stay under that name.",
+        "deleteFederation": "Instances that follow them are told the accounts are gone."
       },
       "reason": "Reason (required)",
       "reasonHint": "The same reason is recorded for each account in the activity log.",
       "confirmSuspend": "Suspend {count} account | Suspend {count} accounts",
       "confirmUnsuspend": "Unsuspend {count} account | Unsuspend {count} accounts",
-      "failed": "This failed: {error}"
+      "failed": "This failed: {error}",
+      "deleteTitle": "Delete {count} account | Delete {count} accounts",
+      "affectedDelete": "Will be deleted",
+      "confirmDelete": "Delete {count} account | Delete {count} accounts",
+      "ownedDeleteTitle": "Their servers without other members are deleted",
+      "deleteUnderstand": "I understand this cannot be undone"
     },
     "done": {
       "suspended": "{count} account suspended | {count} accounts suspended",
-      "unsuspended": "{count} account unsuspended | {count} accounts unsuspended"
+      "unsuspended": "{count} account unsuspended | {count} accounts unsuspended",
+      "deleted": "{count} account deleted | {count} accounts deleted"
     }
   }
 }

@@ -7,7 +7,8 @@
 --   staff_signup_groups(days, min_size)
 --       Accounts sharing an email domain, and accounts that joined one server within an hour of
 --       signing up. prior_count: for a domain, accounts on it before the window; for a server,
---       members who joined before the window. member_ids holds at most 500.
+--       members who joined before the window. member_ids holds at most 500. mail_hosts: a domain's
+--       MX hosts from signup_mail_hosts, null for a server or a domain without a lookup.
 --   staff_recent_signups(days, search, status, profile_ids, limit, offset)
 --       Newest first. Returns the email domain, never the address, and no IP.
 --   staff_bulk_suspend_preview(profile_ids, suspended)
@@ -207,7 +208,8 @@ RETURNS TABLE (
     prior_count integer,
     first_at timestamptz,
     last_at timestamptz,
-    member_ids uuid[])
+    member_ids uuid[],
+    mail_hosts text[])
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -243,7 +245,9 @@ BEGIN
                  WHERE ac.domain = r.domain AND ac.signed_up < v_since) AS prior_count,
                min(r.signed_up) AS first_at,
                max(r.signed_up) AS last_at,
-               (array_agg(r.id ORDER BY r.signed_up, r.id))[1:500] AS member_ids
+               (array_agg(r.id ORDER BY r.signed_up, r.id))[1:500] AS member_ids,
+               (SELECT m.hosts FROM public.signup_mail_hosts m
+                 WHERE m.domain = r.domain AND m.checked_at IS NOT NULL) AS mail_hosts
           FROM recent r
          WHERE r.domain IS NOT NULL
          GROUP BY r.domain
@@ -269,13 +273,14 @@ BEGIN
                    AND us.created_at < v_since) AS prior_count,
                min(j.signed_up) AS first_at,
                max(j.signed_up) AS last_at,
-               (array_agg(j.id ORDER BY j.signed_up, j.id))[1:500] AS member_ids
+               (array_agg(j.id ORDER BY j.signed_up, j.id))[1:500] AS member_ids,
+               NULL::text[] AS mail_hosts
           FROM joins j
           JOIN public.servers s ON s.id = j.server_id
          GROUP BY j.server_id, s.name
         HAVING count(*) >= v_min
     )
-    SELECT g.kind, g.key, g.label, g.size, g.suspended, g.prior_count, g.first_at, g.last_at, g.member_ids
+    SELECT g.kind, g.key, g.label, g.size, g.suspended, g.prior_count, g.first_at, g.last_at, g.member_ids, g.mail_hosts
       FROM (SELECT * FROM domains UNION ALL SELECT * FROM servers) g
      ORDER BY g.size::numeric / (g.prior_count + 1) DESC, g.size DESC, g.key;
 END;

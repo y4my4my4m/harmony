@@ -46,6 +46,9 @@ const admin = vi.hoisted(() => ({
 }))
 vi.mock('@/services/AdminService', () => ({ adminService: admin }))
 
+const livekit = vi.hoisted(() => ({ fetchLiveKitConfig: vi.fn() }))
+vi.mock('@/services/livekitTokens', () => livekit)
+
 const { default: InstanceConfig } = await import('../InstanceConfig.vue')
 
 function config(publicProfilePages: boolean, federationSwitchesLoaded = true) {
@@ -171,7 +174,7 @@ describe('saving writes only what changed', () => {
     admin.getInstanceConfig.mockResolvedValue({
       chat: { maxMessageLength: 2000, allowFileUploads: false, gifClipsEnabled: true },
       federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded: true, publicProfilePages: true },
-      webrtc: { mode: 'sfu', livekitUrl: 'wss://lk.example', allowFederatedVoice: false, maxStageListeners: 50 },
+      webrtc: { mode: 'sfu', livekitUrl: 'wss://lk.example', maxStageListeners: 50 },
       instance: { name: 'Harmony Test', registrationOpen: true },
     })
     const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
@@ -196,6 +199,55 @@ describe('saving writes only what changed', () => {
     await flushPromises()
     expect(admin.setInstanceConfigs).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalled()
+  })
+})
+
+describe('federated calls', () => {
+  async function openVoiceTab(answer: unknown) {
+    livekit.fetchLiveKitConfig.mockReset().mockResolvedValue(answer)
+    admin.getInstanceConfig.mockResolvedValue({
+      chat: {}, federation: { maxPostLength: 500, enableOutbound: true, enableInbound: true, federationSwitchesLoaded: true },
+      webrtc: { mode: 'hybrid', livekitUrl: '', maxStageListeners: 50 }, instance: { name: 'Harmony Test', registrationOpen: true },
+    })
+    const wrapper = mount(InstanceConfig, { global: { mocks: { $t: t } } })
+    await flushPromises()
+    expect(livekit.fetchLiveKitConfig).not.toHaveBeenCalled()
+    await wrapper.findAll('button.config-tab-btn').find((b) => b.text() === 'Voice & video')!.trigger('click')
+    await flushPromises()
+    return wrapper
+  }
+  const voice = { enabled: true, mode: 'hybrid', wsUrl: 'wss://lk.example', allowFederatedVoice: true }
+
+  it('shows the state the backend reports, with no switch', async () => {
+    const wrapper = await openVoiceTab(voice)
+    const row = wrapper.get('[data-testid="webrtc-federated-state"]')
+    expect(row.text()).toContain(en.admin.instance.federatedCallsOn)
+    expect(row.text()).toContain('ALLOW_FEDERATED_VOICE')
+    expect(row.find('input').exists()).toBe(false)
+  })
+
+  it('says off when the backend refuses them', async () => {
+    const wrapper = await openVoiceTab({ ...voice, allowFederatedVoice: false })
+    expect(wrapper.get('[data-testid="webrtc-federated-state"]').text()).toContain(en.admin.instance.federatedCallsOff)
+  })
+
+  it('says off when the instance has no LiveKit', async () => {
+    const wrapper = await openVoiceTab({ ...voice, enabled: false, wsUrl: null })
+    expect(wrapper.get('[data-testid="webrtc-federated-state"]').text()).toContain(en.admin.instance.federatedCallsNoLivekit)
+  })
+
+  it('says so when the backend does not answer', async () => {
+    const wrapper = await openVoiceTab(null)
+    expect(wrapper.get('[data-testid="webrtc-federated-state"]').text()).toContain(en.admin.instance.federatedCallsUnread)
+  })
+
+  it('writes no federated value when another voice setting is saved', async () => {
+    const wrapper = await openVoiceTab(voice)
+    await wrapper.get('select').setValue('sfu')
+    await wrapper.get('button.save-btn').trigger('click')
+    await flushPromises()
+    expect(admin.updateWebRTCSettings).toHaveBeenCalledTimes(1)
+    expect((admin.updateWebRTCSettings.mock.calls[0] as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('allowFederatedVoice')
   })
 })
 

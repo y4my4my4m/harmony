@@ -71,8 +71,14 @@ export async function caseQuotes(ctx: QuotesContext): Promise<void> {
     const body = JSON.stringify(activity)
     const target = `${localUrl}/inbox`
     const before = peer.captured.length
-    const res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
-    eq(res.status < 300, true, `the QuoteRequest for ${postId === QUOTED_PUBLIC ? 'the public' : 'the direct'} post is taken`)
+    // The inbox admits 60 deliveries a minute from one signing host, and earlier cases spend the
+    // peer's share: a 429 is sent again once the window turns, for at most 75 s.
+    let res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    for (let attempt = 0; res.status === 429 && attempt < 15; attempt++) {
+      await new Promise((r) => setTimeout(r, 5_000))
+      res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    }
+    assert(res.status < 300, `the QuoteRequest for ${postId === QUOTED_PUBLIC ? 'the public' : 'the direct'} post is taken`, `status ${res.status}`)
     let answer: any = null
     for (let i = 0; i < 50 && !answer; i++) {
       const got = peer.captured.slice(before).find((c) => c.method === 'POST' && c.url === peerInboxPath)

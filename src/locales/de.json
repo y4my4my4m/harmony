@@ -5319,6 +5319,12 @@
       "federationCloseConfirm": "Föderation schließen",
       "configLoadFailed": "Die aktuellen Einstellungen konnten nicht gelesen werden. Vor dem Speichern neu laden.",
       "webrtcLoadFailed": "Die Spracheinstellungen konnten nicht gelesen werden und lassen sich hier daher nicht ändern. Lade die Seite neu, um es erneut zu versuchen.",
+      "federatedCallsLabel": "Anrufe mit anderen Instanzen",
+      "federatedCallsOn": "An. Personen anderer Instanzen können Sprachkanälen und Anrufen hier beitreten.",
+      "federatedCallsOff": "Aus. Personen anderer Instanzen werden abgewiesen und darüber informiert.",
+      "federatedCallsNoLivekit": "Aus. Diese Instanz hat keinen LiveKit-Server.",
+      "federatedCallsUnread": "Der aktuelle Status konnte nicht gelesen werden. Lade die Seite neu, um es erneut zu versuchen.",
+      "federatedCallsHint": "Das entscheidet ALLOW_FEDERATED_VOICE in der Umgebung des Föderations-Backends.",
       "customOAuthTitle": "Eigene Anmeldeanbieter",
       "customOAuthHint": "OpenID-Connect- oder OAuth-2.0-Anbieter, denen diese Instanz vertraut, etwa Authentik, Keycloak oder Better Auth. Ihre Schaltflächen folgen auf der Anmeldeseite den obigen. Ihre Client-Geheimnisse bleiben auf dem Server, daher werden sie dort hinzugefügt und entfernt.",
       "customOAuthEmpty": "Noch keine.",
@@ -7954,11 +7960,15 @@
     "domainCap": "Konten pro E-Mail-Domain in 24 Stunden",
     "domainCapHint": "Erkennt Betreiber mit vielen Postfächern auf einer Domain. Große Anbieter wie Gmail werden nicht gezählt. 0 bedeutet kein Limit.",
     "enforceCaps": "Konten über dem Netzwerk- und Domainlimit ablehnen",
-    "enforceCapsHint": "Aus: Diese Konten werden zugelassen und unten gezählt. Ein Campus oder Büro kann sich eine Adresse oder E-Mail-Domain teilen. Das Postfachlimit und die Domainlisten lehnen immer ab.",
+    "enforceCapsHint": "Aus: Diese Konten werden zugelassen und unten gezählt. Ein Campus oder Büro kann sich eine Adresse oder eine E-Mail-Domain teilen. Das Postfachlimit sowie die Domain- und Mailserver-Listen lehnen immer ab.",
     "blockDisposable": "Wegwerf-E-Mail-Adressen ablehnen",
-    "blockDisposableHint": "Eine integrierte Liste von Domains für temporäre E-Mail-Adressen.",
+    "blockDisposableHint": "Eine eingebaute Liste von Wegwerf-Mail-Domains und den Mailservern dahinter.",
     "blockedDomains": "Weitere abzulehnende E-Mail-Domains",
     "blockedDomainsHint": "Eine Domain pro Zeile. Ihre Subdomains werden ebenfalls abgelehnt.",
+    "blockedMailHosts": "Weitere abzulehnende Mailserver",
+    "blockedMailHostsHint": "Ein Host pro Zeile. Lehnt jede E-Mail-Domain ab, deren Mailserver auf diesem Host oder darunter liegen: erinn.biz umfasst auch recv1.erinn.biz. Trage keine gemeinsam genutzten Dienste wie google.com, outlook.com oder cloudflare.net ein: Das lehnt alle ab, die sie nutzen.",
+    "trustedDomains": "Nie begrenzte E-Mail-Domains",
+    "trustedDomainsHint": "Eine Domain pro Zeile, für einen Campus oder eine Firma, die zu Unrecht abgelehnt wird oder gemeinsam beitritt. Subdomains zählen mit. Überspringt das Domain-Limit, die Wegwerf-Liste und die Mailserver-Listen. Eine zum Ablehnen eingetragene Domain bleibt abgelehnt, und das Postfachlimit gilt.",
     "save": "Limits speichern",
     "saved": "Registrierungslimits gespeichert",
     "saveFailed": "Die Registrierungslimits konnten nicht gespeichert werden.",
@@ -7970,7 +7980,8 @@
     "refusalIpCap": "Netzwerklimit",
     "refusalDomainCap": "Domainlimit",
     "refusalMailboxCap": "Postfachlimit",
-    "refusalBlockedDomain": "Abgelehnte E-Mail-Domain"
+    "refusalBlockedDomain": "Abgelehnte E-Mail-Domain",
+    "refusalMailHost": "Mailserver"
   },
   "adminInvites": {
     "tab": "Einladungen",
@@ -8274,7 +8285,8 @@
       "select": "Alle auswählen",
       "selectLabel": "Alle auswählen in der Gruppe {label}",
       "filterActive": "Gruppe {label} wird angezeigt",
-      "clear": "Alle anzeigen"
+      "clear": "Alle anzeigen",
+      "mailHost": "Mailserver: {hosts}"
     },
     "rows": {
       "title": "{count} Konto | {count} Konten",
@@ -8297,7 +8309,8 @@
       "limit": "Höchstens {count} Konten auf einmal.",
       "suspend": "Suspendieren…",
       "unsuspend": "Suspendierung aufheben…",
-      "clear": "Auswahl aufheben"
+      "clear": "Auswahl aufheben",
+      "delete": "Löschen…"
     },
     "dialog": {
       "suspendTitle": "{count} Konto suspendieren | {count} Konten suspendieren",
@@ -8315,7 +8328,8 @@
         "deleted": "Vom Team gelöscht",
         "already_suspended": "Bereits suspendiert",
         "not_suspended": "Nicht suspendiert",
-        "not_found": "Konto nicht gefunden"
+        "not_found": "Konto nicht gefunden",
+        "owns_server": "Besitzt einen Server mit anderen Mitgliedern"
       },
       "ownedTitle": "Ihre Server bleiben offen",
       "ownedHint": "Mitglieder nutzen diese Server weiter. Zum Schließen den Tab „Server“ verwenden.",
@@ -8325,17 +8339,27 @@
         "follows": "{count} Folgebeziehung mit lokalen Konten wird entfernt. Das Aufheben der Suspendierung stellt sie nicht wieder her. | {count} Folgebeziehungen mit lokalen Konten werden entfernt. Das Aufheben der Suspendierung stellt sie nicht wieder her.",
         "timelines": "Ihre Beiträge verschwinden hier aus Timelines und öffentlichen Seiten. Ihre Nachrichten bleiben in den Kanälen.",
         "federation": "An andere Instanzen wird nichts gesendet: Was dort bereits angekommen ist, bleibt, ebenso entfernte Follower.",
-        "unsuspend": "Sie können sich wieder anmelden. Durch die Suspendierung entfernte Folgebeziehungen werden nicht wiederhergestellt."
+        "unsuspend": "Sie können sich wieder anmelden. Durch die Suspendierung entfernte Folgebeziehungen werden nicht wiederhergestellt.",
+        "deleteSignIn": "Sie können sich nicht mehr anmelden. Das lässt sich nicht rückgängig machen.",
+        "deleteNames": "Ihre Nutzernamen werden frei und können von allen registriert werden.",
+        "deleteContent": "Ihre Profile werden zu „Deleted User“. Nachrichten und Beiträge bleiben unter diesem Namen.",
+        "deleteFederation": "Instanzen, die ihnen folgen, erfahren, dass die Konten gelöscht sind."
       },
       "reason": "Grund (erforderlich)",
       "reasonHint": "Derselbe Grund wird für jedes Konto im Aktivitätsprotokoll festgehalten.",
       "confirmSuspend": "{count} Konto suspendieren | {count} Konten suspendieren",
       "confirmUnsuspend": "Suspendierung von {count} Konto aufheben | Suspendierung von {count} Konten aufheben",
-      "failed": "Fehlgeschlagen: {error}"
+      "failed": "Fehlgeschlagen: {error}",
+      "deleteTitle": "{count} Konto löschen | {count} Konten löschen",
+      "affectedDelete": "Werden gelöscht",
+      "confirmDelete": "{count} Konto löschen | {count} Konten löschen",
+      "ownedDeleteTitle": "Ihre Server ohne andere Mitglieder werden gelöscht",
+      "deleteUnderstand": "Mir ist klar, dass sich das nicht rückgängig machen lässt"
     },
     "done": {
       "suspended": "{count} Konto suspendiert | {count} Konten suspendiert",
-      "unsuspended": "Suspendierung von {count} Konto aufgehoben | Suspendierung von {count} Konten aufgehoben"
+      "unsuspended": "Suspendierung von {count} Konto aufgehoben | Suspendierung von {count} Konten aufgehoben",
+      "deleted": "{count} Konto gelöscht | {count} Konten gelöscht"
     }
   }
 }

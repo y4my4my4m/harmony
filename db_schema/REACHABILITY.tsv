@@ -16,7 +16,11 @@ add_server_owner_membership	definer	trigger	service_role	trigger	trigger public.
 add_user_prekeys	definer	integer	service_role	service key	nothing references it
 add_user_to_conversation	definer	uuid	authenticated+service_role	client	rpc in src/stores/useDM.ts
 admin_add_supporter	definer	uuid	authenticated+service_role	client	rpc in src/services/FundingService.ts
+admin_delete_accounts	definer	jsonb	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
+admin_delete_accounts_preview	definer	TABLE(id uuid, username text, display_name text, avatar_url text, skip_reason text, post_count integer, message_count integer, local_follows integer, remote_followers integer, owned_servers jsonb)	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
+admin_delete_caller	definer	uuid	-	client	called by admin_delete_accounts, admin_delete_accounts_preview
 admin_delete_outgoing_webhook	definer	void	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
+admin_delete_skip_reason	definer	text	-	client	called by admin_delete_accounts, admin_delete_accounts_preview
 admin_drive_remove_file	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/ReportsModeration.vue
 admin_drive_unblock_hash	definer	boolean	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
 admin_drive_usage	definer	TABLE(profile_id uuid, username text, display_name text, used_bytes bigint, quota_bytes bigint, ephemeral_bytes bigint, file_count bigint, quota_override bigint, total_count bigint)	authenticated+service_role	client	rpc in src/components/admin/DriveAdmin.vue
@@ -412,6 +416,7 @@ enforce_server_sound_limit	definer	trigger	service_role	trigger	trigger public.s
 enforce_sticker_limit	definer	trigger	service_role	trigger	trigger public.stickers BEFORE INSERT (enforce_sticker_limit)
 enqueue_outgoing_webhook_event	definer	integer	service_role	client	rpc in bot-gateway/src/gateway/outgoingWebhooks.ts
 ensure_realtime_partitions	definer	integer	-	cron	cron 5 * * * * (realtime-partitions)
+erase_account	definer	void	-	client	called by admin_delete_accounts, delete_my_account
 execute_channel_webhook	definer	jsonb	service_role	client	rpc in federation-backend/src/routes/webhooks/channelWebhooks.ts
 existing_sticker_ids	definer	TABLE(id uuid, url text)	anon+authenticated+service_role	client	rpc in src/services/stickerService.ts
 export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
@@ -650,7 +655,7 @@ list_server_webhooks	definer	jsonb	authenticated+service_role	http authenticated
 list_soundboard_library	definer	TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/soundboard/sounds.ts
 lock_managed_channel_webhook	invoker	channel_webhooks	service_role	client	called by delete_channel_webhook, regenerate_channel_webhook_token, update_channel_webhook
 lock_managed_outgoing_webhook	definer	outgoing_webhooks	service_role	client	called by delete_outgoing_webhook, list_outgoing_webhook_deliveries, rotate_outgoing_webhook_secret, +2
-log_admin_action	definer	uuid	service_role	client	called by admin_delete_outgoing_webhook, admin_drive_remove_file, admin_moderate_post, +36
+log_admin_action	definer	uuid	service_role	client	called by admin_delete_accounts, admin_delete_outgoing_webhook, admin_drive_remove_file, +37
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -748,7 +753,7 @@ public_profile_page	definer	jsonb	service_role	client	named in federation-backen
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_signup_ledger	definer	void	service_role	cron	cron 17 * * * * (signup-ledger-purge)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +47
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, before_user_created_hook, +48
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_message_poll_federation	definer	void	service_role	client	called by end_federated_message_poll, end_message_poll, record_federated_message_poll_vote, +1
 queue_outgoing_webhook_ping	definer	uuid	service_role	client	called by create_outgoing_webhook, outgoing_webhook_probes, test_outgoing_webhook, +1
@@ -921,7 +926,7 @@ skip_share_hidden_history	definer	trigger	service_role	trigger	trigger public.me
 skip_share_outside_room	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (a_megolm_session_shares_room_guard)
 slugify_server_name	invoker	text	anon+authenticated+service_role	trigger	called by generate_unique_server_slug
 soundboard_object_server	invoker	uuid	authenticated+service_role	policy	policy storage.objects DELETE on Soundboard managers can delete sounds, storage.objects INSERT on Soundboard managers can upload sounds, storage.objects SELECT on Writers read soundboard
-staff_bulk_check_ids	invoker	void	service_role	client	called by staff_bulk_set_suspended, staff_bulk_suspend_preview
+staff_bulk_check_ids	invoker	void	service_role	client	called by admin_delete_accounts, admin_delete_accounts_preview, staff_bulk_set_suspended, +1
 staff_bulk_set_suspended	definer	jsonb	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
 staff_bulk_skip_reason	invoker	text	service_role	client	called by staff_bulk_set_suspended, staff_bulk_suspend_preview
 staff_bulk_suspend_preview	definer	TABLE(id uuid, username text, display_name text, avatar_url text, skip_reason text, post_count integer, message_count integer, local_follows integer, remote_followers integer, owned_servers jsonb)	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
@@ -936,7 +941,7 @@ staff_server_members	definer	TABLE(user_id uuid, username text, display_name tex
 staff_server_messages	definer	TABLE(id uuid, channel_id uuid, channel_name text, thread_id uuid, user_id uuid, bot_id uuid, author_username text, author_display_name text, author_avatar_url text, author_domain text, content jsonb, encrypted boolean, created_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/HostedServerStaffService.ts
 staff_set_server_suspended	definer	jsonb	authenticated+service_role	client	rpc in src/services/HostedServerStaffService.ts
 staff_signup_daily	definer	TABLE(day date, signups integer, suspended integer, email_domains integer, top_domain_count integer, peak_hour_count integer, refused integer, would_refuse integer)	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
-staff_signup_groups	definer	TABLE(kind text, key text, label text, size integer, suspended integer, prior_count integer, first_at timestamp with time zone, last_at timestamp with time zone, member_ids uuid[])	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
+staff_signup_groups	definer	TABLE(kind text, key text, label text, size integer, suspended integer, prior_count integer, first_at timestamp with time zone, last_at timestamp with time zone, member_ids uuid[], mail_hosts text[])	authenticated+service_role	client	rpc in src/services/SignupReviewService.ts
 stamp_post_federate_image_cap	definer	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (posts_federate_image_cap)
 start_dm_call_message	definer	uuid	authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
 sticker_check_text	invoker	void	service_role	client	called by create_sticker, update_sticker

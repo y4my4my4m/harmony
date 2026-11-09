@@ -741,15 +741,10 @@ harmony auth remove-provider authentik</code></pre>
           Maximum audience size for stage events (speaker mode)
         </span>
       </div>
-      <div class="setting-row">
-        <label class="toggle-label">
-          <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" :disabled="webrtcUnread" />
-          <span class="toggle-slider"></span>
-          Allow federated voice calls
-          <span class="setting-hint-inline">
-            Enable voice/video calls with users from other instances
-          </span>
-        </label>
+      <div class="setting-group" data-testid="webrtc-federated-state">
+        <span class="form-label-text">{{ t('admin.instance.federatedCallsLabel') }}</span>
+        <p class="federated-calls-state" role="status">{{ federatedCallsText }}</p>
+        <span class="setting-hint">{{ t('admin.instance.federatedCallsHint') }}</span>
       </div>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
@@ -781,6 +776,7 @@ import { supabase } from '@/supabase'
 import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { fetchLiveKitConfig } from '@/services/livekitTokens'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
 import { DEFAULT_FEDERATE_IMAGE_MAX_PX, FEDERATE_IMAGE_RENDER_MAX, parseFederateImageMaxPx } from '@/utils/federateImageMaxPx'
@@ -889,9 +885,23 @@ const config = ref({
   webrtc: {
     mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
     livekitUrl: '',
-    allowFederatedVoice: true,
     maxStageListeners: 100000
   }
+})
+
+// As the federation backend reports it, from ALLOW_FEDERATED_VOICE in its environment.
+const federatedCallsText = ref('')
+
+const loadFederatedCalls = async () => {
+  const voice = await fetchLiveKitConfig()
+  if (!voice) federatedCallsText.value = t('admin.instance.federatedCallsUnread')
+  else if (!voice.allowFederatedVoice) federatedCallsText.value = t('admin.instance.federatedCallsOff')
+  else if (!voice.enabled) federatedCallsText.value = t('admin.instance.federatedCallsNoLivekit')
+  else federatedCallsText.value = t('admin.instance.federatedCallsOn')
+}
+
+watch(configTab, (tab) => {
+  if (tab === 'webrtc') void loadFederatedCalls()
 })
 
 const limitsSupported = hasCapability('instance-limits')
@@ -936,7 +946,6 @@ const configPayload = (): Record<string, unknown> => ({
 const webrtcPayload = (): Record<string, unknown> => ({
   mode: config.value.webrtc.mode,
   livekitUrl: config.value.webrtc.livekitUrl,
-  allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
   maxStageListeners: config.value.webrtc.maxStageListeners,
 })
 
@@ -1076,7 +1085,6 @@ const saveConfig = async () => {
       const webrtcSaved = await adminService.updateWebRTCSettings({
         mode: config.value.webrtc.mode,
         livekitUrl: config.value.webrtc.livekitUrl,
-        allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
         maxStageListeners: config.value.webrtc.maxStageListeners
       })
       if (!webrtcSaved) {
@@ -1327,6 +1335,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.federated-calls-state {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
 
 
 

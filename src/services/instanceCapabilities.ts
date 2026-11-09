@@ -22,7 +22,9 @@ export const KNOWN_CAPABILITIES = [
   'supporter-messages',
   'signup-limits',
   'instance-limits',
+  'invite-widgets',
   'signup-review',
+  'account-removal',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

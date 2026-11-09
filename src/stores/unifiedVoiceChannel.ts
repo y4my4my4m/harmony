@@ -857,7 +857,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           }
           this.pendingFederatedJoin = null;
           this.cleanupFederatedSubscription();
-          
+          if (abortSignal) {
+            abortSignal.removeEventListener('abort', abortHandler);
+          }
+          serverUsersStore.leaveVoiceChannel(serverId, channelId, userId, false);
+
           reject(new Error(rejectPayload?.reason || 'Voice join rejected by remote server'));
         };
 

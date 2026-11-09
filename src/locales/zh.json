@@ -5319,6 +5319,12 @@
       "federationCloseConfirm": "关闭联邦",
       "configLoadFailed": "无法读取当前设置。请在保存前重新加载。",
       "webrtcLoadFailed": "无法读取语音设置，因此无法在此更改。请重新加载页面后重试。",
+      "federatedCallsLabel": "与其他实例通话",
+      "federatedCallsOn": "已开启。其他实例的用户可以加入此处的语音频道和通话。",
+      "federatedCallsOff": "已关闭。其他实例的用户会被拒绝，并收到通知。",
+      "federatedCallsNoLivekit": "已关闭。此实例没有 LiveKit 服务器。",
+      "federatedCallsUnread": "无法读取当前状态。请重新加载页面后重试。",
+      "federatedCallsHint": "由联邦后端环境中的 ALLOW_FEDERATED_VOICE 决定。",
       "customOAuthTitle": "自有登录提供方",
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
@@ -7954,11 +7960,15 @@
     "domainCap": "每个电子邮件域名 24 小时内的账号数",
     "domainCapHint": "发现在同一域名下使用大量邮箱批量注册。Gmail 等大型服务商不计入。0 表示不限制。",
     "enforceCaps": "拒绝超过网络和域名限制的账号",
-    "enforceCapsHint": "关闭时，这些账号会被允许并计入下方。校园或办公室可能共用一个地址或电子邮件域名。邮箱限制和域名列表始终拒绝。",
+    "enforceCapsHint": "关闭时,这些账号会被允许并在下方计数。校园或办公室可能共用一个地址或邮箱域名。收件箱上限以及域名和邮件服务器列表始终拒绝。",
     "blockDisposable": "拒绝一次性电子邮件地址",
-    "blockDisposableHint": "内置的临时邮箱域名列表。",
+    "blockDisposableHint": "内置的临时邮箱域名及其邮件服务器列表。",
     "blockedDomains": "其他要拒绝的电子邮件域名",
     "blockedDomainsHint": "每行一个域名。其子域名也会被拒绝。",
+    "blockedMailHosts": "其他要拒绝的邮件服务器",
+    "blockedMailHostsHint": "每行一个主机。拒绝邮件服务器位于此主机或其下的任何邮箱域名:erinn.biz 也包括 recv1.erinn.biz。不要填写 google.com、outlook.com 或 cloudflare.net 等共享服务,否则其所有用户都会被拒绝。",
+    "trustedDomains": "不受限制的电子邮件域名",
+    "trustedDomainsHint": "每行一个域名,用于被误拒或同时加入的校园或公司。子域名也算在内。跳过域名上限、临时邮箱列表和邮件服务器列表。列入拒绝名单的域名仍被拒绝,收件箱上限仍然适用。",
     "save": "保存限制",
     "saved": "注册限制已保存",
     "saveFailed": "无法保存注册限制。",
@@ -7970,7 +7980,8 @@
     "refusalIpCap": "网络限制",
     "refusalDomainCap": "域名限制",
     "refusalMailboxCap": "邮箱限制",
-    "refusalBlockedDomain": "被拒绝的电子邮件域名"
+    "refusalBlockedDomain": "被拒绝的电子邮件域名",
+    "refusalMailHost": "邮件服务器"
   },
   "adminInvites": {
     "tab": "邀请",
@@ -8274,7 +8285,8 @@
       "select": "全选",
       "selectLabel": "全选：分组 {label}",
       "filterActive": "正在显示分组 {label}",
-      "clear": "显示全部"
+      "clear": "显示全部",
+      "mailHost": "邮件服务器:{hosts}"
     },
     "rows": {
       "title": "{count} 个账号",
@@ -8297,7 +8309,8 @@
       "limit": "一次最多 {count} 个账号。",
       "suspend": "停用…",
       "unsuspend": "解除停用…",
-      "clear": "清除选择"
+      "clear": "清除选择",
+      "delete": "删除…"
     },
     "dialog": {
       "suspendTitle": "停用 {count} 个账号",
@@ -8315,7 +8328,8 @@
         "deleted": "已被管理团队删除",
         "already_suspended": "已被停用",
         "not_suspended": "未被停用",
-        "not_found": "找不到账号"
+        "not_found": "找不到账号",
+        "owns_server": "拥有包含其他成员的服务器"
       },
       "ownedTitle": "他们拥有的服务器仍保持开放",
       "ownedHint": "成员可继续使用这些服务器。如需关闭，请使用“服务器”选项卡。",
@@ -8325,17 +8339,27 @@
         "follows": "将移除与本地账号的 {count} 个关注关系。解除停用不会恢复。",
         "timelines": "他们的帖子会从这里的时间线和公开页面消失。他们的消息保留在频道中。",
         "federation": "不会向其他实例发送任何内容：其他实例已收到的内容和远程关注者都会保留。",
-        "unsuspend": "他们可以重新登录。因停用而移除的关注关系不会恢复。"
+        "unsuspend": "他们可以重新登录。因停用而移除的关注关系不会恢复。",
+        "deleteSignIn": "他们将无法再登录。此操作无法撤销。",
+        "deleteNames": "他们的用户名将被释放,任何人都可以注册。",
+        "deleteContent": "他们的个人资料变为 Deleted User。消息和帖子以该名称保留。",
+        "deleteFederation": "关注他们的实例会收到账号已不存在的通知。"
       },
       "reason": "原因（必填）",
       "reasonHint": "同一原因会按账号分别记录在活动日志中。",
       "confirmSuspend": "停用 {count} 个账号",
       "confirmUnsuspend": "解除停用 {count} 个账号",
-      "failed": "操作失败：{error}"
+      "failed": "操作失败：{error}",
+      "deleteTitle": "删除 {count} 个账号",
+      "affectedDelete": "将被删除",
+      "confirmDelete": "删除 {count} 个账号",
+      "ownedDeleteTitle": "他们没有其他成员的服务器将被删除",
+      "deleteUnderstand": "我了解此操作无法撤销"
     },
     "done": {
       "suspended": "已停用 {count} 个账号",
-      "unsuspended": "已解除停用 {count} 个账号"
+      "unsuspended": "已解除停用 {count} 个账号",
+      "deleted": "已删除 {count} 个账号"
     }
   }
 }

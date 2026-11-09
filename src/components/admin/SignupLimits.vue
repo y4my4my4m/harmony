@@ -99,11 +99,41 @@
         autocapitalize="off"
         spellcheck="false"
         :disabled="!form.enabled"
-        :aria-invalid="domainError ? 'true' : undefined"
+        :aria-invalid="domainError === 'blocked' ? 'true' : undefined"
         :aria-describedby="`${uid}-domains-hint`"
         data-testid="signup-limits-domains"
       />
       <span :id="`${uid}-domains-hint`" class="sl-hint">{{ t('adminSignupLimits.blockedDomainsHint') }}</span>
+
+      <label class="sl-label" :for="`${uid}-hosts`">{{ t('adminSignupLimits.blockedMailHosts') }}</label>
+      <textarea
+        :id="`${uid}-hosts`"
+        v-model="form.blockedMailHosts"
+        class="sl-input"
+        rows="3"
+        autocapitalize="off"
+        spellcheck="false"
+        :disabled="!form.enabled"
+        :aria-invalid="domainError === 'hosts' ? 'true' : undefined"
+        :aria-describedby="`${uid}-hosts-hint`"
+        data-testid="signup-limits-mail-hosts"
+      />
+      <span :id="`${uid}-hosts-hint`" class="sl-hint">{{ t('adminSignupLimits.blockedMailHostsHint') }}</span>
+
+      <label class="sl-label" :for="`${uid}-trusted`">{{ t('adminSignupLimits.trustedDomains') }}</label>
+      <textarea
+        :id="`${uid}-trusted`"
+        v-model="form.trustedDomains"
+        class="sl-input"
+        rows="3"
+        autocapitalize="off"
+        spellcheck="false"
+        :disabled="!form.enabled"
+        :aria-invalid="domainError === 'trusted' ? 'true' : undefined"
+        :aria-describedby="`${uid}-trusted-hint`"
+        data-testid="signup-limits-trusted"
+      />
+      <span :id="`${uid}-trusted-hint`" class="sl-hint">{{ t('adminSignupLimits.trustedDomainsHint') }}</span>
 
       <p class="sl-error" role="alert" data-testid="signup-limits-error">{{ formError }}</p>
       <div>
@@ -143,6 +173,10 @@
           <dt>{{ t('adminSignupLimits.refusalBlockedDomain') }}</dt>
           <dd data-testid="signup-refusals-blocked-domain">{{ refusals.refused.blocked_domain }}</dd>
         </div>
+        <div>
+          <dt>{{ t('adminSignupLimits.refusalMailHost') }}</dt>
+          <dd data-testid="signup-refusals-mail-host">{{ refusals.refused.mail_host }}</dd>
+        </div>
       </dl>
     </div>
   </section>
@@ -171,6 +205,8 @@ interface Form {
   enforceCaps: boolean
   blockDisposable: boolean
   blockedDomains: string
+  blockedMailHosts: string
+  trustedDomains: string
 }
 
 const { t } = useI18n()
@@ -184,11 +220,16 @@ const refusals = ref<SignupRefusals | null>(null)
 const loadError = ref('')
 const formError = ref('')
 const capError = ref<'ip' | 'mailbox' | 'domain' | null>(null)
-const domainError = ref(false)
+const domainError = ref<'blocked' | 'hosts' | 'trusted' | null>(null)
 const saving = ref(false)
 
 function toForm(limits: SignupLimits): Form {
-  return { ...limits, blockedDomains: limits.blockedDomains.join('\n') }
+  return {
+    ...limits,
+    blockedDomains: limits.blockedDomains.join('\n'),
+    blockedMailHosts: limits.blockedMailHosts.join('\n'),
+    trustedDomains: limits.trustedDomains.join('\n'),
+  }
 }
 
 const changed = computed(() => {
@@ -200,7 +241,7 @@ async function save() {
   if (!form.value || !saved.value || saving.value) return
   formError.value = ''
   capError.value = null
-  domainError.value = false
+  domainError.value = null
 
   const ipCap = parseSignupCap(form.value.ipCap)
   const mailboxCap = parseSignupCap(form.value.mailboxCap)
@@ -210,10 +251,12 @@ async function save() {
     formError.value = t('adminSignupLimits.invalidCap')
     return
   }
-  const { domains, invalid } = parseBlockedDomains(form.value.blockedDomains)
-  if (invalid !== null) {
-    domainError.value = true
-    formError.value = t('adminSignupLimits.invalidDomain', { domain: invalid })
+  const blocked = parseBlockedDomains(form.value.blockedDomains)
+  const hosts = parseBlockedDomains(form.value.blockedMailHosts)
+  const trusted = parseBlockedDomains(form.value.trustedDomains)
+  if (blocked.invalid !== null || hosts.invalid !== null || trusted.invalid !== null) {
+    domainError.value = blocked.invalid !== null ? 'blocked' : hosts.invalid !== null ? 'hosts' : 'trusted'
+    formError.value = t('adminSignupLimits.invalidDomain', { domain: blocked.invalid ?? hosts.invalid ?? trusted.invalid })
     return
   }
 
@@ -224,7 +267,9 @@ async function save() {
     domainCap,
     enforceCaps: form.value.enforceCaps,
     blockDisposable: form.value.blockDisposable,
-    blockedDomains: domains,
+    blockedDomains: blocked.domains,
+    blockedMailHosts: hosts.domains,
+    trustedDomains: trusted.domains,
   }
   saving.value = true
   try {

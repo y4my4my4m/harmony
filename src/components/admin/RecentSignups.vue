@@ -79,6 +79,9 @@
               </span>
               <span v-if="group.suspended > 0">{{ t('adminSignups.groups.suspended', { count: group.suspended }) }}</span>
               <span>{{ t('adminSignups.groups.span', { from: formatMoment(group.first_at), to: formatMoment(group.last_at) }) }}</span>
+              <span v-if="group.mail_hosts?.length" data-testid="signup-group-mail-host">
+                {{ t('adminSignups.groups.mailHost', { hosts: group.mail_hosts.join(', ') }) }}
+              </span>
             </div>
           </div>
           <div class="group-actions">
@@ -207,11 +210,14 @@
       <span role="status">{{ t('adminSignups.selection.count', { count: selected.size }) }}</span>
       <span v-if="selectionCapped" class="signups-muted">{{ t('adminSignups.selection.limit', { count: BULK_LIMIT }) }}</span>
       <div class="selection-actions">
-        <button type="button" class="btn btn-danger btn-sm" data-testid="signup-bulk-suspend" @click="openDialog(true)">
+        <button type="button" class="btn btn-danger btn-sm" data-testid="signup-bulk-suspend" @click="openDialog('suspend')">
           {{ t('adminSignups.selection.suspend') }}
         </button>
-        <button type="button" class="btn btn-secondary btn-sm" data-testid="signup-bulk-unsuspend" @click="openDialog(false)">
+        <button type="button" class="btn btn-secondary btn-sm" data-testid="signup-bulk-unsuspend" @click="openDialog('unsuspend')">
           {{ t('adminSignups.selection.unsuspend') }}
+        </button>
+        <button v-if="canDelete" type="button" class="btn btn-danger btn-sm" data-testid="signup-bulk-delete" @click="openDialog('delete')">
+          {{ t('adminSignups.selection.delete') }}
         </button>
         <button type="button" class="btn btn-secondary btn-sm" data-testid="signup-selection-clear" @click="clearSelection">
           {{ t('adminSignups.selection.clear') }}
@@ -223,7 +229,7 @@
       v-if="dialogOpen"
       :show="dialogOpen"
       :ids="[...selected]"
-      :suspending="dialogSuspending"
+      :action="dialogAction"
       @close="dialogOpen = false"
       @done="onBulkDone"
     />
@@ -250,7 +256,7 @@ import {
   listSignupGroups,
   SIGNUP_GROUP_MIN_SIZE,
   SIGNUPS_PAGE_SIZE,
-  type BulkResult,
+  type BulkAction,
   type RecentSignup,
   type SignupDay,
   type SignupGroup,
@@ -266,6 +272,7 @@ const uid = `recent-signups-${useId()}`
 const profileStore = useProfileStore()
 // Moderators have no Invites tab.
 const showLimitsLink = computed(() => profileStore.profile?.is_admin === true && hasCapability('instance-invites'))
+const canDelete = computed(() => profileStore.profile?.is_admin === true && hasCapability('account-removal'))
 
 const days = ref<number>(7)
 const status = ref<SignupStatus>('all')
@@ -285,7 +292,7 @@ const titleEl = ref<HTMLElement | null>(null)
 const selected = ref(new Set<string>())
 const selectionCapped = ref(false)
 const dialogOpen = ref(false)
-const dialogSuspending = ref(true)
+const dialogAction = ref<BulkAction>('suspend')
 
 const groupKey = (group: SignupGroup) => `${group.kind}:${group.key}`
 const activeGroupKey = computed(() => (activeGroup.value ? groupKey(activeGroup.value) : null))
@@ -382,15 +389,20 @@ function clearSelection() {
   selectionCapped.value = false
 }
 
-function openDialog(suspending: boolean) {
-  dialogSuspending.value = suspending
+function openDialog(action: BulkAction) {
+  dialogAction.value = action
   dialogOpen.value = true
 }
 
-function onBulkDone(result: BulkResult) {
+const DONE_KEY: Record<BulkAction, string> = {
+  suspend: 'adminSignups.done.suspended',
+  unsuspend: 'adminSignups.done.unsuspended',
+  delete: 'adminSignups.done.deleted',
+}
+
+function onBulkDone({ action, count }: { action: BulkAction; count: number }) {
   dialogOpen.value = false
-  const changed = result.changed.length
-  toast.success(t(result.suspended ? 'adminSignups.done.suspended' : 'adminSignups.done.unsuspended', { count: changed }, changed))
+  toast.success(t(DONE_KEY[action], { count }, count))
   clearSelection()
   window.dispatchEvent(new CustomEvent('admin:activity-changed'))
   window.dispatchEvent(new CustomEvent('admin:users-changed'))

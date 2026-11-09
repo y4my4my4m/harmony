@@ -9,9 +9,16 @@ export interface SignupLimits {
   enforceCaps: boolean
   blockDisposable: boolean
   blockedDomains: string[]
+  blockedMailHosts: string[]
+  trustedDomains: string[]
 }
 
-export type SignupRefusalReason = 'ip_cap' | 'domain_cap' | 'mailbox_cap' | 'blocked_domain'
+export type SignupRefusalReason =
+  | 'ip_cap'
+  | 'domain_cap'
+  | 'mailbox_cap'
+  | 'blocked_domain'
+  | 'mail_host'
 export interface SignupRefusals {
   refused: Record<SignupRefusalReason, number>
   /** Past an observing cap and allowed. */
@@ -26,6 +33,8 @@ const KEYS: Record<keyof SignupLimits, string> = {
   enforceCaps: 'signup_enforce_caps',
   blockDisposable: 'signup_block_disposable_email',
   blockedDomains: 'signup_blocked_email_domains',
+  blockedMailHosts: 'signup_blocked_mail_hosts',
+  trustedDomains: 'signup_trusted_email_domains',
 }
 
 export const SIGNUP_LIMIT_DEFAULTS: Readonly<SignupLimits> = {
@@ -36,6 +45,8 @@ export const SIGNUP_LIMIT_DEFAULTS: Readonly<SignupLimits> = {
   enforceCaps: false,
   blockDisposable: true,
   blockedDomains: [],
+  blockedMailHosts: [],
+  trustedDomains: [],
 }
 
 function asFlag(value: unknown, fallback: boolean): boolean {
@@ -49,6 +60,10 @@ function asCount(value: unknown, fallback: number): number {
   return Number.isInteger(n) && n >= 0 ? n : fallback
 }
 
+function asDomains(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((d): d is string => typeof d === 'string') : []
+}
+
 export async function loadSignupLimits(): Promise<SignupLimits> {
   const { data, error } = await supabase
     .from('instance_config')
@@ -56,7 +71,6 @@ export async function loadSignupLimits(): Promise<SignupLimits> {
     .in('config_key', Object.values(KEYS))
   if (error) throw error
   const stored = new Map((data ?? []).map((row) => [row.config_key, row.config_value as unknown]))
-  const domains = stored.get(KEYS.blockedDomains)
   return {
     enabled: asFlag(stored.get(KEYS.enabled), SIGNUP_LIMIT_DEFAULTS.enabled),
     ipCap: asCount(stored.get(KEYS.ipCap), SIGNUP_LIMIT_DEFAULTS.ipCap),
@@ -64,9 +78,9 @@ export async function loadSignupLimits(): Promise<SignupLimits> {
     domainCap: asCount(stored.get(KEYS.domainCap), SIGNUP_LIMIT_DEFAULTS.domainCap),
     enforceCaps: asFlag(stored.get(KEYS.enforceCaps), SIGNUP_LIMIT_DEFAULTS.enforceCaps),
     blockDisposable: asFlag(stored.get(KEYS.blockDisposable), SIGNUP_LIMIT_DEFAULTS.blockDisposable),
-    blockedDomains: Array.isArray(domains)
-      ? domains.filter((d): d is string => typeof d === 'string')
-      : [],
+    blockedDomains: asDomains(stored.get(KEYS.blockedDomains)),
+    blockedMailHosts: asDomains(stored.get(KEYS.blockedMailHosts)),
+    trustedDomains: asDomains(stored.get(KEYS.trustedDomains)),
   }
 }
 
@@ -86,7 +100,7 @@ export async function saveSignupLimits(
 }
 
 function noCounts(): Record<SignupRefusalReason, number> {
-  return { ip_cap: 0, domain_cap: 0, mailbox_cap: 0, blocked_domain: 0 }
+  return { ip_cap: 0, domain_cap: 0, mailbox_cap: 0, blocked_domain: 0, mail_host: 0 }
 }
 
 /** Counts per reason over the last `days` UTC days, today included. */

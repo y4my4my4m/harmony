@@ -2018,6 +2018,32 @@ async function caseRemoteVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: str
     { who: 'the peer\'s member', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
     'the peer\'s voice channel',
   )
+
+  // A refusal comes from the host's instance actor, not a member of the server.
+  const hostActor = { key: peer.instanceKey.privateKey, actor: peer.instanceActorUrl }
+  const refuse = (object: unknown) => peerSends(peer, `${localUrl}/inbox`, {
+    type: 'harmony:VoiceChannelJoinReject',
+    id: `${peer.instanceActorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.instanceActorUrl,
+    to: [LOCAL_BOB],
+    object,
+    reason: 'Not authorized for this room',
+  }, hostActor)
+  const refusedAs = async (id: unknown) =>
+    (await userEvents(db, BOB, 'federated_voice:rejected')).filter((r) => r.originalJoinId === id)
+
+  eq((await refuse(forged)).status, 202, 'a refusal of a join fx_bob never sent is acknowledged (202)')
+  eq((await refusedAs(forged)).length, 0, 'and delivers nothing')
+
+  const second = await postJson(`${localUrl}/api/federation/voice/join`, asBob, { channelId: REMOTE_VOICE, serverId: REMOTE_REF })
+  eq(second.status, 200, 'fx_bob asks to join again')
+  eq((await refuse(second.json?.joinId)).status, 202, 'the host\'s refusal, signed by its instance actor, is acknowledged (202)')
+  const refusals = await refusedAs(second.json?.joinId)
+  assert(
+    refusals.length === 1 && refusals[0].serverHost === second.json?.serverHost && refusals[0].reason === 'Not authorized for this room',
+    'the refusal reaches fx_bob on his private user channel, naming his join, the host and the reason',
+    JSON.stringify(refusals),
+  )
 }
 
 async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
@@ -2036,21 +2062,52 @@ async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: str
   }
   const answers = (before: number) =>
     deliveries(peer, before, '/inbox').filter((d) => d.body?.type === 'harmony:VoiceChannelJoinAccept')
+  // Any inbox of the peer: the answer goes to whichever the actor's document names.
+  const refusals = (before: number) =>
+    peer.captured.slice(before)
+      .map((c) => ({ req: c, body: JSON.parse(c.raw.toString('utf-8')) }))
+      .filter((d) => d.body?.type === 'harmony:VoiceChannelJoinReject')
+  const refusedBy = async (what: string, joinId: string, before: number, to: string) => {
+    const got = refusals(before)
+    eq(got.length, 1, `${what} is refused once`)
+    eq(got[0]?.body?.object, joinId, 'naming the join')
+    eq(got[0]?.body?.actor, `https://${INSTANCE_DOMAIN}/users/instance.actor`, 'from the instance actor')
+    assert(JSON.stringify(got[0]?.body?.to) === JSON.stringify([to]), 'addressed to the joining account', JSON.stringify(got[0]?.body?.to))
+    eq(got[0]?.body?.reason, 'Not authorized for this room', 'with a reason that names no check')
+    const params = parseSignatureHeader(got[0]?.req.headers.signature ?? '')
+    eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/instance.actor#main-key`, 'signed by the instance actor')
+    const actorDoc = await getJson(`${localUrl}/users/instance.actor`)
+    const signingString = [
+      `(request-target): post ${got[0]?.req.url}`,
+      `host: ${got[0]?.req.headers.host}`,
+      `date: ${got[0]?.req.headers.date}`,
+      `digest: ${got[0]?.req.headers.digest}`,
+    ].join('\n')
+    assert(
+      !!actorDoc?.publicKey?.publicKeyPem && !!params.signature &&
+        crypto.createVerify('SHA256').update(signingString).verify(actorDoc.publicKey.publicKeyPem, params.signature, 'base64'),
+      'the signature verifies against the key the instance actor publishes',
+    )
+  }
 
   let before = peer.captured.length
-  eq((await join(PRIV_VOICE_HIDDEN)).status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
+  const hidden = await join(PRIV_VOICE_HIDDEN)
+  eq(hidden.status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
   eq(answers(before).length, 0, 'and answered with no token')
+  await refusedBy('it', hidden.id, before, peer.actorUrl)
 
   before = peer.captured.length
-  eq((await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })).status, 202,
-    'a non-member\'s join is acknowledged (202)')
+  const stranger = await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })
+  eq(stranger.status, 202, 'a non-member\'s join is acknowledged (202)')
   eq(answers(before).length, 0, 'and answered with no token')
+  await refusedBy('it', stranger.id, before, peer.strangerUrl)
 
   before = peer.captured.length
   const member = await join(PRIV_VOICE)
   eq(member.status, 202, 'the member\'s join is acknowledged (202)')
   const got = answers(before)
   eq(got.length, 1, 'the member\'s join is answered once, at its instance\'s shared inbox')
+  eq(refusals(before).length, 0, 'and not refused')
   const accept = got[0]
   eq(accept?.body?.actor, LOCAL_ALICE, 'the answer is the server owner\'s')
   eq(accept?.body?.object, member.id, 'naming the join')
@@ -2830,7 +2887,7 @@ async function main() {
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
     await caseQuoteNotifications({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
-    // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
+    // These deliveries spend the peer's inbox budget.
     await caseVoiceModerationFederation({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
       livekit: { url: env.HMFED_LIVEKIT_URL, key: env.HMFED_LIVEKIT_KEY, secret: env.HMFED_LIVEKIT_SECRET, join: (t) => lk.join(t) },
