@@ -8,6 +8,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Experimental Matrix text relay** in `matrix-bridge/`: a self-run application
+  service with explicit test-user allowlists, durable queues and plaintext-only
+  policy checks. Includes a permission-checked bot API endpoint for channel
+  encryption state. Native Matrix author rendering, member opt-out and encrypted
+  participant support remain future work; existing Discord bridging is unchanged.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the

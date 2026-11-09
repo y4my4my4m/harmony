@@ -1,0 +1,32 @@
+{
+  "name": "@harmony/matrix-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental self-run Matrix application-service relay for Harmony",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "registration": "node --env-file=.env --import tsx src/index.ts --registration",
+    "test": "vitest run",
+    "test:synapse": "npm run build && node dev/synapse-smoke.mjs",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.3.3",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "harmony": {
+    "apiUrl": "https://harmony.example.com/bot-gateway",
+    "gatewayUrl": "wss://harmony.example.com/bot-gateway/gateway",
+    "allowedUserIds": ["11111111-1111-4111-8111-111111111111"]
+  },
+  "matrix": {
+    "homeserverUrl": "https://matrix.example.com",
+    "serverName": "example.com",
+    "senderLocalpart": "harmony_relay",
+    "applicationServiceUrl": "http://127.0.0.1:9009",
+    "allowedUserIds": ["@alice:example.com"]
+  },
+  "listen": { "host": "127.0.0.1", "port": 9009 },
+  "database": "./data/bridge.sqlite",
+  "pairs": [
+    {
+      "harmonyChannelId": "22222222-2222-4222-8222-222222222222",
+      "matrixRoomId": "!replace-with-real-room-id:example.com",
+      "direction": "both"
+    }
+  ]
+}
