@@ -52,7 +52,7 @@ type ChannelAccess = { ok: true } | { ok: false; error: string }
 type WriteFailure = 'bot_cannot_post' | 'thread_locked' | 'automod_blocked' | 'failed'
 
 type WriteResult =
-  | { ok: true; message: any }
+  | { ok: true; message: any; duplicate?: true }
   | { ok: false; status: number; body: Record<string, unknown>; failure: WriteFailure }
 
 interface BotMessageInput {
@@ -702,7 +702,7 @@ export class BotRestAPI {
 
       const result = await this.createBotMessage(botId, channelId, { content, embeds, reply_to, metadata, thread_id })
       if (!result.ok) return res.status(result.status).json(result.body)
-      res.status(201).json(this.formatMessage(result.message))
+      res.status(result.duplicate ? 200 : 201).json(this.formatMessage(result.message))
     } catch (error: any) {
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -760,6 +760,10 @@ export class BotRestAPI {
       ...(interaction ? { interaction } : {}),
     }
 
+    const messageSelect = `
+        *,
+        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+      `
     // Array response, not .single(): the server's AutoMod drops a blocked row and
     // the insert returns zero rows. PostgREST rolls a zero-row singular request
     // back, which would discard the AutoMod event.
@@ -773,10 +777,26 @@ export class BotRestAPI {
         reply_to: reply_to || null,
         metadata: messageMetadata
       })
-      .select(`
-        *,
-        bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
-      `)
+      .select(messageSelect)
+
+    // The unique index allows one live row per Discord message per channel. A live relay
+    // racing a history import (or a retry) loses here; answer with the row that won.
+    const discordMessageId = (messageMetadata as Record<string, unknown>).discord_message_id
+    if (error?.code === '23505'
+      && error.message?.includes('messages_channel_discord_message_id_unique')
+      && typeof discordMessageId === 'string') {
+      const { data: existing, error: lookupError } = await supabase
+        .from('messages')
+        .select(messageSelect)
+        .eq('channel_id', channelId)
+        .eq('metadata->>discord_message_id', discordMessageId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (lookupError) return { ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' }
+      if (existing) return { ok: true, message: existing, duplicate: true }
+    }
 
     if (error) {
       console.error('Error sending message:', error)
