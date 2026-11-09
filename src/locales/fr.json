@@ -6396,6 +6396,10 @@
       "deleteCategory": "Supprimer la catégorie"
     },
     "thread": {
+      "left": "Vous avez quitté {thread}",
+      "joined": "Vous avez rejoint {thread}",
+      "leaveFailed": "Impossible de quitter le fil",
+      "joinFailed": "Impossible de rejoindre le fil",
       "goToStart": "Aller au premier message",
       "showInChannel": "Afficher dans le salon",
       "leave": "Quitter le fil",

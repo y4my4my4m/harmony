@@ -91,8 +91,10 @@ test.afterAll(async () => {
   await deleteUser(admin, member)
 })
 
+/** The row whose own body holds `text`; a reply to it holds the text in its reply preview. */
 const rowIn = (scope: Locator, text: string) =>
-  scope.locator('[data-testid="message-list"]').getByRole('article').filter({ hasText: text })
+  scope.locator('[data-testid="message-list"]').getByRole('article')
+    .filter({ has: scope.page().locator('[id^="msg-body-"]', { hasText: text }) })
 
 async function openThreadPanel(page: Page, name: string): Promise<Locator> {
   await page.locator('.chat-header .threads-btn').click()

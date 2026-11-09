@@ -6392,6 +6392,10 @@
       "deleteCategory": "Delete category"
     },
     "thread": {
+      "left": "You left {thread}",
+      "joined": "You joined {thread}",
+      "leaveFailed": "Could not leave the thread",
+      "joinFailed": "Could not join the thread",
       "goToStart": "Go to first message",
       "showInChannel": "Show in channel",
       "leave": "Leave thread",

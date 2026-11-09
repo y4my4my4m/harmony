@@ -23,6 +23,7 @@ export const KNOWN_CAPABILITIES = [
   'signup-limits',
   'instance-limits',
   'invite-widgets',
+  'thread-departures',
   'signup-review',
   'account-removal',
   'channel-host-flags',

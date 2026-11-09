@@ -6396,6 +6396,10 @@
       "deleteCategory": "카테고리 삭제"
     },
     "thread": {
+      "left": "{thread}에서 나갔습니다",
+      "joined": "{thread}에 참가했습니다",
+      "leaveFailed": "스레드에서 나가지 못했습니다",
+      "joinFailed": "스레드에 참가하지 못했습니다",
       "goToStart": "첫 메시지로 이동",
       "showInChannel": "채널에서 보기",
       "leave": "스레드 나가기",

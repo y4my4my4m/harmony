@@ -6396,6 +6396,10 @@
       "deleteCategory": "Kategorie löschen"
     },
     "thread": {
+      "left": "Du hast {thread} verlassen",
+      "joined": "Du bist {thread} beigetreten",
+      "leaveFailed": "Der Thread konnte nicht verlassen werden",
+      "joinFailed": "Dem Thread konnte nicht beigetreten werden",
       "goToStart": "Zur ersten Nachricht",
       "showInChannel": "Im Kanal anzeigen",
       "leave": "Thread verlassen",

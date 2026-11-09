@@ -6396,6 +6396,10 @@
       "deleteCategory": "删除分类"
     },
     "thread": {
+      "left": "你已退出 {thread}",
+      "joined": "你已加入 {thread}",
+      "leaveFailed": "无法退出话题",
+      "joinFailed": "无法加入话题",
       "goToStart": "转到第一条消息",
       "showInChannel": "在频道中显示",
       "leave": "离开子区",

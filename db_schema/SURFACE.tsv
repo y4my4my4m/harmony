@@ -668,6 +668,7 @@ jsonb_text_content_length	content jsonb	integer	invoker	public, extensions, pg_t
 keep_welcome_managed_server_rules		trigger	definer	public, pg_temp	service_role	trigger
 key_request_message_index		trigger	definer	public, pg_temp	service_role	trigger
 kick_server_member	p_server_id uuid, p_user_id uuid, p_reason text, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
+leave_thread	p_thread_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 list_channel_webhooks	p_channel_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 list_my_sessions		TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
 list_outgoing_webhook_deliveries	p_webhook_id uuid, p_limit integer	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -986,6 +987,7 @@ sync_view_context_from_presence	p_view_type text, p_server_id uuid, p_channel_id
 test_outgoing_webhook	p_webhook_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 tg_profile_message_counter		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 tg_profile_voice_counter		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+thread_member_joined		trigger	definer	public, pg_temp	service_role	trigger
 thread_message_delete_handler		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 thread_message_handler		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 topic_readable_by	p_profile_id uuid, p_topic text	boolean	definer	public, pg_temp	service_role	client

@@ -66,6 +66,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   they are told why, and anyone already connected is removed when encryption turns on. In an
   encrypted text channel the message box says why they cannot post, instead of the message
   vanishing.
+- **Leave thread does something you can see.** The thread drops off your sidebar until you join or
+  post in it again, and the right-click menu shows **Join thread** when you aren't a member. The
+  member count follows joins and leaves.
 - **Threads read as one conversation.** The starter message scrolls with the replies instead of
   holding the top of the panel and the full view, and the gap under the reply count is gone. The
   thread menu has **Go to first message** and **Show in channel**. The full view's thread menu now

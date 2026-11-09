@@ -6396,6 +6396,10 @@
       "deleteCategory": "Eliminar categoría"
     },
     "thread": {
+      "left": "Has salido de {thread}",
+      "joined": "Te has unido a {thread}",
+      "leaveFailed": "No se pudo salir del hilo",
+      "joinFailed": "No se pudo unir al hilo",
       "goToStart": "Ir al primer mensaje",
       "showInChannel": "Mostrar en el canal",
       "leave": "Salir del hilo",

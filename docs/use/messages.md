@@ -128,7 +128,7 @@ The thread panel's **Thread options** menu, and the right-click menu of a thread
 
 | Item | What it does |
 |---|---|
-| **Join thread**, **Leave thread** | Add or remove yourself as a member. |
+| **Join thread**, **Leave thread** | Add or remove yourself as a member. A thread you leave drops off your sidebar until you join or post in it again. It stays in **View all threads**. |
 | **Mute thread**, **Unmute thread** | Stop or resume reply notifications for this thread. |
 | **Copy link**, **Copy thread ID** | Copy a link to the thread or its ID. |
 

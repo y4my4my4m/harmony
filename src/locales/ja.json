@@ -6396,6 +6396,10 @@
       "deleteCategory": "カテゴリーを削除"
     },
     "thread": {
+      "left": "{thread} から退出しました",
+      "joined": "{thread} に参加しました",
+      "leaveFailed": "スレッドから退出できませんでした",
+      "joinFailed": "スレッドに参加できませんでした",
       "goToStart": "最初のメッセージへ移動",
       "showInChannel": "チャンネルで表示",
       "leave": "スレッドから退出",
