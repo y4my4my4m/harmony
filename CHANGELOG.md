@@ -31,7 +31,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Who can start a conversation.** **Privacy** → **Direct messages**: everyone, server members and
   people you follow, or only people you follow. It also applies to other instances.
 
+### Fixed
+- **Installing and updating on arm64.** Harmony 1.9.4's gateway image, `kong:2.8.5`, has no arm64
+  build, so `harmony install` and `harmony update` stopped at the image pull on arm64 servers. The
+  stack now runs `kong:3.9.4`, and CI checks every image for amd64 and arm64.
+
+### Changed
+- **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
+  version self-hosted instances run.
+- **Newer self-host services:** storage-api v1.90.0, whose resumable uploads fail cleanly when a
+  connection dies mid-write, Realtime v2.153.6, imgproxy v4.0.22, and with log collection on,
+  Logflare 1.50.15 and Vector 0.53.0.
+
 ### Notes for self-hosters
+- If you worked around the arm64 error with `docker-compose.arm64.yml`, delete that file and the
+  `COMPOSE_FILE` line it needed from `.env`. The instance keeps working if you leave them, on Kong
+  2.8.1.
+- An instance whose `JWT_SECRET` has fewer than 32 characters keeps PostgREST v12.2.12, because later
+  versions refuse to start with it. `harmony doctor` warns and says how to replace the secret.
 - Instance limits are on after updating, at values well above ordinary use. Stored `antispam`
   values stay as they are; the tighter new-account limits start only on a new install. A script
   writing as a normal account or a v1 or non-Discord bridge can reach them: raise the limit under

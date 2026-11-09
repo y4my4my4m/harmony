@@ -357,7 +357,7 @@
 	}
 
 	# Sb-Forwarded-For: the client address of GoTrue's per-IP limiters and its sign-up hook.
-	# Always overwritten; Kong 2.8.5 forwards a client's value unchanged. Absent, so no limiter
+	# Always overwritten; Kong forwards a client's value unchanged. Absent, so no limiter
 	# runs, for a private address (the instance's LAN) and for a token refresh (auth-js signs out on a 429 there, and a refresh token cannot be
 	# guessed). Same rule as dev/nginx-auth-client-ip.template.conf.
 	@privateClient client_ip private_ranges

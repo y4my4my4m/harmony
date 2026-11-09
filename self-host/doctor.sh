@@ -931,6 +931,11 @@ check_security() {
 	else
 		report OK secrets "Supabase secrets are not the example values"
 	fi
+	cur="$(env_get "$SB_ENV" JWT_SECRET)"
+	if [[ -n "$cur" && ${#cur} -lt 32 ]]; then
+		report WARN "jwt secret length" "JWT_SECRET has ${#cur} characters: it can be guessed offline, and PostgREST stays on v12.2.12" \
+			"set a random value of at least 32 characters, then bash configure.sh --non-interactive && docker compose up -d; everyone signs in again"
+	fi
 
 	check_exposure
 }

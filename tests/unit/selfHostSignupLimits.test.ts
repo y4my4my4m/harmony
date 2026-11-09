@@ -1,7 +1,7 @@
 /**
  * Sign-up limits in the self-host stack. GoTrue's per-IP limiters and its before-user-created
  * hook read Sb-Forwarded-For (GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED, supabase/auth v2.197.0
- * internal/sbff). Caddy overwrites the header on the API host, because Kong 2.8.5 forwards a
+ * internal/sbff). Caddy overwrites the header on the API host, because Kong forwards a
  * client's value unchanged. Behaviour by client network: scripts/check-caddyfile.sh.
  */
 import { spawnSync } from 'node:child_process'

@@ -146,16 +146,16 @@ cores, after the database schema loads:
 | Services | Memory, idle | Images on disk |
 |---|---|---|
 | Harmony: `caddy`, `web`, `media-cache`, `federation-server`, `federation-worker`, `redis` | 170 MB | 0.5 GB |
-| Supabase: `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, and `meta`, `studio` while on | 790 MB with Studio on | 4.3 GB |
+| Supabase: `db`, `auth`, `rest`, `realtime`, `storage`, `imgproxy`, `kong`, and `meta`, `studio` while on | 790 MB with Studio on | 4.6 GB |
 | Voice: `livekit` | 17 MB, more during calls | 75 MB |
 | Bots and Discord bridge hosting: `bot-gateway`, `discord-bridge-host` | 85 MB with no bridge running | 0.37 GB |
-| Log collection: `analytics`, `vector` | 0.7 GB, rising; 1.9 GB measured on a production instance | 0.57 GB |
+| Log collection: `analytics`, `vector` | 0.7 GB, rising; 1.9 GB measured on a production instance | 0.74 GB |
 
 The whole stack takes about 1 GB without log collection and 1.6 GB with it,
 before any user signs in; the operating system needs 200 to 400 MB more.
 Postgres grows into free memory as its cache under use. Kong starts one
 worker per CPU core, and Realtime and Logflare one scheduler per core: on 8
-cores Kong took 640 MB and Realtime 220 MB, on 32 cores Kong took 2.4 GB.
+cores Kong took 440 MB and Realtime 220 MB, on 12 cores Kong took 620 MB.
 
 ### Log collection {#log-collection}
 

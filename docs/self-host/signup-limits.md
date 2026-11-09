@@ -88,7 +88,7 @@ The auth service reads the client's address from `Sb-Forwarded-For` when
 gives the sign-up hook its address and switches on the service's per-IP limiters, which otherwise do
 not run at all: sign-in, `/verify`, `/recover`, `/otp` and MFA included.
 
-Other headers do not work through Kong 2.8.5:
+Other headers do not work through Kong:
 
 | Header | At the auth service |
 |---|---|

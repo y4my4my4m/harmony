@@ -357,6 +357,21 @@ jobs:
 
       - run: npm run docs:build
 
+  # Every image the stack can start has both platforms install.sh offers; Kong boots and routes.
+  # The arm64 runner runs what an arm64 install runs.
+  self-host-stack:
+    name: Self-host stack (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: bash scripts/check-self-host-stack.sh
+
   ci-verdict:
     name: CI verdict
     runs-on: ubuntu-latest
@@ -376,6 +391,7 @@ jobs:
       - e2e-webkit
       - federation-roundtrip
       - docs
+      - self-host-stack
     steps:
       - name: Require every job to have succeeded
         run: |
@@ -403,6 +419,7 @@ jobs:
           check "e2e-webkit"             "${{ needs.e2e-webkit.result }}"
           check "federation-roundtrip"   "${{ needs.federation-roundtrip.result }}"
           check "docs"                   "${{ needs.docs.result }}"
+          check "self-host-stack"        "${{ needs.self-host-stack.result }}"
 
           [ "$fail" -eq 0 ] || { echo "::error::one or more CI jobs failed"; exit 1; }
           echo "all CI jobs green"

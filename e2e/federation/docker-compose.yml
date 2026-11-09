@@ -41,7 +41,7 @@ services:
     # No published port. psql reaches it through `docker exec`.
 
   rest:
-    image: ${HMFED_POSTGREST_IMAGE:-postgrest/postgrest:v13.0.7}
+    image: ${HMFED_POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
     depends_on:
       db:
         condition: service_healthy

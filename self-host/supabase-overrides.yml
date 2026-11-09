@@ -21,15 +21,23 @@ services:
   # can hand them each other's freed addresses; Kong then answers 502 for that
   # service, sign-in included, until the entry expires: 6 min 42 s measured
   # after auth moved from .17 to .20. KONG_DNS_VALID_TTL bounds the cache.
-  # 2.8.5, the last 2.8 release, in place of the stack's 2.8.1: same declarative
-  # config format, Alpine 3.18 base in place of 3.16.
+  # 3.9.4 in place of the stack's 2.8.1: kong:2.8.4 and 2.8.5 publish amd64 only.
+  # The image has no /home/kong; Docker creates it as root for the temp.yml mount,
+  # so the stack's ~/kong.yml cannot be written. The rendered config goes in Kong's
+  # prefix, as in upstream's later stack. Kong 3's default access log appends
+  # kong_request_id, which vector.yml's combined parser drops: no edge logs in Studio.
+  # KONG_DNS_NOT_FOUND_TTL: a service just started, such as Studio, answers within 1 s.
   kong:
-    image: kong:2.8.5
+    image: kong:3.9.4
     ports: !reset []
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
       KONG_DNS_VALID_TTL: 5
+      KONG_DNS_NOT_FOUND_TTL: 1
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout combined
+    entrypoint: bash -c 'eval "echo \"$$(cat /home/kong/temp.yml)\"" > /usr/local/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
 
   # Supabase's log collection, Logflare (analytics) and vector, runs only under
   # the `logs` profile (ENABLE_ANALYTICS in .env, `harmony analytics on|off`).
@@ -38,11 +46,19 @@ services:
   # Upstream services wait for it; required: false starts them without it.
   # Without it, Studio's Logs pages are empty and `harmony logs` (Docker's own
   # logs) still shows every service.
+  # Logflare 1.50.15 and vector 0.53.0, upstream's releases. Logflare 1.52 and later break
+  # Studio's log queries on the Postgres backend (logflare#4158). Vector 0.53 refuses the
+  # stack's vector.yml.
   analytics:
+    image: supabase/logflare:1.50.15
     ports: !reset []
     profiles: [logs]
   vector:
+    image: timberio/vector:0.53.0-alpine
     profiles: [logs]
+    volumes: !override
+      - ../vector.yml:/etc/vector/vector.yml:ro,z
+      - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
   db:
     # Parallel VACUUM, CREATE INDEX and hash joins allocate shared memory in
     # /dev/shm, which Docker caps at 64 MB per container. A parallel VACUUM of a
@@ -90,7 +106,7 @@ services:
   # burst, on and off after 3 s idle (TypingIndicatorService), so up to 20 calls in 30 s
   # from one context.
   realtime:
-    image: ${REALTIME_IMAGE:-supabase/realtime:v2.148.3}
+    image: ${REALTIME_IMAGE:-supabase/realtime:v2.153.6}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -101,7 +117,10 @@ services:
   # PostgREST copies its app settings into every request transaction; with this
   # one, any SQL run through the API can read the JWT secret as
   # current_setting('app.settings.jwt_secret'). No function reads it.
+  # POSTGREST_IMAGE: set by configure.sh only for a JWT secret under 32 characters,
+  # which PostgREST 13 and later refuse at startup.
   rest:
+    image: ${POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -112,20 +131,20 @@ services:
   # recreates storage and writes the same number into
   # instance_config.upload_ceiling_bytes, above which no upload limit goes.
   storage:
-    image: ${STORAGE_IMAGE:-supabase/storage-api:v1.89.12}
+    image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     environment:
       FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
 
   # Animated emoji and large images: frames count toward the source resolution
-  # limit (megapixels). v4.0.21, upstream's release with storage-api v1.89.12, in place
-  # of the stack's v3.8.0: it decodes every uploaded image. v4 drops the
+  # limit (megapixels). v4.0.22 in place of the stack's v3.8.0: it decodes every
+  # uploaded image. v4 drops the
   # IMGPROXY_ENABLE_WEBP_DETECTION name the stack sets; IMGPROXY_AUTO_WEBP carries its value.
   # From v3.12 a source outside IMGPROXY_PREFERRED_FORMATS (default jpeg,png,gif) is
   # re-encoded when the request names no format and the client does not take WebP:
   # WebP became JPEG (alpha lost) and animated WebP became GIF. webp and avif in the
   # list keep them, as v3.8 did.
   imgproxy:
-    image: darthsim/imgproxy:v4.0.21
+    image: darthsim/imgproxy:v4.0.22
     environment:
       IMGPROXY_AUTO_WEBP: ${IMGPROXY_ENABLE_WEBP_DETECTION:-true}
       IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif
@@ -162,7 +181,7 @@ services:
   # MAILER_TEMPLATES_INVITE / MAILER_TEMPLATES_RECOVERY in supabase/.env replace them.
   #
   # Client address: with GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED GoTrue's per-IP limiters and
-  # hook metadata read Sb-Forwarded-For, which Caddy overwrites on DB_DOMAIN. Kong 2.8.5 forwards
+  # hook metadata read Sb-Forwarded-For, which Caddy overwrites on DB_DOMAIN. Kong forwards
   # it unchanged, replaces X-Real-IP with its peer and appends to X-Forwarded-For, whose first
   # value (what GoTrue otherwise reads) a client chooses. The header turns on GoTrue's per-IP limits
   # on sign-in, /verify, /recover, /otp and MFA; without it they do not run, which is what a

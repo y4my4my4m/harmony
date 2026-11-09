@@ -69,13 +69,15 @@ COMPOSE_MIN=2.24.4
 # GoTrue: custom OAuth/OIDC providers whose key sets mix algorithms (2.196.0); upstream's
 # release on 2026-11-06 (2.197.0, Go library fixes: trivy HIGH 34 -> 12).
 # storage-api: GHSA-8rrf-w776-x75g (unauthenticated writes through signed resumable
-# uploads, < 1.80.2), GHSA-3m3f-pjv4-x2fp (< 1.89.10), GHSA-2p28-q2vx-mw6w (< 1.84.14).
-# Realtime: GHSA-9vjf-j9f7-j42c (forged frames from any broadcaster, <= 2.137.14),
-# GHSA-rcr8-2525-4r7p (< 2.111.2). Both are the versions of upstream's own stack on
-# 2026-11-06, which runs them on Postgres 17; Harmony's CI runs them on 15.8.1.060.
+# uploads, < 1.80.2), GHSA-fgvp-cqg6-q8h2 (RLS bypass through JWT role none, < 1.89.9),
+# GHSA-3m3f-pjv4-x2fp (< 1.89.10), GHSA-2p28-q2vx-mw6w (< 1.84.14). 1.90.0 fails a resumed
+# TUS write whose request stream dies early.
+# Realtime: GHSA-2rcv-vpjw-5g6c (< 2.146.0), GHSA-9vjf-j9f7-j42c (forged frames from any
+# broadcaster, <= 2.137.14), GHSA-rcr8-2525-4r7p (< 2.111.2). Harmony's CI runs storage on
+# 15.8.1.060; its journeys do not run Realtime.
 GOTRUE_MIN=2.197.0
-STORAGE_MIN=1.89.12
-REALTIME_MIN=2.148.3
+STORAGE_MIN=1.90.0
+REALTIME_MIN=2.153.6
 # Memory Logflare and vector take, as the log collection question states it (lib.sh ANALYTICS_RAM).
 ANALYTICS_RAM="0.7-2 GB"
 
@@ -645,6 +647,14 @@ for spec in GOTRUE_IMAGE:supabase/gotrue:$GOTRUE_MIN STORAGE_IMAGE:supabase/stor
 	[[ "$cur_img" == "$new_img" ]] || info "supabase/.env: $var=$new_img"
 	env_set "$SB_ENV" "$var" "$new_img"
 done
+# PostgREST 13 and later refuse a JWT secret under 32 characters. Replacing the secret signs everyone
+# out, so an update does not do it: such an instance keeps the 12.2.12 it runs.
+if [[ ${#JWT_SECRET} -lt 32 ]]; then
+	env_set "$SB_ENV" POSTGREST_IMAGE postgrest/postgrest:v12.2.12
+	warn "JWT_SECRET has ${#JWT_SECRET} characters; PostgREST stays on v12.2.12 until it has 32 (harmony doctor)"
+else
+	env_del "$SB_ENV" POSTGREST_IMAGE
+fi
 chmod 600 "$SB_ENV"
 ok "self-host/supabase/.env"
 

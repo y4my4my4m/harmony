@@ -424,8 +424,9 @@ values.
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
 | `RATE_LIMIT_EMAIL_SENT` | not written; the stack reads it as `100` | Mail per hour for the whole instance while email confirmation is on. Keep it under your SMTP provider's limit. See [Sign-up limits](/self-host/signup-limits#email-budget) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
-| `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.89.12` on, otherwise `supabase/storage-api:v1.89.12`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
-| `REALTIME_IMAGE` | `configure.sh` | The realtime service's image: the Supabase stack's own `supabase/realtime` image from `v2.148.3` on, otherwise `supabase/realtime:v2.148.3`. A newer image set by hand stays |
+| `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.90.0` on, otherwise `supabase/storage-api:v1.90.0`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
+| `POSTGREST_IMAGE` | `configure.sh` | Set only while `JWT_SECRET` has under 32 characters, which PostgREST 13 and later refuse at startup: `postgrest/postgrest:v12.2.12`. Removed once the secret is long enough. Unset, the stack runs `v14.18` |
+| `REALTIME_IMAGE` | `configure.sh` | The realtime service's image: the Supabase stack's own `supabase/realtime` image from `v2.153.6` on, otherwise `supabase/realtime:v2.153.6`. A newer image set by hand stays |
 
 ### Sign-in service version
 
@@ -455,7 +456,7 @@ and forged Realtime events from any client that may broadcast on a channel
 ([GHSA-9vjf-j9f7-j42c](https://github.com/supabase/realtime/security/advisories/GHSA-9vjf-j9f7-j42c)).
 `supabase-overrides.yml` runs both services on `STORAGE_IMAGE` and
 `REALTIME_IMAGE` from `supabase/.env`, which `configure.sh` (and so
-`harmony update`) sets to `v1.89.12` and `v2.148.3` while the stack's own
+`harmony update`) sets to `v1.90.0` and `v2.153.6` while the stack's own
 images are older. Each service brings its own schema (`storage`, `realtime`)
 forward on start; no data moves.
 

@@ -258,6 +258,7 @@ Postgres, and for the exposure itself.
 | `extensions` | No untrusted procedural language, and none of `dblink`, `adminpack`, `file_fdw`, `plpython3u`, `plperlu`, `pltclu` | WARN, listing them | Unless you need them: `DROP EXTENSION NAME` |
 | `jwt secret` | `app.settings.jwt_secret` is not a database default, and PostgREST does not set it per request | WARN for either | Database default: `bash bootstrap.sh --migrations-only`. PostgREST: `harmony update` (`supabase-overrides.yml` removes it) |
 | `secrets` | `POSTGRES_PASSWORD`, `JWT_SECRET` and `DASHBOARD_PASSWORD` in `supabase/.env` are set and differ from Supabase's example values | FAIL, naming them | [Change them](/self-host/troubleshooting#change-supabase-s-example-secrets) |
+| `jwt secret length` | `JWT_SECRET` has at least 32 characters | WARN | [Change it](/self-host/troubleshooting). Below 32, PostgREST stays on `v12.2.12` |
 | `published` | No container of this stack publishes 5432, 6543, 54322, 8000, 8443, 4000 or 6379 beyond 127.0.0.1 | FAIL, naming them | Remove those `ports:` entries from the compose files, then `docker compose up -d` |
 | `other containers` | The same ports, for containers outside this stack | WARN, naming them | Bind them to 127.0.0.1 or stop them: Docker-published ports bypass `ufw` |
 | `reachable` | Those ports are closed on the server's public IPv4 and IPv6 address, tried from the server | WARN when the public address is unknown; FAIL, naming each open port and its owner | Unpublish or stop them, and block them at the provider's firewall |
