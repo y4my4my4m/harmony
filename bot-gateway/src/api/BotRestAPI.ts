@@ -231,6 +231,7 @@ export class BotRestAPI {
     this.route('post', '/channels/:channelId/messages', this.sendMessage)
 
     this.route('get', '/channels/:channelId/messages', this.getMessages)
+    this.route('get', '/channels/:channelId/encryption', this.getChannelEncryption)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
@@ -683,6 +684,25 @@ export class BotRestAPI {
     })
   }
   
+  private async getChannelEncryption(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', {
+        p_channel_id: channelId,
+      })
+      if (error || typeof data !== 'boolean') {
+        return res.status(503).json({ error: 'Channel encryption status unavailable' })
+      }
+      return res.json({ messages_encrypted: data })
+    } catch {
+      return res.status(503).json({ error: 'Channel encryption status unavailable' })
+    }
+  }
+
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params

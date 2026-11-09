@@ -67,6 +67,7 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 |---|---|---|---|
 | `POST` | [`/channels/{channel.id}/messages`](#create-message) | `send_messages` | Post a message, in the channel or one of its threads |
 | `GET` | [`/channels/{channel.id}/messages`](#get-channel-messages) | `read_messages` | List a channel's messages, newest first |
+| `GET` | [`/channels/{channel.id}/encryption`](#get-channel-encryption) | `read_messages` | Read the channel's effective message encryption state |
 | `GET` | [`/channels/{channel.id}/messages/lookup`](#look-up-a-bridged-message) | `read_messages` | Find a message by the Discord message ID in its metadata |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` | Read one message |
 | `PATCH` | [`/messages/{message.id}`](#edit-message) | `send_messages`, own messages | Edit the bot's message |
@@ -431,6 +432,14 @@ Returns member objects ordered by user ID. To read every member, request again w
 | `joined_at` | timestamp | When the membership was created. |
 
 `400` `after must be a user id` when `after` is not a UUID. A bot without an installation gets `403` `Bot not in guild`.
+
+### Get channel encryption
+
+`GET /channels/{channel.id}/encryption`
+
+Returns `200` with `{ "messages_encrypted": true }` or `{ "messages_encrypted": false }`, the channel's authoritative effective message encryption state (including inherited server settings). Requires `read_messages` and visibility of the channel under the same rules as reading its messages; otherwise returns `403` `Missing permission: read_messages`.
+
+Returns `503` `Channel encryption status unavailable` if the encryption lookup fails or does not return a boolean. Relay clients must treat an unavailable state as unsafe to relay, not as unencrypted. This endpoint reports state only; it does not change existing message read or write behavior.
 
 ### List channels
 
