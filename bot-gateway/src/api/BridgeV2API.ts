@@ -28,6 +28,8 @@ import {
   leaveGuild,
 } from '../bridge/instanceBot.js'
 
+import { createHistoryImportRouter } from '../bridge/historyImport.js'
+
 // One body for every redeem failure: unknown, used, expired and malformed codes read alike.
 const INVALID_CODE = { error: 'Invalid or expired setup code', code: 'invalid_code' } as const
 
@@ -163,6 +165,7 @@ export class BridgeV2API {
     this.router.post('/status', ...bridgeBot, this.postStatus.bind(this) as RequestHandler)
     this.router.post('/pairs', ...bridgeBot, this.postPair.bind(this) as RequestHandler)
     this.router.delete('/pairs/:discordChannelId', ...bridgeBot, this.deletePair.bind(this) as RequestHandler)
+    this.router.use('/imports', ...bridgeBot, createHistoryImportRouter())
   }
 
   private async redeem(req: Request, res: Response) {
