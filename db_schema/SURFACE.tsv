@@ -688,6 +688,7 @@ is_current_user_moderator		boolean	definer	public, pg_temp	anon+authenticated+se
 is_encrypted_channel_content	p_content jsonb, p_metadata jsonb	boolean	invoker	public, extensions, pg_temp	authenticated+service_role	unreferenced
 is_federation_enabled_for_user	user_id uuid	boolean	invoker	public, pg_temp	anon+authenticated+service_role	client
 is_heart_reaction	p_content text	boolean	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
+is_history_import		boolean	invoker	public, pg_temp	service_role	unreferenced
 is_muted_by	target_user_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 is_plaintext_mention_part	p_part jsonb	boolean	invoker	public, extensions, pg_temp	authenticated+service_role	unreferenced
 is_room_member	p_room_id text, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client

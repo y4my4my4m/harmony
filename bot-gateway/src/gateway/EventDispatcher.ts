@@ -829,6 +829,10 @@ export class EventDispatcher {
       encrypted: message.encrypted
     });
     
+    // Imported history is quiet: no MESSAGE_CREATE to bots, no outgoing webhooks. The row carries
+    // the marker because the database-side flag is transaction-local.
+    if (message.metadata?.history_import === true) return
+    
     // Bots cannot read encrypted messages.
     if (message.encrypted) {
       console.log('Skipping encrypted message');

@@ -382,6 +382,21 @@ describe('relayed authors and server-only content', () => {
     expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
   })
 
+  it('drops history_import from bot-supplied metadata, on send and on a metadata merge', async () => {
+    seed()
+    const sent = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: 'hi', metadata: { ...AUTHOR, discord_message_id: '9', history_import: true } })
+    expect(sent.status).toBe(201)
+    expect(inserted().metadata).not.toHaveProperty('history_import')
+
+    const own = '00000000-0000-0000-0000-0000000000f5'
+    db.rows('messages').push({ id: own, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
+    const merged = await supertest(app()).patch(`/api/v1/messages/${own}/metadata`)
+      .send({ metadata: { discord_message_id: '10', history_import: true } })
+    expect(merged.status).toBe(200)
+    expect(metadataOf(own)).toEqual({ discord_message_id: '10' })
+  })
+
   it('refuses a message left empty', async () => {
     seed()
     const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)

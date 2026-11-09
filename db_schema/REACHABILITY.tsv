@@ -683,6 +683,7 @@ is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
 is_federation_enabled_for_user	invoker	boolean	anon+authenticated+service_role	client	rpc in src/services/federation/FederationDecisionService.ts
 is_heart_reaction	invoker	boolean	anon+authenticated+service_role	client, trigger	called by add_post_emoji_reaction, fold_heart_reaction, remove_post_emoji_reaction
+is_history_import	invoker	boolean	service_role	client, trigger	called by broadcast_message_event, broadcast_thread_change, enforce_channel_slowmode, +17
 is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	called by is_encrypted_channel_content
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update, public.room_epoch_state SELECT on room_epoch_state_select; rpc in src/services/encryption/MegolmKeyBackupService.ts
