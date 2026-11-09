@@ -3,6 +3,7 @@
  * holding MANAGE_SERVER; every write goes through a discord_bridge_* RPC.
  */
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 import type {
   BridgeMode,
   BridgePairRow,
@@ -333,8 +334,8 @@ export async function cancelImports(bridgeId: string, importId: string | null): 
 }
 
 /**
- * bridge_attachment_mode. It is not a public instance_config key, so only an instance admin
- * can read it; any other manager gets null.
+ * bridge_attachment_mode, a public instance_config key (public_instance_config_keys()), so any
+ * signed-in manager reads it. Null when unset or unreadable.
  */
 export async function fetchBridgeAttachmentMode(): Promise<'link' | 'refresh' | 'mirror' | null> {
   const { data, error } = await supabase
@@ -342,7 +343,10 @@ export async function fetchBridgeAttachmentMode(): Promise<'link' | 'refresh' | 
     .select('config_value')
     .eq('config_key', 'bridge_attachment_mode')
     .maybeSingle()
-  if (error) return null
+  if (error) {
+    debug.error('bridge_attachment_mode read failed:', error)
+    return null
+  }
   const value = (data as { config_value?: unknown } | null)?.config_value
   return value === 'link' || value === 'refresh' || value === 'mirror' ? value : null
 }

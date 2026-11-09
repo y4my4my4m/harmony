@@ -77,6 +77,30 @@ afterEach(() => {
   expect(missingKeys).toEqual([])
 })
 
+describe('DiscordBridgeSetup — import mirror note', () => {
+  const withMode = (mode: string) =>
+    tables({
+      discord_bridges: [healthyBridge({ discord_guild_id: '900', bridge_version: '2.6.0' })],
+      discord_bridge_channels: [makePair()],
+      instance_config: [{ config_key: 'bridge_attachment_mode', config_value: mode }],
+    })
+
+  it('shows the mirror note to a non-admin manager when attachments are mirrored', async () => {
+    installBackend(withMode('mirror'))
+    const w = mountSetup()
+    await flushPromises()
+    expect(w.find('[data-testid="import-mirror-note"]').text()).toBe("Imported files are copied into this instance's storage.")
+  })
+
+  it('omits the note when attachments are not mirrored', async () => {
+    installBackend(withMode('refresh'))
+    const w = mountSetup()
+    await flushPromises()
+    expect(w.find('[data-testid="import-toolbar"]').exists()).toBe(true)
+    expect(w.find('[data-testid="import-mirror-note"]').exists()).toBe(false)
+  })
+})
+
 describe('DiscordBridgeSetup — no bridge', () => {
   it('offers only "run it yourself" when the instance does not host bridges', async () => {
     installBackend(tables())
