@@ -136,6 +136,7 @@ async function main() {
   await access(new URL('../dist/MatrixClient.js', import.meta.url)).catch(() => fail('Run npm run build first (dist/MatrixClient.js is missing)'));
   await docker(['version', '--format', '{{.Server.Version}}']).catch(() => fail('Docker is unavailable; install/start Docker and allow this user access'));
   const { MatrixClient } = await import('../dist/MatrixClient.js');
+  const { configSchema } = await import('../dist/config.js');
   console.log('Pulling opt-in Synapse smoke image (no shared containers are changed)...');
   stage = 'image pull';
   await docker(['pull', image], 240_000);
@@ -230,6 +231,20 @@ async function main() {
     body: { preset: 'private_chat', invite: [botUserId], creation_content: { 'm.federate': false } },
   });
   assert.equal(typeof roomId, 'string');
+  // Exercise configuration too: modern room versions use opaque IDs without ':server'.
+  const parsedConfig = configSchema.parse({
+    harmony: {
+      apiUrl: 'http://127.0.0.1:3002', gatewayUrl: 'ws://127.0.0.1:3002/gateway',
+      allowedUserIds: ['11111111-1111-4111-8111-111111111111'],
+    },
+    matrix: {
+      homeserverUrl, serverName, senderLocalpart: 'smoke_bridge',
+      applicationServiceUrl: registration.url, allowedUserIds: [user.user_id],
+    },
+    pairs: [{ harmonyChannelId: '22222222-2222-4222-8222-222222222222', matrixRoomId: roomId }],
+  });
+  assert.equal(parsedConfig.pairs[0].matrixRoomId, roomId);
+  console.log('PASS configuration accepts actual homeserver room ID');
   await matrix.joinRoom(roomId);
   assert.equal(await matrix.roomIsPlaintext(roomId), true);
   console.log('PASS joinRoom and roomIsPlaintext (real M_NOT_FOUND state response)');

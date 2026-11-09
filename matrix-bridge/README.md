@@ -65,7 +65,9 @@ Populate `config.json`:
 - `matrix.serverName`: the server name in Matrix user IDs (e.g. `example.org`).
 - `matrix.applicationServiceUrl`: callback URL reachable **from the homeserver**.
 - `matrix.allowedUserIds`: consenting Matrix users' full IDs, not display names.
-- `pairs`: actual Harmony channel UUID / Matrix room ID (`!opaque:server`) pairs.
+- `pairs`: actual Harmony channel UUID / Matrix room ID pairs. Room IDs are opaque:
+  older rooms commonly use `!opaque:server`; modern rooms may use `!opaque` without
+  a server suffix. Use the complete ID returned by Matrix, not a room alias.
   Directions are `both`, `to_harmony` and `to_matrix`.
 
 Use HTTPS/WSS across untrusted networks. Plain HTTP/WS is supported for trusted

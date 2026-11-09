@@ -8,7 +8,8 @@ const httpUrl = z.url().refine(value => {
 const matrixId = z.string().regex(/^@[^\s:]+:[^\s/]+$/)
 const pairSchema = z.object({
   harmonyChannelId: z.uuid(),
-  matrixRoomId: z.string().regex(/^![^\s:]+:[^\s/]+$/),
+  // Room IDs are opaque: room version 12+ IDs need not contain a homeserver suffix.
+  matrixRoomId: z.string().min(2).max(255).regex(/^![^\s/]+$/),
   direction: z.enum(['both', 'to_harmony', 'to_matrix']).default('both'),
 }).strict()
 

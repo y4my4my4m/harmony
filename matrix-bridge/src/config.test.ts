@@ -15,6 +15,13 @@ describe('configuration', () => {
     expect(botUserId(config)).toBe('@harmony_relay:matrix.test')
     expect(configSchema.safeParse({ ...sampleConfig(), harmony: { ...sampleConfig().harmony, allowedUserIds: [] } }).success).toBe(false)
   })
+  it('accepts opaque modern room IDs without a homeserver suffix', () => {
+    const input = sampleConfig()
+    input.pairs[0].matrixRoomId = '!ModernOpaqueRoomId_0123456789_without_server'
+    expect(configSchema.parse(input).pairs[0].matrixRoomId).toBe(input.pairs[0].matrixRoomId)
+    input.pairs[0].matrixRoomId = '!invalid room'
+    expect(configSchema.safeParse(input).success).toBe(false)
+  })
   it('rejects ambiguous mappings and URLs containing secrets or unsupported schemes', () => {
     const input = sampleConfig()
     expect(configSchema.safeParse({ ...input, pairs: [...input.pairs, input.pairs[0]] }).success).toBe(false)
