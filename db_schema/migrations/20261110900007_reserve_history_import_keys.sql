@@ -4,7 +4,8 @@
 -- and pin triggers (20261110900005), the gateway's dispatcher and bridge_import_link_replies_core
 -- trust it. discord_reply_to is what the reply linker acts on and created_via names the writer.
 -- A client could set any of them on its own message, so they join the keys only the server writes.
--- The body is that of 20261028400001_group_authored_messages.sql with the keys added.
+-- The body is that of 20261110400001_bot_slash_commands.sql (which reserves interaction) with the
+-- keys added.
 --
 -- created_via is the exception to a plain reservation: the client itself writes
 -- created_via = 'harmony_client' on every message it sends (CoreMessageService, ThreadService). A
@@ -23,7 +24,7 @@ DECLARE
         'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published',
         'conversation', 'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at',
         'federated_to', 'embeds', 'bot', 'discord_user', 'discord_message_id', 'automod',
-        'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id',
+        'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id', 'interaction',
         'history_import', 'discord_reply_to'];
     v_new_meta jsonb;
     v_old_meta jsonb;
