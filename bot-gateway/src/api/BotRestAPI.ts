@@ -208,6 +208,18 @@ export interface MessageDeleteSink {
   messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
 }
 
+/** Most messages one channel history read returns, as Discord's maximum. */
+export const MAX_MESSAGES_PER_READ = 100
+
+/**
+ * A list route's `limit` query: `fallback` when it is absent or not a whole number, else clamped
+ * to 1..max. Without a cap one request reads up to PostgREST's row limit (1000 by default).
+ */
+export function queryLimit(raw: unknown, fallback: number, max: number): number {
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return fallback
+  return Math.min(Math.max(Number(raw), 1), max)
+}
+
 /** A bridge pairing removed keeps answering true for at most this long. */
 const BRIDGE_PAIR_TTL_MS = 60_000
 
@@ -788,9 +800,10 @@ export class BotRestAPI {
   private async getMessages(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { limit = 50, before, after } = req.query
+      const { before, after } = req.query
+      const limit = queryLimit(req.query.limit, 50, MAX_MESSAGES_PER_READ)
       const botId = req.bot!.id
-      
+
       const canRead = await this.canReadChannel(botId, channelId)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
@@ -809,7 +822,7 @@ export class BotRestAPI {
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
-        .limit(Number(limit))
+        .limit(limit)
       
       if (before) {
         query = query.lt('created_at', before as string)

@@ -209,7 +209,7 @@ Channel access errors are listed under [Errors](#errors).
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 50 | Number of messages. The gateway sets no maximum. |
+| `limit` | 50 | Number of messages, at most 100. A larger value returns 100; a value that is not a whole number uses the default. |
 | `before` | | ISO 8601 timestamp. Only messages created before it. |
 | `after` | | ISO 8601 timestamp. Only messages created after it. |
 
