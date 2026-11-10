@@ -65,6 +65,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **The message field no longer locks after switching servers.** A switch could leave "You do not
+  have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
+  instances.
 - **Live updates no longer stop for a whole instance.** Realtime allowed 200 connected clients, 100
   channel joins and 100 messages per second across an instance. Past those, new clients got no live
   updates, a restart could keep disconnecting everyone, and live messages stopped for up to a minute:
