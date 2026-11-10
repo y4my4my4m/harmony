@@ -128,6 +128,8 @@ const endText = computed(() => {
   if (!job) return ''
   switch (job.state) {
     case 'done':
+      // imported_count is what this run added; a re-run over an imported channel adds nothing.
+      if (job.imported_count === 0) return t('discordBridge.import.doneNothingNew')
       return t('discordBridge.import.done', { count: job.imported_count }, job.imported_count)
     case 'failed': {
       const code = job.error ?? ''

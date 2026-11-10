@@ -6361,6 +6361,7 @@
       "messages": "{count} Nachricht | {count} Nachrichten",
       "threads": "Threads {done} von {total}",
       "done": "{count} Nachricht importiert | {count} Nachrichten importiert",
+      "doneNothingNew": "Aktuell: keine neuen Nachrichten",
       "failed": "Import gestoppt: {reason}",
       "failedUnknown": "Import gestoppt",
       "cancelled": "Abgebrochen",

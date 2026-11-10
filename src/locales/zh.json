@@ -6361,6 +6361,7 @@
       "messages": "{count} 条消息 | {count} 条消息",
       "threads": "主题帖 {done} / {total}",
       "done": "已导入 {count} 条消息 | 已导入 {count} 条消息",
+      "doneNothingNew": "已是最新：没有新消息",
       "failed": "导入已停止：{reason}",
       "failedUnknown": "导入已停止",
       "cancelled": "已取消",

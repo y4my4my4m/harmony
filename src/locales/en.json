@@ -6357,6 +6357,7 @@
       "messages": "{count} message | {count} messages",
       "threads": "Threads {done} of {total}",
       "done": "Imported {count} message | Imported {count} messages",
+      "doneNothingNew": "Up to date: no new messages",
       "failed": "Import stopped: {reason}",
       "failedUnknown": "Import stopped",
       "cancelled": "Cancelled",

@@ -6361,6 +6361,7 @@
       "messages": "{count} 件のメッセージ | {count} 件のメッセージ",
       "threads": "スレッド {done} / {total}",
       "done": "{count} 件のメッセージをインポートしました | {count} 件のメッセージをインポートしました",
+      "doneNothingNew": "最新の状態です：新しいメッセージはありません",
       "failed": "インポートが停止しました: {reason}",
       "failedUnknown": "インポートが停止しました",
       "cancelled": "キャンセルしました",

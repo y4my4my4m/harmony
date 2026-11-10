@@ -201,6 +201,8 @@ describe('BridgeChannelPairs import controls', () => {
     const text = (job: Partial<ImportJob>) => mountPairs({ imports: [makeJob(job)] }).get('[data-testid="import-state"]').text()
     expect(text({ state: 'queued' })).toBe('Waiting')
     expect(text({ state: 'done', imported_count: 42 })).toBe('Imported 42 messages')
+    // A re-run over an already-imported channel adds nothing.
+    expect(text({ state: 'done', imported_count: 0 })).toBe('Up to date: no new messages')
     expect(text({ state: 'failed', error: 'Missing Access' })).toBe('Import stopped: Missing Access')
     expect(text({ state: 'cancelled' })).toBe('Cancelled')
     expect(text({ state: 'paused' })).toBe('Paused: waiting for the bridge')

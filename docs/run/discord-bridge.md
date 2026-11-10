@@ -251,7 +251,8 @@ Discord gives no message count, so progress goes by date. Each pair shows its st
 | **Linking replies…** | Linking replies to their originals |
 | **Cancelling…** | The bridge is stopping the import |
 | **Paused: waiting for the bridge** | The bridge stopped; the import continues when it returns |
-| **Imported 1,204 messages** | Finished, with **Import again** |
+| **Imported 1,204 messages** | Finished, with **Import again**; the count is what that run added |
+| **Up to date: no new messages** | Finished a re-run that found nothing new, with **Import again** |
 | **Import stopped: …** | Failed, with **Try again**; the reason is shown, for example the channel pair was removed or the channel is now encrypted |
 | **Cancelled** | Stopped by a person, with **Resume** |
 

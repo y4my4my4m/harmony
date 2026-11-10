@@ -6361,6 +6361,7 @@
       "messages": "{count} mensaje | {count} mensajes",
       "threads": "Hilos {done} de {total}",
       "done": "{count} mensaje importado | {count} mensajes importados",
+      "doneNothingNew": "Al día: no hay mensajes nuevos",
       "failed": "Importación detenida: {reason}",
       "failedUnknown": "Importación detenida",
       "cancelled": "Cancelada",
