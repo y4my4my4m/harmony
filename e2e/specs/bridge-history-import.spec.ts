@@ -144,9 +144,6 @@ async function bridgeCall(path: string, init: { method?: string; body?: unknown 
 
 test('a manager imports Discord history: old messages land quietly, in date order, under their Discord authors', async ({ page }) => {
   test.setTimeout(240_000)
-  const unreadBefore = await unreadOf(member)
-  const notificationsBefore = await notificationCount(member)
-
   await signIn(page, owner)
   await page.goto(`/server/${server.id}?section=discord-bridge`)
   const pair = page.locator('[data-testid="pair-row"]').first()
@@ -202,6 +199,13 @@ test('a manager imports Discord history: old messages land quietly, in date orde
   expect(batch.status, batch.text).toBe(200)
   expect(batch.json?.inserted).toHaveLength(2)
   expect(batch.json?.skipped).toEqual([])
+  const importedIds = (batch.json?.inserted as Array<{ id: string }>).map((m) => m.id)
+
+  // Baseline, right after the batch: the member sees the channel (the live message counts as
+  // unread), so "unchanged" below cannot pass by reading the wrong user or channel.
+  const unreadBefore = await unreadOf(member)
+  const notificationsBefore = await notificationCount(member)
+  expect(unreadBefore).not.toEqual([])
 
   const done = await bridgeCall(`/imports/${jobId}`, {
     method: 'PATCH',
@@ -231,6 +235,28 @@ test('a manager imports Discord history: old messages land quietly, in date orde
   // Quiet: the mentioned member got no notification and no new unread.
   expect(await notificationCount(member)).toBe(notificationsBefore)
   expect(await unreadOf(member)).toEqual(unreadBefore)
+  const { data: referencing, error: refError } = await admin
+    .from('notifications')
+    .select('id, data')
+    .eq('user_id', member.id)
+    .in('data->>message_id', importedIds)
+  if (refError) throw new Error(`notifications by message: ${refError.message}`)
+  expect(referencing).toEqual([])
+
+  // Control: a live message that mentions the member does notify and count as unread, so the
+  // checks above can fail.
+  const { data: liveMention, error: liveMentionError } = await admin
+    .from('messages')
+    .insert({
+      channel_id: server.generalChannelId,
+      user_id: owner.id,
+      content: [{ type: 'text', text: 'Live ping ' }, { type: 'mention', userId: member.id, username: member.username }],
+    })
+    .select('id')
+    .single()
+  if (liveMentionError || !liveMention) throw new Error(`live mention: ${liveMentionError?.message}`)
+  await expect.poll(() => notificationCount(member), { timeout: 15000 }).toBeGreaterThan(notificationsBefore)
+  expect(await unreadOf(member)).not.toEqual(unreadBefore)
 
   // The rows carry the import marker and their original dates.
   const { data: rows, error } = await admin
