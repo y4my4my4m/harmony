@@ -3,19 +3,19 @@
  *
  * Touch: one finger swipes between items (left: next) and down to dismiss, or pans a zoomed
  * image; two fingers pinch an image and hold anything else; a double tap on an image toggles
- * zoom. Mouse: a drag pans a zoomed image and never swipes; the wheel and a double click zoom.
+ * zoom. Mouse: a drag on an image moves it at any scale, free of its edges (useMediaZoom
+ * `free`), and never swipes; the wheel zooms, below fit too, and a double click toggles zoom.
  * A click beside the media closes, unless it ends a drag.
  */
 
 import { reactive, ref } from 'vue'
 import {
-  MIN_SCALE,
+  FIT_SCALE,
   TAP_SLOP,
-  ZOOM_STEP,
   classifySwipe,
   isDoubleTap,
   pinchOf,
-  zoomAt,
+  wheelFactor,
   type Point,
   type Size,
   type Tap,
@@ -45,6 +45,8 @@ export interface MediaGestureOptions {
 /** `hold`: two or more fingers on media that does not zoom; nothing happens until all lift. */
 interface Gesture {
   kind: 'swipe' | 'pan' | 'pinch' | 'hold'
+  /** A mouse pan: it frees the pan once it moves. */
+  mouse: boolean
   start: Point
   time: number
   origin: ZoomState
@@ -89,6 +91,7 @@ export function useMediaGestures(options: MediaGestureOptions) {
   function startGesture(kind: Gesture['kind'], point: Point, time: number, extra: Partial<Gesture> = {}) {
     gesture = {
       kind,
+      mouse: false,
       start: point,
       time,
       origin: { ...zoom },
@@ -120,15 +123,18 @@ export function useMediaGestures(options: MediaGestureOptions) {
   function onPointerDown(event: PointerEvent) {
     // A touch swipe or pinch is followed by no click; its suppression ends with the next press.
     suppressClick = false
-    if (event.pointerType === 'mouse' && event.button !== 0) return
+    const mouse = event.pointerType === 'mouse'
+    if (mouse && event.button !== 0) return
     const target = event.target as Element | null
     // The player's controls, the browser's video controls, the toolbar and nav buttons keep
     // their own pointer handling.
     if (target?.closest('.hv-dock, button, a, input, video, [role="slider"]')) return
-    if (event.pointerType === 'mouse' && zoom.scale <= MIN_SCALE) return
+    if (mouse && !(options.zoomable() && options.onMedia(event.clientX, event.clientY))) return
+    if (!mouse) zoomer.hold()
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (pointers.size === 1) {
-      startGesture(zoom.scale > MIN_SCALE ? 'pan' : 'swipe', { x: event.clientX, y: event.clientY }, event.timeStamp)
+      const kind = mouse || zoom.scale > FIT_SCALE ? 'pan' : 'swipe'
+      startGesture(kind, { x: event.clientX, y: event.clientY }, event.timeStamp, { mouse })
       listen(true)
     } else if (pointers.size === 2) {
       // A second finger ends the swipe: it pinches an image and holds anything else.
@@ -159,7 +165,7 @@ export function useMediaGestures(options: MediaGestureOptions) {
       const [a, b] = [...pointers.values()]
       const pinch = pinchOf(a, b)
       const center = toStage(pinch.center.x, pinch.center.y)
-      const scaled = zoomAt(gesture.origin, gesture.origin.scale * (pinch.distance / gesture.pinchDistance), gesture.pinchCenter)
+      const scaled = zoomer.scaleAt(gesture.origin, gesture.origin.scale * (pinch.distance / gesture.pinchDistance), gesture.pinchCenter)
       zoomer.apply({
         ...scaled,
         x: scaled.x + center.x - gesture.pinchCenter.x,
@@ -174,6 +180,7 @@ export function useMediaGestures(options: MediaGestureOptions) {
     gesture.moved = true
 
     if (gesture.kind === 'pan') {
+      if (gesture.mouse) zoomer.release()
       zoomer.apply({ ...gesture.origin, x: gesture.origin.x + dx, y: gesture.origin.y + dy })
       return
     }
@@ -214,7 +221,7 @@ export function useMediaGestures(options: MediaGestureOptions) {
         startGesture('pan', rest, event.timeStamp, { moved: true })
         return
       }
-      if (zoom.scale < MIN_SCALE * 1.02) zoomer.apply({ ...zoom, scale: MIN_SCALE, x: 0, y: 0 })
+      if (zoom.scale < FIT_SCALE * 1.02) zoomer.apply({ ...zoom, scale: FIT_SCALE, x: 0, y: 0 })
       endGesture()
       return
     }
@@ -267,7 +274,9 @@ export function useMediaGestures(options: MediaGestureOptions) {
   function onWheel(event: WheelEvent) {
     if (!options.zoomable()) return
     event.preventDefault()
-    zoomer.zoomBy(event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, toStage(event.clientX, event.clientY))
+    // A drag or pinch in progress holds the scale it started at.
+    if (gesture || !event.deltaY) return
+    zoomer.zoomBy(wheelFactor(event.deltaY, event.deltaMode), toStage(event.clientX, event.clientY))
   }
 
   function onDoubleClick(event: MouseEvent) {

@@ -1,12 +1,14 @@
 /**
  * useMediaGestures: a one-finger swipe steps or dismisses, two fingers pinch an image and
- * hold anything else, a double tap toggles zoom, a mouse drags only a zoomed image, the wheel
- * zooms an image only, and a click beside the media closes unless it ends a swipe.
+ * hold anything else, a double tap toggles zoom, a mouse drags an image at any scale past its
+ * edges and never swipes, the wheel zooms an image only, in proportion to its travel and
+ * below fit, a touch returns a shrunk image to fit, and a click beside the media closes
+ * unless it ends a swipe.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useMediaGestures } from '../useMediaGestures'
 import { useMediaZoom } from '../useMediaZoom'
-import { DOUBLE_TAP_SCALE, ZOOM_STEP } from '@/utils/lightboxGestures'
+import { DOUBLE_TAP_SCALE, PAN_KEEP, WHEEL_NOTCH, ZOOM_STEP } from '@/utils/lightboxGestures'
 
 // Stage 400 x 800 at the origin: its centre is client (200, 400). The image covers it.
 const STAGE = { left: 0, top: 0, width: 400, height: 800, right: 400, bottom: 800, x: 0, y: 0 } as DOMRect
@@ -124,18 +126,68 @@ describe('useMediaGestures', () => {
     expect(zoomer.zoom.x).toBe(-100)
   })
 
-  it('drags a zoomed image with the mouse and never swipes with it', () => {
+  it('drags an image with the mouse at any scale and never swipes with it', () => {
     const { gestures, zoomer, calls } = setup()
     down(gestures, 1, 320, 400, 'mouse')
-    move(1, 80, 400, 'mouse')
-    up(1, 80, 400, 'mouse')
+    move(1, 80, 460, 'mouse')
+    up(1, 80, 460, 'mouse')
     expect(calls.next).not.toHaveBeenCalled()
+    expect(calls.dismiss).not.toHaveBeenCalled()
+    // Unzoomed, and 300 px high in 800 px of stage: it still follows the mouse.
+    expect(zoomer.zoom).toMatchObject({ scale: 1, x: -240, y: 60 })
 
+    // Zoom about the stage centre doubles the offset; nothing pulls the image back.
     zoomer.zoomBy(2)
+    expect(zoomer.zoom).toMatchObject({ scale: 2, x: -480, y: 120 })
     down(gestures, 1, 200, 400, 'mouse')
     move(1, 150, 400, 'mouse')
     up(1, 150, 400, 'mouse')
-    expect(zoomer.zoom.x).toBe(-50)
+    expect(zoomer.zoom.x).toBe(-530)
+  })
+
+  it('stops a mouse drag with part of the image left on the stage', () => {
+    const { gestures, zoomer } = setup()
+    down(gestures, 1, 200, 400, 'mouse')
+    move(1, 5000, -5000, 'mouse')
+    up(1, 5000, -5000, 'mouse')
+    // 400 x 300 on a 400 x 800 stage: centre to centre less the part kept.
+    expect(zoomer.zoom.x).toBe(400 - PAN_KEEP)
+    expect(zoomer.zoom.y).toBe(-(550 - PAN_KEEP))
+  })
+
+  it('leaves a mouse press beside the image, or on media that does not zoom, alone', () => {
+    const beside = setup()
+    down(beside.gestures, 1, 200, 100, 'mouse')
+    move(1, 260, 160, 'mouse')
+    up(1, 260, 160, 'mouse')
+    expect(beside.zoomer.zoom).toMatchObject({ x: 0, y: 0 })
+
+    const video = setup({ zoomable: false })
+    down(video.gestures, 1, 320, 400, 'mouse')
+    move(1, 80, 400, 'mouse')
+    up(1, 80, 400, 'mouse')
+    expect(video.calls.next).not.toHaveBeenCalled()
+    expect(video.zoomer.zoom).toMatchObject({ x: 0, y: 0 })
+  })
+
+  it('holds the image to its edges again on a touch, and centres it back at fit', () => {
+    const { gestures, zoomer } = setup()
+    zoomer.zoomBy(2)
+    down(gestures, 1, 200, 400, 'mouse')
+    move(1, 500, 400, 'mouse')
+    up(1, 500, 400, 'mouse')
+    expect(zoomer.zoom.x).toBe(300)
+    // 800 px wide at scale 2 over a 400 px stage: 200 px either way.
+    down(gestures, 2, 200, 400)
+    up(2, 200, 400)
+    expect(zoomer.zoom.x).toBe(200)
+
+    down(gestures, 1, 200, 400, 'mouse')
+    move(1, 500, 400, 'mouse')
+    up(1, 500, 400, 'mouse')
+    zoomer.zoomBy(1 / 2)
+    expect(zoomer.zoom).toMatchObject({ scale: 1, x: 0, y: 0 })
+    expect(zoomer.free.value).toBe(false)
   })
 
   it('zooms an image with the wheel and leaves other media alone', () => {
@@ -150,6 +202,38 @@ describe('useMediaGestures', () => {
     video.gestures.onWheel(scroll)
     expect(scroll.defaultPrevented).toBe(false)
     expect(video.zoomer.zoom.scale).toBe(1)
+  })
+
+  it('zooms by a part of a step for wheel travel short of a notch', () => {
+    const { gestures, zoomer } = setup()
+    const at = { clientX: 200, clientY: 400, cancelable: true }
+    gestures.onWheel(new WheelEvent('wheel', { deltaY: -WHEEL_NOTCH / 4, ...at }))
+    expect(zoomer.zoom.scale).toBeCloseTo(ZOOM_STEP ** 0.25)
+    for (let i = 0; i < 3; i++) gestures.onWheel(new WheelEvent('wheel', { deltaY: -WHEEL_NOTCH / 4, ...at }))
+    expect(zoomer.zoom.scale).toBeCloseTo(ZOOM_STEP)
+    // A line-mode notch is one step whatever its count.
+    gestures.onWheel(new WheelEvent('wheel', { deltaY: 3, deltaMode: 1, ...at }))
+    expect(zoomer.zoom.scale).toBeCloseTo(1)
+  })
+
+  it('shrinks an image below fit with the wheel; a touch returns it to fit and swipes', () => {
+    const { gestures, zoomer, calls } = setup()
+    const out = () => gestures.onWheel(new WheelEvent('wheel', { deltaY: 100, clientX: 200, clientY: 400, cancelable: true }))
+    out()
+    out()
+    expect(zoomer.zoom.scale).toBeCloseTo(0.64)
+    swipe(gestures, [320, 400], [80, 400])
+    expect(zoomer.zoom.scale).toBe(1)
+    expect(calls.next).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores the wheel during a drag', () => {
+    const { gestures, zoomer } = setup()
+    down(gestures, 1, 200, 400, 'mouse')
+    move(1, 260, 400, 'mouse')
+    gestures.onWheel(new WheelEvent('wheel', { deltaY: -100, clientX: 260, clientY: 400, cancelable: true }))
+    expect(zoomer.zoom.scale).toBe(1)
+    up(1, 260, 400, 'mouse')
   })
 
   it('closes on a click beside the media, not on the click that ends a swipe', () => {

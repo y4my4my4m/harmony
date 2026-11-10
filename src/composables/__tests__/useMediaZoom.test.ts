@@ -1,11 +1,12 @@
 /**
- * useMediaZoom: the scale stays within MIN_SCALE..MAX_SCALE, the pan within the scaled image,
- * a quarter turn fits the image back into the stage and recentres it, and reset returns to
- * the upright, unzoomed image.
+ * useMediaZoom: the scale stays within MIN_SCALE..MAX_SCALE, or up to NATURAL_ZOOM times the
+ * file's pixels for an image shown small, a step through fit stops at it, the pan stays
+ * within the scaled image unless freed, a quarter turn fits the image back into the stage
+ * and recentres it, and reset returns to the upright, unzoomed image.
  */
 import { describe, expect, it } from 'vitest'
 import { useMediaZoom } from '../useMediaZoom'
-import { DOUBLE_TAP_SCALE, MAX_SCALE, MIN_SCALE, ZOOM_STEP, type Size } from '@/utils/lightboxGestures'
+import { DOUBLE_TAP_SCALE, FIT_SCALE, MAX_SCALE, MIN_SCALE, NATURAL_ZOOM, PAN_KEEP, ZOOM_STEP, type Size } from '@/utils/lightboxGestures'
 
 function setup(content: Size = { width: 400, height: 300 }, stage: Size = { width: 400, height: 800 }) {
   const sizes = { content, stage }
@@ -16,9 +17,6 @@ function setup(content: Size = { width: 400, height: 300 }, stage: Size = { widt
 describe('useMediaZoom', () => {
   it('zooms in steps between the bounds', () => {
     const { zoomer } = setup()
-    zoomer.zoomBy(1 / ZOOM_STEP)
-    expect(zoomer.zoom.scale).toBe(MIN_SCALE)
-    expect(zoomer.zoomed.value).toBe(false)
     zoomer.zoomBy(ZOOM_STEP)
     expect(zoomer.zoom.scale).toBe(ZOOM_STEP)
     expect(zoomer.zoomed.value).toBe(true)
@@ -26,6 +24,79 @@ describe('useMediaZoom', () => {
     expect(zoomer.zoom.scale).toBe(MAX_SCALE)
     zoomer.zoomBy(ZOOM_STEP)
     expect(zoomer.zoom.scale).toBe(MAX_SCALE)
+  })
+
+  it('shrinks below fit, stopping at fit on the way through', () => {
+    const { zoomer } = setup()
+    zoomer.zoomBy(1 / ZOOM_STEP)
+    expect(zoomer.zoom.scale).toBeCloseTo(0.8)
+    expect(zoomer.zoomed.value).toBe(false)
+    zoomer.zoomBy(1 / ZOOM_STEP)
+    zoomer.zoomBy(ZOOM_STEP)
+    zoomer.zoomBy(ZOOM_STEP)
+    expect(zoomer.zoom.scale).toBe(FIT_SCALE)
+
+    zoomer.zoomBy(0.5)
+    zoomer.zoomBy(100)
+    expect(zoomer.zoom.scale).toBe(FIT_SCALE)
+    zoomer.zoomBy(3)
+    zoomer.zoomBy(0.001)
+    expect(zoomer.zoom.scale).toBe(FIT_SCALE)
+    zoomer.zoomBy(0.001)
+    expect(zoomer.zoom.scale).toBe(MIN_SCALE)
+    zoomer.zoomBy(1 / ZOOM_STEP)
+    expect(zoomer.zoom.scale).toBe(MIN_SCALE)
+  })
+
+  it('keeps a freed image in place through fit on the way up, and brings it home on the way down', () => {
+    const { zoomer } = setup()
+    zoomer.zoomBy(0.5)
+    zoomer.release()
+    zoomer.apply({ ...zoomer.zoom, x: 120, y: -80 })
+    zoomer.zoomBy(4)
+    expect(zoomer.zoom).toMatchObject({ scale: 1, x: 240, y: -160 })
+    expect(zoomer.free.value).toBe(true)
+    zoomer.zoomBy(2)
+    zoomer.zoomBy(0.25)
+    expect(zoomer.zoom).toMatchObject({ scale: 1, x: 0, y: 0 })
+    expect(zoomer.free.value).toBe(false)
+  })
+
+  it('returns a shrunk image to fit when held', () => {
+    const { zoomer } = setup()
+    zoomer.zoomBy(0.5)
+    zoomer.hold()
+    expect(zoomer.zoom).toMatchObject({ scale: 1, x: 0, y: 0 })
+  })
+
+  it('zooms an image shown small up to three times its own pixels', () => {
+    // A 1080 x 8000 screenshot fitted 108 px wide.
+    const zoomer = useMediaZoom({
+      content: () => ({ width: 108, height: 800 }),
+      stage: () => ({ width: 400, height: 800 }),
+      natural: () => ({ width: 1080, height: 8000 }),
+    })
+    expect(zoomer.maxScale()).toBe(NATURAL_ZOOM * 10)
+    zoomer.zoomBy(1000)
+    expect(zoomer.zoom.scale).toBe(30)
+
+    // Shown at its own size: MAX_SCALE stands.
+    const small = useMediaZoom({
+      content: () => ({ width: 200, height: 200 }),
+      stage: () => ({ width: 400, height: 800 }),
+      natural: () => ({ width: 200, height: 200 }),
+    })
+    expect(small.maxScale()).toBe(MAX_SCALE)
+  })
+
+  it('lets a freed pan leave the edges and holds it again', () => {
+    const { zoomer } = setup()
+    zoomer.release()
+    zoomer.apply({ ...zoomer.zoom, x: 900, y: 900 })
+    expect(zoomer.zoom.x).toBe(400 - PAN_KEEP)
+    expect(zoomer.zoom.y).toBe(550 - PAN_KEEP)
+    zoomer.hold()
+    expect(zoomer.zoom).toMatchObject({ x: 0, y: 0 })
   })
 
   it('keeps the pan inside the scaled image', () => {
@@ -77,7 +148,20 @@ describe('useMediaZoom', () => {
     zoomer.toggleAt({ x: 40, y: 20 })
     expect(zoomer.zoom.scale).toBe(DOUBLE_TAP_SCALE)
     zoomer.toggleAt({ x: 40, y: 20 })
-    expect(zoomer.zoom).toMatchObject({ scale: MIN_SCALE, x: 0, y: 0 })
+    expect(zoomer.zoom).toMatchObject({ scale: FIT_SCALE, x: 0, y: 0 })
+  })
+
+  it('toggles a shrunk or moved image back to fit', () => {
+    const { zoomer } = setup()
+    zoomer.zoomBy(0.5)
+    zoomer.toggleAt({ x: 40, y: 20 })
+    expect(zoomer.zoom).toMatchObject({ scale: FIT_SCALE, x: 0, y: 0 })
+
+    zoomer.release()
+    zoomer.apply({ ...zoomer.zoom, x: 120 })
+    zoomer.toggleAt({ x: 40, y: 20 })
+    expect(zoomer.zoom).toMatchObject({ scale: FIT_SCALE, x: 0, y: 0 })
+    expect(zoomer.free.value).toBe(false)
   })
 
   it('resets scale, pan and rotation', () => {

@@ -155,6 +155,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   together, up to 3000 a minute.
 - **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
   version self-hosted instances run.
+- **Drag and shrink images in the media viewer.** With a mouse, an image moves under a drag at any
+  zoom, past its own edges too, and stays where you leave it while you zoom with the wheel. The
+  wheel, the zoom-out button and the **-** key now go on below the fitted size, down to a tenth of
+  it. Zooming out from a close-up stops at the fitted size and centres the image; a double click
+  does the same from anywhere. A tall screenshot or other image shown small now zooms up to three
+  times its real size, and the wheel zooms smoothly on a trackpad.
 - **Newer self-host services:** storage-api v1.90.0, whose resumable uploads fail cleanly when a
   connection dies mid-write, Realtime v2.153.6, imgproxy v4.0.22, and with log collection on,
   Logflare 1.50.15 and Vector 0.53.0.
