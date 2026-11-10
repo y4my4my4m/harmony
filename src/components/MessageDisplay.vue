@@ -1247,6 +1247,9 @@ const {
 // Bot data cache
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
+// Bots whose lookup found nothing or failed. Not reactive and not asked again: every finished
+// lookup re-renders the row, which would start the next one.
+const missingBots = new Set<string>();
 
 const threadsStore = useThreadsStore();
 
@@ -1345,7 +1348,7 @@ const handleBotUpdated = (event: CustomEvent) => {
 };
 
 const fetchBotData = async (botId: string) => {
-  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId)) {
+  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId) || missingBots.has(botId)) {
     return;
   }
   
@@ -1375,6 +1378,7 @@ const fetchBotData = async (botId: string) => {
   } catch (error) {
     debug.error('Failed to fetch bot data:', error);
   } finally {
+    if (!botDataCache.value.has(botId)) missingBots.add(botId);
     fetchingBots.value.delete(botId);
   }
 };

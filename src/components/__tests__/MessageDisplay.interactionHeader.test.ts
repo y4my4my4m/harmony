@@ -2,6 +2,7 @@
  * A bot reply to a slash command carries metadata.interaction: a line above it names the member
  * who used the command, and the name opens their profile. An invoker missing from the user cache
  * reads "Someone". Follow-ups carry the line too, and the reply always shows its header.
+ * A bot the bots table hides is named from get_bot_profile; a bot neither returns is looked up once.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -28,8 +29,10 @@ function loose<T extends object>(fields: T): T {
   })
 }
 
-// Answers the bot lookup of a bot row; an unanswered lookup re-renders the row without end.
-// Every other call resolves to no data.
+const botLookups = vi.hoisted(() => vi.fn())
+const fetchBotProfile = vi.hoisted(() => vi.fn(async (_id: string): Promise<object | null> => null))
+
+// Answers the bot lookup of a bot row. Every other call resolves to no data.
 vi.mock('@/supabase', () => {
   const bots: Record<string, object> = { 'bot-1': { id: 'bot-1', username: 'botty', display_name: 'Botty', avatar_url: '' } }
   const empty = (): unknown => new Proxy(function () {}, {
@@ -40,10 +43,16 @@ vi.mock('@/supabase', () => {
   })
   const botQuery = {
     select: () => botQuery,
-    eq: (_column: string, id: string) => ({ single: async () => ({ data: bots[id] ?? null, error: null }) }),
+    eq: (_column: string, id: string) => ({
+      maybeSingle: async () => {
+        botLookups(id)
+        return { data: bots[id] ?? null, error: null }
+      },
+    }),
   }
   return { supabase: new Proxy({}, { get: (_t, key) => key === 'from' ? (table: string) => (table === 'bots' ? botQuery : empty()) : empty() }) }
 })
+vi.mock('@/services/botProfileService', () => ({ fetchBotProfile }))
 vi.mock('@/composables/useT', async () => {
   const { createI18n } = await import('vue-i18n')
   const en = (await import('@/locales/en.json')).default
@@ -166,6 +175,9 @@ let wrapper: VueWrapper | null = null
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
+  botLookups.mockClear()
+  fetchBotProfile.mockReset()
+  fetchBotProfile.mockResolvedValue(null)
 })
 
 async function mountList(messages: Message[]) {
@@ -227,5 +239,22 @@ describe('MessageDisplay interaction header', () => {
     const end = wrapper!.find('[data-testid="message-list-end"]')
     expect(end.exists()).toBe(true)
     expect(end.findComponent({ name: 'BotInteractionNotice' }).props()).toMatchObject({ channelId: 'chan-1', threadId: null })
+  })
+})
+
+describe('MessageDisplay bot author', () => {
+  it('names a bot the bots table hides from its profile', async () => {
+    fetchBotProfile.mockResolvedValue({ id: 'bot-private', username: 'weatherbot', displayName: 'Weatherbot', avatarUrl: '' })
+    await mountList([message('m1', 0, { bot_id: 'bot-private' })])
+    expect(fetchBotProfile).toHaveBeenCalledWith('bot-private')
+    expect(wrapper!.get('#message-m1 .username-text').text()).toBe('Weatherbot')
+  })
+
+  it('looks up a bot neither source returns once, however often its rows render', async () => {
+    await mountList([message('m1', 0, { bot_id: 'bot-gone' }), message('m2', 10, { bot_id: 'bot-gone' })])
+    await flushPromises()
+    expect(botLookups.mock.calls.filter(([id]) => id === 'bot-gone')).toHaveLength(1)
+    expect(fetchBotProfile).toHaveBeenCalledTimes(1)
+    expect(wrapper!.get('#message-m1 .username-text').text()).toBe('Bot-bot-gone')
   })
 })
