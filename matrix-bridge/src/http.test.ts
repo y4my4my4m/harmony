@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { endpoint, HttpError, isTransientError, requestJson } from './http.js';
+import { endpoint, HttpError, isTransientError, requestJson, requestImage } from './http.js';
 
 describe('HTTP', () => {
   it('preserves base paths and removes query credentials', () => {
@@ -43,6 +43,20 @@ describe('HTTP', () => {
     const limited = new Response('{}', { status: 429, headers: { 'Retry-After': '120' } });
     const error = await requestJson(new URL('https://host'), {}, vi.fn<typeof fetch>().mockResolvedValue(limited)).catch(error => error);
     expect((error as HttpError).retryAfterMs).toBe(120_000);
+  });
+
+  it.each(['fetch', 'body'])('bounds avatar %s stalls and aborts without exposing credentials', async stalled => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = stalled === 'fetch'
+        ? vi.fn<typeof fetch>(() => new Promise(() => {}))
+        : vi.fn<typeof fetch>().mockResolvedValue(new Response(new ReadableStream({ start() {} }), { headers: { 'Content-Type': 'image/png' } }));
+      const pending = expect(requestImage(new URL('https://matrix.test/media'), { headers: { Authorization: 'Bearer SECRET' } }, fetchImpl))
+        .rejects.toThrow('HTTP request timed out');
+      await vi.advanceTimersByTimeAsync(15_000);
+      await pending;
+      expect(fetchImpl.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
   });
 
   it('does not consider invalid JSON or a forbidden response transient', async () => {

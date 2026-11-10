@@ -33,7 +33,7 @@ export function endpoint(base: string, path: string): URL {
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-async function boundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
+async function boundedBytes(response: Response, signal: AbortSignal): Promise<Buffer> {
   if (Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
     await response.body?.cancel();
     throw new HttpError('HTTP response exceeds limit', false);
@@ -55,20 +55,49 @@ async function boundedJson(response: Response, signal: AbortSignal): Promise<unk
       }
       chunks.push(value);
     }
-    try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-    catch { throw new HttpError('Invalid JSON response', false); }
+    signal.throwIfAborted();
+    return Buffer.concat(chunks);
   } finally {
     signal.removeEventListener('abort', cancel);
     reader.releaseLock();
   }
 }
 
+async function boundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
+  if (response.status === 204) return undefined;
+  const bytes = await boundedBytes(response, signal);
+  try { return JSON.parse(bytes.toString('utf8')); }
+  catch { throw new HttpError('Invalid JSON response', false); }
+}
+
+export interface AvatarImage { data: string; content_type: string }
+
+export function requestImage(url: URL, init: RequestInit, fetchImpl: FetchImpl = fetch): Promise<AvatarImage> {
+  return request(url, init, fetchImpl, 15_000, async (response, signal) => {
+    const content_type = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+    if (!content_type || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(content_type)) {
+      await response.body?.cancel();
+      throw new HttpError('Unsupported avatar image type', false);
+    }
+    const bytes = await boundedBytes(response, signal);
+    if (!bytes.length) throw new HttpError('Empty avatar image', false);
+    return { data: bytes.toString('base64'), content_type };
+  });
+}
+
 /** One attempt only: callers decide whether their operation is safe to retry. */
-export async function requestJson<T = unknown>(
+export function requestJson<T = unknown>(
+  url: URL, init: RequestInit, fetchImpl: FetchImpl = fetch, timeoutMs = 15_000,
+): Promise<T> {
+  return request(url, init, fetchImpl, timeoutMs, boundedJson) as Promise<T>;
+}
+
+async function request<T>(
   url: URL,
   init: RequestInit,
-  fetchImpl: FetchImpl = fetch,
-  timeoutMs = 15_000,
+  fetchImpl: FetchImpl,
+  timeoutMs: number,
+  decode: (response: Response, signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -98,8 +127,7 @@ export async function requestJson<T = unknown>(
           response.status === 408 || response.status === 429 || response.status >= 500,
           response.status, errcode, retryAfterMs);
       }
-      if (response.status === 204) return undefined as T;
-      return await boundedJson(response, controller.signal) as T;
+      return await decode(response, controller.signal);
     })()]);
   } catch (error) {
     if (error instanceof HttpError) throw error;

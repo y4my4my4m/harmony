@@ -28,7 +28,7 @@ async function listen(server: Server): Promise<number> {
   return (server.address() as AddressInfo).port
 }
 
-it('runs the configured service end-to-end over HTTP/WS and shuts down cleanly', async () => {
+it.each(['matrix', null, 'discord', 'unavailable'])('runs only with verified Matrix bridge registration (%s)', async platform => {
   const channelId = '22222222-2222-4222-8222-222222222222'
   const userId = '11111111-1111-4111-8111-111111111111'
   const harmonyPosts: unknown[] = []
@@ -41,7 +41,12 @@ it('runs the configured service end-to-end over HTTP/WS and shuts down cleanly',
     const input = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}
     let result: unknown
     let status = 200
-    if (path.endsWith('/encryption')) result = { messages_encrypted: false }
+    if (path.endsWith('/bridge-platform')) {
+      result = { platform }; if (platform === 'unavailable') status = 503
+    }
+    else if (path.includes('/bridge-consent/')) result = { relay_allowed: true }
+    else if (path.includes('/state/m.room.member/')) result = { membership: 'join', displayname: 'Room Alice' }
+    else if (path.endsWith('/encryption')) result = { messages_encrypted: false }
     else if (path.endsWith('/state/m.room.encryption/')) { result = { errcode: 'M_NOT_FOUND' }; status = 404 }
     else if (path.endsWith('/register')) result = { user_id: '@harmony_relay:test' }
     else if (path.includes('/join/')) result = { room_id: '!room:test' }
@@ -81,6 +86,15 @@ it('runs the configured service end-to-end over HTTP/WS and shuts down cleanly',
   let output = ''
   child.stdout!.on('data', chunk => { output += String(chunk) })
   child.stderr!.on('data', chunk => { output += String(chunk) })
+  if (platform !== 'matrix') {
+    await vi.waitFor(() => expect(child.exitCode).toBe(1), { timeout: 10_000 })
+    expect(output).toContain('configure_matrix_bridge')
+    expect(output).not.toContain('Harmony gateway connected')
+    expect(matrixPosts).toHaveLength(0)
+    expect(harmonyPosts).toHaveLength(0)
+    sockets.close()
+    return
+  }
   await vi.waitFor(() => {
     expect(child.exitCode, output).toBeNull()
     expect(output).toContain('Harmony gateway connected')
@@ -100,7 +114,8 @@ it('runs the configured service end-to-end over HTTP/WS and shuts down cleanly',
     expect(matrixPosts).toHaveLength(1)
   }, { timeout: 5000 })
   expect(matrixPosts[0]).toMatchObject({ body: '[Alice · Harmony] hello Matrix', 'm.mentions': {} })
-  expect(harmonyPosts[0]).toMatchObject({ content: [{ type: 'text', text: '[@alice:test · Matrix] hello Harmony' }] })
+  expect(harmonyPosts[0]).toMatchObject({ content: [{ type: 'text', text: 'hello Harmony' }],
+    metadata: { bridge_author: { platform: 'matrix', id: '@alice:test', username: 'alice', display_name: 'Room Alice' } } })
   expect(output).not.toContain('hello Matrix')
   expect(output).not.toContain('b'.repeat(64))
   const exited = once(child, 'exit')

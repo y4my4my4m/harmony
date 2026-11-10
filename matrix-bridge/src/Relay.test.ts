@@ -17,8 +17,12 @@ function setup() {
   })
   const store = new Store(':memory:')
   stores.push(store)
-  const harmony = { sendMessage: vi.fn().mockResolvedValue({ id: 'h-copy' }), channelIsPlaintext: vi.fn().mockResolvedValue(true) }
-  const matrix = { sendMessage: vi.fn().mockResolvedValue({ event_id: '$m-copy' }), roomIsPlaintext: vi.fn().mockResolvedValue(true) }
+  const harmony = { sendMessage: vi.fn().mockResolvedValue({ id: 'h-copy' }), channelIsPlaintext: vi.fn().mockResolvedValue(true),
+    requireMatrixBridge: vi.fn().mockResolvedValue(undefined), relayAllowed: vi.fn().mockResolvedValue(true),
+    uploadBridgeAvatar: vi.fn().mockResolvedValue('https://storage.test/avatar.png') }
+  const matrix = { sendMessage: vi.fn().mockResolvedValue({ event_id: '$m-copy' }), roomIsPlaintext: vi.fn().mockResolvedValue(true),
+    roomMember: vi.fn().mockResolvedValue({ display_name: 'Room Alice' }),
+    avatarThumbnail: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }) }
   const relay = new Relay(config, store, harmony, matrix)
   return { config, store, harmony, matrix, relay }
 }
@@ -37,7 +41,8 @@ describe('Relay', () => {
     relay.acceptTransaction('another', [event()])
     expect(store.counts().pending).toBe(1)
     await relay.tick()
-    expect(harmony.sendMessage).toHaveBeenCalledExactlyOnceWith(channelId, '[@alice:matrix.test · Matrix] hello', {
+    expect(harmony.sendMessage).toHaveBeenCalledExactlyOnceWith(channelId, 'hello', {
+      bridge_author: { platform: 'matrix', id: '@alice:matrix.test', username: 'alice', display_name: 'Room Alice' },
       matrix_relay: { room_id: roomId, event_id: '$one', sender: '@alice:matrix.test' },
     })
     expect(store.findMapping('to_harmony', '$one', channelId, roomId)).toBe('h-copy')
@@ -68,7 +73,7 @@ describe('Relay', () => {
     for (const override of [
       { author: { id: userId, bot: true } }, { author: { id: 'other' } }, { encrypted: true },
       { metadata: { discord_user: { id: '42' } } }, { metadata: { bridge_source: 'matrix' } },
-      { metadata: { matrix_relay: {} } }, { is_system: true }, { thread_id: 'thread' },
+      { metadata: { matrix_relay: {} } }, { metadata: { bridge_author: { platform: 'matrix', id: '@a:test' } } }, { is_system: true }, { thread_id: 'thread' },
       { content_raw: [{ type: 'file', url: 'https://private.test/file' }] },
     ]) expect(relay.acceptHarmonyMessage(message(override))).toBe(false)
   })
@@ -152,6 +157,119 @@ describe('Relay', () => {
     expect(matrix.sendMessage).not.toHaveBeenCalled()
     expect(store.isRoomBlocked(roomId)).toBe(true)
     expect(store.counts().failed).toBe(1)
+  })
+  it('ignores forged event author metadata and fetches the actual room membership', async () => {
+    const { relay, harmony, matrix } = setup()
+    relay.acceptTransaction('one', [event({ content: { msgtype: 'm.text', body: 'hello', displayname: 'Forged',
+      avatar_url: 'https://evil.test/a', 'bridge_author': { id: '@admin:test' } } })])
+    await relay.tick()
+    expect(matrix.roomMember).toHaveBeenCalledExactlyOnceWith(roomId, '@alice:matrix.test')
+    expect(harmony.sendMessage.mock.calls[0][2].bridge_author).toEqual({ platform: 'matrix', id: '@alice:matrix.test', username: 'alice', display_name: 'Room Alice' })
+  })
+  it('checks destination encryption after the consent request, immediately before sending', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.relayAllowed.mockImplementation(async () => { matrix.roomIsPlaintext.mockResolvedValue(false); return true })
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().failed).toBe(1)
+  })
+  it('rechecks member consent after enqueue and on every retry', async () => {
+    vi.useFakeTimers()
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message())
+    matrix.sendMessage.mockRejectedValueOnce(new HttpError('unavailable', true, 503))
+    await relay.tick()
+    harmony.relayAllowed.mockResolvedValue(false)
+    vi.advanceTimersByTime(1000)
+    await relay.tick()
+    expect(harmony.relayAllowed).toHaveBeenCalledTimes(2)
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+    expect(store.counts()).toEqual({ pending: 0, failed: 1 })
+  })
+  it.each([false, undefined, null])('blocks queued messages when consent is %s', async consent => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message())
+    harmony.relayAllowed.mockResolvedValue(consent)
+    await relay.tick()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().failed).toBe(1)
+  })
+  it.each(['registration', 'consent', 'profile'])('fails closed on unavailable %s without sending', async check => {
+    const { relay, harmony, matrix, store } = setup()
+    if (check === 'consent') {
+      relay.acceptHarmonyMessage(message())
+      harmony.relayAllowed.mockRejectedValue(new HttpError('unavailable', true, 503))
+    } else {
+      relay.acceptTransaction('one', [event()])
+      if (check === 'registration') harmony.requireMatrixBridge.mockRejectedValue(new HttpError('unavailable', true, 503))
+      else matrix.roomMember.mockRejectedValue(new HttpError('unavailable', true, 503))
+    }
+    await relay.tick()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().pending).toBe(1)
+  })
+  it('uploads and caches avatars only after plaintext checks, then rechecks destination policy', async () => {
+    const { relay, harmony, matrix } = setup()
+    const order: string[] = []
+    harmony.channelIsPlaintext.mockImplementation(async () => { order.push('harmony'); return true })
+    matrix.roomIsPlaintext.mockImplementation(async () => { order.push('matrix'); return true })
+    matrix.roomMember.mockImplementation(async () => { order.push('profile'); return { display_name: 'Alice', avatar_mxc: 'mxc://test/a' } })
+    harmony.uploadBridgeAvatar.mockImplementation(async () => { order.push('upload'); return 'https://storage.test/avatar.png' })
+    relay.acceptTransaction('one', [event()])
+    await relay.tick()
+    expect(order).toEqual(['matrix', 'harmony', 'profile', 'upload', 'harmony'])
+    expect(harmony.sendMessage.mock.calls[0][2].bridge_author.avatar_url).toBe('https://storage.test/avatar.png')
+    relay.acceptTransaction('two', [event({ event_id: '$two' })])
+    await relay.tick()
+    expect(matrix.avatarThumbnail).toHaveBeenCalledOnce()
+    expect(harmony.uploadBridgeAvatar).toHaveBeenCalledOnce()
+  })
+  it('bounds the successful avatar cache and refetches evicted MXC references', async () => {
+    const { relay, harmony, matrix } = setup()
+    for (let index = 0; index <= 256; index++) {
+      matrix.roomMember.mockResolvedValue({ avatar_mxc: `mxc://test/image${index}` })
+      relay.acceptTransaction(`txn${index}`, [event({ event_id: `$event${index}` })])
+      await relay.tick()
+    }
+    matrix.roomMember.mockResolvedValue({ avatar_mxc: 'mxc://test/image0' })
+    relay.acceptTransaction('again', [event({ event_id: '$again' })])
+    await relay.tick()
+    expect(matrix.avatarThumbnail).toHaveBeenCalledTimes(258)
+    expect(harmony.uploadBridgeAvatar).toHaveBeenCalledTimes(258)
+  })
+  it.each(['fetch', 'upload'])('still sends text when optional avatar %s fails', async failure => {
+    const { relay, harmony, matrix } = setup()
+    matrix.roomMember.mockResolvedValue({ avatar_mxc: 'mxc://test/a' })
+    if (failure === 'fetch') matrix.avatarThumbnail.mockRejectedValue(new Error('private'))
+    else harmony.uploadBridgeAvatar.mockRejectedValue(new Error('private'))
+    relay.acceptTransaction('one', [event()])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toBe('hello')
+    expect(harmony.sendMessage.mock.calls[0][2].bridge_author).toEqual({ platform: 'matrix', id: '@alice:matrix.test', username: 'alice' })
+  })
+  it.each(['matrix', 'harmony'])('never fetches profiles or avatars for encrypted %s', async side => {
+    const { relay, harmony, matrix } = setup()
+    matrix.roomMember.mockResolvedValue({ avatar_mxc: 'mxc://test/a' })
+    if (side === 'matrix') matrix.roomIsPlaintext.mockResolvedValue(false)
+    else harmony.channelIsPlaintext.mockResolvedValue(false)
+    relay.acceptTransaction('one', [event()])
+    await relay.tick()
+    expect(matrix.roomMember).not.toHaveBeenCalled()
+    expect(matrix.avatarThumbnail).not.toHaveBeenCalled()
+    expect(harmony.uploadBridgeAvatar).not.toHaveBeenCalled()
+  })
+  it('blocks a message if destination becomes encrypted during avatar upload', async () => {
+    const { relay, harmony, matrix } = setup()
+    matrix.roomMember.mockResolvedValue({ avatar_mxc: 'mxc://test/a' })
+    harmony.uploadBridgeAvatar.mockImplementation(async () => {
+      harmony.channelIsPlaintext.mockResolvedValue(false)
+      return 'https://storage.test/avatar.png'
+    })
+    relay.acceptTransaction('one', [event()])
+    await relay.tick()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
   })
   it('pauses rather than creating unhandled rejections when storage fails', async () => {
     const { relay, store } = setup()

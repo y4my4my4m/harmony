@@ -49,6 +49,47 @@ describe('HarmonyClient', () => {
     await expect(harmony.channelIsPlaintext('channel')).rejects.toThrow();
   });
 
+  it('requires Matrix registration, rejecting ordinary/unregistered bots and unknown platforms', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const harmony = client(fetchImpl);
+    fetchImpl.mockResolvedValueOnce(Response.json({ platform: 'matrix' }));
+    await expect(harmony.requireMatrixBridge('channel/a')).resolves.toBeUndefined();
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/channels/channel%2Fa/bridge-platform');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bot SECRET' } });
+    for (const body of [{ platform: null }, { platform: 'discord' }, {}, { platform: true }]) {
+      fetchImpl.mockResolvedValueOnce(Response.json(body));
+      await expect(harmony.requireMatrixBridge('channel')).rejects.toThrow();
+    }
+    fetchImpl.mockResolvedValueOnce(Response.json({}, { status: 503 }));
+    await expect(harmony.requireMatrixBridge('channel')).rejects.toThrow();
+  });
+
+  it('only accepts explicit per-member relay consent and fails closed on unavailable policy', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const harmony = client(fetchImpl);
+    for (const value of [true, false, null, undefined, 'true', 1]) {
+      fetchImpl.mockResolvedValueOnce(Response.json({ relay_allowed: value }));
+      await expect(harmony.relayAllowed('channel/a', 'user/b')).resolves.toBe(value === true);
+    }
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/channels/channel%2Fa/bridge-consent/user%2Fb');
+    for (const status of [403, 404, 503]) {
+      fetchImpl.mockResolvedValueOnce(Response.json({}, { status }));
+      await expect(harmony.relayAllowed('channel', 'user')).rejects.toThrow();
+    }
+  });
+
+  it('uploads bounded Matrix images through the registered Gateway endpoint with Bot auth', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ avatar_url: 'https://storage.test/storage/v1/object/public/avatars/bridges/bot/hash.png' }));
+    const image = { data: 'aW1hZ2U=', content_type: 'image/png' };
+    await expect(client(fetchImpl).uploadBridgeAvatar('channel/a', image)).resolves.toContain('/avatars/bridges/');
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/channels/channel%2Fa/bridge-avatar');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bot SECRET' }, body: JSON.stringify(image) });
+    for (const avatar_url of ['mxc://test/a', 'javascript:alert(1)', 'https://user:secret@host/a', 'https://host/a?token=secret', 'http://host/a', null]) {
+      fetchImpl.mockResolvedValueOnce(Response.json({ avatar_url }));
+      await expect(client(fetchImpl).uploadBridgeAvatar('channel', image)).rejects.toThrow();
+    }
+  });
+
   it('identifies with op 2, accepts messages before READY and heartbeats with op 1', async () => {
     const { server, url } = await gateway();
     const harmony = client(undefined, url);

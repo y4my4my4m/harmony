@@ -5,7 +5,7 @@ const httpUrl = z.url().refine(value => {
   const url = new URL(value)
   return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
 }, 'Expected an HTTP(S) URL without credentials, query or fragment')
-const matrixId = z.string().regex(/^@[^\s:]+:[^\s/]+$/)
+const matrixId = z.string().max(255).regex(/^@[^\s:\u0000-\u001f\u007f]+:[^\s/\u0000-\u001f\u007f]+$/)
 const pairSchema = z.object({
   harmonyChannelId: z.uuid(),
   // Room IDs are opaque: room version 12+ IDs need not contain a homeserver suffix.
@@ -20,7 +20,7 @@ export const configSchema = z.object({
       const url = new URL(value)
       return ['ws:', 'wss:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
     }),
-    // Explicit opt-in for this experimental relay. This is not the planned native opt-out UI.
+    // An additional source restriction, never a substitute for native per-member consent.
     allowedUserIds: z.array(z.uuid()).min(1),
   }).strict(),
   matrix: z.object({

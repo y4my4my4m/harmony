@@ -1,4 +1,6 @@
-import { endpoint, HttpError, requestJson, type FetchImpl } from './http.js';
+import { endpoint, HttpError, requestJson, requestImage, type AvatarImage, type FetchImpl } from './http.js';
+
+const mxcPattern = /^mxc:\/\/((?:[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?)\/([a-zA-Z0-9_-]+)$/;
 
 export interface MatrixClientOptions {
   homeserverUrl: string;
@@ -27,6 +29,29 @@ export class MatrixClient {
     );
     if (typeof result?.event_id !== 'string' || !result.event_id) throw new HttpError('Invalid Matrix message response', false);
     return { event_id: result.event_id };
+  }
+
+  async roomMember(roomId: string, userId: string): Promise<{ display_name?: string; avatar_mxc?: string }> {
+    const member = await this.request<{ membership?: unknown; displayname?: unknown; avatar_url?: unknown }>(
+      `rooms/${encodeURIComponent(roomId)}/state/m.room.member/${encodeURIComponent(userId)}`, 'GET',
+    );
+    if (member?.membership !== 'join') throw new HttpError('Matrix sender is not a joined room member', false);
+    const name = member.displayname;
+    const result: { display_name?: string; avatar_mxc?: string } = {};
+    if (typeof name === 'string' && name.trim() && name.length <= 100 && !/[\u0000-\u001f\u007f]/.test(name)) result.display_name = name;
+    if (typeof member.avatar_url === 'string' && member.avatar_url.length <= 2048
+      && mxcPattern.test(member.avatar_url)) result.avatar_mxc = member.avatar_url;
+    return result;
+  }
+
+  async avatarThumbnail(mxc: string): Promise<AvatarImage> {
+    const match = mxcPattern.exec(mxc);
+    if (!match || mxc.length > 2048) throw new HttpError('Invalid Matrix avatar URI', false);
+    // Always ask the configured HS; the MXC server is only an encoded path component.
+    const url = endpoint(this.options.homeserverUrl,
+      `_matrix/client/v1/media/thumbnail/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}`);
+    url.search = new URLSearchParams({ width: '128', height: '128', method: 'scale' }).toString();
+    return requestImage(url, { method: 'GET', headers: { Authorization: `Bearer ${this.options.asToken}` } }, this.options.fetchImpl);
   }
 
   async roomIsPlaintext(roomId: string): Promise<boolean> {

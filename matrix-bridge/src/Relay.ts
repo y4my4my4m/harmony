@@ -2,16 +2,21 @@ import { createHash } from 'node:crypto'
 import type { Config, Pair } from './config.js'
 import { botUserId } from './config.js'
 import type { Store, Job } from './Store.js'
-import { HttpError, isTransientError } from './http.js'
+import { HttpError, isTransientError, type AvatarImage } from './http.js'
 
 type RecordValue = Record<string, unknown>
 export interface HarmonyTransport {
   sendMessage(channelId: string, content: string, metadata: RecordValue): Promise<{ id: string }>
   channelIsPlaintext(channelId: string): Promise<boolean>
+  requireMatrixBridge(channelId: string): Promise<void>
+  relayAllowed(channelId: string, userId: string): Promise<boolean>
+  uploadBridgeAvatar(channelId: string, image: AvatarImage): Promise<string>
 }
 export interface MatrixTransport {
   sendMessage(roomId: string, transactionId: string, body: string): Promise<{ event_id: string }>
   roomIsPlaintext(roomId: string): Promise<boolean>
+  roomMember(roomId: string, userId: string): Promise<{ display_name?: string; avatar_mxc?: string }>
+  avatarThumbnail(mxc: string): Promise<AvatarImage>
 }
 export interface MatrixEvent extends RecordValue {
   type: string
@@ -36,6 +41,7 @@ export class Relay {
   private timer?: ReturnType<typeof setInterval>
   private inFlight?: Promise<void>
   private healthy = true
+  private readonly avatars = new Map<string, string>()
   get isHealthy(): boolean { return this.healthy }
   constructor(
     private readonly config: Config,
@@ -56,8 +62,8 @@ export class Relay {
       const body = text(content.body)
       if (!pair || !directionAllows(pair, 'to_harmony') || event.type !== 'm.room.message'
         || content.msgtype !== 'm.text' || !text(event.event_id, 255) || !body
-        || !event.sender || event.sender === botUserId(this.config)
-        || !this.config.matrix.allowedUserIds.includes(event.sender)
+        || !text(event.sender, 255) || !/^@[^\s:]+:[^\s/]+$/.test(event.sender!) || event.sender === botUserId(this.config)
+        || !this.config.matrix.allowedUserIds.includes(event.sender!)
         || content['m.relates_to'] || content['m.new_content']) continue
       jobs.push({ direction: 'to_harmony', sourceId: event.event_id!, channelId: pair.harmonyChannelId,
         roomId: pair.matrixRoomId, payload: { sender: event.sender, body } })
@@ -73,7 +79,7 @@ export class Relay {
     if (!pair || !directionAllows(pair, 'to_matrix') || !text(message.id, 255)
       || message.encrypted === true || message.is_system || message.thread_id
       || author.bot || author.discord_user || message.bot_id
-      || metadata.discord_user || metadata.bridge_source || metadata.matrix_relay
+      || metadata.discord_user || metadata.bridge_source || metadata.matrix_relay || metadata.bridge_author
       || !this.config.harmony.allowedUserIds.includes(String(author.id))) return false
     // Only text in this first slice; never flatten files, system parts or mentions into a new ping.
     const parts = message.content_raw
@@ -130,8 +136,12 @@ export class Relay {
     // check-and-send, so a residual server-side policy race remains (see README).
     let harmonyPlain: boolean
     let matrixPlain: boolean
+    let allowed = false
+    const author: RecordValue = { platform: 'matrix', id: sender, username: sender.slice(1, sender.indexOf(':')).slice(0, 100) }
     try {
+      await this.harmony.requireMatrixBridge(job.channelId)
       if (job.direction === 'to_harmony') {
+        if (!text(sender, 255) || !/^@[^\s:]+:[^\s/]+$/.test(sender)) throw new HttpError('Invalid Matrix sender', false)
         matrixPlain = await this.matrix.roomIsPlaintext(job.roomId)
         harmonyPlain = await this.harmony.channelIsPlaintext(job.channelId)
       } else {
@@ -148,11 +158,61 @@ export class Relay {
       this.store.fail(job.id, 'Encrypted channels and rooms are not supported')
       return
     }
+    if (job.direction === 'to_harmony') {
+      let member: { display_name?: string; avatar_mxc?: string }
+      try { member = await this.matrix.roomMember(job.roomId, sender) }
+      catch (error) { this.deliveryFailure(job, error, false); return }
+      if (this.store.isRoomBlocked(job.roomId)) {
+        this.store.fail(job.id, 'Matrix room encryption fence blocks profile relay')
+        return
+      }
+      if (member.display_name) author.display_name = member.display_name
+      if (member.avatar_mxc) {
+        let url = this.avatars.get(member.avatar_mxc)
+        if (!url) {
+          let image: AvatarImage | undefined
+          try { image = await this.matrix.avatarThumbnail(member.avatar_mxc) }
+          catch { /* Avatars are optional; never drop text or expose remote errors. */ }
+          if (this.store.isRoomBlocked(job.roomId)) {
+            this.store.fail(job.id, 'Matrix room encryption fence blocks avatar upload')
+            return
+          }
+          if (image) {
+            try {
+              url = await this.harmony.uploadBridgeAvatar(job.channelId, image)
+              if (this.avatars.size >= 256) this.avatars.delete(this.avatars.keys().next().value!)
+              this.avatars.set(member.avatar_mxc, url)
+            } catch { /* Missing/failed avatar storage must not prevent text delivery. */ }
+          }
+        }
+        if (url) author.avatar_url = url
+      }
+    }
+    try {
+      if (job.direction === 'to_harmony') {
+        harmonyPlain = await this.harmony.channelIsPlaintext(job.channelId)
+      } else {
+        allowed = await this.harmony.relayAllowed(job.channelId, sender)
+        matrixPlain = await this.matrix.roomIsPlaintext(job.roomId)
+      }
+    } catch (error) {
+      this.deliveryFailure(job, error, false)
+      return
+    }
+    if (!harmonyPlain || !matrixPlain || this.store.isRoomBlocked(job.roomId)) {
+      this.store.fail(job.id, 'Encrypted channels and rooms are not supported')
+      return
+    }
+    if (job.direction === 'to_matrix' && allowed !== true) {
+      this.store.fail(job.id, 'Member has not allowed relay')
+      return
+    }
     let destinationId: string
     const harmonyWriteStarted = job.direction === 'to_harmony'
     try {
       if (harmonyWriteStarted) {
-        const result = await this.harmony.sendMessage(job.channelId, `[${sender} · Matrix] ${body}`, {
+        const result = await this.harmony.sendMessage(job.channelId, body, {
+          bridge_author: author,
           matrix_relay: { room_id: job.roomId, event_id: job.sourceId, sender },
         })
         destinationId = result.id

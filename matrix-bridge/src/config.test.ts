@@ -30,6 +30,11 @@ describe('configuration', () => {
     }
     expect(configSchema.safeParse({ ...input, arbitrary: true }).success).toBe(false)
   })
+  it.each(['@' + 'a'.repeat(255) + ':test', '@bad\u0000:test', '@bad:test\u007f'])('rejects invalid or oversized Matrix sender IDs', id => {
+    const input = sampleConfig()
+    input.matrix.allowedUserIds = [id]
+    expect(configSchema.safeParse(input).success).toBe(false)
+  })
   it('requires strong distinct tokens without echoing invalid secrets', () => {
     const env = { HARMONY_TOKEN: `harmony_bot_${'a'.repeat(64)}`, MATRIX_AS_TOKEN: 'b'.repeat(64), MATRIX_HS_TOKEN: 'c'.repeat(64) }
     expect(loadSecrets(env).asToken).toBe(env.MATRIX_AS_TOKEN)

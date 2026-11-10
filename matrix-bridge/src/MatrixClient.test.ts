@@ -31,6 +31,59 @@ describe('MatrixClient', () => {
     }
   });
 
+  it('reads room-specific member state with AS auth, not global profiles', async () => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValue(Response.json({ membership: 'join', displayname: 'Room Alice', avatar_url: 'mxc://media.test/image' }));
+    await expect(client.roomMember('!room:example', '@alice:example')).resolves.toEqual({ display_name: 'Room Alice', avatar_mxc: 'mxc://media.test/image' });
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/rooms/!room%3Aexample/state/m.room.member/%40alice%3Aexample?user_id=');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ headers: { Authorization: 'Bearer SECRET' }, redirect: 'error' });
+  });
+
+  it.each(['', 'x'.repeat(101), 'bad\nname', null, {}, 42])('omits invalid member display names (%s)', async displayname => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValue(Response.json({ membership: 'join', displayname }));
+    await expect(client.roomMember('room', '@alice:example')).resolves.toEqual({});
+  });
+
+  it.each(['https://external.test/a.png', 'mxc://host/../../secret', 'mxc://user:pass@host/a', 'mxc://host/a?token=x', 'mxc://../a', 'mxc://host/a#x', 'mxc://host/' + 'x'.repeat(2048), {}])('omits invalid or external avatar %s', async avatar_url => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValue(Response.json({ membership: 'join', avatar_url }));
+    await expect(client.roomMember('room', '@alice:example')).resolves.toEqual({});
+    if (typeof avatar_url === 'string') await expect(client.avatarThumbnail(avatar_url)).rejects.toThrow('Invalid Matrix avatar URI');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('fails closed on missing/left member state and fetch failures', async () => {
+    const { client, fetchImpl } = setup();
+    for (const body of [{}, { membership: 'leave' }, { membership: 'invite' }]) {
+      fetchImpl.mockResolvedValueOnce(Response.json(body));
+      await expect(client.roomMember('room', '@alice:example')).rejects.toThrow();
+    }
+    fetchImpl.mockResolvedValueOnce(Response.json({}, { status: 503 }));
+    await expect(client.roomMember('room', '@alice:example')).rejects.toThrow();
+  });
+
+  it('fetches authenticated thumbnails only from the configured HS, never the MXC host', async () => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValue(new Response('image bytes', { headers: { 'Content-Type': 'image/png' } }));
+    await expect(client.avatarThumbnail('mxc://remote.test:8448/image')).resolves.toEqual({ data: Buffer.from('image bytes').toString('base64'), content_type: 'image/png' });
+    expect(String(fetchImpl.mock.calls[0][0])).toBe('https://matrix.example/proxy/_matrix/client/v1/media/thumbnail/remote.test%3A8448/image?width=128&height=128&method=scale');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer SECRET' }, redirect: 'error', signal: expect.any(AbortSignal) });
+  });
+
+  it.each([
+    new Response('svg', { headers: { 'Content-Type': 'image/svg+xml' } }),
+    new Response('', { headers: { 'Content-Type': 'image/png' } }),
+    new Response('large', { headers: { 'Content-Type': 'image/png', 'Content-Length': '1048577' } }),
+    new Response(new Uint8Array(1048577), { headers: { 'Content-Type': 'image/jpeg' } }),
+    new Response(null, { status: 302, headers: { Location: 'https://evil.test' } }),
+    new Response(null, { status: 204 }),
+  ])('rejects unsafe thumbnail responses %#', async response => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValue(response);
+    await expect(client.avatarThumbnail('mxc://media.test/image')).rejects.toThrow();
+  });
+
   it('joins rooms as the bot', async () => {
     const { client, fetchImpl } = setup();
     fetchImpl.mockResolvedValue(Response.json({ room_id: '!room:example' }));

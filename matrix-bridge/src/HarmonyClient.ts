@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
-import { endpoint, HttpError, requestJson, type FetchImpl } from './http.js';
+import { endpoint, HttpError, requestJson, type AvatarImage, type FetchImpl } from './http.js';
 
 export interface HarmonyClientOptions {
   apiUrl: string;
@@ -156,6 +156,32 @@ export class HarmonyClient extends EventEmitter {
     });
     if (typeof result?.id !== 'string' || !result.id) throw new HttpError('Invalid Harmony message response', false);
     return { id: result.id };
+  }
+
+  async uploadBridgeAvatar(channelId: string, image: AvatarImage): Promise<string> {
+    const result = await this.request<{ avatar_url?: unknown }>(
+      `channels/${encodeURIComponent(channelId)}/bridge-avatar`, 'POST', image,
+    );
+    if (typeof result?.avatar_url !== 'string' || result.avatar_url.length > 2048) throw new HttpError('Invalid bridge avatar response', false);
+    let url: URL;
+    try { url = new URL(result.avatar_url); } catch { throw new HttpError('Invalid bridge avatar URL', false); }
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
+      || (url.protocol === 'http:' && new URL(this.options.apiUrl).protocol !== 'http:')) throw new HttpError('Invalid bridge avatar URL', false);
+    return url.href;
+  }
+
+  async requireMatrixBridge(channelId: string): Promise<void> {
+    const result = await this.request<{ platform?: unknown }>(
+      `channels/${encodeURIComponent(channelId)}/bridge-platform`, 'GET',
+    );
+    if (result?.platform !== 'matrix') throw new HttpError('Channel is not registered to this Matrix bridge', false);
+  }
+
+  async relayAllowed(channelId: string, userId: string): Promise<boolean> {
+    const result = await this.request<{ relay_allowed?: unknown }>(
+      `channels/${encodeURIComponent(channelId)}/bridge-consent/${encodeURIComponent(userId)}`, 'GET',
+    );
+    return result?.relay_allowed === true;
   }
 
   async channelIsPlaintext(channelId: string): Promise<boolean> {

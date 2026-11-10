@@ -54,6 +54,13 @@ async function main(): Promise<void> {
       server.listen(config.listen.port, config.listen.host, () => { server.off('error', reject); resolve() })
     })
     // Start accepting durable transactions before joining; homeserver callbacks may arrive during startup.
+    for (const pair of config.pairs) {
+      try { await harmony.requireMatrixBridge(pair.harmonyChannelId) }
+      catch {
+        console.error('Matrix bridge registration could not be verified for every pair; apply the new DB migrations, run configure_matrix_bridge(p_bot_id, p_server_id, p_channel_ids), and verify Gateway bridge-platform support and channel permissions')
+        throw new Error('Matrix bridge registration required')
+      }
+    }
     await matrix.ensureRegistered()
     for (const pair of config.pairs) {
       await matrix.joinRoom(pair.matrixRoomId)

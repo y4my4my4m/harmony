@@ -26,6 +26,8 @@ const username = `human_${randomBytes(6).toString('hex')}`;
 const events = new Map();
 let directory;
 let receiver;
+let gatewayReceiver;
+let relayStore;
 let deadline;
 let stage = 'prerequisites';
 let shuttingDown = false;
@@ -119,6 +121,11 @@ async function performCleanup() {
     receiver.closeAllConnections();
     await new Promise(resolve => receiver.close(resolve));
   }
+  if (gatewayReceiver) {
+    gatewayReceiver.closeAllConnections();
+    await new Promise(resolve => gatewayReceiver.close(resolve));
+  }
+  relayStore?.close();
   if (directory && removed) await rm(directory, { recursive: true, force: true });
   if (!removed) console.error(`Cleanup could not remove own container ${name}; private temporary files retained until it is removed.`);
 }
@@ -275,11 +282,98 @@ async function main() {
   assert.equal(events.get(incoming.event_id).content.body, 'Human plaintext smoke check');
   console.log('PASS authenticated inbound AS message transaction');
 
+  stage = 'room-specific profile and authenticated avatar';
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+  const mediaResponse = await fetch(`${homeserverUrl}/_matrix/media/v3/upload`, {
+    method: 'POST', headers: { Authorization: `Bearer ${user.access_token}`, 'Content-Type': 'image/png' }, body: png,
+    redirect: 'error', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+  });
+  assert.equal(mediaResponse.ok, true);
+  const { content_uri: avatarMxc } = await mediaResponse.json();
+  await json(`${roomPath}/state/m.room.member/${encodeURIComponent(user.user_id)}`, {
+    method: 'PUT', token: user.access_token,
+    body: { membership: 'join', displayname: 'Room Human', avatar_url: avatarMxc },
+  });
+  assert.deepEqual(await matrix.roomMember(roomId, user.user_id), { display_name: 'Room Human', avatar_mxc: avatarMxc });
+  const thumbnail = await matrix.avatarThumbnail(avatarMxc);
+  assert.equal(thumbnail.content_type, 'image/png');
+  assert.ok(Buffer.from(thumbnail.data, 'base64').length <= 1024 * 1024);
+  console.log('PASS real room-member state and AS-authenticated media thumbnail');
+
+  stage = 'Gateway registration/consent/avatar contract and queued relay';
+  // Only Gateway is a contract fake: all Matrix membership/media/send/encryption calls use real Synapse.
+  const { HarmonyClient } = await import('../dist/HarmonyClient.js');
+  const { Relay } = await import('../dist/Relay.js');
+  const { Store } = await import('../dist/Store.js');
+  const harmonyToken = secret();
+  const harmonyPosts = [];
+  let platform = null;
+  let consent = true;
+  let avatarUploads = 0;
+  gatewayReceiver = createServer(async (req, res) => {
+    if (req.headers.authorization !== `Bot ${harmonyToken}`) { res.writeHead(401).end(); return; }
+    const path = new URL(req.url, 'http://localhost').pathname;
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const input = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    let result;
+    if (path.endsWith('/bridge-platform')) result = { platform };
+    else if (path.includes('/bridge-consent/')) result = { relay_allowed: consent };
+    else if (path.endsWith('/encryption')) result = { messages_encrypted: false };
+    else if (path.endsWith('/bridge-avatar')) {
+      assert.equal(input.content_type, 'image/png');
+      assert.ok(Buffer.from(input.data, 'base64').length <= 1024 * 1024);
+      avatarUploads++;
+      result = { avatar_url: 'https://storage.example/storage/v1/object/public/avatars/bridges/bot/hash.png' };
+    } else if (path.endsWith('/messages')) { harmonyPosts.push(input); result = { id: randomUUID() }; }
+    else { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
+  });
+  const gatewayPort = await listen(gatewayReceiver);
+  const harmony = new HarmonyClient({ apiUrl: `http://127.0.0.1:${gatewayPort}`, gatewayUrl: `ws://127.0.0.1:${gatewayPort}`, token: harmonyToken });
+  const channelId = parsedConfig.pairs[0].harmonyChannelId;
+  await assert.rejects(harmony.requireMatrixBridge(channelId));
+  platform = 'discord';
+  await assert.rejects(harmony.requireMatrixBridge(channelId));
+  platform = 'matrix';
+  await harmony.requireMatrixBridge(channelId);
+  relayStore = new Store(':memory:');
+  const relay = new Relay(parsedConfig, relayStore, harmony, matrix);
+  relay.acceptTransaction('human', [events.get(incoming.event_id)]);
+  await relay.tick();
+  assert.equal(harmonyPosts.length, 1);
+  assert.deepEqual(harmonyPosts[0].content, [{ type: 'text', text: 'Human plaintext smoke check' }]);
+  assert.deepEqual(harmonyPosts[0].metadata.bridge_author, { platform: 'matrix', id: user.user_id, username, display_name: 'Room Human',
+    avatar_url: 'https://storage.example/storage/v1/object/public/avatars/bridges/bot/hash.png' });
+  assert.equal(avatarUploads, 1);
+  const nativeMessage = id => ({ id, channel_id: channelId, author: { id: parsedConfig.harmony.allowedUserIds[0], username: 'Harmony Human' },
+    content: 'Native consent check', metadata: {} });
+  relay.acceptHarmonyMessage(nativeMessage('opted-out'));
+  consent = false; // Changed AFTER enqueue, before delivery.
+  await relay.tick();
+  assert.equal(relayStore.findMapping('to_matrix', 'opted-out', channelId, roomId), null);
+  assert.equal(relayStore.counts().failed, 1);
+  consent = true;
+  relay.acceptHarmonyMessage(nativeMessage('allowed'));
+  await relay.tick();
+  const destinationId = relayStore.findMapping('to_matrix', 'allowed', channelId, roomId);
+  assert.equal(typeof destinationId, 'string');
+  const relayed = await json(`${roomPath}/event/${encodeURIComponent(destinationId)}`, { token: user.access_token });
+  assert.equal(relayed.sender, botUserId);
+  assert.equal(relayed.content.body, '[Harmony Human · Harmony] Native consent check');
+  console.log('PASS Gateway contract: Matrix registration required, generalized authors, avatar upload, queued opt-out, single AS sender');
+
   stage = 'encrypted-room detection';
   await json(`${roomPath}/state/m.room.encryption/`, {
     method: 'PUT', token: user.access_token, body: { algorithm: 'm.megolm.v1.aes-sha2' },
   });
   assert.equal(await matrix.roomIsPlaintext(roomId), false);
+  relay.acceptTransaction('encrypted', [{ ...events.get(incoming.event_id), event_id: '$blocked' }]);
+  await relay.tick();
+  assert.equal(harmonyPosts.length, 1);
+  assert.equal(avatarUploads, 1);
+  assert.equal(relayStore.counts().failed, 2);
+  console.log('PASS encrypted-room relay guard (no additional text/avatar upload)');
   console.log('PASS roomIsPlaintext returns false after encryption state is enabled');
   console.log('PASS real Synapse smoke complete (plaintext only; no E2EE relay/decryption claimed)');
 }
