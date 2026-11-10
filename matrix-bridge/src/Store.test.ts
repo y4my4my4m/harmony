@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { Store, type Job } from "./Store.js";
+import { Store, StorageError, type Job } from "./Store.js";
 
 type NewJob = Omit<Job, "id" | "attempts">;
 const job = (sourceId = "source", overrides: Partial<NewJob> = {}): NewJob => ({
@@ -90,6 +90,38 @@ describe("Store", () => {
     store.enqueue(job('failed-parent', { direction: 'to_matrix' }));
     store.fail(store.nextJob()!.id, 'refused');
     expect(store.findSource('to_matrix', '$failed', 'channel', '!room:example.org')).toBeNull();
+  });
+
+  it('keeps acknowledged per-piece reverse mappings across restart and later job failure', () => {
+    const path = file();
+    let store = open(path);
+    store.enqueue(job('native-original', { direction: 'to_matrix' }));
+    const queued = store.nextJob()!;
+    store.recordDestination(queued, '$text');
+    store.recordDestination(queued, '$file');
+    store.recordDestination(queued, '$file');
+    expect(store.findSource('to_matrix', '$file', 'channel', '!room:example.org')).toBe('native-original');
+    expect(store.findSource('to_harmony', '$file', 'channel', '!room:example.org')).toBeNull();
+    expect(store.findSource('to_matrix', '$file', 'other-channel', '!room:example.org')).toBeNull();
+    expect(store.findSource('to_matrix', '$file', 'channel', '!other:example.org')).toBeNull();
+    close(store);
+    store = open(path);
+    expect(store.findSource('to_matrix', '$text', 'channel', '!room:example.org')).toBe('native-original');
+    store.recordDestination(store.nextJob()!, '$file');
+    store.fail(queued.id, 'Later attachment refused');
+    expect(store.findSource('to_matrix', '$file', 'channel', '!room:example.org')).toBe('native-original');
+    expect(store.findMapping('to_matrix', 'native-original', 'channel', '!room:example.org')).toBeNull();
+    const db = new DatabaseSync(path);
+    try { expect(db.prepare('SELECT COUNT(*) AS count FROM job_destinations').get()!.count).toBe(2); }
+    finally { db.close(); }
+  });
+
+  it('classifies per-piece mapping write failures as StorageError', () => {
+    const store = memory();
+    store.enqueue(job('native-original', { direction: 'to_matrix' }));
+    const queued = store.nextJob()!;
+    close(store);
+    expect(() => store.recordDestination(queued, '$acknowledged')).toThrow(StorageError);
   });
 
   it("atomically accepts receipts, including empty and overlapping transactions", () => {

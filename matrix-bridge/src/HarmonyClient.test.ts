@@ -59,6 +59,34 @@ describe('HarmonyClient', () => {
       metadata: { bridge_author: { platform: 'matrix' } }, reply_to: 'parent' });
   });
 
+  it('downloads by stored raw attachment index with Bot auth, not supplied storage URLs', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('private bytes', { headers: {
+      'Content-Type': 'application/octet-stream', 'X-File-Type': 'application/pdf', 'X-File-Name': encodeURIComponent('写真.pdf') } }));
+    await expect(client(fetchImpl).downloadFile('channel/a', 'message/b', 2)).resolves.toEqual({ bytes: Buffer.from('private bytes'), contentType: 'application/pdf', name: '写真.pdf' });
+    expect(String(fetchImpl.mock.calls[0][0])).toBe('https://harmony.example/bot-gateway/api/v1/channels/channel%2Fa/messages/message%2Fb/bridge-files/2');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ headers: { Authorization: 'Bot SECRET' }, redirect: 'error' });
+    await expect(client(fetchImpl).downloadFile('channel', 'message', -1)).rejects.toThrow('Invalid attachment index');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('uploads raw media with encoded metadata and preserves the canonical server file part', async () => {
+    const part = { type: 'file', path: 'c/channel/bridge/bot/hash.pdf', url: 'https://storage.test/private/file?token=signed',
+      fileType: 'file', fileName: '写真.pdf', fileSize: 7, mimeType: 'application/pdf' };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ...part, untrusted: 'dropped' }));
+    await expect(client(fetchImpl).uploadFile('channel', { bytes: Buffer.from('content'), name: '写真.pdf', contentType: 'application/pdf' })).resolves.toEqual(part);
+    expect(String(fetchImpl.mock.calls[0][0])).toBe('https://harmony.example/bot-gateway/api/v1/channels/channel/bridge-files');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bot SECRET', 'Content-Type': 'application/octet-stream',
+      'X-File-Name': encodeURIComponent('写真.pdf'), 'X-File-Type': 'application/pdf' }, body: Buffer.from('content'), redirect: 'error' });
+  });
+
+  it.each([{ path: 'c/other/bridge/bot/hash.pdf' }, { path: 'c/channel/bridge/bot/../hash.pdf' }, { url: 'javascript:SECRET' }, { fileSize: 52428801 },
+    { fileName: '../secret.pdf' }, { mimeType: 'image/png\r\nSECRET' }, { type: 'url' }, { fileType: 'video' }])('rejects malformed uploaded attachment responses %j', async invalid => {
+    const part = { type: 'file', path: 'c/channel/bridge/bot/hash.pdf', url: 'https://storage.test/file', fileType: 'file', fileName: 'file.pdf', fileSize: 1, mimeType: 'application/pdf', ...invalid };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json(part));
+    await expect(client(fetchImpl).uploadFile('channel', { bytes: Buffer.from('x'), name: 'file.pdf', contentType: 'application/pdf' })).rejects.toThrow();
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('requires authoritative boolean encryption state', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const harmony = client(fetchImpl);

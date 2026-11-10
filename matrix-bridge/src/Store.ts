@@ -85,6 +85,12 @@ export class Store {
           destination_id TEXT,
           UNIQUE(direction, source_id, channel_id, room_id)
         );
+        CREATE TABLE IF NOT EXISTS job_destinations (
+          job_id INTEGER NOT NULL REFERENCES jobs(id),
+          destination_id TEXT NOT NULL,
+          PRIMARY KEY(job_id, destination_id)
+        );
+        CREATE INDEX IF NOT EXISTS job_destinations_destination ON job_destinations(destination_id, job_id);
         CREATE INDEX IF NOT EXISTS jobs_pending ON jobs(id) WHERE status = 'pending';
         CREATE INDEX IF NOT EXISTS jobs_destination ON jobs(direction, destination_id, channel_id, room_id) WHERE status = 'done';
         CREATE TABLE IF NOT EXISTS ghost_users (
@@ -208,7 +214,7 @@ export class Store {
 
   private ghostState<T>(operation: () => T): T {
     try { return operation(); }
-    catch { throw new StorageError('Ghost/sender state could not be persisted'); }
+    catch { throw new StorageError('Bridge state could not be persisted'); }
   }
 
   freezeSender(job: Job, sender: string): string {
@@ -256,10 +262,18 @@ export class Store {
     this.ghostState(() => this.db.prepare('DELETE FROM ghost_rooms WHERE room_id = ? AND matrix_id = ?').run(roomId, matrixId));
   }
 
+  recordDestination(job: Job, destinationId: string): void {
+    this.ghostState(() => {
+      nonempty(destinationId, 'destinationId');
+      this.db.prepare('INSERT INTO job_destinations(job_id, destination_id) VALUES (?, ?) ON CONFLICT DO NOTHING')
+        .run(job.id, destinationId);
+    });
+  }
+
   complete(id: number, destinationId: string): void {
     nonempty(destinationId, "destinationId");
-    // The mapping lives on the job itself, making completion and mapping one
-    // atomic SQLite update. Terminal jobs cannot be overwritten by stale calls.
+    // The first destination stays atomic with completion; acknowledged pieces have separate reverse mappings.
+    // Terminal jobs cannot be overwritten by stale calls.
     this.db.prepare(`
       UPDATE jobs SET status = 'done', destination_id = ?, error = NULL, payload = '{}'
       WHERE id = ? AND status = 'pending'
@@ -291,6 +305,12 @@ export class Store {
   }
 
   findSource(direction: Job["direction"], destinationId: string, channelId: string, roomId: string): string | null {
+    // Each acknowledged Matrix piece remains replyable even if a later piece failed.
+    const piece = this.db.prepare(`
+      SELECT j.source_id FROM job_destinations d JOIN jobs j ON j.id = d.job_id
+      WHERE d.destination_id = ? AND j.direction = ? AND j.channel_id = ? AND j.room_id = ?
+    `).get(destinationId, direction, channelId, roomId);
+    if (piece) return piece.source_id as string;
     const row = this.db.prepare(`
       SELECT source_id FROM jobs WHERE direction = ? AND destination_id = ?
       AND channel_id = ? AND room_id = ? AND status = 'done'

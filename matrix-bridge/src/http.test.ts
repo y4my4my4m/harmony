@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { endpoint, HttpError, isTransientError, requestJson, requestImage } from './http.js';
+import { endpoint, HttpError, isTransientError, requestJson, requestImage, requestFile } from './http.js';
 
 describe('HTTP', () => {
   it('preserves base paths and removes query credentials', () => {
@@ -57,6 +57,46 @@ describe('HTTP', () => {
       await pending;
       expect(fetchImpl.mock.calls[0][1]?.signal?.aborted).toBe(true);
     } finally { vi.useRealTimers(); }
+  });
+
+  it('reads binary media and encoded filenames without consuming text or JSON', async () => {
+    const bytes = Buffer.from([0, 255, 1, 2]);
+    const response = new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream',
+      'X-File-Name': encodeURIComponent('写真.png'), 'X-File-Type': 'image/png' } });
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(response);
+    await expect(requestFile(new URL('https://host/file'), { headers: { Authorization: 'Bot SECRET' } }, fetchImpl))
+      .resolves.toEqual({ bytes, name: '写真.png', contentType: 'image/png' });
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ redirect: 'error', headers: { Authorization: 'Bot SECRET' } });
+  });
+
+  it('allows empty ordinary files and uses safe default metadata', async () => {
+    await expect(requestFile(new URL('https://host/file'), {}, vi.fn<typeof fetch>().mockResolvedValue(new Response(null))))
+      .resolves.toEqual({ bytes: Buffer.alloc(0), name: 'attachment', contentType: 'application/octet-stream' });
+  });
+
+  it.each(['declared', 'streamed'])('rejects %s oversized media and cancels the body', async size => {
+    const cancel = vi.fn();
+    const body = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(1024 * 1024)); }, cancel });
+    const response = new Response(body, { headers: size === 'declared' ? { 'Content-Length': '52428801' } : {} });
+    await expect(requestFile(new URL('https://host/file'), {}, vi.fn<typeof fetch>().mockResolvedValue(response))).rejects.toThrow('exceeds limit');
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it.each(['fetch', 'body'])('bounds media %s stalls without exposing credentials', async stalled => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = stalled === 'fetch' ? vi.fn<typeof fetch>(() => new Promise(() => {}))
+        : vi.fn<typeof fetch>().mockResolvedValue(new Response(new ReadableStream({ start() {} })));
+      const pending = expect(requestFile(new URL('https://host/file?token=SECRET'), {}, fetchImpl)).rejects.toThrow('HTTP request timed out');
+      await vi.advanceTimersByTimeAsync(60_000);
+      await pending;
+      expect(fetchImpl.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('rejects malformed encoded media filenames without echoing headers', async () => {
+    const response = new Response('bytes', { headers: { 'X-File-Name': '%SECRET' } });
+    await expect(requestFile(new URL('https://host/file'), {}, vi.fn<typeof fetch>().mockResolvedValue(response))).rejects.toThrow('Invalid media filename');
   });
 
   it('does not consider invalid JSON or a forbidden response transient', async () => {

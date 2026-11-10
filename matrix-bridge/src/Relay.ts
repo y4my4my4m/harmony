@@ -8,6 +8,7 @@ import type { MatrixSendOptions, RoomMember } from './MatrixClient.js'
 import { StorageError } from './Store.js'
 import type { Store, Job } from './Store.js'
 import { HttpError, isTransientError, type AvatarImage } from './http.js'
+import { MAX_MEDIA_BYTES, mediaName, type MediaFile, type MatrixFile } from './Media.js'
 
 type RecordValue = Record<string, unknown>
 export interface HarmonyTransport {
@@ -21,6 +22,8 @@ export interface HarmonyTransport {
   bridgeMembers(channelId: string): Promise<BridgeMember[]>
   nativeAvatar(channelId: string, userId: string): Promise<AvatarImage>
   publishMatrixMembers(channelId: string, members: MatrixMember[]): void
+  downloadFile(channelId: string, messageId: string, index: number): Promise<MediaFile>
+  uploadFile(channelId: string, file: MediaFile): Promise<RecordValue>
 }
 export interface MatrixTransport {
   sendMessage(roomId: string, transactionId: string, body: string, options?: MatrixSendOptions): Promise<{ event_id: string }>
@@ -32,6 +35,9 @@ export interface MatrixTransport {
   leaveGhost(roomId: string, id: string): Promise<void>
   uploadAvatar(image: AvatarImage): Promise<string>
   roomMembers(roomId: string): Promise<RoomMember[]>
+  downloadFile(mxc: string, name: string): Promise<MediaFile>
+  uploadFile(file: MediaFile): Promise<string>
+  sendFile(roomId: string, transactionId: string, file: MatrixFile, options?: MatrixSendOptions): Promise<{ event_id: string }>
 }
 export interface MatrixEvent extends RecordValue {
   type: string
@@ -46,6 +52,26 @@ function record(value: unknown): RecordValue {
 }
 function text(value: unknown, max = 16_000): string | null {
   return typeof value === 'string' && value.trim() && value.length <= max ? value : null
+}
+const MAX_FILES = 20
+type Attachment = { index: number; name: string; mxc?: string; unavailable?: boolean }
+function mediaReference(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length <= 2048
+    && /^mxc:\/\/((?:[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?)\/[a-zA-Z0-9_-]+$/.test(value) ? value : undefined
+}
+function fileName(value: unknown): string {
+  return mediaName(typeof value === 'string' ? (/(?:https?:|mxc:|data:)/i.test(value) ? undefined : value.split(/[?#]/, 1)[0]) : value)
+}
+function boundedFile(file: MediaFile): MediaFile {
+  if (!file || !Buffer.isBuffer(file.bytes) || file.bytes.length > MAX_MEDIA_BYTES
+    || typeof file.contentType !== 'string' || file.contentType.length > 127) throw new HttpError('Invalid or oversized media transfer', false)
+  return { ...file, name: fileName(file.name) }
+}
+function oversized(value: unknown): boolean {
+  return value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > MAX_MEDIA_BYTES)
+}
+function attachmentNotice(file: Attachment): string {
+  return `[Attachment unavailable: ${fileName(file.name)}]`
 }
 function directionAllows(pair: Pair, direction: Job['direction']): boolean {
   return pair.direction === 'both' || pair.direction === direction
@@ -82,17 +108,24 @@ export class Relay {
       const replyEventId = text(record(relation['m.in_reply_to']).event_id, 255)
       if (content['m.relates_to'] !== undefined && (relation.rel_type !== undefined || !replyEventId || !/^\$\S+$/.test(replyEventId))) continue
       // Old reply fallbacks quote prior content; strip them before text limits or mention parsing.
-      const body = typeof content.body === 'string' ? text(replyEventId
-        ? content.body.replace(/^(?:> [^\n]*(?:\n|$))+(?:\r?\n)?/, '') : content.body) : null
+      const cleanBody = typeof content.body === 'string' ? (replyEventId
+        ? content.body.replace(/^(?:> [^\n]*(?:\n|$))+(?:\r?\n)?/, '') : content.body) : ''
+      const media = ['m.image', 'm.file', 'm.audio', 'm.video'].includes(String(content.msgtype))
+      const name = fileName(content.filename ?? cleanBody)
+      const mxc = mediaReference(content.url)
+      const files: Attachment[] = media ? [{ index: 0, name,
+        ...(content.file === undefined && mxc && !oversized(record(content.info).size) && cleanBody.length <= 16_000
+          ? { mxc } : { unavailable: true }) }] : []
+      const body = media ? (typeof content.filename === 'string' && cleanBody !== content.filename ? text(cleanBody) || '' : '') : text(cleanBody)
       const formatted = typeof content.formatted_body === 'string' ? (replyEventId
         ? content.formatted_body.replace(/^<mx-reply>[\s\S]*?<\/mx-reply>/i, '') : content.formatted_body) : undefined
       if (!pair || !directionAllows(pair, 'to_harmony') || event.type !== 'm.room.message'
-        || content.msgtype !== 'm.text' || !text(event.event_id, 255) || !body
+        || (!media && content.msgtype !== 'm.text') || !text(event.event_id, 255) || (!body && !files.length)
         || !text(event.sender, 255) || !/^@[^\s:]+:[^\s/]+$/.test(event.sender!) || event.sender === botUserId(this.config) || ghostOwner(this.config, event.sender!)
         || !this.config.matrix.allowedUserIds.includes(event.sender!)
         || content['m.new_content']) continue
       jobs.push({ direction: 'to_harmony', sourceId: event.event_id!, channelId: pair.harmonyChannelId,
-        roomId: pair.matrixRoomId, payload: { sender: event.sender, body,
+        roomId: pair.matrixRoomId, payload: { sender: event.sender, body, ...(files.length ? { files } : {}),
           ...(formatted !== undefined && formatted.length <= 32_000 ? { formatted_body: formatted } : {}),
           ...(replyEventId ? { reply_to_event_id: replyEventId } : {}),
           mention_ids: Array.isArray(record(content['m.mentions']).user_ids) ? (record(content['m.mentions']).user_ids as unknown[]).filter(id => typeof id === 'string' && id.length <= 255).slice(0, 100) : [] } })
@@ -110,17 +143,28 @@ export class Relay {
       || author.bot || author.discord_user || message.bot_id
       || metadata.discord_user || metadata.bridge_source || metadata.matrix_relay || metadata.bridge_author
       || !this.config.harmony.allowedUserIds.includes(String(author.id))) return false
-    if (Array.isArray(message.content_raw) && (message.content_raw.length > 1000
-      || message.content_raw.some(part => { const value = record(part); return value.type === 'text' && (typeof value.text !== 'string' || value.text.length > 16_000) }))) return false
-    const parts = Array.isArray(message.content_raw) ? message.content_raw.map(record).filter(part => part.type === 'text' || part.type === 'mention').map(part => part.type === 'text'
-      ? { type: 'text', text: part.text as string }
-      : { type: 'mention', userId: text(part.userId, 255), username: text(part.username, 100), bridgeSource: part.bridgeSource === 'matrix' ? 'matrix' : undefined, isBridged: part.isBridged === true }) : undefined
-    const body = parts ? text(parts.map(part => part.type === 'text' ? part.text : `@${part.username || 'user'}`).join('')) : text(message.content)
-    if (!body) return false
+    const raw = Array.isArray(message.content_raw) ? message.content_raw.map(record) : undefined
+    if (raw && raw.length > 1000) return false
+    const allFiles: Attachment[] = raw?.flatMap((file, index) => file.type === 'file'
+      ? [{ index, name: fileName(file.fileName), ...(oversized(file.fileSize) ? { unavailable: true } : {}) }] : []) || []
+    const invalidText = raw?.some(part => part.type === 'text' && (typeof part.text !== 'string' || part.text.length > 16_000))
+    if (invalidText && !allFiles.length) return false
+    let parts: RecordValue[] | undefined = invalidText ? [{ type: 'text', text: '[Message text unavailable]' }]
+      : raw?.filter(part => part.type === 'text' || part.type === 'mention').map(part => part.type === 'text'
+        ? { type: 'text', text: part.text as string }
+        : { type: 'mention', userId: text(part.userId, 255), username: text(part.username, 100), bridgeSource: part.bridgeSource === 'matrix' ? 'matrix' : undefined, isBridged: part.isBridged === true })
+    let body = parts ? text(parts.map(part => part.type === 'text' ? part.text : `@${part.username || 'user'}`).join('')) : text(message.content)
+    if (!body && allFiles.length && parts?.some(part => part.type === 'mention' || (typeof part.text === 'string' && part.text.length))) {
+      body = '[Message text unavailable]'
+      parts = [{ type: 'text', text: body }]
+    }
+    const files = allFiles.length > MAX_FILES ? [...allFiles.slice(0, MAX_FILES),
+      { index: allFiles[MAX_FILES].index, name: `Additional attachments (limit ${MAX_FILES})`, unavailable: true }] : allFiles
+    if (!body && !files.length) return false
     const name = text(author.nickname, 100) || text(author.display_name, 100) || text(author.username, 100) || String(author.id)
     return this.store.enqueue({ direction: 'to_matrix', sourceId: String(message.id),
       channelId: pair.harmonyChannelId, roomId: pair.matrixRoomId,
-      payload: { sender: author.id, name, body, ...(parts ? { parts } : {}) } })
+      payload: { sender: author.id, name, body: body || '', ...(parts ? { parts } : {}), ...(files.length ? { files } : {}) } })
   }
 
   async cleanupUnpairedGhosts(): Promise<void> {
@@ -210,8 +254,14 @@ export class Relay {
       this.store.fail(job.id, 'Pair or sender is no longer permitted')
       return
     }
-    const body = text(job.payload.body)
-    if (!body) {
+    const files = Array.isArray(job.payload.files) && job.payload.files.length <= MAX_FILES + 1 ? job.payload.files.map(record) as Attachment[] : []
+    const body = text(job.payload.body) || ''
+    if ((job.payload.files !== undefined && (!Array.isArray(job.payload.files) || job.payload.files.length > MAX_FILES + 1))
+      || (job.direction === 'to_harmony' && files.length > 1) || (!body && !files.length)
+      || files.some(file => !Number.isSafeInteger(file.index) || file.index < 0 || file.index >= 1000
+        || typeof file.name !== 'string' || file.name !== fileName(file.name)
+        || (file.unavailable !== undefined && file.unavailable !== true)
+        || ((job.direction === 'to_matrix' || file.unavailable) ? file.mxc !== undefined : !mediaReference(file.mxc)))) {
       this.store.fail(job.id, 'Invalid queued payload')
       return
     }
@@ -328,10 +378,25 @@ export class Relay {
       this.store.fail(job.id, 'Member has not allowed relay')
       return
     }
-    let destinationId: string
-    const harmonyWriteStarted = job.direction === 'to_harmony'
+    let destinationId: string | undefined
+    let harmonyWriteStarted = false
     try {
-      if (harmonyWriteStarted) {
+      if (job.direction === 'to_harmony') {
+        if (files.length) {
+          harmonyParts ||= body ? [{ type: 'text', text: body }] : []
+          for (const descriptor of files) {
+            let part: RecordValue | undefined
+            if (!descriptor.unavailable && descriptor.mxc) {
+              const file = await this.mediaStep(job, pair, matrixSender, async () => boundedFile(await this.matrix.downloadFile(descriptor.mxc!, descriptor.name)))
+              if (file) part = await this.mediaStep(job, pair, matrixSender, () => this.harmony.uploadFile(job.channelId, file))
+            }
+            harmonyParts.push(part || { type: 'text', text: `${harmonyParts.length ? '\n' : ''}${attachmentNotice(descriptor)}` })
+          }
+          await this.mediaPolicy(job, pair, matrixSender)
+          if (replyTo && !await this.harmony.canReplyTo(job.channelId, replyTo)) replyTo = undefined
+          await this.mediaPolicy(job, pair, matrixSender)
+        }
+        harmonyWriteStarted = true
         const result = await this.harmony.sendMessage(job.channelId, harmonyParts || body, {
           bridge_author: author,
           matrix_relay: { room_id: job.roomId, event_id: job.sourceId, sender },
@@ -339,17 +404,81 @@ export class Relay {
         destinationId = result.id
       } else {
         const transactionId = createHash('sha256').update(JSON.stringify([job.channelId, job.roomId, job.sourceId])).digest('hex')
-        const result = await this.matrix.sendMessage(job.roomId, transactionId, outbound!.body, {
-          sender: matrixSender, userIds: outbound!.userIds, formattedBody: outbound!.formattedBody,
-        })
-        destinationId = result.event_id
+        if (body || outbound!.body.trim()) {
+          if (files.length) await this.mediaPolicy(job, pair, matrixSender)
+          const result = await this.matrix.sendMessage(job.roomId, transactionId, outbound!.body, {
+            sender: matrixSender, userIds: outbound!.userIds, formattedBody: outbound!.formattedBody,
+          })
+          if (files.length) this.store.recordDestination(job, result.event_id)
+          destinationId = result.event_id
+        }
+        for (const descriptor of files) {
+          const fileTransaction = `${transactionId}.file-${descriptor.index}`
+          let fileResult: { event_id: string } | undefined
+          if (!descriptor.unavailable) {
+            const file = await this.mediaStep(job, pair, matrixSender, async () => boundedFile(await this.harmony.downloadFile(job.channelId, job.sourceId, descriptor.index)))
+            if (file) {
+              const mxc = await this.mediaStep(job, pair, matrixSender, () => this.matrix.uploadFile(file))
+              if (mxc) fileResult = await this.mediaStep(job, pair, matrixSender, () => this.matrix.sendFile(job.roomId, fileTransaction,
+                { mxc, name: fileName(file.name), contentType: file.contentType, size: file.bytes.length }, { sender: matrixSender }))
+            }
+          }
+          if (!fileResult) {
+            await this.mediaPolicy(job, pair, matrixSender)
+            fileResult = await this.matrix.sendMessage(job.roomId, fileTransaction, attachmentNotice(descriptor), { sender: matrixSender })
+          }
+          this.store.recordDestination(job, fileResult.event_id)
+          destinationId ||= fileResult.event_id
+        }
       }
     } catch (error) {
       this.deliveryFailure(job, error, harmonyWriteStarted)
       return
     }
-    this.store.complete(job.id, destinationId)
+    this.store.complete(job.id, destinationId!)
   }
+  private mediaFence(roomId: string): void {
+    let blocked: boolean
+    try { blocked = this.store.isRoomBlocked(roomId) }
+    catch { throw new StorageError('Media policy storage check failed') }
+    if (blocked) throw new HttpError('Encryption fence blocks media relay', false)
+  }
+
+  private async mediaPolicy(job: Job, pair: Pair, matrixSender: string): Promise<void> {
+    this.mediaFence(job.roomId)
+    const sender = String(job.payload.sender)
+    const allowed = job.direction === 'to_matrix' ? this.config.harmony.allowedUserIds : this.config.matrix.allowedUserIds
+    if (!this.config.pairs.some(current => current.harmonyChannelId === job.channelId && current.matrixRoomId === job.roomId && directionAllows(current, job.direction))
+      || !allowed.includes(sender)) throw new HttpError('Media source is no longer permitted', false)
+    await this.harmony.requireMatrixBridge(job.channelId)
+    const mode = await this.ghosts.mode(pair)
+    if (job.direction === 'to_matrix' && matrixSender !== (mode === 'ghost' ? ghostUserId(this.config, sender) : botUserId(this.config))) {
+      throw new HttpError('Frozen media sender mode changed', false)
+    }
+    if (!await this.harmony.channelIsPlaintext(job.channelId) || !await this.matrix.roomIsPlaintext(job.roomId)) {
+      throw new HttpError('Media relay requires verified plaintext rooms', false)
+    }
+    if (job.direction === 'to_matrix') {
+      if (!await this.harmony.relayAllowed(job.channelId, sender)) throw new HttpError('Media relay consent withdrawn', false)
+      if (!await this.matrix.roomIsPlaintext(job.roomId)) throw new HttpError('Matrix destination became encrypted', false)
+    } else {
+      await this.matrix.roomMember(job.roomId, sender)
+      if (!await this.harmony.channelIsPlaintext(job.channelId)) throw new HttpError('Harmony destination became encrypted', false)
+    }
+    this.mediaFence(job.roomId)
+  }
+
+  private async mediaStep<T>(job: Job, pair: Pair, matrixSender: string, transfer: () => Promise<T>): Promise<T | undefined> {
+    await this.mediaPolicy(job, pair, matrixSender)
+    let failure: unknown
+    // Only the transport is caught; policy/storage failures must never become attachment notices.
+    try { return await transfer() }
+    catch (error) { if (error instanceof StorageError) throw error; failure = error }
+    await this.mediaPolicy(job, pair, matrixSender)
+    if (isTransientError(failure) && job.attempts < 7) throw failure
+    return undefined
+  }
+
   private deliveryFailure(job: Job, error: unknown, harmonyWriteStarted: boolean): void {
     if (error instanceof StorageError) throw error
     // Never persist arbitrary exception text: it may contain access tokens or message content.

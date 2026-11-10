@@ -8,6 +8,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Matrix images and files both ways:** attachments are copied into destination-owned
+  storage, including captions, file-only messages and multiple Harmony files. Authenticated,
+  bounded transfers respect current consent, plaintext state and private storage policy;
+  unsupported/failed copies show a notice. Matrix replies to individual file events retain
+  native parent context. Audio/video are files without transcoding; encrypted rooms/media
+  remain blocked and tracked as follow-up work.
 - **Matrix-to-Harmony replies:** ordinary Matrix Reply messages are no longer
   silently skipped. Known, readable parents retain native Harmony reply context;
   unknown/private parents retain the new text alone. Legacy quoted fallbacks are

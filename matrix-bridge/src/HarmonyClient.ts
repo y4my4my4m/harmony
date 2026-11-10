@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
-import { endpoint, HttpError, requestJson, type AvatarImage, type FetchImpl } from './http.js';
+import { endpoint, HttpError, requestJson, requestFile, type AvatarImage, type FetchImpl } from './http.js';
+import { MAX_MEDIA_BYTES, mediaContentType, mediaName, type MediaFile } from './Media.js';
 
 export interface HarmonyClientOptions {
   apiUrl: string;
@@ -149,9 +150,13 @@ export class HarmonyClient extends EventEmitter {
     });
   }
 
-  private request<T>(path: string, method: string, body?: unknown, maxBytes?: number): Promise<T> {
+  private apiEndpoint(path: string): URL {
     const base = this.options.apiUrl.replace(/\/$/, '');
-    const url = endpoint(base, /\/api\/v1$/.test(base) ? path : `api/v1/${path}`);
+    return endpoint(base, /\/api\/v1$/.test(base) ? path : `api/v1/${path}`);
+  }
+
+  private request<T>(path: string, method: string, body?: unknown, maxBytes?: number): Promise<T> {
+    const url = this.apiEndpoint(path);
     return requestJson<T>(url, {
       method,
       headers: { Authorization: `Bot ${this.options.token}`, 'Content-Type': 'application/json' },
@@ -176,6 +181,32 @@ export class HarmonyClient extends EventEmitter {
     });
     if (typeof result?.id !== 'string' || !result.id) throw new HttpError('Invalid Harmony message response', false);
     return { id: result.id };
+  }
+
+  async downloadFile(channelId: string, messageId: string, index: number): Promise<MediaFile> {
+    if (!Number.isInteger(index) || index < 0 || index >= 1000) throw new HttpError('Invalid attachment index', false);
+    return requestFile(this.apiEndpoint(`channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/bridge-files/${index}`),
+      { method: 'GET', headers: { Authorization: `Bot ${this.options.token}` } }, this.options.fetchImpl);
+  }
+
+  async uploadFile(channelId: string, file: MediaFile): Promise<Record<string, unknown>> {
+    if (file.bytes.byteLength > MAX_MEDIA_BYTES) throw new HttpError('Attachment exceeds transfer limit', false);
+    const part = await requestJson<Record<string, unknown>>(this.apiEndpoint(`channels/${encodeURIComponent(channelId)}/bridge-files`), {
+      method: 'POST', headers: { Authorization: `Bot ${this.options.token}`, 'Content-Type': 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(mediaName(file.name)), 'X-File-Type': mediaContentType(file.contentType) },
+      body: file.bytes,
+    }, this.options.fetchImpl, 60_000);
+    if (part?.type !== 'file' || typeof part.path !== 'string' || part.path.length > 2048
+      || !part.path.startsWith(`c/${channelId.toLowerCase()}/bridge/`) || part.path.split('/').some(value => !value || value === '.' || value === '..')
+      || typeof part.url !== 'string' || part.url.length > 4096 || typeof part.fileName !== 'string' || !part.fileName || part.fileName.length > 255
+      || /[\\/\u0000-\u001f\u007f]/.test(part.fileName) || typeof part.mimeType !== 'string' || mediaContentType(part.mimeType) !== part.mimeType
+      || !['image', 'file'].includes(String(part.fileType)) || !Number.isInteger(part.fileSize) || Number(part.fileSize) < 0 || Number(part.fileSize) > MAX_MEDIA_BYTES) throw new HttpError('Invalid bridge file response', false);
+    try {
+      const url = new URL(part.url);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error();
+    } catch { throw new HttpError('Invalid bridge file URL', false); }
+    return { type: 'file', path: part.path, url: part.url, fileName: part.fileName,
+      fileType: part.fileType, fileSize: part.fileSize, mimeType: part.mimeType };
   }
 
   async uploadBridgeAvatar(channelId: string, image: AvatarImage): Promise<string> {

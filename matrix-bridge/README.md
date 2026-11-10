@@ -20,6 +20,8 @@ bridge setup are not implemented.
 - Real user mentions in both directions, plus an exact-username relay command.
 - Matrix rich replies linked to their original Harmony message when its mapping is known
   and still readable; missing/private parents fall back to the new reply text alone.
+- Images and ordinary files copied in both directions into the destination's own storage,
+  including file-only messages and captions; audio/video travel as files, without transcoding.
 - Room-specific Matrix member names, fetched with the AS token, never event-supplied profiles.
 - Optional Matrix avatars via authenticated HS thumbnails and authorized Harmony storage upload.
 - Matrix application-service authentication and durable transaction acceptance.
@@ -34,12 +36,74 @@ bridge setup are not implemented.
 - No forwarding of Harmony bots, external bridge messages, system notices or threads.
 - Health endpoint without message contents or credentials.
 
-Not implemented: Harmony-to-Matrix reply context, edits, deletions, files, reactions,
-presence, account linking, history migration, shared instance hosting or encrypted messages.
+Not implemented: Harmony-to-Matrix reply context, edits, deletions, reactions,
+presence, account linking, history migration, shared instance hosting or encrypted rooms/media.
 Matrix thread relations and edits are ignored. Ordinary Matrix replies are accepted;
 legacy plain/HTML reply quotes are stripped before forwarding or interpreting mentions.
-Harmony text and user mention parts are forwarded; attachments are not. No room/mass
+Harmony text, user mention parts and supported file parts are forwarded. No room/mass
 mentions are enabled by default.
+
+## Attachments
+
+- Matrix `m.image`, `m.file`, `m.audio` and `m.video` messages become native Harmony file
+  parts, with captions when Matrix supplies a separate `filename`. A Matrix media reply
+  keeps the same readable-parent rules as a text reply. Old reply quotes are not captions.
+- Harmony text/mentions are sent first, then one Matrix event per attachment. File-only
+  ghost messages need no extra text; shared relay mode adds the Harmony author attribution.
+  Every acknowledged Matrix piece maps back to the original Harmony message for replies.
+- Transfers are capped at **50 MiB per file**, or a lower live Harmony private-bucket size
+  limit/destination upload limit. At most **20 files per Harmony message** are copied;
+  extra files get a visible notice. Each binary HTTP transfer has a 60-second client timeout.
+  Files are processed serially in bounded memory, not streamed end-to-end or transcoded.
+- Matrix downloads use the authenticated media endpoint on the configured homeserver,
+  never an arbitrary event URL. Harmony downloads use the currently readable stored message's
+  raw file-part index: room-local private `message_media` objects, or a live Drive file still
+  owned by that native author. URL-only/legacy/external attachment parts are not fetched.
+- Matrix bytes go through the Gateway's live private-bucket MIME/size policy, file-type and
+  signature checks, standard media-metadata stripping and content-addressed private storage.
+  Harmony bytes are also metadata-stripped before Matrix upload. This is not a malware
+  scanner: ordinary documents/archives can still contain unsafe content. Active formats such
+  as SVG, HTML, scripts and executables, unknown MIME types and mismatched image bytes are
+  refused. Other formats' metadata is not guaranteed to be removable.
+- Unsupported, oversized, missing or permanently failed copies produce an explicit
+  `[Attachment unavailable: filename]` notice, retaining accompanying text. Transient media
+  failures retry with bounded backoff before falling back. Consent, binding, sender mode and
+  both encryption policies are rechecked before upload/send; a policy refusal blocks delivery,
+  rather than turning revoked material into a notice. Encrypted media descriptors in a
+  plaintext room get a notice without downloading ciphertext or keys; encrypted rooms stay blocked.
+- Queued attachment descriptors hold bounded references, not media bytes or signed download URLs. Matrix
+  piece transaction IDs and senders are stable across retries. Repeated Matrix uploads may
+  leave unreferenced media; interrupted/revoked transfers may also leave private Harmony
+  uploads or Matrix uploads that were never posted. No media-specific orphan sweeper is added.
+  Consent cannot atomically cancel a network request already in flight, and it does not erase
+  previously copied files or historical messages. Normal platform retention/storage rules apply.
+
+Encrypted room and encrypted-media support is follow-up work in [`ROADMAP.md`](../ROADMAP.md):
+real participant crypto, safe device/key persistence and recovery, media verification, and
+explicit consent for the plaintext trust boundary. Do not disable encryption to bridge a room.
+
+## Bridge ecosystem parity
+
+The creator's [Harmony Discord bridge](https://github.com/y4my4my4m/harmony-discord-bridge)
+is the feature/UX reference (reviewed at `fd8801e`). Prefer the same Harmony message,
+identity, privacy and settings contracts where semantics match, not a fork of the
+Discord runtime or a platform-neutral framework built before another bridge needs it.
+
+| Area | Matrix status / remaining parity work |
+|---|---|
+| Authors, members, user mentions | Native generalized authors, ghosts/shared relay, read-only external profiles and explicit user mentions work. No inferred native roles or account linking. |
+| Attachments | Destination-owned copies, captions, multiple files and visible failures work. Discord's configurable aggregate budget, resized images and link fallback are not identical to Matrix's per-file cap/private-copy policy. Never leak signed URLs just to match a fallback. |
+| Replies | Matrix → Harmony works, including every acknowledged outbound attachment piece. Harmony → Matrix context remains open. |
+| Message lifecycle | Edits, deletes/redactions and reactions remain open; preserve current permissions, consent, moderation and durable mappings when adding them. |
+| Threads, emoji and formatting | Threads, custom emoji/sticker fidelity, richer formatting and channel references remain open. Do not treat Matrix thread relations as ordinary replies. |
+| Setup and operations | Per-pair manager mode and health work. Guided installation/pairing, hosting choices, richer diagnostics and hot pair configuration remain open. Matrix AS registration still needs the homeserver operator. |
+| Presence and permissions | Presence and structure/role synchronization need separate product/security decisions. Matrix power levels must not automatically grant Harmony rights. |
+| Encryption | Separately scoped follow-up; Discord text channels are not a template for Matrix device/session/media crypto. Current plaintext fences stay in force. |
+
+Near-term parity priorities are outbound reply context, permission-aware message lifecycle
+and reactions, and clearer setup/diagnostics; threads are their own feature. Keep SQLite
+acceptance, frozen senders, explicit allowlists and live consent rather than copying weaker
+loss/retry behavior for superficial parity. This table records gaps, not a claim that they ship.
 
 ## Requirements
 
@@ -306,7 +370,9 @@ deduplication, encryption rejection, sender/pair restrictions, retry scheduling,
 protocol requests, reconnect/shutdown behavior, required bridge registration, room-member
 profiles, invalid/oversized avatars, avatar failures, encryption-before-upload ordering,
 opt-out between enqueue/retry and delivery, ghost ownership/collision handling,
-frozen sender modes, two-user provisioning, member import restrictions and real mentions.
+frozen sender modes, two-user provisioning, member import restrictions, real mentions,
+file-only/caption/multi-file delivery, bounded authenticated media, visible transfer failures,
+per-piece reply mappings and policy changes during media transfers.
 
 For a real **local Synapse** protocol smoke test (Docker, Linux host networking):
 
@@ -326,7 +392,8 @@ encrypted-room transition. A local **Gateway contract fake** additionally exerci
 registration rejection, generalized authors, avatar upload, queued member opt-out,
 **two real Synapse ghosts**, per-room nickname/avatar, WS member publication, real
 mentions both ways, idempotent ghost sends, relay mode, ghost leaves on opt-out/mode
-change, retained history, and refusal to retry a frozen transaction under another sender. It does **not** test Gateway
+change, retained history, attachment uploads/downloads in both directions, captions, file replies,
+media-failure notices, and refusal to retry a frozen transaction under another sender. It does **not** test Gateway
 storage/byte validation or DB registration/consent against a real Harmony database,
 and does not claim encrypted message interoperability.
 

@@ -380,6 +380,14 @@ A bridge registers the Discord members of each relayed channel with [op 6](/buil
 
 ## Attachments
 
+### Matrix
+
+The experimental Matrix relay copies supported images/files both ways into destination-owned storage, with accompanying text, authenticated media downloads and current consent/plaintext checks. Audio/video are ordinary files, not transcoded. Transfers are capped at 50 MiB per file (or lower live instance/destination limits), with at most 20 files per Harmony message. Unsupported, oversized or failed transfers produce a visible attachment notice; policy revocation blocks delivery rather than exposing a notice. Encrypted rooms/media, URL-only legacy/external source parts and active file formats remain unsupported. See the [operator/member guide](/run/matrix-bridge#images-and-files) and [scoped byte endpoints](/build/rest#matrix-attachment-bytes).
+
+Native file parts retain private `message_media` paths; Matrix creates may reference only content-addressed uploads belonging to that bot and channel, with canonical metadata verified before insertion. Fresh stored-message reads, not event-supplied URLs, authorize outgoing native bytes. Drive attachments additionally require current ownership by that message's author. Every acknowledged Matrix attachment event maps to the original Harmony message for reply lookup.
+
+### Discord
+
 Discord CDN attachment URLs expire. The instance administrator chooses how Harmony handles them for bridged messages:
 
 | Mode | Behavior |

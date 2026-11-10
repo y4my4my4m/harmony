@@ -1,3 +1,5 @@
+import { MAX_MEDIA_BYTES, mediaContentType, mediaName, type MediaFile } from './Media.js';
+
 export type FetchImpl = typeof fetch;
 
 /** Deliberately excludes URLs, response text, headers and underlying causes. */
@@ -82,6 +84,21 @@ export function requestImage(url: URL, init: RequestInit, fetchImpl: FetchImpl =
     const bytes = await boundedBytes(response, signal);
     if (!bytes.length) throw new HttpError('Empty avatar image', false);
     return { data: bytes.toString('base64'), content_type };
+  });
+}
+
+/** Authenticated media is read with both a declared-length and streamed-byte bound. */
+export function requestFile(url: URL, init: RequestInit, fetchImpl: FetchImpl = fetch, name = 'attachment'): Promise<MediaFile> {
+  return request(url, init, fetchImpl, 60_000, async (response, signal) => {
+    let fileName = name;
+    const encoded = response.headers.get('x-file-name');
+    if (encoded !== null) {
+      try { fileName = decodeURIComponent(encoded); }
+      catch { await response.body?.cancel(); throw new HttpError('Invalid media filename', false); }
+    }
+    if (!response.body && Number(response.headers.get('content-length')) > 0) throw new HttpError('Invalid media body', false);
+    const bytes = response.body ? await boundedBytes(response, signal, MAX_MEDIA_BYTES) : Buffer.alloc(0);
+    return { bytes, name: mediaName(fileName), contentType: mediaContentType(response.headers.get('x-file-type') ?? response.headers.get('content-type')) };
   });
 }
 

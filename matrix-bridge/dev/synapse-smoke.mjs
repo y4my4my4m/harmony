@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { WebSocketServer } from 'ws';
+import { createMediaGateway, runMediaSmoke, MEDIA_LIMIT } from './media-smoke.mjs';
 
 const exec = promisify(execFile);
 const image = 'ghcr.io/element-hq/synapse:latest';
@@ -163,7 +164,7 @@ async function main() {
     if (shuttingDown) return;
     console.error(`FAIL during ${stage}: smoke deadline exceeded`);
     void cleanup().finally(() => process.exit(1));
-  }, 150_000);
+  }, 240_000);
   stage = 'private configuration';
   directory = await mkdtemp(join(tmpdir(), 'harmony-matrix-smoke-'));
   await chmod(directory, 0o700);
@@ -194,6 +195,8 @@ async function main() {
     listeners: [{ port: synapsePort, bind_addresses: ['127.0.0.1'], type: 'http', tls: false, x_forwarded: false, resources: [{ names: ['client'], compress: false }] }],
     database: { name: 'sqlite3', args: { database: '/data/homeserver.db' } },
     media_store_path: '/data/media',
+    // Permit an actual over-limit fixture; the bridge must enforce its own 50 MiB cap.
+    max_upload_size: '52M',
     signing_key_path: '/data/signing.key',
     macaroon_secret_key: secret(),
     form_secret: secret(),
@@ -320,6 +323,10 @@ async function main() {
   let consent = true;
   let senderMode = 'relay';
   let bound = false;
+  let nativeEncrypted = false;
+  const channelId = parsedConfig.pairs[0].harmonyChannelId;
+  const mediaGateway = createMediaGateway(channelId, () => platform === 'matrix' && consent && !nativeEncrypted);
+  const gatewayErrors = [];
   const optedOut = new Set();
   const nativeUsers = [{ id: parsedConfig.harmony.allowedUserIds[0], username: 'alice', display_name: 'Alice Room Nick', avatar_url: 'https://never-fetch.invalid/alice.png', domain: 'harmony.test' },
     { id: '33333333-3333-4333-8333-333333333333', username: 'bob', display_name: 'Bob Room Nick', avatar_url: null, domain: 'harmony.test' }];
@@ -329,10 +336,18 @@ async function main() {
   const memberFrames = [];
   gatewayReceiver = createServer(async (req, res) => {
     if (req.headers.authorization !== `Bot ${harmonyToken}`) { res.writeHead(401).end(); return; }
+    try {
     const path = new URL(req.url, 'http://localhost').pathname;
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const input = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > MEDIA_LIMIT) { res.writeHead(413).end(); return; }
+      chunks.push(chunk);
+    }
+    const bytes = Buffer.concat(chunks);
+    if (await mediaGateway.handle(req, res, path, bytes)) return;
+    const input = bytes.length ? JSON.parse(bytes.toString()) : {};
     let result;
     if (path.endsWith('/bridge-platform')) result = { platform };
     else if (path.endsWith('/bridge-room')) {
@@ -342,7 +357,7 @@ async function main() {
     else if (path.endsWith('/bridge-members')) result = consent ? nativeUsers.filter(member => !optedOut.has(member.id)) : [];
     else if (/\/bridge-members\/[^/]+\/avatar$/.test(path)) { nativeAvatarReads++; result = { data: png.toString('base64'), content_type: 'image/png' }; }
     else if (path.includes('/bridge-consent/')) result = { relay_allowed: consent && !optedOut.has(path.split('/').at(-1)) };
-    else if (path.endsWith('/encryption')) result = { messages_encrypted: false };
+    else if (path.endsWith('/encryption')) result = { messages_encrypted: nativeEncrypted };
     else if (path.endsWith('/bridge-avatar')) {
       assert.equal(input.content_type, 'image/png');
       assert.ok(Buffer.from(input.data, 'base64').length <= 1024 * 1024);
@@ -351,12 +366,17 @@ async function main() {
     } else if (path.endsWith('/messages') && req.method === 'POST') {
       harmonyPosts.push(input);
       result = { id: randomUUID() };
-      harmonyMessages.set(result.id, { id: result.id, channel_id: parsedConfig.pairs[0].harmonyChannelId });
+      harmonyMessages.set(result.id, { id: result.id, channel_id: channelId, content_raw: input.content });
     } else if (/\/messages\/[^/]+$/.test(path) && req.method === 'GET') {
       result = harmonyMessages.get(decodeURIComponent(path.split('/').at(-1)));
       if (!result) { res.writeHead(404).end(); return; }
     } else { res.writeHead(404).end(); return; }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
+    } catch {
+      gatewayErrors.push('Invalid fake Gateway request');
+      if (!res.headersSent) res.writeHead(400);
+      res.end();
+    }
   });
   gatewaySockets = new WebSocketServer({ server: gatewayReceiver });
   gatewaySockets.on('connection', socket => socket.on('message', bytes => {
@@ -368,7 +388,6 @@ async function main() {
   const gatewayPort = await listen(gatewayReceiver);
   const harmony = new HarmonyClient({ apiUrl: `http://127.0.0.1:${gatewayPort}`, gatewayUrl: `ws://127.0.0.1:${gatewayPort}`, token: harmonyToken });
   harmonyConnection = harmony;
-  const channelId = parsedConfig.pairs[0].harmonyChannelId;
   await assert.rejects(harmony.requireMatrixBridge(channelId));
   platform = 'discord';
   await assert.rejects(harmony.requireMatrixBridge(channelId));
@@ -379,8 +398,9 @@ async function main() {
   const connected = once(harmony, 'ready');
   harmony.start();
   await connected;
-  relayStore = new Store(':memory:');
-  const relay = new Relay(parsedConfig, relayStore, harmony, matrix);
+  const storePath = join(directory, 'relay.sqlite');
+  relayStore = new Store(storePath);
+  let relay = new Relay(parsedConfig, relayStore, harmony, matrix);
   relay.acceptTransaction('human', [events.get(incoming.event_id)]);
   await relay.tick();
   assert.equal(harmonyPosts.length, 1);
@@ -567,6 +587,30 @@ async function main() {
   assert.equal(harmonyPosts.length, beforeIgnored);
   console.log('PASS actual Matrix edit/thread events are ignored (including thread m.in_reply_to)');
 
+  const mediaResult = await runMediaSmoke({ matrix, harmony, config: parsedConfig, gateway: mediaGateway, events, json, until,
+    homeserverUrl, roomPath, roomId, user, png, harmonyPosts, harmonyMessages, nativeMessage, channelId, botUserId,
+    getRelay: () => relay, getStore: () => relayStore,
+    restart: async () => {
+      await relay.stop();
+      relayStore.close();
+      relayStore = new Store(storePath);
+      relay = new Relay(parsedConfig, relayStore, harmony, matrix);
+    },
+    setConsent: value => { consent = value; },
+    setNativeEncryption: value => { nativeEncrypted = value; },
+    setStage: value => { stage = value; }, signal: controller.signal,
+  });
+  assert.deepEqual(gatewayErrors, []);
+
+  mediaResult.enqueueNativeFence();
+  const mediaReadsBeforeEncryption = mediaGateway.reads.length;
+  const mediaWritesBeforeEncryption = mediaGateway.writes.length;
+  let matrixMediaAfterEncryption = 0;
+  const mediaMethods = {};
+  for (const method of ['downloadFile', 'uploadFile', 'sendFile']) {
+    mediaMethods[method] = matrix[method].bind(matrix);
+    matrix[method] = (...args) => { matrixMediaAfterEncryption++; return mediaMethods[method](...args); };
+  }
   const postsBeforeEncryption = harmonyPosts.length;
   const avatarsBeforeEncryption = avatarUploads;
   const failedBeforeEncryption = relayStore.counts().failed;
@@ -576,14 +620,22 @@ async function main() {
   });
   await until(() => events.has(encryption.event_id));
   assert.equal(await matrix.roomIsPlaintext(roomId), false);
-  relay.acceptTransaction('human', [events.get(encryption.event_id), { ...events.get(incoming.event_id), event_id: '$blocked' }]);
+  relay.acceptTransaction('human', [events.get(encryption.event_id),
+    { ...events.get(incoming.event_id), event_id: '$blocked' }, mediaResult.fenceEvent]);
   assert.equal(relayStore.isRoomBlocked(roomId), true);
+  await relay.tick();
+  await relay.tick();
   await relay.tick();
   assert.equal(harmonyPosts.length, postsBeforeEncryption);
   assert.equal(avatarUploads, avatarsBeforeEncryption);
-  assert.equal(relayStore.counts().failed, failedBeforeEncryption + 1);
+  assert.equal(relayStore.counts().failed, failedBeforeEncryption + 3);
+  assert.equal(mediaGateway.reads.length, mediaReadsBeforeEncryption);
+  assert.equal(mediaGateway.writes.length, mediaWritesBeforeEncryption);
+  assert.equal(matrixMediaAfterEncryption, 0);
+  Object.assign(matrix, mediaMethods);
   console.log('PASS reused AS transaction ID accepts distinct real events and a new durable encryption fence');
   console.log('PASS encrypted-room relay guard (no additional text/avatar upload)');
+  console.log('PASS actual room encryption fences queued files in both directions before media download, upload or send');
   console.log('PASS roomIsPlaintext returns false after encryption state is enabled');
   console.log('PASS real Synapse smoke complete (plaintext only; no E2EE relay/decryption claimed)');
 }

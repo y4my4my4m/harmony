@@ -1,4 +1,5 @@
-import { endpoint, HttpError, requestJson, requestImage, type AvatarImage, type FetchImpl } from './http.js';
+import { endpoint, HttpError, requestJson, requestImage, requestFile, type AvatarImage, type FetchImpl } from './http.js';
+import { MAX_MEDIA_BYTES, isInlineImage, mediaContentType, mediaName, type MediaFile, type MatrixFile } from './Media.js';
 
 const mxcPattern = /^mxc:\/\/((?:[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?)\/([a-zA-Z0-9_-]+)$/;
 
@@ -31,6 +32,41 @@ export class MatrixClient {
       `rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(transactionId)}`,
       'PUT', { msgtype: 'm.text', body, 'm.mentions': options.userIds?.length ? { user_ids: options.userIds } : {},
         ...(options.formattedBody ? { format: 'org.matrix.custom.html', formatted_body: options.formattedBody } : {}) }, options.sender,
+    );
+    if (typeof result?.event_id !== 'string' || !result.event_id) throw new HttpError('Invalid Matrix message response', false);
+    return { event_id: result.event_id };
+  }
+
+  async downloadFile(mxc: string, name: string): Promise<MediaFile> {
+    const match = mxcPattern.exec(mxc);
+    if (!match || mxc.length > 2048) throw new HttpError('Invalid Matrix media URI', false);
+    // Even remote MXC media goes through the configured authenticated homeserver.
+    const url = endpoint(this.options.homeserverUrl,
+      `_matrix/client/v1/media/download/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}`);
+    return requestFile(url, { method: 'GET', headers: { Authorization: `Bearer ${this.options.asToken}` } }, this.options.fetchImpl, name);
+  }
+
+  async uploadFile(file: MediaFile): Promise<string> {
+    if (file.bytes.byteLength > MAX_MEDIA_BYTES) throw new HttpError('Attachment exceeds transfer limit', false);
+    const url = endpoint(this.options.homeserverUrl, '_matrix/media/v3/upload');
+    url.searchParams.set('filename', mediaName(file.name));
+    const result = await requestJson<{ content_uri?: unknown }>(url, {
+      method: 'POST', headers: { Authorization: `Bearer ${this.options.asToken}`, 'Content-Type': mediaContentType(file.contentType) },
+      body: file.bytes,
+    }, this.options.fetchImpl, 60_000);
+    if (typeof result?.content_uri !== 'string' || result.content_uri.length > 2048 || !mxcPattern.test(result.content_uri)) throw new HttpError('Invalid Matrix media upload response', false);
+    return result.content_uri;
+  }
+
+  async sendFile(roomId: string, transactionId: string, file: MatrixFile, options: MatrixSendOptions = {}): Promise<{ event_id: string }> {
+    if (options.sender && options.sender !== this.options.botUserId) this.assertGhost(options.sender);
+    if (file.mxc.length > 2048 || !mxcPattern.test(file.mxc) || !Number.isInteger(file.size) || file.size < 0 || file.size > MAX_MEDIA_BYTES) throw new HttpError('Invalid Matrix file', false);
+    const name = mediaName(file.name);
+    const contentType = mediaContentType(file.contentType);
+    const result = await this.request<{ event_id?: unknown }>(
+      `rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(transactionId)}`, 'PUT',
+      { msgtype: isInlineImage(contentType) ? 'm.image' : 'm.file', body: name, filename: name,
+        url: file.mxc, info: { mimetype: contentType, size: file.size }, 'm.mentions': {} }, options.sender,
     );
     if (typeof result?.event_id !== 'string' || !result.event_id) throw new HttpError('Invalid Matrix message response', false);
     return { event_id: result.event_id };

@@ -1,13 +1,13 @@
 ---
 title: Matrix bridge
-description: Choose Matrix ghost users or an attributed relay and use mentions across a plaintext bridge.
+description: Bridge plaintext messages, mentions, replies and attachments with Matrix ghosts or an attributed relay.
 ---
 
 # Matrix bridge
 
 The experimental Matrix application service connects explicitly paired Harmony channels and Matrix rooms. Messages from Matrix have their sender's name, avatar and Matrix badge in Harmony. Harmony members can appear in Matrix as individual bridge-managed users, or under one shared bridge account with attribution.
 
-This is a **plaintext text-and-mentions bridge**, not an encrypted participant. Files, replies, edits and reactions are not relayed by this program. Existing Discord integration remains separate.
+This is a **plaintext bridge**, not an encrypted participant. Text, mentions, images and ordinary files flow both ways; Matrix replies can retain native Harmony reply context. Edits, reactions, deletions and threads are not mirrored. Existing Discord integration remains separate.
 
 ## Initial operator setup
 
@@ -64,13 +64,23 @@ The bridge does not turn raw `@room`, `@everyone` or display-name-looking text i
 
 Use the Matrix client's normal Reply action. When the parent was bridged in either direction and remains readable to the bridge, Harmony shows its native reply context. Old Matrix plain/HTML quote fallbacks are removed rather than copied as new text. An unmapped, missing or now-private parent leaves the new reply text without a guessed link. Matrix threads and edits remain unsupported, and Harmony-to-Matrix reply context is not mirrored.
 
+## Images and files
+
+Post an image or file normally in either client. Supported bytes are copied into the destination's own storage, not left as links to the other platform. Captions are retained when Matrix supplies a separate filename. Harmony messages with several attachments become text followed by individual Matrix file events; replies to those events can point back to the original Harmony message. Audio and video travel as downloadable files, without transcoding.
+
+The bridge copies at most **20 files per Harmony message**, each up to **50 MiB**, subject to lower current instance/storage and destination limits. Unsupported, oversized or failed copies show **`[Attachment unavailable: filename]`** instead of silently disappearing; accompanying text is retained. Transient transfer errors are retried before that fallback. A revoked binding, withdrawn consent or encryption transition blocks the delivery rather than publishing a notice for the revoked content.
+
+Harmony attachments must be in private message storage, including currently owned Drive files attached to the message. URL-only, legacy and external attachment parts are not downloaded. Active files such as SVG, HTML, scripts and executables, unsupported MIME types and invalid image signatures are refused. Files use the existing media-metadata stripping, not malware scanning; archives and ordinary documents can still contain unsafe content.
+
+Encrypted rooms remain blocked. An encrypted attachment descriptor in a plaintext Matrix room produces a notice without copying ciphertext or keys. Encrypted rooms/media are planned follow-up work, not supported by sending a decryption key or disabling encryption.
+
 ## Member privacy
 
 Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages**. This is a per-member, per-server preference; the administrator's sender-mode choice does not override it.
 
-Opt-out blocks future bridged message delivery and fresh ghost profile exposure. The running worker removes tracked ghost memberships when it sees that the member is no longer eligible. It rechecks consent before queued delivery and profile operations rather than trusting the original message or a cached member list.
+Opt-out blocks future bridged message/file delivery and fresh ghost profile exposure. The running worker removes tracked ghost memberships when it sees that the member is no longer eligible. It rechecks consent before queued delivery and profile operations rather than trusting the original message or a cached member list.
 
-This is not retroactive erasure. Previous remote messages, Matrix accounts, cached profiles and previously disclosed metadata may remain. A request already in flight cannot be cancelled atomically. Ordinary bots and independent server webhooks are not governed by this bridge preference.
+This is not retroactive erasure. Previous remote messages/files, Matrix accounts, cached profiles and previously disclosed metadata may remain. Interrupted transfers can leave uploads that were never posted; the bridge adds no media orphan sweeper. A request already in flight cannot be cancelled atomically. Ordinary bots and independent server webhooks are not governed by this bridge preference.
 
 ## Limits and recovery
 

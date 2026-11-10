@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { configSchema, ghostUserId } from './config.js'
-import { Store } from './Store.js'
+import { Store, StorageError } from './Store.js'
 import { Relay, type MatrixEvent } from './Relay.js'
 import { HttpError } from './http.js'
+import { MAX_MEDIA_BYTES } from './Media.js'
 
 const channelId = '22222222-2222-4222-8222-222222222222'
 const userId = '11111111-1111-4111-8111-111111111111'
@@ -22,12 +23,16 @@ function setup() {
     uploadBridgeAvatar: vi.fn().mockResolvedValue('https://storage.test/avatar.png'),
     bridgeRoom: vi.fn().mockResolvedValue({ room_id: roomId, sender_mode: 'relay' }),
     bridgeMembers: vi.fn().mockResolvedValue([{ id: userId, username: 'Alice', display_name: 'Room Alice', avatar_url: null, domain: 'harmony.test' }]),
-    nativeAvatar: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }), publishMatrixMembers: vi.fn() }
+    nativeAvatar: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }), publishMatrixMembers: vi.fn(),
+    downloadFile: vi.fn().mockResolvedValue({ bytes: Buffer.from('document bytes'), name: 'report.txt', contentType: 'text/plain' }),
+    uploadFile: vi.fn().mockResolvedValue({ type: 'file', path: 'bridge/upload/report.txt', url: 'https://storage.test/private?token=temporary', fileName: 'report.txt', fileSize: 14, mimeType: 'text/plain' }) }
   const matrix = { sendMessage: vi.fn().mockResolvedValue({ event_id: '$m-copy' }), roomIsPlaintext: vi.fn().mockResolvedValue(true),
     roomMember: vi.fn().mockResolvedValue({ display_name: 'Room Alice' }),
     avatarThumbnail: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }),
     registerGhost: vi.fn().mockResolvedValue(undefined), joinGhost: vi.fn().mockResolvedValue(undefined), leaveGhost: vi.fn().mockResolvedValue(undefined),
-    uploadAvatar: vi.fn().mockResolvedValue('mxc://matrix.test/native'), roomMembers: vi.fn().mockResolvedValue([{ id: '@alice:matrix.test', display_name: 'Matrix Alice' }]) }
+    uploadAvatar: vi.fn().mockResolvedValue('mxc://matrix.test/native'), roomMembers: vi.fn().mockResolvedValue([{ id: '@alice:matrix.test', display_name: 'Matrix Alice' }]),
+    downloadFile: vi.fn().mockResolvedValue({ bytes: Buffer.from('document bytes'), name: 'report.txt', contentType: 'text/plain' }),
+    uploadFile: vi.fn().mockResolvedValue('mxc://matrix.test/uploaded'), sendFile: vi.fn().mockResolvedValue({ event_id: '$file-copy' }) }
   const relay = new Relay(config, store, harmony, matrix)
   return { config, store, harmony, matrix, relay }
 }
@@ -38,7 +43,22 @@ function message(overrides: Record<string, unknown> = {}) {
   return { id: 'h-one', channel_id: channelId, author: { id: userId, username: 'Alice' }, content: 'hello', metadata: {}, ...overrides }
 }
 
+function fileEvent(content: Record<string, unknown> = {}): MatrixEvent {
+  return event({ content: { msgtype: 'm.file', body: 'report.txt', filename: 'report.txt', url: 'mxc://matrix.test/report', info: { size: 14 }, ...content } })
+}
+function nativeFile(extra: Record<string, unknown> = {}) {
+  return { type: 'file', fileName: 'report.txt', fileSize: 14, url: 'https://private.test/file?token=SECRET', path: 'c/private/report.txt', ...extra }
+}
+
 describe('Relay', () => {
+  it('keeps the existing atomic job mapping for text-only Matrix delivery', async () => {
+    const { relay, store } = setup()
+    const pieces = vi.spyOn(store, 'recordDestination')
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(pieces).not.toHaveBeenCalled()
+    expect(store.findSource('to_matrix', '$m-copy', channelId, roomId)).toBe('h-one')
+  })
   it('durably deduplicates transactions/events and attributes Matrix senders without Discord impersonation', async () => {
     const { relay, harmony, store } = setup()
     expect(relay.acceptTransaction('one', [event()])).toBe(true)
@@ -141,7 +161,7 @@ describe('Relay', () => {
       event({ sender: '@other:matrix.test' }), event({ sender: '@harmony_relay:matrix.test' }),
       event({ room_id: '!private:matrix.test' }), event({ type: 'm.room.encrypted' }),
       event({ content: { msgtype: 'm.text', body: 'edit', 'm.relates_to': { rel_type: 'm.replace' } } }),
-      event({ content: { msgtype: 'm.image', body: 'photo' } }),
+      event({ content: { msgtype: 'm.sticker', body: 'sticker' } }),
     ])
     expect(store.counts().pending).toBe(0)
   })
@@ -162,7 +182,7 @@ describe('Relay', () => {
       { author: { id: userId, bot: true } }, { author: { id: 'other' } }, { encrypted: true },
       { metadata: { discord_user: { id: '42' } } }, { metadata: { bridge_source: 'matrix' } },
       { metadata: { matrix_relay: {} } }, { metadata: { bridge_author: { platform: 'matrix', id: '@a:test' } } }, { is_system: true }, { thread_id: 'thread' },
-      { content_raw: [{ type: 'file', url: 'https://private.test/file' }] },
+      { content_raw: [{ type: 'sticker', url: 'https://private.test/file' }] },
     ]) expect(relay.acceptHarmonyMessage(message(override))).toBe(false)
   })
   it('honors pair directions and rechecks consent/pairing before draining persisted jobs', async () => {
@@ -582,6 +602,374 @@ describe('Relay', () => {
     expect(relay.isHealthy).toBe(false)
     expect(matrix.sendMessage).not.toHaveBeenCalled()
     expect(store.counts().pending).toBe(1)
+  })
+  it.each(['m.image', 'm.file', 'm.audio', 'm.video'])('relays file-only Matrix %s as one native POST without queuing bytes or URLs', async msgtype => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptTransaction('file', [fileEvent({ msgtype, info: { size: 14, metadata: 'SECRET' } })])
+    const queued = store.nextJob()!.payload
+    expect(queued.body).toBe('')
+    expect(queued.files).toEqual([{ index: 0, name: 'report.txt', mxc: 'mxc://matrix.test/report' }])
+    expect(JSON.stringify(queued)).not.toContain('SECRET')
+    expect(JSON.stringify(queued)).not.toContain('bytes')
+    await relay.tick()
+    expect(matrix.downloadFile).toHaveBeenCalledExactlyOnceWith('mxc://matrix.test/report', 'report.txt')
+    expect(harmony.uploadFile).toHaveBeenCalledOnce()
+    expect(harmony.sendMessage).toHaveBeenCalledOnce()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([await harmony.uploadFile.mock.results[0].value])
+    expect(store.findMapping('to_harmony', '$one', channelId, roomId)).toBe('h-copy')
+  })
+  it('keeps a Matrix file caption, actual mentions, and mapped native reply context in one POST', async () => {
+    const { relay, harmony, config, store } = setup()
+    const ghost = ghostUserId(config, userId)
+    store.reserveGhost(ghost, userId); store.registerGhost(ghost)
+    store.enqueue({ direction: 'to_matrix', sourceId: 'native-parent', channelId, roomId, payload: {} })
+    store.complete(store.nextJob()!.id, '$parent')
+    relay.acceptTransaction('caption', [fileEvent({ body: '> quoted parent\n\nHi Alice',
+      formatted_body: `<mx-reply><blockquote>quoted parent</blockquote></mx-reply>Hi <a href="https://matrix.to/#/${ghost}">Alice</a>`,
+      'm.mentions': { user_ids: [ghost] }, 'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } })])
+    expect(store.nextJob()!.payload.body).toBe('Hi Alice')
+    await relay.tick()
+    expect(harmony.sendMessage).toHaveBeenCalledOnce()
+    const parts = harmony.sendMessage.mock.calls[0][1]
+    expect(parts[0]).toEqual({ type: 'text', text: 'Hi ' })
+    expect(parts[1]).toMatchObject({ type: 'mention', userId })
+    expect(parts[2]).toMatchObject({ type: 'file', fileName: 'report.txt' })
+    expect(harmony.sendMessage.mock.calls[0][3]).toBe('native-parent')
+  })
+  it.each([
+    { url: 'https://evil.test/private?token=SECRET' }, { url: 'mxc://bad/../SECRET' },
+    { file: { url: 'mxc://matrix.test/encrypted', key: { k: 'SECRET' } } }, { file: null }, { file: false },
+    { info: { size: MAX_MEDIA_BYTES + 1 } }, { info: { size: 'oversized SECRET' } },
+  ])('gives a safe visible notice for unsupported Matrix attachments %#', async content => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptTransaction('bad-file', [fileEvent(content)])
+    expect(JSON.stringify(store.nextJob()!.payload)).not.toContain('SECRET')
+    await relay.tick()
+    expect(matrix.downloadFile).not.toHaveBeenCalled()
+    expect(harmony.uploadFile).not.toHaveBeenCalled()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: '[Attachment unavailable: report.txt]' }])
+  })
+  it('separates a failed attachment notice from its retained caption', async () => {
+    const { relay, harmony } = setup()
+    relay.acceptTransaction('bad-caption-file', [fileEvent({ body: 'Caption.', file: {} })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: 'Caption.' },
+      { type: 'text', text: '\n[Attachment unavailable: report.txt]' }])
+  })
+  it.each(['relay', 'ghost'])('supports native file-only messages with the %s frozen sender and first-event mapping', async senderMode => {
+    const { relay, harmony, matrix, config, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: senderMode })
+    expect(relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))).toBe(true)
+    const queued = JSON.stringify(store.nextJob()!.payload)
+    expect(queued).not.toContain('SECRET')
+    expect(queued).not.toContain('private')
+    await relay.tick()
+    const sender = senderMode === 'ghost' ? ghostUserId(config, userId) : '@harmony_relay:matrix.test'
+    expect(harmony.downloadFile).toHaveBeenCalledExactlyOnceWith(channelId, 'h-one', 0)
+    expect(matrix.sendFile.mock.calls[0][2]).toEqual({ mxc: 'mxc://matrix.test/uploaded', name: 'report.txt', contentType: 'text/plain', size: 14 })
+    expect(matrix.sendFile.mock.calls[0][3]).toEqual({ sender })
+    if (senderMode === 'relay') {
+      expect(matrix.sendMessage.mock.calls[0][2]).toContain('[Alice · Harmony]')
+      expect(store.findMapping('to_matrix', 'h-one', channelId, roomId)).toBe('$m-copy')
+    } else {
+      expect(matrix.sendMessage).not.toHaveBeenCalled()
+      expect(store.findMapping('to_matrix', 'h-one', channelId, roomId)).toBe('$file-copy')
+    }
+  })
+  it('keeps native text/mentions first and uses raw file indices, not filtered part positions', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'text', text: 'Hi ' }, nativeFile(),
+      { type: 'mention', userId: '@alice:matrix.test', username: 'alice', bridgeSource: 'matrix', isBridged: true },
+      { type: 'file', fileName: 'second.pdf' }] }))
+    expect(store.nextJob()!.payload.files).toEqual([{ index: 1, name: 'report.txt' }, { index: 3, name: 'second.pdf' }])
+    await relay.tick()
+    expect(matrix.sendMessage.mock.calls[0][2]).toBe('[Alice · Harmony] Hi @alice')
+    expect(matrix.sendMessage.mock.calls[0][3].userIds).toEqual(['@alice:matrix.test'])
+    expect(harmony.downloadFile.mock.calls.map(call => call[2])).toEqual([1, 3])
+    expect(matrix.sendMessage.mock.invocationCallOrder[0]).toBeLessThan(matrix.sendFile.mock.invocationCallOrder[0])
+    expect(matrix.sendFile.mock.calls.map(call => call[1])).toEqual([
+      matrix.sendMessage.mock.calls[0][1] + '.file-1', matrix.sendMessage.mock.calls[0][1] + '.file-3',
+    ])
+    expect(store.findMapping('to_matrix', 'h-one', channelId, roomId)).toBe('$m-copy')
+  })
+  it('retries multiple Matrix pieces with identical sender/transaction IDs and preserves the first mapping', async () => {
+    vi.useFakeTimers()
+    const { relay, harmony, matrix, store } = setup()
+    let failSecond = true
+    harmony.downloadFile.mockImplementation(async (_channel, _message, index) => {
+      if (index === 2 && failSecond) { failSecond = false; throw new HttpError('SECRET', true, 503) }
+      return { bytes: Buffer.from('data'), name: 'report.txt', contentType: 'text/plain' }
+    })
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'text', text: 'Files' }, nativeFile(), nativeFile()] }))
+    await relay.tick()
+    expect(store.counts()).toEqual({ pending: 1, failed: 0 })
+    vi.advanceTimersByTime(1000)
+    await relay.tick()
+    expect(matrix.sendMessage.mock.calls[0]).toEqual(matrix.sendMessage.mock.calls[1])
+    expect(matrix.sendFile.mock.calls[0]).toEqual(matrix.sendFile.mock.calls[1])
+    expect(matrix.sendFile.mock.calls[2][1]).toMatch(/\.file-2$/)
+    expect(store.findMapping('to_matrix', 'h-one', channelId, roomId)).toBe('$m-copy')
+  })
+  it.each(['download', 'upload', 'send'])('shows permanent native %s failures using the frozen ghost and stable file transaction', async step => {
+    const { relay, harmony, matrix, config, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    const error = new HttpError('https://evil.test/?token=SECRET', false, 400)
+    if (step === 'download') harmony.downloadFile.mockRejectedValue(error)
+    if (step === 'upload') matrix.uploadFile.mockRejectedValue(error)
+    if (step === 'send') matrix.sendFile.mockRejectedValue(error)
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    await relay.tick()
+    const [, transaction, body, options] = matrix.sendMessage.mock.calls[0]
+    expect(transaction).toMatch(/^[a-f0-9]{64}\.file-0$/)
+    expect(body).toBe('[Attachment unavailable: report.txt]')
+    expect(options).toEqual({ sender: ghostUserId(config, userId) })
+    expect(store.counts()).toEqual({ pending: 0, failed: 0 })
+  })
+  it('turns exhausted transient media failure into a visible notice, without retrying forever', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    for (let attempt = 0; attempt < 7; attempt++) store.retry(store.nextJob()!.id, 'retry', 0)
+    harmony.downloadFile.mockRejectedValue(new HttpError('SECRET', true, 503))
+    await relay.tick()
+    expect(matrix.sendMessage.mock.calls.at(-1)![2]).toBe('[Attachment unavailable: report.txt]')
+    expect(store.counts()).toEqual({ pending: 0, failed: 0 })
+  })
+  it('bounds native transfers to twenty files and one extra visible notice', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: Array.from({ length: 30 }, () => nativeFile()) }))
+    expect((store.nextJob()!.payload.files as unknown[]).length).toBe(21)
+    await relay.tick()
+    expect(harmony.downloadFile).toHaveBeenCalledTimes(20)
+    expect(matrix.sendFile).toHaveBeenCalledTimes(20)
+    expect(matrix.sendMessage.mock.calls.at(-1)![2]).toBe('[Attachment unavailable: Additional attachments (limit 20)]')
+  })
+  it('finishes twenty native files below the default 100-request budget per policy route', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: Array.from({ length: 20 }, () => nativeFile()) }))
+    await relay.tick()
+    expect(matrix.sendFile).toHaveBeenCalledTimes(20)
+    expect(store.counts()).toEqual({ pending: 0, failed: 0 })
+    for (const method of [harmony.requireMatrixBridge, harmony.bridgeRoom, harmony.channelIsPlaintext, harmony.relayAllowed]) {
+      expect(method.mock.calls.length).toBeLessThan(100)
+    }
+  })
+  it('blocks the upload if consent changes during a successful native download', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.downloadFile.mockImplementation(async () => {
+      harmony.relayAllowed.mockResolvedValue(false)
+      return { bytes: Buffer.from('bytes'), name: 'report.txt', contentType: 'text/plain' }
+    })
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    await relay.tick()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+    expect(matrix.sendMessage.mock.calls[0][2]).not.toContain('Attachment unavailable')
+    expect(store.counts().failed).toBe(1)
+  })
+  it('does not download an oversized native file and gives a visible notice', async () => {
+    const { relay, harmony, matrix } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile({ fileSize: MAX_MEDIA_BYTES + 1 })] }))
+    await relay.tick()
+    expect(harmony.downloadFile).not.toHaveBeenCalled()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage.mock.calls.at(-1)![2]).toBe('[Attachment unavailable: report.txt]')
+  })
+  it('retries Matrix-to-Harmony media before its single POST, but never blindly retries an ambiguous final POST', async () => {
+    vi.useFakeTimers()
+    const { relay, harmony, matrix, store } = setup()
+    matrix.downloadFile.mockRejectedValueOnce(new HttpError('temporary', true, 503))
+    relay.acceptTransaction('file', [fileEvent({ body: 'Caption', filename: 'report.txt' })])
+    await relay.tick()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().pending).toBe(1)
+    vi.advanceTimersByTime(1000)
+    harmony.sendMessage.mockRejectedValue(new HttpError('ambiguous POST', true, 503))
+    await relay.tick()
+    await relay.tick()
+    expect(harmony.sendMessage).toHaveBeenCalledOnce()
+    expect(store.counts()).toEqual({ pending: 0, failed: 1 })
+  })
+  it.each(['unpair', 'consent', 'encryption', 'mode'])('does not turn a native media failure into a notice after late %s change', async change => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.downloadFile.mockImplementation(async () => {
+      if (change === 'unpair') harmony.requireMatrixBridge.mockRejectedValue(new HttpError('revoked', false, 403))
+      if (change === 'consent') harmony.relayAllowed.mockResolvedValue(false)
+      if (change === 'encryption') matrix.roomIsPlaintext.mockResolvedValue(false)
+      if (change === 'mode') harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+      throw new HttpError('transfer failed SECRET', false, 400)
+    })
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    await relay.tick()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).toHaveBeenCalledOnce() // The authorized attribution text preceded the change.
+    expect(matrix.sendMessage.mock.calls[0][2]).not.toContain('Attachment unavailable')
+    expect(store.counts().failed).toBe(1)
+  })
+  it('honors a durable encryption event received during Matrix media download before uploading any bytes', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    matrix.downloadFile.mockImplementation(async () => {
+      relay.acceptTransaction('encrypt', [{ type: 'm.room.encryption', room_id: roomId }])
+      return { bytes: Buffer.from('bytes'), name: 'report.txt', contentType: 'text/plain' }
+    })
+    relay.acceptTransaction('file', [fileEvent()])
+    await relay.tick()
+    expect(harmony.uploadFile).not.toHaveBeenCalled()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().failed).toBe(1)
+  })
+  it('rechecks destination encryption after an upload failure rather than posting a fallback', async () => {
+    const { relay, harmony, store } = setup()
+    harmony.uploadFile.mockImplementation(async () => {
+      harmony.channelIsPlaintext.mockResolvedValue(false)
+      throw new HttpError('invalid bytes SECRET', false, 400)
+    })
+    relay.acceptTransaction('file', [fileEvent()])
+    await relay.tick()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().failed).toBe(1)
+  })
+  it.each(['download', 'upload'])('uses one safe native POST for a permanent Matrix media %s failure', async step => {
+    const { relay, harmony, matrix } = setup()
+    if (step === 'download') matrix.downloadFile.mockRejectedValue(new HttpError('https://evil.test/?token=SECRET', false, 404))
+    else harmony.uploadFile.mockRejectedValue(new HttpError('https://evil.test/?token=SECRET', false, 400))
+    relay.acceptTransaction('file', [fileEvent({ body: 'Keep caption', filename: 'report.txt' })])
+    await relay.tick()
+    expect(harmony.sendMessage).toHaveBeenCalledOnce()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: 'Keep caption' }, { type: 'text', text: '\n[Attachment unavailable: report.txt]' }])
+  })
+  it.each([
+    { index: 1.5, name: 'report.txt' }, { index: -1, name: 'report.txt' }, { index: 1000, name: 'report.txt' },
+    { index: 0, name: 'report.txt', unavailable: 'true' },
+    { index: 0, name: 'report.txt', mxc: 'https://private.test/?token=SECRET' },
+    { index: 0, name: 'report.txt' },
+  ])('rejects malformed persisted Matrix file descriptors without downloading or emitting a notice: %j', async descriptor => {
+    const { relay, harmony, matrix, store } = setup()
+    store.enqueue({ direction: 'to_harmony', sourceId: '$bad', channelId, roomId,
+      payload: { sender: '@alice:matrix.test', body: '', files: [descriptor] } })
+    await relay.tick()
+    expect(matrix.downloadFile).not.toHaveBeenCalled()
+    expect(harmony.uploadFile).not.toHaveBeenCalled()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts()).toEqual({ pending: 0, failed: 1 })
+  })
+  it('blocks file send if native consent is withdrawn during a successful Matrix upload', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    matrix.uploadFile.mockImplementation(async () => { harmony.relayAllowed.mockResolvedValue(false); return 'mxc://matrix.test/uploaded' })
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    await relay.tick()
+    expect(matrix.uploadFile).toHaveBeenCalledOnce()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+    expect(matrix.sendMessage.mock.calls[0][2]).not.toContain('Attachment unavailable')
+    expect(store.counts().failed).toBe(1)
+  })
+  it('does not turn a failed Matrix file send into a fallback after binding revocation', async () => {
+    const { relay, harmony, matrix } = setup()
+    matrix.sendFile.mockImplementation(async () => {
+      harmony.requireMatrixBridge.mockRejectedValue(new HttpError('revoked', false, 403))
+      throw new HttpError('bad request', false, 400)
+    })
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    await relay.tick()
+    expect(matrix.sendFile).toHaveBeenCalledOnce()
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+  })
+  it('retains the attachment and emits a bounded notice when native caption text is malformed or too long', async () => {
+    const { relay, matrix, store } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'text', text: 'x'.repeat(20_000) }, nativeFile()] }))
+    expect(JSON.stringify(store.nextJob()!.payload)).not.toContain('x'.repeat(100))
+    expect(store.nextJob()!.payload.parts).toEqual([{ type: 'text', text: '[Message text unavailable]' }])
+    await relay.tick()
+    expect(matrix.sendFile).toHaveBeenCalledOnce()
+    expect(matrix.sendMessage.mock.calls[0][2]).toContain('[Message text unavailable]')
+  })
+  it('never downloads a file-only message after opt-out while queued', async () => {
+    const { relay, harmony, matrix } = setup()
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    harmony.relayAllowed.mockResolvedValue(false)
+    await relay.tick()
+    expect(harmony.downloadFile).not.toHaveBeenCalled()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+  })
+  it('does not accept unrelated Discord-bot or legacy Discord bridge attachments', () => {
+    const { relay, store } = setup()
+    for (const override of [{ author: { id: userId, discord_user: { id: '123' } } }, { metadata: { discord_user: { id: '123' } } },
+      { author: { id: userId, bot: true } }]) {
+      expect(relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()], ...override }))).toBe(false)
+    }
+    expect(store.counts().pending).toBe(0)
+  })
+  it('does not upload actual downloaded bytes beyond the limit even when advertised size was small', async () => {
+    const { relay, harmony, matrix } = setup()
+    harmony.downloadFile.mockResolvedValue({ bytes: Buffer.allocUnsafe(MAX_MEDIA_BYTES + 1), name: 'huge.bin', contentType: 'application/octet-stream' })
+    relay.acceptHarmonyMessage(message({ content_raw: [nativeFile({ fileSize: 1 })] }))
+    await relay.tick()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+    expect(matrix.sendMessage.mock.calls.at(-1)![2]).toBe('[Attachment unavailable: report.txt]')
+  })
+  it.each(['to_matrix', 'to_harmony'])('does not transfer or emit attachment notices into encrypted rooms (%s)', async direction => {
+    const { relay, harmony, matrix } = setup()
+    if (direction === 'to_matrix') relay.acceptHarmonyMessage(message({ content_raw: [nativeFile()] }))
+    else relay.acceptTransaction('file', [fileEvent({ file: { url: 'mxc://matrix.test/encrypted', key: 'SECRET' } })])
+    matrix.roomIsPlaintext.mockResolvedValue(false)
+    await relay.tick()
+    expect(harmony.downloadFile).not.toHaveBeenCalled()
+    expect(matrix.downloadFile).not.toHaveBeenCalled()
+    expect(harmony.uploadFile).not.toHaveBeenCalled()
+    expect(matrix.uploadFile).not.toHaveBeenCalled()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(matrix.sendFile).not.toHaveBeenCalled()
+  })
+  it('maps a reply to a later Matrix file event back to the native original, not just the first text event', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    matrix.sendFile.mockResolvedValue({ event_id: '$later-file' })
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'text', text: 'Caption' }, nativeFile()] }))
+    await relay.tick()
+    expect(store.findMapping('to_matrix', 'h-one', channelId, roomId)).toBe('$m-copy')
+    expect(store.findSource('to_matrix', '$later-file', channelId, roomId)).toBe('h-one')
+    expect(store.findSource('to_matrix', '$later-file', 'other-channel', roomId)).toBeNull()
+    relay.acceptTransaction('reply-to-file', [event({ content: { msgtype: 'm.text', body: 'File reply',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$later-file' } } } })])
+    await relay.tick()
+    expect(harmony.canReplyTo).toHaveBeenCalledWith(channelId, 'h-one')
+    expect(harmony.sendMessage.mock.calls[0][3]).toBe('h-one')
+  })
+  it.each(['text', 'file', 'notice'])('pauses with the job intact if recording an acknowledged Matrix %s fails', async piece => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    if (piece === 'notice') harmony.downloadFile.mockRejectedValue(new HttpError('gone', false, 404))
+    vi.spyOn(store, 'recordDestination').mockImplementation(() => { throw new StorageError('disk') })
+    relay.acceptHarmonyMessage(message({ content_raw: piece === 'text' ? [{ type: 'text', text: 'Caption' }, nativeFile()] : [nativeFile()] }))
+    await relay.tick()
+    expect(relay.isHealthy).toBe(false)
+    expect(store.counts()).toEqual({ pending: 1, failed: 0 })
+    expect(store.recordDestination).toHaveBeenCalledOnce()
+    if (piece === 'file') {
+      expect(matrix.sendFile).toHaveBeenCalledOnce()
+      expect(matrix.sendMessage).not.toHaveBeenCalled()
+    } else {
+      expect(matrix.sendMessage).toHaveBeenCalledOnce()
+      expect(matrix.sendFile).not.toHaveBeenCalled()
+    }
+  })
+  it('pauses with media work intact on a storage fault after download instead of sending a fallback', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    matrix.downloadFile.mockImplementation(async () => {
+      vi.spyOn(store, 'isRoomBlocked').mockImplementation(() => { throw new Error('disk') })
+      return { bytes: Buffer.from('bytes'), name: 'report.txt', contentType: 'text/plain' }
+    })
+    relay.acceptTransaction('file', [fileEvent()])
+    await relay.tick()
+    expect(relay.isHealthy).toBe(false)
+    expect(store.counts()).toEqual({ pending: 1, failed: 0 })
+    expect(harmony.uploadFile).not.toHaveBeenCalled()
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
   })
   it('pauses rather than creating unhandled rejections when storage fails', async () => {
     const { relay, store } = setup()
