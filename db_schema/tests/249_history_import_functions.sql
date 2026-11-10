@@ -15,7 +15,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(63);
+SELECT plan(74);
 
 UPDATE public.servers SET is_local_server = true, federation_enabled = true
  WHERE id = '55555555-0000-0000-0000-000000000005';
@@ -328,6 +328,59 @@ SELECT is((SELECT count(*)::int FROM tests.jobs249 WHERE name = 'federate-thread
 SELECT is((SELECT count(*)::int FROM tests.jobs249 WHERE name = 'federate-thread' AND data->>'type' = 'delete'
              AND data->>'thread_id' = (SELECT id::text FROM t249 WHERE k = 'a1')), 0,
           'deleting an imported thread queues no federation job');
+
+-- bridge_import_present_ids: the dedupe pre-filter ------------------------------------------------------------
+INSERT INTO public.messages (channel_id, bot_id, content, metadata, is_deleted) VALUES
+  ('66666666-0000-0000-0000-000000000006', 'f2490000-0000-0000-0000-0000000000b1',
+   '[{"type": "text", "text": "gone"}]', '{"discord_message_id": "2490000000000010098"}', true),
+  ('f2490000-0000-0000-0000-000000000002', 'f2490000-0000-0000-0000-0000000000b1',
+   '[{"type": "text", "text": "elsewhere"}]', '{"discord_message_id": "2490000000000040001"}', false);
+SELECT ok(NOT has_function_privilege('authenticated', 'public.bridge_import_present_ids(uuid, uuid, text[])', 'EXECUTE')
+          AND NOT has_function_privilege('anon', 'public.bridge_import_present_ids(uuid, uuid, text[])', 'EXECUTE')
+          AND has_function_privilege('service_role', 'public.bridge_import_present_ids(uuid, uuid, text[])', 'EXECUTE'),
+          'present_ids is for the service role alone');
+SELECT is((SELECT array_agg(x ORDER BY x) FROM unnest(public.bridge_import_present_ids(
+              'f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
+              ARRAY['2490000000000010001', '2490000000000010099', '2490000000000099999'])) x),
+          ARRAY['2490000000000010001', '2490000000000010099'], 'present_ids returns the ids the channel already holds');
+SELECT is(public.bridge_import_present_ids('f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
+                                           ARRAY['2490000000000010098']), ARRAY[]::text[],
+          'a deleted row does not count as present');
+SELECT is(public.bridge_import_present_ids('f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
+                                           ARRAY['2490000000000040001']), ARRAY[]::text[],
+          'nor does a row of another channel');
+SELECT throws_ok(format($q$SELECT public.bridge_import_present_ids('f2490000-0000-0000-0000-0000000000b2', %L, ARRAY['1'])$q$,
+                        pg_temp.job('1')),
+                 'P0002', 'import_not_found', 'present_ids of another bot''s job: import_not_found');
+
+-- A message that breaks a check is rejected; the batch carries on ------------------------------------------------
+CREATE TEMP TABLE c249 AS SELECT imported_count AS i, skipped_count AS s FROM public.discord_bridge_imports WHERE id = pg_temp.job('1');
+SELECT pg_temp.batch('rej', '1', jsonb_build_array(
+    pg_temp.msg('2490000000000010101', '2020-06-01T10:00:00Z'),
+    pg_temp.msg('2490000000000010102', '2020-06-01T11:00:00Z',
+                jsonb_build_object('content', jsonb_build_array(jsonb_build_object('type', 'text', 'text', repeat('x', 4000))))),
+    pg_temp.msg('2490000000000010103', '2020-06-01T12:00:00Z', '{"content": []}'),
+    pg_temp.msg('2490000000000010104', '2020-06-01T13:00:00Z')));
+SELECT is((SELECT array_agg(e->>'discord_message_id' ORDER BY e->>'discord_message_id')
+             FROM jsonb_array_elements((SELECT j->'inserted' FROM r249 WHERE k = 'rej')) e),
+          ARRAY['2490000000000010101', '2490000000000010104'], 'the other messages of the batch are inserted');
+SELECT is((SELECT j->'rejected' FROM r249 WHERE k = 'rej'),
+          '[{"discord_message_id": "2490000000000010102", "reason": "too_long"},
+            {"discord_message_id": "2490000000000010103", "reason": "check_violation"}]'::jsonb,
+          'the over-long and the empty message are reported with a reason');
+SELECT is((SELECT j->'skipped' FROM r249 WHERE k = 'rej'),
+          '["2490000000000010102", "2490000000000010103"]'::jsonb, 'rejected ids are also in skipped');
+SELECT is((SELECT count(*)::int FROM public.messages WHERE metadata->>'discord_message_id' IN ('2490000000000010102', '2490000000000010103')),
+          0, 'and no row exists for them');
+SELECT is((SELECT (d.imported_count - c.i, d.skipped_count - c.s)::text
+             FROM public.discord_bridge_imports d, c249 c WHERE d.id = pg_temp.job('1')),
+          '(2,2)', 'the job counts 2 more imported and 2 more skipped');
+
+-- Only the definer wrappers call the shared reply linker.
+SELECT ok(NOT has_function_privilege('service_role', 'public.bridge_import_link_replies_core(uuid, uuid[])', 'EXECUTE'),
+          'the reply-link core is not callable by the service role');
+
+SELECT set_config('harmony.history_import', 'false', true);
 
 -- Clients are unaffected by the flag triggers ------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');

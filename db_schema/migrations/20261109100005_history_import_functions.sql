@@ -4,10 +4,17 @@
 -- none of the side effects of live messages.
 --
 --   bridge_import_guard(bot, import)        the job, locked; import_not_found / import_not_running
---   bridge_import_messages(bot, import, [ImportMessage])  -> {inserted: [{discord_message_id, id}], skipped: [id]}
+--   bridge_import_messages(bot, import, [ImportMessage])  -> {inserted: [{discord_message_id, id}], skipped: [id],
+--                                                            rejected: [{discord_message_id, reason}]}
+--   bridge_import_present_ids(bot, import, [id])          -> the Discord ids the job's channel already holds
 --   bridge_import_thread(bot, import, thread)             -> Harmony thread id (idempotent per Discord thread)
 --   bridge_import_link_replies(bot, import)               -> number of replies linked
---   bridge_import_link_replies_core(channel, ids)         shared by the batch and the replies phase
+--   bridge_import_link_replies_core(channel, ids)         shared by the batch and the replies phase; no role
+--                                                         can call it, only the definer wrappers (owner) do
+--
+-- A message that breaks a check (too long for the instance limit, empty content) is not a failed
+-- job: its insert runs in its own sub-block, the id lands in `rejected` (reason too_long or
+-- check_violation) and in `skipped`, and the batch carries on.
 --
 -- Errors (the message is the code; DETAIL names the subject): import_not_found P0002,
 -- import_not_running 55000 (DETAIL = the state), invalid_message / invalid_thread 22023.
@@ -102,6 +109,38 @@ BEGIN
 END;
 $$;
 
+-- The Discord ids among p_ids that the job's channel already holds as live rows. The WHERE repeats
+-- the predicate of messages_channel_discord_message_id_unique so the lookup is an index probe.
+-- Read-only; the job's state is not checked (the route reads it itself).
+CREATE OR REPLACE FUNCTION public.bridge_import_present_ids(p_bot_id uuid, p_import_id uuid, p_ids text[])
+RETURNS text[]
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_channel uuid;
+BEGIN
+    SELECT i.harmony_channel_id INTO v_channel
+      FROM public.discord_bridge_imports i
+      JOIN public.discord_bridges b ON b.id = i.bridge_id
+     WHERE i.id = p_import_id AND b.bot_id = p_bot_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'import_not_found' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN COALESCE((
+        SELECT array_agg(DISTINCT m.metadata ->> 'discord_message_id')
+          FROM public.messages m
+         WHERE m.channel_id = v_channel
+           AND m.metadata ? 'discord_message_id'
+           AND m.metadata ->> 'discord_message_id' = ANY (p_ids)
+           AND m.is_deleted IS NOT TRUE
+    ), ARRAY[]::text[]);
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.bridge_import_messages(p_bot_id uuid, p_import_id uuid, p_messages jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -123,6 +162,8 @@ DECLARE
     v_new_ids uuid[] := ARRAY[]::uuid[];
     v_inserted jsonb := '[]'::jsonb;
     v_skipped jsonb := '[]'::jsonb;
+    v_rejected jsonb := '[]'::jsonb;
+    v_err_msg text;
     v_n_ins integer := 0;
     v_n_skip integer := 0;
     v_n_pins_skipped integer := 0;
@@ -131,7 +172,7 @@ BEGIN
     v_job := public.bridge_import_guard(p_bot_id, p_import_id);
     IF v_job.state <> 'running' THEN
         RETURN jsonb_build_object('inserted', '[]'::jsonb, 'skipped', '[]'::jsonb,
-                                  'not_running', true, 'state', v_job.state, 'error', v_job.error);
+                                  'rejected', '[]'::jsonb, 'not_running', true, 'state', v_job.state, 'error', v_job.error);
     END IF;
     IF p_messages IS NULL OR jsonb_typeof(p_messages) <> 'array' THEN
         RAISE EXCEPTION 'invalid_message' USING ERRCODE = '22023', DETAIL = 'messages';
@@ -173,6 +214,7 @@ BEGIN
         END IF;
 
         v_id := NULL;
+        BEGIN
         INSERT INTO public.messages
             (created_at, updated_at, bot_id, channel_id, thread_id, reply_to, content, is_pinned, pinned_at, metadata)
         VALUES (v_created, COALESCE(v_edited, v_created), p_bot_id, v_job.harmony_channel_id, v_thread, v_reply,
@@ -190,6 +232,13 @@ BEGIN
             WHERE channel_id IS NOT NULL AND metadata ? 'discord_message_id' AND is_deleted IS NOT TRUE
         DO NOTHING
         RETURNING id INTO v_id;
+        EXCEPTION WHEN check_violation THEN
+            -- Undone with the sub-block: no row, no counter. The reason is the length check's or any other.
+            GET STACKED DIAGNOSTICS v_err_msg = MESSAGE_TEXT;
+            v_id := NULL;
+            v_rejected := v_rejected || jsonb_build_object('discord_message_id', v_did,
+                'reason', CASE WHEN v_err_msg LIKE 'Message text exceeds%' THEN 'too_long' ELSE 'check_violation' END);
+        END;
 
         IF v_id IS NULL THEN
             v_n_skip := v_n_skip + 1;
@@ -216,7 +265,7 @@ BEGIN
            updated_at = now()
      WHERE i.id = v_job.id;
 
-    RETURN jsonb_build_object('inserted', v_inserted, 'skipped', v_skipped);
+    RETURN jsonb_build_object('inserted', v_inserted, 'skipped', v_skipped, 'rejected', v_rejected);
 END;
 $$;
 
@@ -347,7 +396,7 @@ DECLARE
 BEGIN
     FOREACH fn IN ARRAY ARRAY[
         'public.bridge_import_guard(uuid, uuid)',
-        'public.bridge_import_link_replies_core(uuid, uuid[])',
+        'public.bridge_import_present_ids(uuid, uuid, text[])',
         'public.bridge_import_messages(uuid, uuid, jsonb)',
         'public.bridge_import_thread(uuid, uuid, jsonb)',
         'public.bridge_import_link_replies(uuid, uuid)'
@@ -357,6 +406,10 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+-- The reply linker acts on any channel it is given: only the wrappers above, which run as the
+-- owner, call it. Not even the service role may.
+REVOKE ALL ON FUNCTION public.bridge_import_link_replies_core(uuid, uuid[]) FROM PUBLIC, anon, authenticated, service_role;
 
 -- Federation triggers, as 20261109100004, with the guard widened to imported rows.
 

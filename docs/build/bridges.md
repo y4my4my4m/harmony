@@ -331,7 +331,7 @@ The gateway applies `mirror` on its own, so a bridge sends Discord URLs in every
 
 ## History import
 
-A bridge copies Discord messages as they arrive. History import copies a paired channel's older Discord messages into its Harmony channel, with their original dates. The bridge (2.6.0 and later) reads Discord and posts batches to the routes below; the gateway checks the bridge, the pair and the job on every call. A message imported this way notifies no one, changes no unread count, and is not federated or sent to bots, outgoing webhooks or other clients' realtime feeds; AutoMod and slowmode skip it. Its row carries `metadata.history_import: true` and `metadata.created_via: "history_import"`. The server drops `history_import` from the `metadata` a bot supplies on an ordinary send.
+A bridge copies Discord messages as they arrive. History import copies a paired channel's older Discord messages into its Harmony channel, with their original dates. The bridge (2.6.0 and later) reads Discord and posts batches to the routes below; the gateway checks the bridge, the pair and the job on every call. A message imported this way notifies no one, changes no unread count, and is not federated or sent to bots, outgoing webhooks or other clients' realtime feeds; AutoMod and slowmode skip it. Its row carries `metadata.history_import: true` and `metadata.created_via: "history_import"`. The server drops `history_import` and `discord_reply_to` from the `metadata` a bot supplies on an ordinary send or a metadata merge, and refuses them (and any `created_via` other than the app's own) in a member's message.
 
 All routes are under `/bridge/v2/imports`, take `Authorization: Bot <bridge bot token>`, and answer `404` `{ "code": "import_not_found" }` for a job that is not this bridge's, or an `id` that is not a UUID.
 
@@ -361,7 +361,7 @@ States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `m
 | `POST /imports` | `{ "discord_channel_ids": ["…"] }`; omit it to queue every importable pair; `[]` queues nothing | `201` `{ "imports": [job] }`, requested via `discord` |
 | `PATCH /imports/{id}` | Any of `state`, `phase`, `start_discord_message_id`, `start_at`, `reached_discord_message_id`, `reached_at`, `channel_created_at`, `threads_total`, `threads_done`, `thread_cursor`, `error` | `200` `{ "import": job }` |
 | `POST /imports/{id}/cancel` | none | `200` `{ "imports": [job] }` |
-| `POST /imports/{id}/messages` | `{ "messages": [message] }`, 1 to 100 | `200` `{ "inserted": [{ "discord_message_id", "id" }], "skipped": ["…"] }` |
+| `POST /imports/{id}/messages` | `{ "messages": [message] }`, 1 to 100 | `200` `{ "inserted": [{ "discord_message_id", "id" }], "skipped": ["…"], "rejected": [{ "discord_message_id", "reason" }] }` |
 | `POST /imports/{id}/threads` | A thread, below | `200` `{ "thread_id": "…" }` |
 | `POST /imports/{id}/replies/link` | none | `200` `{ "linked": 12 }` |
 
@@ -397,7 +397,7 @@ Walk the Discord channel from its newest message back to its first, skipping mes
 
 Content runs through the same pipeline as an ordinary send: mention resolution and the instance's [attachment policy](#attachments).
 
-`inserted` lists the new rows. `skipped` lists every other ID of the batch: IDs already in the channel (live relayed, or imported before) and IDs dropped because their content came out empty. Sending a batch again is harmless: it answers all `skipped`. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
+`inserted` lists the new rows. `skipped` lists every other ID of the batch: IDs already in the channel (live relayed, or imported before) and IDs dropped because their content came out empty. Sending a batch again is harmless: it answers all `skipped`. `rejected` (present when the batch reached the database) lists messages that broke a check and were not inserted, with `reason` `too_long` (over the instance's message length limit, 2000 characters by default while Discord allows 4000) or `check_violation`; the rest of the batch is unaffected, and each rejected ID is also in `skipped`, so a bridge that ignores `rejected` still sees every ID answered. The job does not fail for them; the bridge may log them or re-send a shortened message under a new batch. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
 
 Mirroring attachments makes a batch slow; use a generous HTTP timeout.
 

@@ -186,21 +186,15 @@ export function createHistoryImportRouter(): Router {
     const channelId = found.harmony_channel_id
 
     // Discord ids already in the channel (a live relay or an earlier attempt) are skipped
-    // without preparing or mirroring their content.
-    const { data: existing, error: existingError } = await supabase
-      .from('messages')
-      .select('metadata, is_deleted')
-      .eq('channel_id', channelId)
-      .in('metadata->>discord_message_id', items.map((item) => item.discord_message_id))
-    if (existingError) {
-      console.error('messages select failed:', existingError.code, existingError.message)
-      return res.status(500).json({ error: 'Import request failed' })
-    }
-    const present = new Set(
-      ((existing ?? []) as Array<{ metadata?: { discord_message_id?: string } | null; is_deleted?: boolean | null }>)
-        .filter((row) => row.is_deleted !== true)
-        .map((row) => row.metadata?.discord_message_id),
-    )
+    // without preparing or mirroring their content. bridge_import_present_ids repeats the
+    // predicate of the partial unique index, so the lookup is an index probe.
+    const { data: existing, error: existingError } = await supabase.rpc('bridge_import_present_ids', {
+      p_bot_id: botId(req),
+      p_import_id: req.params.id,
+      p_ids: items.map((item) => item.discord_message_id),
+    })
+    if (sendRpcError(res, existingError, 'bridge_import_present_ids', 'batch')) return
+    const present = new Set<string>(Array.isArray(existing) ? (existing as string[]) : [])
     const already = items.filter((item) => present.has(item.discord_message_id)).map((item) => item.discord_message_id)
     items = items.filter((item) => !present.has(item.discord_message_id))
     if (items.length === 0) return res.json({ inserted: [], skipped: already })
@@ -240,9 +234,20 @@ export function createHistoryImportRouter(): Router {
       sendRpcError(res, error, 'bridge_import_messages', 'batch')
       return
     }
-    const result = data as { inserted?: unknown[]; skipped?: string[]; not_running?: boolean } | null
+    const result = data as {
+      inserted?: unknown[]
+      skipped?: string[]
+      rejected?: Array<{ discord_message_id: string; reason: string }>
+      not_running?: boolean
+    } | null
     if (!result || result.not_running === true) return notRunning(res)
-    res.json({ inserted: result.inserted ?? [], skipped: [...(result.skipped ?? []), ...dropped] })
+    // rejected (a message that broke a check) is also in skipped, so a bridge that predates the
+    // field still sees every id answered.
+    res.json({
+      inserted: result.inserted ?? [],
+      skipped: [...(result.skipped ?? []), ...dropped],
+      ...(Array.isArray(result.rejected) ? { rejected: result.rejected } : {}),
+    })
   }))
 
   router.post('/:id/threads', handler(async (req, res) => {

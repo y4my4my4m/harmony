@@ -23,6 +23,7 @@ UPDATE public.messages m
         FROM public.messages
        WHERE channel_id IS NOT NULL
          AND metadata ? 'discord_message_id'
+         AND metadata->>'discord_message_id' IS NOT NULL
          AND is_deleted IS NOT TRUE
   ) d
  WHERE m.id = d.id

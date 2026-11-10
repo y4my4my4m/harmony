@@ -83,6 +83,7 @@ beforeEach(() => {
   rpcHandlers = {
     verify_bot_token: () => ({ data: { valid: true, bot_id: botId, username: 'bridge', scopes: ['bot'] }, error: null }),
     check_and_increment_bot_rate_limit: () => ({ data: false, error: null }),
+    bridge_import_present_ids: () => ({ data: [], error: null }),
   }
   mocks.rpc.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
@@ -257,16 +258,16 @@ describe('Bridge v2 import endpoints', () => {
     })
 
     it('skips ids already in the channel without preparing them', async () => {
-      db.tables.messages = [
-        { id: 'm1', channel_id: GENERAL, metadata: { discord_message_id: M1 }, is_deleted: false },
-        { id: 'm3', channel_id: GENERAL, metadata: { discord_message_id: '300000000000000003' }, is_deleted: true },
-      ]
+      rpcHandlers.bridge_import_present_ids = (args) => ({ data: args.p_ids.filter((id: string) => id === M1), error: null })
       rpcHandlers.bridge_import_messages = (args) => ({
         data: { inserted: args.p_messages.map((m: any) => ({ discord_message_id: m.discord_message_id, id: 'row' })), skipped: [] },
         error: null,
       })
       const res = await post([message(), message({ discord_message_id: M2 }), message({ discord_message_id: '300000000000000003' })])
       expect(res.status).toBe(200)
+      expect(rpcCalls('bridge_import_present_ids')[0]).toEqual({
+        p_bot_id: BOT_ID, p_import_id: IMPORT_ID, p_ids: [M1, M2, '300000000000000003'],
+      })
       expect(mocks.applyPolicy).toHaveBeenCalledTimes(2)
       expect(rpcCalls('bridge_import_messages')[0].p_messages.map((m: any) => m.discord_message_id)).toEqual([M2, '300000000000000003'])
       expect(res.body.skipped).toEqual([M1])
@@ -274,6 +275,36 @@ describe('Bridge v2 import endpoints', () => {
       const all = await post([message()])
       expect(all.body).toEqual({ inserted: [], skipped: [M1] })
       expect(rpcCalls('bridge_import_messages')).toHaveLength(1)
+    })
+
+    it('answers 500 when the presence lookup fails', async () => {
+      rpcHandlers.bridge_import_present_ids = () => ({ data: null, error: { code: 'XX000', message: 'boom' } })
+      const res = await post([message()])
+      expect(res.status).toBe(500)
+      expect(mocks.rpc.mock.calls.some(([n]) => n === 'bridge_import_messages')).toBe(false)
+    })
+
+    it('maps import_not_found from the presence lookup to 404', async () => {
+      rpcHandlers.bridge_import_present_ids = () => rpcError('import_not_found', 'P0002')
+      expect((await post([message()])).status).toBe(404)
+    })
+
+    it('exposes the rejected messages of the RPC and keeps them in skipped', async () => {
+      rpcHandlers.bridge_import_messages = () => ({
+        data: {
+          inserted: [{ discord_message_id: M1, id: 'u1' }],
+          skipped: [M2],
+          rejected: [{ discord_message_id: M2, reason: 'too_long' }],
+        },
+        error: null,
+      })
+      const res = await post([message(), message({ discord_message_id: M2 })])
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({
+        inserted: [{ discord_message_id: M1, id: 'u1' }],
+        skipped: [M2],
+        rejected: [{ discord_message_id: M2, reason: 'too_long' }],
+      })
     })
 
     it('answers an all-empty batch without calling the RPC', async () => {
