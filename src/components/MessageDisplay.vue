@@ -1247,9 +1247,13 @@ const {
 // Bot data cache
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
-// Bots whose lookup found nothing or failed. Not reactive and not asked again: every finished
-// lookup re-renders the row, which would start the next one.
+// Bots whose lookup answered that the reader sees none. Not reactive and not asked again: every
+// finished lookup re-renders the row, which would start the next one.
 const missingBots = new Set<string>();
+// Time, ms, of a bot's last failed lookup. A render of one of its rows asks again once
+// BOT_LOOKUP_RETRY_MS has passed.
+const failedBotLookups = new Map<string, number>();
+const BOT_LOOKUP_RETRY_MS = 30_000;
 
 const threadsStore = useThreadsStore();
 
@@ -1351,9 +1355,12 @@ const fetchBotData = async (botId: string) => {
   if (botDataCache.value.has(botId) || fetchingBots.value.has(botId) || missingBots.has(botId)) {
     return;
   }
-  
+  const failedAt = failedBotLookups.get(botId);
+  if (failedAt !== undefined && Date.now() - failedAt < BOT_LOOKUP_RETRY_MS) return;
+
   fetchingBots.value.add(botId);
-  
+  let failed = false;
+
   try {
     const { data, error } = await supabase
       .from('bots')
@@ -1361,9 +1368,11 @@ const fetchBotData = async (botId: string) => {
       .eq('id', botId)
       .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      failed = true;
+    } else if (data) {
       botDataCache.value.set(botId, data);
-    } else if (!error) {
+    } else {
       // bots rows read only for public bots and their owners; get_bot_profile also serves
       // members of a server where the bot is installed.
       const profile = await fetchBotProfile(botId);
@@ -1376,9 +1385,15 @@ const fetchBotData = async (botId: string) => {
       }
     }
   } catch (error) {
+    failed = true;
     debug.error('Failed to fetch bot data:', error);
   } finally {
-    if (!botDataCache.value.has(botId)) missingBots.add(botId);
+    if (failed) {
+      failedBotLookups.set(botId, Date.now());
+    } else {
+      failedBotLookups.delete(botId);
+      if (!botDataCache.value.has(botId)) missingBots.add(botId);
+    }
     fetchingBots.value.delete(botId);
   }
 };

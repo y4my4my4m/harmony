@@ -30,6 +30,7 @@ function loose<T extends object>(fields: T): T {
 }
 
 const botLookups = vi.hoisted(() => vi.fn())
+const botFailures = vi.hoisted(() => new Set<string>())
 const fetchBotProfile = vi.hoisted(() => vi.fn(async (_id: string): Promise<object | null> => null))
 
 // Answers the bot lookup of a bot row. Every other call resolves to no data.
@@ -46,6 +47,7 @@ vi.mock('@/supabase', () => {
     eq: (_column: string, id: string) => ({
       maybeSingle: async () => {
         botLookups(id)
+        if (botFailures.has(id)) return { data: null, error: { message: 'Failed to fetch' } }
         return { data: bots[id] ?? null, error: null }
       },
     }),
@@ -176,6 +178,8 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = null
   botLookups.mockClear()
+  botFailures.clear()
+  vi.useRealTimers()
   fetchBotProfile.mockReset()
   fetchBotProfile.mockResolvedValue(null)
 })
@@ -256,5 +260,27 @@ describe('MessageDisplay bot author', () => {
     expect(botLookups.mock.calls.filter(([id]) => id === 'bot-gone')).toHaveLength(1)
     expect(fetchBotProfile).toHaveBeenCalledTimes(1)
     expect(wrapper!.get('#message-m1 .username-text').text()).toBe('Bot-bot-gone')
+  })
+
+  it('asks again for a bot whose lookup failed, after 30 s and not before', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const lookups = () => botLookups.mock.calls.filter(([id]) => id === BOT_ID).length
+    botFailures.add(BOT_ID)
+    await mountList([message('m1', 0)])
+    await flushPromises()
+    expect(lookups()).toBe(1)
+    expect(fetchBotProfile).not.toHaveBeenCalled()
+    expect(wrapper!.get('#message-m1 .username-text').text()).not.toBe('Botty')
+
+    botFailures.clear()
+    await wrapper!.setProps({ messages: [message('m1', 0), message('m2', 10)] })
+    await flushPromises()
+    expect(lookups()).toBe(1)
+
+    vi.setSystemTime(Date.now() + 30_001)
+    await wrapper!.setProps({ messages: [message('m1', 0), message('m2', 10), message('m3', 20)] })
+    await flushPromises()
+    expect(lookups()).toBe(2)
+    expect(wrapper!.get('#message-m1 .username-text').text()).toBe('Botty')
   })
 })

@@ -735,14 +735,18 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
       if (sendResult.status === 'ok' && sendResult.result) {
         const newMessage = sendResult.result
-        addSentReply(newMessage)
         threadService.addMessageToCache(targetThreadId, newMessage)
-        messageText.value = ''
-        replyingToMessageId.value = ''
-        replyingToUserName.value = ''
-        replyingToUserId.value = ''
-        await nextTick()
-        scrollToBottom()
+        // The view is reused across threads: the list, draft and reply target on screen are
+        // another thread's when the user switched during the send.
+        if (thread.value?.id === targetThreadId) {
+          addSentReply(newMessage)
+          messageText.value = ''
+          replyingToMessageId.value = ''
+          replyingToUserName.value = ''
+          replyingToUserId.value = ''
+          await nextTick()
+          scrollToBottom()
+        }
       } else if (sendResult.status === 'error') {
         debug.error('Failed to send thread message:', sendResult.error)
       }

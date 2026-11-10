@@ -17,6 +17,8 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '5s';
+
 ALTER TABLE public.device_view_contexts ADD COLUMN IF NOT EXISTS thread_id uuid;
 
 DROP FUNCTION IF EXISTS public.sync_view_context_from_presence(text, uuid, uuid, uuid, text);

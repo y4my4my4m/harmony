@@ -3,6 +3,10 @@
 -- reaction on a post the caller cannot read. Permission lookups answer for the caller, or for
 -- a member of a server the caller is in.
 
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+
 -- ---------------------------------------------------------------------------
 -- Threads
 -- ---------------------------------------------------------------------------
@@ -479,3 +483,5 @@ BEGIN
     END LOOP;
 END
 $$;
+
+COMMIT;

@@ -1385,7 +1385,7 @@ export class BotRestAPI {
         const answer = interactionErrorResponse(error)
         return res.status(answer.status).json(answer.body)
       }
-      return this.answerReply(res, botId, interaction, body, parts, data, false)
+      return await this.answerReply(res, botId, interaction, body, parts, data, false)
     } catch (error: any) {
       console.error('Interaction response error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -1419,7 +1419,7 @@ export class BotRestAPI {
         const answer = interactionErrorResponse(error)
         return res.status(answer.status).json(answer.body)
       }
-      return this.answerReply(res, botId, interaction, body, parts, data, true)
+      return await this.answerReply(res, botId, interaction, body, parts, data, true)
     } catch (error: any) {
       console.error('Interaction follow-up error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
