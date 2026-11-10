@@ -8,6 +8,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Matrix-to-Harmony replies:** ordinary Matrix Reply messages are no longer
+  silently skipped. Known, readable parents retain native Harmony reply context;
+  unknown/private parents retain the new text alone. Legacy quoted fallbacks are
+  removed, while edits and Matrix threads remain unsupported.
 - **Experimental Matrix text relay** in `matrix-bridge/`: a self-run application
   service with explicit test-user allowlists, durable queues and plaintext-only
   policy checks. Includes a permission-checked bot API endpoint for channel

@@ -60,6 +60,10 @@ It uses the eligible member's exact Harmony username, not an ambiguous display n
 
 The bridge does not turn raw `@room`, `@everyone` or display-name-looking text into new notification targets.
 
+## Replies from Matrix
+
+Use the Matrix client's normal Reply action. When the parent was bridged in either direction and remains readable to the bridge, Harmony shows its native reply context. Old Matrix plain/HTML quote fallbacks are removed rather than copied as new text. An unmapped, missing or now-private parent leaves the new reply text without a guessed link. Matrix threads and edits remain unsupported, and Harmony-to-Matrix reply context is not mirrored.
+
 ## Member privacy
 
 Each Harmony member can open **Server menu → Bridge privacy → Do not forward my messages**. This is a per-member, per-server preference; the administrator's sender-mode choice does not override it.

@@ -75,6 +75,23 @@ describe("Store", () => {
     expect(store.ownsGhost('@ghost:test')).toBe(true);
   });
 
+  it('looks up reverse mappings after restart without crossing direction, channel or room', () => {
+    const path = file();
+    let store = open(path);
+    store.enqueue(job('native-parent', { direction: 'to_matrix' }));
+    store.complete(store.nextJob()!.id, '$matrix-parent');
+    close(store);
+    store = open(path);
+    expect(store.findSource('to_matrix', '$matrix-parent', 'channel', '!room:example.org')).toBe('native-parent');
+    expect(store.findSource('to_harmony', '$matrix-parent', 'channel', '!room:example.org')).toBeNull();
+    expect(store.findSource('to_matrix', '$matrix-parent', 'other', '!room:example.org')).toBeNull();
+    expect(store.findSource('to_matrix', '$matrix-parent', 'channel', '!other:example.org')).toBeNull();
+    expect(store.findSource('to_matrix', '$unknown', 'channel', '!room:example.org')).toBeNull();
+    store.enqueue(job('failed-parent', { direction: 'to_matrix' }));
+    store.fail(store.nextJob()!.id, 'refused');
+    expect(store.findSource('to_matrix', '$failed', 'channel', '!room:example.org')).toBeNull();
+  });
+
   it("atomically accepts receipts, including empty and overlapping transactions", () => {
     const store = memory();
     expect(store.acceptTransaction("one", [job("a"), job("a"), job("b")])).toBe(true);

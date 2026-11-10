@@ -33,6 +33,32 @@ describe('HarmonyClient', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('checks reply targets through permission/consent-filtered history in the exact channel', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const harmony = client(fetchImpl);
+    fetchImpl.mockResolvedValueOnce(Response.json({ id: 'parent/a', channel_id: 'channel' }));
+    await expect(harmony.canReplyTo('channel', 'parent/a')).resolves.toBe(true);
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/messages/parent%2Fa');
+    expect(fetchImpl.mock.calls[0][1]?.method).toBe('GET');
+    for (const body of [{ id: 'parent/a', channel_id: 'other' }, { id: 'other', channel_id: 'channel' }, {}]) {
+      fetchImpl.mockResolvedValueOnce(Response.json(body));
+      await expect(harmony.canReplyTo('channel', 'parent/a')).resolves.toBe(false);
+    }
+    for (const status of [403, 404]) {
+      fetchImpl.mockResolvedValueOnce(Response.json({}, { status }));
+      await expect(harmony.canReplyTo('channel', 'parent/a')).resolves.toBe(false);
+    }
+    fetchImpl.mockResolvedValueOnce(Response.json({}, { status: 503 }));
+    await expect(harmony.canReplyTo('channel', 'parent/a')).rejects.toThrow();
+  });
+
+  it('posts the optional native reply pointer without changing the content or author metadata', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'reply' }));
+    await client(fetchImpl).sendMessage('channel', 'New text', { bridge_author: { platform: 'matrix' } }, 'parent');
+    expect(JSON.parse(fetchImpl.mock.calls[0][1]!.body as string)).toEqual({ content: [{ type: 'text', text: 'New text' }],
+      metadata: { bridge_author: { platform: 'matrix' } }, reply_to: 'parent' });
+  });
+
   it('requires authoritative boolean encryption state', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const harmony = client(fetchImpl);

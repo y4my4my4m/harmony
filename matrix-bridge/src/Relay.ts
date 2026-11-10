@@ -11,7 +11,8 @@ import { HttpError, isTransientError, type AvatarImage } from './http.js'
 
 type RecordValue = Record<string, unknown>
 export interface HarmonyTransport {
-  sendMessage(channelId: string, content: string | RecordValue[], metadata: RecordValue): Promise<{ id: string }>
+  sendMessage(channelId: string, content: string | RecordValue[], metadata: RecordValue, replyTo?: string): Promise<{ id: string }>
+  canReplyTo(channelId: string, messageId: string): Promise<boolean>
   channelIsPlaintext(channelId: string): Promise<boolean>
   requireMatrixBridge(channelId: string): Promise<void>
   relayAllowed(channelId: string, userId: string): Promise<boolean>
@@ -77,15 +78,23 @@ export class Relay {
     for (const event of events) {
       const pair = this.config.pairs.find(pair => pair.matrixRoomId === event.room_id)
       const content = record(event.content)
-      const body = text(content.body)
+      const relation = record(content['m.relates_to'])
+      const replyEventId = text(record(relation['m.in_reply_to']).event_id, 255)
+      if (content['m.relates_to'] !== undefined && (relation.rel_type !== undefined || !replyEventId || !/^\$\S+$/.test(replyEventId))) continue
+      // Old reply fallbacks quote prior content; strip them before text limits or mention parsing.
+      const body = typeof content.body === 'string' ? text(replyEventId
+        ? content.body.replace(/^(?:> [^\n]*(?:\n|$))+(?:\r?\n)?/, '') : content.body) : null
+      const formatted = typeof content.formatted_body === 'string' ? (replyEventId
+        ? content.formatted_body.replace(/^<mx-reply>[\s\S]*?<\/mx-reply>/i, '') : content.formatted_body) : undefined
       if (!pair || !directionAllows(pair, 'to_harmony') || event.type !== 'm.room.message'
         || content.msgtype !== 'm.text' || !text(event.event_id, 255) || !body
         || !text(event.sender, 255) || !/^@[^\s:]+:[^\s/]+$/.test(event.sender!) || event.sender === botUserId(this.config) || ghostOwner(this.config, event.sender!)
         || !this.config.matrix.allowedUserIds.includes(event.sender!)
-        || content['m.relates_to'] || content['m.new_content']) continue
+        || content['m.new_content']) continue
       jobs.push({ direction: 'to_harmony', sourceId: event.event_id!, channelId: pair.harmonyChannelId,
         roomId: pair.matrixRoomId, payload: { sender: event.sender, body,
-          ...(typeof content.formatted_body === 'string' && content.formatted_body.length <= 32_000 ? { formatted_body: content.formatted_body } : {}),
+          ...(formatted !== undefined && formatted.length <= 32_000 ? { formatted_body: formatted } : {}),
+          ...(replyEventId ? { reply_to_event_id: replyEventId } : {}),
           mention_ids: Array.isArray(record(content['m.mentions']).user_ids) ? (record(content['m.mentions']).user_ids as unknown[]).filter(id => typeof id === 'string' && id.length <= 255).slice(0, 100) : [] } })
     }
     return this.store.acceptTransaction(transactionId, jobs, encryptedRoomIds)
@@ -216,6 +225,9 @@ export class Relay {
     let outbound: ReturnType<typeof harmonyToMatrix> | undefined
     let harmonyParts: RecordValue[] | undefined
     const author: RecordValue = { platform: 'matrix', id: sender, username: sender.slice(1, sender.indexOf(':')).slice(0, 100) }
+    const replyEventId = job.direction === 'to_harmony' ? text(job.payload.reply_to_event_id, 255) : null
+    let replyTo = replyEventId ? this.store.findMapping('to_harmony', replyEventId, job.channelId, job.roomId)
+      ?? this.store.findSource('to_matrix', replyEventId, job.channelId, job.roomId) ?? undefined : undefined
     try {
       await this.harmony.requireMatrixBridge(job.channelId)
       if (job.direction === 'to_harmony') {
@@ -268,6 +280,7 @@ export class Relay {
     }
     try {
       if (job.direction === 'to_harmony') {
+        if (replyTo && !await this.harmony.canReplyTo(job.channelId, replyTo)) replyTo = undefined
         const mentionIds = job.payload.mention_ids
         if ((Array.isArray(mentionIds) && mentionIds.length) || body.startsWith('!mention ')) {
           const members = await this.ghosts.eligible(pair)
@@ -322,7 +335,7 @@ export class Relay {
         const result = await this.harmony.sendMessage(job.channelId, harmonyParts || body, {
           bridge_author: author,
           matrix_relay: { room_id: job.roomId, event_id: job.sourceId, sender },
-        })
+        }, replyTo)
         destinationId = result.id
       } else {
         const transactionId = createHash('sha256').update(JSON.stringify([job.channelId, job.roomId, job.sourceId])).digest('hex')

@@ -86,6 +86,7 @@ export class Store {
           UNIQUE(direction, source_id, channel_id, room_id)
         );
         CREATE INDEX IF NOT EXISTS jobs_pending ON jobs(id) WHERE status = 'pending';
+        CREATE INDEX IF NOT EXISTS jobs_destination ON jobs(direction, destination_id, channel_id, room_id) WHERE status = 'done';
         CREATE TABLE IF NOT EXISTS ghost_users (
           matrix_id TEXT PRIMARY KEY NOT NULL,
           harmony_id TEXT UNIQUE NOT NULL,
@@ -287,6 +288,14 @@ export class Store {
              COUNT(CASE WHEN status = 'failed' THEN 1 END) AS failed FROM jobs
     `).get()!;
     return { pending: row.pending as number, failed: row.failed as number };
+  }
+
+  findSource(direction: Job["direction"], destinationId: string, channelId: string, roomId: string): string | null {
+    const row = this.db.prepare(`
+      SELECT source_id FROM jobs WHERE direction = ? AND destination_id = ?
+      AND channel_id = ? AND room_id = ? AND status = 'done'
+    `).get(direction, destinationId, channelId, roomId);
+    return row ? row.source_id as string : null;
   }
 
   findMapping(

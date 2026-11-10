@@ -17,7 +17,7 @@ function setup() {
   })
   const store = new Store(':memory:')
   stores.push(store)
-  const harmony = { sendMessage: vi.fn().mockResolvedValue({ id: 'h-copy' }), channelIsPlaintext: vi.fn().mockResolvedValue(true),
+  const harmony = { sendMessage: vi.fn().mockResolvedValue({ id: 'h-copy' }), canReplyTo: vi.fn().mockResolvedValue(true), channelIsPlaintext: vi.fn().mockResolvedValue(true),
     requireMatrixBridge: vi.fn().mockResolvedValue(undefined), relayAllowed: vi.fn().mockResolvedValue(true),
     uploadBridgeAvatar: vi.fn().mockResolvedValue('https://storage.test/avatar.png'),
     bridgeRoom: vi.fn().mockResolvedValue({ room_id: roomId, sender_mode: 'relay' }),
@@ -49,8 +49,79 @@ describe('Relay', () => {
     expect(harmony.sendMessage).toHaveBeenCalledExactlyOnceWith(channelId, 'hello', {
       bridge_author: { platform: 'matrix', id: '@alice:matrix.test', username: 'alice', display_name: 'Room Alice' },
       matrix_relay: { room_id: roomId, event_id: '$one', sender: '@alice:matrix.test' },
-    })
+    }, undefined)
     expect(store.findMapping('to_harmony', '$one', channelId, roomId)).toBe('h-copy')
+  })
+  it.each(['to_matrix', 'to_harmony'] as const)('maps a Matrix reply to its %s parent without copying quoted text', async direction => {
+    const { relay, harmony, store } = setup()
+    store.enqueue({ direction, sourceId: direction === 'to_matrix' ? 'h-parent' : '$parent', channelId, roomId, payload: { body: 'old' } })
+    store.complete(store.nextJob()!.id, direction === 'to_matrix' ? '$parent' : 'h-parent')
+    relay.acceptTransaction('reply', [event({ content: { msgtype: 'm.text',
+      body: '> <@author:matrix.test> old quoted text\n> another line\n\nThat\'s a wave :)',
+      format: 'org.matrix.custom.html', formatted_body: '<mx-reply><blockquote>old quoted text</blockquote></mx-reply>That\'s a wave :)',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } } })])
+    expect(store.nextJob()!.payload).toMatchObject({ body: "That's a wave :)", formatted_body: "That's a wave :)", reply_to_event_id: '$parent' })
+    await relay.tick()
+    expect(harmony.canReplyTo).toHaveBeenCalledExactlyOnceWith(channelId, 'h-parent')
+    expect(harmony.sendMessage.mock.calls[0][1]).toBe("That's a wave :)")
+    expect(harmony.sendMessage.mock.calls[0][3]).toBe('h-parent')
+  })
+  it('keeps modern replies and unmapped/other-pair parents as clean text without guessing a native target', async () => {
+    const { relay, harmony, store } = setup()
+    store.enqueue({ direction: 'to_matrix', sourceId: 'h-private', channelId: 'other-channel', roomId, payload: { body: 'old' } })
+    store.complete(store.nextJob()!.id, '$unmapped')
+    relay.acceptTransaction('reply', [event({ content: { msgtype: 'm.text', body: 'Modern reply without fallback',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$unmapped' } } } })])
+    await relay.tick()
+    expect(harmony.canReplyTo).not.toHaveBeenCalled()
+    expect(harmony.sendMessage.mock.calls[0][1]).toBe('Modern reply without fallback')
+    expect(harmony.sendMessage.mock.calls[0][3]).toBeUndefined()
+  })
+  it('does not attach a deleted or now-private parent, but still delivers the reply text', async () => {
+    const { relay, harmony, store } = setup()
+    store.enqueue({ direction: 'to_matrix', sourceId: 'h-parent', channelId, roomId, payload: { body: 'old' } })
+    store.complete(store.nextJob()!.id, '$parent')
+    harmony.canReplyTo.mockResolvedValue(false)
+    relay.acceptTransaction('reply', [event({ content: { msgtype: 'm.text', body: '> old\r\n\r\nNew text',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } } })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toBe('New text')
+    expect(harmony.sendMessage.mock.calls[0][3]).toBeUndefined()
+  })
+  it('parses actual mentions after removing reply HTML, without copying quoted pills', async () => {
+    const { relay, harmony, store, config } = setup()
+    const ghost = ghostUserId(config, userId)
+    store.reserveGhost(ghost, userId); store.registerGhost(ghost)
+    relay.acceptTransaction('reply-mention', [event({ content: { msgtype: 'm.text',
+      body: '> <@old:matrix.test> old content\n\nHi Alice',
+      formatted_body: `<mx-reply><blockquote><a href="https://matrix.to/#/${encodeURIComponent(ghost)}">old content</a></blockquote></mx-reply>Hi <a href="https://matrix.to/#/${encodeURIComponent(ghost)}">Alice</a>`,
+      'm.mentions': { user_ids: [ghost] }, 'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } } })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: 'Hi ' },
+      { type: 'mention', userId, username: 'Alice', domain: 'harmony.test', isLocal: true, isBridged: false }])
+  })
+  it('pauses rather than losing a reply if its durable mapping cannot be read', async () => {
+    const { relay, harmony, store } = setup()
+    relay.acceptTransaction('reply', [event({ content: { msgtype: 'm.text', body: 'Reply',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } } })])
+    vi.spyOn(store, 'findMapping').mockImplementation(() => { throw new Error('disk failure') })
+    await relay.tick()
+    expect(relay.isHealthy).toBe(false)
+    expect(store.counts().pending).toBe(1)
+    expect(harmony.sendMessage).not.toHaveBeenCalled()
+  })
+  it('strips a large quoted fallback before applying the new-message text limit', async () => {
+    const { relay, store } = setup()
+    relay.acceptTransaction('reply', [event({ content: { msgtype: 'm.text', body: '> ' + 'old'.repeat(6000) + '\n\nNew text',
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$parent' } } } })])
+    expect(store.nextJob()!.payload.body).toBe('New text')
+  })
+  it.each([null, {}, { 'm.in_reply_to': { event_id: 42 } }, { 'm.in_reply_to': { event_id: '$bad id' } },
+    { rel_type: 'm.thread', 'm.in_reply_to': { event_id: '$parent' } },
+    { rel_type: 'm.replace', 'm.in_reply_to': { event_id: '$parent' } }])('rejects malformed or non-reply relations: %j', relation => {
+    const { relay, store } = setup()
+    relay.acceptTransaction('bad-reply', [event({ content: { msgtype: 'm.text', body: 'not a plain reply', 'm.relates_to': relation } })])
+    expect(store.counts().pending).toBe(0)
   })
   it('accepts new events and encryption fences when the homeserver reuses an AS transaction ID', async () => {
     const { relay, harmony, store } = setup()

@@ -159,9 +159,20 @@ export class HarmonyClient extends EventEmitter {
     }, this.options.fetchImpl, 15_000, maxBytes);
   }
 
-  async sendMessage(channelId: string, content: string | Record<string, unknown>[], metadata: Record<string, unknown>): Promise<{ id: string }> {
+  async canReplyTo(channelId: string, messageId: string): Promise<boolean> {
+    try {
+      const result = await this.request<{ id?: unknown; channel_id?: unknown }>(`messages/${encodeURIComponent(messageId)}`, 'GET');
+      return result?.id === messageId && result.channel_id === channelId;
+    } catch (error) {
+      if (error instanceof HttpError && (error.status === 403 || error.status === 404)) return false;
+      throw error;
+    }
+  }
+
+  async sendMessage(channelId: string, content: string | Record<string, unknown>[], metadata: Record<string, unknown>, replyTo?: string): Promise<{ id: string }> {
     const result = await this.request<{ id?: unknown }>(`channels/${encodeURIComponent(channelId)}/messages`, 'POST', {
       content: typeof content === 'string' ? [{ type: 'text', text: content }] : content, metadata,
+      ...(replyTo ? { reply_to: replyTo } : {}),
     });
     if (typeof result?.id !== 'string' || !result.id) throw new HttpError('Invalid Harmony message response', false);
     return { id: result.id };

@@ -18,6 +18,8 @@ bridge setup are not implemented.
 - Eligible, explicitly allowlisted members synchronized before first speech for mention
   autocomplete; per-room ghost nicknames and safely mirrored avatars.
 - Real user mentions in both directions, plus an exact-username relay command.
+- Matrix rich replies linked to their original Harmony message when its mapping is known
+  and still readable; missing/private parents fall back to the new reply text alone.
 - Room-specific Matrix member names, fetched with the AS token, never event-supplied profiles.
 - Optional Matrix avatars via authenticated HS thumbnails and authorized Harmony storage upload.
 - Matrix application-service authentication and durable transaction acceptance.
@@ -32,9 +34,10 @@ bridge setup are not implemented.
 - No forwarding of Harmony bots, external bridge messages, system notices or threads.
 - Health endpoint without message contents or credentials.
 
-Not implemented: replies, edits, deletions, files, reactions, presence,
-account linking, history migration, shared instance hosting or encrypted messages.
-Matrix messages containing relations (including replies) are ignored for now.
+Not implemented: Harmony-to-Matrix reply context, edits, deletions, files, reactions,
+presence, account linking, history migration, shared instance hosting or encrypted messages.
+Matrix thread relations and edits are ignored. Ordinary Matrix replies are accepted;
+legacy plain/HTML reply quotes are stripped before forwarding or interpreting mentions.
 Harmony text and user mention parts are forwarded; attachments are not. No room/mass
 mentions are enabled by default.
 

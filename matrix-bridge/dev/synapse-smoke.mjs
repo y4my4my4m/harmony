@@ -204,6 +204,8 @@ async function main() {
     suppress_key_server_warning: true,
     app_service_config_files: ['/data/registration.json'],
     encryption_enabled_by_default_for_room_type: 'off',
+    // The isolated smoke sends a short burst of real human reply/edit/thread events.
+    rc_message: { per_second: 100, burst_count: 100 },
   };
   await writeFile(join(directory, 'registration.json'), JSON.stringify(registration), { mode: 0o600 });
   // YAML accepts JSON, so this requires no YAML/npm dependency.
@@ -313,6 +315,7 @@ async function main() {
   const { Store } = await import('../dist/Store.js');
   const harmonyToken = secret();
   const harmonyPosts = [];
+  const harmonyMessages = new Map();
   let platform = null;
   let consent = true;
   let senderMode = 'relay';
@@ -345,8 +348,14 @@ async function main() {
       assert.ok(Buffer.from(input.data, 'base64').length <= 1024 * 1024);
       avatarUploads++;
       result = { avatar_url: 'https://storage.example/storage/v1/object/public/avatars/bridges/bot/hash.png' };
-    } else if (path.endsWith('/messages')) { harmonyPosts.push(input); result = { id: randomUUID() }; }
-    else { res.writeHead(404).end(); return; }
+    } else if (path.endsWith('/messages') && req.method === 'POST') {
+      harmonyPosts.push(input);
+      result = { id: randomUUID() };
+      harmonyMessages.set(result.id, { id: result.id, channel_id: parsedConfig.pairs[0].harmonyChannelId });
+    } else if (/\/messages\/[^/]+$/.test(path) && req.method === 'GET') {
+      result = harmonyMessages.get(decodeURIComponent(path.split('/').at(-1)));
+      if (!result) { res.writeHead(404).end(); return; }
+    } else { res.writeHead(404).end(); return; }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
   });
   gatewaySockets = new WebSocketServer({ server: gatewayReceiver });
@@ -379,8 +388,11 @@ async function main() {
   assert.deepEqual(harmonyPosts[0].metadata.bridge_author, { platform: 'matrix', id: user.user_id, username, display_name: 'Room Human',
     avatar_url: 'https://storage.example/storage/v1/object/public/avatars/bridges/bot/hash.png' });
   assert.equal(avatarUploads, 1);
-  const nativeMessage = id => ({ id, channel_id: channelId, author: { id: parsedConfig.harmony.allowedUserIds[0], username: 'Harmony Human' },
-    content: 'Native consent check', metadata: {} });
+  const nativeMessage = id => {
+    harmonyMessages.set(id, { id, channel_id: channelId });
+    return { id, channel_id: channelId, author: { id: parsedConfig.harmony.allowedUserIds[0], username: 'Harmony Human' },
+      content: 'Native consent check', metadata: {} };
+  };
   relay.acceptHarmonyMessage(nativeMessage('opted-out'));
   consent = false; // Changed AFTER enqueue, before delivery.
   await relay.tick();
@@ -489,6 +501,72 @@ async function main() {
   assert.equal(relayAgain.content.body, '[Harmony Human · Harmony] Native consent check');
   console.log('PASS opted-out ghost leaves, relay mode removes ghosts without deleting history, frozen sender refuses cross-mode retry, exact !mention command');
 
+  stage = 'real Matrix rich replies to both origins and unmapped parents';
+  const matrixParentCopy = relayStore.findMapping('to_harmony', incoming.event_id, channelId, roomId);
+  assert.equal(typeof matrixParentCopy, 'string');
+  async function incomingReply(parentId, cleanBody, expectedReplyTo, withFallback = true) {
+    const before = harmonyPosts.length;
+    const reply = await json(`${roomPath}/send/m.room.message/${randomUUID()}`, {
+      method: 'PUT', token: user.access_token, body: { msgtype: 'm.text',
+        body: withFallback ? `> <${user.user_id}> quoted original\n> second quoted line\n\n${cleanBody}` : cleanBody,
+        ...(withFallback ? { format: 'org.matrix.custom.html',
+          formatted_body: `<mx-reply><blockquote><a href="https://matrix.to/#/${encodeURIComponent(parentId)}">In reply to</a> quoted original</blockquote></mx-reply>${cleanBody}` } : {}),
+        'm.relates_to': { 'm.in_reply_to': { event_id: parentId } }, 'm.mentions': {} },
+    });
+    await until(() => events.has(reply.event_id));
+    relay.acceptTransaction(randomUUID(), [events.get(reply.event_id)]);
+    await relay.tick();
+    assert.equal(harmonyPosts.length, before + 1);
+    const posted = harmonyPosts.at(-1);
+    assert.deepEqual(posted.content, [{ type: 'text', text: cleanBody }]);
+    if (expectedReplyTo) assert.equal(posted.reply_to, expectedReplyTo);
+    else assert.ok(!posted.reply_to);
+    assert.ok(!JSON.stringify(posted.content).includes('quoted original'));
+    assert.ok(!JSON.stringify(posted.content).includes('mx-reply'));
+    return reply.event_id;
+  }
+  // Matrix-origin parent: forward lookup gives its native Harmony copy.
+  await incomingReply(incoming.event_id, 'Thats a wave :)', matrixParentCopy);
+  // Harmony-origin parent: reverse lookup of the real Matrix copy gives the native source.
+  await incomingReply(destinationId, 'Reply to native Harmony original', 'allowed');
+  // Real Matrix parent never accepted by this relay: preserve a bare reply as clean text.
+  const unmapped = await json(`${roomPath}/send/m.room.message/${randomUUID()}`, {
+    method: 'PUT', token: user.access_token, body: { msgtype: 'm.text', body: 'Unmapped Matrix original', 'm.mentions': {} },
+  });
+  await incomingReply(unmapped.event_id, 'Bare unmapped reply survives', undefined, false);
+  // A stored mapping is not permission: a parent returned in another channel must not attach.
+  const originalParent = harmonyMessages.get(matrixParentCopy);
+  harmonyMessages.set(matrixParentCopy, { ...originalParent, channel_id: '99999999-9999-4999-8999-999999999999' });
+  await incomingReply(incoming.event_id, 'Ineligible parent falls back to clean text', undefined);
+  harmonyMessages.set(matrixParentCopy, originalParent);
+  console.log('PASS real Matrix replies resolve both parent origins, strip plain/HTML quote fallbacks, and preserve unmapped/ineligible replies as clean text');
+
+  stage = 'real Matrix edits and threads remain ignored';
+  const ignoredRelations = [
+    { msgtype: 'm.text', body: '* Edited original', 'm.new_content': { msgtype: 'm.text', body: 'Edited original' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: incoming.event_id } },
+    { msgtype: 'm.text', body: 'Thread reply must not relay',
+      'm.relates_to': { rel_type: 'm.thread', event_id: incoming.event_id, 'm.in_reply_to': { event_id: incoming.event_id } } },
+  ];
+  const ignoredEvents = [];
+  for (const content of ignoredRelations) {
+    stage = content['m.relates_to'].rel_type === 'm.replace' ? 'real Matrix edit submission' : 'real Matrix thread submission';
+    const ignored = await json(`${roomPath}/send/m.room.message/${randomUUID()}`, {
+      method: 'PUT', token: user.access_token, body: content,
+    });
+    stage = content['m.relates_to'].rel_type === 'm.replace' ? 'real Matrix edit AS delivery' : 'real Matrix thread AS delivery';
+    await until(() => events.has(ignored.event_id));
+    ignoredEvents.push(events.get(ignored.event_id));
+  }
+  stage = 'real Matrix edit/thread relay rejection';
+  const beforeIgnored = harmonyPosts.length;
+  const countsBeforeIgnored = relayStore.counts();
+  relay.acceptTransaction(randomUUID(), ignoredEvents);
+  assert.deepEqual(relayStore.counts(), countsBeforeIgnored);
+  await relay.tick();
+  assert.equal(harmonyPosts.length, beforeIgnored);
+  console.log('PASS actual Matrix edit/thread events are ignored (including thread m.in_reply_to)');
+
   const postsBeforeEncryption = harmonyPosts.length;
   const avatarsBeforeEncryption = avatarUploads;
   const failedBeforeEncryption = relayStore.counts().failed;
@@ -515,7 +593,7 @@ try {
 } catch (error) {
   // Known local prerequisite failures are safe; everything else is stage-only.
   const safe = ['Run npm run build first (dist/MatrixClient.js is missing)', 'Docker is unavailable; install/start Docker and allow this user access', 'Linux Docker host networking is required'];
-  console.error(`FAIL during ${stage}${safe.includes(error?.message) ? `: ${error.message}` : ' (details suppressed to protect temporary credentials)'}`);
+  console.error(`FAIL during ${stage}${safe.includes(error?.message) || /^HTTP [0-9]{3}$/.test(error?.message ?? '') ? `: ${error.message}` : ' (details suppressed to protect temporary credentials)'}`);
   process.exitCode = 1;
 } finally {
   await cleanup();
