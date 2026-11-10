@@ -378,6 +378,27 @@ REVOKE ALL ON FUNCTION public.admin_delete_accounts(uuid[], text) FROM PUBLIC, a
 GRANT EXECUTE ON FUNCTION public.admin_delete_accounts_preview(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_delete_accounts(uuid[], text) TO authenticated;
 
+-- Prod definers have mixed owners, postgres and supabase_admin, and CREATE OR REPLACE keeps
+-- delete_my_account's. A definer runs as its owner, and a non-superuser owner has no EXECUTE on a
+-- helper with PUBLIC revoked.
+DO $$
+DECLARE
+    r record;
+BEGIN
+    FOR r IN
+        SELECT DISTINCT h.helper, pg_get_userbyid(p.proowner) AS owner
+          FROM (VALUES
+                  ('erase_account(uuid)', ARRAY['delete_my_account', 'admin_delete_accounts']),
+                  ('admin_delete_skip_reason(uuid, public.profiles)', ARRAY['admin_delete_accounts_preview', 'admin_delete_accounts']),
+                  ('admin_delete_caller()', ARRAY['admin_delete_accounts_preview', 'admin_delete_accounts'])
+               ) AS h(helper, callers)
+          JOIN pg_proc p ON p.proname = ANY (h.callers) AND p.pronamespace = 'public'::regnamespace
+    LOOP
+        EXECUTE format('GRANT EXECUTE ON FUNCTION public.%s TO %I', r.helper, r.owner);
+    END LOOP;
+END
+$$;
+
 COMMIT;
 
 NOTIFY pgrst, 'reload schema';

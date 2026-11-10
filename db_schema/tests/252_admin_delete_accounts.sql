@@ -10,7 +10,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(35);
+SELECT plan(36);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, confirmed_at)
 SELECT v.id::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', v.email, now(), now()
@@ -191,6 +191,16 @@ SELECT tests.authenticate_as('e2520000-0000-0000-0000-000000000004');
 SELECT is((public.delete_my_account('own-password') ->> 'error'), 'transfer_ownership_required',
     'and refuses an owner with members');
 SELECT tests.clear_authentication();
+
+SELECT ok(NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+      JOIN (VALUES ('public.erase_account(uuid)'::regprocedure, ARRAY['delete_my_account', 'admin_delete_accounts']),
+                   ('public.admin_delete_skip_reason(uuid, public.profiles)'::regprocedure, ARRAY['admin_delete_accounts_preview', 'admin_delete_accounts']),
+                   ('public.admin_delete_caller()'::regprocedure, ARRAY['admin_delete_accounts_preview', 'admin_delete_accounts'])
+           ) AS h(helper, callers) ON p.proname = ANY (h.callers)
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND NOT has_function_privilege(p.proowner, h.helper, 'EXECUTE')),
+    'the owner of every caller can run the deletion helpers');
 
 SELECT * FROM finish();
 ROLLBACK;
