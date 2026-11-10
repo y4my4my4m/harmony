@@ -24,6 +24,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Prebuilt images on GHCR: `harmony-web`, `harmony-federation` and
   `harmony-bot-gateway` for amd64 and arm64.
 
+### Fixed
+- **Watch together** plays for the member who starts it again. After they had
+  hidden an earlier activity in the call, or when their profile id differs from
+  their sign-in id, their own video stayed hidden while everyone else saw it.
+
 ### Notes for self-hosters
 - `self-host/` runs Harmony's services from `ghcr.io/y4my4my4m/harmony-*`
   images instead of building them: `HARMONY_VERSION` in `.env` follows the

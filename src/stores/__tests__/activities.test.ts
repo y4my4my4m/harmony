@@ -6,7 +6,9 @@ vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p, getStore
 const voice = { isConnected: true, effectiveChannelId: 'ch-1', currentChannelId: 'ch-1' }
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: { sendActivity: vi.fn() } }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
+// The member's profile id; their auth user id differs, as it may (BUGS.md, pattern A).
+vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'auth-me' } } }) }))
 
 const { useActivitiesStore } = await import('@/stores/activities')
 
@@ -63,9 +65,28 @@ describe('activities store', () => {
     store.apply('ch-1', state({ host_id: 'me', started_at: '2026-10-14T12:00:00Z' }), true)
     expect(store.playingHere).toBe(true)
   })
+
+  it('plays a run this member starts after hiding one whose end it never applied', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.join()
+    store.hide('ch-1', true)
+    // The sidebar refresh drops the ended run without apply.
+    store.byChannel = { 'ch-1': null }
+    store.apply('ch-1', state({ host_id: 'me', started_at: '2026-10-14T12:00:00Z' }), true)
+    expect(store.playingHere).toBe(true)
+  })
 })
 
 describe('consent', () => {
+  it('knows its own run by profile id, not by auth user id', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state({ host_id: 'auth-me' }), true)
+    expect(store.playingHere).toBe(false)
+    store.apply('ch-1', state({ host_id: 'me', started_at: '2026-10-14T12:00:00Z' }), true)
+    expect(store.playingHere).toBe(true)
+  })
+
   it('plays a run this member started', () => {
     const store = useActivitiesStore()
     store.apply('ch-1', state({ host_id: 'me' }), true)
