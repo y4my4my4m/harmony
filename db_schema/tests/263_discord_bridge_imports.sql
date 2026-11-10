@@ -1,4 +1,4 @@
--- Discord history import jobs, after 20261109100003_discord_bridge_imports.sql.
+-- Discord history import jobs, after 20261110900003_discord_bridge_imports.sql.
 --
 -- Fixture server_1 (alice owns, bob is a member) with #general. Added: bridge247 with four pairs
 --   #general                both         Discord ...01   importable

@@ -1,4 +1,4 @@
--- Soft-deletes duplicate bridged messages ahead of the unique index in 20261109100002.
+-- Soft-deletes duplicate bridged messages ahead of the unique index in 20261110900002.
 --
 -- A live relay and a retry could each insert the same Discord message into a channel. For every
 -- (channel_id, metadata->>'discord_message_id') held by more than one live row, the oldest

@@ -1,6 +1,6 @@
 -- Import insert functions: how the bridge writes Discord history into Harmony. All are SECURITY
 -- DEFINER and granted to the service role alone. Each import call first runs bridge_import_guard,
--- then sets the transaction-local flag harmony.history_import (20261109100004), so the rows leave
+-- then sets the transaction-local flag harmony.history_import (20261110900004), so the rows leave
 -- none of the side effects of live messages.
 --
 --   bridge_import_guard(bot, import)        the job, locked; import_not_found / import_not_running
@@ -411,7 +411,7 @@ $$;
 -- owner, call it. Not even the service role may.
 REVOKE ALL ON FUNCTION public.bridge_import_link_replies_core(uuid, uuid[]) FROM PUBLIC, anon, authenticated, service_role;
 
--- Federation triggers, as 20261109100004, with the guard widened to imported rows.
+-- Federation triggers, as 20261110900004, with the guard widened to imported rows.
 
 CREATE OR REPLACE FUNCTION public.trigger_queue_channel_message_edit_federation()
  RETURNS trigger

@@ -1,4 +1,4 @@
--- 20261109100006_bridge_attachment_mode_public.sql: bridge_attachment_mode is a public
+-- 20261110900006_bridge_attachment_mode_public.sql: bridge_attachment_mode is a public
 -- instance_config key, so a signed-in non-admin (a server manager) reads it.
 BEGIN;
 SET LOCAL search_path = tests, public;

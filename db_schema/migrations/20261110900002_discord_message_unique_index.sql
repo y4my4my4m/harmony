@@ -4,7 +4,7 @@
 -- retried request) may race to insert the same Discord message, and the loser must fail with
 -- unique_violation instead of leaving a duplicate. Writers insert with
 -- ON CONFLICT (channel_id, (metadata->>'discord_message_id')) WHERE <this predicate> DO NOTHING.
--- 20261109100001 soft-deleted the duplicates that existed.
+-- 20261110900001 soft-deleted the duplicates that existed.
 --
 -- No transaction block: CREATE INDEX CONCURRENTLY refuses to run inside one, and the build
 -- takes no lock that blocks writes. An interrupted or timed-out build leaves an invalid index;
@@ -41,7 +41,7 @@ BEGIN
                      FROM pg_index x
                     WHERE x.indexrelid = to_regclass('public.messages_channel_discord_message_id_unique')
                       AND x.indisvalid) THEN
-        RAISE EXCEPTION 'messages_channel_discord_message_id_unique is not valid; run 20261109100002 again';
+        RAISE EXCEPTION 'messages_channel_discord_message_id_unique is not valid; run 20261110900002 again';
     END IF;
 END
 $$;

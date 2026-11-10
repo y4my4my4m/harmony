@@ -1,4 +1,4 @@
--- The quiet-import flag after 20261109100004_history_import_quiet.sql.
+-- The quiet-import flag after 20261110900004_history_import_quiet.sql.
 --
 -- Rows inserted while harmony.history_import is 'true' (public.is_history_import()) must leave no
 -- trace beyond the row itself: no notification, push job, unread or channel head change,

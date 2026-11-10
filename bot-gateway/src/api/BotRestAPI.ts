@@ -880,7 +880,7 @@ export class BotRestAPI {
         .eq('id', messageId)
 
       // An import may already hold this Discord message id in the channel (the unique index of
-      // 20261109100002); the live copy lost the race, so the mapping is a no-op like sendMessage's.
+      // 20261110900002); the live copy lost the race, so the mapping is a no-op like sendMessage's.
       if (updateError?.code === '23505'
         && updateError.message?.includes('messages_channel_discord_message_id_unique')) {
         return res.json({ ok: true, metadata: message.metadata ?? {} })

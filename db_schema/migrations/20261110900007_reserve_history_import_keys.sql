@@ -1,7 +1,7 @@
 -- guard_message_client_write reserves the history import keys.
 --
 -- metadata.history_import marks rows written by the import functions; the federation edit, delete
--- and pin triggers (20261109100005), the gateway's dispatcher and bridge_import_link_replies_core
+-- and pin triggers (20261110900005), the gateway's dispatcher and bridge_import_link_replies_core
 -- trust it. discord_reply_to is what the reply linker acts on and created_via names the writer.
 -- A client could set any of them on its own message, so they join the keys only the server writes.
 -- The body is that of 20261028400001_group_authored_messages.sql with the keys added.

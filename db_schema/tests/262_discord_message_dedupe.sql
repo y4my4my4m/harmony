@@ -1,5 +1,5 @@
 -- One live row per Discord message per channel, after
--- 20261109100002_discord_message_unique_index.sql.
+-- 20261110900002_discord_message_unique_index.sql.
 --
 -- Fixture server_1 with #general (66666666-...06); alice is the author. Added: a second
 -- channel in server_1.

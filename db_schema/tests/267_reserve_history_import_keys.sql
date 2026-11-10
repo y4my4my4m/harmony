@@ -1,4 +1,4 @@
--- guard_message_client_write after 20261109100007_reserve_history_import_keys.sql: a client cannot
+-- guard_message_client_write after 20261110900007_reserve_history_import_keys.sql: a client cannot
 -- write the server-owned history_import, discord_reply_to and created_via metadata keys, on insert
 -- or on update of their own message; ordinary posts and edits still work.
 

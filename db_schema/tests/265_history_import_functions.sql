@@ -1,4 +1,4 @@
--- The import insert functions after 20261109100005_history_import_functions.sql:
+-- The import insert functions after 20261110900005_history_import_functions.sql:
 -- bridge_import_guard / _messages / _thread / _link_replies.
 --
 -- Fixture server_1 (alice owns, bob is a member) with #general. Added: bridge249 run by bot249 (bot249x
