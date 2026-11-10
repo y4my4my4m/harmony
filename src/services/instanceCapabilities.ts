@@ -29,6 +29,7 @@ export const KNOWN_CAPABILITIES = [
   'channel-host-flags',
   'following-import',
   'bot-commands',
+  'voice-announce',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 

@@ -7,6 +7,7 @@ import { toRaw } from 'vue';
 
 import { updateUserStatus } from '@/services/ProfileService';
 import { userDataService } from '@/services/userDataService';
+import { hasCapability } from '@/services/instanceCapabilities';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
 import { isChannelRefusal } from '@/utils/realtimeRefusal'
@@ -633,6 +634,23 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
       if (channelId && !this.restrictedVoiceBroadcasts[channelId]) {
         this.watchRestrictedVoice(serverId, channelId);
+      }
+
+      // An instance without voice-announce (before 20261110100001) announces no join from a row
+      // and has no voice_channel_announce. Its voice topics take a client's send, as 1.9.4 sent
+      // it: a restricted channel on its own topic, a state request on every topic of the server.
+      if (!hasCapability('voice-announce')) {
+        const message = {
+          type: 'broadcast' as const,
+          event: 'voice-channel-event',
+          payload: { event, userId, channelId, callStartTime },
+        };
+        const topic = (channelId ? this.restrictedVoiceBroadcasts[channelId] : undefined) ?? this.voiceChannelBroadcast;
+        void topic?.send(message);
+        if (!channelId) {
+          for (const channel of Object.values(this.restrictedVoiceBroadcasts)) void channel.send(message);
+        }
+        return;
       }
 
       // A local server's rows announce its occupancy. A copy holds no row for this instance's

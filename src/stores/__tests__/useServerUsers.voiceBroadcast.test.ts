@@ -47,6 +47,8 @@ vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: ()
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 const moderation = vi.hoisted(() => ({ apply: vi.fn(), load: vi.fn(async () => undefined), recheckGrants: vi.fn(async () => undefined) }))
 vi.mock('@/stores/voiceModeration', () => ({ useVoiceModerationStore: () => moderation }))
+const caps = vi.hoisted(() => ({ voiceAnnounce: true }))
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: (name: string) => name !== 'voice-announce' || caps.voiceAnnounce }))
 
 import { MAX_RESTRICTED_VOICE_TOPICS, UNWATCHED_VOICE_READ_MS, useServerUsersStore } from '@/stores/useServerUsers'
 
@@ -61,6 +63,7 @@ beforeEach(() => {
   realtime.removed.length = 0
   realtime.restricted = ['voice-staff']
   rpcs.length = 0
+  caps.voiceAnnounce = true
   Object.assign(voice, { isConnected: false, currentChannelId: null, currentServerId: null })
 })
 
@@ -166,6 +169,68 @@ describe('voice-channels broadcast', () => {
       vi.advanceTimersByTime(5_000)
       expect(announced()).toEqual(['user-joined:voice-a'])
     })
+  })
+})
+
+// The native app on an instance before 20261110100001: no row announces a join and
+// voice_channel_announce is absent, so the client sends on the topics as 1.9.4 did.
+describe('an instance without voice-announce', () => {
+  const sentOn = () => realtime.opened.flatMap((o) => o.sent.map((m) => `${o.topic} ${m.payload.event}:${m.payload.channelId}`))
+  const clearSent = () => { for (const o of realtime.opened) o.sent.length = 0 }
+
+  beforeEach(() => { caps.voiceAnnounce = false })
+
+  it('requests state on every topic of the server', async () => {
+    await useServerUsersStore().setupVoiceChannelBroadcast(S)
+    expect(sentOn()).toEqual([`voice-channels:${S} request-state:`, 'voice-channel:voice-staff request-state:'])
+    expect(announced()).toEqual([])
+  })
+
+  it('sends a local server\'s join and leave on the server topic', async () => {
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S)
+    clearSent()
+    await store.joinVoiceChannel(S, 'voice-a', 'me')
+    await store.leaveVoiceChannel(S, 'voice-a', 'me')
+    expect(sentOn()).toEqual([`voice-channels:${S} user-joined:voice-a`, `voice-channels:${S} user-left:voice-a`])
+    expect(realtime.opened[0].sent[0]).toMatchObject({ type: 'broadcast', event: 'voice-channel-event', payload: { userId: 'me' } })
+    expect(announced()).toEqual([])
+  })
+
+  it('sends a restricted channel\'s join on its own topic only', async () => {
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S)
+    clearSent()
+    await store.joinVoiceChannel(S, 'voice-staff', 'me')
+    expect(sentOn()).toEqual(['voice-channel:voice-staff user-joined:voice-staff'])
+  })
+
+  it('sends a copy\'s call on the topic and calls no voice_channel_announce', async () => {
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S, { local: false })
+    clearSent()
+    await store.joinVoiceChannel(S, 'voice-a', 'me', false)
+    await store.leaveVoiceChannel(S, 'voice-a', 'me', false)
+    expect(sentOn()).toEqual([`voice-channels:${S} user-joined:voice-a`, `voice-channels:${S} user-left:voice-a`])
+    expect(announced()).toEqual([])
+  })
+
+  it('answers a state request on the topic', async () => {
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S)
+    clearSent()
+    Object.assign(voice, { isConnected: true, currentChannelId: 'voice-a', currentServerId: S })
+    await realtime.opened[0].handlers['voice-channel-event']({ payload: { event: 'request-state', userId: '', channelId: '' } })
+    expect(sentOn()).toEqual([`voice-channels:${S} user-joined:voice-a`])
+  })
+
+  it('sends nothing for a DM call or another server\'s channel', async () => {
+    const store = useServerUsersStore()
+    await store.setupVoiceChannelBroadcast(S)
+    clearSent()
+    await store.joinVoiceChannel('dm', 'dm-11111111-1111-1111-1111-111111111111', 'me')
+    await store.joinVoiceChannel('server-b', 'voice-b', 'me', false)
+    expect(sentOn()).toEqual([])
   })
 })
 
