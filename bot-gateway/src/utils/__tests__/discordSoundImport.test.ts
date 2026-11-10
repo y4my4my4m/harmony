@@ -76,4 +76,36 @@ describe('storeDiscordSound', () => {
     await expect(storeDiscordSound(SERVER, '123', make())).rejects.toThrow()
     expect(uploads).toHaveLength(0)
   })
+
+  it('clamps a parser overshoot just above 5.2 s to 5200', async () => {
+    uploads.length = 0
+    const parsed = await audioDurationMs(syntheticMp3(200), 'mp3')
+    expect(parsed).toBeGreaterThan(5200)
+    expect(parsed).toBeLessThanOrEqual(5300)
+    const result = await storeDiscordSound(SERVER, '123', ok(syntheticMp3(200)))
+    expect(result.durationMs).toBe(5200)
+    expect(uploads).toHaveLength(1)
+  })
+
+  it('passes an abort signal to the fetch', async () => {
+    uploads.length = 0
+    const fetchImpl = ok(syntheticMp3(77))
+    await storeDiscordSound(SERVER, '123', fetchImpl)
+    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('rejects an oversize content-length before reading the body or uploading', async () => {
+    uploads.length = 0
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(10))
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-length': '524289' }),
+      arrayBuffer,
+    })) as unknown as typeof fetch
+    await expect(storeDiscordSound(SERVER, '123', fetchImpl)).rejects.toThrow(/524289/)
+    expect(arrayBuffer).not.toHaveBeenCalled()
+    expect(uploads).toHaveLength(0)
+  })
 })

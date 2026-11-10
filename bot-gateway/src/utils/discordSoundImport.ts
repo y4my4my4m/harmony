@@ -6,6 +6,9 @@ export const SOUND_BUCKET = 'soundboard'
 /** Discord caps soundboard clips at 512 KB. */
 export const MAX_DISCORD_SOUND_BYTES = 524288
 export const MAX_SOUND_DURATION_MS = 5200
+/** Discord caps clips at 5.2 s; parsers can round a compliant clip a little over, so this much overshoot is clamped. */
+export const SOUND_DURATION_TOLERANCE_MS = 100
+export const DISCORD_CDN_TIMEOUT_MS = 15_000
 export const DISCORD_SOUND_ID = /^[0-9]{1,20}$/
 
 /** CDN URL built from the id alone; no caller-supplied URL is fetched. */
@@ -32,23 +35,30 @@ export async function audioDurationMs(bytes: Uint8Array, format: 'mp3' | 'ogg'):
 /**
  * Copies a Discord soundboard clip into the soundboard bucket.
  * Throws on a failed download, an empty or oversize body, an unknown format,
- * a duration outside 1..5200 ms, or a storage error.
+ * a duration outside 1..5300 ms (5201..5300 is clamped to 5200), or a storage error.
  */
 export async function storeDiscordSound(
   serverId: string,
   discordSoundId: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ storagePath: string; durationMs: number }> {
-  const response = await fetchImpl(discordSoundCdnUrl(discordSoundId))
+  const response = await fetchImpl(discordSoundCdnUrl(discordSoundId), { signal: AbortSignal.timeout(DISCORD_CDN_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`Discord CDN answered ${response.status}`)
+  const declaredBytes = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredBytes) && declaredBytes > MAX_DISCORD_SOUND_BYTES) {
+    throw new Error(`sound clip is ${declaredBytes} bytes`)
+  }
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_DISCORD_SOUND_BYTES) {
     throw new Error(`sound clip is ${bytes.byteLength} bytes`)
   }
   const format = soundFormat(bytes)
   if (!format) throw new Error('sound clip is neither mp3 nor ogg')
-  const durationMs = await audioDurationMs(bytes, format)
-  if (durationMs < 1 || durationMs > MAX_SOUND_DURATION_MS) throw new Error(`sound clip lasts ${durationMs} ms`)
+  const parsedMs = await audioDurationMs(bytes, format)
+  if (parsedMs < 1 || parsedMs > MAX_SOUND_DURATION_MS + SOUND_DURATION_TOLERANCE_MS) {
+    throw new Error(`sound clip lasts ${parsedMs} ms`)
+  }
+  const durationMs = Math.min(parsedMs, MAX_SOUND_DURATION_MS)
 
   const storagePath = `${serverId}/${randomUUID()}.${format}`
   const { error } = await supabase.storage.from(SOUND_BUCKET).upload(storagePath, Buffer.from(bytes), {
