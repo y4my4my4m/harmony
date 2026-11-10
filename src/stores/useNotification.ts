@@ -1243,8 +1243,9 @@ export const useNotificationStore = defineStore('notification', {
         if (isTauriRuntime()) {
           const data: any = notification.data || {}
           const actor = data.actor || data.reactor || data.sender || {}
-          const sender =
-            actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
+          const sender = NotificationFormatter.getBridgeAuthor(notification)
+            ? NotificationFormatter.getActorDisplayNameFallback(notification)
+            : actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
           const serverName = data.server_name || data.location?.server_name || ''
           const channelName = data.channel_name || data.location?.channel_name || ''
           const conversationTitle = serverName

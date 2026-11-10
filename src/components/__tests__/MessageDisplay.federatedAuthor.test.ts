@@ -200,6 +200,50 @@ describe('MessageDisplay federated author', () => {
     expect(wrapper!.get('#message-bridged .username').findComponent({ name: 'BridgeSourceBadge' }).exists()).toBe(true)
   })
 
+  it('shows Matrix authors and badges without opening the relay bot profile or grouping distinct people', async () => {
+    const via = (id: string, name: string) => ({ user_id: undefined, bot_id: 'bot-1', metadata: {
+      bridge_author: { platform: 'matrix' as const, id, username: id, display_name: name, avatar_url: 'https://cdn.test/sam.png' },
+    } })
+    await mountList([message('matrix-one', 0, via('@sam:example.org', 'Sam')), message('matrix-two', 1, via('@lee:example.org', 'Lee'))])
+    for (const [id, name] of [['matrix-one', 'Sam'], ['matrix-two', 'Lee']]) {
+      const author = wrapper!.get(`#message-${id} .username`)
+      expect(author.text()).toContain(name)
+      expect(author.attributes('disabled')).toBeDefined()
+      expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
+      expect(globeIn(id).exists()).toBe(false)
+      expect(wrapper!.get(`#message-${id}`).findComponent({ name: 'Avatar' }).props('src')).toBe('https://cdn.test/sam.png')
+    }
+    await wrapper!.get('#message-matrix-one .username').trigger('click')
+    expect(wrapper!.findComponent({ name: 'BotProfileModal' }).exists()).toBe(false)
+  })
+
+  it('reports a Matrix message with its shown author, not a fabricated Harmony profile', async () => {
+    const posted = message('report-matrix', 0, { user_id: undefined, bot_id: 'bot-1', metadata: {
+      bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' },
+    } })
+    await mountList([posted])
+    await wrapper!.get('#message-report-matrix').trigger('contextmenu')
+    wrapper!.findComponent({ name: 'MessageContextMenu' }).vm.$emit('report', posted)
+    await flushPromises()
+    const report = wrapper!.findComponent({ name: 'ReportModal' })
+    expect(report.props('targetUserId')).toBeUndefined()
+    expect(report.props('targetUser')).toMatchObject({ username: 'sam', display_name: 'Sam' })
+  })
+
+  it('renders a remote Matrix bridge author without Harmony profile interactions', async () => {
+    await mountList([message('remote-matrix', 0, { user_id: null as never, bot_id: null as never, metadata: {
+      remote_author: { kind: 'bridge', id: 'matrix:@sam:example.org', name: 'Sam (Matrix)', avatar_url: 'https://cdn.test/m.png' }, bridge_source: 'matrix',
+    } })])
+    const author = wrapper!.get('#message-remote-matrix .username')
+    expect(author.text()).toContain('Sam (Matrix)')
+    expect(author.attributes('disabled')).toBeDefined()
+    expect(author.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
+    expect(globeIn('remote-matrix').exists()).toBe(false)
+    expect(wrapper!.get('#message-remote-matrix').findComponent({ name: 'Avatar' }).props('interactive')).toBe(false)
+    await author.trigger('click')
+    expect(wrapper!.findComponent({ name: 'BotProfileModal' }).exists()).toBe(false)
+  })
+
   it('shows the globe in a direct message too', async () => {
     await mountList([message('d1', 0, { user_id: 'remote-1', channel_id: null as never, conversation_id: 'conv-1' })], { conversationId: 'conv-1' })
     expect(globeIn('d1').attributes('aria-label')).toBe('From spacify.cloud')

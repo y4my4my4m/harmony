@@ -89,6 +89,7 @@ import { useLeaveServer } from '@/composables/useLeaveServer'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
+import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy'
 import { closeMobileDrawers } from '@/composables/useLayoutState'
 import { debug } from '@/utils/debug'
 import { stylePoint, styleRect } from '@/utils/appZoom'
@@ -237,6 +238,9 @@ async function onServerAction(serverId: string, action: ServerMenuAction) {
       break
     case 'notification-settings':
       useServerNotificationSettingsStore().openModal(serverId)
+      break
+    case 'bridge-privacy':
+      await useBridgePrivacyStore().open(serverId)
       break
     case 'settings':
       // An open phone drawer is modal: left open, it would leave the settings page inert.

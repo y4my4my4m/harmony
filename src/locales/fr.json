@@ -1,4 +1,16 @@
 {
+  "bridgeSource": { "from": "Relayé depuis {platform}" },
+  "bridgePrivacy": {
+    "title": "Confidentialité des passerelles",
+    "description": "Empêcher les passerelles de transmettre vos futurs messages de ce serveur à d’autres plateformes.",
+    "scope": "Ce réglage concerne uniquement les passerelles de ce serveur. Il ne supprime pas les copies distantes existantes et ne change pas ce que les autres bots peuvent lire.",
+    "optOut": "Ne pas transmettre mes messages",
+    "loading": "Chargement de la confidentialité des passerelles",
+    "saving": "Enregistrement…",
+    "loadError": "Impossible de charger votre réglage de confidentialité. Réessayez.",
+    "saveError": "Impossible de confirmer la modification. Rechargez pour vérifier le réglage actuel.",
+    "retry": "Réessayer"
+  },
   "common": {
     "save": "Enregistrer",
     "cancel": "Annuler",

@@ -87,7 +87,8 @@ const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
-  mocks.rpc.mockImplementation(async (fn: string) => {
+  mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
@@ -160,6 +161,16 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
       expect(res.status).toBe(403)
     }
     expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony' })
+  })
+
+  it('does not disclose private metadata through a mapping write after member opt-out', async () => {
+    seed()
+    db.rows('messages')[0].metadata.private_note = 'private member data'
+    mocks.rpc.mockResolvedValue({ data: [], error: null })
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(404)
+    expect(JSON.stringify(res.body)).not.toContain('private member data')
+    expect(db.writesTo('messages', 'update')).toHaveLength(0)
   })
 
   it('refuses a channel the bridge does not pair', async () => {

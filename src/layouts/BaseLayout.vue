@@ -97,6 +97,7 @@
     </section>
     
     <ServerNotificationSettingsModal />
+    <BridgePrivacyModal />
 
     <!-- Always mounted; visibility is driven by the show prop -->
     <IncomingCallModal
@@ -122,6 +123,7 @@ import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import ServerNotificationSettingsModal from '@/components/ServerNotificationSettingsModal.vue'
+import BridgePrivacyModal from '@/components/BridgePrivacyModal.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { userPanelDocked } from '@/composables/useUserPanelDock'
 import { useServerChannelStore } from '@/stores/useServerChannel'

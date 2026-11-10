@@ -1,4 +1,16 @@
 {
+  "bridgeSource": { "from": "通过 {platform} 桥接" },
+  "bridgePrivacy": {
+    "title": "桥接隐私",
+    "description": "禁止桥接将你今后在此服务器发送的消息转发到其他平台。",
+    "scope": "此设置仅适用于此服务器的桥接，不会删除已转发的副本，也不会改变其他机器人能读取的内容。",
+    "optOut": "不转发我的消息",
+    "loading": "正在加载桥接隐私设置",
+    "saving": "正在保存…",
+    "loadError": "无法加载你的隐私设置，请重试。",
+    "saveError": "无法确认更改，请重新加载以查看当前设置。",
+    "retry": "重试"
+  },
   "common": {
     "save": "保存",
     "cancel": "取消",

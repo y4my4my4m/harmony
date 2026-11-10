@@ -51,14 +51,16 @@
               >
                 <div class="message-header">
                   <Avatar
-                    :src="getUserAvatar(message.user_id)"
+                    :src="getForeignAuthor(message)?.avatar_url || getUserAvatar(getHarmonyProfileUserId(message))"
                     size="sm"
                     class="message-avatar"
                   />
                   <!-- The author and time are the jump control; the list item stays clickable for the pointer. -->
                   <button type="button" class="message-info jump-btn" @click.stop="jumpToMessage(message.id)">
-                    <span class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
-                      <DisplayName :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
+                    <span class="message-author" :style="{ color: getUserColorValue(getHarmonyProfileUserId(message)) }">
+                      <template v-if="getForeignAuthor(message)">{{ getForeignAuthor(message)?.name }}</template>
+                      <DisplayName v-else :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
+                      <BridgeSourceBadge v-if="getBridgeSource(message)" :source="getBridgeSource(message)!" />
                     </span>
                     <span class="message-time">
                       {{ formatTimestamp(message.created_at) }}
@@ -124,6 +126,8 @@ import DisplayName from '@/components/DisplayName.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import type { Message } from '@/types'
 import { isUndecrypted } from '@/utils/channelEncryption'
+import { getForeignAuthor, getBridgeSource, getHarmonyProfileUserId } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 interface Props {
   isVisible: boolean

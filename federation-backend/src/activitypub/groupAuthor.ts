@@ -4,10 +4,10 @@
  *   "attributedTo": "https://<host>/servers/<server>",
  *   "harmony:author": {
  *     "kind": "bot" | "webhook" | "bridge",
- *     "id": "<bot uuid>" | "<webhook uuid>" | "discord:<user id>",
+ *     "id": "<bot uuid>" | "<webhook uuid>" | "<source>:<user id>",
  *     "name": "…",                       at most 100 characters
  *     "icon": "https://…",               optional, at most 2048 characters
- *     "source": "discord"                bridge only
+ *     "source": "discord" | "matrix"     bridge only
  *   }
  *
  * A bot, a channel webhook and a person a bridge relays have no actor; the Group speaks for
@@ -30,7 +30,7 @@ export interface GroupAuthor {
 }
 
 const MAX_NAME = 100;
-const MAX_ID = 128;
+const MAX_ID = 1024;
 const MAX_ICON = 2048;
 const KINDS = new Set<GroupAuthorKind>(['bot', 'webhook', 'bridge']);
 
@@ -69,6 +69,14 @@ export function groupAuthorOf(
     const icon = httpsIcon(webhook.avatar_url) ?? httpsIcon(bot?.avatar_url);
     return { kind: 'webhook', id, name, ...(icon ? { icon } : {}) };
   }
+  const bridged = metadata.bridge_author;
+  if (bridged && (bridged.platform === 'matrix' || bridged.platform === 'discord')) {
+    const userId = text(bridged.id, MAX_ID - `${bridged.platform}:`.length);
+    const name = text(bridged.display_name, MAX_NAME) ?? text(bridged.username, MAX_NAME);
+    if (!userId || !name) return null;
+    const icon = httpsIcon(bridged.avatar_url);
+    return { kind: 'bridge', id: `${bridged.platform}:${userId}`, name, ...(icon ? { icon } : {}), source: bridged.platform };
+  }
   const discord = metadata.discord_user;
   if (discord && typeof discord === 'object') {
     const name = text(discord.display_name, MAX_NAME) ?? text(discord.username, MAX_NAME);
@@ -93,14 +101,15 @@ export function parseGroupAuthor(value: unknown): GroupAuthor | null {
   const id = text(raw.id, MAX_ID);
   const name = text(raw.name, MAX_NAME);
   if (!id || !name) return null;
-  if (kind === 'bridge' && !id.startsWith('discord:')) return null;
+  const source = id.startsWith('discord:') ? 'discord' : /^matrix:@[^\s:]+:[^\s]+$/.test(id) ? 'matrix' : null;
+  if (kind === 'bridge' && !source) return null;
   const icon = httpsIcon(raw.icon);
   return {
     kind,
     id,
     name,
     ...(icon ? { icon } : {}),
-    ...(kind === 'bridge' ? { source: 'discord' } : {}),
+    ...(kind === 'bridge' ? { source: source! } : {}),
   };
 }
 
@@ -117,6 +126,7 @@ export function remoteAuthorMetadata(author: GroupAuthor): Record<string, unknow
     ...(author.source ? { source: author.source } : {}),
   };
   if (author.kind !== 'bridge') return { remote_author: remote };
+  if (author.source === 'matrix') return { remote_author: remote, bridge_source: 'matrix' };
   return {
     remote_author: remote,
     discord_user: {

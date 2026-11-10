@@ -599,6 +599,14 @@ export interface MessageRemoteAuthor {
 
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent;
 
+export interface BridgeAuthor {
+  platform: 'matrix' | 'discord';
+  id: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+}
+
 export interface Reaction {
   id: string;
   created_at: Date;
@@ -614,6 +622,7 @@ export interface Reaction {
    * Harmony profile lookup.
    */
   metadata?: {
+    bridge_author?: BridgeAuthor;
     discord_user?: {
       id: string;
       username?: string;
@@ -698,6 +707,7 @@ export interface Message {
     embeds?: Record<string, EmbedPayload>;
     webhook?: MessageWebhookAuthor;
     remote_author?: MessageRemoteAuthor;
+    bridge_author?: BridgeAuthor;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
   failed?: boolean; // local state: true when message failed to send after retries

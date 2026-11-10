@@ -27,7 +27,9 @@ import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
-import { TTLCache } from '../utils/TTLCache.js'
+import { bridgeAuthor as normalizedBridgeAuthor, bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
+import { bridgeChannelPlatform, visibleMessageIds } from '../bridge/bridgePrivacy.js'
+import { bridgeAvatarBytes, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -83,7 +85,7 @@ const SERVER_METADATA_KEYS = new Set([
 
 // The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept
 // only from a bridge bot whose bridge relays the channel (bridgePairsChannel).
-const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source'])
+const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source', 'bridge_author'])
 
 /** EmbedProvider in the client's src/types/chat.ts. */
 const EMBED_PROVIDERS = new Set(['harmony-post', 'harmony-invite', 'fediverse-post', 'youtube', 'spotify', 'generic'])
@@ -102,13 +104,23 @@ function isBridgeMappingEntry([key, value]: [string, unknown]): boolean {
 
 export function botSuppliedMetadata(
   input: unknown,
-  options: { bridgeAuthor?: boolean } = {},
+  options: { bridgeAuthor?: boolean; bridgePlatform?: 'matrix' | 'discord' } = {},
 ): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
-  return Object.fromEntries(
-    Object.entries(input as Record<string, unknown>).filter(([key]) =>
-      !SERVER_METADATA_KEYS.has(key) && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(key))),
+  const entries = input as Record<string, unknown>
+  const metadata = Object.fromEntries(
+    Object.entries(entries).filter(([key]) =>
+      !SERVER_METADATA_KEYS.has(key) && key !== 'bridge_author'
+      && !(options.bridgePlatform === 'matrix' && key === 'discord_user')
+      && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(key))),
   )
+  const author = options.bridgeAuthor ? normalizedBridgeAuthor(entries.bridge_author, options.bridgePlatform ?? null) : null
+  if (author) {
+    metadata.bridge_author = author
+    metadata.bridge_source = author.platform
+    if (author.platform === 'discord') metadata.discord_user = author
+  }
+  return metadata
 }
 
 /** True when bot metadata names the relayed author, which only a relaying bridge may. */
@@ -194,9 +206,16 @@ export function typedMassMentionParts(text: string, everyoneRoleId: string | nul
 }
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
-export function reactionMetadata(input: unknown): unknown {
+export function reactionMetadata(input: unknown, platform?: 'matrix' | 'discord'): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input || null
   const metadata = { ...(input as Record<string, unknown>) }
+  const author = normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)
+  delete metadata.bridge_author
+  if (author) {
+    metadata.bridge_author = author
+    metadata.bridge_source = author.platform
+    if (author.platform === 'matrix') delete metadata.discord_user
+  }
   if ('remote_emoji_url' in metadata && !isDiscordCdnUrl(metadata.remote_emoji_url)) {
     delete metadata.remote_emoji_url
   }
@@ -205,15 +224,11 @@ export function reactionMetadata(input: unknown): unknown {
 
 /** Receives each row this API hard-deletes, for MESSAGE_DELETE dispatch. */
 export interface MessageDeleteSink {
-  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
+  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown; user_id?: string | null }): Promise<void>
 }
-
-/** A bridge pairing removed keeps answering true for at most this long. */
-const BRIDGE_PAIR_TTL_MS = 60_000
 
 export class BotRestAPI {
   public router: Router
-  private readonly bridgePairs = new TTLCache<string, true>(5_000, BRIDGE_PAIR_TTL_MS)
   
   constructor(private readonly deletes?: MessageDeleteSink) {
     this.router = Router()
@@ -232,6 +247,9 @@ export class BotRestAPI {
 
     this.route('get', '/channels/:channelId/messages', this.getMessages)
     this.route('get', '/channels/:channelId/encryption', this.getChannelEncryption)
+    this.route('get', '/channels/:channelId/bridge-platform', this.getBridgePlatform)
+    this.route('get', '/channels/:channelId/bridge-consent/:userId', this.getBridgeConsent)
+    this.route('post', '/channels/:channelId/bridge-avatar', this.uploadBridgeAvatar)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
@@ -590,6 +608,13 @@ export class BotRestAPI {
         threadId = thread.id
       }
       
+      const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata ?? {}, 'bridge_author')
+      const platform = hasGenericAuthor ? await bridgeChannelPlatform(botId, channelId) : undefined
+      if (hasGenericAuthor && !platform) return res.status(403).json({ error: 'No bridge registered for this channel' })
+      if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+        return res.status(400).json({ error: 'Invalid bridge author or mismatched platform' })
+      }
+
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
       const typed = claimsBridgeAuthor(metadata) ? this.formatContent(content, embeds)
@@ -603,9 +628,9 @@ export class BotRestAPI {
         return res.status(400).json({ error: 'Cannot send an empty message' })
       }
 
-      const bridgeAuthor = claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
+      const bridgeAuthor = !!platform || (claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId))
       const messageMetadata = {
-        ...botSuppliedMetadata(metadata, { bridgeAuthor }),
+        ...botSuppliedMetadata(metadata, { bridgeAuthor, bridgePlatform: platform ?? undefined }),
         bot: true,
         created_via: 'bot_api',
       }
@@ -684,6 +709,53 @@ export class BotRestAPI {
     })
   }
   
+  private async uploadBridgeAvatar(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const botId = req.bot!.id
+      const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
+      if (!access.ok) return res.status(403).json({ error: access.error })
+      if (!(await this.canReadChannel(botId, channelId)) || await bridgeChannelPlatform(botId, channelId) !== 'matrix') {
+        return res.status(403).json({ error: 'No Matrix bridge registered for this channel' })
+      }
+      const { data, content_type } = req.body ?? {}
+      const image = bridgeAvatarBytes(data, content_type)
+      if (!image) return res.status(400).json({ error: 'Expected a base64 raster avatar, at most 1 MiB, with matching content_type' })
+      return res.json({ avatar_url: await storeBridgeAvatar(botId, image, content_type) })
+    } catch {
+      return res.status(503).json({ error: 'Bridge avatar storage or registration unavailable' })
+    }
+  }
+
+  private async getBridgePlatform(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      return res.json({ platform: await bridgeChannelPlatform(req.bot!.id, channelId) })
+    } catch {
+      return res.status(503).json({ error: 'Bridge registration unavailable' })
+    }
+  }
+
+  private async getBridgeConsent(req: BotRequest, res: Response) {
+    try {
+      const { channelId, userId } = req.params
+      if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+      if (!(await this.canReadChannel(req.bot!.id, channelId))) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      const { data, error } = await supabase.rpc('can_bridge_member_messages', {
+        p_bot_id: req.bot!.id, p_channel_id: channelId, p_user_id: userId,
+      })
+      if (error || typeof data !== 'boolean') return res.status(503).json({ error: 'Bridge consent unavailable' })
+      return res.json({ relay_allowed: data })
+    } catch {
+      return res.status(503).json({ error: 'Bridge consent unavailable' })
+    }
+  }
+
   private async getChannelEncryption(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -735,7 +807,8 @@ export class BotRestAPI {
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message || !(await this.withinHistory(botId, channelId, message.created_at))) {
+      if (!message || !(await this.withinHistory(botId, channelId, message.created_at))
+        || !(await visibleMessageIds(botId, [message.id])).has(message.id)) {
         return res.status(404).json({ error: 'Message not found' })
       }
 
@@ -776,6 +849,12 @@ export class BotRestAPI {
         if (!mappingOnly || !(await this.bridgePairsChannel(botId, message.channel_id))) {
           return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
         }
+        if (!(await this.canReadChannel(botId, message.channel_id))) {
+          return res.status(403).json({ error: 'Missing permission: read_messages' })
+        }
+        if (!(await visibleMessageIds(botId, [messageId])).has(messageId)) {
+          return res.status(404).json({ error: 'Message not found' })
+        }
       }
 
       const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
@@ -783,11 +862,17 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
-      const bridgeAuthor = own && claimsBridgeAuthor(metadata)
-        && await this.bridgePairsChannel(botId, message.channel_id)
+      const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata, 'bridge_author')
+      const platform = own && hasGenericAuthor ? await bridgeChannelPlatform(botId, message.channel_id) : undefined
+      if (hasGenericAuthor && !platform) return res.status(403).json({ error: 'No bridge registered for this channel' })
+      if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+        return res.status(400).json({ error: 'Invalid bridge author or mismatched platform' })
+      }
+      const bridgeAuthor = !!platform || (own && claimsBridgeAuthor(metadata)
+        && await this.bridgePairsChannel(botId, message.channel_id))
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor }) : metadata),
+        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor, bridgePlatform: platform ?? undefined }) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -847,7 +932,8 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      res.json(messages?.map(m => this.formatMessage(m)) || [])
+      const allowed = await visibleMessageIds(botId, (messages ?? []).map(m => m.id))
+      res.json((messages ?? []).filter(m => allowed.has(m.id)).map(m => this.formatMessage(m)))
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -885,7 +971,8 @@ export class BotRestAPI {
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
-      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))) {
+      if (!(await this.withinHistory(botId, message.channel_id, message.created_at, channel.server_id))
+        || !(await visibleMessageIds(botId, [message.id])).has(message.id)) {
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -1009,6 +1096,7 @@ export class BotRestAPI {
             channel_id: message.channel_id,
             thread_id: message.thread_id ?? null,
             metadata: message.metadata ?? null,
+            user_id: message.user_id ?? null,
           })
           .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
       }
@@ -1042,10 +1130,16 @@ export class BotRestAPI {
       
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emoji)
       
+      const hasGenericAuthor = Object.prototype.hasOwnProperty.call(metadata ?? {}, 'bridge_author')
+      const platform = hasGenericAuthor ? await bridgeChannelPlatform(botId, message.channel_id) : undefined
+      if (hasGenericAuthor && !platform) return res.status(403).json({ error: 'No bridge registered for this channel' })
+      if (hasGenericAuthor && !normalizedBridgeAuthor(metadata.bridge_author, platform ?? null)) {
+        return res.status(400).json({ error: 'Invalid bridge author or mismatched platform' })
+      }
       const insertData: any = {
         message_id: messageId,
         bot_id: botId,
-        metadata: reactionMetadata(metadata)
+        metadata: reactionMetadata(metadata, platform ?? undefined)
       }
       
       if (isUUID) {
@@ -1992,24 +2086,20 @@ export class BotRestAPI {
    * The bot is a bridge bot (bot_type 'bridge') and its bridge relays the channel: a
    * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
    * bridge's bot, a v1 discord_bridge_pairings row of the channel's server. False on any
-   * failed lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
+   * failed lookup. Registration is not cached: revocation must apply to the next write.
    */
   private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
     if (!channelId) return false
-    const key = `${botId}:${channelId}`
-    if (this.bridgePairs.get(key)) return true
-    const paired = await this.lookupBridgePair(botId, channelId)
-    if (paired) this.bridgePairs.set(key, true)
-    return paired
+    return this.lookupBridgePair(botId, channelId)
   }
 
   private async lookupBridgePair(botId: string, channelId: string): Promise<boolean> {
     const { data: bot, error: botError } = await supabase
       .from('bots')
-      .select('bot_type')
+      .select('bot_type, bridge_platform')
       .eq('id', botId)
       .maybeSingle()
-    if (botError || bot?.bot_type !== 'bridge') return false
+    if (botError || bot?.bot_type !== 'bridge' || bot.bridge_platform === 'matrix') return false
 
     const { data: bridges, error: bridgeError } = await supabase
       .from('discord_bridges')
@@ -2272,13 +2362,13 @@ export class BotRestAPI {
       id: message.id,
       channel_id: message.channel_id,
       thread_id: message.thread_id ?? null,
-      author: author ? {
+      author: bridgedMessageAuthor(message) ?? (author ? {
         id: author.id,
         username: author.username,
         display_name: author.display_name,
         avatar: this.formatAvatarUrl(author.avatar_url),
-        bot: !!message.bot  // Flag to indicate if this is a bot message
-      } : null,
+        bot: !!message.bot
+      } : null),
       content: this.contentToText(message.content),
       // A system notice has no author; metadata names the people it is about.
       is_system: message.is_system === true,

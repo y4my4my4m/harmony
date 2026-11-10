@@ -119,6 +119,7 @@ beforeEach(() => {
   routes = []
   enqueued = []
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
     if (fn === 'channel_message_changes') return channelMessageChanges(args)
     if (fn === 'outgoing_webhook_routes') return { data: routes, error: null }
     if (fn === 'enqueue_outgoing_webhook_event') {
@@ -877,6 +878,38 @@ describe('install changes reach the permission cache within the refresh bound', 
   })
 })
 
+describe('member bridge privacy at event delivery', () => {
+  it('rechecks every event even while channel/installation caches are warm', async () => {
+    const original = mocks.rpc.getMockImplementation()!
+    let optedOut = false
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') {
+        return { data: optedOut ? args.p_bot_ids.filter((id: string) => id !== OPEN_BOT) : args.p_bot_ids, error: null }
+      }
+      return original(fn, args)
+    })
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'before') })
+    expect(recipients('MESSAGE_CREATE', BRIDGED)).toEqual([OPEN_BOT, SCOPED_BOT])
+    sent = []; optedOut = true
+    await dispatcher.handleMessageCreate({ new: message(BRIDGED, 'after') })
+    await (dispatcher as any).handleMessageUpdate({ new: message(BRIDGED, 'edited') })
+    await (dispatcher as any).handleMessageDelete({ old: message(BRIDGED, 'deleted') })
+    for (const type of ['MESSAGE_CREATE', 'MESSAGE_UPDATE', 'MESSAGE_DELETE']) expect(recipients(type, BRIDGED)).toEqual([SCOPED_BOT])
+  })
+  it('does not disclose a message when current privacy status is unavailable', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'offline' } })
+    await expect(dispatcher.handleMessageCreate({ new: message(BRIDGED, 'private') })).rejects.toThrow('Bridge privacy status unavailable')
+    expect(sent).toEqual([])
+  })
+  it('formats Matrix authors as people with explicit source, not the backing bot', async () => {
+    await dispatcher.handleMessageCreate({ new: {
+      ...message(GENERAL, 'hello'), user_id: null, bot_id: OPEN_BOT,
+      metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' } },
+    } })
+    expect(sent[0].event.d.author).toMatchObject({ id: '@sam:example.org', display_name: 'Sam', bot: false, bridge_source: 'matrix', bridge_author: true })
+  })
+})
+
 describe('mention_everyone', () => {
   const HERE = { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }
   const EVERYONE = { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null }
@@ -888,6 +921,7 @@ describe('mention_everyone', () => {
     granted = true
     asked = []
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       asked.push([fn, args])
       if (fn === 'has_permission' || fn === 'check_bot_permission') return { data: granted, error: null }
       throw new Error(`test called unmocked rpc: ${fn}`)
@@ -972,6 +1006,7 @@ describe('outgoing webhooks', () => {
     routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_CREATE'] }]
     await (dispatcher as any).webhooks.refresh()
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_message_recipients' || fn === 'bridge_member_recipients') return { data: args.p_bot_ids, error: null }
       if (fn === 'outgoing_webhook_routes') return { data: null, error: { message: 'down' } }
       if (fn === 'enqueue_outgoing_webhook_event') { enqueued.push(args); return { data: 1, error: null } }
       throw new Error(`test called unmocked rpc: ${fn}`)

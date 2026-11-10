@@ -24,6 +24,21 @@ describe('NotificationFormatter', () => {
     await waitForInitialLocale()
   })
 
+  it('uses a bridged notification author without looking up the backing bot profile', () => {
+    const notification = makeNotification('mention', { data: {
+      sender: { id: 'relay-bot', username: 'relay' },
+      location: { channel_name: 'general' },
+      message: { content_preview: 'hello', metadata: { bridge_author: {
+        platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/sam.png',
+      } } },
+    } })
+    expect(NotificationFormatter.formatNotification(notification).title).toContain('Sam')
+    expect(NotificationFormatter.getUsername(notification)).toBe('Sam')
+    expect(NotificationFormatter.getAvatarUrl(notification)).toBe('https://cdn.test/sam.png')
+    expect(NotificationFormatter.getActorInfo(notification)).toBeNull()
+    expect(NotificationFormatter.getActorHandle(notification)).toBe('@sam:example.org')
+  })
+
   describe('formatNotification', () => {
     it('formats a mention notification', () => {
       const notif = makeNotification('mention', {

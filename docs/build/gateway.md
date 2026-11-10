@@ -120,6 +120,8 @@ To recover messages missed while disconnected, read the channels you care about 
 - **Without a connection.** An [outgoing webhook](/build/outgoing-webhooks) receives the same events by HTTPS POST, connected or not.
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 
+Bridge bots additionally respect each native member's **Bridge privacy** setting for message create/update/delete and reaction events. Preferences are checked at delivery without a consent cache; unavailable privacy state discloses no event. Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
+
 ## Events
 
 | Event | Sent when | Receivers |

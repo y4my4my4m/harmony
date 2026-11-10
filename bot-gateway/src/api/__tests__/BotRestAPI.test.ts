@@ -59,6 +59,7 @@ function routeTables(tables: Record<string, Result>) {
 
 function routeRpc(handlers: Record<string, (args: any) => Result>) {
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
     const handler = handlers[fn]
     if (!handler) throw new Error(`test called unmocked rpc: ${fn}`)
     return handler(args)

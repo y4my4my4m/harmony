@@ -128,15 +128,17 @@
       <div class="section-label">Original message</div>
       <div class="parent-message" :id="`message-${thread.parent_message.id}`">
         <Avatar 
-          :src="getAvatarUrl(thread.parent_message.user_id).value" 
-          :alt="getDisplayName(thread.parent_message.user_id).value"
+          :src="getForeignAuthor(thread.parent_message)?.avatar_url || getAvatarUrl(getHarmonyProfileUserId(thread.parent_message)).value"
+          :alt="getForeignAuthor(thread.parent_message)?.name || getDisplayName(getHarmonyProfileUserId(thread.parent_message)).value"
           size="md"
-          :interactive="true"
+          :interactive="!getForeignAuthor(thread.parent_message)"
         />
         <div class="message-content">
           <div class="message-header">
             <span class="username" :style="{ color: getColor(thread.parent_message.user_id).value }">
-              <DisplayName :userId="thread.parent_message.user_id" />
+              <template v-if="getForeignAuthor(thread.parent_message)">{{ getForeignAuthor(thread.parent_message)?.name }}</template>
+              <DisplayName v-else :userId="thread.parent_message.user_id" />
+              <BridgeSourceBadge v-if="getBridgeSource(thread.parent_message)" :source="getBridgeSource(thread.parent_message)!" />
               <FederatedUserBadge :user-id="getHarmonyProfileUserId(thread.parent_message)" />
             </span>
             <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
@@ -253,7 +255,8 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
-import { getHarmonyProfileUserId } from '@/utils/messageAuthor'
+import { getHarmonyProfileUserId, getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'

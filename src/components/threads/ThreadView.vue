@@ -181,7 +181,7 @@
             </div>
             <div class="message-main">
               <div class="message-meta">
-                <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}<BridgeSourceBadge v-if="getBridgeSource(displayParentMessage)" :source="getBridgeSource(displayParentMessage)!" /></span>
                 <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                   <DisplayName :userId="displayParentMessage.user_id" />
                   <FederatedUserBadge :user-id="displayParentMessage.user_id" />
@@ -358,7 +358,8 @@ import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
-import { getForeignAuthor } from '@/utils/messageAuthor'
+import { getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
 import { usePortalTarget } from '@/composables/usePortalTarget'

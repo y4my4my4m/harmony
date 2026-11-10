@@ -148,6 +148,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useT } from '@/composables/useT'
 import type { Message } from '@/types/chat'
+import { getBridgedAuthor } from '@/utils/messageAuthor'
 
 const props = defineProps<{
   message: Message
@@ -192,9 +193,9 @@ const subject = computed<Person>(() => ({
 const actor = computed<Person>(() => {
   const id = profileIdOf(meta.value.actor_id)
   if (id) return { id, name: '' }
-  const discord = meta.value.discord_user
-  const discordName = discord?.display_name || discord?.username
-  if (typeof discordName === 'string' && discordName) return { id: null, name: discordName }
+  const bridged = getBridgedAuthor(props.message)
+  const bridgedName = bridged?.display_name || bridged?.username
+  if (bridgedName) return { id: null, name: bridgedName }
   const botId = profileIdOf(meta.value.actor_bot_id)
   if (botId) return { id: null, name: props.botName(botId) }
   if (typeof meta.value.actor_name === 'string' && meta.value.actor_name) {

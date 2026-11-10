@@ -89,7 +89,7 @@ describe('ServerRail context menus', () => {
     await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true))
   }
 
-  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'notification-settings', 'settings', 'move-up', 'move-down']
+  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'notification-settings', 'bridge-privacy', 'settings', 'move-up', 'move-down']
 
   it('opens on a mouse right-click in the first 1.5 s of page life', async () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(100)
@@ -100,6 +100,20 @@ describe('ServerRail context menus', () => {
     } finally {
       now.mockRestore()
     }
+  })
+
+  it('opens self bridge privacy without administrator permissions', async () => {
+    rpc.mockResolvedValueOnce({ data: false, error: null })
+    await openOn('server', 'a')
+    await wrapper.get('[data-action="bridge-privacy"]').trigger('click')
+    await flushPromises()
+    expect(rpc).toHaveBeenCalledWith('get_server_bridge_opt_out', { p_server_id: 'a' })
+  })
+
+  it('does not offer local bridge privacy on a federated copy', async () => {
+    store.servers[0].is_local_server = false
+    await openOn('server', 'a')
+    expect(actions()).not.toContain('bridge-privacy')
   })
 
   it('gives a loose server the full menu', async () => {

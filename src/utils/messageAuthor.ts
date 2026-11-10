@@ -1,4 +1,25 @@
-import type { Message, MessageRemoteAuthor, MessageWebhookAuthor } from '@/types'
+import type { BridgeAuthor, Message, MessageRemoteAuthor, MessageWebhookAuthor } from '@/types'
+
+/** Normalize external authors once; legacy Discord metadata remains a fallback. */
+export function getBridgedAuthor(value: { metadata?: { bridge_author?: unknown; discord_user?: unknown } | null } | null | undefined): BridgeAuthor | null {
+  const author = value?.metadata?.bridge_author as Partial<BridgeAuthor> | null | undefined
+  if (author && (author.platform === 'matrix' || author.platform === 'discord')
+    && typeof author.id === 'string' && author.id && typeof author.username === 'string' && author.username) {
+    return {
+      platform: author.platform, id: author.id, username: author.username,
+      display_name: typeof author.display_name === 'string' ? author.display_name : undefined,
+      avatar_url: typeof author.avatar_url === 'string' ? author.avatar_url : undefined,
+    }
+  }
+  const discord = value?.metadata?.discord_user as Partial<BridgeAuthor> | null | undefined
+  if (!discord || typeof discord !== 'object') return null
+  return {
+    platform: 'discord', id: typeof discord.id === 'string' ? discord.id : '',
+    username: typeof discord.username === 'string' ? discord.username : '',
+    display_name: typeof discord.display_name === 'string' ? discord.display_name : undefined,
+    avatar_url: typeof discord.avatar_url === 'string' ? discord.avatar_url : undefined,
+  }
+}
 
 /**
  * Message authored via an external bridge (Discord, etc.), not a native Harmony user row.
@@ -7,12 +28,12 @@ import type { Message, MessageRemoteAuthor, MessageWebhookAuthor } from '@/types
  */
 export function isBridgedAuthorMessage(message: Message | null | undefined): boolean {
   const source = message?.metadata?.bridge_source
-  return !!(message?.metadata?.discord_user || (source && source !== 'harmony'))
+  return !!(getBridgedAuthor(message) || (source && source !== 'harmony'))
 }
 
 export function getBridgeSource(message: Message | null | undefined): string | null {
   if (!isBridgedAuthorMessage(message)) return null
-  return message?.metadata?.bridge_source ?? (message?.metadata?.discord_user ? 'discord' : null)
+  return getBridgedAuthor(message)?.platform ?? message?.metadata?.bridge_source ?? null
 }
 
 /** Profile UUID for DisplayName lookups; empty when author is bridged or bot-only. */
@@ -65,10 +86,10 @@ export function getWebhookAuthor(message: Message | null | undefined): MessageWe
  * profile wrote.
  */
 export function getForeignAuthor(message: Message | null | undefined): { name: string; avatar_url: string | null } | null {
-  const discord = message?.metadata?.discord_user
-  if (discord && typeof discord === 'object') {
-    const name = discord.display_name || discord.username
-    return { name: typeof name === 'string' && name ? name : 'Discord user', avatar_url: discord.avatar_url || null }
+  const bridged = getBridgedAuthor(message)
+  if (bridged) {
+    const name = bridged.display_name || bridged.username
+    return { name: name || (bridged.platform === 'matrix' ? 'Matrix user' : 'Discord user'), avatar_url: bridged.avatar_url || null }
   }
   const webhook = getWebhookAuthor(message)
   if (webhook) return { name: webhook.name, avatar_url: webhook.avatar_url }
@@ -93,8 +114,8 @@ export function isBotAuthorMessage(message: Message | null | undefined): boolean
  */
 export function messageAuthorKey(message: Message | null | undefined): string {
   if (!message) return ''
-  const discord = message.metadata?.discord_user
-  if (discord && typeof discord === 'object') return `discord:${discord.id || discord.username || ''}`
+  const bridged = getBridgedAuthor(message)
+  if (bridged) return `${bridged.platform}:${bridged.id || bridged.username || ''}`
   const webhook = getWebhookAuthor(message)
   if (webhook) return `webhook:${webhook.id}\n${webhook.name}\n${webhook.avatar_url ?? ''}`
   const remote = getRemoteAuthor(message)

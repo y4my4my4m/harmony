@@ -12,6 +12,7 @@ const s = vi.hoisted(() => ({
   canPinInChannel: true,
   currentServerId: 'copy-1' as string | null,
   hidden: ['copy-1'] as string[],
+  metadata: {} as Record<string, unknown>,
 }))
 
 vi.mock('vue-i18n', async (importOriginal) => ({
@@ -34,7 +35,7 @@ vi.mock('@/stores/usePins', () => ({
     conversationId ? `dm:${conversationId}` : channelId ? `channel:${channelId}` : null,
   usePinsStore: () => ({
     pinnedMessages: () => [{
-      id: 'm1', user_id: 'u1', created_at: '2026-10-20T00:00:00Z', metadata: {},
+      id: 'm1', user_id: 'u1', created_at: '2026-10-20T00:00:00Z', metadata: s.metadata,
       content: [{ type: 'text', text: 'pinned' }, { type: 'file', url: 'https://host.test/a.png', fileType: 'image' }],
     }],
     loadList: vi.fn(async () => {}),
@@ -67,7 +68,7 @@ async function mountPopup(props: Record<string, unknown>) {
     global: {
       stubs: {
         Teleport: true, Transition: false, Avatar: true, LoadingSpinner: true, Icon: true, EmptyState: true, DisplayName: true,
-        UnifiedMessageContent: ContentStub,
+        UnifiedMessageContent: ContentStub, BridgeSourceBadge: true,
       },
       mocks: { $t: (key: string) => key },
     },
@@ -82,9 +83,19 @@ beforeEach(() => {
   s.canPinInChannel = true
   s.currentServerId = 'copy-1'
   s.hidden = ['copy-1']
+  s.metadata = {}
 })
 
 describe('PinnedMessagesPopup', () => {
+  it('shows a pinned Matrix author, avatar and source rather than a native profile', async () => {
+    s.metadata = { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/s.png' } }
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(w.get('.message-author').text()).toContain('Sam')
+    expect(w.findComponent({ name: 'BridgeSourceBadge' }).props('source')).toBe('matrix')
+    expect(w.findComponent({ name: 'Avatar' }).props('src')).toBe('https://cdn.test/s.png')
+    expect(w.findComponent({ name: 'DisplayName' }).exists()).toBe(false)
+  })
+
   it('offers Unpin in a conversation after a copy of a remote server was the last server viewed', async () => {
     s.local = false
     s.canPinInChannel = false

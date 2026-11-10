@@ -34,6 +34,7 @@
               class="actor"
             />
             <span v-else class="actor">{{ actorName }}</span>
+            <BridgeSourceBadge v-if="bridgeAuthor" :source="bridgeAuthor.platform" />
             <template v-if="isReaction">
               <span class="action"> reacted </span>
               <img
@@ -100,6 +101,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 const props = defineProps<{
   notification: Notification
@@ -135,17 +137,11 @@ const actor = computed(() => {
   return d.sender || d.actor || d.reactor || d.follower || d.author || d.user || d.inviter || null
 })
 
-const actorName = computed(() => {
-  const a = actor.value
-  return a?.display_name || a?.username || d('sender_display_name') || d('sender_username') || 'Someone'
-})
-
-function d(key: string): string | undefined {
-  const v = data.value[key]
-  return typeof v === 'string' ? v : undefined
-}
+const bridgeAuthor = computed(() => NotificationFormatter.getBridgeAuthor(props.notification))
+const actorName = computed(() => NotificationFormatter.getActorDisplayNameFallback(props.notification))
 
 const actorUserId = computed(() => {
+  if (bridgeAuthor.value) return null
   const id = data.value.from_user_id ?? actor.value?.user_id ?? actor.value?.id
   return typeof id === 'string' ? id : null
 })

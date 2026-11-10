@@ -1,4 +1,16 @@
 {
+  "bridgeSource": { "from": "Über {platform} verbunden" },
+  "bridgePrivacy": {
+    "title": "Bridge-Datenschutz",
+    "description": "Verhindere, dass Bridges deine zukünftigen Nachrichten aus diesem Server an andere Plattformen weiterleiten.",
+    "scope": "Dies gilt nur für Bridges in diesem Server. Bereits vorhandene Kopien auf anderen Plattformen werden nicht entfernt und die Leserechte anderer Bots bleiben unverändert.",
+    "optOut": "Meine Nachrichten nicht weiterleiten",
+    "loading": "Bridge-Datenschutz wird geladen",
+    "saving": "Wird gespeichert…",
+    "loadError": "Deine Bridge-Datenschutzeinstellung konnte nicht geladen werden. Versuche es erneut.",
+    "saveError": "Die Änderung konnte nicht bestätigt werden. Lade die Einstellung erneut, um den aktuellen Stand zu prüfen.",
+    "retry": "Erneut versuchen"
+  },
   "common": {
     "save": "Speichern",
     "cancel": "Abbrechen",

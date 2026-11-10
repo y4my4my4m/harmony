@@ -1,4 +1,16 @@
 {
+  "bridgeSource": { "from": "Bridged from {platform}" },
+  "bridgePrivacy": {
+    "title": "Bridge privacy",
+    "description": "Prevent bridges from forwarding your future messages from this server to other platforms.",
+    "scope": "This applies only to bridges in this server. It does not remove existing remote copies or change what other bots can read.",
+    "optOut": "Do not forward my messages",
+    "loading": "Loading bridge privacy",
+    "saving": "Saving…",
+    "loadError": "Could not load your bridge privacy setting. Try again.",
+    "saveError": "Could not confirm the change. Reload to check your current setting.",
+    "retry": "Try again"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

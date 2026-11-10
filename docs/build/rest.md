@@ -68,6 +68,9 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `POST` | [`/channels/{channel.id}/messages`](#create-message) | `send_messages` | Post a message, in the channel or one of its threads |
 | `GET` | [`/channels/{channel.id}/messages`](#get-channel-messages) | `read_messages` | List a channel's messages, newest first |
 | `GET` | [`/channels/{channel.id}/encryption`](#get-channel-encryption) | `read_messages` | Read the channel's effective message encryption state |
+| `GET` | [`/channels/{channel.id}/bridge-platform`](#bridge-registration-and-consent) | `read_messages` | Read this bot/channel's registered bridge platform |
+| `GET` | [`/channels/{channel.id}/bridge-consent/{user.id}`](#bridge-registration-and-consent) | `read_messages`; registered bridge | Check current member relay consent |
+| `POST` | [`/channels/{channel.id}/bridge-avatar`](#upload-a-matrix-bridge-avatar) | Scoped Matrix bridge with read/send | Store bounded raster avatar bytes |
 | `GET` | [`/channels/{channel.id}/messages/lookup`](#look-up-a-bridged-message) | `read_messages` | Find a message by the Discord message ID in its metadata |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` | Read one message |
 | `PATCH` | [`/messages/{message.id}`](#edit-message) | `send_messages`, own messages | Edit the bot's message |
@@ -188,7 +191,7 @@ Edits and silent content patches apply the same check.
 }
 ```
 
-`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds` and `webhook`. `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel; see [Relayed authors](/build/bridges#relayed-authors). The server then sets `bot: true` and `created_via: "bot_api"`.
+`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds` and `webhook`. `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel. Generic `bridge_author` additionally requires a matching registered platform and validated author fields; unauthorized claims answer `403`, malformed/cross-platform claims `400`. See [Generalized authors and member privacy](/build/bridges#generalized-authors-and-member-privacy). The server then sets `bot: true` and `created_via: "bot_api"`.
 
 When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments). Photos and videos copied this way lose their location, camera and other metadata; see [Photo and video metadata](#photo-and-video-metadata).
 
@@ -219,6 +222,8 @@ Returns an array of [message objects](#message-object), newest first, with or wi
 `after` with `limit` returns the newest `limit` messages after that time, not the oldest. To read everything since a point, page backwards: request with `before` set to the oldest `timestamp` you received, until you reach messages you already have.
 
 A bot that cannot read the channel, for any reason, gets `403` `Missing permission: read_messages`.
+
+Bridge bots additionally receive only messages whose native author currently permits bridging. This also applies to individual and Discord-ID lookups (`404` for hidden messages); privacy lookup failures return an error, never unfiltered history. Filtering happens after the requested page is read, so a page can contain fewer than `limit` results.
 
 ### Get message
 
@@ -279,7 +284,7 @@ The write applies only if the stored content has not changed since the gateway r
 |---|---|---|
 | `metadata` | object | Required. Merged into the existing metadata; top-level keys replace. |
 
-On the bot's own message, reserved keys are dropped as on create. On another author's message, only a bridge bot whose bridge relays the channel may write, and only these keys: `discord_message_id`, `discord_message_ids`, `discord_via_webhook`, `discord_uploaded_files`, and `bridge_source` with the value `harmony`. Both cases need `send_messages` in the channel.
+On the bot's own message, reserved keys are dropped as on create. On another author's message, only a bridge bot whose bridge relays the channel may write, and only these keys: `discord_message_id`, `discord_message_ids`, `discord_via_webhook`, `discord_uploaded_files`, and `bridge_source` with the value `harmony`. Both cases need `send_messages` in the channel. A mapping write on another author's message also requires `read_messages` and current bridge consent; an opted-out message returns `404` without changing or disclosing its metadata.
 
 Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object.
 
@@ -440,6 +445,20 @@ Returns member objects ordered by user ID. To read every member, request again w
 Returns `200` with `{ "messages_encrypted": true }` or `{ "messages_encrypted": false }`, the channel's authoritative effective message encryption state (including inherited server settings). Requires `read_messages` and visibility of the channel under the same rules as reading its messages; otherwise returns `403` `Missing permission: read_messages`.
 
 Returns `503` `Channel encryption status unavailable` if the encryption lookup fails or does not return a boolean. Relay clients must treat an unavailable state as unsafe to relay, not as unencrypted. This endpoint reports state only; it does not change existing message read or write behavior.
+
+### Bridge registration and consent
+
+`GET /channels/{channel.id}/bridge-platform` returns `{ "platform": "matrix" }`, `"discord"`, or `null` for this bot/channel. Requires channel read access; a failed or malformed registration lookup returns `503`.
+
+`GET /channels/{channel.id}/bridge-consent/{user.id}` returns `{ "relay_allowed": true | false }`. `true` requires current bridge registration and accepted native membership with no bridge opt-out. A malformed profile UUID returns `400`, missing channel read access `403`, and an unavailable/nonboolean consent lookup `503`. Treat anything other than explicit `true` as refusal. Check immediately before queued delivery, not only when receiving an event. This cannot atomically revoke a request already in flight.
+
+### Upload a Matrix bridge avatar
+
+`POST /channels/{channel.id}/bridge-avatar`
+
+Requires a registered Matrix binding and read/send channel permissions. Supply `{ "data": "<standard base64>", "content_type": "image/png" }`; supported raster types are PNG, JPEG, WebP and GIF. Decoded bytes must be nonempty and at most **1 MiB**, with a matching file signature. The endpoint accepts no remote URLs or caller-selected storage paths. It strips identifying media metadata using the normal upload pipeline, stores content-addressed bytes under this bot in the public avatars bucket, and returns `{ "avatar_url": "https://…" }`. Invalid bytes/type/size return `400`; missing authorization `403`; storage/registration failure `503`.
+
+The relay fetches only authenticated, bounded thumbnails from its configured Matrix homeserver; it never puts Matrix credentials in a public avatar URL. Avatar failure omits the optional picture rather than discarding text.
 
 ### List channels
 
