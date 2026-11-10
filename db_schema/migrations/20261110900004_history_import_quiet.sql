@@ -33,6 +33,11 @@
 --   a_messages_server_suspension_guard   refuse_message_in_suspended_server    KEEP  integrity
 --   a_messages_system_part_guard         refuse_client_system_parts            KEEP  validation
 --   a_messages_system_row_guard          guard_system_message_removal          KEEP  integrity (update/delete)
+--   a_messages_room_guard                guard_message_room                    KEEP  validation (upstream 1.9.6, 20261110100001); one room per
+--                                                                              message and a thread message in its thread's channel; the import
+--                                                                              sets channel_id and a thread_id of that channel, and has no
+--                                                                              role bypass to need (it fires on INSERT; the import's reply and
+--                                                                              pin updates touch no room column)
 --   check_message_sticker_parts          check_message_sticker_parts           KEEP  validation
 --   handle_updated_at                    handle_messages_updated_at            CHANGED  on INSERT under the flag keeps a
 --                                                                                   supplied updated_at >= created_at
@@ -73,6 +78,9 @@
 --   z_messages_pin_federation            trigger_queue_channel_pin_federation  SKIP  federation of pins
 --
 -- public.threads
+--   a_threads_client_write_guard         guard_thread_client_write             KEEP  permission guard (upstream 1.9.6, 20261109600001);
+--                                                                              returns early unless current_user is authenticated or anon,
+--                                                                              so the SECURITY DEFINER import functions pass it
 --   sanitize_thread_name_trigger         sanitize_entity_name                  KEEP  validation
 --   trg_broadcast_thread_change          broadcast_thread_change               SKIP  realtime
 --   trigger_federate_thread              trigger_queue_thread_federation       SKIP  federation; row set to 'skipped'
