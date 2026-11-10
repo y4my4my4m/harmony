@@ -71,6 +71,8 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/channels/{channel.id}/bridge-platform`](#bridge-registration-and-consent) | `read_messages` | Read this bot/channel's registered bridge platform |
 | `GET` | [`/channels/{channel.id}/bridge-consent/{user.id}`](#bridge-registration-and-consent) | `read_messages`; registered bridge | Check current member relay consent |
 | `POST` | [`/channels/{channel.id}/bridge-avatar`](#upload-a-matrix-bridge-avatar) | Scoped Matrix bridge with read/send | Store bounded raster avatar bytes |
+| `POST` | [`/channels/{channel.id}/bridge-files`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; plaintext | Store bounded attachment bytes in private message media |
+| `GET` | [`/channels/{channel.id}/messages/{message.id}/bridge-files/{index}`](#matrix-attachment-bytes) | Bound Matrix bridge with read/send; current message visibility | Download a stored raw-index attachment, not a supplied URL |
 | `GET` | [`/channels/{channel.id}/messages/lookup`](#look-up-a-bridged-message) | `read_messages` | Find a message by the Discord message ID in its metadata |
 | `GET` | [`/messages/{message.id}`](#get-message) | `read_messages` | Read one message |
 | `PATCH` | [`/messages/{message.id}`](#edit-message) | `send_messages`, own messages | Edit the bot's message |
@@ -464,6 +466,18 @@ These endpoints require a currently registered Matrix binding and channel read/s
 | `GET` | `/channels/{channel.id}/bridge-members/{user.id}/avatar` | Optional `{ "data": "<base64>", "content_type": "image/png" }` from the current eligible member's own Harmony avatars storage object. No caller-supplied URL/path; no external hosts, redirects or SVG. Raster bytes are metadata-stripped and capped at 1 MiB. |
 
 Malformed room/mode/user IDs return `400`, missing binding or permissions `403`, and unavailable or malformed binding/consent data `503`. A room cannot be reassigned without unpairing. The avatar endpoint returns `404` for an ineligible member or unsupported/missing picture. Bundled default avatars and external avatar URLs are not mirrored; omit the optional picture rather than discarding text. Mode/member snapshots never replace final delivery-time consent checks.
+
+### Matrix attachment bytes
+
+These routes require an active Matrix room binding, scoped channel read/send permissions and verified plaintext channel policy. They do not change the Discord attachment-mode policy.
+
+`POST /channels/{channel.id}/bridge-files` accepts a **raw `application/octet-stream` body**, at most **50 MiB**, with `X-File-Name: <encodeURIComponent(filename)>` and `X-File-Type: <MIME type>`. The live private `message_media` bucket can impose lower size/MIME limits. Common raster images and ordinary documents/archives are accepted; active SVG/HTML/scripts/executables, unsupported MIME types and mismatched image bytes are refused. Audio/video use `fileType: "file"`. Standard media metadata stripping runs before content-addressed upload. The bucket must be private and its policy readable; otherwise the request fails closed. The global JSON body limit is unchanged.
+
+Returns **`201`** with the canonical native file part: `{ "type": "file", "path": "c/CHANNEL/bridge/BOT/HASH.ext", "url": "https://…", "fileType": "image", "fileName": "wave.png", "fileSize": 123, "mimeType": "image/png" }`. The size and hash describe the stripped bytes. Include that exact part in a Matrix bot's ordinary create-message request; only that bot/channel's verified uploads retain their `path`, and supplied URLs are ignored/re-signed. Metadata/bytes are revalidated against the address before insertion. Create verification accepts at most **20 canonical files, 50 MiB combined**. Ordinary bots and edit/silent-update routes still strip caller-supplied paths.
+
+`GET /channels/{channel.id}/messages/{message.id}/bridge-files/{index}` takes the **raw stored content-array index**, not an ordinal among files. It checks current message visibility/history, native bridge consent, room binding, plaintext policy and the stored part again after downloading, before emitting bytes. Only the message's own `c/<channel>/…` object or an attached `u/<UUID>/<file>` Drive object with a fresh positive `drive_file_owned_by` result is read. No caller-provided URL, path, foreign-room object, external/legacy URL part or encrypted descriptor is fetched.
+
+A successful download has `Content-Type: application/octet-stream`, `Content-Length`, encoded `X-File-Name`, `X-File-Type`, `Content-Disposition: attachment`, `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. Bytes are metadata-stripped and bounded by 50 MiB/current bucket policy, including streamed responses and redirects/timeouts. Bad scope/index/metadata returns `400`, missing permission or encrypted channel `403`, invisible/deleted/revoked files `404`, an attachment changed mid-download `409`, size limit `413`, unsupported name/type/signature `415`, unsupported stored/encrypted descriptor `422`, and unavailable policy/storage/consent `503`. Clients must not turn policy failures into successful media delivery. An upload completed before revocation can remain unreferenced; this is not atomic erasure.
 
 ### Upload a Matrix bridge avatar
 

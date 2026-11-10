@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, raw } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
 import {
@@ -24,6 +24,7 @@ import {
 } from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
+import { BridgeFileError, MAX_BRIDGE_FILE_BYTES, canonicalBridgeFileParts, decodedFileName, downloadBridgeFile, isDriveFilePath, storeBridgeFile } from '../utils/bridgeFiles.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
@@ -243,6 +244,17 @@ export class BotRestAPI {
   
   private setupRoutes() {
     // CHANNEL ENDPOINTS
+
+    // Raw bytes only on this authenticated/rate-limited route; global JSON stays at 10 MiB.
+    this.router.post('/channels/:channelId/bridge-files', botRateLimit, async (req: BotRequest, res, next) => {
+      if (!(await this.matrixFilesAccess(req, res))) return
+      if (!req.is('application/octet-stream')) return res.status(415).json({ error: 'Expected application/octet-stream' })
+      raw({ type: 'application/octet-stream', limit: MAX_BRIDGE_FILE_BYTES, inflate: false })(req, res, error => {
+        if (error) return res.status((error as any).status === 413 ? 413 : 415).json({ error: 'Unsupported or oversized attachment body' })
+        next()
+      })
+    }, this.uploadBridgeFile.bind(this))
+    this.route('get', '/channels/:channelId/messages/:messageId/bridge-files/:index', this.getBridgeFile)
 
     this.route('post', '/channels/:channelId/messages', this.sendMessage)
 
@@ -622,8 +634,16 @@ export class BotRestAPI {
 
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
-      const typed = claimsBridgeAuthor(metadata) ? this.formatContent(content, embeds)
-        : await this.typedMassMentions(this.formatContent(content, embeds), content, channelId, botId)
+      const hasPaths = Array.isArray(content) && content.some(part => part && typeof part === 'object' && 'path' in part)
+      let matrixPaths = hasPaths && platform === 'matrix'
+      if (hasPaths && !matrixPaths) {
+        const { data: pathBot } = await supabase.from('bots').select('bridge_platform').eq('id', botId).maybeSingle()
+        matrixPaths = pathBot?.bridge_platform === 'matrix'
+      }
+      if (matrixPaths && !(await this.matrixFilesAccess(req, res))) return
+      const prepared = matrixPaths ? await canonicalBridgeFileParts(content, botId, channelId) : content
+      const typed = claimsBridgeAuthor(metadata) ? this.formatContent(prepared, embeds, matrixPaths)
+        : await this.typedMassMentions(this.formatContent(prepared, embeds, matrixPaths), prepared, channelId, botId)
       const messageContent = await applyBridgeAttachmentPolicy(
         await this.resolveMentionParts(typed, channelId, botId),
         botId,
@@ -640,6 +660,8 @@ export class BotRestAPI {
         created_via: 'bot_api',
       }
       
+      if (matrixPaths && !(await this.matrixFilesAccess(req, res))) return
+
       // Array response, not .single(): the server's AutoMod drops a blocked row and
       // the insert returns zero rows. PostgREST rolls a zero-row singular request
       // back, which would discard the AutoMod event.
@@ -676,6 +698,7 @@ export class BotRestAPI {
 
       res.status(201).json(this.formatMessage(message))
     } catch (error: any) {
+      if (error instanceof BridgeFileError) return res.status(error.status).json({ error: error.message })
       console.error('Send message error:', error)
       res.status(500).json({ error: error.message || 'Internal server error' })
     }
@@ -714,6 +737,77 @@ export class BotRestAPI {
     })
   }
   
+  private async matrixFilesAccess(req: BotRequest, res: Response): Promise<boolean> {
+    try {
+      const { channelId } = req.params
+      if (!UUID_PATTERN.test(channelId)) { res.status(400).json({ error: 'Invalid channel ID' }); return false }
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) {
+        res.status(403).json({ error: 'No Matrix read/send binding for this channel' }); return false
+      }
+      await matrixRoomBinding(req.bot!.id, channelId)
+      const { data, error } = await supabase.rpc('channel_messages_encrypted', { p_channel_id: channelId })
+      if (error || typeof data !== 'boolean') throw new Error()
+      if (data) { res.status(403).json({ error: 'Encrypted channel attachments are not supported' }); return false }
+      return true
+    } catch { res.status(503).json({ error: 'Matrix attachment access unavailable' }); return false }
+  }
+
+  private async uploadBridgeFile(req: BotRequest, res: Response) {
+    try {
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const name = decodedFileName(req.get('X-File-Name'))
+      const bytes = req.body == null ? Buffer.alloc(0) : req.body
+      if (!Buffer.isBuffer(bytes)) return res.status(415).json({ error: 'Expected a raw attachment body' })
+      const part = await storeBridgeFile(bytes, name, req.get('X-File-Type'), req.bot!.id, req.params.channelId)
+      if (!(await this.matrixFilesAccess(req, res))) return
+      return res.status(201).json(part)
+    } catch (error) {
+      return res.status(error instanceof BridgeFileError ? error.status : 503).json({ error: error instanceof BridgeFileError ? error.message : 'Private attachment upload unavailable' })
+    }
+  }
+
+  private async attachmentMessage(botId: string, channelId: string, messageId: string, index: number): Promise<any> {
+    const { data: message, error } = await supabase.from('messages').select('*')
+      .eq('id', messageId).eq('channel_id', channelId).eq('is_deleted', false).maybeSingle()
+    if (error) throw new BridgeFileError(503, 'Attachment visibility unavailable')
+    if (!message || !(await this.withinHistory(botId, channelId, message.created_at))
+      || !(await visibleMessageIds(botId, [messageId])).has(messageId)) throw new BridgeFileError(404, 'Message not found')
+    if ((message.encrypted != null && message.encrypted !== false) || message.encryption_metadata != null || message.media_paths?.length
+      || !Array.isArray(message.content)) throw new BridgeFileError(422, 'Encrypted message attachments are not supported')
+    if (!message.content[index] || message.content[index].type !== 'file') throw new BridgeFileError(422, 'No supported file at this content index')
+    const part = message.content[index]
+    let driveOwned = false
+    if (typeof part.path === 'string' && part.path.startsWith('u/')) {
+      if (!isDriveFilePath(part.path) || !UUID_PATTERN.test(message.user_id ?? '')) throw new BridgeFileError(422, 'Unsupported Drive attachment descriptor')
+      const owner = await supabase.rpc('drive_file_owned_by', { p_path: part.path, p_profile: message.user_id })
+      if (owner.error || typeof owner.data !== 'boolean') throw new BridgeFileError(503, 'Drive attachment ownership unavailable')
+      if (!owner.data) throw new BridgeFileError(404, 'Attachment not available')
+      driveOwned = true
+    }
+    return { part, driveOwned }
+  }
+
+  private async getBridgeFile(req: BotRequest, res: Response) {
+    try {
+      const { channelId, messageId, index } = req.params
+      if (!UUID_PATTERN.test(messageId) || !/^(?:0|[1-9][0-9]{0,5})$/.test(index)) return res.status(400).json({ error: 'Invalid message ID or raw content index' })
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const original = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      const snapshot = JSON.stringify(original.part)
+      const file = await downloadBridgeFile(original.part, channelId, original.driveOwned)
+      // Downloads may be slow: consent, binding, encryption and the stored part are fresh at emit.
+      if (!(await this.matrixFilesAccess(req, res))) return
+      const current = await this.attachmentMessage(req.bot!.id, channelId, messageId, Number(index))
+      if (JSON.stringify(current.part) !== snapshot) return res.status(409).json({ error: 'Attachment changed during download; retry the message' })
+      res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(file.bytes.length),
+        'X-File-Name': encodeURIComponent(file.fileName), 'X-File-Type': file.mimeType,
+        'Content-Disposition': 'attachment', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' })
+      return res.send(file.bytes)
+    } catch (error) {
+      return res.status(error instanceof BridgeFileError ? error.status : 503).json({ error: error instanceof BridgeFileError ? error.message : 'Private attachment download unavailable' })
+    }
+  }
+
   private async uploadBridgeAvatar(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -2390,11 +2484,11 @@ export class BotRestAPI {
     })
   }
 
-  private formatContent(content: string | any[], embeds?: any[]): any[] {
+  private formatContent(content: string | any[], embeds?: any[], canonicalMatrixPaths = false): any[] {
     const parts: any[] = []
     
     if (Array.isArray(content)) {
-      parts.push(...botContentParts(stripBotSuppliedPaths(content)))
+      parts.push(...botContentParts(canonicalMatrixPaths ? content : stripBotSuppliedPaths(content)))
     } else if (content) {
       parts.push({ type: 'text', text: content })
     }
