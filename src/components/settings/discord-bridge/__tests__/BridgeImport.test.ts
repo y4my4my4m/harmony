@@ -111,11 +111,49 @@ describe('BridgeChannelPairs import controls', () => {
     expect(w.emitted('changed')).toHaveLength(1)
   })
 
-  it('Import all starts every importable pair', async () => {
+  it('Import all starts the importable pairs that have no job', async () => {
     const w = mountPairs()
     await w.get('[data-testid="import-all"]').trigger('click')
     await flushPromises()
-    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: null }])
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
+  })
+
+  it('Import all leaves out pairs whose job is done, queued or running', async () => {
+    const pairs = [
+      makePair({ harmony_channel_id: 'h-a', discord_channel_id: '1' }),
+      makePair({ harmony_channel_id: 'h-b', discord_channel_id: '2' }),
+      makePair({ harmony_channel_id: 'h-c', discord_channel_id: '3' }),
+      makePair({ harmony_channel_id: 'h-d', discord_channel_id: '4' }),
+      makePair({ harmony_channel_id: 'h-e', discord_channel_id: '5' }),
+      makePair({ harmony_channel_id: 'h-f', discord_channel_id: '6' }),
+      makePair({ harmony_channel_id: 'h-g', discord_channel_id: '7' }),
+    ]
+    const job = (id: string, channel: string, state: ImportJob['state']) =>
+      makeJob({ id, harmony_channel_id: channel, discord_channel_id: id, state })
+    const w = mountPairs({
+      pairs,
+      harmonyChannels: pairs.map((p) => ({ id: p.harmony_channel_id, name: p.harmony_channel_id, categoryName: null })),
+      imports: [
+        job('1', 'h-a', 'done'),
+        job('2', 'h-b', 'failed'),
+        job('3', 'h-c', 'cancelled'),
+        job('4', 'h-d', 'paused'),
+        job('5', 'h-e', 'running'),
+        job('6', 'h-f', 'queued'),
+      ],
+    })
+    await w.get('[data-testid="import-all"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([
+      { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-b', 'h-c', 'h-d', 'h-g'] },
+    ])
+  })
+
+  it('hides Import all when every importable pair is done or active', () => {
+    const w = mountPairs({ imports: [makeJob({ state: 'done' })] })
+    expect(w.find('[data-testid="import-all"]').exists()).toBe(false)
+    const running = mountPairs({ imports: [makeJob({ state: 'running' })] })
+    expect(running.find('[data-testid="import-all"]').exists()).toBe(false)
   })
 
   it('a running job shows its percent and Cancel cancels that job', async () => {

@@ -32,12 +32,12 @@
         <p v-if="attachmentMode === 'mirror'" class="db-muted" data-testid="import-mirror-note">{{ t('discordBridge.import.mirrorNote') }}</p>
         <div class="db-actions">
           <button
-            v-if="importablePairCount > 0"
+            v-if="importAllIds.length > 0"
             type="button"
             class="btn btn-secondary btn-sm"
             :disabled="busy"
             data-testid="import-all"
-            @click="startImport(null)"
+            @click="startImport(importAllIds)"
           >
             {{ t('discordBridge.import.importAll') }}
           </button>
@@ -301,7 +301,18 @@ function channelFor(pair: BridgePairRow): { encrypted: boolean } {
   return { encrypted: (props.encryptedChannelIds ?? []).includes(pair.harmony_channel_id) }
 }
 
-const importablePairCount = computed(() => props.pairs.filter((p) => isImportablePair(p, channelFor(p))).length)
+// Import all queues importable pairs with no job or a failed, cancelled or paused one. A finished
+// pair is re-run only by its own Import again: queueing it would reset its cursors and re-walk
+// the whole history.
+const importAllIds = computed(() =>
+  props.pairs
+    .filter((p) => isImportablePair(p, channelFor(p)))
+    .filter((p) => {
+      const state = jobFor(p)?.state
+      return state === undefined || state === 'failed' || state === 'cancelled' || state === 'paused'
+    })
+    .map((p) => p.harmony_channel_id),
+)
 const activeJobCount = computed(
   () => (props.imports ?? []).filter((j) => j.state === 'queued' || j.state === 'running' || j.state === 'paused').length,
 )

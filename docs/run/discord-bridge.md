@@ -220,7 +220,7 @@ A bridge copies messages as they arrive. **Import history** copies what was said
 Members with Manage Server can start it in **Server settings** → **Discord Bridge**, under **Paired channels**:
 
 - **Import history** on a pair imports that channel.
-- **Import all** imports every pair that can import. **Cancel all** stops every import in progress.
+- **Import all** imports every pair that can import and has not finished: pairs with no import yet, or one that failed, was cancelled or is paused. A finished pair runs again only from its own **Import again**. **Cancel all** stops every import in progress.
 
 In Discord, a member with the Administrator permission runs `/bridge import-history` in the Discord channel. Its `scope` option `all` imports every paired channel, and `action` is `start` (the default), `status` (progress, which can be run again at any time) or `cancel`.
 
@@ -237,7 +237,7 @@ Not imported: reactions, messages posted by Discord bots and webhooks (which als
 
 ### Quiet by design
 
-Imported messages notify no one: no push, mention or unread badge, and the channel's last activity and order do not move. They are not sent to other instances, bots or outgoing webhooks, and AutoMod and slowmode do not apply. Bots and apps see them only when they read the channel's history. Nothing is posted to Discord.
+Imported messages notify no one: no push, mention or unread badge, and the channel's last activity and order do not move. They are not sent to other instances, bots or outgoing webhooks, and AutoMod and slowmode do not apply. Bots and apps see them only when they read the channel's history; an edit or a deletion of an imported message is not sent to them either. Nothing is posted to Discord.
 
 ### Progress
 
@@ -261,7 +261,7 @@ Discord gives no message count, so progress goes by date. Each pair shows its st
 
 Discord limits how fast history can be read, so a busy server takes hours. The import runs in the background and yields to live messages, which keep arriving while it works. Only a few imports run at once per bridge, so **Import all** works through the pairs in turn (**Waiting**).
 
-It is safe to repeat. A message already in the Harmony channel, whether live-bridged or imported earlier, is skipped, so **Import again**, **Resume** and **Try again** never duplicate a message, and they also fill gaps from times the bridge was offline. A restarted bridge carries on from where it stopped.
+It is safe to repeat. A message already in the Harmony channel, whether live-bridged or imported earlier, is skipped, so **Import again**, **Resume** and **Try again** never duplicate a message, and they also fill gaps from times the bridge was offline. A message that was deleted in Harmony counts as gone, so it comes back on **Import again**. A restarted bridge carries on from where it stopped.
 
 When the instance copies Discord files into its own storage (see [Attachments from Discord](#attachments-from-discord)), the page says **Imported files are copied into this instance's storage.** Years of pictures can take a lot of disk; ask your instance's admin if unsure.
 
