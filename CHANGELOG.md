@@ -22,6 +22,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
   and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
   backslashes.
+- **Import Discord history.** A Discord bridge can now copy a paired
+  channel's older messages, threads and pins into its Harmony channel, with
+  their original dates and Discord authors. Start it with **Import history**
+  or **Import all** in Server settings, Discord Bridge, or with
+  `/bridge import-history` in Discord (bridge 2.6.0 or later). Imported
+  messages are quiet: no notifications, unread counts or federation, and a
+  repeat or a restart never duplicates a message. Reactions are not imported.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the
