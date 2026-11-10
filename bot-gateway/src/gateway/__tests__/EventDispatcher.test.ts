@@ -1085,6 +1085,39 @@ describe('imported history', () => {
     expect(enqueued).toEqual([])
   })
 
+  it('does not dispatch MESSAGE_UPDATE for an imported row', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_UPDATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+    const resolveSpy = vi.spyOn(dispatcher as any, 'resolveServerId')
+
+    await (dispatcher as any).handleMessageUpdate({
+      new: { ...message(GENERAL, 'edited old news'), metadata: { history_import: true } },
+      old: { id: 'x' },
+    })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
+  it('does not dispatch MESSAGE_DELETE for an imported row', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_DELETE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+    const resolveSpy = vi.spyOn(dispatcher as any, 'resolveServerId')
+
+    await (dispatcher as any).handleMessageDelete({
+      old: { id: 'm1', channel_id: GENERAL, thread_id: null, metadata: { history_import: true } },
+    })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
   it('still dispatches a row whose metadata has no history_import', async () => {
     await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'live'), metadata: { history_import: false } } })
     expect(recipients('MESSAGE_CREATE', GENERAL)).toEqual([OPEN_BOT])

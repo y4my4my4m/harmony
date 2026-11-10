@@ -866,7 +866,9 @@ export class EventDispatcher {
     
     if (!message || !message.id) return
     if (message.encrypted) return
-    
+    // Imported history is quiet: an edit inside the change feed's overlap window is not an event.
+    if (message.metadata?.history_import === true) return
+
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
@@ -885,13 +887,16 @@ export class EventDispatcher {
       id: message.id,
       channel_id: message.channel_id
     });
-    
+
+    // Imported history is quiet; the old row's metadata is passed through for this.
+    if (message.metadata?.history_import === true) return
+
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {
       console.log('No server ID found, skipping dispatch');
       return
     }
-    
+
     const botIds = await this.resolveReaders(serverId, message.channel_id)
     if (botIds.length === 0 && !this.webhooks.wants('MESSAGE_DELETE', serverId, botIds)) {
       return

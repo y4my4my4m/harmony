@@ -180,15 +180,15 @@ export interface BotRequest extends Request {
 // client UI treats them as server statements. A bot's metadata never sets them. embeds holds
 // link-preview payloads (update_message_embeds), suppress_embeds is set through
 // set_message_embeds_suppressed, webhook by execute_channel_webhook, history_import by the
-// history import function alone (it marks rows the dispatcher and realtime must stay quiet for).
-// interaction names the slash command invocation a reply answers, and AutoMod judges the
-// message as its invoker's.
+// history import function alone (it marks rows the dispatcher and realtime must stay quiet for),
+// discord_reply_to likewise (import_link_replies acts on it). interaction names the slash
+// command invocation a reply answers, and AutoMod judges the message as its invoker's.
 const SERVER_METADATA_KEYS = new Set([
   'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
   'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
   'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook', 'remote_author', 'host_ap_id',
   'interaction',
-  'history_import',
+  'history_import', 'discord_reply_to',
 ])
 
 // Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
@@ -878,6 +878,13 @@ export class BotRestAPI {
         .from('messages')
         .update({ metadata: mergedMetadata })
         .eq('id', messageId)
+
+      // An import may already hold this Discord message id in the channel (the unique index of
+      // 20261109100002); the live copy lost the race, so the mapping is a no-op like sendMessage's.
+      if (updateError?.code === '23505'
+        && updateError.message?.includes('messages_channel_discord_message_id_unique')) {
+        return res.json({ ok: true, metadata: message.metadata ?? {} })
+      }
 
       if (updateError) {
         return res.status(500).json({ error: updateError.message })
