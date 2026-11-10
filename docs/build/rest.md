@@ -452,6 +452,19 @@ Returns `503` `Channel encryption status unavailable` if the encryption lookup f
 
 `GET /channels/{channel.id}/bridge-consent/{user.id}` returns `{ "relay_allowed": true | false }`. `true` requires current bridge registration and accepted native membership with no bridge opt-out. A malformed profile UUID returns `400`, missing channel read access `403`, and an unavailable/nonboolean consent lookup `503`. Treat anything other than explicit `true` as refusal. Check immediately before queued delivery, not only when receiving an event. This cannot atomically revoke a request already in flight.
 
+### Matrix room binding and eligible members
+
+These endpoints require a currently registered Matrix binding and channel read/send permissions:
+
+| Method | Path | Result |
+|---|---|---|
+| `PUT` | `/channels/{channel.id}/bridge-room` | Bind `{ "room_id": "!opaqueRoomId", "initial_sender_mode": "ghost" }`; `relay` is also valid. Returns the current `{ "room_id", "sender_mode" }`, preserving later manager changes. |
+| `GET` | `/channels/{channel.id}/bridge-room` | The current binding and manager-selected sender mode. |
+| `GET` | `/channels/{channel.id}/bridge-members` | Array of eligible native members: `id`, `username`, `display_name`, `avatar_url`, `domain`, `is_local`, `nickname`. Accepted, channel-visible local members only, excluding opt-outs and deleted accounts; nickname takes display-name precedence. |
+| `GET` | `/channels/{channel.id}/bridge-members/{user.id}/avatar` | Optional `{ "data": "<base64>", "content_type": "image/png" }` from the current eligible member's own Harmony avatars storage object. No caller-supplied URL/path; no external hosts, redirects or SVG. Raster bytes are metadata-stripped and capped at 1 MiB. |
+
+Malformed room/mode/user IDs return `400`, missing binding or permissions `403`, and unavailable or malformed binding/consent data `503`. A room cannot be reassigned without unpairing. The avatar endpoint returns `404` for an ineligible member or unsupported/missing picture. Bundled default avatars and external avatar URLs are not mirrored; omit the optional picture rather than discarding text. Mode/member snapshots never replace final delivery-time consent checks.
+
 ### Upload a Matrix bridge avatar
 
 `POST /channels/{channel.id}/bridge-avatar`

@@ -294,11 +294,32 @@ await supabase.rpc('configure_matrix_bridge', {
 
 The dedicated bot must already have an active **scoped** read/send installation. Every channel must be a text channel in this server and in that installation's explicit channel allowlist. The RPC replaces this server's Matrix bindings, marks the bot's platform, and refuses to convert a Discord bridge. An empty array unpairs the server's channels; it does not turn the bot back into a legacy Discord bridge. The bot itself must not have Manage Server.
 
+### Matrix sender modes and mentions
+
+The running Matrix application service binds each configured channel through `PUT /channels/{channel.id}/bridge-room`, supplying its room ID and initial sender mode. The first binding wins; reassigning a room requires explicitly unpairing it first. Reconfiguring a retained channel does not reset the administrator's mode choice.
+
+Under **Server settings → Matrix Bridge**, managers choose a mode for each bot/channel pair:
+
+- **Individual bridged users**: stable application-service ghost accounts join the Matrix room with Harmony names/avatars. Messages have no author prefix, and Matrix clients can autocomplete those joined users.
+- **Shared bridge account**: one Matrix sender with explicit Harmony attribution; no new ghosts. Existing configurations default to this mode; the example configuration explicitly recommends ghosts for new installations.
+
+The authenticated manager RPCs are `get_server_matrix_bridges(p_server_id)` and `set_matrix_bridge_sender_mode(p_bot_id, p_channel_id, p_sender_mode)`. This settings panel manages already-registered bridges; homeserver/application-service installation and initial channel pairing remain operator setup, not Discord OAuth or hosted-bot provisioning.
+
+Ghost mode requires the generated exclusive user namespace to be installed on the Matrix homeserver and sufficient room invite permissions. The worker never silently falls back to attribution. It synchronizes only explicitly allowlisted, accepted native members who can view the channel and have not opted out; it leaves tracked ghosts when they become ineligible or the pair returns to relay mode. Matrix accounts and historical events are not erased. Nicknames are room-specific, not global profile changes. Avatars are mirrored as bounded raster bytes from Harmony's own storage, never fetched from arbitrary profile URLs.
+
+Matrix users imported into Harmony use platform-qualified cache/profile identities, show their full MXID in a read-only external card, and are selectable in the normal mention picker. Matrix mention parts use `bridgeSource: "matrix"`, `userId: "@sam:example.org"`, `isBridged: true`, and `isLocal: false`. The composer token is `<@matrix:%40sam%3Aexample.org>`: URI-encode the complete MXID, not its display name. Do not create Harmony profile rows or infer recipients from names.
+
+The worker translates explicit Matrix `m.mentions.user_ids` and Matrix mention links into actual Harmony mentions for eligible known ghosts, and structured Harmony mentions into Matrix links plus `m.mentions`. In relay mode Matrix has no native autocomplete for Harmony-only users; `!mention <exact-Harmony-username> <message>` is the explicit fallback. This is a bridge command, not a portable Matrix slash-command autocomplete API. Unannotated text and mass-mention-looking strings must not create new pings.
+
+A queued Matrix send keeps its original sender identity durably. A mode change cancels a retry under a different identity rather than duplicating the same source message under a new sender. Read current binding and consent immediately before delivery; neither platform provides an atomic check-and-send.
+
+See the [Matrix bridge operator/member guide](/run/matrix-bridge).
+
 ### Member opt-out
 
 Each accepted member can open **Server menu → Bridge privacy** to stop their messages being relayed from that server. The authenticated RPCs are `get_server_bridge_opt_out(p_server_id)` and `set_server_bridge_opt_out(p_server_id, p_opt_out)`; neither accepts another member's ID. Managers cannot use these calls to change somebody else's preference. Existing members default to bridging allowed, preserving existing installations.
 
-For bridge bots, the gateway filters message history, individual/Discord-ID lookups, message events and native-member reaction events using the current preference. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries.
+For bridge bots, the gateway filters message history, individual/Discord-ID lookups, message events and native-member reaction events using the current preference. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries, and before exposing fresh ghost profiles or membership.
 
 Opt-out does **not** erase remote copies or guarantee remote cleanup. It also stops subsequent delete/update/reaction events by that member reaching bridge bots. External bridge programs may already hold previously disclosed payloads; they must recheck the consent endpoint before draining their own queues. A remote check and send are not atomic, so an already in-flight send can still finish.
 

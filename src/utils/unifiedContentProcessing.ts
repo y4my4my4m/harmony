@@ -18,6 +18,7 @@ import { HERE_ROLE_ID } from '@/utils/hereMention'
 import { isMassMentionWord, typedMassMentionPart, type MassMentionOptions } from '@/utils/massMentions'
 import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
 import { escapeHtml } from '@/utils/sanitize'
+import { isMatrixMention, matrixMentionToken, matrixProfileUrl, parseMatrixMentionToken } from '@/utils/matrixMentions';
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -52,7 +53,8 @@ const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
   `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))` +
   '|(@d!(\\d+):([a-zA-Z0-9_.-]+))' +
   `|(${HANDLE_PATTERN})` +
-  '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)',
+  '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)' +
+  '|(<@matrix:([^<>]*)(?:>|(?=<)|$))',
   'gu',
 );
 // Mirrors the inline-code rule of chatMessageTextRenderer.
@@ -97,6 +99,10 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
   
   // Handles inside URLs and inline code are not resolved.
   const skipRanges = opaqueRanges(content);
+  // Encoded Matrix tokens never resolve a local account named "matrix".
+  for (const token of content.matchAll(/<@matrix:[^<>]*(?:>|(?=<)|$)/g)) {
+    skipRanges.push({ start: token.index!, end: token.index! + token[0].length });
+  }
   const isOpaque = (pos: number): boolean =>
     skipRanges.some(r => pos >= r.start && pos < r.end);
 
@@ -474,6 +480,8 @@ async function parseContentSegment(
     // Matches inside a URL belong to the URL; parseTextForUrls handles them
     // (e.g. mastodon.social/@user/123).
     if (isInsideUrl(match.index)) continue;
+    // A raw angle-delimited token pasted directly into a URL is not a ping.
+    if (match[10] && /https?:\/\/[^\s]*$/i.test(content.slice(0, match.index))) continue;
 
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
@@ -515,6 +523,12 @@ async function parseContentSegment(
         isBridged: true,
         bridgeSource: 'discord'
       } as MessagePart);
+    } else if (match[10]) {
+      const matrix = parseMatrixMentionToken(match[10]);
+      parts.push(matrix ? {
+        type: 'mention', userId: matrix.id, username: matrix.username, domain: matrix.domain,
+        isLocal: false, displayName: matrix.username, isBridged: true, bridgeSource: 'matrix',
+      } : { type: 'text', text: match[0] });
     } else if (match[6]) {
       // User mention: @username or @username@host. A remote handle resolves
       // only under its own user@host key; the local host is never assigned
@@ -894,6 +908,10 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return part.text || '';
         
       case 'mention': {
+        if (isMatrixMention(part)) {
+          const href = matrixProfileUrl(part.userId);
+          return href ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${escapeHtml(part.userId)}</a>` : escapeHtml(part.userId || '');
+        }
         const currentDomain = localDomain();
         const username = (part.username || '').replace(/^@+/, ''); // prevent @@
         const domain = (part.domain || currentDomain).toLowerCase();
@@ -949,6 +967,7 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
         return part.text;
         
       case 'mention':
+        if (isMatrixMention(part)) return matrixMentionToken(part.userId) ?? part.userId;
         return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
         
       case 'hashtag':
@@ -985,7 +1004,7 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   name: string;
 }> {
   return parts
-    .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention')
+    .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention' && !isMatrixMention(part))
     .map(part => {
       const currentDomain = localDomain();
       const domain = (part.domain || currentDomain).toLowerCase();

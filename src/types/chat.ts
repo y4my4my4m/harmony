@@ -142,8 +142,9 @@ export interface User {
   // Server activity fields shown in profile cards.
   message_count?: number;
   voice_time?: number;
-  /** Ephemeral Discord bridge profile (not a Harmony profile row). */
-  bridge_source?: 'discord';
+  /** Ephemeral external bridge identity (not a Harmony profile row). */
+  bridge_source?: 'discord' | 'matrix';
+  matrix_id?: string;
   discord_id?: string;
   discord_joined_at?: string | null;
   discord_custom_status?: { text: string; emoji: string | null } | null;
@@ -471,6 +472,8 @@ export interface MentionContent {
   username: string;
   domain: string;
   isLocal: boolean;
+  isBridged?: boolean;
+  bridgeSource?: 'discord' | 'matrix';
   /**
    * Display name carried alongside the mention for rendering. Populated when
    * the mention resolves against the profile cache.

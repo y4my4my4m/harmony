@@ -673,6 +673,7 @@ import { markChannelRead, markConversationRead } from '@/services/readState';
 import { createReadMarkerQueue, type QueuedRead } from '@/utils/readMarkerQueue';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import { parseMatrixId } from '@/utils/matrixMentions';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import type { ServerBot } from '@/services/serverBotsService';
 import { BOT_NAME_COLOR } from '@/utils/botUtils';
@@ -717,6 +718,7 @@ import {
   discordMetadataToBridgedUser,
   fetchBridgedChannelUsers,
   BRIDGED_DISCORD_USER_ID_PREFIX,
+  BRIDGED_MATRIX_USER_ID_PREFIX,
 } from '@/services/bridgedChannelUsersService';
 import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
@@ -4306,6 +4308,16 @@ const showUserProfile = async (userId: string | null | undefined, event?: MouseE
   event?.stopPropagation();
   if (!userId) return;
 
+  if (userId.startsWith(BRIDGED_MATRIX_USER_ID_PREFIX) || parseMatrixId(userId)) {
+    const matrix = parseMatrixId(userId.replace(/^matrix:/, ''));
+    if (!matrix) return;
+    const cached = findBridgedUserInCache(props.channelId, matrix.id, 'matrix');
+    selectedUser.value = bridgedUserToProfileUser(cached ?? {
+      id: matrix.id, username: matrix.username, displayName: matrix.username, avatarUrl: '', source: 'matrix',
+    });
+    showProfileModal.value = true;
+    return;
+  }
   if (userId.startsWith(BRIDGED_DISCORD_USER_ID_PREFIX)) {
     const discordId = userId.slice(BRIDGED_DISCORD_USER_ID_PREFIX.length)
     let cached = findBridgedUserInCache(props.channelId, discordId)

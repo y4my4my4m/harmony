@@ -1,4 +1,5 @@
 import type { MessagePart, MentionContent } from '@/types';
+import { isMatrixMention, matrixMentionToken } from '@/utils/matrixMentions';
 import { discordEmojiPartText } from '@/utils/discordEmoji';
 import { urlPartPlainText, urlPartSource } from '@/utils/maskedLinks';
 import { withoutStickerFallbacks } from '@/utils/stickerParts';
@@ -111,6 +112,7 @@ export function messagePartsToMarkdown(
         return discordEmojiPartText(part.emoji) ?? (part.emoji?.name ? `:${part.emoji.name}:` : '');
       
       case 'mention':
+        if (isMatrixMention(part)) return matrixMentionToken(part.userId) ?? part.userId;
         // `MentionContent` has `username` / `displayName`, not `mention`; this
         // is a legacy field name kept around for back-compat by some code paths.
         if ((part as any).mention) return (part as any).mention;
@@ -217,6 +219,7 @@ export function messagePartsToPlainText(parts: MessagePart[]): string {
         return part.emoji?.name ? `:${part.emoji.name}:` : '';
       
       case 'mention':
+        if (isMatrixMention(part)) return part.userId;
         return (part as any).mention || (part.username ? `@${part.username}` : '');
 
       case 'role_mention':
@@ -252,6 +255,7 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
       case 'text': return part.text || '';
       case 'url': return part.url ? urlPartSource(part) : '';
       case 'mention': {
+        if (isMatrixMention(part)) return matrixMentionToken(part.userId) ?? part.userId;
         if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
         if (isMassMentionWord(part.username) && !part.isBridged) return massWordHandle(part);
         return `@${part.username}`;
@@ -280,7 +284,7 @@ export function stripLeadingSelfMention(
   if (!content?.length || !currentUsername) return content;
 
   const first = content[0];
-  if (!first || typeof first !== 'object' || first.type !== 'mention') return content;
+  if (!first || typeof first !== 'object' || first.type !== 'mention' || isMatrixMention(first)) return content;
 
   const mention = first as MentionContent;
   if (!mention.isLocal) return content;

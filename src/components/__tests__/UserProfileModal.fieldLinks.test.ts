@@ -146,6 +146,19 @@ afterEach(() => {
 })
 
 describe('UserProfileModal profile field links', () => {
+  it('routes Matrix identities to the read-only external card without native profile requests', async () => {
+    const wrapper = mount(UserProfileModal, {
+      props: { show: true, user: { id: 'matrix:@sam:example.org', matrix_id: '@sam:example.org', bridge_source: 'matrix', username: 'sam', display_name: 'Sam' } as any },
+      global: { directives: { 'click-outside': {} }, stubs: { MatrixBridgedProfile: { name: 'MatrixBridgedProfile', props: ['user'], template: '<div>{{ user?.id }}</div>' } } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('@sam:example.org')
+    expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(false)
+    expect(wrapper.getComponent({ name: 'MatrixBridgedProfile' }).props('user')).toMatchObject({ id: '@sam:example.org', source: 'matrix' })
+    expect(supabase.from).not.toHaveBeenCalled()
+    expect(relationships).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
   it('marks a label and a deceptive URL as masked, not the URL itself', async () => {
     const wrapper = open()
     await flushPromises()

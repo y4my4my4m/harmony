@@ -210,15 +210,17 @@
           :marks="marksAt(partIndex)"
         ><button
           type="button"
-          class="mention" 
+          class="mention"
+          :disabled="isMatrixMention(part)"
           :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !!mentionSuffix(part) }"
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
-          <template v-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
+          <template v-if="isMatrixMention(part)">{{ part.userId }} <BridgedSourceIcon source="matrix" /></template>
+          <template v-else-if="readsAsMassMention(part)"><span class="mention-at">@</span>{{ part.username }}<span v-if="massMentionHost(part)" class="mention-domain">@{{ massMentionHost(part) }}</span></template>
           <template v-else>
             <span class="mention-at">@</span>
-            <template v-if="part.userId">
+            <template v-if="part.userId && !isBridgedMention(part)">
               <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
             </template>
             <template v-else>{{ part.username }}</template>
@@ -890,6 +892,8 @@ import { convertEmoticons } from '@/utils/emoticons';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 import { isMaskedUrlPart, maskedUrlsIn, shownLinkLabel } from '@/utils/maskedLinks';
 import { useVisualTheme } from '@/composables/useVisualTheme';
+import { isMatrixMention } from '@/utils/matrixMentions';
+import BridgedSourceIcon from '@/components/messages/BridgedSourceIcon.vue';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import {
@@ -910,6 +914,7 @@ import { focusElement } from '@/utils/a11y/focus';
 export default defineComponent({
   name: 'UnifiedMessageContent',
   components: {
+    BridgedSourceIcon,
     AutoSuggest,
     DisplayName,
     CodeBlock,
@@ -1596,6 +1601,7 @@ export default defineComponent({
 
     const formatMentionDisplay = (mentionPart: any): string => {
       try {
+        if (isMatrixMention(mentionPart)) return mentionPart.userId;
         if (mentionPart.isLocal) {
           return `@${mentionPart.username}`;
         } else if (mentionPart.domain === 'discord.com' || mentionPart.isBridged) {
@@ -1945,11 +1951,12 @@ export default defineComponent({
     };
     
     const isBridgedMention = (part: any): boolean => {
-      return part?.isBridged || part?.domain === 'discord.com';
+      return isMatrixMention(part) || part?.isBridged || part?.domain === 'discord.com';
     };
     
     const { getUser, getUserDisplayName } = useUserData();
     const mentionSuffix = (part: any): string | null => {
+      if (isBridgedMention(part)) return null;
       const user = part?.userId ? getUser(part.userId).value : null;
       return mentionDisplayDomain(
         part,
@@ -1994,6 +2001,7 @@ export default defineComponent({
     };
 
     const getMentionTooltip = (part: any): string => {
+      if (isMatrixMention(part)) return `Matrix: ${part.userId}`;
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
       }
@@ -2011,6 +2019,7 @@ export default defineComponent({
     const handleMentionClick = (part: any, event: MouseEvent) => {
       event.stopPropagation();
 
+      if (isMatrixMention(part)) return;
       if (isBridgedMention(part)) {
         emit('show-user-profile', `${BRIDGED_DISCORD_USER_ID_PREFIX}${part.userId}`, event);
         return;
@@ -2165,6 +2174,7 @@ export default defineComponent({
       handleChannelMentionClick,
       handleMentionClick,
       isBridgedMention,
+      isMatrixMention,
       mentionSuffix,
       readsAsMassMention,
       massMentionHost,

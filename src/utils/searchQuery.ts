@@ -11,6 +11,7 @@
  */
 
 import type { Message, MessagePart } from '@/types'
+import { isMatrixMention } from '@/utils/matrixMentions'
 
 export const FILTER_KEYS = ['from', 'mentions', 'has', 'in', 'before', 'during', 'after', 'pinned'] as const
 export type FilterKey = (typeof FILTER_KEYS)[number]
@@ -416,7 +417,7 @@ export function messageMatchesParams(message: Message, params: SearchRpcParams):
   if (params.p_channel_ids && !(message.channel_id && params.p_channel_ids.includes(message.channel_id))) return false
   if (params.p_mentioned_user_ids) {
     const mentioned = partsOf(message)
-      .filter((p): p is Extract<MessagePart, { type: 'mention' }> => p.type === 'mention')
+      .filter((p): p is Extract<MessagePart, { type: 'mention' }> => p.type === 'mention' && !isMatrixMention(p))
       .map(p => p.userId)
     if (!mentioned.some(id => params.p_mentioned_user_ids!.includes(id))) return false
   }

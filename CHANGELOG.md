@@ -15,8 +15,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Matrix badge in Harmony, using generalized, permission-checked bridge metadata.
   Members can opt out through the server's Bridge privacy menu; gateway events and
   history respect it, and queued Matrix sends recheck it. Existing Discord author
-  metadata remains supported. Matrix-side virtual users, in-client Matrix setup
-  and encrypted participant support remain future work.
+  metadata remains supported. Optional Matrix ghost users now mirror eligible
+  Harmony names/avatars into real room members; managers choose ghosts or a shared
+  attributed relay under Server settings → Matrix Bridge. Member synchronization
+  enables native mention pickers and explicit mention translation in both directions.
+  Full in-client installation/pairing and encrypted participant support remain future work.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the

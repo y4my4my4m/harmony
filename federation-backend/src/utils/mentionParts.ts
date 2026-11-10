@@ -1,5 +1,10 @@
 import config from '../config/index.js';
 
+/** A Matrix ID is external even if a remote sender omitted its bridged flag. */
+export function isMatrixMention(part: any): boolean {
+  return part?.bridgeSource === 'matrix' || (typeof part?.userId === 'string' && /^@[^:\s]+:[^\s/]+$/.test(part.userId));
+}
+
 /**
  * Normalises mention parts received in `harmony:rawContent`. Locality is
  * relative to the sending instance there; here it is re-derived from the
@@ -12,7 +17,7 @@ export function normalizeInboundMentions(content: any[], originHost: string | nu
   const origin = originHost ? originHost.toLowerCase() : null;
   return content.map((part: any) => {
     if (part?.type !== 'mention') return part;
-    if (part.isBridged || part.domain === 'discord.com') return part;
+    if (part.isBridged || part.domain === 'discord.com' || isMatrixMention(part)) return part;
     const domain = typeof part.domain === 'string' && part.domain
       ? part.domain.toLowerCase()
       : origin;

@@ -355,9 +355,11 @@ Registers the remote platform's members for the channels a bridge relays. The ap
 | `createdAt` | string or `null` | Optional. ISO 8601. |
 | `presenceStatus` | string | Optional. `online`, `away`, `busy` or `offline`. |
 | `customStatus` | object or `null` | Optional. `{ "text", "emoji" }`. |
-| `source` | string | `discord`. |
+| `source` | string | `discord`, or `matrix` in an explicitly Matrix registration. |
 
-The gateway stores member objects as sent.
+Discord registrations retain their existing member fields. A durably Matrix-marked bot cannot omit or downgrade its platform to enter the legacy path. Matrix registrations set `d.platform` to `"matrix"` and supply per-channel members with `id` (full MXID), `username`, `displayName`, `avatarUrl` (empty or `null` when absent), and `source: "matrix"`. A current registered Matrix binding is required for every channel. Matrix identities are validated and bounded to 1,000 per list, with usernames/display names at most 100 characters and HTTP(S) avatar URLs at most 2048. Native role, Discord role, presence and arbitrary fields are not accepted as Matrix identity claims. A legacy/ordinary registration cannot inject Matrix members.
+
+A single bot must publish its **whole channel snapshot** on each op 6, not one channel per frame: later frames replace earlier ones. Snapshots from different bots/platforms sharing a channel remain separate; one disconnect does not erase the other's members. Matrix bindings are rechecked before returning cached Matrix members to the frontend. Discord's op 7 presence protocol remains Discord-specific.
 
 ### Bridge presence update (op 7)
 

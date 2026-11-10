@@ -1,5 +1,6 @@
 <template>
-  <BaseModal 
+  <MatrixBridgedProfile v-if="matrixProfile" :user="show ? matrixProfile : null" @close="$emit('close')" />
+  <BaseModal v-else
     :show="show" 
     @close="$emit('close')"
     :show-header="false"
@@ -440,7 +441,7 @@
   </BaseModal>
 
   <KickBanModal
-    v-if="user && isInServerContext"
+    v-if="user && isInServerContext && !matrixProfile"
     :show="showKickBanModal"
     :mode="kickBanMode"
     :user="{ id: user.id, username: user.username || '', display_name: (user as any).display_name || user.username || '', avatar_url: (user as any).avatar_url || null }"
@@ -478,7 +479,8 @@ import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import KickBanModal from './moderation/KickBanModal.vue'
 import BridgeSourceBadge from './messages/BridgeSourceBadge.vue'
-import { isBridgedDiscordProfileUser } from '@/services/bridgedChannelUsersService'
+import { isBridgedDiscordProfileUser, isBridgedMatrixProfileUser, type BridgedChannelUser } from '@/services/bridgedChannelUsersService'
+import MatrixBridgedProfile from '@/components/MatrixBridgedProfile.vue'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
@@ -504,8 +506,15 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const matrixProfile = computed<BridgedChannelUser | null>(() => {
+  if (!isBridgedMatrixProfileUser(props.user)) return null
+  const user = props.user as User
+  const username = user.username || 'Matrix'
+  return { id: user.matrix_id || user.id.replace(/^matrix:/, ''), username,
+    displayName: user.display_name || username, avatarUrl: user.avatar_url || '', source: 'matrix' }
+})
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
-const { movedTo, isMoved } = useMovedAccount(() => (props.show ? props.user as any : null))
+const { movedTo, isMoved } = useMovedAccount(() => (props.show && !matrixProfile.value ? props.user as any : null))
 
 const router = useRouter()
 const route = useRoute()
@@ -731,7 +740,7 @@ async function loadInstanceInfo(domain: string) {
 // Type guard: only truly remote/federated users, not local users with a domain field
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
   if (!user) return false;
-  if (isBridgedDiscordProfileUser(user)) return false;
+  if (isBridgedDiscordProfileUser(user) || isBridgedMatrixProfileUser(user)) return false;
   const u = user as any;
   // is_local === false is the strongest signal.
   if (u.is_local === false) return true;
@@ -1547,7 +1556,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
     showActionsMenu.value = false
     await cleanupProfilePresence()
 
-    if (props.user && isBridgedDiscordProfileUser(props.user)) {
+    if (props.user && (isBridgedDiscordProfileUser(props.user) || isBridgedMatrixProfileUser(props.user))) {
       if (isMobile.value) {
         closeMobileSidebars()
       }
