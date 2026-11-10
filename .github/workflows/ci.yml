@@ -190,6 +190,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # The stacks publish fixed ports inside Linux's ephemeral range (32768-60999): 54480 and
+      # 56480 (e2e/stack.sh), 55480-55492 (e2e/specs/livekit.ts), 54580-54581
+      # (e2e/federation/stack.sh). A client socket of an earlier step that drew one of them fails
+      # the publish with "address already in use" (2026-11-05 twice, 2026-11-10). Reserved ports
+      # are skipped by automatic assignment; explicit binds still take them. First step, before
+      # any connection.
+      - name: Reserve the stack ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54480-56480
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -225,6 +234,10 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5]
     steps:
+      # Ports as in e2e-stack.
+      - name: Reserve the stack ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54480-56480
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -277,6 +290,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Ports as in e2e-stack.
+      - name: Reserve the stack ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54480-56480
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -317,6 +334,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Ports as in e2e-stack.
+      - name: Reserve the stack ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54480-56480
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
