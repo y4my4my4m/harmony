@@ -20,7 +20,7 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { botAuthMiddleware, botRateLimit, type BotRequest } from '../BotAuthMiddleware.js'
+import { botAuthMiddleware, botRateLimit, localRateLimitWait, type BotRequest } from '../BotAuthMiddleware.js'
 
 const TOKEN = 'hrm_bot_9f2c1d4e8a7b'
 const TOKEN_SHA256 = createHash('sha256').update(TOKEN).digest('hex')
@@ -272,6 +272,40 @@ describe('botAuthMiddleware', () => {
       expect(refused.status).toBe(429)
       expect(refused.body.retry_after).toBeGreaterThan(0)
       expect(refused.body.retry_after).toBeLessThanOrEqual(60)
+    })
+
+    it('counts in this process when the RPC answers neither a number nor a boolean', async () => {
+      mocks.config.rateLimit.maxRequests = 1
+      routeRpc({
+        verify_bot_token: () => ({
+          data: { ...VALID_VERIFICATION, bot_id: '00000000-0000-0000-0000-0000000000b4' },
+          error: null,
+        }),
+        check_and_increment_bot_rate_limit: () => ({ data: null, error: null }),
+      })
+      const app = makeApp()
+      const send = () => supertest(app).get('/api/v1/probe').set('Authorization', `Bot ${TOKEN}`)
+
+      expect((await send()).status).toBe(200)
+      expect((await send()).status).toBe(429)
+    })
+
+    it('counts a bot\'s requests over all buckets together, so fresh channel ids lift nothing', async () => {
+      const bot = '00000000-0000-0000-0000-0000000000b5'
+      const waits: number[] = []
+      for (let i = 0; i < 4; i++) {
+        waits.push(await localRateLimitWait(bot, `/api/v1/channels/${crypto.randomUUID()}/messages`, 1, 60, 3))
+      }
+      expect(waits.slice(0, 3)).toEqual([0, 0, 0])
+      expect(waits[3]).toBeGreaterThan(0)
+      expect(await localRateLimitWait('00000000-0000-0000-0000-0000000000b6', '/api/v1/probe', 1, 60, 3)).toBe(0)
+    })
+
+    it('never sets the overall count below the route limit per minute', async () => {
+      const bot = '00000000-0000-0000-0000-0000000000b7'
+      const waits: number[] = []
+      for (let i = 0; i < 5; i++) waits.push(await localRateLimitWait(bot, `/bucket/${i}`, 5, 60, 3))
+      expect(waits).toEqual([0, 0, 0, 0, 0])
     })
 
     it('counts one bot apart from another', async () => {

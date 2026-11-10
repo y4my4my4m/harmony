@@ -159,7 +159,7 @@ Retry-After: 17
 { "error": "Rate limit exceeded", "retry_after": 17 }
 ```
 
-`retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number; the overall ceiling does not apply until the check works again.
+`retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number. In place of the overall ceiling it counts all of a bot's requests together, up to 3000 a minute (the default overall limit of a bridge), until the check works again.
 
 The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route.
 

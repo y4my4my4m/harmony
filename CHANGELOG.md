@@ -111,6 +111,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Changed
 - **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
   place of `500`.
+- **Bot API:** a message history read returns at most 100 messages and a member list at most 1000;
+  a `limit` that is not a whole number takes the default instead of failing. Bot audit rows record
+  their server and channel. While the rate-limit check fails, all of a bot's requests also count
+  together, up to 3000 a minute.
 - **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
   version self-hosted instances run.
 - **Newer self-host services:** storage-api v1.90.0, whose resumable uploads fail cleanly when a

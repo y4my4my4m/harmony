@@ -304,13 +304,29 @@ export interface MessageDeleteSink {
   messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
 }
 
+/** Most messages one history read returns, Discord's maximum. */
+export const MAX_MESSAGES_PER_READ = 100
+/** Most members one member list read returns, Discord's maximum. */
+export const MAX_MEMBERS_PER_READ = 1000
+
+/**
+ * A list route's `limit` query: `fallback` when absent or not a whole number, else clamped to
+ * 1..max. Unclamped, one request reads up to PostgREST's row limit (1000 by default).
+ */
+export function queryLimit(raw: unknown, fallback: number, max: number): number {
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return fallback
+  return Math.min(Math.max(Number(raw), 1), max)
+}
+
 /** A bridge pairing removed keeps answering true for at most this long. */
 const BRIDGE_PAIR_TTL_MS = 60_000
 
 export class BotRestAPI {
   public router: Router
   private readonly bridgePairs = new TTLCache<string, true>(5_000, BRIDGE_PAIR_TTL_MS)
-  
+  // A channel never moves to another server.
+  private readonly auditChannelServers = new TTLCache<string, string>(10_000, 10 * 60_000)
+
   constructor(private readonly deletes?: MessageDeleteSink) {
     this.router = Router()
     this.setupMiddleware()
@@ -579,7 +595,7 @@ export class BotRestAPI {
       }
       const thread = await this.loadThread(threadId as string)
       if (!thread) return res.status(500).json({ error: 'Thread not found after creation' })
-      await this.logBotAction(botId, 'thread_created', { channel_id: channelId, thread_id: thread.id })
+      await this.logBotAction(botId, 'thread_created', { channel_id: channelId, thread_id: thread.id }, { channelId })
       res.status(201).json(await this.formatThread(thread, botId))
     } catch (error: any) {
       console.error('Create thread error:', error)
@@ -780,7 +796,7 @@ export class BotRestAPI {
       return { ok: false, status: 403, body: { ...AUTOMOD_BLOCKED_BODY }, failure: 'automod_blocked' }
     }
 
-    await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id })
+    await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id }, { channelId })
 
     this.triggerLinkPreviewEnrichment(message.id)
 
@@ -925,9 +941,10 @@ export class BotRestAPI {
   private async getMessages(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { limit = 50, before, after } = req.query
+      const { before, after } = req.query
+      const limit = queryLimit(req.query.limit, 50, MAX_MESSAGES_PER_READ)
       const botId = req.bot!.id
-      
+
       const canRead = await this.canReadChannel(botId, channelId)
       if (!canRead) {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
@@ -946,7 +963,7 @@ export class BotRestAPI {
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
-        .limit(Number(limit))
+        .limit(limit)
       
       if (before) {
         query = query.lt('created_at', before as string)
@@ -1088,7 +1105,7 @@ export class BotRestAPI {
       return { ok: false, status: 403, body: { ...AUTOMOD_BLOCKED_BODY }, failure: 'automod_blocked' }
     }
 
-    await this.logBotAction(botId, 'message_edited', { message_id: messageId })
+    await this.logBotAction(botId, 'message_edited', { message_id: messageId }, { channelId: message.channel_id })
 
     return { ok: true, message: updated }
   }
@@ -1443,7 +1460,7 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      await this.logBotAction(botId, 'message_deleted', { message_id: messageId })
+      await this.logBotAction(botId, 'message_deleted', { message_id: messageId }, { channelId: message.channel_id })
 
       // A soft-deleted row was dispatched when is_deleted was set.
       if (this.deletes && message.is_deleted !== true) {
@@ -1631,7 +1648,8 @@ export class BotRestAPI {
     try {
       // Route registered under both /servers/:serverId and /guilds/:guildId.
       const serverId = req.params.serverId || req.params.guildId
-      const { limit = 100, after } = req.query
+      const { after } = req.query
+      const limit = queryLimit(req.query.limit, 100, MAX_MEMBERS_PER_READ)
       const botId = req.bot!.id
 
       // Keyset cursor, as Discord's: the last user.id of the previous page.
@@ -1652,7 +1670,7 @@ export class BotRestAPI {
         `)
         .eq('server_id', serverId)
         .order('user_id')
-        .limit(Number(limit))
+        .limit(limit)
       
       if (after) {
         query = query.gt('user_id', after)
@@ -1732,7 +1750,7 @@ export class BotRestAPI {
 
       if (error) return res.status(500).json({ error: error.message })
 
-      await this.logBotAction(botId, 'category_created', { server_id: serverId, category_id: data.id })
+      await this.logBotAction(botId, 'category_created', { server_id: serverId, category_id: data.id }, { serverId })
       res.status(201).json(data)
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -1782,7 +1800,7 @@ export class BotRestAPI {
       if (error?.code === '23514') return res.status(400).json({ error: error.message })
       if (error) return res.status(500).json({ error: error.message })
 
-      await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id })
+      await this.logBotAction(botId, 'channel_created', { server_id: serverId, channel_id: data.id }, { serverId, channelId: data.id })
       res.status(201).json(this.formatChannel(data))
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -2049,7 +2067,7 @@ export class BotRestAPI {
 
       if (error) return res.status(500).json({ error: error.message })
 
-      await this.logBotAction(botId, 'role_created', { server_id: serverId, role_id: data.id })
+      await this.logBotAction(botId, 'role_created', { server_id: serverId, role_id: data.id }, { serverId })
       res.status(201).json(data)
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -2144,7 +2162,7 @@ export class BotRestAPI {
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Role not found' })
 
-      await this.logBotAction(botId, 'role_updated', { server_id: serverId, role_id: roleId })
+      await this.logBotAction(botId, 'role_updated', { server_id: serverId, role_id: roleId }, { serverId })
       res.json(data)
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -2174,7 +2192,7 @@ export class BotRestAPI {
 
       if (error) return res.status(500).json({ error: error.message })
 
-      await this.logBotAction(botId, 'role_deleted', { server_id: serverId, role_id: roleId })
+      await this.logBotAction(botId, 'role_deleted', { server_id: serverId, role_id: roleId }, { serverId })
       res.status(204).send()
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Internal server error' })
@@ -2987,7 +3005,7 @@ export class BotRestAPI {
       const row = Array.isArray(data) ? data[0] : null
       if (!row) return res.status(500).json({ error: 'Import returned no row' })
       if (row.status === 'created') {
-        await this.logBotAction(botId, 'emoji_imported', { emojiId: row.id, serverId, discordEmojiId })
+        await this.logBotAction(botId, 'emoji_imported', { emojiId: row.id, serverId, discordEmojiId }, { serverId })
       }
       res.status(row.status === 'created' ? 201 : 200).json(row)
     } catch (error: any) {
@@ -3047,15 +3065,36 @@ export class BotRestAPI {
   
   // AUDIT LOGGING
   
-  // Never throws; an audit failure must not fail the request that triggered it.
-  private async logBotAction(botId: string, action: string, metadata: any) {
+  /** The server of a channel for an audit row; null when the lookup finds none. */
+  private async auditServerOf(channelId: string): Promise<string | null> {
+    const cached = this.auditChannelServers.get(channelId)
+    if (cached) return cached
+    const serverId = await this.channelServerId(channelId)
+    if (serverId) this.auditChannelServers.set(channelId, serverId)
+    return serverId
+  }
+
+  /**
+   * Never throws; an audit failure must not fail the request that triggered it. `where` fills
+   * the server_id and channel_id columns; a channel alone is resolved to its server.
+   */
+  private async logBotAction(
+    botId: string,
+    action: string,
+    metadata: any,
+    where: { serverId?: string | null; channelId?: string | null } = {},
+  ) {
     try {
+      const channelId = where.channelId ?? null
+      const serverId = where.serverId ?? (channelId ? await this.auditServerOf(channelId) : null)
       // supabase-js resolves with { error } rather than rejecting; a catch alone observes nothing.
       const { error } = await supabase
         .from('bot_audit_log')
         .insert({
           bot_id: botId,
           action_type: action,
+          server_id: serverId,
+          channel_id: channelId,
           success: true,
           metadata
         })

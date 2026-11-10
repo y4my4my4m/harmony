@@ -120,10 +120,41 @@ export async function botRateLimit(req: BotRequest, res: Response, next: NextFun
   next()
 }
 
-// Route buckets, counted here while the rate-limit RPC fails. The overall ceiling is a database
-// setting and has no count here.
+// Route buckets, counted here while the rate-limit RPC fails.
 const localCounts = new MemoryStore()
 localCounts.init({ windowMs: config.rateLimit.windowMs } as Options)
+
+/**
+ * A bot's requests per minute, all buckets together, while the rate-limit RPC fails. The database's
+ * overall ceiling is an antispam setting the gateway cannot read then; 3000 is the default of
+ * bridge_requests_per_minute, the highest default, so no bot within its default is refused. Keyed
+ * by bot alone: buckets are minted per channel id before any permission check, and naming fresh
+ * ids must not lift the count.
+ */
+export const LOCAL_OVERALL_PER_MINUTE = 3000
+const localOverallCounts = new MemoryStore()
+localOverallCounts.init({ windowMs: 60_000 } as Options)
+
+/**
+ * Seconds to wait while the rate-limit RPC fails: the route bucket, then the bot's overall count,
+ * as check_and_increment_bot_rate_limit. The overall limit never reads below the route limit per
+ * minute.
+ */
+export async function localRateLimitWait(
+  botId: string,
+  bucket: string,
+  maxRequests: number,
+  windowSeconds: number,
+  overallPerMinute = LOCAL_OVERALL_PER_MINUTE,
+): Promise<number> {
+  const route = await countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
+  const overall = await countLocally(
+    localOverallCounts, botId, 'overall',
+    Math.max(overallPerMinute, Math.ceil((maxRequests * 60) / windowSeconds)), 60,
+  )
+  return Math.max(route, overall)
+}
+
 const localInteractionCounts = new MemoryStore()
 localInteractionCounts.init({ windowMs: INTERACTION_WINDOW_SECONDS * 1000 } as Options)
 
@@ -157,7 +188,9 @@ async function checkInteractionLimit(botId: string): Promise<number> {
       console.error('Interaction rate limit RPC error:', error)
       return local()
     }
-    return typeof data === 'number' ? data : 0
+    if (typeof data === 'number') return data
+    console.error('Interaction rate limit RPC answered no number:', JSON.stringify(data))
+    return local()
   } catch (error) {
     console.error('Interaction rate limit check error:', error)
     return local()
@@ -173,8 +206,9 @@ async function checkInteractionLimit(botId: string): Promise<number> {
  * Window and limit come from config.rateLimit (RATE_LIMIT_WINDOW_MS,
  * RATE_LIMIT_MAX_REQUESTS). Window is passed in seconds, floored at 1.
  *
- * An RPC error counts in this process, so a limiter fault neither stops the bot API nor removes
- * the route limit. 5xx here would lose relayed messages: the bridge retries no POST on 5xx.
+ * An RPC error or an answer of another type counts in this process (localRateLimitWait), so a
+ * limiter fault neither stops the bot API nor removes the limits. 5xx here would lose relayed
+ * messages: the bridge retries no POST on 5xx.
  */
 async function checkRateLimit(botId: string, bucket: string): Promise<number> {
   const windowSeconds = Math.max(1, Math.floor(config.rateLimit.windowMs / 1000))
@@ -190,13 +224,15 @@ async function checkRateLimit(botId: string, bucket: string): Promise<number> {
 
     if (error) {
       console.error('Rate limit RPC error:', error)
-      return countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
+      return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
     }
 
     if (typeof data === 'number') return data
-    return data === true ? windowSeconds : 0
+    if (typeof data === 'boolean') return data ? windowSeconds : 0
+    console.error('Rate limit RPC answered neither a number nor a boolean:', JSON.stringify(data))
+    return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
+    return localRateLimitWait(botId, bucket, maxRequests, windowSeconds)
   }
 }

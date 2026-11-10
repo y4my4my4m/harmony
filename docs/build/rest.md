@@ -217,7 +217,7 @@ Channel access errors are listed under [Errors](#errors).
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 50 | Number of messages. The gateway sets no maximum. |
+| `limit` | 50 | Number of messages, at most 100. A larger value returns 100; a value that is not a whole number uses the default. |
 | `before` | | ISO 8601 timestamp. Only messages created before it. |
 | `after` | | ISO 8601 timestamp. Only messages created after it. |
 
@@ -421,7 +421,7 @@ Only the bridge bot of a channel its bridge relays. The first pair stands: the s
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 100 | Number of members. |
+| `limit` | 100 | Number of members, at most 1000. A larger value returns 1000; a value that is not a whole number uses the default. |
 | `after` | | User ID. Only members whose user ID sorts after it. |
 
 Returns member objects ordered by user ID. To read every member, request again with `after` set to the last `user.id` you received, until a page holds fewer than `limit` members. Memberships are not filtered by status, so pending and banned members appear.

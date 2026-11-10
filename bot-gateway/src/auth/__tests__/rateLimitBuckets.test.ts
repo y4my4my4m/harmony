@@ -171,10 +171,14 @@ describe('interaction bucket', () => {
     expect(buckets).toEqual([])
   })
 
-  it('counts in this process while the RPC fails', async () => {
+  it('counts in this process while the RPC fails or answers no number', async () => {
     const route = mocks.rpc.getMockImplementation()!
+    let takes = 0
     mocks.rpc.mockImplementation(async (fn: string, args: any) => {
-      if (fn === 'bot_rate_limit_take') return { data: null, error: { message: 'function does not exist' } }
+      if (fn === 'bot_rate_limit_take') {
+        takes += 1
+        return takes % 2 ? { data: null, error: { message: 'function does not exist' } } : { data: null, error: null }
+      }
       return route(fn, args)
     })
     const app = makeApp()
