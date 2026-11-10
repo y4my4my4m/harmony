@@ -3102,9 +3102,11 @@ export class BotRestAPI {
       })
 
       // Without a stored clip the RPC answers existing or linked rows and refuses a new one.
+      let storedPath: string | null = null
       let { data, error } = await call(null, null)
       if (error && error.message === 'invalid sound file') {
         const stored = await storeDiscordSound(serverId, b.discord_sound_id)
+        storedPath = stored.storagePath
         ;({ data, error } = await call(stored.storagePath, stored.durationMs))
         if (error) {
           await removeStoredSound(stored.storagePath)
@@ -3114,6 +3116,8 @@ export class BotRestAPI {
       if (error) return this.soundError(res, error)
       const row = Array.isArray(data) ? data[0] : null
       if (!row) return res.status(500).json({ error: 'Import returned no row' })
+      // A concurrent import won the race; the clip we stored is an orphan.
+      if (storedPath && row.status !== 'created') await removeStoredSound(storedPath)
       if (row.status === 'created') {
         await this.logBotAction(botId, 'sound_imported', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id })
       } else if (row.status === 'updated') {

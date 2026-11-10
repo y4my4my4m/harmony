@@ -138,6 +138,16 @@ describe('POST /servers/:serverId/sounds/discord', () => {
     expect(mocks.remove).toHaveBeenCalledWith(`${SERVER_ID}/x.mp3`)
   })
 
+  it('removes the stored clip when a concurrent import won the race', async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid sound file' } })
+      .mockResolvedValueOnce({ data: [row('existing')], error: null })
+    const res = await post(body)
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('existing')
+    expect(mocks.remove).toHaveBeenCalledWith(`${SERVER_ID}/x.mp3`)
+  })
+
   it('reports a failed download as 502', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'invalid sound file' } })
     mocks.store.mockRejectedValue(new Error('Discord CDN answered 404'))

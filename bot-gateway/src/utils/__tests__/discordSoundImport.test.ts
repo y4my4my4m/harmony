@@ -77,6 +77,16 @@ describe('storeDiscordSound', () => {
     expect(uploads).toHaveLength(0)
   })
 
+  it.each([
+    ['ID3 followed by zeros', () => Uint8Array.from([0x49, 0x44, 0x33, ...new Array(2000).fill(0)])],
+    ['ID3 followed by random bytes', () => Uint8Array.from([0x49, 0x44, 0x33, ...Array.from({ length: 2000 }, () => Math.floor(Math.random() * 256))])],
+    ['OggS followed by junk', () => Uint8Array.from([0x4f, 0x67, 0x67, 0x53, ...Array.from({ length: 2000 }, (_, i) => (i * 37) % 251)])],
+  ])('throws without uploading when %s passes the magic check but is not audio', async (_label, make) => {
+    uploads.length = 0
+    await expect(storeDiscordSound(SERVER, '123', ok(make()))).rejects.toThrow()
+    expect(uploads).toHaveLength(0)
+  })
+
   it('clamps a parser overshoot just above 5.2 s to 5200', async () => {
     uploads.length = 0
     const parsed = await audioDurationMs(syntheticMp3(200), 'mp3')

@@ -108,7 +108,7 @@ BEGIN
   END IF;
 
   IF p_storage_path IS NULL
-     OR p_storage_path !~ ('^' || p_server_id::text || '/[0-9a-f-]{36}\.(mp3|ogg)$')
+     OR p_storage_path !~ ('^' || p_server_id::text || '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp3|ogg)$')
      OR p_duration_ms IS NULL OR p_duration_ms NOT BETWEEN 1 AND 5200 THEN
     RAISE EXCEPTION 'invalid sound file' USING ERRCODE = '22023';
   END IF;
