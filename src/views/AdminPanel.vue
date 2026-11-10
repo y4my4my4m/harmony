@@ -145,6 +145,7 @@
     <div v-else-if="activeAdminTab === 'invites'" class="admin-grid single">
       <InstanceInvites />
       <SignupLimits v-if="hasCapability('signup-limits')" />
+      <SignupCaptchaSettings v-if="hasCapability('signup-captcha')" />
     </div>
 
     <div v-else-if="activeAdminTab === 'retention'" class="admin-grid single">
@@ -234,6 +235,7 @@ const UserManagement = defineAsyncComponent(() => import('@/components/admin/Use
 const RecentSignups = defineAsyncComponent(() => import('@/components/admin/RecentSignups.vue'))
 const InstanceInvites = defineAsyncComponent(() => import('@/components/admin/InstanceInvites.vue'))
 const SignupLimits = defineAsyncComponent(() => import('@/components/admin/SignupLimits.vue'))
+const SignupCaptchaSettings = defineAsyncComponent(() => import('@/components/admin/SignupCaptchaSettings.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))

@@ -124,6 +124,15 @@
         </button>
       </div>
 
+      <SignupCaptcha
+        v-if="!isLogin && captchaConfig"
+        ref="captchaWidget"
+        :config="captchaConfig"
+        :refused="captchaRefused"
+        @token="onCaptchaToken"
+        @expired="captchaToken = ''"
+      />
+
       <p id="auth-form-error" class="form-error" role="alert" data-testid="auth-form-error">{{ formError }}</p>
 
       <!-- aria-disabled, not disabled: a disabled button drops keyboard focus to <body>. -->
@@ -391,6 +400,8 @@ import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACE
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
 import { signupRefusalKey } from '@/utils/signupLimits'
+import { isCaptchaAsk, loadSignupCaptchaConfig, type SignupCaptchaConfig } from '@/utils/signupCaptcha'
+import SignupCaptcha from '@/components/auth/SignupCaptcha.vue'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
@@ -467,6 +478,12 @@ const passwordError = ref('')
 const formError = ref('')
 const emailInput = ref<HTMLInputElement | null>(null)
 const passwordInput = ref<HTMLInputElement | null>(null)
+
+// Sign-up check, shown once the hook asks for it (428). A token is single-use at the provider.
+const captchaConfig = ref<SignupCaptchaConfig | null>(null)
+const captchaToken = ref('')
+const captchaRefused = ref(false)
+const captchaWidget = ref<InstanceType<typeof SignupCaptcha> | null>(null)
 
 // Forgot password state
 const showForgotPasswordModal = ref(false)
@@ -601,6 +618,7 @@ const handleOAuthLogin = async (providerId: string, providerName: string) => {
 // Email/Password Submit
 const handleSubmit = async () => {
   if (isLoading.value) return
+  let sentToken = ''
   formError.value = ''
   validateEmail()
   validatePassword()
@@ -637,7 +655,9 @@ const handleSubmit = async () => {
       // New signups also respect the toggle so a user signing up on a
       // shared computer can keep their session tab-bound.
       setRememberMe(rememberMe.value)
-      await authStore.register(email.value, password.value)
+      sentToken = captchaToken.value
+      captchaToken.value = ''
+      await authStore.register(email.value, password.value, sentToken || undefined)
       if (!authStore.session) {
         // Email confirmation is enabled: GoTrue issues no session until the
         // link in the confirmation email is followed.
@@ -649,11 +669,40 @@ const handleSubmit = async () => {
     }
   } catch (error: any) {
     debug.error('Auth error:', error)
+    if (!props.isLogin && isCaptchaAsk(error) && await showCaptcha(sentToken !== '')) return
     const refusal = signupRefusalKey(error)
     formError.value = refusal ? t(refusal) : authErrorMessage(error, t('auth.callback.failed'))
   } finally {
     isLoading.value = false
   }
+}
+
+/**
+ * The hook asked for the check; `refused`: a token was sent and the provider refused it. False when
+ * the instance names no usable widget.
+ */
+const showCaptcha = async (refused: boolean): Promise<boolean> => {
+  if (captchaConfig.value) {
+    captchaRefused.value = refused
+    captchaWidget.value?.reset()
+    polite(t(refused ? 'auth.captcha.refused' : 'auth.captcha.asked'))
+    return true
+  }
+  try {
+    captchaConfig.value = await loadSignupCaptchaConfig()
+  } catch (error) {
+    debug.warn('Sign-up check settings unreadable:', error)
+  }
+  if (!captchaConfig.value) return false
+  captchaRefused.value = false
+  polite(t('auth.captcha.asked'))
+  return true
+}
+
+// The answer resubmits the form: the person already asked to create the account.
+const onCaptchaToken = (token: string) => {
+  captchaToken.value = token
+  if (!isLoading.value) void handleSubmit()
 }
 
 // 2FA Verification

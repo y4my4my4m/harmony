@@ -21,6 +21,7 @@ export const KNOWN_CAPABILITIES = [
   'federated-polls',
   'supporter-messages',
   'signup-limits',
+  'signup-captcha',
   'instance-limits',
   'invite-widgets',
   'thread-departures',

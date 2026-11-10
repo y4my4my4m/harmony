@@ -14,6 +14,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   5 seconds, or defers for up to 15 minutes, publicly ("Alice used /weather") or only to the member
   who ran the command. Shapes follow Discord's; permissions are Harmony permission names. Not in
   encrypted channels or direct messages. See the developer docs, Build → Slash commands.
+- **A captcha only when a sign-up looks automated.** Admins can turn on a sign-up check with
+  Cloudflare Turnstile or hCaptcha in **Admin** → **Invites** → **Sign-up check**. It appears for a
+  second account from the same network within an hour, an email domain new to the instance, or a
+  sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up.
 - **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
   a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
   shows the server's name and counts and links to the invite.

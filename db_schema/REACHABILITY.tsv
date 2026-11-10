@@ -45,6 +45,7 @@ admin_set_moderator	definer	boolean	authenticated+service_role	client	rpc in src
 admin_set_outgoing_webhook_active	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_set_upload_limit	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/UploadLimitDialog.vue
 admin_set_upload_limits	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/UploadLimitsAdmin.vue
+admin_test_signup_captcha	definer	jsonb	authenticated	client	rpc in src/services/SignupCaptchaService.ts
 admin_update_supporter	definer	boolean	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_update_webhook_settings	definer	jsonb	authenticated+service_role	client	named in src/components/admin/__tests__/WebhooksAdmin.test.ts, src/services/outgoingWebhookService.ts
 admin_upload_limits	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/UploadLimitsAdmin.vue
@@ -250,6 +251,7 @@ clear_orphaned_public_keys	definer	integer	service_role	service key	nothing refe
 close_following_import	invoker	void	service_role	client	called by cancel_my_following_import, claim_following_import_batch
 complete_ap_activity	definer	void	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 compute_supporter_tier_for_amount	invoker	uuid	anon+authenticated+service_role	client	called by recompute_supporter_tier
+config_audit_value	invoker	jsonb	-	client	called by batch_set_instance_config, set_instance_config
 consume_device_sync_bundle	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 consume_invite	definer	text	service_role	client	rpc in federation-backend/src/activitypub/ServerInboxHandler.ts, federation-backend/src/services/ServerDiscoveryService.ts
 content_has_system_part	invoker	boolean	service_role	trigger	called by refuse_client_system_parts
@@ -677,7 +679,7 @@ is_active_instance_staff	definer	boolean	service_role	client	called by admin_get
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
-is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +49
+is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +50
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.drive_blocked_hashes SELECT on drive_blocked_hashes_select_staff, public.drive_pending_blocks SELECT on drive_pending_blocks_select_staff, public.instance_server_blocks SELECT on instance_server_blocks_select_staff, +5
 is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
@@ -970,6 +972,9 @@ set_user_role_assigned_by	invoker	trigger	service_role	trigger	trigger public.us
 set_welcome_server	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc in federation-backend/src/routes/gifs.ts
 sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts
+signup_captcha_check	definer	jsonb	-	client	called by admin_test_signup_captcha, signup_captcha_verify
+signup_captcha_verdict	invoker	text	-	client	called by signup_captcha_check
+signup_captcha_verify	definer	text	-	nothing	called by before_user_created_hook
 signup_mailbox_hash	invoker	text	-	nothing	called by before_user_created_hook
 signup_network_contains	invoker	boolean	-	nothing	called by before_user_created_hook
 signup_review_welcome_server	definer	uuid	service_role	client	called by staff_recent_signups, staff_signup_groups
@@ -1003,6 +1008,7 @@ sticker_folder_has_room	definer	boolean	service_role	policy	called by can_write_
 sticker_limit	invoker	integer	anon+authenticated+service_role	policy, trigger	called by enforce_sticker_limit, sticker_folder_has_room
 storage_upload_limit	definer	trigger	service_role	trigger	trigger storage.objects BEFORE INSERT/UPDATE (storage_upload_limit)
 store_federated_message_poll	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/messagePolls.ts
+strip_signup_captcha_token	invoker	trigger	-	trigger	trigger auth.users BEFORE INSERT/UPDATE (harmony_strip_captcha_token)
 supporter_message_problem	invoker	text	authenticated+service_role	client, declarative	check public.instance_supporter_messages instance_supporter_messages_body_valid
 sweep_stale_voice_participants	definer	integer	service_role	cron	cron * * * * * (voice-participant-sweep)
 sync_avg_latency	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.performance_metrics_hourly BEFORE INSERT/UPDATE (trigger_sync_avg_latency)

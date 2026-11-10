@@ -45,6 +45,7 @@ admin_set_moderator	p_profile_id uuid, p_is_moderator boolean	boolean	definer	pu
 admin_set_outgoing_webhook_active	p_webhook_id uuid, p_active boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_set_upload_limit	p_profile uuid, p_limit_bytes bigint	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_set_upload_limits	p_user_mb numeric, p_moderator_mb numeric, p_admin_mb numeric	jsonb	definer	public, pg_temp	authenticated+service_role	client
+admin_test_signup_captcha	p_provider text, p_token text, p_secret text	jsonb	definer	public, pg_temp	authenticated	client
 admin_update_supporter	p_user_id uuid, p_changes jsonb	boolean	definer	public, pg_temp	authenticated+service_role	client
 admin_update_webhook_settings	p_settings jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_upload_limits		jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -250,6 +251,7 @@ clear_orphaned_public_keys		integer	definer	public, extensions, pg_temp	service_
 close_following_import	p_import_id uuid, p_cancelled boolean	void	invoker	public, pg_temp	service_role	unreferenced
 complete_ap_activity	p_ap_id text, p_success boolean, p_error text	void	definer	public, pg_temp	service_role	client
 compute_supporter_tier_for_amount	p_amount numeric, p_currency text	uuid	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
+config_audit_value	p_key text, p_value jsonb	jsonb	invoker	pg_temp		unreferenced
 consume_device_sync_bundle	p_request_id uuid, p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
 consume_invite	p_server_id uuid, p_code text	text	definer	public, pg_temp	service_role	client
 content_has_system_part	p_content jsonb	boolean	invoker	pg_catalog, pg_temp	service_role	unreferenced
@@ -970,6 +972,9 @@ set_user_role_assigned_by		trigger	invoker	public, pg_temp	service_role	trigger
 set_welcome_server	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 should_show_gif_ads	p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 sign_out_my_sessions	p_scope text	integer	definer	public, pg_temp	authenticated+service_role	client
+signup_captcha_check	p_provider text, p_secret text, p_token text, p_remote_ip text	jsonb	definer	public, pg_temp		unreferenced
+signup_captcha_verdict	p_status integer, p_content text	text	invoker	pg_temp		unreferenced
+signup_captcha_verify	p_provider text, p_secret text, p_token text, p_remote_ip text	text	definer	public, pg_temp		unreferenced
 signup_mailbox_hash	p_email text	text	invoker	pg_temp		unreferenced
 signup_network_contains	p_network text, p_ip inet	boolean	invoker	pg_temp		unreferenced
 signup_review_welcome_server		uuid	definer	public, pg_temp	service_role	unreferenced
@@ -1003,6 +1008,7 @@ sticker_folder_has_room	p_name text, p_scope text	boolean	definer	public, pg_tem
 sticker_limit	p_scope text	integer	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
 storage_upload_limit		trigger	definer	public, pg_temp	service_role	trigger
 store_federated_message_poll	p_message_id uuid, p_poll_id uuid, p_question text, p_options text[], p_allow_multiple boolean, p_expires_at timestamp with time zone, p_remote boolean, p_ap_id text, p_votes integer[], p_voters integer	uuid	definer	public, pg_temp	service_role	client
+strip_signup_captcha_token		trigger	invoker	pg_temp		trigger
 supporter_message_problem	p_body text	text	invoker	pg_catalog, pg_temp	authenticated+service_role	unreferenced
 sweep_stale_voice_participants		integer	definer	public, pg_temp	service_role	unreferenced
 sync_avg_latency		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger

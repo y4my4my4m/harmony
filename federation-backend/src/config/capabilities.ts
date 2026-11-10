@@ -35,6 +35,9 @@ export const CAPABILITIES = [
   // Sign-up limits: the signup_* keys of instance_config and signup_refusal_counts, read by
   // before_user_created_hook (20261109100001). On an older instance a save would have no effect.
   'signup-limits',
+  // Sign-up captcha: the signup_captcha_* keys of instance_config and signup_captcha_counts, read by
+  // before_user_created_hook, and its 428 answer (20261111100001).
+  'signup-captcha',
   // leave_thread and thread_departures (20261110300001).
   'thread-departures',
   // Invite widgets for websites: GET /widget/invite/:code and its badge.svg.
