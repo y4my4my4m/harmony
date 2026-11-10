@@ -46,6 +46,7 @@ vi.mock('@/services/spatialAudio', () => ({ spatialAudioService: {} }))
 vi.mock('@/services/DMCallSignaling', () => ({ dmCallSignaling: {} }))
 vi.mock('@/stores/spatialAudio', () => ({ useSpatialAudioStore: () => ({}) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
+vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/stores/useServerUsers', () => ({ useServerUsersStore: () => ({ usersInVoiceChannels: {} }) }))
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ channels: [{ id: 'annex', name: 'annex', type: 1 }], servers: [], currentServer: { id: 's', is_local_server: true } }),
