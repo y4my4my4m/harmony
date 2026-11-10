@@ -1,7 +1,7 @@
 // Journey: links to X posts a user sends go out on fixupx.com, the embed-fixer mirror other
 // apps preview with the post's media; Harmony still shows the post. Appearance turns the
 // rewrite off per site, the choice is stored on the profile, and a link sent then stays as
-// typed. Share trackers (Instagram's igsh and mdxt, utm_*) leave a sent link, typed on a
+// typed. Share trackers (X's a, Instagram's igsh, mdxt and vrfl, utm_*) leave a sent link, typed on a
 // mirror or rewritten to one, and the cleaned link still shows the post. A masked link and a
 // `<url>` link keep their host: a mirror is for the preview other apps draw, and a label naming
 // x.com no longer matched a link stored on fixupx.com.
@@ -72,6 +72,7 @@ test('a sent X post link is stored on fixupx.com and still shows the post', asyn
   await openChannel(page, server.id, server.generalChannelId)
   await dismissAnnouncements(page)
 
+  expect(await send(page, 'mirrorshare', `${POST}?a=Jx_gyWG6CfM0o0KaDJg&s=20`)).toEqual([MIRRORED])
   expect(await send(page, 'mirroron', POST)).toEqual([MIRRORED])
   const row = messageList(page).locator('.message-item').filter({ hasText: 'mirroron ' })
   await expect(row.locator('a.url-link')).toHaveAttribute('href', MIRRORED)
@@ -174,6 +175,8 @@ test.describe('share trackers on mirror links', () => {
     expect(await send(page, 'mirrormdxt', `${REEL}?mdxt=MXN0Z2w5YWF3c2U1eg==`)).toEqual([REEL])
     expect(await send(page, 'instamdxt',
       'https://www.instagram.com/reel/De-YBL8zRXm/?utm_source=ig_web_copy_link&igsh=MXN0Z2w5YWF3c2U1eg==&mdxt=MXN0Z2w5YWF3c2U1eg=='))
+      .toEqual([REEL])
+    expect(await send(page, 'instavrfl', 'https://www.instagram.com/reel/De-YBL8zRXm/?vrfl=a3g2aWcxZnhwa3dx'))
       .toEqual([REEL])
 
     await test.step('the preview the backend stores for the cleaned link shows the reel', async () => {

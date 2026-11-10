@@ -60,6 +60,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   report an account for username hoarding or trading.
 - **Delete accounts and free their usernames.** Administrators can delete selected accounts in
   **Admin** → **Signups**. The usernames become free at once.
+- **Platform names are reserved.** New accounts and renames cannot take the names of 35 large
+  services and platforms, such as `discord`, `google`, `openai` and `twitch`. Accounts that already
+  hold one keep it.
 
 ### Fixed
 - **Live updates no longer stop for a whole instance.** Realtime allowed 200 connected clients, 100
@@ -91,6 +94,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Mention suggestions take any display name**: kana, kanji, Hangul, accents, full-width letters
   and names with spaces, also while an input method is still composing, and with the full-width
   ＠ of a Japanese input mode.
+- **X and Instagram links lose their newer share trackers.** Posts copied from X on the web carry
+  `?a=…` and Instagram links `?vrfl=…`; both are now removed with the earlier ones, on the sites and
+  their embed mirrors.
 - **Default emoji in reply previews** use your emoji pack instead of the system's.
 - **Formatting no longer runs inside inline code**: `` `*a*` `` shows its asterisks.
 - **Scrolling up right after opening a channel** no longer pulls you back to the newest message.
@@ -104,6 +110,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Federated calls in the admin panel.** The **Allow federated voice calls** switch under
   **Config** → **Voice & video** never changed anything. The tab now shows the state the backend
   reports; `ALLOW_FEDERATED_VOICE` decides it.
+- **Admin config keeps what you type while it loads.** A value typed in **Admin** → **Config**
+  before the stored settings arrived was overwritten, and after a failed load, saving branding
+  wrote defaults over the stored values. Each tab now stays locked until its settings are read,
+  and says so when the read fails.
 - **Installing and updating on arm64.** Harmony 1.9.4's gateway image, `kong:2.8.5`, has no arm64
   build, so `harmony install` and `harmony update` stopped at the image pull on arm64 servers. The
   stack now runs `kong:3.9.4`, and CI checks every image for amd64 and arm64.
@@ -144,6 +154,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - If you worked around the arm64 error with `docker-compose.arm64.yml`, delete that file and the
   `COMPOSE_FILE` line it needed from `.env`. The instance keeps working if you leave them, on Kong
   2.8.1.
+- Installing under a restrictive umask such as 077 or 027 works: `configure.sh` gives the database
+  init scripts and mounted files the modes the containers need, and `harmony doctor` checks them.
+  An install that already failed this way needs a fresh database: see
+  [A restrictive umask](https://docs.mony.lol/self-host/troubleshooting#umask).
 - An instance whose `JWT_SECRET` has fewer than 32 characters keeps PostgREST v12.2.12, because later
   versions refuse to start with it. `harmony doctor` warns and says how to replace the secret.
 - Instance limits are on after updating, at values well above ordinary use. Stored `antispam`

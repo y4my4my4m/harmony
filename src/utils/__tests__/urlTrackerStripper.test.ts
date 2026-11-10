@@ -36,6 +36,15 @@ describe('urlTrackerStripper', () => {
       expect(stripTrackingParameters(url)).toBe('https://x.com/user/status/123')
     })
 
+    it('strips the X web share token a', () => {
+      expect(stripTrackingParameters('https://x.com/NASA/status/2112560723603632217?a=Jx_gyWG6CfM0o0KaDJg'))
+        .toBe('https://x.com/NASA/status/2112560723603632217')
+      expect(stripTrackingParameters('https://x.com/NASA/status/2112560723603632217?a=Jx_gyWG6CfM0o0KaDJg&s=20'))
+        .toBe('https://x.com/NASA/status/2112560723603632217')
+      expect(stripTrackingParameters('https://twitter.com/NASA/status/1?s=46&a=Jx_gyWG6CfM0o0KaDJg&t=abc'))
+        .toBe('https://twitter.com/NASA/status/1')
+    })
+
     it('strips Twitter ref_src + ref_url', () => {
       const url = 'https://twitter.com/user/status/123?s=20&t=abc&ref_src=twsrc'
       expect(stripTrackingParameters(url)).toBe('https://twitter.com/user/status/123')
@@ -62,9 +71,11 @@ describe('urlTrackerStripper', () => {
       ['kkinstagram.com', 'https://kkinstagram.com/reel/De-YBL8zRXm/?mdxt=MXN0Z2w5YWF3c2U1eg==', 'https://kkinstagram.com/reel/De-YBL8zRXm/'],
       ['eeinstagram.com', 'https://eeinstagram.com/p/C0fQuIUJ875/?igsh=MWZ5dDlkd3lqNXQ5Mg==&mdxt=MXN0Z2w5YWF3c2U1eg==', 'https://eeinstagram.com/p/C0fQuIUJ875/'],
       ['www.ddinstagram.com', 'https://www.ddinstagram.com/reel/De-YBL8zRXm/?igshid=x&utm_source=ig_web_copy_link', 'https://www.ddinstagram.com/reel/De-YBL8zRXm/'],
+      ['kkinstagram.com', 'https://kkinstagram.com/reel/De-YBL8zRXm/?vrfl=a3g2aWcxZnhwa3dx', 'https://kkinstagram.com/reel/De-YBL8zRXm/'],
       ['fixupx.com', 'https://fixupx.com/NASA/status/2112560723603632217?s=46&t=AbCdEf', 'https://fixupx.com/NASA/status/2112560723603632217'],
       ['vxtwitter.com', 'https://vxtwitter.com/NASA/status/1?ref_src=twsrc%5Etfw&ref_url=https%3A%2F%2Fexample.com', 'https://vxtwitter.com/NASA/status/1'],
       ['fxtwitter.com', 'https://fxtwitter.com/NASA/status/1?s=20', 'https://fxtwitter.com/NASA/status/1'],
+      ['fixupx.com', 'https://fixupx.com/NASA/status/1?a=Jx_gyWG6CfM0o0KaDJg&s=20', 'https://fixupx.com/NASA/status/1'],
       ['fxbsky.app', 'https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m?ref_src=embed', 'https://fxbsky.app/profile/bsky.app/post/3mxyyerrxak2m'],
       ['bskye.app', 'https://bskye.app/profile/bsky.app/post/3mx?ref_src=embed&utm_medium=share', 'https://bskye.app/profile/bsky.app/post/3mx'],
     ])('strips the share trackers of the site on %s', (_host, sent, stored) => {
@@ -76,13 +87,22 @@ describe('urlTrackerStripper', () => {
         .toBe('https://www.instagram.com/p/C0fQuIUJ875/?img_index=3')
     })
 
+    it('strips the Instagram share id vrfl and keeps the carousel index', () => {
+      expect(stripTrackingParameters('https://www.instagram.com/reel/De-YBL8zRXm/?vrfl=a3g2aWcxZnhwa3dx'))
+        .toBe('https://www.instagram.com/reel/De-YBL8zRXm/')
+      expect(stripTrackingParameters('https://www.instagram.com/p/C0fQuIUJ875/?vrfl=a3g2aWcxZnhwa3dx&img_index=2'))
+        .toBe('https://www.instagram.com/p/C0fQuIUJ875/?img_index=2')
+      expect(stripTrackingParameters('https://instagram.com/p/C0fQuIUJ875/?igsh=x&vrfl=a3g2aWcxZnhwa3dx&mdxt=y'))
+        .toBe('https://instagram.com/p/C0fQuIUJ875/')
+    })
+
     it('strips X share tokens on mobile.twitter.com and leaves the X search query', () => {
       expect(stripTrackingParameters('https://mobile.twitter.com/jack/status/20?s=21')).toBe('https://mobile.twitter.com/jack/status/20')
       expect(stripTrackingParameters('https://x.com/search?q=launch&src=typed_query')).toBe('https://x.com/search?q=launch&src=typed_query')
     })
 
     it('leaves the site-only names on other hosts', () => {
-      expect(stripTrackingParameters('https://example.com/a?mdxt=1&s=2&t=3&ref_src=4')).toBe('https://example.com/a?mdxt=1&s=2&t=3&ref_src=4')
+      expect(stripTrackingParameters('https://example.com/a?mdxt=1&s=2&t=3&a=5&ref_src=4&vrfl=6')).toBe('https://example.com/a?mdxt=1&s=2&t=3&a=5&ref_src=4&vrfl=6')
       expect(stripTrackingParameters('https://notkkinstagram.com/reel/x/?mdxt=1')).toBe('https://notkkinstagram.com/reel/x/?mdxt=1')
     })
 
