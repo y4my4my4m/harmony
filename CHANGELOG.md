@@ -80,6 +80,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can
   follow and mention. Self-hosted instances could not store such accounts at all; they can now.
+- **Opening a remote profile reads its account once.** A profile whose bio held a link and no
+  custom emoji was fetched again from its instance, outbox included, every time anyone opened it.
+  It is now read once and answered from the stored profile. Profiles found by search also keep the
+  instance's shared inbox and the account's creation date, which the spam checks use as its age.
 - **The message field no longer locks after switching servers.** A switch could leave "You do not
   have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
   instances.

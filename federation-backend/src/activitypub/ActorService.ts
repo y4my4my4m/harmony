@@ -89,6 +89,32 @@ async function markRemoteReactionsAttempted(
   }
 }
 
+/** Shortcode grammar of public.derive_display_name_emojis. */
+const EMOJI_SHORTCODE = /:[a-zA-Z0-9_+-]+:/;
+
+/** Profile federation_metadata as an object; older rows hold it as a JSON-encoded string. */
+function storedMetadata(value: unknown): Record<string, any> {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? { ...(parsed as Record<string, any>) } : {};
+}
+
+/**
+ * True when a stored remote profile shows shortcodes in its name or bio and no actor read has
+ * recorded its emoji lists. A read records both lists, empty ones included.
+ */
+export function needsEmojiRead(profile: { federation_metadata?: unknown; bio?: unknown; display_name?: unknown }): boolean {
+  const metadata = storedMetadata(profile.federation_metadata);
+  if (Array.isArray(metadata.bio_emojis) || Array.isArray(metadata.display_name_emojis)) return false;
+  return [profile.bio, profile.display_name].some((text) => typeof text === 'string' && EMOJI_SHORTCODE.test(text));
+}
+
 /**
  * Stored profile of `username@domain`: the account itself, or the one remote
  * account whose actor is served from `domain` (a split-domain account named
@@ -277,26 +303,34 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
     };
     const { data: previous } = await supabase
       .from('profiles')
-      .select('id, moved_to_uri')
+      .select('id, moved_to_uri, federation_metadata')
       .eq('federated_id', profileData.federated_id)
       .maybeSingle();
     Object.assign(profileRecord, await movedColumns(supabase, profileData, previous));
-    
+
     // Persist ActivityPub profile fields (PropertyValue attachments)
     if (profileData.profile_fields) {
       profileRecord.profile_fields = profileData.profile_fields;
     }
 
-    const federationMetadata: any = {};
-    if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-      federationMetadata.bio_emojis = profileData.bio_emojis;
+    // shared_inbox_url and ap_published as ActivityProcessor.ensureRemoteUser writes them.
+    const sharedInbox = linkUrl(actor.endpoints?.sharedInbox);
+    if (sharedInbox) {
+      profileRecord.shared_inbox_url = sharedInbox;
     }
-    if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
-      federationMetadata.display_name_emojis = profileData.display_name_emojis;
+
+    // Emoji lists are written even when empty: their presence marks the actor as
+    // read. Keys stored by other writers are kept.
+    const federationMetadata = storedMetadata(previous?.federation_metadata);
+    federationMetadata.bio_emojis = profileData.bio_emojis ?? [];
+    federationMetadata.display_name_emojis = profileData.display_name_emojis ?? [];
+    const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
+      ? new Date(actor.published).toISOString()
+      : null;
+    if (apPublished) {
+      federationMetadata.ap_published = apPublished;
     }
-    if (Object.keys(federationMetadata).length > 0) {
-      profileRecord.federation_metadata = JSON.stringify(federationMetadata);
-    }
+    profileRecord.federation_metadata = federationMetadata;
 
     Object.assign(profileRecord, countColumns);
 
@@ -470,33 +504,16 @@ router.post(
 
     logger.info(`Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
 
+    let storedRowRefetched = false;
     if (!forceRefresh) {
       const existingUser = await findStoredRemoteAccount(supabase, username, domain);
 
       if (existingUser) {
         logger.info(`Found existing user in database: ${username}@${domain}`);
-        
-        // Absent emoji metadata forces a refetch.
-        let needsMetadataRefresh = false;
-        try {
-          const metadata = existingUser.federation_metadata 
-            ? (typeof existingUser.federation_metadata === 'string' 
-                ? JSON.parse(existingUser.federation_metadata) 
-                : existingUser.federation_metadata)
-            : {};
-          const hasBioEmojis = Array.isArray(metadata.bio_emojis) && metadata.bio_emojis.length > 0;
-          const hasDisplayNameEmojis = Array.isArray(metadata.display_name_emojis) && metadata.display_name_emojis.length > 0;
-          needsMetadataRefresh = !hasBioEmojis && !hasDisplayNameEmojis;
-        } catch {
-          needsMetadataRefresh = true;
-        }
-        
-        // Refresh only when metadata is absent and display name or bio carry shortcodes.
-        const hasEmojiPatterns = 
-          (existingUser.bio && existingUser.bio.includes(':')) ||
-          (existingUser.display_name && existingUser.display_name.includes(':'));
-        if (needsMetadataRefresh && hasEmojiPatterns) {
-          logger.info(`User ${username}@${domain} has emoji patterns but no emoji metadata - forcing refresh`);
+
+        if (needsEmojiRead(existingUser)) {
+          storedRowRefetched = true;
+          logger.info(`User ${username}@${domain} has shortcodes but no recorded emoji - refreshing`);
           // Falls through to the full fetch; the cached row is not returned.
         } else {
           // Background outbox fetch when outbox_url is known and the last sync
@@ -533,7 +550,7 @@ router.post(
     }
     const { user: savedUser, actor } = resolved;
 
-    logger.info(`${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
+    logger.info(`${forceRefresh || storedRowRefetched ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
     
     const backfilling = typeof actor.outbox === 'string'
       && startOutboxBackfill(savedUser.id, actor.outbox, supabase, `${username}@${domain}`);
