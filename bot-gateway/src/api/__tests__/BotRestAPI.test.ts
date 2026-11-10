@@ -595,6 +595,15 @@ describe('server routes', () => {
       expect(JSON.stringify(calls)).not.toContain('joined_at')
     })
 
+    it('reads at most 1000 members a page and defaults a malformed limit to 100', async () => {
+      const calls = recordCalls('user_servers', { ...INSTALLED, user_servers: { data: [], error: null } })
+      const app = makeApp()
+      await supertest(app).get(`/api/v1/servers/${SERVER_ID}/members?limit=5000`)
+      await supertest(app).get(`/api/v1/servers/${SERVER_ID}/members?limit=ten`)
+
+      expect(calls.filter(([method]) => method === 'limit')).toEqual([['limit', [1000]], ['limit', [100]]])
+    })
+
     it('orders by user id without a cursor', async () => {
       const calls = recordCalls('user_servers', { ...INSTALLED, user_servers: { data: [], error: null } })
       await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members`)

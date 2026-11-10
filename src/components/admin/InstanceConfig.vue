@@ -24,12 +24,26 @@
     </button>
   </div>
   <div class="config-sections">
+    <p v-if="configLoadFailed" class="setting-hint federation-closed-warning" style="margin-bottom: 16px;" role="status" data-testid="config-load-failed">
+      {{ t('admin.instance.configLoadFailed') }}
+    </p>
+
     <!-- General / Chat Settings -->
-    <div v-if="configTab === 'general'" class="config-section">
+    <fieldset v-if="configTab === 'general'" class="config-section" :disabled="!configLoaded">
       <h3>Chat settings</h3>
       <div class="setting-group">
         <label>Max server size</label>
         <input v-model.number="config.chat.maxServerSize" type="number" class="cyber-input" />
+      </div>
+      <div v-if="limitsSupported" class="setting-group">
+        <label>Servers one account can own</label>
+        <input v-model.number="config.chat.maxServersPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-servers-per-user" />
+        <span class="setting-hint">Local servers, instance admins and moderators excepted. 0 = no limit. Default: 100.</span>
+      </div>
+      <div v-if="limitsSupported" class="setting-group">
+        <label>Bots one account can own</label>
+        <input v-model.number="config.chat.maxBotsPerUser" type="number" min="0" class="cyber-input" data-testid="config-max-bots-per-user" />
+        <span class="setting-hint">Channel webhooks and linked Discord bridges are not counted. 0 = no limit. Default: 25.</span>
       </div>
       <div class="setting-group">
         <label>Max message length</label>
@@ -196,10 +210,10 @@
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
 
     <!-- Federation Settings -->
-    <div v-if="configTab === 'federation'" class="config-section">
+    <fieldset v-if="configTab === 'federation'" class="config-section" :disabled="!configLoaded">
       <h3>Federation settings</h3>
       <div class="setting-group">
         <label>Max post length</label>
@@ -372,10 +386,10 @@
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
 
     <!-- Instance Branding -->
-    <div v-if="configTab === 'branding'" class="config-section">
+    <fieldset v-if="configTab === 'branding'" class="config-section" :disabled="!configLoaded">
       <h3>Instance branding</h3>
       <div class="setting-group">
         <label>Instance name</label>
@@ -500,7 +514,8 @@
 
         <div class="setting-group">
           <span class="form-label-text" aria-hidden="true">Theme color</span>
-          <div style="display: flex; align-items: center; gap: 12px;">
+          <!-- Its sliders are not form controls: a disabled fieldset leaves them live. -->
+          <div style="display: flex; align-items: center; gap: 12px;" :inert="!configLoaded">
             <ColorPicker
               label="Theme color"
               :color="instanceConfig.themeColor || '#0EA5E9'"
@@ -609,10 +624,10 @@
         <Icon name="save" :size="16" />
         {{ savingBranding ? 'Saving…' : 'Save branding' }}
       </button>
-    </div>
+    </fieldset>
 
     <!-- OAuth Providers -->
-    <div v-if="configTab === 'oauth'" class="config-section">
+    <fieldset v-if="configTab === 'oauth'" class="config-section" :disabled="!configLoaded">
       <h3>OAuth providers</h3>
       <p class="setting-hint" style="margin-bottom: 16px;">
         Enable or disable OAuth login providers. When disabled, the provider will not appear on the login/register page.
@@ -685,14 +700,14 @@
 harmony auth providers
 harmony auth remove-provider authentik</code></pre>
       </section>
-    </div>
+    </fieldset>
 
     <!-- WebRTC / Voice Settings -->
     <div v-if="configTab === 'uploads'" class="config-section">
       <UploadLimitsAdmin />
     </div>
 
-    <div v-if="configTab === 'webrtc'" class="config-section">
+    <fieldset v-if="configTab === 'webrtc'" class="config-section" :disabled="!configLoaded">
       <h3>WebRTC / voice settings</h3>
       <p v-if="webrtcUnread" class="setting-hint federation-closed-warning" role="status" data-testid="webrtc-unread">
         {{ t('admin.instance.webrtcLoadFailed') }}
@@ -731,27 +746,23 @@ harmony auth remove-provider authentik</code></pre>
           Maximum audience size for stage events (speaker mode)
         </span>
       </div>
-      <div class="setting-row">
-        <label class="toggle-label">
-          <input type="checkbox" v-model="config.webrtc.allowFederatedVoice" :disabled="webrtcUnread" />
-          <span class="toggle-slider"></span>
-          Allow federated voice calls
-          <span class="setting-hint-inline">
-            Enable voice/video calls with users from other instances
-          </span>
-        </label>
+      <div class="setting-group" data-testid="webrtc-federated-state">
+        <span class="form-label-text">{{ t('admin.instance.federatedCallsLabel') }}</span>
+        <p class="federated-calls-state" role="status">{{ federatedCallsText }}</p>
+        <span class="setting-hint">{{ t('admin.instance.federatedCallsHint') }}</span>
       </div>
 
       <button @click="saveConfig" class="save-btn" :disabled="!configChanged" style="margin-top: 16px;">
         <Icon name="save" :size="16" />
         Save changes
       </button>
-    </div>
+    </fieldset>
   </div>
 </div>
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -770,6 +781,7 @@ import { supabase } from '@/supabase'
 import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { fetchLiveKitConfig } from '@/services/livekitTokens'
 import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 import { DEFAULT_STICKER_CAPS, parseStickerCap } from '@/utils/stickerLimits'
 import { DEFAULT_FEDERATE_IMAGE_MAX_PX, FEDERATE_IMAGE_RENDER_MAX, parseFederateImageMaxPx } from '@/utils/federateImageMaxPx'
@@ -804,6 +816,9 @@ const refreshTrendingPosts = async () => {
 const savedConfigPayload = ref<Record<string, unknown> | null>(null)
 const savedWebrtc = ref<Record<string, unknown> | null>(null)
 const configLoadFailed = ref(false)
+// Inputs are locked until the stored values are read: the load overwrites them, and defaults
+// shown for unread values must not reach a save.
+const configLoaded = ref(false)
 const instanceBrandingChanged = ref(false)
 const savingBranding = ref(false)
 const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc' | 'uploads'>('general')
@@ -845,6 +860,8 @@ const customOAuthCallbackUrl = `${(runtimeConfig.supabaseUrl || '').replace(/\/+
 const config = ref({
   chat: {
     maxServerSize: 1000,
+    maxServersPerUser: 100,
+    maxBotsPerUser: 25,
     maxMessageLength: 2000,
     maxMediaAttachmentsPerPost: 20,
     allowFileUploads: true,
@@ -876,13 +893,33 @@ const config = ref({
   webrtc: {
     mode: 'hybrid' as 'sfu' | 'p2p' | 'hybrid',
     livekitUrl: '',
-    allowFederatedVoice: true,
     maxStageListeners: 100000
   }
 })
 
+// As the federation backend reports it, from ALLOW_FEDERATED_VOICE in its environment.
+const federatedCallsText = ref('')
+
+const loadFederatedCalls = async () => {
+  const voice = await fetchLiveKitConfig()
+  if (!voice) federatedCallsText.value = t('admin.instance.federatedCallsUnread')
+  else if (!voice.allowFederatedVoice) federatedCallsText.value = t('admin.instance.federatedCallsOff')
+  else if (!voice.enabled) federatedCallsText.value = t('admin.instance.federatedCallsNoLivekit')
+  else federatedCallsText.value = t('admin.instance.federatedCallsOn')
+}
+
+watch(configTab, (tab) => {
+  if (tab === 'webrtc') void loadFederatedCalls()
+})
+
+const limitsSupported = hasCapability('instance-limits')
+
 const configPayload = (): Record<string, unknown> => ({
   max_server_size: config.value.chat.maxServerSize,
+  ...(limitsSupported ? {
+    max_servers_per_user: config.value.chat.maxServersPerUser,
+    max_bots_per_user: config.value.chat.maxBotsPerUser,
+  } : {}),
   max_message_length: config.value.chat.maxMessageLength,
   max_media_attachments_per_post: config.value.chat.maxMediaAttachmentsPerPost ?? 20,
   allow_file_uploads: config.value.chat.allowFileUploads,
@@ -917,7 +954,6 @@ const configPayload = (): Record<string, unknown> => ({
 const webrtcPayload = (): Record<string, unknown> => ({
   mode: config.value.webrtc.mode,
   livekitUrl: config.value.webrtc.livekitUrl,
-  allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
   maxStageListeners: config.value.webrtc.maxStageListeners,
 })
 
@@ -1004,9 +1040,11 @@ const loadInstanceConfig = async () => {
       oauthProvidersChanged.value = false
       customOAuthProviders.value = cfg.instance.customOAuthProviders || []
     }
+    configLoaded.value = !!cfg
   } catch (error) {
     debug.error('Failed to load instance config:', error)
-    // Keep defaults if loading fails
+    configLoadFailed.value = true
+    toast.error(t('admin.instance.configLoadFailed'))
   }
 }
 
@@ -1057,7 +1095,6 @@ const saveConfig = async () => {
       const webrtcSaved = await adminService.updateWebRTCSettings({
         mode: config.value.webrtc.mode,
         livekitUrl: config.value.webrtc.livekitUrl,
-        allowFederatedVoice: config.value.webrtc.allowFederatedVoice,
         maxStageListeners: config.value.webrtc.maxStageListeners
       })
       if (!webrtcSaved) {
@@ -1308,6 +1345,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.federated-calls-state {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
 
 
 
@@ -1731,8 +1773,16 @@ onMounted(() => {
 
 
 
+/* Fieldset defaults: border, padding, min-content minimum width. */
 .config-section {
-  margin-bottom: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.config-section:disabled {
+  opacity: 0.6;
 }
 
 

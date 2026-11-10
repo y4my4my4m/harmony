@@ -49,7 +49,8 @@ An error response is a JSON object with an `error` message. Some errors add fiel
 | `404` | varies | Message, channel, thread, role, user or invite not found. A path no route matches answers `Not found`. |
 | `409` | varies | A silent content patch lost a race, or a thread is already paired. |
 | `429` | `Rate limit exceeded` | See [Rate limits](/build/permissions-rate-limits#rest-rate-limits). |
-| `500` | varies | A database error, including constraint violations and message text over the instance's length limit. A body that is not valid JSON, or is over 10 MB, answers `Internal server error`. |
+| `400` | `Message text exceeds the instance limit of …` | Message text over the instance's length limit, on create, edit and interaction replies. |
+| `500` | varies | A database error, including constraint violations. A body that is not valid JSON, or is over 10 MB, answers `Internal server error`. |
 | `502` | varies | A Discord emoji image could not be downloaded or stored. |
 | `503` | `Token verification unavailable` | The token lookup failed on the server. Retry. |
 
@@ -102,6 +103,13 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/users/@me`](#get-current-bot) | Token | Read the bot itself |
 | `GET` | [`/users/{user.id}`](#get-user) | Token | Read a profile |
 | `GET` | [`/invites/{code}/preview`](#get-invite-preview) | Token | Read an invite's server card |
+| `GET` | [`/commands`](/build/commands#register-commands) | Token | List the bot's slash commands |
+| `PUT` | [`/commands`](/build/commands#register-commands) | Token | Replace the bot's slash commands |
+| `POST` | [`/commands`](/build/commands#register-commands) | Token | Create or replace one slash command |
+| `DELETE` | [`/commands/{command.id}`](/build/commands#register-commands) | Token | Delete a slash command |
+| `POST` | [`/interactions/{interaction.id}/callback`](/build/commands#respond) | The bot's interaction | Answer or defer, within 5 seconds |
+| `PATCH` | [`/interactions/{interaction.id}/response`](/build/commands#respond) | The bot's interaction | Edit the answer, or post it after a defer |
+| `POST` | [`/interactions/{interaction.id}/followups`](/build/commands#respond) | The bot's interaction | Post a follow-up |
 | `GET` | [`/guilds/{server.id}`](#deprecated-aliases) | Installed | Deprecated alias of `GET /servers/{server.id}` |
 | `GET` | [`/guilds/{server.id}/members`](#deprecated-aliases) | Installed | Deprecated alias of `GET /servers/{server.id}/members` |
 | `GET` | [`/guilds/{server.id}/channels`](#deprecated-aliases) | Installed | Deprecated alias of `GET /servers/{server.id}/channels` |
@@ -151,7 +159,7 @@ The server drops `system` parts a bot sends, and removes `path` from every part 
 
 Every photo or video the instance stores on a bot's behalf (a [mirrored](/build/bridges#attachments) attachment, an [imported Discord emoji](#import-a-discord-emoji)) is stored without its location, camera and other metadata, on the server, before it is written. Bots have no option to keep it. What is removed is what the app removes from its members' uploads: Exif (GPS, camera, dates), XMP and IPTC from JPEG, PNG, WebP, GIF, HEIC and AVIF, and the location, camera and other metadata boxes of MP4 and MOV, without re-encoding. Other formats are stored as they are. Files a bot names by URL and the instance does not copy are not touched.
 
-The text parts of a message may hold at most the instance's message length limit, 2000 characters unless the operator changed it. A longer message fails with `500` and an error such as `Message text exceeds the instance limit of 2000 characters (got 2417)`.
+The text parts of a message may hold at most the instance's message length limit, 2000 characters unless the operator changed it. A longer message fails with `400` and an error such as `Message text exceeds the instance limit of 2000 characters (got 2417)`.
 
 ### Mentions
 
@@ -187,7 +195,7 @@ Edits and silent content patches apply the same check.
 }
 ```
 
-`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds` and `webhook`. `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel; see [Relayed authors](/build/bridges#relayed-authors). The server then sets `bot: true` and `created_via: "bot_api"`.
+`metadata` keys the server reserves are dropped: `type`, `federated`, `ap_id`, `from_domain`, `original_url`, `published`, `conversation`, `in_reply_to_ap`, `pending_thread_ap_id`, `federated_at`, `federated_to`, `automod`, `bot`, `created_via`, `embeds`, `suppress_embeds`, `webhook` and `interaction`. The server sets `interaction` (`id`, `name`, `user_id`, and `followup` on follow-ups) on public answers to [slash commands](/build/commands). `discord_user` and `bridge_source` are kept only from a bridge bot whose bridge relays the channel; see [Relayed authors](/build/bridges#relayed-authors). The server then sets `bot: true` and `created_via: "bot_api"`.
 
 When the instance's bridge attachment mode is `mirror`, `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` are copied into the instance's storage first; see [Attachments](/build/bridges#attachments). Photos and videos copied this way lose their location, camera and other metadata; see [Photo and video metadata](#photo-and-video-metadata).
 
@@ -199,7 +207,7 @@ Returns `201` with the [message object](#message-object). The instance then fetc
 | `400` | `thread_id is not a thread of this channel` | |
 | `403` | `Thread is locked` | |
 | `403` | `Blocked by the server's AutoMod` | `code` is `AUTOMOD_BLOCKED`. |
-| `500` | `Message text exceeds the instance limit of …` | Text over the length limit. |
+| `400` | `Message text exceeds the instance limit of …` | Text over the length limit. |
 
 Channel access errors are listed under [Errors](#errors).
 
@@ -209,7 +217,7 @@ Channel access errors are listed under [Errors](#errors).
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 50 | Number of messages. The gateway sets no maximum. |
+| `limit` | 50 | Number of messages, at most 100. A larger value returns 100; a value that is not a whole number uses the default. |
 | `before` | | ISO 8601 timestamp. Only messages created before it. |
 | `after` | | ISO 8601 timestamp. Only messages created after it. |
 
@@ -413,7 +421,7 @@ Only the bridge bot of a channel its bridge relays. The first pair stands: the s
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 100 | Number of members. |
+| `limit` | 100 | Number of members, at most 1000. A larger value returns 1000; a value that is not a whole number uses the default. |
 | `after` | | User ID. Only members whose user ID sorts after it. |
 
 Returns member objects ordered by user ID. To read every member, request again with `after` set to the last `user.id` you received, until a page holds fewer than `limit` members. Memberships are not filtered by status, so pending and banned members appear.

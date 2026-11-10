@@ -41,7 +41,7 @@ import { BotRestAPI } from '../BotRestAPI.js'
 
 let db: FakeDb
 
-function seed({ botType = 'bridge', v2 = true, v1 = false }: { botType?: string; v2?: boolean; v1?: boolean } = {}) {
+function seed({ botType = 'bridge', v2 = true, v1 = false, installedBy = OWNER_ID }: { botType?: string; v2?: boolean; v1?: boolean; installedBy?: string } = {}) {
   const tables: Record<string, Row[]> = {
     bots: [{ id: BOT_ID, username: 'discord-bridge', bot_type: botType }],
     servers: [{ id: SERVER_ID, owner: OWNER_ID }, { id: OTHER_SERVER, owner: OWNER_ID }],
@@ -57,7 +57,7 @@ function seed({ botType = 'bridge', v2 = true, v1 = false }: { botType?: string;
     ],
     channel_permission_overrides: [],
     bot_server_permissions: [{
-      id: '00000000-0000-0000-0000-0000000000b9', bot_id: BOT_ID, server_id: SERVER_ID, installed_by: OWNER_ID,
+      id: '00000000-0000-0000-0000-0000000000b9', bot_id: BOT_ID, server_id: SERVER_ID, installed_by: installedBy,
       is_active: true, read_messages: true, send_messages: true,
     }],
     messages: [
@@ -184,6 +184,12 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     seed({ v2: true, v1: true })
     const v2 = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
     expect(v2.status).toBe(403)
+  })
+
+  it('takes no v1 pairing for a bridge bot neither the server owner nor the pairing creator brought', async () => {
+    seed({ v2: false, v1: true, installedBy: '00000000-0000-0000-0000-0000000000ee' })
+    const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(403)
   })
 })
 

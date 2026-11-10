@@ -8,6 +8,15 @@
 --   mallory member of NO server, participant in NO conversation
 --   banned  a user_servers row on server_1 with status = 'banned'
 
+-- Fixture accounts are hours old in every test, so the new-install limits on new accounts stay off here.
+-- 247_instance_write_limits.sql reads what the migrations stored.
+CREATE TABLE IF NOT EXISTS tests.new_install_antispam AS
+  SELECT config_value FROM public.instance_config WHERE config_key = 'antispam';
+UPDATE public.instance_config
+   SET config_value = config_value || '{"new_account_messages_per_minute": 0, "new_account_posts_per_hour": 0,
+                                        "new_account_max_stranger_mentions": 0}'::jsonb
+ WHERE config_key = 'antispam';
+
 INSERT INTO auth.users (id, instance_id, aud, role, email)
 VALUES
   ('aaaaaaaa-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'alice@test.local'),

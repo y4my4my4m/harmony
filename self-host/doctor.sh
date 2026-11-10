@@ -139,6 +139,8 @@ check_host() {
 		[[ "$mount" == "$(df -P "$SELF_HOST_DIR" | awk 'NR==2 {print $6}')" && "$dir" != "$SELF_HOST_DIR" ]] && break
 	done
 
+	check_files
+
 	local last age
 	last="$(latest_backup)"
 	if [[ -z "$last" ]]; then
@@ -151,6 +153,22 @@ check_host() {
 			report OK backup "last backup $(basename "$last") ($age days old)"
 		fi
 	fi
+}
+
+# Public files without the modes the containers need (modes.sh): FAIL for supabase/, whose
+# supabase-db and kong run as their own users, and for an install that builds its images.
+check_files() {
+	local p level=WARN
+	local -a unread=()
+	while IFS= read -r -d '' p; do unread+=("${p#./}"); done < <(public_unreadable)
+	if [[ ${#unread[@]} -eq 0 ]]; then
+		report OK files "the checkout and supabase/ are readable to the containers"
+		return
+	fi
+	for p in "${unread[@]}"; do [[ "$p" != self-host/supabase* ]] || level=FAIL; done
+	[[ "$(env_get "$ENV_FILE" COMPOSE_FILE)" != *docker-compose.build.yml* ]] || level=FAIL
+	report "$level" files "${#unread[@]} files or directories the containers read lack o+r (first: ${unread[0]}); a container that runs as another user cannot read them" \
+		"bash $SELF_HOST_DIR/configure.sh --non-interactive (keeps every answer; harmony update runs it)"
 }
 
 # --- containers ----------------------------------------------------------------
@@ -196,13 +214,37 @@ check_containers() {
 	fi
 }
 
+# --- instance limits -----------------------------------------------------------
+# Rate limits count rows of an unlogged table; purge-automod trims it.
+check_activity_purge() {
+	if [[ "$(db_sql -c "SELECT count(*) FROM cron.job WHERE jobname = 'purge-automod'" 2>/dev/null)" == "1" ]]; then
+		report OK "activity purge" "purge-automod is scheduled"
+	else
+		report WARN "activity purge" "purge-automod is not scheduled: automod_recent_activity grows without bound" \
+			"SELECT cron.schedule('purge-automod', '*/10 * * * *', 'SELECT public.automod_purge()');"
+	fi
+}
+
 # --- database ------------------------------------------------------------------
+# supabase/volumes/db/roles.sql sets authenticator's password when Postgres creates the database;
+# the image skips its init scripts on every later start.
+check_db_init() {
+	if [[ "$(db_sql -c "SELECT rolpassword IS NULL FROM pg_authid WHERE rolname = 'authenticator'" 2>/dev/null)" == t ]]; then
+		report FAIL "db init" "authenticator has no password: Supabase's init scripts (supabase/volumes/db/*.sql) did not run when the database was created, and auth, rest, realtime and storage cannot sign in" \
+			"an install with no data yet, in self-host/: docker compose down; mv supabase/volumes/db/data supabase/volumes/db/data.failed; bash install.sh (https://docs.mony.lol/self-host/troubleshooting#umask)"
+	else
+		report OK "db init" "Supabase's init scripts ran (authenticator has a password)"
+	fi
+}
+
 check_database() {
 	section "Database"
 	if ! db_ready; then
 		report FAIL database "Postgres does not answer" "harmony logs db"
 		return
 	fi
+	check_db_init
+
 	local applied files missing=() extra=0 v f
 	applied="$(db_sql -c 'SELECT version FROM supabase_migrations.schema_migrations' 2>/dev/null)"
 	for f in "$REPO_DIR"/db_schema/migrations/*.sql; do
@@ -323,6 +365,7 @@ check_database() {
 	fi
 
 	check_storage_origin
+	check_activity_purge
 
 	local cfg_domain
 	cfg_domain="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'domain'" 2>/dev/null)"
@@ -381,6 +424,13 @@ check_database() {
 	fi
 	if [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," != *",logs,"* && -n "$(compose --profile logs ps -q analytics vector 2>/dev/null)" ]]; then
 		report WARN "log collection" "analytics or vector runs though log collection is off in .env; it keeps filling the database" "harmony analytics off --delete-logs"
+	fi
+
+	# Supabase Studio: one shared password, no limit on guesses, the whole database behind it.
+	if [[ ",$(env_get "$ENV_FILE" COMPOSE_PROFILES)," == *",studio,"* ]]; then
+		report WARN studio "Supabase Studio is public at https://$(env_get "$ENV_FILE" DB_DOMAIN), behind one password that reaches the whole database" "harmony studio off when you are done with it"
+	elif [[ -n "$(compose --profile studio ps -q studio meta 2>/dev/null)" ]]; then
+		report WARN studio "studio or meta runs though Studio is off in .env" "harmony studio off"
 	fi
 }
 
@@ -566,6 +616,7 @@ check_services() {
 		report FAIL auth "https://$DB_DOMAIN/auth/v1/health: HTTP $code" "harmony logs auth; harmony logs kong"
 	fi
 	check_auth_linking
+	check_signup_limits
 
 	# The cache answers every public storage read with X-Cache-Status, a miss included.
 	fetch local "https://$DB_DOMAIN/storage/v1/object/public/avatars/doctor-probe" "$TMP/media" -D "$TMP/media.h" >/dev/null
@@ -664,6 +715,39 @@ check_auth_linking() {
 		report OK "auth linking" "$builtin${builtin:+${custom:+ }}$custom join existing accounts by verified address; the others are kept apart"
 	else
 		report OK "auth linking" "your sign-in providers keep their accounts apart"
+	fi
+}
+
+# Sign-up limits run in GoTrue's before-user-created hook and key on Sb-Forwarded-For.
+check_signup_limits() {
+	local env fn on enforce
+	env="$(auth_env)"
+	if [[ -z "$env" ]] || ! db_ready; then
+		return
+	fi
+	if ! grep -qx 'GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED=true' <<<"$env" \
+		|| ! grep -qx 'GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED=true' <<<"$env"; then
+		report WARN "signup limits" "the auth service does not run the sign-up hook with the client's address" "docker compose up -d auth"
+		return
+	fi
+	fn="$(db_sql -c "SELECT to_regprocedure('public.before_user_created_hook(jsonb)') IS NOT NULL" 2>/dev/null)"
+	if [[ "$fn" != t ]]; then
+		report FAIL "signup limits" "the auth service calls public.before_user_created_hook, which does not exist: every sign-up fails" "bash bootstrap.sh --migrations-only"
+		return
+	fi
+	# bootstrap.sh leaves a function that allows every account until the migration has run.
+	if [[ "$(db_sql -c "SELECT to_regclass('public.signup_ledger') IS NOT NULL" 2>/dev/null)" != t ]]; then
+		report WARN "signup limits" "sign-ups work, without limits: their migration has not run" "bash bootstrap.sh --migrations-only"
+		return
+	fi
+	on="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'signup_limits_enabled'" 2>/dev/null)"
+	enforce="$(db_sql -c "SELECT config_value #>> '{}' FROM public.instance_config WHERE config_key = 'signup_enforce_caps'" 2>/dev/null)"
+	if [[ "$on" == false ]]; then
+		report OK "signup limits" "off (Admin, Invites)"
+	elif [[ "$enforce" == true ]]; then
+		report OK "signup limits" "hook on, network and domain caps refuse"
+	else
+		report OK "signup limits" "hook on, network and domain caps observe"
 	fi
 }
 
@@ -877,6 +961,11 @@ check_security() {
 			"replace them with random values (docs: self-hosting#security); configure.sh generates them on a new install"
 	else
 		report OK secrets "Supabase secrets are not the example values"
+	fi
+	cur="$(env_get "$SB_ENV" JWT_SECRET)"
+	if [[ -n "$cur" && ${#cur} -lt 32 ]]; then
+		report WARN "jwt secret length" "JWT_SECRET has ${#cur} characters: it can be guessed offline, and PostgREST stays on v12.2.12" \
+			"set a random value of at least 32 characters, then bash configure.sh --non-interactive && docker compose up -d; everyone signs in again"
 	fi
 
 	check_exposure

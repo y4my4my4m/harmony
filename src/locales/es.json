@@ -44,6 +44,13 @@
     "deleting": "Eliminando"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "Se han creado demasiadas cuentas desde esta red hoy. Vuelve a intentarlo mañana o pide una invitación a la administración de esta instancia.",
+      "domainCap": "Hoy se han creado demasiadas cuentas con este dominio de correo. Vuelve a intentarlo mañana o pide una invitación a la administración de esta instancia.",
+      "mailboxCap": "Este buzón de correo ha alcanzado el límite de cuentas de esta instancia.",
+      "blockedDomain": "Este proveedor de correo no se puede usar para registrarse en esta instancia. Usa otra dirección.",
+      "blockedNetwork": "Los registros desde esta red no están disponibles en esta instancia. Pide una invitación a la administración de esta instancia."
+    },
     "login": "Iniciar sesión",
     "register": "Registrarse",
     "logout": "Cerrar sesión",
@@ -1657,6 +1664,8 @@
       "mirrorLinkHost": "Espejo para publicaciones de {site}",
       "renderEmoticonsAsEmoji": "Mostrar como emoji los emoticonos de otros",
       "renderEmoticonsAsEmojiDesc": "Muestra :) :D <3 y similares como emojis en los mensajes. El texto original se conserva.",
+      "animateEmoji": "Animar emojis personalizados",
+      "animateEmojiDesc": "Desactivado, los emojis animados muestran su primer fotograma. Solo cambia lo que ves tú.",
       "inviteBannerBg": "Banner del servidor en el diálogo de invitación",
       "inviteBannerBgDesc": "Muestra un banner del servidor desenfocado y oscurecido detrás del diálogo de invitación cuando el servidor tiene uno.",
       "quickReact": "Reacción rápida",
@@ -2340,6 +2349,15 @@
       "changesReset": "Cambios de perfil restablecidos",
       "handleCopied": "Identificador copiado",
       "copyFailed": "No se pudo copiar"
+    },
+    "dmPolicy": {
+      "title": "Mensajes directos",
+      "label": "Quién puede iniciar una conversación contigo",
+      "description": "Las conversaciones que ya tienes siguen funcionando. El equipo de la instancia siempre puede contactarte. Quien esté en otra instancia y sea rechazado por este ajuste no recibe ningún aviso.",
+      "everyone": "Todos",
+      "known": "Miembros de servidores y personas a las que sigo",
+      "following": "Solo personas a las que sigo",
+      "failed": "No se pudo guardar quién puede iniciar una conversación contigo"
     }
   },
   "navigation": {
@@ -2932,7 +2950,8 @@
       "illegal_content": "Contenido ilegal",
       "impersonation": "Suplantación de identidad",
       "nsfw": "Contenido inapropiado/NSFW",
-      "other": "Otro"
+      "other": "Otro",
+      "username_hoarding": "Acaparamiento de nombres de usuario o venta de cuentas"
     },
     "reportSource": {
       "fromInstance": "de {domain}",
@@ -3554,6 +3573,16 @@
       },
       "newLink": "Crear enlace nuevo",
       "newLinkHint": "Crea un enlace con estos ajustes. Los enlaces existentes siguen funcionando hasta que caduquen o los revoques.",
+      "widgets": {
+        "toggle": "Añadir a tu sitio web",
+        "hint": "Pega uno de estos en tu sitio. Muestra el nombre y el número de miembros de este servidor, y enlaza a esta invitación. Cualquiera puede verlos.",
+        "expiring": "Este enlace caduca o tiene un límite de usos, y el widget dejará de funcionar cuando eso ocurra. Para un sitio web, crea un enlace que no caduque.",
+        "badge": "Insignia",
+        "markdown": "Insignia para Markdown (README, foros)",
+        "join": "Botón de unirse",
+        "icon": "Icono pequeño",
+        "card": "Tarjeta (iframe)"
+      },
       "creating": "Creando…",
       "created": "Nuevo enlace de invitación creado",
       "createFailed": "No se pudo crear un enlace de invitación",
@@ -3946,6 +3975,62 @@
         "label": "Gestionar roles",
         "description": "Crear, editar y eliminar roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
       }
+    },
+    "commands": {
+      "header": "Comandos",
+      "bar": {
+        "label": "Opciones de {command}",
+        "close": "Cerrar comando (Esc)",
+        "send": "Enviar comando",
+        "required": "obligatorio",
+        "choose": "Elegir…",
+        "chooseChannel": "Elegir un canal…",
+        "chooseRole": "Elegir un rol…",
+        "searchMembers": "Buscar miembros…",
+        "true": "Verdadero",
+        "false": "Falso"
+      },
+      "validation": {
+        "required": "Obligatorio.",
+        "integer": "Introduce un número entero.",
+        "number": "Introduce un número.",
+        "min": "Como mínimo {min}.",
+        "max": "Como máximo {max}.",
+        "minLength": "Como mínimo {min} caracteres.",
+        "maxLength": "Como máximo {max} caracteres.",
+        "choice": "Elige una de las opciones.",
+        "pick": "Elige uno de la lista."
+      },
+      "errors": {
+        "unavailable": "Este comando no está disponible aquí.",
+        "forbidden": "No tienes permiso para usar este comando aquí.",
+        "timedOut": "Estás aislado temporalmente en este servidor.",
+        "threadLocked": "Este hilo está bloqueado.",
+        "slowmode": "El modo lento está activado. Vuelve a intentarlo en {seconds} s.",
+        "slowmodeNoTime": "El modo lento está activado. Vuelve a intentarlo en un momento.",
+        "rateLimited": "Demasiados comandos. Vuelve a intentarlo en {seconds} s.",
+        "rateLimitedNoTime": "Demasiados comandos. Vuelve a intentarlo en un momento.",
+        "invalidOption": "El valor de {name} no se acepta.",
+        "invalidOptions": "Las opciones del comando no se aceptan.",
+        "failed": "No se pudo enviar el comando."
+      },
+      "notice": {
+        "used": "Usaste {command}",
+        "thinking": "{bot} está pensando…",
+        "noResponse": "{bot} no respondió.",
+        "offline": "{bot} está desconectado.",
+        "cannotPost": "{bot} no puede publicar en este canal.",
+        "blocked": "AutoMod bloqueó la respuesta de {bot}.",
+        "threadLocked": "{bot} no puede responder: el hilo está bloqueado.",
+        "failed": "{bot} no pudo responder.",
+        "private": "Solo tú puedes ver esto",
+        "dismiss": "Descartar",
+        "someBot": "El bot"
+      }
+    },
+    "interactions": {
+      "used": "usó {command}",
+      "someoneUsed": "Alguien usó {command}"
     }
   },
   "webhooks": {
@@ -4021,6 +4106,10 @@
     "lock": {
       "messages": "Cifrado de extremo a extremo",
       "voice": "La voz y el video están cifrados de extremo a extremo"
+    },
+    "home": {
+      "voice": "Este canal está cifrado de extremo a extremo en su instancia de origen, por lo que las cuentas de otras instancias no pueden unirse a sus llamadas.",
+      "messages": "Este canal está cifrado de extremo a extremo en su instancia de origen, por lo que las cuentas de otras instancias no pueden leer ni enviar sus mensajes."
     },
     "status": {
       "active": "Cifrado de extremo a extremo",
@@ -4486,9 +4575,12 @@
     },
     "timedOut": "Tienes tiempo fuera en este servidor hasta {time} y no puedes enviar mensajes, reaccionar ni iniciar hilos.",
     "antispam": {
-      "rateLimited": "Las cuentas nuevas solo pueden enviar unos pocos mensajes a la vez. Inténtalo de nuevo en {seconds} s.",
+      "rateLimited": "Lo estás haciendo demasiado rápido. Inténtalo de nuevo en {seconds} s.",
       "linksBlocked": "Las cuentas nuevas aún no pueden publicar enlaces.",
-      "strangerMentions": "Las cuentas nuevas pueden mencionar como máximo a {count} personas que no las siguen."
+      "strangerMentions": "Las cuentas nuevas pueden mencionar como máximo a {count} personas que no las siguen.",
+      "serverLimit": "Una cuenta puede poseer como máximo {count} servidores en esta instancia.",
+      "botLimit": "Una cuenta puede poseer como máximo {count} bots en esta instancia.",
+      "dmNotAllowed": "Esta persona solo acepta conversaciones nuevas de gente que conoce."
     },
     "alert": {
       "raid": "Posible raid: {joins} miembros se unieron en {seconds} segundos.",
@@ -5077,7 +5169,7 @@
       "enterPhrase": "Introducir frase de recuperación",
       "scanHint": "Apunta la cámara al código QR del dispositivo nuevo.",
       "scanPasteLabel": "O pega el código copiado del dispositivo nuevo",
-      "showInstead": "¿El dispositivo nuevo tiene cámara? Muestra un código para que lo escanee",
+      "showInstead": "Mostrar en su lugar un código para escanear o copiar",
       "showLead": "En el dispositivo nuevo, elige {another}, luego {scanInstead} y apunta su cámara aquí, o copia el código de abajo y pégalo allí. Cualquiera con sesión iniciada en tu cuenta que escanee o pegue este código puede recibir tus claves, así que no lo compartas.",
       "showLeadAnother": "Otro dispositivo",
       "showLeadScanInstead": "Escanear o pegar un código de él",
@@ -5300,6 +5392,12 @@
       "federationCloseConfirm": "Cerrar la federación",
       "configLoadFailed": "No se pudo leer la configuración actual. Recarga antes de guardar.",
       "webrtcLoadFailed": "No se pudo leer la configuración de voz, así que no se puede cambiar aquí. Recarga la página para intentarlo de nuevo.",
+      "federatedCallsLabel": "Llamadas con otras instancias",
+      "federatedCallsOn": "Activadas. Las personas de otras instancias pueden unirse aquí a canales de voz y llamadas.",
+      "federatedCallsOff": "Desactivadas. Las personas de otras instancias son rechazadas y se les avisa.",
+      "federatedCallsNoLivekit": "Desactivadas. Esta instancia no tiene servidor LiveKit.",
+      "federatedCallsUnread": "No se pudo leer el estado actual. Recarga la página para intentarlo de nuevo.",
+      "federatedCallsHint": "Lo decide ALLOW_FEDERATED_VOICE en el entorno del backend de federación.",
       "customOAuthTitle": "Proveedores de inicio de sesión propios",
       "customOAuthHint": "Proveedores OpenID Connect u OAuth 2.0 en los que confía esta instancia, como Authentik, Keycloak o Better Auth. Sus botones aparecen en la página de inicio de sesión después de los anteriores. Sus secretos de cliente permanecen en el servidor, así que se añaden y se quitan allí.",
       "customOAuthEmpty": "Ninguno todavía.",
@@ -5351,7 +5449,7 @@
     },
     "antiSpam": {
       "title": "Antispam",
-      "hint": "Límites para toda la instancia. Los propietarios de servidores configuran su propio AutoMod en la Configuración del servidor; estos se aplican además, a todos los servidores, MD y publicaciones. Todos los límites de aquí están desactivados o son permisivos hasta que los cambies.",
+      "hint": "Límites para toda la instancia. Los propietarios de servidores configuran su propio AutoMod en la Configuración del servidor; estos se aplican además, a todos los servidores, MD y publicaciones.",
       "loadingSettings": "Cargando ajustes...",
       "saved": "Ajustes antispam guardados",
       "newAccounts": {
@@ -5364,6 +5462,27 @@
         "strangerMentionsHint": "Un desconocido es cualquiera que no sigue al autor, sea local o remoto.",
         "blockLinks": "Las cuentas nuevas no pueden publicar enlaces",
         "staffExempt": "Los administradores y moderadores de la instancia nunca tienen límites."
+      },
+      "accounts": {
+        "title": "Todas las cuentas locales",
+        "hint": "Topes muy por encima del uso normal. Al superar uno, la escritura se rechaza hasta que pase la ventana. 0 = sin límite. Los administradores de la instancia, los moderadores y las cuentas exentas en Usuarios nunca tienen límite.",
+        "messagesPerMinute": "Mensajes por minuto",
+        "postsPerHour": "Publicaciones por hora",
+        "postsPerHourHint": "Los impulsos no cuentan.",
+        "reactionsPerMinute": "Reacciones y favoritos por minuto",
+        "followsPerHour": "Seguimientos por hora",
+        "joinsPerHour": "Entradas a servidores por hora",
+        "serversPerHour": "Servidores creados por hora",
+        "strangerDmsPerHour": "Conversaciones nuevas con desconocidos por hora",
+        "strangerDmsHint": "Un desconocido no sigue a la cuenta, no comparte ningún servidor con ella y no tiene ninguna conversación con ella.",
+        "newStrangerDmsPerHour": "Lo mismo, para cuentas nuevas",
+        "newStrangerDmsHint": "También cuenta a quienes solo comparten un servidor con la cuenta nueva: unirse a un servidor público da acceso a todos sus miembros."
+      },
+      "bots": {
+        "title": "Bots",
+        "hint": "Solicitudes por minuto en todas las rutas de un bot, además del límite por ruta. Un bot cuyo propietario está exento no tiene este tope. 0 = sin límite.",
+        "requestsPerMinute": "Solicitudes por minuto, por bot",
+        "bridgeRequestsPerMinute": "Solicitudes por minuto, por puente de Discord vinculado"
       },
       "federation": {
         "title": "Spam de menciones federadas",
@@ -5418,6 +5537,13 @@
         "loadQueue": "No se pudo cargar la cola de revisión",
         "review": "La revisión falló"
       }
+    },
+    "limitExempt": {
+      "add": "Eximir a {name} de los límites de la instancia",
+      "remove": "Aplicar los límites de la instancia a {name}",
+      "added": "{name} está exento de los límites de la instancia",
+      "removed": "Los límites de la instancia vuelven a aplicarse a {name}",
+      "failed": "No se pudo cambiar la exención"
     },
     "instanceEmojis": {
       "tab": "Emojis",
@@ -6326,6 +6452,12 @@
       "deleteCategory": "Eliminar categoría"
     },
     "thread": {
+      "left": "Has salido de {thread}",
+      "joined": "Te has unido a {thread}",
+      "leaveFailed": "No se pudo salir del hilo",
+      "joinFailed": "No se pudo unir al hilo",
+      "goToStart": "Ir al primer mensaje",
+      "showInChannel": "Mostrar en el canal",
       "leave": "Salir del hilo",
       "join": "Unirse al hilo",
       "edit": "Editar hilo",
@@ -6560,7 +6692,7 @@
       "staysKeys": "Claves de cifrado de extremo a extremo",
       "staysBots": "Los bots que posees",
       "staysServers": "Los servidores que posees",
-      "staysFollowing": "Las cuentas que sigues",
+      "staysFollowing": "Las cuentas que sigues. Descarga tus datos y luego importa la lista en la cuenta nueva.",
       "ownedServersWarning": "Eres propietario de {servers}. La propiedad no se muda; transfiérela antes si la cuenta nueva debe ser la propietaria. | Eres propietario de {servers}. La propiedad no se muda; transfiérelos antes si la cuenta nueva debe ser la propietaria.",
       "cooldown": "Después de una mudanza, la siguiente es posible tras 30 días.",
       "exportFirst": "Descarga tus datos primero",
@@ -6572,7 +6704,10 @@
       "noPassword": "Tu cuenta no tiene contraseña. Mudarse requiere haber iniciado sesión en los últimos diez minutos.",
       "confirm": "Mudar mi cuenta",
       "moving": "Mudando…",
-      "success": "Esta cuenta ahora apunta a {handle}. Se están mudando los seguidores."
+      "success": "Esta cuenta ahora apunta a {handle}. Se están mudando los seguidores.",
+      "staysInteractions": "Me gusta, impulsos y marcadores",
+      "staysProfile": "Tu nombre visible, biografía, avatar, banner y campos del perfil. Una cuenta nueva en Harmony puede copiarlos después de la mudanza.",
+      "staysBlocks": "Las cuentas que bloqueaste o silenciaste"
     },
     "moved": {
       "title": "Esta cuenta se ha mudado",
@@ -6603,7 +6738,14 @@
       "move_cooldown": "Te mudaste hace menos de 30 días. Inténtalo de nuevo en {count} día. | Te mudaste hace menos de 30 días. Inténtalo de nuevo en {count} días.",
       "too_many_attempts": "Demasiados intentos. Inténtalo de nuevo en {count} minuto. | Demasiados intentos. Inténtalo de nuevo en {count} minutos.",
       "wrong_password": "La contraseña no es correcta.",
-      "generic": "Algo salió mal. Inténtalo de nuevo."
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "import_running": "Ya hay una importación en curso.",
+      "too_many_accounts": "Un archivo puede incluir como máximo 20.000 cuentas.",
+      "no_accounts": "Ese archivo no incluye ninguna cuenta.",
+      "account_moved": "Esta cuenta se ha mudado. Importa en la cuenta nueva.",
+      "import_rate_limited": "Demasiadas importaciones hoy. Inténtalo de nuevo en {count} hora. | Demasiadas importaciones hoy. Inténtalo de nuevo en {count} horas.",
+      "not_verified": "No se pudo confirmar esa mudanza.",
+      "nothing_to_copy": "No había nada que copiar."
     },
     "profile": {
       "moved": "{name} se ha mudado a {target}",
@@ -6618,6 +6760,72 @@
       "short": "Cuenta mudada",
       "someone": "Una cuenta",
       "newAccount": "una cuenta nueva"
+    },
+    "import": {
+      "title": "Importar las cuentas que sigues",
+      "description": "Sigue las cuentas de una lista de tu cuenta antigua. En Mastodon, exporta Seguidos como CSV en Importar y exportar. En Harmony, usa el ZIP de tu descarga de datos. Las publicaciones y los me gusta no se importan.",
+      "choose": "Elegir archivo",
+      "found": "{count} cuenta encontrada en este archivo. | {count} cuentas encontradas en este archivo.",
+      "foundHint": "Las cuentas bloqueadas y las de otros servidores reciben una solicitud de seguimiento. Se omiten las cuentas que te bloquean o que bloqueas.",
+      "start": "Iniciar importación",
+      "starting": "Iniciando…",
+      "running": "Importando: {done} de {total} listas",
+      "waiting": "Esperando el límite de seguimientos por hora. Continúa en aproximadamente {count} minuto. | Esperando el límite de seguimientos por hora. Continúa en aproximadamente {count} minutos.",
+      "finished": "Importación terminada",
+      "stopped": "Importación detenida. Los seguimientos ya hechos se mantienen.",
+      "cancel": "Detener importación",
+      "counts": {
+        "followed": "Ahora sigues",
+        "requested": "Solicitudes enviadas",
+        "already": "Ya seguidas o solicitadas",
+        "failed": "No se pudieron seguir",
+        "cancelled": "Sin procesar"
+      },
+      "failures": "{count} cuenta no se pudo seguir | {count} cuentas no se pudieron seguir",
+      "moreFailures": "Y {count} más.",
+      "reasons": {
+        "invalid_handle": "No es una dirección de cuenta",
+        "not_found": "Cuenta no encontrada",
+        "instance_blocked": "Este servidor no federa con ese servidor",
+        "federation_off": "La federación está desactivada en este servidor",
+        "unreachable": "Su servidor no respondió",
+        "unavailable": "La cuenta está eliminada o suspendida",
+        "self": "Es tu propia cuenta",
+        "moved": "La cuenta se ha mudado",
+        "blocked": "Hay un bloqueo entre ustedes",
+        "declined": "Rechazó tu solicitud de seguimiento anteriormente"
+      },
+      "fileErrors": {
+        "file_too_large": "Ese archivo es demasiado grande.",
+        "unrecognized_file": "Ese archivo no es una lista de cuentas seguidas. Usa following_accounts.csv de Mastodon o el ZIP de una descarga de datos de Harmony.",
+        "wrong_list": "Parece otra lista, como bloqueos o silencios. Usa la lista de cuentas que sigues.",
+        "no_accounts": "Ese archivo no incluye ninguna cuenta."
+      }
+    },
+    "copy": {
+      "title": "Copiar tu perfil antiguo",
+      "description": "{handle} se mudó a esta cuenta. Puedes copiar aquí los datos de su perfil. Nada cambia hasta que confirmes.",
+      "origin": "Cuenta antigua",
+      "fields": {
+        "display_name": "Nombre visible",
+        "bio": "Biografía",
+        "avatar": "Avatar",
+        "banner": "Banner",
+        "profile_fields": "Campos del perfil"
+      },
+      "same": "Ya es igual",
+      "adds": "Se añade a este perfil",
+      "replaces": "Reemplaza lo que tiene este perfil",
+      "nothing": "La cuenta antigua no tiene datos de perfil para copiar.",
+      "review": "Copiar selección",
+      "confirmTitle": "¿Copiar desde {handle}?",
+      "confirmAdds": "{field}: se añade a este perfil.",
+      "confirmReplaces": "{field}: reemplaza lo que este perfil tiene ahora.",
+      "confirmWarning": "Lo que este perfil tiene ahora se sobrescribe y no se puede restaurar.",
+      "confirm": "Copiar a este perfil",
+      "copying": "Copiando…",
+      "done": "Datos del perfil copiados",
+      "partial": "Copiado, excepto: {fields}. No se pudieron leer del servidor antiguo."
     }
   },
   "polls": {
@@ -7118,6 +7326,7 @@
     "quotaUser": "Almacenamiento por cuenta",
     "quotaModerator": "Almacenamiento por moderador de la instancia",
     "quotaAdmin": "Almacenamiento por administrador de la instancia",
+    "instanceLimit": "Archivos almacenados en toda la instancia (0 = sin límite)",
     "ephemeralDays": "Los archivos temporales se conservan",
     "days": "días",
     "ephemeralDaily": "Subidas temporales por día con Drive lleno",
@@ -7276,7 +7485,8 @@
     "errors": {
       "load": "No se pudo cargar Drive",
       "temporary": "Ese cambio no se guardó: {reason}",
-      "blocked": "Los moderadores de la instancia eliminaron este archivo."
+      "blocked": "Los moderadores de la instancia eliminaron este archivo.",
+      "full": "El almacenamiento está lleno, así que se rechazó esta subida. Libera espacio en Drive o pregunta a un administrador de la instancia."
     },
     "details": {
       "label": "Detalles del archivo",
@@ -7893,6 +8103,45 @@
       "paused": "durante la pausa"
     }
   },
+  "adminSignupLimits": {
+    "title": "Límites de registro",
+    "intro": "Encarece la creación masiva de cuentas. Una persona con una segunda cuenta o una cuenta de prueba queda muy por debajo. Las invitaciones y el proveedor de identidad propio de esta instancia no tienen límite. Los registros con Google, GitHub y Twitch solo cuentan para el límite de red.",
+    "hookNote": "Se aplica cuando el servicio de autenticación ejecuta el hook de registro; harmony doctor lo comprueba. Los clientes de una red privada no tienen límite.",
+    "enabled": "Aplicar límites de registro",
+    "ipCap": "Cuentas por red en 24 horas",
+    "ipCapHint": "Una red es una dirección IPv4 o un /56 de IPv6. 0 significa sin límite.",
+    "mailboxCap": "Cuentas por buzón de correo en 30 días",
+    "mailboxCapHint": "me+test{'@'}example.org cuenta como me{'@'}example.org, y Gmail ignora los puntos. 0 significa sin límite.",
+    "domainCap": "Cuentas por dominio de correo en 24 horas",
+    "domainCapHint": "Detecta a quien controla muchos buzones en un dominio. Los grandes proveedores como Gmail no cuentan. 0 significa sin límite.",
+    "enforceCaps": "Rechazar cuentas que superen los límites de red y de dominio",
+    "enforceCapsHint": "Desactivado: esas cuentas se permiten y se cuentan abajo. Un campus u oficina puede compartir una dirección o un dominio de correo. El límite por buzón y las listas de dominios y servidores de correo siempre rechazan.",
+    "blockDisposable": "Rechazar direcciones de correo desechables",
+    "blockDisposableHint": "Una lista integrada de dominios de correo temporal y los servidores de correo que hay detrás.",
+    "blockedDomains": "Otros dominios de correo que rechazar",
+    "blockedDomainsHint": "Un dominio por línea. También se rechazan sus subdominios.",
+    "blockedMailHosts": "Más servidores de correo que rechazar",
+    "blockedMailHostsHint": "Un host por línea. Rechaza cualquier dominio de correo cuyos servidores estén en este host o por debajo: erinn.biz también cubre recv1.erinn.biz. No incluyas servicios compartidos como google.com, outlook.com o cloudflare.net: rechazaría a todos los que los usan.",
+    "blockedNetworks": "Direcciones y rangos que rechazar",
+    "blockedNetworksHint": "Uno por línea, como 203.0.113.7 o 2001:db8:1:2::/64. Rechaza cuentas nuevas desde ahí y nada más: quien ya tiene cuenta sigue iniciando sesión. Una dirección puede ser todo un campus, una oficina o un operador móvil, así que bloquea un rango solo si estás seguro.",
+    "trustedDomains": "Dominios de correo nunca limitados",
+    "trustedDomainsHint": "Un dominio por línea, para un campus o empresa rechazados por error o que se unen a la vez. Sus subdominios también cuentan. Omite el límite por dominio, la lista de desechables y las listas de servidores de correo. Un dominio en la lista de rechazo sigue rechazado, y se aplica el límite por buzón.",
+    "save": "Guardar límites",
+    "saved": "Límites de registro guardados",
+    "saveFailed": "No se pudieron guardar los límites de registro.",
+    "loadFailed": "No se pudieron cargar los límites de registro.",
+    "invalidCap": "Introduce un número entero de 0 a 1000.",
+    "invalidDomain": "{domain} no es un nombre de dominio.",
+    "invalidNetwork": "{network} no es una dirección ni un rango válido. Un rango es /8 o más estrecho en IPv4, /16 o más estrecho en IPv6.",
+    "wouldRefuseTitle": "Superaron un límite y se permitieron, últimos 7 días",
+    "refusalsTitle": "Rechazados en los últimos 7 días",
+    "refusalIpCap": "Límite de red",
+    "refusalDomainCap": "Límite de dominio",
+    "refusalMailboxCap": "Límite de buzón",
+    "refusalBlockedDomain": "Dominio de correo rechazado",
+    "refusalMailHost": "Servidor de correo",
+    "refusalBlockedNetwork": "Dirección rechazada"
+  },
   "adminInvites": {
     "tab": "Invitaciones",
     "title": "Invitar personas",
@@ -8149,6 +8398,127 @@
       "members": "{count} miembro | {count} miembros",
       "here": "Miembros conectados que pueden ver el canal",
       "unknown": "No es un rol de este servidor"
+    }
+  },
+  "adminSignups": {
+    "tab": "Registros",
+    "title": "Registros recientes",
+    "intro": "Cuentas creadas en esta instancia, primero las más nuevas, con su dominio de correo y su actividad. No se muestran direcciones de correo ni direcciones IP. Un grupo es un motivo para mirar, no una prueba: un día popular o un proveedor común pueden verse igual.",
+    "limitsLink": "Los límites de registro están en la pestaña Invitaciones.",
+    "windowLabel": "Periodo",
+    "window": "{count} día | {count} días",
+    "searchLabel": "Buscar registros",
+    "searchHint": "Usuario, nombre o dominio de correo",
+    "loadError": "No se ha podido cargar.",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "filters": {
+      "label": "Estado",
+      "all": "Todas",
+      "active": "Activas",
+      "suspended": "Suspendidas"
+    },
+    "daily": {
+      "title": "Por día (UTC)",
+      "day": "Día",
+      "signups": "Registros",
+      "domains": "Dominios de correo",
+      "topDomain": "Dominio mayor",
+      "peakHour": "Hora punta",
+      "suspended": "Suspendidas",
+      "refused": "Rechazados",
+      "wouldRefuse": "Sobre un límite, permitidos"
+    },
+    "groups": {
+      "title": "Grupos",
+      "empty": "No hay grupos de {count} o más en este periodo.",
+      "kindDomain": "Dominio de correo",
+      "kindServer": "Se unieron en la hora siguiente al registro",
+      "size": "{count} cuenta | {count} cuentas",
+      "priorDomain": "{count} cuenta anterior en este dominio | {count} cuentas anteriores en este dominio",
+      "priorServer": "{count} miembro de antes de este periodo | {count} miembros de antes de este periodo",
+      "suspended": "{count} suspendidas",
+      "span": "De {from} a {to}",
+      "show": "Mostrar",
+      "showLabel": "Mostrar el grupo {label}",
+      "select": "Seleccionar todas",
+      "selectLabel": "Seleccionar todas en el grupo {label}",
+      "filterActive": "Mostrando el grupo {label}",
+      "clear": "Mostrar todas",
+      "mailHost": "Servidor de correo: {hosts}"
+    },
+    "rows": {
+      "title": "{count} cuenta | {count} cuentas",
+      "empty": "No hay registros en este periodo.",
+      "emptySearch": "Ningún registro coincide.",
+      "selectAccount": "Seleccionar a {name}",
+      "staff": "Equipo",
+      "suspended": "Suspendida",
+      "unconfirmed": "Correo sin confirmar",
+      "noEmail": "Sin correo",
+      "signedUp": "Registrada el {time}",
+      "posts": "{count} publicación | {count} publicaciones",
+      "messages": "{count} mensaje | {count} mensajes",
+      "servers": "En {count} servidor | En {count} servidores",
+      "owns": "Propietaria de {count} servidor | Propietaria de {count} servidores",
+      "firstServer": "Se unió a {server} a los {minutes} min"
+    },
+    "selection": {
+      "count": "{count} seleccionadas",
+      "limit": "Como máximo {count} cuentas a la vez.",
+      "suspend": "Suspender…",
+      "unsuspend": "Levantar suspensión…",
+      "clear": "Borrar selección",
+      "delete": "Eliminar…"
+    },
+    "dialog": {
+      "suspendTitle": "Suspender {count} cuenta | Suspender {count} cuentas",
+      "unsuspendTitle": "Levantar la suspensión de {count} cuenta | Levantar la suspensión de {count} cuentas",
+      "affectedSuspend": "Se suspenderán",
+      "affectedUnsuspend": "Se levantará la suspensión",
+      "activity": "{posts} publicaciones, {messages} mensajes",
+      "nothing": "Esta acción no se puede aplicar a ninguna de las cuentas seleccionadas.",
+      "skippedTitle": "Omitidas",
+      "skip": {
+        "self": "Tu propia cuenta",
+        "staff": "Equipo de la instancia",
+        "remote": "Cuenta de otra instancia",
+        "no_sign_in": "No tiene inicio de sesión",
+        "deleted": "Eliminada por el equipo",
+        "already_suspended": "Ya suspendida",
+        "not_suspended": "No suspendida",
+        "not_found": "Cuenta no encontrada",
+        "owns_server": "Es propietaria de un servidor con otros miembros"
+      },
+      "ownedTitle": "Sus servidores siguen abiertos",
+      "ownedHint": "Los miembros siguen usando estos servidores. Para cerrar uno, usa la pestaña Servidores.",
+      "ownedMembers": "{count} miembro | {count} miembros",
+      "consequences": {
+        "signedOut": "Se cierra su sesión ahora, y la app la vuelve a cerrar si inician sesión.",
+        "follows": "Se elimina {count} seguimiento con cuentas locales. Levantar la suspensión no lo restaura. | Se eliminan {count} seguimientos con cuentas locales. Levantar la suspensión no los restaura.",
+        "timelines": "Sus publicaciones salen de las cronologías y páginas públicas de aquí. Sus mensajes siguen en los canales.",
+        "federation": "No se envía nada a otras instancias: lo que ya recibieron se queda, y también los seguidores remotos.",
+        "unsuspend": "Podrán volver a iniciar sesión. Los seguimientos eliminados por la suspensión no se restauran.",
+        "deleteSignIn": "Ya no podrán iniciar sesión. Esto no se puede deshacer.",
+        "deleteNames": "Sus nombres de usuario quedan libres para que cualquiera los registre.",
+        "deleteContent": "Sus perfiles pasan a ser Deleted User. Los mensajes y publicaciones quedan bajo ese nombre.",
+        "deleteFederation": "Se informa a las instancias que las siguen de que las cuentas ya no existen."
+      },
+      "reason": "Motivo (obligatorio)",
+      "reasonHint": "El mismo motivo se registra para cada cuenta en el registro de actividad.",
+      "confirmSuspend": "Suspender {count} cuenta | Suspender {count} cuentas",
+      "confirmUnsuspend": "Levantar la suspensión de {count} cuenta | Levantar la suspensión de {count} cuentas",
+      "failed": "Ha fallado: {error}",
+      "deleteTitle": "Eliminar {count} cuenta | Eliminar {count} cuentas",
+      "affectedDelete": "Se eliminarán",
+      "confirmDelete": "Eliminar {count} cuenta | Eliminar {count} cuentas",
+      "ownedDeleteTitle": "Se eliminan sus servidores sin otros miembros",
+      "deleteUnderstand": "Entiendo que esto no se puede deshacer"
+    },
+    "done": {
+      "suspended": "{count} cuenta suspendida | {count} cuentas suspendidas",
+      "unsuspended": "Suspensión levantada en {count} cuenta | Suspensión levantada en {count} cuentas",
+      "deleted": "{count} cuenta eliminada | {count} cuentas eliminadas"
     }
   }
 }

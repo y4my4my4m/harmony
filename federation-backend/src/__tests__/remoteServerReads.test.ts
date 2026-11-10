@@ -46,6 +46,7 @@ const STRAY = '33333333-3333-4333-8333-333333333333'
 const LOCAL_CHANNEL = '44444444-4444-4444-8444-444444444444'
 
 let db: Record<string, any[]>
+let canViewChannel = true
 const writes: Array<{ table: string; op: string; rows: any; filters?: Record<string, unknown> }> = []
 
 function freshDb(): Record<string, any[]> {
@@ -151,7 +152,7 @@ function query(table: string) {
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
     from: query,
-    rpc: vi.fn(async () => ({ data: [], error: null })),
+    rpc: vi.fn(async (name: string) => ({ data: name === 'can_view_channel' ? canViewChannel : [], error: null })),
   }),
   getSupabaseClientWithAuth: (token: string) => ({
     auth: {
@@ -178,6 +179,7 @@ function app() {
 }
 
 beforeEach(() => {
+  canViewChannel = true
   db = freshDb()
   writes.length = 0
   signedApFetch.mockReset()
@@ -271,7 +273,7 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
     const HELD = '77777777-7777-4777-8777-777777777777'
     const NEW = '88888888-8888-4888-8888-888888888888'
     const file = { type: 'file', fileType: 'image', url: 'https://remote.test/media/c/x/a.png?to=harmony.test&sig=s', fileName: 'a.png' }
-    db.messages.push({ id: HELD, channel_id: CHANNEL, content: [{ type: 'text', text: 'look' }], created_at: '2026-01-01' })
+    db.messages.push({ id: HELD, channel_id: CHANNEL, user_id: 'author-profile', content: [{ type: 'text', text: 'look' }], created_at: '2026-01-01' })
     const note = (id: string, parts: any[]) => ({
       type: 'Note',
       id: `https://remote.test/messages/${id}`,
@@ -293,6 +295,29 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
     const again = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
     expect(again.body.source).toBe('remote')
     expect(again.body.changed).toBe(0)
+  })
+
+  it('leaves a row of another author that a Note\'s id names', async () => {
+    const HELD = '99999999-9999-4999-8999-999999999999'
+    const file = { type: 'file', fileType: 'image', url: 'https://remote.test/x.png', fileName: 'x.png' }
+    const held = { id: HELD, channel_id: CHANNEL, user_id: 'someone-else', encrypted: false, content: [{ type: 'text', text: 'mine' }], created_at: '2026-01-01' }
+    db.messages.push(held)
+    signedApFetch.mockImplementation(async () => json({
+      type: 'OrderedCollectionPage',
+      orderedItems: [{
+        type: 'Note',
+        id: `https://elsewhere.test/messages/${HELD}`,
+        attributedTo: 'https://elsewhere.test/users/mallory',
+        content: 'forged',
+        published: '2026-01-01T00:00:00Z',
+        'harmony:encrypted': true,
+        'harmony:rawContent': [{ type: 'text', text: 'forged' }, file],
+      }],
+    }))
+    const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    expect(res.status).toBe(200)
+    expect(held.content).toEqual([{ type: 'text', text: 'mine' }])
+    expect(held.encrypted).toBe(false)
   })
 
   it('caches a plain Note as a plain row and flags nothing', async () => {
@@ -341,6 +366,14 @@ describe('GET /channels/:id/messages (remote channel proxy)', () => {
     expect(res.status).toBe(200)
     expect(res.body.source).toBe('cache')
     expect(res.body.messages.map((m: any) => m.id)).toEqual(['cached-1'])
+  })
+
+  it('serves no cached rows of a channel the member cannot view', async () => {
+    signedApFetch.mockResolvedValue(json({}, 503))
+    canViewChannel = false
+    const res = await supertest(app()).get(`/channels/${CHANNEL}/messages`).set('Authorization', 'Bearer bob')
+    expect(res.status).toBe(404)
+    expect(res.body.messages).toBeUndefined()
   })
 
   describe('system notices', () => {

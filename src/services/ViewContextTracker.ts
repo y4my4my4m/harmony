@@ -15,9 +15,9 @@ export interface ViewContext {
   server_id?: string
   channel_id?: string
   conversation_id?: string
-  /** The thread shown full page. Local only: device_view_contexts has no thread view. */
+  /** The thread shown full page, with view_type 'thread'. */
   thread_id?: string
-  view_type: 'server_channel' | 'dm' | 'settings' | 'home'
+  view_type: 'server_channel' | 'dm' | 'thread' | 'settings' | 'home'
 }
 
 export interface NotificationUIDecision {
@@ -176,11 +176,13 @@ export class ViewContextTracker {
     conversationId?: string
     postId?: string
     serverId?: string
+    threadId?: string
   }) {
     const ctx = context || {
       channelId: this.currentContext.channel_id,
       conversationId: this.currentContext.conversation_id,
       serverId: this.currentContext.server_id,
+      threadId: this.currentContext.thread_id,
     }
 
     let contextType: string | null = null
@@ -192,6 +194,9 @@ export class ViewContextTracker {
     } else if (ctx.conversationId) {
       contextType = 'conversation'
       contextId = ctx.conversationId
+    } else if (ctx.threadId) {
+      contextType = 'thread'
+      contextId = ctx.threadId
     } else if (ctx.channelId) {
       contextType = 'channel'
       contextId = ctx.channelId
@@ -210,7 +215,7 @@ export class ViewContextTracker {
       } else if (data && data > 0) {
         // The per-row broadcasts reach this tab too, but not while realtime is down.
         const { useNotificationStore } = await import('@/stores/useNotification')
-        useNotificationStore().applyContextRead(contextType as 'channel' | 'conversation' | 'post', contextId)
+        useNotificationStore().applyContextRead(contextType as 'channel' | 'conversation' | 'post' | 'thread', contextId)
       }
     } catch (error) {
       debug.error('Error clearing notifications for context:', error)

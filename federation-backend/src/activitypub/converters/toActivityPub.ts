@@ -4,6 +4,7 @@ import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js
 import { HARMONY_NS } from '../harmonyContext.js';
 import { HARMONY_INSTANCE_ROLE, instanceRoleOf } from '../copyMirror.js';
 import { shownLinkLabel } from '../../utils/maskedLinks.js';
+import { unescapeMarkup } from '../../utils/markupEscapes.js';
 import { federatedImage } from '../../utils/federatedImages.js';
 
 /**
@@ -790,7 +791,7 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
   const inline = content
     .map((item) => {
       if (item.type === 'text') {
-        let text = item.text || '';
+        let text = unescapeMarkup(item.text || '');
         text = text.replace(/&/g, '&amp;');
         text = text.replace(/</g, '&lt;');
         text = text.replace(/>/g, '&gt;');

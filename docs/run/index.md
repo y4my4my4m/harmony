@@ -42,4 +42,5 @@ The instance's own administrators and moderators are a separate group, set by wh
 | [Server stickers](/run/stickers) | Adding, describing and removing the server's stickers |
 | [Webhooks](/run/webhooks) | Creating and managing channel webhooks |
 | [Discord bridge](/run/discord-bridge) | Linking the server to a Discord server |
+| [Reviewing signups](/run/signup-review) | For instance staff: recent accounts, groups created together, and suspending many accounts with one reason |
 | [Instance funding](/run/funding) | For instance administrators: the Support window, payment links, supporter messages and the sign-in page strip |

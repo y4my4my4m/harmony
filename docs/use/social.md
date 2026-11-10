@@ -201,10 +201,15 @@ Select **Save** to keep the changes.
 | What moves | What stays behind |
 |---|---|
 | Your followers on this instance. | Posts, messages and direct messages. |
-| Your followers on servers that support account moves. Their servers move them. | End-to-end encryption keys. |
-| Your Harmony server memberships, with your roles and nickname, when the new account joins a server hosted on another instance than its own. It needs no invite; a ban on the old account also applies to the new one. | Bots you own. |
+| Your followers on servers that support account moves. Their servers move them. | Likes, boosts and bookmarks. |
+| Your Harmony server memberships, with your roles and nickname, when the new account joins a server hosted on another instance than its own. It needs no invite; a ban on the old account also applies to the new one. | Your display name, bio, avatar, banner and profile fields. [Copy them](#copy-your-old-profile) on a new Harmony account. |
+| | The accounts you follow. [Import them](#import-the-accounts-you-follow) on the new account. |
+| | Accounts you blocked or muted. |
+| | End-to-end encryption keys. |
+| | Bots you own. |
 | | Servers you own. Ownership does not move; transfer it first. |
-| | The accounts you follow. |
+
+Harmony follows Mastodon here: a move carries followers and tells other servers where you went. Posts and likes are not imported.
 
 Followers on this instance who block, or are blocked by, the new account stay with the old one. People here who blocked or muted the old account block or mute the new one as well. When the new account approves followers manually, moved followers arrive there as follow requests.
 
@@ -215,6 +220,33 @@ After the move, your profile shows **This account has moved** and points to the 
 1. Here, under **Moving from another account**, type the old account's handle, such as `username@instance.social`, and select **Add**. The list holds at most ten accounts.
 2. On the old server, start the move and give this account as the target. The panel shows the handle to enter: **On the other server, enter this account as the move target**.
 3. The old server sends the move. Followers on servers that support moves follow this account; followers on this instance are moved by Harmony.
+
+### Import the accounts you follow
+
+A move leaves your following list behind. **Import the accounts you follow** in **Account migration** follows the accounts on a list from your old account.
+
+1. Get the list. On Mastodon, go to **Preferences** → **Import and export** → **Data export** and download **Follows** as a CSV. On Harmony, use the ZIP from **Privacy & safety** → **Download your data**.
+2. On the new account, select **Choose file** and pick `following_accounts.csv`, the ZIP, or `social.json` from the ZIP. Harmony shows how many accounts it found. Only those account addresses leave your device.
+3. Select **Start import**. It runs on the server, so you can close the app.
+
+The panel shows how many accounts you now follow, how many got a follow request, how many you already followed, and which could not be followed and why.
+
+- Follows work as they do when you select **Follow**. Locked accounts and accounts on other servers get a request. Accounts that block you, or that you block, are skipped.
+- A deleted, suspended or moved account is not followed.
+- An account you asked to follow before and that declined stays declined.
+- Imports follow at the instance's hourly follow limit, so a long list can take hours. Your own follows do not wait for it. **Stop import** ends it; follows already made stay.
+- Mastodon's per-account settings for boosts, notifications and languages are not carried over. Harmony has no such settings on a follow.
+- A file can list up to 20,000 accounts, as on Mastodon, and you can start five imports in 24 hours.
+
+### Copy your old profile
+
+Your old profile stays with the old account. Once an account moved to this one, **Copy your old profile** appears in **Account migration**. It needs both sides of the move: the old account points here, and this account lists the old one as an alias. **Cancel redirect** on the old account removes the offer.
+
+1. Tick what to copy: display name, bio, avatar, banner or profile fields.
+2. Select **Copy selected**. Harmony lists what is added and what replaces what your profile has now.
+3. Select **Copy to this profile**.
+
+Nothing changes before that last step, and replaced values cannot be restored. The avatar and banner are stored again on this instance, so they stay when the old server goes away. An image the old server no longer serves is left out, and the panel says so. Software other than Harmony has no such action.
 
 ### When someone you follow moves
 

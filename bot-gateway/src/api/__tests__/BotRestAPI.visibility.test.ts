@@ -157,3 +157,32 @@ describe('history without READ_MESSAGE_HISTORY', () => {
     expect(res.body.map((m: { id: string }) => m.id).sort()).toEqual([OLD_QUIET, NEW_QUIET].sort())
   })
 })
+
+describe('history read limit', () => {
+  function fill(count: number) {
+    for (let i = 0; i < count; i++) {
+      db.rows('messages').push({
+        id: `00000000-0000-0000-0001-${String(i).padStart(12, '0')}`, channel_id: GENERAL, user_id: OWNER_ID,
+        content: [{ type: 'text', text: `m${i}` }], metadata: {}, is_deleted: false,
+        created_at: new Date(Date.UTC(2026, 9, 2) + i * 1000).toISOString(),
+      })
+    }
+  }
+  const count = async (limit: string) =>
+    (await supertest(app()).get(`/api/v1/channels/${GENERAL}/messages?limit=${limit}`)).body.length
+
+  it('returns at most 100 messages, whatever limit asks', async () => {
+    fill(150)
+    const res = await supertest(app()).get(`/api/v1/channels/${GENERAL}/messages?limit=1000`)
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(100)
+  })
+
+  it('keeps a limit within range, raises 0 to 1 and defaults a malformed one to 50', async () => {
+    fill(150)
+    expect(await count('7')).toBe(7)
+    expect(await count('0')).toBe(1)
+    expect(await count('abc')).toBe(50)
+    expect(await count('-5')).toBe(50)
+  })
+})

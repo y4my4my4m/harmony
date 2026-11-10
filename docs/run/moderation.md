@@ -118,7 +118,7 @@ The welcome screen itself is covered in [Setting up a server](/run/setup#welcome
 - **A message**: open the message's menu (right-click it) and choose **Report message**. This appears on messages you did not write.
 - **A member**: open their full profile page, open its menu and choose **Report**.
 
-The reporter picks a reason (**Spam or unwanted content**, **Harassment or bullying**, **Illegal content**, **Impersonation**, **Inappropriate/NSFW content**, **Other**) and can add details, up to 1000 characters. When the reported account is on another instance, they can also tick "Also send an anonymous copy of this report to …". A member can file up to 20 reports an hour, and cannot report themselves.
+The reporter picks a reason (**Spam or unwanted content**, **Harassment or bullying**, **Illegal content**, **Impersonation**, **Inappropriate/NSFW content**, **Username hoarding or account trading**, **Other**) and can add details, up to 1000 characters. When the reported account is on another instance, they can also tick "Also send an anonymous copy of this report to …". A member can file up to 20 reports an hour, and cannot report themselves.
 
 ### Who receives them
 
@@ -220,6 +220,56 @@ Timeouts are applied by AutoMod rules with the **Time out the member** action; t
 ### Remove a timeout
 
 In **Server settings** → **AutoMod**, the **Timed-out members** card lists active timeouts with "Timed out until …". Select **Remove timeout**. The same link appears on AutoMod log entries. Removing a timeout needs **Timeout Members**; the AutoMod section itself needs **Manage Server**.
+
+## Instance limits
+
+Limits on what one account of this instance creates and how fast it writes. They stop one account, or many, from flooding the instance. Set far above ordinary use, they apply on top of each server's AutoMod and cannot be turned off by a server owner.
+
+Instance admins set them. Instance admins and moderators are never limited. `0` turns a limit off. Remote accounts, bridges and webhooks are outside them, as they have limits of their own.
+
+**Instance admin** → **Config** → **General**:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| **Servers one account can own** | `100` | Servers on this instance. A copy of a server hosted elsewhere does not count |
+| **Bots one account can own** | `25` | Channel webhooks and the bots of linked Discord bridges do not count |
+
+An account already over a number keeps what it has and cannot add more.
+
+**Instance admin** → **Anti-spam** → **Every local account**. Each window rolls: a write is refused until the oldest counted one leaves it.
+
+| Setting | Default | Counts |
+|---|---|---|
+| **Messages per minute** | `120` | Channel, thread and direct messages. Edits do not count |
+| **Posts per hour** | `100` | Posts and replies. Boosts do not count |
+| **Reactions and favourites per minute** | `240` | Reactions to messages and posts, and favourites |
+| **Follows per hour** | `200` | New follows. Moving an account does not count |
+| **Server joins per hour** | `60` | Joins by the account itself |
+| **Servers created per hour** | `10` | Deleting a server does not give the count back |
+| **New conversations with strangers per hour** | `30` | See below |
+| **Same, for new accounts** | `5` | Accounts younger than **An account counts as new for** |
+
+A stranger does not follow the account, shares no server with it and has no conversation with it. Starting a conversation with anyone else is not counted, except that for an account younger than **An account counts as new for**, someone sharing only a server counts too: joining a public server would otherwise reach every member. Adding a stranger to a group counts once.
+
+**New local accounts** on the same tab holds tighter limits for accounts younger than **An account counts as new for** (24 hours by default): messages per minute, posts per hour, mentions of strangers per post, and links. A new install starts at 20 messages per minute, 20 posts per hour and 5 mentions, with links allowed. An instance updated from an earlier version keeps the values it holds.
+
+[Drive storage](/self-host/configuration#drive-storage) holds one more: **Stored files across the instance**, off by default. Past it, uploads are refused for everyone but staff.
+
+### What a refused person sees
+
+The app says to try again in a number of seconds. Nothing else happens: no flag, no strike, no entry in the review queue. A refused message or post stays in its composer. Refused writes are not stored, so they count toward nothing.
+
+### Exempt an account
+
+When an account has a good reason to write faster than the limits, such as a news mirror or someone moving a community over, exempt it instead of raising a limit for everyone. In **Instance admin** → **Users**, the lightning button on a local account turns its exemption on and off, and stays lit while it is on. It takes effect on the account's next write, covers every limit above, and extends to the REST ceiling of the account's bots. Each change is in the activity log.
+
+An exemption does not override [who can start a conversation](/use/privacy-security#who-can-start-a-conversation) with someone. Instance staff do pass that setting.
+
+### Bots and bridges
+
+Bots have a ceiling across all their REST routes: **Requests per minute, per bot** (`600`) and **Requests per minute, per linked Discord bridge** (`3000`), under **Anti-spam** → **Bots**. See [Permissions and rate limits](/build/permissions-rate-limits#rest-rate-limits).
+
+A linked Discord bridge relays one to three requests per message and is limited first by 100 requests per minute per channel. A bridge from before Bridge v2, or a bridge to another network, counts as an ordinary bot, because the ceiling follows a linked bridge and not the bot's type. If one reaches 600 requests per minute, raise the number or exempt its owner.
 
 ## Audit log
 

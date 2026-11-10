@@ -612,3 +612,27 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
     expect(deleted).toEqual([])
   })
 })
+
+// bot_audit_log.server_id and channel_id are indexed for per-server reads.
+describe('audit rows name their server and channel', () => {
+  const audit = (action: string) => db.rows('bot_audit_log').find((r) => r.action_type === action)
+
+  it('fills both for a message sent, edited and deleted in a channel', async () => {
+    seedWithBotMessages(install())
+    expect((await supertest(app()).post(`/api/v1/channels/${PUBLIC_CHANNEL}/messages`).send({ content: 'hi' })).status).toBe(201)
+    expect((await supertest(app()).patch(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`).send({ content: 'edited' })).status).toBe(200)
+    expect((await supertest(app()).delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)).status).toBe(204)
+    for (const action of ['message_sent', 'message_edited', 'message_deleted']) {
+      expect(audit(action)).toMatchObject({ bot_id: BOT_ID, server_id: SERVER_ID, channel_id: PUBLIC_CHANNEL })
+    }
+  })
+
+  it('fills the server, and no channel, for a role created', async () => {
+    seed(install({ manage_roles: true }))
+    const res = await supertest(app())
+      .post(`/api/v1/servers/${SERVER_ID}/roles`)
+      .send({ name: 'Helpers', position: 0, permissions: '0' })
+    expect(res.status).toBeLessThan(300)
+    expect(audit('role_created')).toMatchObject({ server_id: SERVER_ID, channel_id: null })
+  })
+})

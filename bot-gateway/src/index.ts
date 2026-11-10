@@ -7,6 +7,7 @@ import compression from 'compression'
 import { config, supabase } from './config/supabase.js'
 import { WebSocketGateway } from './gateway/WebSocketGateway.js'
 import { EventDispatcher } from './gateway/EventDispatcher.js'
+import { InteractionPoller } from './gateway/InteractionPoller.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
 import { BridgeV2API, MIN_HOST_SECRET_LENGTH } from './api/BridgeV2API.js'
 import { BridgeConfigWatcher } from './gateway/BridgeConfigWatcher.js'
@@ -47,6 +48,10 @@ eventDispatcher.start().catch(error => {
   console.error('Failed to start event dispatcher:', error)
   process.exit(1)
 })
+
+// INTERACTION_CREATE: slash command invocations of connected bots.
+const interactionPoller = new InteractionPoller(gateway)
+interactionPoller.start()
 
 // Bot API routes require bot token authentication.
 const botAPI = new BotRestAPI(eventDispatcher)
@@ -367,6 +372,7 @@ async function shutdown() {
   }, 10000)
   
   bridgeConfigWatcher.stop()
+  interactionPoller.stop()
 
   // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
   await gateway.shutdown()
@@ -399,5 +405,5 @@ process.on('uncaughtException', (error) => {
   process.exit(1)
 })
 
-export { app, server, gateway, eventDispatcher }
+export { app, server, gateway, eventDispatcher, interactionPoller }
 

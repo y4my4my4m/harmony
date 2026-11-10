@@ -499,7 +499,8 @@ export class WebSocketGateway {
 
   // EVENT BROADCASTING
   
-  sendToBot(botId: string, event: any) {
+  /** Sends the event to every open connection of the bot here; returns the number of sockets written. */
+  sendToBot(botId: string, event: any): number {
     let sent = 0
     
     for (const [ws, conn] of this.connections) {
@@ -512,6 +513,7 @@ export class WebSocketGateway {
     if (sent > 0) {
       console.log(`Sent event to bot ${botId} (${sent} connections)`)
     }
+    return sent
   }
   
   sendToMultipleBots(botIds: string[], event: any) {

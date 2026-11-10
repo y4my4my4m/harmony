@@ -149,7 +149,7 @@ test('the signed-in browser shows its code as text; a new browser pastes it', as
   let code = ''
   await test.step('the signed-in browser shows its code as text', async () => {
     const dialog = await openLinkDialog(first)
-    await dialog.getByRole('button', { name: 'New device has a camera? Show a code for it to scan instead' }).click()
+    await dialog.getByRole('button', { name: 'Show a code to scan or copy instead' }).click()
     await expect(dialog.getByTestId('link-qr')).toBeVisible({ timeout: 30000 })
     await expect(dialog).toContainText('or copy the code below and paste it there')
     code = await codeShown(dialog)

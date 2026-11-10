@@ -201,13 +201,22 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 
 Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`), and for a text or voice channel `harmony:pins`: `{ "type": "OrderedCollection", "id": "<channel>/pins", "totalItems", "updated" }`, the pins the caller may read and the newest pin's time. A category is listed when it holds a channel the caller may view.
 
+A channel entry also carries, each only when it holds:
+
+| Property | Value |
+|---|---|
+| `harmony:encryption` | `{ "messages": true, "voice": true }`: end-to-end encrypted on the host. A key is absent when false, and `voice` holds for a voice channel alone |
+| `harmony:private` | `true`: `@everyone` cannot view the channel. Also on a category entry |
+
+A copy stores them display-only as `channels.host_flags` and `channel_categories.host_flags`: a lock or private mark on the channel, the voice channel's and composer's refusal explained. Encryption settings and permission overrides on the copy stay empty: a client would encrypt to local members only, and an `@everyone` deny there hides the channel. Every channel document of a Group replaces the stored value, so a flag the host turned off is an absent property. A Group without them (Harmony before 1.9.5) leaves a copy with none. A channel's `Add` and `Update` carry the same properties, and a read that fails on the host sends no document instead of one without them.
+
 Each `harmony:roles` entry is a `harmony:Role` with `id` (`/servers/<uuid>/roles/<role uuid>`), `name`, `color` (`#rrggbb` or null), `position`, `hoist`, `mentionable` and, when set, `unicodeEmoji`. Permission bits are not sent: a member instance shows the roles, the host enforces them.
 
 A member instance stores the roles on its copy display-only, with no permissions, and deletes a role of the Group the list no longer names; it reads the pins of a channel whose `harmony:pins` differs from what its copy holds. A Group without these properties (Harmony before 1.9.1) leaves the copy's roles and pins as they are.
 
 A receiver reads whether a server is public from `harmony:public`. Without it, `discoverable: false` means private and anything else public, as Harmony before 1.9.3 wrote `discoverable`; a public Group that is not listed omits `discoverable`, so both readings agree. The Group's `Update` carries the same `discoverable` and `harmony:public`.
 
-`GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, and `replies`, the channel's message collection.
+`GET /servers/<uuid>/channels/<channel uuid>` serves one text or voice channel: `type`, `name`, `summary`, `context` and `attributedTo` (both the Group id), `position`, `published`, `replies`, the channel's message collection, and `harmony:encryption` and `harmony:private` when they hold.
 
 ## Endpoints
 
@@ -266,7 +275,7 @@ Harmony does not send RFC 9421 signatures. Every outbound request, signed or not
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
 | Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, `Remove` of a member, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
-| `Flag` | The instance actor |
+| `Flag`, `harmony:VoiceChannelJoinReject` | The instance actor |
 | `GET` on behalf of a member: a private server's Group, channels and members | That member |
 | Any other `GET` (actors, keys, objects, collections, NodeInfo) | The instance actor |
 | Deliveries of a deleted account (its actor `Delete`) | The account's retained key, under its original `keyId` |
@@ -315,7 +324,7 @@ A `Delete` of an actor by itself whose key fetch answers 404 or 410 answers 202 
 | Followers-only and direct posts, and their collections | A verified signer whose instance has an account allowed to read the post |
 | Direct and group direct messages (`/messages/<uuid>`) | A verified signer whose instance has a participant in the conversation |
 | A public server, and the channels `@everyone` can view | Anyone |
-| A private server, and channels `@everyone` cannot view | A verified signer who is an accepted member and can view the channel; the instance actor and Group actors are not members |
+| A private server, and channels `@everyone` cannot view | A verified signer who is an accepted member, for a channel every accepted member on the signer's instance can view; the instance actor and Group actors are not members |
 | A thread, its members, a channel's threads | As the thread's channel. Only threads this instance named are served at `/threads/<uuid>`. |
 
 Anything else answers exactly as an unknown id does: 404, same body. A response that holds non-public content is sent with `Cache-Control: private, no-store`.
@@ -385,21 +394,22 @@ Chat-server activities:
 | `Accept` / `Reject` | Group | The received `Join`; a `Reject` has a `summary` reason | Host answers a `Join` | Joining account |
 | `Reject` | Group | The received `Follow` | A `Follow` of the Group: a chat server is joined, not followed | Follower |
 | `Remove` | Group | The member's account, `target` `/servers/<uuid>/members`; `harmony:reason` `federation_closed`, `kick` or `ban`, a kick's or ban's reason as `summary`, `published` the time of the removal | Federation is turned off for the server, or a member from another instance is kicked or banned | The member's inbox |
-| `Create` / `Update` | Message author | Channel message `Note` | A message is sent or edited | Host: each instance with a member who can view the channel. Member: the Group inbox |
-| `Create` | Group | System notice `Note` | A member joins, leaves, is kicked or is banned | Each instance with a member who can view the channel |
+| `Create` / `Update` | Message author | Channel message `Note` | A message is sent or edited | Host: each instance whose accepted members can all view the channel. Member: the Group inbox |
+| `Create` | Group | System notice `Note` | A member joins, leaves, is kicked or is banned | Each instance whose accepted members can all view the channel |
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
-| `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
-| `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
+| `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance whose accepted members can all view the channel. Member: the Group inbox |
+| `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance whose accepted members can all view the channel, at its copy's inbox |
 | `Create` / `Update` | Thread creator | `ChatThread` | A thread is created or changed | As channel messages |
-| `Delete` | `https://<sending domain>/servers/<uuid>` | `ChatThread` with `id` and `context` | A thread of a server hosted here is deleted: from its menu, or by the deletion of its last message | Each instance with a member who can view the channel |
-| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number | `Add` and `Update`: instances with a member who can view the channel, or for a category a channel in it. `Remove`: member instances |
+| `Delete` | `https://<sending domain>/servers/<uuid>` | `ChatThread` with `id` and `context` | A thread of a server hosted here is deleted: from its menu, or by the deletion of its last message | Each instance whose accepted members can all view the channel |
+| `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed, or its encryption or `@everyone`'s view of it changes. A channel's `Add` or `Update` follows an `Update` of its category. The object carries `position` and `order`, both the same number, and `harmony:encryption` and `harmony:private` when they hold | `Add` and `Update`: instances whose accepted members can all view the channel, or for a category a channel in it. `Remove`: member instances |
 | `Update` | Group | `Group`, with `harmony:roles` | The server's name, description, icon, banner, public setting or **Discoverable across federation** setting changes, or a role is created, changed or deleted | Member instances |
 | `Update` | Group | `harmony:MemberRoles`: `member` (actor id) and `roles` (all the member's `harmony:Role` ids) | A member is given or loses a role | Member instances |
-| `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances with a member who can view the channel |
+| `Update` | Group | `Question`: a poll's message id with its counts and end, `context` and `harmony:serverId` | Votes change the counts of a channel poll the host holds, or it ends; the votes of 2 seconds go out as one | Instances whose accepted members can all view the channel |
 | `Update` | Message author | `Question` with `closed` | The author ends their poll, which the host holds | Group inbox |
-| `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances with a member who can view the channel |
+| `Add` / `Remove` | Group | Message id, `target` the channel's `/pins` | A message is pinned or unpinned | Instances whose accepted members can all view the channel |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
+| `harmony:VoiceChannelJoinReject` | Instance actor | The `Join` id; `reason` text for the joining account | Host refuses a voice join | The joining account's host, once, not retried |
 | `harmony:VoiceMemberMove` / `harmony:VoiceMemberDisconnect` / `harmony:VoiceMemberState` | Group | The member | A moderator moves, disconnects, server-mutes or server-deafens a member of another instance, or the member leaves voice another way (see [Voice moderation](#voice-moderation)) | The member's instance, at its copy's inbox |
 | `harmony:VoiceCallInvite` / `Accept` / `Reject` / `End` | Account | `harmony:VoiceCall`, or the invite id | A direct-message call | The other party |
 
@@ -418,7 +428,7 @@ What a member on one instance does in a channel reaches the members on other ins
 }
 ```
 
-The host relays the `Create`, `Update` and `Delete` of a channel message, reactions and the `Undo` of a reaction, once it has accepted them on the Group inbox. The `Announce` is signed with the Group's key and sent to the copy of the server on each other instance with a member who can view the channel, at `https://<instance>/servers/<uuid>/inbox`; never to the sender's instance, and not to an instance known to run software other than Harmony. Its id derives from the inner activity's, so a redelivery is the same activity.
+The host relays the `Create`, `Update` and `Delete` of a channel message, reactions and the `Undo` of a reaction, once it has accepted them on the Group inbox. The `Announce` is signed with the Group's key and sent to the copy of the server on each other instance whose accepted members can all view the channel, at `https://<instance>/servers/<uuid>/inbox`; never to the sender's instance, and not to an instance known to run software other than Harmony. Its id derives from the inner activity's, so a redelivery is the same activity.
 
 A receiver takes the relay from the Group of a server it copies, signed with that Group's key, and applies the inner activity without checking channel permissions again, which its copy holds incompletely. It refuses:
 
@@ -764,7 +774,7 @@ An invite link in a message shows as the server's card when the link's host name
 
 Voice media goes through LiveKit, not ActivityPub; the activities exchange tokens.
 
-**Voice channels.** A member's instance sends `harmony:VoiceChannelJoin` to the Group inbox with a join id it minted. The host checks membership and channel permissions and answers with `harmony:VoiceChannelJoinAccept`: `actor` the server owner, `object` the join id, `result` a `harmony:VoiceToken` (`livekitUrl`, `token`, `roomName`, `expiresAt`, four hours ahead). Otherwise it answers `harmony:VoiceChannelJoinReject`. The answer is delivered once, to an inbox on the joining actor's host, and only the instance the join was sent to can answer it.
+**Voice channels.** A member's instance sends `harmony:VoiceChannelJoin` to the Group inbox with a join id it minted. The host checks membership and channel permissions and answers with `harmony:VoiceChannelJoinAccept`: `actor` the server owner, `object` the join id, `result` a `harmony:VoiceToken` (`livekitUrl`, `token`, `roomName`, `expiresAt`, four hours ahead). Otherwise it answers `harmony:VoiceChannelJoinReject`: `actor` the instance actor, `object` the join id, `reason` text shown to the joining account. The reason says nothing of which check failed, with one exception: a member otherwise admitted to a channel whose voice is end-to-end encrypted is told that, since no key crosses instances and nothing the member can do changes the answer. The check runs last, so nobody else learns the channel's state. The answer is delivered once, to an inbox on the joining actor's host, and only the instance the join was sent to can answer it. Hosts before 1.9.5 send no refusal; the joining client gives up after 20 seconds.
 
 **Direct-message calls.** The caller's LiveKit hosts the room `federated-dm-<conversation uuid>-<milliseconds>`.
 
@@ -773,7 +783,7 @@ Voice media goes through LiveKit, not ActivityPub; the activities exchange token
 3. On accept, the callee's instance sends `POST /api/livekit/federated-token` to the caller's origin with `{ "actorId": "<callee>", "roomName": "<room>", "roomType": "dm_call" }`, signed with the callee's key. The caller's instance grants a token when `actorId` is the signer, the signer is the recipient of a live call for that room, and the signer is in the conversation. The answer is `{ "token", "wsUrl", "roomName", "identity" }`.
 4. The callee's instance delivers `harmony:VoiceCallAccept`. `harmony:VoiceCallReject` and `harmony:VoiceCallAccept` are accepted only from the call's remote recipient, `harmony:VoiceCallEnd` only from the other party.
 
-With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites and refuses federated call tokens.
+With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites, refuses federated call tokens, and answers a voice channel join with `harmony:VoiceChannelJoinReject`.
 
 ### Voice moderation
 
@@ -825,6 +835,8 @@ Harmony before 1.8.12 binds the prefix to `https://har.mony.lol/ns#` in `Person`
 | `harmony:channels` | `Group` | Channel and category entries |
 | `harmony:roles`, `harmony:Role` | `Group` | The server's roles; see [Group (chat server)](#group-chat-server) |
 | `harmony:pins` | `harmony:channels` entries | The channel's pins collection, its `totalItems` and newest pin time |
+| `harmony:encryption` | `harmony:channels` entries, channel document, channel `Add` and `Update` objects | `{ messages, voice }`, end-to-end encrypted on the host; absent when neither |
+| `harmony:private` | `harmony:channels` entries, channel document, channel and category `Add` and `Update` objects | `true` when `@everyone` cannot view it; absent otherwise |
 | `harmony:pinnedAt` | `Note` in a pins collection | When the message was pinned |
 | `harmony:memberRoles` | Members collection page | `{ member, roles }` per member holding a role |
 | `harmony:MemberRoles` | `Update` object | `member` and all of its `roles` |

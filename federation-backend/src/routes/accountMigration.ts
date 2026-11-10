@@ -6,6 +6,7 @@
  *   POST   /move/preview  { handle }            the target as it stands now
  *   POST   /move          { handle, password }  move to the target
  *   POST   /move/cancel                         drop the redirect
+ *   POST   /profile/copy  { origin_id, fields }  copy an old account's profile (activitypub/profileCopy.ts)
  *
  * A remote handle resolves as /lookup-user does (WebFinger, authoritative fetch, key
  * ownership, account confirmation, upsert), always fetched now. The RPCs run with the
@@ -20,7 +21,8 @@ import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
 import { accountMigrationLimiter } from '../middleware/rateLimit.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveRemoteAccount } from '../activitypub/ActorService.js';
-import { localActorUri } from '../activitypub/accountMigration.js';
+import { localActorUri, parseAccountHandle, type AccountHandle } from '../activitypub/accountMigration.js';
+import { buildProfileCopy, isVerifiedOrigin, parseCopyFields, removeCopiedImages } from '../activitypub/profileCopy.js';
 import { parseAlsoKnownAs, parseMovedTo } from '../activitypub/converters/fromActivityPub.js';
 import { bearerToken } from '../utils/sessionAssurance.js';
 import config from '../config/index.js';
@@ -43,22 +45,7 @@ const MOVE_ERRORS: Record<string, number> = {
   alias_missing: 422,
 };
 
-export interface AccountHandle {
-  username: string;
-  /** Lowercased; null for a bare local username. */
-  domain: string | null;
-}
-
-/** `user`, `user@host` or `@user@host`. */
-export function parseAccountHandle(raw: unknown): AccountHandle | null {
-  if (typeof raw !== 'string') return null;
-  const parts = raw.trim().replace(/^@/, '').split('@');
-  if (parts.length > 2) return null;
-  const [username, domain] = parts;
-  if (!username || username.length > 64 || !/^[A-Za-z0-9_.-]+$/.test(username)) return null;
-  if (domain !== undefined && !/^[a-z0-9.-]+(:\d+)?$/i.test(domain)) return null;
-  return { username, domain: domain ? domain.toLowerCase() : null };
-}
+export { parseAccountHandle, type AccountHandle };
 
 export interface ResolvedAccount {
   profile: any;
@@ -117,7 +104,15 @@ function publicAccount(account: ResolvedAccount): Record<string, unknown> {
 
 interface Caller {
   client: SupabaseClient;
-  profile: { id: string; username: string; federated_id: string | null; also_known_as: string[] | null; moved_to_uri: string | null };
+  profile: {
+    id: string;
+    auth_user_id: string | null;
+    username: string;
+    federated_id: string | null;
+    also_known_as: string[] | null;
+    moved_to_uri: string | null;
+    is_suspended: boolean | null;
+  };
   uri: string;
 }
 
@@ -130,7 +125,7 @@ async function caller(req: Request, res: Response): Promise<Caller | null> {
   }
   const { data: profile } = await getSupabaseClient()
     .from('profiles')
-    .select('id, username, federated_id, also_known_as, moved_to_uri, is_local, deleted_at')
+    .select('id, auth_user_id, username, federated_id, also_known_as, moved_to_uri, is_suspended, is_local, deleted_at')
     .eq('id', profileId)
     .maybeSingle();
   if (!profile || profile.is_local !== true || profile.deleted_at) {
@@ -243,6 +238,42 @@ router.post('/move/cancel', accountMigrationLimiter, requireAuth, asyncHandler(a
   if (error) return rpcFailure(res, error);
   if (data?.error) return res.status(409).json({ error: data.error });
   return res.json({ success: true });
+}));
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Writes with the caller's token: the guards and the Update(Person) trigger run as for a settings save.
+router.post('/profile/copy', accountMigrationLimiter, requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const originId = req.body?.origin_id;
+  if (typeof originId !== 'string' || !UUID.test(originId)) return res.status(400).json({ error: 'invalid_origin' });
+  const fields = parseCopyFields(req.body?.fields);
+  if (fields.length === 0) return res.status(400).json({ error: 'no_fields' });
+  const me = await caller(req, res);
+  if (!me) return;
+  if (me.profile.is_suspended) return res.status(403).json({ error: 'account_suspended' });
+
+  const { data: origin } = await getSupabaseClient()
+    .from('profiles')
+    .select('id, username, domain, federated_id, moved_to_id, display_name, bio, avatar_url, banner_url, profile_fields')
+    .eq('id', originId)
+    .maybeSingle();
+  if (!isVerifiedOrigin(origin, me.profile.id, me.profile.also_known_as)) {
+    return res.status(403).json({ error: 'not_verified' });
+  }
+
+  const copy = await buildProfileCopy(origin!, fields, me.profile.auth_user_id ?? me.profile.id);
+  if (copy.copied.length === 0) return res.status(422).json({ error: 'nothing_to_copy', failed: copy.failed });
+
+  const { error } = await me.client
+    .from('profiles')
+    .update(copy.update)
+    .eq('id', me.profile.id);
+  if (error) {
+    await removeCopiedImages(copy.update);
+    return rpcFailure(res, error);
+  }
+  logger.info(`Account ${me.profile.username} copied ${copy.copied.join(', ')} from ${originId}`);
+  return res.json({ success: true, copied: copy.copied, failed: copy.failed, update: copy.update });
 }));
 
 export default router;

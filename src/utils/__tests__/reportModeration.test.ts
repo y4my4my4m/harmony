@@ -39,6 +39,7 @@ describe('categoryForReason', () => {
     expect(categoryForReason('illegal_content')).toBe('legal')
     expect(categoryForReason('harassment')).toBe('violation')
     expect(categoryForReason('nsfw')).toBe('violation')
+    expect(categoryForReason('username_hoarding')).toBe('violation')
     expect(categoryForReason('anything else')).toBe('other')
   })
 })

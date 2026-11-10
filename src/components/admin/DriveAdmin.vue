@@ -25,6 +25,10 @@
           <span>{{ t('driveAdmin.quotaAdmin') }}</span>
           <span class="drive-admin__unit"><input v-model.number="form.drive_quota_admin_mb" type="number" min="0" step="1" class="drive-input" /> MB</span>
         </label>
+        <label v-if="instanceLimitSupported">
+          <span>{{ t('driveAdmin.instanceLimit') }}</span>
+          <span class="drive-admin__unit"><input v-model.number="form.drive_instance_limit_mb" type="number" min="0" step="1" class="drive-input" data-testid="drive-admin-instance-limit" /> MB</span>
+        </label>
         <label>
           <span>{{ t('driveAdmin.ephemeralDays') }}</span>
           <span class="drive-admin__unit"><input v-model.number="form.drive_ephemeral_days" type="number" min="1" max="365" step="1" class="drive-input" /> {{ t('driveAdmin.days') }}</span>
@@ -144,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { computed, onMounted, onUnmounted, reactive, ref, useId, watch } from 'vue'
 import DisplayName from '@/components/DisplayName.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -156,7 +161,9 @@ import { useT } from '@/composables/useT'
 import { formatBytes } from '@/components/drive/driveFormat'
 import '@/components/drive/drive.css'
 
-const KEYS = ['drive_enabled', 'drive_quota_user_mb', 'drive_quota_moderator_mb', 'drive_quota_admin_mb', 'drive_ephemeral_days', 'drive_ephemeral_daily_mb', 'drive_link_sharing'] as const
+const ALL_KEYS = ['drive_enabled', 'drive_quota_user_mb', 'drive_quota_moderator_mb', 'drive_quota_admin_mb', 'drive_instance_limit_mb', 'drive_ephemeral_days', 'drive_ephemeral_daily_mb', 'drive_link_sharing'] as const
+const instanceLimitSupported = hasCapability('instance-limits')
+const KEYS = ALL_KEYS.filter((key) => key !== 'drive_instance_limit_mb' || instanceLimitSupported)
 const FLAGS = new Set<string>(['drive_enabled', 'drive_link_sharing'])
 
 const { t } = useT()
@@ -165,6 +172,7 @@ const form = reactive({
   drive_quota_user_mb: 1024,
   drive_quota_moderator_mb: 25600,
   drive_quota_admin_mb: 102400,
+  drive_instance_limit_mb: 0,
   drive_ephemeral_days: 30,
   drive_ephemeral_daily_mb: 2048,
   drive_link_sharing: true,

@@ -81,6 +81,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import { moderationRejectionFromError } from '@/services/AutoModService'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import { activityPubService } from '@/services/activityPubService'
@@ -200,7 +201,7 @@ async function toggleFollow() {
     }
   } catch (error) {
     debug.warn('Follow from authorize_interaction failed:', error)
-    toast.error(t('authorizeInteraction.followFailed'))
+    if (!moderationRejectionFromError(error)) toast.error(t('authorizeInteraction.followFailed'))
   } finally {
     followBusy.value = false
   }

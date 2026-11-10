@@ -66,6 +66,7 @@ const mod = await import('../index.js')
 const { app, gateway } = mod
 
 afterAll(async () => {
+  mod.interactionPoller.stop()
   try { await mod.eventDispatcher.shutdown() } catch { /* not started */ }
   try { mod.server.close() } catch { /* not listening */ }
 })

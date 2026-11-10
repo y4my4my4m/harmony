@@ -284,9 +284,22 @@
         
         <!-- URLs (with special handling for images and videos) -->
         <template v-else-if="part && typeof part === 'object' && part.type === 'url'">
+          <!-- A link to a channel, thread or message the viewer can read. -->
+          <InlineMarks
+            v-if="chatLink(part)"
+            :marks="marksAt(partIndex)"
+          ><a
+            class="mention channel-mention chat-link"
+            data-testid="chat-link"
+            :href="chatLink(part)!.target.path"
+            :title="chatLink(part)!.title"
+            @click.prevent="openChatLink(chatLink(part)!, $event)"
+          ><template v-if="chatLink(part)!.channelName">#{{ chatLink(part)!.channelName }}</template
+          ><template v-if="chatLink(part)!.channelName && chatLink(part)!.threadName"> › </template
+          ><span v-if="chatLink(part)!.threadName" class="chat-link-thread">{{ chatLink(part)!.threadName }}</span></a></InlineMarks>
           <!-- A masked link to media shows its label above the media. -->
           <InlineMarks
-            v-if="shownLinkLabel(part) && showsPreview(part) && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url)) && sanitizeUrl(shownUrl(part.url))"
+            v-else-if="shownLinkLabel(part) && showsPreview(part) && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url)) && sanitizeUrl(shownUrl(part.url))"
             :marks="marksAt(partIndex)"
           ><a
             :href="sanitizeUrl(shownUrl(part.url))"
@@ -298,8 +311,9 @@
             :data-href="shownUrl(part.url)"
           >{{ shownLinkLabel(part) }}</a></InlineMarks>
           <!-- Image URLs -->
+          <template v-if="chatLink(part)"></template>
           <div 
-            v-if="isImageUrl(part.url) && showsPreview(part)" 
+            v-else-if="isImageUrl(part.url) && showsPreview(part)" 
             class="media-container image-container"
           >
             <div class="media-frame" :class="{ 'media-spoiler': isCoveredLink(partIndex) }">
@@ -884,6 +898,7 @@ import { sanitizeUrl } from '@/utils/sanitize';
 import { isUrlTrackingStrippingEnabled, stripTrackingParameters } from '@/utils/urlTrackerStripper';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import { pollPartOf } from '@/utils/messagePoll';
+import { chatLinkChip, type ChatLinkChip } from '@/composables/useChatLinkChips';
 import { renderChatMessageText, type CodeBlock as RenderedCodeBlock } from '@/utils/chatMessageTextRenderer';
 import { renderInlineRuns, SPOILER_GROUP_PREFIX, type InlineMark, type RunPart } from '@/utils/inlineMarkdownRuns';
 import { convertEmoticons } from '@/utils/emoticons';
@@ -1496,7 +1511,7 @@ export default defineComponent({
     };
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
-      if (embedsSuppressed.value) return null;
+      if (embedsSuppressed.value || chatLink(part)) return null;
       if (part && typeof part === 'object' && part.type === 'url' && !showsPreview(part)) {
         return null;
       }
@@ -1931,6 +1946,15 @@ export default defineComponent({
       return `/chat/${part.serverId}/${part.channelId}${query}`;
     };
 
+    // A masked link keeps its label.
+    const chatLink = (part: any) => (part?.type === 'url' && !part.label ? chatLinkChip(part.url) : null);
+
+    const openChatLink = async (chip: ChatLinkChip, event: MouseEvent) => {
+      event.stopPropagation();
+      const { default: router } = await import('@/router');
+      router.push(chip.target.path);
+    };
+
     const handleChannelMentionClick = async (part: any, event: MouseEvent) => {
       event.stopPropagation();
       if (!part?.channelId || !part?.serverId) return;
@@ -2113,6 +2137,8 @@ export default defineComponent({
       bindEmojiPart,
       imageAltText,
       channelMentionHref,
+      chatLink,
+      openChatLink,
       isHiddenSpoiler,
       revealMediaSpoiler,
       isCoveredLink,
@@ -2378,6 +2404,16 @@ export default defineComponent({
 .url-link--masked:focus-visible::after {
   content: ' (' attr(data-href) ')';
   color: var(--text-muted);
+}
+
+.chat-link-thread {
+  display: inline-block;
+  max-width: 32ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  text-decoration: inherit;
 }
 
 /* Mentions, hashtags and names are buttons (channel references links) set in

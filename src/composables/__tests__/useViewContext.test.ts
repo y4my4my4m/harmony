@@ -49,6 +49,9 @@ const at = (name: string, path: string, params: Record<string, string> = {}) => 
 const syncedViews = () =>
   rpc.mock.calls.filter(([fn]) => fn === 'sync_view_context_from_presence').map(([, args]: any) => args.p_view_type)
 
+const threadArgs = () =>
+  rpc.mock.calls.filter(([fn]) => fn === 'sync_view_context_from_presence').map(([, args]: any) => args.p_thread_id)
+
 const contextReads = () =>
   rpc.mock.calls.filter(([fn]) => fn === 'mark_notifications_read_by_context').map(([, args]) => args)
 
@@ -64,6 +67,11 @@ describe('viewContextForRoute', () => {
     })
   })
 
+  it('maps the full thread view to a viewed thread and its notifications to clear', () => {
+    expect(viewContextForRoute(at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' })))
+      .toEqual({ viewType: 'thread', serverId: 's1', threadId: 't1', clear: { threadId: 't1' } })
+  })
+
   it('maps a post to the social view, clearing its notifications', () => {
     expect(viewContextForRoute(at('PostDetail', '/social/post/p1', { postId: 'p1' })))
       .toEqual({ viewType: 'activitypub_home', clear: { postId: 'p1' } })
@@ -77,8 +85,6 @@ describe('viewContextForRoute', () => {
     expect(viewContextForRoute(at('ServerSettings', '/server/s1', { serverId: 's1' }))).toEqual({ viewType: 'settings' })
     expect(viewContextForRoute(at('AdminPanel', '/admin'))).toEqual({ viewType: 'settings' })
     expect(viewContextForRoute(at('Today', '/today'))).toEqual({ viewType: 'home' })
-    expect(viewContextForRoute(at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' })))
-      .toEqual({ viewType: 'home', threadId: 't1' })
     expect(viewContextForRoute(at('Chat', '/chat'))).toEqual({ viewType: 'home' })
     expect(viewContextForRoute(at('DMHome', '/dm'))).toEqual({ viewType: 'home' })
   })
@@ -125,7 +131,7 @@ describe('useViewContextTracking', () => {
     scope.stop()
   })
 
-  it('reports settings and the full thread view as no viewed context', async () => {
+  it('reports settings as no viewed context, and the full thread view as its thread', async () => {
     route.current = reactive(at('DMConversation', '/dm/d1', { conversationId: 'd1' }))
     const scope = track()
     Object.assign(route.current, at('UserSettings', '/settings/profile', { section: 'profile' }))
@@ -134,8 +140,45 @@ describe('useViewContextTracking', () => {
     await nextTick()
     await settle()
 
-    expect(syncedViews()).toEqual(['dm', 'settings', 'home'])
+    expect(syncedViews()).toEqual(['dm', 'settings', 'thread'])
+    expect(threadArgs()).toEqual([undefined, undefined, 't1'])
+    expect(contextReads()).toContainEqual({ p_context_type: 'thread', p_context_id: 't1' })
     expect(viewContextTracker.isViewingConversation('d1')).toBe(false)
+    expect(viewContextTracker.getCurrentContext()).toMatchObject({ view_type: 'thread', thread_id: 't1' })
+    scope.stop()
+  })
+
+  it('an instance without the thread argument records the full thread view as home', async () => {
+    rpc.mockImplementation(async (fn: string, args: any) => (
+      fn === 'sync_view_context_from_presence' && args?.p_thread_id
+        ? { data: null, error: { code: 'PGRST202', message: 'no function' } }
+        : { data: null, error: null }
+    ) as any)
+    route.current = reactive(at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' }))
+    const scope = track()
+    await settle()
+    expect(syncedViews()).toEqual(['thread', 'home'])
+    rpc.mockClear()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(syncedViews()).toEqual(['home'])
+    expect(threadArgs()).toEqual([undefined])
+    expect(viewContextTracker.getCurrentContext()).toMatchObject({ view_type: 'thread', thread_id: 't1' })
+    scope.stop()
+  })
+
+  it('clears the shown thread\'s notifications when the tab is used again', async () => {
+    route.current = reactive(at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' }))
+    const scope = track()
+    await settle()
+    rpc.mockClear()
+    hidden = true
+    document.dispatchEvent(new Event('visibilitychange'))
+    await settle()
+    hidden = false
+    document.dispatchEvent(new Event('visibilitychange'))
+    await settle()
+    expect(syncedViews()).toEqual(['away', 'thread'])
+    expect(contextReads()).toEqual([{ p_context_type: 'thread', p_context_id: 't1' }])
     scope.stop()
   })
 

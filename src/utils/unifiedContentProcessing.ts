@@ -18,6 +18,7 @@ import { HERE_ROLE_ID } from '@/utils/hereMention'
 import { isMassMentionWord, typedMassMentionPart, type MassMentionOptions } from '@/utils/massMentions'
 import { anchorLinkLabel, findMaskedLinks, shownLinkLabel, urlPartSource } from '@/utils/maskedLinks'
 import { escapeHtml } from '@/utils/sanitize'
+import { isEscapedAt } from '@/utils/markupEscapes'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -473,7 +474,7 @@ async function parseContentSegment(
   while ((match = COMBINED_MENTION_HASHTAG_REGEX.exec(content)) !== null) {
     // Matches inside a URL belong to the URL; parseTextForUrls handles them
     // (e.g. mastodon.social/@user/123).
-    if (isInsideUrl(match.index)) continue;
+    if (isInsideUrl(match.index) || isEscapedAt(content, match.index)) continue;
 
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
@@ -778,7 +779,7 @@ async function parseTextForBareUrls(text: string, emojiDataMap: Record<string, a
 
   while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
     const at = match.index;
-    if (codeRanges.some(([start, end]) => at >= start && at < end)) continue;
+    if (isEscapedAt(text, at) || codeRanges.some(([start, end]) => at >= start && at < end)) continue;
     const { url: rawUrl, preview, segmentStart, segmentEnd } = parseUrlMatchContext(
       text,
       match.index,
@@ -821,6 +822,11 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
   let emojiMatch;
   while ((emojiMatch = COMBINED_EMOJI_REGEX.exec(text)) !== null) {
     const emojiIndex = emojiMatch.index;
+
+    if (isEscapedAt(text, emojiIndex)) {
+      COMBINED_EMOJI_REGEX.lastIndex = emojiIndex + emojiMatch[0].length;
+      continue;
+    }
     
     if (emojiIndex > lastIndex) {
       const textPart = text.substring(lastIndex, emojiIndex);

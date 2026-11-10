@@ -430,6 +430,7 @@
       :trigger="contextMenuTrigger"
       @close="closeContextMenus"
       @leave="handleLeaveThread"
+      @join="handleJoinThread"
       @edit="handleEditThread"
       @open-split-view="handleOpenSplitView"
       @close-thread="handleCloseThread"
@@ -511,6 +512,7 @@ import { channelPermissionsSynced, type CategoryPrivacy } from '@/services/categ
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
+import { channelLockKey as lockKeyOfChannel } from '@/utils/channelEncryption';
 
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
@@ -594,12 +596,8 @@ watch(
 );
 
 /** i18n key for the lock icon's label, or null for a channel without encryption. */
-const channelLockKey = (channel: Channel): string | null => {
-  const state = channelEncryptionStore.stateFor(channel.id);
-  if (!state) return null;
-  if (isVoiceType(channel.type) && state.voiceEncrypted) return 'channelEncryption.lock.voice';
-  return state.messagesEncrypted ? 'channelEncryption.lock.messages' : null;
-};
+const channelLockKey = (channel: Channel): string | null =>
+  lockKeyOfChannel(channel, channelEncryptionStore.stateFor(channel.id));
 
 // State
 const isDropdownOpen = ref(false);
@@ -1134,7 +1132,7 @@ const loadActiveThreads = async (forceRefresh = false) => {
 };
 
 const getChannelActiveThreads = (channelId: string): ThreadWithDetails[] => {
-  return threadsStore.activeChannelThreads(channelId);
+  return threadsStore.activeChannelThreads(channelId).filter(thread => !thread.left);
 };
 
 // An optimistic thread has no server id to route to yet.
@@ -1331,14 +1329,22 @@ const handleDeleteCategory = (category: Category) => {
 };
 
 const handleLeaveThread = async () => {
-  if (!selectedThread.value) return;
-  try {
-    const threadId = selectedThread.value.id;
-    if (await threadService.leaveThread(threadId)) {
-      threadsStore.patch(threadId, { is_member: false });
-    }
-  } catch (error) {
-    debug.error('Failed to leave thread:', error);
+  const thread = selectedThread.value;
+  if (!thread) return;
+  if (await threadService.leaveThread(thread.id)) {
+    toast.success(t('chatNav.thread.left', { thread: thread.name }));
+  } else {
+    toast.error(t('chatNav.thread.leaveFailed'));
+  }
+};
+
+const handleJoinThread = async () => {
+  const thread = selectedThread.value;
+  if (!thread) return;
+  if (await threadService.joinThread(thread.id)) {
+    toast.success(t('chatNav.thread.joined', { thread: thread.name }));
+  } else {
+    toast.error(t('chatNav.thread.joinFailed'));
   }
 };
 

@@ -70,6 +70,7 @@ curl https://<instance>/bot-gateway/health
 | Page | Kind | Covers |
 |---|---|---|
 | [Bot quickstart](/build/bot-quickstart) | Tutorial | Create a bot, add it to a server, receive a message and reply, in one Node file |
+| [Slash commands](/build/commands) | Guide and reference | Register commands, receive `INTERACTION_CREATE`, answer publicly or only to the member |
 | [Gateway](/build/gateway) | Reference | Connection, opcodes, identify, heartbeat, close codes, event delivery, every event payload |
 | [REST API](/build/rest) | Reference | Every route, request and response bodies, errors, pagination |
 | [Webhooks API](/build/webhooks) | Reference | Executing a channel webhook, GitHub deliveries, limits and errors |

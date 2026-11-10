@@ -1,5 +1,6 @@
 import { DISCORD_EMOJI_TOKEN_INNER } from '@/utils/discordEmoji';
 import { findMaskedLinks } from '@/utils/maskedLinks';
+import { hideEscapedChars, restoreMasked } from '@/utils/markupEscapes';
 
 export interface MarkdownNode {
   type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji' | 'newline';
@@ -325,7 +326,21 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
   return hasFormatting ? tokens : undefined;
 }
 
+function restoreToken(token: MarkdownToken): void {
+  token.content = restoreMasked(token.content);
+  if (token.raw !== undefined) token.raw = restoreMasked(token.raw);
+  if (token.destination !== undefined) token.destination = restoreMasked(token.destination);
+  token.children?.forEach(restoreToken);
+}
+
+/** Tokens carrying their markers. A backslash-escaped marker is text (utils/markupEscapes). */
 export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
+  const tokens = parseMarkers(hideEscapedChars(text));
+  tokens.forEach(restoreToken);
+  return tokens;
+}
+
+function parseMarkers(text: string): MarkdownToken[] {
   const tokens: MarkdownToken[] = [];
   
   interface Match {

@@ -117,8 +117,14 @@ them.
 
 ## Supabase Studio
 
-Studio, Supabase's database browser, is at `https://db.chat.example.com`:
-user `supabase`, password `DASHBOARD_PASSWORD` from `self-host/supabase/.env`.
+Studio, Supabase's database browser, is off by default. `harmony studio on`
+starts it at `https://db.chat.example.com`: user `supabase`, password
+`DASHBOARD_PASSWORD` from `self-host/supabase/.env`. `harmony studio off` removes it.
+
+Keep it off when you are not using it. It is public while it runs, with one shared
+password and no limit on guesses, and that password reaches the whole database.
+`harmony doctor` warns while it is on.
+
 It shows tables, sign-in users and storage, and, with
 [log collection](/self-host/#log-collection) on, the Supabase services' logs.
 Log collection keeps every line it receives, about 0.9 KB per request through
@@ -126,6 +132,27 @@ Kong, and its replication slot holds up to 4 GB of write-ahead log.
 `harmony doctor` warns when either passes 1 GB;
 `harmony analytics off --delete-logs` deletes both, and `harmony analytics on`
 afterwards collects again from empty.
+
+## Signup spikes
+
+`public.signup_spike_status()` says whether signups look unusual, for a host's own alerting. It
+returns counts, never a domain or an account, and it acts on nothing: a spike can be a good day.
+Only `postgres` can run it.
+
+```bash
+docker compose exec -T db psql -U postgres -d postgres -tA \
+  -c "SELECT rule, signups, window_signups, prior_signups FROM public.signup_spike_status() WHERE fired"
+```
+
+| Rule | Fires at, by default | Argument |
+|---|---|---|
+| `concentrated` | 8 signups on one email domain in 6 hours, half of that window's signups, on a domain with fewer than 5 earlier accounts | `p_domain_min`, `p_domain_share`, `p_domain_prior_max` |
+| `burst` | 12 signups in 60 minutes | `p_burst` |
+| `busy_day` | 30 signups in the current UTC day | `p_daily` |
+| `refused` | 10 signups refused or past a cap that only counts, in the current UTC day. A refused signup has no account, so the other rules miss it | `p_refused` |
+
+The defaults come from one instance with about 5 signups a day; a larger instance needs higher
+numbers. See [Reviewing signups](/run/signup-review) for what to do with a spike.
 
 ## Queue dashboard
 

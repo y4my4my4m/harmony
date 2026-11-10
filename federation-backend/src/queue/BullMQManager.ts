@@ -37,6 +37,8 @@ import { handleInstanceLeaveJob } from './handlers/instanceLeaveHandler.js';
 import { handleOutgoingWebhookJob } from './handlers/outgoingWebhookHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
+import { handleSignupMailHostJob } from '../services/signupMailHosts.js';
+import { handleFollowingImportJob } from './handlers/followingImportHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 import { handleGroupUpdateJob } from './handlers/groupUpdateHandler.js';
 import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHandler.js';
@@ -82,6 +84,8 @@ export type JobType =
   | 'release-held-activity'
   | 'account-deleted'
   | 'account-moved'
+  | 'signup-mail-host'
+  | 'following-import'
   | 'delete-message-media'
   | 'drive-hash'
   | 'drive-purge'
@@ -133,6 +137,8 @@ const JOB_TYPES: JobType[] = [
   'release-held-activity',
   'account-deleted',
   'account-moved',
+  'signup-mail-host',
+  'following-import',
   'delete-message-media',
   'drive-hash',
   'drive-purge',
@@ -273,6 +279,8 @@ class BullMQManagerService {
     this.handlerMap.set('release-held-activity', handleReleaseHeldActivityJob as unknown as HandlerFn);
     this.handlerMap.set('account-deleted', handleAccountDeletedJob as unknown as HandlerFn);
     this.handlerMap.set('account-moved', handleAccountMovedJob as unknown as HandlerFn);
+    this.handlerMap.set('signup-mail-host', handleSignupMailHostJob as unknown as HandlerFn);
+    this.handlerMap.set('following-import', handleFollowingImportJob);
     this.handlerMap.set('delete-message-media', handleMessageMediaCleanupJob as unknown as HandlerFn);
     this.handlerMap.set('drive-hash', handleDriveHashJob as unknown as HandlerFn);
     this.handlerMap.set('drive-purge', handleDrivePurgeJob as unknown as HandlerFn);
@@ -477,6 +485,30 @@ class BullMQManagerService {
       .limit(20);
     for (const row of unmigrated ?? []) {
       await this.addJob('account-moved', { type: 'create', migration_id: row.id });
+    }
+
+    // Mail host lookups owed: a notify lost, a failed lookup coming due, a domain of the backfill.
+    const { data: owedMailHosts } = await supabase
+      .from('signup_mail_hosts')
+      .select('domain')
+      .lte('due_at', twoSecondsAgo)
+      .limit(50);
+    for (const row of owedMailHosts ?? []) {
+      await this.addJob('signup-mail-host', { type: 'update', domain: row.domain });
+    }
+
+    // Following imports whose next job was lost or gave up; same margin past when it was due.
+    const { data: stalledImports } = await supabase
+      .from('following_imports')
+      .select('id')
+      .is('finished_at', null)
+      .lt('next_run_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(20);
+    for (const row of stalledImports ?? []) {
+      await this.addJob('following-import', { type: 'create', import_id: row.id }, {
+        dedupeId: `following-import-sweep:${row.id}`,
+        dedupeTtlMs: 5 * 60_000,
+      });
     }
 
     // Poll votes whose notify was lost or whose job gave up; same five-minute margin.

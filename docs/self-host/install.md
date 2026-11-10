@@ -79,7 +79,9 @@ In order:
 8. **Shows the settings** and asks to confirm.
 9. **Writes the configuration** with `configure.sh`: the `.env` files,
    `livekit.yaml`, and the Supabase stack in `self-host/supabase/`, with
-   fresh random secrets.
+   fresh random secrets. The secret files are mode 0600 and the files the
+   containers read readable to them, whatever the umask
+   ([A restrictive umask](/self-host/troubleshooting#umask)).
 10. **Downloads the images and starts the stack**; several GB on a first run.
 11. **Loads the database** with `bootstrap.sh`: applies the migrations,
     creates the `harmony_listener` role and, on a new database, writes the
@@ -168,7 +170,7 @@ The installer already ran it once. Each line is OK, WARN or FAIL with a fix;
 Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
-**Federation**, **Users**, **Invites**, **Retention**, **Reports**, **Anti-spam**,
+**Federation**, **Users**, **Signups**, **Invites**, **Retention**, **Reports**, **Anti-spam**,
 **Webhooks**, **Content**, **Emojis**, **Stickers**, **Config**, **Funding**,
 **Drive** and **Tools**. The instance name, description, rules, icon and legal links
 are under **Config** → **Branding**, the largest file each account may upload
@@ -178,8 +180,9 @@ person and blocked destinations, turns incoming webhooks off, and lists every
 outgoing webhook with its destination and last day's deliveries.
 
 Instance moderators see the same entry as **Instance moderation**, with the
-**Federation**, **Users**, **Reports**, **Anti-spam** and **Webhooks** tabs;
-on **Webhooks** they can turn a webhook off but not change the settings.
+**Federation**, **Users**, **Signups**, **Reports**, **Anti-spam** and **Webhooks**
+tabs; on **Webhooks** they can turn a webhook off but not change the settings.
+[Reviewing signups](/run/signup-review) covers **Signups**.
 
 ## Add more admins
 

@@ -1069,6 +1069,8 @@ export const useAuthStore = defineStore('auth', {
           import('@/services/uploads/storageUpload').then(({ forgetResumableUploads }) => forgetResumableUploads()),
           import('@/services/transfers').then(({ resetTransfers }) => resetTransfers()),
           import('@/utils/remoteServerSync').then(({ resetRemoteServerSync }) => resetRemoteServerSync()),
+          import('@/services/botCommandService').then(({ clearBotCommandCache }) => clearBotCommandCache()),
+          import('@/stores/useBotInteractions').then(({ useBotInteractionsStore }) => useBotInteractionsStore().reset()),
         ]).catch(error => {
           debug.error('Error clearing account caches:', error);
         });

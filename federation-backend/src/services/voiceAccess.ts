@@ -111,6 +111,9 @@ export type VoiceDecision =
   | ({ ok: true; serverId: string } & VoiceGrants)
   | { ok: false; reason: string };
 
+/** VoiceDecision reason; voice_participant_grants returns the same string. */
+export const VOICE_ENCRYPTED_REFUSAL = 'voice is end-to-end encrypted';
+
 /** Grants of a participant who is not in a server channel: a DM call. */
 export const DM_CALL_GRANTS: VoiceGrants = {
   canSpeak: true,
@@ -131,7 +134,10 @@ export const DM_CALL_GRANTS: VoiceGrants = {
  * member's row in server_voice_moderation.
  *
  * `remote`: the profile is a remote actor asking this instance for a token.
- * The server must then be hosted here with federation enabled.
+ * The server must then be hosted here with federation enabled, and the channel's
+ * voice not end-to-end encrypted: no key crosses instances, so the actor would hear
+ * nothing and be heard in plaintext through the SFU. That refusal follows every other
+ * check, so only a member otherwise admitted learns the channel's state.
  */
 export async function authorizeVoiceChannel(
   supabase: Supabase,
@@ -195,6 +201,13 @@ export async function authorizeVoiceChannel(
   if (!(await hasChannelPermissions(supabase, profileId, serverId, channelId, [['CONNECT']]))
       && !(await hasMoveGrant(supabase, serverId, profileId, channelId))) {
     return { ok: false, reason: 'missing CONNECT' };
+  }
+
+  if (remote) {
+    const { data: encrypted, error: encryptionError } = await supabase
+      .rpc('channel_voice_encrypted', { p_channel_id: channelId });
+    if (encryptionError) return { ok: false, reason: 'voice encryption lookup failed' };
+    if (encrypted === true) return { ok: false, reason: VOICE_ENCRYPTED_REFUSAL };
   }
 
   const { data: moderation, error: moderationError } = await supabase

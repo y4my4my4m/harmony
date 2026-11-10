@@ -172,10 +172,11 @@ The bot prints `Connected as ping-bot`. Type `!ping` in a channel of the server;
 | Connected, but no `MESSAGE_CREATE` arrives | The bot reads only channels it can see: channels @everyone can view, or the channels selected under **Server bots** → **Channels**. Check that **Read messages** is on under **Permissions**. Changes reach event delivery within about 10 seconds. |
 | The reply fails with `403 Channel not visible to this bot` | Same cause as above, for sending. |
 | The reply fails with `403 Missing permission in this channel: send_messages` | @everyone cannot send in that channel (an announcements channel, for example). Under **Channels**, choose **Selected channels** and check that channel; the bot then works only in the checked channels. |
-| The reply fails with `429 Rate limit exceeded` | The bot sent more than 100 requests to one route on one channel within a minute (the default limit). See [Rate limits](/build/permissions-rate-limits#rest-rate-limits). |
+| The reply fails with `429 Rate limit exceeded` | The bot sent more than 100 requests to one route on one channel within a minute, or more than 600 across all routes (the default limits). Wait `retry_after` seconds. See [Rate limits](/build/permissions-rate-limits#rest-rate-limits). |
 
 ## Next steps
 
+- [Slash commands](/build/commands): register `/ping` so members pick it from the `/` list, and answer only the member who ran it.
 - [Gateway](/build/gateway): every event, its payload, and the delivery rules.
 - [REST API](/build/rest): reactions, edits, threads, channels, roles and more.
 - [Permissions and rate limits](/build/permissions-rate-limits): what each route needs.

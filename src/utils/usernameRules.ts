@@ -12,6 +12,11 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'admin', 'admins', 'administrator',
   'mod', 'mods', 'moderator', 'moderators',
   'staff', 'root',
+  // Brands and platforms: read as official, and the names a bulk creator takes first.
+  'discord', 'google', 'apple', 'microsoft', 'openai', 'chatgpt', 'gemini', 'grok', 'meta', 'amazon',
+  'android', 'windows', 'ios', 'linux', 'facebook', 'instagram', 'youtube', 'twitter', 'tiktok',
+  'whatsapp', 'telegram', 'reddit', 'github', 'paypal', 'netflix', 'spotify', 'samsung', 'nintendo',
+  'playstation', 'xbox', 'anthropic', 'cloudflare', 'mastodon', 'bluesky', 'twitch',
 ])
 
 export function normalizeUsernameInput(raw: unknown): string {

@@ -86,11 +86,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * The community host: actors with their own keys, objects served at their ids, WebFinger
  * for the proxy's domain, and every POST recorded.
  */
-class CommunityHost {
+export class CommunityHost {
   readonly keys = new Map<string, ReturnType<typeof keyPair>>()
   readonly actors = new Map<string, Record<string, unknown>>()
   readonly docs = new Map<string, unknown>()
   readonly captured: Delivery[] = []
+  /** Bytes served at a path, and the GETs that fetched them. */
+  readonly media = new Map<string, Buffer>()
+  readonly mediaGets: string[] = []
   base = ''
   proxyDomain = ''
   private server?: http.Server
@@ -134,6 +137,13 @@ class CommunityHost {
           try { body = JSON.parse(raw.toString('utf-8')) } catch { body = null }
           this.captured.push({ url: req.url ?? '', headers: req.headers as Record<string, string>, raw, body })
           res.writeHead(202).end()
+          return
+        }
+        const media = this.media.get(req.url ?? '')
+        if (media) {
+          this.mediaGets.push(req.url ?? '')
+          res.writeHead(200, { 'Content-Type': 'image/png' })
+          res.end(media)
           return
         }
         const finger = /^\/\.well-known\/webfinger\?resource=([^&]+)$/.exec(req.url ?? '')

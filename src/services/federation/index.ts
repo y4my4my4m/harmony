@@ -1,15 +1,9 @@
-/** Federation decision, activity, and server services. */
+/** Federation decision and server services. */
 export { FederationDecisionService, federationDecisionService } from './FederationDecisionService'
 export type { 
   FederationDecision, 
   FederationDecisionServiceError 
 } from './FederationDecisionService'
-
-export { FederationActivityService, federationActivityService } from './FederationActivityService'
-export type { 
-  ActivityCreationResult, 
-  FederationActivityServiceError 
-} from './FederationActivityService'
 
 // Handles remote server discovery, join/leave, and sync
 export {

@@ -123,8 +123,8 @@ SELECT is(public.can_send_to_topic('dm-call:77777777-0000-0000-0000-000000000007
           'a participant sends on the DM call topic');
 SELECT is(public.can_send_to_topic('dm-calls:22222222-0000-0000-0000-000000000002'), false,
           'nobody sends on a ring topic, its owner included');
-SELECT is(public.can_send_to_topic('voice-channels:55555555-0000-0000-0000-000000000005'), true,
-          'an accepted member sends on the server voice topic');
+SELECT is(public.can_send_to_topic('voice-channels:55555555-0000-0000-0000-000000000005'), false,
+          'an accepted member does not send on the server voice topic');
 SELECT is(public.can_send_to_topic('harmony-voice-70000000-0000-0000-0000-0000000000c1'), true,
           'a member who can join the voice room sends on it');
 SELECT is(public.can_send_to_topic('harmony-voice-70000000-0000-0000-0000-0000000000c3'), false,
@@ -135,8 +135,8 @@ SELECT is(public.can_send_to_topic('user:22222222-0000-0000-0000-000000000002'),
           'a user sends on their own user topic');
 SELECT is(public.can_send_to_topic('user:11111111-0000-0000-0000-000000000001'), false,
           'a user cannot send on another user topic');
-SELECT is(public.can_send_to_topic('server-presence:55555555-0000-0000-0000-000000000005'), true,
-          'an accepted member sends server presence');
+SELECT is(public.can_send_to_topic('server-presence:55555555-0000-0000-0000-000000000005'), false,
+          'an accepted member does not send server presence');
 SELECT is(public.can_send_to_topic('feed:public'), false,
           'a readable feed topic takes no client send');
 SELECT is(public.can_send_to_topic('server-structure:55555555-0000-0000-0000-000000000005'), false,
@@ -275,8 +275,8 @@ SELECT ok(NOT has_table_privilege('authenticated', 'public.federated_voice_calls
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(public.can_subscribe_to_topic('voice-channel:70000000-0000-0000-0000-0000000000c2'), false,
           'a member who cannot view a voice channel cannot read its topic');
-SELECT is(public.can_send_to_topic('voice-channel:70000000-0000-0000-0000-0000000000c1'), true,
-          'a member who can view a voice channel sends on its topic');
+SELECT is(public.can_send_to_topic('voice-channel:70000000-0000-0000-0000-0000000000c1'), false,
+          'a member who can view a voice channel does not send on its topic');
 SELECT is_empty(
     $q$SELECT * FROM public.get_restricted_voice_channels('55555555-0000-0000-0000-000000000005')$q$,
     'a member is given no restricted voice channel it cannot view');

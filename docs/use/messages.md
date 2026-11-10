@@ -19,7 +19,19 @@ Type in the composer at the bottom of the channel and send:
 - When a channel has slowmode, a clock beside the composer shows the seconds left before you can send again.
 - If your roles do not allow sending in a channel, the composer is replaced by a notice.
 - Ctrl+B and Ctrl+I (Cmd on macOS) wrap the selection in bold or italic markers. Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes.
-- Typing `/` at the start of an empty composer lists commands: `/gif`, `/sticker` and `/poll`, plus `/clip`, `/meme` and `/aiemoji` when the instance enables them, and `/kick` and `/ban` for members with those permissions.
+- Typing `/` at the start of an empty composer lists commands: `/gif`, `/sticker` and `/poll`, plus `/clip`, `/meme` and `/aiemoji` when the instance enables them, and `/kick` and `/ban` for members with those permissions. In a server, the commands of its bots follow, each with the bot's name; see [Bot commands](#bot-commands).
+
+## Bot commands
+
+Bots added to a server can offer their own slash commands. They are listed under `/` in the server's text channels and threads, with the bot's avatar and name, where the bot can post and you hold the permissions the command asks for. Encrypted channels and direct messages have none.
+
+- Pick a command and fill in its options in the bar above the composer: text, numbers, true or false, a choice from a list, a member, a channel or a role. Required options are marked. Enter or the send button runs it; Escape closes the bar.
+- Until the bot answers, a line only you see reads "You used /weather · Weatherbot is thinking…".
+- A public answer is a message from the bot that everyone sees, headed "*your name* used /weather".
+- A private answer is marked **Only you can see this**. **Dismiss** removes it; it is also gone when you reload.
+- When the bot is not connected the line reads "Weatherbot is offline"; when it does not answer within a few seconds, "Weatherbot did not respond".
+- The channel's slowmode applies to commands, and you can run at most 5 commands every 10 seconds.
+- What you type in a command's options is sent to the bot, and the bot's owner can read it.
 
 ## Attach files, GIFs and stickers
 
@@ -118,6 +130,8 @@ The channel shows a "started a thread" notice, and the new thread opens.
 - **View all threads** in the channel header lists every thread in the channel, including closed ones. Threads you joined come first; the rest are under **Older threads**. **Search for thread name** filters the list.
 - A thread drops off the sidebar list after 24 hours without a new message, or when it is closed. It stays in **View all threads**.
 
+A thread's first message scrolls with its replies. A long thread opens at the latest reply; **Go to first message** in the thread menu (⋮) returns to the start, and **Show in channel** opens the first message in its channel.
+
 ### Join, mute or leave a thread
 
 Sending a message in a thread makes you a member. Members are notified of new replies, within the notification level of the channel ([Notifications and apps](/use/notifications-apps)).
@@ -126,7 +140,7 @@ The thread panel's **Thread options** menu, and the right-click menu of a thread
 
 | Item | What it does |
 |---|---|
-| **Join thread**, **Leave thread** | Add or remove yourself as a member. |
+| **Join thread**, **Leave thread** | Add or remove yourself as a member. A thread you leave drops off your sidebar until you join or post in it again. It stays in **View all threads**. |
 | **Mute thread**, **Unmute thread** | Stop or resume reply notifications for this thread. |
 | **Copy link**, **Copy thread ID** | Copy a link to the thread or its ID. |
 
@@ -216,6 +230,8 @@ The attachment shows an **ALT** badge once it has a description. An image sent w
 
 Type `@` to open suggestions, then pick a person or a role. Roles, `@everyone` and `@here` are listed above people, and the first entry is selected, so <kbd>Enter</kbd> or <kbd>Tab</kbd> on a name that a role and a person share picks the role. Each entry is marked **Role** or shows the person's picture, and screen readers announce it as a role or a member.
 
+Suggestions match display names as well as usernames, in any script and across spaces: `@ひらがな` or `@Eugen Ro` finds the member, and picking inserts their username.
+
 | Mention | How to write it | Who is notified |
 |---|---|---|
 | A person on your instance | `@username`, or pick from the list | That person. |
@@ -298,6 +314,10 @@ Rules worth knowing:
 - Single `_underscores_` italicise only at word boundaries, so `snake_case_names` stay as typed. A single `*` next to a letter or digit, as in `2*3*4`, stays as typed.
 - Headings (`#`), lists and tables are not formatted; they show as typed.
 
+### Show a character as typed
+
+Put a backslash before a character to show it as typed, with no formatting: `\*not italic\*`, `\# heading`, `\> not a quote`, `\@name`, `\#channel`, `\:emoji:`. An escaped mention pings nobody. `\https://example.com` shows the address without linking it. Inside code a backslash is a backslash.
+
 ### Code blocks
 
 Put three backticks on a line, optionally followed by a language name, then the code, then three backticks on their own line:
@@ -331,4 +351,4 @@ Two switches in **User settings** → **Appearance** → **Message display** han
 | **Convert emoticons I send** | Replaces emoticons with emoji when you send or edit a message. Code, links and email addresses are left alone. |
 | **Show emoticons others send as emoji** | Displays emoticons in received messages as emoji. The original text is kept. |
 
-The **Greentext** switch, also on unless you turn it off, is in the same section.
+The **Greentext** switch, also on unless you turn it off, is in the same section. So is **Animate custom emoji**: off, animated emoji show their first frame on your screen, which leaves them unchanged for everyone else.

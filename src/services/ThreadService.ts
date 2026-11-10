@@ -14,6 +14,7 @@ import {
 import { messageTextLength } from '@/utils/messageContentUtils'
 import { messageLimits } from '@/services/core/messageLimits'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
+import { hasCapability } from '@/services/instanceCapabilities'
 
 // Thread Types
 
@@ -39,6 +40,8 @@ export interface ThreadWithDetails extends Thread {
   recent_message_count?: number
   parent_message?: Message
   is_member?: boolean
+  /** The account left it (thread_departures): off its sidebar until it joins or posts again. */
+  left?: boolean
   muted?: boolean
   unread_count?: number
   last_message_preview?: string
@@ -230,14 +233,15 @@ class ThreadService {
     const { includeArchived = false, limit = 50, offset = 0 } = options
 
     try {
-      // Simple query without FK hints
+      const { columns, profileId } = await this.listColumns()
       let query = supabase
         .from('threads')
-        .select('*')
+        .select(columns)
         .eq('channel_id', channelId)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(offset, offset + limit - 1)
 
+      if (profileId) query = query.eq('thread_members.user_id', profileId)
       if (!includeArchived) {
         query = query.eq('archived', false)
       }
@@ -247,7 +251,7 @@ class ThreadService {
       if (error) throw error
 
       return (data || []).map((t: any) => ({
-        ...t,
+        ...this.withMembership(t),
         channel_name: undefined, // Will be fetched if needed
         server_id: undefined,
         creator_username: undefined,
@@ -292,13 +296,15 @@ class ThreadService {
       const channelIds = channels.map(c => c.id)
       const channelMap = new Map(channels.map(c => [c.id, c.name]))
 
+      const { columns, profileId } = await this.listColumns()
       let query = supabase
         .from('threads')
-        .select('*')
+        .select(columns)
         .in('channel_id', channelIds)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(limit)
 
+      if (profileId) query = query.eq('thread_members.user_id', profileId)
       if (!archived) {
         query = query.eq('archived', false)
       }
@@ -308,7 +314,7 @@ class ThreadService {
       if (error) throw error
 
       return (data || []).map((t: any) => ({
-        ...t,
+        ...this.withMembership(t),
         channel_name: channelMap.get(t.channel_id),
         server_id: serverId,
       }))
@@ -316,6 +322,30 @@ class ThreadService {
       debug.error('Failed to fetch server threads:', error)
       return []
     }
+  }
+
+  /** Membership embeds in the list's own request: no list row waits on a second round trip. */
+  private async listColumns(): Promise<{ columns: string; profileId: string | null }> {
+    const profileId = await authContextService.getCurrentProfileId().catch(() => null)
+    if (!profileId) return { columns: '*', profileId }
+    const departures = hasCapability('thread-departures') ? ', thread_departures(user_id)' : ''
+    return { columns: `*, thread_members(user_id)${departures}`, profileId }
+  }
+
+  /** `is_member` and `left` from the embeds. Signed out, the read has no embeds and both stay undefined. */
+  private withMembership(row: any): ThreadWithDetails {
+    const { thread_members: members, thread_departures: departures, ...thread } = row
+    if (members === undefined) return thread
+    return { ...thread, is_member: members.length > 0, left: (departures?.length ?? 0) > 0 }
+  }
+
+  /** The stored thread after this account joined, left or posted. Imported late: the store imports this service. */
+  private markMembership(threadId: string, member: boolean): void {
+    this.threadCache.delete(threadId)
+    this.memberCache.delete(threadId)
+    void import('@/stores/useThreads')
+      .then(({ useThreadsStore }) => useThreadsStore().patch(threadId, { is_member: member, left: !member }))
+      .catch((error) => debug.warn('Thread membership update failed:', error))
   }
 
   /**
@@ -487,7 +517,7 @@ class ThreadService {
 
       if (error) throw error
 
-      this.memberCache.delete(threadId)
+      this.markMembership(threadId, true)
       return true
     } catch (error) {
       debug.error('Failed to join thread:', error)
@@ -500,17 +530,20 @@ class ThreadService {
    */
   async leaveThread(threadId: string): Promise<boolean> {
     try {
-      const profileId = await authContextService.getCurrentProfileId()
+      if (hasCapability('thread-departures')) {
+        const { error } = await supabase.rpc('leave_thread', { p_thread_id: threadId })
+        if (error) throw error
+      } else {
+        const profileId = await authContextService.getCurrentProfileId()
+        const { error } = await supabase
+          .from('thread_members')
+          .delete()
+          .eq('thread_id', threadId)
+          .eq('user_id', profileId)
+        if (error) throw error
+      }
 
-      const { error } = await supabase
-        .from('thread_members')
-        .delete()
-        .eq('thread_id', threadId)
-        .eq('user_id', profileId)
-
-      if (error) throw error
-
-      this.memberCache.delete(threadId)
+      this.markMembership(threadId, false)
       return true
     } catch (error) {
       debug.error('Failed to leave thread:', error)
@@ -941,6 +974,7 @@ class ThreadService {
       debug.warn('Failed to prepare embeds for sent thread message:', embedError)
     }
 
+    this.markMembership(threadId, true)
     return message
   }
 

@@ -59,6 +59,14 @@
         </svg>
       </button>
     </div>
+    <!-- A bot's slash command: its options replace the text field until sent or closed. -->
+    <BotCommandBar
+      v-if="activeBotCommand && canSendMessages && !suspension && !encryptedOnHome"
+      :command="activeBotCommand"
+      :server-id="botCommandServerId"
+      @close="closeBotCommand"
+      @invoked="closeBotCommand"
+    />
     <!-- A server suspended by instance staff takes no new messages
          (a_messages_server_suspension_guard). -->
     <div v-if="suspension" class="message-readonly-banner server-suspended-banner" role="status" data-testid="server-suspended-banner">
@@ -67,6 +75,11 @@
         <strong>{{ t('hostStaff.suspendedBanner', { instance: suspension.instance }) }}</strong>
         <span v-if="suspension.reason" class="server-suspended-reason">{{ t('hostStaff.suspendedReason', { reason: suspension.reason }) }}</span>
       </span>
+    </div>
+    <!-- A copy's channel encrypted on its home instance: the host refuses a plaintext message. -->
+    <div v-else-if="encryptedOnHome" class="message-readonly-banner" role="status" data-testid="home-encrypted-note">
+      <Icon name="lock" :size="18" />
+      <span>{{ t('channelEncryption.home.messages') }}</span>
     </div>
     <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
          SEND_MESSAGES_IN_THREADS on a thread's channel.
@@ -79,6 +92,7 @@
     </div>
 
     <div v-else
+         v-show="!activeBotCommand"
          class="message-container"
          :class="{ 'buzz-over-limit': overLimitBuzz, 'has-over-limit': messageTooLong }"
          @dragstart="handleDragStart"
@@ -291,11 +305,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, reactive, toRaw } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, reactive, toRaw, defineAsyncComponent } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug'
-import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { useAutoSuggest, type BotCommandTarget } from '@/composables/useAutoSuggest';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useTypingIndicator } from '@/composables/useTypingIndicator';
 import TypingIndicator from '@/components/TypingIndicator.vue';
@@ -356,6 +370,9 @@ import { roleService, Permission } from '@/services/RoleService';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
+
+// Loaded on first use: the options bar pulls in the member, role and interaction sources.
+const BotCommandBar = defineAsyncComponent(() => import('@/components/BotCommandBar.vue'));
 
 interface Props {
   giphyOpen?: boolean;
@@ -589,6 +606,13 @@ const suspension = computed<{ instance: string; reason: string | null } | null>(
   return serverSuspension(server, instanceSettingsStore.settings.domain)
 })
 
+const encryptedOnHome = computed(() => {
+  if (props.conversationId) return false
+  const channelId = props.threadId ? props.threadChannelId : props.channelId
+  if (!channelId) return false
+  return serverChannelStore.channels.find(c => c.id === channelId)?.host_flags?.messages === true
+})
+
 const readOnlyPlaceholder = computed(() => {
   if (isResolvingPermissions.value) return 'Checking permissions...';
   if (props.threadId) return 'You do not have permission to send messages in this thread.';
@@ -804,12 +828,35 @@ const updateText = (newText: string, cursorPosition?: number) => {
     emit('update:modelValue', newText);
   }
 };
+// Bot commands: a server channel or a thread of one, never a DM.
+const botCommandTarget = (): BotCommandTarget | null => {
+  if (props.conversationId) return null;
+  const channelId = props.threadId ? props.threadChannelId : props.channelId;
+  return channelId ? { channelId, threadId: props.threadId || null } : null;
+};
 // '#' channel autocomplete only in server channels - in DMs '#' is plain text.
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
   channelId: () => (props.conversationId ? null : props.channelId),
+  botCommandTarget,
+});
+const activeBotCommand = autoSuggest.activeBotCommand;
+const botCommandServerId = computed(() => {
+  const channelId = activeBotCommand.value?.channelId;
+  return serverChannelStore.channels.find(c => c.id === channelId)?.server_id
+    ?? props.serverId
+    ?? serverChannelStore.currentServerId
+    ?? null;
+});
+const closeBotCommand = () => {
+  autoSuggest.dismissBotCommand();
+  nextTick(() => richEditorRef.value?.focus());
+};
+// The options bar belongs to the channel or thread it was opened in.
+watch(() => [props.channelId, props.threadId, props.threadChannelId, props.conversationId], () => {
+  if (activeBotCommand.value) autoSuggest.dismissBotCommand();
 });
 
 // The editor carries no aria-expanded (role=textbox); the list opening and its

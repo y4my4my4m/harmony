@@ -23,6 +23,7 @@ function builder(table: string) {
   const b: any = {
     select() { return b; },
     update(payload: unknown) { op.action = 'update'; op.payload = payload; return b; },
+    delete() { op.action = 'delete'; return b; },
     eq(col: string, val: unknown) { op.filters.push(['eq', col, val]); return b; },
     is(col: string, val: unknown) { op.filters.push(['is', col, val]); return b; },
     ilike(col: string, val: unknown) { op.filters.push(['ilike', col, val]); return b; },
@@ -231,6 +232,15 @@ describe('account-deleted job', () => {
       { bucket: 'avatars', action: 'remove', arg: ['u1/me.webp'] },
       { bucket: 'banners', action: 'remove', arg: ['p1/p1_banner.png'] },
     ]);
+  });
+
+  it('removes the following imports, which name the accounts the person followed', async () => {
+    state.respond = (op) => op.table === 'deleted_actors' && op.action === 'select'
+      ? { data: tombstone, error: null } : { data: null, error: null };
+    await handleAccountDeletedJob({ profile_id: 'p1', auth_user_id: 'u1' });
+    const removal = calls.find((c) => c.table === 'following_imports');
+    expect(removal?.action).toBe('delete');
+    expect(removal?.filters).toEqual([['eq', 'profile_id', 'p1']]);
   });
 
   it('does not send twice', async () => {

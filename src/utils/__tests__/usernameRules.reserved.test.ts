@@ -34,7 +34,7 @@ describe('reserved usernames', () => {
   })
 
   it('are the same list in the database guard', () => {
-    const sql = readFileSync(resolve(ROOT, 'db_schema/migrations/20261031900001_reserved_usernames.sql'), 'utf8')
+    const sql = readFileSync(resolve(ROOT, 'db_schema/migrations/20261109100001_signup_limits.sql'), 'utf8')
     const array = /lower\(NEW\.username\) = ANY \(ARRAY\[([\s\S]*?)\]\)/.exec(sql)?.[1] ?? ''
     expect(sorted(array.match(/'([a-z]+)'/g)!.map((s) => s.slice(1, -1)))).toEqual(sorted(RESERVED_USERNAMES))
   })

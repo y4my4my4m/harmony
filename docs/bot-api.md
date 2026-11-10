@@ -95,6 +95,7 @@ The Bot API reference lives under [Build](./build/index.md).
 | Write your first bot | [Bot quickstart](./build/bot-quickstart.md) |
 | Connect to the gateway and receive events | [Gateway](./build/gateway.md) |
 | Look up a REST route | [REST API](./build/rest.md#route-index) |
+| Add slash commands | [Slash commands](./build/commands.md) |
 | Post through a webhook | [Webhooks API](./build/webhooks.md) |
 | Check permissions and rate limits | [Permissions and rate limits](./build/permissions-rate-limits.md) |
 | Write a bridge | [Writing a bridge](./build/bridges.md) |

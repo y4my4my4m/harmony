@@ -324,6 +324,13 @@ export async function findDriveFilesByHash(sha256: string): Promise<DriveFile[]>
 }
 
 /** Whether instance staff blocked the bytes with this SHA-256. */
+/** drive_can_upload false: over quota with the day's temporary uploads used, or past the instance total. */
+export async function driveRefusesUploads(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('drive_can_upload')
+  fail(error)
+  return data === false
+}
+
 export async function isDriveHashBlocked(sha256: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('drive_hash_blocked', { p_sha256: sha256 })
   fail(error)

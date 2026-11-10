@@ -56,6 +56,8 @@ export interface VisualThemeSettings {
    * stored content is unchanged. Default: true (opt-out).
    */
   renderEmoticonsAsEmoji?: boolean
+  /** Custom emoji animate; off, each shows its first frame. Default on. */
+  animateEmoji?: boolean
   /**
    * UI typeface. `'system'` uses Figtree + native fallbacks (the default
    * Harmony look). `'pixel'` switches to NoRe Sans Pixel Pro v2, an original

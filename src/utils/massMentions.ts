@@ -22,7 +22,7 @@ export function isMassMentionWord(name: unknown): boolean {
 }
 
 /** HANDLE_PATTERN (utils/mentionGrammar) restricted to the two words without a host. */
-const TYPED_MASS_MENTION = /(?<![\p{L}\p{N}_@/])@(?:everyone|here)(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}_-])/u
+const TYPED_MASS_MENTION = /(?<![\p{L}\p{N}_@/\\])@(?:everyone|here)(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}_-])/u
 
 export function hasTypedMassMention(text: string): boolean {
   return TYPED_MASS_MENTION.test(text)

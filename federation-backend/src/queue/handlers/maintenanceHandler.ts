@@ -31,6 +31,7 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
     case 'cleanup-orphans':
       await cleanupOrphanedKeys();
       await purgeDeletedActorKeys();
+      await purgeFollowingImports();
       break;
     case 'verify-federation':
       await verifyFederationHealth();
@@ -44,6 +45,16 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
     default:
       logger.warn(`Unknown maintenance task: ${data.task}`);
   }
+}
+
+/** Results of following imports finished 30 days ago. */
+async function purgeFollowingImports(): Promise<void> {
+  const { data, error } = await getSupabaseClient().rpc('purge_following_imports');
+  if (error) {
+    logger.error(`Purging following imports failed: ${error.message}`);
+    return;
+  }
+  if (data) logger.info(`Purged ${data} finished following import(s)`);
 }
 
 /**

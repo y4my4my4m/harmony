@@ -31,6 +31,9 @@
 #   HARMONY_ANALYTICS       y | n   (Supabase log collection, Logflare + vector:
 #                                   profile logs; default n, also on an install
 #                                   configured before this answer existed)
+#   HARMONY_STUDIO          y | n   (Supabase Studio + postgres-meta: profile studio;
+#                                   default n, also on an install configured before
+#                                   this setting existed; no question asks it)
 #   HARMONY_REGISTRATION    open | invite | closed
 #   HARMONY_SMTP_HOST       SMTP server; set to configure email, unset keeps
 #   HARMONY_SMTP_PORT       default 587
@@ -66,13 +69,15 @@ COMPOSE_MIN=2.24.4
 # GoTrue: custom OAuth/OIDC providers whose key sets mix algorithms (2.196.0); upstream's
 # release on 2026-11-06 (2.197.0, Go library fixes: trivy HIGH 34 -> 12).
 # storage-api: GHSA-8rrf-w776-x75g (unauthenticated writes through signed resumable
-# uploads, < 1.80.2), GHSA-3m3f-pjv4-x2fp (< 1.89.10), GHSA-2p28-q2vx-mw6w (< 1.84.14).
-# Realtime: GHSA-9vjf-j9f7-j42c (forged frames from any broadcaster, <= 2.137.14),
-# GHSA-rcr8-2525-4r7p (< 2.111.2). Both are the versions of upstream's own stack on
-# 2026-11-06, which runs them on Postgres 17; Harmony's CI runs them on 15.8.1.060.
+# uploads, < 1.80.2), GHSA-fgvp-cqg6-q8h2 (RLS bypass through JWT role none, < 1.89.9),
+# GHSA-3m3f-pjv4-x2fp (< 1.89.10), GHSA-2p28-q2vx-mw6w (< 1.84.14). 1.90.0 fails a resumed
+# TUS write whose request stream dies early.
+# Realtime: GHSA-2rcv-vpjw-5g6c (< 2.146.0), GHSA-9vjf-j9f7-j42c (forged frames from any
+# broadcaster, <= 2.137.14), GHSA-rcr8-2525-4r7p (< 2.111.2). Harmony's CI runs storage on
+# 15.8.1.060; its journeys do not run Realtime.
 GOTRUE_MIN=2.197.0
-STORAGE_MIN=1.89.12
-REALTIME_MIN=2.148.3
+STORAGE_MIN=1.90.0
+REALTIME_MIN=2.153.6
 # Memory Logflare and vector take, as the log collection question states it (lib.sh ANALYTICS_RAM).
 ANALYTICS_RAM="0.7-2 GB"
 
@@ -140,6 +145,8 @@ b64url_decode() {
 lower() { tr '[:upper:]' '[:lower:]'; }
 # shellcheck source=linking.sh
 source "$SCRIPT_DIR/linking.sh"
+# shellcheck source=modes.sh
+source "$SCRIPT_DIR/modes.sh"
 
 # HS256 JWT for a Supabase role, valid for 10 years.
 sign_jwt() {
@@ -260,6 +267,7 @@ ANALYTICS_DEFAULT="$(env_get "$ENV_FILE" ENABLE_ANALYTICS)"
 # Configured without ENABLE_ANALYTICS: log collection runs unasked (lib.sh analytics_unchosen).
 ANALYTICS_UNCHOSEN=false
 [[ -n "$OLD_DOMAIN" ]] && ! env_has "$ENV_FILE" ENABLE_ANALYTICS && ANALYTICS_UNCHOSEN=true
+STUDIO_CHOICE="${HARMONY_STUDIO:-$(env_get "$ENV_FILE" ENABLE_STUDIO)}"
 REGISTRATION_DEFAULT="$(env_get "$ENV_FILE" REGISTRATION)"
 OLD_SMTP_HOST="$(env_get "$SB_ENV" SMTP_HOST)"
 OLD_AUTOCONFIRM="$(env_get "$SB_ENV" ENABLE_EMAIL_AUTOCONFIRM)"
@@ -353,6 +361,7 @@ if $INTERACTIVE; then
 fi
 prompt ANALYTICS_CHOICE "Run Supabase log collection (about ${ANALYTICS_RAM} more RAM)?" "${HARMONY_ANALYTICS:-$( [[ "$(yes_no "${ANALYTICS_DEFAULT:-n}")" == true ]] && echo y || echo n)}"
 ENABLE_ANALYTICS="$(yes_no "$ANALYTICS_CHOICE")"
+ENABLE_STUDIO="$(yes_no "${STUDIO_CHOICE:-n}")"
 
 if $INTERACTIVE; then
 	echo
@@ -428,6 +437,7 @@ $ENABLE_VOICE && PROFILES="voice"
 $ENABLE_BOTS && PROFILES="${PROFILES:+$PROFILES,}bots"
 $ENABLE_DISCORD_BRIDGE && PROFILES="${PROFILES:+$PROFILES,}discord"
 $ENABLE_ANALYTICS && PROFILES="${PROFILES:+$PROFILES,}logs"
+$ENABLE_STUDIO && PROFILES="${PROFILES:+$PROFILES,}studio"
 
 # =============================================================================
 # Supabase stack
@@ -485,6 +495,14 @@ else
 	info "Reusing self-host/supabase (${cur_ref:0:12}); --refresh-supabase re-fetches it"
 	[[ "$cur_ref" == "$SUPABASE_REF" || "$cur_ref" == unknown ]] ||
 		warn "self-host/supabase is at ${cur_ref:0:12}, this release pins ${SUPABASE_REF:0:12}; run configure.sh --refresh-supabase after a backup"
+fi
+
+# Under a umask of 077 or 027 git and tar leave the files the containers read private to their
+# owner (modes.sh).
+if ! public_readable; then
+	warn "chmod could not give all $PUBLIC_CHANGED files and directories the containers read o+r; run configure.sh as their owner or root (harmony doctor names the first)"
+elif (( PUBLIC_CHANGED )); then
+	ok "$PUBLIC_CHANGED files and directories the containers read made readable to them (o+r)"
 fi
 
 # =============================================================================
@@ -639,6 +657,14 @@ for spec in GOTRUE_IMAGE:supabase/gotrue:$GOTRUE_MIN STORAGE_IMAGE:supabase/stor
 	[[ "$cur_img" == "$new_img" ]] || info "supabase/.env: $var=$new_img"
 	env_set "$SB_ENV" "$var" "$new_img"
 done
+# PostgREST 13 and later refuse a JWT secret under 32 characters. Replacing the secret signs everyone
+# out, so an update does not do it: such an instance keeps the 12.2.12 it runs.
+if [[ ${#JWT_SECRET} -lt 32 ]]; then
+	env_set "$SB_ENV" POSTGREST_IMAGE postgrest/postgrest:v12.2.12
+	warn "JWT_SECRET has ${#JWT_SECRET} characters; PostgREST stays on v12.2.12 until it has 32 (harmony doctor)"
+else
+	env_del "$SB_ENV" POSTGREST_IMAGE
+fi
 chmod 600 "$SB_ENV"
 ok "self-host/supabase/.env"
 
@@ -656,6 +682,7 @@ env_set     "$ENV_FILE" ENABLE_VOICE "$ENABLE_VOICE"
 env_set     "$ENV_FILE" ENABLE_BOTS "$ENABLE_BOTS"
 env_set     "$ENV_FILE" ENABLE_DISCORD_BRIDGE "$ENABLE_DISCORD_BRIDGE"
 env_set     "$ENV_FILE" ENABLE_ANALYTICS "$ENABLE_ANALYTICS"
+env_set     "$ENV_FILE" ENABLE_STUDIO "$ENABLE_STUDIO"
 env_set     "$ENV_FILE" REGISTRATION "$REGISTRATION"
 # Read by docker compose itself: `docker compose up -d` starts these profiles.
 env_set     "$ENV_FILE" COMPOSE_PROFILES "$PROFILES"
@@ -806,6 +833,7 @@ if $ENABLE_VOICE; then
 		mv "$tmp" "$LIVEKIT_YAML"
 		ok "self-host/livekit.yaml"
 	fi
+	chmod 600 "$LIVEKIT_YAML"
 fi
 
 # =============================================================================
@@ -836,5 +864,9 @@ else
 		info "DNS: $DOMAIN and $DB_DOMAIN must point at this host."
 	fi
 fi
-info "Supabase Studio: https://$DB_DOMAIN (user supabase, DASHBOARD_PASSWORD in supabase/.env)"
+if $ENABLE_STUDIO; then
+	info "Supabase Studio: https://$DB_DOMAIN (user supabase, DASHBOARD_PASSWORD in supabase/.env)"
+else
+	info "Supabase Studio: off. 'harmony studio on' starts it."
+fi
 info "Back up self-host/*.env, livekit.yaml and supabase/.env (harmony backup does): they hold the only copy of the secrets."

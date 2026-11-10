@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  channelLockKey,
   extractPlaintextMentionParts,
   isUndecrypted,
   parseEffectiveChannelEncryption,
@@ -9,6 +10,34 @@ import {
 } from '@/utils/channelEncryption'
 
 const ROLE_ID = '3f2b0f0e-5a0c-4a6e-9a55-1f4f8a2b9c01'
+
+describe('channelLockKey', () => {
+  const off = { messagesEncrypted: false, voiceEncrypted: false }
+
+  it('reads this instance\'s state on a local channel', () => {
+    expect(channelLockKey({ type: 0 }, { ...off, messagesEncrypted: true })).toBe('channelEncryption.lock.messages')
+    expect(channelLockKey({ type: 1 }, { ...off, voiceEncrypted: true })).toBe('channelEncryption.lock.voice')
+    expect(channelLockKey({ type: 1 }, { ...off, messagesEncrypted: true })).toBe('channelEncryption.lock.messages')
+    expect(channelLockKey({ type: 0 }, { ...off, voiceEncrypted: true })).toBeNull()
+    expect(channelLockKey({ type: 0 }, off)).toBeNull()
+    expect(channelLockKey({ type: 0 }, null)).toBeNull()
+  })
+
+  it('reads host_flags on a copy, where the state resolves as off or is not loaded', () => {
+    expect(channelLockKey({ type: 1, host_flags: { voice: true } }, off)).toBe('channelEncryption.home.voice')
+    expect(channelLockKey({ type: 1, host_flags: { voice: true } }, null)).toBe('channelEncryption.home.voice')
+    expect(channelLockKey({ type: '1', host_flags: { voice: true, messages: true } }, off)).toBe('channelEncryption.home.voice')
+    expect(channelLockKey({ type: 1, host_flags: { messages: true } }, off)).toBe('channelEncryption.home.messages')
+    expect(channelLockKey({ type: 0, host_flags: { messages: true } }, null)).toBe('channelEncryption.home.messages')
+  })
+
+  it('shows no lock for a flag that says nothing of encryption, or voice on a text channel', () => {
+    expect(channelLockKey({ type: 0, host_flags: {} }, off)).toBeNull()
+    expect(channelLockKey({ type: 0, host_flags: { private: true } }, off)).toBeNull()
+    expect(channelLockKey({ type: 0, host_flags: { voice: true } }, off)).toBeNull()
+    expect(channelLockKey(null, null)).toBeNull()
+  })
+})
 
 describe('resolveChannelEncryption', () => {
   const on = { messages_encrypted: true, voice_encrypted: true }

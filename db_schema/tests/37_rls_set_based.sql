@@ -94,17 +94,17 @@ SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT is_empty($q$SELECT 1 FROM public.user_servers$q$,
     'a user in no server reads no membership row');
 
--- current_user_is_member_of_server() tests row existence, not status. Pending and banned
--- rows therefore still expose the member list, and the rewrite keeps that.
+-- 20261110100001: a pending or banned row reads its own row, not the member list. A row of no
+-- status counts as membership.
 SELECT tests.authenticate_as('f3700000-0000-0000-0000-0000000000a1');
 SELECT is((SELECT count(*)::int FROM public.user_servers
-            WHERE server_id = '55555555-0000-0000-0000-000000000005'), 4,
-          'a pending member reads the member list, as under the baseline predicate');
+            WHERE server_id = '55555555-0000-0000-0000-000000000005'), 1,
+          'a pending member reads their own row, not the member list');
 
 SELECT tests.authenticate_as('dddddddd-0000-0000-0000-000000000004');
 SELECT is((SELECT count(*)::int FROM public.user_servers
-            WHERE server_id = '55555555-0000-0000-0000-000000000005'), 4,
-          'a banned member reads the member list, as under the baseline predicate');
+            WHERE server_id = '55555555-0000-0000-0000-000000000005'), 1,
+          'a banned member reads their own row, not the member list');
 
 SELECT tests.authenticate_as('f3700000-0000-0000-0000-0000000000a3');
 SELECT set_eq(
@@ -261,7 +261,7 @@ SELECT pg_temp.rls37_capture('new');
 ALTER POLICY "user_servers_select_co_members" ON public.user_servers
     USING (
         user_id = ( SELECT public.get_current_profile_id() )
-        OR public.current_user_is_member_of_server(server_id)
+        OR server_id IN (SELECT public.current_user_server_ids())
         OR ( SELECT public.is_current_user_admin() )
     );
 

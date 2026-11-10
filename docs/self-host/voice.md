@@ -190,13 +190,17 @@ caller's instance for a token (`POST /api/livekit/federated-token`, signed
 like any federation request). Both instances need LiveKit and
 `ALLOW_FEDERATED_VOICE=true`, the default.
 
-Set `ALLOW_FEDERATED_VOICE=false` in `federation.env` to refuse such calls.
+People from other instances who are members of a server here join its voice
+channels the same way: their instance sends a join, and this one answers with
+a token on its LiveKit or a refusal they see at once.
+
+Set `ALLOW_FEDERATED_VOICE=false` in `federation.env` to refuse both.
 
 ::: tip
-The admin panel's **Config** → **Voice & video** tab stores a mode, a LiveKit
-URL and a federated-calls switch in the database, but the backend does not
-read them. `WEBRTC_MODE`, `LIVEKIT_PUBLIC_URL` and `ALLOW_FEDERATED_VOICE` in
-`federation.env` decide.
+The admin panel's **Config** → **Voice & video** tab shows whether calls with
+other instances are on, as the backend reports it. It also stores a mode and a
+LiveKit URL in the database, which the backend does not read. `WEBRTC_MODE`,
+`LIVEKIT_PUBLIC_URL` and `ALLOW_FEDERATED_VOICE` in `federation.env` decide.
 :::
 
 ## Check that voice works

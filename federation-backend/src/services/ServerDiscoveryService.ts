@@ -47,6 +47,7 @@ import {
   summarizePins,
   type PinsAdvert,
 } from '../activitypub/copyMirror.js';
+import { hostFlagsOf } from '../activitypub/channelFlags.js';
 import { CopyMirrorService } from './CopyMirrorService.js';
 import { groupIsPublic } from '../activitypub/serverDirectory.js';
 import { loadInvitePreview } from './invitePreview.js';
@@ -1205,18 +1206,20 @@ export async function cacheChannelItems(
         } else if (pollIn && messageUuid) {
           // Cached before: the stored content names its poll, which takes the page's counts.
           const { data: storedRow } = await supabase
-            .from('messages').select('content').eq('id', messageUuid).eq('channel_id', channelId).maybeSingle();
+            .from('messages').select('content').eq('id', messageUuid).eq('channel_id', channelId).eq('user_id', author.id).maybeSingle();
           if (Array.isArray(storedRow?.content)) cachedContent = storedRow.content;
           await applyPagePollState(supabase, note, channelId);
         }
         // A row cached before 1.8.12 holds the ciphertext unflagged, and no files: the
-        // host's page carried text only.
+        // host's page carried text only. A Note's id names any uuid: only the row's own
+        // author amends it.
         if (isEncrypted && messageUuid) {
           const { data: flagged } = await supabase
             .from('messages')
             .update({ encrypted: true })
             .eq('id', messageUuid)
             .eq('channel_id', channelId)
+            .eq('user_id', author.id)
             .eq('encrypted', false)
             .select('id');
           changed += flagged?.length ?? 0;
@@ -1227,6 +1230,7 @@ export async function cacheChannelItems(
             .update({ content: cachedContent })
             .eq('id', messageUuid)
             .eq('channel_id', channelId)
+            .eq('user_id', author.id)
             .not('content', 'cs', JSON.stringify([{ type: 'file' }]))
             .select('id');
           changed += filled?.length ?? 0;
@@ -1340,6 +1344,13 @@ router.get(
       if (membership.status !== 'accepted') {
         return res.status(502).json({ error: reason });
       }
+      const { data: canView } = await supabase.rpc('can_view_channel', {
+        p_user_id: requesterId,
+        p_channel_id: channelId,
+      });
+      if (canView !== true) {
+        return res.status(404).json({ error: 'Channel not found' });
+      }
       const { data: cachedMessages } = await supabase
         .from('messages')
         .select(`
@@ -1347,8 +1358,9 @@ router.get(
           author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url, federated_id)
         `)
         .eq('channel_id', channelId)
+        .not('is_deleted', 'is', true)
         .order('created_at', { ascending: false })
-        .limit(Number(limit));
+        .limit(Math.min(Number(limit) || 50, 100));
 
       return res.json({
         messages: cachedMessages || [],
@@ -1493,19 +1505,21 @@ export class ServerDiscoveryService {
     try {
       logger.info(`Fetching remote server: ${url}`);
 
-      const headers = { 'Accept': 'application/activity+json, application/ld+json' };
-      const response = await SignatureService.signedApFetch(url, {
-        headers,
-        timeoutMs: 10000,
-        ...(opts.signAs ? { signAs: opts.signAs } : {}),
-      });
+      const fetchDocument = async (target: string): Promise<any | null> => {
+        const response = await SignatureService.signedApFetch(target, {
+          headers: { 'Accept': 'application/activity+json, application/ld+json' },
+          timeoutMs: 10000,
+          ...(opts.signAs ? { signAs: opts.signAs } : {}),
+        });
+        if (!response.ok) {
+          logger.warn(`Failed to fetch server: ${response.status}`);
+          return null;
+        }
+        return response.json();
+      };
 
-      if (!response.ok) {
-        logger.warn(`Failed to fetch server: ${response.status}`);
-        return null;
-      }
-
-      const server = await response.json();
+      let server = await fetchDocument(url);
+      if (!server) return null;
 
       if (server.type !== 'Group') {
         logger.warn(`URL does not point to a Group: ${server.type}`);
@@ -1518,6 +1532,17 @@ export class ServerDiscoveryService {
       if (!sameOrigin(server.id, url) || !sameOrigin(server.inbox, server.id)) {
         logger.warn(`Group at ${url} names id ${server.id} / inbox ${server.inbox} on another host`);
         return null;
+      }
+
+      // Any document on a host can name a Group of that host. Only the document at the id speaks
+      // for it.
+      if (server.id !== url) {
+        const canonicalId = server.id;
+        server = await fetchDocument(canonicalId);
+        if (server?.type !== 'Group' || server.id !== canonicalId || !sameOrigin(server.inbox, server.id)) {
+          logger.warn(`Document at ${url} names Group ${canonicalId}, which does not confirm it`);
+          return null;
+        }
       }
 
       // Single inbound-boundary shim: older/non-compliant peers may still
@@ -1663,110 +1688,7 @@ export class ServerDiscoveryService {
 
       logger.info(`Created local reference for remote server: ${remoteServer.name} (id: ${serverRef.id})`);
 
-      // Helper to extract UUID from AP ID
-      const extractUuid = (apId: string): string | null => {
-        const match = apId.match(/\/channels\/([a-f0-9-]{36})$/i);
-        return match ? match[1] : null;
-      };
-
-      const categoryMap = new Map<string, string>();
-
-      // First pass: categories go in channel_categories, not channels. Local
-      // servers use channel_categories, so federated servers must match.
-      // Type arrives as 'category', 2, 'harmony:Category', or channelType: 'category'.
-      const categories = channels.filter((c: any) => 
-        c.type === 'category' || 
-        c.type === 2 || 
-        c.type === 'harmony:Category' ||
-        c.channelType === 'category'
-      );
-      
-      for (const cat of categories) {
-        const catUuid = cat.localId || extractUuid(cat.id);
-        const insertData: any = {
-          server_id: serverRef.id,
-          name: cat.name,
-          order: cat.order || cat.position || 0,
-          // NOTE: channel_categories has no ap_id or is_remote column; the
-          // ap_id -> local id mapping is held in categoryMap for this pass only.
-        };
-        
-        // Use remote UUID if available for consistency
-        if (catUuid) {
-          insertData.id = catUuid;
-        }
-
-        const { data: catRef, error: catError } = await supabase
-          .from('channel_categories')
-          .insert(insertData)
-          .select('id')
-          .single();
-
-        if (catError) {
-          logger.error(`Failed to create category ${cat.name}:`, catError);
-        } else if (catRef) {
-          logger.info(`Created category: ${cat.name} (id: ${catRef.id})`);
-          categoryMap.set(cat.id, catRef.id);
-          if (cat.localId) {
-            categoryMap.set(cat.localId, catRef.id);
-          }
-        }
-      }
-
-      // Second pass: Create regular channels (text/voice) in channels table
-      // Excludes categories in all format variations
-      const isCategory = (c: any) => 
-        c.type === 'category' || 
-        c.type === 2 || 
-        c.type === 'harmony:Category' ||
-        c.channelType === 'category';
-      
-      const regularChannels = channels.filter((c: any) => !isCategory(c));
-
-      const channelRows = regularChannels.map((channelData: any) => {
-        const channelUuid = channelData.localId || extractUuid(channelData.id);
-        const isVoice = 
-          channelData.type === 'voice' || 
-          channelData.type === 1 || 
-          channelData.type === 'harmony:VoiceChannel' ||
-          channelData.channelType === 'voice';
-        const channelType = isVoice ? 1 : 0;
-
-        let categoryId = null;
-        if (channelData.category) {
-          categoryId = categoryMap.get(channelData.category);
-        } else if (channelData.categoryId) {
-          categoryId = categoryMap.get(channelData.categoryId) || channelData.categoryId;
-        }
-
-        const row: any = {
-          server_id: serverRef.id,
-          name: channelData.name,
-          type: channelType,
-          order: channelData.order || channelData.position || 0,
-          ap_id: channelData.id,
-          is_remote: true,
-          category: categoryId,
-          description: channelData.description,
-        };
-
-        if (channelUuid) {
-          row.id = channelUuid;
-        }
-
-        return row;
-      });
-
-      if (channelRows.length > 0) {
-        const { error: channelError } = await supabase.from('channels').insert(channelRows);
-        if (channelError) {
-          logger.error(`Failed to bulk-create channels:`, channelError);
-        } else {
-          logger.info(`Created ${channelRows.length} channels`);
-        }
-      }
-
-      logger.info(`Created ${regularChannels.length} channels and ${categories.length} categories for remote server`);
+      await ServerDiscoveryService.syncRemoteStructure(serverRef.id, remoteServer.id, channels);
 
       return serverRef;
     } catch (error) {
@@ -2060,7 +1982,7 @@ export class ServerDiscoveryService {
 
       for (const cat of categories) {
         const id = uuidOf(cat.id)!;
-        const fields = { name: cat.name, order: cat.order ?? cat.position ?? 0 };
+        const fields = { name: cat.name, order: cat.order ?? cat.position ?? 0, host_flags: hostFlagsOf(cat) };
         const owner = serverOf.get(id);
         if (owner === undefined) {
           const { error } = await supabase.from('channel_categories').insert({ id, server_id: serverId, ...fields });
@@ -2096,6 +2018,7 @@ export class ServerDiscoveryService {
         category: categoryId ?? null,
         ap_id: c.id,
         is_remote: true,
+        host_flags: hostFlagsOf(c),
       };
       if (typeof c.description === 'string') fields.description = c.description;
 

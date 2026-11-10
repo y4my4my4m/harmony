@@ -313,6 +313,12 @@ describe('relayRefusal', () => {
     expect(refuse(inner as Row, actor as string)).not.toBeNull()
   })
 
+  it('reads the server id off the Group, for a copy whose own id differs', () => {
+    const copy = { id: S, ap_id: GROUP, is_local_server: false }
+    expect(relayRefusal(copy, announce(GROUP, create(BEE, 9)), 'harmony.test')).toBeNull()
+    expect(relayRefusal(copy, announce(GROUP, create(BEE, 10, { 'harmony:serverId': S })), 'harmony.test')).not.toBeNull()
+  })
+
   it('refuses a local server', () => {
     expect(relayRefusal({ id: S, ap_id: HOSTED_GROUP, is_local_server: true }, announce(HOSTED_GROUP, create(BEE, 8)), 'harmony.test'))
       .not.toBeNull()
@@ -500,11 +506,22 @@ describe('receiver: a relay on the copy\'s inbox', () => {
     expect(tables.reactions).toHaveLength(0)
   })
 
-  it('deletes a message of the server and nothing outside it', async () => {
-    await atCopy(R, announce(GROUP, { id: 'del1', type: 'Delete', actor: BEE, object: `https://host.test/messages/${MA}` }))
-    expect(tables.messages!.find((m) => m.id === MA)!.is_deleted).toBe(true)
+  it('deletes the actor\'s own message of the server and nothing outside it', async () => {
+    await atCopy(R, announce(GROUP, { id: 'del1', type: 'Delete', actor: BEE, object: `https://b.test/messages/${MB}` }))
+    expect(tables.messages!.find((m) => m.id === MB)!.is_deleted).toBe(true)
     await atCopy(R, announce(GROUP, { id: 'del2', type: 'Delete', actor: BEE, object: `https://b.test/messages/${MR2}` }))
     expect(tables.messages!.find((m) => m.id === MR2)!.is_deleted).toBeUndefined()
+  })
+
+  it('leaves another member\'s message: a moderator\'s delete is the Group\'s own Delete', async () => {
+    await atCopy(R, announce(GROUP, { id: 'del3', type: 'Delete', actor: BEE, object: `https://host.test/messages/${MA}` }))
+    expect(tables.messages!.find((m) => m.id === MA)!.is_deleted).toBeUndefined()
+  })
+
+  it('takes no case variant of this instance\'s own message URL', async () => {
+    const variant = `https://harmony.test/messages/${MOWN.toUpperCase()}`
+    await atCopy(R, announce(GROUP, { id: 'del4', type: 'Delete', actor: BEE, object: variant }))
+    expect(tables.messages!.find((m) => m.id === MOWN)!.is_deleted).toBeUndefined()
   })
 
   it('ignores anything but a relay on a copy\'s inbox', async () => {

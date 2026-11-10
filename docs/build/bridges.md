@@ -197,7 +197,7 @@ The app explains these problem codes, using the `params` shown:
 | `harmony_auth_failed` | The bridge can no longer sign in to Harmony. | |
 | `harmony_channel_missing` | A paired Harmony channel no longer exists. | |
 | `harmony_channel_encrypted` | A channel is end-to-end encrypted. | `harmony_channel_id` |
-| `rate_limited` | Discord is slowing the bridge down. | |
+| `rate_limited` | Discord or this instance is slowing the bridge down. | |
 | `discord_unreachable` | The bridge can't reach Discord. | |
 | `harmony_unreachable` | The bridge can't reach the instance. | |
 

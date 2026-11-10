@@ -32,6 +32,35 @@ export const CAPABILITIES = [
   'federated-polls',
   // get_funding_summary and the supporter message RPCs (20261106100001).
   'supporter-messages',
+  // Sign-up limits: the signup_* keys of instance_config and signup_refusal_counts, read by
+  // before_user_created_hook (20261109100001). On an older instance a save would have no effect.
+  'signup-limits',
+  // leave_thread and thread_departures (20261110300001).
+  'thread-departures',
+  // Invite widgets for websites: GET /widget/invite/:code and its badge.svg.
+  'invite-widgets',
+  // Instance limits: antispam account_* and bot keys, admin_set_limit_exempt, limit_exempt_accounts,
+  // profiles.dm_policy, max_servers_per_user, max_bots_per_user, drive_instance_limit_mb (20261109200001).
+  'instance-limits',
+  // The admin panel's signup review and bulk suspension: staff_recent_signups, staff_signup_groups,
+  // staff_signup_daily, staff_bulk_suspend_preview, staff_bulk_set_suspended (20261109500001).
+  'signup-review',
+  // Deleting accounts from the signup review, which frees their usernames:
+  // admin_delete_accounts_preview, admin_delete_accounts (20261109800001).
+  'account-removal',
+  // A copy's channels and categories as their host describes them: channels.host_flags and
+  // channel_categories.host_flags (20261109900001).
+  'channel-host-flags',
+  // Following import and copying a moved account's profile: start_following_import,
+  // get_my_following_import, cancel_my_following_import, POST /account/profile/copy (20261109700001).
+  'following-import',
+  // Bot slash commands: get_channel_bot_commands, invoke_bot_command, get_my_bot_interactions, the
+  // bot_interaction:update user event and messages.metadata.interaction (20261110400001).
+  'bot-commands',
+  // Voice occupancy announced by the database: trigger z_voice_participants_joined and
+  // voice_channel_announce. The voice-channels and voice-channel topics take no client's send
+  // (20261110100001).
+  'voice-announce',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

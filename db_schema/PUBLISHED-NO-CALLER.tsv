@@ -24,6 +24,7 @@ cleanup_stale_user_sessions	service key	service_role
 cleanup_stale_voice_participants	service key	service_role
 clear_orphaned_public_keys	service key	service_role
 create_default_notification_preferences	service key	service_role
+create_federated_profile	service key	service_role
 create_notification_structured	service key	service_role
 create_notification_with_spam_prevention	service key	service_role
 current_user_is_member_of_server	http anon	anon+authenticated+service_role
@@ -50,6 +51,7 @@ get_voice_channel_participants	service key	service_role
 has_blocked	http anon	anon+authenticated+service_role
 has_muted	service key	service_role
 initialize_user_encryption	http anon	anon+authenticated+service_role
+insert_ap_activity_outbound	service key	service_role
 is_author_suspended	service key	service_role
 is_muted_by	service key	service_role
 reset_user_encryption	service key	service_role

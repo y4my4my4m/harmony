@@ -44,6 +44,13 @@
     "learnMore": "了解更多"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "今天从此网络创建的账号过多。请明天再试，或向此实例的管理员申请邀请。",
+      "domainCap": "今天使用此电子邮件域名创建的账号过多。请明天再试，或向此实例的管理员申请邀请。",
+      "mailboxCap": "此邮箱已达到此实例的账号数量上限。",
+      "blockedDomain": "此电子邮件服务商不能用于在此实例注册。请使用其他地址。",
+      "blockedNetwork": "此实例不接受来自该网络的注册。请向此实例的管理员申请邀请。"
+    },
     "login": "登录",
     "register": "注册",
     "logout": "退出登录",
@@ -1657,6 +1664,8 @@
       "mirrorLinkHost": "{site} 帖子的镜像",
       "renderEmoticonsAsEmoji": "将他人发送的表情符号显示为表情",
       "renderEmoticonsAsEmojiDesc": "在消息中将 :) :D <3 等显示为表情。原始文本保持不变。",
+      "animateEmoji": "播放自定义表情动画",
+      "animateEmojiDesc": "关闭后，动态表情只显示第一帧。只影响你自己看到的内容。",
       "inviteBannerBg": "邀请对话框中的服务器横幅",
       "inviteBannerBgDesc": "服务器有横幅时，在邀请对话框背后显示模糊、变暗的服务器横幅。",
       "quickReact": "快速反应",
@@ -2340,6 +2349,15 @@
       "changesReset": "已重置个人资料更改",
       "handleCopied": "已复制用户标识",
       "copyFailed": "无法复制"
+    },
+    "dmPolicy": {
+      "title": "私信",
+      "label": "谁可以与你发起会话",
+      "description": "已有的会话不受影响。实例工作人员始终可以联系你。其他实例上被此设置拒绝的人不会收到通知。",
+      "everyone": "所有人",
+      "known": "服务器成员和我关注的人",
+      "following": "仅限我关注的人",
+      "failed": "无法保存此设置"
     }
   },
   "navigation": {
@@ -2932,7 +2950,8 @@
       "illegal_content": "违法内容",
       "impersonation": "冒充",
       "nsfw": "不当/NSFW 内容",
-      "other": "其他"
+      "other": "其他",
+      "username_hoarding": "囤积用户名或买卖账号"
     },
     "reportSource": {
       "fromInstance": "来自 {domain}",
@@ -3554,6 +3573,16 @@
       },
       "newLink": "创建新链接",
       "newLinkHint": "使用这些设置创建链接。现有链接在过期或被您撤销前仍然有效。",
+      "widgets": {
+        "toggle": "添加到你的网站",
+        "hint": "将其中一个粘贴到你的网站。它会显示此服务器的名称和成员数,并链接到此邀请。任何人都能看到。",
+        "expiring": "此链接会过期或有使用次数限制,届时小部件将停止工作。网站请使用永不过期的链接。",
+        "badge": "徽章",
+        "markdown": "Markdown 徽章(README、论坛)",
+        "join": "加入按钮",
+        "icon": "小图标",
+        "card": "卡片(iframe)"
+      },
       "creating": "创建中…",
       "created": "已创建新的邀请链接",
       "createFailed": "无法创建邀请链接",
@@ -3946,6 +3975,62 @@
         "label": "管理角色",
         "description": "创建、编辑和删除低于其安装者最高角色的角色，且只能授予其自身拥有的权限。"
       }
+    },
+    "commands": {
+      "header": "命令",
+      "bar": {
+        "label": "{command} 的选项",
+        "close": "关闭命令 (Esc)",
+        "send": "发送命令",
+        "required": "必填",
+        "choose": "选择…",
+        "chooseChannel": "选择频道…",
+        "chooseRole": "选择角色…",
+        "searchMembers": "搜索成员…",
+        "true": "是",
+        "false": "否"
+      },
+      "validation": {
+        "required": "必填。",
+        "integer": "请输入整数。",
+        "number": "请输入数字。",
+        "min": "不能小于 {min}。",
+        "max": "不能大于 {max}。",
+        "minLength": "至少 {min} 个字符。",
+        "maxLength": "最多 {max} 个字符。",
+        "choice": "请从选项中选择一个。",
+        "pick": "请从列表中选择。"
+      },
+      "errors": {
+        "unavailable": "此命令在这里不可用。",
+        "forbidden": "你没有在这里使用此命令的权限。",
+        "timedOut": "你在此服务器被禁言。",
+        "threadLocked": "此子区已锁定。",
+        "slowmode": "慢速模式已开启。请在 {seconds} 秒后重试。",
+        "slowmodeNoTime": "慢速模式已开启。请稍后重试。",
+        "rateLimited": "命令使用过于频繁。请在 {seconds} 秒后重试。",
+        "rateLimitedNoTime": "命令使用过于频繁。请稍后重试。",
+        "invalidOption": "{name} 的值不被接受。",
+        "invalidOptions": "命令选项不被接受。",
+        "failed": "无法发送命令。"
+      },
+      "notice": {
+        "used": "你使用了 {command}",
+        "thinking": "{bot} 正在思考…",
+        "noResponse": "{bot} 没有回应。",
+        "offline": "{bot} 已离线。",
+        "cannotPost": "{bot} 无法在此频道发帖。",
+        "blocked": "AutoMod 拦截了 {bot} 的回复。",
+        "threadLocked": "{bot} 无法回复：子区已锁定。",
+        "failed": "{bot} 未能回复。",
+        "private": "仅你可见",
+        "dismiss": "关闭",
+        "someBot": "机器人"
+      }
+    },
+    "interactions": {
+      "used": "使用了 {command}",
+      "someoneUsed": "有人使用了 {command}"
     }
   },
   "webhooks": {
@@ -4021,6 +4106,10 @@
     "lock": {
       "messages": "端到端加密",
       "voice": "语音和视频已端到端加密"
+    },
+    "home": {
+      "voice": "此频道在其所属实例上已端到端加密，因此其他实例的账号无法加入通话。",
+      "messages": "此频道在其所属实例上已端到端加密，因此其他实例的账号无法读取或发送消息。"
     },
     "status": {
       "active": "端到端加密",
@@ -4486,9 +4575,12 @@
     },
     "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息、添加反应或创建话题。",
     "antispam": {
-      "rateLimited": "新账户一次只能发送少量消息。请在 {seconds} 秒后重试。",
+      "rateLimited": "操作过于频繁。请在 {seconds} 秒后重试。",
       "linksBlocked": "新账户暂时无法发布链接。",
-      "strangerMentions": "新账户最多只能提及 {count} 个未关注自己的人。"
+      "strangerMentions": "新账户最多只能提及 {count} 个未关注自己的人。",
+      "serverLimit": "在此实例上，一个账户最多可拥有 {count} 个服务器。",
+      "botLimit": "在此实例上，一个账户最多可拥有 {count} 个机器人。",
+      "dmNotAllowed": "此人只接受认识的人发起的新会话。"
     },
     "alert": {
       "raid": "疑似突袭：{seconds} 秒内有 {joins} 名成员加入。",
@@ -5077,7 +5169,7 @@
       "enterPhrase": "输入恢复短语",
       "scanHint": "将摄像头对准新设备上的 QR 码。",
       "scanPasteLabel": "或粘贴从新设备复制的代码",
-      "showInstead": "新设备有摄像头？改为显示代码供其扫描",
+      "showInstead": "改为显示可扫描或复制的代码",
       "showLead": "在新设备上选择“{another}”，然后选择“{scanInstead}”，并将其摄像头对准此处，或复制下方的代码并粘贴到那台设备上。任何登录了您账户的人扫描或粘贴此代码都能获取您的密钥，因此请勿给他人看。",
       "showLeadAnother": "另一台设备",
       "showLeadScanInstead": "改为扫描或粘贴其代码",
@@ -5300,6 +5392,12 @@
       "federationCloseConfirm": "关闭联邦",
       "configLoadFailed": "无法读取当前设置。请在保存前重新加载。",
       "webrtcLoadFailed": "无法读取语音设置，因此无法在此更改。请重新加载页面后重试。",
+      "federatedCallsLabel": "与其他实例通话",
+      "federatedCallsOn": "已开启。其他实例的用户可以加入此处的语音频道和通话。",
+      "federatedCallsOff": "已关闭。其他实例的用户会被拒绝，并收到通知。",
+      "federatedCallsNoLivekit": "已关闭。此实例没有 LiveKit 服务器。",
+      "federatedCallsUnread": "无法读取当前状态。请重新加载页面后重试。",
+      "federatedCallsHint": "由联邦后端环境中的 ALLOW_FEDERATED_VOICE 决定。",
       "customOAuthTitle": "自有登录提供方",
       "customOAuthHint": "本实例信任的 OpenID Connect 或 OAuth 2.0 提供方，例如 Authentik、Keycloak 或 Better Auth。它们的按钮在登录页上排在上方按钮之后。客户端密钥保存在服务器上，因此在服务器上添加和移除。",
       "customOAuthEmpty": "暂无。",
@@ -5351,7 +5449,7 @@
     },
     "antiSpam": {
       "title": "反垃圾信息",
-      "hint": "实例范围的限制。服务器所有者在服务器设置中配置各自的 AutoMod；这些限制在其之上，适用于所有服务器、私信和帖子。在您更改之前，此处的每项限制都处于关闭或宽松状态。",
+      "hint": "实例范围的限制。服务器所有者在服务器设置中配置各自的 AutoMod；这些限制在其之上，适用于所有服务器、私信和帖子。",
       "loadingSettings": "正在加载设置...",
       "saved": "反垃圾信息设置已保存",
       "newAccounts": {
@@ -5364,6 +5462,27 @@
         "strangerMentionsHint": "陌生人指任何未关注作者的人，无论本地或远程。",
         "blockLinks": "新账户无法发布链接",
         "staffExempt": "实例管理员和版主永远不受限制。"
+      },
+      "accounts": {
+        "title": "所有本地账户",
+        "hint": "远高于正常使用量的上限。超过后，写入会被拒绝，直到时间窗口结束。0 = 无限制。实例管理员、版主以及在“用户”中豁免的账户不受限制。",
+        "messagesPerMinute": "每分钟消息数",
+        "postsPerHour": "每小时帖子数",
+        "postsPerHourHint": "转发不计入。",
+        "reactionsPerMinute": "每分钟回应和收藏数",
+        "followsPerHour": "每小时关注数",
+        "joinsPerHour": "每小时加入服务器数",
+        "serversPerHour": "每小时创建服务器数",
+        "strangerDmsPerHour": "每小时与陌生人的新会话数",
+        "strangerDmsHint": "陌生人是指未关注该账户、没有共同服务器且没有会话的人。",
+        "newStrangerDmsPerHour": "新账户的上述限制",
+        "newStrangerDmsHint": "仅与新账户共享服务器的人也会计入：加入公开服务器即可联系到所有成员。"
+      },
+      "bots": {
+        "title": "机器人",
+        "hint": "单个机器人所有路由合计的每分钟请求数，在每路由限制之外生效。所有者被豁免的机器人没有此上限。0 = 无限制。",
+        "requestsPerMinute": "每个机器人每分钟请求数",
+        "bridgeRequestsPerMinute": "每个已关联 Discord 桥接每分钟请求数"
       },
       "federation": {
         "title": "联邦提及刷屏",
@@ -5418,6 +5537,13 @@
         "loadQueue": "无法加载审核队列",
         "review": "审核失败"
       }
+    },
+    "limitExempt": {
+      "add": "将 {name} 排除在实例限制之外",
+      "remove": "对 {name} 应用实例限制",
+      "added": "{name} 已被排除在实例限制之外",
+      "removed": "实例限制已重新应用于 {name}",
+      "failed": "无法更改豁免设置"
     },
     "instanceEmojis": {
       "tab": "表情",
@@ -6326,6 +6452,12 @@
       "deleteCategory": "删除分类"
     },
     "thread": {
+      "left": "你已退出 {thread}",
+      "joined": "你已加入 {thread}",
+      "leaveFailed": "无法退出话题",
+      "joinFailed": "无法加入话题",
+      "goToStart": "转到第一条消息",
+      "showInChannel": "在频道中显示",
       "leave": "离开子区",
       "join": "加入子区",
       "edit": "编辑子区",
@@ -6560,7 +6692,7 @@
       "staysKeys": "端到端加密密钥",
       "staysBots": "你拥有的机器人",
       "staysServers": "你拥有的服务器",
-      "staysFollowing": "你关注的账号",
+      "staysFollowing": "你关注的账号。下载你的数据，然后在新账号上导入列表。",
       "ownedServersWarning": "你拥有 {servers}。所有权不会迁移；如果希望由新账号拥有，请先转让。",
       "cooldown": "迁移后需等待 30 天才能再次迁移。",
       "exportFirst": "先下载你的数据",
@@ -6572,7 +6704,10 @@
       "noPassword": "你的账号没有密码。迁移需要在最近十分钟内登录过。",
       "confirm": "迁移我的账号",
       "moving": "正在迁移…",
-      "success": "此账号现已指向 {handle}。正在迁移关注者。"
+      "success": "此账号现已指向 {handle}。正在迁移关注者。",
+      "staysInteractions": "点赞、转发和书签",
+      "staysProfile": "你的显示名称、简介、头像、横幅和资料字段。Harmony 上的新账号可以在迁移后复制它们。",
+      "staysBlocks": "你屏蔽或静音的账号"
     },
     "moved": {
       "title": "此账号已迁移",
@@ -6603,7 +6738,14 @@
       "move_cooldown": "距上次迁移不足 30 天。请在 {count} 天后重试。",
       "too_many_attempts": "尝试次数过多。请在 {count} 分钟后重试。",
       "wrong_password": "密码不正确。",
-      "generic": "出了点问题，请重试。"
+      "generic": "出了点问题，请重试。",
+      "import_running": "已有导入正在进行。",
+      "too_many_accounts": "一个文件最多可列出 20,000 个账号。",
+      "no_accounts": "该文件没有列出账号。",
+      "account_moved": "此账号已迁移。请在新账号上导入。",
+      "import_rate_limited": "今天导入次数过多。请在 {count} 小时后重试。",
+      "not_verified": "无法确认这次迁移。",
+      "nothing_to_copy": "没有可复制的内容。"
     },
     "profile": {
       "moved": "{name} 已迁移到 {target}",
@@ -6618,6 +6760,72 @@
       "short": "账号已迁移",
       "someone": "某个账号",
       "newAccount": "一个新账号"
+    },
+    "import": {
+      "title": "导入你关注的账号",
+      "description": "关注旧账号列表中的账号。在 Mastodon 上，请在“导入和导出”中将关注列表导出为 CSV。在 Harmony 上，请使用数据下载中的 ZIP。帖子和点赞不会导入。",
+      "choose": "选择文件",
+      "found": "在此文件中找到 {count} 个账号。",
+      "foundHint": "已锁定的账号和其他服务器上的账号会收到关注请求。屏蔽了你或被你屏蔽的账号会被跳过。",
+      "start": "开始导入",
+      "starting": "正在开始…",
+      "running": "正在导入：已完成 {done} / {total}",
+      "waiting": "正在等待每小时关注上限。大约 {count} 分钟后继续。",
+      "finished": "导入完成",
+      "stopped": "导入已停止。已完成的关注会保留。",
+      "cancel": "停止导入",
+      "counts": {
+        "followed": "已关注",
+        "requested": "已发送关注请求",
+        "already": "已关注或已请求",
+        "failed": "无法关注",
+        "cancelled": "未处理"
+      },
+      "failures": "{count} 个账号无法关注",
+      "moreFailures": "另有 {count} 个。",
+      "reasons": {
+        "invalid_handle": "不是账号地址",
+        "not_found": "未找到账号",
+        "instance_blocked": "此服务器不与该服务器联合",
+        "federation_off": "此服务器已关闭联合",
+        "unreachable": "其服务器没有响应",
+        "unavailable": "账号已删除或已停用",
+        "self": "这是你自己的账号",
+        "moved": "账号已迁移",
+        "blocked": "你们之间存在屏蔽",
+        "declined": "对方之前拒绝了你的关注请求"
+      },
+      "fileErrors": {
+        "file_too_large": "文件太大。",
+        "unrecognized_file": "该文件不是关注列表。请使用 Mastodon 的 following_accounts.csv 或 Harmony 数据下载中的 ZIP。",
+        "wrong_list": "这看起来是其他列表，例如屏蔽或静音列表。请使用你关注的账号列表。",
+        "no_accounts": "该文件没有列出账号。"
+      }
+    },
+    "copy": {
+      "title": "复制旧资料",
+      "description": "{handle} 已迁移到此账号。你可以将其资料信息复制到这里。确认之前不会有任何更改。",
+      "origin": "旧账号",
+      "fields": {
+        "display_name": "显示名称",
+        "bio": "简介",
+        "avatar": "头像",
+        "banner": "横幅",
+        "profile_fields": "资料字段"
+      },
+      "same": "已相同",
+      "adds": "添加到此资料",
+      "replaces": "替换此资料的内容",
+      "nothing": "旧账号没有可复制的资料信息。",
+      "review": "复制所选项",
+      "confirmTitle": "从 {handle} 复制？",
+      "confirmAdds": "{field} 将添加到此资料。",
+      "confirmReplaces": "{field} 将替换此资料当前的内容。",
+      "confirmWarning": "此资料当前的内容将被覆盖，且无法恢复。",
+      "confirm": "复制到此资料",
+      "copying": "正在复制…",
+      "done": "资料信息已复制",
+      "partial": "已复制，但以下内容无法从旧服务器读取：{fields}。"
     }
   },
   "polls": {
@@ -7118,6 +7326,7 @@
     "quotaUser": "每个账户的存储空间",
     "quotaModerator": "每位实例版主的存储空间",
     "quotaAdmin": "每位实例管理员的存储空间",
+    "instanceLimit": "整个实例存储的文件（0 = 无限制）",
     "ephemeralDays": "临时文件保留",
     "days": "天",
     "ephemeralDaily": "Drive 已满后每天可上传的临时文件数",
@@ -7276,7 +7485,8 @@
     "errors": {
       "load": "无法加载 Drive",
       "temporary": "更改未保存：{reason}",
-      "blocked": "此文件已被实例版主移除。"
+      "blocked": "此文件已被实例版主移除。",
+      "full": "存储空间已满，此次上传被拒绝。请在 Drive 中释放空间，或联系实例管理员。"
     },
     "details": {
       "label": "文件详情",
@@ -7893,6 +8103,45 @@
       "paused": "暂停期间"
     }
   },
+  "adminSignupLimits": {
+    "title": "注册限制",
+    "intro": "提高批量创建账号的成本。拥有第二个账号或测试账号的用户远不会达到这些限制。邀请和此实例自己的身份提供商不受限制。通过 Google、GitHub 和 Twitch 注册只计入网络限制。",
+    "hookNote": "认证服务运行注册钩子后生效；可用 harmony doctor 检查。私有网络中的客户端不受限制。",
+    "enabled": "应用注册限制",
+    "ipCap": "每个网络 24 小时内的账号数",
+    "ipCapHint": "一个网络指一个 IPv4 地址或一个 IPv6 /56。0 表示不限制。",
+    "mailboxCap": "每个邮箱 30 天内的账号数",
+    "mailboxCapHint": "me+test{'@'}example.org 计为 me{'@'}example.org，Gmail 会忽略点号。0 表示不限制。",
+    "domainCap": "每个电子邮件域名 24 小时内的账号数",
+    "domainCapHint": "发现在同一域名下使用大量邮箱批量注册。Gmail 等大型服务商不计入。0 表示不限制。",
+    "enforceCaps": "拒绝超过网络和域名限制的账号",
+    "enforceCapsHint": "关闭时,这些账号会被允许并在下方计数。校园或办公室可能共用一个地址或邮箱域名。收件箱上限以及域名和邮件服务器列表始终拒绝。",
+    "blockDisposable": "拒绝一次性电子邮件地址",
+    "blockDisposableHint": "内置的临时邮箱域名及其邮件服务器列表。",
+    "blockedDomains": "其他要拒绝的电子邮件域名",
+    "blockedDomainsHint": "每行一个域名。其子域名也会被拒绝。",
+    "blockedMailHosts": "其他要拒绝的邮件服务器",
+    "blockedMailHostsHint": "每行一个主机。拒绝邮件服务器位于此主机或其下的任何邮箱域名:erinn.biz 也包括 recv1.erinn.biz。不要填写 google.com、outlook.com 或 cloudflare.net 等共享服务,否则其所有用户都会被拒绝。",
+    "blockedNetworks": "要拒绝的地址和范围",
+    "blockedNetworksHint": "每行一个,例如 203.0.113.7 或 2001:db8:1:2::/64。只拒绝来自那里的新账号:已有账号的人仍可登录。一个地址可能由整个校园、办公室或移动运营商共用,因此只有在确定时才封锁范围。",
+    "trustedDomains": "不受限制的电子邮件域名",
+    "trustedDomainsHint": "每行一个域名,用于被误拒或同时加入的校园或公司。子域名也算在内。跳过域名上限、临时邮箱列表和邮件服务器列表。列入拒绝名单的域名仍被拒绝,收件箱上限仍然适用。",
+    "save": "保存限制",
+    "saved": "注册限制已保存",
+    "saveFailed": "无法保存注册限制。",
+    "loadFailed": "无法加载注册限制。",
+    "invalidCap": "请输入 0 到 1000 之间的整数。",
+    "invalidDomain": "{domain} 不是域名。",
+    "invalidNetwork": "{network} 不是地址或可用范围。IPv4 范围须为 /8 或更窄,IPv6 须为 /16 或更窄。",
+    "wouldRefuseTitle": "超过限制但已允许，最近 7 天",
+    "refusalsTitle": "最近 7 天被拒绝",
+    "refusalIpCap": "网络限制",
+    "refusalDomainCap": "域名限制",
+    "refusalMailboxCap": "邮箱限制",
+    "refusalBlockedDomain": "被拒绝的电子邮件域名",
+    "refusalMailHost": "邮件服务器",
+    "refusalBlockedNetwork": "被拒绝的地址"
+  },
   "adminInvites": {
     "tab": "邀请",
     "title": "邀请他人",
@@ -8149,6 +8398,127 @@
       "members": "{count} 名成员",
       "here": "在线且能看到该频道的成员",
       "unknown": "不是此服务器的角色"
+    }
+  },
+  "adminSignups": {
+    "tab": "注册",
+    "title": "最近注册",
+    "intro": "在此实例上创建的账号，按时间由新到旧排列，并显示其邮箱域名和活动情况。不显示邮箱地址和 IP 地址。分组只是值得查看的线索，并非证据：注册热门的一天或同一邮箱服务商也可能呈现相同情况。",
+    "limitsLink": "注册限制位于“邀请”选项卡。",
+    "windowLabel": "时间范围",
+    "window": "{count} 天",
+    "searchLabel": "搜索注册记录",
+    "searchHint": "用户名、名称或邮箱域名",
+    "loadError": "无法加载。",
+    "previous": "上一页",
+    "next": "下一页",
+    "filters": {
+      "label": "状态",
+      "all": "全部",
+      "active": "正常",
+      "suspended": "已停用"
+    },
+    "daily": {
+      "title": "按天 (UTC)",
+      "day": "日期",
+      "signups": "注册数",
+      "domains": "邮箱域名数",
+      "topDomain": "最多的域名",
+      "peakHour": "最繁忙的小时",
+      "suspended": "已停用",
+      "refused": "已拒绝",
+      "wouldRefuse": "超出上限（已允许）"
+    },
+    "groups": {
+      "title": "分组",
+      "empty": "此时间范围内没有 {count} 个及以上的分组。",
+      "kindDomain": "邮箱域名",
+      "kindServer": "注册后一小时内加入",
+      "size": "{count} 个账号",
+      "priorDomain": "此域名此前有 {count} 个账号",
+      "priorServer": "此时间范围之前已有 {count} 名成员",
+      "suspended": "{count} 个已停用",
+      "span": "{from} 至 {to}",
+      "show": "显示",
+      "showLabel": "显示分组 {label}",
+      "select": "全选",
+      "selectLabel": "全选：分组 {label}",
+      "filterActive": "正在显示分组 {label}",
+      "clear": "显示全部",
+      "mailHost": "邮件服务器:{hosts}"
+    },
+    "rows": {
+      "title": "{count} 个账号",
+      "empty": "此时间范围内没有注册。",
+      "emptySearch": "没有匹配的注册。",
+      "selectAccount": "选择 {name}",
+      "staff": "管理团队",
+      "suspended": "已停用",
+      "unconfirmed": "邮箱未确认",
+      "noEmail": "无邮箱",
+      "signedUp": "注册于 {time}",
+      "posts": "{count} 条帖子",
+      "messages": "{count} 条消息",
+      "servers": "加入 {count} 个服务器",
+      "owns": "拥有 {count} 个服务器",
+      "firstServer": "{minutes} 分钟后加入 {server}"
+    },
+    "selection": {
+      "count": "已选择 {count} 个",
+      "limit": "一次最多 {count} 个账号。",
+      "suspend": "停用…",
+      "unsuspend": "解除停用…",
+      "clear": "清除选择",
+      "delete": "删除…"
+    },
+    "dialog": {
+      "suspendTitle": "停用 {count} 个账号",
+      "unsuspendTitle": "解除停用 {count} 个账号",
+      "affectedSuspend": "将被停用",
+      "affectedUnsuspend": "将被解除停用",
+      "activity": "{posts} 条帖子，{messages} 条消息",
+      "nothing": "所选账号都无法执行此操作。",
+      "skippedTitle": "已排除",
+      "skip": {
+        "self": "你自己的账号",
+        "staff": "实例管理团队",
+        "remote": "其他实例的账号",
+        "no_sign_in": "没有登录信息",
+        "deleted": "已被管理团队删除",
+        "already_suspended": "已被停用",
+        "not_suspended": "未被停用",
+        "not_found": "找不到账号",
+        "owns_server": "拥有包含其他成员的服务器"
+      },
+      "ownedTitle": "他们拥有的服务器仍保持开放",
+      "ownedHint": "成员可继续使用这些服务器。如需关闭，请使用“服务器”选项卡。",
+      "ownedMembers": "{count} 名成员",
+      "consequences": {
+        "signedOut": "他们会立即退出登录，再次登录时应用也会让其退出。",
+        "follows": "将移除与本地账号的 {count} 个关注关系。解除停用不会恢复。",
+        "timelines": "他们的帖子会从这里的时间线和公开页面消失。他们的消息保留在频道中。",
+        "federation": "不会向其他实例发送任何内容：其他实例已收到的内容和远程关注者都会保留。",
+        "unsuspend": "他们可以重新登录。因停用而移除的关注关系不会恢复。",
+        "deleteSignIn": "他们将无法再登录。此操作无法撤销。",
+        "deleteNames": "他们的用户名将被释放,任何人都可以注册。",
+        "deleteContent": "他们的个人资料变为 Deleted User。消息和帖子以该名称保留。",
+        "deleteFederation": "关注他们的实例会收到账号已不存在的通知。"
+      },
+      "reason": "原因（必填）",
+      "reasonHint": "同一原因会按账号分别记录在活动日志中。",
+      "confirmSuspend": "停用 {count} 个账号",
+      "confirmUnsuspend": "解除停用 {count} 个账号",
+      "failed": "操作失败：{error}",
+      "deleteTitle": "删除 {count} 个账号",
+      "affectedDelete": "将被删除",
+      "confirmDelete": "删除 {count} 个账号",
+      "ownedDeleteTitle": "他们没有其他成员的服务器将被删除",
+      "deleteUnderstand": "我了解此操作无法撤销"
+    },
+    "done": {
+      "suspended": "已停用 {count} 个账号",
+      "unsuspended": "已解除停用 {count} 个账号",
+      "deleted": "已删除 {count} 个账号"
     }
   }
 }

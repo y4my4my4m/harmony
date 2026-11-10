@@ -286,7 +286,7 @@ A voice channel can encrypt its calls end to end, so audio and video are encrypt
 
 To join such a channel you need encryption set up and unlocked on your device. Without it Harmony refuses the join and opens **Set up message encryption**, or the **Restore encryption** window when your keys are locked. See [Privacy and security](/use/privacy-security). Encrypted voice needs the SFU transport.
 
-People joining from another instance cannot take part in an encrypted call: their client holds no encryption keys for the channel, so they connect but cannot hear or be heard.
+People on another instance cannot join an encrypted voice channel: no encryption keys reach their instance, so the channel's home instance refuses them. They see the lock on the channel, and the message says why when they try. Turning encryption on removes anyone from another instance who is already in the call.
 
 ### Direct message calls
 

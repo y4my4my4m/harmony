@@ -60,7 +60,7 @@ Some settings exist both as a variable and in the database:
 | Buttons of your own sign-in providers | none | `instance_config.custom_oauth_providers` | The database. `harmony auth add-provider` and `remove-provider` write it; **Authentication** lists it read-only. See [Your own identity provider](/self-host/oauth#your-own-identity-provider) |
 | Terms and privacy links | `TERMS_URL`, `PRIVACY_URL` | `instance_config.terms_url`, `privacy_url` | The database value, empty included, once the instance settings load. A new database holds empty values, so set the links in **Config** → **Branding** |
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env`. Sign-up follows `DISABLE_SIGNUP`; NodeInfo announces `open_registration`. The admin panel's **Invites** states the first and notes when the second differs |
-| Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
+| Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. **Voice & video** shows the state of federated calls; the backend does not read the mode it stores |
 | Upload ceiling | `FILE_SIZE_LIMIT` in `supabase/.env` | `instance_config.upload_ceiling_bytes` | Storage refuses a larger file whatever the database says. `harmony config --upload-ceiling` sets both; `bootstrap.sh` copies the variable into the database on every run. See [Upload limits](#upload-limits) |
 | Storage origin | `DB_DOMAIN` | `instance_config.storage_origin` | `https://DB_DOMAIN`, where every public file URL starts. Sticker and emoji uploads under any other origin are refused. `bootstrap.sh` writes it on every run, `harmony update` included; `harmony doctor` warns when it is empty or differs |
 
@@ -76,6 +76,7 @@ in `public.instance_config` and apply when you click **Save**.
 | **Storage per account** | `drive_quota_user_mb` | `1024` | Storage of an account that is neither instance admin nor moderator, in MB |
 | **Storage per instance moderator** | `drive_quota_moderator_mb` | `25600` | Storage of an instance moderator, in MB |
 | **Storage per instance admin** | `drive_quota_admin_mb` | `102400` | Storage of an instance admin, in MB |
+| **Stored files across the instance** | `drive_instance_limit_mb` | `0` | Files of every account together, in MB. Past it, uploads are refused for everyone but instance admins, moderators and exempt accounts. Files stay. `0` is no limit |
 | **Temporary files are kept** | `drive_ephemeral_days` | `30` | Days after which a temporary upload is deleted |
 | **Temporary uploads per day once Drive is full** | `drive_ephemeral_daily_mb` | `2048` | MB of temporary uploads an account over its storage may make in 24 hours. Past it, the account's uploads are refused |
 | **Files can be shared by link** | `drive_link_sharing` | `true` | Whether people can share a file by a link that needs no account. While it is off, existing links do not open |
@@ -95,6 +96,39 @@ account's limit in MB; clearing it returns the account to its role's limit.
 The federation worker hashes new files, deletes temporary files whose days
 have passed and trash older than 30 days, and removes the stored bytes of
 deleted files. It sweeps every 10 minutes.
+
+### Instance limits
+
+Limits on what one local account creates and how fast it writes, on by default on every instance. [Instance limits](/run/moderation#instance-limits) says what each one counts, who is exempt and what a refused person sees. They need no env variable, service or proxy setting, and key on accounts, never addresses.
+
+| Setting | Key | Default |
+|---|---|---|
+| **Servers one account can own** | `max_servers_per_user` | `100` |
+| **Bots one account can own** | `max_bots_per_user` | `25` |
+
+**Config** → **General** holds these two, as `public.instance_config` rows. The rest are keys of one row, `instance_config.antispam`, set in the **Anti-spam** tab:
+
+| Setting | Key | Default |
+|---|---|---|
+| **Messages per minute** | `account_messages_per_minute` | `120` |
+| **Posts per hour** | `account_posts_per_hour` | `100` |
+| **Reactions and favourites per minute** | `account_reactions_per_minute` | `240` |
+| **Follows per hour** | `account_follows_per_hour` | `200` |
+| **Server joins per hour** | `account_joins_per_hour` | `60` |
+| **Servers created per hour** | `account_servers_per_hour` | `10` |
+| **New conversations with strangers per hour** | `account_stranger_dms_per_hour` | `30` |
+| **Same, for new accounts**, also counting people who share only a server with the account | `new_account_stranger_dms_per_hour` | `5` |
+| **Requests per minute, per bot** | `bot_requests_per_minute` | `600` |
+| **Requests per minute, per linked Discord bridge** | `bridge_requests_per_minute` | `3000` |
+| **An account counts as new for (hours)** | `new_account_hours` | `24` |
+| **Messages per minute**, new accounts | `new_account_messages_per_minute` | `20` on a new install, else `0` |
+| **Posts per hour**, new accounts | `new_account_posts_per_hour` | `20` on a new install, else `0` |
+| **Mentions of strangers per post**, new accounts | `new_account_max_stranger_mentions` | `5` on a new install, else `0` |
+| **New accounts cannot post links** | `new_account_block_links` | `false` |
+
+`0` turns a limit off. A key absent from the row reads its default, so an update adds the new limits and changes no value you set. An install counts as new when the database has no account at the update that adds these keys; a restored backup keeps its values.
+
+Rate limits count rows in the unlogged table `automod_recent_activity`, which the `purge-automod` pg_cron job trims every 10 minutes. `harmony doctor` warns when that job is missing, as the table then grows without bound.
 
 ### Upload limits
 
@@ -181,6 +215,14 @@ temporary files count until they expire.
 **Config** → **Federation** also holds the sticker caps: `max_stickers_per_server` (`15`),
 `max_instance_stickers` (`50`) and `max_personal_stickers_per_user` (`0`, personal stickers
 off). [Stickers](/self-host/stickers) describes them with the file limits.
+
+### Sign-up limits
+
+**Invites** → **Sign-up limits** holds `signup_limits_enabled`, `signup_daily_ip_cap` (`5`),
+`signup_mailbox_cap` (`5`), `signup_daily_domain_cap` (`10`), `signup_enforce_caps` (`false`: the network
+and domain caps observe), `signup_block_disposable_email`, `signup_blocked_email_domains`,
+`signup_blocked_mail_hosts`, `signup_blocked_networks` and `signup_trusted_email_domains`. `signup_limit_own_providers` (`false`) has no control in the panel.
+[Sign-up limits](/self-host/signup-limits) describes them and the client address they need.
 
 ### Photo size sent to other servers
 
@@ -338,17 +380,20 @@ the sign-in service. A Supabase stack without it needs the
 | `INSTANCE_NAME` | `Harmony` | Display name passed to the web container. `configure.sh` copies it to `federation.env` and uses it as the email sender name |
 | `ADMIN_EMAIL` | none | `configure.sh` writes it to `VAPID_SUBJECT`, and to `CADDY_TLS` with public TLS. The `harmony admin` commands offer it as the default address |
 | `CADDY_TLS` | `internal` | An email address: Let's Encrypt certificates with that contact. `internal`: Caddy's local CA, for LAN installs |
+| `CADDY_TRUSTED_PROXIES` | empty | A proxy with a public address in front of Caddy, space-separated CIDRs. Proxies on private addresses and Cloudflare's edges are built in. See [the client address](/self-host/signup-limits#client-address) |
 | `ENABLE_VOICE` | `false` | `true` defines the LiveKit site in Caddy. `configure.sh` adds the `voice` profile and the LiveKit URLs |
 | `ENABLE_BOTS` | `false` | `configure.sh` adds the `bots` profile and writes `bot-gateway.env`; `harmony doctor` checks the gateway |
 | `ENABLE_DISCORD_BRIDGE` | `false` | `configure.sh` adds the `discord` profile and writes `discord-bridge.env` |
 | `ENABLE_ANALYTICS` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `logs` profile: Supabase's log collection, `analytics` (Logflare) and `vector`. `harmony analytics on\|off` sets it. Absent, `harmony update`, `harmony install` and `harmony config` write `false`, remove both containers and delete the logs they stored |
+| `ENABLE_STUDIO` | `false`, also on an instance configured before the key existed | `configure.sh` adds the `studio` profile: `studio` and `meta`. `harmony studio on` or `off` sets it. `HARMONY_STUDIO=y` or `n` sets it for `configure.sh` |
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
-| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`) `docker compose up -d` starts |
+| `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`, `studio`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |
 | `HARMONY_VERSION` | `edge` | Tag of the `ghcr.io/y4my4my4m/harmony-*` images. Rewritten by every `configure.sh` run; `harmony update --version` changes it |
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |
 | `HARMONY_HTTP_PORT` | `80` | `[address:]port` Caddy publishes for port 80 |
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
+| `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
 | `SUPABASE_ANON_KEY` | required | Supabase anon key for the web container; copied from `supabase/.env` |
 | `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`) for the web container |
 | `TERMS_URL`, `PRIVACY_URL` | empty | Legal links for the web container; see the table above for which value applies |
@@ -366,7 +411,7 @@ values.
 | `JWT_SECRET` | generated | Signs every Supabase token. Never change it on an existing database |
 | `ANON_KEY`, `SERVICE_ROLE_KEY` | signed with `JWT_SECRET`, valid 10 years | API keys; re-signed when invalid or expiring within a year |
 | `POSTGRES_PASSWORD` | generated | Database password |
-| `DASHBOARD_PASSWORD` | generated | Password of Supabase Studio at `https://DB_DOMAIN` (user `supabase`) |
+| `DASHBOARD_PASSWORD` | generated | Password of Supabase Studio at `https://DB_DOMAIN` (user `supabase`), while `harmony studio on` has it running |
 | `SECRET_KEY_BASE`, `VAULT_ENC_KEY`, `PG_META_CRYPTO_KEY`, `LOGFLARE_PUBLIC_ACCESS_TOKEN`, `LOGFLARE_PRIVATE_ACCESS_TOKEN` | generated | Upstream secrets, replaced on a new install |
 | `SITE_URL` | `https://DOMAIN` | Where links in sign-in emails lead |
 | `API_EXTERNAL_URL` | `https://DB_DOMAIN` | Public API URL; base of the OAuth callback |
@@ -379,9 +424,11 @@ values.
 | `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET`, and the same for `GITHUB` and `TWITCH` | not written | OAuth providers, mapped by `supabase-overrides.yml`. See [OAuth sign-in](/self-host/oauth) |
 | `PROVIDER_LINKING_DOMAINS` | `github=github,google=google,twitch=twitch` while `ENABLE_EMAIL_AUTOCONFIRM=true` (`configure.sh`, for each built-in provider without an entry); `harmony auth add-provider` adds `custom:ID=custom:ID` per provider | Sign-in providers that never join an existing account by its address, as comma-separated `provider=domain` pairs (`GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS`); `PROVIDER=default` joins by address. `harmony auth linking` sets a built-in provider's entry. A value that is not such pairs stops the sign-in service from starting. See [Existing accounts](/self-host/oauth#existing-accounts) and [First sign-in and existing accounts](/self-host/oauth#first-sign-in-and-existing-accounts) |
 | `FILE_SIZE_LIMIT` | not written; `harmony config --upload-ceiling` writes it | Largest file storage accepts, bytes, resumable uploads included; `52428800` when absent (`supabase-overrides.yml`). See [Upload limits](#upload-limits) |
+| `RATE_LIMIT_EMAIL_SENT` | not written; the stack reads it as `100` | Mail per hour for the whole instance while email confirmation is on. Keep it under your SMTP provider's limit. See [Sign-up limits](/self-host/signup-limits#email-budget) |
 | `GOTRUE_IMAGE` | `configure.sh` | The sign-in service's image: the Supabase stack's own `supabase/gotrue` image from `v2.197.0` on, otherwise `supabase/gotrue:v2.197.0`. A newer image set by hand stays |
-| `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.89.12` on, otherwise `supabase/storage-api:v1.89.12`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
-| `REALTIME_IMAGE` | `configure.sh` | The realtime service's image: the Supabase stack's own `supabase/realtime` image from `v2.148.3` on, otherwise `supabase/realtime:v2.148.3`. A newer image set by hand stays |
+| `STORAGE_IMAGE` | `configure.sh` | The storage service's image: the Supabase stack's own `supabase/storage-api` image from `v1.90.0` on, otherwise `supabase/storage-api:v1.90.0`. A newer image set by hand stays. See [Storage and realtime versions](#storage-and-realtime-versions) |
+| `POSTGREST_IMAGE` | `configure.sh` | Set only while `JWT_SECRET` has under 32 characters, which PostgREST 13 and later refuse at startup: `postgrest/postgrest:v12.2.12`. Removed once the secret is long enough. Unset, the stack runs `v14.18` |
+| `REALTIME_IMAGE` | `configure.sh` | The realtime service's image: the Supabase stack's own `supabase/realtime` image from `v2.153.6` on, otherwise `supabase/realtime:v2.153.6`. A newer image set by hand stays |
 
 ### Sign-in service version
 
@@ -411,7 +458,7 @@ and forged Realtime events from any client that may broadcast on a channel
 ([GHSA-9vjf-j9f7-j42c](https://github.com/supabase/realtime/security/advisories/GHSA-9vjf-j9f7-j42c)).
 `supabase-overrides.yml` runs both services on `STORAGE_IMAGE` and
 `REALTIME_IMAGE` from `supabase/.env`, which `configure.sh` (and so
-`harmony update`) sets to `v1.89.12` and `v2.148.3` while the stack's own
+`harmony update`) sets to `v1.90.0` and `v2.153.6` while the stack's own
 images are older. Each service brings its own schema (`storage`, `realtime`)
 forward on start; no data moves.
 
@@ -419,6 +466,21 @@ Realtime from `v2.76` also caps how often one client may update its presence,
 by default 5 times in 30 seconds; past the cap, typing indicators stop
 reaching the other people in the chat. `supabase-overrides.yml` raises the cap
 to 60 (`CLIENT_PRESENCE_MAX_CALLS`).
+
+Realtime holds a connection for 5 seconds each time it refuses a channel join,
+and nothing reaches that client meanwhile. Opening a link to a channel the
+reader may not see costs two refusals. `supabase-overrides.yml` lowers the hold
+to 100 ms (`CHANNEL_ERROR_BACKOFF_MS`).
+
+Realtime's own limits count the whole instance, and its defaults are small: 200
+connected clients, 100 channel joins per second and 100 messages per second. Past
+the first, new clients get no live updates. Past the second, a restart can keep
+disconnecting everyone. Past the third, live messages stop for up to a minute for
+everyone, and one edit of a server with a few thousand members is enough.
+`supabase-overrides.yml` raises them to 9000, 100000 and 1000000
+(`TENANT_MAX_CONCURRENT_USERS`, `TENANT_MAX_JOINS_PER_SECOND`,
+`TENANT_MAX_EVENTS_PER_SECOND`). Realtime rewrites its limits from these settings
+each time it starts, so `harmony update` applies them and SQL changes do not last.
 
 Studio, postgres-meta, imgproxy and Kong run newer releases than the pinned
 stack's as well; [Docker Compose](/self-host/docker-compose) lists each change.
@@ -565,7 +627,7 @@ See [Push notifications](/self-host/push).
 | `LIVEKIT_URL` | unset | LiveKit as the backend reaches it, e.g. `ws://livekit:7880`. LiveKit counts as configured when key, secret and this URL are all set |
 | `LIVEKIT_PUBLIC_URL` | `LIVEKIT_URL` | URL clients connect to, e.g. `wss://live.chat.example.com` |
 | `WEBRTC_MODE` | `hybrid` | `sfu` (LiveKit only), `p2p` (peer-to-peer only) or `hybrid` (LiveKit when configured, else peer-to-peer) |
-| `ALLOW_FEDERATED_VOICE` | `true` | Calls with users on other instances |
+| `ALLOW_FEDERATED_VOICE` | `true` | Calls with users on other instances, and their joining voice channels here |
 | `VOICE_RECONCILE_INTERVAL_SECONDS` | `60` | Worker: seconds between checks of the voice participant list against LiveKit's rooms; `0` turns the check off |
 
 See [Voice and video](/self-host/voice).
@@ -603,7 +665,7 @@ The gateway stops at start without `SUPABASE_URL` and
 | `PORT` | `3002` | HTTP and WebSocket port |
 | `TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Express `trust proxy`. A number is a hop count; `true` and `false` are booleans |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Window of the bot REST API rate limit, in milliseconds |
-| `RATE_LIMIT_MAX_REQUESTS` | `100` | Requests per bot, route and channel or server per window |
+| `RATE_LIMIT_MAX_REQUESTS` | `100` | Requests per bot, route and channel or server per window. The overall ceiling per bot ([Instance limits](#instance-limits)) never reads below this rate |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval sent to bots, in milliseconds |
 | `WS_MAX_CONNECTIONS_PER_BOT` | `5` | Gateway connections one bot may hold; the identify past it closes with `4029` |
 | `WS_IDENTIFY_TIMEOUT_MS` | `30000` | Time a new gateway connection has to identify, clamped to 1000-60000 ms; past it the connection closes with `4003` |

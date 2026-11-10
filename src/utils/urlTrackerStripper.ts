@@ -80,13 +80,15 @@ const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
 
 // Share extras of post links per site, on every host of utils/mirrorLinks
 // SOCIAL_SITE_HOSTS (the site and its embed-fixer mirrors).
-//   X:         `s` and `t` are share signature tokens; the post loads without them.
-//   Instagram: `mdxt` is a base64 share id like `igsh` (MXN0Z2w5YWF3c2U1eg== is
-//              1stgl9aawse5z). `igsh`, `igshid` and `utm_*` are universal.
+//   X:         `s` (copy source: 19 Android, 20 web, 46 iOS), `t` and `a` are share
+//              tokens, `a` on web-copied links. The post loads without them.
+//   Instagram: `mdxt` and `vrfl` are base64 share ids like `igsh`
+//              (MXN0Z2w5YWF3c2U1eg== is 1stgl9aawse5z, a3g2aWcxZnhwa3dx is
+//              kx6ig1fxpkwq). `igsh`, `igshid` and `utm_*` are universal.
 //   Bluesky:   its embed snippet links posts with `ref_src=embed`.
 const SOCIAL_TRACKING_PARAMS: Record<MirrorSite, string[]> = {
-  x:         ['s', 't', 'ref_src', 'ref_url'],
-  instagram: ['mdxt'],
+  x:         ['s', 't', 'a', 'ref_src', 'ref_url'],
+  instagram: ['mdxt', 'vrfl'],
   bluesky:   ['ref_src', 'ref_url'],
 }
 

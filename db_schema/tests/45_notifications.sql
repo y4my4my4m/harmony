@@ -10,8 +10,8 @@ SET LOCAL search_path = tests, public;
 SELECT plan(27);
 
 -- Grants ----------------------------------------------------------------------------
-SELECT ok(has_function_privilege('authenticated', 'public.sync_view_context_from_presence(text, uuid, uuid, uuid, text)', 'EXECUTE')
-          AND NOT has_function_privilege('anon', 'public.sync_view_context_from_presence(text, uuid, uuid, uuid, text)', 'EXECUTE'),
+SELECT ok(has_function_privilege('authenticated', 'public.sync_view_context_from_presence(text, uuid, uuid, uuid, text, uuid)', 'EXECUTE')
+          AND NOT has_function_privilege('anon', 'public.sync_view_context_from_presence(text, uuid, uuid, uuid, text, uuid)', 'EXECUTE'),
           'signed-in clients record their view context; anon does not');
 SELECT is((SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = 'public' AND p.proname = 'sync_view_context_from_presence'),

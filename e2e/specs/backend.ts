@@ -104,13 +104,17 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
         try {
           response = await route.fetch({ url: `${url}${path}${target.search}` })
         } catch (error) {
+          // A request in flight when its page closes has nobody left to answer.
+          if (page.isClosed() || /has been closed/.test((error as Error).message)) return
           // voice-moderation.spec.ts saw `socket hang up` here in CI with no exit report: whether
           // the backend was still running tells a dropped connection from a dead process.
           const state = child.exitCode === null && child.signalCode === null ? 'still running' : `exited (${child.exitCode ?? child.signalCode})`
           console.error(`[backend] ${route.request().method()} ${path} failed: ${(error as Error).message.split('\n')[0]}; backend ${state}; last output:\n${output.slice(-4000)}`)
           throw error
         }
-        await route.fulfill({ response })
+        await route.fulfill({ response }).catch((error: Error) => {
+          if (!page.isClosed() && !/has been closed/.test(error.message)) throw error
+        })
       }
       await page.route('**/api/federation/**', forward)
       if (extraEnv.LIVEKIT_URL) await page.route('**/api/livekit/**', forward)

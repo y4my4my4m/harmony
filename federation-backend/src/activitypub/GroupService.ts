@@ -19,6 +19,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
+import { activityIdHeldByAnother, activityIdIsStorable } from './inboxClaim.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { PUBLIC_AUDIENCE } from '../utils/privateMedia.js';
@@ -35,6 +36,7 @@ import {
 import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 import { loadSystemPeople, systemNote, SYSTEM_NOTE_TYPES } from './systemNotes.js';
 import { HARMONY_CONTEXT, HARMONY_NS } from './harmonyContext.js';
+import { categoryFlagProperties, channelFlagProperties } from './channelFlags.js';
 import { groupDiscoverability, instanceFederationOpen } from './serverDirectory.js';
 import { channelMessageActivity, messageObjectId, withParentObjectIds } from './channelMessageActivity.js';
 import { withMessagePolls } from './messagePolls.js';
@@ -76,7 +78,11 @@ function serverToGroup(
   ownerProfile: any | null,
   hostDomain: string,
   publicKeyPem: string | null,
-  display: { roles: ApRole[] | null; pins: Map<string, PinSummary> | null } = { roles: null, pins: null },
+  display: {
+    roles: ApRole[] | null;
+    pins: Map<string, PinSummary> | null;
+    flags?: Map<string, Record<string, unknown>>;
+  } = { roles: null, pins: null },
   instanceOpen = false,
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
@@ -170,6 +176,7 @@ function serverToGroup(
         categoryId: c.category,
         description: c.description || undefined,
         channelType, // 'text', 'voice', or 'category'
+        ...(display.flags?.get(c.id) ?? {}),
         ...(channelType !== 'category' && display.pins?.has(c.id)
           ? { [HARMONY_PINS]: pinsAdvert(`${serverUrl}/channels/${c.id}`, display.pins.get(c.id)!) }
           : {}),
@@ -462,6 +469,10 @@ router.get(
     const pins = cutoffs
       ? await pinSummaries(supabase, listedChannels.filter(c => !cutoffs.has(c.id)).map(c => c.id))
       : null;
+    const flags = new Map([
+      ...await channelFlagProperties(supabase, listedChannels.map(c => c.id)),
+      ...await categoryFlagProperties(supabase, listedCategories.map(cat => cat.id)),
+    ]);
 
     const group = serverToGroup(
       server,
@@ -470,7 +481,7 @@ router.get(
       ownerProfile,
       config.INSTANCE_DOMAIN,
       publicKeyPem,
-      { roles: await loadApRoles(supabase, server.id, serverUrl), pins },
+      { roles: await loadApRoles(supabase, server.id, serverUrl), pins, flags },
       await instanceFederationOpen(),
     );
 
@@ -518,6 +529,7 @@ router.get(
     const channelType = channel.type === CHANNEL_TYPE_VOICE
       ? 'harmony:VoiceChannel'
       : 'harmony:TextChannel';
+    const flags = await channelFlagProperties(supabase, [channelId]);
 
     res.setHeader('Content-Type', 'application/activity+json');
     // 60s: channel metadata changes rarely.
@@ -541,6 +553,7 @@ router.get(
       // Channel metadata
       position: channel.order || 0,
       published: channel.created_at,
+      ...(flags.get(channelId) ?? {}),
       // Collection of messages in this channel
       replies: `${channelUrl}/messages`,
     });
@@ -1057,7 +1070,7 @@ router.post(
     // are processed without a claim rather than dropped.
     const supabase = getSupabaseClient();
     let claimedForProcessing = false;
-    if (typeof activity.id === 'string' && activity.id) {
+    if (activityIdIsStorable(activity.id, actorUrl)) {
       let originDomain: string | null = null;
       try {
         originDomain = actorUrl ? new URL(actorUrl).hostname.toLowerCase() : null;
@@ -1081,12 +1094,12 @@ router.post(
         const { data: claimed, error: claimError } = await supabase.rpc('claim_ap_activity', {
           p_ap_id: activity.id,
         });
-        if (!claimError && claimed === false) {
+        if (!claimError && claimed === false && !(await activityIdHeldByAnother(supabase, activity.id, actorUrl))) {
           logger.info(`Skipping already-processed server inbox activity ${activity.id}`);
           res.status(202).json({ message: 'Activity already processed' });
           return;
         }
-        claimedForProcessing = !claimError;
+        claimedForProcessing = !claimError && claimed !== false;
       }
     }
 

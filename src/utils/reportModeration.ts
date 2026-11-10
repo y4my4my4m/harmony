@@ -16,6 +16,7 @@ export type ReportReason =
   | 'illegal_content'
   | 'impersonation'
   | 'nsfw'
+  | 'username_hoarding'
   | 'other'
 
 const t = (key: string, named?: Record<string, unknown>) =>
@@ -51,6 +52,7 @@ export const REPORT_REASONS: ReportReasonOption[] = [
   reasonOption('illegal_content', 'legal'),
   reasonOption('impersonation', 'violation'),
   reasonOption('nsfw', 'violation'),
+  reasonOption('username_hoarding', 'violation'),
   reasonOption('other', 'other'),
 ]
 

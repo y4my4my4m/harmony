@@ -37,6 +37,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | Password reset emails never arrive | No SMTP server, or the provider blocks outgoing 25 and 587 | The `email` row of `harmony doctor`; `harmony logs auth`; [Email](/self-host/email) |
 | Push notifications never arrive | VAPID keys missing or not served | The `push` row of `harmony doctor`; [Push notifications](/self-host/push) |
 | The proxy answers 502 | The federation server is down or unhealthy | `docker compose ps` (it reports `healthy` once `/health` answers 200); `docker exec harmony-caddy wget -qO- http://federation-server:3001/health`; `harmony logs federation-server` |
+| A new install stops at `Realtime (…) is restarting/unhealthy after 300 s`; `harmony logs db` shows `Permission denied` on a file in `/docker-entrypoint-initdb.d/` | Supabase's init scripts were written under a umask of 077 or 027 and left private, and Postgres could not read them when it created the database | See [A restrictive umask](#umask) |
 | Services restart in a loop; `docker compose ps` shows `Exited (137)` | The kernel killed them for lack of memory | Add swap or memory; the `memory` row of `harmony doctor` |
 | The disk fills; most of the database is the `_supabase` database or the write-ahead log (`supabase/volumes/db/data/pg_wal`) | [Log collection](/self-host/#log-collection) stores every request and deletes none, and its replication slot holds up to 4 GB of write-ahead log. The `stored logs`, `logflare slot` and `log collection` rows of `harmony doctor` warn above 1 GB | `harmony analytics off --delete-logs`. On an instance whose `.env` has no `ENABLE_ANALYTICS`, `harmony update` does the same |
 | Forgot the admin password | | `harmony admin reset-password --email you@example.com` |
@@ -80,6 +81,7 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | `supabase/volumes/db/data holds a database, but supabase/.env has no JWT_SECRET/POSTGRES_PASSWORD…` | `supabase/.env` was lost or emptied; new secrets would lock the database out | Restore `supabase/.env` from a backup (`config.tar`) |
 | `could not fetch … from https://github.com/supabase/supabase (network, or no such commit/tag/branch)` | No access to GitHub, or a wrong `SUPABASE_REF` | Check the network and `SUPABASE_REF` |
 | `… runs Postgres …; the database in supabase/volumes/db/data is Postgres … and would not start…` | A refresh to a Supabase stack with another Postgres major version | Stay on the pinned commit; `supabase/` is unchanged |
+| `chmod could not give all … files and directories the containers read o+r; run configure.sh as their owner or root…` (warning) | Some of the files belong to another user, and `configure.sh` runs neither as that user nor as root | Run it as root or as the checkout's owner; the `files` check of `harmony doctor` names the first. See [A restrictive umask](#umask) |
 | `docker compose rejects the configuration above (Compose …)` | An edited file Compose cannot parse, or an old Compose | Read the error above it; check hand edits to the `.env` files |
 | `… failed. It was not recorded; later migrations were skipped.` then `migration failed - database is at the last migration that succeeded` | A migration hit an SQL error; the lines after it show the `ERROR` | Read the error, `harmony logs db`; re-run once fixed. Report it if the error comes from the migration itself |
 | `Postgres in … did not become ready within 180 s…` | The database container is not starting | `harmony logs db`; disk space and memory |
@@ -153,6 +155,53 @@ UPDATE public.instance_config SET config_value = to_jsonb('chat.example.com'::te
 
 Other servers keep the domain in the ids of every account and post they
 know, so an instance that has federated keeps its domain.
+
+## A restrictive umask {#umask}
+
+Under a umask of 077 or 027, common on hardened servers, git and tar create
+files only their owner, or owner and group, can read: 0600 and 0700, or 0640
+and 0750. A bind mount keeps the host file's mode, as does a `COPY` in an
+image build, and some containers read as their own user: `supabase-db` runs
+Supabase's init scripts as `postgres`, `kong` reads its configuration as
+`kong`, and the images `HARMONY_BUILD=1` builds run as `node`.
+
+`configure.sh` gives the files the containers read the modes umask 022
+gives (readable to every user, directories and executables searchable):
+the files git tracks in the checkout and their directories, and
+`self-host/supabase/` less its data (`volumes/db/data`, `volumes/storage`),
+its `.env` files, `test.http` and `docker-compose.override.yml`.
+`harmony install`, `harmony update`, `harmony config`, `harmony restore`
+and `configure.sh --refresh-supabase` run it, and it prints
+`… files and directories the containers read made readable to them (o+r)`
+when it changes some. Other files keep their modes. The secret files,
+`.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`,
+`livekit.yaml` and `supabase/.env`, stay 0600: each run that writes one
+sets that mode. `self-host/backups/` is 0700.
+
+Postgres runs the init scripts only when it creates the database. A
+database created while they were unreadable stays without them: its service
+roles have no passwords, the `db init` check of `harmony doctor` fails, and
+Realtime finds no `_realtime` schema. The install stopped at
+`Realtime (…) is restarting/unhealthy after 300 s`, with `Permission denied`
+in `harmony logs db`; it never came up and holds no data. Give it a new
+database:
+
+```bash
+cd /opt/harmony/self-host
+docker compose down
+mv supabase/volumes/db/data supabase/volumes/db/data.failed
+bash install.sh
+```
+
+A checkout whose `configure.sh` predates this (`harmony doctor` has no
+`files` check) stops the same way again. Remove that install and run the
+installer again:
+
+```bash
+cd /opt/harmony/self-host && docker compose down -v
+rm -rf /opt/harmony
+curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | sudo bash
+```
 
 ## Security checks {#security}
 

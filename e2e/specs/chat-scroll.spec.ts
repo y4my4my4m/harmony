@@ -54,6 +54,37 @@ const loadedSeeds = (page: Page) => page.evaluate(() => {
     .filter((n) => !Number.isNaN(n))
 })
 
+test('a scroll up right after opening is not pulled back to the end', async ({ page }) => {
+  test.setTimeout(120_000)
+  const user = await createUser(admin, 'scrollup')
+  const server = await seedServer(admin, user, `Scroll up ${user.username}`)
+  const base = Date.now() - 60 * 60 * 1000
+  const { error } = await admin.from('messages').insert(Array.from({ length: SEEDED }, (_, i) => ({
+    channel_id: server.generalChannelId,
+    user_id: user.id,
+    content: [{ type: 'text', text: `seed ${i}: ` + 'lorem ipsum dolor sit amet '.repeat(1 + (i % 5)) }],
+    created_at: new Date(base + i * 30_000).toISOString(),
+  })))
+  if (error) throw new Error(error.message)
+
+  await signIn(page, user)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await expect(list(page).getByText(`seed ${SEEDED - 1}:`)).toBeVisible({ timeout: 30000 })
+  // Inside the landing retries, which run for about 3 s after the rows arrive.
+  const box = await list(page).boundingBox()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, -200)
+    await page.waitForTimeout(120)
+  }
+  await expect.poll(() => distanceFromBottom(page)).toBeGreaterThan(300)
+  await page.waitForTimeout(4000)
+  expect(await distanceFromBottom(page)).toBeGreaterThan(300)
+
+  await admin.from('servers').delete().eq('id', server.id)
+  await deleteUser(admin, user)
+})
+
 for (const history of HISTORIES) test.describe(history.name, () => {
   let user: SpecUser
   let server: SeededServer

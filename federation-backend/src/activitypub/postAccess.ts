@@ -53,6 +53,17 @@ export async function canReadPost(
   return accessRpc('federation_post_access', { p_post_id: post.id, p_domain: host });
 }
 
+/** Whether the actor's host may read the post, decided as canReadPost decides a signed GET. */
+export async function actorHostReadsPost(
+  post: { id: string; visibility?: string | null },
+  actorUrl: string | null,
+): Promise<boolean> {
+  if (isPublicVisibility(post.visibility)) return true;
+  const host = signerHost(actorUrl);
+  if (!host) return false;
+  return accessRpc('federation_post_access', { p_post_id: post.id, p_domain: host });
+}
+
 /** Whether the request may read a message of the conversation. */
 export async function canReadConversation(req: Request, conversationId: string): Promise<boolean> {
   const host = signerHost(await verifiedSigner(req));

@@ -64,7 +64,7 @@ upper() { tr '[:lower:]' '[:upper:]'; }
 reserved_username() {
 	local name="$1" host labels label
 	case "$name" in
-		everyone|here|system|harmony|admin|admins|administrator|mod|mods|moderator|moderators|staff|root) return 0 ;;
+		everyone|here|system|harmony|admin|admins|administrator|mod|mods|moderator|moderators|staff|root|discord|google|apple|microsoft|openai|chatgpt|gemini|grok|meta|amazon|android|windows|ios|linux|facebook|instagram|youtube|twitter|tiktok|whatsapp|telegram|reddit|github|paypal|netflix|spotify|samsung|nintendo|playstation|xbox|anthropic|cloudflare|mastodon|bluesky|twitch) return 0 ;;
 	esac
 	host="$(printf '%s' "${2%%:*}" | lower)"
 	[[ -n "$host" ]] || return 1
@@ -103,6 +103,8 @@ stack_image() {
 
 # shellcheck source=linking.sh
 source "$SELF_HOST_DIR/linking.sh"
+# shellcheck source=modes.sh
+source "$SELF_HOST_DIR/modes.sh"
 
 # --- upload ceiling -----------------------------------------------------------
 # FILE_SIZE_LIMIT in supabase/.env: the largest object storage-api accepts, bytes,
@@ -171,6 +173,25 @@ profiles_with() {
 # it; no profile held it back).
 analytics_unchosen() {
 	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^ENABLE_ANALYTICS=' "$ENV_FILE"
+}
+
+# --- Supabase Studio -------------------------------------------------------------
+# studio and meta, compose profile `studio` (supabase-overrides.yml), ENABLE_STUDIO in .env.
+
+# studio_unchosen: a configured install whose .env has no ENABLE_STUDIO. Releases up to 1.9.4 wrote
+# no such key and ran Studio on every install.
+studio_unchosen() {
+	[[ -n "$(env_get "$ENV_FILE" DOMAIN)" ]] && ! grep -q '^ENABLE_STUDIO=' "$ENV_FILE"
+}
+
+# studio_default_off: an install that never chose Studio (studio_unchosen before configure.sh) and
+# now has it off. Removes the containers.
+studio_default_off() {
+	if compose --profile studio rm -sf studio meta >/dev/null 2>&1; then
+		ok "Supabase Studio is off now: it ran without having been chosen. harmony studio on starts it."
+	else
+		warn "Supabase Studio is off in .env, but its containers were not removed: harmony studio off"
+	fi
 }
 
 # Bytes of the _supabase database plus the write-ahead log.
@@ -533,6 +554,43 @@ latest_backup() {
 		[[ -f "$m" ]] && last="${m%/manifest}"
 	done
 	printf '%s' "$last"
+}
+
+# Deletes complete update backups (TIME-OLD-to-NEW) past the newest HARMONY_KEEP_UPDATE_BACKUPS
+# (environment, then .env; default 5, 0 keeps all). OLD-to-OLD, written by a run at an unchanged
+# commit, counts apart: only an OLD-to-NEW dump holds the schema a rollback returns to. A failed
+# deletion warns; the update has already succeeded.
+prune_update_backups() {
+	local keep="${HARMONY_KEEP_UPDATE_BACKUPS:-$(env_get "$ENV_FILE" HARMONY_KEEP_UPDATE_BACKUPS)}"
+	keep="${keep:-5}"
+	if [[ ! "$keep" =~ ^[0-9]+$ ]]; then
+		warn "HARMONY_KEEP_UPDATE_BACKUPS is not a number ($keep); no backup deleted"
+		return 0
+	fi
+	keep=$((10#$keep))
+	(( keep > 0 )) || return 0
+	local re='^[0-9]{8}-[0-9]{6}-([0-9a-f]+)-to-([0-9a-f]+)(-[0-9]+)?$'
+	local i dir m changed=0 same=0 freed
+	local -a all=() old=()
+	for m in "$BACKUP_DIR"/*/manifest; do
+		[[ -f "$m" ]] && all+=("${m%/manifest}")
+	done
+	for (( i = ${#all[@]} - 1; i >= 0; i-- )); do
+		dir="${all[i]}"
+		[[ "${dir##*/}" =~ $re ]] || continue
+		if [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+			same=$((same + 1)); (( same > keep )) && old+=("$dir")
+		else
+			changed=$((changed + 1)); (( changed > keep )) && old+=("$dir")
+		fi
+	done
+	[[ ${#old[@]} -gt 0 ]] || return 0
+	freed="$(du -shc "${old[@]}" 2>/dev/null | tail -1 | cut -f1 || true)"
+	if rm -rf -- "${old[@]}"; then
+		info "Old update backups deleted: ${#old[@]} ($freed freed). HARMONY_KEEP_UPDATE_BACKUPS in .env sets how many stay."
+	else
+		warn "Some old update backups in $BACKUP_DIR were not deleted."
+	fi
 }
 
 # wait_healthy SERVICE [TRIES]: 0 once the service runs and its health check,

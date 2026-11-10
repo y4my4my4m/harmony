@@ -44,6 +44,13 @@
     "learnMore": "Learn more"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "Too many accounts were created from this network today. Try again tomorrow, or ask this instance's admin for an invitation.",
+      "domainCap": "Too many accounts were created with this email domain today. Try again tomorrow, or ask this instance's admin for an invitation.",
+      "mailboxCap": "This email inbox has reached the limit of accounts on this instance.",
+      "blockedDomain": "This email provider cannot be used to sign up on this instance. Use another address.",
+      "blockedNetwork": "Sign-ups from this network are not available on this instance. Ask this instance's admin for an invitation."
+    },
     "login": "Login",
     "register": "Register",
     "logout": "Log out",
@@ -1733,6 +1740,8 @@
       "mirrorLinkHost": "Mirror for {site} posts",
       "renderEmoticonsAsEmoji": "Show emoticons others send as emoji",
       "renderEmoticonsAsEmojiDesc": "Display :) :D <3 and similar in messages as emoji. The original text is kept.",
+      "animateEmoji": "Animate custom emoji",
+      "animateEmojiDesc": "Off, animated emoji show their first frame. Only you see the difference.",
       "inviteBannerBg": "Server banner in invite dialog",
       "inviteBannerBgDesc": "Show a blurred, darkened server banner behind the invite dialog when the server has one.",
       "quickReact": "Quick react",
@@ -2394,6 +2403,15 @@
       "changesReset": "Profile changes reset",
       "handleCopied": "Handle copied",
       "copyFailed": "Could not copy"
+    },
+    "dmPolicy": {
+      "title": "Direct messages",
+      "label": "Who can start a conversation with you",
+      "description": "Conversations you already have keep working. Instance staff can always reach you. Someone on another instance refused by this setting gets no notice.",
+      "everyone": "Everyone",
+      "known": "Server members and people I follow",
+      "following": "Only people I follow",
+      "failed": "Could not save who can start a conversation with you"
     }
   },
   "navigation": {
@@ -2986,7 +3004,8 @@
       "illegal_content": "Illegal content",
       "impersonation": "Impersonation",
       "nsfw": "Inappropriate/NSFW content",
-      "other": "Other"
+      "other": "Other",
+      "username_hoarding": "Username hoarding or account trading"
     },
     "reportSource": {
       "fromInstance": "from {domain}",
@@ -3545,6 +3564,16 @@
       },
       "newLink": "Create new link",
       "newLinkHint": "Creates a link with these settings. Existing links keep working until they expire or you revoke them.",
+      "widgets": {
+        "toggle": "Add to your website",
+        "hint": "Paste one of these into your site. It shows this server's name and member count, and links to this invite. Anyone can see them.",
+        "expiring": "This link expires or has a use limit, and the widget stops working when it does. For a website, make a link that never expires.",
+        "badge": "Badge",
+        "markdown": "Badge for Markdown (README, forums)",
+        "join": "Join button",
+        "icon": "Small icon",
+        "card": "Card (iframe)"
+      },
       "creating": "Creating…",
       "created": "New invite link created",
       "createFailed": "Couldn't create an invite link",
@@ -3946,6 +3975,62 @@
         "label": "Manage roles",
         "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
       }
+    },
+    "commands": {
+      "header": "Commands",
+      "bar": {
+        "label": "Options for {command}",
+        "close": "Close command (Esc)",
+        "send": "Send command",
+        "required": "required",
+        "choose": "Choose…",
+        "chooseChannel": "Choose a channel…",
+        "chooseRole": "Choose a role…",
+        "searchMembers": "Search members…",
+        "true": "True",
+        "false": "False"
+      },
+      "validation": {
+        "required": "Required.",
+        "integer": "Enter a whole number.",
+        "number": "Enter a number.",
+        "min": "At least {min}.",
+        "max": "At most {max}.",
+        "minLength": "At least {min} characters.",
+        "maxLength": "At most {max} characters.",
+        "choice": "Pick one of the choices.",
+        "pick": "Pick one from the list."
+      },
+      "errors": {
+        "unavailable": "This command is not available here.",
+        "forbidden": "You do not have permission to use this command here.",
+        "timedOut": "You are timed out in this server.",
+        "threadLocked": "This thread is locked.",
+        "slowmode": "Slowmode is on. Try again in {seconds} s.",
+        "slowmodeNoTime": "Slowmode is on. Try again shortly.",
+        "rateLimited": "Too many commands. Try again in {seconds} s.",
+        "rateLimitedNoTime": "Too many commands. Try again shortly.",
+        "invalidOption": "The value of {name} is not accepted.",
+        "invalidOptions": "The command options are not accepted.",
+        "failed": "The command could not be sent."
+      },
+      "notice": {
+        "used": "You used {command}",
+        "thinking": "{bot} is thinking…",
+        "noResponse": "{bot} did not respond.",
+        "offline": "{bot} is offline.",
+        "cannotPost": "{bot} can't post in this channel.",
+        "blocked": "AutoMod blocked the reply of {bot}.",
+        "threadLocked": "{bot} can't reply: the thread is locked.",
+        "failed": "{bot} could not reply.",
+        "private": "Only you can see this",
+        "dismiss": "Dismiss",
+        "someBot": "The bot"
+      }
+    },
+    "interactions": {
+      "used": "used {command}",
+      "someoneUsed": "Someone used {command}"
     }
   },
   "webhooks": {
@@ -4021,6 +4106,10 @@
     "lock": {
       "messages": "End-to-end encrypted",
       "voice": "Voice and video are end-to-end encrypted"
+    },
+    "home": {
+      "voice": "This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.",
+      "messages": "This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot read or send its messages."
     },
     "status": {
       "active": "End-to-end encrypted",
@@ -4486,9 +4575,12 @@
     },
     "timedOut": "You are timed out in this server until {time} and cannot send messages, react or start threads.",
     "antispam": {
-      "rateLimited": "New accounts can only send a few messages at a time. Try again in {seconds} s.",
+      "rateLimited": "You're doing that too quickly. Try again in {seconds} s.",
       "linksBlocked": "New accounts cannot post links yet.",
-      "strangerMentions": "New accounts can mention at most {count} people who do not follow them."
+      "strangerMentions": "New accounts can mention at most {count} people who do not follow them.",
+      "serverLimit": "An account can own at most {count} servers on this instance.",
+      "botLimit": "An account can own at most {count} bots on this instance.",
+      "dmNotAllowed": "This person only accepts new conversations from people they know."
     },
     "alert": {
       "raid": "Possible raid: {joins} members joined within {seconds} seconds.",
@@ -5073,7 +5165,7 @@
       "enterPhrase": "Enter recovery phrase",
       "scanHint": "Point the camera at the QR code on the new device.",
       "scanPasteLabel": "Or paste the code copied from the new device",
-      "showInstead": "New device has a camera? Show a code for it to scan instead",
+      "showInstead": "Show a code to scan or copy instead",
       "showLead": "On the new device, choose {another}, then {scanInstead}, and point its camera here, or copy the code below and paste it there. Anyone signed in to your account who scans or pastes this code can receive your keys, so keep it to yourself.",
       "showLeadAnother": "Another device",
       "showLeadScanInstead": "Scan or paste a code from it instead",
@@ -5296,6 +5388,12 @@
       "federationCloseConfirm": "Close federation",
       "configLoadFailed": "Could not read the current settings. Reload before saving.",
       "webrtcLoadFailed": "The voice settings could not be read, so they cannot be changed here. Reload the page to try again.",
+      "federatedCallsLabel": "Calls with other instances",
+      "federatedCallsOn": "On. People from other instances can join voice channels and calls here.",
+      "federatedCallsOff": "Off. People from other instances are refused and told so.",
+      "federatedCallsNoLivekit": "Off. This instance has no LiveKit server.",
+      "federatedCallsUnread": "The current state could not be read. Reload the page to try again.",
+      "federatedCallsHint": "ALLOW_FEDERATED_VOICE in the federation backend's environment decides this.",
       "customOAuthTitle": "Your own sign-in providers",
       "customOAuthHint": "OpenID Connect or OAuth 2.0 providers this instance trusts, such as Authentik, Keycloak or Better Auth. Their buttons follow the ones above on the sign-in page. Their client secrets stay on the server, so they are added and removed there.",
       "customOAuthEmpty": "None yet.",
@@ -5347,7 +5445,7 @@
     },
     "antiSpam": {
       "title": "Anti-spam",
-      "hint": "Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it, to every server, DM and post. Every limit here is off or permissive until you change it.",
+      "hint": "Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it, to every server, DM and post.",
       "loadingSettings": "Loading settings...",
       "saved": "Anti-spam settings saved",
       "newAccounts": {
@@ -5360,6 +5458,27 @@
         "strangerMentionsHint": "A stranger is anyone who does not follow the author, local or remote.",
         "blockLinks": "New accounts cannot post links",
         "staffExempt": "Instance admins and moderators are never limited."
+      },
+      "accounts": {
+        "title": "Every local account",
+        "hint": "Ceilings for ordinary use to stay far below. Past one, a write is refused until the window passes. 0 = no limit. Instance admins, moderators and accounts exempted in Users are never limited.",
+        "messagesPerMinute": "Messages per minute",
+        "postsPerHour": "Posts per hour",
+        "postsPerHourHint": "Boosts are not counted.",
+        "reactionsPerMinute": "Reactions and favourites per minute",
+        "followsPerHour": "Follows per hour",
+        "joinsPerHour": "Server joins per hour",
+        "serversPerHour": "Servers created per hour",
+        "strangerDmsPerHour": "New conversations with strangers per hour",
+        "strangerDmsHint": "A stranger does not follow the account, shares no server with it and has no conversation with it.",
+        "newStrangerDmsPerHour": "Same, for new accounts",
+        "newStrangerDmsHint": "Also counts people who share only a server with the new account: joining a public server reaches every member."
+      },
+      "bots": {
+        "title": "Bots",
+        "hint": "Requests per minute across all routes of one bot, on top of the per-route limit. A bot whose owner is exempt has no such ceiling. 0 = no limit.",
+        "requestsPerMinute": "Requests per minute, per bot",
+        "bridgeRequestsPerMinute": "Requests per minute, per linked Discord bridge"
       },
       "federation": {
         "title": "Federation mention spam",
@@ -5414,6 +5533,13 @@
         "loadQueue": "Failed to load the review queue",
         "review": "Review failed"
       }
+    },
+    "limitExempt": {
+      "add": "Exempt {name} from instance limits",
+      "remove": "Apply instance limits to {name}",
+      "added": "{name} is exempt from instance limits",
+      "removed": "Instance limits apply to {name} again",
+      "failed": "Could not change the exemption"
     },
     "instanceEmojis": {
       "tab": "Emojis",
@@ -6322,6 +6448,12 @@
       "deleteCategory": "Delete category"
     },
     "thread": {
+      "left": "You left {thread}",
+      "joined": "You joined {thread}",
+      "leaveFailed": "Could not leave the thread",
+      "joinFailed": "Could not join the thread",
+      "goToStart": "Go to first message",
+      "showInChannel": "Show in channel",
       "leave": "Leave thread",
       "join": "Join thread",
       "edit": "Edit thread",
@@ -6556,7 +6688,7 @@
       "staysKeys": "End-to-end encryption keys",
       "staysBots": "Bots you own",
       "staysServers": "Servers you own",
-      "staysFollowing": "The accounts you follow",
+      "staysFollowing": "The accounts you follow. Download your data, then import the list on the new account.",
       "ownedServersWarning": "You own {servers}. Ownership does not move; transfer it first if the new account should own it. | You own {servers}. Ownership does not move; transfer them first if the new account should own them.",
       "cooldown": "After a move, another move is possible after 30 days.",
       "exportFirst": "Download your data first",
@@ -6568,7 +6700,10 @@
       "noPassword": "Your account has no password. Moving needs a sign-in within the last ten minutes.",
       "confirm": "Move my account",
       "moving": "Moving…",
-      "success": "This account now points to {handle}. Followers are being moved."
+      "success": "This account now points to {handle}. Followers are being moved.",
+      "staysInteractions": "Likes, boosts and bookmarks",
+      "staysProfile": "Your display name, bio, avatar, banner and profile fields. A new account on Harmony can copy them after the move.",
+      "staysBlocks": "Accounts you blocked or muted"
     },
     "moved": {
       "title": "This account has moved",
@@ -6599,7 +6734,14 @@
       "move_cooldown": "You moved less than 30 days ago. Try again in {count} day. | You moved less than 30 days ago. Try again in {count} days.",
       "too_many_attempts": "Too many attempts. Try again in {count} minute. | Too many attempts. Try again in {count} minutes.",
       "wrong_password": "That password is not correct.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "import_running": "An import is already running.",
+      "too_many_accounts": "A file can list at most 20,000 accounts.",
+      "no_accounts": "That file lists no accounts.",
+      "account_moved": "This account has moved. Import on the new account.",
+      "import_rate_limited": "Too many imports today. Try again in {count} hour. | Too many imports today. Try again in {count} hours.",
+      "not_verified": "That move could not be confirmed.",
+      "nothing_to_copy": "There was nothing to copy."
     },
     "profile": {
       "moved": "{name} has moved to {target}",
@@ -6614,6 +6756,72 @@
       "short": "Account moved",
       "someone": "An account",
       "newAccount": "a new account"
+    },
+    "import": {
+      "title": "Import the accounts you follow",
+      "description": "Follow the accounts on a list from your old account. On Mastodon, export Follows as a CSV under Import and export. On Harmony, use the ZIP from your data download. Posts and likes are not imported.",
+      "choose": "Choose file",
+      "found": "{count} account found in this file. | {count} accounts found in this file.",
+      "foundHint": "Locked accounts and accounts on other servers get a follow request. Accounts that block you, or that you block, are skipped.",
+      "start": "Start import",
+      "starting": "Starting…",
+      "running": "Importing: {done} of {total} done",
+      "waiting": "Waiting for the hourly follow limit. It continues in about {count} minute. | Waiting for the hourly follow limit. It continues in about {count} minutes.",
+      "finished": "Import finished",
+      "stopped": "Import stopped. Follows already made stay.",
+      "cancel": "Stop import",
+      "counts": {
+        "followed": "Now following",
+        "requested": "Follow requests sent",
+        "already": "Already followed or requested",
+        "failed": "Could not follow",
+        "cancelled": "Not processed"
+      },
+      "failures": "{count} account could not be followed | {count} accounts could not be followed",
+      "moreFailures": "And {count} more.",
+      "reasons": {
+        "invalid_handle": "Not an account address",
+        "not_found": "Account not found",
+        "instance_blocked": "This server does not federate with that server",
+        "federation_off": "Federation is off on this server",
+        "unreachable": "Its server did not answer",
+        "unavailable": "The account is deleted or suspended",
+        "self": "This is your own account",
+        "moved": "The account has moved",
+        "blocked": "A block stands between you",
+        "declined": "It declined your follow request earlier"
+      },
+      "fileErrors": {
+        "file_too_large": "That file is too large.",
+        "unrecognized_file": "That file is not a following list. Use following_accounts.csv from Mastodon or the ZIP from a Harmony data download.",
+        "wrong_list": "That looks like a different list, such as blocks or mutes. Use the list of accounts you follow.",
+        "no_accounts": "That file lists no accounts."
+      }
+    },
+    "copy": {
+      "title": "Copy your old profile",
+      "description": "{handle} moved to this account. You can copy any of its profile details here. Nothing changes until you confirm.",
+      "origin": "Old account",
+      "fields": {
+        "display_name": "Display name",
+        "bio": "Bio",
+        "avatar": "Avatar",
+        "banner": "Banner",
+        "profile_fields": "Profile fields"
+      },
+      "same": "Already the same",
+      "adds": "Adds to this profile",
+      "replaces": "Replaces what this profile has",
+      "nothing": "The old account has no profile details to copy.",
+      "review": "Copy selected",
+      "confirmTitle": "Copy from {handle}?",
+      "confirmAdds": "{field}: added to this profile.",
+      "confirmReplaces": "{field}: replaces what this profile has now.",
+      "confirmWarning": "What this profile has now is overwritten and cannot be restored.",
+      "confirm": "Copy to this profile",
+      "copying": "Copying…",
+      "done": "Profile details copied",
+      "partial": "Copied, except: {fields}. Those could not be read from the old server."
     }
   },
   "polls": {
@@ -7188,7 +7396,8 @@
     "errors": {
       "load": "Drive could not be loaded",
       "temporary": "That change did not save: {reason}",
-      "blocked": "This file was removed by the instance moderators."
+      "blocked": "This file was removed by the instance moderators.",
+      "full": "Storage is full, so this upload was refused. Free up space in Drive, or ask an instance admin."
     },
     "details": {
       "label": "File details",
@@ -7517,6 +7726,7 @@
     "quotaUser": "Storage per account",
     "quotaModerator": "Storage per instance moderator",
     "quotaAdmin": "Storage per instance admin",
+    "instanceLimit": "Stored files across the instance (0 = no limit)",
     "ephemeralDays": "Temporary files are kept",
     "days": "days",
     "ephemeralDaily": "Temporary uploads per day once Drive is full",
@@ -7889,6 +8099,45 @@
       "paused": "while paused"
     }
   },
+  "adminSignupLimits": {
+    "title": "Sign-up limits",
+    "intro": "Raises the cost of creating accounts in bulk. One person with a second or test account stays well under these. Invitations and this instance's own identity provider are not limited. Google, GitHub and Twitch sign-ups count toward the network limit only.",
+    "hookNote": "Applies once the auth service runs the sign-up hook; harmony doctor checks it. Clients on a private network are not limited.",
+    "enabled": "Apply sign-up limits",
+    "ipCap": "Accounts per network in 24 hours",
+    "ipCapHint": "A network is one IPv4 address or one IPv6 /56. 0 is no limit.",
+    "mailboxCap": "Accounts per email inbox in 30 days",
+    "mailboxCapHint": "me+test{'@'}example.org counts as me{'@'}example.org, and Gmail ignores dots. 0 is no limit.",
+    "domainCap": "Accounts per email domain in 24 hours",
+    "domainCapHint": "Spots one operator with many mailboxes on a domain. Large mail providers such as Gmail are not counted. 0 is no limit.",
+    "enforceCaps": "Refuse accounts past the network and domain caps",
+    "enforceCapsHint": "Off: those accounts are allowed and counted below. A campus or office can share one address or one email domain. The inbox cap and the domain and mail host lists always refuse.",
+    "blockDisposable": "Refuse disposable email addresses",
+    "blockDisposableHint": "A built-in list of temporary-mail domains and the mail hosts behind them.",
+    "blockedDomains": "More email domains to refuse",
+    "blockedDomainsHint": "One domain per line. Its subdomains are refused too.",
+    "blockedMailHosts": "More mail hosts to refuse",
+    "blockedMailHostsHint": "One host per line. Refuses any email domain whose mail servers are at this host or under it: erinn.biz also covers recv1.erinn.biz. Do not list a shared service such as google.com, outlook.com or cloudflare.net: that refuses everyone using it.",
+    "blockedNetworks": "Addresses and ranges to refuse",
+    "blockedNetworksHint": "One per line, such as 203.0.113.7 or 2001:db8:1:2::/64. Refuses new accounts from it and nothing else: people who already have an account keep signing in. One address can be a whole campus, office or mobile carrier, so block a range only when you are sure.",
+    "trustedDomains": "Email domains never limited",
+    "trustedDomainsHint": "One domain per line, for a campus or company wrongly refused or joining at once. Its subdomains count too. Skips the domain cap, the disposable list and the mail host lists. A domain listed to refuse stays refused, and the inbox limit applies.",
+    "save": "Save limits",
+    "saved": "Sign-up limits saved",
+    "saveFailed": "Could not save the sign-up limits.",
+    "loadFailed": "Could not load the sign-up limits.",
+    "invalidCap": "Enter a whole number from 0 to 1000.",
+    "invalidDomain": "{domain} is not a domain name.",
+    "invalidNetwork": "{network} is not an address or a usable range. A range is /8 or narrower for IPv4, /16 or narrower for IPv6.",
+    "wouldRefuseTitle": "Past a cap, allowed, in the last 7 days",
+    "refusalsTitle": "Refused in the last 7 days",
+    "refusalIpCap": "Network limit",
+    "refusalDomainCap": "Domain limit",
+    "refusalMailboxCap": "Inbox limit",
+    "refusalBlockedDomain": "Refused email domain",
+    "refusalMailHost": "Mail host",
+    "refusalBlockedNetwork": "Refused address"
+  },
   "adminInvites": {
     "tab": "Invites",
     "title": "Invite people",
@@ -8145,6 +8394,127 @@
       "members": "{count} member | {count} members",
       "here": "Members who are online and can see the channel",
       "unknown": "Not a role of this server"
+    }
+  },
+  "adminSignups": {
+    "tab": "Signups",
+    "title": "Recent signups",
+    "intro": "Accounts created on this instance, newest first, with their email domain and activity. Email addresses and IP addresses are not shown. A group is a reason to look, not proof: a popular day or a shared provider can look the same.",
+    "limitsLink": "Sign-up limits are in the Invites tab.",
+    "windowLabel": "Period",
+    "window": "{count} day | {count} days",
+    "searchLabel": "Search signups",
+    "searchHint": "Username, name or email domain",
+    "loadError": "This could not be loaded.",
+    "previous": "Previous",
+    "next": "Next",
+    "filters": {
+      "label": "Status",
+      "all": "All",
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "daily": {
+      "title": "Per day (UTC)",
+      "day": "Day",
+      "signups": "Signups",
+      "domains": "Email domains",
+      "topDomain": "Largest domain",
+      "peakHour": "Busiest hour",
+      "suspended": "Suspended",
+      "refused": "Refused",
+      "wouldRefuse": "Past a cap, allowed"
+    },
+    "groups": {
+      "title": "Groups",
+      "empty": "No groups of {count} or more in this period.",
+      "kindDomain": "Email domain",
+      "kindServer": "Joined within an hour of signing up",
+      "size": "{count} account | {count} accounts",
+      "priorDomain": "{count} earlier account on this domain | {count} earlier accounts on this domain",
+      "priorServer": "{count} member from before this period | {count} members from before this period",
+      "suspended": "{count} suspended",
+      "span": "{from} to {to}",
+      "show": "Show",
+      "showLabel": "Show the group {label}",
+      "select": "Select all",
+      "selectLabel": "Select all in the group {label}",
+      "filterActive": "Showing the group {label}",
+      "clear": "Show everyone",
+      "mailHost": "Mail host: {hosts}"
+    },
+    "rows": {
+      "title": "{count} account | {count} accounts",
+      "empty": "No signups in this period.",
+      "emptySearch": "No signups match.",
+      "selectAccount": "Select {name}",
+      "staff": "Staff",
+      "suspended": "Suspended",
+      "unconfirmed": "Email not confirmed",
+      "noEmail": "No email",
+      "signedUp": "Signed up {time}",
+      "posts": "{count} post | {count} posts",
+      "messages": "{count} message | {count} messages",
+      "servers": "In {count} server | In {count} servers",
+      "owns": "Owns {count} server | Owns {count} servers",
+      "firstServer": "Joined {server} after {minutes} min"
+    },
+    "selection": {
+      "count": "{count} selected",
+      "limit": "At most {count} accounts at a time.",
+      "suspend": "Suspend…",
+      "unsuspend": "Unsuspend…",
+      "clear": "Clear selection",
+      "delete": "Delete…"
+    },
+    "dialog": {
+      "suspendTitle": "Suspend {count} account | Suspend {count} accounts",
+      "unsuspendTitle": "Unsuspend {count} account | Unsuspend {count} accounts",
+      "affectedSuspend": "Will be suspended",
+      "affectedUnsuspend": "Will be unsuspended",
+      "activity": "{posts} posts, {messages} messages",
+      "nothing": "None of the selected accounts can take this action.",
+      "skippedTitle": "Left out",
+      "skip": {
+        "self": "Your own account",
+        "staff": "Instance staff",
+        "remote": "Account of another instance",
+        "no_sign_in": "Has no sign-in",
+        "deleted": "Deleted by staff",
+        "already_suspended": "Already suspended",
+        "not_suspended": "Not suspended",
+        "not_found": "Account not found",
+        "owns_server": "Owns a server with other members"
+      },
+      "ownedTitle": "Servers they own stay open",
+      "ownedHint": "Members keep using these servers. To close one, use the Servers tab.",
+      "ownedMembers": "{count} member | {count} members",
+      "consequences": {
+        "signedOut": "They are signed out now, and the app signs them out again if they sign in.",
+        "follows": "{count} follow with local accounts is removed. Unsuspending does not restore it. | {count} follows with local accounts are removed. Unsuspending does not restore them.",
+        "timelines": "Their posts leave timelines and public pages here. Their messages stay in channels.",
+        "federation": "Nothing is sent to other instances: what those instances already received stays, and so do remote followers.",
+        "unsuspend": "They can sign in again. Follows removed by the suspension are not restored.",
+        "deleteSignIn": "They can no longer sign in. This cannot be undone.",
+        "deleteNames": "Their usernames become free for anyone to register.",
+        "deleteContent": "Their profiles become Deleted User. Messages and posts stay under that name.",
+        "deleteFederation": "Instances that follow them are told the accounts are gone."
+      },
+      "reason": "Reason (required)",
+      "reasonHint": "The same reason is recorded for each account in the activity log.",
+      "confirmSuspend": "Suspend {count} account | Suspend {count} accounts",
+      "confirmUnsuspend": "Unsuspend {count} account | Unsuspend {count} accounts",
+      "failed": "This failed: {error}",
+      "deleteTitle": "Delete {count} account | Delete {count} accounts",
+      "affectedDelete": "Will be deleted",
+      "confirmDelete": "Delete {count} account | Delete {count} accounts",
+      "ownedDeleteTitle": "Their servers without other members are deleted",
+      "deleteUnderstand": "I understand this cannot be undone"
+    },
+    "done": {
+      "suspended": "{count} account suspended | {count} accounts suspended",
+      "unsuspended": "{count} account unsuspended | {count} accounts unsuspended",
+      "deleted": "{count} account deleted | {count} accounts deleted"
     }
   }
 }

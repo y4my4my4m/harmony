@@ -777,6 +777,20 @@
 
       <div class="setting-item">
         <div class="setting-info">
+          <h4 class="setting-label" :id="`${a11yId}-animate-emoji`">{{ $t('settings.appearance.animateEmoji') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-animate-emoji-desc`">{{ $t('settings.appearance.animateEmojiDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch :labelledby="`${a11yId}-animate-emoji`" :describedby="`${a11yId}-animate-emoji-desc`"
+            data-testid="animate-emoji-toggle"
+            :model-value="settings.animateEmoji !== false"
+            @update:model-value="(v: boolean) => (settings.animateEmoji = v)"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
           <h4 class="setting-label" :id="`${a11yId}-t10`">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
           <p class="setting-description" :id="`${a11yId}-t10-desc`">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
         </div>

@@ -31,7 +31,7 @@ when installed as root):
 | `harmony install` | install, or re-run the install with the current answers as defaults |
 | `harmony status` | URL, versions, enabled services, container states |
 | `harmony doctor [--offline]` | checks DNS, certificates, containers, database, federation, voice, push, email, disk, memory, backups and versions; exit 1 on a failure |
-| `harmony update [--version X.Y.Z]` | new code and images, a backup, migrations, restart |
+| `harmony update [--version X.Y.Z]` | new code and images, a backup, migrations, restart, old update backups deleted |
 | `harmony backup [--no-storage]` | database, roles, configuration and uploads into `backups/<time>/` |
 | `harmony restore <backup> [--yes]` | load a backup; the current data moves aside first |
 | `harmony logs [service] [-n N] [--no-follow]` | follow logs (`federation` = server and worker, `supabase` = its core services) |

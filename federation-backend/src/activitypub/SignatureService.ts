@@ -803,7 +803,7 @@ export class SignatureService {
    *
    * A 401 or 403 is returned as received: the remote refused this instance,
    * and an unsigned retry would only bypass that refusal. Each redirect hop
-   * is signed for its own target.
+   * is signed for its own target; with `signAs`, a hop to another host throws.
    *
    * `options` is forwarded to `safeFetch`; the signature headers
    * (`Host`/`Date`/`Signature`) are applied over the caller's.
@@ -828,7 +828,16 @@ export class SignatureService {
       if (signer?.is_local !== true) {
         throw new AppError(500, `Cannot sign as ${signAs}: not a local profile`);
       }
-      sign = async (target) => (await this.signRequest(target, 'GET', null, signAs)).headers;
+      // The signature opens what the member may read on the host it names, so a redirect
+      // must not choose that host.
+      const askedHost = new URL(url).host;
+      sign = async (target) => {
+        const targetHost = new URL(target).host;
+        if (targetHost !== askedHost) {
+          throw new AppError(502, `Redirect from ${askedHost} to ${targetHost} refused: GET signed as a member`);
+        }
+        return (await this.signRequest(target, 'GET', null, signAs)).headers;
+      };
     } else {
       sign = async (target) => {
         try {

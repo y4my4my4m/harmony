@@ -1,7 +1,7 @@
 <template>
   <div
     class="message-display"
-    :class="{ 'touch-actions': isMobile }"
+    :class="{ 'touch-actions': isMobile, 'has-list-start': !!$slots['list-start'] }"
     data-region="messages"
     ref="messageDisplayContainer"
     data-chat-messages
@@ -10,6 +10,11 @@
     @click="dismissMobileActions"
     data-testid="message-list"
   >
+    <!-- Content scrolled above the rows: a thread's starter message. -->
+    <div v-if="$slots['list-start']" ref="listStartRef" data-testid="message-list-start">
+      <slot name="list-start" />
+    </div>
+
     <!-- Loading skeletons when initially loading messages -->
     <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
       <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">
@@ -26,7 +31,7 @@
     </div>
     
     <EmptyState
-      v-else-if="!isLoading && messages.length === 0"
+      v-else-if="!isLoading && messages.length === 0 && !$slots['list-start']"
       class="no-messages"
       icon="message-circle"
       :title="$t('message.noMessagesHere')"
@@ -104,7 +109,7 @@
           top: 0,
           left: 0,
           width: '100%',
-          transform: `translateY(${virtualRow.start}px)`
+          transform: `translateY(${virtualRow.start - listStartHeight}px)`
         }"
       >
       <template v-for="item in [displayItems[virtualRow.index]]" :key="item.key ?? virtualRow.index">
@@ -281,7 +286,29 @@
               :server-id="effectiveColoringServerId"
               @open-reply="handleReplyClick"
             />
-          
+
+            <!-- The slash command a bot reply answers: "Alice used /weather". -->
+            <div
+              v-if="item.message.metadata?.interaction"
+              :id="`msg-interaction-${item.message.id}`"
+              class="interaction-header"
+              data-testid="interaction-header"
+            >
+              <span class="interaction-spine" aria-hidden="true"></span>
+              <template v-if="interactionUserKnown(item.message)">
+                <Avatar :src="getUserAvatarUrl(item.message.metadata.interaction.user_id).value" size="mini" class="interaction-avatar" />
+                <button
+                  type="button"
+                  class="interaction-user"
+                  :style="{ color: getUserColor(item.message.metadata.interaction.user_id).value }"
+                  @click="showUserProfile(item.message.metadata.interaction.user_id, $event)"
+                >{{ getUserDisplayName(item.message.metadata.interaction.user_id).value }}</button>
+                <!-- The leading space separates the name in the text; the flex gap spaces it on screen. -->
+                <span class="interaction-text">{{ ' ' + t('bots.interactions.used', { command: `/${item.message.metadata.interaction.name}` }) }}</span>
+              </template>
+              <span v-else class="interaction-text">{{ t('bots.interactions.someoneUsed', { command: `/${item.message.metadata.interaction.name}` }) }}</span>
+            </div>
+
           <!-- Message content with proper alignment -->
           <div class="message-group" :class="{ 'has-header': shouldShowHeader(item.message, item.index), 'compact': !shouldShowHeader(item.message, item.index) }">
             <!-- Message header (avatar + username + timestamp) -->
@@ -466,6 +493,16 @@
       </template>
     </div>
   </div>
+
+    <!-- The viewer's slash command lines, after the newest row. -->
+    <div v-if="props.channelId && !props.conversationId" ref="listEndRef" data-testid="message-list-end">
+      <BotInteractionNotice
+        :channel-id="props.channelId"
+        :thread-id="props.threadId ?? null"
+        :messages="props.messages"
+        :server-id="serverChannelStore.currentServerId"
+      />
+    </div>
 
     <!-- A jump detached the list from the present: Discord's "viewing older messages" bar.
          It replaces the floating control below. -->
@@ -729,6 +766,8 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
+import BotInteractionNotice from '@/components/messages/BotInteractionNotice.vue';
+import { fetchBotProfile } from '@/services/botProfileService';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
 import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import { useT } from '@/composables/useT';
@@ -1208,6 +1247,13 @@ const {
 // Bot data cache
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
+// Bots whose lookup answered that the reader sees none. Not reactive and not asked again: every
+// finished lookup re-renders the row, which would start the next one.
+const missingBots = new Set<string>();
+// Time, ms, of a bot's last failed lookup. A render of one of its rows asks again once
+// BOT_LOOKUP_RETRY_MS has passed.
+const failedBotLookups = new Map<string, number>();
+const BOT_LOOKUP_RETRY_MS = 30_000;
 
 const threadsStore = useThreadsStore();
 
@@ -1306,25 +1352,48 @@ const handleBotUpdated = (event: CustomEvent) => {
 };
 
 const fetchBotData = async (botId: string) => {
-  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId)) {
+  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId) || missingBots.has(botId)) {
     return;
   }
-  
+  const failedAt = failedBotLookups.get(botId);
+  if (failedAt !== undefined && Date.now() - failedAt < BOT_LOOKUP_RETRY_MS) return;
+
   fetchingBots.value.add(botId);
-  
+  let failed = false;
+
   try {
     const { data, error } = await supabase
       .from('bots')
       .select('id, username, display_name, avatar_url')
       .eq('id', botId)
-      .single();
-    
-    if (!error && data) {
+      .maybeSingle();
+
+    if (error) {
+      failed = true;
+    } else if (data) {
       botDataCache.value.set(botId, data);
+    } else {
+      // bots rows read only for public bots and their owners; get_bot_profile also serves
+      // members of a server where the bot is installed.
+      const profile = await fetchBotProfile(botId);
+      if (profile) {
+        botDataCache.value.set(botId, {
+          username: profile.username,
+          display_name: profile.displayName,
+          avatar_url: profile.avatarUrl,
+        });
+      }
     }
   } catch (error) {
+    failed = true;
     debug.error('Failed to fetch bot data:', error);
   } finally {
+    if (failed) {
+      failedBotLookups.set(botId, Date.now());
+    } else {
+      failedBotLookups.delete(botId);
+      if (!botDataCache.value.has(botId)) missingBots.add(botId);
+    }
     fetchingBots.value.delete(botId);
   }
 };
@@ -1390,6 +1459,12 @@ const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotColor = (_botId: string): ComputedRef<string> => {
   return computed(() => BOT_NAME_COLOR);
+};
+
+/** The invoker of the slash command a bot reply answers is in the user cache. */
+const interactionUserKnown = (message: Message): boolean => {
+  const userId = message.metadata?.interaction?.user_id;
+  return typeof userId === 'string' && !!userId && !!getUser(userId).value;
 };
 
 // Unified helper functions that work for users, bots, and Discord users
@@ -1755,8 +1830,11 @@ const applyScroll = (el: HTMLElement) => {
   if (isDetached.value) next.pinned = false;
   if (next.pinned !== pinState.pinned) {
     setPinned(next.pinned);
-    // A deliberate scroll-up ends the post-open grace window.
-    if (!next.pinned) openFollowBottomUntil = 0;
+    // A deliberate scroll-up ends the post-open grace window and the landing retries.
+    if (!next.pinned) {
+      openFollowBottomUntil = 0;
+      seatGeneration++;
+    }
   }
 };
 
@@ -1923,9 +2001,53 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   if (!el || !list || pinState.pinned) return false;
   const listOffset = styleRect(list).top - styleRect(el).top + el.scrollTop;
   // The total size excludes this resize until virtual-core records it after this call.
-  return correctForItemResize(el, listOffset, item.start, delta, () => {
+  return correctForItemResize(el, listOffset, item.start - listStartHeight.value, delta, () => {
     list.style.height = `${rowVirtualizer.value.getTotalSize() + delta}px`;
   });
+};
+
+// --- LIST START SLOT ---
+const listStartRef = ref<HTMLElement | null>(null);
+// Height of the list-start slot, px: the virtualizer's scroll margin.
+const listStartHeight = ref(0);
+
+// A taller slot pushes every row down: a view below the slot moves with them, a pinned view
+// re-seats at the end.
+const measureListStart = () => {
+  const el = messageDisplayContainer.value;
+  const height = listStartRef.value?.offsetHeight ?? 0;
+  const delta = height - listStartHeight.value;
+  if (!delta || !el) return;
+  const below = el.scrollTop > listStartHeight.value;
+  listStartHeight.value = height;
+  if (pinState.pinned) {
+    queueStickToBottom();
+  } else if (below) {
+    el.scrollTop += delta;
+  }
+};
+
+let listStartObserver: ResizeObserver | null = null;
+watch(listStartRef, (el) => {
+  listStartObserver?.disconnect();
+  listStartObserver = null;
+  if (!el) {
+    listStartHeight.value = 0;
+    return;
+  }
+  listStartObserver = new ResizeObserver(measureListStart);
+  listStartObserver.observe(el);
+  measureListStart();
+}, { flush: 'post' });
+
+/** Shows the top of the content: the list-start slot, then the oldest loaded row. */
+const scrollToStart = () => {
+  const el = messageDisplayContainer.value;
+  if (!el) return;
+  seatGeneration++;
+  openFollowBottomUntil = 0;
+  setPinned(false);
+  el.scrollTop = 0;
 };
 
 // --- VIRTUAL SCROLLING ---
@@ -1968,6 +2090,8 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
       getScrollElement: () => messageDisplayContainer.value,
       estimateSize: () => 60,
       overscan: 15,
+      // Row starts include this; the list element sits below the list-start slot.
+      scrollMargin: listStartHeight.value,
       initialOffset: frozenInitialOffset.value,
       // Stable per-item keys. Otherwise the measurement cache is keyed by
       // INDEX: prepending a history page shifts every row's index, so each row
@@ -2036,6 +2160,7 @@ const rowLabelledBy = (message: Message): string => {
   if (message.is_system) return [`msg-body-${id}`, ...reactions, `msg-meta-${id}`].join(' ');
   const parts = [`msg-head-${id}`, `msg-body-${id}`, ...reactions];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
+  if (message.metadata?.interaction) parts.push(`msg-interaction-${id}`);
   parts.push(`msg-meta-${id}`);
   return parts.join(' ');
 };
@@ -2554,6 +2679,8 @@ watch(() => props.messages, (newMessages) => {
   const userIds = new Set<string>();
   newMessages.forEach(message => {
     if (message?.user_id) userIds.add(message.user_id);
+    const invokerId = message?.metadata?.interaction?.user_id;
+    if (typeof invokerId === 'string' && invokerId) userIds.add(invokerId);
     if (message?.reply_to) {
       const replyUserId = getReplyUserId(message.reply_to);
       if (replyUserId && replyUserId !== 'unknown') userIds.add(replyUserId);
@@ -3112,9 +3239,18 @@ const setupResizeObserver = () => {
   });
   resizeObserver.observe(messageDisplayContainer.value);
   if (virtualListRef.value) resizeObserver.observe(virtualListRef.value);
+  if (listEndRef.value) resizeObserver.observe(listEndRef.value);
 };
 
 watch(virtualListRef, (el, prev) => {
+  if (!resizeObserver) return;
+  if (prev) resizeObserver.unobserve(prev);
+  if (el) resizeObserver.observe(el);
+});
+
+// Content after the rows (slash command lines) grows under a pinned view as the rows do.
+const listEndRef = ref<HTMLElement | null>(null);
+watch(listEndRef, (el, prev) => {
   if (!resizeObserver) return;
   if (prev) resizeObserver.unobserve(prev);
   if (el) resizeObserver.observe(el);
@@ -3368,8 +3504,8 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
   if (message.is_system || prevMessage.is_system) return true;
 
   if (messageAuthorKey(message) !== messageAuthorKey(prevMessage)) return true;
-  
-  if (message.reply_to) return true;
+
+  if (message.reply_to || message.metadata?.interaction) return true;
   const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
   return timeDiff > 5 * 60 * 1000;
 };
@@ -4361,7 +4497,7 @@ const closeInviteModal = () => {
   showInviteModal.value = false;
 };
 
-defineExpose({ editLastOwnMessage });
+defineExpose({ editLastOwnMessage, scrollToStart });
 </script>
 
 <style scoped>
@@ -4373,6 +4509,10 @@ defineExpose({ editLastOwnMessage });
   padding: 20px 0 10px 0;
   min-height: 0; /* Important for flex child with overflow */
   contain: layout paint;
+}
+
+.message-display.has-list-start {
+  padding-top: 0;
 }
 
 /* Phone layout on a touch screen: a long press opens the message action bar, as
@@ -4505,6 +4645,89 @@ defineExpose({ editLastOwnMessage });
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+/* "Alice used /weather": the reply reference's place and spine (MessageReplyReference). */
+.interaction-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 54px);
+  margin-left: 54px;
+  min-width: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.interaction-spine {
+  position: absolute;
+  left: -36px;
+  bottom: -1px;
+  width: 2px;
+  height: 12px;
+  background-color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  border-radius: 1px;
+}
+
+.interaction-spine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 34px;
+  height: 2px;
+  background-color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  border-radius: 1px;
+}
+
+.interaction-avatar {
+  flex-shrink: 0;
+}
+
+.interaction-user {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+  flex-shrink: 0;
+}
+
+.interaction-user:hover {
+  text-decoration: underline;
+}
+
+.interaction-user:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.interaction-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .interaction-header {
+    margin-left: 50px;
+  }
+
+  .interaction-spine {
+    left: -30px;
+  }
+
+  .interaction-spine::after {
+    width: 28px;
+  }
 }
 
 

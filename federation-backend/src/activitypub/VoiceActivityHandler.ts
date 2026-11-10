@@ -7,9 +7,10 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { livekitService } from '../services/LiveKitService.js';
+import { livekitService, TokenRefused } from '../services/LiveKitService.js';
 import {
   authorizeVoiceChannel,
+  VOICE_ENCRYPTED_REFUSAL,
   eitherBlocks,
   isLiveKitUrl,
   mintVoiceJoinId,
@@ -65,6 +66,12 @@ export interface CallToken {
   roomName: string;
 }
 
+// Reasons sent to the joining user. The first matches LiveKitService's refusal of a token.
+const VOICE_JOIN_NOT_AUTHORIZED = 'Not authorized for this room';
+const VOICE_JOIN_UNAVAILABLE = 'Voice is not available on this server';
+const VOICE_JOIN_ENCRYPTED =
+  'This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.';
+
 function hostnameOf(url: unknown): string | null {
   if (typeof url !== 'string') return null;
   try {
@@ -72,6 +79,17 @@ function hostnameOf(url: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+interface VoiceAnswerInboxes {
+  shared_inbox_url?: string | null;
+  inbox_url?: string | null;
+}
+
+/** Inbox for the answer to a voice join: a stored one on the actor's own host, else its /inbox. */
+function voiceAnswerInbox(actorUrl: string, user?: VoiceAnswerInboxes | null): string {
+  return [user?.shared_inbox_url, user?.inbox_url].find((u) => sameOrigin(u, actorUrl))
+    ?? new URL('/inbox', actorUrl).href;
 }
 
 /**
@@ -532,8 +550,8 @@ export class VoiceActivityHandler {
    * Federated server voice channel join.
    *
    * On a server hosted here: authorizeVoiceChannel (membership, ban, timeout,
-   * VIEW_CHANNEL + CONNECT, federation_enabled), then a LiveKit token whose
-   * grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
+   * VIEW_CHANNEL + CONNECT, federation_enabled, voice not encrypted), then a LiveKit
+   * token whose grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
    *
    * On a remote server's local copy: a presence notice. The sender must be on
    * the server's host and an accepted member of the copy.
@@ -580,13 +598,13 @@ export class VoiceActivityHandler {
 
     if (!user || user.is_local === true || user.is_suspended === true) {
       logger.warn('User not usable for voice channel join');
-      await this.sendVoiceChannelJoinReject(activity, 'User not found');
+      await this.sendVoiceChannelJoinReject(activity, VOICE_JOIN_NOT_AUTHORIZED, user);
       return;
     }
 
     if (!server.owner) {
       logger.error(`Server owner not found for channel ${channel.id}, server_id: ${channel.server_id}`);
-      await this.sendVoiceChannelJoinReject(activity, 'Server configuration error');
+      await this.sendVoiceChannelJoinReject(activity, VOICE_JOIN_UNAVAILABLE, user);
       return;
     }
 
@@ -595,7 +613,11 @@ export class VoiceActivityHandler {
     });
     if (!decision.ok) {
       logger.warn(`Voice join by ${actorUrl} to ${channel.id} refused: ${decision.reason}`);
-      await this.sendVoiceChannelJoinReject(activity, decision.reason);
+      await this.sendVoiceChannelJoinReject(
+        activity,
+        decision.reason === VOICE_ENCRYPTED_REFUSAL ? VOICE_JOIN_ENCRYPTED : VOICE_JOIN_NOT_AUTHORIZED,
+        user,
+      );
       return;
     }
 
@@ -615,7 +637,11 @@ export class VoiceActivityHandler {
       wsUrl = clientWsUrl;
     } catch (error) {
       logger.error('Failed to generate LiveKit token for federated user:', error);
-      await this.sendVoiceChannelJoinReject(activity, 'Failed to generate voice token');
+      await this.sendVoiceChannelJoinReject(
+        activity,
+        error instanceof TokenRefused ? error.answer : VOICE_JOIN_UNAVAILABLE,
+        user,
+      );
       return;
     }
 
@@ -679,8 +705,7 @@ export class VoiceActivityHandler {
     // Delivered once to an inbox on the joining actor's host, signed as the
     // server owner. Not queued: a retry lands after the client gave up, and the
     // queue row would hold the token.
-    const inbox = [user.shared_inbox_url, user.inbox_url].find((u) => sameOrigin(u, actorUrl))
-      ?? new URL('/inbox', actorUrl).href;
+    const inbox = voiceAnswerInbox(actorUrl, user);
 
     const { DeliveryQueue } = await import('./DeliveryQueue.js');
     const delivery = await DeliveryQueue.deliverOnce(acceptActivity, inbox, server.owner);
@@ -863,14 +888,34 @@ export class VoiceActivityHandler {
   }
 
   /**
-   * NOTE: logs only. Delivering a reject needs a server-level signing key,
-   * which does not exist; the remote client times out instead.
+   * Refusal of a voice join, delivered once to an inbox on the joining actor's host.
+   * Signed by the instance actor: a refusal can precede any server or owner. Not queued:
+   * the client gives up after 20 s. `reason` reaches the joining user; authorization
+   * detail stays in this instance's log.
    */
   private static async sendVoiceChannelJoinReject(
     originalActivity: VoiceChannelJoin,
-    reason: string
+    reason: string,
+    user?: VoiceAnswerInboxes | null,
   ): Promise<void> {
-    logger.warn(`Voice join rejected for ${originalActivity.actor}: ${reason}`);
+    const actorUrl = originalActivity.actor;
+    logger.warn(`Voice join rejected for ${actorUrl}: ${reason}`);
+
+    // harmony:refresh is a presence re-announcement; nobody waits on it.
+    if ((originalActivity as unknown as Record<string, unknown>)['harmony:refresh'] === true) return;
+    if (typeof originalActivity.id !== 'string' || !urlHost(actorUrl) || urlHost(actorUrl) === config.INSTANCE_DOMAIN) return;
+
+    try {
+      const { instanceActorUrl } = await import('./InstanceActor.js');
+      const { DeliveryQueue } = await import('./DeliveryQueue.js');
+      const delivery = await DeliveryQueue.deliverAsInstanceActor(
+        this.createVoiceChannelJoinReject(instanceActorUrl(), actorUrl, originalActivity.id, reason),
+        voiceAnswerInbox(actorUrl, user),
+      );
+      if (!delivery.delivered) logger.warn(`VoiceChannelJoinReject for ${actorUrl} was not delivered`);
+    } catch (error) {
+      logger.warn(`VoiceChannelJoinReject for ${actorUrl} failed:`, error);
+    }
   }
 
   /**
@@ -1082,6 +1127,27 @@ export class VoiceActivityHandler {
         roomName,
         expiresAt,
       },
+      published: new Date().toISOString(),
+    };
+  }
+
+  static createVoiceChannelJoinReject(
+    actorId: string,
+    userActorId: string,
+    originalJoinId: string,
+    reason: string,
+  ): VoiceChannelJoinReject {
+    return {
+      '@context': [
+        'https://www.w3.org/ns/activitystreams',
+        HARMONY_VOICE_CONTEXT,
+      ],
+      id: `${actorId}/activities/${crypto.randomUUID()}`,
+      type: HARMONY_VOICE_TYPES.VoiceChannelJoinReject,
+      actor: actorId,
+      to: [userActorId],
+      object: originalJoinId,
+      reason,
       published: new Date().toISOString(),
     };
   }

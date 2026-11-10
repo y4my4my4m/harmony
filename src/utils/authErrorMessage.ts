@@ -21,3 +21,15 @@ export function authErrorMessage(error: unknown, fallback = 'Authentication fail
   }
   return fallback;
 }
+
+/**
+ * error_description of a provider callback. GoTrue's redirectErrors (external.go) sets the fragment
+ * to url.Values.Encode() and url.URL.String() escapes it again, so one URL decode leaves "%2C".
+ */
+export function decodeCallbackError(message: string): string {
+  try {
+    return decodeURIComponent(message)
+  } catch {
+    return message
+  }
+}
