@@ -20,7 +20,14 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { botAuthMiddleware, botRateLimit, type BotRequest } from '../BotAuthMiddleware.js'
+import {
+  botAuthMiddleware,
+  botRateLimit,
+  fallbackRateLimit,
+  FallbackRateLimit,
+  FALLBACK_BUCKETS_PER_BOT,
+  type BotRequest,
+} from '../BotAuthMiddleware.js'
 
 const TOKEN = 'hrm_bot_9f2c1d4e8a7b'
 const TOKEN_SHA256 = createHash('sha256').update(TOKEN).digest('hex')
@@ -69,6 +76,7 @@ const allow = () => ({ data: false, error: null })
 
 beforeEach(() => {
   mocks.rpc.mockReset()
+  fallbackRateLimit.clear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -229,5 +237,68 @@ describe('botAuthMiddleware', () => {
       .set('Authorization', `Bot ${TOKEN}`)
 
     expect(res.status).toBe(200)
+  })
+})
+
+// BUGS.md M37: an RPC error used to admit every request, so a failing rate-limit function lifted
+// the limit for every bot. While it fails, each bot now gets FALLBACK_BUCKETS_PER_BOT buckets'
+// worth of requests per window, counted in this process.
+describe('botRateLimit when the rate-limit RPC fails', () => {
+  const RPC_DOWN = { code: '57014', details: null, hint: null, message: 'canceling statement due to statement timeout' }
+
+  async function statuses(count: number) {
+    const app = makeApp()
+    const out: number[] = []
+    for (let i = 0; i < count; i++) {
+      out.push((await supertest(app).get('/api/v1/probe').set('Authorization', `Bot ${TOKEN}`)).status)
+    }
+    return out
+  }
+
+  function expectLimitedAt(out: number[], allowed: number) {
+    expect(out.slice(0, allowed).every((s) => s === 200)).toBe(true)
+    expect(out[allowed]).toBe(429)
+  }
+
+  for (const [name, answer] of [
+    ['an error', () => ({ data: null, error: RPC_DOWN })],
+    ['an answer that is not a boolean', () => ({ data: null, error: null })],
+    ['a throw', () => { throw new Error('fetch failed') }],
+  ] as const) {
+    it(`keeps serving, and refuses past the fallback limit, on ${name}`, async () => {
+      mocks.config.rateLimit.maxRequests = 1
+      try {
+        routeRpc({
+          verify_bot_token: () => ({ data: VALID_VERIFICATION, error: null }),
+          check_and_increment_bot_rate_limit: answer as () => RpcResult,
+        })
+        expectLimitedAt(await statuses(FALLBACK_BUCKETS_PER_BOT + 1), FALLBACK_BUCKETS_PER_BOT)
+      } finally {
+        mocks.config.rateLimit.maxRequests = 100
+      }
+    })
+  }
+})
+
+describe('FallbackRateLimit', () => {
+  it('opens a new window once the old one ends', () => {
+    const limit = new FallbackRateLimit()
+    expect(limit.hit('bot', 1, 1000, 0)).toBe(false)
+    expect(limit.hit('bot', 1, 1000, 500)).toBe(true)
+    expect(limit.hit('bot', 1, 1000, 1000)).toBe(false)
+  })
+
+  it('counts each bot apart', () => {
+    const limit = new FallbackRateLimit()
+    expect(limit.hit('bot1', 1, 1000, 0)).toBe(false)
+    expect(limit.hit('bot2', 1, 1000, 0)).toBe(false)
+    expect(limit.hit('bot1', 1, 1000, 0)).toBe(true)
+  })
+
+  it('forgets bots whose window ended', () => {
+    const limit = new FallbackRateLimit()
+    for (let i = 0; i < 50; i++) limit.hit(`bot${i}`, 1, 1000, 0)
+    limit.hit('late', 1, 1000, 2000)
+    expect((limit as unknown as { windows: Map<string, unknown> }).windows.size).toBe(1)
   })
 })

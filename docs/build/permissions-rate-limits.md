@@ -154,7 +154,7 @@ Content-Type: application/json
 { "error": "Rate limit exceeded", "retry_after": 60 }
 ```
 
-`retry_after` is always `60`, whatever the window or the time left in it. No rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway cannot reach its rate-limit store, it lets the request through.
+`retry_after` is always `60`, whatever the window or the time left in it. No rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the rate-limit function fails while token checks still work (for example a statement timeout), each gateway process counts the bot's requests itself, all buckets together, up to 10 times the bucket limit per window, until the function answers again.
 
 The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route.
 

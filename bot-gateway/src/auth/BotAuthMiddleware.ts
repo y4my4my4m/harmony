@@ -117,8 +117,8 @@ export async function botRateLimit(req: BotRequest, res: Response, next: NextFun
  * Window and limit come from config.rateLimit (RATE_LIMIT_WINDOW_MS,
  * RATE_LIMIT_MAX_REQUESTS). Window is passed in seconds, floored at 1.
  *
- * Fails open: an RPC error admits the request rather than taking the bot API
- * offline.
+ * When the RPC fails (an error, a throw, or an answer that is not a boolean) the request is
+ * neither refused nor waved through: fallbackRateLimit counts it, per bot, in this process.
  */
 async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
   try {
@@ -132,15 +132,64 @@ async function checkRateLimit(botId: string, bucket: string): Promise<boolean> {
       p_window_seconds: windowSeconds,
     })
 
-    if (error) {
-      console.error('Rate limit RPC error:', error)
-      return false
+    if (error || typeof data !== 'boolean') {
+      console.error('Rate limit RPC error:', error ?? `unexpected answer ${JSON.stringify(data)}`)
+      return fallbackRateLimit.hit(botId, fallbackLimit(), fallbackWindowMs())
     }
 
-    return data === true
+    return data
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return false
+    return fallbackRateLimit.hit(botId, fallbackLimit(), fallbackWindowMs())
   }
 }
 
+/**
+ * While the RPC fails, a bot may make this many buckets' worth of requests per window, all
+ * routes and channels together. Counting per bot rather than per bucket keeps the fallback's
+ * keys to bots that passed authentication: a request naming a fresh channel UUID mints a new
+ * bucket before any permission check, and must not mint fallback state too.
+ */
+export const FALLBACK_BUCKETS_PER_BOT = 10
+
+function fallbackLimit(): number {
+  return (config.rateLimit?.maxRequests ?? 100) * FALLBACK_BUCKETS_PER_BOT
+}
+
+function fallbackWindowMs(): number {
+  return Math.max(1, Math.floor((config.rateLimit?.windowMs ?? 60_000) / 1000)) * 1000
+}
+
+/**
+ * Fixed windows per bot in this process, for while the rate-limit RPC fails. Each gateway
+ * process counts on its own, so the limit holds per process; it is the stand-in, not the source
+ * of truth. hit() returns true when the request must be refused. Ended windows are dropped once
+ * per window length, so the map holds at most the bots active in one window.
+ */
+export class FallbackRateLimit {
+  private windows = new Map<string, { count: number; resetAt: number }>()
+  private nextSweep = 0
+
+  hit(botId: string, limit: number, windowMs: number, now = Date.now()): boolean {
+    if (now >= this.nextSweep) {
+      for (const [id, window] of this.windows) {
+        if (window.resetAt <= now) this.windows.delete(id)
+      }
+      this.nextSweep = now + windowMs
+    }
+    let window = this.windows.get(botId)
+    if (!window || window.resetAt <= now) {
+      window = { count: 0, resetAt: now + windowMs }
+      this.windows.set(botId, window)
+    }
+    window.count++
+    return window.count > limit
+  }
+
+  clear() {
+    this.windows.clear()
+    this.nextSweep = 0
+  }
+}
+
+export const fallbackRateLimit = new FallbackRateLimit()
