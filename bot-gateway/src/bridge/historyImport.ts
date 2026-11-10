@@ -85,7 +85,12 @@ function validateMessage(raw: unknown): PreparedInput | null {
   return { discord_message_id: id, content, rest }
 }
 
-export function createHistoryImportRouter(): Router {
+/**
+ * `guard` is the bridge-bot middleware (auth, rate limit, bridge lookup). It goes on each route,
+ * not on the mount: the rate limiter buckets by `req.route`, which Express sets only inside a
+ * route, so mounted once every import call would share a single bucket.
+ */
+export function createHistoryImportRouter(guard: RequestHandler[] = []): Router {
   const router = Router()
 
   // A job id that is not a UUID is no job of this bridge.
@@ -107,7 +112,7 @@ export function createHistoryImportRouter(): Router {
       }
     }
 
-  router.get('/', handler(async (req, res) => {
+  router.get('/', ...guard, handler(async (req, res) => {
     const { data, error } = await supabase
       .from('discord_bridge_imports')
       .select('*')
@@ -120,7 +125,7 @@ export function createHistoryImportRouter(): Router {
     res.json({ imports: data ?? [] })
   }))
 
-  router.post('/', handler(async (req, res) => {
+  router.post('/', ...guard, handler(async (req, res) => {
     const ids = (req.body as { discord_channel_ids?: unknown } | undefined)?.discord_channel_ids
     if (ids != null && (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string' && SNOWFLAKE_RE.test(id)))) {
       return res.status(400).json({ code: 'invalid_request', error: 'discord_channel_ids must be an array of Discord ids' })
@@ -135,7 +140,7 @@ export function createHistoryImportRouter(): Router {
     res.status(201).json({ imports: data ?? [] })
   }))
 
-  router.patch('/:id', handler(async (req, res) => {
+  router.patch('/:id', ...guard, handler(async (req, res) => {
     const patch = req.body
     if (!isObject(patch)) return res.status(400).json({ code: 'invalid_patch' })
     const { data, error } = await supabase.rpc('discord_bridge_import_update', {
@@ -147,7 +152,7 @@ export function createHistoryImportRouter(): Router {
     res.json({ import: data })
   }))
 
-  router.post('/:id/cancel', handler(async (req, res) => {
+  router.post('/:id/cancel', ...guard, handler(async (req, res) => {
     const { data, error } = await supabase.rpc('discord_bridge_import_cancel_internal', {
       p_bridge_id: bridgeId(req),
       p_import_id: req.params.id,
@@ -156,7 +161,7 @@ export function createHistoryImportRouter(): Router {
     res.json({ imports: data ?? [] })
   }))
 
-  router.post('/:id/messages', handler(async (req, res) => {
+  router.post('/:id/messages', ...guard, handler(async (req, res) => {
     const invalid = () => res.status(400).json({ code: 'invalid_batch' })
     const raw = (req.body as { messages?: unknown } | undefined)?.messages
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_BATCH) return invalid()
@@ -250,7 +255,7 @@ export function createHistoryImportRouter(): Router {
     })
   }))
 
-  router.post('/:id/threads', handler(async (req, res) => {
+  router.post('/:id/threads', ...guard, handler(async (req, res) => {
     if (!isObject(req.body)) return res.status(400).json({ code: 'invalid_thread' })
     const { data, error } = await supabase.rpc('bridge_import_thread', {
       p_bot_id: botId(req),
@@ -262,7 +267,7 @@ export function createHistoryImportRouter(): Router {
     res.json({ thread_id: data })
   }))
 
-  router.post('/:id/replies/link', handler(async (req, res) => {
+  router.post('/:id/replies/link', ...guard, handler(async (req, res) => {
     const { data, error } = await supabase.rpc('bridge_import_link_replies', {
       p_bot_id: botId(req),
       p_import_id: req.params.id,

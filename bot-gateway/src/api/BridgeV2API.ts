@@ -165,7 +165,7 @@ export class BridgeV2API {
     this.router.post('/status', ...bridgeBot, this.postStatus.bind(this) as RequestHandler)
     this.router.post('/pairs', ...bridgeBot, this.postPair.bind(this) as RequestHandler)
     this.router.delete('/pairs/:discordChannelId', ...bridgeBot, this.deletePair.bind(this) as RequestHandler)
-    this.router.use('/imports', ...bridgeBot, createHistoryImportRouter())
+    this.router.use('/imports', createHistoryImportRouter(bridgeBot))
   }
 
   private async redeem(req: Request, res: Response) {
