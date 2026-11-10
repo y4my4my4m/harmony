@@ -9,6 +9,8 @@ import { access, chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { once } from 'node:events';
+import { WebSocketServer } from 'ws';
 
 const exec = promisify(execFile);
 const image = 'ghcr.io/element-hq/synapse:latest';
@@ -28,6 +30,8 @@ let directory;
 let receiver;
 let gatewayReceiver;
 let relayStore;
+let harmonyConnection;
+let gatewaySockets;
 let deadline;
 let stage = 'prerequisites';
 let shuttingDown = false;
@@ -121,6 +125,8 @@ async function performCleanup() {
     receiver.closeAllConnections();
     await new Promise(resolve => receiver.close(resolve));
   }
+  harmonyConnection?.stop();
+  if (gatewaySockets) { for (const socket of gatewaySockets.clients) socket.terminate(); gatewaySockets.close(); }
   if (gatewayReceiver) {
     gatewayReceiver.closeAllConnections();
     await new Promise(resolve => gatewayReceiver.close(resolve));
@@ -179,7 +185,7 @@ async function main() {
     hs_token: hsToken,
     sender_localpart: 'smoke_bridge',
     rate_limited: false,
-    namespaces: { users: [{ exclusive: true, regex: '^@smoke_bridge:localhost$' }], aliases: [], rooms: [] },
+    namespaces: { users: [{ exclusive: true, regex: '^@smoke_bridge:localhost$' }, { exclusive: true, regex: '^@smoke_bridge_h_[0-9a-f]{32}:localhost$' }], aliases: [], rooms: [] },
   };
   const config = {
     server_name: serverName,
@@ -309,7 +315,15 @@ async function main() {
   const harmonyPosts = [];
   let platform = null;
   let consent = true;
+  let senderMode = 'relay';
+  let bound = false;
+  const optedOut = new Set();
+  const nativeUsers = [{ id: parsedConfig.harmony.allowedUserIds[0], username: 'alice', display_name: 'Alice Room Nick', avatar_url: 'https://never-fetch.invalid/alice.png', domain: 'harmony.test' },
+    { id: '33333333-3333-4333-8333-333333333333', username: 'bob', display_name: 'Bob Room Nick', avatar_url: null, domain: 'harmony.test' }];
+  parsedConfig.harmony.allowedUserIds.push(nativeUsers[1].id);
   let avatarUploads = 0;
+  let nativeAvatarReads = 0;
+  const memberFrames = [];
   gatewayReceiver = createServer(async (req, res) => {
     if (req.headers.authorization !== `Bot ${harmonyToken}`) { res.writeHead(401).end(); return; }
     const path = new URL(req.url, 'http://localhost').pathname;
@@ -318,7 +332,13 @@ async function main() {
     const input = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
     let result;
     if (path.endsWith('/bridge-platform')) result = { platform };
-    else if (path.includes('/bridge-consent/')) result = { relay_allowed: consent };
+    else if (path.endsWith('/bridge-room')) {
+      if (req.method === 'PUT' && !bound) { bound = true; senderMode = input.initial_sender_mode; }
+      result = { room_id: roomId, sender_mode: senderMode };
+    }
+    else if (path.endsWith('/bridge-members')) result = consent ? nativeUsers.filter(member => !optedOut.has(member.id)) : [];
+    else if (/\/bridge-members\/[^/]+\/avatar$/.test(path)) { nativeAvatarReads++; result = { data: png.toString('base64'), content_type: 'image/png' }; }
+    else if (path.includes('/bridge-consent/')) result = { relay_allowed: consent && !optedOut.has(path.split('/').at(-1)) };
     else if (path.endsWith('/encryption')) result = { messages_encrypted: false };
     else if (path.endsWith('/bridge-avatar')) {
       assert.equal(input.content_type, 'image/png');
@@ -329,14 +349,27 @@ async function main() {
     else { res.writeHead(404).end(); return; }
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
   });
+  gatewaySockets = new WebSocketServer({ server: gatewayReceiver });
+  gatewaySockets.on('connection', socket => socket.on('message', bytes => {
+    const frame = JSON.parse(bytes.toString());
+    if (frame.op === 2) socket.send(JSON.stringify({ op: 0, t: 'READY', d: { heartbeat_interval: 1000 } }));
+    if (frame.op === 1) socket.send('{"op":11}');
+    if (frame.op === 6) memberFrames.push(frame.d);
+  }));
   const gatewayPort = await listen(gatewayReceiver);
   const harmony = new HarmonyClient({ apiUrl: `http://127.0.0.1:${gatewayPort}`, gatewayUrl: `ws://127.0.0.1:${gatewayPort}`, token: harmonyToken });
+  harmonyConnection = harmony;
   const channelId = parsedConfig.pairs[0].harmonyChannelId;
   await assert.rejects(harmony.requireMatrixBridge(channelId));
   platform = 'discord';
   await assert.rejects(harmony.requireMatrixBridge(channelId));
   platform = 'matrix';
   await harmony.requireMatrixBridge(channelId);
+  await harmony.bridgeRoom(channelId, { room_id: roomId, initial_sender_mode: 'relay' });
+  assert.equal((await harmony.bridgeRoom(channelId, { room_id: roomId, initial_sender_mode: 'ghost' })).sender_mode, 'relay');
+  const connected = once(harmony, 'ready');
+  harmony.start();
+  await connected;
   relayStore = new Store(':memory:');
   const relay = new Relay(parsedConfig, relayStore, harmony, matrix);
   relay.acceptTransaction('human', [events.get(incoming.event_id)]);
@@ -363,16 +396,115 @@ async function main() {
   assert.equal(relayed.content.body, '[Harmony Human · Harmony] Native consent check');
   console.log('PASS Gateway contract: Matrix registration required, generalized authors, avatar upload, queued opt-out, single AS sender');
 
-  stage = 'encrypted-room detection';
-  await json(`${roomPath}/state/m.room.encryption/`, {
-    method: 'PUT', token: user.access_token, body: { algorithm: 'm.megolm.v1.aes-sha2' },
-  });
-  assert.equal(await matrix.roomIsPlaintext(roomId), false);
-  relay.acceptTransaction('encrypted', [{ ...events.get(incoming.event_id), event_id: '$blocked' }]);
+  stage = 'two actual ghosts, room profiles, member autocomplete and real mentions';
+  const { ghostUserId } = await import('../dist/config.js');
+  const { HttpError } = await import('../dist/http.js');
+  senderMode = 'ghost'; // Administrative DB mode overrides the relay config default.
+  relay.requestMemberSync();
+  await relay.tick();
+  const aliceGhost = ghostUserId(parsedConfig, nativeUsers[0].id);
+  const bobGhost = ghostUserId(parsedConfig, nativeUsers[1].id);
+  const joined = await matrix.roomMembers(roomId);
+  assert.ok(joined.some(member => member.id === aliceGhost));
+  assert.ok(joined.some(member => member.id === bobGhost));
+  const aliceProfile = await matrix.roomMember(roomId, aliceGhost);
+  assert.equal(aliceProfile.display_name, 'Alice Room Nick');
+  assert.ok(aliceProfile.avatar_mxc.startsWith('mxc://'));
+  assert.equal((await matrix.roomMember(roomId, bobGhost)).display_name, 'Bob Room Nick');
+  assert.equal(nativeAvatarReads, 1);
+  await until(() => memberFrames.length > 0);
+  assert.deepEqual(memberFrames.at(-1).channels[0].members.map(member => member.id), [user.user_id]);
+
+  const sendActual = matrix.sendMessage.bind(matrix);
+  let lostResponseId;
+  let loseNextResponse = true;
+  let sendAttempts = 0;
+  matrix.sendMessage = async (...args) => {
+    sendAttempts++;
+    const result = await sendActual(...args);
+    if (loseNextResponse) { loseNextResponse = false; lostResponseId = result.event_id; throw new HttpError('Simulated lost Matrix response', true, 503); }
+    return result;
+  };
+  relay.acceptHarmonyMessage({ ...nativeMessage('ghost-idempotent'), content_raw: [{ type: 'text', text: 'Hi ' },
+    { type: 'mention', userId: user.user_id, username, domain: serverName, isLocal: false, isBridged: true, bridgeSource: 'matrix' }] });
+  await relay.tick();
+  await until(() => relayStore.nextJob() !== null);
+  await relay.tick();
+  const ghostEventId = relayStore.findMapping('to_matrix', 'ghost-idempotent', channelId, roomId);
+  assert.equal(ghostEventId, lostResponseId);
+  assert.equal(sendAttempts, 2);
+  const ghostEvent = await json(`${roomPath}/event/${encodeURIComponent(ghostEventId)}`, { token: user.access_token });
+  assert.equal(ghostEvent.sender, aliceGhost);
+  assert.equal(ghostEvent.content.body, `Hi @${username}`);
+  assert.deepEqual(ghostEvent.content['m.mentions'], { user_ids: [user.user_id] });
+  assert.ok(ghostEvent.content.formatted_body.includes(`https://matrix.to/#/${encodeURIComponent(user.user_id)}`));
+  // Echo exclusion applies to the whole owned namespace, even if someone adds a ghost to the source allowlist.
+  parsedConfig.matrix.allowedUserIds.push(aliceGhost);
+  relay.acceptTransaction('ghost-echo', [{ ...ghostEvent, room_id: roomId }]);
   await relay.tick();
   assert.equal(harmonyPosts.length, 1);
-  assert.equal(avatarUploads, 1);
-  assert.equal(relayStore.counts().failed, 2);
+
+  const mentioned = await json(`${roomPath}/send/m.room.message/${randomUUID()}`, {
+    method: 'PUT', token: user.access_token, body: { msgtype: 'm.text', body: 'Hello Bob Room Nick',
+      format: 'org.matrix.custom.html', formatted_body: `Hello <a href="https://matrix.to/#/${encodeURIComponent(bobGhost)}">Bob Room Nick</a>`,
+      'm.mentions': { user_ids: [bobGhost] } },
+  });
+  await until(() => events.has(mentioned.event_id));
+  relay.acceptTransaction('human', [events.get(mentioned.event_id)]); // Simulate HS counter reuse with a different real event.
+  await relay.tick();
+  assert.deepEqual(harmonyPosts.at(-1).content, [{ type: 'text', text: 'Hello ' },
+    { type: 'mention', userId: nativeUsers[1].id, username: 'bob', domain: 'harmony.test', isLocal: true, isBridged: false }]);
+  console.log('PASS two real AS ghosts before speech, room nickname/avatar, allowlisted WS members, unprefixed text, idempotency and real mentions both ways');
+
+  stage = 'ghost opt-out and administrator sender-mode transition';
+  optedOut.add(nativeUsers[0].id);
+  relay.acceptHarmonyMessage(nativeMessage('ghost-opted-out'));
+  relay.requestMemberSync();
+  await relay.tick();
+  assert.ok(!(await matrix.roomMembers(roomId)).some(member => member.id === aliceGhost));
+  assert.equal(relayStore.findMapping('to_matrix', 'ghost-opted-out', channelId, roomId), null);
+  optedOut.clear();
+  loseNextResponse = true;
+  relay.acceptHarmonyMessage(nativeMessage('mode-frozen'));
+  await relay.tick();
+  const attemptsBeforeSwitch = sendAttempts;
+  senderMode = 'relay';
+  await until(() => relayStore.nextJob() !== null);
+  relay.requestMemberSync();
+  await relay.tick();
+  assert.equal(sendAttempts, attemptsBeforeSwitch); // No resend from a different sender after an uncertain response.
+  assert.ok(!(await matrix.roomMembers(roomId)).some(member => member.id === aliceGhost || member.id === bobGhost));
+  assert.equal((await json(`${roomPath}/event/${encodeURIComponent(ghostEventId)}`, { token: user.access_token })).sender, aliceGhost);
+  const command = await json(`${roomPath}/send/m.room.message/${randomUUID()}`, {
+    method: 'PUT', token: user.access_token, body: { msgtype: 'm.text', body: '!mention bob relay mode ping', 'm.mentions': {} },
+  });
+  await until(() => events.has(command.event_id));
+  relay.acceptTransaction('relay-command', [events.get(command.event_id)]);
+  await relay.tick();
+  assert.equal(harmonyPosts.at(-1).content[0].userId, nativeUsers[1].id);
+  relay.acceptHarmonyMessage(nativeMessage('relay-again'));
+  await relay.tick();
+  const relayAgain = await json(`${roomPath}/event/${encodeURIComponent(relayStore.findMapping('to_matrix', 'relay-again', channelId, roomId))}`, { token: user.access_token });
+  assert.equal(relayAgain.sender, botUserId);
+  assert.equal(relayAgain.content.body, '[Harmony Human · Harmony] Native consent check');
+  console.log('PASS opted-out ghost leaves, relay mode removes ghosts without deleting history, frozen sender refuses cross-mode retry, exact !mention command');
+
+  const postsBeforeEncryption = harmonyPosts.length;
+  const avatarsBeforeEncryption = avatarUploads;
+  const failedBeforeEncryption = relayStore.counts().failed;
+  stage = 'encrypted-room detection';
+  const encryption = await json(`${roomPath}/state/m.room.encryption/`, {
+    method: 'PUT', token: user.access_token, body: { algorithm: 'm.megolm.v1.aes-sha2' },
+  });
+  await until(() => events.has(encryption.event_id));
+  assert.equal(await matrix.roomIsPlaintext(roomId), false);
+  relay.acceptTransaction('human', [events.get(encryption.event_id), { ...events.get(incoming.event_id), event_id: '$blocked' }]);
+  assert.equal(relayStore.isRoomBlocked(roomId), true);
+  await relay.tick();
+  assert.equal(harmonyPosts.length, postsBeforeEncryption);
+  assert.equal(avatarUploads, avatarsBeforeEncryption);
+  assert.equal(relayStore.counts().failed, failedBeforeEncryption + 1);
+  console.log('PASS reused AS transaction ID accepts distinct real events and a new durable encryption fence');
   console.log('PASS encrypted-room relay guard (no additional text/avatar upload)');
   console.log('PASS roomIsPlaintext returns false after encryption state is enabled');
   console.log('PASS real Synapse smoke complete (plaintext only; no E2EE relay/decryption claimed)');

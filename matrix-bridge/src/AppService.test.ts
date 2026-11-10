@@ -8,8 +8,8 @@ const servers: Server[] = []
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections() })))
 })
-async function setup(acceptTransaction = vi.fn().mockReturnValue(true)) {
-  const server = createAppService({ hsToken: 'private-token', botUserId: '@relay:test', acceptTransaction, status: () => ({ ready: true, pending: 0, failed: 0 }) })
+async function setup(acceptTransaction = vi.fn().mockReturnValue(true), ownsGhost?: (id: string) => boolean) {
+  const server = createAppService({ hsToken: 'private-token', botUserId: '@relay:test', ownsGhost, acceptTransaction, status: () => ({ ready: true, pending: 0, failed: 0 }) })
   servers.push(server)
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -48,6 +48,17 @@ describe('application-service HTTP', () => {
     expect((await put('{"events":[]}', undefined, '/_matrix/app/v1/transactions/%zz')).status).toBe(400)
     expect((await put('x'.repeat(1024 * 1024 + 1))).status).toBe(413)
     expect(acceptTransaction).not.toHaveBeenCalled()
+  })
+  it('answers only durably owned ghosts without provisioning unknown namespace users', async () => {
+    const ghost = '@relay_h_11111111111141118111111111111111:test'
+    const ownsGhost = vi.fn(id => id === ghost)
+    const { base } = await setup(undefined, ownsGhost)
+    const path = '/_matrix/app/v1/users/' + encodeURIComponent(ghost)
+    expect((await fetch(base + path)).status).toBe(401)
+    expect(ownsGhost).not.toHaveBeenCalled()
+    const headers = { Authorization: 'Bearer private-token' }
+    expect((await fetch(base + path, { headers })).status).toBe(200)
+    expect((await fetch(base + '/_matrix/app/v1/users/%40relay_h_22222222222242228222222222222222%3Atest', { headers })).status).toBe(404)
   })
   it('answers only its exact user namespace and exposes no secrets in health', async () => {
     const { base } = await setup()

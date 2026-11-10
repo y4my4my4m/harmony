@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { supabase, config } from '../config/supabase.js'
 import * as crypto from 'crypto'
 import { type InstallRow, botCanSeeChannel, loadEveryoneLayers } from '../auth/botPermissions.js'
+import { bridgeChannelPlatform } from '../bridge/bridgePrivacy.js'
 
 function logPresenceError(op: string, error: unknown) {
   if (!error) return
@@ -89,7 +90,36 @@ export interface BridgedUser {
   createdAt?: string | null
   presenceStatus?: 'online' | 'away' | 'busy' | 'offline'
   customStatus?: { text: string; emoji: string | null } | null
-  source: 'discord'
+  source: 'discord' | 'matrix'
+}
+
+function uniqueBridgeMembers(users: BridgedUser[]): BridgedUser[] {
+  return Array.from(new Map(users.filter(user => user && typeof user.id === 'string')
+    .map(user => [`${user.source ?? 'discord'}:${user.id}`, user])).values())
+}
+
+/** Matrix snapshots carry identity only, never Discord roles or native permissions. */
+export function matrixMembers(input: unknown[]): BridgedUser[] {
+  if (input.length > 1000) return []
+  const users: BridgedUser[] = []
+  for (const value of input) {
+    if (!value || typeof value !== 'object') continue
+    const row = value as Record<string, unknown>
+    const avatarUrl = row.avatarUrl ?? ''
+    if (row.source !== 'matrix' || typeof row.id !== 'string' || row.id.length > 255
+      || !/^@[^:\s\u0000-\u001f\u007f]+:[^\s/\u0000-\u001f\u007f]+$/.test(row.id)
+      || typeof row.username !== 'string' || !row.username.trim() || row.username.length > 100
+      || typeof row.displayName !== 'string' || row.displayName.length > 100
+      || typeof avatarUrl !== 'string' || avatarUrl.length > 2048) continue
+    if (avatarUrl) {
+      try {
+        const avatar = new URL(avatarUrl)
+        if (!['https:', 'http:'].includes(avatar.protocol) || avatar.username || avatar.password) continue
+      } catch { continue }
+    }
+    users.push({ id: row.id, username: row.username, displayName: row.displayName || row.username, avatarUrl, source: 'matrix' })
+  }
+  return uniqueBridgeMembers(users)
 }
 
 export type BridgedPresenceStatus = NonNullable<BridgedUser['presenceStatus']>
@@ -192,7 +222,7 @@ export class WebSocketGateway {
   private revalidating = false
   
   // Harmony channel ID -> bridged users.
-  private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
+  private bridgedUsersByChannel = new Map<string, Map<string, BridgedUser[]>>()
   private channelsByBot = new Map<string, Set<string>>()
   // Bot ID -> Discord user ID -> the user objects of that bot's registration, one per channel
   // list holding the user. op 7 updates these objects in place.
@@ -568,7 +598,7 @@ export class WebSocketGateway {
   // BRIDGE DATA MANAGEMENT
   
   /**
-   * Handles bridge data registration from the Discord bridge.
+   * Handles Discord registration and explicitly platform-bound Matrix member snapshots.
    *
    * BUGS.md H40: `harmonyChannelId`s from the bot are untrusted. For each one,
    * `channels.server_id` is resolved, the bot must have an active
@@ -597,6 +627,11 @@ export class WebSocketGateway {
       return
     }
     const botId = botConnection.botId
+    const { data: bot, error: botError } = await supabase.from('bots').select('bridge_platform').eq('id', botId).maybeSingle()
+    if (botError || !bot) return
+    const matrix = bot.bridge_platform === 'matrix'
+    // The caller cannot downgrade a Matrix bot into the unvalidated legacy member path.
+    if ((data.platform === 'matrix') !== matrix || (data.platform !== undefined && !['matrix', 'discord'].includes(data.platform))) return
 
     const sharedMembers: BridgedUser[] = Array.isArray(data.members) ? data.members as BridgedUser[] : []
     const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] | null }> = []
@@ -667,6 +702,11 @@ export class WebSocketGateway {
         rejectedCount++
         continue
       }
+      if (matrix) {
+        try {
+          if (await bridgeChannelPlatform(botId, harmonyChannelId) !== 'matrix') { rejectedCount++; continue }
+        } catch { return }
+      }
       accepted.push({ harmonyChannelId, serverId, members })
     }
 
@@ -681,8 +721,13 @@ export class WebSocketGateway {
     const index = new Map<string, BridgedUser[]>()
     const indexed = new Set<BridgedUser[]>()
     for (const { harmonyChannelId, members } of accepted) {
-      const list = members ?? shared
-      this.bridgedUsersByChannel.set(harmonyChannelId, list)
+      const raw = members ?? shared
+      let list = raw
+      if (matrix) list = matrixMembers(raw)
+      else if (raw.some(user => user?.source === 'matrix')) list = raw.filter(user => user?.source !== 'matrix')
+      let registrations = this.bridgedUsersByChannel.get(harmonyChannelId)
+      if (!registrations) this.bridgedUsersByChannel.set(harmonyChannelId, registrations = new Map())
+      registrations.set(botId, list)
       current.add(harmonyChannelId)
       // The shared root list can back several channels; its users are indexed once.
       if (indexed.has(list)) continue
@@ -722,12 +767,11 @@ export class WebSocketGateway {
     return changed
   }
 
-  // A channel's members stay while another bot still registers the channel.
+  // Remove only this bot's snapshot; another platform's members must remain intact.
   private releaseChannel(botId: string, channelId: string) {
-    for (const [otherBot, channels] of this.channelsByBot) {
-      if (otherBot !== botId && channels.has(channelId)) return
-    }
-    this.bridgedUsersByChannel.delete(channelId)
+    const registrations = this.bridgedUsersByChannel.get(channelId)
+    registrations?.delete(botId)
+    if (!registrations?.size) this.bridgedUsersByChannel.delete(channelId)
   }
 
   // A bot's connections close in any order, and a client that sees its socket drop (1006) can
@@ -793,29 +837,34 @@ export class WebSocketGateway {
   
   // Consumed by the REST API.
   getBridgedUsers(channelId: string): BridgedUser[] {
-    return this.bridgedUsersByChannel.get(channelId) || []
+    return uniqueBridgeMembers(Array.from(this.bridgedUsersByChannel.get(channelId)?.values() ?? []).flat())
+  }
+
+  /** Matrix binding is rechecked on every frontend member read. */
+  async getAuthorizedBridgedUsers(channelIds: string[]): Promise<BridgedUser[]> {
+    const members: BridgedUser[] = []
+    for (const channelId of channelIds) {
+      for (const [botId, users] of this.bridgedUsersByChannel.get(channelId) ?? []) {
+        if (users.some(user => user.source === 'matrix') && await bridgeChannelPlatform(botId, channelId) !== 'matrix') continue
+        members.push(...users)
+      }
+    }
+    return uniqueBridgeMembers(members)
   }
 
   /**
-   * Merges bridged users across all mapped channels on a server, deduped by
-   * Discord id.
+   * Merges bridged users across mapped channels, keyed by platform and external ID.
    */
   getBridgedUsersForServer(channelIds: string[]): BridgedUser[] {
-    const byDiscordId = new Map<string, BridgedUser>()
-    for (const channelId of channelIds) {
-      for (const user of this.bridgedUsersByChannel.get(channelId) ?? []) {
-        byDiscordId.set(user.id, user)
-      }
-    }
-    return Array.from(byDiscordId.values())
+    return uniqueBridgeMembers(channelIds.flatMap(id => this.getBridgedUsers(id)))
   }
 
   hasBridgedUsersForServer(channelIds: string[]): boolean {
-    return channelIds.some(id => (this.bridgedUsersByChannel.get(id)?.length ?? 0) > 0)
+    return channelIds.some(id => this.getBridgedUsers(id).length > 0)
   }
   
   hasChannelBridge(channelId: string): boolean {
-    return (this.bridgedUsersByChannel.get(channelId)?.length ?? 0) > 0
+    return this.getBridgedUsers(channelId).length > 0
   }
   
   /**

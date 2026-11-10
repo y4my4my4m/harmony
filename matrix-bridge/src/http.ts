@@ -33,8 +33,8 @@ export function endpoint(base: string, path: string): URL {
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-async function boundedBytes(response: Response, signal: AbortSignal): Promise<Buffer> {
-  if (Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
+async function boundedBytes(response: Response, signal: AbortSignal, maxBytes = MAX_RESPONSE_BYTES): Promise<Buffer> {
+  if (Number(response.headers.get('content-length')) > maxBytes) {
     await response.body?.cancel();
     throw new HttpError('HTTP response exceeds limit', false);
   }
@@ -49,7 +49,7 @@ async function boundedBytes(response: Response, signal: AbortSignal): Promise<Bu
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_RESPONSE_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
         throw new HttpError('HTTP response exceeds limit', false);
       }
@@ -63,9 +63,9 @@ async function boundedBytes(response: Response, signal: AbortSignal): Promise<Bu
   }
 }
 
-async function boundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
+async function boundedJson(response: Response, signal: AbortSignal, maxBytes = MAX_RESPONSE_BYTES): Promise<unknown> {
   if (response.status === 204) return undefined;
-  const bytes = await boundedBytes(response, signal);
+  const bytes = await boundedBytes(response, signal, maxBytes);
   try { return JSON.parse(bytes.toString('utf8')); }
   catch { throw new HttpError('Invalid JSON response', false); }
 }
@@ -87,9 +87,9 @@ export function requestImage(url: URL, init: RequestInit, fetchImpl: FetchImpl =
 
 /** One attempt only: callers decide whether their operation is safe to retry. */
 export function requestJson<T = unknown>(
-  url: URL, init: RequestInit, fetchImpl: FetchImpl = fetch, timeoutMs = 15_000,
+  url: URL, init: RequestInit, fetchImpl: FetchImpl = fetch, timeoutMs = 15_000, maxBytes = MAX_RESPONSE_BYTES,
 ): Promise<T> {
-  return request(url, init, fetchImpl, timeoutMs, boundedJson) as Promise<T>;
+  return request(url, init, fetchImpl, timeoutMs, (response, signal) => boundedJson(response, signal, maxBytes)) as Promise<T>;
 }
 
 async function request<T>(

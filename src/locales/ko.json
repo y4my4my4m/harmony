@@ -1,5 +1,19 @@
 {
   "bridgeSource": { "from": "{platform}에서 연결됨" },
+  "matrixBridge": {
+    "navLabel": "Matrix 브리지", "title": "Matrix 브리지",
+    "description": "기존 Matrix 대화방 브리지로 Harmony 메시지를 보내는 방식을 선택하세요.",
+    "requirements": "개별 모드는 Harmony 작성자에 실제 Matrix 멤버를 사용합니다. 애플리케이션 서비스 사용자 네임스페이스와 Matrix 대화방에 초대할 권한이 필요합니다.",
+    "history": "모드 변경은 향후 전송에만 적용됩니다. 기존 기록은 보존됩니다.",
+    "delivery": "개별 모드를 선택해도 등록이나 전송이 확인된 것은 아닙니다. Matrix에 성공적으로 전송된 메시지에서 발신자를 확인하세요.",
+    "loading": "Matrix 브리지 불러오는 중…", "reload": "새로고침", "empty": "이 서버에 설정된 Matrix 브리지가 없습니다.",
+    "waitingRoom": "Matrix 대화방 연결을 기다리고 있습니다. 지금 모드를 저장할 수 있습니다.",
+    "senderMode": "Harmony 메시지 발신자", "ghost": "개별 브리지 사용자 (권장)", "relay": "공유 브리지 계정",
+    "saving": "모드 저장 중…", "loadError": "Matrix 브리지 설정을 불러올 수 없습니다. 새로고침하여 다시 시도하세요.",
+    "saveError": "모드 변경을 확인할 수 없습니다. 새로고침하여 현재 설정을 확인하세요.",
+    "externalIdentity": "Harmony 프로필이 아닌 외부 Matrix ID입니다. Harmony 프로필 기능을 사용할 수 없습니다.",
+    "openMatrix": "Matrix에서 열기", "members": "Matrix 멤버"
+  },
   "bridgePrivacy": {
     "title": "브리지 개인정보 보호",
     "description": "이 서버에서 앞으로 보내는 내 메시지를 브리지가 다른 플랫폼으로 전달하지 못하게 합니다.",

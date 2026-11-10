@@ -11,6 +11,7 @@ const pairSchema = z.object({
   // Room IDs are opaque: room version 12+ IDs need not contain a homeserver suffix.
   matrixRoomId: z.string().min(2).max(255).regex(/^![^\s/]+$/),
   direction: z.enum(['both', 'to_harmony', 'to_matrix']).default('both'),
+  senderMode: z.enum(['ghost', 'relay']).default('relay'),
 }).strict()
 
 export const configSchema = z.object({
@@ -21,14 +22,14 @@ export const configSchema = z.object({
       return ['ws:', 'wss:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
     }),
     // An additional source restriction, never a substitute for native per-member consent.
-    allowedUserIds: z.array(z.uuid()).min(1),
+    allowedUserIds: z.array(z.uuid()).min(1).max(1000),
   }).strict(),
   matrix: z.object({
     homeserverUrl: httpUrl,
     serverName: z.string().regex(/^[a-zA-Z0-9.-]+(?::[0-9]+)?$/),
     senderLocalpart: z.string().regex(/^[a-z0-9._=-]+$/).default('harmony_relay'),
     applicationServiceUrl: httpUrl,
-    allowedUserIds: z.array(matrixId).min(1),
+    allowedUserIds: z.array(matrixId).min(1).max(1000),
   }).strict(),
   listen: z.object({
     host: z.string().default('127.0.0.1'),
@@ -70,15 +71,32 @@ export function botUserId(config: Config): string {
   return `@${config.matrix.senderLocalpart}:${config.matrix.serverName}`
 }
 
+export function ghostUserId(config: Config, harmonyId: string): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(harmonyId)) throw new Error('Invalid ghost owner UUID')
+  const id = `@${config.matrix.senderLocalpart}_h_${harmonyId.replaceAll('-', '').toLowerCase()}:${config.matrix.serverName}`
+  if (id.length > 255) throw new Error('Ghost MXID exceeds Matrix limit')
+  return id
+}
+
+export function ghostOwner(config: Config, matrixId: string): string | null {
+  const prefix = `@${config.matrix.senderLocalpart}_h_`
+  const suffix = `:${config.matrix.serverName}`
+  if (!matrixId.startsWith(prefix) || !matrixId.endsWith(suffix)) return null
+  const hex = matrixId.slice(prefix.length, -suffix.length)
+  return /^[0-9a-f]{32}$/.test(hex) ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : null
+}
+
 export function registration(config: Config, secrets: Pick<Secrets, 'asToken' | 'hsToken'>): Record<string, unknown> {
-  const escaped = botUserId(config).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escaped = escape(botUserId(config))
+  const ghostNamespace = `^@${escape(config.matrix.senderLocalpart)}_h_[0-9a-f]{32}:${escape(config.matrix.serverName)}$`
   return {
     id: 'harmony-matrix-relay',
     url: config.matrix.applicationServiceUrl,
     as_token: secrets.asToken,
     hs_token: secrets.hsToken,
     sender_localpart: config.matrix.senderLocalpart,
-    namespaces: { users: [{ exclusive: true, regex: `^${escaped}$` }], aliases: [], rooms: [] },
+    namespaces: { users: [{ exclusive: true, regex: `^${escaped}$` }, { exclusive: true, regex: ghostNamespace }], aliases: [], rooms: [] },
     rate_limited: false,
     'de.sorunome.msc2409.push_ephemeral': false,
   }

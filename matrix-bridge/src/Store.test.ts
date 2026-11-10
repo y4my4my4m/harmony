@@ -52,13 +52,36 @@ describe("Store", () => {
     expect(store.nextJob(0)).toEqual(store.nextJob(0));
   });
 
+  it("persists ghost ownership, room tracking and immutable queued sender across restart", () => {
+    const path = file();
+    let store = open(path);
+    store.enqueue(job('outbound', { direction: 'to_matrix' }));
+    const queued = store.nextJob()!;
+    expect(store.freezeSender(queued, '@ghost:test')).toBe('@ghost:test');
+    expect(store.reserveGhost('@ghost:test', 'harmony-user')).toBe(false);
+    store.registerGhost('@ghost:test');
+    store.trackGhostRoom('!room:test', '@ghost:test');
+    close(store);
+    store = open(path);
+    expect(store.freezeSender(store.nextJob()!, '@relay:test')).toBe('@ghost:test');
+    expect(store.nextJob()!.payload.matrix_sender).toBe('@ghost:test');
+    expect(store.reserveGhost('@ghost:test', 'harmony-user')).toBe(true);
+    expect(store.ownsGhost('@ghost:test')).toBe(true);
+    expect(store.ghostRooms()).toEqual(['!room:test']);
+    expect(store.roomGhosts('!room:test')).toEqual(['@ghost:test']);
+    expect(() => store.reserveGhost('@ghost:test', 'another-owner')).toThrow();
+    store.forgetGhostRoom('!room:test', '@ghost:test');
+    expect(store.ghostRooms()).toEqual([]);
+    expect(store.ownsGhost('@ghost:test')).toBe(true);
+  });
+
   it("atomically accepts receipts, including empty and overlapping transactions", () => {
     const store = memory();
     expect(store.acceptTransaction("one", [job("a"), job("a"), job("b")])).toBe(true);
-    expect(store.acceptTransaction("one", [job("ignored")])).toBe(false);
+    expect(store.acceptTransaction("one", [job("a"), job("b")])).toBe(false);
     expect(store.acceptTransaction("two", [job("a"), job("c")])).toBe(true);
     expect(store.acceptTransaction("empty", [])).toBe(true);
-    expect(store.acceptTransaction("empty", [job("ignored")])).toBe(false);
+    expect(store.acceptTransaction("empty", [])).toBe(false);
     expect(store.counts().pending).toBe(3);
   });
 
@@ -84,7 +107,7 @@ describe("Store", () => {
     store.fail(store.nextJob(0)!.id, "permanent");
     close(store);
     store = open(path);
-    expect(store.acceptTransaction("txn", [job("new")])).toBe(false);
+    expect(store.acceptTransaction("txn", [job("a"), job("b"), job("c")])).toBe(false);
     expect(store.enqueue(job("a"))).toBe(false);
     expect(store.enqueue(job("c"))).toBe(false);
     expect(store.counts()).toEqual({ pending: 1, failed: 1 });
@@ -99,6 +122,32 @@ describe("Store", () => {
     try {
       expect(db.prepare("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" });
     } finally { db.close(); }
+  });
+
+  it("accepts new events and encryption fences under reused transaction IDs after restart", () => {
+    const path = file();
+    let store = open(path);
+    store.acceptTransaction('1', [job('old')]);
+    store.complete(store.nextJob()!.id, 'old-copy');
+    close(store);
+    store = open(path);
+    expect(store.acceptTransaction('1', [job('old'), job('new')])).toBe(true);
+    expect(store.acceptTransaction('1', [job('old'), job('new')])).toBe(false);
+    expect(store.counts()).toEqual({ pending: 1, failed: 0 });
+    expect(store.findMapping('to_harmony', 'old', 'channel', '!room:example.org')).toBe('old-copy');
+    const roomId = '!newly-encrypted:example.org';
+    expect(() => store.acceptTransaction('1', [job('rolled-back'), job('invalid', { payload: { toJSON: () => null } })], [roomId])).toThrow();
+    expect(store.counts().pending).toBe(1);
+    expect(store.isRoomBlocked(roomId)).toBe(false);
+    expect(store.acceptTransaction('1', [], [roomId])).toBe(true);
+    expect(store.acceptTransaction('1', [], [roomId])).toBe(false);
+    close(store);
+    store = open(path);
+    expect(store.isRoomBlocked(roomId)).toBe(true);
+    expect(store.acceptTransaction('1', [job('old'), job('new')], [roomId])).toBe(false);
+    const db = new DatabaseSync(path);
+    try { expect(db.prepare('SELECT COUNT(*) AS count FROM transactions').get()!.count).toBe(1); }
+    finally { db.close(); }
   });
 
   it("returns ready jobs in stable ID order, not retry timestamp order", () => {
@@ -200,9 +249,17 @@ describe("Store", () => {
     const jobs = Array.from({ length: 10_000 }, (_, i) => job(String(i)));
     expect(store.acceptTransaction("full", jobs)).toBe(true);
     expect(store.enqueue(jobs[0]!)).toBe(false);
+    expect(store.acceptTransaction('full', [jobs[0]!])).toBe(false);
+    const roomId = '!quota-fence:example.org';
+    expect(() => store.acceptTransaction('full', [job('reuse-extra')], [roomId])).toThrow(/quota/);
+    expect(store.isRoomBlocked(roomId)).toBe(false);
     expect(() => store.acceptTransaction("overflow", [job("extra")])).toThrow(/quota/);
     expect(store.counts().pending).toBe(10_000);
     store.complete(store.nextJob()!.id, "done");
+    expect(store.acceptTransaction('full', [job('reuse-extra')], [roomId])).toBe(true);
+    expect(store.isRoomBlocked(roomId)).toBe(true);
+    expect(store.counts().pending).toBe(10_000);
+    store.complete(store.nextJob()!.id, 'done-again');
     expect(store.acceptTransaction("overflow", [job("extra")])).toBe(true);
     expect(store.counts().pending).toBe(10_000);
   }, 20_000);

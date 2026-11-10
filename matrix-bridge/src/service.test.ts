@@ -28,11 +28,13 @@ async function listen(server: Server): Promise<number> {
   return (server.address() as AddressInfo).port
 }
 
-it.each(['matrix', null, 'discord', 'unavailable'])('runs only with verified Matrix bridge registration (%s)', async platform => {
+it.each([{ platform: 'matrix', mode: 'relay' }, { platform: 'matrix', mode: 'ghost' }, { platform: null, mode: 'relay' }, { platform: 'discord', mode: 'relay' }, { platform: 'unavailable', mode: 'relay' }])('runs with verified Matrix registration and DB sender mode ($platform/$mode)', async ({ platform, mode }) => {
   const channelId = '22222222-2222-4222-8222-222222222222'
   const userId = '11111111-1111-4111-8111-111111111111'
   const harmonyPosts: unknown[] = []
   const matrixPosts: unknown[] = []
+  const matrixSenders: string[] = []
+  const memberFrames: unknown[] = []
   let gateway: WebSocket | undefined
   const remote = createServer(async (req, res) => {
     const path = new URL(req.url!, 'http://localhost').pathname
@@ -44,14 +46,18 @@ it.each(['matrix', null, 'discord', 'unavailable'])('runs only with verified Mat
     if (path.endsWith('/bridge-platform')) {
       result = { platform }; if (platform === 'unavailable') status = 503
     }
+    else if (path.endsWith('/bridge-room')) result = { room_id: '!room:test', sender_mode: mode }
+    else if (path.endsWith('/bridge-members')) result = [{ id: userId, username: 'Alice', display_name: 'Alice', avatar_url: null, domain: 'test' }]
+    else if (path.endsWith('/joined_members')) result = { joined: { '@alice:test': { display_name: 'Room Alice' } } }
     else if (path.includes('/bridge-consent/')) result = { relay_allowed: true }
     else if (path.includes('/state/m.room.member/')) result = { membership: 'join', displayname: 'Room Alice' }
     else if (path.endsWith('/encryption')) result = { messages_encrypted: false }
     else if (path.endsWith('/state/m.room.encryption/')) { result = { errcode: 'M_NOT_FOUND' }; status = 404 }
-    else if (path.endsWith('/register')) result = { user_id: '@harmony_relay:test' }
+    else if (path.endsWith('/register')) result = { user_id: `@${input.username}:test` }
+    else if (path.endsWith('/account/whoami')) result = { user_id: new URL(req.url!, 'http://localhost').searchParams.get('user_id') }
     else if (path.includes('/join/')) result = { room_id: '!room:test' }
     else if (path.endsWith('/messages')) { harmonyPosts.push(input); result = { id: 'h-copy' } }
-    else if (path.includes('/send/')) { matrixPosts.push(input); result = { event_id: '$m-copy' } }
+    else if (path.includes('/send/')) { matrixPosts.push(input); matrixSenders.push(new URL(req.url!, 'http://localhost').searchParams.get('user_id')!); result = { event_id: '$m-copy' } }
     else { status = 404; result = {} }
     res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(result))
   })
@@ -62,6 +68,7 @@ it.each(['matrix', null, 'discord', 'unavailable'])('runs only with verified Mat
       const frame = JSON.parse(bytes.toString())
       if (frame.op === 2) socket.send(JSON.stringify({ op: 0, t: 'READY', d: { heartbeat_interval: 1000 } }))
       if (frame.op === 1) socket.send('{"op":11}')
+      if (frame.op === 6) memberFrames.push(frame.d)
     })
   })
   const port = await listen(remote)
@@ -113,7 +120,9 @@ it.each(['matrix', null, 'discord', 'unavailable'])('runs only with verified Mat
     expect(harmonyPosts).toHaveLength(1)
     expect(matrixPosts).toHaveLength(1)
   }, { timeout: 5000 })
-  expect(matrixPosts[0]).toMatchObject({ body: '[Alice · Harmony] hello Matrix', 'm.mentions': {} })
+  expect(matrixPosts[0]).toMatchObject({ body: mode === 'ghost' ? 'hello Matrix' : '[Alice · Harmony] hello Matrix', 'm.mentions': {} })
+  expect(matrixSenders[0]).toBe(mode === 'ghost' ? '@harmony_relay_h_11111111111141118111111111111111:test' : '@harmony_relay:test')
+  await vi.waitFor(() => expect(memberFrames).toContainEqual({ platform: 'matrix', channels: [{ harmonyChannelId: channelId, members: [{ id: '@alice:test', username: 'alice', displayName: 'Room Alice', avatarUrl: null, source: 'matrix' }] }] }))
   expect(harmonyPosts[0]).toMatchObject({ content: [{ type: 'text', text: 'hello Harmony' }],
     metadata: { bridge_author: { platform: 'matrix', id: '@alice:test', username: 'alice', display_name: 'Room Alice' } } })
   expect(output).not.toContain('hello Matrix')

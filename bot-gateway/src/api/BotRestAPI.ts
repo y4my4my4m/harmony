@@ -29,7 +29,8 @@ import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
 import { bridgeAuthor as normalizedBridgeAuthor, bridgedMessageAuthor } from '../bridge/bridgeAuthors.js'
 import { bridgeChannelPlatform, visibleMessageIds } from '../bridge/bridgePrivacy.js'
-import { bridgeAvatarBytes, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
+import { bridgeAvatarBytes, nativeBridgeAvatar, storeBridgeAvatar } from '../utils/bridgeAvatar.js'
+import { MATRIX_ROOM_ID, matrixRoomBinding, matrixBridgeMembers, publicMatrixBridgeMembers } from '../bridge/matrixRooms.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -250,6 +251,10 @@ export class BotRestAPI {
     this.route('get', '/channels/:channelId/bridge-platform', this.getBridgePlatform)
     this.route('get', '/channels/:channelId/bridge-consent/:userId', this.getBridgeConsent)
     this.route('post', '/channels/:channelId/bridge-avatar', this.uploadBridgeAvatar)
+    this.route('get', '/channels/:channelId/bridge-room', this.getMatrixBridgeRoom)
+    this.route('put', '/channels/:channelId/bridge-room', this.bindMatrixBridgeRoom)
+    this.route('get', '/channels/:channelId/bridge-members', this.getMatrixBridgeMembers)
+    this.route('get', '/channels/:channelId/bridge-members/:userId/avatar', this.getNativeBridgeAvatar)
 
     // Lookup by bridged Discord message ID, stored in metadata.discord_message_id.
     this.route('get', '/channels/:channelId/messages/lookup', this.lookupMessageByDiscordId)
@@ -725,6 +730,52 @@ export class BotRestAPI {
     } catch {
       return res.status(503).json({ error: 'Bridge avatar storage or registration unavailable' })
     }
+  }
+
+  private async matrixChannelAccess(botId: string, channelId: string): Promise<boolean> {
+    return await this.canReadChannel(botId, channelId)
+      && (await this.channelWriteAccess(botId, channelId, 'send_messages')).ok
+      && await bridgeChannelPlatform(botId, channelId) === 'matrix'
+  }
+
+  private async getMatrixBridgeRoom(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable' }) }
+  }
+
+  private async bindMatrixBridgeRoom(req: BotRequest, res: Response) {
+    const { room_id, initial_sender_mode } = req.body ?? {}
+    if (typeof room_id !== 'string' || !MATRIX_ROOM_ID.test(room_id) || !['ghost', 'relay'].includes(initial_sender_mode)) {
+      return res.status(400).json({ error: 'Expected room_id and initial_sender_mode (ghost or relay)' })
+    }
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(await matrixRoomBinding(req.bot!.id, channelId, { room_id, sender_mode: initial_sender_mode }))
+    } catch { return res.status(503).json({ error: 'Matrix room binding unavailable; unpair before changing rooms' }) }
+  }
+
+  private async getMatrixBridgeMembers(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      return res.json(publicMatrixBridgeMembers(await matrixBridgeMembers(req.bot!.id, channelId)))
+    } catch { return res.status(503).json({ error: 'Matrix member consent unavailable' }) }
+  }
+
+  private async getNativeBridgeAvatar(req: BotRequest, res: Response) {
+    const { channelId, userId } = req.params
+    if (!UUID_PATTERN.test(userId)) return res.status(400).json({ error: 'Invalid user ID' })
+    try {
+      if (!(await this.matrixChannelAccess(req.bot!.id, channelId))) return res.status(403).json({ error: 'No Matrix read/send binding for this channel' })
+      const member = (await matrixBridgeMembers(req.bot!.id, channelId)).find(member => member.id === userId)
+      const avatar = member?.avatar_url ? await nativeBridgeAvatar(member.avatar_url) : null
+      if (!avatar) return res.status(404).json({ error: 'No supported consenting member avatar' })
+      return res.json(avatar)
+    } catch { return res.status(503).json({ error: 'Native bridge avatar unavailable' }) }
   }
 
   private async getBridgePlatform(req: BotRequest, res: Response) {

@@ -16,7 +16,7 @@ const OWNER_OF_PRIVATE = '00000000-0000-0000-0000-0000000000ab'
 const GENERAL = '00000000-0000-0000-0000-0000000000c1'
 const STAFF = '00000000-0000-0000-0000-0000000000c2'
 
-const state = vi.hoisted(() => ({ db: null as any }))
+const state = vi.hoisted(() => ({ db: null as any, matrixPlatform: 'matrix' as string | null, matrixError: false }))
 
 vi.mock('../config/supabase.js', () => ({
   supabase: {
@@ -26,6 +26,7 @@ vi.mock('../config/supabase.js', () => ({
         const views = args.p_user_id === MEMBER_ID && args.p_server_id === SERVER_ID && args.p_channel_id === GENERAL
         return { data: views, error: null }
       }
+      if (name === 'bridge_channel_platform') return { data: state.matrixPlatform, error: state.matrixError ? { message: 'offline' } : null }
       if (name === 'channel_message_changes') return { data: { now: new Date().toISOString(), messages: [] }, error: null }
       return { data: null, error: null }
     },
@@ -77,8 +78,8 @@ function connect(botId: string, username: string) {
 }
 
 function bridgeMembers(channelId: string, username: string) {
-  const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-  byChannel.set(channelId, [{ id: username, username, displayName: username, source: 'discord' }])
+  const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, Map<string, any[]>>
+  byChannel.set(channelId, new Map([[BRIDGE_BOT, [{ id: username, username, displayName: username, source: 'discord' }]]]))
 }
 
 describe('GET /status', () => {
@@ -100,6 +101,18 @@ describe('GET /status', () => {
 })
 
 describe('GET /bridged-users', () => {
+  it('rechecks Matrix bindings and returns no stale members after unpairing', async () => {
+    ;(gateway as any).bridgedUsersByChannel.set(GENERAL, new Map([[BRIDGE_BOT, [{ id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '', source: 'matrix' }]]]))
+    const route = `/bridged-users/${GENERAL}`
+    expect((await supertest(app).get(route).set('Authorization', 'Bearer auth-member')).body.users[0].source).toBe('matrix')
+    state.matrixPlatform = null
+    const revoked = await supertest(app).get(route).set('Authorization', 'Bearer auth-member')
+    expect(revoked.body).toMatchObject({ users: [], has_bridge: false })
+    state.matrixPlatform = 'matrix'; state.matrixError = true
+    expect((await supertest(app).get(route).set('Authorization', 'Bearer auth-member')).status).toBe(503)
+    state.matrixError = false
+  })
+
   it('serves a channel\'s Discord members only to a member who views the channel', async () => {
     bridgeMembers(GENERAL, 'discord_member')
     bridgeMembers(STAFF, 'discord_admin')

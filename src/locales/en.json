@@ -1,5 +1,26 @@
 {
   "bridgeSource": { "from": "Bridged from {platform}" },
+  "matrixBridge": {
+    "navLabel": "Matrix bridge",
+    "title": "Matrix bridge",
+    "description": "Choose how Harmony messages are sent to your existing Matrix room bridges.",
+    "requirements": "Individual mode uses real Matrix members for Harmony authors. It requires an application-service user namespace and permission to invite them into the Matrix room.",
+    "history": "Mode changes affect future deliveries only. Existing history is preserved.",
+    "delivery": "Choosing individual mode does not confirm registration or delivery. Verify the sender on a successfully delivered message in Matrix.",
+    "loading": "Loading Matrix bridges…",
+    "reload": "Reload",
+    "empty": "No configured Matrix bridges for this server.",
+    "waitingRoom": "Waiting for the bridge to connect a Matrix room. Your mode choice can be saved now.",
+    "senderMode": "Send Harmony messages as",
+    "ghost": "Individual bridged users (recommended)",
+    "relay": "Shared bridge account",
+    "saving": "Saving mode…",
+    "loadError": "Could not load Matrix bridge settings. Reload to try again.",
+    "saveError": "Could not confirm the mode change. Reload to check the current setting.",
+    "externalIdentity": "This is an external Matrix identity, not a Harmony profile. Harmony profile actions are not available.",
+    "openMatrix": "Open in Matrix",
+    "members": "Matrix members"
+  },
   "bridgePrivacy": {
     "title": "Bridge privacy",
     "description": "Prevent bridges from forwarding your future messages from this server to other platforms.",

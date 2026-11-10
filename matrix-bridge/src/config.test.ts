@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { botUserId, configSchema, loadSecrets, registration } from './config.js'
+import { botUserId, configSchema, ghostUserId, ghostOwner, loadSecrets, registration } from './config.js'
 
 export const sampleConfig = () => ({
   harmony: { apiUrl: 'https://harmony.test/bot-gateway', gatewayUrl: 'wss://harmony.test/bot-gateway/gateway', allowedUserIds: ['11111111-1111-4111-8111-111111111111'] },
@@ -11,6 +11,7 @@ describe('configuration', () => {
   it('defaults to one-to-one both-way relay, loopback listen and explicit users', () => {
     const config = configSchema.parse(sampleConfig())
     expect(config.pairs[0].direction).toBe('both')
+    expect(config.pairs[0].senderMode).toBe('relay')
     expect(config.listen.host).toBe('127.0.0.1')
     expect(botUserId(config)).toBe('@harmony_relay:matrix.test')
     expect(configSchema.safeParse({ ...sampleConfig(), harmony: { ...sampleConfig().harmony, allowedUserIds: [] } }).success).toBe(false)
@@ -41,7 +42,7 @@ describe('configuration', () => {
     expect(() => loadSecrets({ ...env, MATRIX_HS_TOKEN: env.MATRIX_AS_TOKEN })).toThrow(/distinct/)
     expect(() => loadSecrets({ ...env, HARMONY_TOKEN: 'secret-password' })).toThrow('HARMONY_TOKEN must be a Harmony bot token')
   })
-  it('registers only the exact relay user, without claiming other users or rooms', () => {
+  it('registers the exact AS sender and dedicated ghosts without claiming unrelated users or rooms', () => {
     const config = configSchema.parse(sampleConfig())
     const result = registration(config, { asToken: 'as', hsToken: 'hs' })
     const namespaces = result.namespaces as { users: Array<{ regex: string }>; rooms: unknown[] }
@@ -49,5 +50,12 @@ describe('configuration', () => {
     expect(new RegExp(namespaces.users[0].regex).test('@harmony_relay:matrixXtest')).toBe(false)
     expect(new RegExp(namespaces.users[0].regex).test('@alice:matrix.test')).toBe(false)
     expect(namespaces.rooms).toEqual([])
+    const id = config.harmony.allowedUserIds[0]
+    const ghost = ghostUserId(config, id)
+    expect(ghostOwner(config, ghost)).toBe(id)
+    expect(ghost).toBe('@harmony_relay_h_11111111111141118111111111111111:matrix.test')
+    expect(new RegExp(namespaces.users[1].regex).test(ghost)).toBe(true)
+    expect(new RegExp(namespaces.users[1].regex).test(ghost.replace('h_111', 'h_bad111'))).toBe(false)
+    expect(ghostOwner(config, '@alice:matrix.test')).toBeNull()
   })
 })

@@ -90,6 +90,29 @@ describe('HarmonyClient', () => {
     }
   });
 
+  it('binds an initial sender mode but accepts the authoritative DB mode afterward', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ room_id: '!room:test', sender_mode: 'relay' }));
+    const harmony = client(fetchImpl);
+    await expect(harmony.bridgeRoom('channel', { room_id: '!room:test', initial_sender_mode: 'ghost' })).resolves.toEqual({ room_id: '!room:test', sender_mode: 'relay' });
+    expect(fetchImpl.mock.calls[0][1]?.method).toBe('PUT');
+    await harmony.bridgeRoom('channel');
+    expect(fetchImpl.mock.calls[1][1]?.method).toBe('GET');
+    fetchImpl.mockResolvedValueOnce(Response.json({ room_id: '!room:test', sender_mode: 'anything' }));
+    await expect(harmony.bridgeRoom('channel')).rejects.toThrow();
+  });
+
+  it('reads trusted native avatar bytes with bounded JSON and never follows member URLs', async () => {
+    const data = Buffer.alloc(1024 * 1024).toString('base64');
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ data, content_type: 'image/png' }));
+    const harmony = client(fetchImpl);
+    await expect(harmony.nativeAvatar('channel', 'user')).resolves.toEqual({ data, content_type: 'image/png' });
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/channels/channel/bridge-members/user/avatar');
+    for (const body of [{ data: '!!!!', content_type: 'image/png' }, { data: 'aW1hZ2U=', content_type: 'image/svg+xml' }, { data: '', content_type: 'image/png' }]) {
+      fetchImpl.mockResolvedValueOnce(Response.json(body));
+      await expect(harmony.nativeAvatar('channel', 'user')).rejects.toThrow();
+    }
+  });
+
   it('identifies with op 2, accepts messages before READY and heartbeats with op 1', async () => {
     const { server, url } = await gateway();
     const harmony = client(undefined, url);
@@ -112,6 +135,30 @@ describe('HarmonyClient', () => {
     harmony.stop();
     await new Promise(resolve => setTimeout(resolve, 50));
     expect(server.clients.size).toBe(0);
+  });
+
+  it('publishes full Matrix member snapshots across channels, empty updates and READY refreshes', async () => {
+    const { server, url } = await gateway();
+    const harmony = client(undefined, url);
+    const frames: any[] = [];
+    const connected = once(server, 'connection');
+    const member = { id: '@sam:test', username: 'sam', displayName: 'Sam', avatarUrl: null, source: 'matrix' as const };
+    let refreshes = 0;
+    harmony.on('ready', () => { refreshes++; harmony.publishMatrixMembers('channel-a', [member]); });
+    harmony.start();
+    const [socket] = await connected;
+    await once(socket, 'message'); // Identify precedes snapshots.
+    socket.on('message', (raw: Buffer) => { const frame = JSON.parse(raw.toString()); if (frame.op === 6) frames.push(frame.d); });
+    socket.send(JSON.stringify({ op: 0, t: 'READY', d: { heartbeat_interval: 10_000 } }));
+    await vi.waitFor(() => expect(frames).toHaveLength(1));
+    harmony.publishMatrixMembers('channel-b', [member]);
+    harmony.publishMatrixMembers('channel-a', []);
+    await vi.waitFor(() => expect(frames).toHaveLength(3));
+    expect(frames[2]).toEqual({ platform: 'matrix', channels: [{ harmonyChannelId: 'channel-a', members: [] }, { harmonyChannelId: 'channel-b', members: [member] }] });
+    socket.send(JSON.stringify({ op: 0, t: 'READY', d: { heartbeat_interval: 10_000 } }));
+    await vi.waitFor(() => expect(frames).toHaveLength(4));
+    expect(refreshes).toBe(2);
+    expect(frames[3].channels).toEqual([{ harmonyChannelId: 'channel-a', members: [member] }, { harmonyChannelId: 'channel-b', members: [member] }]);
   });
 
   it('reconnects after disconnect but never loops on revoked tokens', async () => {

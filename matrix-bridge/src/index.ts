@@ -27,11 +27,11 @@ async function main(): Promise<void> {
   let gatewayConnected = false
   let matrixStarted = false
   const server = createAppService({
-    hsToken: secrets.hsToken, botUserId: botUserId(config),
+    hsToken: secrets.hsToken, botUserId: botUserId(config), ownsGhost: id => store.ownsGhost(id),
     acceptTransaction: (id, events) => relay.acceptTransaction(id, events),
     status: () => ({ ready: gatewayConnected && matrixStarted && relay.isHealthy, ...store.counts() }),
   })
-  harmony.on('ready', () => { gatewayConnected = true; console.info('Harmony gateway connected') })
+  harmony.on('ready', () => { gatewayConnected = true; relay.requestMemberSync(); console.info('Harmony gateway connected') })
   harmony.on('disconnected', () => { gatewayConnected = false })
   harmony.on('error', () => { gatewayConnected = false; console.warn('Harmony connection error; check connectivity and bot credentials') })
   harmony.on('message', message => {
@@ -62,7 +62,10 @@ async function main(): Promise<void> {
       }
     }
     await matrix.ensureRegistered()
+    await relay.cleanupUnpairedGhosts()
     for (const pair of config.pairs) {
+      const binding = await harmony.bridgeRoom(pair.harmonyChannelId, { room_id: pair.matrixRoomId, initial_sender_mode: pair.senderMode })
+      if (binding.room_id !== pair.matrixRoomId) throw new Error('Matrix binding differs from configuration')
       await matrix.joinRoom(pair.matrixRoomId)
       if (!await matrix.roomIsPlaintext(pair.matrixRoomId) || !await harmony.channelIsPlaintext(pair.harmonyChannelId)) {
         throw new Error('A paired room/channel is encrypted or its policy cannot be verified')

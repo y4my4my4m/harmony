@@ -104,6 +104,57 @@ describe('MatrixClient', () => {
     await expect(client.ensureRegistered()).rejects.toThrow();
   });
 
+  it('registers a dedicated ghost, proves AS ownership, and refuses unknown collisions', async () => {
+    const { client, fetchImpl } = setup();
+    const ghost = '@relay_h_11111111111141118111111111111111:matrix.example';
+    fetchImpl.mockResolvedValueOnce(Response.json({ user_id: ghost })).mockResolvedValueOnce(Response.json({ user_id: ghost }));
+    await client.registerGhost(ghost, false);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1]!.body as string).username).toBe(ghost.slice(1, ghost.indexOf(':')));
+    expect(String(fetchImpl.mock.calls[1][0])).toContain('/account/whoami?user_id=');
+    fetchImpl.mockResolvedValueOnce(Response.json({ errcode: 'M_USER_IN_USE' }, { status: 400 }));
+    await expect(client.registerGhost(ghost, false)).rejects.toThrow();
+    fetchImpl.mockResolvedValueOnce(Response.json({ errcode: 'M_USER_IN_USE' }, { status: 400 })).mockResolvedValueOnce(Response.json({ user_id: ghost }));
+    await expect(client.registerGhost(ghost, true)).resolves.toBeUndefined();
+    await expect(client.registerGhost('@outsider:matrix.example', true)).rejects.toThrow('outside dedicated ghost namespace');
+  });
+
+  it('invites and joins ghosts with room-specific profiles, not global profiles', async () => {
+    const { client, fetchImpl } = setup();
+    const ghost = '@relay_h_11111111111141118111111111111111:matrix.example';
+    fetchImpl.mockResolvedValueOnce(Response.json({ errcode: 'M_NOT_FOUND' }, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({})).mockResolvedValueOnce(Response.json({})).mockResolvedValueOnce(Response.json({}));
+    await client.joinGhost('!room:example', ghost, { displayname: 'Room Nick', avatar_url: 'mxc://matrix.example/a' });
+    expect(String(fetchImpl.mock.calls[1][0])).toContain('/invite?user_id=%40relay%3A');
+    expect(JSON.parse(fetchImpl.mock.calls[1][1]!.body as string)).toEqual({ user_id: ghost });
+    expect(String(fetchImpl.mock.calls[2][0])).toContain(`user_id=${encodeURIComponent(ghost)}`);
+    expect(JSON.parse(fetchImpl.mock.calls[3][1]!.body as string)).toEqual({ membership: 'join', displayname: 'Room Nick', avatar_url: 'mxc://matrix.example/a' });
+    fetchImpl.mockResolvedValueOnce(Response.json({ event_id: '$ghost-event' }));
+    await client.sendMessage('!room:example', 'txn', 'Hi Sam', { sender: ghost, userIds: ['@sam:example'], formattedBody: 'Hi <a href="https://matrix.to/#/%40sam%3Aexample">Sam</a>' });
+    expect(String(fetchImpl.mock.calls[4][0])).toContain(`user_id=${encodeURIComponent(ghost)}`);
+    expect(JSON.parse(fetchImpl.mock.calls[4][1]!.body as string)).toMatchObject({ 'm.mentions': { user_ids: ['@sam:example'] }, format: 'org.matrix.custom.html' });
+  });
+
+  it('preserves the room avatar when refresh bytes are unavailable, but clears an explicit removal', async () => {
+    const { client, fetchImpl } = setup();
+    const ghost = '@relay_h_11111111111141118111111111111111:matrix.example';
+    fetchImpl.mockResolvedValueOnce(Response.json({ membership: 'join', displayname: 'Old Nick', avatar_url: 'mxc://matrix.example/old' }))
+      .mockResolvedValueOnce(Response.json({}));
+    await client.joinGhost('!room:example', ghost, { displayname: 'New Nick' });
+    expect(JSON.parse(fetchImpl.mock.calls[1][1]!.body as string)).toEqual({ membership: 'join', displayname: 'New Nick', avatar_url: 'mxc://matrix.example/old' });
+    fetchImpl.mockResolvedValueOnce(Response.json({ membership: 'join', displayname: 'New Nick', avatar_url: 'mxc://matrix.example/old' }))
+      .mockResolvedValueOnce(Response.json({}));
+    await client.joinGhost('!room:example', ghost, { displayname: 'New Nick', avatar_url: '' });
+    expect(JSON.parse(fetchImpl.mock.calls[3][1]!.body as string).avatar_url).toBe('');
+  });
+
+  it('uploads only supplied native avatar bytes to the configured HS', async () => {
+    const { client, fetchImpl } = setup();
+    fetchImpl.mockResolvedValueOnce(Response.json({ content_uri: 'mxc://matrix.example/native' }));
+    await expect(client.uploadAvatar({ data: 'aW1hZ2U=', content_type: 'image/png' })).resolves.toBe('mxc://matrix.example/native');
+    expect(String(fetchImpl.mock.calls[0][0])).toBe('https://matrix.example/proxy/_matrix/media/v3/upload');
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { Authorization: 'Bearer SECRET', 'Content-Type': 'image/png' }, redirect: 'error' });
+  });
+
   it('rejects malformed send results', async () => {
     const { client, fetchImpl } = setup();
     fetchImpl.mockResolvedValue(Response.json({}));

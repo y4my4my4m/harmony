@@ -11,6 +11,14 @@ export interface HarmonyClientOptions {
   heartbeatMs?: number;
 }
 
+export type SenderMode = 'ghost' | 'relay';
+export interface BridgeMember {
+  id: string; username: string; display_name: string | null; avatar_url: string | null; domain: string | null;
+}
+export interface MatrixMember {
+  id: string; username: string; displayName: string; avatarUrl: string | null; source: 'matrix';
+}
+
 export interface HarmonyMessage {
   id: string;
   channel_id: string;
@@ -29,6 +37,7 @@ export class HarmonyClient extends EventEmitter {
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private readyTimer?: ReturnType<typeof setTimeout>;
+  private readonly matrixMembers = new Map<string, MatrixMember[]>();
 
   constructor(private readonly options: HarmonyClientOptions) {
     super();
@@ -140,19 +149,19 @@ export class HarmonyClient extends EventEmitter {
     });
   }
 
-  private request<T>(path: string, method: string, body?: unknown): Promise<T> {
+  private request<T>(path: string, method: string, body?: unknown, maxBytes?: number): Promise<T> {
     const base = this.options.apiUrl.replace(/\/$/, '');
     const url = endpoint(base, /\/api\/v1$/.test(base) ? path : `api/v1/${path}`);
     return requestJson<T>(url, {
       method,
       headers: { Authorization: `Bot ${this.options.token}`, 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }, this.options.fetchImpl);
+    }, this.options.fetchImpl, 15_000, maxBytes);
   }
 
-  async sendMessage(channelId: string, content: string, metadata: Record<string, unknown>): Promise<{ id: string }> {
+  async sendMessage(channelId: string, content: string | Record<string, unknown>[], metadata: Record<string, unknown>): Promise<{ id: string }> {
     const result = await this.request<{ id?: unknown }>(`channels/${encodeURIComponent(channelId)}/messages`, 'POST', {
-      content: [{ type: 'text', text: content }], metadata,
+      content: typeof content === 'string' ? [{ type: 'text', text: content }] : content, metadata,
     });
     if (typeof result?.id !== 'string' || !result.id) throw new HttpError('Invalid Harmony message response', false);
     return { id: result.id };
@@ -168,6 +177,47 @@ export class HarmonyClient extends EventEmitter {
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
       || (url.protocol === 'http:' && new URL(this.options.apiUrl).protocol !== 'http:')) throw new HttpError('Invalid bridge avatar URL', false);
     return url.href;
+  }
+
+  publishMatrixMembers(channelId: string, members: MatrixMember[]): void {
+    this.matrixMembers.set(channelId, members);
+    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ op: 6, d: {
+      platform: 'matrix', channels: [...this.matrixMembers].map(([harmonyChannelId, members]) => ({ harmonyChannelId, members })),
+    } }));
+  }
+
+  async bridgeRoom(channelId: string, initial?: { room_id: string; initial_sender_mode: SenderMode }): Promise<{ room_id: string; sender_mode: SenderMode }> {
+    const result = await this.request<{ room_id?: unknown; sender_mode?: unknown }>(
+      `channels/${encodeURIComponent(channelId)}/bridge-room`, initial ? 'PUT' : 'GET', initial,
+    );
+    if (typeof result?.room_id !== 'string' || result.room_id.length > 255 || !/^![^\s/]+$/.test(result.room_id)
+      || !['ghost', 'relay'].includes(String(result.sender_mode))) throw new HttpError('Invalid Matrix room binding', false);
+    return result as { room_id: string; sender_mode: SenderMode };
+  }
+
+  async bridgeMembers(channelId: string): Promise<BridgeMember[]> {
+    const result = await this.request<unknown>(`channels/${encodeURIComponent(channelId)}/bridge-members`, 'GET');
+    if (!Array.isArray(result) || result.length > 1000) throw new HttpError('Invalid or oversized bridge member list', false);
+    const seen = new Set<string>();
+    return result.map(member => {
+      if (!member || typeof member !== 'object' || typeof member.id !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(member.id)
+        || seen.has(member.id) || typeof member.username !== 'string' || !member.username.trim() || member.username.length > 100
+        || /[\u0000-\u001f\u007f]/.test(member.username)) throw new HttpError('Invalid bridge member', false);
+      seen.add(member.id);
+      const bounded = (value: unknown, max: number) => typeof value === 'string' && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value) ? value : null;
+      return { id: member.id, username: member.username, display_name: bounded(member.display_name, 100),
+        avatar_url: bounded(member.avatar_url, 2048), domain: bounded(member.domain, 255) };
+    });
+  }
+
+  async nativeAvatar(channelId: string, userId: string): Promise<AvatarImage> {
+    const image = await this.request<AvatarImage>(`channels/${encodeURIComponent(channelId)}/bridge-members/${encodeURIComponent(userId)}/avatar`, 'GET', undefined, 1_400_000);
+    if (!image || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(image.content_type)
+      || typeof image.data !== 'string' || image.data.length > 1_398_104 || !/^[A-Za-z0-9+/]*={0,2}$/.test(image.data) || image.data.length % 4 !== 0
+      || !image.data.length || Buffer.from(image.data, 'base64').length > 1_048_576
+      || Buffer.from(image.data, 'base64').toString('base64') !== image.data) throw new HttpError('Invalid native avatar bytes', false);
+    return image;
   }
 
   async requireMatrixBridge(channelId: string): Promise<void> {

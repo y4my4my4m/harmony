@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
@@ -23,10 +23,17 @@ let db: FakeDb
 let platform: string | null
 let consent: unknown
 let visible: string[]
+let room: unknown
+let members: unknown
+const fetcher = vi.fn()
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 function app() { const a = express(); a.use(express.json({ limit: '2mb' })); a.use('/api/v1', new BotRestAPI().router); return a }
 const base = `/api/v1/channels/${CHANNEL}`
 beforeEach(() => {
   platform = 'matrix'; consent = true; visible = [MESSAGE]
+  room = { room_id: '!opaqueRoom', sender_mode: 'ghost' }
+  members = [{ id: USER, username: 'alice', display_name: 'Alice', avatar_url: 'alice/avatar.png', nickname: null, domain: 'profiles.example', is_local: true }]
+  fetcher.mockReset(); vi.stubGlobal('fetch', fetcher)
   db = new FakeDb({
     bots: [{ id: BOT, bot_type: 'bridge', bridge_platform: 'matrix' }],
     servers: [{ id: SERVER, owner: USER }], channels: [{ id: CHANNEL, server_id: SERVER }],
@@ -40,6 +47,8 @@ beforeEach(() => {
     if (fn === 'bridge_channel_platform') return { data: platform, error: null }
     if (fn === 'can_bridge_member_messages') return { data: consent, error: null }
     if (fn === 'bridge_visible_message_ids') return { data: visible, error: null }
+    if (fn === 'matrix_bridge_bind_room' || fn === 'matrix_bridge_room') return { data: room, error: null }
+    if (fn === 'matrix_bridge_channel_members') return { data: members, error: null }
     throw new Error('Unmocked RPC: ' + fn)
   })
   mocks.upload.mockResolvedValue({ error: null })
@@ -114,6 +123,63 @@ describe('bridge privacy REST boundaries', () => {
     db.rows('bot_server_permissions')[0].read_messages = false
     expect((await supertest(app()).get(base + '/bridge-platform')).status).toBe(403)
     expect((await supertest(app()).get(base + '/bridge-consent/' + USER)).status).toBe(403)
+  })
+})
+
+describe('Matrix room control and consenting native members', () => {
+  it('binds the configured room without overwriting an existing administrator mode', async () => {
+    const r = await supertest(app()).put(base + '/bridge-room').send({ room_id: '!opaqueRoom', initial_sender_mode: 'relay' })
+    expect(r.status).toBe(200); expect(r.body).toEqual(room)
+    expect(mocks.rpc).toHaveBeenCalledWith('matrix_bridge_bind_room', {
+      p_bot_id: BOT, p_channel_id: CHANNEL, p_room_id: '!opaqueRoom', p_initial_sender_mode: 'relay',
+    })
+    expect((await supertest(app()).get(base + '/bridge-room')).body).toEqual(room)
+  })
+  it.each([{ room_id: '!bad/room', initial_sender_mode: 'ghost' }, { room_id: '!ok', initial_sender_mode: 'auto' }, { room_id: '!ok\u0000', initial_sender_mode: 'relay' }])('rejects malformed room bindings', async body => {
+    expect((await supertest(app()).put(base + '/bridge-room').send(body)).status).toBe(400)
+  })
+  it('requires current Matrix read/send registration on every control/member request', async () => {
+    platform = null
+    for (const path of ['/bridge-room', '/bridge-members', '/bridge-members/' + USER + '/avatar']) {
+      expect((await supertest(app()).get(base + path)).status).toBe(403)
+    }
+    platform = 'matrix'; db.rows('bot_server_permissions')[0].send_messages = false
+    expect((await supertest(app()).get(base + '/bridge-members')).status).toBe(403)
+  })
+  it('returns only the member projection and no avatars after opt-out', async () => {
+    vi.stubEnv('PUBLIC_URL', 'https://harmony.example')
+    ;(members as any[])[0].private_data = 'do not expose'
+    const r = await supertest(app()).get(base + '/bridge-members')
+    expect(r.status).toBe(200); expect(r.body[0]).toMatchObject({ id: USER, display_name: 'Alice', domain: 'profiles.example', is_local: true })
+    expect(r.body[0]).not.toHaveProperty('private_data')
+    members = []
+    expect((await supertest(app()).get(base + '/bridge-members')).body).toEqual([])
+    expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+  it('fails closed on malformed control/member RPC answers', async () => {
+    room = { room_id: '!opaque', sender_mode: 'automatic' }; members = null
+    expect((await supertest(app()).get(base + '/bridge-room')).status).toBe(503)
+    expect((await supertest(app()).get(base + '/bridge-members')).status).toBe(503)
+  })
+  it('serves bounded native raster bytes from configured storage without credentials', async () => {
+    const png = Buffer.from([137,80,78,71,13,10,26,10])
+    fetcher.mockResolvedValue(new Response(png))
+    const r = await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')
+    expect(r.status).toBe(200); expect(r.body).toEqual({ data: png.toString('base64'), content_type: 'image/png' })
+    expect(fetcher).toHaveBeenCalledWith('https://harmony.example/storage/v1/object/public/avatars/alice/avatar.png', expect.objectContaining({ redirect: 'error' }))
+    expect(fetcher.mock.calls[0][1]).not.toHaveProperty('headers')
+  })
+  it.each(['https://attacker.example/avatar.png', '../private/file.png', '/default_avatar.webp'])('never fetches an arbitrary or bundled avatar URL (%s)', async avatar => {
+    ;(members as any[])[0].avatar_url = avatar
+    expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+  it('rejects oversized or nonraster avatar downloads', async () => {
+    fetcher.mockResolvedValueOnce(new Response(Buffer.alloc(1024 * 1024 + 1)))
+      .mockResolvedValueOnce(new Response('<svg/>'))
+    expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
+    expect((await supertest(app()).get(base + '/bridge-members/' + USER + '/avatar')).status).toBe(404)
   })
 })
 

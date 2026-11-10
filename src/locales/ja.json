@@ -1,5 +1,19 @@
 {
   "bridgeSource": { "from": "{platform} からのブリッジ" },
+  "matrixBridge": {
+    "navLabel": "Matrixブリッジ", "title": "Matrixブリッジ",
+    "description": "既存のMatrixルームブリッジにHarmonyメッセージを送信する方法を選択します。",
+    "requirements": "個別モードでは、Harmonyの投稿者に実際のMatrixメンバーを使用します。アプリケーションサービスのユーザー名前空間と、Matrixルームに招待する権限が必要です。",
+    "history": "モードの変更は今後の配信にのみ適用されます。既存の履歴は保持されます。",
+    "delivery": "個別モードを選択しても登録や配信の完了を意味しません。Matrixで配信に成功したメッセージの送信者を確認してください。",
+    "loading": "Matrixブリッジを読み込み中…", "reload": "再読み込み", "empty": "このサーバーに設定済みのMatrixブリッジはありません。",
+    "waitingRoom": "Matrixルームへの接続を待っています。モードは今から保存できます。",
+    "senderMode": "Harmonyメッセージの送信者", "ghost": "個別のブリッジユーザー（推奨）", "relay": "共有ブリッジアカウント",
+    "saving": "モードを保存中…", "loadError": "Matrixブリッジの設定を読み込めませんでした。再読み込みしてください。",
+    "saveError": "モード変更を確認できませんでした。再読み込みして現在の設定を確認してください。",
+    "externalIdentity": "これは外部のMatrix IDであり、Harmonyプロフィールではありません。Harmonyのプロフィール操作は利用できません。",
+    "openMatrix": "Matrixで開く", "members": "Matrixメンバー"
+  },
   "bridgePrivacy": {
     "title": "ブリッジのプライバシー",
     "description": "このサーバーで今後送信する自分のメッセージを、ブリッジが他のプラットフォームへ転送しないようにします。",

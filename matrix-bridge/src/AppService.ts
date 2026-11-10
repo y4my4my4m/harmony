@@ -28,6 +28,7 @@ async function body(req: IncomingMessage): Promise<unknown> {
 export interface AppServiceOptions {
   hsToken: string
   botUserId: string
+  ownsGhost?: (id: string) => boolean
   acceptTransaction: (id: string, events: MatrixEvent[]) => boolean
   status: () => { ready: boolean; pending: number; failed: number }
 }
@@ -64,7 +65,7 @@ export function createAppService(options: AppServiceOptions): Server {
         return
       }
       const user = /^\/_matrix\/app\/v1\/users\/([^/]+)$/.exec(url.pathname)
-      if (req.method === 'GET' && user && decodeURIComponent(user[1]) === options.botUserId) {
+      if (req.method === 'GET' && user && (decodeURIComponent(user[1]) === options.botUserId || options.ownsGhost?.(decodeURIComponent(user[1])))) {
         respond(200, {})
         return
       }

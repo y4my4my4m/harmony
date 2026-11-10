@@ -12,6 +12,7 @@ export type Job = {
 };
 
 type NewJob = Omit<Job, "id" | "attempts">;
+export class StorageError extends Error {}
 const MAX_PENDING = 10_000;
 const MAX_PAYLOAD_BYTES = 1_048_576;
 const MAX_ERROR_LENGTH = 2_048;
@@ -85,6 +86,16 @@ export class Store {
           UNIQUE(direction, source_id, channel_id, room_id)
         );
         CREATE INDEX IF NOT EXISTS jobs_pending ON jobs(id) WHERE status = 'pending';
+        CREATE TABLE IF NOT EXISTS ghost_users (
+          matrix_id TEXT PRIMARY KEY NOT NULL,
+          harmony_id TEXT UNIQUE NOT NULL,
+          registered INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS ghost_rooms (
+          room_id TEXT NOT NULL,
+          matrix_id TEXT NOT NULL REFERENCES ghost_users(matrix_id),
+          PRIMARY KEY(room_id, matrix_id)
+        );
       `);
     } catch (error) {
       this.db.close();
@@ -114,18 +125,19 @@ export class Store {
       const receipt = this.db.prepare(
         "INSERT INTO transactions(transaction_id) VALUES (?) ON CONFLICT DO NOTHING",
       ).run(transactionId);
-      if (receipt.changes === 0) return false;
+      // Homeservers can reuse transaction IDs; deduplicate jobs by event, not by receipt.
+      let changed = receipt.changes !== 0;
       for (const roomId of encryptedRoomIds) {
         nonempty(roomId, "roomId");
-        this.db.prepare("INSERT INTO encrypted_rooms(room_id) VALUES (?) ON CONFLICT DO NOTHING").run(roomId);
+        if (this.db.prepare("INSERT INTO encrypted_rooms(room_id) VALUES (?) ON CONFLICT DO NOTHING").run(roomId).changes !== 0) changed = true;
       }
-      for (const job of jobs) this.insert(job);
-      return true;
+      for (const job of jobs) if (this.insert(job)) changed = true;
+      return changed;
     });
   }
 
   isRoomBlocked(roomId: string): boolean {
-    return !!this.db.prepare("SELECT 1 FROM encrypted_rooms WHERE room_id = ?").get(roomId);
+    return this.ghostState(() => !!this.db.prepare("SELECT 1 FROM encrypted_rooms WHERE room_id = ?").get(roomId));
   }
 
   enqueue(job: NewJob): boolean {
@@ -191,6 +203,56 @@ export class Store {
         attempts: row.attempts as number,
       };
     }
+  }
+
+  private ghostState<T>(operation: () => T): T {
+    try { return operation(); }
+    catch { throw new StorageError('Ghost/sender state could not be persisted'); }
+  }
+
+  freezeSender(job: Job, sender: string): string {
+    return this.ghostState(() => this.transaction(() => {
+      const row = this.db.prepare("SELECT payload FROM jobs WHERE id = ? AND status = 'pending'").get(job.id);
+      if (!row) throw new Error('Pending job not found');
+      const payload = JSON.parse(row.payload as string);
+      if (typeof payload.matrix_sender === 'string') return payload.matrix_sender;
+      payload.matrix_sender = sender;
+      this.db.prepare('UPDATE jobs SET payload = ? WHERE id = ?').run(JSON.stringify(payload), job.id);
+      return sender;
+    }));
+  }
+
+  reserveGhost(matrixId: string, harmonyId: string): boolean {
+    return this.ghostState(() => {
+      this.db.prepare('INSERT INTO ghost_users(matrix_id, harmony_id) VALUES (?, ?) ON CONFLICT DO NOTHING').run(matrixId, harmonyId);
+      const row = this.db.prepare('SELECT * FROM ghost_users WHERE matrix_id = ?').get(matrixId);
+      if (!row || row.harmony_id !== harmonyId) throw new Error('Ghost ownership collision');
+      return row.registered === 1;
+    });
+  }
+
+  ownsGhost(matrixId: string): boolean {
+    return this.ghostState(() => !!this.db.prepare('SELECT 1 FROM ghost_users WHERE matrix_id = ? AND registered = 1').get(matrixId));
+  }
+
+  registerGhost(matrixId: string): void {
+    this.ghostState(() => this.db.prepare('UPDATE ghost_users SET registered = 1 WHERE matrix_id = ?').run(matrixId));
+  }
+
+  trackGhostRoom(roomId: string, matrixId: string): void {
+    this.ghostState(() => this.db.prepare('INSERT INTO ghost_rooms(room_id, matrix_id) VALUES (?, ?) ON CONFLICT DO NOTHING').run(roomId, matrixId));
+  }
+
+  ghostRooms(): string[] {
+    return this.ghostState(() => this.db.prepare('SELECT DISTINCT room_id FROM ghost_rooms ORDER BY room_id').all().map(row => row.room_id as string));
+  }
+
+  roomGhosts(roomId: string): string[] {
+    return this.ghostState(() => this.db.prepare('SELECT matrix_id FROM ghost_rooms WHERE room_id = ? ORDER BY matrix_id').all(roomId).map(row => row.matrix_id as string));
+  }
+
+  forgetGhostRoom(roomId: string, matrixId: string): void {
+    this.ghostState(() => this.db.prepare('DELETE FROM ghost_rooms WHERE room_id = ? AND matrix_id = ?').run(roomId, matrixId));
   }
 
   complete(id: number, destinationId: string): void {

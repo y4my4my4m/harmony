@@ -21,6 +21,47 @@ export function bridgeAvatarBytes(data: unknown, contentType: unknown): { bytes:
   return extension ? { bytes, extension } : null
 }
 
+/** A native avatar is fetched only from our configured storage, never its caller-supplied URL. */
+export async function nativeBridgeAvatar(avatar: string): Promise<{ data: string; content_type: string } | null> {
+  let path = avatar.replace(/^\//, '')
+  if (/^https?:\/\//i.test(avatar)) {
+    let url: URL
+    try { url = new URL(avatar) } catch { return null }
+    const bases = [process.env.PUBLIC_URL, process.env.SUPABASE_URL].filter(Boolean)
+    const base = bases.find(value => {
+      const own = new URL(value!)
+      return url.origin === own.origin && url.pathname.startsWith(`${own.pathname.replace(/\/$/, '')}/storage/v1/`)
+    })
+    if (!base || url.username || url.password) return null
+    const prefix = new URL(base).pathname.replace(/\/$/, '') + '/storage/v1/'
+    const match = /^(?:object|render\/image)\/public\/avatars\/(.+)$/.exec(url.pathname.slice(prefix.length))
+    if (!match) return null
+    try { path = decodeURIComponent(match[1]) } catch { return null }
+  } else if (/^\/[A-Za-z0-9_-]+\.(?:webp|png|jpe?g|gif|svg)$/.test(avatar)) return null
+  if (!/^[A-Za-z0-9_./-]{1,1024}$/.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  const response = await fetch(data.publicUrl, { redirect: 'error', signal: AbortSignal.timeout(15_000) })
+  if (!response.ok || !response.body) return null
+  const reader = response.body.getReader()
+  const chunks: Buffer[] = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_BRIDGE_AVATAR_BYTES) return null
+      chunks.push(Buffer.from(value))
+    }
+  } finally { await reader.cancel() }
+  const encoded = Buffer.concat(chunks).toString('base64')
+  for (const content_type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp']) {
+    const image = bridgeAvatarBytes(encoded, content_type)
+    if (image) return { data: Buffer.from(await stripMediaBytes(image.bytes)).toString('base64'), content_type }
+  }
+  return null
+}
+
 export async function storeBridgeAvatar(botId: string, image: { bytes: Buffer; extension: string }, contentType: string): Promise<string> {
   const bytes = Buffer.from(await stripMediaBytes(image.bytes))
   const hash = createHash('sha256').update(bytes).digest('hex')

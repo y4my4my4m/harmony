@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { configSchema } from './config.js'
+import { configSchema, ghostUserId } from './config.js'
 import { Store } from './Store.js'
 import { Relay, type MatrixEvent } from './Relay.js'
 import { HttpError } from './http.js'
@@ -19,10 +19,15 @@ function setup() {
   stores.push(store)
   const harmony = { sendMessage: vi.fn().mockResolvedValue({ id: 'h-copy' }), channelIsPlaintext: vi.fn().mockResolvedValue(true),
     requireMatrixBridge: vi.fn().mockResolvedValue(undefined), relayAllowed: vi.fn().mockResolvedValue(true),
-    uploadBridgeAvatar: vi.fn().mockResolvedValue('https://storage.test/avatar.png') }
+    uploadBridgeAvatar: vi.fn().mockResolvedValue('https://storage.test/avatar.png'),
+    bridgeRoom: vi.fn().mockResolvedValue({ room_id: roomId, sender_mode: 'relay' }),
+    bridgeMembers: vi.fn().mockResolvedValue([{ id: userId, username: 'Alice', display_name: 'Room Alice', avatar_url: null, domain: 'harmony.test' }]),
+    nativeAvatar: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }), publishMatrixMembers: vi.fn() }
   const matrix = { sendMessage: vi.fn().mockResolvedValue({ event_id: '$m-copy' }), roomIsPlaintext: vi.fn().mockResolvedValue(true),
     roomMember: vi.fn().mockResolvedValue({ display_name: 'Room Alice' }),
-    avatarThumbnail: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }) }
+    avatarThumbnail: vi.fn().mockResolvedValue({ data: 'aW1hZ2U=', content_type: 'image/png' }),
+    registerGhost: vi.fn().mockResolvedValue(undefined), joinGhost: vi.fn().mockResolvedValue(undefined), leaveGhost: vi.fn().mockResolvedValue(undefined),
+    uploadAvatar: vi.fn().mockResolvedValue('mxc://matrix.test/native'), roomMembers: vi.fn().mockResolvedValue([{ id: '@alice:matrix.test', display_name: 'Matrix Alice' }]) }
   const relay = new Relay(config, store, harmony, matrix)
   return { config, store, harmony, matrix, relay }
 }
@@ -46,6 +51,18 @@ describe('Relay', () => {
       matrix_relay: { room_id: roomId, event_id: '$one', sender: '@alice:matrix.test' },
     })
     expect(store.findMapping('to_harmony', '$one', channelId, roomId)).toBe('h-copy')
+  })
+  it('accepts new events and encryption fences when the homeserver reuses an AS transaction ID', async () => {
+    const { relay, harmony, store } = setup()
+    relay.acceptTransaction('1', [event()])
+    await relay.tick()
+    expect(relay.acceptTransaction('1', [event({ event_id: '$after-hs-restart' })])).toBe(true)
+    expect(store.counts().pending).toBe(1)
+    expect(relay.acceptTransaction('1', [{ type: 'm.room.encryption', room_id: roomId }])).toBe(true)
+    await relay.tick()
+    expect(harmony.sendMessage).toHaveBeenCalledOnce()
+    expect(store.isRoomBlocked(roomId)).toBe(true)
+    expect(store.counts()).toEqual({ pending: 0, failed: 1 })
   })
   it('does not relay unknown users, other rooms, encrypted events, edits, threads or its own Matrix sender', () => {
     const { relay, store } = setup()
@@ -183,7 +200,7 @@ describe('Relay', () => {
     harmony.relayAllowed.mockResolvedValue(false)
     vi.advanceTimersByTime(1000)
     await relay.tick()
-    expect(harmony.relayAllowed).toHaveBeenCalledTimes(2)
+    expect(harmony.relayAllowed).toHaveBeenCalledTimes(3)
     expect(matrix.sendMessage).toHaveBeenCalledOnce()
     expect(store.counts()).toEqual({ pending: 0, failed: 1 })
   })
@@ -270,6 +287,230 @@ describe('Relay', () => {
     relay.acceptTransaction('one', [event()])
     await relay.tick()
     expect(harmony.sendMessage).not.toHaveBeenCalled()
+  })
+  it('provisions two eligible ghosts before speech and publishes only allowlisted Matrix members', async () => {
+    const { relay, harmony, matrix, config, store } = setup()
+    const second = '33333333-3333-4333-8333-333333333333'
+    config.harmony.allowedUserIds.push(second)
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    harmony.bridgeMembers.mockResolvedValue([
+      { id: userId, username: 'Alice', display_name: 'Room Alice', avatar_url: 'https://harmony.test/a.png', domain: 'harmony.test' },
+      { id: second, username: 'Bob', display_name: 'Room Bob', avatar_url: null, domain: 'harmony.test' },
+      { id: '44444444-4444-4444-8444-444444444444', username: 'Hidden', display_name: 'Hidden', avatar_url: null, domain: null },
+    ])
+    matrix.roomMembers.mockResolvedValue([{ id: '@alice:matrix.test' }, { id: '@unapproved:matrix.test' }, { id: ghostUserId(config, userId) }])
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.registerGhost).toHaveBeenCalledTimes(2)
+    expect(matrix.joinGhost).toHaveBeenCalledWith(roomId, ghostUserId(config, userId), { displayname: 'Room Alice', avatar_url: 'mxc://matrix.test/native' })
+    expect(harmony.nativeAvatar).toHaveBeenCalledExactlyOnceWith(channelId, userId)
+    expect(harmony.publishMatrixMembers.mock.calls[0][1].map((member: { id: string }) => member.id)).toEqual(['@alice:matrix.test'])
+    expect(store.roomGhosts(roomId)).toHaveLength(2)
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(matrix.sendMessage.mock.calls[0][2]).toBe('hello')
+    expect(matrix.sendMessage.mock.calls[0][3].sender).toBe(ghostUserId(config, userId))
+  })
+  it('never provisions opted-out ghosts and leaves ghosts on opt-out or relay mode', async () => {
+    const { relay, harmony, matrix, config, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    harmony.relayAllowed.mockResolvedValue(false)
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.registerGhost).not.toHaveBeenCalled()
+    expect(matrix.joinGhost).not.toHaveBeenCalled()
+    harmony.relayAllowed.mockResolvedValue(true)
+    relay.requestMemberSync()
+    await relay.tick()
+    const ghost = ghostUserId(config, userId)
+    expect(store.roomGhosts(roomId)).toEqual([ghost])
+    harmony.bridgeMembers.mockResolvedValue([])
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.leaveGhost).toHaveBeenCalledWith(roomId, ghost)
+    harmony.bridgeMembers.mockResolvedValue([{ id: userId, username: 'Alice', display_name: 'Alice', avatar_url: null, domain: null }])
+    relay.requestMemberSync()
+    await relay.tick()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'relay' })
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.leaveGhost).toHaveBeenCalledTimes(2)
+    expect(store.roomGhosts(roomId)).toEqual([])
+  })
+  it.each([403, 404])('leaves tracked ghosts when a live binding is revoked (%s)', async status => {
+    const { relay, harmony, matrix, config, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    relay.requestMemberSync()
+    await relay.tick()
+    const ghost = ghostUserId(config, userId)
+    expect(store.roomGhosts(roomId)).toEqual([ghost])
+    harmony.bridgeRoom.mockRejectedValue(new HttpError('revoked', false, status))
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.leaveGhost).toHaveBeenCalledExactlyOnceWith(roomId, ghost)
+    expect(store.roomGhosts(roomId)).toEqual([])
+    expect(relay.isHealthy).toBe(true)
+  })
+  it('does not provision on transient binding failures or swallow ghost-cleanup storage faults', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    relay.requestMemberSync()
+    await relay.tick()
+    matrix.registerGhost.mockClear()
+    harmony.bridgeRoom.mockRejectedValue(new HttpError('unknown', true, 503))
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(matrix.leaveGhost).not.toHaveBeenCalled()
+    expect(matrix.registerGhost).not.toHaveBeenCalled()
+    expect(store.roomGhosts(roomId)).toHaveLength(1)
+    const { StorageError } = await import('./Store.js')
+    vi.spyOn(store, 'forgetGhostRoom').mockImplementation(() => { throw new StorageError('disk') })
+    harmony.bridgeRoom.mockRejectedValue(new HttpError('revoked', false, 403))
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(relay.isHealthy).toBe(false)
+  })
+  it('preserves avatars on optional failure, clears actual removal, and uses fresh room names before exposure', async () => {
+    const { relay, harmony, matrix } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    const member = { id: userId, username: 'Alice', display_name: 'Old Nick', avatar_url: 'https://harmony.test/new.png', domain: 'harmony.test' }
+    harmony.bridgeMembers.mockResolvedValue([member])
+    matrix.registerGhost.mockImplementation(async () => { harmony.bridgeMembers.mockResolvedValue([{ ...member, display_name: 'Current Nick' }]) })
+    harmony.nativeAvatar.mockRejectedValue(new HttpError('unavailable', true, 503))
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(matrix.joinGhost.mock.calls[0][2]).toEqual({ displayname: 'Current Nick' })
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+    harmony.bridgeMembers.mockResolvedValue([{ ...member, display_name: 'Current Nick', avatar_url: null }])
+    relay.acceptHarmonyMessage(message({ id: 'second' }))
+    await relay.tick()
+    expect(matrix.joinGhost.mock.calls[1][2]).toEqual({ displayname: 'Current Nick', avatar_url: '' })
+  })
+  it('does not expose a profile if consent is withdrawn during ghost registration', async () => {
+    const { relay, harmony, matrix } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    matrix.registerGhost.mockImplementation(async () => { harmony.relayAllowed.mockResolvedValue(false) })
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(matrix.joinGhost).not.toHaveBeenCalled()
+    expect(harmony.nativeAvatar).not.toHaveBeenCalled()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+  })
+  it('bounds published names but preserves the full canonical Matrix ID', async () => {
+    const { relay, harmony, matrix, config } = setup()
+    const id = '@' + 'a'.repeat(150) + ':matrix.test'
+    config.matrix.allowedUserIds = [id]
+    matrix.roomMembers.mockResolvedValue([{ id }])
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(harmony.publishMatrixMembers.mock.calls[0][1]).toEqual([{ id, username: 'a'.repeat(100), displayName: 'a'.repeat(100), avatarUrl: null, source: 'matrix' }])
+  })
+  it('leaves tracked ghosts from removed configuration pairs at startup', async () => {
+    const { relay, matrix, config, store } = setup()
+    const ghost = ghostUserId(config, userId)
+    store.reserveGhost(ghost, userId)
+    store.registerGhost(ghost)
+    store.trackGhostRoom('!removed:matrix.test', ghost)
+    await relay.cleanupUnpairedGhosts()
+    expect(matrix.leaveGhost).toHaveBeenCalledExactlyOnceWith('!removed:matrix.test', ghost)
+    expect(store.ghostRooms()).toEqual([])
+  })
+  it('freezes the Matrix sender durably and refuses retries under another mode', async () => {
+    vi.useFakeTimers()
+    const { relay, harmony, matrix, config, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    matrix.sendMessage.mockRejectedValue(new HttpError('outcome uncertain', true, 503))
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    vi.advanceTimersByTime(1000)
+    expect(store.nextJob()!.payload.matrix_sender).toBe(ghostUserId(config, userId))
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'relay' })
+    const restarted = new Relay(config, store, harmony, matrix)
+    await restarted.tick()
+    expect(matrix.sendMessage).toHaveBeenCalledOnce()
+    expect(store.counts()).toEqual({ pending: 0, failed: 1 })
+  })
+  it('never silently falls back when ghost registration is refused', async () => {
+    const { relay, harmony, matrix, store } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    matrix.registerGhost.mockRejectedValue(new HttpError('collision or missing namespace', false, 400))
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().failed).toBe(1)
+  })
+  it('excludes every owned ghost from inbound echo even if explicitly allowlisted', () => {
+    const { relay, config, store } = setup()
+    const ghost = ghostUserId(config, userId)
+    config.matrix.allowedUserIds.push(ghost)
+    relay.acceptTransaction('echo', [event({ sender: ghost })])
+    expect(store.counts().pending).toBe(0)
+  })
+  it('uses the DB mode instead of the config default and resolves structured Matrix mentions', async () => {
+    const { relay, harmony, matrix, config } = setup()
+    config.pairs[0].senderMode = 'ghost'
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'text', text: 'Hi ' },
+      { type: 'mention', userId: '@alice:matrix.test', username: 'alice', isBridged: true, bridgeSource: 'matrix' }] }))
+    await relay.tick()
+    expect(matrix.registerGhost).not.toHaveBeenCalled()
+    expect(matrix.sendMessage.mock.calls[0][2]).toBe('[Alice · Harmony] Hi @alice')
+    expect(matrix.sendMessage.mock.calls[0][3]).toMatchObject({ sender: '@harmony_relay:matrix.test', userIds: ['@alice:matrix.test'], formattedBody: expect.stringContaining('https://matrix.to/#/%40alice%3Amatrix.test') })
+    expect(harmony.bridgeRoom).toHaveBeenCalled()
+  })
+  it('resolves annotated Matrix ghost pills only against currently eligible native members', async () => {
+    const { relay, harmony, config, store } = setup()
+    const ghost = ghostUserId(config, userId)
+    store.reserveGhost(ghost, userId)
+    store.registerGhost(ghost)
+    relay.acceptTransaction('mention', [event({ content: { msgtype: 'm.text', body: 'Hello Alice', 'm.mentions': { user_ids: [ghost] },
+      formatted_body: `Hello <a href="https://matrix.to/#/${ghost}">Alice</a>` } })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: 'Hello ' }, { type: 'mention', userId, username: 'Alice', domain: 'harmony.test', isLocal: true, isBridged: false }])
+  })
+  it('does not ping an unknown colliding ghost in either direction, while relay !mention still works', async () => {
+    const { relay, harmony, matrix, config } = setup()
+    const other = '33333333-3333-4333-8333-333333333333'
+    config.harmony.allowedUserIds.push(other)
+    const unknownGhost = ghostUserId(config, other)
+    harmony.bridgeMembers.mockResolvedValue([
+      { id: userId, username: 'Alice', display_name: 'Alice', avatar_url: null, domain: 'harmony.test' },
+      { id: other, username: 'Bob', display_name: 'Bob', avatar_url: null, domain: 'harmony.test' },
+    ])
+    relay.acceptTransaction('collision', [event({ content: { msgtype: 'm.text', body: 'Hello Bob', 'm.mentions': { user_ids: [unknownGhost] },
+      formatted_body: `Hello <a href="https://matrix.to/#/${unknownGhost}">Bob</a>` } })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[0][1]).toEqual([{ type: 'text', text: 'Hello Bob' }])
+    relay.acceptTransaction('command', [event({ event_id: '$command', content: { msgtype: 'm.text', body: '!mention Bob hello' } })])
+    await relay.tick()
+    expect(harmony.sendMessage.mock.calls[1][1][0]).toMatchObject({ type: 'mention', userId: other })
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    matrix.roomMembers.mockResolvedValue([{ id: unknownGhost }])
+    relay.acceptHarmonyMessage(message({ content_raw: [{ type: 'mention', userId: other, username: 'Bob' }] }))
+    await relay.tick()
+    expect(matrix.sendMessage.mock.calls[0][3].userIds).toEqual([])
+  })
+  it.each(['matrix', 'harmony', 'unknown'])('does not expose ghost profiles or member imports when %s policy is encrypted/unknown', async side => {
+    const { relay, harmony, matrix } = setup()
+    harmony.bridgeRoom.mockResolvedValue({ room_id: roomId, sender_mode: 'ghost' })
+    if (side === 'matrix') matrix.roomIsPlaintext.mockResolvedValue(false)
+    else if (side === 'harmony') harmony.channelIsPlaintext.mockResolvedValue(false)
+    else harmony.channelIsPlaintext.mockRejectedValue(new HttpError('unknown', true, 503))
+    relay.requestMemberSync()
+    await relay.tick()
+    expect(harmony.bridgeMembers).not.toHaveBeenCalled()
+    expect(matrix.roomMembers).not.toHaveBeenCalled()
+    expect(matrix.registerGhost).not.toHaveBeenCalled()
+    expect(harmony.nativeAvatar).not.toHaveBeenCalled()
+  })
+  it('pauses on frozen-sender storage failure instead of attempting a send', async () => {
+    const { relay, matrix, store } = setup()
+    const { StorageError } = await import('./Store.js')
+    vi.spyOn(store, 'freezeSender').mockImplementation(() => { throw new StorageError('disk') })
+    relay.acceptHarmonyMessage(message())
+    await relay.tick()
+    expect(relay.isHealthy).toBe(false)
+    expect(matrix.sendMessage).not.toHaveBeenCalled()
+    expect(store.counts().pending).toBe(1)
   })
   it('pauses rather than creating unhandled rejections when storage fails', async () => {
     const { relay, store } = setup()

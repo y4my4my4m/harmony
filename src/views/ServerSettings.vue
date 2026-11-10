@@ -279,6 +279,11 @@
             :server-id="serverId"
           />
 
+          <MatrixBridgeSettings
+            v-if="activeSection === 'matrix-bridge' && permissions.canEditBasicInfo && server.is_local_server !== false"
+            :server-id="serverId"
+          />
+
           <DiscordBridgeSetup
             v-if="activeSection === 'discord-bridge' && permissions.canEditBasicInfo"
             :server-id="serverId"
@@ -326,6 +331,7 @@ import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
+import MatrixBridgeSettings from '@/components/settings/MatrixBridgeSettings.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
@@ -528,6 +534,9 @@ const availableSections = computed<SettingsSection[]>(() => {
       : []),
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel'), group: 'integrations' as const }] : []),
+    ...(p.canEditBasicInfo && server.value.is_local_server !== false
+      ? [{ id: 'matrix-bridge', label: t('matrixBridge.navLabel'), group: 'integrations' as const }]
+      : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title'), group: 'moderation' as const }] : []),
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports'), group: 'moderation' as const }] : []),

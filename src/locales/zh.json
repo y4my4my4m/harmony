@@ -1,5 +1,19 @@
 {
   "bridgeSource": { "from": "通过 {platform} 桥接" },
+  "matrixBridge": {
+    "navLabel": "Matrix 桥接", "title": "Matrix 桥接",
+    "description": "选择向现有 Matrix 房间桥接发送 Harmony 消息的方式。",
+    "requirements": "独立模式为 Harmony 作者使用真实的 Matrix 成员。需要应用服务用户命名空间，以及将这些用户邀请到 Matrix 房间的权限。",
+    "history": "模式更改仅影响今后的消息投递。现有历史记录将保留。",
+    "delivery": "选择独立模式不代表注册或投递已完成。请在 Matrix 中成功投递的消息上确认发送者身份。",
+    "loading": "正在加载 Matrix 桥接…", "reload": "重新加载", "empty": "此服务器尚未配置 Matrix 桥接。",
+    "waitingRoom": "正在等待桥接连接 Matrix 房间。现在即可保存模式选择。",
+    "senderMode": "Harmony 消息发送身份", "ghost": "独立桥接用户（推荐）", "relay": "共享桥接账户",
+    "saving": "正在保存模式…", "loadError": "无法加载 Matrix 桥接设置。请重新加载以重试。",
+    "saveError": "无法确认模式更改。请重新加载以查看当前设置。",
+    "externalIdentity": "这是外部 Matrix 身份，并非 Harmony 个人资料。无法使用 Harmony 个人资料操作。",
+    "openMatrix": "在 Matrix 中打开", "members": "Matrix 成员"
+  },
   "bridgePrivacy": {
     "title": "桥接隐私",
     "description": "禁止桥接将你今后在此服务器发送的消息转发到其他平台。",
