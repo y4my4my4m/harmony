@@ -68,10 +68,8 @@ export class InteractionService {
     await coreInteractionService.rejectFollowRequest(followerUserId)
   }
 
-  async toggleBlock(targetUserId: string): Promise<{ blocking: boolean }> {
-
-    const result = await coreInteractionService.toggleBlock(targetUserId)
-
+  async setBlocked(targetUserId: string, blocked: boolean): Promise<{ blocking: boolean }> {
+    const result = await coreInteractionService.setBlocked(targetUserId, blocked)
     return { blocking: result.blocked }
   }
 

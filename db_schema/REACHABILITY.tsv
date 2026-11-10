@@ -356,6 +356,8 @@ discord_bridge_update_settings	definer	jsonb	authenticated	client	rpc in src/com
 discord_bridges_retire_bot	definer	trigger	-	trigger	trigger public.discord_bridges AFTER DELETE (discord_bridges_retire_bot)
 discord_bridges_touch	invoker	trigger	-	trigger	trigger public.discord_bridges BEFORE UPDATE (discord_bridges_touch)
 dismiss_server_automod_prompt	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
+dm_block_between	definer	boolean	service_role	client, trigger	called by dm_conversation_blocked, dm_recipients_allowing, dm_start_guard
+dm_conversation_blocked	definer	boolean	service_role	client, trigger	called by guard_dm_block, start_dm_call_message
 dm_policy_allows	definer	boolean	service_role	client	called by dm_recipients_allowing, dm_start_guard
 dm_recipients_allowing	definer	uuid[]	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 dm_relation	definer	text	service_role	client	called by dm_recipients_allowing, dm_start_guard
@@ -596,6 +598,7 @@ guard_bot_permission_grants	invoker	trigger	service_role	trigger	trigger public.
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
+guard_dm_block	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_dm_block_guard)
 guard_emoji_object_delete	definer	trigger	service_role	trigger	trigger storage.objects BEFORE DELETE (emoji_object_delete_guard)
 guard_follow_client_write	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT/UPDATE (a_follows_client_write_guard)
 guard_instance_config_operator_keys	invoker	trigger	service_role	trigger	trigger public.instance_config BEFORE INSERT/DELETE/UPDATE (a_instance_config_operator_keys)
@@ -677,7 +680,7 @@ instance_set_server_media_hidden	definer	boolean	authenticated+service_role	clie
 invoke_bot_command	definer	jsonb	authenticated+service_role	client	rpc in src/services/botCommandService.ts
 is_active_instance_staff	definer	boolean	service_role	client	called by admin_get_webhook_settings, admin_list_outgoing_webhooks, admin_set_outgoing_webhook_active, +2
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
-is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
+is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
 is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +50
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.drive_blocked_hashes SELECT on drive_blocked_hashes_select_staff, public.drive_pending_blocks SELECT on drive_pending_blocks_select_staff, public.instance_server_blocks SELECT on instance_server_blocks_select_staff, +5

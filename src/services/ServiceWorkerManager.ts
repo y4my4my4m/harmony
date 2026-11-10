@@ -5,6 +5,7 @@
 import router from '@/router'
 import { debug } from '@/utils/debug'
 import { toAppPath } from '@/utils/notificationRoute'
+import { isModerationRejectionCode } from '@/services/AutoModService'
 
 // Quick-reply queue (IndexedDB) - schema shared with public/service-worker.js.
 // The SW persists notification-input replies here so they survive
@@ -432,6 +433,12 @@ export class ServiceWorkerManager {
           await this.handleMarkNotificationRead(notifData)
           debug.log('Quick reply flushed from queue')
         } catch (err) {
+          // A moderation or block refusal answers the same on every retry.
+          if (isModerationRejectionCode((err as { code?: string } | null)?.code)) {
+            debug.warn('Quick reply refused, dropping:', err, entry)
+            await removeQuickReply(entry.id)
+            continue
+          }
           // Entry stays queued for a later retry.
           debug.error('Quick reply drain failed for entry, will retry later:', err, entry)
         }

@@ -4596,7 +4596,7 @@ export class ActivityProcessor {
     return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
   }
 
-  /** Recipients whose profiles.dm_policy admits the sender. A failed check delivers as before. */
+  /** Recipients whose profiles.dm_policy admits the sender and who hold no block with it. A failed check delivers as before; a blocked direct conversation still refuses the row. */
   private static async dmRecipientsAllowing(senderId: string, recipientIds: string[]): Promise<string[]> {
     const { data, error } = await getSupabaseClient()
       .rpc('dm_recipients_allowing', { p_sender: senderId, p_recipients: recipientIds });
@@ -4670,7 +4670,7 @@ export class ActivityProcessor {
 
     const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
     if (allowedIds.length === 0) {
-      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting or a block of every recipient of ${object.id}`);
       return;
     }
 
@@ -4795,7 +4795,7 @@ export class ActivityProcessor {
 
     const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
     if (allowedIds.length === 0) {
-      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting or a block of every recipient of ${object.id}`);
       return;
     }
 

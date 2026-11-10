@@ -73,6 +73,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Blocking holds in direct messages, both ways.** While one of you blocks the other, neither can
+  send a message, post a call notice or start a new conversation, including from accounts on other
+  servers, until the unblock. The person who blocked sees **Unblock** in place of the message field;
+  the other gets "Your message could not be delivered" at once instead of a message that retried
+  and failed. A blocked account can no longer add you to a group, or back into one you left.
+  **Block** never removes a block already in place: on a screen that had not caught up, pressing it
+  could unblock.
 - **Watch together** plays for the member who starts it again. After they had hidden an earlier
   activity in the call, or when their profile id differs from their sign-in id, their own video
   stayed hidden while everyone else saw it.
@@ -147,6 +154,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Group conversations take messages from someone you blocked**, collapsed for you as in Discord.
+  One member's block used to stop that person writing in the whole group.
 - **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
   place of `500`.
 - **Bot API:** a message history read returns at most 100 messages and a member list at most 1000;

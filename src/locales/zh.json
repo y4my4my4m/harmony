@@ -1500,6 +1500,13 @@
     "missedCall": "未接来电",
     "title": "私信",
     "recipientDeleted": "此账户已被删除。发送给它的消息不会被送达。",
+    "undeliverable": "你的消息无法送达。",
+    "blockedPeer": {
+      "text": "你已屏蔽 {name}。解除屏蔽后才能发送消息。",
+      "unblock": "解除屏蔽",
+      "unblockFailed": "无法解除对 {name} 的屏蔽。",
+      "startRefused": "你已屏蔽 {name}。解除屏蔽后才能发起会话。"
+    },
     "sendMessage": "发送消息",
     "callInProgress": "正在通话中",
     "joinCall": "加入通话",

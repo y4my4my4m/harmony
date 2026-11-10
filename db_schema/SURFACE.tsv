@@ -356,6 +356,8 @@ discord_bridge_update_settings	p_bridge_id uuid, p_settings jsonb	jsonb	definer	
 discord_bridges_retire_bot		trigger	definer	public, pg_temp		trigger
 discord_bridges_touch		trigger	invoker	public, pg_temp		trigger
 dismiss_server_automod_prompt	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
+dm_block_between	p_a uuid, p_b uuid	boolean	definer	public, pg_temp	service_role	unreferenced
+dm_conversation_blocked	p_conversation_id uuid, p_sender uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 dm_policy_allows	p_recipient uuid, p_relation text	boolean	definer	public, pg_temp	service_role	unreferenced
 dm_recipients_allowing	p_sender uuid, p_recipients uuid[]	uuid[]	definer	public, pg_temp	service_role	client
 dm_relation	p_sender uuid, p_recipient uuid	text	definer	public, pg_temp	service_role	unreferenced
@@ -596,6 +598,7 @@ guard_bot_permission_grants		trigger	invoker	public, pg_temp	service_role	trigge
 guard_category_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_channel_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_conversation_participant_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_dm_block		trigger	definer	public, pg_temp	service_role	trigger
 guard_emoji_object_delete		trigger	definer	public, pg_temp	service_role	trigger
 guard_follow_client_write		trigger	definer	public, pg_temp	service_role	trigger
 guard_instance_config_operator_keys		trigger	invoker	public, pg_temp	service_role	trigger

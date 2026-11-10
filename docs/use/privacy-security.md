@@ -222,13 +222,13 @@ Right-click a member and choose **Block** or **Mute user**. Profiles and the men
 | Notifications from them | Stopped | Stopped |
 | Their calls to you | Refused | Arrive without a ringtone or pop-up |
 | Their messages in server channels | Collapsed into "1 blocked message" with **Show message** | Shown |
-| Direct messages | They cannot send messages in any conversation you are in | Shown |
+| Direct messages | Neither of you can write to the other one to one, start a conversation or add the other to a group. In a group you share, their messages collapse into "1 blocked message" | Shown |
 | Reactions to your messages | They cannot add them | Allowed |
 | Posts | Hidden from each other; you stop following them | Shown |
 
 A block is also sent to other instances as an ActivityPub block. A block does not stop the other person reading what you post in servers you share.
 
-To undo either, open **User settings** → **Privacy & safety** and click **Unblock** under **Blocked users** or **Unmute** under **Muted users**.
+To undo either, open **User settings** → **Privacy & safety** and click **Unblock** under **Blocked users** or **Unmute** under **Muted users**. A one-to-one conversation with someone you blocked shows **Unblock** in place of the message field.
 
 ## Links to other sites
 

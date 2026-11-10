@@ -1500,6 +1500,13 @@
     "missedCall": "부재중 전화",
     "title": "다이렉트 메시지",
     "recipientDeleted": "삭제된 계정입니다. 이 계정에 보낸 메시지는 전달되지 않습니다.",
+    "undeliverable": "메시지를 전달할 수 없습니다.",
+    "blockedPeer": {
+      "text": "{name} 님을 차단했습니다. 메시지를 보내려면 차단을 해제하세요.",
+      "unblock": "차단 해제",
+      "unblockFailed": "{name} 님의 차단을 해제하지 못했습니다.",
+      "startRefused": "{name} 님을 차단했습니다. 대화를 시작하려면 차단을 해제하세요."
+    },
     "sendMessage": "메시지 보내기",
     "callInProgress": "통화 중입니다",
     "joinCall": "통화 참여",

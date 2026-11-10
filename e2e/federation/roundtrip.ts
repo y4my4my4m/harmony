@@ -63,6 +63,7 @@
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
 // A remote stranger's DM stops at the recipient's setting (cases/dmPolicy.ts).
+// A remote DM stops at a block of its sender, and passes after the unblock (cases/dmBlocks.ts).
 // A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
 // are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
@@ -149,6 +150,7 @@ import { caseRemoteInviteCard } from './cases/remoteInviteCard.ts'
 import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
 import { caseDmPolicy } from './cases/dmPolicy.ts'
+import { caseDmBlocks } from './cases/dmBlocks.ts'
 import { caseInboundAuthority } from './cases/inboundAuthority.ts'
 import { caseClientAuthority } from './cases/clientAuthority.ts'
 import { caseClaimedFields } from './cases/claimedFields.ts'
@@ -2941,6 +2943,7 @@ async function main() {
       ids: { alice: ALICE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
     })
     await caseDmPolicy({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq })
+    await caseDmBlocks({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq, remote: REMOTE })
 
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,

@@ -1500,6 +1500,13 @@
     "missedCall": "Appel manqué",
     "title": "Messages directs",
     "recipientDeleted": "Ce compte a été supprimé. Les messages qui lui sont adressés ne sont pas distribués.",
+    "undeliverable": "Votre message n'a pas pu être distribué.",
+    "blockedPeer": {
+      "text": "Vous avez bloqué {name}. Débloquez cette personne pour envoyer des messages.",
+      "unblock": "Débloquer",
+      "unblockFailed": "Impossible de débloquer {name}.",
+      "startRefused": "Vous avez bloqué {name}. Débloquez cette personne pour commencer une conversation."
+    },
     "sendMessage": "Envoyer un message",
     "callInProgress": "Un appel est en cours",
     "joinCall": "Rejoindre l'appel",

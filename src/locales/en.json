@@ -1522,6 +1522,13 @@
   "dm": {
     "title": "Direct messages",
     "recipientDeleted": "This account has been deleted. Messages to it are not delivered.",
+    "undeliverable": "Your message could not be delivered.",
+    "blockedPeer": {
+      "text": "You blocked {name}. Unblock them to send messages.",
+      "unblock": "Unblock",
+      "unblockFailed": "Could not unblock {name}.",
+      "startRefused": "You blocked {name}. Unblock them to start a conversation."
+    },
     "directMessages": "Direct messages",
     "newMessage": "New message",
     "startConversation": "Start a conversation",

@@ -1500,6 +1500,13 @@
     "missedCall": "Verpasster Anruf",
     "title": "Direktnachrichten",
     "recipientDeleted": "Dieses Konto wurde gelöscht. Nachrichten an es werden nicht zugestellt.",
+    "undeliverable": "Deine Nachricht konnte nicht zugestellt werden.",
+    "blockedPeer": {
+      "text": "Du hast {name} blockiert. Hebe die Blockierung auf, um Nachrichten zu senden.",
+      "unblock": "Blockierung aufheben",
+      "unblockFailed": "Die Blockierung von {name} konnte nicht aufgehoben werden.",
+      "startRefused": "Du hast {name} blockiert. Hebe die Blockierung auf, um eine Unterhaltung zu beginnen."
+    },
     "sendMessage": "Nachricht senden",
     "callInProgress": "Ein Anruf läuft",
     "joinCall": "Anruf beitreten",

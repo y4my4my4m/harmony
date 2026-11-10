@@ -50,6 +50,7 @@ const serverChannelStore = reactive({
 
 vi.mock('@/stores/useChat', () => ({ useChatStore: () => chatStore }))
 vi.mock('@/stores/useDM', () => ({ useDMStore: () => dmStore }))
+vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({ isBlocked: () => false, unblockUser: vi.fn() }) }))
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => serverChannelStore }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => shared.auth }))
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profileId: PROFILE }) }))
@@ -130,6 +131,7 @@ async function stub(name: string) {
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/moderation/KickBanModal.vue', () => stub('KickBanModal'))
 vi.mock('@/components/welcome/RulesAcceptPrompt.vue', () => stub('RulesAcceptPrompt'))
+vi.mock('@/components/dm/BlockedPeerPrompt.vue', () => stub('BlockedPeerPrompt'))
 vi.mock('@/components/MediaPickerPopup.vue', () => stub('MediaPickerPopup'))
 vi.mock('@/components/EmojiPopup.vue', () => stub('EmojiPopup'))
 vi.mock('@/components/threads/ThreadView.vue', () => stub('ThreadView'))

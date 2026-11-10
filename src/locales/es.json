@@ -1500,6 +1500,13 @@
     "missedCall": "Llamada perdida",
     "title": "Mensajes directos",
     "recipientDeleted": "Esta cuenta se ha eliminado. Los mensajes que se le envíen no se entregan.",
+    "undeliverable": "No se pudo entregar tu mensaje.",
+    "blockedPeer": {
+      "text": "Bloqueaste a {name}. Desbloquéalo para enviar mensajes.",
+      "unblock": "Desbloquear",
+      "unblockFailed": "No se pudo desbloquear a {name}.",
+      "startRefused": "Bloqueaste a {name}. Desbloquéalo para iniciar una conversación."
+    },
     "sendMessage": "Enviar mensaje",
     "callInProgress": "Hay una llamada en curso",
     "joinCall": "Unirse a la llamada",

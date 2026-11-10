@@ -1500,6 +1500,13 @@
     "missedCall": "不在着信",
     "title": "ダイレクトメッセージ",
     "recipientDeleted": "このアカウントは削除されています。メッセージは配信されません。",
+    "undeliverable": "メッセージを届けられませんでした。",
+    "blockedPeer": {
+      "text": "{name} さんをブロックしています。メッセージを送るにはブロックを解除してください。",
+      "unblock": "ブロック解除",
+      "unblockFailed": "{name} さんのブロックを解除できませんでした。",
+      "startRefused": "{name} さんをブロックしています。会話を始めるにはブロックを解除してください。"
+    },
     "sendMessage": "メッセージを送信",
     "callInProgress": "通話中です",
     "joinCall": "通話に参加",

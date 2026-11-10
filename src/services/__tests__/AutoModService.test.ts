@@ -10,6 +10,7 @@ import {
   moderationRejectionFromError,
   notifyModerationRejection,
 } from '@/services/AutoModService'
+import { i18n } from '@/i18n'
 
 describe('moderationRejectionFromError', () => {
   it('reads AUTOMOD_BLOCKED from a singular-request error with its JSON detail', () => {
@@ -54,6 +55,10 @@ describe('instance limit refusals', () => {
     expect(moderationRejectionFromError({ message: 'SERVER_LIMIT_REACHED:100' })?.code).toBe('SERVER_LIMIT_REACHED')
     expect(moderationRejectionFromError({ message: 'BOT_LIMIT_REACHED:25' })?.code).toBe('BOT_LIMIT_REACHED')
     expect(moderationRejectionFromError({ message: 'DM_NOT_ALLOWED' })?.code).toBe('DM_NOT_ALLOWED')
+    expect(moderationRejectionFromError({ code: 'P0001', message: 'DM_UNDELIVERABLE' })).toEqual({
+      code: 'DM_UNDELIVERABLE', message: i18n.global.t('dm.undeliverable'),
+    })
+    expect(isModerationRejectionCode('DM_UNDELIVERABLE')).toBe(true)
   })
 
   it('reads a code a wrapper kept inside its own message', () => {
