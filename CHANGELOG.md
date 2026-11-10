@@ -73,6 +73,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Watch together** plays for the member who starts it again. After they had hidden an earlier
+  activity in the call, or when their profile id differs from their sign-in id, their own video
+  stayed hidden while everyone else saw it.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can

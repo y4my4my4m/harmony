@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { supabase } from '@/supabase'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import {
   controlActivity,
   expectedPosition,
@@ -61,7 +61,11 @@ export const useActivitiesStore = defineStore('activities', () => {
   const offsetMs = ref(0)
   const volume = ref(storedVolume())
   const muted = ref(false)
-  /** Channels whose activity this client chose not to play. */
+  /**
+   * Runs, `${channel_id}:${started_at}`, this client chose not to play. Keyed by run, not by
+   * channel: an end this client never applied (the sidebar refresh drops it without apply) must
+   * not hide the next run, the member's own included.
+   */
   const hidden = ref<Set<string>>(new Set())
   /** Runs, `${channel_id}:${started_at}`, this client joined. */
   const joined = ref<Set<string>>(new Set())
@@ -88,13 +92,19 @@ export const useActivitiesStore = defineStore('activities', () => {
   })
 
   const runKey = (a: VoiceActivity) => `${a.channel_id}:${a.started_at}`
-  const accepted = (a: VoiceActivity) => a.host_id === useAuthStore().session?.user?.id || joined.value.has(runKey(a))
+  // host_id is a profile id (get_current_profile_id()), which need not equal the auth user id.
+  const accepted = (a: VoiceActivity) => {
+    const me = useProfileStore().profile?.id
+    return (!!me && a.host_id === me) || joined.value.has(runKey(a))
+  }
 
-  const playingHere = computed(() => !!current.value && !hidden.value.has(current.value.channel_id) && accepted(current.value))
+  /** This client chose not to play run `a`. */
+  const isHidden = (a: VoiceActivity) => hidden.value.has(runKey(a))
+  const playingHere = computed(() => !!current.value && !isHidden(current.value) && accepted(current.value))
   /** The call's activity while it does not play here: never joined, declined, or stopped for me. */
   const waiting = computed(() => (current.value && !playingHere.value ? current.value : null))
   /** waiting, and the member has not answered its invite yet. */
-  const invited = computed(() => !!waiting.value && !hidden.value.has(waiting.value.channel_id))
+  const invited = computed(() => !!waiting.value && !isHidden(waiting.value))
   const slot = computed(() => slots.value[0] ?? null)
 
   function serverTime(): number {
@@ -133,13 +143,16 @@ export const useActivitiesStore = defineStore('activities', () => {
       }
     }
     byChannel.value = { ...byChannel.value, [channelId]: activity }
-    if (!activity || (held && activity.started_at !== held.started_at)) {
-      const next = new Set(hidden.value)
-      next.delete(channelId)
-      hidden.value = next
-      if (held) {
+    if (held && (!activity || activity.started_at !== held.started_at)) {
+      const key = runKey(held)
+      if (hidden.value.has(key)) {
+        const next = new Set(hidden.value)
+        next.delete(key)
+        hidden.value = next
+      }
+      if (joined.value.has(key)) {
         const runs = new Set(joined.value)
-        runs.delete(runKey(held))
+        runs.delete(key)
         joined.value = runs
       }
     }
@@ -246,10 +259,13 @@ export const useActivitiesStore = defineStore('activities', () => {
     apply(message.channelId, message.activity ?? null, false)
   }
 
+  /** Hides or shows the current run of `channelId` for this client. */
   function hide(channelId: string, value: boolean): void {
+    const a = byChannel.value[channelId]
+    if (!a) return
     const next = new Set(hidden.value)
-    if (value) next.add(channelId)
-    else next.delete(channelId)
+    if (value) next.add(runKey(a))
+    else next.delete(runKey(a))
     hidden.value = next
   }
 
@@ -318,7 +334,7 @@ export const useActivitiesStore = defineStore('activities', () => {
 
   return {
     byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy, launcherOpen, launcherAnchor,
-    voiceChannelId, current, playingHere, waiting, invited, join,
+    voiceChannelId, current, playingHere, waiting, invited, isHidden, join,
     serverTime, position, syncClock, apply, refresh, refreshServer, start, control, stop, togglePlay, seek,
     itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall,
   }
