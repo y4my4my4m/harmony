@@ -75,6 +75,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Leave thread does something you can see.** The thread drops off your sidebar until you join or
   post in it again, and the right-click menu shows **Join thread** when you aren't a member. The
   member count follows joins and leaves.
+- **Thread drafts stay put.** Text and attachments you leave in a thread opened from the sidebar
+  are still there when you come back, after a reload too, and each thread keeps its own. A thread
+  you start on a message keeps its draft until you send the first reply.
+- **A thread you are reading no longer notifies you.** Replies and mentions in a thread open full
+  page make no notification on any of your devices, as in an open channel. Opening the thread marks
+  its notifications read, and a mention in a thread opens that thread.
 - **Threads read as one conversation.** The starter message scrolls with the replies instead of
   holding the top of the panel and the full view, and the gap under the reply count is gone. The
   thread menu has **Go to first message** and **Show in channel**. The full view's thread menu now

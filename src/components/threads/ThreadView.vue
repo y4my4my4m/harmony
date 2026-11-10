@@ -382,6 +382,7 @@ import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
+import { useThreadDraft } from '@/composables/useThreadDraft'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
@@ -517,26 +518,12 @@ useMenu(optionsMenuEl, {
   initialFocus: () => optionsMenu.initialFocus.value,
   closeOnOutsidePointer: false,
 })
-const messageText = ref('')
-
-// Draft persistence for threads
-const threadDraftKey = computed(() => {
-  const id = props.threadId || props.initialThread?.id
-  return id ? draftsStore.makeKey('thread', id) : null
-})
-
-watch(threadDraftKey, (newKey, oldKey) => {
-  if (oldKey && messageText.value.trim()) {
-    draftsStore.saveDraft(oldKey, messageText.value)
-  }
-  messageText.value = newKey ? draftsStore.getDraft(newKey) : ''
-}, { immediate: true })
-
-watch(messageText, (val) => {
-  if (threadDraftKey.value) {
-    draftsStore.saveDraft(threadDraftKey.value, val)
-  }
-})
+const { text: messageText, key: threadDraftKey } = useThreadDraft(() => ({
+  threadId: props.threadId || props.initialThread?.id,
+  parentMessageId: props.initialThread?.parent_message_id
+    || thread.value?.parent_message_id
+    || props.draftParentMessage?.id,
+}))
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 

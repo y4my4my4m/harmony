@@ -689,6 +689,7 @@ is_room_member	definer	boolean	authenticated+service_role	client, policy, trigge
 is_storage_public_url	invoker	boolean	service_role	client	called by create_instance_emoji, create_my_emoji, create_server_emoji, +3
 is_user_viewing_context	definer	boolean	service_role	client, trigger	called by is_user_viewing_push_context, send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
+is_user_viewing_thread	definer	boolean	service_role	client, trigger	called by send_notification
 issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_bridge_issue_token, rotate_bot_token
 join_public_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check

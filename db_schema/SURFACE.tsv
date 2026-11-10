@@ -689,6 +689,7 @@ is_room_member	p_room_id text, p_user_id uuid	boolean	definer	public, pg_temp	au
 is_storage_public_url	p_url text, p_bucket text, p_path text	boolean	invoker	public, pg_temp	service_role	unreferenced
 is_user_viewing_context	p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, extensions, pg_temp	service_role	unreferenced
 is_user_viewing_push_context	p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, extensions, pg_temp	service_role	client
+is_user_viewing_thread	p_user_id uuid, p_thread_id uuid	boolean	definer	public, extensions, pg_temp	service_role	unreferenced
 issue_bot_token	p_bot_id uuid, p_name text	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
 join_public_server	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 jsonb_text_content_length	content jsonb	integer	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
@@ -1011,7 +1012,7 @@ sync_reaction_favourite		trigger	definer	public, pg_temp	service_role	trigger
 sync_recorded_at		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sync_unread_category_mute	p_user_id uuid, p_category_id uuid	void	definer	public, pg_temp	service_role	unreferenced
 sync_unread_mute	p_user_id uuid, p_channel_id uuid, p_conversation_id uuid	void	definer	public, pg_temp	service_role	unreferenced
-sync_view_context_from_presence	p_view_type text, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_device_id text	void	definer	public, pg_temp	authenticated+service_role	client
+sync_view_context_from_presence	p_view_type text, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_device_id text, p_thread_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
 test_outgoing_webhook	p_webhook_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 tg_profile_message_counter		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 tg_profile_voice_counter		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger

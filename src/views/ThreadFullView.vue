@@ -217,6 +217,7 @@
       :thread-id="props.threadId"
       :thread-channel-id="thread?.channel_id"
       :media-room="threadMediaRoom"
+      :draft-key="threadDraftKey"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
       @update:reply-message-id="handleCancelReply"
@@ -305,6 +306,7 @@ import { insertMessageSorted } from '@/stores/shared/messageCacheUtils'
 import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
+import { useThreadDraft } from '@/composables/useThreadDraft'
 
 // Props
 interface Props {
@@ -387,7 +389,10 @@ const hasMore = ref(false)
 const isMember = ref(true)
 const isMuted = ref(false)
 const showOptions = ref(false)
-const messageText = ref('')
+const { text: messageText, key: threadDraftKey } = useThreadDraft(() => ({
+  threadId: props.threadId,
+  parentMessageId: thread.value?.parent_message_id,
+}))
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 const reactionsSubscription = ref<(() => void) | null>(null)

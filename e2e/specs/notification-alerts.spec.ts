@@ -7,7 +7,9 @@
 //   - the per-type sound setting holds the sound back, in the app and in the system notification;
 //     on a phone's hidden page the system notification carries the sound;
 //   - the chat category's switch does not turn off Fediverse system notifications;
-//   - a reply in the thread shown full page alerts nothing, as a message in the open channel does.
+//   - a reply or a mention in the thread shown full page writes no notification, as a message in
+//     the open channel does, and one delivered anyway alerts nothing; opening the thread reads its
+//     notifications.
 //
 // The notification is real: a second user favourites the reader's post and the database
 // writes the activitypub_favorite row, as for a like from another instance. The stack has no
@@ -277,7 +279,15 @@ test('the chat category switch leaves Fediverse system notifications on', async 
   expect(await toastsShown(page)).toBe(0)
 })
 
-test('a reply in the thread shown full page alerts nothing and is read', async ({ page }) => {
+/** Waits until a device of `reader` reports `threadId` shown full page. */
+async function threadViewSynced(reader: SpecUser, threadId: string): Promise<void> {
+  await expect.poll(async () => {
+    const { data } = await admin.from('device_view_contexts').select('view_type, thread_id').eq('user_id', reader.id)
+    return (data ?? []).some((row) => row.view_type === 'thread' && row.thread_id === threadId)
+  }, { timeout: 15000, message: 'the thread view is synced' }).toBe(true)
+}
+
+test('a reply in the thread shown full page writes no notification; one delivered anyway alerts nothing', async ({ page }) => {
   test.setTimeout(120_000)
   const reader = await openAsReader(page, 'alrt')
   const server = await seedServer(admin, reader, `Alerts ${reader.username}`)
@@ -296,30 +306,112 @@ test('a reply in the thread shown full page alerts nothing and is read', async (
   await page.goto(`/chat/${server.id}/thread/${threadId}`)
   await waitForHandler(page)
   await page.locator('body').click({ position: { x: 5, y: 5 } })
+  await threadViewSynced(reader, threadId)
 
   const client = await userClient(liker)
   const reply = await client.from('messages').insert({
     channel_id: server.generalChannelId, thread_id: threadId, user_id: liker.id, content: [{ type: 'text', text: 'a reply here' }],
   }).select('id').single()
   if (reply.error || !reply.data) throw new Error(`reply: ${reply.error?.message}`)
-  let row: Record<string, unknown> | null = null
-  await expect.poll(async () => {
-    const { data } = await admin.from('notifications')
-      .select('id, type, data, is_read, is_clicked, created_at, updated_at, user_id, expires_at')
-      .eq('user_id', reader.id).eq('type', 'thread_reply').eq('data->>message_id', reply.data.id).maybeSingle()
-    row = data
-    return row !== null
-  }, { timeout: 15000 }).toBe(true)
+  await page.waitForTimeout(1500)
+  // The liker's first message also alerts the owner as newcomer_message, a server alert that no
+  // viewed channel or thread holds back.
+  const written = await admin.from('notifications').select('type')
+    .eq('user_id', reader.id).eq('data->>message_id', reply.data.id).neq('type', 'newcomer_message')
+  expect(written.data ?? [], 'notifications for a reply in the shown thread').toEqual([])
 
-  await deliver(page, row!)
+  // A row written before the view reached the database, as handle_thread_reply_notification writes it.
+  const late = await admin.from('notifications').insert({
+    user_id: reader.id, type: 'thread_reply', is_read: false,
+    data: { thread: { id: threadId }, thread_id: threadId, message_id: reply.data.id, server_id: server.id, channel_id: server.generalChannelId },
+  }).select('id, type, data, is_read, is_clicked, created_at, updated_at, user_id, expires_at').single()
+  if (late.error || !late.data) throw new Error(`late row: ${late.error?.message}`)
+  await deliver(page, late.data)
   await expect.poll(async () => {
-    const { data } = await admin.from('notifications').select('is_read').eq('id', (row as any).id).single()
+    const { data } = await admin.from('notifications').select('is_read').eq('id', late.data.id).single()
     return data?.is_read
   }, { timeout: 10000, message: 'the reply\'s notification is read' }).toBe(true)
   await page.waitForTimeout(1000)
   expect(await toastsShown(page)).toBe(0)
   expect((await sounds(page)).length).toBe(0)
   expect(await systemNotifications(page)).toEqual([])
+})
+
+test('the thread shown full page: opening it reads its notifications, and nothing there notifies', async ({ page }) => {
+  test.setTimeout(150_000)
+  const reader = await openAsReader(page, 'alrm')
+  const server = await seedServer(admin, reader, `Mentions ${reader.username}`)
+  await addMember(admin, liker, server.id)
+  const parentId = crypto.randomUUID()
+  const threadId = crypto.randomUUID()
+  const parent = await admin.from('messages').insert({
+    id: parentId, channel_id: server.generalChannelId, user_id: reader.id, content: [{ type: 'text', text: 'thread parent' }],
+  })
+  if (parent.error) throw new Error(`parent: ${parent.error.message}`)
+  const thread = await admin.from('threads').insert({
+    id: threadId, channel_id: server.generalChannelId, parent_message_id: parentId, name: `Thread ${reader.username}`, created_by: reader.id,
+  })
+  if (thread.error) throw new Error(`thread: ${thread.error.message}`)
+
+  const client = await userClient(liker)
+  const mentionReader = async (text: string) => {
+    const sent = await client.from('messages').insert({
+      channel_id: server.generalChannelId, thread_id: threadId, user_id: liker.id,
+      content: [{ type: 'mention', userId: reader.id, username: reader.username }, { type: 'text', text: ` ${text}` }],
+    }).select('id').single()
+    if (sent.error || !sent.data) throw new Error(`mention: ${sent.error?.message}`)
+    return sent.data.id as string
+  }
+  const rowsFor = async (messageId: string) => {
+    const { data } = await admin.from('notifications')
+      .select('id, type, data, is_read, is_clicked, created_at, updated_at, user_id, expires_at')
+      .eq('user_id', reader.id).eq('data->>message_id', messageId)
+    return (data ?? []) as Array<Record<string, any>>
+  }
+
+  let before: Array<Record<string, any>> = []
+  await test.step('away from the thread, a mention there notifies and names the thread', async () => {
+    const id = await mentionReader('before you came')
+    await expect.poll(async () => (before = await rowsFor(id)).length, { timeout: 15000 }).toBeGreaterThan(0)
+    const mention = before.find((row) => row.type === 'mention')
+    expect(mention, 'a mention row').toBeTruthy()
+    expect.soft(mention?.data?.thread_id, 'the mention names its thread').toBe(threadId)
+  })
+
+  await test.step('opening the thread full page reads them', async () => {
+    await page.goto(`/chat/${server.id}/thread/${threadId}`)
+    await waitForHandler(page)
+    await page.locator('body').click({ position: { x: 5, y: 5 } })
+    await threadViewSynced(reader, threadId)
+    await expect.configure({ soft: true }).poll(async () => {
+      const { data } = await admin.from('notifications').select('is_read').in('id', before.map((row) => row.id))
+      return (data ?? []).every((row) => row.is_read)
+    }, { timeout: 10000, message: 'the thread\'s notifications are read' }).toBe(true)
+  })
+
+  await test.step('while it is shown, a mention there writes no notification', async () => {
+    const id = await mentionReader('while you read')
+    await page.waitForTimeout(1500)
+    expect.soft((await rowsFor(id)).map((row) => row.type), 'notifications for a mention in the shown thread').toEqual([])
+  })
+
+  // A row written before the view reached the database, with the data the mention above carries.
+  await test.step('one delivered anyway alerts nothing and is read', async () => {
+    const mention = before.find((row) => row.type === 'mention')!
+    const late = await admin.from('notifications')
+      .insert({ user_id: reader.id, type: 'mention', data: mention.data, is_read: false })
+      .select('id, type, data, is_read, is_clicked, created_at, updated_at, user_id, expires_at').single()
+    if (late.error || !late.data) throw new Error(`late row: ${late.error?.message}`)
+    await deliver(page, late.data)
+    await expect.configure({ soft: true }).poll(async () => {
+      const { data } = await admin.from('notifications').select('is_read').eq('id', late.data.id).single()
+      return data?.is_read
+    }, { timeout: 10000, message: 'the delivered mention is read' }).toBe(true)
+    await page.waitForTimeout(1000)
+    expect.soft(await toastsShown(page), 'toasts').toBe(0)
+    expect.soft((await sounds(page)).length, 'sounds').toBe(0)
+    expect.soft(await systemNotifications(page), 'system notifications').toEqual([])
+  })
 })
 
 test.describe('on a phone', () => {
