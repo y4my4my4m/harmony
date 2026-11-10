@@ -138,7 +138,13 @@ bot_is_integration	p_bot_id uuid	boolean	definer	public, pg_temp	authenticated+s
 bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
+bridge_import_guard	p_bot_id uuid, p_import_id uuid	discord_bridge_imports	definer	public, pg_temp	service_role	unreferenced
+bridge_import_link_replies	p_bot_id uuid, p_import_id uuid	integer	definer	public, pg_temp	service_role	client
+bridge_import_link_replies_core	p_channel_id uuid, p_ids uuid[]	integer	definer	public, pg_temp		unreferenced
+bridge_import_messages	p_bot_id uuid, p_import_id uuid, p_messages jsonb	jsonb	definer	public, pg_temp	service_role	client
+bridge_import_present_ids	p_bot_id uuid, p_import_id uuid, p_ids text[]	text[]	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	definer	public, pg_temp	service_role	client
+bridge_import_thread	p_bot_id uuid, p_import_id uuid, p_thread jsonb	uuid	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -324,11 +330,11 @@ discord_bridge_guild_channels	p_snapshot jsonb, p_guild_id text	SETOF jsonb	invo
 discord_bridge_hosted_list		TABLE(bridge_id uuid, harmony_token text, discord_token text)	definer	public, pg_temp	service_role	client
 discord_bridge_hosting_enabled		boolean	definer	public, pg_temp		client
 discord_bridge_hosting_limit		integer	definer	public, pg_temp		client
-discord_bridge_import_cancel	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	unreferenced
-discord_bridge_import_cancel_internal	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	unreferenced
-discord_bridge_import_start	p_bridge_id uuid, p_harmony_channel_ids uuid[]	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	unreferenced
-discord_bridge_import_start_internal	p_bridge_id uuid, p_discord_channel_ids text[], p_via text, p_requested_by uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	unreferenced
-discord_bridge_import_update	p_bridge_id uuid, p_import_id uuid, p_patch jsonb	discord_bridge_imports	definer	public, pg_temp	service_role	unreferenced
+discord_bridge_import_cancel	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
+discord_bridge_import_cancel_internal	p_bridge_id uuid, p_import_id uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
+discord_bridge_import_start	p_bridge_id uuid, p_harmony_channel_ids uuid[]	SETOF discord_bridge_imports	definer	public, pg_temp	authenticated	client
+discord_bridge_import_start_internal	p_bridge_id uuid, p_discord_channel_ids text[], p_via text, p_requested_by uuid	SETOF discord_bridge_imports	definer	public, pg_temp	service_role	client
+discord_bridge_import_update	p_bridge_id uuid, p_import_id uuid, p_patch jsonb	discord_bridge_imports	definer	public, pg_temp	service_role	client
 discord_bridge_instance_bot_clear		void	definer	public, pg_temp	authenticated	client
 discord_bridge_instance_bot_configured		boolean	definer	public, pg_temp		unreferenced
 discord_bridge_instance_bot_enabled		boolean	definer	public, pg_temp		client
