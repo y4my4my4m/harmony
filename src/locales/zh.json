@@ -2800,7 +2800,10 @@
       "copyHandle": "复制账号",
       "copyHandleNamed": "复制账号 {handle}",
       "handleCopied": "已复制 {handle}",
-      "handleCopyFailed": "无法复制账号"
+      "handleCopyFailed": "无法复制账号",
+      "copyProfileLink": "复制个人资料链接",
+      "profileLinkCopied": "已复制个人资料链接",
+      "profileLinkCopyFailed": "无法复制个人资料链接"
     },
     "followA11y": {
       "requests": "请求",

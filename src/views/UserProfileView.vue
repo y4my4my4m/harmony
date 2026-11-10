@@ -97,6 +97,18 @@
                     :initial-focus="profileMenuInitialFocus"
                     @close="showActionsMenu = false"
                   >
+                    <button
+                      v-if="shareableProfileUrl"
+                      type="button"
+                      role="menuitem"
+                      class="social-menu-item"
+                      data-testid="profile-menu-copy-link"
+                      @click="copyProfileLink"
+                    >
+                      <Icon name="link" />
+                      <span>{{ t('activitypub.profileA11y.copyProfileLink') }}</span>
+                    </button>
+
                     <!-- View in remote instance (for federated users) -->
                     <a
                       v-if="!user.is_local && remoteProfileUrl"
@@ -111,7 +123,7 @@
                       <span>{{ t('activitypub.viewOnDomain', { domain: user.domain }) }}</span>
                     </a>
 
-                    <div v-if="!user.is_local && remoteProfileUrl" role="separator" class="social-menu-divider"></div>
+                    <div v-if="shareableProfileUrl || (!user.is_local && remoteProfileUrl)" role="separator" class="social-menu-divider"></div>
 
                     <button type="button" role="menuitem" class="social-menu-item" @click="handleMute">
                       <Icon name="volume-x" />
@@ -450,6 +462,8 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import CopyHandleButton from '@/components/common/CopyHandleButton.vue';
 import { formatHandle } from '@/utils/handles';
+import { profileUrl } from '@/utils/permalinks';
+import { useToast } from 'vue-toastification';
 import SocialMenu from '@/components/activitypub/SocialMenu.vue';
 import { useMenuButton } from '@/composables/useMenu';
 import { tablistKeydown } from '@/utils/tablistKeydown';
@@ -704,6 +718,23 @@ const isBlocked = computed(() => {
   if (!user.value) return false;
   return blockedUsers.value.has(user.value.id);
 });
+
+// This instance's address of the account: /@user, /@user@domain for a remote one.
+const shareableProfileUrl = computed(() => (user.value ? profileUrl(user.value) : null));
+
+const toast = useToast();
+
+const copyProfileLink = async () => {
+  showActionsMenu.value = false;
+  const url = shareableProfileUrl.value;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(t('activitypub.profileA11y.profileLinkCopied'));
+  } catch {
+    toast.error(t('activitypub.profileA11y.profileLinkCopyFailed'));
+  }
+};
 
 // Remote profile URL for "View on remote instance" link
 const remoteProfileUrl = computed(() => {

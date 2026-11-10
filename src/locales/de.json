@@ -2800,7 +2800,10 @@
       "copyHandle": "Handle kopieren",
       "copyHandleNamed": "Handle {handle} kopieren",
       "handleCopied": "{handle} kopiert",
-      "handleCopyFailed": "Das Handle konnte nicht kopiert werden"
+      "handleCopyFailed": "Das Handle konnte nicht kopiert werden",
+      "copyProfileLink": "Profillink kopieren",
+      "profileLinkCopied": "Profillink kopiert",
+      "profileLinkCopyFailed": "Der Profillink konnte nicht kopiert werden"
     },
     "followA11y": {
       "requests": "Anfragen",

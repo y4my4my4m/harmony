@@ -2854,7 +2854,10 @@
       "copyHandle": "Copy handle",
       "copyHandleNamed": "Copy handle {handle}",
       "handleCopied": "Copied {handle}",
-      "handleCopyFailed": "Couldn't copy the handle"
+      "handleCopyFailed": "Couldn't copy the handle",
+      "copyProfileLink": "Copy profile link",
+      "profileLinkCopied": "Profile link copied",
+      "profileLinkCopyFailed": "Couldn't copy the profile link"
     },
     "followA11y": {
       "requests": "Requests",

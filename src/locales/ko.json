@@ -2800,7 +2800,10 @@
       "copyHandle": "핸들 복사",
       "copyHandleNamed": "핸들 {handle} 복사",
       "handleCopied": "{handle} 복사됨",
-      "handleCopyFailed": "핸들을 복사하지 못했습니다"
+      "handleCopyFailed": "핸들을 복사하지 못했습니다",
+      "copyProfileLink": "프로필 링크 복사",
+      "profileLinkCopied": "프로필 링크를 복사했습니다",
+      "profileLinkCopyFailed": "프로필 링크를 복사하지 못했습니다"
     },
     "followA11y": {
       "requests": "요청",

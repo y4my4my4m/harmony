@@ -11,6 +11,7 @@ const SAMPLES = [
   'https://mastodon.social/@user/123 mastodon.social/@user',
   'é@x @ü @x_y-z@host-1.example',
   '\\@bob \\\\@carol @dave',
+  'via @hltv-mirror.eurosky.social@bsky.brid.gy, @john.doe@threads.net. @a.b @a..b@c.d @a.@c.d @a.b@-c.d',
   '',
 ]
 
@@ -24,7 +25,7 @@ describe('mention grammar parity (frontend vs federation-backend)', () => {
   })
 
   it('parses single handles identically', () => {
-    for (const t of ['@a', '@a@b.c', '@a@b.c.', 'a@b.c', '@a@B.C']) {
+    for (const t of ['@a', '@a@b.c', '@a@b.c.', 'a@b.c', '@a@B.C', '@a.b@c.d', '@a.b']) {
       expect(server.parseHandle(t)).toEqual(client.parseHandle(t))
     }
   })

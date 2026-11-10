@@ -1,9 +1,11 @@
 /**
  * Public profile and post pages, the HTML of
- *   GET /@:username            a local account and its public posts (?before=<post id> pages)
+ *   GET /@:username            an account and its public posts (?before=<post id> pages):
+ *                              /@user local, /@user@domain remote as this instance holds it
  *   GET /@:username/:postId    one post of that account; /@user@domain/:postId of a remote one
  *   GET /posts/:postId         one post, local or remote (its ActivityPub id)
- * /@user@domain, a remote account, is the app's: sign in, and back.
+ * A remote account this instance has not met is not found; the app looks it up for a signed-in
+ * reader.
  *
  * ActivityPub requests pass on (next()) to ActorService and OutboxHandler, which answer the
  * same URLs with the actor and the Note. instance_config public_profile_pages false sends
@@ -131,13 +133,15 @@ router.get(
   asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (wantsActivityPub(req)) return next();
     const username = String(req.params.username ?? '');
-    if (!USERNAME_RE.test(username)) {
-      if (REMOTE_HANDLE_RE.test(username)) return sendToSignIn(req, res);
+    const remote = USERNAME_RE.test(username) ? null : REMOTE_HANDLE_RE.exec(username);
+    if (!USERNAME_RE.test(username) && !remote) {
       return sendHtml(res, 404, renderStatusPage(context(req, null), 'not_found'), true);
     }
     const before = typeof req.query.before === 'string' && UUID_RE.test(req.query.before) ? req.query.before.toLowerCase() : null;
 
-    const page = await readPage('public_profile_page', { p_username: username, p_before: before, p_limit: 20 });
+    const page = await readPage('public_profile_page', remote
+      ? { p_username: remote[1], p_before: before, p_limit: 20, p_domain: remote[2].toLowerCase() }
+      : { p_username: username, p_before: before, p_limit: 20 });
     if (!page) return sendUnavailable(req, res);
     const crawler = isLinkPreviewAgent(req);
     if (page.enabled === false && !crawler) return sendToSignIn(req, res);
@@ -147,9 +151,10 @@ router.get(
       const inApp = { app: `/@${username}`, fallback: `/social/profile/${username}` };
       return sendHtml(res, 404, renderStatusPage(ctx, 'not_found', inApp), true);
     }
-    if (page.account.username !== username) {
+    const spelled = remote ? `${page.account.username}@${page.account.domain ?? ''}` : page.account.username;
+    if (spelled !== username) {
       const query = before ? `?before=${before}` : '';
-      return res.redirect(301, `/@${encodeURIComponent(page.account.username)}${query}`);
+      return res.redirect(301, `/@${encodeURIComponent(spelled).replace(/%40/g, '@')}${query}`);
     }
 
     const pinned = Array.isArray(page.pinned) ? page.pinned : [];
@@ -163,7 +168,7 @@ router.get(
       ctx,
       { noindex, before },
     );
-    return sendHtml(res, 200, html, noindex || page.account.discoverable === false || Boolean(before) || Boolean(page.account.moved_to_uri));
+    return sendHtml(res, 200, html, noindex || Boolean(remote) || page.account.discoverable === false || Boolean(before) || Boolean(page.account.moved_to_uri));
   })
 );
 

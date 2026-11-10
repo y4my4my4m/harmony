@@ -801,7 +801,7 @@ public_page_account	p_profile_id uuid	jsonb	invoker	public, pg_temp	service_role
 public_page_instance		jsonb	invoker	public, pg_temp	service_role	unreferenced
 public_page_post	p_post_id uuid, p_depth integer	jsonb	invoker	public, pg_temp	service_role	unreferenced
 public_post_page	p_post_id uuid	jsonb	definer	public, pg_temp	service_role	client
-public_profile_page	p_username text, p_before uuid, p_limit integer	jsonb	definer	public, pg_temp	service_role	client
+public_profile_page	p_username text, p_before uuid, p_limit integer, p_domain text	jsonb	definer	public, pg_temp	service_role	client
 purge_bot_interactions	p_limit integer	integer	definer	public, pg_temp	service_role	unreferenced
 purge_following_imports		integer	definer	pg_catalog, public, pg_temp	service_role	client
 purge_processed_ap_activities		integer	definer	public, pg_temp	service_role	unreferenced

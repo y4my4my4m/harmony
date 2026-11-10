@@ -8,6 +8,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Share any profile, and let anyone read it.** **Copy profile link** comes first in a profile's
+  **⋯** menu and copies its address on your instance, `/@name` or `/@name@other.server`. Visitors
+  who aren't signed in now see another server's account at that address: its profile and the public
+  posts your instance has received, with a link to its own server, instead of a sign-in page.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
@@ -69,6 +73,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
+  `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
+  or any account whose username has a dot found nobody; it now finds the account, which you can
+  follow and mention. Self-hosted instances could not store such accounts at all; they can now.
 - **The message field no longer locks after switching servers.** A switch could leave "You do not
   have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
   instances.

@@ -138,6 +138,7 @@ const ICONS = {
   move: '<path d="M5 12h14"/><path d="M13 5l7 7-7 7"/>',
   arrowLeft: '<path d="M19 12H5"/><path d="M11 19l-7-7 7-7"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  external: '<path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 } as const;
 
 export function icon(name: keyof typeof ICONS, label?: string): string {
@@ -303,6 +304,8 @@ img.reaction-emoji { width: auto; height: 18px; max-width: 54px; object-fit: con
 .counts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); }
 .counts strong { margin-right: 4px; color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums; }
 .moved { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 12px; font-weight: 600; }
+.remote-origin { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface-2); color: var(--muted); border-radius: 12px; font-size: 14px; }
+.remote-origin a { font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .topbar { padding: 8px 12px; }
   .post, .post-page { padding: 14px 14px 10px; }

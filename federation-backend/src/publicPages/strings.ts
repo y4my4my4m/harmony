@@ -48,6 +48,7 @@ export interface PageStrings {
   moreFrom: string;
   postBy: string;
   profileOn: string;
+  remoteOrigin: string;
 }
 
 const en: PageStrings = {
@@ -87,6 +88,7 @@ const en: PageStrings = {
   moreFrom: 'More from {name}',
   postBy: 'Post by {name}',
   profileOn: '{name} on {instance}',
+  remoteOrigin: 'Posts {instance} has received. The full profile is on {origin}.',
 };
 
 const de: PageStrings = {
@@ -126,6 +128,7 @@ const de: PageStrings = {
   moreFrom: 'Mehr von {name}',
   postBy: 'Beitrag von {name}',
   profileOn: '{name} auf {instance}',
+  remoteOrigin: 'Beiträge, die {instance} erhalten hat. Das vollständige Profil ist auf {origin}.',
 };
 
 const es: PageStrings = {
@@ -165,6 +168,7 @@ const es: PageStrings = {
   moreFrom: 'Más de {name}',
   postBy: 'Publicación de {name}',
   profileOn: '{name} en {instance}',
+  remoteOrigin: 'Publicaciones que {instance} ha recibido. El perfil completo está en {origin}.',
 };
 
 const fr: PageStrings = {
@@ -204,6 +208,7 @@ const fr: PageStrings = {
   moreFrom: 'Plus de {name}',
   postBy: 'Publication de {name}',
   profileOn: '{name} sur {instance}',
+  remoteOrigin: 'Publications reçues par {instance}. Le profil complet est sur {origin}.',
 };
 
 const ja: PageStrings = {
@@ -243,6 +248,7 @@ const ja: PageStrings = {
   moreFrom: '{name}のその他の投稿',
   postBy: '{name}の投稿',
   profileOn: '{instance}の{name}',
+  remoteOrigin: '{instance}が受け取った投稿です。完全なプロフィールは{origin}にあります。',
 };
 
 const ko: PageStrings = {
@@ -282,6 +288,7 @@ const ko: PageStrings = {
   moreFrom: '{name} 님의 다른 게시물',
   postBy: '{name} 님의 게시물',
   profileOn: '{instance}의 {name}',
+  remoteOrigin: '{instance}에 도착한 게시물입니다. 전체 프로필은 {origin}에 있습니다.',
 };
 
 const zh: PageStrings = {
@@ -321,6 +328,7 @@ const zh: PageStrings = {
   moreFrom: '{name} 的更多帖子',
   postBy: '{name} 的帖子',
   profileOn: '{instance} 上的 {name}',
+  remoteOrigin: '{instance} 已收到的帖子。完整资料位于 {origin}。',
 };
 
 export const PAGE_STRINGS: Record<PageLocale, PageStrings> = { en, de, es, fr, ja, ko, zh };

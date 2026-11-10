@@ -113,11 +113,13 @@ Profiles, posts and hashtags have the addresses Mastodon uses, on your instance'
 | Address | What it opens |
 |---|---|
 | `/@name` | A profile on this instance. Visitors who aren't signed in see its public page. |
-| `/@name@example.social` | A profile on another server, as this instance knows it. Visitors sign in first. |
+| `/@name@example.social` | A profile on another server, as this instance knows it. Visitors who aren't signed in see its public page: the profile and the public posts this instance has received, with a link to the account's own server. An account nobody here has looked up yet is not found until someone signed in opens it. |
 | `/@name/ID`, `/@name@example.social/ID` | A post. **Copy link** in a post's menu copies this address. |
 | `/tags/tag` | A hashtag. |
 
 Earlier addresses, `/social/profile/…`, `/social/post/…` and `/social/hashtag/…`, open the same pages and change to the new address.
+
+**Copy profile link**, first in a profile's **⋯** menu, copies the profile's address on this instance, to share anywhere.
 
 A profile shows the account's full handle, `@name@domain`, accounts on this instance included: the form people on other servers type to find or mention it. **Copy handle**, the copy button beside the handle on a profile and on a profile card, and the item of the same name in the profile card's menu, copies it. People search lists accounts by the same handle. A link to a profile in a message shows a card with the account's name, handle, bio and counts, **Follow** and **Open profile**.
 

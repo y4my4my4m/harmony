@@ -2800,7 +2800,10 @@
       "copyHandle": "ハンドルをコピー",
       "copyHandleNamed": "ハンドル {handle} をコピー",
       "handleCopied": "{handle} をコピーしました",
-      "handleCopyFailed": "ハンドルをコピーできませんでした"
+      "handleCopyFailed": "ハンドルをコピーできませんでした",
+      "copyProfileLink": "プロフィールのリンクをコピー",
+      "profileLinkCopied": "プロフィールのリンクをコピーしました",
+      "profileLinkCopyFailed": "プロフィールのリンクをコピーできませんでした"
     },
     "followA11y": {
       "requests": "リクエスト",
