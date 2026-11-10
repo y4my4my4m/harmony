@@ -10,7 +10,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const TSX = path.join(ROOT, 'bot-gateway/node_modules/.bin/tsx')
+// tsx's own entry point, run with this Node: the .bin shim is a shell script on Linux and
+// a .cmd on Windows, and spawning it needs a shell on Windows.
+const TSX = path.join(ROOT, 'bot-gateway/node_modules/tsx/dist/cli.mjs')
+
+/** Variables a child process needs on Windows (sockets fail without SystemRoot). */
+function platformEnv(): Record<string, string> {
+  const keep = ['SystemRoot', 'USERPROFILE', 'TEMP', 'TMP', 'APPDATA', 'LOCALAPPDATA']
+  return Object.fromEntries(keep.flatMap((k) => (process.env[k] ? [[k, process.env[k] as string]] : [])))
+}
 
 export interface BotGateway {
   /** http://127.0.0.1:<port> */
@@ -43,9 +51,10 @@ export async function startBotGateway(extraEnv: Record<string, string> = {}): Pr
 
   const port = await freePort()
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'hm-e2e-botgw-'))
-  const child: ChildProcess = spawn(TSX, [path.join(ROOT, 'bot-gateway/src/index.ts')], {
+  const child: ChildProcess = spawn(process.execPath, [TSX, path.join(ROOT, 'bot-gateway/src/index.ts')], {
     cwd,
     env: {
+      ...platformEnv(),
       PATH: process.env.PATH,
       HOME: process.env.HOME,
       NODE_ENV: 'development',
@@ -85,7 +94,8 @@ export async function startBotGateway(extraEnv: Record<string, string> = {}): Pr
         child.kill('SIGTERM')
         await exited
       }
-      fs.rmSync(cwd, { recursive: true, force: true })
+      // Windows can hold the exited child's handles on cwd briefly (EPERM): retry.
+      fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
     },
   }
 }
