@@ -99,6 +99,7 @@ const sidebar: DefaultTheme.Sidebar = {
       items: [
         { text: 'Overview', link: '/build/' },
         { text: 'Bot quickstart', link: '/build/bot-quickstart' },
+        { text: 'Slash commands', link: '/build/commands' },
       ],
     },
     {

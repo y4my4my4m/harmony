@@ -54,6 +54,9 @@ export const CAPABILITIES = [
   // Following import and copying a moved account's profile: start_following_import,
   // get_my_following_import, cancel_my_following_import, POST /account/profile/copy (20261109700001).
   'following-import',
+  // Bot slash commands: get_channel_bot_commands, invoke_bot_command, get_my_bot_interactions, the
+  // bot_interaction:update user event and messages.metadata.interaction (20261110400001).
+  'bot-commands',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

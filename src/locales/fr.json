@@ -3975,6 +3975,62 @@
         "label": "Gérer les rôles",
         "description": "Créer, modifier et supprimer des rôles inférieurs au rôle le plus élevé de la personne qui l'a installé, avec les permissions dont il dispose."
       }
+    },
+    "commands": {
+      "header": "Commandes",
+      "bar": {
+        "label": "Options de {command}",
+        "close": "Fermer la commande (Échap)",
+        "send": "Envoyer la commande",
+        "required": "obligatoire",
+        "choose": "Choisir…",
+        "chooseChannel": "Choisir un salon…",
+        "chooseRole": "Choisir un rôle…",
+        "searchMembers": "Rechercher des membres…",
+        "true": "Vrai",
+        "false": "Faux"
+      },
+      "validation": {
+        "required": "Obligatoire.",
+        "integer": "Saisissez un nombre entier.",
+        "number": "Saisissez un nombre.",
+        "min": "Au moins {min}.",
+        "max": "Au plus {max}.",
+        "minLength": "Au moins {min} caractères.",
+        "maxLength": "Au plus {max} caractères.",
+        "choice": "Choisissez l’une des options.",
+        "pick": "Choisissez dans la liste."
+      },
+      "errors": {
+        "unavailable": "Cette commande n’est pas disponible ici.",
+        "forbidden": "Vous n’avez pas la permission d’utiliser cette commande ici.",
+        "timedOut": "Vous êtes exclu temporairement de ce serveur.",
+        "threadLocked": "Ce fil est verrouillé.",
+        "slowmode": "Le mode lent est actif. Réessayez dans {seconds} s.",
+        "slowmodeNoTime": "Le mode lent est actif. Réessayez dans un instant.",
+        "rateLimited": "Trop de commandes. Réessayez dans {seconds} s.",
+        "rateLimitedNoTime": "Trop de commandes. Réessayez dans un instant.",
+        "invalidOption": "La valeur de {name} n’est pas acceptée.",
+        "invalidOptions": "Les options de la commande ne sont pas acceptées.",
+        "failed": "La commande n’a pas pu être envoyée."
+      },
+      "notice": {
+        "used": "Vous avez utilisé {command}",
+        "thinking": "{bot} réfléchit…",
+        "noResponse": "{bot} n’a pas répondu.",
+        "offline": "{bot} est hors ligne.",
+        "cannotPost": "{bot} ne peut pas publier dans ce salon.",
+        "blocked": "AutoMod a bloqué la réponse de {bot}.",
+        "threadLocked": "{bot} ne peut pas répondre : le fil est verrouillé.",
+        "failed": "{bot} n’a pas pu répondre.",
+        "private": "Vous seul pouvez voir ceci",
+        "dismiss": "Ignorer",
+        "someBot": "Le bot"
+      }
+    },
+    "interactions": {
+      "used": "a utilisé {command}",
+      "someoneUsed": "Quelqu’un a utilisé {command}"
     }
   },
   "webhooks": {

@@ -49,6 +49,8 @@ type UserEventType =
   // Server mute or deafen of this user, and a moderator's move or disconnect
   // (20261017100002_voice_moderation.sql).
   | 'voice:moderation' | 'voice:moved'
+  // Status or reply of the user's slash command invocation (20261110400001_bot_slash_commands.sql).
+  | 'bot_interaction:update'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

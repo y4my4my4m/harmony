@@ -292,6 +292,107 @@ describe('create_federated_emoji', () => {
   })
 })
 
+/** A failed call raised one of the contract's P0001 codes, not a schema error such as 42703. */
+function raisedContractCode(r: SqlResult): boolean {
+  return /ERROR:\s+P0001: [A-Z_]+/.test(why(r))
+}
+
+describe('bot command RPCs', () => {
+  const weather = {
+    name: 'weather',
+    description: 'Weather',
+    options: [{ type: 3, name: 'city', description: 'City', required: true }],
+    required_permissions: ['BAN_MEMBERS'],
+  }
+  const json = (value: unknown) => `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`
+
+  it('replaces, upserts and lists slash commands with permission names', () => {
+    const replaced = sql(`SELECT public.bot_commands_replace('${BOT_ID}', ${json([weather])})::text`)
+    expect(replaced.ok, why(replaced)).toBe(true)
+    const [stored] = JSON.parse(replaced.rows[0][0])
+    expect(stored).toMatchObject({ name: 'weather', description: 'Weather', required_permissions: ['BAN_MEMBERS'] })
+
+    const kept = sql(`SELECT public.bot_command_upsert('${BOT_ID}', ${json({ ...weather, description: 'Forecast' })})::text`)
+    expect(kept.ok, why(kept)).toBe(true)
+    expect(JSON.parse(kept.rows[0][0])).toMatchObject({ created: false, command: { id: stored.id, description: 'Forecast' } })
+
+    const ping = { name: 'ping', description: 'Ping', options: [], required_permissions: [] }
+    const created = sql(`SELECT public.bot_command_upsert('${BOT_ID}', ${json(ping)})::text`)
+    expect(created.ok, why(created)).toBe(true)
+    expect(JSON.parse(created.rows[0][0])).toMatchObject({ created: true, command: { name: 'ping' } })
+
+    const listed = sql(`SELECT public.get_bot_commands('${BOT_ID}')::text`)
+    expect(listed.ok, why(listed)).toBe(true)
+    expect(JSON.parse(listed.rows[0][0]).map((c: { name: string }) => c.name)).toEqual(['ping', 'weather'])
+
+    const cleared = sql(`SELECT public.bot_commands_replace('${BOT_ID}', '[]'::jsonb)::text`)
+    expect(cleared.ok, why(cleared)).toBe(true)
+    expect(JSON.parse(cleared.rows[0][0])).toEqual([])
+  })
+
+  it('refuses unknown permissions, duplicate names and a 101st command with their codes', () => {
+    const unknown = sql(
+      `SELECT public.bot_commands_replace('${BOT_ID}', ${json([{ ...weather, required_permissions: ['NOPE'] }])})`,
+    )
+    expect(why(unknown)).toMatch(/P0001: BOT_COMMAND_UNKNOWN_PERMISSION:NOPE/)
+
+    const duplicate = sql(`SELECT public.bot_commands_replace('${BOT_ID}', ${json([weather, weather])})`)
+    expect(why(duplicate)).toMatch(/P0001: BOT_COMMAND_DUPLICATE:weather/)
+
+    const tooMany = sql(`
+      SELECT public.bot_commands_replace('${BOT_ID}', (
+        SELECT jsonb_agg(jsonb_build_object('name', 'c' || i, 'description', 'x',
+                                            'options', '[]'::jsonb, 'required_permissions', '[]'::jsonb))
+          FROM generate_series(1, 101) i))`)
+    expect(why(tooMany)).toMatch(/P0001: BOT_COMMAND_LIMIT/)
+  })
+})
+
+describe('bot interaction RPCs', () => {
+  it('claims nothing for a bot without pending interactions', () => {
+    const r = sql(`SELECT public.claim_bot_interactions(ARRAY['${BOT_ID}']::uuid[], 50)::text`)
+    expect(r.ok, why(r)).toBe(true)
+    expect(JSON.parse(r.rows[0][0])).toEqual([])
+  })
+
+  it('answers INTERACTION_UNKNOWN to an ack or a reply of an interaction that does not exist', () => {
+    const ack = sql(`SELECT public.bot_interaction_ack('${BOT_ID}', gen_random_uuid(), false, false, NULL)`)
+    expect(why(ack)).toMatch(/P0001: INTERACTION_UNKNOWN/)
+
+    const reply = sql(
+      `SELECT public.bot_interaction_reply('${BOT_ID}', gen_random_uuid(), 'original', false, '[{"type":"text","text":"x"}]'::jsonb)`,
+    )
+    expect(why(reply)).toMatch(/P0001: INTERACTION_UNKNOWN/)
+  })
+
+  it('runs record and fail for an interaction that does not exist', () => {
+    for (const statement of [
+      `SELECT public.bot_interaction_record('${BOT_ID}', gen_random_uuid(), NULL, 'failed')`,
+      `SELECT public.bot_interaction_fail('${BOT_ID}', gen_random_uuid(), 'offline')`,
+    ]) {
+      const r = sql(statement)
+      expect(r.ok || raisedContractCode(r), why(r)).toBe(true)
+    }
+  })
+})
+
+describe('bot_rate_limit_take', () => {
+  // The interaction bucket's counter; it counts no 'overall' request.
+  it('admits up to the limit and answers the seconds left after it', () => {
+    const bucket = `interactions-contract-${Date.now()}`
+    const first = sql(`SELECT public.bot_rate_limit_take('${BOT_ID}', '${bucket}', 1, 5)`)
+    expect(first.ok, why(first)).toBe(true)
+    expect(first.rows[0][0]).toBe('0')
+
+    const second = sql(`SELECT public.bot_rate_limit_take('${BOT_ID}', '${bucket}', 1, 5)`)
+    expect(second.ok, why(second)).toBe(true)
+    expect(Number(second.rows[0][0])).toBeGreaterThan(0)
+
+    const overall = sql(`SELECT count(*) FROM public.bot_rate_limits WHERE bot_id = '${BOT_ID}' AND bucket = 'overall'`)
+    expect(overall.rows[0][0]).toBe('0')
+  })
+})
+
 describe('check_and_increment_bot_rate_limit', () => {
   // Returns the seconds to wait; 0 admits.
   it('admits the first request in a window and refuses the next', () => {

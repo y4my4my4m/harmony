@@ -3975,6 +3975,62 @@
         "label": "역할 관리",
         "description": "설치한 사람의 최상위 역할보다 낮은 역할을, 봇이 보유한 권한 범위 안에서 만들고 편집하고 삭제합니다."
       }
+    },
+    "commands": {
+      "header": "명령어",
+      "bar": {
+        "label": "{command} 옵션",
+        "close": "명령어 닫기 (Esc)",
+        "send": "명령어 보내기",
+        "required": "필수",
+        "choose": "선택…",
+        "chooseChannel": "채널 선택…",
+        "chooseRole": "역할 선택…",
+        "searchMembers": "멤버 검색…",
+        "true": "예",
+        "false": "아니요"
+      },
+      "validation": {
+        "required": "필수 항목입니다.",
+        "integer": "정수를 입력하세요.",
+        "number": "숫자를 입력하세요.",
+        "min": "{min} 이상이어야 합니다.",
+        "max": "{max} 이하여야 합니다.",
+        "minLength": "{min}자 이상 입력하세요.",
+        "maxLength": "{max}자 이하로 입력하세요.",
+        "choice": "선택지 중 하나를 고르세요.",
+        "pick": "목록에서 고르세요."
+      },
+      "errors": {
+        "unavailable": "이 명령어는 여기서 사용할 수 없습니다.",
+        "forbidden": "여기서 이 명령어를 사용할 권한이 없습니다.",
+        "timedOut": "이 서버에서 타임아웃 상태입니다.",
+        "threadLocked": "이 스레드는 잠겨 있습니다.",
+        "slowmode": "슬로우 모드가 켜져 있습니다. {seconds}초 후에 다시 시도하세요.",
+        "slowmodeNoTime": "슬로우 모드가 켜져 있습니다. 잠시 후 다시 시도하세요.",
+        "rateLimited": "명령어를 너무 많이 사용했습니다. {seconds}초 후에 다시 시도하세요.",
+        "rateLimitedNoTime": "명령어를 너무 많이 사용했습니다. 잠시 후 다시 시도하세요.",
+        "invalidOption": "{name} 값이 허용되지 않습니다.",
+        "invalidOptions": "명령어 옵션이 허용되지 않습니다.",
+        "failed": "명령어를 보낼 수 없습니다."
+      },
+      "notice": {
+        "used": "{command} 사용함",
+        "thinking": "{bot}이(가) 생각 중…",
+        "noResponse": "{bot}이(가) 응답하지 않았습니다.",
+        "offline": "{bot}은(는) 오프라인입니다.",
+        "cannotPost": "{bot}은(는) 이 채널에 게시할 수 없습니다.",
+        "blocked": "AutoMod가 {bot}의 답장을 차단했습니다.",
+        "threadLocked": "스레드가 잠겨 있어 {bot}이(가) 답장할 수 없습니다.",
+        "failed": "{bot}이(가) 답장하지 못했습니다.",
+        "private": "나만 볼 수 있음",
+        "dismiss": "닫기",
+        "someBot": "봇"
+      }
+    },
+    "interactions": {
+      "used": "님이 {command} 사용",
+      "someoneUsed": "누군가 {command} 사용"
     }
   },
   "webhooks": {

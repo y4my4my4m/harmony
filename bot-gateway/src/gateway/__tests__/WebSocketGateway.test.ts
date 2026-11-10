@@ -567,6 +567,24 @@ describe('connections per bot', () => {
   })
 })
 
+describe('sendToBot', () => {
+  it('writes every open connection of the bot and answers how many', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    const frames = [nextEvent(first.ws), nextEvent(second.ws)]
+
+    expect(gateway.sendToBot(BOT_ID, { op: 0, t: 'INTERACTION_CREATE', d: { id: 'i1' } })).toBe(2)
+    for (const { frame } of await Promise.all(frames)) expect(frame).toEqual({ op: 0, t: 'INTERACTION_CREATE', d: { id: 'i1' } })
+    expect(gateway.sendToBot('00000000-0000-0000-0000-0000000000b9', { op: 0, t: 'X', d: {} })).toBe(0)
+
+    first.ws.close()
+    second.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(0))
+    expect(gateway.sendToBot(BOT_ID, { op: 0, t: 'X', d: {} })).toBe(0)
+  })
+})
+
 describe('identify deadline', () => {
   const DEADLINE_MS = 100
 

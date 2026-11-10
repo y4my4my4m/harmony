@@ -3975,6 +3975,62 @@
         "label": "Rollen verwalten",
         "description": "Rollen unterhalb der höchsten Rolle dessen, der ihn installiert hat, erstellen, bearbeiten und löschen – mit Berechtigungen, die er selbst hat."
       }
+    },
+    "commands": {
+      "header": "Befehle",
+      "bar": {
+        "label": "Optionen für {command}",
+        "close": "Befehl schließen (Esc)",
+        "send": "Befehl senden",
+        "required": "erforderlich",
+        "choose": "Auswählen…",
+        "chooseChannel": "Kanal auswählen…",
+        "chooseRole": "Rolle auswählen…",
+        "searchMembers": "Mitglieder suchen…",
+        "true": "Wahr",
+        "false": "Falsch"
+      },
+      "validation": {
+        "required": "Erforderlich.",
+        "integer": "Gib eine ganze Zahl ein.",
+        "number": "Gib eine Zahl ein.",
+        "min": "Mindestens {min}.",
+        "max": "Höchstens {max}.",
+        "minLength": "Mindestens {min} Zeichen.",
+        "maxLength": "Höchstens {max} Zeichen.",
+        "choice": "Wähle eine der Optionen.",
+        "pick": "Wähle einen Eintrag aus der Liste."
+      },
+      "errors": {
+        "unavailable": "Dieser Befehl ist hier nicht verfügbar.",
+        "forbidden": "Du hast keine Berechtigung, diesen Befehl hier zu verwenden.",
+        "timedOut": "Du bist auf diesem Server im Timeout.",
+        "threadLocked": "Dieser Thread ist gesperrt.",
+        "slowmode": "Der Slowmode ist aktiv. Versuch es in {seconds} s erneut.",
+        "slowmodeNoTime": "Der Slowmode ist aktiv. Versuch es gleich erneut.",
+        "rateLimited": "Zu viele Befehle. Versuch es in {seconds} s erneut.",
+        "rateLimitedNoTime": "Zu viele Befehle. Versuch es gleich erneut.",
+        "invalidOption": "Der Wert von {name} wird nicht akzeptiert.",
+        "invalidOptions": "Die Optionen des Befehls werden nicht akzeptiert.",
+        "failed": "Der Befehl konnte nicht gesendet werden."
+      },
+      "notice": {
+        "used": "Du hast {command} verwendet",
+        "thinking": "{bot} denkt nach…",
+        "noResponse": "{bot} hat nicht geantwortet.",
+        "offline": "{bot} ist offline.",
+        "cannotPost": "{bot} kann in diesem Kanal nicht posten.",
+        "blocked": "AutoMod hat die Antwort von {bot} blockiert.",
+        "threadLocked": "{bot} kann nicht antworten: Der Thread ist gesperrt.",
+        "failed": "{bot} konnte nicht antworten.",
+        "private": "Nur du kannst das sehen",
+        "dismiss": "Verwerfen",
+        "someBot": "Der Bot"
+      }
+    },
+    "interactions": {
+      "used": "hat {command} verwendet",
+      "someoneUsed": "Jemand hat {command} verwendet"
     }
   },
   "webhooks": {

@@ -3975,6 +3975,62 @@
         "label": "Gestionar roles",
         "description": "Crear, editar y eliminar roles por debajo del rol más alto de quien lo instaló, con los permisos que tiene."
       }
+    },
+    "commands": {
+      "header": "Comandos",
+      "bar": {
+        "label": "Opciones de {command}",
+        "close": "Cerrar comando (Esc)",
+        "send": "Enviar comando",
+        "required": "obligatorio",
+        "choose": "Elegir…",
+        "chooseChannel": "Elegir un canal…",
+        "chooseRole": "Elegir un rol…",
+        "searchMembers": "Buscar miembros…",
+        "true": "Verdadero",
+        "false": "Falso"
+      },
+      "validation": {
+        "required": "Obligatorio.",
+        "integer": "Introduce un número entero.",
+        "number": "Introduce un número.",
+        "min": "Como mínimo {min}.",
+        "max": "Como máximo {max}.",
+        "minLength": "Como mínimo {min} caracteres.",
+        "maxLength": "Como máximo {max} caracteres.",
+        "choice": "Elige una de las opciones.",
+        "pick": "Elige uno de la lista."
+      },
+      "errors": {
+        "unavailable": "Este comando no está disponible aquí.",
+        "forbidden": "No tienes permiso para usar este comando aquí.",
+        "timedOut": "Estás aislado temporalmente en este servidor.",
+        "threadLocked": "Este hilo está bloqueado.",
+        "slowmode": "El modo lento está activado. Vuelve a intentarlo en {seconds} s.",
+        "slowmodeNoTime": "El modo lento está activado. Vuelve a intentarlo en un momento.",
+        "rateLimited": "Demasiados comandos. Vuelve a intentarlo en {seconds} s.",
+        "rateLimitedNoTime": "Demasiados comandos. Vuelve a intentarlo en un momento.",
+        "invalidOption": "El valor de {name} no se acepta.",
+        "invalidOptions": "Las opciones del comando no se aceptan.",
+        "failed": "No se pudo enviar el comando."
+      },
+      "notice": {
+        "used": "Usaste {command}",
+        "thinking": "{bot} está pensando…",
+        "noResponse": "{bot} no respondió.",
+        "offline": "{bot} está desconectado.",
+        "cannotPost": "{bot} no puede publicar en este canal.",
+        "blocked": "AutoMod bloqueó la respuesta de {bot}.",
+        "threadLocked": "{bot} no puede responder: el hilo está bloqueado.",
+        "failed": "{bot} no pudo responder.",
+        "private": "Solo tú puedes ver esto",
+        "dismiss": "Descartar",
+        "someBot": "El bot"
+      }
+    },
+    "interactions": {
+      "used": "usó {command}",
+      "someoneUsed": "Alguien usó {command}"
     }
   },
   "webhooks": {

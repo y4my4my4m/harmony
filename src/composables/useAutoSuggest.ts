@@ -29,6 +29,15 @@ import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
 import { isMassMentionWord } from '@/utils/massMentions';
 import { isImeKeyEvent } from '@/utils/editorShortcuts';
 import { normalizeSearchText } from '@/utils/searchTokens';
+import { useT } from '@/composables/useT';
+import {
+  flattenBotCommands,
+  getChannelBotCommands,
+  type BotCommandBot,
+  type BotCommandOption,
+  type ChannelBotCommand,
+  type FlatBotCommand,
+} from '@/services/botCommandService';
 
 export { clearBridgedUsersCache };
 
@@ -66,7 +75,36 @@ export interface AutoSuggestConfig {
   pollsEnabled?: () => boolean;
   /** Server channel the text goes to; without USE_EXTERNAL_EMOJIS there, only its server's custom emoji are offered. */
   channelId?: () => string | null | undefined;
+  /**
+   * Server channel, and thread within it, whose bots' commands '/' offers after the built-ins.
+   * Null in DMs, draft threads and message edits.
+   */
+  botCommandTarget?: () => BotCommandTarget | null;
   maxSuggestions?: number;
+}
+
+export interface BotCommandTarget {
+  channelId: string;
+  threadId: string | null;
+}
+
+/** A bot command picked from the '/' list, waiting for its option values. */
+export interface ActiveBotCommand {
+  command: ChannelBotCommand;
+  path: string[];
+  fullName: string;
+  options: BotCommandOption[];
+  bot: BotCommandBot;
+  channelId: string;
+  threadId: string | null;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A target names stored rows: draft threads ('draft:<id>') and optimistic ids are not uuids. */
+export function isBotCommandTarget(target: BotCommandTarget | null | undefined): target is BotCommandTarget {
+  if (!target || !UUID_RE.test(target.channelId)) return false;
+  return target.threadId === null || UUID_RE.test(target.threadId);
 }
 
 interface RichTextEditorRef {
@@ -195,6 +233,14 @@ export function useAutoSuggest(
 
   // Active parameterized command (e.g. /gif waiting for query input)
   const activeCommand = ref<{ name: string; params: { name: string; description: string }[] } | null>(null);
+  // Bot command waiting for its options. Separate from activeCommand: a bot command named like
+  // a built-in never reaches the built-in's handling.
+  const activeBotCommand = ref<ActiveBotCommand | null>(null);
+  const { t } = useT();
+
+  // Bot commands of the target the last '/' was typed in.
+  const botCommands = ref<{ key: string; items: FlatBotCommand[] } | null>(null);
+  let botCommandsRequest = 0;
 
   // Search results, ActivityPub mode only.
   const activityPubUsers = ref<any[]>([]);
@@ -224,9 +270,10 @@ export function useAutoSuggest(
   }
   
   if (finalConfig.mode === 'chat' && finalConfig.enableCommands) {
+    // Bot command names follow Discord: ^[-_\p{L}\p{N}]{1,32}$.
     triggers.push({
       char: '/',
-      pattern: /^\/([a-zA-Z]*)$/,
+      pattern: /^\/([\p{L}\p{N}_-]*)$/u,
       type: 'command'
     });
   }
@@ -573,11 +620,50 @@ export function useAutoSuggest(
     { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
   ];
 
+  const currentBotTarget = (): BotCommandTarget | null => {
+    const target = finalConfig.botCommandTarget?.() ?? null;
+    return isBotCommandTarget(target) ? target : null;
+  };
+  const botTargetKey = (target: BotCommandTarget) => `${target.channelId}:${target.threadId ?? ''}`;
+
+  // Asked on every '/' keystroke; botCommandService answers from its 60 s cache.
+  const loadBotCommands = (target: BotCommandTarget) => {
+    const key = botTargetKey(target);
+    const request = ++botCommandsRequest;
+    void getChannelBotCommands(target.channelId, target.threadId).then((commands) => {
+      if (request !== botCommandsRequest) return;
+      botCommands.value = { key, items: flattenBotCommands(commands) };
+    });
+  };
+
+  const botCommandSuggestions = (query: string): SuggestionItem[] => {
+    const target = currentBotTarget();
+    const loaded = botCommands.value;
+    if (!target || !loaded || loaded.key !== botTargetKey(target)) return [];
+    return loaded.items
+      .filter(item => item.command.name.toLowerCase().includes(query))
+      .map(item => {
+        const bot = item.command.bot;
+        return {
+          id: `botcmd:${item.command.id}:${item.path.join(' ')}`,
+          name: item.fullName,
+          display_name: `/${item.fullName}`,
+          description: item.description,
+          isCommand: true,
+          isBotCommand: true,
+          botCommand: item,
+          botName: bot.display_name?.trim() || bot.username,
+          botId: bot.id,
+          avatar: bot.avatar_url || '/default_avatar.webp',
+        };
+      });
+  };
+
   const commandSuggestions = computed((): SuggestionItem[] => {
     if (state.value.triggerType !== 'command') return [];
     const query = (state.value.query || '').toLowerCase();
     const isOwner = isCurrentUserServerOwner.value;
-    return SLASH_COMMANDS
+    const builtIns = SLASH_COMMANDS
       .filter(cmd => {
         if (!cmd.name.includes(query)) return false;
         if (cmd.enabled && !cmd.enabled()) return false;
@@ -593,6 +679,7 @@ export function useAutoSuggest(
         isCommand: true,
         commandParams: cmd.params,
       }));
+    return [...builtIns, ...botCommandSuggestions(query)];
   });
 
   // Membership-scoped: the store holds channels only for servers the user belongs to.
@@ -635,7 +722,7 @@ export function useAutoSuggest(
       case 'emoji':
         return 'Emojis';
       case 'command':
-        return 'Commands';
+        return t('bots.commands.header');
       case 'channel':
         return 'Channels';
       case 'mention':
@@ -842,6 +929,10 @@ export function useAutoSuggest(
     activeCommand.value = null;
   };
 
+  const dismissBotCommand = () => {
+    activeBotCommand.value = null;
+  };
+
   const handleInput = (value: string, cursorPosition: number) => {
     const textBeforeCursor = value.substring(0, cursorPosition);
     // RichTextEditor emits \u00A0 for spaces and \s does not match it; normalized before matching.
@@ -875,6 +966,11 @@ export function useAutoSuggest(
           position: keepPosition ? state.value.position : calculateCursorPosition()
         };
         
+        if (trigger.type === 'command') {
+          const target = currentBotTarget();
+          if (target) loadBotCommands(target);
+        }
+
         // Bridge bot check and role load run on '@', not on server change.
         if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
           const serverId = serverChannelStore.currentServerId;
@@ -983,6 +1079,27 @@ export function useAutoSuggest(
       });
       
       let insertText = '';
+
+      if (state.value.triggerType === 'command' && suggestion.isBotCommand) {
+        closeSuggestions();
+        const item = suggestion.botCommand as FlatBotCommand | undefined;
+        const target = currentBotTarget();
+        if (!item || !target) return currentText;
+        activeCommand.value = null;
+        activeBotCommand.value = {
+          command: item.command,
+          path: item.path,
+          fullName: item.fullName,
+          options: item.options,
+          bot: item.command.bot,
+          channelId: target.channelId,
+          threadId: target.threadId,
+        };
+        if (updateText) {
+          updateText('', 0);
+        }
+        return '';
+      }
 
       if (state.value.triggerType === 'command' && suggestion.isCommand) {
         closeSuggestions();
@@ -1160,11 +1277,13 @@ export function useAutoSuggest(
     suggestions,
     headerText,
     activeCommand,
+    activeBotCommand,
     handleInput,
     handleKeyDown,
     selectSuggestion,
     closeSuggestions,
     dismissActiveCommand,
+    dismissBotCommand,
     updatePosition
   };
 }

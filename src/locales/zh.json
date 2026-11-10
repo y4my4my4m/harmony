@@ -3975,6 +3975,62 @@
         "label": "管理角色",
         "description": "创建、编辑和删除低于其安装者最高角色的角色，且只能授予其自身拥有的权限。"
       }
+    },
+    "commands": {
+      "header": "命令",
+      "bar": {
+        "label": "{command} 的选项",
+        "close": "关闭命令 (Esc)",
+        "send": "发送命令",
+        "required": "必填",
+        "choose": "选择…",
+        "chooseChannel": "选择频道…",
+        "chooseRole": "选择角色…",
+        "searchMembers": "搜索成员…",
+        "true": "是",
+        "false": "否"
+      },
+      "validation": {
+        "required": "必填。",
+        "integer": "请输入整数。",
+        "number": "请输入数字。",
+        "min": "不能小于 {min}。",
+        "max": "不能大于 {max}。",
+        "minLength": "至少 {min} 个字符。",
+        "maxLength": "最多 {max} 个字符。",
+        "choice": "请从选项中选择一个。",
+        "pick": "请从列表中选择。"
+      },
+      "errors": {
+        "unavailable": "此命令在这里不可用。",
+        "forbidden": "你没有在这里使用此命令的权限。",
+        "timedOut": "你在此服务器被禁言。",
+        "threadLocked": "此子区已锁定。",
+        "slowmode": "慢速模式已开启。请在 {seconds} 秒后重试。",
+        "slowmodeNoTime": "慢速模式已开启。请稍后重试。",
+        "rateLimited": "命令使用过于频繁。请在 {seconds} 秒后重试。",
+        "rateLimitedNoTime": "命令使用过于频繁。请稍后重试。",
+        "invalidOption": "{name} 的值不被接受。",
+        "invalidOptions": "命令选项不被接受。",
+        "failed": "无法发送命令。"
+      },
+      "notice": {
+        "used": "你使用了 {command}",
+        "thinking": "{bot} 正在思考…",
+        "noResponse": "{bot} 没有回应。",
+        "offline": "{bot} 已离线。",
+        "cannotPost": "{bot} 无法在此频道发帖。",
+        "blocked": "AutoMod 拦截了 {bot} 的回复。",
+        "threadLocked": "{bot} 无法回复：子区已锁定。",
+        "failed": "{bot} 未能回复。",
+        "private": "仅你可见",
+        "dismiss": "关闭",
+        "someBot": "机器人"
+      }
+    },
+    "interactions": {
+      "used": "使用了 {command}",
+      "someoneUsed": "有人使用了 {command}"
     }
   },
   "webhooks": {

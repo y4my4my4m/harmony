@@ -3975,6 +3975,62 @@
         "label": "ロールの管理",
         "description": "インストールしたユーザーの最上位ロールより下のロールを、自身が持つ権限の範囲で作成・編集・削除します。"
       }
+    },
+    "commands": {
+      "header": "コマンド",
+      "bar": {
+        "label": "{command} のオプション",
+        "close": "コマンドを閉じる (Esc)",
+        "send": "コマンドを送信",
+        "required": "必須",
+        "choose": "選択…",
+        "chooseChannel": "チャンネルを選択…",
+        "chooseRole": "ロールを選択…",
+        "searchMembers": "メンバーを検索…",
+        "true": "はい",
+        "false": "いいえ"
+      },
+      "validation": {
+        "required": "入力してください。",
+        "integer": "整数を入力してください。",
+        "number": "数値を入力してください。",
+        "min": "{min} 以上にしてください。",
+        "max": "{max} 以下にしてください。",
+        "minLength": "{min} 文字以上で入力してください。",
+        "maxLength": "{max} 文字以内で入力してください。",
+        "choice": "選択肢から選んでください。",
+        "pick": "リストから選んでください。"
+      },
+      "errors": {
+        "unavailable": "このコマンドはここでは使えません。",
+        "forbidden": "ここでこのコマンドを使う権限がありません。",
+        "timedOut": "このサーバーではタイムアウト中です。",
+        "threadLocked": "このスレッドはロックされています。",
+        "slowmode": "低速モード中です。{seconds} 秒後にもう一度お試しください。",
+        "slowmodeNoTime": "低速モード中です。少し待ってからもう一度お試しください。",
+        "rateLimited": "コマンドの使用回数が多すぎます。{seconds} 秒後にもう一度お試しください。",
+        "rateLimitedNoTime": "コマンドの使用回数が多すぎます。少し待ってからもう一度お試しください。",
+        "invalidOption": "{name} の値は受け付けられませんでした。",
+        "invalidOptions": "コマンドのオプションが受け付けられませんでした。",
+        "failed": "コマンドを送信できませんでした。"
+      },
+      "notice": {
+        "used": "{command} を使用しました",
+        "thinking": "{bot} が考え中…",
+        "noResponse": "{bot} から応答がありませんでした。",
+        "offline": "{bot} はオフラインです。",
+        "cannotPost": "{bot} はこのチャンネルに投稿できません。",
+        "blocked": "{bot} の返信は AutoMod によってブロックされました。",
+        "threadLocked": "スレッドがロックされているため、{bot} は返信できません。",
+        "failed": "{bot} は返信できませんでした。",
+        "private": "あなただけに表示されています",
+        "dismiss": "閉じる",
+        "someBot": "ボット"
+      }
+    },
+    "interactions": {
+      "used": "さんが {command} を使用しました",
+      "someoneUsed": "誰かが {command} を使用しました"
     }
   },
   "webhooks": {

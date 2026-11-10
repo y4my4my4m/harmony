@@ -19,7 +19,19 @@ Type in the composer at the bottom of the channel and send:
 - When a channel has slowmode, a clock beside the composer shows the seconds left before you can send again.
 - If your roles do not allow sending in a channel, the composer is replaced by a notice.
 - Ctrl+B and Ctrl+I (Cmd on macOS) wrap the selection in bold or italic markers. Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes.
-- Typing `/` at the start of an empty composer lists commands: `/gif`, `/sticker` and `/poll`, plus `/clip`, `/meme` and `/aiemoji` when the instance enables them, and `/kick` and `/ban` for members with those permissions.
+- Typing `/` at the start of an empty composer lists commands: `/gif`, `/sticker` and `/poll`, plus `/clip`, `/meme` and `/aiemoji` when the instance enables them, and `/kick` and `/ban` for members with those permissions. In a server, the commands of its bots follow, each with the bot's name; see [Bot commands](#bot-commands).
+
+## Bot commands
+
+Bots added to a server can offer their own slash commands. They are listed under `/` in the server's text channels and threads, with the bot's avatar and name, where the bot can post and you hold the permissions the command asks for. Encrypted channels and direct messages have none.
+
+- Pick a command and fill in its options in the bar above the composer: text, numbers, true or false, a choice from a list, a member, a channel or a role. Required options are marked. Enter or the send button runs it; Escape closes the bar.
+- Until the bot answers, a line only you see reads "You used /weather · Weatherbot is thinking…".
+- A public answer is a message from the bot that everyone sees, headed "*your name* used /weather".
+- A private answer is marked **Only you can see this**. **Dismiss** removes it; it is also gone when you reload.
+- When the bot is not connected the line reads "Weatherbot is offline"; when it does not answer within a few seconds, "Weatherbot did not respond".
+- The channel's slowmode applies to commands, and you can run at most 5 commands every 10 seconds.
+- What you type in a command's options is sent to the bot, and the bot's owner can read it.
 
 ## Attach files, GIFs and stickers
 

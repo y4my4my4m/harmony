@@ -84,6 +84,8 @@ A refused request answers `403`:
 | `manage_channels` in the server | `POST /servers/{server.id}/channels`, `PATCH /channels/{channel.id}`, `POST /servers/{server.id}/categories`, `PATCH /servers/{server.id}/categories/{category.id}`, `PUT /channels/{channel.id}/permission-overrides`, `DELETE /channels/{channel.id}/permission-overrides/role/{role.id}` |
 | `manage_roles` in the server | `POST`, `PATCH`, `DELETE /servers/{server.id}/roles…` |
 | Being the bot of the server's Discord bridge | `POST /servers/{server.id}/emojis/discord`, `PUT /threads/{thread.id}/discord`, and a `discord_thread_id` on `POST /channels/{channel.id}/threads` |
+| A valid token | `GET`, `PUT`, `POST /commands`, `DELETE /commands/{command.id}` |
+| An interaction sent to this bot; for a public answer, `send_messages` and channel access too | `POST /interactions/{interaction.id}/callback`, `PATCH /interactions/{interaction.id}/response`, `POST /interactions/{interaction.id}/followups` |
 
 Editing, silently patching and merging metadata are limited to the bot's own messages, except for the [bridge mapping keys](/build/rest#merge-message-metadata). Creating and moving channels and categories checks the `manage_channels` flag in the server and does not consult the channel list.
 
@@ -160,6 +162,8 @@ Retry-After: 17
 `retry_after` and `Retry-After` are the seconds until the window that refused the request ends. No other rate-limit headers are sent. Requests refused with `401` or `503` during authentication are not counted. When the gateway's rate-limit check fails, it counts each bucket in its own process and keeps refusing at the same number; the overall ceiling does not apply until the check works again.
 
 The [Bridge v2](/build/bridges#bridge-v2-endpoints) routes a bridge bot calls with its token (`/config`, `/status`, `/pairs`) count in the same way, one bucket per route.
+
+The three [interaction routes](/build/commands#respond) share one bucket per bot, 50 requests per 5 seconds, and do not count toward the overall ceiling: their volume follows how often members run the bot's commands, and each interaction already allows at most one answer, its edits and 10 follow-ups. Members running commands are limited to 5 per 10 seconds per account.
 
 ## Gateway rate limit
 

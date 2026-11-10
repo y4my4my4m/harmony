@@ -286,7 +286,29 @@
               :server-id="effectiveColoringServerId"
               @open-reply="handleReplyClick"
             />
-          
+
+            <!-- The slash command a bot reply answers: "Alice used /weather". -->
+            <div
+              v-if="item.message.metadata?.interaction"
+              :id="`msg-interaction-${item.message.id}`"
+              class="interaction-header"
+              data-testid="interaction-header"
+            >
+              <span class="interaction-spine" aria-hidden="true"></span>
+              <template v-if="interactionUserKnown(item.message)">
+                <Avatar :src="getUserAvatarUrl(item.message.metadata.interaction.user_id).value" size="mini" class="interaction-avatar" />
+                <button
+                  type="button"
+                  class="interaction-user"
+                  :style="{ color: getUserColor(item.message.metadata.interaction.user_id).value }"
+                  @click="showUserProfile(item.message.metadata.interaction.user_id, $event)"
+                >{{ getUserDisplayName(item.message.metadata.interaction.user_id).value }}</button>
+                <!-- The leading space separates the name in the text; the flex gap spaces it on screen. -->
+                <span class="interaction-text">{{ ' ' + t('bots.interactions.used', { command: `/${item.message.metadata.interaction.name}` }) }}</span>
+              </template>
+              <span v-else class="interaction-text">{{ t('bots.interactions.someoneUsed', { command: `/${item.message.metadata.interaction.name}` }) }}</span>
+            </div>
+
           <!-- Message content with proper alignment -->
           <div class="message-group" :class="{ 'has-header': shouldShowHeader(item.message, item.index), 'compact': !shouldShowHeader(item.message, item.index) }">
             <!-- Message header (avatar + username + timestamp) -->
@@ -471,6 +493,16 @@
       </template>
     </div>
   </div>
+
+    <!-- The viewer's slash command lines, after the newest row. -->
+    <div v-if="props.channelId && !props.conversationId" ref="listEndRef" data-testid="message-list-end">
+      <BotInteractionNotice
+        :channel-id="props.channelId"
+        :thread-id="props.threadId ?? null"
+        :messages="props.messages"
+        :server-id="serverChannelStore.currentServerId"
+      />
+    </div>
 
     <!-- A jump detached the list from the present: Discord's "viewing older messages" bar.
          It replaces the floating control below. -->
@@ -734,6 +766,8 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
+import BotInteractionNotice from '@/components/messages/BotInteractionNotice.vue';
+import { fetchBotProfile } from '@/services/botProfileService';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
 import AppToolbar from '@/components/a11y/AppToolbar.vue';
 import { useT } from '@/composables/useT';
@@ -1322,10 +1356,21 @@ const fetchBotData = async (botId: string) => {
       .from('bots')
       .select('id, username, display_name, avatar_url')
       .eq('id', botId)
-      .single();
-    
+      .maybeSingle();
+
     if (!error && data) {
       botDataCache.value.set(botId, data);
+    } else if (!error) {
+      // bots rows read only for public bots and their owners; get_bot_profile also serves
+      // members of a server where the bot is installed.
+      const profile = await fetchBotProfile(botId);
+      if (profile) {
+        botDataCache.value.set(botId, {
+          username: profile.username,
+          display_name: profile.displayName,
+          avatar_url: profile.avatarUrl,
+        });
+      }
     }
   } catch (error) {
     debug.error('Failed to fetch bot data:', error);
@@ -1395,6 +1440,12 @@ const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getBotColor = (_botId: string): ComputedRef<string> => {
   return computed(() => BOT_NAME_COLOR);
+};
+
+/** The invoker of the slash command a bot reply answers is in the user cache. */
+const interactionUserKnown = (message: Message): boolean => {
+  const userId = message.metadata?.interaction?.user_id;
+  return typeof userId === 'string' && !!userId && !!getUser(userId).value;
 };
 
 // Unified helper functions that work for users, bots, and Discord users
@@ -2090,6 +2141,7 @@ const rowLabelledBy = (message: Message): string => {
   if (message.is_system) return [`msg-body-${id}`, ...reactions, `msg-meta-${id}`].join(' ');
   const parts = [`msg-head-${id}`, `msg-body-${id}`, ...reactions];
   if (message.reply_to) parts.push(`msg-reply-${id}`);
+  if (message.metadata?.interaction) parts.push(`msg-interaction-${id}`);
   parts.push(`msg-meta-${id}`);
   return parts.join(' ');
 };
@@ -2608,6 +2660,8 @@ watch(() => props.messages, (newMessages) => {
   const userIds = new Set<string>();
   newMessages.forEach(message => {
     if (message?.user_id) userIds.add(message.user_id);
+    const invokerId = message?.metadata?.interaction?.user_id;
+    if (typeof invokerId === 'string' && invokerId) userIds.add(invokerId);
     if (message?.reply_to) {
       const replyUserId = getReplyUserId(message.reply_to);
       if (replyUserId && replyUserId !== 'unknown') userIds.add(replyUserId);
@@ -3166,9 +3220,18 @@ const setupResizeObserver = () => {
   });
   resizeObserver.observe(messageDisplayContainer.value);
   if (virtualListRef.value) resizeObserver.observe(virtualListRef.value);
+  if (listEndRef.value) resizeObserver.observe(listEndRef.value);
 };
 
 watch(virtualListRef, (el, prev) => {
+  if (!resizeObserver) return;
+  if (prev) resizeObserver.unobserve(prev);
+  if (el) resizeObserver.observe(el);
+});
+
+// Content after the rows (slash command lines) grows under a pinned view as the rows do.
+const listEndRef = ref<HTMLElement | null>(null);
+watch(listEndRef, (el, prev) => {
   if (!resizeObserver) return;
   if (prev) resizeObserver.unobserve(prev);
   if (el) resizeObserver.observe(el);
@@ -3422,8 +3485,8 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
   if (message.is_system || prevMessage.is_system) return true;
 
   if (messageAuthorKey(message) !== messageAuthorKey(prevMessage)) return true;
-  
-  if (message.reply_to) return true;
+
+  if (message.reply_to || message.metadata?.interaction) return true;
   const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
   return timeDiff > 5 * 60 * 1000;
 };
@@ -4563,6 +4626,89 @@ defineExpose({ editLastOwnMessage, scrollToStart });
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+/* "Alice used /weather": the reply reference's place and spine (MessageReplyReference). */
+.interaction-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 54px);
+  margin-left: 54px;
+  min-width: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.interaction-spine {
+  position: absolute;
+  left: -36px;
+  bottom: -1px;
+  width: 2px;
+  height: 12px;
+  background-color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  border-radius: 1px;
+}
+
+.interaction-spine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 34px;
+  height: 2px;
+  background-color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  border-radius: 1px;
+}
+
+.interaction-avatar {
+  flex-shrink: 0;
+}
+
+.interaction-user {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+  flex-shrink: 0;
+}
+
+.interaction-user:hover {
+  text-decoration: underline;
+}
+
+.interaction-user:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.interaction-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .interaction-header {
+    margin-left: 50px;
+  }
+
+  .interaction-spine {
+    left: -30px;
+  }
+
+  .interaction-spine::after {
+    width: 28px;
+  }
 }
 
 

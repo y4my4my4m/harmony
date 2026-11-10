@@ -66,6 +66,12 @@ export async function botAuthMiddleware(
 // them would mint a bucket, and a bot_rate_limits row, per request.
 export const UNMATCHED_BUCKET = 'unmatched'
 
+// Every /interactions/ route of a bot shares one bucket of 50 requests per 5 s, counted apart
+// from the bot's 'overall' bucket: each interaction already caps at one reply and 10 follow-ups.
+export const INTERACTION_BUCKET = 'interactions'
+export const INTERACTION_LIMIT = 50
+export const INTERACTION_WINDOW_SECONDS = 5
+
 // Route parameters that name the resource a bucket is per, as Discord's major parameters.
 const MAJOR_PARAMS = new Set(['channelId', 'serverId', 'guildId'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -76,10 +82,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * optional trailing slash, and the query string is not part of the route, so every spelling of
  * one route on one resource shares a bucket. baseUrl is the URL's own spelling of the mount path
  * and is lowercased; a major parameter that is not a UUID is one shared `:invalid` value.
+ * Interaction routes answer INTERACTION_BUCKET.
  */
 export function rateLimitBucket(req: Request): string {
   const routePath = req.route?.path
   if (typeof routePath !== 'string') return UNMATCHED_BUCKET
+  if (routePath.startsWith('/interactions/')) return INTERACTION_BUCKET
   const filled = routePath.replace(/:(\w+)/g, (param: string, name: string) => {
     if (!MAJOR_PARAMS.has(name)) return param
     const value = req.params?.[name]
@@ -97,7 +105,10 @@ export async function botRateLimit(req: BotRequest, res: Response, next: NextFun
     return res.status(401).json({ error: 'Missing Authorization header' })
   }
 
-  const retryAfter = await checkRateLimit(req.bot.id, rateLimitBucket(req))
+  const bucket = rateLimitBucket(req)
+  const retryAfter = bucket === INTERACTION_BUCKET
+    ? await checkInteractionLimit(req.bot.id)
+    : await checkRateLimit(req.bot.id, bucket)
   if (retryAfter > 0) {
     res.setHeader('Retry-After', String(retryAfter))
     return res.status(429).json({
@@ -113,11 +124,44 @@ export async function botRateLimit(req: BotRequest, res: Response, next: NextFun
 // setting and has no count here.
 const localCounts = new MemoryStore()
 localCounts.init({ windowMs: config.rateLimit.windowMs } as Options)
+const localInteractionCounts = new MemoryStore()
+localInteractionCounts.init({ windowMs: INTERACTION_WINDOW_SECONDS * 1000 } as Options)
 
-async function countLocally(botId: string, bucket: string, maxRequests: number, windowSeconds: number): Promise<number> {
-  const { totalHits, resetTime } = await localCounts.increment(`${botId}:${bucket}`)
+async function countLocally(
+  store: MemoryStore,
+  botId: string,
+  bucket: string,
+  maxRequests: number,
+  windowSeconds: number,
+): Promise<number> {
+  const { totalHits, resetTime } = await store.increment(`${botId}:${bucket}`)
   if (totalHits <= maxRequests) return 0
   return resetTime ? Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000)) : windowSeconds
+}
+
+/**
+ * INTERACTION_BUCKET through bot_rate_limit_take, which counts no 'overall' request. Seconds to
+ * wait; 0 admits. An RPC error counts in this process, as checkRateLimit.
+ */
+async function checkInteractionLimit(botId: string): Promise<number> {
+  const local = () =>
+    countLocally(localInteractionCounts, botId, INTERACTION_BUCKET, INTERACTION_LIMIT, INTERACTION_WINDOW_SECONDS)
+  try {
+    const { data, error } = await supabase.rpc('bot_rate_limit_take', {
+      p_bot_id: botId,
+      p_bucket: INTERACTION_BUCKET,
+      p_limit: INTERACTION_LIMIT,
+      p_window_seconds: INTERACTION_WINDOW_SECONDS,
+    })
+    if (error) {
+      console.error('Interaction rate limit RPC error:', error)
+      return local()
+    }
+    return typeof data === 'number' ? data : 0
+  } catch (error) {
+    console.error('Interaction rate limit check error:', error)
+    return local()
+  }
 }
 
 /**
@@ -146,13 +190,13 @@ async function checkRateLimit(botId: string, bucket: string): Promise<number> {
 
     if (error) {
       console.error('Rate limit RPC error:', error)
-      return countLocally(botId, bucket, maxRequests, windowSeconds)
+      return countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
     }
 
     if (typeof data === 'number') return data
     return data === true ? windowSeconds : 0
   } catch (error) {
     console.error('Rate limit check error:', error)
-    return countLocally(botId, bucket, maxRequests, windowSeconds)
+    return countLocally(localCounts, botId, bucket, maxRequests, windowSeconds)
   }
 }

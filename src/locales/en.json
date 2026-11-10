@@ -3975,6 +3975,62 @@
         "label": "Manage roles",
         "description": "Create, edit and delete roles below its installer's highest role, with permissions it holds."
       }
+    },
+    "commands": {
+      "header": "Commands",
+      "bar": {
+        "label": "Options for {command}",
+        "close": "Close command (Esc)",
+        "send": "Send command",
+        "required": "required",
+        "choose": "Choose…",
+        "chooseChannel": "Choose a channel…",
+        "chooseRole": "Choose a role…",
+        "searchMembers": "Search members…",
+        "true": "True",
+        "false": "False"
+      },
+      "validation": {
+        "required": "Required.",
+        "integer": "Enter a whole number.",
+        "number": "Enter a number.",
+        "min": "At least {min}.",
+        "max": "At most {max}.",
+        "minLength": "At least {min} characters.",
+        "maxLength": "At most {max} characters.",
+        "choice": "Pick one of the choices.",
+        "pick": "Pick one from the list."
+      },
+      "errors": {
+        "unavailable": "This command is not available here.",
+        "forbidden": "You do not have permission to use this command here.",
+        "timedOut": "You are timed out in this server.",
+        "threadLocked": "This thread is locked.",
+        "slowmode": "Slowmode is on. Try again in {seconds} s.",
+        "slowmodeNoTime": "Slowmode is on. Try again shortly.",
+        "rateLimited": "Too many commands. Try again in {seconds} s.",
+        "rateLimitedNoTime": "Too many commands. Try again shortly.",
+        "invalidOption": "The value of {name} is not accepted.",
+        "invalidOptions": "The command options are not accepted.",
+        "failed": "The command could not be sent."
+      },
+      "notice": {
+        "used": "You used {command}",
+        "thinking": "{bot} is thinking…",
+        "noResponse": "{bot} did not respond.",
+        "offline": "{bot} is offline.",
+        "cannotPost": "{bot} can't post in this channel.",
+        "blocked": "AutoMod blocked the reply of {bot}.",
+        "threadLocked": "{bot} can't reply: the thread is locked.",
+        "failed": "{bot} could not reply.",
+        "private": "Only you can see this",
+        "dismiss": "Dismiss",
+        "someBot": "The bot"
+      }
+    },
+    "interactions": {
+      "used": "used {command}",
+      "someoneUsed": "Someone used {command}"
     }
   },
   "webhooks": {

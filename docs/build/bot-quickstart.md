@@ -176,6 +176,7 @@ The bot prints `Connected as ping-bot`. Type `!ping` in a channel of the server;
 
 ## Next steps
 
+- [Slash commands](/build/commands): register `/ping` so members pick it from the `/` list, and answer only the member who ran it.
 - [Gateway](/build/gateway): every event, its payload, and the delivery rules.
 - [REST API](/build/rest): reactions, edits, threads, channels, roles and more.
 - [Permissions and rate limits](/build/permissions-rate-limits): what each route needs.

@@ -8,6 +8,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
+  the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
+  choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
+  5 seconds, or defers for up to 15 minutes, publicly ("Alice used /weather") or only to the member
+  who ran the command. Shapes follow Discord's; permissions are Harmony permission names. Not in
+  encrypted channels or direct messages. See the developer docs, Build → Slash commands.
 - **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
   a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
   shows the server's name and counts and links to the invite.
@@ -103,6 +109,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Bot API:** message text over the instance's length limit answers `400` on create and edit, in
+  place of `500`.
 - **The self-host data API runs PostgREST v14.18**, in place of v12.2.12. CI now tests the same
   version self-hosted instances run.
 - **Newer self-host services:** storage-api v1.90.0, whose resumable uploads fail cleanly when a

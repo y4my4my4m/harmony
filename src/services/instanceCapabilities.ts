@@ -28,6 +28,7 @@ export const KNOWN_CAPABILITIES = [
   'account-removal',
   'channel-host-flags',
   'following-import',
+  'bot-commands',
 ] as const
 export type Capability = (typeof KNOWN_CAPABILITIES)[number]
 
