@@ -6056,6 +6056,7 @@
       "unknown": "Pas encore signalé",
       "showSetup": "Afficher les étapes de configuration",
       "problemsTitle": "{count} problème à corriger | {count} problèmes à corriger",
+      "noticesTitle": "{count} remarque | {count} remarques",
       "pairsTitle": "Canaux reliés",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6166,6 +6167,17 @@
         "fixSelf": "Vérifiez que l'ordinateur de la passerelle peut ouvrir {url}. La passerelle réessaie.",
         "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance.",
         "fixInstance": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
+      },
+      "message_content_needed_for_import": {
+        "title": "Une importation de l'historique attend le Message Content Intent.",
+        "fixSelf": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. Redémarrez ensuite la passerelle avec la commande ci-dessous ; l'importation démarre d'elle-même.",
+        "fixHosted": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. L'importation démarre d'elle-même dès que la passerelle se reconnecte.",
+        "fixInstance": "Le bot de cette instance n'a pas le Message Content Intent et ne peut donc pas importer l'historique. Demandez à l'administration de l'instance."
+      },
+      "private_threads_skipped": {
+        "title": "L'importation a laissé de côté les fils privés de {channel}.",
+        "titleCount": "L'importation a laissé de côté {count} fil privé de {channel}. | L'importation a laissé de côté {count} fils privés de {channel}.",
+        "fix": "Rien à corriger. Harmony n'a pas encore de fils privés et tout le salon pourrait les lire, ils restent donc sur Discord."
       },
       "unknown": {
         "title": "La passerelle a signalé un problème ({code}).",

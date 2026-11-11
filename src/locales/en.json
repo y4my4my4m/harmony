@@ -6052,6 +6052,7 @@
       "unknown": "Not reported yet",
       "showSetup": "Show setup steps",
       "problemsTitle": "{count} problem to fix | {count} problems to fix",
+      "noticesTitle": "{count} note | {count} notes",
       "pairsTitle": "Paired channels",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6162,6 +6163,17 @@
         "fixSelf": "Check that the computer running the bridge can open {url}. The bridge keeps retrying.",
         "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin.",
         "fixInstance": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
+      },
+      "message_content_needed_for_import": {
+        "title": "A history import is waiting for the Message Content Intent.",
+        "fixSelf": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. Then restart the bridge with the command below; the import starts by itself.",
+        "fixHosted": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. The import starts by itself once the bridge reconnects.",
+        "fixInstance": "This instance's bot doesn't have the Message Content Intent, so it can't import history. Ask the instance's admin."
+      },
+      "private_threads_skipped": {
+        "title": "The import left out the private threads of {channel}.",
+        "titleCount": "The import left out {count} private thread of {channel}. | The import left out {count} private threads of {channel}.",
+        "fix": "Nothing to fix. Harmony has no private threads yet, and everyone in the channel would see them, so they stay on Discord."
       },
       "unknown": {
         "title": "The bridge reported a problem ({code}).",

@@ -207,6 +207,8 @@ The app explains these problem codes, using the `params` shown:
 | `rate_limited` | Discord or this instance is slowing the bridge down. | |
 | `discord_unreachable` | The bridge can't reach Discord. | |
 | `harmony_unreachable` | The bridge can't reach the instance. | |
+| `message_content_needed_for_import` | A history import is waiting for the Message Content Intent. | |
+| `private_threads_skipped` | A notice: the import left out a channel's private threads. It doesn't count as a problem to fix, and the bridge stays "online". | `discord_channel_id`, optional `count` |
 
 Any other code shows as "The bridge reported a problem" with the code. The app derives `intent_missing`, `no_guild` and `bot_not_in_guild` from the status on its own as well.
 

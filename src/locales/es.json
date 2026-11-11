@@ -6056,6 +6056,7 @@
       "unknown": "Aún sin datos",
       "showSetup": "Mostrar los pasos de configuración",
       "problemsTitle": "{count} problema por resolver | {count} problemas por resolver",
+      "noticesTitle": "{count} aviso | {count} avisos",
       "pairsTitle": "Canales conectados",
       "settingsTitle": "Opciones",
       "maintainTitle": "Mantenimiento",
@@ -6166,6 +6167,17 @@
         "fixSelf": "Comprueba que el ordenador del puente puede abrir {url}. El puente sigue intentándolo.",
         "fixHosted": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia.",
         "fixInstance": "Es un problema de la instancia, y el puente sigue intentándolo. Si dura, contacta con la administración de la instancia."
+      },
+      "message_content_needed_for_import": {
+        "title": "Una importación del historial espera el Message Content Intent.",
+        "fixSelf": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. Luego reinicia el puente con el comando de abajo; la importación empieza sola.",
+        "fixHosted": "Mientras esté desactivado, Discord envía mensajes vacíos. En el Developer Portal, abre tu aplicación → Bot → Privileged Gateway Intents, activa Message Content Intent y haz clic en Save Changes. La importación empieza sola cuando el puente se reconecta.",
+        "fixInstance": "El bot de esta instancia no tiene el Message Content Intent, así que no puede importar el historial. Pregunta a la administración de la instancia."
+      },
+      "private_threads_skipped": {
+        "title": "La importación dejó fuera los hilos privados de {channel}.",
+        "titleCount": "La importación dejó fuera {count} hilo privado de {channel}. | La importación dejó fuera {count} hilos privados de {channel}.",
+        "fix": "No hay nada que arreglar. Harmony aún no tiene hilos privados y todo el canal podría leerlos, así que se quedan en Discord."
       },
       "unknown": {
         "title": "El puente informó de un problema ({code}).",

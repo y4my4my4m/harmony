@@ -6056,6 +6056,7 @@
       "unknown": "아직 보고되지 않음",
       "showSetup": "설정 단계 보기",
       "problemsTitle": "해결할 문제 {count}개 | 해결할 문제 {count}개",
+      "noticesTitle": "알림 {count}개 | 알림 {count}개",
       "pairsTitle": "연결된 채널",
       "settingsTitle": "옵션",
       "maintainTitle": "유지 관리",
@@ -6166,6 +6167,17 @@
         "fixSelf": "브리지를 실행하는 컴퓨터에서 {url}을 열 수 있는지 확인하세요. 브리지는 계속 재시도합니다.",
         "fixHosted": "인스턴스 쪽 문제이며, 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요.",
         "fixInstance": "인스턴스 쪽 문제이며, 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요."
+      },
+      "message_content_needed_for_import": {
+        "title": "기록 가져오기가 Message Content Intent를 기다리고 있습니다.",
+        "fixSelf": "꺼져 있는 동안 Discord는 빈 메시지를 보냅니다. Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, Message Content Intent를 켠 다음 Save Changes를 클릭하세요. 그다음 아래 명령어로 브리지를 다시 시작하세요. 가져오기는 자동으로 시작됩니다.",
+        "fixHosted": "꺼져 있는 동안 Discord는 빈 메시지를 보냅니다. Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, Message Content Intent를 켠 다음 Save Changes를 클릭하세요. 브리지가 다시 연결되면 가져오기가 자동으로 시작됩니다.",
+        "fixInstance": "이 인스턴스의 봇에 Message Content Intent가 없어 기록을 가져올 수 없습니다. 인스턴스 관리자에게 문의하세요."
+      },
+      "private_threads_skipped": {
+        "title": "가져오기에서 {channel}의 비공개 스레드를 제외했습니다.",
+        "titleCount": "가져오기에서 {channel}의 비공개 스레드 {count}개를 제외했습니다. | 가져오기에서 {channel}의 비공개 스레드 {count}개를 제외했습니다.",
+        "fix": "따로 할 일은 없습니다. Harmony에는 아직 비공개 스레드가 없고 채널의 모든 사람이 읽을 수 있게 되므로, Discord에 그대로 둡니다."
       },
       "unknown": {
         "title": "브리지가 문제를 보고했습니다({code}).",

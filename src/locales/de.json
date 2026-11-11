@@ -6056,6 +6056,7 @@
       "unknown": "Noch nicht gemeldet",
       "showSetup": "Einrichtungsschritte anzeigen",
       "problemsTitle": "{count} Problem zu beheben | {count} Probleme zu beheben",
+      "noticesTitle": "{count} Hinweis | {count} Hinweise",
       "pairsTitle": "Verbundene Kanäle",
       "settingsTitle": "Optionen",
       "maintainTitle": "Wartung",
@@ -6166,6 +6167,17 @@
         "fixSelf": "Prüfe, ob der Computer mit der Bridge {url} öffnen kann. Die Bridge versucht es weiter.",
         "fixHosted": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz.",
         "fixInstance": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz."
+      },
+      "message_content_needed_for_import": {
+        "title": "Ein Verlaufsimport wartet auf den Message Content Intent.",
+        "fixSelf": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Starte die Bridge dann mit dem Befehl unten neu; der Import beginnt von selbst.",
+        "fixHosted": "Solange er aus ist, liefert Discord leere Nachrichten. Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte Message Content Intent ein und klicke auf Save Changes. Der Import beginnt von selbst, sobald die Bridge neu verbunden ist.",
+        "fixInstance": "Der Bot dieser Instanz hat den Message Content Intent nicht und kann daher keinen Verlauf importieren. Frag die Administration der Instanz."
+      },
+      "private_threads_skipped": {
+        "title": "Der Import hat die privaten Threads von {channel} ausgelassen.",
+        "titleCount": "Der Import hat {count} privaten Thread von {channel} ausgelassen. | Der Import hat {count} private Threads von {channel} ausgelassen.",
+        "fix": "Nichts zu tun. Harmony hat noch keine privaten Threads, und alle im Kanal könnten sie lesen, deshalb bleiben sie auf Discord."
       },
       "unknown": {
         "title": "Die Bridge hat ein Problem gemeldet ({code}).",

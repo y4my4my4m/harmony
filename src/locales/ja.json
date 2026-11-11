@@ -6056,6 +6056,7 @@
       "unknown": "未報告",
       "showSetup": "設定の手順を表示",
       "problemsTitle": "対応が必要な問題: {count} 件 | 対応が必要な問題: {count} 件",
+      "noticesTitle": "お知らせ: {count} 件 | お知らせ: {count} 件",
       "pairsTitle": "ペアのチャンネル",
       "settingsTitle": "オプション",
       "maintainTitle": "メンテナンス",
@@ -6166,6 +6167,17 @@
         "fixSelf": "ブリッジを動かしているコンピューターから {url} を開けるか確認してください。ブリッジは再試行を続けます。",
         "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
         "fixInstance": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
+      },
+      "message_content_needed_for_import": {
+        "title": "履歴のインポートが Message Content Intent を待っています。",
+        "fixSelf": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。その後、下のコマンドでブリッジを再起動してください。インポートは自動で始まります。",
+        "fixHosted": "オフの間、Discord は空のメッセージを返します。Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、Message Content Intent をオンにして Save Changes をクリックします。ブリッジが再接続するとインポートは自動で始まります。",
+        "fixInstance": "このインスタンスのボットには Message Content Intent がないため、履歴をインポートできません。インスタンスの管理者に相談してください。"
+      },
+      "private_threads_skipped": {
+        "title": "インポートでは {channel} のプライベートスレッドを除外しました。",
+        "titleCount": "インポートでは {channel} のプライベートスレッド {count} 件を除外しました。 | インポートでは {channel} のプライベートスレッド {count} 件を除外しました。",
+        "fix": "対応は不要です。Harmony にはまだプライベートスレッドがなく、チャンネルの全員が読めてしまうため、Discord に残しています。"
       },
       "unknown": {
         "title": "ブリッジが問題を報告しました（{code}）。",
