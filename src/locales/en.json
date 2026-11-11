@@ -2864,7 +2864,10 @@
       "handleCopyFailed": "Couldn't copy the handle",
       "copyProfileLink": "Copy profile link",
       "profileLinkCopied": "Profile link copied",
-      "profileLinkCopyFailed": "Couldn't copy the profile link"
+      "profileLinkCopyFailed": "Couldn't copy the profile link",
+      "refreshProfile": "Refresh profile",
+      "profileRefreshed": "Profile refreshed",
+      "profileRefreshFailed": "Couldn't reach {domain} to refresh this profile"
     },
     "followA11y": {
       "requests": "Requests",

@@ -1286,13 +1286,21 @@ class UserDataService extends EventTarget {
     }
   }
   
-  /** Fetches from the database when forced, uncached, or stale. */
+  /** Fetches from the database when forced, uncached, or stale. A forced fetch keeps presence fields. */
   async fetchUserProfile(userId: string, forceRefresh: boolean = false): Promise<any | null> {
-    if (forceRefresh || !this.users.has(userId) || this.isUserDataStale(userId)) {
+    // loadUsersData skips a fresh entry; an expired one is read again and merged.
+    if (forceRefresh) this.expireUserData(userId)
+    if (!this.users.has(userId) || this.isUserDataStale(userId)) {
       await this.loadUsersData([userId])
     }
-    
+
     return this.getUserProfile(userId)
+  }
+
+  /** Marks a cached user stale so the next load reads its row. */
+  private expireUserData(userId: string): void {
+    const existing = this.users.get(userId)
+    if (existing) this.users.set(userId, { ...existing, lastCacheUpdate: new Date(0).toISOString() })
   }
   
   async fetchMultipleUserProfiles(userIds: string[], forceRefresh: boolean = false): Promise<Record<string, any>> {

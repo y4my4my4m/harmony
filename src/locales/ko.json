@@ -2810,7 +2810,10 @@
       "handleCopyFailed": "핸들을 복사하지 못했습니다",
       "copyProfileLink": "프로필 링크 복사",
       "profileLinkCopied": "프로필 링크를 복사했습니다",
-      "profileLinkCopyFailed": "프로필 링크를 복사하지 못했습니다"
+      "profileLinkCopyFailed": "프로필 링크를 복사하지 못했습니다",
+      "refreshProfile": "프로필 새로고침",
+      "profileRefreshed": "프로필을 새로고침했습니다",
+      "profileRefreshFailed": "{domain}에 연결할 수 없어 프로필을 새로고침하지 못했습니다"
     },
     "followA11y": {
       "requests": "요청",

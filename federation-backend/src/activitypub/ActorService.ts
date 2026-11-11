@@ -115,6 +115,45 @@ export function needsEmojiRead(profile: { federation_metadata?: unknown; bio?: u
   return [profile.bio, profile.display_name].some((text) => typeof text === 'string' && EMOJI_SHORTCODE.test(text));
 }
 
+/** Mastodon Account::STALE_THRESHOLD (1 day); Misskey RemoteUserResolveService re-reads after 24 h. */
+export const PROFILE_STALE_MS = 24 * 60 * 60 * 1000;
+
+/** True when a stored remote profile was never read from its actor, or last read over PROFILE_STALE_MS ago. */
+export function profileStale(profile: { is_local?: unknown; last_synced_at?: unknown }, now = Date.now()): boolean {
+  if (profile.is_local === true) return false;
+  const at = typeof profile.last_synced_at === 'string' ? Date.parse(profile.last_synced_at) : NaN;
+  return !Number.isFinite(at) || now - at > PROFILE_STALE_MS;
+}
+
+/** Background re-reads of stale profiles: one per actor an hour, whether it succeeds or fails. */
+const REREAD_RETRY_MS = 60 * 60 * 1000;
+const REREAD_ENTRIES_MAX = 5000;
+const rereadStartedAt = new Map<string, number>();
+
+/** Starts a background read of a stale stored profile. False when one started for this actor within REREAD_RETRY_MS. */
+export function startStaleProfileRead(profile: { federated_id?: unknown }, username: string, domain: string, now = Date.now()): boolean {
+  const key = typeof profile.federated_id === 'string' ? profile.federated_id : `${username}@${domain}`;
+  const started = rereadStartedAt.get(key);
+  if (started !== undefined && now - started < REREAD_RETRY_MS) return false;
+  if (rereadStartedAt.size >= REREAD_ENTRIES_MAX) rereadStartedAt.clear();
+  rereadStartedAt.set(key, now);
+  void resolveRemoteAccount(username, domain)
+    .then((resolved) => {
+      if (resolved.ok) {
+        logger.info(`Refreshed stale remote user: ${username}@${domain}`);
+      } else {
+        logger.info(`Stale remote user ${username}@${domain} not refreshed: ${resolved.status}`);
+      }
+    })
+    .catch((err) => logger.warn(`Stale remote user ${username}@${domain} not refreshed:`, err));
+  return true;
+}
+
+/** Clears the record of started background re-reads. */
+export function resetStaleProfileReads(): void {
+  rereadStartedAt.clear();
+}
+
 /**
  * Stored profile of `username@domain`: the account itself, or the one remote
  * account whose actor is served from `domain` (a split-domain account named
@@ -504,7 +543,36 @@ router.post(
 
     logger.info(`Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
 
-    let storedRowRefetched = false;
+    const answerStored = async (existingUser: any, refreshing: boolean) => {
+      // Background outbox fetch when outbox_url is known and the last sync
+      // is absent or older than 5 minutes.
+      const shouldFetchPosts = existingUser.outbox_url && (
+        !existingUser.last_federation_sync ||
+        (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
+      );
+
+      const backfilling = !!shouldFetchPosts
+        && startOutboxBackfill(existingUser.id, existingUser.outbox_url, supabase, `${username}@${domain}`);
+      if (backfilling) startFeaturedSync(existingUser, null, supabase);
+
+      // Collection totals older than PROFILE_COUNTS_TTL_MS are read again before answering.
+      if (!existingUser.is_local && profileCountsStale(existingUser)) {
+        const columns = await refreshRemoteProfileCounts(supabase, existingUser);
+        if (columns) Object.assign(existingUser, columns);
+      }
+
+      return res.json({
+        success: true,
+        user: existingUser,
+        outbox_url: existingUser.outbox_url, // Always include for pagination
+        cached: true,
+        refreshing,
+        backfilling,
+      });
+    };
+
+    // Stored row whose emoji are read again before answering; answered as stored if that read fails.
+    let emojiReadRow: any = null;
     if (!forceRefresh) {
       const existingUser = await findStoredRemoteAccount(supabase, username, domain);
 
@@ -512,45 +580,28 @@ router.post(
         logger.info(`Found existing user in database: ${username}@${domain}`);
 
         if (needsEmojiRead(existingUser)) {
-          storedRowRefetched = true;
+          emojiReadRow = existingUser;
           logger.info(`User ${username}@${domain} has shortcodes but no recorded emoji - refreshing`);
-          // Falls through to the full fetch; the cached row is not returned.
         } else {
-          // Background outbox fetch when outbox_url is known and the last sync
-          // is absent or older than 5 minutes.
-          const shouldFetchPosts = existingUser.outbox_url && (
-            !existingUser.last_federation_sync || 
-            (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
-          );
-          
-          const backfilling = !!shouldFetchPosts
-            && startOutboxBackfill(existingUser.id, existingUser.outbox_url, supabase, `${username}@${domain}`);
-          if (backfilling) startFeaturedSync(existingUser, null, supabase);
-
-          // Collection totals older than PROFILE_COUNTS_TTL_MS are read again before answering.
-          if (!existingUser.is_local && profileCountsStale(existingUser)) {
-            const columns = await refreshRemoteProfileCounts(supabase, existingUser);
-            if (columns) Object.assign(existingUser, columns);
-          }
-          
-          return res.json({
-            success: true,
-            user: existingUser,
-            outbox_url: existingUser.outbox_url, // Always include for pagination
-            cached: true,
-            backfilling,
-          });
+          // A copy older than PROFILE_STALE_MS is answered now and read again in the background.
+          const refreshing = profileStale(existingUser)
+            && startStaleProfileRead(existingUser, username, domain);
+          return answerStored(existingUser, refreshing);
         }
       }
     }
 
     const resolved = await resolveRemoteAccount(username, domain);
     if (!resolved.ok) {
+      if (emojiReadRow) {
+        logger.info(`Re-read of ${username}@${domain} failed (${resolved.status}); answering the stored row`);
+        return answerStored(emojiReadRow, false);
+      }
       return res.status(resolved.status).json(resolved.body);
     }
     const { user: savedUser, actor } = resolved;
 
-    logger.info(`${forceRefresh || storedRowRefetched ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
+    logger.info(`${forceRefresh || emojiReadRow ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
     
     const backfilling = typeof actor.outbox === 'string'
       && startOutboxBackfill(savedUser.id, actor.outbox, supabase, `${username}@${domain}`);

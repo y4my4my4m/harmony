@@ -2810,7 +2810,10 @@
       "handleCopyFailed": "无法复制账号",
       "copyProfileLink": "复制个人资料链接",
       "profileLinkCopied": "已复制个人资料链接",
-      "profileLinkCopyFailed": "无法复制个人资料链接"
+      "profileLinkCopyFailed": "无法复制个人资料链接",
+      "refreshProfile": "刷新个人资料",
+      "profileRefreshed": "个人资料已刷新",
+      "profileRefreshFailed": "无法连接 {domain}，个人资料未刷新"
     },
     "followA11y": {
       "requests": "请求",

@@ -123,7 +123,20 @@
                       <span>{{ t('activitypub.viewOnDomain', { domain: user.domain }) }}</span>
                     </a>
 
-                    <div v-if="shareableProfileUrl || (!user.is_local && remoteProfileUrl)" role="separator" class="social-menu-divider"></div>
+                    <button
+                      v-if="!user.is_local"
+                      type="button"
+                      role="menuitem"
+                      class="social-menu-item"
+                      data-testid="profile-menu-refresh"
+                      :disabled="isRefreshingProfile"
+                      @click="refreshRemoteAccount"
+                    >
+                      <Icon name="refresh-cw" />
+                      <span>{{ t('activitypub.profileA11y.refreshProfile') }}</span>
+                    </button>
+
+                    <div v-if="shareableProfileUrl || !user.is_local" role="separator" class="social-menu-divider"></div>
 
                     <button type="button" role="menuitem" class="social-menu-item" @click="handleMute">
                       <Icon name="volume-x" />
@@ -530,7 +543,7 @@ const route = useRoute();
 const router = useRouter();
 
 // User data composable
-const { getUserBannerUrl } = useUserData()
+const { getUserBannerUrl, fetchUserProfile } = useUserData()
 
 const scrollContainerRef = ref<HTMLElement | null>(null);
 
@@ -733,6 +746,38 @@ const copyProfileLink = async () => {
     toast.success(t('activitypub.profileA11y.profileLinkCopied'));
   } catch {
     toast.error(t('activitypub.profileA11y.profileLinkCopyFailed'));
+  }
+};
+
+const isRefreshingProfile = ref(false);
+
+/**
+ * Reads a remote account from its instance now (/lookup-user forceRefresh). The profile on
+ * screen stays as it is when the instance cannot be reached.
+ */
+const refreshRemoteAccount = async () => {
+  showActionsMenu.value = false;
+  const target = user.value;
+  if (!target || target.is_local || isRefreshingProfile.value) return;
+  isRefreshingProfile.value = true;
+  try {
+    const fresh = await activityPubService.getUserByHandle(`${target.username}@${target.domain}`, true);
+    if (user.value?.id !== target.id) return;
+    if (fresh && fresh.id === target.id) {
+      user.value = { ...target, ...fresh };
+      // The shared user cache holds its own copy of the profile.
+      await fetchUserProfile(target.id, true);
+      toast.success(t('activitypub.profileA11y.profileRefreshed'));
+    } else {
+      toast.error(t('activitypub.profileA11y.profileRefreshFailed', { domain: target.domain }));
+    }
+  } catch (err) {
+    debug.warn('Profile refresh failed:', err);
+    if (user.value?.id === target.id) {
+      toast.error(t('activitypub.profileA11y.profileRefreshFailed', { domain: target.domain }));
+    }
+  } finally {
+    isRefreshingProfile.value = false;
   }
 };
 

@@ -3,9 +3,11 @@ import crypto from 'crypto'
 import express from 'express'
 import supertest from 'supertest'
 
-// lookup-user answers a stored remote profile from its row. It reads the actor again only
-// when the row shows :shortcodes: and no read has recorded the emoji lists; a read records
-// both lists, empty ones included, so a profile without custom emoji is read once.
+// lookup-user answers a stored remote profile from its row. It reads the actor again before
+// answering when the row shows :shortcodes: and no read has recorded the emoji lists; a read
+// records both lists, empty ones included, so a profile without custom emoji is read once.
+// A row last read over a day ago is answered as stored and read again in the background, at
+// most once an hour per actor; forceRefresh reads it now.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test', VERSION: 'test', NODE_ENV: 'test' },
@@ -91,7 +93,7 @@ vi.mock('../config/supabase.js', () => ({
 const { safeFetch } = await import('../utils/ssrfProtection.js')
 const actorModule = await import('../activitypub/ActorService.js')
 const actorRouter = actorModule.default
-const { needsEmojiRead } = actorModule
+const { needsEmojiRead, profileStale, resetStaleProfileReads, PROFILE_STALE_MS } = actorModule
 
 const ACTOR = 'https://bridge.test/users/hltvorg'
 const BIO_WITH_URL = '<p>The home of competitive Counter-Strike | <a href="https://t.co/aaWhFcbJRO">https://t.co/aaWhFcbJRO</a><br>SoMe Partner: @thunderpickco</p>'
@@ -132,11 +134,12 @@ function app() {
 const lookup = (forceRefresh = false) =>
   supertest(app()).post('/lookup-user').send({ handle: 'hltvorg@bridge.test', forceRefresh })
 
-/** A row as an earlier lookup stored it: no emoji lists recorded. */
+/** A row as an earlier lookup stored it, read a minute ago: no emoji lists recorded. */
 function storedRow(fields: Row): Row {
   const row = {
     id: 'stored', username: 'hltvorg', domain: 'bridge.test', federated_id: ACTOR, is_local: false,
-    display_name: 'HLTV.org', bio: BIO_WITH_URL, federation_metadata: null, ...fields,
+    display_name: 'HLTV.org', bio: BIO_WITH_URL, federation_metadata: null,
+    last_synced_at: new Date(Date.now() - 60_000).toISOString(), ...fields,
   }
   tables.profiles.push(row)
   return row
@@ -146,6 +149,7 @@ beforeEach(() => {
   nextId = 1
   tables = { profiles: [] }
   actorGets = 0
+  resetStaleProfileReads()
   instanceKey.privateKey = instancePair.privateKey
   actorDoc = {
     '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
@@ -232,6 +236,88 @@ describe('lookup-user emoji reads', () => {
       bio_emojis: [],
       display_name_emojis: [],
     })
+  })
+})
+
+describe('lookup-user on a stored copy older than a day', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
+
+  it('answers the stored row at once and reads the actor in the background', async () => {
+    storedRow({ last_synced_at: daysAgo(2), display_name: 'Old name' })
+    actorDoc.name = 'New name'
+
+    const res = await lookup()
+
+    expect(res.body).toMatchObject({ cached: true, refreshing: true, user: { display_name: 'Old name' } })
+    await vi.waitFor(() => expect(tables.profiles[0].display_name).toBe('New name'))
+    expect(actorGets).toBe(1)
+    expect(Date.now() - Date.parse(tables.profiles[0].last_synced_at)).toBeLessThan(60_000)
+
+    const next = await lookup()
+    expect(next.body).toMatchObject({ cached: true, refreshing: false, user: { display_name: 'New name' } })
+    expect(actorGets).toBe(1)
+  })
+
+  it('reads a row that was never read from its actor', async () => {
+    storedRow({ last_synced_at: null })
+
+    const res = await lookup()
+
+    expect(res.body).toMatchObject({ cached: true, refreshing: true })
+    await vi.waitFor(() => expect(actorGets).toBe(1))
+  })
+
+  it('tries an unreachable instance once an hour, answering the stored row each time', async () => {
+    storedRow({ last_synced_at: daysAgo(3) })
+    vi.mocked(safeFetch).mockImplementation(async (url: string) => {
+      if (url === ACTOR) actorGets++
+      return new Response('', { status: 503 })
+    })
+
+    const first = await lookup()
+    expect(first.body).toMatchObject({ success: true, cached: true, refreshing: true })
+    await vi.waitFor(() => expect(vi.mocked(safeFetch)).toHaveBeenCalled())
+    const calls = vi.mocked(safeFetch).mock.calls.length
+
+    for (let i = 0; i < 3; i++) {
+      const again = await lookup()
+      expect(again.body).toMatchObject({ success: true, cached: true, refreshing: false })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(vi.mocked(safeFetch).mock.calls.length).toBe(calls)
+  })
+
+  it('answers the stored row when the emoji read fails', async () => {
+    storedRow({ bio: '<p>gg :blobcat: wp</p>' })
+    vi.mocked(safeFetch).mockImplementation(async () => new Response('', { status: 503 }))
+
+    const res = await lookup()
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ success: true, cached: true, user: { id: 'stored' } })
+  })
+
+  it('refreshes on demand whatever the age of the stored copy', async () => {
+    storedRow({ display_name: 'Old name' })
+    actorDoc.name = 'New name'
+
+    const res = await lookup(true)
+
+    expect(res.body).toMatchObject({ cached: false, refreshed: true, user: { display_name: 'New name' } })
+    expect(actorGets).toBe(1)
+  })
+})
+
+describe('profileStale', () => {
+  const now = Date.parse('2026-11-11T00:00:00Z')
+  it.each([
+    ['read an hour ago', { last_synced_at: new Date(now - 3_600_000).toISOString() }, false],
+    ['read just over a day ago', { last_synced_at: new Date(now - PROFILE_STALE_MS - 1000).toISOString() }, true],
+    ['never read', { last_synced_at: null }, true],
+    ['unparseable date', { last_synced_at: 'yesterday' }, true],
+    ['local account', { is_local: true, last_synced_at: null }, false],
+  ])('%s', (_name, profile, expected) => {
+    expect(profileStale(profile, now)).toBe(expected)
   })
 })
 

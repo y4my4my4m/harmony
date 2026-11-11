@@ -7,7 +7,8 @@
 //     WebFinger on its domain, and answers not_actor for a post;
 //   - a bridged account (bird.makeup-style Service, URL in its bio, no custom emoji) is read
 //     once by handle lookup, then answered from its row; the row keeps its shared inbox,
-//     empty emoji lists and the actor's published date;
+//     empty emoji lists and the actor's published date; a copy read over a day ago is
+//     answered as stored and read again in the background;
 //   - a Lemmy community is looked up by handle and followed: the Follow reaches the Group's
 //     inbox signed by the follower, the Group's Accept accepts it;
 //   - FEP-1b12: the Group's Announce{Create{Page}} stores the post as its member's, with the
@@ -296,6 +297,23 @@ export async function caseRemoteInteractions(ctx: RemoteInteractionsContext): Pr
     eq(JSON.stringify([bridgedMeta?.bio_emojis, bridgedMeta?.display_name_emojis]), '[[],[]]',
       'the row records empty emoji lists')
     eq(bridgedMeta?.ap_published, '2009-06-02T20:12:29.000Z', 'the row records the actor\'s published date')
+
+    console.log('\nbridged account read over a day ago -> answered as stored, read again in the background')
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    await db.from('profiles').update({ last_synced_at: twoDaysAgo, display_name: 'fx_bridged (old)' }).eq('federated_id', bridged)
+    const readsBeforeStale = bridgedReads()
+    const staleLookup = await lookup({ handle: `fx_bridged@${proxyIp}` })
+    eq(`${staleLookup.json?.cached} ${staleLookup.json?.refreshing}`, 'true true',
+      'a copy older than a day is answered at once and refreshed in the background')
+    eq(staleLookup.json?.user?.display_name, 'fx_bridged (old)', 'the answer is the stored copy')
+    let refreshedRow: any = null
+    for (let i = 0; i < 50; i++) {
+      refreshedRow = (await db.from('profiles').select('display_name, last_synced_at').eq('federated_id', bridged).maybeSingle()).data
+      if (refreshedRow?.last_synced_at && refreshedRow.last_synced_at > twoDaysAgo) break
+      await sleep(200)
+    }
+    eq(refreshedRow?.display_name, 'fx_bridged', 'the background read stores the actor as it is now')
+    eq(bridgedReads() - readsBeforeStale, 1, 'the background read fetches the actor once')
 
     // COMMUNITY FOLLOW ---------------------------------------------------------------------
     console.log('\ncommunity follow -> Follow, Accept')

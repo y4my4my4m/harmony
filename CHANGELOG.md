@@ -21,6 +21,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   **⋯** menu and copies its address on your instance, `/@name` or `/@name@other.server`. Visitors
   who aren't signed in now see another server's account at that address: its profile and the public
   posts your instance has received, with a link to its own server, instead of a sign-in page.
+- **Refresh profile** in another server's account's **⋯** menu reads the account from its server
+  now: a new name, avatar or bio shows at once. When that server can't be reached, the profile stays
+  as it was.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within
@@ -96,10 +99,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can
   follow and mention. Self-hosted instances could not store such accounts at all; they can now.
-- **Opening a remote profile reads its account once.** A profile whose bio held a link and no
-  custom emoji was fetched again from its instance, outbox included, every time anyone opened it.
-  It is now read once and answered from the stored profile. Profiles found by search also keep the
-  instance's shared inbox and the account's creation date, which the spam checks use as its age.
+- **Opening a remote profile no longer fetches it every time.** A profile whose bio held a link and
+  no custom emoji was fetched again from its instance, outbox included, every time anyone opened it.
+  It now opens from the stored profile, which is read again in the background at most once a day,
+  when someone opens it and the stored copy is over a day old, as Mastodon and Misskey do. Profiles
+  found by search also keep the instance's shared inbox and the account's creation date, which the
+  spam checks use as its age.
 - **The message field no longer locks after switching servers.** A switch could leave "You do not
   have permission to send messages in this channel" in place of the field until a reload, on 1.9.5
   instances.

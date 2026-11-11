@@ -2810,7 +2810,10 @@
       "handleCopyFailed": "Das Handle konnte nicht kopiert werden",
       "copyProfileLink": "Profillink kopieren",
       "profileLinkCopied": "Profillink kopiert",
-      "profileLinkCopyFailed": "Der Profillink konnte nicht kopiert werden"
+      "profileLinkCopyFailed": "Der Profillink konnte nicht kopiert werden",
+      "refreshProfile": "Profil aktualisieren",
+      "profileRefreshed": "Profil aktualisiert",
+      "profileRefreshFailed": "{domain} war nicht erreichbar, das Profil wurde nicht aktualisiert"
     },
     "followA11y": {
       "requests": "Anfragen",

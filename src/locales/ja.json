@@ -2810,7 +2810,10 @@
       "handleCopyFailed": "ハンドルをコピーできませんでした",
       "copyProfileLink": "プロフィールのリンクをコピー",
       "profileLinkCopied": "プロフィールのリンクをコピーしました",
-      "profileLinkCopyFailed": "プロフィールのリンクをコピーできませんでした"
+      "profileLinkCopyFailed": "プロフィールのリンクをコピーできませんでした",
+      "refreshProfile": "プロフィールを更新",
+      "profileRefreshed": "プロフィールを更新しました",
+      "profileRefreshFailed": "{domain} に接続できず、プロフィールを更新できませんでした"
     },
     "followA11y": {
       "requests": "リクエスト",

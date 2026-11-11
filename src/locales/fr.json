@@ -2810,7 +2810,10 @@
       "handleCopyFailed": "Impossible de copier l'identifiant",
       "copyProfileLink": "Copier le lien du profil",
       "profileLinkCopied": "Lien du profil copié",
-      "profileLinkCopyFailed": "Impossible de copier le lien du profil"
+      "profileLinkCopyFailed": "Impossible de copier le lien du profil",
+      "refreshProfile": "Actualiser le profil",
+      "profileRefreshed": "Profil actualisé",
+      "profileRefreshFailed": "Impossible de joindre {domain} pour actualiser ce profil"
     },
     "followA11y": {
       "requests": "Demandes",
