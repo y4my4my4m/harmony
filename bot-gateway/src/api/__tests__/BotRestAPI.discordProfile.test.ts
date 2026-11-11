@@ -193,6 +193,47 @@ describe('PATCH /servers/:serverId/profile/discord', () => {
     expect(mocks.store).not.toHaveBeenCalled()
   })
 
+  it('PATCH rejects an invoker_discord_id that is not a snowflake', async () => {
+    for (const bad of ['abc', '', '1'.repeat(21), 42, null]) {
+      const res = await patch({ name: 'x', invoker_discord_id: bad })
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('invoker_discord_id must be a Discord snowflake')
+    }
+    expect(profileCalls()).toHaveLength(0)
+    expect((await patch({ name: 'x', invoker_discord_id: '123456789012345678' })).status).toBe(200)
+  })
+
+  it('PATCH removes the owned previous icon after a successful replace', async () => {
+    const prev = `${SERVER_ID}/icon-old.png`
+    mocks.rpc.mockResolvedValue({ data: [rpcRow({ previous_icon: prev })], error: null })
+    const res = await patch({ icon_hash: HASH })
+    expect(res.status).toBe(200)
+    expect(mocks.removeImage).toHaveBeenCalledTimes(1)
+    expect(mocks.removeImage).toHaveBeenCalledWith('icon', prev)
+  })
+
+  it('PATCH keeps the previous icon when it equals the new path', async () => {
+    const same = `${SERVER_ID}/icon-new.png`
+    mocks.rpc.mockResolvedValue({ data: [rpcRow({ previous_icon: same })], error: null })
+    const res = await patch({ icon_hash: HASH })
+    expect(res.status).toBe(200)
+    expect(mocks.removeImage).not.toHaveBeenCalled()
+  })
+
+  it('PATCH 422 makes no RPC call', async () => {
+    mocks.store.mockRejectedValue(new ProfileImageError('banner', 'type'))
+    const res = await patch({ name: 'x', banner_hash: HASH })
+    expect(res.status).toBe(422)
+    expect(profileCalls()).toHaveLength(0)
+  })
+
+  it('PATCH keeps uploads and answers 500 when the RPC returns no row', async () => {
+    mocks.rpc.mockResolvedValue({ data: [], error: null })
+    const res = await patch({ icon_hash: HASH })
+    expect(res.status).toBe(500)
+    expect(mocks.removeImage).not.toHaveBeenCalled()
+  })
+
   it('PATCH 403 when the bot is not the bridge', async () => {
     routeTables({ discord_bridges: { data: null, error: null } })
     const res = await patch({ name: 'x' })

@@ -3271,7 +3271,10 @@ export class BotRestAPI {
           return res.status(400).json({ error: `${key} must be a Discord image hash or null` })
         }
       }
-      const invokerDiscordId = typeof body.invoker_discord_id === 'string' ? body.invoker_discord_id : null
+      if (has('invoker_discord_id') && !(typeof body.invoker_discord_id === 'string' && /^[0-9]{1,20}$/.test(body.invoker_discord_id))) {
+        return res.status(400).json({ error: 'invoker_discord_id must be a Discord snowflake' })
+      }
+      const invokerDiscordId: string | null = has('invoker_discord_id') ? body.invoker_discord_id : null
 
       const { data: bridge, error: bridgeError } = await supabase
         .from('discord_bridges')
