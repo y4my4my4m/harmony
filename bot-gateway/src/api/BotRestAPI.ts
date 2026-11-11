@@ -2990,9 +2990,12 @@ export class BotRestAPI {
         .select('id, name, url, discord_emoji_id, deleted_at')
         .eq('server_id', serverId)
         .or('deleted_at.is.null,discord_emoji_id.not.is.null')
+        .order('id')
+        .range(0, 4999)
       if (error) return res.status(500).json({ error: error.message })
       const { data: limit, error: limitError } = await supabase.rpc('server_emoji_limit')
       if (limitError) return res.status(500).json({ error: limitError.message })
+      if (limit == null) return res.status(500).json({ error: 'emoji limit unavailable' })
       const emojis = (data ?? []).map((e: any) => ({
         id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
       }))

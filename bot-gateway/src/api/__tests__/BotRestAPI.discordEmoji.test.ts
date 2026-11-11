@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   storeImage: vi.fn(),
   remove: vi.fn(),
   or: vi.fn(),
+  order: vi.fn(),
+  range: vi.fn(),
 }))
 
 vi.mock('../../config/supabase.js', () => ({
@@ -45,7 +47,7 @@ function routeTables(tables: Record<string, Result>) {
     const result = tables[table] ?? { data: null, error: null }
     const builder: any = new Proxy(
       { single: async () => result, maybeSingle: async () => result, then: (resolve: any) => resolve(result) },
-      { get: (target, prop) => (prop in target ? (target as any)[prop] : prop === 'or' ? (...a: unknown[]) => { mocks.or(...a); return builder } : () => builder) },
+      { get: (target, prop) => (prop in target ? (target as any)[prop] : prop === 'or' || prop === 'order' || prop === 'range' ? (...a: unknown[]) => { (mocks as any)[prop](...a); return builder } : () => builder) },
     )
     return builder
   })
@@ -166,7 +168,7 @@ describe('GET /servers/:serverId/emojis', () => {
 
 describe('GET /servers/:serverId/emojis/discord', () => {
   const get = () => supertest(app()).get(`/api/v1/servers/${SERVER_ID}/emojis/discord`)
-  beforeEach(() => { mocks.rpc.mockReset(); mocks.or.mockReset() })
+  beforeEach(() => { mocks.rpc.mockReset(); mocks.or.mockReset(); mocks.order.mockReset(); mocks.range.mockReset() })
 
   it('answers limit and active plus removed linked rows', async () => {
     const rows = [
@@ -178,6 +180,8 @@ describe('GET /servers/:serverId/emojis/discord', () => {
     const res = await get()
     expect(res.status).toBe(200)
     expect(mocks.or).toHaveBeenCalledWith('deleted_at.is.null,discord_emoji_id.not.is.null')
+    expect(mocks.order).toHaveBeenCalledWith('id')
+    expect(mocks.range).toHaveBeenCalledWith(0, 4999)
     expect(mocks.rpc).toHaveBeenCalledWith('server_emoji_limit')
     expect(res.body).toEqual({
       limit: 50,
@@ -186,6 +190,14 @@ describe('GET /servers/:serverId/emojis/discord', () => {
         { id: 'e2', name: 'b', url: 'u', discord_emoji_id: '2', removed: true },
       ],
     })
+  })
+
+  it('answers 500 when the emoji limit is missing', async () => {
+    routeTables({ discord_bridges: { data: { id: 'b1' }, error: null }, emojis: { data: [], error: null } })
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    const res = await get()
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBeTruthy()
   })
 
   it('refuses a bot that is not the bridge', async () => {
