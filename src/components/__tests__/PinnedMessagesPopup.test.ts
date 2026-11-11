@@ -12,7 +12,13 @@ const s = vi.hoisted(() => ({
   canPinInChannel: true,
   currentServerId: 'copy-1' as string | null,
   hidden: ['copy-1'] as string[],
+  pins: [] as Record<string, unknown>[],
 }))
+
+const PROFILE_PIN = {
+  id: 'm1', user_id: 'u1', created_at: '2026-10-20T00:00:00Z', metadata: {},
+  content: [{ type: 'text', text: 'pinned' }, { type: 'file', url: 'https://host.test/a.png', fileType: 'image' }],
+}
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -33,10 +39,7 @@ vi.mock('@/stores/usePins', () => ({
   pinScopeKey: (channelId?: string | null, conversationId?: string | null) =>
     conversationId ? `dm:${conversationId}` : channelId ? `channel:${channelId}` : null,
   usePinsStore: () => ({
-    pinnedMessages: () => [{
-      id: 'm1', user_id: 'u1', created_at: '2026-10-20T00:00:00Z', metadata: {},
-      content: [{ type: 'text', text: 'pinned' }, { type: 'file', url: 'https://host.test/a.png', fileType: 'image' }],
-    }],
+    pinnedMessages: () => s.pins,
     loadList: vi.fn(async () => {}),
     isListStale: () => false,
   }),
@@ -82,6 +85,7 @@ beforeEach(() => {
   s.canPinInChannel = true
   s.currentServerId = 'copy-1'
   s.hidden = ['copy-1']
+  s.pins = [PROFILE_PIN]
 })
 
 describe('PinnedMessagesPopup', () => {
@@ -106,5 +110,32 @@ describe('PinnedMessagesPopup', () => {
   it('shows the media of a conversation, whatever the last server', async () => {
     const w = await mountPopup({ conversationId: 'dm-1', channelId: 'c-last' })
     expect(w.get('.content-stub').attributes('data-media-hidden')).toBe('false')
+  })
+
+  it('shows a bridged Discord pin under the Discord name and avatar, not Unknown', async () => {
+    s.pins = [{
+      id: 'm2', user_id: null, bot_id: 'bridge-bot', created_at: '2026-10-20T00:00:00Z', content: [{ type: 'text', text: 'hi' }],
+      metadata: { history_import: true, discord_user: { id: '42', username: 'gus', display_name: 'Gus', avatar_url: 'https://cdn.discordapp.com/avatars/42/a.png' } },
+    }]
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(w.get('.message-author').text()).toBe('Gus')
+    expect(w.find('.message-author').text()).not.toContain('Unknown')
+    expect(w.findComponent({ name: 'DisplayName' }).exists()).toBe(false)
+    expect(w.get('.message-avatar').attributes('src')).toBe('https://cdn.discordapp.com/avatars/42/a.png')
+  })
+
+  it('shows a webhook pin under the webhook name', async () => {
+    s.pins = [{
+      id: 'm3', user_id: null, bot_id: 'hook-bot', created_at: '2026-10-20T00:00:00Z', content: [{ type: 'text', text: 'hi' }],
+      metadata: { webhook: { id: 'w1', name: 'Deploys', avatar_url: null } },
+    }]
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(w.get('.message-author').text()).toBe('Deploys')
+    expect(w.get('.message-avatar').attributes('src')).toBe('/default_avatar.webp')
+  })
+
+  it('keeps the member profile for a pin a person wrote', async () => {
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(w.findComponent({ name: 'DisplayName' }).exists()).toBe(true)
   })
 })

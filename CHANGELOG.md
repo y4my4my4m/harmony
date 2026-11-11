@@ -91,6 +91,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Pinned messages show bridged authors.** Pins of messages from the Discord bridge (live or
+  imported), webhooks and bots listed "Unknown"; they now show the same name and avatar as in chat.
 - **`@` before a name no one has is plain text.** `@5:32`, `@asdfgh` or any `@name` that is no
   account on your instance shows as you typed it, in the message field and in the message, instead
   of a mention that pointed at nobody. Messages sent before show the same way. Names picked from
