@@ -218,12 +218,16 @@ describe('POST /servers/:serverId/stickers/discord', () => {
     expect(mocks.removeStored).toHaveBeenCalledWith(FILE.path)
   })
 
-  it('keeps the stored file when the second call answers existing', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({ data: null, error: NO_FILE_ERROR })
-      .mockResolvedValueOnce({ data: [row('existing')], error: null })
-    expect((await post(BODY)).status).toBe(200)
-    expect(mocks.removeStored).not.toHaveBeenCalled()
+  it('removes the stored file when the second call answers existing or updated, keeps it on created', async () => {
+    for (const [status, removed] of [['existing', true], ['updated', true], ['created', false]] as const) {
+      mocks.removeStored.mockClear()
+      mocks.rpc
+        .mockResolvedValueOnce({ data: null, error: NO_FILE_ERROR })
+        .mockResolvedValueOnce({ data: [row(status)], error: null })
+      expect((await post(BODY)).status).toBe(status === 'created' ? 201 : 200)
+      if (removed) expect(mocks.removeStored).toHaveBeenCalledWith(FILE.path)
+      else expect(mocks.removeStored).not.toHaveBeenCalled()
+    }
   })
 })
 

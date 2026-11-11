@@ -3201,7 +3201,8 @@ export class BotRestAPI {
           throw e
         }
         ;({ data, error } = await call(stored))
-        if (error) await removeStoredSticker(stored.path)
+        // Each upload has its own random path: unless this call created the row, the file is unused.
+        if (error || data?.[0]?.status !== 'created') await removeStoredSticker(stored.path)
       }
       if (error) return this.stickerError(res, error)
       const row = Array.isArray(data) ? data[0] : null

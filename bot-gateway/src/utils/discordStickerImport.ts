@@ -63,6 +63,9 @@ export async function storeDiscordSticker(
   }
   if (info.animated && (info.durationMs ?? 0) > STICKER_MAX_DURATION_MS) throw new StickerFileError('duration')
 
+  const base = (process.env.PUBLIC_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '')
+  if (!base) throw new Error('PUBLIC_URL or SUPABASE_URL is not set')
+
   const ext = info.format === 'png' && info.animated ? 'apng' : info.format
   const path = `server/${serverId}/${randomUUID()}.${ext}`
   const { error } = await supabase.storage.from(STICKER_BUCKET).upload(path, Buffer.from(bytes), {
@@ -72,11 +75,6 @@ export async function storeDiscordSticker(
   })
   if (error) throw new Error(`storage upload failed: ${error.message}`)
 
-  const base = (process.env.PUBLIC_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '')
-  if (!base) {
-    await removeStoredSticker(path)
-    throw new Error('PUBLIC_URL or SUPABASE_URL is not set')
-  }
   return {
     path,
     url: `${base}/storage/v1/object/public/${STICKER_BUCKET}/${path}`,
