@@ -100,6 +100,20 @@ export async function getUploadCeilingBytes(): Promise<number> {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_UPLOAD_CEILING_BYTES
 }
 
+/** The part a mirrored attachment becomes: only file parts carry a storage path. */
+export function toMirroredPart(
+  part: any,
+  mirrored: { path: string; url: string; contentType: string },
+): any {
+  return {
+    ...part,
+    type: 'file',
+    fileType: part.fileType ?? fileTypeOf(mirrored.contentType),
+    url: mirrored.url,
+    path: mirrored.path,
+  }
+}
+
 const DEFAULT_INLINE_MAX_BYTES = 26214400
 
 /** Largest file mirrored inside a request; bigger ones (or failed ones) go to the queue. */
@@ -148,13 +162,7 @@ export async function applyBridgeAttachmentPolicy(
         ceiling: Math.min(await getUploadCeilingBytes(), inlineMaxBytes()),
       })
       // A mirrored attachment is a file part: only file parts carry a path.
-      out.push({
-        ...part,
-        type: 'file',
-        fileType: part.fileType ?? fileTypeOf(mirrored.contentType),
-        url: mirrored.url,
-        path: mirrored.path,
-      })
+      out.push(toMirroredPart(part, mirrored))
     } catch (error: any) {
       // TooLargeError included: the worker tracks it, and a raised ceiling picks it up.
       console.error(`Mirror deferred, keeping Discord URL: ${error?.message || error}`)
