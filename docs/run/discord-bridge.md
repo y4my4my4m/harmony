@@ -177,6 +177,7 @@ Presence sync works only together with member list sync. With the instance's bot
 | Files and pictures | Linked from Discord's CDN; see [Attachments from Discord](#attachments-from-discord) | Uploaded to Discord as attachments up to 8 MB per message by default and within the Discord server's upload limit; larger files are posted as a link |
 | Voice messages, audio | Play in Harmony's audio player | As files |
 | Stickers | As pictures; animated Lottie stickers as the text `[sticker: name]` | Not applicable |
+| Server stickers | The bridge bot can copy the Discord server's PNG, APNG and GIF stickers into the Harmony server (not Lottie); a sticker deleted on Discord is retired in Harmony, see [Server stickers](/run/stickers#edit-or-remove-a-sticker) | Not sent |
 | Forwarded messages | With an italic *↪ Forwarded* line | Not applicable |
 | Custom emoji | As the Discord emoji picture, or as the Harmony server emoji imported from it | As Discord application emoji the bridge uploads on first use |
 | Mentions | Paired channel mentions and synced role mentions become Harmony mentions; `@name` typed by hand becomes a Harmony mention | A mentioned Discord member is pinged on Discord |
