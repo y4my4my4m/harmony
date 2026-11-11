@@ -92,7 +92,7 @@ beforeEach(() => {
     return handler(args)
   })
   mocks.applyPolicy.mockReset()
-  mocks.applyPolicy.mockImplementation(async (parts: any[]) => parts)
+  mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({ parts, deferred: false }))
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -210,8 +210,10 @@ describe('Bridge v2 import endpoints', () => {
     })
 
     it('runs each item through prepareBotMessageContent: mirrored CDN parts, no mass mention', async () => {
-      mocks.applyPolicy.mockImplementation(async (parts: any[]) =>
-        parts.map((p) => (p.url === CDN ? { ...p, type: 'file', url: 'https://harmony.test/m/cat.png', path: 'bots/cat.png' } : p)))
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({
+        parts: parts.map((p) => (p.url === CDN ? { ...p, type: 'file', url: 'https://harmony.test/m/cat.png', path: 'bots/cat.png' } : p)),
+        deferred: false,
+      }))
       rpcHandlers.bridge_import_messages = () => ({ data: { inserted: [], skipped: [] }, error: null })
       const res = await post([
         message({ content: [{ type: 'url', url: CDN }] }),
@@ -226,6 +228,35 @@ describe('Bridge v2 import endpoints', () => {
       ])
       expect(call.p_messages[1].content).toEqual([{ type: 'text', text: '@everyone hi' }])
       expect(mocks.applyPolicy.mock.calls[0].slice(1)).toEqual([BOT_ID, GENERAL])
+    })
+
+    it('queues only inserted messages whose attachments were deferred', async () => {
+      const M3 = '300000000000000003'
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({
+        parts, deferred: parts.some((p) => p.url === CDN),
+      }))
+      rpcHandlers.bridge_mirror_enqueue = () => ({ data: 1, error: null })
+      rpcHandlers.bridge_import_messages = () => ({
+        data: {
+          inserted: [{ discord_message_id: M1, id: 'row-a' }, { discord_message_id: M2, id: 'row-b' }],
+          skipped: [M3],
+          rejected: [{ discord_message_id: M3, reason: 'bad' }],
+        },
+        error: null,
+      })
+      const res = await post([
+        message({ content: [{ type: 'text', text: 'plain' }] }),
+        message({ discord_message_id: M2, content: [{ type: 'url', url: CDN }] }),
+        message({ discord_message_id: M3, content: [{ type: 'url', url: CDN }] }),
+      ])
+      expect(res.status).toBe(200)
+      expect(rpcCalls('bridge_mirror_enqueue')).toEqual([{ p_message_ids: ['row-b'] }])
+    })
+
+    it('does not queue anything when no message was deferred', async () => {
+      rpcHandlers.bridge_import_messages = () => ({ data: { inserted: [{ discord_message_id: M1, id: 'row-a' }], skipped: [] }, error: null })
+      await post([message()])
+      expect(rpcCalls('bridge_mirror_enqueue')).toEqual([])
     })
 
     it('does not turn a string @everyone into a mass mention either', async () => {
@@ -407,9 +438,9 @@ describe('Bridge v2 import endpoints', () => {
       db.tables.server_roles = [{ id: '00000000-0000-0000-0000-0000000000e0', server_id: SERVER_ID, is_default: true }]
       rpcHandlers.check_bot_permission = () => ({ data: true, error: null })
       const input = { content: '@everyone hi', channelId: GENERAL, botId: BOT_ID }
-      expect(await prepareBotMessageContent({ ...input, metadata: { discord_user: {} } }))
+      expect((await prepareBotMessageContent({ ...input, metadata: { discord_user: {} } })).parts)
         .toEqual([{ type: 'text', text: '@everyone hi' }])
-      expect(await prepareBotMessageContent(input)).toMatchObject([{ type: 'role_mention', roleId: '00000000-0000-0000-0000-0000000000e0' }, { type: 'text' }])
+      expect((await prepareBotMessageContent(input)).parts).toMatchObject([{ type: 'role_mention', roleId: '00000000-0000-0000-0000-0000000000e0' }, { type: 'text' }])
     })
   })
 })

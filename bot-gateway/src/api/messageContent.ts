@@ -234,10 +234,11 @@ export async function prepareBotMessageContent(input: {
   metadata?: unknown
   channelId: string
   botId: string
-}): Promise<unknown[]> {
+}): Promise<{ parts: unknown[]; mirrorDeferred: boolean }> {
   const { content, embeds, metadata, channelId, botId } = input
   const formatted = formatContent(content as string | any[], embeds as any[] | undefined)
   const typed = claimsBridgeAuthor(metadata) ? formatted
     : await typedMassMentions(formatted, content, channelId, botId)
-  return applyBridgeAttachmentPolicy(await resolveMentionParts(typed, channelId, botId), botId, channelId)
+  const { parts, deferred } = await applyBridgeAttachmentPolicy(await resolveMentionParts(typed, channelId, botId), botId, channelId)
+  return { parts, mirrorDeferred: deferred }
 }

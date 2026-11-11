@@ -1,3 +1,4 @@
+import { enqueueMirror } from '../bridge/mirrorEnqueue.js'
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
@@ -425,10 +426,19 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
+      // Silent rewrites refresh links; they never replace a part already copied into storage.
+      const nextParts = await resolveMentionParts(botContentParts(content), message.channel_id, botId)
+      const currentParts: any[] = Array.isArray(message.content) ? message.content : []
+      const losesMirroredPart = currentParts.some((part, i) =>
+        typeof part?.path === 'string' && part.path !== '' && !((nextParts as any[])[i]?.path))
+      if (losesMirroredPart) {
+        return res.status(409).json({ error: 'mirrored_part' })
+      }
+
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: message.content,
-        p_content: await resolveMentionParts(botContentParts(content), message.channel_id, botId),
+        p_content: nextParts,
       })
       if (error) {
         return res.status(400).json({ error: error.message })
@@ -678,7 +688,7 @@ export class BotRestAPI {
 
     // Instance attachment policy (e.g. mirroring Discord CDN URLs into
     // user_media) is applied here, keeping bots policy-agnostic.
-    const messageContent = await prepareBotMessageContent({ content, embeds, metadata, channelId, botId })
+    const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({ content, embeds, metadata, channelId, botId })
     if (!Array.isArray(messageContent) || messageContent.length === 0) {
       return { ok: false, status: 400, body: { error: 'Cannot send an empty message' }, failure: 'failed' }
     }
@@ -750,6 +760,7 @@ export class BotRestAPI {
     await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id }, { channelId })
 
     this.triggerLinkPreviewEnrichment(message.id)
+    if (mirrorDeferred) await enqueueMirror([message.id])
 
     return { ok: true, message }
   }
@@ -1021,7 +1032,7 @@ export class BotRestAPI {
       return { ok: false, status: 403, body: { error: access.error }, failure: 'bot_cannot_post' }
     }
 
-    const messageContent = await prepareBotMessageContent({
+    const { parts: messageContent, mirrorDeferred } = await prepareBotMessageContent({
       content,
       embeds,
       metadata: message.metadata,
@@ -1064,6 +1075,7 @@ export class BotRestAPI {
     }
 
     await this.logBotAction(botId, 'message_edited', { message_id: messageId }, { channelId: message.channel_id })
+    if (mirrorDeferred) await enqueueMirror([messageId])
 
     return { ok: true, message: updated }
   }

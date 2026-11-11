@@ -100,23 +100,33 @@ export async function getUploadCeilingBytes(): Promise<number> {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_UPLOAD_CEILING_BYTES
 }
 
+const DEFAULT_INLINE_MAX_BYTES = 26214400
+
+/** Largest file mirrored inside a request; bigger ones (or failed ones) go to the queue. */
+function inlineMaxBytes(): number {
+  const value = Number(process.env.BRIDGE_MIRROR_INLINE_MAX_BYTES)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_INLINE_MAX_BYTES
+}
+
 /**
  * Apply the instance-wide bridge attachment policy to a message's content parts.
  * In `mirror` mode, Discord CDN file parts are copied into the channel's room of
- * message_media and carry its path. Any other mode (or a mirror failure) leaves the
- * original URL untouched. Resolved server-side so bridge bots never need to know the
- * instance policy.
+ * message_media and carry its path, up to the inline limit. A part that is too large for the
+ * request, or whose mirror fails, keeps its Discord URL and sets `deferred` so the caller
+ * queues the message for the background worker. Any other mode leaves parts untouched.
+ * Resolved server-side so bridge bots never need to know the instance policy.
  */
 export async function applyBridgeAttachmentPolicy(
   parts: any[],
   botId: string,
   channelId: string,
-): Promise<any[]> {
-  if (!Array.isArray(parts) || parts.length === 0) return parts
+): Promise<{ parts: any[]; deferred: boolean }> {
+  if (!Array.isArray(parts) || parts.length === 0) return { parts, deferred: false }
 
   const mode = await getBridgeAttachmentMode()
-  if (mode !== 'mirror') return parts
+  if (mode !== 'mirror') return { parts, deferred: false }
 
+  let deferred = false
   const out: any[] = []
   for (const part of parts) {
     const url = part?.url
@@ -129,11 +139,13 @@ export async function applyBridgeAttachmentPolicy(
       continue
     }
     try {
-      const mirrored = await mirrorExternalMediaToStorage(url, {
+      const mirrored = await mirrorFileToStorage(url, {
         botId,
         channelId,
         fileName: typeof part.fileName === 'string' ? part.fileName : undefined,
         contentType: typeof part.contentType === 'string' ? part.contentType : undefined,
+        knownSize: typeof part.fileSize === 'number' ? part.fileSize : undefined,
+        ceiling: Math.min(await getUploadCeilingBytes(), inlineMaxBytes()),
       })
       // A mirrored attachment is a file part: only file parts carry a path.
       out.push({
@@ -144,11 +156,13 @@ export async function applyBridgeAttachmentPolicy(
         path: mirrored.path,
       })
     } catch (error: any) {
-      console.error(`Mirror failed, keeping Discord URL: ${error?.message || error}`)
+      // TooLargeError included: the worker tracks it, and a raised ceiling picks it up.
+      console.error(`Mirror deferred, keeping Discord URL: ${error?.message || error}`)
+      deferred = true
       out.push(part)
     }
   }
-  return out
+  return { parts: out, deferred }
 }
 
 export type BridgeAttachmentMode = 'link' | 'refresh' | 'mirror'

@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js'
 import type { BotRequest } from '../auth/BotAuthMiddleware.js'
 import { prepareBotMessageContent } from '../api/messageContent.js'
 import type { BridgeRow } from './bridgeConfig.js'
+import { enqueueMirror } from './mirrorEnqueue.js'
 
 /**
  * Bridge v2 history import endpoints, mounted under /bridge/v2/imports behind the bridgeBot
@@ -205,7 +206,7 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
     if (items.length === 0) return res.json({ inserted: [], skipped: already })
 
     // Imported messages are bridge-authored: the discord_user key keeps typed @everyone as text.
-    const prepared: Array<unknown[] | null> = new Array(items.length).fill(null)
+    const prepared: Array<{ parts: unknown[]; mirrorDeferred: boolean } | null> = new Array(items.length).fill(null)
     for (let i = 0; i < items.length; i += PREPARE_CONCURRENCY) {
       await Promise.all(items.slice(i, i + PREPARE_CONCURRENCY).map(async (item, offset) => {
         prepared[i + offset] = await prepareBotMessageContent({
@@ -218,11 +219,15 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
     }
 
     const messages: Record<string, unknown>[] = []
+    const deferredIds = new Set<string>()
     const dropped: string[] = [...already]
     items.forEach((item, i) => {
-      const content = prepared[i]
+      const content = prepared[i]?.parts
       if (!Array.isArray(content) || content.length === 0) dropped.push(item.discord_message_id)
-      else messages.push({ ...item.rest, content })
+      else {
+        messages.push({ ...item.rest, content })
+        if (prepared[i]?.mirrorDeferred) deferredIds.add(item.discord_message_id)
+      }
     })
     if (messages.length === 0) return res.json({ inserted: [], skipped: dropped })
 
@@ -246,6 +251,11 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       not_running?: boolean
     } | null
     if (!result || result.not_running === true) return notRunning(res)
+    // Only messages that were inserted and still carry Discord links go to the mirror queue.
+    const toQueue = ((result.inserted ?? []) as Array<{ id?: string; discord_message_id?: string }>)
+      .filter((row) => typeof row?.id === 'string' && row.discord_message_id !== undefined && deferredIds.has(row.discord_message_id))
+      .map((row) => row.id as string)
+    await enqueueMirror(toQueue)
     // rejected (a message that broke a check) is also in skipped, so a bridge that predates the
     // field still sees every id answered.
     res.json({

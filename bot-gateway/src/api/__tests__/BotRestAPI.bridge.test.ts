@@ -22,12 +22,18 @@ const HARMONY_MESSAGE = '00000000-0000-0000-0000-0000000000f1'
 const UNPAIRED_MESSAGE = '00000000-0000-0000-0000-0000000000f2'
 const EMOJI_ID = '00000000-0000-0000-0000-0000000000aa'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), policy: vi.fn(), enqueue: vi.fn() }))
 
 vi.mock('../../config/supabase.js', () => ({
   supabase: { rpc: mocks.rpc, from: mocks.from },
   config: {},
 }))
+
+vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/mirrorExternalMedia.js')>()),
+  applyBridgeAttachmentPolicy: mocks.policy,
+}))
+vi.mock('../../bridge/mirrorEnqueue.js', () => ({ enqueueMirror: mocks.enqueue }))
 
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, _res: any, next: any) => {
@@ -87,6 +93,9 @@ const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
+  mocks.policy.mockReset()
+  mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: false }))
+  mocks.enqueue.mockReset()
   mocks.rpc.mockImplementation(async (fn: string) => {
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
@@ -481,5 +490,116 @@ describe('PATCH /messages/:id/metadata and a Discord message id already bridged'
     const res = await supertest(app()).patch(`/api/v1/messages/${MINE}/metadata`)
       .send({ metadata: { discord_message_id: '77' } })
     expect(res.status).toBe(500)
+  })
+})
+
+describe('messages whose attachments the policy deferred', () => {
+  const CDN = 'https://cdn.discordapp.com/attachments/1/2/big.mp4'
+  const OWN = '00000000-0000-0000-0000-0000000000f8'
+  const defer = () => mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: true }))
+
+  it('queues a new message for the mirror worker', async () => {
+    seed()
+    defer()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'url', url: CDN }] })
+    expect(res.status).toBe(201)
+    expect(mocks.enqueue).toHaveBeenCalledTimes(1)
+    expect(mocks.enqueue).toHaveBeenCalledWith([res.body.id])
+  })
+
+  it('does not queue a message nothing was deferred for', async () => {
+    seed()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: [{ type: 'text', text: 'hi' }] })
+    expect(res.status).toBe(201)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('does not queue the existing row of a duplicate', async () => {
+    seed()
+    defer()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '78', bot: true }, is_deleted: false,
+    })
+    mocks.from.mockImplementation((table: string) => {
+      const query: any = db.from(table)
+      if (table !== 'messages') return query
+      const insert = () => ({ select: async () => ({ data: null, error: {
+        code: '23505', message: 'duplicate key value violates unique constraint "messages_channel_discord_message_id_unique"',
+      } }) })
+      return new Proxy(query, { get: (target, prop) => (prop === 'insert' ? insert : target[prop].bind(target)) })
+    })
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'url', url: CDN }], metadata: { discord_message_id: '78' } })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('queues an edited message', async () => {
+    seed()
+    defer()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { bot: true }, is_deleted: false,
+    })
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}`).send({ content: [{ type: 'url', url: CDN }] })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).toHaveBeenCalledWith([OWN])
+  })
+
+  it('does not queue an edit nothing was deferred for', async () => {
+    seed()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { bot: true }, is_deleted: false,
+    })
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}`).send({ content: [{ type: 'text', text: 'second' }] })
+    expect(res.status).toBe(200)
+    expect(mocks.enqueue).not.toHaveBeenCalled()
+  })
+})
+
+describe('PATCH /messages/:id/content-silent never replaces a mirrored part', () => {
+  const OWN = '00000000-0000-0000-0000-0000000000f9'
+  const PATH = `c/${PAIRED}/bridge/${BOT_ID}/abc.png`
+  const NEW_CDN = 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=2'
+  const silentCalls = () => mocks.rpc.mock.calls.filter(([fn]) => fn === 'update_message_content_silent')
+
+  function own(content: unknown[]) {
+    seed()
+    db.rows('messages').push({
+      id: OWN, channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content, metadata: { bot: true }, is_deleted: false,
+    })
+  }
+
+  it('refuses to swap a stored file for a Discord link', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'https://x/storage/cat.png', path: PATH }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`)
+      .send({ content: [{ type: 'file', fileType: 'image', url: NEW_CDN }] })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'mirrored_part' })
+    expect(silentCalls()).toHaveLength(0)
+  })
+
+  it('refuses when the mirrored part is dropped', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'u', path: PATH }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`).send({ content: [] })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'mirrored_part' })
+  })
+
+  it('lets one Discord link be swapped for a fresh one', async () => {
+    own([{ type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1' }])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`)
+      .send({ content: [{ type: 'file', fileType: 'image', url: NEW_CDN }] })
+    expect(res.status).toBe(200)
+    expect(silentCalls()).toHaveLength(1)
+  })
+
+  it('lets a mirrored part stay as it is', async () => {
+    const part = { type: 'file', fileType: 'image', url: 'https://x/storage/cat.png', path: PATH }
+    own([part])
+    const res = await supertest(app()).patch(`/api/v1/messages/${OWN}/content-silent`).send({ content: [part] })
+    expect(res.status).toBe(200)
   })
 })

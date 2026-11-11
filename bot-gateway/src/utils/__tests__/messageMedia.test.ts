@@ -186,7 +186,7 @@ describe('bridge mirror', () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
 
-    await expect(applyBridgeAttachmentPolicy([VOICE, STICKER], BOT, CHANNEL)).resolves.toEqual([VOICE, STICKER])
+    await expect(applyBridgeAttachmentPolicy([VOICE, STICKER], BOT, CHANNEL)).resolves.toEqual({ parts: [VOICE, STICKER], deferred: false })
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -195,7 +195,7 @@ describe('bridge mirror', () => {
     mocks.upload.mockResolvedValue({ data: {}, error: null })
     serve(new Uint8Array([0x4f, 0x67, 0x67, 0x53]), 'audio/ogg')
 
-    const [part] = await applyBridgeAttachmentPolicy([VOICE], BOT, CHANNEL)
+    const { parts: [part] } = await applyBridgeAttachmentPolicy([VOICE], BOT, CHANNEL)
 
     const [path, , options] = mocks.upload.mock.calls[0]
     expect(path).toMatch(new RegExp(`^c/${CHANNEL}/bridge/${BOT}/[0-9a-f-]{36}\\.ogg$`))
@@ -208,7 +208,7 @@ describe('bridge mirror', () => {
     mocks.upload.mockResolvedValue({ data: {}, error: null })
     serve(APNG, 'image/png')
 
-    const [part] = await applyBridgeAttachmentPolicy([STICKER], BOT, CHANNEL)
+    const { parts: [part] } = await applyBridgeAttachmentPolicy([STICKER], BOT, CHANNEL)
 
     const [path, , options] = mocks.upload.mock.calls[0]
     expect(path).toMatch(/\.apng$/)
@@ -250,6 +250,46 @@ describe('bridge mirror', () => {
     expect(stored.subarray(0, 2).toString('hex')).toBe('ffd8')
   })
 
+  it('defers a file over the inline limit without downloading it', async () => {
+    mirrorMode()
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const part = { type: 'file', fileType: 'video', url: 'https://cdn.discordapp.com/attachments/1/2/big.mp4', fileSize: 30 * 1024 * 1024 }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('defers a file whose Content-Length is over the inline limit and aborts the download', async () => {
+    mirrorMode()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1]), {
+      status: 200, headers: { 'content-type': 'video/mp4', 'content-length': String(30 * 1024 * 1024) },
+    })))
+    const part = { type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/big.mp4' }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('mirrors a small file inline and does not defer', async () => {
+    mirrorMode()
+    mocks.upload.mockResolvedValue({ data: {}, error: null })
+    serve(new Uint8Array([1, 2, 3]), 'image/png')
+    const result = await applyBridgeAttachmentPolicy(
+      [{ type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/s.png', fileSize: 1024 * 1024 }], BOT, CHANNEL)
+
+    expect(result.deferred).toBe(false)
+    expect(result.parts[0].path).toMatch(/\.png$/)
+  })
+
+  it('defers a part whose inline mirror fails on the network', async () => {
+    mirrorMode()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('socket hang up') }))
+    const part = { type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png' }
+
+    await expect(applyBridgeAttachmentPolicy([part], BOT, CHANNEL)).resolves.toEqual({ parts: [part], deferred: true })
+  })
+
   it('copies a Discord attachment into the channel room and names it by path', async () => {
     mirrorMode()
     mocks.upload.mockResolvedValue({ data: {}, error: null })
@@ -257,7 +297,7 @@ describe('bridge mirror', () => {
       status: 200, headers: { 'content-type': 'image/png' },
     })))
 
-    const [part] = await applyBridgeAttachmentPolicy(
+    const { parts: [part] } = await applyBridgeAttachmentPolicy(
       [{ type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/cat.png?ex=1' }], BOT, CHANNEL)
 
     const path = mocks.upload.mock.calls[0][0] as string
