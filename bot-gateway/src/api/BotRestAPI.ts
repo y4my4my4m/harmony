@@ -27,6 +27,14 @@ import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_STICKER_ID, StickerFileError, removeStoredSticker, storeDiscordSticker } from '../utils/discordStickerImport.js'
+import {
+  DISCORD_IMAGE_HASH,
+  ProfileImageError,
+  type ProfileImageKind,
+  ownProfileObjectPath,
+  removeProfileImage,
+  storeDiscordProfileImage,
+} from '../utils/discordProfileImage.js'
 import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
 import { DISCORD_SOUND_ID, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
 import { TTLCache } from '../utils/TTLCache.js'
@@ -430,6 +438,9 @@ export class BotRestAPI {
     this.route('get', '/servers/:serverId/stickers/discord', this.listDiscordStickers)
     this.route('post', '/servers/:serverId/stickers/discord', this.importDiscordSticker)
     this.route('delete', '/servers/:serverId/stickers/:stickerId', this.removeServerSticker)
+    // Discord bridge bot of the server only: Discord guild name/icon/banner/description → server profile.
+    this.route('get', '/servers/:serverId/profile/discord', this.getDiscordServerProfile)
+    this.route('patch', '/servers/:serverId/profile/discord', this.syncDiscordServerProfile)
 
     // Discord bridge bot of the server only: soundboard sync.
     this.route('get', '/servers/:serverId/sounds', this.listServerSounds)
@@ -3218,6 +3229,116 @@ export class BotRestAPI {
     } catch (error: any) {
       console.error('Import Discord sticker exception:', error)
       res.status(502).json({ error: error.message })
+    }
+  }
+
+  private async getDiscordServerProfile(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      const { data, error } = await supabase.rpc('bridge_get_server_profile', { p_bot_id: req.bot!.id, p_server_id: serverId })
+      if (error) return res.status(error.code === '42501' ? 403 : 500).json({ error: error.message })
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row) return res.status(500).json({ error: 'Profile read returned no row' })
+      res.json(row)
+    } catch (error: any) {
+      console.error('Get Discord server profile exception:', error)
+      res.status(500).json({ error: error.message })
+    }
+  }
+
+  /** Body { name?, description?, icon_hash?, banner_hash?, invoker_discord_id? }; images are copied from the stored guild's CDN. */
+  private async syncDiscordServerProfile(req: BotRequest, res: Response) {
+    const uploaded: Partial<Record<ProfileImageKind, string>> = {}
+    const cleanup = () =>
+      Promise.all((Object.entries(uploaded) as [ProfileImageKind, string][]).map(([kind, path]) => removeProfileImage(kind, path)))
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const body = req.body ?? {}
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
+      const fields = ['name', 'description', 'icon_hash', 'banner_hash'].filter(has)
+      if (fields.length === 0) {
+        return res.status(400).json({ error: 'Send at least one of name, description, icon_hash, banner_hash' })
+      }
+      if (has('name') && typeof body.name !== 'string') return res.status(400).json({ error: 'name must be a string' })
+      if (has('description') && body.description !== null && typeof body.description !== 'string') {
+        return res.status(400).json({ error: 'description must be a string or null' })
+      }
+      for (const key of ['icon_hash', 'banner_hash']) {
+        if (has(key) && body[key] !== null && !(typeof body[key] === 'string' && DISCORD_IMAGE_HASH.test(body[key]))) {
+          return res.status(400).json({ error: `${key} must be a Discord image hash or null` })
+        }
+      }
+      const invokerDiscordId = typeof body.invoker_discord_id === 'string' ? body.invoker_discord_id : null
+
+      const { data: bridge, error: bridgeError } = await supabase
+        .from('discord_bridges')
+        .select('id, discord_guild_id')
+        .eq('server_id', serverId)
+        .eq('bot_id', botId)
+        .maybeSingle()
+      if (bridgeError) return res.status(500).json({ error: bridgeError.message })
+      if (!bridge) return res.status(403).json({ error: 'Bot is not the Discord bridge of this server' })
+
+      const kinds: ProfileImageKind[] = (['icon', 'banner'] as const).filter((k) => has(`${k}_hash`))
+      const wantsImage = kinds.some((k) => typeof body[`${k}_hash`] === 'string')
+      if (wantsImage && !bridge.discord_guild_id) {
+        return res.status(409).json({ error: 'The bridge has no Discord server id yet', code: 'NO_GUILD' })
+      }
+
+      const changes: Record<string, unknown> = {}
+      if (has('name')) changes.name = body.name
+      if (has('description')) changes.description = body.description
+      for (const kind of kinds) {
+        const hash = body[`${kind}_hash`]
+        if (typeof hash === 'string') {
+          try {
+            const { path } = await storeDiscordProfileImage(kind, serverId, bridge.discord_guild_id, hash)
+            uploaded[kind] = path
+          } catch (e: any) {
+            await cleanup()
+            if (e instanceof ProfileImageError) {
+              return res.status(422).json({ error: e.message, code: 'PROFILE_IMAGE', field: kind, reason: e.reason })
+            }
+            return res.status(502).json({ error: e.message, code: 'PROFILE_IMAGE_DOWNLOAD', field: kind })
+          }
+          changes[kind] = uploaded[kind]
+          changes[`${kind}_discord_hash`] = hash
+        } else {
+          changes[kind] = null
+          changes[`${kind}_discord_hash`] = null
+        }
+      }
+
+      const { data, error } = await supabase.rpc('bridge_update_server_profile', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_changes: changes,
+      })
+      if (error) {
+        await cleanup()
+        const status = error.code === '42501' ? 403 : error.code === '22023' || error.code === '23514' ? 400 : 500
+        return res.status(status).json({ error: error.message })
+      }
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row) {
+        // Unknown whether the write happened: keep the uploads rather than risk dangling a live reference.
+        return res.status(500).json({ error: 'Profile update returned no row' })
+      }
+
+      for (const kind of kinds) {
+        const previous = ownProfileObjectPath(kind, serverId, row[`previous_${kind}`] ?? null)
+        if (previous && previous !== (uploaded[kind] ?? null)) await removeProfileImage(kind, previous)
+      }
+      if (row.changed) {
+        await this.logBotAction(botId, 'server_profile_synced', { serverId, invokerDiscordId, fields }, { serverId })
+      }
+      res.json({ changed: row.changed, name: row.name, description: row.description, icon: row.icon, banner: row.banner })
+    } catch (error: any) {
+      console.error('Sync Discord server profile exception:', error)
+      res.status(500).json({ error: error.message })
     }
   }
 
