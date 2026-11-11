@@ -35,11 +35,21 @@ function png(width: number, height: number): Uint8Array {
   return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
     ...chunk('IHDR', [...be32(width), ...be32(height), 8, 6, 0, 0, 0]), ...chunk('IEND', [])])
 }
+function apng(width: number, height: number): Uint8Array {
+  return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...chunk('IHDR', [...be32(width), ...be32(height), 8, 6, 0, 0, 0]),
+    ...chunk('acTL', [...be32(2), ...be32(0)]),
+    ...chunk('fcTL', [...be32(0), ...be32(width), ...be32(height), ...be32(0), ...be32(0), 0, 100, 0x03, 0xe8, 0, 0]),
+    ...chunk('fcTL', [...be32(1), ...be32(width), ...be32(height), ...be32(0), ...be32(0), 0, 100, 0x03, 0xe8, 0, 0]),
+    ...chunk('IEND', [])])
+}
 const ok = (body: Uint8Array, headers: Record<string, string> = {}) =>
   vi.fn(async () => new Response(body, { status: 200, headers })) as unknown as typeof fetch
 
 beforeEach(() => {
   uploads.length = 0
+  process.env.PUBLIC_URL = 'https://harmony.test'
+  delete process.env.SUPABASE_URL
 })
 
 describe('discordGuildImageCdnUrl', () => {
@@ -64,6 +74,12 @@ describe('storeDiscordProfileImage', () => {
     const r = await storeDiscordProfileImage('banner', SID, '1', HASH, ok(png(64, 64)))
     expect(r.path).toMatch(new RegExp(`^${SID}/banner-\\d+\\.png$`))
     expect(uploads[0].bucket).toBe('server_banners')
+  })
+
+  it('an animated PNG is stored as .apng', async () => {
+    const r = await storeDiscordProfileImage('icon', SID, '1', HASH, ok(apng(64, 64)))
+    expect(r.path).toMatch(/\.apng$/)
+    expect(uploads[0].options).toMatchObject({ contentType: 'image/apng' })
   })
 
   it('refuses an icon over 5 MB as size', async () => {
@@ -100,7 +116,19 @@ describe('ownProfileObjectPath', () => {
   })
   it('accepts a bare path and a public URL', () => {
     expect(ownProfileObjectPath('icon', SID, `${SID}/icon-1.png`)).toBe(`${SID}/icon-1.png`)
-    expect(ownProfileObjectPath('icon', SID, `https://x.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBe(`${SID}/icon-1.png`)
-    expect(ownProfileObjectPath('banner', SID, `https://x.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBeNull()
+    expect(ownProfileObjectPath('icon', SID, `https://harmony.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBe(`${SID}/icon-1.png`)
+    expect(ownProfileObjectPath('banner', SID, `https://harmony.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBeNull()
+  })
+  it('ownProfileObjectPath ignores a storage-shaped URL on another host', () => {
+    expect(ownProfileObjectPath('icon', SID, `https://evil.example/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBeNull()
+  })
+  it("ownProfileObjectPath accepts the public URL on SUPABASE_URL's origin", () => {
+    process.env.SUPABASE_URL = 'https://db.harmony.test'
+    expect(ownProfileObjectPath('icon', SID, `https://db.harmony.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBe(`${SID}/icon-1.png`)
+  })
+  it('counts no URL as own when neither base is set', () => {
+    delete process.env.PUBLIC_URL
+    expect(ownProfileObjectPath('icon', SID, `https://harmony.test/storage/v1/object/public/server_icons/${SID}/icon-1.png`)).toBeNull()
+    expect(ownProfileObjectPath('icon', SID, `${SID}/icon-1.png`)).toBe(`${SID}/icon-1.png`)
   })
 })

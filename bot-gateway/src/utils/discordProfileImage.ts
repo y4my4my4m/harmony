@@ -84,6 +84,20 @@ export async function removeProfileImage(kind: ProfileImageKind, path: string): 
   }
 }
 
+/** Origins of this instance's storage (PUBLIC_URL / SUPABASE_URL); a URL elsewhere is never ours. */
+function instanceOrigins(): string[] {
+  const origins: string[] = []
+  for (const base of [process.env.PUBLIC_URL, process.env.SUPABASE_URL]) {
+    if (!base) continue
+    try {
+      origins.push(new URL(base).origin)
+    } catch {
+      // unparseable base: ignore
+    }
+  }
+  return origins
+}
+
 /**
  * The object path of a servers.icon / servers.banner value when it is one of this server's
  * own objects in the bucket; null for anything foreign (external URL, default asset, other
@@ -97,7 +111,9 @@ export function ownProfileObjectPath(kind: ProfileImageKind, serverId: string, v
   if (/^https?:\/\//.test(trimmed)) {
     let pathname: string
     try {
-      pathname = new URL(trimmed).pathname
+      const url = new URL(trimmed)
+      if (!instanceOrigins().includes(url.origin)) return null
+      pathname = url.pathname
     } catch {
       return null
     }
