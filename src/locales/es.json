@@ -5374,6 +5374,10 @@
       "reportsFailed": "No se pudo cambiar cómo se tratan los reportes de este dominio"
     },
     "instance": {
+      "mirrorStatusProgress": "Guardando archivos de Discord: {queued} en espera, {done} guardados",
+      "mirrorStatusTooLarge": "{count} demasiado grandes ({size}): sube el límite de subida con harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} fallidos",
+      "mirrorStatusAllStored": "Todos los archivos de Discord están guardados",
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
       "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otras instancias que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
       "maxPersonalEmojis": "Emojis personales por usuario",

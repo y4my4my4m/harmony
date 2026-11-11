@@ -210,7 +210,18 @@ Discord's file links expire. **User settings** → **Instance admin** → **Conf
 |---|---|
 | **Link only** (default) | Stores the Discord link; it stops working when it expires |
 | **Refresh on demand** | When someone views a bridged message whose link expired, the gateway asks the owning bridge, which must be connected, to re-sign the links and update the message. No disk use |
-| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives, and when a community imports old Discord history. Permanent; uses disk. A file over 50 MB, or one that fails to download, keeps its Discord link |
+| **Mirror to storage** | Copies each file into the instance's message storage when the message arrives, when a community imports old Discord history, and for messages already in Harmony. Permanent; uses disk. A file larger than the upload ceiling keeps its Discord link |
+
+### Mirror to storage
+
+Turning **Mirror to storage** on also covers messages bridged earlier: the gateway works through their Discord files in the background and stores them, so nothing has to be re-imported. Under the setting, **Storing Discord files** counts what is waiting, stored, too large and failed.
+
+- **Size cap.** Files up to the upload ceiling are stored (Discord allows up to 500 MB). Raise the ceiling with `harmony config --upload-ceiling 500M`; files that were too large are then stored without further action.
+- **Large files.** Files over `BRIDGE_MIRROR_INLINE_MAX_BYTES` (default 25 MB) go through a queue and are stored one at a time (`BRIDGE_MIRROR_CONCURRENCY`, default 1), so a burst of big files does not slow the bridge.
+- **Temp disk.** Each file is downloaded to a temporary file first, in `BRIDGE_MIRROR_TMPDIR` (default: the operating system's temp directory, on the gateway container's disk). Keep free space there of about the size of the largest file, up to the upload ceiling.
+- **Storage.** Storage needs room for all the files. Check free space before turning the option on for a bridge with years of history.
+- **Expired links.** A Discord link that expired before the file was stored is refreshed through the bridge, which must be online. While it is not, the gateway tries again every 15 minutes. A stored file never goes back to a Discord link.
+- **One gateway.** The queue assumes one gateway process.
 
 ## Versions
 

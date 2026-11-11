@@ -212,7 +212,7 @@ To mention a Harmony member from Discord, use the `/mention` (or `/m`) command; 
 
 ### Attachments from Discord
 
-Discord's file links expire after a while. The instance operator chooses what Harmony does with them, instance-wide: keep the Discord link (it stops working when it expires), refresh an expired link when someone views it, or copy the file into the instance's storage. Ask your instance's admin which policy applies.
+Discord's file links expire after a while. The instance operator chooses what Harmony does with them, instance-wide: keep the Discord link (it stops working when it expires), refresh an expired link when someone views it, or copy the file into the instance's storage. With copying, files already in Harmony are copied too, up to the instance's upload size limit; a file over it keeps its Discord link, and large files can take a while to appear. Ask your instance's admin which policy applies.
 
 ## Import history
 
