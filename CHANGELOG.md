@@ -22,6 +22,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Backslash escapes in messages.** `\*not italic\*`, `\@name`, `\#channel`, `\:emoji:`, `\> line`
   and `\https://link` show as typed, and an escaped mention pings nobody. Inline code keeps its
   backslashes.
+- **Discord bridge server profile sync.** The Discord bridge bot can copy a
+  Discord server's name, description, icon and banner onto its paired Harmony
+  server through `GET /servers/{id}/profile/discord` and `PATCH
+  /servers/{id}/profile/discord`. Images are copied from Discord's CDN using
+  the guild ID stored on the bridge, and a replaced image Harmony stored is
+  deleted. A description or banner is written only as sent: the bridge decides
+  whether the Discord server has one.
 - **Discord bridge soundboard sync.** The Discord bridge can sync a server's
   soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
   bot-gateway endpoints for the server's bridge bot: `GET

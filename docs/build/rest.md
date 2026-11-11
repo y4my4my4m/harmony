@@ -109,6 +109,8 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/servers/{server.id}/sounds`](#list-server-sounds) | The server's Discord bridge bot | List a server's soundboard sounds |
 | `POST` | [`/servers/{server.id}/sounds/discord`](#import-a-discord-sound) | The server's Discord bridge bot | Import a Discord soundboard sound |
 | `DELETE` | [`/servers/{server.id}/sounds/{sound.id}`](#delete-a-server-sound) | The server's Discord bridge bot | Delete a server sound |
+| `GET` | [`/servers/{server.id}/profile/discord`](#get-the-discord-synced-server-profile) | The server's Discord bridge bot | Read the server's name, description, icon and banner |
+| `PATCH` | [`/servers/{server.id}/profile/discord`](#sync-the-server-profile-from-discord) | The server's Discord bridge bot | Copy a Discord server's name, description, icon and banner |
 | `GET` | [`/users/@me`](#get-current-bot) | Token | Read the bot itself |
 | `GET` | [`/users/{user.id}`](#get-user) | Token | Read a profile |
 | `GET` | [`/invites/{code}/preview`](#get-invite-preview) | Token | Read an invite's server card |
@@ -735,6 +737,28 @@ The response is `{ "status", "id", "name", "emoji", "emoji_id", "volume", "disco
 `DELETE /servers/{server.id}/sounds/{sound.id}`
 
 Only the bot of the server's Discord bridge. Deletes the sound and its stored clip and answers `204`. `404` when the sound is not one of this server's; `403` `Bot is not the Discord bridge of this server`.
+
+### Get the Discord-synced server profile
+
+`GET /servers/{server.id}/profile/discord`
+
+Only the bot of the server's Discord bridge. Returns the server's current `name`, `description`, `icon` and `banner`, plus `icon_discord_hash`, `icon_path`, `banner_discord_hash` and `banner_path`: the Discord image hashes last synced and the stored object paths. `400` when the ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
+
+### Sync the server profile from Discord
+
+`PATCH /servers/{server.id}/profile/discord`
+
+Only the bot of the server's Discord bridge. Every key is optional, but at least one of the first four is required. A key that is absent leaves that field untouched; `null` clears `description`, the icon or the banner.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | string | The new server name. |
+| `description` | string or null | The new description. `null` clears it. |
+| `icon_hash` | string or null | A Discord icon hash. The gateway downloads the image from Discord's CDN, using the guild ID stored on the bridge, strips its metadata and stores it as the server icon. `null` clears the icon. |
+| `banner_hash` | string or null | The same for the banner. |
+| `invoker_discord_id` | string | Discord user ID (a snowflake) of whoever ran the sync, kept in the bot's audit log. |
+
+A description or banner is written only as sent; the bridge decides whether the Discord server has one. The response is `{ "changed", "name", "description", "icon", "banner" }`; `changed` is `false` when nothing differed. A replaced or cleared icon or banner that Harmony stored itself is deleted. `400` for an invalid field or a name or description over its limit; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "NO_GUILD"` when an image is requested but the bridge has no Discord server ID; `422` with `"code": "PROFILE_IMAGE"`, `"field"` (`icon` or `banner`) and `"reason"` (`type` or `size`) when the image cannot be used; `502` with `"code": "PROFILE_IMAGE_DOWNLOAD"`, `"field"` and `"error"` when the image cannot be downloaded or stored. Nothing is written when an image fails.
 
 ## Users
 
