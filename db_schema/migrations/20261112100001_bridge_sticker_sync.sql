@@ -8,7 +8,8 @@
 -- A retired row
 --   * is hidden from clients (stickers_select_visible), so it leaves the picker and settings;
 --   * cannot be put in a new or changed message (check_message_sticker_parts raises
---     STICKER_UNKNOWN; a part unchanged from OLD on an edit stays accepted, as before);
+--     STICKER_UNKNOWN; a part unchanged from OLD on an edit stays accepted, as before, and
+--     keeps the stored part's fields when the edit resends only some of them);
 --   * does not count toward the cap (enforce_sticker_limit) and does not hold its name (the
 --     name indexes are partial on removed_at IS NULL);
 --   * does not fill the upload folder (sticker_folder_has_room allows one more object per
@@ -232,6 +233,10 @@ BEGIN
     END IF;
 
     IF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.content) = 'array' AND OLD.content @> jsonb_build_array(v_part) THEN
+        -- Unchanged on an edit: keep the stored part, so an edit that resends only some of its
+        -- fields (the Discord bridge sends id, url, name, description) keeps width, height, mimeType.
+        NEW.content := jsonb_set(NEW.content, ARRAY[(v_at - 1)::text],
+            (SELECT o FROM jsonb_array_elements(OLD.content) o WHERE o @> v_part LIMIT 1) || v_part);
         RETURN NEW;
     END IF;
 

@@ -11,7 +11,7 @@
 --   01..07 png, 08 gif (10 and 11 are inserted by the folder test)
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(59);
+SELECT plan(61);
 
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
   ('27000000-0000-0000-0000-0000000000b1', 'discord-bridge-270', 'Discord Bridge', '11111111-0000-0000-0000-000000000001', 'bridge'),
@@ -242,6 +242,12 @@ SELECT throws_ok($$SELECT pg_temp.msg('new 270', pg_temp.part(current_setting('t
 SELECT lives_ok($$UPDATE public.messages SET content = jsonb_set(content, '{0,text}', '"edited 270"')
                    WHERE content @> '[{"text": "sticker 270"}]'$$,
   'a message whose unchanged sticker part names a retired sticker is still edited');
+SELECT lives_ok($$UPDATE public.messages SET content = jsonb_set(content, '{1}', (content -> 1) - 'width' - 'height' - 'mimeType')
+                   WHERE content @> '[{"text": "edited 270"}]'$$,
+  'an edit may resend the unchanged sticker part without width, height and mimeType');
+SELECT is((SELECT jsonb_build_array(content -> 1 -> 'width', content -> 1 -> 'height', content -> 1 -> 'mimeType')
+             FROM public.messages WHERE content @> '[{"text": "edited 270"}]'),
+  '[128, 96, "image/png"]'::jsonb, 'and the stored part keeps them');
 SELECT throws_ok($$UPDATE public.messages
                       SET content = jsonb_set(content, '{1,name}', '"Renamed"')
                     WHERE content @> '[{"text": "edited 270"}]'$$,
