@@ -139,11 +139,13 @@ bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
+bridge_get_server_profile	p_bot_id uuid, p_server_id uuid	TABLE(name text, description text, icon text, banner text, icon_discord_hash text, icon_path text, banner_discord_hash text, banner_path text)	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text, p_update boolean	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_import_server_sound	p_bot_id uuid, p_server_id uuid, p_discord_sound_id text, p_name text, p_emoji text, p_emoji_id uuid, p_volume numeric, p_update boolean, p_storage_path text, p_duration_ms integer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	definer	public, pg_temp	service_role	client
 bridge_import_server_sticker	p_bot_id uuid, p_server_id uuid, p_discord_sticker_id text, p_name text, p_description text, p_update boolean, p_path text, p_url text, p_width integer, p_height integer, p_duration_ms integer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_retire_server_sticker	p_bot_id uuid, p_server_id uuid, p_sticker_id uuid	text	definer	public, pg_temp	service_role	client
+bridge_update_server_profile	p_bot_id uuid, p_server_id uuid, p_changes jsonb	TABLE(changed boolean, previous_icon text, previous_banner text, name text, description text, icon text, banner text)	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -938,6 +940,8 @@ server_has_remote_members	p_server_id uuid	boolean	invoker	public, extensions, p
 server_host_domain	p_server servers	text	invoker	public, pg_temp	service_role	unreferenced
 server_newcomer_alerts_state	p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_now		bigint	invoker	pg_catalog, pg_temp	authenticated+service_role	client
+server_profile_description	p_description text	text	invoker	public, pg_temp	service_role	unreferenced
+server_profile_name	p_name text	text	invoker	public, pg_temp	service_role	unreferenced
 server_settings_system_channel_check		trigger	definer	public, pg_temp		trigger
 server_template_bits	p_value jsonb, p_path text	bigint	invoker	public, pg_temp	service_role	unreferenced
 server_template_bool	p_value jsonb, p_path text, p_default boolean	boolean	invoker	public, pg_temp	service_role	unreferenced
