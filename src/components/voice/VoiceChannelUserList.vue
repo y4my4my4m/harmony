@@ -27,11 +27,11 @@
           @contextmenu="onRowContextMenu(userId, $event)"
         >
           <Avatar
-            :src="getUserAvatarUrl(userId).value"
+            :src="getMemberAvatarUrl(userId, serverId).value"
             alt=""
             size="xs"
           />
-          <span class="user-name" :aria-hidden="moderates ? 'true' : undefined"><DisplayName :userId="userId" /></span>
+          <span class="user-name" :aria-hidden="moderates ? 'true' : undefined"><DisplayName :userId="userId" :server-id="serverId" /></span>
           <span v-if="flags(userId).muted || flags(userId).deafened" class="user-server-flags" aria-hidden="true">
             <Icon v-if="flags(userId).muted" name="mic-off" :size="12" :title="t('voice.moderation.serverMuted')" data-testid="voice-roster-server-muted" />
             <Icon v-if="flags(userId).deafened" name="headphones-off" :size="12" :title="t('voice.moderation.serverDeafened')" data-testid="voice-roster-server-deafened" />
@@ -64,7 +64,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl, getMemberDisplayName } from '@/composables/useMemberProfile';
 import { useT } from '@/composables/useT';
 import { uid } from '@/utils/a11y/focus';
 import { stylePoint, styleRect } from '@/utils/appZoom';
@@ -84,7 +84,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), { callStartTime: null, channelId: null });
 
-const { getUserAvatarUrl, getUserDisplayName } = useUserData();
 const { t } = useT();
 const headerId = uid('voice-roster-header');
 const dragHintId = uid('voice-roster-drag');
@@ -103,7 +102,7 @@ watch(() => [serverId.value, props.channelId] as const, async ([server, channel]
 
 const moderates = computed(() => Object.values(powers.value).some(Boolean));
 
-const rowLabel = (userId: string) => participantLabel(t, getUserDisplayName(userId).value, {
+const rowLabel = (userId: string) => participantLabel(t, getMemberDisplayName(userId, serverId.value).value, {
   serverMuted: flags(userId).muted,
   serverDeafened: flags(userId).deafened,
 });
@@ -112,10 +111,10 @@ const drag = useVoiceMemberDrag({
   channelId: () => props.channelId,
   // Move Members alone decides, as in Discord: the owner and oneself are dragged like anyone.
   canDrag: () => powers.value.move,
-  label: (userId) => getUserDisplayName(userId).value,
+  label: (userId) => getMemberDisplayName(userId, serverId.value).value,
   drop: (userId, channelId) => {
     if (!serverId.value) return;
-    void moderation.move(serverId.value, { id: userId, display_name: getUserDisplayName(userId).value }, props.channelId, channelId);
+    void moderation.move(serverId.value, { id: userId, display_name: getMemberDisplayName(userId, serverId.value).value }, props.channelId, channelId);
   },
 });
 

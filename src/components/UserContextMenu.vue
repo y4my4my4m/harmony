@@ -122,8 +122,30 @@
       </button>
 
       <!-- Moderation -->
-      <template v-if="canKick || canBan">
+      <template v-if="canModerateProfile || canKick || canBan">
         <div class="menu-divider" role="separator"></div>
+
+        <template v-if="canModerateProfile">
+          <button
+            type="button"
+            class="menu-item"
+            role="menuitem"
+            data-testid="user-menu-moderate-nickname"
+            @click="emitAction('moderate-nickname')"
+          >
+            <span class="menu-item-label">{{ t('chatNav.user.moderateNickname', { name: displayName }) }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="menu-item destructive"
+            role="menuitem"
+            data-testid="user-menu-reset-server-profile"
+            @click="emitAction('reset-server-profile')"
+          >
+            <span class="menu-item-label">{{ t('chatNav.user.resetServerProfile', { name: displayName }) }}</span>
+          </button>
+        </template>
 
         <button
           type="button"
@@ -224,6 +246,8 @@ type UserContextAction =
   | 'call'
   | 'add-note'
   | 'change-nickname'
+  | 'moderate-nickname'
+  | 'reset-server-profile'
   | 'invite'
   | 'toggle-mute'
   | 'toggle-block'
@@ -251,6 +275,8 @@ const adjustedPosition = ref({ x: 0, y: 0 });
 const canKick = ref(false);
 const canBan = ref(false);
 const canInvite = ref(false);
+// MANAGE_NICKNAMES and outranking the target (the owner outranks everyone).
+const canModerateProfile = ref(false);
 
 const isSelf = computed(() => {
   if (!props.user?.id) return false;
@@ -335,6 +361,7 @@ async function loadModerationPermissions() {
   canKick.value = false;
   canBan.value = false;
   canInvite.value = false;
+  canModerateProfile.value = false;
 
   if (!isInServerContext.value || !props.user) return;
   const serverId = serverChannelStore.currentServerId;
@@ -354,6 +381,16 @@ async function loadModerationPermissions() {
     canKick.value = kick;
     canBan.value = ban;
     canInvite.value = invite;
+
+    if (!isSelf.value) {
+      const targetId = props.user.id;
+      const ownerId = serverChannelStore.currentServer?.owner;
+      if (await roleService.hasPermission(profileId, serverId, Permission.MANAGE_NICKNAMES) && ownerId !== targetId) {
+        const allowed = ownerId === profileId || await roleService.canManageUser(profileId, targetId, serverId);
+        // The target can change while the checks run.
+        if (props.user?.id === targetId) canModerateProfile.value = allowed;
+      }
+    }
   } catch (err) {
     debug.error('UserContextMenu: failed to load moderation permissions', err);
   }

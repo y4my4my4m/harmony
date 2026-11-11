@@ -116,9 +116,9 @@ const channelScoped = Object.entries(manifest.permissions)
   .map(([name]) => name)
 
 describe('permission bits', () => {
-  it('permission_bit_names() names 32 permissions', () => {
-    expect(bitNames).toHaveLength(32)
-    expect(new Set(bitNames).size).toBe(32)
+  it('permission_bit_names() names 34 permissions', () => {
+    expect(bitNames).toHaveLength(34)
+    expect(new Set(bitNames).size).toBe(34)
   })
 
   it('the manifest lists every permission, in bit order', () => {

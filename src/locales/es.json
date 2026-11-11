@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "Usar sonidos externos",
           "description": "Reproducir sonidos de otros servidores a los que pertenecen"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "Cambiar apodo",
+          "description": "Establecer su propio apodo y perfil de servidor en este servidor"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "Gestionar apodos",
+          "description": "Cambiar o restablecer los apodos y perfiles de servidor de miembros de rango inferior"
         }
       },
       "everyoneMembersNote": "El rol {'@'}everyone se aplica automáticamente a todos los miembros de este servidor. No hay lista que gestionar.",
@@ -3023,6 +3031,20 @@
       "moderators": "Moderadores de {server}",
       "outcomeBy": "Moderadores de {server}: {outcome}",
       "reviewedTitle": "Los moderadores de {server} revisaron tu denuncia"
+    },
+    "serverProfile": {
+      "nicknameTitle": "Cambiar apodo",
+      "nicknameLabel": "Apodo de {name}",
+      "nicknamePlaceholder": "Sin apodo",
+      "nicknameHint": "Déjalo vacío para quitar el apodo. Solo se aplica en este servidor.",
+      "nicknameDone": "{name} ahora se llama {nickname}.",
+      "nicknameCleared": "Se quitó el apodo de {name}.",
+      "resetTitle": "Restablecer perfil de servidor",
+      "resetMessage": "¿Borrar el avatar, el banner, la biografía y los pronombres de servidor de {name}? Se conserva el apodo.",
+      "resetConfirm": "Restablecer",
+      "resetDone": "Se restableció el perfil de servidor de {name}.",
+      "failed": "No se pudo actualizar a {name}.",
+      "noPermission": "No tienes permiso para cambiar a {name}."
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor} quitó el ensordecimiento de servidor a {target}",
       "member_voice_move": "{actor} movió a {target} a otro canal de voz",
       "member_voice_disconnect": "{actor} desconectó a {target} de la voz",
+      "member_nickname_update": "{actor} cambió el apodo de {target}",
+      "member_profile_reset": "{actor} restableció el perfil de servidor de {target}",
       "message_delete": "{actor} eliminó un mensaje de {target} en {channel} | {actor} eliminó {count} mensajes de {target} en {channel}",
       "server_update": "{actor} editó el servidor",
       "settings_update": "{actor} cambió los ajustes del servidor",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} eliminó el sticker {target}"
     },
     "fields": {
+      "nickname": "Apodo",
       "name": "Nombre",
       "description": "Descripción",
       "category": "Categoría",
@@ -6560,7 +6585,9 @@
       "kick": "Expulsar a {name}",
       "ban": "Banear a {name}",
       "copyId": "Copiar ID de usuario",
-      "fallbackName": "Usuario"
+      "fallbackName": "Usuario",
+      "moderateNickname": "Cambiar el apodo de {name}",
+      "resetServerProfile": "Restablecer el perfil de servidor de {name}"
     },
     "rail": {
       "folder": "carpeta",
@@ -6976,6 +7003,32 @@
       "invalid": "La plantilla no es válida: {detail}",
       "rejected": "El servidor rechazó esta plantilla: {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "Perfiles de servidor",
+    "title": "Perfiles de servidor",
+    "description": "Define un apodo, avatar, banner, biografía y pronombres distintos para cada servidor. Los campos vacíos usan los valores de tu cuenta.",
+    "noServers": "Todavía no te has unido a ningún servidor.",
+    "server": "Servidor",
+    "remoteUnavailable": "alojado en otra instancia",
+    "locked": "No tienes permiso para cambiar tu perfil en este servidor.",
+    "nickname": "Apodo",
+    "pronouns": "Pronombres",
+    "pronounsPlaceholder": "p. ej. ella/ella",
+    "bio": "Sobre mí",
+    "bioPlaceholder": "Cuéntale a este servidor algo sobre ti",
+    "avatar": "Avatar",
+    "banner": "Banner",
+    "reset": "Restablecer",
+    "resetField": "Restablecer {field}",
+    "save": "Guardar cambios",
+    "saved": "Perfil de servidor guardado.",
+    "saveFailed": "No se pudo guardar tu perfil de servidor.",
+    "uploadFailed": "No se pudo subir la imagen.",
+    "preview": "Vista previa",
+    "menuEntry": "Editar perfil de servidor",
+    "accountPronouns": "Pronombres",
+    "accountPronounsHint": "Se muestran bajo tu nombre en tu perfil. Hasta 40 caracteres."
   },
   "notificationSettings": {
     "menuEntry": "Configuración de notificaciones",

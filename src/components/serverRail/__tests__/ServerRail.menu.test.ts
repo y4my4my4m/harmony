@@ -89,7 +89,7 @@ describe('ServerRail context menus', () => {
     await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true))
   }
 
-  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'notification-settings', 'settings', 'move-up', 'move-down']
+  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'notification-settings', 'edit-server-profile', 'settings', 'move-up', 'move-down']
 
   it('opens on a mouse right-click in the first 1.5 s of page life', async () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(100)
@@ -169,6 +169,13 @@ describe('ServerRail context menus', () => {
     await wrapper.get('[data-action="notification-settings"]').trigger('click')
     expect(useServerNotificationSettingsStore().modalServerId).toBe('c')
     expect(rpc).toHaveBeenCalledWith('get_server_notification_settings', { p_server_id: 'c' })
+  })
+
+  it('opens the server profiles settings tab on the server', async () => {
+    push.mockClear()
+    await openOn('server', 'c')
+    await wrapper.get('[data-action="edit-server-profile"]').trigger('click')
+    expect(push).toHaveBeenCalledWith({ path: '/settings/server-profiles', query: { server: 'c' } })
   })
 
   it('leaves through the shared leave flow', async () => {

@@ -6,6 +6,7 @@ import type { RouteLocationRaw } from 'vue-router'
 
 export type SettingsSection = 
   | 'account' 
+  | 'server-profiles'
   | 'security'
   | 'privacy' 
   | 'emojis'
@@ -41,6 +42,7 @@ export function getSettingsPath(section: SettingsSection): string {
 export function isValidSettingsSection(section: string): section is SettingsSection {
   const validSections: SettingsSection[] = [
     'account',
+    'server-profiles',
     'security',
     'privacy', 
     'emojis',

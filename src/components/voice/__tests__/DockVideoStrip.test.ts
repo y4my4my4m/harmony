@@ -34,6 +34,7 @@ vi.mock('@/utils/userScopedStorage', () => ({
     removeItem: (key: string) => { m.storage.delete(key) },
   },
 }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({
     getUserAvatarUrl: (id: string) => ({ value: `/avatars/${id}.webp` }),

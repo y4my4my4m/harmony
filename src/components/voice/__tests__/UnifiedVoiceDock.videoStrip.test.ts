@@ -38,6 +38,7 @@ vi.mock('@/stores/spatialAudio', () => ({
   useSpatialAudioStore: () => ({ isPanelVisible: false, settings: { enabled: false }, togglePanel: vi.fn() }),
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({
     getUser: () => ({ value: null }),

@@ -238,6 +238,10 @@ async function onServerAction(serverId: string, action: ServerMenuAction) {
     case 'notification-settings':
       useServerNotificationSettingsStore().openModal(serverId)
       break
+    case 'edit-server-profile':
+      closeMobileDrawers()
+      router.push({ path: '/settings/server-profiles', query: { server: serverId } })
+      break
     case 'settings':
       // An open phone drawer is modal: left open, it would leave the settings page inert.
       closeMobileDrawers()

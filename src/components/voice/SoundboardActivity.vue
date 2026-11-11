@@ -4,7 +4,7 @@
       <span class="sba-emoji" aria-hidden="true"><SoundboardEmoji :emoji="play.emoji" :custom-emoji="play.customEmoji" :size="14" /></span>
       <i18n-t keypath="soundboard.played" tag="span" class="sba-text">
         <template #user>
-          <DisplayName class="sba-user" :user-id="play.userId" :truncate="true" />
+          <DisplayName class="sba-user" :user-id="play.userId" :server-id="profileServerId" :truncate="true" />
         </template>
         <template #sound>
           <strong class="sba-sound">{{ play.builtinKey ? t(`soundboard.defaults.${play.builtinKey}`) : play.name }}</strong>
@@ -20,9 +20,11 @@ import { useI18n } from 'vue-i18n';
 import DisplayName from '@/components/DisplayName.vue';
 import SoundboardEmoji from './SoundboardEmoji.vue';
 import { useSoundboardStore } from '@/stores/soundboard';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 
 const { t } = useI18n();
 const soundboard = useSoundboardStore();
+const profileServerId = useVoiceProfileServerId();
 const plays = computed(() => soundboard.recentPlays);
 </script>
 

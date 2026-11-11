@@ -33,7 +33,7 @@
       <label :for="`${uidBase}-search`" class="privacy-hint">{{ t('category.private.members') }}</label>
       <ul v-if="selectedMembers.length > 0" class="privacy-chips" :aria-label="t('category.private.members')">
         <li v-for="member in selectedMembers" :key="member.id" class="privacy-chip">
-          <DisplayName :user-id="member.id" :fallback="member.display_name || member.username" />
+          <DisplayName :user-id="member.id" :server-id="serverId" :fallback="member.display_name || member.username" />
           <button
             type="button"
             class="privacy-chip-remove"
@@ -61,7 +61,7 @@
               :checked="modelValue.userIds.includes(member.id)"
               @change="toggleUser(member.id, ($event.target as HTMLInputElement).checked)"
             />
-            <DisplayName :user-id="member.id" :fallback="member.display_name || member.username" />
+            <DisplayName :user-id="member.id" :server-id="serverId" :fallback="member.display_name || member.username" />
             <span class="privacy-handle">@{{ member.username }}</span>
           </label>
         </li>

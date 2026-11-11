@@ -21,6 +21,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({ canCreateThreads: ref(state.canCreate) }),
 }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({ getUserDisplayName: () => ref(''), getUserAvatarUrl: () => ref('') }),
 }))

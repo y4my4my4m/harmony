@@ -1,5 +1,6 @@
 import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
+import { getMemberDisplayName, getMemberAvatarUrl } from '@/composables/useMemberProfile'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
@@ -39,7 +40,7 @@ export function useMessageAuthorPresentation(
   message: Ref<Message | null | undefined>,
   options?: { serverId?: MaybeRefOrGetter<string | null | undefined> },
 ) {
-  const { getUserDisplayName, getUserAvatarUrl, getUserColor } = useUserData()
+  const { getUserColor } = useUserData()
   const serverRolesStore = useServerRolesStore()
   const botTick = ref(0)
 
@@ -73,7 +74,7 @@ export function useMessageAuthorPresentation(
       const bot = botCache.get(msg.bot_id)
       return bot?.display_name || bot?.username || 'Bot'
     }
-    if (msg.user_id) return getUserDisplayName(msg.user_id).value || 'Unknown User'
+    if (msg.user_id) return getMemberDisplayName(msg.user_id, toValue(options?.serverId) ?? null).value || 'Unknown User'
     return 'Unknown User'
   })
 
@@ -89,7 +90,7 @@ export function useMessageAuthorPresentation(
     const remote = getRemoteAuthor(msg)
     if (remote) return remote.avatar_url || '/default_avatar.webp'
     if (msg.bot_id) return botCache.get(msg.bot_id)?.avatar_url || '/default_avatar.webp'
-    if (msg.user_id) return getUserAvatarUrl(msg.user_id).value
+    if (msg.user_id) return getMemberAvatarUrl(msg.user_id, toValue(options?.serverId) ?? null).value
     return '/default_avatar.webp'
   })
 

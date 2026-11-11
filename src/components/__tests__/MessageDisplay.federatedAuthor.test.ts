@@ -77,6 +77,7 @@ vi.mock('@/composables/useServerPermissions', () => ({
     getCurrentUserRole: computed(() => ({ roles: [] })),
   }),
 }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   DEFAULT_USER_COLOR: '#fff',
   useUserData: () => ({

@@ -14,6 +14,7 @@
           <DisplayName
             v-if="(token.key === 'from' || token.key === 'mentions') && token.id"
             :user-id="token.id"
+            :server-id="serverId"
             :fallback="token.value"
             truncate
           />
@@ -80,8 +81,8 @@
           <span class="search-option-hint">{{ s.hint }}</span>
         </template>
         <template v-else-if="s.kind === 'member'">
-          <Avatar :src="getUserAvatarUrl(s.member.id).value" size="mini" />
-          <DisplayName :user-id="s.member.id" :fallback="s.member.displayName || s.member.username" truncate />
+          <Avatar :src="getMemberAvatarUrl(s.member.id, serverId ?? null).value" size="mini" />
+          <DisplayName :user-id="s.member.id" :server-id="serverId" :fallback="s.member.displayName || s.member.username" truncate />
           <span class="search-option-hint">{{ memberHandle(s.member) }}</span>
         </template>
         <template v-else-if="s.kind === 'channel'">
@@ -109,7 +110,7 @@ import { useI18n } from 'vue-i18n'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
-import { useUserData } from '@/composables/useUserData'
+import { getMemberAvatarUrl } from '@/composables/useMemberProfile'
 import { formatHandle } from '@/utils/handles'
 import {
   FILTER_KEYS,
@@ -137,6 +138,8 @@ type Suggestion =
 
 const props = defineProps<{
   members: SearchMember[]
+  /** The server searched; its member profiles show. Null or unset in a DM. */
+  serverId?: string | null
   channels: SearchChannel[]
   /** in: needs a server. */
   allowChannels: boolean
@@ -153,7 +156,6 @@ const tokens = defineModel<SearchToken[]>('tokens', { required: true })
 const draft = defineModel<string>('text', { required: true })
 
 const { t } = useI18n()
-const { getUserAvatarUrl } = useUserData()
 
 const inputRef = ref<HTMLInputElement>()
 const focused = ref(false)

@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "외부 소리 사용",
           "description": "속한 다른 서버의 소리를 재생합니다"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "닉네임 변경",
+          "description": "이 서버에서 자신의 닉네임과 서버 프로필을 설정합니다"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "닉네임 관리",
+          "description": "더 낮은 등급 멤버의 닉네임과 서버 프로필을 변경하거나 초기화합니다"
         }
       },
       "everyoneMembersNote": "{'@'}everyone 역할은 이 서버의 모든 멤버에게 자동으로 적용됩니다. 관리할 명단이 없습니다.",
@@ -3023,6 +3031,20 @@
       "moderators": "{server} 모더레이터",
       "outcomeBy": "{server} 모더레이터: {outcome}",
       "reviewedTitle": "{server} 모더레이터가 신고를 검토했습니다"
+    },
+    "serverProfile": {
+      "nicknameTitle": "닉네임 변경",
+      "nicknameLabel": "{name}의 닉네임",
+      "nicknamePlaceholder": "닉네임 없음",
+      "nicknameHint": "비워 두면 닉네임이 삭제됩니다. 이 서버에서만 적용됩니다.",
+      "nicknameDone": "{name}의 닉네임이 {nickname}(으)로 변경되었습니다.",
+      "nicknameCleared": "{name}의 닉네임을 삭제했습니다.",
+      "resetTitle": "서버 프로필 초기화",
+      "resetMessage": "{name}의 서버 아바타, 배너, 소개, 대명사를 지울까요? 닉네임은 유지됩니다.",
+      "resetConfirm": "초기화",
+      "resetDone": "{name}의 서버 프로필을 초기화했습니다.",
+      "failed": "{name}을(를) 업데이트할 수 없습니다.",
+      "noPermission": "{name}을(를) 변경할 권한이 없습니다."
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor}님이 {target}님의 서버 헤드셋 음소거를 해제했습니다",
       "member_voice_move": "{actor}님이 {target}님을 다른 음성 채널로 옮겼습니다",
       "member_voice_disconnect": "{actor}님이 {target}님의 음성 연결을 끊었습니다",
+      "member_nickname_update": "{actor}님이 {target}님의 닉네임을 변경했습니다",
+      "member_profile_reset": "{actor}님이 {target}님의 서버 프로필을 초기화했습니다",
       "message_delete": "{actor}님이 {channel}에서 {target}님의 메시지 {count}개를 삭제했습니다",
       "server_update": "{actor}님이 서버를 수정했습니다",
       "settings_update": "{actor}님이 서버 설정을 변경했습니다",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} 님이 스티커 {target}을(를) 삭제했습니다"
     },
     "fields": {
+      "nickname": "닉네임",
       "name": "이름",
       "description": "설명",
       "category": "카테고리",
@@ -6560,7 +6585,9 @@
       "kick": "{name} 추방",
       "ban": "{name} 차단",
       "copyId": "사용자 ID 복사",
-      "fallbackName": "사용자"
+      "fallbackName": "사용자",
+      "moderateNickname": "{name}의 닉네임 변경",
+      "resetServerProfile": "{name}의 서버 프로필 초기화"
     },
     "rail": {
       "folder": "폴더",
@@ -6976,6 +7003,32 @@
       "invalid": "템플릿이 올바르지 않습니다: {detail}",
       "rejected": "서버가 이 템플릿을 거부했습니다: {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "서버 프로필",
+    "title": "서버 프로필",
+    "description": "서버마다 다른 닉네임, 아바타, 배너, 소개, 대명사를 설정할 수 있습니다. 비워 둔 항목은 계정 값을 사용합니다.",
+    "noServers": "아직 참여한 서버가 없습니다.",
+    "server": "서버",
+    "remoteUnavailable": "다른 인스턴스에서 호스팅됨",
+    "locked": "이 서버에서 프로필을 변경할 권한이 없습니다.",
+    "nickname": "닉네임",
+    "pronouns": "대명사",
+    "pronounsPlaceholder": "예: she/her",
+    "bio": "소개",
+    "bioPlaceholder": "이 서버에 자신을 소개해 보세요",
+    "avatar": "아바타",
+    "banner": "배너",
+    "reset": "초기화",
+    "resetField": "{field} 초기화",
+    "save": "변경 사항 저장",
+    "saved": "서버 프로필을 저장했습니다.",
+    "saveFailed": "서버 프로필을 저장하지 못했습니다.",
+    "uploadFailed": "이미지를 업로드하지 못했습니다.",
+    "preview": "미리보기",
+    "menuEntry": "서버 프로필 편집",
+    "accountPronouns": "대명사",
+    "accountPronounsHint": "프로필의 이름 아래에 표시됩니다. 최대 40자."
   },
   "notificationSettings": {
     "menuEntry": "알림 설정",

@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "Use External Sounds",
           "description": "Play sounds from other servers they belong to"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "Change Nickname",
+          "description": "Set their own nickname and server profile in this server"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "Manage Nicknames",
+          "description": "Change or reset the nicknames and server profiles of members ranked below them"
         }
       },
       "everyoneMembersNote": "The {'@'}everyone role applies to every member of this server automatically. There's no roster to manage.",
@@ -3077,6 +3085,20 @@
       "moderators": "{server}'s moderators",
       "outcomeBy": "{server}'s moderators: {outcome}",
       "reviewedTitle": "{server}'s moderators reviewed your report"
+    },
+    "serverProfile": {
+      "nicknameTitle": "Change nickname",
+      "nicknameLabel": "Nickname for {name}",
+      "nicknamePlaceholder": "No nickname",
+      "nicknameHint": "Leave empty to remove the nickname. Only applies in this server.",
+      "nicknameDone": "{name} is now called {nickname}.",
+      "nicknameCleared": "Removed the nickname of {name}.",
+      "resetTitle": "Reset server profile",
+      "resetMessage": "Clear the server avatar, banner, bio and pronouns of {name}? Their nickname is kept.",
+      "resetConfirm": "Reset",
+      "resetDone": "Reset the server profile of {name}.",
+      "failed": "Could not update {name}.",
+      "noPermission": "You don't have permission to change {name}."
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor} lifted the server deafen on {target}",
       "member_voice_move": "{actor} moved {target} to another voice channel",
       "member_voice_disconnect": "{actor} disconnected {target} from voice",
+      "member_nickname_update": "{actor} changed the nickname of {target}",
+      "member_profile_reset": "{actor} reset the server profile of {target}",
       "message_delete": "{actor} deleted a message by {target} in {channel} | {actor} deleted {count} messages by {target} in {channel}",
       "server_update": "{actor} updated the server",
       "settings_update": "{actor} updated the server settings",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} removed sticker {target}"
     },
     "fields": {
+      "nickname": "Nickname",
       "name": "Name",
       "description": "Description",
       "category": "Category",
@@ -6556,7 +6581,9 @@
       "kick": "Kick {name}",
       "ban": "Ban {name}",
       "copyId": "Copy user ID",
-      "fallbackName": "User"
+      "fallbackName": "User",
+      "moderateNickname": "Change nickname for {name}",
+      "resetServerProfile": "Reset server profile of {name}"
     },
     "rail": {
       "folder": "folder",
@@ -6972,6 +6999,32 @@
       "invalid": "The template is not valid: {detail}",
       "rejected": "The server refused this template: {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "Server profiles",
+    "title": "Server profiles",
+    "description": "Set a different nickname, avatar, banner, bio and pronouns for each server. Empty fields use your account values.",
+    "noServers": "You haven't joined any servers yet.",
+    "server": "Server",
+    "remoteUnavailable": "hosted on another instance",
+    "locked": "You don't have permission to change your profile in this server.",
+    "nickname": "Nickname",
+    "pronouns": "Pronouns",
+    "pronounsPlaceholder": "e.g. they/them",
+    "bio": "About me",
+    "bioPlaceholder": "Tell this server about yourself",
+    "avatar": "Avatar",
+    "banner": "Banner",
+    "reset": "Reset",
+    "resetField": "Reset {field}",
+    "save": "Save changes",
+    "saved": "Server profile saved.",
+    "saveFailed": "Couldn't save your server profile.",
+    "uploadFailed": "Couldn't upload the image.",
+    "preview": "Preview",
+    "menuEntry": "Edit server profile",
+    "accountPronouns": "Pronouns",
+    "accountPronounsHint": "Shown under your name on your profile. Up to 40 characters."
   },
   "notificationSettings": {
     "menuEntry": "Notification settings",

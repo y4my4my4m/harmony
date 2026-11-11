@@ -129,6 +129,7 @@ Role permission masks, channel override masks and `missing_permissions` use thes
 | 13 | `SEND_MESSAGES_IN_THREADS` | 29 | `MOVE_MEMBERS` |
 | 14 | `CREATE_PUBLIC_THREADS` | 30 | `USE_SOUNDBOARD` |
 | 15 | `CREATE_PRIVATE_THREADS` | 31 | `USE_EXTERNAL_SOUNDS` |
+| 32 | `CHANGE_NICKNAME` | 33 | `MANAGE_NICKNAMES` |
 
 The value of a bit is 2 to the power of its number: `SEND_MESSAGES` is `4096`. What each permission means for members is on [Roles and permissions](/run/roles-permissions).
 

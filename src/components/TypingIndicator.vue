@@ -9,25 +9,25 @@
       <!-- Single user: name appears once via DisplayName, then static suffix -->
       <template v-if="typingUsers.length === 1">
         <span class="typing-username">
-          <DisplayName :user-id="typingUsers[0].user_id" />
+          <DisplayName :user-id="typingUsers[0].user_id" :server-id="serverId" />
         </span>
         <span class="typing-suffix">{{ t('message.typing.single') }}</span>
       </template>
       <!-- Two users: first name via DisplayName, second in i18n (no duplicate first name) -->
       <template v-else-if="typingUsers.length === 2">
         <span class="typing-username">
-          <DisplayName :user-id="typingUsers[0].user_id" />
+          <DisplayName :user-id="typingUsers[0].user_id" :server-id="serverId" />
         </span>
-        <span class="typing-suffix">{{ t('message.typing.two', { name2: getUserDisplayName(typingUsers[1].user_id).value }) }}</span>
+        <span class="typing-suffix">{{ t('message.typing.two', { name2: name(1) }) }}</span>
       </template>
       <!-- Three users: first name via DisplayName, rest in i18n -->
       <template v-else-if="typingUsers.length === 3">
         <span class="typing-username">
-          <DisplayName :user-id="typingUsers[0].user_id" />
+          <DisplayName :user-id="typingUsers[0].user_id" :server-id="serverId" />
         </span>
         <span class="typing-suffix">{{ t('message.typing.three', { 
-          name2: getUserDisplayName(typingUsers[1].user_id).value, 
-          name3: getUserDisplayName(typingUsers[2].user_id).value 
+          name2: name(1), 
+          name3: name(2) 
         }) }}</span>
       </template>
       <!-- Many users (4+): "Many users are typing..." -->
@@ -42,24 +42,25 @@
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TypingUser } from '@/services/TypingIndicatorService'
-import { useUserData } from '@/composables/useUserData'
+import { getMemberDisplayName } from '@/composables/useMemberProfile'
 import { announce } from '@/composables/useAnnouncer'
 import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   typingUsers: TypingUser[]
+  /** The server the channel belongs to; null or unset in a DM, where account names show. */
+  serverId?: string | null
 }
 
 const props = defineProps<Props>()
 
 const { t } = useI18n()
-const { getUserDisplayName } = useUserData()
+const name = (index: number) => getMemberDisplayName(props.typingUsers[index].user_id, props.serverId ?? null).value
 
 // Typing is a verbose announcement: spoken only with "Screen reader support"
 // on, the latest state replacing a pending one.
 const spokenTyping = computed(() => {
   const users = props.typingUsers
-  const name = (index: number) => getUserDisplayName(users[index].user_id).value
   if (users.length === 0) return ''
   if (users.length === 1) return `${name(0)}${t('message.typing.single')}`
   if (users.length === 2) return `${name(0)}${t('message.typing.two', { name2: name(1) })}`

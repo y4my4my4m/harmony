@@ -102,6 +102,23 @@
       </div>
 
       <div class="form-group">
+        <label class="form-label" :for="`${uid}-pronouns`">{{ t('serverProfile.accountPronouns') }}</label>
+        <input
+          :id="`${uid}-pronouns`"
+          v-model="localProfile.pronouns"
+          type="text"
+          class="form-input"
+          maxlength="40"
+          :placeholder="t('serverProfile.pronounsPlaceholder')"
+          :aria-describedby="`${uid}-pronouns-hint`"
+          data-testid="account-pronouns"
+        />
+        <div :id="`${uid}-pronouns-hint`" class="form-hint">
+          {{ t('serverProfile.accountPronounsHint') }}
+        </div>
+      </div>
+
+      <div class="form-group">
         <label class="form-label" :for="`${uid}-username`">{{ t('auth.username') }}</label>
         <div class="username-input-container">
           <input
@@ -625,6 +642,7 @@ function snapshotOf(profile: User): AccountSnapshot {
     values: {
       display_name: profile.display_name || '',
       bio: profile.bio || '',
+      pronouns: (profile as any).pronouns || '',
       // Empty is the theme's default name colour; the form must not invent one.
       color: profile.color || '',
     },
@@ -797,6 +815,7 @@ const saveChanges = async () => {
   const saved = await props.saveProfile({
     ...localProfile.value,
     color: localProfile.value.color || null,
+    pronouns: (localProfile.value.pronouns ?? '').trim() || null,
     profile_fields: cleanedFields,
   } as Partial<User>)
   if (!saved || !props.profile) return

@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "使用外部声音",
           "description": "播放其所在的其他服务器的声音"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "更改昵称",
+          "description": "设置自己在此服务器中的昵称和服务器资料"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "管理昵称",
+          "description": "更改或重置等级较低成员的昵称和服务器资料"
         }
       },
       "everyoneMembersNote": "{'@'}everyone 角色会自动应用于此服务器的每位成员，无需管理成员名单。",
@@ -3023,6 +3031,20 @@
       "moderators": "{server} 的版主",
       "outcomeBy": "{server} 的版主：{outcome}",
       "reviewedTitle": "{server} 的管理员已审核你的举报"
+    },
+    "serverProfile": {
+      "nicknameTitle": "更改昵称",
+      "nicknameLabel": "{name} 的昵称",
+      "nicknamePlaceholder": "无昵称",
+      "nicknameHint": "留空即可移除昵称。仅在此服务器生效。",
+      "nicknameDone": "{name} 现在的昵称是 {nickname}。",
+      "nicknameCleared": "已移除 {name} 的昵称。",
+      "resetTitle": "重置服务器资料",
+      "resetMessage": "清除 {name} 的服务器头像、横幅、简介和代词？昵称将保留。",
+      "resetConfirm": "重置",
+      "resetDone": "已重置 {name} 的服务器资料。",
+      "failed": "无法更新 {name}。",
+      "noPermission": "你没有权限修改 {name}。"
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor} 解除了 {target} 的服务器拒听",
       "member_voice_move": "{actor} 将 {target} 移到了另一个语音频道",
       "member_voice_disconnect": "{actor} 断开了 {target} 的语音连接",
+      "member_nickname_update": "{actor} 更改了 {target} 的昵称",
+      "member_profile_reset": "{actor} 重置了 {target} 的服务器资料",
       "message_delete": "{actor} 在 {channel} 中删除了 {target} 的 {count} 条消息",
       "server_update": "{actor} 编辑了服务器",
       "settings_update": "{actor} 修改了服务器设置",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} 删除了贴纸 {target}"
     },
     "fields": {
+      "nickname": "昵称",
       "name": "名称",
       "description": "描述",
       "category": "分类",
@@ -6560,7 +6585,9 @@
       "kick": "踢出 {name}",
       "ban": "封禁 {name}",
       "copyId": "复制用户 ID",
-      "fallbackName": "用户"
+      "fallbackName": "用户",
+      "moderateNickname": "更改 {name} 的昵称",
+      "resetServerProfile": "重置 {name} 的服务器资料"
     },
     "rail": {
       "folder": "文件夹",
@@ -6976,6 +7003,32 @@
       "invalid": "模板无效：{detail}",
       "rejected": "服务器拒绝了此模板：{detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "服务器资料",
+    "title": "服务器资料",
+    "description": "为每个服务器设置不同的昵称、头像、横幅、简介和代词。留空的字段将使用你的账号信息。",
+    "noServers": "你还没有加入任何服务器。",
+    "server": "服务器",
+    "remoteUnavailable": "托管在其他实例上",
+    "locked": "你无权在此服务器中更改资料。",
+    "nickname": "昵称",
+    "pronouns": "代词",
+    "pronounsPlaceholder": "例如 she/her",
+    "bio": "关于我",
+    "bioPlaceholder": "向这个服务器介绍一下自己",
+    "avatar": "头像",
+    "banner": "横幅",
+    "reset": "重置",
+    "resetField": "重置{field}",
+    "save": "保存更改",
+    "saved": "服务器资料已保存。",
+    "saveFailed": "无法保存你的服务器资料。",
+    "uploadFailed": "无法上传图片。",
+    "preview": "预览",
+    "menuEntry": "编辑服务器资料",
+    "accountPronouns": "代词",
+    "accountPronounsHint": "显示在你资料中名字的下方。最多 40 个字符。"
   },
   "notificationSettings": {
     "menuEntry": "通知设置",

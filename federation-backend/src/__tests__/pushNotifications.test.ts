@@ -381,6 +381,49 @@ describe('sendForNotification gating', () => {
     expect(sendToUser).not.toHaveBeenCalled();
   });
 
+  describe('sender nickname in the title', () => {
+    const withNickname = (nickname: string | null) => {
+      state.respond = (op) => {
+        if (op.table === 'user_servers') return { data: nickname ? { nickname } : null, error: null };
+        if (op.table === 'notification_preferences') return { data: { push_offline_only: false }, error: null };
+        if (op.table === 'profiles') return { data: { status: 1 }, error: null };
+        return { data: null, error: null };
+      };
+    };
+    const serverMessage = {
+      id: 'n7', user_id: 'u1', type: 'channel_message',
+      data: {
+        sender: { user_id: 'amy-id', username: 'amy', display_name: 'Amy' },
+        location: { server_id: 's1', channel_id: 'c1', channel_name: 'general' },
+        preview: 'hi',
+      },
+    };
+
+    it('uses the senders server nickname for a server message', async () => {
+      withNickname('Captain');
+      await PushNotificationService.sendForNotification({ ...serverMessage });
+      expect(sendToUser.mock.calls[0][1].title).toBe('Captain in #general');
+      const lookup = calls.find((c) => c.table === 'user_servers');
+      expect(lookup?.filters).toEqual([['eq', 'server_id', 's1'], ['eq', 'user_id', 'amy-id']]);
+    });
+
+    it('keeps the account name when the sender set no nickname', async () => {
+      withNickname(null);
+      await PushNotificationService.sendForNotification({ ...serverMessage });
+      expect(sendToUser.mock.calls[0][1].title).toBe('Amy in #general');
+    });
+
+    it('keeps the account name in a DM, without looking up a nickname', async () => {
+      withNickname('Captain');
+      await PushNotificationService.sendForNotification({
+        id: 'n8', user_id: 'u1', type: 'chat_message',
+        data: { sender: { user_id: 'amy-id', username: 'amy', display_name: 'Amy' }, conversation: { id: 'conv1' }, preview: 'hi' },
+      });
+      expect(sendToUser.mock.calls[0][1].title).toBe('Amy sent a message');
+      expect(calls.some((c) => c.table === 'user_servers')).toBe(false);
+    });
+  });
+
   it('treats a missing preferences row as offline-only', async () => {
     withPrefs(null);
     rpc.mockImplementation(async (name: string) => ({ data: name === 'has_active_session', error: null }));

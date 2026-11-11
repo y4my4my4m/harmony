@@ -10,6 +10,7 @@ import { pollPreview } from '@/utils/messagePoll'
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
+import { userDataService } from '@/services/userDataService'
 import { securityNoticeText } from '@/utils/securityNotice'
 import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
@@ -648,6 +649,50 @@ export class NotificationFormatter {
   }
 
   /**
+   * The actor of a notification raised inside a server channel (message, mention, reply,
+   * reaction): the server, the actor's profile id and the name shown for the account.
+   * Null for DMs, fediverse and other notifications, which keep the account profile.
+   */
+  static getServerActor(notification: Notification): { serverId: string; userId: string; accountName: string | null } | null {
+    const data = notification.data || {}
+    if (notification.type.startsWith('activitypub_')) return null
+    const serverId = data.server_id || data.location?.server_id
+    const channelId = data.channel_id || data.location?.channel_id
+    if (!serverId || !channelId || data.conversation_id) return null
+    const actor = data.sender || data.reactor || data.actor || data.author || data.user
+    const userId = actor?.user_id || actor?.id || data.from_user_id
+    if (!userId) return null
+    return { serverId, userId, accountName: actor?.display_name || actor?.username || null }
+  }
+
+  /** The actor's server profile fields for a server-channel notification, when it has any. */
+  static getServerActorProfile(notification: Notification): { nickname: string | null; avatarUrl: string | null } | null {
+    const actor = this.getServerActor(notification)
+    if (!actor) return null
+    const fields = userDataService.getMemberServerFields(actor.serverId, actor.userId)
+    const nickname = fields?.nickname?.trim() || null
+    const avatarUrl = fields?.avatar_url?.trim() || null
+    return nickname || avatarUrl ? { nickname, avatarUrl } : null
+  }
+
+  /** The formatted text with the actor's account name swapped for their server nickname. */
+  static withServerNickname(notification: Notification, formatted: NotificationMessage): NotificationMessage {
+    const actor = this.getServerActor(notification)
+    const nickname = this.getServerActorProfile(notification)?.nickname
+    if (!actor?.accountName || !nickname) return formatted
+    // The actor leads a title ("Name sent a message") and ends a short title ("Message from Name");
+    // only that position changes, never the same text inside a channel or server name.
+    const name = actor.accountName
+    const swap = (text: string | undefined) => {
+      if (!text) return text
+      if (text.startsWith(name)) return nickname + text.slice(name.length)
+      if (text.endsWith(name)) return text.slice(0, text.length - name.length) + nickname
+      return text
+    }
+    return { ...formatted, title: swap(formatted.title) ?? formatted.title, shortTitle: swap(formatted.shortTitle) }
+  }
+
+  /**
    * Action phrase after the actor name (e.g. " sent you a message").
    */
   static getTitleAction(notification: Notification): string {
@@ -674,7 +719,7 @@ export class NotificationFormatter {
    * Get the actor's profile user ID and the title suffix (part after the actor name).
    * Used by toast notifications to render DisplayName with custom emojis.
    */
-  static getActorInfo(notification: Notification): { actorUserId: string; titleSuffix: string } | null {
+  static getActorInfo(notification: Notification): { actorUserId: string; titleSuffix: string; serverId: string | null } | null {
     const data = notification.data || {}
 
     let actorUserId: string | null = null
@@ -699,7 +744,7 @@ export class NotificationFormatter {
     if (nameIndex === -1) return null
 
     const suffix = title.substring(nameIndex + actorDisplayName.length)
-    return { actorUserId, titleSuffix: suffix }
+    return { actorUserId, titleSuffix: suffix, serverId: this.getServerActor(notification)?.serverId ?? null }
   }
 
   /**
@@ -787,6 +832,8 @@ export class NotificationFormatter {
     const data = notification.data
     
     // Prioritize structured sender object
+    const serverAvatar = this.getServerActorProfile(notification)?.avatarUrl
+    if (serverAvatar) return utilGetAvatarUrl(serverAvatar) || serverAvatar
     let avatar = data.sender?.avatar_url
     
     // ActivityPub notifications (sender is already checked above, but check others too)

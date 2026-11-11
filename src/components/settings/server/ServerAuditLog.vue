@@ -48,9 +48,10 @@
         <div class="audit-body">
           <p class="audit-line">
             <template v-for="(segment, i) in row.segments" :key="i">
-              <DisplayName
+              <MemberIdentity
                 v-if="segment.userId"
                 :user-id="segment.userId"
+                :server-id="serverId"
                 :fallback="segment.text"
                 :class="segment.role ? `audit-${segment.role}` : undefined"
               />
@@ -94,7 +95,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Avatar from '@/components/common/Avatar.vue'
-import DisplayName from '@/components/DisplayName.vue'
+import MemberIdentity from '@/components/MemberIdentity.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'

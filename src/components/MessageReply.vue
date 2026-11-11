@@ -10,6 +10,7 @@
                         :display-name="authorLabel"
                         :bridge-source="bridgeSource"
                         :color="usernameColor"
+                        :server-id="serverId"
                     />
                 </div>
             </div>
