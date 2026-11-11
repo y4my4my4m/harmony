@@ -156,6 +156,44 @@ describe('BridgeChannelPairs import controls', () => {
     expect(running.find('[data-testid="import-all"]').exists()).toBe(false)
   })
 
+  it('offers Import all again once every importable pair is done, and runs them after a confirm', async () => {
+    const pairs = [
+      makePair({ harmony_channel_id: 'h-a', discord_channel_id: '1' }),
+      makePair({ harmony_channel_id: 'h-b', discord_channel_id: '2' }),
+      makePair({ harmony_channel_id: 'h-c', discord_channel_id: '3', direction: 'to_discord' }),
+    ]
+    const w = mountPairs({
+      pairs,
+      harmonyChannels: pairs.map((p) => ({ id: p.harmony_channel_id, name: p.harmony_channel_id, categoryName: null })),
+      imports: [
+        makeJob({ id: '1', harmony_channel_id: 'h-a', discord_channel_id: '1', state: 'done' }),
+        makeJob({ id: '2', harmony_channel_id: 'h-b', discord_channel_id: '2', state: 'done' }),
+      ],
+    })
+    expect(w.find('[data-testid="import-all"]').exists()).toBe(false)
+    await w.get('[data-testid="import-all-again"]').trigger('click')
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([])
+    expect(w.get('[data-testid="import-all-again-confirm"]').text()).toContain('all 2 channels')
+    await w.get('[data-testid="import-all-again-yes"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-a', 'h-b'] }])
+    expect(w.find('[data-testid="import-all-again-confirm"]').exists()).toBe(false)
+  })
+
+  it('hides Import all again while Import all has work or a job is active', () => {
+    const pending = mountPairs({
+      pairs: [makePair({ harmony_channel_id: 'h-a', discord_channel_id: '1' }), makePair({ harmony_channel_id: 'h-b', discord_channel_id: '2' })],
+      imports: [makeJob({ harmony_channel_id: 'h-a', state: 'done' })],
+    })
+    expect(pending.find('[data-testid="import-all"]').exists()).toBe(true)
+    expect(pending.find('[data-testid="import-all-again"]').exists()).toBe(false)
+    const running = mountPairs({
+      pairs: [makePair({ harmony_channel_id: 'h-a', discord_channel_id: '1' }), makePair({ harmony_channel_id: 'h-b', discord_channel_id: '2' })],
+      imports: [makeJob({ id: '1', harmony_channel_id: 'h-a', state: 'done' }), makeJob({ id: '2', harmony_channel_id: 'h-b', state: 'running' })],
+    })
+    expect(running.find('[data-testid="import-all-again"]').exists()).toBe(false)
+  })
+
   it('a running job shows its percent and Cancel cancels that job', async () => {
     const w = mountPairs({ imports: [makeJob()] })
     expect(w.get('[data-testid="import-state"]').text()).toBe('Importing… 50%')

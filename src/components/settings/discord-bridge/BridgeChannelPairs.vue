@@ -42,6 +42,16 @@
             {{ t('discordBridge.import.importAll') }}
           </button>
           <button
+            v-if="importAgainIds.length > 0 && !confirmingImportAgain"
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="busy"
+            data-testid="import-all-again"
+            @click="confirmingImportAgain = true"
+          >
+            {{ t('discordBridge.import.importAllAgain') }}
+          </button>
+          <button
             v-if="activeJobCount > 0"
             type="button"
             class="btn btn-ghost btn-sm"
@@ -53,7 +63,24 @@
           </button>
         </div>
       </div>
-      <p v-else class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
+      <div
+        v-if="importsSupported && confirmingImportAgain && importAgainIds.length > 0"
+        class="import-again-confirm"
+        role="alertdialog"
+        :aria-labelledby="`${uid}-import-again`"
+        data-testid="import-all-again-confirm"
+      >
+        <p :id="`${uid}-import-again`" class="db-text">{{ t('discordBridge.import.importAllAgainConfirm', { count: importAgainIds.length }, importAgainIds.length) }}</p>
+        <div class="db-actions">
+          <button type="button" class="btn btn-primary btn-sm" :disabled="busy" data-testid="import-all-again-yes" @click="importAllAgain">
+            {{ t('discordBridge.import.importAllAgainYes') }}
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="confirmingImportAgain = false">
+            {{ t('discordBridge.import.cancel') }}
+          </button>
+        </div>
+      </div>
+      <p v-if="!importsSupported" class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
       <ul class="pair-list" :aria-label="t('discordBridge.pairs.listLabel')">
         <li v-for="row in pairRows" :key="row.pair.id" class="pair" data-testid="pair-row" :data-harmony="row.pair.harmony_channel_id">
           <div class="pair-main">
@@ -316,6 +343,22 @@ const importAllIds = computed(() =>
 const activeJobCount = computed(
   () => (props.imports ?? []).filter((j) => j.state === 'queued' || j.state === 'running' || j.state === 'paused').length,
 )
+// Once nothing is left for Import all and nothing is running, Import all again re-runs every
+// finished pair (as each one's Import again would), after a confirm: each re-walks its history,
+// skipping messages already imported.
+const importAgainIds = computed(() => {
+  if (importAllIds.value.length > 0 || activeJobCount.value > 0) return []
+  return props.pairs
+    .filter((p) => isImportablePair(p, channelFor(p)) && jobFor(p)?.state === 'done')
+    .map((p) => p.harmony_channel_id)
+})
+const confirmingImportAgain = ref(false)
+
+async function importAllAgain() {
+  const ids = importAgainIds.value
+  confirmingImportAgain.value = false
+  if (ids.length > 0) await startImport(ids)
+}
 
 const pairRows = computed(() =>
   props.pairs.map((pair) => {
@@ -506,6 +549,18 @@ async function pairMatches() {
 
 .import-toolbar .db-muted {
   margin: 0;
+}
+
+.import-again-confirm {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.import-again-confirm p {
+  margin: 0 0 8px;
 }
 
 .match-box {
