@@ -239,8 +239,7 @@ BEGIN
 
     UPDATE public.bridge_mirror_state s
        SET last_mode = p_mode,
-           last_ceiling = CASE WHEN p_ceiling IS NULL THEN s.last_ceiling
-                               ELSE GREATEST(p_ceiling, COALESCE(s.last_ceiling, p_ceiling)) END,
+           last_ceiling = COALESCE(p_ceiling, s.last_ceiling),
            cursor_created_at = CASE WHEN v_enter THEN NULL ELSE s.cursor_created_at END,
            cursor_id = CASE WHEN v_enter THEN NULL ELSE s.cursor_id END,
            walk_done = CASE WHEN v_enter THEN false ELSE s.walk_done END,

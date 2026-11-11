@@ -6,7 +6,7 @@
 --   alice is made instance admin, bob is not
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(33);
+SELECT plan(34);
 
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
   ('27300000-0000-0000-0000-0000000000b1', 'bridge-273', 'Bridge 273', '11111111-0000-0000-0000-000000000001', 'bridge'),
@@ -76,6 +76,9 @@ SELECT lives_ok($$SELECT public.bridge_mirror_finish('27300000-0000-0000-0000-00
 
 -- Backfill: three bridge bot messages, walked one row per call ------------------------------------
 DELETE FROM public.bridge_mirror_queue;
+-- a001 and a002 share a created_at: the (created_at, id) cursor must visit each once
+UPDATE public.messages SET created_at = (SELECT created_at FROM public.messages WHERE id = '27300000-0000-0000-0000-00000000a002')
+ WHERE id = '27300000-0000-0000-0000-00000000a001';
 SELECT public.bridge_mirror_observe('mirror', 0);
 CREATE TEMP TABLE bf (call int, n int);
 INSERT INTO bf SELECT 1, public.bridge_mirror_backfill(1);
@@ -88,6 +91,7 @@ SELECT is((SELECT array_agg(message_id ORDER BY message_id) FROM public.bridge_m
           ARRAY['27300000-0000-0000-0000-00000000a002', '27300000-0000-0000-0000-00000000a003']::uuid[],
           'they are the file and the (2023) url message');
 SELECT is((SELECT walk_done FROM public.bridge_mirror_state), true, 'the walk is done once a call reads fewer rows than its limit');
+SELECT public.bridge_mirror_restart_walk();
 SELECT is(public.bridge_mirror_backfill(10), 0, 'a walk that is done again enqueues nothing new (queued rows are skipped)');
 
 -- Observe -----------------------------------------------------------------------------------------
@@ -107,6 +111,13 @@ SELECT results_eq($$SELECT message_id, state FROM public.bridge_mirror_queue ORD
                   $$VALUES ('27300000-0000-0000-0000-00000000a002'::uuid, 'queued'::text),
                            ('27300000-0000-0000-0000-00000000a003'::uuid, 'too_large'::text)$$,
                   'a higher ceiling requeues the 150 byte row and leaves the 300 byte one');
+-- A lowered ceiling is remembered: 200 -> 100 -> 200 requeues a 150 byte row.
+SELECT public.bridge_mirror_observe('mirror', 100);
+UPDATE public.bridge_mirror_queue SET state = 'too_large', largest_bytes = 150
+ WHERE message_id = '27300000-0000-0000-0000-00000000a002';
+SELECT public.bridge_mirror_observe('mirror', 200);
+SELECT is((SELECT state FROM public.bridge_mirror_queue WHERE message_id = '27300000-0000-0000-0000-00000000a002'), 'queued',
+          'a ceiling lowered and raised again requeues the row that became too large meanwhile');
 SELECT public.bridge_mirror_restart_walk();
 SELECT is((SELECT cursor_id FROM public.bridge_mirror_state), NULL, 'restart_walk clears the cursor');
 
