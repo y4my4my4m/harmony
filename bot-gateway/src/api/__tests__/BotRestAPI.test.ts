@@ -450,6 +450,80 @@ describe('POST /channels/:id/messages file parts', () => {
     expect(inserts).toHaveLength(1)
     expect((inserts[0] as { content: unknown }).content).toEqual([voice, sticker])
   })
+
+  const NATIVE_STICKER = {
+    type: 'sticker',
+    id: '00000000-0000-0000-0000-0000000000a1',
+    url: 'https://db.test/storage/v1/object/public/stickers/server/s/u.png',
+    name: 'wave',
+    description: 'A wave',
+  }
+  const NATIVE_FILE = { type: 'file', fileType: 'image', url: NATIVE_STICKER.url, stickerId: NATIVE_STICKER.id }
+  const STICKER_FIXTURES = {
+    ...OPEN_CHANNEL_FIXTURES,
+    channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+    instance_config: { data: null, error: null },
+    bot_audit_log: { data: null, error: null },
+  }
+
+  it('stores a native sticker pair as sent', async () => {
+    const inserts = captureInserts('messages', {
+      ...STICKER_FIXTURES,
+      messages: { data: [{ id: 'm1', channel_id: CHANNEL_ID, content: [], bot_id: BOT_ID }], error: null },
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(201)
+    expect((inserts[0] as { content: unknown }).content).toEqual([NATIVE_STICKER, NATIVE_FILE])
+  })
+
+  it.each(['STICKER_UNKNOWN', 'STICKER_FALLBACK'])('maps %s on send to 422 STICKER_REFUSED', async (code) => {
+    routeTables({
+      ...STICKER_FIXTURES,
+      messages: { data: null, error: { code: '22023', message: `${code}: a sticker part names a sticker` } },
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.code).toBe('STICKER_REFUSED')
+    expect(res.body.error).toMatch(new RegExp(`^${code}`))
+  })
+
+  it('maps STICKER_UNKNOWN on edit to 422 STICKER_REFUSED', async () => {
+    routeTables({ ...STICKER_FIXTURES, messages: { data: null, error: null } })
+    const route = mocks.from.getMockImplementation()!
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'messages') return route(table)
+      const own = { data: { user_id: null, bot_id: BOT_ID, channel_id: CHANNEL_ID, metadata: {} }, error: null }
+      const refused = { data: null, error: { code: '22023', message: 'STICKER_UNKNOWN: a sticker part names a sticker' } }
+      let updating = false
+      const builder: any = new Proxy(
+        {
+          single: async () => own,
+          then: (resolve: any) => resolve(updating ? refused : own),
+          update: () => { updating = true; return builder },
+        },
+        { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
+      )
+      return builder
+    })
+    routeRpc({})
+
+    const res = await supertest(makeApp())
+      .patch('/api/v1/messages/00000000-0000-0000-0000-0000000000f1')
+      .send({ content: [NATIVE_STICKER, NATIVE_FILE] })
+
+    expect(res.status).toBe(422)
+    expect(res.body.code).toBe('STICKER_REFUSED')
+  })
 })
 
 describe('reactionMetadata', () => {

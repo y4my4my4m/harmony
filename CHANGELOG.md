@@ -27,6 +27,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   bot-gateway endpoints for the server's bridge bot: `GET
   /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
   /servers/{id}/sounds/{soundId}`.
+- **Discord bridge sticker sync.** The same bridge bot can sync a server's
+  stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
+  the Discord-linked stickers, removed ones included), `POST
+  /servers/{id}/stickers/discord` (copies a PNG, APNG or GIF sticker from
+  Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
+  `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
+  leaves the picker and the list and no new message can use it, while old
+  messages keep showing it. A message that names a removed or unknown sticker
+  now answers `422` `STICKER_REFUSED`.
 - **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
   through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
   Discord-linked emoji, removed ones included), an `update` flag on `POST

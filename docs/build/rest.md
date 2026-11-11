@@ -48,10 +48,11 @@ An error response is a JSON object with an `error` message. Some errors add fiel
 | `403` | varies | Editing another author's message, a role outside the bot's reach, a channel no bridge of this bot relays. |
 | `404` | varies | Message, channel, thread, role, user or invite not found. A path no route matches answers `Not found`. |
 | `409` | varies | A silent content patch lost a race, or a thread is already paired. |
+| `422` | varies | A message names a removed or unknown sticker, or a sticker pair that does not match. `code` is `STICKER_REFUSED`. A Discord sticker cannot be imported: see [Import a Discord sticker](#import-a-discord-sticker). |
 | `429` | `Rate limit exceeded` | See [Rate limits](/build/permissions-rate-limits#rest-rate-limits). |
 | `400` | `Message text exceeds the instance limit of …` | Message text over the instance's length limit, on create, edit and interaction replies. |
 | `500` | varies | A database error, including constraint violations. A body that is not valid JSON, or is over 10 MB, answers `Internal server error`. |
-| `502` | varies | A Discord emoji image could not be downloaded or stored. |
+| `502` | varies | A Discord emoji, sound or sticker file could not be downloaded or stored. |
 | `503` | `Token verification unavailable` | The token lookup failed on the server. Retry. |
 
 Where [Permissions and rate limits](/build/permissions-rate-limits#channel-access) describes a channel check, the `403` messages above are the ones it produces.
@@ -102,6 +103,9 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/servers/{server.id}/emojis/discord`](#list-discord-linked-emojis) | The server's Discord bridge bot | List the emoji limit and Discord-linked emoji |
 | `POST` | [`/servers/{server.id}/emojis/discord`](#import-a-discord-emoji) | The server's Discord bridge bot | Import a Discord emoji as a server emoji |
 | `DELETE` | [`/servers/{server.id}/emojis/{emoji.id}`](#remove-a-server-emoji) | The server's Discord bridge bot | Remove a server emoji |
+| `GET` | [`/servers/{server.id}/stickers/discord`](#list-discord-linked-stickers) | The server's Discord bridge bot | List the sticker limit and Discord-linked stickers |
+| `POST` | [`/servers/{server.id}/stickers/discord`](#import-a-discord-sticker) | The server's Discord bridge bot | Import a Discord sticker as a server sticker |
+| `DELETE` | [`/servers/{server.id}/stickers/{sticker.id}`](#remove-a-server-sticker) | The server's Discord bridge bot | Remove a server sticker |
 | `GET` | [`/servers/{server.id}/sounds`](#list-server-sounds) | The server's Discord bridge bot | List a server's soundboard sounds |
 | `POST` | [`/servers/{server.id}/sounds/discord`](#import-a-discord-sound) | The server's Discord bridge bot | Import a Discord soundboard sound |
 | `DELETE` | [`/servers/{server.id}/sounds/{sound.id}`](#delete-a-server-sound) | The server's Discord bridge bot | Delete a server sound |
@@ -662,6 +666,40 @@ The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" 
 `DELETE /servers/{server.id}/emojis/{emoji.id}`
 
 Only the bot of the server's Discord bridge. Removes the emoji and answers `204`, also when it was already removed. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
+
+### List Discord-linked stickers
+
+`GET /servers/{server.id}/stickers/discord`
+
+Only the bot of the server's Discord bridge. Returns `{ "limit", "stickers" }`. `limit` is the server's sticker limit. `stickers` holds the active stickers plus removed stickers that still carry a Discord link, oldest first: `id`, `name`, `description`, `url`, `discord_sticker_id`, `removed` (boolean). `403` `Bot is not the Discord bridge of this server`.
+
+### Import a Discord sticker
+
+`POST /servers/{server.id}/stickers/discord`
+
+Only the bot of the server's Discord bridge.
+
+| Field | Type | Description |
+|---|---|---|
+| `discord_sticker_id` | string | Required. Discord sticker ID. |
+| `name` | string | Required. 2 to 30 characters. |
+| `description` | string | Required. 1 to 300 characters. |
+| `format_type` | integer | Required. Discord's sticker format: `1` PNG, `2` APNG, `3` Lottie, `4` GIF. |
+| `update` | boolean | Overwrite the name and description of an already imported sticker, and restore it if it was removed. Default `false`. |
+
+| Outcome | Status | Meaning |
+|---|---|---|
+| `existing` | `200` | The Discord sticker was already imported into this server. |
+| `updated` | `200` | The sticker was imported before and `update` changed its name or description, or restored it. |
+| `created` | `201` | The gateway downloaded the image from Discord's CDN, removed its metadata and created a server sticker. |
+
+The response is `{ "status", "id", "name", "description", "url", "discord_sticker_id", "removed" }`. Importing the same Discord sticker again never creates a second row. The image is downloaded only for a new sticker, and must meet the [sticker limits](/run/stickers#add-a-sticker): PNG, APNG or GIF, at most 512 KB and 320 × 320 pixels, an animation at most 5 seconds. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "STICKER_LIMIT"` when the server is at its sticker limit, or `"code": "STICKER_NAME_TAKEN"` when another sticker already has the name; `422` with `"code": "STICKER_FILE"` and `"reason"` `lottie`, `type`, `size`, `dimensions` or `duration` when the sticker cannot be copied; `502` when the image cannot be downloaded or stored.
+
+### Remove a server sticker
+
+`DELETE /servers/{server.id}/stickers/{sticker.id}`
+
+Only the bot of the server's Discord bridge. Retires the sticker and answers `204`, also when it was already retired. A retired sticker leaves the sticker picker and the server's list and cannot be put in a new message; messages that already hold it keep showing it. `404` when the sticker is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
 
 ### List server sounds
 

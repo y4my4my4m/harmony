@@ -141,9 +141,9 @@ bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/a
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sound	definer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
-bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	service key	nothing references it
+bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
-bridge_retire_server_sticker	definer	text	service_role	service key	nothing references it
+bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -1005,7 +1005,7 @@ start_dm_call_message	definer	uuid	authenticated+service_role	client	rpc in src/
 start_following_import	definer	jsonb	authenticated+service_role	client	rpc in src/services/AccountMigrationService.ts
 sticker_check_text	invoker	void	service_role	client	called by bridge_import_server_sticker, create_sticker, update_sticker
 sticker_folder_has_room	definer	boolean	service_role	policy	called by can_write_sticker_object
-sticker_limit	invoker	integer	anon+authenticated+service_role	policy, trigger	called by bridge_import_server_sticker, enforce_sticker_limit, sticker_folder_has_room
+sticker_limit	invoker	integer	anon+authenticated+service_role	client, policy, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts
 storage_upload_limit	definer	trigger	service_role	trigger	trigger storage.objects BEFORE INSERT/UPDATE (storage_upload_limit)
 store_federated_message_poll	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/messagePolls.ts
 supporter_message_problem	invoker	text	authenticated+service_role	client, declarative	check public.instance_supporter_messages instance_supporter_messages_body_valid
