@@ -100,6 +100,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   could unblock.
 - **Instance emojis and your own in `:name` suggestions.** Typing `:name` offered them only after
   the emoji picker had been opened once; it now offers them from the first keystroke.
+- **Live messages no longer stop until you open another chat.** When the app could not renew your
+  sign-in on a flaky connection, it went on with the instance's public key, which closed every live
+  feed of the tab: the open conversation or channel, the conversation list, notifications, typing,
+  voice channels and the channel list. They stayed closed after the renewal went through, until
+  another chat was opened or the app reloaded. The app now keeps its current sign-in until the
+  renewal succeeds, and a conversation, channel or notification feed closed this way opens again
+  with the next renewal.
+- **Other tabs stayed half signed in after a sign-out on a bad connection.** When signing out could
+  not reach the server, the other open tabs and windows were not told: they kept showing the
+  account while every live feed and request went out signed out, until a reload. They now sign out
+  with it.
 - **Watch together** plays for the member who starts it again. After they had hidden an earlier
   activity in the call, or when their profile id differs from their sign-in id, their own video
   stayed hidden while everyone else saw it.

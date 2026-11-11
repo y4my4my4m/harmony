@@ -16,6 +16,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isChannelRefusal } from '@/utils/realtimeRefusal'
+import { currentRealtimeToken, onMemberToken } from '@/services/realtimeMemberToken'
 
 type UserEventType =
   | 'notification:new' | 'notification:update' | 'notification:bulk_read' | 'notification:deleted'
@@ -74,6 +75,8 @@ class UserEventChannel {
   private needsResync = false
   private lifecycleBound = false
   private hiddenAt: number | null = null
+  /** Realtime token in effect when the server refused the topic; null when not refused. */
+  private refusedToken: string | null = null
 
   /**
    * Open the broadcast channel for the given user. A call for the user whose
@@ -113,6 +116,7 @@ class UserEventChannel {
         if (status === 'SUBSCRIBED') {
           this.connected = true
           this.retryCount = 0
+          this.refusedToken = null
           if (this.retryTimer) {
             clearTimeout(this.retryTimer)
             this.retryTimer = null
@@ -125,11 +129,12 @@ class UserEventChannel {
             this.dispatch({ type: '_reconnected' })
           }
         } else if (status === 'CHANNEL_ERROR' && isChannelRefusal(err)) {
-          // Refused: no retry succeeds until the read policy changes. realtime-js rejoins an
-          // errored channel on its own until it is removed. connect(), `online` and a returning
-          // tab open it again.
+          // Refused: no retry on the same token succeeds until the read policy changes.
+          // realtime-js rejoins an errored channel on its own until it is removed. connect(),
+          // `online`, a returning tab and another member token open it again.
           debug.warn('UserEventChannel refused:', err?.message)
           this.needsResync = true
+          this.refusedToken = currentRealtimeToken()
           this.teardownChannel()
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           this.connected = false
@@ -154,6 +159,11 @@ class UserEventChannel {
     this.lifecycleBound = true
     window.addEventListener('online', () => {
       if (this.profileId) this.reconnectNow()
+    })
+    onMemberToken((token) => {
+      if (!this.profileId || this.refusedToken === null || this.refusedToken === token) return
+      this.refusedToken = null
+      this.reconnectNow()
     })
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
@@ -201,6 +211,7 @@ class UserEventChannel {
     this.profileId = null
     this.retryCount = 0
     this.needsResync = false
+    this.refusedToken = null
     this.handlers.clear()
   }
 

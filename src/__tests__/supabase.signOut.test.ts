@@ -47,6 +47,26 @@ describe('signOutAndForget', () => {
     await signOutAndForget()
     expect(localStorage.getItem('sb-test-auth-token')).toBeNull()
   })
+
+  it('signs out again over the emptied store, so SIGNED_OUT reaches this and the other tabs', async () => {
+    localStorage.setItem('sb-test-auth-token', '{"access_token":"x"}')
+    const storedAtCall: Array<string | null> = []
+    client.auth.signOut.mockImplementation(async () => {
+      storedAtCall.push(localStorage.getItem('sb-test-auth-token'))
+      return storedAtCall.length === 1 ? { error: { name: 'AuthRetryableFetchError' } } : { error: null }
+    })
+    await signOutAndForget()
+    expect(client.auth.signOut).toHaveBeenCalledTimes(2)
+    for (const [args] of client.auth.signOut.mock.calls) expect(args).toEqual({ scope: 'local' })
+    expect(storedAtCall).toEqual(['{"access_token":"x"}', null])
+  })
+
+  it('returns when the second sign-out throws', async () => {
+    client.auth.signOut
+      .mockResolvedValueOnce({ error: { name: 'AuthRetryableFetchError' } })
+      .mockRejectedValueOnce(new Error('lock'))
+    await expect(signOutAndForget()).resolves.toBeUndefined()
+  })
 })
 
 describe('signOutEverywhere', () => {
