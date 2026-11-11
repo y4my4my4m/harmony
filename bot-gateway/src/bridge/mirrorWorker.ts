@@ -2,7 +2,7 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { WebSocketGateway } from '../gateway/WebSocketGateway.js'
-import { GoneError, isDiscordLinkExpired, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
+import { GoneError, needsDiscordResign, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
 import { isAllowedSourceUrl, toMirroredPart, type BridgeAttachmentMode } from '../utils/mirrorExternalMedia.js'
 
 const LEASE_SECONDS = 1800
@@ -217,8 +217,8 @@ export class MirrorWorker {
     }
     const content = message.content
 
-    // Expired links first: nothing is downloaded until the bridge has re-signed them.
-    if (content.some((part) => isCandidate(part) && isDiscordLinkExpired(part.url, deps.now()))) {
+    // Expired or unsigned links first: nothing is downloaded until the bridge has re-signed them.
+    if (content.some((part) => isCandidate(part) && needsDiscordResign(part.url, deps.now()))) {
       if (!deps.gateway.isBotConnected(botId)) {
         await this.finish(messageId, 'queued', attempts, { retry: OFFLINE_RETRY_SECONDS })
         return

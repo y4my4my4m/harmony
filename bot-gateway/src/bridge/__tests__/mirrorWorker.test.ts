@@ -97,6 +97,24 @@ describe('MirrorWorker.tick', () => {
     expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 120, p_attempts: 2 })
   })
 
+  it('asks the bridge to re-sign an unsigned attachment link instead of downloading it', async () => {
+    const content = [{ type: 'file', url: 'https://cdn.discordapp.com/attachments/1/2/a.png' }]
+    const t = setup({ content })
+    await t.worker.tick()
+    expect(t.gateway.sendToBot).toHaveBeenCalledWith('b1', {
+      op: 0, t: 'REFRESH_ATTACHMENTS', d: { messageId: 'm1', channelId: 'c1', content },
+    })
+    expect(t.mirror).not.toHaveBeenCalled()
+    expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 120, p_attempts: 1 })
+  })
+
+  it('downloads an unsigned proxied link as is', async () => {
+    const t = setup({ content: [{ type: 'url', url: 'https://images-ext-1.discordapp.net/external/x/https/example.com/a.png' }] })
+    await t.worker.tick()
+    expect(t.gateway.sendToBot).not.toHaveBeenCalled()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+  })
+
   it('fails on the fifth refresh', async () => {
     const t = setup({ content: [{ type: 'file', url: stale() }], attempts: 4 })
     await t.worker.tick()
@@ -168,14 +186,6 @@ describe('MirrorWorker.tick', () => {
     expect(t.mirror).not.toHaveBeenCalled()
     expect(t.calls.map((c) => c[0])).not.toContain('update_message_content_silent')
     expect(t.finish()[0]).toMatchObject({ p_state: 'done' })
-  })
-
-  it('downloads a link without ex directly instead of asking for a refresh', async () => {
-    const t = setup({ content: [{ type: 'file', url: 'https://cdn.discordapp.com/attachments/1/2/a.png' }] })
-    await t.worker.tick()
-    expect(t.gateway.sendToBot).not.toHaveBeenCalled()
-    expect(t.mirror).toHaveBeenCalledTimes(1)
-    expect(t.finish()[0].p_state).toBe('done')
   })
 
   it('does not throttle the walk: worked while walk_done is false, idle once it is true', async () => {

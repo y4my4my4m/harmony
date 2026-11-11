@@ -31,6 +31,7 @@ import {
   discordLinkExpiresAt,
   isDiscordLinkExpired,
   mirrorFileToStorage,
+  needsDiscordResign,
 } from '../mirrorFile.js'
 
 const CHANNEL = '00000000-0000-4000-8000-0000000000C1'
@@ -59,8 +60,12 @@ interface Recorded {
   bytes: number
 }
 const uploads: Recorded[] = []
-let reply: { status: number; body: string; headers?: Record<string, string>; reset?: boolean } = { status: 200, body: '{}' }
+type Reply = { status: number; body: string; headers?: Record<string, string>; reset?: boolean }
+let reply: Reply = { status: 200, body: '{}' }
+/** Replies used once each, in order, before `reply`. */
+const replyQueue: Reply[] = []
 let server: Server
+const currentReply = () => reply
 
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -69,6 +74,7 @@ beforeAll(async () => {
     req.on('data', (chunk: Buffer) => { rec.bytes += chunk.length })
     req.on('error', () => {})
     req.on('end', () => {
+      const reply = replyQueue.shift() ?? currentReply()
       if (reply.reset) return void req.socket.destroy()
       res.writeHead(reply.status, { 'content-type': 'application/json', ...reply.headers })
       res.end(reply.body)
@@ -88,6 +94,7 @@ beforeEach(async () => {
   mocks.sign.mockReset()
   mocks.sign.mockImplementation(async (paths: string[]) => new Map(paths.map((p) => [p, `https://signed.test/${p}`])))
   uploads.length = 0
+  replyQueue.length = 0
   reply = { status: 200, body: '{}' }
 })
 
@@ -119,6 +126,19 @@ describe('discord link expiry', () => {
 
   it('does not treat a link without ex as expired', () => {
     expect(isDiscordLinkExpired('https://cdn.discordapp.com/a/b.png')).toBe(false)
+  })
+
+  it('needs a re-sign for an expired link or an unsigned attachment link only', () => {
+    const now = Date.now()
+    const ex = (ms: number) => Math.floor((now + ms) / 1000).toString(16)
+    expect(needsDiscordResign(`https://cdn.discordapp.com/attachments/1/2/a.png?ex=${ex(-60_000)}`, now)).toBe(true)
+    expect(needsDiscordResign(`https://cdn.discordapp.com/attachments/1/2/a.png?ex=${ex(86_400_000)}`, now)).toBe(false)
+    expect(needsDiscordResign('https://cdn.discordapp.com/attachments/1/2/a.png', now)).toBe(true)
+    expect(needsDiscordResign('https://media.discordapp.net/attachments/1/2/a.png?width=10', now)).toBe(true)
+    expect(needsDiscordResign('https://cdn.discordapp.com/ephemeral-attachments/1/2/a.png', now)).toBe(true)
+    expect(needsDiscordResign('https://images-ext-1.discordapp.net/external/x/https/example.com/a.png', now)).toBe(false)
+    expect(needsDiscordResign('https://cdn.discordapp.com/emojis/1.png', now)).toBe(false)
+    expect(needsDiscordResign('not a url', now)).toBe(false)
   })
 })
 
@@ -190,6 +210,29 @@ describe('mirrorFileToStorage', () => {
     expect(err).not.toBeInstanceOf(TooLargeError)
     expect(err.message).toMatch(/^Storage upload failed: 500 .*boom/)
     expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('stores a type the bucket refuses as application/octet-stream', async () => {
+    replyQueue.push({
+      status: 400,
+      body: '{"statusCode":"415","error":"invalid_mime_type","message":"mime type text/markdown; charset=utf-8 is not supported","code":"InvalidMimeType"}',
+    })
+    const fetchImpl = serve(new Uint8Array(100), { 'content-type': 'text/markdown; charset=utf-8' })
+
+    const out = await mirrorFileToStorage(URL_OK.replace('clip.mp4', 'notes.md'), { ...base, tmpDir: tmp, fileName: 'notes.md', fetchImpl })
+
+    expect(uploads.map((u) => u.headers['content-type'])).toEqual(['text/markdown; charset=utf-8', 'application/octet-stream'])
+    expect(uploads[0].url).toBe(uploads[1].url)
+    expect(out.path).toMatch(/\.md$/)
+    expect(out.contentType).toBe('application/octet-stream')
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('does not retry when application/octet-stream itself is refused', async () => {
+    reply = { status: 400, body: '{"statusCode":"415","error":"invalid_mime_type","code":"InvalidMimeType"}' }
+    const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, contentType: 'application/octet-stream', fetchImpl: serve(new Uint8Array(100)) }).catch((e) => e)
+    expect(err.message).toMatch(/^Storage upload failed: 400 .*InvalidMimeType/)
+    expect(uploads).toHaveLength(1)
   })
 
   it('maps a storage 413 to TooLargeError with the file size', async () => {

@@ -52,12 +52,43 @@ export function discordLinkExpiresAt(url: string): Date | null {
 
 /**
  * Already past, or under 10 minutes left. A link without `ex` (unsigned CDN links) is not
- * expired: it is downloaded as is, and a 403, 404 or 410 there means it is gone.
+ * expired here; see needsDiscordResign for unsigned attachment links.
  */
 export function isDiscordLinkExpired(url: string, now = Date.now()): boolean {
   const expires = discordLinkExpiresAt(url)
   return expires !== null && expires.getTime() - now < MIN_LINK_LIFE_MS
 }
+
+/**
+ * A link the bridge must re-sign before it can be downloaded: expired, or an attachment link
+ * with no signature at all. Discord answers 404 ("This content is no longer available") to
+ * unsigned attachment links even when the file still exists, so downloading one as is would
+ * report a live file as gone. Proxied links (images-ext-*, external/) can't be re-signed.
+ */
+export function needsDiscordResign(url: string, now = Date.now()): boolean {
+  if (isDiscordLinkExpired(url, now)) return true
+  if (discordLinkExpiresAt(url) !== null) return false
+  try {
+    const u = new URL(url)
+    return (
+      /(^|\.)discordapp\.(com|net)$/i.test(u.hostname) &&
+      /^\/(ephemeral-)?attachments\//.test(u.pathname)
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Storage refused the object's content type (the bucket's allowed_mime_types). */
+export class UnsupportedTypeError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnsupportedTypeError'
+  }
+}
+
+/** The type message_media accepts for any file: served as a download, never rendered. */
+const FALLBACK_CONTENT_TYPE = 'application/octet-stream'
 
 /**
  * Storage (or the proxy in front of it) refusing a body for its size: 413, or a JSON error
@@ -118,9 +149,11 @@ export async function uploadFileToStorage(
     })
     if (status >= 200 && status < 300) return
     if (isStorageSizeRefusal(status, text)) throw new TooLargeError(opts.size)
-    throw new Error(`Storage upload failed: ${status} ${text.slice(0, 200)}`)
+    const message = `Storage upload failed: ${status} ${text.slice(0, 200)}`
+    if (/invalid_mime_type|InvalidMimeType/.test(text)) throw new UnsupportedTypeError(message)
+    throw new Error(message)
   } catch (error) {
-    if (error instanceof TooLargeError) throw error
+    if (error instanceof TooLargeError || error instanceof UnsupportedTypeError) throw error
     if (status === 413) throw new TooLargeError(opts.size)
     if (status) throw error
     throw new Error(`Storage upload failed: ${(error as Error).message}`)
@@ -229,7 +262,15 @@ export async function mirrorFileToStorage(
     const extension = animatedPng ? 'apng' : declaredExtension
 
     const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
-    await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+    try {
+      await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+    } catch (error) {
+      // The bucket allows only some types (markdown, HTML, fonts, RAW photos… are refused).
+      // Store the file as a plain download instead; the part keeps its name and original type.
+      if (!(error instanceof UnsupportedTypeError) || contentType === FALLBACK_CONTENT_TYPE) throw error
+      contentType = FALLBACK_CONTENT_TYPE
+      await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
+    }
 
     const signed = await signMessageMediaPaths([storagePath])
     return { path: storagePath, url: signed.get(storagePath) ?? referenceUrl(storagePath), contentType, bytes: size }
