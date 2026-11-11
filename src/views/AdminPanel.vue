@@ -37,6 +37,10 @@
       >
         <Icon :name="tab.icon" :size="15" />
         {{ tab.label }}
+        <template v-if="tab.key === 'reports' && instancePending > 0">
+          <span class="report-count-badge" aria-hidden="true" data-testid="admin-tab-reports-badge">{{ badgeCount(instancePending) }}</span>
+          <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
+        </template>
       </button>
     </nav>
 
@@ -217,6 +221,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
+import { badgeCount, refreshInstancePendingReports, useReportQueueCounts } from '@/composables/useReportQueueCounts'
 import { hasCapability } from '@/services/instanceCapabilities'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
@@ -303,7 +308,10 @@ watch(() => route.query.tab, (tab) => {
 })
 
 // Instance staff only; the overview's data is admin-only.
+const { instancePending } = useReportQueueCounts()
+
 onMounted(async () => {
+  void refreshInstancePendingReports()
   if (!authStore.session?.user?.id) {
     router.push('/login')
     return
@@ -707,6 +715,21 @@ const formatNumber = (num: number | undefined) => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.report-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--error-fill);
+  color: var(--text-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .admin-tab-btn:hover {

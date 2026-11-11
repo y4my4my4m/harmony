@@ -8,6 +8,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Moderators hear about new reports.** Each new report sends a notification to whoever handles
+  it: a server's owner and members with Manage Messages for a report about a message in their
+  server, the instance's admins and moderators for any other. It names the content and the reason,
+  never the reporter, and opens the queue. The admin panel's **Reports** tab, **Server settings** →
+  **Reports** and **Instance moderation** in **User settings** show how many wait. **Notify me about
+  new reports** at the top of the queue turns the notifications off.
+- **Custom emoji in announcements.** `:name:` in an announcement shows the instance's custom emoji
+  of that name, in the pop-up, on **Today** and in **User settings** → **Announcements**. Images with
+  an `https` address show too.
 - **Share any profile, and let anyone read it.** **Copy profile link** comes first in a profile's
   **⋯** menu and copies its address on your instance, `/@name` or `/@name@other.server`. Visitors
   who aren't signed in now see another server's account at that address: its profile and the public

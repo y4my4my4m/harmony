@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "Software"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "Neue Meldung zur Prüfung",
+      "titleServer": "Neue Meldung in {server}",
+      "message": "{kind} wurde gemeldet: {reason}.",
+      "messageRemote": "{kind} wurde von {instance} gemeldet: {reason}.",
+      "noReason": "ohne Grund",
+      "short": "Neue Meldung",
+      "sender": "Moderation",
+      "setting": "Bei neuen Meldungen benachrichtigen",
+      "settingFailed": "Die Einstellung konnte nicht gespeichert werden.",
+      "pendingA11y": "{count} Meldung wartet | {count} Meldungen warten",
+      "kind": {
+        "user": "Ein Konto",
+        "post": "Ein Beitrag",
+        "message": "Eine Nachricht",
+        "server": "Ein Server",
+        "sticker": "Ein Sticker",
+        "other": "Inhalt"
+      }
+    },
     "report": "Melden",
     "block": "Blockieren",
     "unblock": "Entblocken",

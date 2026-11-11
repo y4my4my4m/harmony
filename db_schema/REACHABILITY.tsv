@@ -756,6 +756,7 @@ notification_settings_changed	invoker	void	service_role	client	called by apply_n
 notification_settings_member	invoker	uuid	service_role	client	called by get_server_notification_settings, update_category_notification_override, update_channel_notification_override, +1
 notification_settings_state	invoker	jsonb	service_role	client	called by get_server_notification_settings, update_category_notification_override, update_channel_notification_override, +1
 notify_admins_on_pending_donation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.instance_pending_donations AFTER INSERT (trg_notify_admins_on_pending_donation)
+notify_report_moderators	definer	trigger	service_role	trigger	trigger public.reports AFTER INSERT (trigger_notify_report_moderators)
 on_auth_mfa_factor_changed	definer	trigger	service_role	trigger	trigger auth.mfa_factors AFTER DELETE (harmony_mfa_factor_deleted), auth.mfa_factors AFTER UPDATE (harmony_mfa_factor_verified)
 on_auth_password_changed	definer	trigger	service_role	trigger	trigger auth.users AFTER UPDATE (harmony_password_changed)
 on_auth_session_created	definer	trigger	service_role	trigger	trigger auth.sessions AFTER INSERT (harmony_session_created)
@@ -864,6 +865,7 @@ remove_voice_participant	definer	boolean	service_role	client	rpc in federation-b
 rename_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts, src/services/emojiService.ts
 rename_my_emoji	definer	void	authenticated+service_role	client	rpc in src/services/UserEmojiService.ts
 repair_inbound_emoji_origins	definer	integer	-	nothing	nothing references it
+report_alert_recipients	definer	uuid[]	service_role	trigger	called by notify_report_moderators
 report_content_snapshot	invoker	jsonb	service_role	client	called by create_federated_report, create_federated_server_report, create_report
 request_my_data_export	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 request_room_epoch_bump	definer	integer	anon+authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
@@ -909,7 +911,7 @@ search_tsquery	invoker	tsquery	service_role	client	called by search_messages
 search_typo_distance	invoker	integer	service_role	client	called by search_messages
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
-send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +3
+send_notification	definer	uuid[]	service_role	client, trigger	called by handle_channel_message_notifications, handle_message_federation, handle_newcomer_first_message, +4
 send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 server_audit_attribute_bot	definer	trigger	service_role	trigger	trigger public.bot_audit_log AFTER INSERT (z_bot_audit_log_server_audit)
 server_audit_bots	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (z_bot_server_permissions_audit)

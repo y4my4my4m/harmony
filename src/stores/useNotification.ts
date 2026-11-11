@@ -104,6 +104,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   server_instance_removed: 'server_update',
   outgoing_webhook_disabled: 'server_update',
   report_update: 'server_update',
+  report_created: 'server_update',
   moderation_warning: 'server_update',
   newcomer_message: 'server_update',
   security: 'server_update',
@@ -161,7 +162,8 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   activitypub_sound_reblogs: false,
   activitypub_sound_mentions: true,
   activitypub_sound_replies: true,
-  activitypub_sound_quotes: true
+  activitypub_sound_quotes: true,
+  moderation_reports: true
 }
 
 // Unsubscribe functions for UserEventChannel handlers (module-level to avoid
@@ -1030,6 +1032,12 @@ export const useNotificationStore = defineStore('notification', {
 
       if (SERVER_GONE_TYPES.has(newNotification.type)) {
         void forgetRejectedServer(newNotification.data?.server?.id)
+      }
+
+      if (newNotification.type === 'report_created') {
+        void import('@/composables/useReportQueueCounts')
+          .then((m) => m.refreshPendingReportsFor(newNotification.data))
+          .catch(() => {})
       }
 
       const notifData = newNotification.data || {}

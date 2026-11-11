@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "软件"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "有新的举报待审核",
+      "titleServer": "{server} 有新的举报",
+      "message": "{kind}被举报：{reason}。",
+      "messageRemote": "{kind}被 {instance} 举报：{reason}。",
+      "noReason": "未注明原因",
+      "short": "新举报",
+      "sender": "管理",
+      "setting": "有新举报时通知我",
+      "settingFailed": "无法保存设置。",
+      "pendingA11y": "{count} 条举报待处理",
+      "kind": {
+        "user": "一个账号",
+        "post": "一条帖子",
+        "message": "一条消息",
+        "server": "一个服务器",
+        "sticker": "一个贴纸",
+        "other": "内容"
+      }
+    },
     "report": "举报",
     "block": "屏蔽",
     "unblock": "取消屏蔽",

@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "Logiciel"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "Nouveau signalement à examiner",
+      "titleServer": "Nouveau signalement dans {server}",
+      "message": "{kind} a été signalé : {reason}.",
+      "messageRemote": "{kind} a été signalé depuis {instance} : {reason}.",
+      "noReason": "sans motif",
+      "short": "Nouveau signalement",
+      "sender": "Modération",
+      "setting": "M'avertir des nouveaux signalements",
+      "settingFailed": "Impossible d'enregistrer le réglage.",
+      "pendingA11y": "{count} signalement en attente | {count} signalements en attente",
+      "kind": {
+        "user": "Un compte",
+        "post": "Une publication",
+        "message": "Un message",
+        "server": "Un serveur",
+        "sticker": "Un autocollant",
+        "other": "Un contenu"
+      }
+    },
     "report": "Signaler",
     "block": "Bloquer",
     "unblock": "Débloquer",

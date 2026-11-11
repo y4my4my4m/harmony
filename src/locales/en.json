@@ -2985,6 +2985,26 @@
     "instanceSoftwareFilter": "Software"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "New report to review",
+      "titleServer": "New report in {server}",
+      "message": "{kind} was reported: {reason}.",
+      "messageRemote": "{kind} was reported from {instance}: {reason}.",
+      "noReason": "no reason given",
+      "short": "New report",
+      "sender": "Moderation",
+      "setting": "Notify me about new reports",
+      "settingFailed": "Could not save the setting.",
+      "pendingA11y": "{count} report waiting | {count} reports waiting",
+      "kind": {
+        "user": "An account",
+        "post": "A post",
+        "message": "A message",
+        "server": "A server",
+        "sticker": "A sticker",
+        "other": "Content"
+      }
+    },
     "report": "Report",
     "block": "Block",
     "unblock": "Unblock",

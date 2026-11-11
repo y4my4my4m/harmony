@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "Software"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "Nueva denuncia para revisar",
+      "titleServer": "Nueva denuncia en {server}",
+      "message": "{kind} fue denunciado: {reason}.",
+      "messageRemote": "{kind} fue denunciado desde {instance}: {reason}.",
+      "noReason": "sin motivo",
+      "short": "Nueva denuncia",
+      "sender": "Moderación",
+      "setting": "Avisarme de denuncias nuevas",
+      "settingFailed": "No se pudo guardar el ajuste.",
+      "pendingA11y": "{count} denuncia pendiente | {count} denuncias pendientes",
+      "kind": {
+        "user": "Una cuenta",
+        "post": "Una publicación",
+        "message": "Un mensaje",
+        "server": "Un servidor",
+        "sticker": "Un sticker",
+        "other": "Contenido"
+      }
+    },
     "report": "Reportar",
     "block": "Bloquear",
     "unblock": "Desbloquear",

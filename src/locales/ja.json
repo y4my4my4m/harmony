@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "ソフトウェア"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "確認が必要な新しい通報",
+      "titleServer": "{server} で新しい通報",
+      "message": "{kind}が通報されました: {reason}。",
+      "messageRemote": "{kind}が {instance} から通報されました: {reason}。",
+      "noReason": "理由なし",
+      "short": "新しい通報",
+      "sender": "モデレーション",
+      "setting": "新しい通報を通知する",
+      "settingFailed": "設定を保存できませんでした。",
+      "pendingA11y": "{count} 件の通報が対応待ち",
+      "kind": {
+        "user": "アカウント",
+        "post": "投稿",
+        "message": "メッセージ",
+        "server": "サーバー",
+        "sticker": "スタンプ",
+        "other": "コンテンツ"
+      }
+    },
     "report": "報告",
     "block": "ブロック",
     "unblock": "ブロック解除",

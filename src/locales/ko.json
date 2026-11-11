@@ -2931,6 +2931,26 @@
     "instanceSoftwareFilter": "소프트웨어"
   },
   "moderation": {
+    "reportAlert": {
+      "title": "검토할 새 신고",
+      "titleServer": "{server}의 새 신고",
+      "message": "{kind}이(가) 신고되었습니다: {reason}.",
+      "messageRemote": "{kind}이(가) {instance}에서 신고되었습니다: {reason}.",
+      "noReason": "사유 없음",
+      "short": "새 신고",
+      "sender": "모더레이션",
+      "setting": "새 신고 알림 받기",
+      "settingFailed": "설정을 저장하지 못했습니다.",
+      "pendingA11y": "대기 중인 신고 {count}건",
+      "kind": {
+        "user": "계정",
+        "post": "게시물",
+        "message": "메시지",
+        "server": "서버",
+        "sticker": "스티커",
+        "other": "콘텐츠"
+      }
+    },
     "report": "신고",
     "block": "차단",
     "unblock": "차단 해제",
