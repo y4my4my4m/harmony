@@ -6,7 +6,7 @@
 --   bot b2                     bridge bot of no server
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(29);
+SELECT plan(32);
 
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
   ('26900000-0000-0000-0000-0000000000b1', 'discord-bridge-269', 'Discord Bridge', '11111111-0000-0000-0000-000000000001', 'bridge'),
@@ -81,6 +81,12 @@ INSERT INTO r SELECT * FROM public.bridge_import_server_emoji('26900000-0000-000
 SELECT is((SELECT status FROM r), 'updated', 'a case-only rename counts as a rename');
 SELECT is((SELECT name::text FROM public.emojis WHERE id = '269e0000-0000-0000-0000-00000000000b'), 'honk2',
   'the new name is stored');
+INSERT INTO public.bot_audit_log (bot_id, action_type, success, metadata)
+VALUES ('26900000-0000-0000-0000-0000000000b1', 'emoji_updated', true,
+        '{"serverId":"55555555-0000-0000-0000-000000000005","emojiId":"269e0000-0000-0000-0000-00000000000b"}'::jsonb);
+SELECT is((SELECT source || ' ' || actor_bot_id::text FROM public.server_audit_log
+            WHERE action = 'emoji.update' AND target_id = '269e0000-0000-0000-0000-00000000000b'),
+  'bot 26900000-0000-0000-0000-0000000000b1', 'a bridge rename is attributed to the bot');
 
 TRUNCATE r;
 INSERT INTO r SELECT * FROM public.bridge_import_server_emoji('26900000-0000-0000-0000-0000000000b1',
@@ -96,6 +102,16 @@ SELECT ok((SELECT deleted_at IS NULL FROM public.emojis WHERE id = '269e0000-000
   'deleted_at is cleared');
 SELECT ok((SELECT deleted_by IS NULL FROM public.emojis WHERE id = '269e0000-0000-0000-0000-00000000000a'),
   'deleted_by is cleared');
+INSERT INTO public.bot_audit_log (bot_id, action_type, success, metadata)
+VALUES ('26900000-0000-0000-0000-0000000000b1', 'emoji_updated', true,
+        '{"serverId":"55555555-0000-0000-0000-000000000005","emojiId":"269e0000-0000-0000-0000-00000000000a"}'::jsonb);
+-- (the fixture insert wrote an emoji.create row for the same emoji; both are attributed.)
+SELECT is((SELECT count(*)::int FROM public.server_audit_log
+            WHERE action = 'emoji.create' AND target_id = '269e0000-0000-0000-0000-00000000000a'
+              AND source = 'bot' AND actor_bot_id = '26900000-0000-0000-0000-0000000000b1'),
+  (SELECT count(*)::int FROM public.server_audit_log
+    WHERE action = 'emoji.create' AND target_id = '269e0000-0000-0000-0000-00000000000a'),
+  'every emoji.create row of the restored emoji, the restore included, is attributed to the bot');
 
 SELECT throws_ok($$SELECT * FROM public.bridge_import_server_emoji('26900000-0000-0000-0000-0000000000b1',
   '55555555-0000-0000-0000-000000000005', '2003', 'Taken', NULL, true)$$,
@@ -155,6 +171,12 @@ SELECT ok((SELECT deleted_at IS NOT NULL FROM public.emojis WHERE id = '269e0000
   'deleted_at is set');
 SELECT ok((SELECT deleted_by IS NULL FROM public.emojis WHERE id = '269e0000-0000-0000-0000-00000000000b'),
   'deleted_by stays NULL');
+INSERT INTO public.bot_audit_log (bot_id, action_type, success, metadata)
+VALUES ('26900000-0000-0000-0000-0000000000b1', 'emoji_removed', true,
+        '{"serverId":"55555555-0000-0000-0000-000000000005","emojiId":"269e0000-0000-0000-0000-00000000000b"}'::jsonb);
+SELECT is((SELECT source || ' ' || actor_bot_id::text FROM public.server_audit_log
+            WHERE action = 'emoji.delete' AND target_id = '269e0000-0000-0000-0000-00000000000b'),
+  'bot 26900000-0000-0000-0000-0000000000b1', 'a bridge removal is attributed to the bot');
 SELECT is(public.bridge_remove_server_emoji('26900000-0000-0000-0000-0000000000b1',
   '55555555-0000-0000-0000-000000000005', '269e0000-0000-0000-0000-00000000000b'), 'existing',
   'removing again is existing');
