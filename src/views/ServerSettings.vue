@@ -86,8 +86,7 @@
                   :aria-current="activeSection === section.id ? 'page' : undefined"
                   @click="setActiveSection(section.id)"
                 >
-                  {{ section.label }}
-                  <template v-if="section.id === 'reports' && serverReportsPending > 0">
+                  {{ section.label }}<template v-if="section.id === 'reports' && serverReportsPending > 0">
                     <span class="report-count-badge" aria-hidden="true" data-testid="server-reports-badge">{{ badgeCount(serverReportsPending) }}</span>
                     <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: serverReportsPending }, serverReportsPending) }}</span>
                   </template>
@@ -1097,6 +1096,7 @@ watch(hasUnsavedEdits, (newValue) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-left: 8px;
   min-width: 18px;
   height: 18px;
   padding: 0 6px;

@@ -84,8 +84,7 @@
                     class="nav-item admin-link"
                   >
                     <component :is="section.icon" class="nav-icon" aria-hidden="true" />
-                    {{ $t(section.label) }}
-                    <template v-if="section.id === 'admin' && instancePending > 0">
+                    {{ $t(section.label) }}<template v-if="section.id === 'admin' && instancePending > 0">
                       <span class="nav-badge report-count-badge" aria-hidden="true" data-testid="admin-reports-badge">{{ badgeCount(instancePending) }}</span>
                       <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
                     </template>

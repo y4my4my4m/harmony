@@ -36,8 +36,7 @@
         @click="activeAdminTab = tab.key"
       >
         <Icon :name="tab.icon" :size="15" />
-        {{ tab.label }}
-        <template v-if="tab.key === 'reports' && instancePending > 0">
+        {{ tab.label }}<template v-if="tab.key === 'reports' && instancePending > 0">
           <span class="report-count-badge" aria-hidden="true" data-testid="admin-tab-reports-badge">{{ badgeCount(instancePending) }}</span>
           <span class="sr-only">, {{ $t('moderation.reportAlert.pendingA11y', { count: instancePending }, instancePending) }}</span>
         </template>
