@@ -114,6 +114,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Watch together** plays for the member who starts it again. After they had hidden an earlier
   activity in the call, or when their profile id differs from their sign-in id, their own video
   stayed hidden while everyone else saw it.
+- **Watch together at a zoom level other than 100%.** In a browser and in the Android app, with
+  **Appearance** → **Zoom level** changed, the video sat away from its place in the call bar and
+  in the call view, smaller or larger than it, and the place itself stayed black. It now covers its
+  place at every zoom level.
+- **Watch together in the Windows, Linux and Android apps.** YouTube, SoundCloud and Spotify
+  showed a black frame there: the app's own content rules refused the player page. Those apps now
+  load it from your instance, as the macOS and iOS apps do.
 - **Bluesky accounts bridged to the fediverse, and other usernames with a dot.** Searching
   `@name.bsky.social@bsky.brid.gy` (Bridgy Fed), a Threads account such as `@john.doe@threads.net`,
   or any account whose username has a dot found nobody; it now finds the account, which you can

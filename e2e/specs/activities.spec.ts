@@ -14,7 +14,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import {
   addMember,
   adminClient,
@@ -56,7 +56,10 @@ test.afterAll(async () => {
   await deleteUser(admin, host)
 })
 
-async function enterVoice(page: Page, user: SpecUser) {
+interface Call { serverId: string; channelId: string; roster: string[] }
+
+async function enterVoice(page: Page, user: SpecUser, call?: Call) {
+  const { serverId, channelId, roster } = call ?? { serverId: server.id, channelId: voiceId, roster: [host.id, guest.id] }
   await page.evaluate(({ serverId, channelId, userId, roster }) => {
     type Store = { $patch: (fn: (state: Record<string, any>) => void) => void }
     const root = document.querySelector('#app') as unknown as {
@@ -75,7 +78,7 @@ async function enterVoice(page: Page, user: SpecUser) {
     stores.get('serverUsers')?.$patch((state) => {
       state.usersInVoiceChannels = { ...state.usersInVoiceChannels, [channelId]: roster }
     })
-  }, { serverId: server.id, channelId: voiceId, userId: user.id, roster: [host.id, guest.id] })
+  }, { serverId, channelId, userId: user.id, roster })
 }
 
 const media = (page: Page) => page.getByTestId('activity-media')
@@ -299,4 +302,84 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect(page.getByTestId('activity-dock-card')).toHaveCount(0)
     await expect(page.locator('html')).not.toHaveAttribute('data-disable-blur', 'true')
   })
+})
+
+// Appearance → Zoom level in a browser is CSS zoom on <html>: a client rect is in viewport
+// pixels, a length written to a style is multiplied by the zoom. The player laid out from the
+// slot's raw rect lands at zoom times the slot's position and size.
+test('at 150% and 80% zoom the player covers its slot, in the dock card and on the stage', async ({ page }) => {
+  test.setTimeout(180_000)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.context().route('https://www.youtube.com/iframe_api', (route) =>
+    route.fulfill({ contentType: 'text/javascript', body: IFRAME_API_STUB }))
+
+  const viewer = await createUser(admin, 'actz')
+  try {
+    const own = await seedServer(admin, viewer, `Zoomed ${viewer.username}`)
+    const { data, error } = await admin.from('channels').insert({ server_id: own.id, name: 'cinema', type: 1 }).select('id').single()
+    if (error || !data) throw new Error(`voice channel: ${error?.message}`)
+    const call: Call = { serverId: own.id, channelId: data.id, roster: [viewer.id] }
+    const { error: joinError } = await admin.from('voice_channel_participants').insert({ channel_id: call.channelId, user_id: viewer.id, server_id: own.id })
+    if (joinError) throw new Error(`participant: ${joinError.message}`)
+
+    await signIn(page, viewer)
+
+    /** Largest edge difference between the player and `slot`, in viewport pixels. */
+    const offSlot = async (slot: Locator) => {
+      const player = await page.getByTestId('activity-host').boundingBox()
+      const target = await slot.boundingBox()
+      if (!player || !target) return Infinity
+      return Math.max(
+        Math.abs(player.x - target.x),
+        Math.abs(player.y - target.y),
+        Math.abs(player.width - target.width),
+        Math.abs(player.height - target.height),
+      )
+    }
+
+    for (const percent of [150, 80]) {
+      await test.step(`zoom ${percent}%`, async () => {
+        await page.goto('/settings/appearance')
+        await dismissAnnouncements(page)
+        const value = page.getByTestId('zoom-value')
+        await expect(value).toBeVisible({ timeout: 30000 })
+        for (let now = parseInt(await value.innerText(), 10); now !== percent; now += now < percent ? 10 : -10) {
+          await page.getByTestId(now < percent ? 'zoom-in' : 'zoom-out').click()
+        }
+        await expect(value).toHaveText(`${percent}%`)
+        const save = page.getByRole('button', { name: 'Save changes' })
+        await save.click()
+        await expect(save).toBeHidden({ timeout: 15000 })
+        await expect.poll(() => page.evaluate(() => document.documentElement.style.zoom)).toBe(`${percent}%`)
+      })
+
+      await test.step(`${percent}%: the player covers the dock card's slot, then the stage's`, async () => {
+        await openChannel(page, own.id, own.generalChannelId)
+        await enterVoice(page, viewer, call)
+        await page.evaluate(() => {
+          const root = document.querySelector('#app') as unknown as {
+            __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { $patch: (fn: (s: Record<string, any>) => void) => void }> } } } }
+          }
+          root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => { s.connectionMode = 'livekit' })
+        })
+        await page.getByTestId('activity-button').first().click()
+        await page.getByTestId('activity-link').fill('https://www.youtube.com/watch?v=rFrPz1WkBvk')
+        await page.getByTestId('activity-start').click()
+
+        const card = page.getByTestId('activity-dock-card')
+        await expect(card).toBeVisible({ timeout: 15000 })
+        await expect(page.getByTestId('activity-frame')).toBeVisible()
+        await expect.poll(() => offSlot(card.locator('.activity-dock__slot'))).toBeLessThanOrEqual(1)
+
+        await page.getByTestId('activity-open').click()
+        await expect(page.getByTestId('activity-stage')).toBeVisible()
+        await expect.poll(() => offSlot(page.getByTestId('activity-slot'))).toBeLessThanOrEqual(1)
+
+        await page.getByTestId('activity-stage').getByRole('button', { name: 'End for everyone' }).click()
+        await expect(page.getByTestId('activity-host')).toHaveCount(0)
+      })
+    }
+  } finally {
+    await deleteUser(admin, viewer)
+  }
 })

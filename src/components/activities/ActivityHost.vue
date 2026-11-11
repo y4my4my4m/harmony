@@ -110,8 +110,9 @@ import { useActivitiesStore } from '@/stores/activities'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { isListenActivity } from '@/services/activities/activityService'
 import { mediaPartSource } from '@/services/privateMedia'
-import { embedRelayOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
+import { activityPlayerOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
 import { suspendGlass } from '@/composables/useVisualTheme'
+import { styleRect } from '@/utils/appZoom'
 import { callPopout } from '@/components/voice/callPopout'
 
 const TICK_MS = 250
@@ -160,8 +161,8 @@ const mediaSource = computed(() => {
   return undefined
 })
 
-const playerPage = computed(() => `${embedRelayOrigin() ?? ''}${EMBED_RELAY_PATH}?activity=1`)
-const playerOrigin = computed(() => embedRelayOrigin() ?? window.location.origin)
+const playerPage = computed(() => `${activityPlayerOrigin() ?? ''}${EMBED_RELAY_PATH}?activity=1`)
+const playerOrigin = computed(() => activityPlayerOrigin() ?? window.location.origin)
 
 const placement = computed<'slot' | 'corner' | 'hidden'>(() => {
   if (actStore.slot && rect.value) return 'slot'
@@ -211,7 +212,8 @@ function trackSlot(): void {
         layerFor = el
         layer.value = rootLayer(el)
       }
-      const r = el.getBoundingClientRect()
+      // Style pixels: under CSS zoom a client rect is zoom times the lengths a style takes.
+      const r = styleRect(el)
       const prev = rect.value
       if (!prev || prev.left !== r.left || prev.top !== r.top || prev.width !== r.width || prev.height !== r.height) {
         rect.value = { left: r.left, top: r.top, width: r.width, height: r.height }
