@@ -239,8 +239,9 @@ SELECT is((SELECT count(*)::int FROM public.discord_bridge_threads WHERE bridge_
 
 SELECT pg_temp.batch('thr', '1', jsonb_build_array(
     pg_temp.msg('2490000000000010010', '2020-02-02T10:00:00Z', jsonb_build_object('thread_id', (SELECT id FROM t249 WHERE k = 'a1')))));
-SELECT is((SELECT (message_count, archived, last_message_at IS NULL)::text FROM public.threads WHERE id = (SELECT id FROM t249 WHERE k = 'a1')),
-          '(1,t,t)', 'a message in the thread is counted; the thread stays archived with no last message');
+SELECT is((SELECT (message_count, archived, last_message_at = '2020-02-02T10:00:00Z'::timestamptz, last_message_id IS NULL)::text
+             FROM public.threads WHERE id = (SELECT id FROM t249 WHERE k = 'a1')),
+          '(1,t,t,t)', 'a message in the thread is counted; the thread stays archived and takes its time as last activity, not as last message');
 SELECT throws_ok(format($q$SELECT public.bridge_import_messages('f2490000-0000-0000-0000-0000000000b1', %L, %L::jsonb)$q$,
                         pg_temp.job('1'), jsonb_build_array(pg_temp.msg('2490000000000010011', '2020-02-02T10:00:00Z',
                             jsonb_build_object('thread_id', gen_random_uuid())))),
