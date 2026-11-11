@@ -112,7 +112,7 @@
     "fake-indexeddb": "^6.2.5",
     "gemoji": "^8.1.0",
     "glob": "^11.0.3",
-    "happy-dom": "^20.9.0",
+    "happy-dom": "^21.0.4",
     "jsdoc-to-markdown": "^9.1.1",
     "markdownlint-cli": "^0.48.0",
     "mermaid": "^11.9.0",
