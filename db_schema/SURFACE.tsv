@@ -145,6 +145,13 @@ bridge_import_messages	p_bot_id uuid, p_import_id uuid, p_messages jsonb	jsonb	d
 bridge_import_present_ids	p_bot_id uuid, p_import_id uuid, p_ids text[]	text[]	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	definer	public, pg_temp	service_role	client
 bridge_import_thread	p_bot_id uuid, p_import_id uuid, p_thread jsonb	uuid	definer	public, pg_temp	service_role	client
+bridge_mirror_backfill	p_limit integer	integer	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_enqueue	p_message_ids uuid[]	integer	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_finish	p_message_id uuid, p_state text, p_attempts integer, p_retry_seconds integer, p_largest_bytes bigint, p_error text	void	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_observe	p_mode text, p_ceiling bigint	jsonb	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_restart_walk		void	definer	public, pg_temp	service_role	unreferenced
+bridge_mirror_status		jsonb	definer	public, pg_temp	authenticated+service_role	unreferenced
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
