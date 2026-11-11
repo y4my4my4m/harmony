@@ -40,6 +40,14 @@ describe('RoleService', () => {
       }
     })
 
+    it('maps the nickname permissions to bits 32 and 33', () => {
+      expect(PERMISSION_BITS[Permission.CHANGE_NICKNAME]).toBe(32)
+      expect(PERMISSION_BITS[Permission.MANAGE_NICKNAMES]).toBe(33)
+      const mask = bitmaskToPermissions(1n << 32n)
+      expect(mask[Permission.CHANGE_NICKNAME]).toBe(true)
+      expect(mask[Permission.MANAGE_NICKNAMES]).toBe(false)
+    })
+
     it('has unique bit positions', () => {
       const bits = Object.values(PERMISSION_BITS)
       const uniqueBits = new Set(bits)
