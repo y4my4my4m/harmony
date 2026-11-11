@@ -1160,7 +1160,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     // A press on the attach button while the menu is open closes it on
     // pointerdown ('outside'); the click that follows must not reopen it.
-    let uploadMenuClosedAt = 0;
+    let uploadMenuClosedAt = -Infinity;
     const toggleUploadMenu = (event?: Event) => {
       if (event) {
         event.stopPropagation();
