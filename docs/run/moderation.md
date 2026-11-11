@@ -131,7 +131,7 @@ Server moderators never see who filed a report: it shows as "Anonymous reporter"
 
 ### Notifications of new reports
 
-A new report sends a notification, "New report in <server>" for a server's report, "New report to review" for any other, to whoever handles it in the table above: for a server's report its owner and members with **Manage Messages**, for any other the instance's administrators and moderators. The notification names the kind of content and the reason, never the reporter, and opens the queue. Nobody is told about a report against themselves.
+A new report sends a notification, "New report in" and the server's name for a server's report, "New report to review" for any other, to whoever handles it in the table above: for a server's report its owner and members with **Manage Messages**, for any other the instance's administrators and moderators. The notification names the kind of content and the reason, never the reporter, and opens the queue. Nobody is told about a report against themselves.
 
 **Server settings** → **Reports**, the **Reports** tab of the admin panel and **Instance moderation** in **User settings** show how many reports wait. To stop the notifications, switch off **Notify me about new reports** at the top of either queue; the counts stay.
 
