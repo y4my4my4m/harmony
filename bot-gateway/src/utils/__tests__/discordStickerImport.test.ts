@@ -63,9 +63,9 @@ beforeEach(() => {
 
 describe('discordStickerCdnUrl', () => {
   it('uses .gif for format 4 and .png otherwise', () => {
-    expect(discordStickerCdnUrl('9', 1)).toBe('https://media.discordapp.net/stickers/9.png')
-    expect(discordStickerCdnUrl('9', 2)).toBe('https://media.discordapp.net/stickers/9.png')
-    expect(discordStickerCdnUrl('9', 4)).toBe('https://media.discordapp.net/stickers/9.gif')
+    expect(discordStickerCdnUrl('9', 1)).toBe('https://media.discordapp.net/stickers/9.png?size=320')
+    expect(discordStickerCdnUrl('9', 2)).toBe('https://media.discordapp.net/stickers/9.png?size=320')
+    expect(discordStickerCdnUrl('9', 4)).toBe('https://media.discordapp.net/stickers/9.gif?size=320')
   })
 })
 

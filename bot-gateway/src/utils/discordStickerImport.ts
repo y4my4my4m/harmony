@@ -18,7 +18,7 @@ const FORMAT_GIF = 4
 
 /** CDN URL built from the id alone; no caller-supplied URL is fetched. */
 export function discordStickerCdnUrl(id: string, formatType: number): string {
-  return `https://media.discordapp.net/stickers/${id}.${formatType === FORMAT_GIF ? 'gif' : 'png'}`
+  return `https://media.discordapp.net/stickers/${id}.${formatType === FORMAT_GIF ? 'gif' : 'png'}?size=${STICKER_MAX_SIDE}`
 }
 
 export type StickerFileReason = 'lottie' | 'type' | 'size' | 'dimensions' | 'duration'
