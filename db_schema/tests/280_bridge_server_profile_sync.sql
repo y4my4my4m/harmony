@@ -1,4 +1,4 @@
--- 20261112500001_bridge_server_profile_sync.sql: the Discord bridge bot of a server reads and
+-- 20261112600001_bridge_server_profile_sync.sql: the Discord bridge bot of a server reads and
 -- updates its Harmony server's name, description, icon and banner (bridge_get_server_profile,
 -- bridge_update_server_profile); name and description go through the rules update_server shares
 -- (server_profile_name, server_profile_description); the sync is attributed to the bot in the
