@@ -96,6 +96,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   of a mention that pointed at nobody. Messages sent before show the same way. Names picked from
   the list, or typed exactly as a member's username, are mentions as before. `@name@server` handles
   of other servers are not affected.
+- **A reply to a message with an emoji is one line tall again.** The line above the reply drew the
+  emoji, even one cut off at the end, 300 px tall, so the replied-to name sat alone between two
+  empty gaps.
 - **Blocking holds in direct messages, both ways.** While one of you blocks the other, neither can
   send a message, post a call notice or start a new conversation, including from accounts on other
   servers, until the unblock. The person who blocked sees **Unblock** in place of the message field;
