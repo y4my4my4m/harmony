@@ -106,7 +106,8 @@ describe('typed @everyone and @here', () => {
   it('leave longer names alone', async () => {
     const parts = await parse('@alice @everyones', ALLOWED)
     expect(parts.filter((p: any) => p.type === 'role_mention')).toEqual([])
-    expect(parts.filter((p: any) => p.type === 'mention').map((p: any) => p.username)).toEqual(['alice', 'everyones'])
+    expect(parts.filter((p: any) => p.type === 'mention').map((p: any) => p.username)).toEqual(['alice'])
+    expect(parts[parts.length - 1]).toEqual({ type: 'text', text: ' @everyones' })
   })
 })
 
@@ -182,7 +183,7 @@ describe('a role and a member of the same name', () => {
   it('never reads a typed role name as the role, with or without a member of that name', async () => {
     const parts = await parseWithRoles('@crew @reserve')
     expect(parts.some((p: any) => p.type === 'role_mention')).toBe(false)
-    expect(parts.filter((p: any) => p.type === 'mention').map((p: any) => p.userId))
-      .toEqual([CREW_USER, 'unresolved-reserve'])
+    expect(parts.filter((p: any) => p.type === 'mention').map((p: any) => p.userId)).toEqual([CREW_USER])
+    expect(parts[parts.length - 1]).toEqual({ type: 'text', text: ' @reserve' })
   })
 })

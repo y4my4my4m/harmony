@@ -91,6 +91,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **`@` before a name no one has is plain text.** `@5:32`, `@asdfgh` or any `@name` that is no
+  account on your instance shows as you typed it, in the message field and in the message, instead
+  of a mention that pointed at nobody. Messages sent before show the same way. Names picked from
+  the list, or typed exactly as a member's username, are mentions as before. `@name@server` handles
+  of other servers are not affected.
 - **Blocking holds in direct messages, both ways.** While one of you blocks the other, neither can
   send a message, post a call notice or start a new conversation, including from accounts on other
   servers, until the unblock. The person who blocked sees **Unblock** in place of the message field;

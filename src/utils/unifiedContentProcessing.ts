@@ -90,6 +90,13 @@ const COMBINED_EMOJI_REGEX = new RegExp(
 );
 
 /**
+ * Local usernames a completed lookup found no account for, by the map
+ * resolveMentionsUserData returned. A map with no entry here (failed lookup,
+ * map built elsewhere) proves no absence.
+ */
+const absentLocalUsernames = new WeakMap<object, ReadonlySet<string>>();
+
+/**
  * Batch-resolves @mention user data. Call before parseContentToMessageParts;
  * otherwise mentions render unresolved.
  */
@@ -122,12 +129,12 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     if (localUsernames.length > 0) {
       // A bare @user names a local account only; a remote profile with the
       // same username is a different person.
-      const { data: localUsers } = await supabase
+      const { data: localUsers, error: localError } = await supabase
         .from('profiles')
         .select('id, username, display_name, is_local')
         .in('username', localUsernames)
         .eq('is_local', true);
-      
+
       if (localUsers) {
         localUsers.forEach(user => {
           userDataMap[user.username] = {
@@ -135,6 +142,10 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
             isLocal: user.is_local
           };
         });
+      }
+      if (!localError && Array.isArray(localUsers)) {
+        const absent = new Set(localUsernames.filter(u => !userDataMap[u]));
+        if (absent.size > 0) absentLocalUsernames.set(userDataMap, absent);
       }
     }
     
@@ -458,6 +469,17 @@ async function parseContentSegment(
   const isInsideUrl = (pos: number): boolean =>
     skipRanges.some(r => pos >= r.start && pos < r.end);
 
+  // A local handle that names no account stays in the surrounding text, as an unknown
+  // #channel does: `@5:32`, `@asdfgh`. Remote handles stay mentions; the federation worker
+  // resolves them by WebFinger (federation-backend activitypub/mentionRecipients).
+  const absent = absentLocalUsernames.get(usernameToUserDataMap);
+  const namesNoAccount = (m: RegExpExecArray): boolean => {
+    if (!absent || !m[6]) return false;
+    const typedDomain = m[8]?.toLowerCase();
+    if (typedDomain ? typedDomain !== localDomain() : isMassMentionWord(m[7])) return false;
+    return absent.has(m[7]) && !usernameToUserDataMap[m[7]];
+  };
+
   // COMBINED_MENTION_HASHTAG_REGEX alternatives, in group order:
   //   @role:UUID        role mention
   //   @role:here        @here
@@ -474,13 +496,13 @@ async function parseContentSegment(
   while ((match = COMBINED_MENTION_HASHTAG_REGEX.exec(content)) !== null) {
     // Matches inside a URL belong to the URL; parseTextForUrls handles them
     // (e.g. mastodon.social/@user/123).
-    if (isInsideUrl(match.index) || isEscapedAt(content, match.index)) continue;
+    if (isInsideUrl(match.index) || isEscapedAt(content, match.index) || namesNoAccount(match)) continue;
 
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
       parts.push(...await parseTextForUrls(textBefore, emojiDataMap));
     }
-    
+
     if (match[1]) {
       // Role mention: @role:UUID, or @role:here. @role:here and the default role's token follow
       // parseOptions.massMentions as typed @here and @everyone do, as the text `@here` or
