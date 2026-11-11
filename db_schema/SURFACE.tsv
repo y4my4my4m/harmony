@@ -141,7 +141,9 @@ bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seco
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text, p_update boolean	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_import_server_sound	p_bot_id uuid, p_server_id uuid, p_discord_sound_id text, p_name text, p_emoji text, p_emoji_id uuid, p_volume numeric, p_update boolean, p_storage_path text, p_duration_ms integer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	definer	public, pg_temp	service_role	client
+bridge_import_server_sticker	p_bot_id uuid, p_server_id uuid, p_discord_sticker_id text, p_name text, p_description text, p_update boolean, p_path text, p_url text, p_width integer, p_height integer, p_duration_ms integer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	definer	public, pg_temp	service_role	unreferenced
 bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	client
+bridge_retire_server_sticker	p_bot_id uuid, p_server_id uuid, p_sticker_id uuid	text	definer	public, pg_temp	service_role	unreferenced
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
