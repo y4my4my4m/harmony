@@ -1,6 +1,6 @@
 -- harmony:no-transaction
 --
--- Keyset index for the attachment mirror's backfill walk (bridge_mirror_backfill, 20261112100001):
+-- Keyset index for the attachment mirror's backfill walk (bridge_mirror_backfill, 20261112200001):
 -- it reads bridge bot messages in (created_at, id) order from a cursor. Without this index each
 -- batch scans the whole messages table.
 --
@@ -39,7 +39,7 @@ BEGIN
                      FROM pg_index x
                     WHERE x.indexrelid = to_regclass('public.idx_messages_bot_created_id')
                       AND x.indisvalid) THEN
-        RAISE EXCEPTION 'idx_messages_bot_created_id is not valid; run 20261112100002 again';
+        RAISE EXCEPTION 'idx_messages_bot_created_id is not valid; run 20261112200002 again';
     END IF;
 END
 $$;

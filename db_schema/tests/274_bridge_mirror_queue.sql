@@ -1,4 +1,4 @@
--- 20261112100001_bridge_mirror_queue.sql: the queue the gateway worker uses to store Discord
+-- 20261112200001_bridge_mirror_queue.sql: the queue the gateway worker uses to store Discord
 -- attachments in Harmony storage, and the service-role functions that drive it.
 --
 --   bot b1  bridge bot of server_1 (in discord_bridges)
