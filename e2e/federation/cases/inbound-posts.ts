@@ -10,7 +10,8 @@
 //     note past max_post_length (500) applies;
 //   - a media-only Note (empty content, one image) keeps its attachment, in the content and
 //     in posts.media_attachments; a sensitive Note stores media_attachments beside
-//     is_sensitive and its content warning;
+//     is_sensitive and its content warning, and its emoji tags reach the remote emoji cache
+//     (emojiCache.ts);
 //   - an Announce of a Question not stored yet fetches it from the origin and stores the
 //     poll and the boost;
 //   - a Delete of an original soft-deletes its plain boosts, local and remote, and leaves
@@ -21,6 +22,7 @@
 import crypto from 'node:crypto'
 import http from 'node:http'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { checkEmojiCache, emojiCacheProbe } from './emojiCache.ts'
 
 const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
 const AS = 'https://www.w3.org/ns/activitystreams'
@@ -185,14 +187,17 @@ export async function caseInboundPosts(ctx: InboundPostsContext) {
       eq(stored?.media_attachments?.[0]?.url, image.url, 'with its URL')
       eq(stored?.media_attachments?.[0]?.description, 'a cat', 'with the AP name as its alt text')
 
+      // The Note also carries emoji tags for the remote emoji cache (emojiCache.ts).
+      const emojiProbe = emojiCacheProbe(peer.base)
       const sensitive = `${peer.base}/notes/sensitive-${crypto.randomUUID()}`
       eq(await deliver(create(note(sensitive, peer.actorUrl, {
-        content: '<p>spoilered</p>', sensitive: true, summary: 'cw', attachment: [image],
+        content: '<p>spoilered</p>', sensitive: true, summary: 'cw', attachment: [image], tag: emojiProbe.tags,
       }))), 202, 'the sensitive Create is accepted (202)')
       const row = await postByApId(sensitive)
       eq(row?.is_sensitive, true, 'the sensitive note is stored sensitive')
       eq(row?.content_warning, 'cw', 'with its content warning')
       eq(row?.media_attachments?.[0]?.mediaType, 'image/png', 'and its media in media_attachments, which the gallery blurs')
+      await checkEmojiCache(ctx, emojiProbe)
     }
 
     console.log('\ninbound Announce of a Question not stored yet -> fetched from its origin, stored with the boost')

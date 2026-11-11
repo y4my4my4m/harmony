@@ -47,5 +47,7 @@ export async function uploadInstanceEmoji(file: File, options: EmojiUploadOption
     imported_from: null,
     hotlinked: false,
     is_ai_generated: false,
+    license: null,
+    source_domain: null,
   }
 }

@@ -5601,7 +5601,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Todos los emojis personalizados de esta instancia: subidas, importaciones, emojis almacenados en caché de otras instancias, emojis de servidor y personales. Quitar un emoji lo saca de todos los selectores; los mensajes y reacciones anteriores lo siguen mostrando, y se puede restaurar. Purgar elimina el emoji y su archivo: los mensajes y reacciones anteriores muestran entonces un icono de imagen rota.",
+      "description": "Todos los emojis personalizados de esta instancia: subidas, importaciones, emojis almacenados en caché de otras instancias, emojis de servidor y personales. Importar copia emojis de otras instancias a los emojis de la instancia, donde todos aquí pueden usarlos. Quitar un emoji lo saca de todos los selectores; los mensajes y reacciones anteriores lo siguen mostrando, y se puede restaurar. Purgar elimina el emoji y su archivo: los mensajes y reacciones anteriores muestran entonces un icono de imagen rota.",
       "refresh": "Actualizar",
       "retry": "Reintentar",
       "loading": "Cargando emojis",
@@ -5611,7 +5611,7 @@
       "searchHint": "Nombre, servidor, propietario o dominio",
       "newName": "Nuevo nombre",
       "brokenImage": "No se pudo cargar la imagen",
-      "hotlinkedHint": "La imagen se carga desde otro sitio. «Alojar aquí» la copia a esta instancia.",
+      "hotlinkedHint": "Este emoji ya funciona aquí, pero su imagen todavía se carga desde otro sitio. Copiar la imagen a esta instancia lo mantiene disponible si ese sitio cambia. Nada más cambia en el emoji.",
       "kinds": {
         "label": "Tipo",
         "all": "Todos",
@@ -5621,7 +5621,7 @@
         "server": "Servidor",
         "personal": "Personales",
         "ai": "Generados con IA",
-        "not_imported": "Sin importar"
+        "not_imported": "Disponibles para importar"
       },
       "status": {
         "label": "Estado",
@@ -5636,8 +5636,9 @@
         "usage": "Más usados"
       },
       "badges": {
-        "hotlinked": "enlazado",
-        "removed": "quitado"
+        "hotlinked": "alojado fuera",
+        "removed": "quitado",
+        "nameTaken": "nombre en uso"
       },
       "meta": {
         "server": "en {server}",
@@ -5649,14 +5650,15 @@
         "seen": "visto {count} vez | visto {count} veces",
         "reactions": "sin reacciones | {count} reacción | {count} reacciones",
         "removedBy": "quitado por {user} el {date}",
-        "removedOn": "quitado el {date}"
+        "removedOn": "quitado el {date}",
+        "license": "Licencia: {license}"
       },
       "titles": {
         "rename": "Renombrar",
         "remove": "Quitar",
         "restore": "Restaurar",
         "purge": "Purgar",
-        "rehost": "Alojar aquí",
+        "rehost": "Copiar la imagen a esta instancia",
         "import": "Importar"
       },
       "actions": {
@@ -5664,7 +5666,7 @@
         "remove": "Quitar {name}",
         "restore": "Restaurar {name}",
         "purge": "Purgar {name}",
-        "rehost": "Alojar aquí {name}",
+        "rehost": "Copiar la imagen de {name} a esta instancia",
         "import": "Importar {name}",
         "select": "Seleccionar {name}"
       },
@@ -5674,7 +5676,9 @@
         "selected": "{count} seleccionado | {count} seleccionados",
         "remove": "Quitar selección",
         "restore": "Restaurar selección",
-        "purge": "Purgar selección"
+        "purge": "Purgar selección",
+        "import": "Importar selección",
+        "rehost": "Copiar las imágenes a esta instancia"
       },
       "upload": {
         "button": "Subir",
@@ -5697,11 +5701,7 @@
         "purgeTitle": "Purgar emoji",
         "purge": "¿Purgar {name}? El emoji y su archivo se eliminan para siempre. Los mensajes y reacciones anteriores que lo usan muestran entonces un icono de imagen rota.",
         "purgeMany": "¿Purgar {count} emoji? El emoji y su archivo se eliminan para siempre. Los mensajes y reacciones anteriores que lo usan muestran entonces un icono de imagen rota. | ¿Purgar {count} emojis? Los emojis y sus archivos se eliminan para siempre. Los mensajes y reacciones anteriores que los usan muestran entonces un icono de imagen rota.",
-        "purgeButton": "Purgar",
-        "importTitle": "Importar {name}",
-        "import": "Se descarga una copia de la imagen desde {domain} al almacenamiento de esta instancia y se añade a los emojis de la instancia. Deja el nombre vacío para conservar {name}.",
-        "importLabel": "Nombre (sin dos puntos)",
-        "importButton": "Importar"
+        "purgeButton": "Purgar"
       },
       "done": {
         "renamed": "Renombrado a {name}",
@@ -5712,7 +5712,8 @@
         "purged": "{name} purgado",
         "purgedMany": "{count} emoji purgado | {count} emojis purgados",
         "rehosted": "{name} ya está alojado en esta instancia",
-        "imported": "{name} importado"
+        "rehostedMany": "{count} imagen copiada a esta instancia | {count} imágenes copiadas a esta instancia",
+        "importedMany": "{count} emoji importado | {count} emojis importados"
       },
       "errors": {
         "load": "No se pudieron cargar los emojis.",
@@ -5738,13 +5739,50 @@
           "already_imported": "Este emoji ya está importado.",
           "name_taken": "Un emoji de la instancia ya usa ese nombre.",
           "invalid_name": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
-          "not_instance": "Solo los emojis de la instancia se pueden alojar aquí.",
+          "not_instance": "Solo se puede copiar aquí la imagen de un emoji de la instancia.",
           "not_hotlinked": "Este emoji ya está alojado en esta instancia.",
           "unsupported_image": "La imagen remota no es PNG, GIF, WebP ni JPEG.",
           "too_large": "La imagen remota supera el límite de tamaño de los emojis.",
           "fetch_failed": "No se pudo descargar la imagen remota.",
           "internal_error": "Algo salió mal. Inténtalo más tarde.",
-          "network_error": "No se pudo contactar con el servidor."
+          "network_error": "No se pudo contactar con el servidor.",
+          "rate_limited": "Se alcanzó el límite de importaciones por hora. Inténtalo más tarde."
+        },
+        "rehostMany": "No se pudo copiar {count} imagen. | No se pudieron copiar {count} imágenes."
+      },
+      "nameTakenHint": "Un emoji de la instancia ya usa este nombre. Al importar se propone otro nombre.",
+      "import": {
+        "button": "Importar",
+        "hint": "Emojis personalizados vistos en publicaciones y reacciones de otras instancias. Al importar uno, su imagen se descarga a esta instancia y el emoji se añade a los emojis de la instancia, donde todos aquí pueden usarlo. El original se queda donde está.",
+        "searchHint": "Nombre",
+        "sourceLabel": "Instancia de origen",
+        "allSources": "Todas las instancias",
+        "source": "{domain} ({count})",
+        "title": "Importar {count} emoji | Importar {count} emojis",
+        "loading": "Comprobando los nombres",
+        "previewFailed": "No se pudieron comprobar los nombres. Cierra e inténtalo de nuevo.",
+        "explain": "Cada imagen se descarga a esta instancia y se añade a los emojis de la instancia con el nombre de abajo. Los emojis existentes nunca se reemplazan.",
+        "clashes": "{count} nombre ya lo usa un emoji de la instancia. Conserva el nombre propuesto, escribe otro u omítelo. | {count} nombres ya los usan emojis de la instancia. Conserva los nombres propuestos, escribe otros u omítelos.",
+        "listLabel": "Emojis que se van a importar",
+        "nameFor": "Nombre para {name}",
+        "skip": "Omitir",
+        "nameInUse": "Un emoji de la instancia ya usa este nombre.",
+        "nameRepeated": "Otro emoji de esta importación usa este nombre.",
+        "confirm": "Importar {count} emoji | Importar {count} emojis",
+        "stop": "Detener",
+        "progress": "Importando… {current} de {total} completados",
+        "result": {
+          "imported": "Ningún emoji importado | {count} emoji importado | {count} emojis importados",
+          "skipped": "{count} omitido | {count} omitidos",
+          "failed": "{count} fallido | {count} fallidos",
+          "stopped": "{count} sin empezar | {count} sin empezar"
+        },
+        "status": {
+          "imported": "Importado como {name}",
+          "skipped": "Omitido",
+          "gone": "Ya no está disponible: ya se importó o se eliminó",
+          "stopped": "Sin empezar",
+          "waiting": "En espera"
         }
       }
     }

@@ -22,15 +22,22 @@ import type { Ref } from 'vue'
 
 // Module mocks must be declared before the SUT import.
 
-const emojiCache = vi.hoisted(() => ({ resolvedEmojis: {} as Record<string, unknown> }))
+const emojiCache = vi.hoisted(() => ({
+  resolvedEmojis: {} as Record<string, unknown>,
+  loadPersonalEmojis: vi.fn(async (_profileId: string | null) => {}),
+}))
 
 vi.mock('@/stores/useEmojiCache', () => ({
   useEmojiCacheStore: () => ({
     get resolvedEmojis() { return emojiCache.resolvedEmojis },
     isInitialized: true,
     serverCaches: new Map(),
+    loadPersonalEmojis: (profileId: string | null) => emojiCache.loadPersonalEmojis(profileId),
   }),
 }))
+
+const authContext = vi.hoisted(() => ({ getCurrentContext: vi.fn(async () => ({ profileId: 'p1' as string | null })) }))
+vi.mock('@/services/AuthContextService', () => ({ authContextService: authContext }))
 
 vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({
@@ -139,6 +146,8 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
     setActivePinia(createPinia())
     isLoaded.value = true
     emojiCache.resolvedEmojis = {}
+    emojiCache.loadPersonalEmojis.mockReset().mockResolvedValue(undefined)
+    authContext.getCurrentContext.mockReset().mockResolvedValue({ profileId: 'p1' })
   })
 
   const setup = () => {
@@ -308,3 +317,83 @@ describe('useAutoSuggest - emoji trigger for `:+1`', () => {
   })
 })
 
+// The instance's emoji and the viewer's own are not server emoji: nothing loaded them until an
+// emoji picker was opened, so `:name` did not offer them in a session that had not opened one.
+describe('useAutoSuggest - instance and personal emoji for `:name`', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    isLoaded.value = true
+    emojiCache.resolvedEmojis = {}
+    emojiCache.loadPersonalEmojis.mockReset().mockResolvedValue(undefined)
+    authContext.getCurrentContext.mockReset().mockResolvedValue({ profileId: 'p1' })
+  })
+
+  const setup = () => {
+    const text = ref('')
+    return useAutoSuggest(ref(null) as Ref<any>, () => text.value, (next: string) => { text.value = next }, { mode: 'chat' })
+  }
+  const loaded = () => vi.waitFor(() => expect(emojiCache.loadPersonalEmojis).toHaveBeenCalled())
+
+  it('loads them for the viewer when the list opens, once while it stays open', async () => {
+    const auto = setup()
+    auto.handleInput(':b', 2)
+    await loaded()
+    expect(emojiCache.loadPersonalEmojis.mock.calls).toEqual([['p1']])
+
+    auto.handleInput(':bl', 3)
+    auto.handleInput(':blo', 4)
+    await nextTick()
+    expect(emojiCache.loadPersonalEmojis).toHaveBeenCalledTimes(1)
+
+    auto.handleInput('plain text', 10)
+    expect(auto.state.value.isActive).toBe(false)
+    auto.handleInput('plain text :b', 13)
+    await vi.waitFor(() => expect(emojiCache.loadPersonalEmojis).toHaveBeenCalledTimes(2))
+  })
+
+  it('offers an instance emoji once it is loaded, without a picker', async () => {
+    emojiCache.loadPersonalEmojis.mockImplementation(async () => {
+      emojiCache.resolvedEmojis = {
+        'instance-emojis': {
+          server_name: 'Harmony Emoji',
+          emojis: [{ id: 'c0ffee00-0000-4000-8000-0000000000aa', name: 'blobcat', display_name: 'blobcat', url: 'https://db.test/blobcat.png', server_id: null }],
+        },
+      }
+    })
+    const auto = setup()
+    auto.handleInput(':blob', 5)
+    expect(auto.suggestions.value.find((s: any) => s.name === 'blobcat')).toBeUndefined()
+    await loaded()
+    auto.handleInput(':blobc', 6)
+    await nextTick()
+    const offered = auto.suggestions.value.find((s: any) => s.name === 'blobcat')
+    expect(offered).toMatchObject({ id: 'c0ffee00-0000-4000-8000-0000000000aa', url: 'https://db.test/blobcat.png' })
+  })
+
+  it('signed out, loads the instance emoji alone', async () => {
+    authContext.getCurrentContext.mockRejectedValue(new Error('no session'))
+    const auto = setup()
+    auto.handleInput(':b', 2)
+    await loaded()
+    expect(emojiCache.loadPersonalEmojis.mock.calls).toEqual([[null]])
+  })
+
+  it('a failed load leaves the list as it was', async () => {
+    emojiCache.loadPersonalEmojis.mockRejectedValue(new Error('offline'))
+    const auto = setup()
+    auto.handleInput(':grin', 5)
+    await loaded()
+    await nextTick()
+    expect(auto.state.value.isActive).toBe(true)
+    expect(auto.suggestions.value.find((s: any) => s.name === 'grinning_face')).toBeDefined()
+  })
+
+  it('does not load them for a mention or a command', async () => {
+    const auto = setup()
+    auto.handleInput('@a', 2)
+    auto.handleInput('/g', 2)
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(emojiCache.loadPersonalEmojis).not.toHaveBeenCalled()
+  })
+})

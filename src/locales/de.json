@@ -5601,7 +5601,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Alle benutzerdefinierten Emojis dieser Instanz: Uploads, Importe, von anderen Instanzen zwischengespeicherte Emojis, Server-Emojis und persönliche Emojis. Ein entferntes Emoji verschwindet aus jeder Auswahl; ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. Endgültiges Löschen entfernt das Emoji und seine Datei: ältere Nachrichten und Reaktionen zeigen dann ein Symbol für ein fehlendes Bild.",
+      "description": "Alle benutzerdefinierten Emojis dieser Instanz: Uploads, Importe, von anderen Instanzen zwischengespeicherte Emojis, Server-Emojis und persönliche Emojis. Importieren kopiert Emojis anderer Instanzen in die Instanz-Emojis, wo alle hier sie verwenden können. Ein entferntes Emoji verschwindet aus jeder Auswahl; ältere Nachrichten und Reaktionen zeigen es weiterhin, und es lässt sich wiederherstellen. Endgültiges Löschen entfernt das Emoji und seine Datei: ältere Nachrichten und Reaktionen zeigen dann ein Symbol für ein fehlendes Bild.",
       "refresh": "Aktualisieren",
       "retry": "Erneut versuchen",
       "loading": "Emojis werden geladen",
@@ -5611,7 +5611,7 @@
       "searchHint": "Name, Server, Besitzer oder Domain",
       "newName": "Neuer Name",
       "brokenImage": "Das Bild konnte nicht geladen werden",
-      "hotlinkedHint": "Das Bild wird von einer anderen Website geladen. „Neu hosten“ kopiert es auf diese Instanz.",
+      "hotlinkedHint": "Dieses Emoji funktioniert hier bereits, aber sein Bild wird noch von einer anderen Website geladen. Eine Kopie auf dieser Instanz hält es verfügbar, wenn sich jene Website ändert. Sonst ändert sich am Emoji nichts.",
       "kinds": {
         "label": "Art",
         "all": "Alle",
@@ -5621,7 +5621,7 @@
         "server": "Server",
         "personal": "Persönlich",
         "ai": "KI-generiert",
-        "not_imported": "Nicht importiert"
+        "not_imported": "Zum Import verfügbar"
       },
       "status": {
         "label": "Status",
@@ -5636,8 +5636,9 @@
         "usage": "Meistgenutzt"
       },
       "badges": {
-        "hotlinked": "extern verlinkt",
-        "removed": "entfernt"
+        "hotlinked": "extern gehostet",
+        "removed": "entfernt",
+        "nameTaken": "Name vergeben"
       },
       "meta": {
         "server": "in {server}",
@@ -5649,14 +5650,15 @@
         "seen": "{count}-mal gesehen | {count}-mal gesehen",
         "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
         "removedBy": "entfernt von {user} am {date}",
-        "removedOn": "entfernt am {date}"
+        "removedOn": "entfernt am {date}",
+        "license": "Lizenz: {license}"
       },
       "titles": {
         "rename": "Umbenennen",
         "remove": "Entfernen",
         "restore": "Wiederherstellen",
         "purge": "Endgültig löschen",
-        "rehost": "Neu hosten",
+        "rehost": "Bild auf diese Instanz kopieren",
         "import": "Importieren"
       },
       "actions": {
@@ -5664,7 +5666,7 @@
         "remove": "{name} entfernen",
         "restore": "{name} wiederherstellen",
         "purge": "{name} endgültig löschen",
-        "rehost": "{name} neu hosten",
+        "rehost": "Bild von {name} auf diese Instanz kopieren",
         "import": "{name} importieren",
         "select": "{name} auswählen"
       },
@@ -5674,7 +5676,9 @@
         "selected": "{count} ausgewählt | {count} ausgewählt",
         "remove": "Auswahl entfernen",
         "restore": "Auswahl wiederherstellen",
-        "purge": "Auswahl endgültig löschen"
+        "purge": "Auswahl endgültig löschen",
+        "import": "Auswahl importieren",
+        "rehost": "Bilder auf diese Instanz kopieren"
       },
       "upload": {
         "button": "Hochladen",
@@ -5697,11 +5701,7 @@
         "purgeTitle": "Emoji endgültig löschen",
         "purge": "{name} endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
         "purgeMany": "{count} Emoji endgültig löschen? Das Emoji und seine Datei werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die es verwenden, zeigen dann ein Symbol für ein fehlendes Bild. | {count} Emojis endgültig löschen? Die Emojis und ihre Dateien werden unwiderruflich gelöscht. Ältere Nachrichten und Reaktionen, die sie verwenden, zeigen dann ein Symbol für ein fehlendes Bild.",
-        "purgeButton": "Endgültig löschen",
-        "importTitle": "{name} importieren",
-        "import": "Eine Kopie des Bildes wird von {domain} in den Speicher dieser Instanz heruntergeladen und zu den Instanz-Emojis hinzugefügt. Lass den Namen leer, um {name} zu behalten.",
-        "importLabel": "Name (ohne Doppelpunkte)",
-        "importButton": "Importieren"
+        "purgeButton": "Endgültig löschen"
       },
       "done": {
         "renamed": "Umbenannt in {name}",
@@ -5712,7 +5712,8 @@
         "purged": "{name} endgültig gelöscht",
         "purgedMany": "{count} Emoji endgültig gelöscht | {count} Emojis endgültig gelöscht",
         "rehosted": "{name} liegt jetzt auf dieser Instanz",
-        "imported": "{name} importiert"
+        "rehostedMany": "{count} Bild auf diese Instanz kopiert | {count} Bilder auf diese Instanz kopiert",
+        "importedMany": "{count} Emoji importiert | {count} Emojis importiert"
       },
       "errors": {
         "load": "Emojis konnten nicht geladen werden.",
@@ -5738,13 +5739,50 @@
           "already_imported": "Dieses Emoji ist bereits importiert.",
           "name_taken": "Ein Instanz-Emoji verwendet diesen Namen bereits.",
           "invalid_name": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
-          "not_instance": "Nur Instanz-Emojis können neu gehostet werden.",
+          "not_instance": "Nur bei Instanz-Emojis kann das Bild hierher kopiert werden.",
           "not_hotlinked": "Dieses Emoji liegt bereits auf dieser Instanz.",
           "unsupported_image": "Das entfernte Bild ist kein PNG, GIF, WebP oder JPEG.",
           "too_large": "Das entfernte Bild überschreitet die Größengrenze für Emojis.",
           "fetch_failed": "Das entfernte Bild konnte nicht heruntergeladen werden.",
           "internal_error": "Etwas ist schiefgelaufen. Versuche es später erneut.",
-          "network_error": "Der Server ist nicht erreichbar."
+          "network_error": "Der Server ist nicht erreichbar.",
+          "rate_limited": "Das stündliche Importlimit ist erreicht. Versuche es später erneut."
+        },
+        "rehostMany": "{count} Bild konnte nicht kopiert werden. | {count} Bilder konnten nicht kopiert werden."
+      },
+      "nameTakenHint": "Ein Instanz-Emoji verwendet diesen Namen bereits. Beim Import wird ein anderer Name vorgeschlagen.",
+      "import": {
+        "button": "Importieren",
+        "hint": "Benutzerdefinierte Emojis, die in Beiträgen und Reaktionen anderer Instanzen gesehen wurden. Beim Import wird das Bild auf diese Instanz heruntergeladen und das Emoji zu den Instanz-Emojis hinzugefügt, wo alle hier es verwenden können. Das Original bleibt, wo es ist.",
+        "searchHint": "Name",
+        "sourceLabel": "Quellinstanz",
+        "allSources": "Alle Instanzen",
+        "source": "{domain} ({count})",
+        "title": "{count} Emoji importieren | {count} Emojis importieren",
+        "loading": "Namen werden geprüft",
+        "previewFailed": "Die Namen konnten nicht geprüft werden. Schließe den Dialog und versuche es erneut.",
+        "explain": "Jedes Bild wird auf diese Instanz heruntergeladen und unter dem Namen unten zu den Instanz-Emojis hinzugefügt. Vorhandene Emojis werden nie ersetzt.",
+        "clashes": "{count} Name wird bereits von einem Instanz-Emoji verwendet. Behalte den vorgeschlagenen Namen, gib einen anderen ein oder überspringe das Emoji. | {count} Namen werden bereits von Instanz-Emojis verwendet. Behalte die vorgeschlagenen Namen, gib andere ein oder überspringe die Emojis.",
+        "listLabel": "Zu importierende Emojis",
+        "nameFor": "Name für {name}",
+        "skip": "Überspringen",
+        "nameInUse": "Ein Instanz-Emoji verwendet diesen Namen bereits.",
+        "nameRepeated": "Ein anderes Emoji dieses Imports verwendet diesen Namen.",
+        "confirm": "{count} Emoji importieren | {count} Emojis importieren",
+        "stop": "Anhalten",
+        "progress": "Import läuft… {current} von {total} erledigt",
+        "result": {
+          "imported": "Kein Emoji importiert | {count} Emoji importiert | {count} Emojis importiert",
+          "skipped": "{count} übersprungen | {count} übersprungen",
+          "failed": "{count} fehlgeschlagen | {count} fehlgeschlagen",
+          "stopped": "{count} nicht begonnen | {count} nicht begonnen"
+        },
+        "status": {
+          "imported": "Importiert als {name}",
+          "skipped": "Übersprungen",
+          "gone": "Nicht mehr verfügbar: bereits importiert oder entfernt",
+          "stopped": "Nicht begonnen",
+          "waiting": "Wartet"
         }
       }
     }

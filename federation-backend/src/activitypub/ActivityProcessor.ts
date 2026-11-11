@@ -24,6 +24,7 @@ import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
 import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
+import { cacheInboundEmojiTags } from '../utils/remoteEmojiCache.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
@@ -935,6 +936,8 @@ export class ActivityProcessor {
               (insertedPost as any).conversation_root_id ?? null,
               ownNoteUrl(object),
             );
+
+            void cacheInboundEmojiTags(supabase, object.tag, normalizeActor(activity.actor));
 
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
             const insertedPostAny = insertedPost as any;

@@ -1,10 +1,11 @@
 /**
  * AdminEmojiLibrary.vue: one list over admin_list_emojis. Kind chips and the status and sort
- * filters reload from the first page; Not imported hides the status filter and offers Import,
- * which asks for an optional name and goes through the backend. Remove and Purge confirm first,
- * Restore does not; Re-host appears on hotlinked rows only. A failed image becomes the
- * broken-image icon. Bulk selection removes several rows after one confirmation. Every change
- * expires the picker caches.
+ * filters reload from the first page. Import switches to remote emojis (admin_list_remote_emojis)
+ * with an instance filter; a row's Import and Import selected hand rows to
+ * AdminEmojiImportDialog, and a close that imported something reloads. Remove and Purge confirm
+ * first, Restore does not; the image copy appears on hotlinked rows only, one at a time or for
+ * a selection. A failed image becomes the broken-image icon. Bulk selection removes several rows
+ * after one confirmation. Every change expires the picker caches.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,10 +33,22 @@ vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/LoadingSpinner.vue', () => stub('LoadingSpinner'))
 vi.mock('@/components/common/EmptyState.vue', () => stub('EmptyState'))
 
+vi.mock('@/components/admin/AdminEmojiImportDialog.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'AdminEmojiImportDialog',
+      props: ['show', 'rows'],
+      emits: ['close'],
+      render() { return (this as any).show ? h('div', { 'data-testid': 'import-dialog-stub' }) : null },
+    }),
+  }
+})
+
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 
-const dialog = vi.hoisted(() => ({ confirm: vi.fn(), prompt: vi.fn() }))
+const dialog = vi.hoisted(() => ({ confirm: vi.fn() }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => dialog }))
 
 const polite = vi.hoisted(() => vi.fn())
@@ -52,12 +65,13 @@ vi.mock('@/services/instanceEmojiUpload', () => ({ uploadInstanceEmoji }))
 
 const svc = vi.hoisted(() => ({
   listAdminEmojis: vi.fn(),
+  listRemoteEmojis: vi.fn(),
+  listRemoteEmojiSources: vi.fn(),
   renameEmoji: vi.fn(async () => {}),
   removeEmoji: vi.fn(async () => {}),
   restoreEmoji: vi.fn(async () => {}),
   purgeEmoji: vi.fn(async () => true),
   rehostEmoji: vi.fn(async () => ({ id: 'e3', name: 'hot', url: 'u', imported_from: 'x' })),
-  importRemoteEmoji: vi.fn(async () => ({ id: 'n1', name: 'party', url: 'u', imported_from: 'x' })),
 }))
 vi.mock('@/services/InstanceEmojiAdminService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/InstanceEmojiAdminService')>()),
@@ -65,7 +79,6 @@ vi.mock('@/services/InstanceEmojiAdminService', async (importOriginal) => ({
 }))
 
 import AdminEmojiLibrary from '../AdminEmojiLibrary.vue'
-import { AdminEmojiRequestError } from '@/services/InstanceEmojiAdminService'
 
 enableAutoUnmount(afterEach)
 
@@ -88,6 +101,8 @@ const row = (id: string, extra: Record<string, unknown> = {}) => ({
   imported_from: null,
   hotlinked: false,
   is_ai_generated: false,
+  license: null,
+  source_domain: null,
   ...extra,
 })
 
@@ -95,16 +110,24 @@ let pages: Record<string, any[]>
 
 beforeEach(() => {
   for (const fn of Object.values(svc)) fn.mockClear()
-  for (const fn of [toast.success, toast.error, toast.warning, dialog.confirm, dialog.prompt, invalidate, expirePersonalEmojis, polite]) fn.mockReset()
+  for (const fn of [toast.success, toast.error, toast.warning, dialog.confirm, invalidate, expirePersonalEmojis, polite]) fn.mockReset()
   pages = {
     all: [row('e1'), row('e2', { kind: 'server', scope: 'server', server_id: 's1', server_name: 'Hub' }), row('e3', { hotlinked: true, url: 'https://elsewhere.test/hot.png' })],
-    not_imported: [row('c1', { kind: 'not_imported', name: 'party', domain: 'remote.test', scope: null, url: 'https://remote.test/p.png' })],
+    not_imported: [
+      row('c1', { kind: 'not_imported', name: 'party', domain: 'remote.test', scope: null, url: 'https://remote.test/p.png', license: 'CC BY 4.0', name_taken: false }),
+      row('c2', { kind: 'not_imported', name: 'emoji_e1', domain: 'other.test', scope: null, url: 'https://other.test/e.png', name_taken: true }),
+    ],
     removed: [row('e9', { deleted_at: '2026-11-06T00:00:00Z', deleted_by_username: 'mod' })],
   }
   svc.listAdminEmojis.mockImplementation(async (params: any) => {
-    const rows = params.kind === 'not_imported' ? pages.not_imported : params.status === 'removed' ? pages.removed : pages.all
+    const rows = params.status === 'removed' ? pages.removed : pages.all
     return { rows, total: rows.length }
   })
+  svc.listRemoteEmojis.mockImplementation(async (params: any) => {
+    const rows = pages.not_imported.filter((r) => !params.domain || r.domain === params.domain)
+    return { rows, total: rows.length }
+  })
+  svc.listRemoteEmojiSources.mockResolvedValue([{ domain: 'remote.test', count: 1 }, { domain: 'other.test', count: 1 }])
 })
 
 async function mountList() {
@@ -125,41 +148,88 @@ describe('AdminEmojiLibrary', () => {
     expect(w.find('[data-testid="admin-emoji-kind-all"]').attributes('aria-pressed')).toBe('true')
   })
 
-  it('Not imported hides the status filter and imports with the given name', async () => {
+  it('Import lists remote emojis, filtered by source instance, with licence and held names', async () => {
     const w = await mountList()
-    await w.find('[data-testid="admin-emoji-kind-not_imported"]').trigger('click')
+    await w.find('[data-testid="admin-emoji-import-open"]').trigger('click')
     await flushPromises()
-    expect(svc.listAdminEmojis).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'not_imported', offset: 0 }))
+    expect(w.find('[data-testid="admin-emoji-kind-not_imported"]').attributes('aria-pressed')).toBe('true')
+    expect(svc.listRemoteEmojis).toHaveBeenLastCalledWith({ search: '', domain: null, sort: 'newest', limit: 50, offset: 0 })
+    expect(svc.listRemoteEmojiSources).toHaveBeenCalledTimes(1)
     expect(w.find('[data-testid="admin-emoji-status"]').exists()).toBe(false)
-    expect(w.find('[data-testid="admin-emoji-bulk"]').exists()).toBe(false)
+    expect(w.find('[data-testid="admin-emoji-import-hint"]').text()).toContain('everyone here can use it')
+    expect(document.activeElement).toBe(w.find('[data-testid="admin-emoji-search"]').element)
 
-    dialog.prompt.mockResolvedValue(':party_time:')
-    await rowEl(w, 'c1').find('[data-action="import"]').trigger('click')
+    const source = w.find('[data-testid="admin-emoji-source"]')
+    expect(source.findAll('option').map((o) => o.text())).toEqual(['All instances', 'remote.test (1)', 'other.test (1)'])
+    expect(rowEl(w, 'c1').text()).toContain('from remote.test')
+    expect(rowEl(w, 'c1').find('[data-testid="admin-emoji-license"]').text()).toBe('Licence: CC BY 4.0')
+    expect(rowEl(w, 'c1').find('[data-testid="admin-emoji-name-taken"]').exists()).toBe(false)
+    expect(rowEl(w, 'c2').find('[data-testid="admin-emoji-name-taken"]').text()).toBe('name in use')
+
+    await source.setValue('other.test')
     await flushPromises()
-    expect(dialog.prompt.mock.calls[0][0].message).toContain('remote.test')
-    expect(svc.importRemoteEmoji).toHaveBeenCalledWith('c1', 'party_time')
-    expect(toast.success).toHaveBeenCalledWith('Imported :party:')
-    expect(invalidate).toHaveBeenCalled()
-    expect(expirePersonalEmojis).toHaveBeenCalled()
+    expect(svc.listRemoteEmojis).toHaveBeenLastCalledWith(expect.objectContaining({ domain: 'other.test', offset: 0 }))
+    expect(w.findAll('[data-testid="admin-emoji-row"]')).toHaveLength(1)
   })
 
-  it('a cancelled import or an invalid name imports nothing; a backend refusal shows its message', async () => {
+  it('the Available to import chip opens the same list; Import pressed again returns to All', async () => {
     const w = await mountList()
     await w.find('[data-testid="admin-emoji-kind-not_imported"]').trigger('click')
     await flushPromises()
-    dialog.prompt.mockResolvedValueOnce(null).mockResolvedValueOnce('no spaces').mockResolvedValueOnce('')
-    for (let i = 0; i < 2; i++) {
-      await rowEl(w, 'c1').find('[data-action="import"]').trigger('click')
-      await flushPromises()
-    }
-    expect(svc.importRemoteEmoji).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('Names are 2 to 64 letters, digits, _ or -.')
+    expect(svc.listRemoteEmojis).toHaveBeenCalledTimes(1)
+    expect(w.find('[data-testid="admin-emoji-import-open"]').attributes('aria-pressed')).toBe('true')
 
-    svc.importRemoteEmoji.mockRejectedValueOnce(new AdminEmojiRequestError('fetch_failed', 502))
-    await rowEl(w, 'c1').find('[data-action="import"]').trigger('click')
+    await w.find('[data-testid="admin-emoji-import-open"]').trigger('click')
     await flushPromises()
-    expect(svc.importRemoteEmoji).toHaveBeenCalledWith('c1', undefined)
-    expect(toast.error).toHaveBeenLastCalledWith('The remote image could not be downloaded.')
+    expect(w.find('[data-testid="admin-emoji-import-open"]').attributes('aria-pressed')).toBe('false')
+    expect(w.find('[data-testid="admin-emoji-kind-all"]').attributes('aria-pressed')).toBe('true')
+    expect(svc.listAdminEmojis).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'all', offset: 0 }))
+  })
+
+  it('a row\'s Import opens the dialog with that row; a close that imported reloads and expires the pickers', async () => {
+    const w = await mountList()
+    await w.find('[data-testid="admin-emoji-import-open"]').trigger('click')
+    await flushPromises()
+    const importDialog = w.findComponent({ name: 'AdminEmojiImportDialog' })
+    expect(importDialog.props('show')).toBe(false)
+
+    await rowEl(w, 'c1').find('[data-action="import"]').trigger('click')
+    expect(importDialog.props('show')).toBe(true)
+    expect(importDialog.props('rows').map((r: any) => r.id)).toEqual(['c1'])
+
+    pages.not_imported = pages.not_imported.slice(1)
+    importDialog.vm.$emit('close', 1)
+    await flushPromises()
+    expect(importDialog.props('show')).toBe(false)
+    expect(toast.success).toHaveBeenCalledWith('1 emoji imported')
+    expect(invalidate).toHaveBeenCalled()
+    expect(expirePersonalEmojis).toHaveBeenCalled()
+    expect(svc.listRemoteEmojis).toHaveBeenCalledTimes(2)
+    expect(svc.listRemoteEmojiSources).toHaveBeenCalledTimes(2)
+    expect(rowEl(w, 'c1').exists()).toBe(false)
+    expect(document.activeElement).toBe(rowEl(w, 'c2').find('[data-action="import"]').element)
+  })
+
+  it('Import selected hands the selection to the dialog; a close that imported nothing changes nothing', async () => {
+    const w = await mountList()
+    await w.find('[data-testid="admin-emoji-import-open"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="admin-emoji-select"]').trigger('click')
+    expect(w.find('[data-testid="admin-emoji-bulk-remove"]').exists()).toBe(false)
+    expect(w.find('[data-testid="admin-emoji-bulk-purge"]').exists()).toBe(false)
+    expect(w.find('[data-testid="admin-emoji-bulk-import"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="admin-emoji-select-page"]').trigger('click')
+    expect(w.find('.bulk-count').text()).toBe('2 selected')
+    await w.find('[data-testid="admin-emoji-bulk-import"]').trigger('click')
+
+    const importDialog = w.findComponent({ name: 'AdminEmojiImportDialog' })
+    expect(importDialog.props('rows').map((r: any) => r.id)).toEqual(['c1', 'c2'])
+    importDialog.vm.$emit('close', 0)
+    await flushPromises()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(svc.listRemoteEmojis).toHaveBeenCalledTimes(1)
+    expect(w.find('.bulk-count').text()).toBe('2 selected')
   })
 
   it('Remove confirms, soft-deletes and moves focus to the next row', async () => {
@@ -234,7 +304,7 @@ describe('AdminEmojiLibrary', () => {
     expect(document.activeElement).toBe(rowEl(w, 'e1').find('[data-action="rename"]').element)
   })
 
-  it('Re-host is offered on hotlinked rows only', async () => {
+  it('the image copy is offered on hotlinked rows only', async () => {
     const w = await mountList()
     expect(rowEl(w, 'e1').find('[data-action="rehost"]').exists()).toBe(false)
     expect(rowEl(w, 'e3').find('.badge.hotlinked').exists()).toBe(true)
@@ -243,6 +313,22 @@ describe('AdminEmojiLibrary', () => {
     await flushPromises()
     expect(svc.rehostEmoji).toHaveBeenCalledWith('e3')
     expect(toast.success).toHaveBeenCalledWith(':emoji_e3: is now hosted on this instance')
+    expect(rowEl(w, 'e3').find('[data-action="rehost"]').attributes('aria-label')).toBe('Copy the image of :emoji_e3: to this instance')
+    expect(rowEl(w, 'e3').find('.badge.hotlinked').attributes('title')).toContain('Nothing else about the emoji changes')
+  })
+
+  it('a selection with hotlinked rows offers the image copy for those rows alone', async () => {
+    const w = await mountList()
+    await w.find('[data-testid="admin-emoji-select"]').trigger('click')
+    await rowEl(w, 'e1').find('[data-action="select"]').setValue(true)
+    expect(w.find('[data-testid="admin-emoji-bulk-rehost"]').exists()).toBe(false)
+    await rowEl(w, 'e3').find('[data-action="select"]').setValue(true)
+    await w.find('[data-testid="admin-emoji-bulk-rehost"]').trigger('click')
+    await flushPromises()
+    expect(svc.rehostEmoji.mock.calls).toEqual([['e3']])
+    expect(toast.success).toHaveBeenCalledWith('1 image copied to this instance')
+    expect(invalidate).toHaveBeenCalled()
+    expect(w.find('[data-testid="admin-emoji-bulk-rehost"]').exists()).toBe(false)
   })
 
   it('a failed image becomes the broken-image icon and is not requested again', async () => {

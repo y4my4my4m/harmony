@@ -5601,7 +5601,7 @@
     },
     "emojis": {
       "title": "表情",
-      "description": "本实例的所有自定义表情：上传的、导入的、从其他实例缓存的表情、服务器表情和个人表情。移除的表情会从所有选择器中消失；之前的消息和回应仍会显示它，并且可以恢复。彻底删除会删除表情及其文件：之前的消息和回应随后会显示损坏图片图标。",
+      "description": "本实例的所有自定义表情：上传的、导入的、从其他实例缓存的表情、服务器表情和个人表情。导入会把其他实例的表情复制到实例表情中，本实例的所有人都可以使用。移除的表情会从所有选择器中消失；之前的消息和回应仍会显示它，并且可以恢复。彻底删除会删除表情及其文件：之前的消息和回应随后会显示损坏图片图标。",
       "refresh": "刷新",
       "retry": "重试",
       "loading": "正在加载表情",
@@ -5611,7 +5611,7 @@
       "searchHint": "名称、服务器、所有者或域名",
       "newName": "新名称",
       "brokenImage": "无法加载图片",
-      "hotlinkedHint": "图片从其他网站加载。“在此托管”会将其复制到本实例。",
+      "hotlinkedHint": "该表情在这里已经可以使用，但图片仍从其他网站加载。把图片复制到本实例后，即使那个网站发生变化也能继续显示。表情的其他方面不会改变。",
       "kinds": {
         "label": "类型",
         "all": "全部",
@@ -5621,7 +5621,7 @@
         "server": "服务器",
         "personal": "个人",
         "ai": "AI 生成",
-        "not_imported": "未导入"
+        "not_imported": "可导入"
       },
       "status": {
         "label": "状态",
@@ -5636,8 +5636,9 @@
         "usage": "最常用"
       },
       "badges": {
-        "hotlinked": "外部链接",
-        "removed": "已移除"
+        "hotlinked": "托管在别处",
+        "removed": "已移除",
+        "nameTaken": "名称已占用"
       },
       "meta": {
         "server": "位于 {server}",
@@ -5649,14 +5650,15 @@
         "seen": "出现 {count} 次 | 出现 {count} 次",
         "reactions": "没有回应 | {count} 个回应 | {count} 个回应",
         "removedBy": "{user} 于 {date} 移除",
-        "removedOn": "于 {date} 移除"
+        "removedOn": "于 {date} 移除",
+        "license": "许可：{license}"
       },
       "titles": {
         "rename": "重命名",
         "remove": "移除",
         "restore": "恢复",
         "purge": "彻底删除",
-        "rehost": "在此托管",
+        "rehost": "将图片复制到本实例",
         "import": "导入"
       },
       "actions": {
@@ -5664,7 +5666,7 @@
         "remove": "移除 {name}",
         "restore": "恢复 {name}",
         "purge": "彻底删除 {name}",
-        "rehost": "在此托管 {name}",
+        "rehost": "将 {name} 的图片复制到本实例",
         "import": "导入 {name}",
         "select": "选择 {name}"
       },
@@ -5674,7 +5676,9 @@
         "selected": "已选择 {count} 个 | 已选择 {count} 个",
         "remove": "移除所选",
         "restore": "恢复所选",
-        "purge": "彻底删除所选"
+        "purge": "彻底删除所选",
+        "import": "导入所选",
+        "rehost": "将图片复制到本实例"
       },
       "upload": {
         "button": "上传",
@@ -5697,11 +5701,7 @@
         "purgeTitle": "彻底删除表情",
         "purge": "彻底删除 {name}？表情及其文件将被永久删除。使用它的之前消息和回应随后会显示损坏图片图标。",
         "purgeMany": "彻底删除 {count} 个表情？表情及其文件将被永久删除。使用它们的之前消息和回应随后会显示损坏图片图标。 | 彻底删除 {count} 个表情？表情及其文件将被永久删除。使用它们的之前消息和回应随后会显示损坏图片图标。",
-        "purgeButton": "彻底删除",
-        "importTitle": "导入 {name}",
-        "import": "将从 {domain} 下载图片副本到本实例的存储，并添加到实例表情中。名称留空则保留 {name}。",
-        "importLabel": "名称（不含冒号）",
-        "importButton": "导入"
+        "purgeButton": "彻底删除"
       },
       "done": {
         "renamed": "已重命名为 {name}",
@@ -5712,7 +5712,8 @@
         "purged": "已彻底删除 {name}",
         "purgedMany": "已彻底删除 {count} 个表情 | 已彻底删除 {count} 个表情",
         "rehosted": "{name} 现已托管在本实例",
-        "imported": "已导入 {name}"
+        "rehostedMany": "已将 {count} 张图片复制到本实例 | 已将 {count} 张图片复制到本实例",
+        "importedMany": "已导入 {count} 个表情 | 已导入 {count} 个表情"
       },
       "errors": {
         "load": "无法加载表情。",
@@ -5738,13 +5739,50 @@
           "already_imported": "该表情已导入。",
           "name_taken": "已有实例表情使用该名称。",
           "invalid_name": "名称为 2 到 64 个字母、数字、_ 或 -。",
-          "not_instance": "只有实例表情可以在此托管。",
+          "not_instance": "只有实例表情的图片可以复制到这里。",
           "not_hotlinked": "该表情已托管在本实例。",
           "unsupported_image": "远程图片不是 PNG、GIF、WebP 或 JPEG。",
           "too_large": "远程图片超过表情大小上限。",
           "fetch_failed": "无法下载远程图片。",
           "internal_error": "出了点问题，请稍后重试。",
-          "network_error": "无法连接到服务器。"
+          "network_error": "无法连接到服务器。",
+          "rate_limited": "已达到每小时导入上限。请稍后再试。"
+        },
+        "rehostMany": "有 {count} 张图片无法复制。 | 有 {count} 张图片无法复制。"
+      },
+      "nameTakenHint": "已有实例表情使用该名称。导入时会建议另一个名称。",
+      "import": {
+        "button": "导入",
+        "hint": "在其他实例的帖子和回应中见到的自定义表情。导入时会把图片下载到本实例并加入实例表情，本实例的所有人都可以使用。原表情保持不变。",
+        "searchHint": "名称",
+        "sourceLabel": "来源实例",
+        "allSources": "所有实例",
+        "source": "{domain}（{count}）",
+        "title": "导入 {count} 个表情 | 导入 {count} 个表情",
+        "loading": "正在检查名称",
+        "previewFailed": "无法检查名称。请关闭后重试。",
+        "explain": "每张图片都会下载到本实例，并以下方的名称加入实例表情。现有表情绝不会被替换。",
+        "clashes": "有 {count} 个名称已被实例表情使用。可保留建议的名称、输入其他名称或跳过。 | 有 {count} 个名称已被实例表情使用。可保留建议的名称、输入其他名称或跳过。",
+        "listLabel": "要导入的表情",
+        "nameFor": "{name} 的名称",
+        "skip": "跳过",
+        "nameInUse": "已有实例表情使用该名称。",
+        "nameRepeated": "本次导入中的另一个表情使用了该名称。",
+        "confirm": "导入 {count} 个 | 导入 {count} 个",
+        "stop": "停止",
+        "progress": "正在导入… 已完成 {current} / {total}",
+        "result": {
+          "imported": "没有导入表情 | 已导入 {count} 个 | 已导入 {count} 个",
+          "skipped": "跳过 {count} 个 | 跳过 {count} 个",
+          "failed": "{count} 个失败 | {count} 个失败",
+          "stopped": "{count} 个未开始 | {count} 个未开始"
+        },
+        "status": {
+          "imported": "已导入为 {name}",
+          "skipped": "已跳过",
+          "gone": "已不可用：已导入或已删除",
+          "stopped": "未开始",
+          "waiting": "等待中"
         }
       }
     }

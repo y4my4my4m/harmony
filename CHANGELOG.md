@@ -34,6 +34,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Cloudflare Turnstile or hCaptcha in **Admin** → **Invites** → **Sign-up check**. It appears for a
   second account from the same network within an hour, an email domain new to the instance, or a
   sign-up past a counting limit; most people never see it. It works in the apps too. Off until set up.
+- **Import emojis from other instances.** **Admin** → **Emojis** → **Import** lists the custom emojis
+  seen in posts and reactions from other instances, by instance and name. Pick one or many: each
+  image is copied to your instance and the emoji joins the instance emojis for everyone here, with
+  its licence and where it came from kept. A name already in use is offered under another name or
+  can be skipped; an existing emoji is never replaced. **Re-host** is now **Copy image to this
+  instance**: it only changes where an existing emoji's image is served from.
 - **Invite widgets for your website.** The invite dialog's **Add to your website** gives a badge,
   a Markdown badge for READMEs and forums, a join button, a small icon and a card to frame. Each
   shows the server's name and counts and links to the invite.
@@ -92,6 +98,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and failed. A blocked account can no longer add you to a group, or back into one you left.
   **Block** never removes a block already in place: on a screen that had not caught up, pressing it
   could unblock.
+- **Instance emojis and your own in `:name` suggestions.** Typing `:name` offered them only after
+  the emoji picker had been opened once; it now offers them from the first keystroke.
 - **Watch together** plays for the member who starts it again. After they had hidden an earlier
   activity in the call, or when their profile id differs from their sign-in id, their own video
   stayed hidden while everyone else saw it.

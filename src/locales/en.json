@@ -5597,7 +5597,7 @@
     },
     "emojis": {
       "title": "Emojis",
-      "description": "Every custom emoji on this instance: uploads, imports, emojis cached from other instances, server emojis and personal ones. Removing an emoji takes it out of every picker; earlier messages and reactions keep showing it, and it can be restored. Purging deletes the emoji and its file: earlier messages and reactions then show a broken-image icon.",
+      "description": "Every custom emoji on this instance: uploads, imports, emojis cached from other instances, server emojis and personal ones. Import copies emojis from other instances into the instance emojis, where everyone here can use them. Removing an emoji takes it out of every picker; earlier messages and reactions keep showing it, and it can be restored. Purging deletes the emoji and its file: earlier messages and reactions then show a broken-image icon.",
       "refresh": "Refresh",
       "retry": "Try again",
       "loading": "Loading emojis",
@@ -5607,7 +5607,7 @@
       "searchHint": "Name, server, owner or domain",
       "newName": "New name",
       "brokenImage": "The image could not be loaded",
-      "hotlinkedHint": "The image is loaded from another site. Re-host copies it to this instance.",
+      "hotlinkedHint": "This emoji already works here, but its image is still loaded from another site. Copying the image to this instance keeps it working if that site changes. Nothing else about the emoji changes.",
       "kinds": {
         "label": "Kind",
         "all": "All",
@@ -5617,7 +5617,7 @@
         "server": "Server",
         "personal": "Personal",
         "ai": "AI generated",
-        "not_imported": "Not imported"
+        "not_imported": "Available to import"
       },
       "status": {
         "label": "Status",
@@ -5632,8 +5632,9 @@
         "usage": "Most used"
       },
       "badges": {
-        "hotlinked": "hotlinked",
-        "removed": "removed"
+        "hotlinked": "hosted elsewhere",
+        "removed": "removed",
+        "nameTaken": "name in use"
       },
       "meta": {
         "server": "in {server}",
@@ -5645,14 +5646,15 @@
         "seen": "seen {count} time | seen {count} times",
         "reactions": "no reactions | {count} reaction | {count} reactions",
         "removedBy": "removed by {user} on {date}",
-        "removedOn": "removed on {date}"
+        "removedOn": "removed on {date}",
+        "license": "Licence: {license}"
       },
       "titles": {
         "rename": "Rename",
         "remove": "Remove",
         "restore": "Restore",
         "purge": "Purge",
-        "rehost": "Re-host",
+        "rehost": "Copy image to this instance",
         "import": "Import"
       },
       "actions": {
@@ -5660,7 +5662,7 @@
         "remove": "Remove {name}",
         "restore": "Restore {name}",
         "purge": "Purge {name}",
-        "rehost": "Re-host {name}",
+        "rehost": "Copy the image of {name} to this instance",
         "import": "Import {name}",
         "select": "Select {name}"
       },
@@ -5670,7 +5672,9 @@
         "selected": "{count} selected | {count} selected",
         "remove": "Remove selected",
         "restore": "Restore selected",
-        "purge": "Purge selected"
+        "purge": "Purge selected",
+        "import": "Import selected",
+        "rehost": "Copy images to this instance"
       },
       "upload": {
         "button": "Upload",
@@ -5693,11 +5697,7 @@
         "purgeTitle": "Purge emoji",
         "purge": "Purge {name}? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon.",
         "purgeMany": "Purge {count} emoji? The emoji and its file are deleted for good. Earlier messages and reactions that use it then show a broken-image icon. | Purge {count} emojis? The emojis and their files are deleted for good. Earlier messages and reactions that use them then show a broken-image icon.",
-        "purgeButton": "Purge",
-        "importTitle": "Import {name}",
-        "import": "This downloads a copy of the image from {domain} into this instance's storage and adds it to the instance emojis. Leave the name empty to keep {name}.",
-        "importLabel": "Name (without colons)",
-        "importButton": "Import"
+        "purgeButton": "Purge"
       },
       "done": {
         "renamed": "Renamed to {name}",
@@ -5708,7 +5708,8 @@
         "purged": "Purged {name}",
         "purgedMany": "{count} emoji purged | {count} emojis purged",
         "rehosted": "{name} is now hosted on this instance",
-        "imported": "Imported {name}"
+        "rehostedMany": "{count} image copied to this instance | {count} images copied to this instance",
+        "importedMany": "{count} emoji imported | {count} emojis imported"
       },
       "errors": {
         "load": "Could not load emojis.",
@@ -5734,13 +5735,50 @@
           "already_imported": "This emoji is already imported.",
           "name_taken": "An instance emoji already uses that name.",
           "invalid_name": "Names are 2 to 64 letters, digits, _ or -.",
-          "not_instance": "Only instance emojis can be re-hosted.",
+          "not_instance": "Only an instance emoji can have its image copied here.",
           "not_hotlinked": "This emoji is already hosted on this instance.",
           "unsupported_image": "The remote image is not a PNG, GIF, WebP or JPEG.",
           "too_large": "The remote image is larger than the emoji size limit.",
           "fetch_failed": "The remote image could not be downloaded.",
           "internal_error": "Something went wrong. Try again later.",
-          "network_error": "The server could not be reached."
+          "network_error": "The server could not be reached.",
+          "rate_limited": "The hourly import limit is reached. Try again later."
+        },
+        "rehostMany": "{count} image could not be copied. | {count} images could not be copied."
+      },
+      "nameTakenHint": "An instance emoji already uses this name. Importing offers another name.",
+      "import": {
+        "button": "Import",
+        "hint": "Custom emojis seen in posts and reactions from other instances. Importing one downloads its image to this instance and adds it to the instance emojis, where everyone here can use it. The original stays where it is.",
+        "searchHint": "Name",
+        "sourceLabel": "Source instance",
+        "allSources": "All instances",
+        "source": "{domain} ({count})",
+        "title": "Import {count} emoji | Import {count} emojis",
+        "loading": "Checking names",
+        "previewFailed": "Could not check the names. Close and try again.",
+        "explain": "Each image is downloaded to this instance and added to the instance emojis under the name below. Existing emojis are never replaced.",
+        "clashes": "{count} name is already used by an instance emoji. Keep the suggested name, type another, or skip it. | {count} names are already used by instance emojis. Keep the suggested names, type others, or skip them.",
+        "listLabel": "Emojis to import",
+        "nameFor": "Name for {name}",
+        "skip": "Skip",
+        "nameInUse": "An instance emoji already uses this name.",
+        "nameRepeated": "Another emoji in this import uses this name.",
+        "confirm": "Import {count} emoji | Import {count} emojis",
+        "stop": "Stop",
+        "progress": "Importing… {current} of {total} done",
+        "result": {
+          "imported": "No emoji imported | {count} emoji imported | {count} emojis imported",
+          "skipped": "{count} skipped | {count} skipped",
+          "failed": "{count} failed | {count} failed",
+          "stopped": "{count} not started | {count} not started"
+        },
+        "status": {
+          "imported": "Imported as {name}",
+          "skipped": "Skipped",
+          "gone": "No longer available: already imported or removed",
+          "stopped": "Not started",
+          "waiting": "Waiting"
         }
       }
     }

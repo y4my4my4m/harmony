@@ -627,6 +627,26 @@ export function useAutoSuggest(
   const botTargetKey = (target: BotCommandTarget) => `${target.channelId}:${target.threadId ?? ''}`;
 
   // Asked on every '/' keystroke; botCommandService answers from its 60 s cache.
+  /**
+   * The instance's emoji and the viewer's own, into the emoji cache `:name` reads. Server emoji
+   * load with their server; these two groups load here and in the pickers. The store skips the
+   * request while its copy is fresh.
+   */
+  const loadOwnEmojis = async () => {
+    let profileId: string | null = null;
+    try {
+      const { authContextService } = await import('@/services/AuthContextService');
+      profileId = (await authContextService.getCurrentContext()).profileId ?? null;
+    } catch {
+      // Signed out or not ready: the instance group alone.
+    }
+    try {
+      await emojiCacheStore.loadPersonalEmojis(profileId);
+    } catch (err) {
+      debug.warn('Failed to load instance and personal emoji:', err);
+    }
+  };
+
   const loadBotCommands = (target: BotCommandTarget) => {
     const key = botTargetKey(target);
     const request = ++botCommandsRequest;
@@ -970,6 +990,8 @@ export function useAutoSuggest(
           const target = currentBotTarget();
           if (target) loadBotCommands(target);
         }
+
+        if (trigger.type === 'emoji' && !keepPosition) void loadOwnEmojis();
 
         // Bridge bot check and role load run on '@', not on server change.
         if (trigger.type === 'mention' && finalConfig.mode === 'chat') {
