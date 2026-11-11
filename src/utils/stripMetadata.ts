@@ -1057,6 +1057,28 @@ export async function stripMediaBytes(bytes: Uint8Array): Promise<Uint8Array> {
   return out
 }
 
+/**
+ * What stripping `source` overwrites in place, as byte patches at their file offsets; null when
+ * there is nothing to strip. For ISOBMFF (MP4, MOV, 3GP), whose metadata boxes become `free` boxes
+ * of the same size. Other formats change length when stripped and throw.
+ */
+export async function mediaStripPatches(source: ByteSource): Promise<Array<{ at: number; bytes: Uint8Array }> | null> {
+  const { parts } = await plan(source, { detect: false })
+  if (!parts) return null
+  const patches: Array<{ at: number; bytes: Uint8Array }> = []
+  let at = 0
+  for (const part of parts) {
+    if (part instanceof Uint8Array) {
+      patches.push({ at, bytes: part })
+      at += part.length
+    } else {
+      at += part[1] - part[0]
+    }
+  }
+  if (at !== source.size) throw new Error('Stripping this file changes its length')
+  return patches
+}
+
 /** Image or video by type or name: the files the keep-details choice applies to. */
 export function isPhotoOrVideo(file: { type?: string; name?: string }): boolean {
   if (file.type?.startsWith('image/') || file.type?.startsWith('video/')) return true

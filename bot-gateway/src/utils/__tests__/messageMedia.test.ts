@@ -230,7 +230,14 @@ describe('bridge mirror', () => {
 
   it('stores a mirrored photo without its location and camera details', async () => {
     mirrorMode()
-    mocks.upload.mockResolvedValue({ data: {}, error: null })
+    // The body is a stream of the temp file, deleted after the upload: read it inside the call.
+    let stored = Buffer.alloc(0)
+    mocks.upload.mockImplementation(async (_path: string, body: AsyncIterable<Buffer>) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of body) chunks.push(chunk)
+      stored = Buffer.concat(chunks)
+      return { data: {}, error: null }
+    })
     const photo = readFileSync(resolve(__dirname, '../../../../tests/fixtures/media-metadata/gps-rotated.jpg'))
     expect(photo.toString('latin1')).toContain('HarmonyCam')
     serve(new Uint8Array(photo), 'image/jpeg')
@@ -238,7 +245,6 @@ describe('bridge mirror', () => {
     await applyBridgeAttachmentPolicy(
       [{ type: 'url', url: 'https://cdn.discordapp.com/attachments/1/2/IMG_0420.jpg?ex=1' }], BOT, CHANNEL)
 
-    const stored = Buffer.from(mocks.upload.mock.calls[0][1] as Uint8Array)
     expect(stored.length).toBeLessThan(photo.length)
     for (const marker of ['HarmonyCam', 'GPSLatitude', 'Tokyo', 'TRAILER']) expect(stored.toString('latin1')).not.toContain(marker)
     expect(stored.subarray(0, 2).toString('hex')).toBe('ffd8')

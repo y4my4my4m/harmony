@@ -1,13 +1,10 @@
-import { randomUUID } from 'crypto'
 import { supabase } from '../config/supabase.js'
-import { MESSAGE_MEDIA_BUCKET, signMessageMediaPaths } from './messageMedia.js'
-import { stripMediaBytes } from './stripMetadata.js'
-
-const MAX_BYTES = 50 * 1024 * 1024
+import { MESSAGE_MEDIA_BUCKET } from './messageMedia.js'
+import { mirrorFileToStorage } from './mirrorFile.js'
 
 const ALLOWED_HOST_SUFFIXES = ['discordapp.com', 'discordapp.net']
 
-function isAllowedSourceUrl(url: string): boolean {
+export function isAllowedSourceUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase()
     return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`))
@@ -46,14 +43,14 @@ export function isAnimatedPng(buffer: Buffer): boolean {
   return false
 }
 
-function fileTypeOf(contentType: string): 'image' | 'video' | 'audio' | 'file' {
+export function fileTypeOf(contentType: string): 'image' | 'video' | 'audio' | 'file' {
   if (contentType.startsWith('image/')) return 'image'
   if (contentType.startsWith('video/')) return 'video'
   if (contentType.startsWith('audio/')) return 'audio'
   return 'file'
 }
 
-function extensionFrom(fileName: string | undefined, contentType: string | undefined, sourceUrl: string): string {
+export function extensionFrom(fileName: string | undefined, contentType: string | undefined, sourceUrl: string): string {
   const fromName = fileName?.split('.').pop()?.toLowerCase()
   if (fromName && /^[a-z0-9]{1,8}$/.test(fromName)) return fromName
   if (contentType?.includes('png')) return 'png'
@@ -67,53 +64,40 @@ function extensionFrom(fileName: string | undefined, contentType: string | undef
 }
 
 /** Unsigned reference to an object; resolves for nobody without a bearer token. */
-function referenceUrl(storagePath: string): string {
+export function referenceUrl(storagePath: string): string {
   const publicBase = (process.env.PUBLIC_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '')
   return `${publicBase}/storage/v1/object/authenticated/${MESSAGE_MEDIA_BUCKET}/${storagePath}`
 }
 
 /**
  * Copies a Discord CDN attachment into the channel's room of message_media, as
- * c/<channel id>/bridge/<bot id>/<uuid>.<ext>. The returned url is signed for clients
- * before 1.6.6, which render `url`.
+ * c/<channel id>/bridge/<bot id>/<uuid>.<ext>, up to the instance upload ceiling. The returned
+ * url is signed for clients before 1.6.6, which render `url`.
  */
 export async function mirrorExternalMediaToStorage(
   sourceUrl: string,
   opts: { botId: string; channelId: string; fileName?: string; contentType?: string },
 ): Promise<{ path: string; url: string; contentType: string }> {
-  if (!isAllowedSourceUrl(sourceUrl)) {
-    throw new Error(`Refusing to mirror disallowed URL host`)
-  }
-
-  const response = await fetch(sourceUrl)
-  if (!response.ok) {
-    throw new Error(`Download failed (${response.status})`)
-  }
-
-  const downloaded = Buffer.from(await response.arrayBuffer())
-  if (downloaded.byteLength > MAX_BYTES) {
-    throw new Error(`Attachment too large (${downloaded.byteLength} bytes)`)
-  }
-  // Location and camera metadata never reach storage from a bot (utils/stripMetadata.ts).
-  const buffer = Buffer.from(await stripMediaBytes(downloaded))
-
-  // An APNG stored as .png is served as a static thumbnail: clients downscale .png only.
-  const animatedPng = isAnimatedPng(buffer)
-  const contentType = animatedPng
-    ? 'image/apng'
-    : opts.contentType || response.headers.get('content-type') || 'application/octet-stream'
-  const extension = animatedPng ? 'apng' : extensionFrom(opts.fileName, contentType, sourceUrl)
-
-  const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
-  const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(storagePath, buffer, {
-    contentType,
-    upsert: false,
-    cacheControl: '31536000',
+  const { path, url, contentType } = await mirrorFileToStorage(sourceUrl, {
+    ...opts,
+    ceiling: await getUploadCeilingBytes(),
   })
-  if (error) throw new Error(`Storage upload failed: ${error.message}`)
+  return { path, url, contentType }
+}
 
-  const signed = await signMessageMediaPaths([storagePath])
-  return { path: storagePath, url: signed.get(storagePath) ?? referenceUrl(storagePath), contentType }
+const DEFAULT_UPLOAD_CEILING_BYTES = 52428800
+
+/** instance_config.upload_ceiling_bytes (jsonb number or string); 50 MiB when unset or unusable. */
+export async function getUploadCeilingBytes(): Promise<number> {
+  const { data, error } = await supabase
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'upload_ceiling_bytes')
+    .maybeSingle()
+
+  if (error || data?.config_value == null) return DEFAULT_UPLOAD_CEILING_BYTES
+  const value = Number(typeof data.config_value === 'string' ? data.config_value.replace(/^"|"$/g, '') : data.config_value)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_UPLOAD_CEILING_BYTES
 }
 
 /**
