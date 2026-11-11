@@ -113,7 +113,9 @@ router.post(
 /** A moved client leaves the old room itself; one still there after this is removed. */
 export const MOVE_GRACE_MS = 5000;
 
-const uuid = z.string().uuid();
+// z.guid(): any 8-4-4-4-12 hex id, as zod 3's uuid() accepted. zod 4's uuid() also
+// requires RFC 9562 version/variant bits, which ids from other instances need not have.
+const uuid = z.guid();
 const moderationSchema = z.object({
   serverId: uuid,
   userId: uuid,
