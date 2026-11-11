@@ -61,6 +61,7 @@ const ContentStub = defineComponent({
 
 import PinnedMessagesPopup from '../PinnedMessagesPopup.vue'
 import { resetInstanceMediaHidden } from '@/composables/useInstanceMediaHidden'
+import { supabase } from '@/supabase'
 
 enableAutoUnmount(afterEach)
 
@@ -132,6 +133,26 @@ describe('PinnedMessagesPopup', () => {
     const w = await mountPopup({ channelId: 'c1' })
     expect(w.get('.message-author').text()).toBe('Deploys')
     expect(w.get('.message-avatar').attributes('src')).toBe('/default_avatar.webp')
+  })
+
+  it('shows a bot pin under the bot\'s name and avatar, as chat does', async () => {
+    const single = vi.fn(async () => ({
+      data: { id: 'plain-bot', username: 'deploybot', display_name: 'Deploy Bot', avatar_url: 'https://cdn.test/bot.png' },
+      error: null,
+    }))
+    const eq = vi.fn(() => ({ single }))
+    vi.mocked(supabase.from).mockReturnValue({ select: () => ({ eq }) } as never)
+    s.pins = [
+      { id: 'm4', user_id: null, bot_id: 'plain-bot', created_at: '2026-10-20T00:00:00Z', content: [{ type: 'text', text: 'hi' }], metadata: {} },
+      { id: 'm5', user_id: null, bot_id: 'plain-bot', created_at: '2026-10-21T00:00:00Z', content: [{ type: 'text', text: 'again' }], metadata: {} },
+    ]
+    const w = await mountPopup({ channelId: 'c1' })
+    expect(supabase.from).toHaveBeenCalledWith('bots')
+    expect(eq).toHaveBeenCalledWith('id', 'plain-bot')
+    expect(single).toHaveBeenCalledTimes(1)
+    expect(w.findAll('.message-author').map(a => a.text())).toEqual(['Deploy Bot', 'Deploy Bot'])
+    expect(w.findAll('.message-avatar').map(a => a.attributes('src'))).toEqual(['https://cdn.test/bot.png', 'https://cdn.test/bot.png'])
+    expect(w.findComponent({ name: 'DisplayName' }).exists()).toBe(false)
   })
 
   it('keeps the member profile for a pin a person wrote', async () => {
