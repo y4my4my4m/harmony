@@ -30,6 +30,8 @@
 -- and 60 stickers). Called with p_ids NULL they list the rows past the bound as (id, path);
 -- called with ids they delete those of the listed rows still past it. bot-gateway removes the
 -- files between the two calls, so a failed file removal leaves the row for the next call.
+-- Neither takes the per-server advisory lock: the imports lock a row, then take that lock, and
+-- an eviction holding it while it waits for the row would deadlock with them.
 -- A deleted retired sticker writes no second sticker.delete to the server audit log.
 
 BEGIN;
@@ -305,7 +307,6 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
   END IF;
-  PERFORM pg_advisory_xact_lock(hashtextextended('server_emojis:' || p_server_id::text, 0));
 
   IF p_ids IS NULL THEN
     RETURN QUERY
@@ -403,7 +404,6 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'bot is not the Discord bridge of this server' USING ERRCODE = '42501';
     END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('stickers:server:' || p_server_id::text, 0));
 
     IF p_ids IS NULL THEN
         RETURN QUERY
