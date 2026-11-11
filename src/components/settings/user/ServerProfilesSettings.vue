@@ -157,6 +157,11 @@
           />
         </div>
       </div>
+      <section v-if="discordSyncShown" class="discord-sync" data-testid="discord-sync">
+        <h3 class="discord-sync-title">{{ t('discordMigration.sync.title') }}</h3>
+        <p class="discord-sync-lead">{{ t('discordMigration.sync.settingsLead') }}</p>
+        <DiscordSyncFields v-model="discordSync" :server-id="selectedServerId" />
+      </section>
       </template>
     </template>
   </section>
@@ -168,11 +173,13 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedProfileCard from '@/components/common/UnifiedProfileCard.vue'
+import DiscordSyncFields from '@/components/settings/user/DiscordSyncFields.vue'
 import { getMemberServerProfile } from '@/composables/useMemberProfile'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useUserData } from '@/composables/useUserData'
 import { profileService } from '@/services/ProfileService'
 import { Permission } from '@/services/RoleService'
+import { myLink, type SyncField } from '@/services/discordMigrationService'
 import { loadMyServerProfile, setMyServerProfile, type ServerProfileFields } from '@/services/serverProfileService'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -344,6 +351,18 @@ async function onUpload(key: 'avatar_url' | 'banner_url', event: Event) {
   }
 }
 
+// "Sync from Discord": only for a server where the member linked a Discord account.
+const discordSync = ref<SyncField[]>([])
+const discordSyncShown = ref(false)
+watch(selectedServerId, async (serverId) => {
+  discordSyncShown.value = false
+  if (!serverId) return
+  const link = await myLink(serverId).catch(() => null)
+  if (selectedServerId.value !== serverId) return
+  discordSync.value = link?.syncFields ?? []
+  discordSyncShown.value = link?.status === 'active'
+}, { immediate: true })
+
 const previewUser = computed<User | null>(() => {
   const u = me.value
   if (!u) return null
@@ -411,6 +430,24 @@ const previewProfile = computed(() => ({
 
 .profile-preview {
   flex: 0 1 300px;
+}
+
+.discord-sync {
+  margin-top: 24px;
+  max-width: 480px;
+}
+
+.discord-sync-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.discord-sync-lead {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
 }
 
 .preview-title {

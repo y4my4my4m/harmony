@@ -4651,7 +4651,8 @@
       "emoji": "이모지",
       "sound": "사운드",
       "bot": "봇",
-      "sticker": "스티커"
+      "sticker": "스티커",
+      "discord_migration": "Discord 이전"
     },
     "actions": {
       "channel_create": "{actor}님이 채널 {target}을(를) 만들었습니다",
@@ -4703,7 +4704,8 @@
       "server_unsuspend": "{actor}님이 서버 정지를 해제했습니다",
       "sticker_create": "{actor} 님이 스티커 {target}을(를) 추가했습니다",
       "sticker_update": "{actor} 님이 스티커 {target}을(를) 편집했습니다",
-      "sticker_delete": "{actor} 님이 스티커 {target}을(를) 삭제했습니다"
+      "sticker_delete": "{actor} 님이 스티커 {target}을(를) 삭제했습니다",
+      "discord_migration_paused": "Discord 이전이 동기화를 일시 중지했습니다"
     },
     "fields": {
       "nickname": "닉네임",
@@ -5736,6 +5738,248 @@
           "internal_error": "문제가 발생했습니다. 나중에 다시 시도하세요.",
           "network_error": "서버에 연결할 수 없습니다."
         }
+      }
+    }
+  },
+  "discordMigration": {
+    "joinedOnDiscord": "Discord 가입일",
+    "notice": {
+      "grantedTitle": "Discord 마이그레이션으로 {user} 님이 {server}에서 관리자 역할 {role}을(를) 받았습니다",
+      "removedTitle": "Discord 마이그레이션으로 {user} 님이 {server}에서 관리자 역할 {role}을(를) 잃었습니다",
+      "message": "마이그레이션이 열려 있는 동안 {server}의 연결된 역할은 Discord가 결정합니다.",
+      "short": "Discord 마이그레이션으로 관리자 역할이 변경되었습니다",
+      "pausedTitle": "{server}의 Discord 마이그레이션이 일시 중지됨",
+      "pausedShort": "Discord 마이그레이션 일시 중지됨",
+      "paused": {
+        "removal_brake": "{server}의 Discord 마이그레이션이 스스로 일시 중지되었습니다. 너무 많은 멤버가 동시에 Discord를 나갔거나 차단되었습니다. 서버 설정에서 확인한 뒤 다시 시작하세요.",
+        "credentials_missing": "{server}의 Discord 마이그레이션이 일시 중지되었습니다. Discord 자격 증명이 없습니다. 서버 설정에서 추가하면 다시 시작할 수 있습니다.",
+        "token_invalid": "{server}의 Discord 마이그레이션이 일시 중지되었습니다. Discord가 봇 토큰을 거부했습니다. 서버 설정에서 토큰을 교체하면 다시 시작할 수 있습니다.",
+        "bot_not_in_guild": "{server}의 Discord 마이그레이션이 일시 중지되었습니다. 봇이 더 이상 Discord 서버에 없습니다. 봇을 다시 추가한 뒤 재개하세요.",
+        "discord_errors": "{server}의 Discord 마이그레이션이 일시 중지되었습니다. Discord에서 오류가 계속 반환되었습니다. Discord에 다시 연결할 수 있게 되면 서버 설정에서 재개하세요.",
+        "generic": "{server}의 Discord 마이그레이션이 일시 중지되었습니다. 서버 설정에서 다시 시작하세요."
+      }
+    },
+    "sync": {
+      "title": "Discord에서 동기화",
+      "settingsLead": "마이그레이션이 열려 있는 동안 선택한 항목이 Discord 프로필에서 Harmony로 복사됩니다.",
+      "accountGroup": "계정 프로필",
+      "serverGroup": "이 서버에서의 프로필",
+      "hint": "스위치를 바꿀 때와 그 이후 몇 시간마다 복사됩니다. 항목을 끄면 더 이상 복사하지 않으며, 이미 복사된 내용은 그대로 남습니다.",
+      "saveFailed": "저장하지 못했습니다. 다시 시도하세요.",
+      "fields": {
+        "avatar": "프로필 사진",
+        "display_name": "표시 이름",
+        "banner": "배너",
+        "accent_color": "강조 색상",
+        "server_nickname": "이 서버에서의 별명",
+        "server_avatar": "이 서버에서의 사진",
+        "server_banner": "이 서버에서의 배너"
+      }
+    },
+    "migrate": {
+      "title": "Discord에서 이전",
+      "loading": "불러오는 중…",
+      "lead": "Discord 계정을 Harmony에 연결하면 이 커뮤니티가 옮겨 온 뒤에도 역할을 유지하고, 원하면 프로필도 가져올 수 있습니다.",
+      "linkTo": "{'@'}{username}에 연결합니다.",
+      "notYou": "본인이 아닌가요? 로그아웃",
+      "signInInstead": "대신 로그인",
+      "signInInsteadHint": "그런 다음 'Discord로 로그인'을 다시 선택하세요.",
+      "signInWithDiscord": "Discord로 로그인",
+      "haveAccount": "Harmony 계정이 있습니다",
+      "newHere": "처음입니다: Discord로 계속",
+      "claiming": "서버에 참가하는 중…",
+      "doneTitle": "연결되었습니다",
+      "rolesReceived": "다음 역할을 받았습니다:",
+      "noRoles": "받은 역할이 없습니다. 마이그레이션이 열려 있는 동안 역할은 Discord를 따릅니다.",
+      "openServer": "서버 열기",
+      "confirmEmail": "이메일을 확인한 뒤 로그인하세요. 자동으로 참가됩니다.",
+      "formLead": "Harmony 계정을 만들어 마무리하세요.",
+      "username": "사용자 이름",
+      "email": "이메일",
+      "password": "비밀번호",
+      "createAccount": "계정 만들기",
+      "startAgain": "다시 시작",
+      "federated": "이전하려면 이 인스턴스에 계정을 만드세요. 다른 인스턴스의 계정은 여기에 연결할 수 없습니다.",
+      "signOut": "로그아웃",
+      "accountCreatedSignIn": "계정이 만들어졌습니다. 로그인하여 참가를 마무리하세요.",
+      "signIn": "로그인",
+      "errors": {
+        "closed": "이 마이그레이션은 종료되었습니다. 서버 관리자에게 초대를 요청하세요.",
+        "migration_closed": "이 마이그레이션은 종료되었습니다. 서버 관리자에게 초대를 요청하세요.",
+        "not_member": "이 Discord 서버의 멤버가 아닙니다.",
+        "harmony_banned": "Harmony에서 이 서버에서 차단되었습니다.",
+        "kicked_on_harmony": "Harmony에서 이 서버에서 추방되었습니다. 먼저 관리자가 다시 허용해야 합니다.",
+        "discord_banned_here": "Discord에서 이 서버에서 차단되었습니다.",
+        "discord_account_taken": "해당 Discord 계정은 이미 다른 Harmony 계정에 연결되어 있습니다.",
+        "already_linked_other_discord": "내 Harmony 계정은 이 서버에서 이미 다른 Discord 계정에 연결되어 있습니다.",
+        "already_linked_elsewhere": "내 Harmony 계정은 이 서버에서 이미 다른 Discord 계정에 연결되어 있습니다.",
+        "ticket_expired": "이 로그인이 만료되었습니다. 다시 시작하세요.",
+        "account_creation_disabled": "지금은 여기서 새 계정을 만들 수 없습니다.",
+        "denied": "Discord 로그인을 취소했습니다.",
+        "exchange_failed": "Discord가 로그인을 확인하지 못했습니다. 다시 시도하세요.",
+        "unavailable": "지금은 마이그레이션을 사용할 수 없습니다. 나중에 다시 시도하세요.",
+        "username_taken": "이미 사용 중인 사용자 이름입니다.",
+        "email_exists": "해당 이메일의 계정이 이미 있습니다. 그 계정으로 로그인하세요.",
+        "username_invalid": "사용할 수 없는 사용자 이름입니다.",
+        "invalid_request": "사용자 이름, 이메일, 비밀번호를 입력하세요.",
+        "invalid_ticket": "이 로그인이 만료되었습니다. 다시 시작하세요.",
+        "network": "서버에 연결할 수 없습니다. 다시 시도하세요.",
+        "unknown": "문제가 발생했습니다. 다시 시도하세요."
+      }
+    },
+    "navLabel": "Discord에서 이전하기",
+    "title": "Discord에서 이전하기",
+    "intro": "Discord 커뮤니티를 이곳으로 옮겨 오세요. 멤버가 Discord 계정을 Harmony 계정에 연결하면, 이전이 열려 있는 동안 Discord의 역할, 프로필, 상태가 이곳에 반영됩니다.",
+    "loading": "이전 설정을 불러오는 중…",
+    "loadError": "이전 설정을 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "prereq": {
+      "title": "시작하기 전에",
+      "cloneFirst": "먼저 Discord 서버를 이 서버로 복제하세요(채널, 카테고리, 역할). 이전은 Discord 역할을 Harmony 역할에 연결할 뿐, 역할을 만들지는 않습니다.",
+      "botInServer": "아래에서 사용할 봇은 이미 Discord 서버의 멤버여야 합니다."
+    },
+    "source": {
+      "title": "Discord 봇 출처",
+      "save": "저장",
+      "saved": "저장했습니다.",
+      "instance_bot": {
+        "label": "이 인스턴스의 Discord 봇",
+        "hint": "인스턴스 운영자가 운영하는 Discord 봇입니다. 먼저 Discord 서버에 초대하세요."
+      },
+      "bridge": {
+        "label": "이 서버의 호스팅 브리지 봇",
+        "hint": "이 서버 Discord 브리지의 봇 토큰을 재사용합니다."
+      },
+      "own": {
+        "label": "내 Discord 애플리케이션",
+        "hint": "Discord 애플리케이션과 봇을 직접 만들고 정보를 입력합니다.",
+        "intro": "Discord 개발자 포털에서 애플리케이션을 만들고 봇을 추가한 다음, 봇을 Discord 서버에 초대하세요. 아래 값은 포털에서 복사합니다.",
+        "redirect": "애플리케이션의 OAuth2 → Redirects에 다음 주소를 추가하세요:",
+        "redirectLabel": "리디렉션 주소",
+        "clientId": "클라이언트 ID",
+        "clientSecret": "클라이언트 시크릿",
+        "botToken": "봇 토큰",
+        "stored": "시크릿은 저장되며 다시 표시할 수 없습니다. 비워 두면 저장된 값이 유지됩니다.",
+        "notStored": "아직 저장된 자격 증명이 없습니다."
+      }
+    },
+    "guild": {
+      "label": "Discord 서버 ID",
+      "hint": "Discord에서 개발자 모드를 켜고, 서버를 마우스 오른쪽 버튼으로 클릭해 서버 ID 복사를 선택하세요.",
+      "locked": "이전을 연 후에는 Discord 서버를 바꿀 수 없습니다."
+    },
+    "refresh": {
+      "button": "Discord에서 가져오기",
+      "working": "가져오는 중…",
+      "needSave": "먼저 Discord 서버와 자격 증명을 저장하세요.",
+      "done": "Discord 역할 {count}개를 찾았습니다.",
+      "cannotBan": "봇이 Discord에서 멤버를 차단할 수 없습니다. 봇에게 멤버 차단 권한을 주고 다시 가져오기 전까지는 Discord에서 차단된 멤버가 이곳에서 차단되지 않습니다.",
+      "errors": {
+        "credentials_missing": "이 이전에 저장된 자격 증명이 없습니다. 저장한 뒤 다시 시도하세요.",
+        "token_invalid": "Discord가 봇 토큰을 거부했습니다. 확인한 뒤 다시 시도하세요.",
+        "bot_not_in_guild": "봇이 해당 Discord 서버에 없거나 서버를 볼 수 없습니다. 봇을 초대한 뒤 다시 시도하세요.",
+        "network": "서버에 연결할 수 없습니다. 다시 시도하세요.",
+        "unauthenticated": "다시 로그인해야 합니다.",
+        "other": "Discord에서 가져오는 중 문제가 생겼습니다."
+      }
+    },
+    "roles": {
+      "title": "역할 연결하기",
+      "intro": "Discord 역할마다 Harmony 역할이 필요합니다. 이전이 열려 있는 동안에는 연결된 Harmony 역할을 누가 가지는지 Discord가 결정합니다.",
+      "empty": "Discord에서 역할을 가져와 연결을 시작하세요.",
+      "counter": "아직 연결이 필요한 역할이 {count}개 있습니다",
+      "allMatched": "모든 Discord 역할이 연결되었습니다.",
+      "adminBadge": "관리자",
+      "selectLabel": "{role}에 연결할 Harmony 역할",
+      "choose": "역할 선택",
+      "ownerOnly": "관리자 권한이 있는 역할은 서버 소유자만 연결할 수 있습니다",
+      "matchedByName": "이름으로 일치",
+      "accept": "추천 연결 사용"
+    },
+    "gaps": {
+      "title": "추가할 권한",
+      "intro": "이 Discord 역할에는 Harmony 역할에 없는 권한이 있습니다. 적용하면 권한이 추가될 뿐, 제거되지는 않습니다.",
+      "apply": "Discord 권한 적용",
+      "applyAll": "모두 적용"
+    },
+    "errors": {
+      "needManageRoles": "권한을 적용하려면 역할 관리 권한이 필요합니다",
+      "cannotGrant": "{permission} 권한이 없으므로 부여할 수 없습니다",
+      "generic": "실패했습니다. 다시 시도하세요."
+    },
+    "adminConfirm": {
+      "holdersFailed": "이 역할을 가진 멤버를 불러오지 못했습니다. 다시 시도하세요.",
+      "title": "관리자 권한을 부여할까요?",
+      "lead": "관리자 권한이 있는 역할을 Harmony 역할에 연결하려고 합니다.",
+      "holders": "다음 멤버가 이 서버의 관리자가 됩니다:",
+      "holdersPending": "다음 멤버가 이 역할을 갖게 됩니다. 이 역할에 관리자 권한이 적용되면 관리자가 됩니다:",
+      "noHolders": "아직 이 역할을 가진 사람이 없습니다.",
+      "future": "이전이 열려 있는 동안 Discord에서 이 역할을 받은 사람도 이곳에서 관리자가 됩니다.",
+      "futurePending": "이전이 열려 있는 동안 Discord에서 이 역할을 받은 사람도 이곳에서 이 역할을 갖게 되며, 관리자 권한이 적용되면 관리자가 됩니다.",
+      "confirm": "관리자로 지정"
+    },
+    "ready": {
+      "title": "열 준비 완료",
+      "open": "이전 열기",
+      "blockers": {
+        "credentials": "Discord 자격 증명을 추가하세요.",
+        "guild": "Discord 서버 ID를 입력하세요.",
+        "roles": "Discord에서 역할을 가져오세요."
+      },
+      "warnings": {
+        "unpaired": "Discord 채널 {count}개가 Harmony 채널과 짝지어지지 않았습니다.",
+        "overrides": "Discord 채널 {count}개에 개별 멤버용 권한 재정의가 있습니다. 이는 이전되지 않습니다."
+      }
+    },
+    "open": {
+      "title": "이전이 열려 있습니다",
+      "lead": "이 링크를 멤버에게 공유하세요. 멤버는 Discord로 로그인한 뒤 Harmony 계정으로 로그인합니다.",
+      "linkLabel": "초대 링크",
+      "regenerate": "링크 다시 만들기",
+      "regenerateConfirmTitle": "링크를 다시 만들까요?",
+      "regenerateConfirmMessage": "이미 공유한 링크는 더 이상 작동하지 않습니다.",
+      "pausedTitle": "동기화가 일시 중지되었습니다.",
+      "resumeBrakeConfirmTitle": "Discord를 떠난 멤버를 제거할까요?",
+      "resumeBrakeConfirmMessage": "많은 멤버가 동시에 Discord를 나갔거나 차단되어 동기화가 중지되었습니다. 다시 시작하면 해당 멤버가 지금 이 서버에서 제거됩니다. 이 승인은 이번 한 번에만 적용되며, 나중에 다시 대량의 제거 대상이 나타나면 동기화가 다시 일시 중지됩니다.",
+      "resumeBrakeConfirm": "제거하고 다시 시작",
+      "pausedReasons": {
+        "removal_brake": "평소보다 많은 멤버가 한 번에 제거될 뻔해서, 확인할 수 있도록 동기화를 멈췄습니다."
+      },
+      "resume": "재개",
+      "lastSync": "마지막 동기화: {when}",
+      "neverSynced": "아직 동기화되지 않았습니다.",
+      "result": "멤버 {checked}명을 확인했습니다. 역할 변경: {roles}, 제거: {removed}, 오류: {errors}.",
+      "syncNow": "지금 동기화",
+      "syncQueued": "동기화를 요청했습니다.",
+      "finish": "이전 마치기",
+      "finishConfirmTitle": "이전을 마칠까요?",
+      "finishConfirmMessage": "멤버가 더 이상 Discord를 따르지 않습니다. 역할과 멤버는 지금 상태로 유지되고 초대 링크는 작동하지 않게 됩니다. 이전은 나중에 다시 열 수 있습니다.",
+      "finishConfirm": "마치기"
+    },
+    "finished": {
+      "title": "이전이 끝났습니다",
+      "lead": "역할과 멤버가 더 이상 Discord를 따르지 않습니다.",
+      "warning": "다시 열면 연결된 역할과 멤버십이 다시 Discord를 따릅니다. 연결된 역할을 직접 바꾼 내용은 덮어써질 수 있습니다.",
+      "reopen": "다시 열기",
+      "reopenConfirmTitle": "이전을 다시 열까요?",
+      "reopenConfirm": "다시 열기"
+    },
+    "members": {
+      "title": "연결된 멤버",
+      "empty": "아직 계정을 연결한 사람이 없습니다.",
+      "user": "멤버",
+      "discordId": "Discord ID",
+      "status": "상태",
+      "lastSynced": "마지막 동기화",
+      "actions": "작업",
+      "never": "없음",
+      "allowBack": "복귀 허용",
+      "leftHint": "Discord를 탈퇴했거나 다시 허용되었습니다. 다시 연결할 수 있습니다.",
+      "statuses": {
+        "active": "활동 중",
+        "left": "연결 안 됨",
+        "banned": "차단됨",
+        "kicked_on_harmony": "이곳에서 추방됨"
       }
     }
   },

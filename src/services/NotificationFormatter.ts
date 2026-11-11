@@ -507,6 +507,27 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('federation.memberRemovedNotice.short')
   },
 
+  // discord_migration_apply_roles gave or took an administrator role from a member of a server the
+  // recipient manages (data.change 'granted' | 'removed').
+  discord_migration_admin_change: {
+    title: (data: any) => i18n.global.t(
+      data?.change === 'removed' ? 'discordMigration.notice.removedTitle' : 'discordMigration.notice.grantedTitle',
+      { user: data?.user?.username ?? '?', role: data?.role?.name ?? '?', server: data?.server?.name ?? '?' }),
+    message: (data: any) => i18n.global.t('discordMigration.notice.message', { server: data?.server?.name ?? '?' }),
+    shortTitle: () => i18n.global.t('discordMigration.notice.short')
+  },
+
+  // discord_migration_pause stopped a server's Discord sync; sent to the owner and members who manage the server.
+  discord_migration_paused: {
+    title: (data: any) => i18n.global.t('discordMigration.notice.pausedTitle', { server: data?.server?.name ?? '?' }),
+    message: (data: any) => {
+      const known = ['removal_brake', 'credentials_missing', 'token_invalid', 'bot_not_in_guild', 'discord_errors']
+      const reason = known.includes(data?.reason) ? data.reason : 'generic'
+      return i18n.global.t(`discordMigration.notice.paused.${reason}`, { server: data?.server?.name ?? '?' })
+    },
+    shortTitle: () => i18n.global.t('discordMigration.notice.pausedShort')
+  },
+
   // record_outgoing_webhook_attempt turned a bot's or server's webhook off after three days of failures.
   outgoing_webhook_disabled: {
     title: (data: any) => i18n.global.t('outgoingWebhooks.notice.disabledTitle', { name: data?.webhook?.name ?? '' }),

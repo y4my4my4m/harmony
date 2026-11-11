@@ -8,6 +8,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Migrate from Discord.** Owners and members with Manage Server can bring a Discord community over
+  from **Server settings** → **Migrate from Discord**. Match each Discord role to a Harmony role, then
+  share the invitation link. Members sign in with Discord (the `identify` scope only), create or link a
+  Harmony account and join with their mapped roles. While the migration is open, roles, membership,
+  timeouts and each member's chosen profile fields (picture, name, banner, accent colour, and their
+  nickname, picture and banner in the server) follow Discord, and profile cards show **Joined on
+  Discord**. **Apply Discord permissions** gives cloned roles the moderator permissions the bridge
+  can't; Administrator roles are owner-only with a confirmation. Harmony bans and kicks always win,
+  a removal brake pauses a suspicious sync, and **Finish migration** hands control back to Harmony.
+  Operators can turn off account creation for migrations with `harmony migration account-creation off`
+  and set the sync interval with `DISCORD_MIGRATION_SYNC_MS`. See Run a server → Migrate from Discord.
 - **Discord files are stored in the background.** With **Mirror to storage**, the gateway now also
   stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
   instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a

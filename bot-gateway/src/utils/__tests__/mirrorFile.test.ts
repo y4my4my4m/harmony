@@ -293,4 +293,45 @@ describe('mirrorFileToStorage', () => {
     await expect(mirrorFileToStorage('https://evil.example/a.png', { ...base, tmpDir: tmp, fetchImpl })).rejects.toThrow(/disallowed/)
     expect(fetchImpl).not.toHaveBeenCalled()
   })
+
+  describe('target bucket', () => {
+    const AVATAR = 'https://cdn.discordapp.com/avatars/1/abc.png?size=512'
+    const pngBytes = png([['IHDR', 13], ['IDAT', 10], ['IEND', 0]])
+    const image = () => serve(pngBytes, { 'content-type': 'image/png' })
+
+    it('uploads to the target bucket as <folder>/<stem>-<ms>.<ext>, outside any channel room', async () => {
+      const before = Date.now()
+      const out = await mirrorFileToStorage(AVATAR, {
+        ceiling: 50 * MB, tmpDir: tmp, fetchImpl: image(),
+        target: { bucket: 'avatars', folder: 'user-1', stem: 'avatar' },
+      })
+      const after = Date.now()
+      expect(uploads).toHaveLength(1)
+      const m = /^\/storage\/v1\/object\/avatars\/user-1\/avatar-(\d+)\.png$/.exec(uploads[0].url ?? '')
+      expect(m).not.toBeNull()
+      expect(Number(m![1])).toBeGreaterThanOrEqual(before)
+      expect(Number(m![1])).toBeLessThanOrEqual(after)
+      expect(uploads[0].url).not.toContain('message_media')
+      expect(uploads[0].url).not.toContain('/bridge/')
+      expect(uploads[0].headers).toMatchObject({ 'x-upsert': 'false', 'cache-control': 'max-age=31536000' })
+      expect(out.path).toBe(`user-1/avatar-${m![1]}.png`)
+      expect(out.url).toBe('')
+      expect(mocks.sign).not.toHaveBeenCalled()
+      expect(await readdir(tmp)).toEqual([])
+    })
+
+    it('requires botId and channelId without a target', async () => {
+      await expect(mirrorFileToStorage(AVATAR, { ceiling: 50 * MB, tmpDir: tmp, fetchImpl: image() }))
+        .rejects.toThrow(/botId and channelId are required/)
+      expect(uploads).toHaveLength(0)
+    })
+
+    it('without a target still stores in the channel room and signs the path', async () => {
+      const out = await mirrorFileToStorage(AVATAR, { ...base, tmpDir: tmp, fetchImpl: image() })
+      expect(uploads[0].url).toMatch(
+        new RegExp(`^/storage/v1/object/message_media/c/${CHANNEL.toLowerCase()}/bridge/${BOT}/[0-9a-f-]{36}\\.png$`),
+      )
+      expect(out.url).toBe(`https://signed.test/${out.path}`)
+    })
+  })
 })

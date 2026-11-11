@@ -16,7 +16,7 @@ let server: SeededServer
 const OWNER_SECTIONS = [
   'Overview', 'Welcome & rules', 'Privacy settings', 'Roles',
   'Emoji', 'Stickers', 'Soundboard',
-  'Outgoing webhooks', 'Discord Bridge',
+  'Outgoing webhooks', 'Discord Bridge', 'Migrate from Discord',
   'AutoMod', 'Reports', 'Bans', 'Audit log',
   'Advanced settings',
 ]
@@ -58,7 +58,7 @@ test('the owner gets every section, grouped under headings, in order', async ({ 
     await expect.poll(() => groupsOf(page)).toEqual([
       { heading: null, sections: ['Overview', 'Welcome & rules', 'Privacy settings', 'Roles'] },
       { heading: 'Expression', sections: ['Emoji', 'Stickers', 'Soundboard'] },
-      { heading: 'Integrations', sections: ['Outgoing webhooks', 'Discord Bridge'] },
+      { heading: 'Integrations', sections: ['Outgoing webhooks', 'Discord Bridge', 'Migrate from Discord'] },
       { heading: 'Moderation', sections: ['AutoMod', 'Reports', 'Bans', 'Audit log'] },
       { heading: null, sections: ['Advanced settings'] },
     ])
@@ -67,7 +67,7 @@ test('the owner gets every section, grouped under headings, in order', async ({ 
   await test.step('each heading names its list', async () => {
     await expect(nav(page).getByRole('list', { name: 'Moderation' }).getByRole('listitem')).toHaveCount(4)
     await expect(nav(page).getByRole('list', { name: 'Expression' }).getByRole('button')).toHaveText(['Emoji', 'Stickers', 'Soundboard'])
-    await expect(nav(page).getByRole('list', { name: 'Integrations' }).getByRole('button')).toHaveText(['Outgoing webhooks', 'Discord Bridge'])
+    await expect(nav(page).getByRole('list', { name: 'Integrations' }).getByRole('button')).toHaveText(['Outgoing webhooks', 'Discord Bridge', 'Migrate from Discord'])
   })
 
   await test.step('Tab moves from section to section; no heading takes focus', async () => {

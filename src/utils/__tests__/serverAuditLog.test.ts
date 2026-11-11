@@ -19,6 +19,7 @@ const TEMPLATES: Record<string, string> = {
   'serverAuditLog.actions.unknown':'{actor}: {action}',
   'serverAuditLog.actions.member_kick': '{actor} kicked {target}',
   'serverAuditLog.actions.server_suspend': '{actor} suspended the server',
+  'serverAuditLog.actions.discord_migration_paused': 'The Discord migration paused syncing',
   'hostStaff.auditActor': '{actor} ({instance} staff)',
   'hostStaff.audit.cause': 'Why',
   'hostStaff.audit.accountSuspended': 'Account suspended on {instance}',
@@ -113,6 +114,33 @@ describe('auditActorName', () => {
     expect(auditActorName(entry({ actor_id: null, actor_bot_id: 'b1', actor_bot_name: 'Builder', source: 'bot' }), t)).toBe('Builder')
     expect(auditActorName(entry({ actor_id: null, source: 'system', details: { automod: true } }), t)).toBe('serverAuditLog.automod')
     expect(auditActorName(entry({ actor_id: null, source: 'system' }), t)).toBe('serverAuditLog.system')
+  })
+})
+
+describe('Discord migration entries', () => {
+  it('describes the pause with its own sentence, not the unknown-action fallback', () => {
+    const paused = entry({
+      action: 'discord_migration.paused',
+      actor_id: null,
+      source: 'system',
+      target_type: 'server',
+      details: { reason: 'removal_brake', via: 'discord_migration' },
+    })
+    expect(describeAuditEntry(paused, t, date).map((run) => run.text)).toEqual(['The Discord migration paused syncing'])
+  })
+
+  it('names System as the actor of a role change the migration made', () => {
+    const roleAdd = describeAuditEntry(entry({
+      action: 'member.role_add',
+      actor_id: null,
+      source: 'system',
+      target_type: 'user',
+      target_id: 'u-bob',
+      target_name: 'bob',
+      details: { role_name: 'Mod', via: 'discord_migration' },
+    }), t, date)
+    expect(roleAdd.map((run) => run.text)).toEqual(['serverAuditLog.system', ' gave ', 'bob', ' the role ', 'Mod'])
+    expect(roleAdd[0].role).toBe('actor')
   })
 })
 

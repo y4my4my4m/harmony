@@ -88,6 +88,10 @@
             <span class="stat-value">{{ formatJoinDate(user.created_at) }}</span>
             <span class="stat-label">Joined</span>
           </div>
+          <div v-if="discordJoinedAt" class="stat-item" data-testid="discord-joined">
+            <span class="stat-value">{{ formatJoinDate(discordJoinedAt) }}</span>
+            <span class="stat-label">{{ t('discordMigration.joinedOnDiscord') }}</span>
+          </div>
           <div class="stat-item">
             <span class="stat-value">{{ user.message_count || 0 }}</span>
             <span class="stat-label">Messages</span>
@@ -175,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -188,6 +192,7 @@ import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
 import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import { useCardServerIdentity } from '@/composables/useCardServerIdentity'
+import { memberJoinedAt } from '@/services/discordMigrationService'
 import type { MemberServerFields } from '@/services/userDataService'
 import type { User, FederatedUser } from '@/types'
 
@@ -235,6 +240,20 @@ const emit = defineEmits<{
   block: [userId: string]
   unblock: [userId: string]
 }>()
+
+// "Joined on Discord": fetched lazily per server and member (cached in the service), only in a
+// server context for a local profile.
+const discordJoinedAt = ref<string | null>(null)
+watch(
+  () => [props.serverId, props.user?.id, (props.user as { is_local?: boolean } | undefined)?.is_local] as const,
+  async ([serverId, userId, isLocal]) => {
+    discordJoinedAt.value = null
+    if (!serverId || !userId || isLocal === false) return
+    const joined = await memberJoinedAt(serverId, userId).catch(() => null)
+    if (props.serverId === serverId && props.user?.id === userId) discordJoinedAt.value = joined
+  },
+  { immediate: true },
+)
 
 const identity = useCardServerIdentity(() => props.user, () => props.serverId, () => props.serverProfile)
 // Unsaved edits are not in the cache DisplayName reads: with an override the name shows as plain

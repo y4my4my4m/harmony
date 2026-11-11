@@ -34,6 +34,39 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 })
 
+/** A client that runs as the user behind `jwt` (RLS and auth.uid() apply), for checks made with the caller's identity. */
+export function createUserClient(jwt: string) {
+  return createClient(supabaseUrl as string, supabaseServiceKey as string, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { apikey: supabaseServiceKey as string, Authorization: `Bearer ${jwt}` } },
+  })
+}
+
+/** Seconds the GoTrue settings are cached. */
+const AUTH_SETTINGS_TTL_MS = 60_000
+let autoconfirmCache: { value: boolean; at: number } | null = null
+
+/**
+ * GoTrue's `mailer_autoconfirm` from its public settings endpoint (cached 60 s); null when the
+ * settings cannot be read, so callers can fail safe.
+ */
+export async function fetchMailerAutoconfirm(): Promise<boolean | null> {
+  if (autoconfirmCache && Date.now() - autoconfirmCache.at < AUTH_SETTINGS_TTL_MS) return autoconfirmCache.value
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+      headers: { apikey: supabaseServiceKey as string },
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as { mailer_autoconfirm?: unknown }
+    if (typeof body.mailer_autoconfirm !== 'boolean') return null
+    autoconfirmCache = { value: body.mailer_autoconfirm, at: Date.now() }
+    return body.mailer_autoconfirm
+  } catch {
+    return null
+  }
+}
+
 /**
  * Express `trust proxy`. Default trusts loopback and private-network hops (nginx on the host or
  * in the compose network), so req.ip is the client address nginx forwarded. A number is a hop
@@ -65,6 +98,15 @@ export const config = {
       60_000,
       Math.max(1_000, parseInt(process.env.BRIDGE_CONFIG_POLL_MS || '5000') || 5_000),
     ),
+  },
+  migration: {
+    // ms between full syncs of one migrated server.
+    syncMs: Math.max(60_000, parseInt(process.env.DISCORD_MIGRATION_SYNC_MS || '21600000') || 21_600_000),
+    // ms between looks for a due server.
+    pollMs: 30_000,
+    // ms one server's pass may run before it is recorded and left for the next one.
+    budgetMs: 120_000,
+    batch: 100,
   },
   websocket: {
     heartbeatInterval: parseInt(process.env.WS_HEARTBEAT_INTERVAL || '30000'),

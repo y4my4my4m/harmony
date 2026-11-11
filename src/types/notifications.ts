@@ -48,6 +48,8 @@ export type NotificationType =
   | 'server_member_removed'
   | 'server_instance_removed'
   | 'outgoing_webhook_disabled'
+  | 'discord_migration_admin_change'
+  | 'discord_migration_paused'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'

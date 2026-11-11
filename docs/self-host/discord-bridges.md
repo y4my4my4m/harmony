@@ -89,7 +89,7 @@ The steps are also on the admin page, under **Set up the bot in the Discord Deve
 3. Open **Bot**. Switch on **Public Bot** and **Requires OAuth2 Code Grant**. With the code grant on, the bot joins a Discord server only when a community links it from Harmony.
 4. Under **Privileged Gateway Intents**, switch on **Message Content Intent** and **Server Members Intent**; switch on **Presence Intent** only if you turn on presence sync below. Click **Save Changes**.
 5. Click **Reset Token**, then **Copy**: this is the bot token.
-6. Open **OAuth2**. Under **Redirects**, click **Add Redirect**, paste the **Redirect address** the admin page shows, and save. It has the form `https://<domain>/bot-gateway/bridge/v2/discord/callback` and has to match exactly.
+6. Open **OAuth2**. Under **Redirects**, click **Add Redirect**, paste the **Redirect address** the admin page shows, and save. It has the form `https://<domain>/bot-gateway/bridge/v2/discord/callback` and has to match exactly. If communities will use this bot to [migrate from Discord](#migrate-from-discord), add a second redirect, `https://<domain>/bot-gateway/bridge/v2/migrate/callback`.
 7. Still in **OAuth2**, click **Reset Secret** under **Client Secret** and copy it.
 8. In **User settings** → **Instance admin** → **Config** → **General** → **Discord bridge** → **This instance's Discord bot**, fill in **Application ID**, **Client secret** and **Bot token**, and click **Save credentials**.
 9. Turn on **Offer this bot to communities**.
@@ -193,6 +193,7 @@ The bridge-related keys of `self-host/bot-gateway.env`; [Configuration](/self-ho
 | `INSTANCE_DOMAIN` | set by `configure.sh` | Public domain of the Harmony app; base of the addresses handed to bridges and of the instance bot's OAuth2 redirect |
 | `BRIDGE_HOST_SECRET` | set by `configure.sh` with hosting on | Shared secret of the bridge host. Shorter than 32 characters, the two `hosted` routes answer 404 |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | How often the gateway checks bridges' configuration for changes, in ms, clamped to 1000-60000 |
+| `DISCORD_MIGRATION_SYNC_MS` | `21600000` (6 hours) | Time between syncs of one migrating server, in ms, at least 60000 |
 
 The gateway limits these routes per client address, as it sees it through `TRUST_PROXY`:
 
@@ -201,6 +202,16 @@ The gateway limits these routes per client address, as it sees it through `TRUST
 | `POST /bridge/v2/redeem` | 10 attempts per 15 minutes |
 | `GET /bridge/v2/hosted`, `GET /bridge/v2/hosted/instance` | 30 refused secrets per 15 minutes |
 | `GET /bridge/v2/discord/authorize` and `/callback` together | 30 requests per 15 minutes |
+
+## Migrate from Discord
+
+Server owners can move their community with **Server settings** → **Migrate from Discord**: members follow a link, sign in with Discord, make or link a Harmony account and join with the roles they held on Discord, and the bot gateway keeps roles, membership and timeouts in step with Discord until the owner finishes the migration. [Migrate from Discord](/run/discord-migration) describes it for owners. For you as operator:
+
+- **The gateway does the work.** It runs the Discord sign-in and the sync, and creates accounts through the auth service. Nothing else has to run, and no Discord intents are needed. It needs `INSTANCE_DOMAIN` (or `PUBLIC_URL`) like the instance bot does.
+- **Redirect address.** Each owner adds `https://<domain>/bot-gateway/bridge/v2/migrate/callback` to the Discord application that signs members in. If a server uses this instance's bot, that is [your application](#set-up-this-instance-s-discord-bot): add the address next to the bot's other redirect. The same address serves every server.
+- **Sync interval.** `DISCORD_MIGRATION_SYNC_MS` in `self-host/bot-gateway.env` sets how often each open migration syncs (default 6 hours). The gateway looks for due servers every 30 seconds, so **Sync now** takes effect within that.
+- **Accounts.** A member without an account creates one on the migration page, under any registration policy. `harmony migration account-creation off` limits the page to members who already have an account; `on` (the default) allows creating accounts. See [harmony migration](/self-host/cli#harmony-migration). Whether a new account must confirm its email follows the auth service's setting (`ENABLE_EMAIL_AUTOCONFIRM`); the migration never confirms an address itself.
+- **Credentials.** Owners can bring their own application, reuse this instance's bot, or reuse their hosted bridge's bot. Their secrets are stored in Vault, like the bridge's.
 
 ## Attachments from Discord
 

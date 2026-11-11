@@ -103,6 +103,8 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   server_member_removed: 'server_update',
   server_instance_removed: 'server_update',
   outgoing_webhook_disabled: 'server_update',
+  discord_migration_admin_change: 'server_update',
+  discord_migration_paused: 'server_update',
   report_update: 'server_update',
   moderation_warning: 'server_update',
   newcomer_message: 'server_update',

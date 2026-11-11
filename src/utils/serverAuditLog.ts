@@ -10,6 +10,7 @@ export type AuditTranslate = (key: string, named?: Record<string, unknown>, plur
 export const AUDIT_KINDS = [
   'channel', 'category', 'override', 'role', 'member', 'message',
   'server', 'settings', 'invite', 'emoji', 'sticker', 'sound', 'bot',
+  'discord_migration',
 ] as const
 
 const KNOWN_ACTIONS = new Set([
@@ -29,6 +30,7 @@ const KNOWN_ACTIONS = new Set([
   'sticker.create', 'sticker.update', 'sticker.delete',
   'sound.create', 'sound.update', 'sound.delete',
   'bot.add', 'bot.update', 'bot.remove',
+  'discord_migration.paused',
 ])
 
 const PERMISSION_FIELDS = new Set(['permissions', 'allow_permissions', 'deny_permissions'])

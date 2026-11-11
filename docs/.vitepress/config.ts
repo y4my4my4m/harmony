@@ -56,6 +56,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Server stickers', link: '/run/stickers' },
         { text: 'Webhooks', link: '/run/webhooks' },
         { text: 'Discord bridge', link: '/run/discord-bridge' },
+        { text: 'Migrate from Discord', link: '/run/discord-migration' },
         { text: 'Reviewing signups', link: '/run/signup-review' },
         { text: 'Instance funding', link: '/run/funding' },
       ],

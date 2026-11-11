@@ -285,6 +285,11 @@
             :server-name="server.name"
             :link-return="bridgeLinkReturn"
           />
+
+          <DiscordMigrationSettings
+            v-if="activeSection === 'discord-migration' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+          />
         </div>
       </div>
     </div>
@@ -326,6 +331,7 @@ import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings
 import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
 import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
+import DiscordMigrationSettings from '@/components/settings/discord-migration/DiscordMigrationSettings.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
@@ -528,6 +534,7 @@ const availableSections = computed<SettingsSection[]>(() => {
       : []),
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel'), group: 'integrations' as const }] : []),
+    ...(p.canEditBasicInfo ? [{ id: 'discord-migration', label: t('discordMigration.navLabel'), group: 'integrations' as const }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title'), group: 'moderation' as const }] : []),
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports'), group: 'moderation' as const }] : []),

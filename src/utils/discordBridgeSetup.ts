@@ -57,6 +57,9 @@ export function buildDiscordInviteUrl(applicationId: string | null | undefined):
 /** Path of the OAuth2 redirect URI registered on the instance's Discord application. */
 export const INSTANCE_BOT_CALLBACK_PATH = '/bot-gateway/bridge/v2/discord/callback'
 
+/** Redirect URI path of the Migrate from Discord sign-in; the gateway builds the same. */
+export const MIGRATION_CALLBACK_PATH = '/bot-gateway/bridge/v2/migrate/callback'
+
 /** Redirect URI the operator registers in the Discord Developer Portal: the gateway builds the same from INSTANCE_DOMAIN. */
 export function buildInstanceBotRedirectUri(baseUrl: string): string {
   return `${baseUrl.replace(/\/$/, '')}${INSTANCE_BOT_CALLBACK_PATH}`

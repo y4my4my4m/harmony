@@ -37,6 +37,7 @@ vi.mock('../config/supabase.js', () => ({
     bridge: { instanceDomain: '', publicUrl: '', hostSecret: '', configPollMs: 60_000 },
     websocket: { heartbeatInterval: 60_000, maxConnectionsPerBot: 5, identifyTimeoutMs: 60_000, revalidateIntervalMs: 60_000 },
     rateLimit: { windowMs: 60_000, maxRequests: 100 },
+    migration: { syncMs: 21_600_000, pollMs: 60_000, budgetMs: 120_000, batch: 100 },
   },
 }))
 

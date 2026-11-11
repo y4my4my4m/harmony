@@ -3,7 +3,7 @@
  * and the return to Server Settings → Discord Bridge.
  */
 
-export const DISCORD_API_BASE = 'https://discord.com/api/v10'
+export const DISCORD_API_BASE = process.env.DISCORD_API_BASE ?? 'https://discord.com/api/v10'
 export const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize'
 
 /**
@@ -54,6 +54,9 @@ export type LinkError = (typeof LINK_ERRORS)[number]
 export function isAuthorizationCode(value: unknown): value is string {
   return typeof value === 'string' && AUTHORIZATION_CODE.test(value)
 }
+
+/** Path of the migration's OAuth2 redirect URI behind the instance's reverse proxy. */
+export const MIGRATION_CALLBACK_PATH = '/bot-gateway/bridge/v2/migrate/callback'
 
 /** The OAuth2 redirect URI registered on the Discord application. `base` is configuredBaseUrl(). */
 export function discordCallbackUrl(base: string): string {

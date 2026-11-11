@@ -76,12 +76,26 @@ export function referenceUrl(storagePath: string): string {
  */
 export async function mirrorExternalMediaToStorage(
   sourceUrl: string,
-  opts: { botId: string; channelId: string; fileName?: string; contentType?: string },
+  opts: {
+    /** Required unless `target` is set. */
+    botId?: string
+    channelId?: string
+    fileName?: string
+    contentType?: string
+    /**
+     * Store in another bucket as `<folder>/<stem>-<ms>.<ext>` (the web app's naming for avatars and
+     * banners) instead of the channel's room of message_media. `url` is then the bucket's public URL.
+     */
+    target?: { bucket: string; folder: string; stem: string }
+  },
 ): Promise<{ path: string; url: string; contentType: string }> {
   const { path, url, contentType } = await mirrorFileToStorage(sourceUrl, {
     ...opts,
     ceiling: await getUploadCeilingBytes(),
   })
+  if (opts.target) {
+    return { path, url: supabase.storage.from(opts.target.bucket).getPublicUrl(path).data.publicUrl, contentType }
+  }
   return { path, url, contentType }
 }
 

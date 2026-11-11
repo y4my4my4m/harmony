@@ -95,6 +95,13 @@ const router = createRouter({
       meta: { requiresAuth: true, titleKey: 'a11y.title.invite' }
     },
     {
+      // Public: the gateway returns here from Discord, usually with no session yet.
+      path: '/migrate/:token',
+      name: 'MigrateFromDiscord',
+      component: () => import('@/views/MigrateFromDiscordView.vue'),
+      meta: { requiresAuth: false, providesMain: true, titleKey: 'discordMigration.migrate.title' }
+    },
+    {
       path: '/demo',
       name: 'RichTextDemo',
       component: () => import('@/components/demo/RichTextDemo.vue'),
@@ -655,6 +662,14 @@ router.beforeEach(async (to, from, next) => {
       rememberPostAuthRedirect(to.fullPath);
       next({ name: 'NewProfile' });
       return;
+    }
+    // Tickets of "Migrate from Discord" bound to this account while it had no profile yet. Never
+    // blocks navigation; once per signed-in user and page load.
+    const signedInId = authStore.session?.user?.id;
+    if (signedInId && profileStore.profile?.username) {
+      void import('@/services/discordMigrationService')
+        .then((m) => m.completePendingClaimsOnce(signedInId))
+        .catch(() => {});
     }
   }
 
