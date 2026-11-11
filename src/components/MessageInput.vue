@@ -288,6 +288,7 @@
     <div class="composer-status">
       <TypingIndicator
         :typing-users="typingUsers"
+        :server-id="conversationId ? null : (serverId || serverChannelStore.currentServerId || null)"
         class="typing-indicator-wrapper"
       />
       <slot name="status-end" />
@@ -860,6 +861,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
   channelId: () => (props.conversationId ? null : props.channelId),
+  profileServerId: () => (props.conversationId ? null : (props.serverId || serverChannelStore.currentServerId || null)),
   botCommandTarget,
 });
 const activeBotCommand = autoSuggest.activeBotCommand;

@@ -362,12 +362,21 @@ export function profileToActor(profile: any): any {
 
   actor.featured = `${userUrl}/featured`;
 
-  if (profile.profile_fields && Array.isArray(profile.profile_fields)) {
-    actor.attachment = profile.profile_fields.map((field: any) => ({
-      type: 'PropertyValue',
-      name: field?.name,
-      value: fieldValueToHtml(field?.value),
-    }));
+  const userFields: any[] = Array.isArray(profile.profile_fields) ? profile.profile_fields : [];
+  const attachment: any[] = userFields.map((field: any) => ({
+    type: 'PropertyValue',
+    name: field?.name,
+    value: fieldValueToHtml(field?.value),
+  }));
+  // Pronouns lead the list unless the user already has a field of that name.
+  const hasPronounsField = userFields.some(
+    (field: any) => typeof field?.name === 'string' && field.name.trim().toLowerCase() === 'pronouns',
+  );
+  if (typeof profile.pronouns === 'string' && profile.pronouns && !hasPronounsField) {
+    attachment.unshift({ type: 'PropertyValue', name: 'Pronouns', value: fieldValueToHtml(profile.pronouns) });
+  }
+  if (Array.isArray(profile.profile_fields) || attachment.length > 0) {
+    actor.attachment = attachment;
   }
 
   // Mastodon emits false for an unlocked account.

@@ -33,12 +33,12 @@
           @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
         >
           <Avatar
-            :src="getUserAvatarUrl(participant.userId).value"
+            :src="getMemberAvatarUrl(participant.userId, profileServerId).value"
             alt=""
             size="xs"
             :class="{ 'speaking': isSpeaking(participant) }"
           />
-          <span class="participant-name" aria-hidden="true"><DisplayName :userId="participant.userId" /></span>
+          <span class="participant-name" aria-hidden="true"><DisplayName :userId="participant.userId" :server-id="profileServerId" /></span>
           <span class="participant-status" aria-hidden="true">
             <Icon
               v-if="isLocallyMuted(participant.userId)"
@@ -77,8 +77,8 @@
           v-if="participant.isScreenSharing && participant.userId !== voiceStore.localState.userId"
           type="button"
           class="live-pill"
-          :title="t('voice.watchStreamOf', { name: getUserDisplayName(participant.userId).value })"
-          :aria-label="t('voice.watchStreamOf', { name: getUserDisplayName(participant.userId).value })"
+          :title="t('voice.watchStreamOf', { name: getMemberDisplayName(participant.userId, profileServerId).value })"
+          :aria-label="t('voice.watchStreamOf', { name: getMemberDisplayName(participant.userId, profileServerId).value })"
           @click="watchStream(participant)"
         >{{ t('voice.live') }}</button>
         <span v-else-if="participant.isScreenSharing" class="live-pill" aria-hidden="true">{{ t('voice.live') }}</span>
@@ -106,7 +106,8 @@ import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl, getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { uid } from '@/utils/a11y/focus';
@@ -124,8 +125,9 @@ interface Props {
 const props = defineProps<Props>();
 
 const { t } = useI18n();
-const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 const voiceStore = useUnifiedVoiceChannelStore();
+const profileServerIdRef = useVoiceProfileServerId();
+const profileServerId = computed(() => profileServerIdRef.value);
 
 const headerId = uid('voice-participants-header');
 const dragHintId = uid('voice-participants-drag');
@@ -147,11 +149,11 @@ const drag = useVoiceMemberDrag({
   channelId: () => callChannel.value,
   // Move Members alone decides, as in Discord: the owner and oneself are dragged like anyone.
   canDrag: () => powers.value.move,
-  label: (userId) => getUserDisplayName(userId).value,
+  label: (userId) => getMemberDisplayName(userId, profileServerId.value).value,
   drop: (userId, channelId) => {
     const serverId = voiceStore.currentServerId;
     if (!serverId) return;
-    void moderation.move(serverId, { id: userId, display_name: getUserDisplayName(userId).value }, callChannel.value, channelId);
+    void moderation.move(serverId, { id: userId, display_name: getMemberDisplayName(userId, profileServerId.value).value }, callChannel.value, channelId);
   },
 });
 
@@ -216,7 +218,7 @@ const isSpeaking = (participant: UserMediaState) => {
 const speakingIds = useHeldIds(() => props.participants.filter(isSpeaking).map((p) => p.userId));
 
 const rowLabel = (participant: UserMediaState) =>
-  participantLabel(t, getUserDisplayName(participant.userId).value, {
+  participantLabel(t, getMemberDisplayName(participant.userId, profileServerId.value).value, {
     self: participant.userId === voiceStore.localState.userId,
     muted: participant.isMuted,
     deafened: participant.isDeafened,

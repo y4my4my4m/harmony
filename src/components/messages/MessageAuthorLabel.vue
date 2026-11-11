@@ -5,6 +5,7 @@
       :user-id="profileUserId"
       :fallback="displayName"
       :truncate="truncate"
+      :server-id="serverId"
     />
     <template v-else>{{ displayName }}</template>
     <FederatedUserBadge v-if="profileUserId" :user-id="profileUserId" />
@@ -23,6 +24,7 @@ defineProps<{
   bridgeSource?: string | null
   truncate?: boolean
   color?: string
+  serverId?: string | null
 }>()
 </script>
 

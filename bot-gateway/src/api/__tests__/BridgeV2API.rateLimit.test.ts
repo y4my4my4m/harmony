@@ -95,6 +95,8 @@ beforeEach(() => {
         return { data: table.check(args.p_bot_id, args.p_bucket, args.p_limit, args.p_window_seconds), error: null }
       case 'discord_bridge_encrypted_channel_ids':
         return { data: [], error: null }
+      case 'permission_bit_names':
+        return { data: ['ADMINISTRATOR'], error: null }
       case 'discord_bridge_report_status':
         return { data: { bridge_id: BRIDGE_ID, discord_guild_id: '100000000000000001' }, error: null }
       case 'discord_bridge_bot_unpair':

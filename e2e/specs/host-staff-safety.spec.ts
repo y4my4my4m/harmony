@@ -136,11 +136,12 @@ test('a moderator removes a message and a member as staff; the owner reads it as
     await ownerPage.goto(`/server/${server.id}?section=audit-log`)
     const entries = ownerPage.locator('[data-test="audit-entry"]')
     await expect(entries.first()).toBeVisible({ timeout: 30000 })
-    const actor = `${staffMod.displayName} (${domain} staff)`
-    const kick = entries.filter({ has: ownerPage.locator('.audit-line', { hasText: `${actor} kicked ${offender.displayName}` }) })
+    const actor = `${staffMod.displayName} (@${staffMod.username}) (${domain} staff)`
+    const target = `${offender.displayName} (@${offender.username})`
+    const kick = entries.filter({ has: ownerPage.locator('.audit-line', { hasText: `${actor} kicked ${target}` }) })
     await expect(kick).toHaveCount(1)
     await expect(kick).toContainText('Reason: spam account')
-    const removal = entries.filter({ has: ownerPage.locator('.audit-line', { hasText: `${actor} deleted a message by ${offender.displayName}` }) })
+    const removal = entries.filter({ has: ownerPage.locator('.audit-line', { hasText: `${actor} deleted a message by ${target}` }) })
     await expect(removal).toHaveCount(1)
     await expect(removal).toContainText('Reason: spam link')
 

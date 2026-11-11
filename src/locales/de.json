@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "Externe Sounds verwenden",
           "description": "Sounds von anderen Servern abspielen, denen sie angehören"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "Spitzname ändern",
+          "description": "Den eigenen Spitznamen und das Serverprofil auf diesem Server festlegen"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "Spitznamen verwalten",
+          "description": "Spitznamen und Serverprofile von Mitgliedern mit niedrigerem Rang ändern oder zurücksetzen"
         }
       },
       "everyoneMembersNote": "Die Rolle {'@'}everyone gilt automatisch für jedes Mitglied dieses Servers. Es gibt keine Mitgliederliste zu verwalten.",
@@ -3023,6 +3031,20 @@
       "moderators": "Moderatoren von {server}",
       "outcomeBy": "Moderatoren von {server}: {outcome}",
       "reviewedTitle": "Die Moderation von {server} hat deine Meldung geprüft"
+    },
+    "serverProfile": {
+      "nicknameTitle": "Nickname ändern",
+      "nicknameLabel": "Nickname für {name}",
+      "nicknamePlaceholder": "Kein Nickname",
+      "nicknameHint": "Leer lassen, um den Nickname zu entfernen. Gilt nur auf diesem Server.",
+      "nicknameDone": "{name} heißt jetzt {nickname}.",
+      "nicknameCleared": "Nickname von {name} entfernt.",
+      "resetTitle": "Serverprofil zurücksetzen",
+      "resetMessage": "Serveravatar, Banner, Bio und Pronomen von {name} löschen? Der Nickname bleibt erhalten.",
+      "resetConfirm": "Zurücksetzen",
+      "resetDone": "Serverprofil von {name} zurückgesetzt.",
+      "failed": "{name} konnte nicht aktualisiert werden.",
+      "noPermission": "Du darfst {name} nicht ändern."
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor} hat die serverweite Taubschaltung von {target} aufgehoben",
       "member_voice_move": "{actor} hat {target} in einen anderen Sprachkanal verschoben",
       "member_voice_disconnect": "{actor} hat {target} aus dem Sprachkanal getrennt",
+      "member_nickname_update": "{actor} hat den Spitznamen von {target} geändert",
+      "member_profile_reset": "{actor} hat das Serverprofil von {target} zurückgesetzt",
       "message_delete": "{actor} hat eine Nachricht von {target} in {channel} gelöscht | {actor} hat {count} Nachrichten von {target} in {channel} gelöscht",
       "server_update": "{actor} hat den Server bearbeitet",
       "settings_update": "{actor} hat die Servereinstellungen geändert",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} hat den Sticker {target} entfernt"
     },
     "fields": {
+      "nickname": "Spitzname",
       "name": "Name",
       "description": "Beschreibung",
       "category": "Kategorie",
@@ -6497,7 +6522,9 @@
       "kick": "{name} kicken",
       "ban": "{name} bannen",
       "copyId": "Nutzer-ID kopieren",
-      "fallbackName": "Nutzer"
+      "fallbackName": "Nutzer",
+      "moderateNickname": "Nickname von {name} ändern",
+      "resetServerProfile": "Serverprofil von {name} zurücksetzen"
     },
     "rail": {
       "folder": "Ordner",
@@ -6913,6 +6940,32 @@
       "invalid": "Die Vorlage ist ungültig: {detail}",
       "rejected": "Der Server hat diese Vorlage abgelehnt: {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "Serverprofile",
+    "title": "Serverprofile",
+    "description": "Lege für jeden Server einen eigenen Spitznamen, Avatar, Banner, eine eigene Bio und Pronomen fest. Leere Felder verwenden deine Kontowerte.",
+    "noServers": "Du bist noch keinem Server beigetreten.",
+    "server": "Server",
+    "remoteUnavailable": "auf einer anderen Instanz gehostet",
+    "locked": "Du darfst dein Profil auf diesem Server nicht ändern.",
+    "nickname": "Spitzname",
+    "pronouns": "Pronomen",
+    "pronounsPlaceholder": "z. B. sie/ihr",
+    "bio": "Über mich",
+    "bioPlaceholder": "Erzähl diesem Server etwas über dich",
+    "avatar": "Avatar",
+    "banner": "Banner",
+    "reset": "Zurücksetzen",
+    "resetField": "{field} zurücksetzen",
+    "save": "Änderungen speichern",
+    "saved": "Serverprofil gespeichert.",
+    "saveFailed": "Dein Serverprofil konnte nicht gespeichert werden.",
+    "uploadFailed": "Das Bild konnte nicht hochgeladen werden.",
+    "preview": "Vorschau",
+    "menuEntry": "Serverprofil bearbeiten",
+    "accountPronouns": "Pronomen",
+    "accountPronounsHint": "Wird unter deinem Namen in deinem Profil angezeigt. Bis zu 40 Zeichen."
   },
   "notificationSettings": {
     "menuEntry": "Benachrichtigungseinstellungen",

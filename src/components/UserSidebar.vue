@@ -230,7 +230,7 @@
               @touchcancel.passive="handleUserTouchEnd"
             >
               <Avatar
-                :src="getUserAvatarUrl(item.user!.id).value"
+                :src="getMemberAvatarUrl(item.user!.id, serverChannelStore.currentServerId).value"
                 size="sm"
                 :status="getStatusForAvatarValue(item.user!.id)"
                 class="user-avatar"
@@ -241,7 +241,7 @@
                     class="user-name"
                     :style="memberNameStyle(item.nameColor || memberNameColor(item.user!.id))"
                   >
-                    <DisplayName :user-id="item.user!.id" :truncate="true" />
+                    <DisplayName :user-id="item.user!.id" :server-id="serverChannelStore.currentServerId" :truncate="true" />
                   </span>
                   <span class="sr-only">{{ memberStateText(item) }}</span>
                   <span
@@ -301,6 +301,7 @@
     <UserProfileModal 
       :show="showProfileModal" 
       :user="selectedUser" 
+      :server-id="serverChannelStore.currentServerId"
       @close="closeProfile"
       @invite="openInviteModal"
     />
@@ -346,6 +347,16 @@
       @done="handleKickBanDone"
     />
 
+    <!-- A moderator changing another member's nickname. -->
+    <ChangeNicknameDialog
+      v-if="nicknameMember && serverChannelStore.currentServerId"
+      :show="true"
+      :server-id="serverChannelStore.currentServerId"
+      :user="nicknameMember"
+      @close="nicknameMember = null"
+      @done="nicknameMember = null"
+    />
+
     <!-- This instance's staff removing a member from here, on a server hosted elsewhere. -->
     <InstanceRemoveMemberModal
       v-if="instanceRemoveMember && serverChannelStore.currentServerId"
@@ -374,6 +385,8 @@ import BotProfileModal from '@/components/BotProfileModal.vue';
 import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
 import InstanceRemoveMemberModal from '@/components/moderation/InstanceRemoveMemberModal.vue';
+import ChangeNicknameDialog from '@/components/moderation/ChangeNicknameDialog.vue';
+import { useModerateServerProfile } from '@/composables/useModerateServerProfile';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -386,6 +399,7 @@ import { authContextService } from '@/services/AuthContextService';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
+import { getMemberDisplayName, getMemberAvatarUrl } from '@/composables/useMemberProfile';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { roleService, type ServerRole } from '@/services/RoleService';
@@ -618,9 +632,18 @@ async function handleContextAction(action: string, user: User) {
       await showUserProfile(user);
       break;
     case 'change-nickname':
-      // No standalone server-nickname modal exists; profile fields live on the
-      // user settings page.
-      router.push('/settings/account');
+      // Nicknames live in the Server profiles settings tab, opened on this server.
+      router.push(serverChannelStore.currentServerId
+        ? { path: '/settings/server-profiles', query: { server: serverChannelStore.currentServerId } }
+        : '/settings/server-profiles');
+      break;
+    case 'moderate-nickname':
+      nicknameMember.value = memberRow(user);
+      break;
+    case 'reset-server-profile':
+      if (serverChannelStore.currentServerId) {
+        await resetServerProfileWithConfirm(serverChannelStore.currentServerId, memberRow(user));
+      }
       break;
     case 'invite':
       await openInviteForUser(user);
@@ -797,6 +820,9 @@ function openKickBanModal(user: User, mode: 'kick' | 'ban') {
 }
 
 const instanceRemoveMember = ref<ReturnType<typeof memberRow> | null>(null);
+const { resetServerProfileWithConfirm } = useModerateServerProfile();
+/** Member whose nickname a moderator is changing. */
+const nicknameMember = ref<ReturnType<typeof memberRow> | null>(null);
 
 function openInstanceRemove(user: User) {
   instanceRemoveMember.value = memberRow(user);
@@ -978,7 +1004,7 @@ const filteredUsers = computed(() => {
   
   const query = searchQuery.value.toLowerCase();
   return users.value.filter((user: User) => {
-    const displayName = getUserDisplayName(user.id).value.toLowerCase();
+    const displayName = getMemberDisplayName(user.id, serverChannelStore.currentServerId).value.toLowerCase();
     const username = user.username?.toLowerCase() || '';
     return displayName.includes(query) || username.includes(query);
   });
@@ -1056,7 +1082,7 @@ const groupedUsers = computed(() => {
   const sortKey = (id: string): string => {
     let key = sortKeys.get(id);
     if (key === undefined) {
-      key = getUserDisplayName(id).value.toLowerCase();
+      key = getMemberDisplayName(id, serverChannelStore.currentServerId).value.toLowerCase();
       sortKeys.set(id, key);
     }
     return key;

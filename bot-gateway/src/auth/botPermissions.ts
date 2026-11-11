@@ -35,6 +35,8 @@ export const PERMISSION_BIT = {
   MOVE_MEMBERS: 29,
   USE_SOUNDBOARD: 30,
   USE_EXTERNAL_SOUNDS: 31,
+  CHANGE_NICKNAME: 32,
+  MANAGE_NICKNAMES: 33,
 } as const
 
 export type PermissionName = keyof typeof PERMISSION_BIT
@@ -77,7 +79,7 @@ export type InstallRow = Record<string, unknown>
 
 // bot_server_permissions flag -> role-permission bits. Production carries flags the migrations
 // lack (view_channels, read_message_history, manage_roles, ...); an absent column reads as false.
-// send_tts_messages, change_nickname and manage_nicknames have no role-permission bit.
+// send_tts_messages has no role-permission bit.
 const INSTALL_FLAG_BITS: Readonly<Record<string, bigint>> = {
   read_messages: permissionMask('VIEW_CHANNEL', 'READ_MESSAGE_HISTORY'),
   view_channels: permissionMask('VIEW_CHANNEL'),
@@ -100,6 +102,8 @@ const INSTALL_FLAG_BITS: Readonly<Record<string, bigint>> = {
   mute_members: permissionMask('MUTE_MEMBERS'),
   deafen_members: permissionMask('DEAFEN_MEMBERS'),
   move_members: permissionMask('MOVE_MEMBERS'),
+  change_nickname: permissionMask('CHANGE_NICKNAME'),
+  manage_nicknames: permissionMask('MANAGE_NICKNAMES'),
 }
 
 export function installMask(install: InstallRow): bigint {

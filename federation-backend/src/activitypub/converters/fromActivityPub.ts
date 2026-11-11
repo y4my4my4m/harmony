@@ -630,6 +630,27 @@ export function parseMovedTo(value: unknown): string | null {
 }
 
 /**
+ * The actor's "Pronouns" PropertyValue as plain text (max 40 chars), or null.
+ */
+export function extractPronouns(attachment: unknown): string | null {
+  if (!Array.isArray(attachment)) return null;
+  for (const att of attachment) {
+    if (
+      att?.type === 'PropertyValue' &&
+      typeof att.name === 'string' &&
+      att.name.trim().toLowerCase() === 'pronouns'
+    ) {
+      let text = String(att.value ?? '');
+      text = text.replace(/<[^>]*>/g, '');
+      text = decodeHtmlEntities(text);
+      text = text.replace(/\s+/g, ' ').trim().slice(0, 40).trim();
+      return text || null;
+    }
+  }
+  return null;
+}
+
+/**
  * Extract user profile data from ActivityPub Actor
  */
 export function actorToProfile(actor: any): {
@@ -648,6 +669,7 @@ export function actorToProfile(actor: any): {
   followers_url?: string;
   following_url?: string;
   profile_fields?: Array<{ name: string; value: string }>;
+  pronouns: string | null;
   federation_discoverable?: boolean;
   manually_approves_followers?: boolean;
   bio_emojis?: Array<{ name: string; url: string }>;
@@ -671,6 +693,7 @@ export function actorToProfile(actor: any): {
     is_local: false,
     also_known_as: parseAlsoKnownAs(actor.alsoKnownAs).filter((uri) => uri !== actor.id),
     moved_to_uri: parseMovedTo(actor.movedTo),
+    pronouns: extractPronouns(actor.attachment),
     // Staff of the actor's own instance: the document comes from its own URL or its own Update.
     instance_role: parseInstanceRole(actor[HARMONY_INSTANCE_ROLE]),
   };

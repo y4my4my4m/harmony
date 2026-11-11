@@ -18,6 +18,7 @@ vi.mock('@/stores/voiceModeration', () => ({
     channelPowers: async () => ({ mute: false, deafen: false, move: false, kick: false, ban: false }),
   }),
 }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserProfile: () => ({ value: null }) }) }))
 vi.mock('@/utils/bannerUtils', () => ({ getBannerUrl: () => null }))
 vi.mock('@/utils/renderFallback', () => ({ withRenderFallback: (url: string | null) => url }))

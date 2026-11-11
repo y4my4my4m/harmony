@@ -281,7 +281,7 @@
                     <Avatar :src="member.avatar_url" :alt="memberName(member)" size="xs" />
                     <span class="member-name">
                       <span v-if="member.isBridged">{{ memberName(member) }}</span>
-                      <DisplayName v-else :user-id="member.id" :fallback="memberName(member)" />
+                      <DisplayName v-else :user-id="member.id" :server-id="serverId" :fallback="memberName(member)" />
                     </span>
                     <span class="member-action-icon" aria-hidden="true">+</span>
                   </button>
@@ -329,7 +329,7 @@
                     <Avatar :src="member.avatar_url" :alt="memberName(member)" size="xs" />
                     <span class="member-name">
                       <span v-if="member.isBridged">{{ memberName(member) }}</span>
-                      <DisplayName v-else :user-id="member.id" :fallback="memberName(member)" />
+                      <DisplayName v-else :user-id="member.id" :server-id="serverId" :fallback="memberName(member)" />
                       <span v-if="member.isBridged" class="bridged-member-badge" :title="t('server.roleManagement.bridgedTitle')">{{ t('server.roleManagement.bridged') }}</span>
                       <span v-if="isServerOwner(member.id)" class="owner-badge">{{ t('server.roleManagement.owner') }}</span>
                     </span>
@@ -563,7 +563,7 @@ const PERMISSION_SECTIONS: Array<{ id: string; keys: string[] }> = [
   },
   {
     id: 'membership',
-    keys: ['KICK_MEMBERS', 'BAN_MEMBERS', 'TIMEOUT_MEMBERS'],
+    keys: ['KICK_MEMBERS', 'BAN_MEMBERS', 'TIMEOUT_MEMBERS', 'CHANGE_NICKNAME', 'MANAGE_NICKNAMES'],
   },
   {
     id: 'text',

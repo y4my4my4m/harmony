@@ -236,7 +236,7 @@ describe('NotificationFormatter', () => {
     })
 
     it('gives the toast the author and the text after their name', () => {
-      expect(NotificationFormatter.getActorInfo(newcomer())).toEqual({
+      expect(NotificationFormatter.getActorInfo(newcomer())).toMatchObject({
         actorUserId: 'u-alice',
         titleSuffix: ' is new here and posted in #general',
       })

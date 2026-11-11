@@ -74,7 +74,7 @@ interface PresenceRow {
 
 /** Bulk member-list hydration - omit federation_metadata (large JSONB, rarely needed). */
 const PROFILE_BULK_SELECT =
-  'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
+  'id, username, web_handle, display_name, avatar_url, banner_url, bio, pronouns, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
 
 /**
  * PROFILE_BULK_SELECT plus the columns of the instance's release. profiles.instance_role is
@@ -84,9 +84,21 @@ function profileBulkSelect(): string {
   return hasCapability('instance-staff-roles') ? `${PROFILE_BULK_SELECT}, instance_role` : PROFILE_BULK_SELECT
 }
 
+export interface MemberServerFields {
+  nickname: string | null
+  avatar_url: string | null
+  banner_url: string | null
+  bio: string | null
+  pronouns: string | null
+}
+
+const MEMBER_FIELD_KEYS = ['nickname', 'avatar_url', 'banner_url', 'bio', 'pronouns'] as const
+
 class UserDataService extends EventTarget {
   private users = new Map<string, UserData>()
   private contexts = new Map<string, UserContext>()
+  // Server-scoped member fields (user_servers), keyed `${serverId}:${userId}`.
+  private memberServerFields = new Map<string, MemberServerFields>()
   private currentUserId: string | null = null
   private initialized = false
   // Handlers on the private user channel, and the access token the unload path
@@ -366,7 +378,7 @@ class UserDataService extends EventTarget {
         debug.log('Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
+          .select('id, username, web_handle, display_name, avatar_url, banner_url, bio, pronouns, color, status, domain, is_local, updated_at, created_at, custom_status, is_admin, is_moderator, federation_metadata')
           .eq('id', userId)
           .single()
         profile = profileData
@@ -482,6 +494,7 @@ class UserDataService extends EventTarget {
           avatarUrl: profile.avatar_url || avatarUrl,
           bannerUrl: profile.banner_url,
           bio: profile.bio,
+          pronouns: profile.pronouns ?? undefined,
           color: profile.color,
           domain: profile.domain || runtimeConfig.domain as string,
           isLocal: profile.is_local ?? (
@@ -914,6 +927,8 @@ class UserDataService extends EventTarget {
           this.handleServerMemberJoin(serverId, { new: { user_id: data.user_id } })
         } else if (type === 'member:leave') {
           this.handleServerMemberLeave(serverId, { old: { user_id: data.user_id } })
+        } else if (type === 'member:update') {
+          this.handleServerMemberUpdate(serverId, { new: data })
         } else if (type === 'profile:updated') {
           this.handleProfileUpdate(serverId, { new: data })
         } else if (type === 'presence:update') {
@@ -984,6 +999,7 @@ class UserDataService extends EventTarget {
   
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
     const newUserId = payload.new.user_id
+    this.applyMemberRow(serverId, payload.new)
     debug.log(`New member joined server ${serverId}:`, newUserId)
     
     const context = this.contexts.get(serverId)
@@ -1002,6 +1018,16 @@ class UserDataService extends EventTarget {
    */
   private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
     const leftUserId = payload.old.user_id
+    if (leftUserId === this.currentUserId) {
+      // The current user left: every member's server profile for this server goes.
+      const prefix = `${serverId}:`
+      for (const key of [...this.memberServerFields.keys()]) {
+        if (key.startsWith(prefix)) this.memberServerFields.delete(key)
+      }
+    } else {
+      this.memberServerFields.delete(`${serverId}:${leftUserId}`)
+    }
+    this.emitEvent('user-updated', { userId: leftUserId })
     debug.log(`Member left server ${serverId}:`, leftUserId)
 
     const context = this.contexts.get(serverId)
@@ -1013,6 +1039,58 @@ class UserDataService extends EventTarget {
 
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-leave', userId: leftUserId })
     }
+  }
+
+  /** A user_servers row changed: the member's server profile fields update. */
+  private handleServerMemberUpdate(serverId: string, payload: any): void {
+    const row = payload?.new
+    if (!row?.user_id) return
+    this.applyMemberRow(serverId, row)
+  }
+
+  /**
+   * Stores the server profile fields a user_servers row carries, without emitting. Only the keys
+   * the row names change; a row naming none of the five columns (the bare member:join
+   * broadcast) leaves the stored fields alone. Returns whether anything was stored.
+   */
+  private storeMemberRow(serverId: string, row: any): boolean {
+    if (!row?.user_id) return false
+    const keys = MEMBER_FIELD_KEYS.filter(k => row[k] !== undefined)
+    if (keys.length === 0) return false
+    const key = `${serverId}:${row.user_id}`
+    const next: MemberServerFields = this.memberServerFields.get(key)
+      ?? { nickname: null, avatar_url: null, banner_url: null, bio: null, pronouns: null }
+    const merged = { ...next }
+    for (const k of keys) merged[k] = row[k] ?? null
+    this.memberServerFields.set(key, merged)
+    return true
+  }
+
+  /** Stores one row's fields and emits `user-updated` for it. */
+  applyMemberRow(serverId: string, row: any): void {
+    if (this.storeMemberRow(serverId, row)) this.emitEvent('user-updated', { userId: row.user_id })
+  }
+
+  /**
+   * Stores a loaded batch of user_servers rows (each carrying server_id) and emits `data-refreshed` once, not once per
+   * row: a large server loads thousands.
+   */
+  applyMemberRows(rows: Array<{ server_id: string, user_id: string }>): void {
+    const userIds: string[] = []
+    for (const row of rows ?? []) {
+      if (this.storeMemberRow(row.server_id, row)) userIds.push(row.user_id)
+    }
+    if (userIds.length > 0) this.emitEvent('data-refreshed', { userIds })
+  }
+
+  /** Sets a member's server profile fields. Only the fields given change. Emits `user-updated`. */
+  setMemberServerProfile(serverId: string, userId: string, fields: Partial<MemberServerFields>): void {
+    this.applyMemberRow(serverId, { ...fields, user_id: userId })
+  }
+
+  /** Raw server profile fields for a member, or null when none are loaded. */
+  getMemberServerFields(serverId: string, userId: string): MemberServerFields | null {
+    return this.memberServerFields.get(`${serverId}:${userId}`) ?? null
   }
 
   /** Applies avatar, display name, color, and bio changes from DB events. */
@@ -1047,6 +1125,9 @@ class UserDataService extends EventTarget {
       }
       if (updatedProfile.bio !== undefined) {
         userData.bio = updatedProfile.bio
+      }
+      if (updatedProfile.pronouns !== undefined) {
+        userData.pronouns = updatedProfile.pronouns
       }
       if (updatedProfile.color !== undefined) {
         userData.color = updatedProfile.color
@@ -1180,6 +1261,7 @@ class UserDataService extends EventTarget {
             avatarUrl: profile.avatar_url,
             bannerUrl: profile.banner_url,
             bio: profile.bio,
+          pronouns: profile.pronouns ?? undefined,
             color: profile.color,
             domain: profile.domain || runtimeConfig.domain as string,
             isLocal: profile.is_local ?? (
@@ -1561,6 +1643,7 @@ class UserDataService extends EventTarget {
     bio?: string
     color?: string
     username?: string
+    pronouns?: string | null
   }): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
@@ -1576,6 +1659,7 @@ class UserDataService extends EventTarget {
     if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
     if (profileData.bannerUrl !== undefined) userData.bannerUrl = profileData.bannerUrl
     if (profileData.bio !== undefined) userData.bio = profileData.bio
+    if (profileData.pronouns !== undefined) userData.pronouns = profileData.pronouns ?? undefined
     if (profileData.color !== undefined) userData.color = profileData.color
     if (profileData.username !== undefined) userData.username = profileData.username
     userData.lastCacheUpdate = new Date().toISOString()
@@ -1833,6 +1917,7 @@ class UserDataService extends EventTarget {
     }
     
     this.users.clear()
+    this.memberServerFields.clear()
     this.contexts.clear()
     this.currentUserId = null
     this.initialized = false

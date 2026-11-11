@@ -18,7 +18,7 @@
     <div class="avatar-section">
       <div class="avatar-wrapper">
         <Avatar
-          :src="user.avatar_url"
+          :src="identity.avatarUrl.value"
           alt=""
           :size="avatarSize"
           :status="userPresenceStatus"
@@ -43,21 +43,23 @@
             data-testid="profile-card-open"
             @click.stop="handleClick"
           >
-            <DisplayName v-if="user.id" :userId="user.id" :fallback="displayName" :truncate="true" />
+            <DisplayName v-if="user.id" :userId="user.id" :server-id="serverId" :fallback="displayName" :truncate="true" />
             <template v-else>{{ displayName }}</template>
           </button>
           <template v-else>
-            <DisplayName v-if="user.id" :userId="user.id" :fallback="displayName" :truncate="true" />
+            <DisplayName v-if="user.id" :userId="user.id" :server-id="serverId" :fallback="displayName" :truncate="true" />
             <template v-else>{{ displayName }}</template>
           </template>
           <Icon v-if="isVerified" name="verified" class="verified-badge" />
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
+        <p v-if="identity.nickname.value" class="user-account-name" data-testid="card-account-name">{{ displayName }}</p>
         <p class="user-handle">
           <span class="user-handle-text">{{ displayHandle }}</span>
           <CopyHandleButton v-if="!isCompact" :account="user" :size="13" />
           <span v-if="isMoved" class="moved-pill">{{ t('accountMigration.profile.movedBadge') }}</span>
         </p>
+        <p v-if="identity.pronouns.value" class="user-pronouns" data-testid="card-pronouns">{{ identity.pronouns.value }}</p>
         <RemoteInstanceBadge
           v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'inline'"
           :domain="user.domain!"
@@ -213,6 +215,7 @@ import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import SocialMenu from '@/components/activitypub/SocialMenu.vue'
 import { useMenuButton } from '@/composables/useMenu'
 import { plainDisplayName } from '@/utils/plainDisplayName'
+import { useCardServerIdentity } from '@/composables/useCardServerIdentity'
 import type { User, FederatedUser } from '@/types'
 import { profileCount } from '@/utils/profileCounts'
 import { getBannerUrl } from '@/utils/bannerUtils'
@@ -225,6 +228,8 @@ const { t } = useI18n()
 // ===== INTERFACE =====
 interface Props {
   user: User | FederatedUser
+  /** Show this server's nickname, avatar, bio and pronouns. Omit for the account profile. */
+  serverId?: string | null
   isCompact?: boolean
   isInteractive?: boolean
   showActions?: boolean
@@ -252,9 +257,11 @@ const props = withDefaults(defineProps<Props>(), {
   showBanner: false
 })
 
+const identity = useCardServerIdentity(() => props.user, () => props.serverId)
+
 const bannerFailed = ref(false)
 const hasBanner = computed(() => props.showBanner && !props.isCompact)
-const bannerSrc = computed(() => bannerFailed.value ? null : getBannerUrl(props.user.banner_url, { width: 480, height: 120 }))
+const bannerSrc = computed(() => bannerFailed.value ? null : getBannerUrl(identity.bannerUrl.value, { width: 480, height: 120 }))
 const bannerStyle = computed(() => (props.user.color ? { backgroundColor: props.user.color } : {}))
 
 const emit = defineEmits<{
@@ -315,9 +322,7 @@ const plainHandle = computed(() => displayHandle.value.replace(/^@/, ''))
 // Full, @user@domain, on a card; the compact layout of a dense list drops this instance's domain.
 const displayHandle = computed(() => formatHandle(props.user as FederatedUser, { full: !props.isCompact }) || '@unknown')
 
-const displayBio = computed(() => {
-  return props.user.bio || ''
-})
+const displayBio = computed(() => identity.bio.value || '')
 
 const truncatedBio = computed(() => {
   if (!displayBio.value) return ''
@@ -586,6 +591,18 @@ const closeActionsMenu = () => {
 }
 
 .compact .user-handle {
+  font-size: var(--font-size-xs);
+}
+
+.user-account-name,
+.user-pronouns {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.compact .user-account-name,
+.compact .user-pronouns {
   font-size: var(--font-size-xs);
 }
 

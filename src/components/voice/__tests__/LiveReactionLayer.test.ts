@@ -11,6 +11,11 @@ const bigSmile = { id: 'e1', name: 'big_smile', url: 'https://cdn.test/big_smile
 
 // user7's name carries a custom emoji: the cache holds ':big_smile: y4my4m' as text and the
 // resolved parts beside it.
+vi.mock('@/composables/useVoiceProfileServerId', async () => {
+  const { ref } = await import('vue')
+  return { useVoiceProfileServerId: () => ref(null) }
+})
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', async () => {
   const { ref } = await import('vue')
   return {

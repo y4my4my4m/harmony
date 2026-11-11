@@ -80,6 +80,7 @@
                     <DisplayName
                       v-if="user.kind === 'user' && user.id"
                       :user-id="user.id"
+                      :server-id="serverId"
                       :fallback="user.displayName"
                       :color="user.userColor"
                     />
@@ -121,6 +122,8 @@ const props = defineProps<{
   /** reactionGroupKey of the tab selected on open; null selects the first. */
   initialEmojiKey?: string | null
   resolvers: ReactionUserResolvers
+  /** The server of the message; null or unset in a DM. */
+  serverId?: string | null
 }>()
 
 const emit = defineEmits<{

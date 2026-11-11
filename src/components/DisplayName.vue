@@ -34,6 +34,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useUserData } from '@/composables/useUserData'
+import { getMemberServerProfile } from '@/composables/useMemberProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
@@ -52,6 +53,8 @@ const props = defineProps<{
   fallback?: string
   color?: string
   truncate?: boolean
+  /** Show this server's nickname when the member has one. Omit for the account name. */
+  serverId?: string | null
 }>()
 
 const { getUserDisplayName, getUserDisplayNameParts, getUser, fetchUserProfile } = useUserData()
@@ -70,8 +73,16 @@ watch(
   { immediate: true }
 )
 
+const serverNickname = computed(() => {
+  if (!props.userId || !props.serverId) return null
+  const nick = getMemberServerProfile(props.userId, props.serverId).value?.nickname?.trim()
+  return nick || null
+})
+
 const resolvedParts = computed<DisplayNamePart[] | undefined>(() => {
   if (props.parts) return props.parts
+  // A nickname has no precomputed parts; finalParts resolves its shortcodes from plainName.
+  if (serverNickname.value) return undefined
   if (props.userId) return getUserDisplayNameParts(props.userId).value
   return undefined
 })
@@ -153,6 +164,7 @@ function processTextForUnicodeEmojis(text: string): RenderPart[] {
 }
 
 const plainName = computed(() => {
+  if (serverNickname.value) return serverNickname.value
   if (props.userId) {
     const user = getUser(props.userId).value
     return user ? getUserDisplayName(props.userId).value : (props.fallback ?? 'Unknown User')

@@ -29,6 +29,7 @@
             <DisplayName
               v-if="actorUserId"
               :user-id="actorUserId"
+              :server-id="actorServerId"
               :fallback="actorName"
               :truncate="true"
               class="actor"
@@ -151,6 +152,7 @@ const actorUserId = computed(() => {
 })
 
 const avatarUrl = computed(() => NotificationFormatter.getAvatarUrl(props.notification))
+const actorServerId = computed(() => NotificationFormatter.getServerActor(props.notification)?.serverId ?? null)
 
 const isReaction = computed(() =>
   props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'

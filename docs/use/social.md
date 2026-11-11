@@ -179,11 +179,24 @@ Open **User settings** → **My account**, or select **Edit profile** on your ow
 | **Avatar** and **Banner** | Select the image to change it; a crop dialog opens. |
 | **Display name** | Up to 50 characters. Type `:` to add custom emoji, unless the instance turns them off for names. |
 | **Username** | Cannot be changed: other servers identify your account by it. |
+| **Pronouns** | Up to 40 characters, such as `she/her`. Shown under your name on your profile card, and sent to other servers with your profile. |
 | **Bio** | Up to 500 characters. |
 | **Display color** | Colors your display name and profile accents. |
 | **Profile fields** | Up to 4 label and value pairs, such as a website or another handle, each part up to 255 characters. Every field needs both a label and a value. Other servers receive them with your profile. |
 
 Select **Save** to keep the changes.
+
+## Server profiles
+
+A server profile is how you look in one server: a nickname, avatar, banner, bio and pronouns of its own. Any field you leave empty uses your account's.
+
+1. Right-click the server in the server rail and select **Edit server profile**, or open **User settings** → **Server profiles** and pick the server.
+2. Change the fields. **Reset** beside a field returns it to your account's value. A preview shows the result.
+3. Select **Save**.
+
+The server shows your server profile in messages, the member list, voice channels, mentions, notifications, search and pins. Your profile card there shows your server name, with your account name and @username beneath it. Direct messages, friends and the fediverse side keep your account profile. Server profiles stay on this instance: for a server on another instance the picker says it is not available yet.
+
+Editing needs **Change Nickname**, which every server gives its members by default; without it the tab shows your profile as read-only. People with **Manage Nicknames** can right-click a member below their own role and select **Change nickname** or **Reset server profile**; the reset clears the avatar, banner, bio and pronouns and keeps the nickname. See [Roles and permissions](/run/roles-permissions).
 
 ## Move your account
 

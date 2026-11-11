@@ -38,7 +38,7 @@
             </div>
             <div class="channel-details">
               <h2 :id="titleId" class="channel-name">
-                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="props.channelName" />
+                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :server-id="profileServerId" :fallback="props.channelName" />
                 <template v-else>{{ props.channelName }}</template>
               </h2>
               <p :id="descriptionId" class="participant-count">
@@ -224,9 +224,9 @@
               :style="tileStyle"
             >
               <div class="ringing-avatar">
-                <Avatar :src="getUserAvatarUrl(id).value" :alt="getUserDisplayName(id).value || 'User'" size="xl" />
+                <Avatar :src="getMemberAvatarUrl(id, profileServerId).value" :alt="getMemberDisplayName(id, profileServerId).value || 'User'" size="xl" />
               </div>
-              <span class="ringing-name"><DisplayName :user-id="id" :truncate="true" /></span>
+              <span class="ringing-name"><DisplayName :user-id="id" :server-id="profileServerId" :truncate="true" /></span>
               <span class="ringing-label">{{ t('voice.ringing') }}</span>
             </div>
           </div>
@@ -510,7 +510,8 @@ import DisplayName from '@/components/DisplayName.vue';
 import { useI18n } from 'vue-i18n';
 import { dismissVoicePopovers, voicePopoverOpen, type Rect } from './voiceMenuModel';
 import Avatar from '@/components/common/Avatar.vue';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberDisplayName, getMemberAvatarUrl } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
 import { styleRect } from '@/utils/appZoom';
@@ -713,7 +714,7 @@ watch(() => voiceStore.liveReactionsAvailable, available => {
   if (!available) showReactions.value = false;
 });
 
-const { getUserAvatarUrl, getUserDisplayName } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 // DM calls ring the callees; until they answer they show as ringing tiles.
 const ringingUserIds = computed<string[]>(() => {

@@ -369,7 +369,7 @@
         <div class="mini-video-overlay">
           <span class="mini-video-label" aria-hidden="true">
             <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" :size="12" />
-            <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :fallback="activeVideoUserName" :truncate="true" />
+            <DisplayName v-if="activeVideoUser" :userId="activeVideoUser.userId" :server-id="profileServerId" :fallback="activeVideoUserName" :truncate="true" />
           </span>
           <button
             type="button"
@@ -605,6 +605,8 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
+import { getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { useViewport } from '@/composables/useViewport';
 import { userStorage } from '@/utils/userScopedStorage';
@@ -687,6 +689,7 @@ const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
 const { isMobileViewport } = useViewport();
 const { getUser } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 // STATE
 const dockRootRef = ref<HTMLElement | null>(null);
@@ -909,7 +912,7 @@ const activeVideoStream = computed(() => {
 const activeVideoUserName = computed(() => {
   if (!activeVideoUser.value) return '';
   const profile = getUser(activeVideoUser.value.userId)?.value;
-  return profile?.displayName || profile?.username || 'User';
+  return getMemberDisplayName(activeVideoUser.value.userId, profileServerId.value).value || profile?.username || 'User';
 });
 
 const activeVideoLabel = computed(() => {

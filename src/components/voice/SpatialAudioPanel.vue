@@ -197,7 +197,7 @@
         <!-- Avatar Image -->
         <div class="avatar-container">
           <Avatar
-            :src="getUserProfile(participant.userId)?.avatar_url || '/default_avatar.webp'"
+            :src="getMemberAvatarUrl(participant.userId, profileServerId).value || '/default_avatar.webp'"
             alt=""
             class="avatar-image"
             draggable="false"
@@ -209,7 +209,7 @@
         
         <!-- Username Label -->
         <div class="username-label" aria-hidden="true">
-          <DisplayName :userId="participant.userId" />
+          <DisplayName :userId="participant.userId" :server-id="profileServerId" />
         </div>
         
         <!-- Distance Indicator (to self) -->
@@ -306,6 +306,8 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import { spatialAudioService } from '@/services/spatialAudio';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
@@ -331,6 +333,7 @@ withDefaults(defineProps<Props>(), {
 
 const spatialStore = useSpatialAudioStore();
 const voiceStore = useUnifiedVoiceChannelStore();
+const profileServerId = useVoiceProfileServerId();
 const authStore = useAuthStore();
 const { getUserProfile: getUnifiedUserProfile, ensureProfilesAvailable } = useUserData();
 
