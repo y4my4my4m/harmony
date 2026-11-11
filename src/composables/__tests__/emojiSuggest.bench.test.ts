@@ -187,8 +187,9 @@ async function benchPicker(label: string, component: Component) {
   console.log(`[emoji-bench] ${label} mount=${mountMs.toFixed(1)}ms imgs=${imgsAtMount} lazyImgs=${wrapper.findAll('img[loading="lazy"]').length}`)
 
   const input = wrapper.get('input.search-input')
-  // Fake timers drive the search debounce deterministically.
-  vi.useFakeTimers()
+  // Fake timers drive the search debounce deterministically. Only the timer functions: since
+  // vitest 3 the default also fakes performance, which froze this benchmark's clock.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   const inputMs: number[] = []
   const totalMs: number[] = []
   for (let round = 0; round < 3; round++) {
@@ -225,12 +226,16 @@ async function benchPicker(label: string, component: Component) {
   wrapper.unmount()
 }
 
+// 5000 emoji, 30 debounced queries and a burst: about 4s alone and 8-10s beside the rest of
+// the suite, which sat at the 10s default. They log timings and assert on the filtered result.
+const PICKER_BENCH_TIMEOUT_MS = 30_000
+
 describe('emoji picker benchmark (5000 custom + unicode set)', () => {
   it('EmojiPickerContent mounts and filters', async () => {
     await benchPicker('picker', EmojiPickerContent)
-  })
+  }, PICKER_BENCH_TIMEOUT_MS)
 
   it('EmojiPopup mounts and filters', async () => {
     await benchPicker('popup', EmojiPopup)
-  })
+  }, PICKER_BENCH_TIMEOUT_MS)
 })
