@@ -44,7 +44,7 @@ SELECT ok(NOT EXISTS (SELECT 1
                              unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
                        WHERE has_table_privilege('anon', 'public.' || t, p)),
   'anon holds no privilege on the bridge tables');
-SELECT ok(has_column_privilege('authenticated', 'public.discord_bridges', 'server_id', 'SELECT')
+SELECT ok(has_table_privilege('authenticated', 'public.discord_bridges', 'SELECT')
       AND has_table_privilege('authenticated', 'public.discord_bridge_channels', 'SELECT')
       AND NOT has_table_privilege('authenticated', 'public.discord_bridges', 'INSERT')
       AND NOT has_table_privilege('authenticated', 'public.discord_bridges', 'UPDATE')

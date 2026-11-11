@@ -1,12 +1,14 @@
 -- Discord bridge: sync a Discord server's name, icon, banner and description onto its paired
 -- Harmony server.
 --
--- Adds four columns to discord_bridges, none granted to clients, that remember where the
+-- Adds four columns to discord_bridges that remember where the
 -- server's current icon and banner came from, and two RPCs for the bot of a server's Discord
 -- bridge, called through bot-gateway (service_role):
 --   profile_icon_discord_hash / profile_icon_path        the Discord icon hash and the storage
 --   profile_banner_discord_hash / profile_banner_path    path the Harmony icon / banner was
 --                                                        copied from (NULL: not synced)
+-- Like the rest of the row they are readable by the bridge's managers (the existing RLS policy
+-- and table-wide SELECT) and written only by the RPCs below.
 -- bot-gateway compares a fresh Discord hash with the stored one to skip an unchanged image.
 -- A hash is Discord's image hash: 32 hex digits, prefixed a_ when the image is animated.
 --
@@ -44,24 +46,6 @@ ALTER TABLE public.discord_bridges
         CONSTRAINT discord_bridges_profile_banner_hash_check
             CHECK (profile_banner_discord_hash IS NULL OR profile_banner_discord_hash ~ '^(a_)?[0-9a-f]{32}$'),
     ADD COLUMN IF NOT EXISTS profile_banner_path text;
-
--- authenticated holds a table-wide SELECT on discord_bridges (20261008300001), which would
--- expose the new columns to the managers RLS lets in. Swap it for a grant on every other column.
-DO $$
-DECLARE
-    v_cols text;
-BEGIN
-    SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum) INTO v_cols
-      FROM pg_attribute a
-     WHERE a.attrelid = 'public.discord_bridges'::regclass
-       AND a.attnum > 0
-       AND NOT a.attisdropped
-       AND a.attname NOT IN ('profile_icon_discord_hash', 'profile_icon_path',
-                             'profile_banner_discord_hash', 'profile_banner_path');
-    REVOKE SELECT ON public.discord_bridges FROM authenticated;
-    EXECUTE format('GRANT SELECT (%s) ON public.discord_bridges TO authenticated', v_cols);
-END;
-$$;
 
 -- ---------------------------------------------------------------------------
 -- Shared name and description rules (moved out of update_server)

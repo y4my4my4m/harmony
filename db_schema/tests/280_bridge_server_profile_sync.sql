@@ -9,7 +9,7 @@
 --   server f2800000-...02      a remote server (is_local_server = false) bridged by bot b3
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(40);
+SELECT plan(39);
 
 INSERT INTO public.bots (id, username, display_name, owner_id, bot_type) VALUES
   ('28000000-0000-0000-0000-0000000000b1', 'discord-bridge-280', 'Discord Bridge', '11111111-0000-0000-0000-000000000001', 'bridge'),
@@ -55,9 +55,6 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.server_profile_nam
   'authenticated cannot call server_profile_name');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.server_profile_description(text)', 'EXECUTE'),
   'authenticated cannot call server_profile_description');
-SELECT ok(NOT has_column_privilege('authenticated', 'public.discord_bridges', 'profile_icon_path', 'SELECT')
-          AND NOT has_column_privilege('authenticated', 'public.discord_bridges', 'profile_banner_discord_hash', 'SELECT'),
-  'clients read neither source column');
 
 -- Authority. --------------------------------------------------------------------------------------
 SELECT throws_ok($$SELECT * FROM public.bridge_get_server_profile('28000000-0000-0000-0000-0000000000b2',
