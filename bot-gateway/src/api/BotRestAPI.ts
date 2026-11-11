@@ -3101,7 +3101,9 @@ export class BotRestAPI {
     if (error.message?.startsWith('STICKER_LIMIT')) {
       return res.status(409).json({ error: error.message, code: 'STICKER_LIMIT' })
     }
-    if (error.code === '23505') return res.status(409).json({ error: error.message, code: 'STICKER_NAME_TAKEN' })
+    if (error.code === '23505' && !error.message?.startsWith('STICKER_FILE_TAKEN')) {
+      return res.status(409).json({ error: error.message, code: 'STICKER_NAME_TAKEN' })
+    }
     if (error.code === 'P0002') return res.status(404).json({ error: error.message })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })

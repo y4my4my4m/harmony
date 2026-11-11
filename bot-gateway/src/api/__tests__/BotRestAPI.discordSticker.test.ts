@@ -185,6 +185,13 @@ describe('POST /servers/:serverId/stickers/discord', () => {
     expect(res.body.code).toBe('STICKER_NAME_TAKEN')
   })
 
+  it('does not call a STICKER_FILE_TAKEN collision a name clash', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'STICKER_FILE_TAKEN: st-1' } })
+    const res = await post(BODY)
+    expect(res.status).toBe(500)
+    expect(res.body.code).toBeUndefined()
+  })
+
   it('maps 42501 to 403, 22023 to 400 and other errors to 500', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not the bridge' } })
     expect((await post(BODY)).status).toBe(403)
