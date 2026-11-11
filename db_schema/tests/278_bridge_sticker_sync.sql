@@ -1,4 +1,4 @@
--- 20261112100001_bridge_sticker_sync.sql: the Discord bridge bot of a server imports, updates,
+-- 20261112300001_bridge_sticker_sync.sql: the Discord bridge bot of a server imports, updates,
 -- restores and retires server stickers (bridge_import_server_sticker, bridge_retire_server_sticker);
 -- a retired sticker leaves the cap, the name index, the upload folder count, client reads and new
 -- messages, and still answers existing_sticker_ids.
