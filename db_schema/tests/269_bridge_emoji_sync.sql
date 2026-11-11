@@ -17,21 +17,23 @@ VALUES ('55555555-0000-0000-0000-000000000005', '26900000-0000-0000-0000-0000000
 INSERT INTO public.servers (id, name, owner)
 VALUES ('f2690000-0000-0000-0000-000000000002', 'Server 269', '22222222-0000-0000-0000-000000000002');
 
--- Removed, linked.
-INSERT INTO public.emojis (id, name, url, server_id, scope, discord_emoji_id, deleted_at, deleted_by) VALUES
+-- Removed by the bridge (bridge_removed_at = deleted_at, 20261112500001), linked.
+INSERT INTO public.emojis (id, name, url, server_id, scope, discord_emoji_id, deleted_at, bridge_removed_at) VALUES
   ('269e0000-0000-0000-0000-00000000000a', 'Honk', 'https://cdn.test/honk.png',
-   '55555555-0000-0000-0000-000000000005', 'server', '2001', now(), '11111111-0000-0000-0000-000000000001'),
+   '55555555-0000-0000-0000-000000000005', 'server', '2001', now(), now()),
   ('269e0000-0000-0000-0000-00000000000c', 'Taken', 'https://cdn.test/taken.png',
-   '55555555-0000-0000-0000-000000000005', 'server', '2003', now(), NULL),
+   '55555555-0000-0000-0000-000000000005', 'server', '2003', now(), now()),
   ('269e0000-0000-0000-0000-00000000000f', 'Capped', 'https://cdn.test/capped.png',
-   '55555555-0000-0000-0000-000000000005', 'server', '2004', now(), NULL);
+   '55555555-0000-0000-0000-000000000005', 'server', '2004', now(), now());
 -- Removed, unlinked.
 INSERT INTO public.emojis (id, name, url, server_id, scope, discord_emoji_id, deleted_at) VALUES
   ('269e0000-0000-0000-0000-000000000010', 'Ghost', 'https://cdn.test/ghost.png',
    '55555555-0000-0000-0000-000000000005', 'server', NULL, now());
--- Active: linked, unlinked (two), another server's.
+-- Active: imported by the bridge (its image is <server>/discord/<snowflake>.png), unlinked (two),
+-- another server's.
 INSERT INTO public.emojis (id, name, url, server_id, scope, discord_emoji_id) VALUES
-  ('269e0000-0000-0000-0000-00000000000b', 'Honk2', 'https://cdn.test/honk2.png',
+  ('269e0000-0000-0000-0000-00000000000b', 'Honk2',
+   'https://db.test/storage/v1/object/public/emojis/55555555-0000-0000-0000-000000000005/discord/2002.png',
    '55555555-0000-0000-0000-000000000005', 'server', '2002'),
   ('269e0000-0000-0000-0000-00000000000d', 'taken', 'https://cdn.test/taken2.png',
    '55555555-0000-0000-0000-000000000005', 'server', NULL),
@@ -100,8 +102,9 @@ INSERT INTO r SELECT * FROM public.bridge_import_server_emoji('26900000-0000-000
 SELECT is((SELECT status FROM r), 'updated', 'p_update restores a removed linked row');
 SELECT ok((SELECT deleted_at IS NULL FROM public.emojis WHERE id = '269e0000-0000-0000-0000-00000000000a'),
   'deleted_at is cleared');
-SELECT ok((SELECT deleted_by IS NULL FROM public.emojis WHERE id = '269e0000-0000-0000-0000-00000000000a'),
-  'deleted_by is cleared');
+SELECT ok((SELECT deleted_by IS NULL AND bridge_removed_at IS NULL FROM public.emojis
+            WHERE id = '269e0000-0000-0000-0000-00000000000a'),
+  'deleted_by and bridge_removed_at are cleared');
 INSERT INTO public.bot_audit_log (bot_id, action_type, success, metadata)
 VALUES ('26900000-0000-0000-0000-0000000000b1', 'emoji_updated', true,
         '{"serverId":"55555555-0000-0000-0000-000000000005","emojiId":"269e0000-0000-0000-0000-00000000000a"}'::jsonb);

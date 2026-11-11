@@ -14,12 +14,14 @@ const mocks = vi.hoisted(() => ({
   eq: vi.fn(),
   or: vi.fn(),
   order: vi.fn(),
-  range: vi.fn(),
+  limit: vi.fn(),
+  gt: vi.fn(),
   insert: vi.fn(),
+  removeObjects: vi.fn(),
 }))
 
 vi.mock('../../config/supabase.js', () => ({
-  supabase: { rpc: mocks.rpc, from: mocks.from, storage: { from: () => ({}) } },
+  supabase: { rpc: mocks.rpc, from: mocks.from, storage: { from: () => ({ remove: mocks.removeObjects }) } },
   config: {
     supabaseUrl: 'http://localhost:54321',
     port: 3002,
@@ -45,25 +47,39 @@ vi.mock('../../utils/discordStickerImport.js', async (importOriginal) => ({
 import { BotRestAPI } from '../BotRestAPI.js'
 import { StickerFileError } from '../../utils/discordStickerImport.js'
 
-type Result = { data: unknown; error: unknown }
-const RECORDED = new Set(['eq', 'or', 'order', 'range', 'insert'])
+type Result = { data: unknown; error: unknown; count?: number }
+const RECORDED = new Set(['eq', 'or', 'order', 'limit', 'gt', 'insert'])
 
+// A keyset read past the first page (gt) answers no rows.
 function routeTables(tables: Record<string, Result>) {
   mocks.from.mockImplementation((table: string) => {
-    const result = tables[table] ?? { data: null, error: null }
+    const entry = tables[table] ?? { data: null, error: null }
+    let paged = false
+    const result = () => (paged && Array.isArray(entry.data) ? { data: [], error: null } : entry)
     const builder: any = new Proxy(
-      { single: async () => result, maybeSingle: async () => result, then: (resolve: any) => resolve(result) },
+      { single: async () => result(), maybeSingle: async () => result(), then: (resolve: any) => resolve(result()) },
       {
         get: (target, prop: string) => {
           if (prop in target) return (target as any)[prop]
-          if (RECORDED.has(prop)) return (...a: unknown[]) => { (mocks as any)[prop](table, ...a); return builder }
-          return () => builder
+          return (...a: unknown[]) => {
+            if (prop === 'gt') paged = true
+            if (RECORDED.has(prop)) (mocks as any)[prop](table, ...a)
+            return builder
+          }
         },
       },
     )
     return builder
   })
 }
+
+// bridge_import_server_sticker answers `results` in turn; sticker_limit answers `cap`.
+function importAnswers(results: Result[], cap: unknown = 15) {
+  const queue = [...results]
+  mocks.rpc.mockImplementation(async (name: string) =>
+    name === 'sticker_limit' ? { data: cap, error: null } : queue.shift() ?? { data: null, error: { message: 'no answer queued' } })
+}
+const importCalls = () => mocks.rpc.mock.calls.filter((c) => c[0] === 'bridge_import_server_sticker')
 
 const app = () => {
   const a = express()
@@ -93,10 +109,11 @@ beforeEach(() => {
 describe('GET /servers/:serverId/stickers/discord', () => {
   const get = () => supertest(app()).get(`${base}/discord`)
 
-  it('lists active and retired linked stickers with the limit', async () => {
+  it('lists active and retired linked stickers with the limit, oldest first', async () => {
+    // Read by id; s2 is the older one.
     const rows = [
-      { id: 's1', name: 'a', description: 'da', url: 'u1', discord_sticker_id: '1', removed_at: null },
-      { id: 's2', name: 'b', description: 'db', url: 'u2', discord_sticker_id: '2', removed_at: '2026-01-01' },
+      { id: 's1', name: 'a', description: 'da', url: 'u1', discord_sticker_id: '1', removed_at: null, created_at: '2026-02-01T00:00:00+00:00' },
+      { id: 's2', name: 'b', description: 'db', url: 'u2', discord_sticker_id: '2', removed_at: '2026-01-01', created_at: '2026-01-01T00:00:00+00:00' },
     ]
     routeTables({ discord_bridges: { data: { id: 'b1' }, error: null }, stickers: { data: rows, error: null } })
     mocks.rpc.mockResolvedValue({ data: 15, error: null })
@@ -105,14 +122,15 @@ describe('GET /servers/:serverId/stickers/discord', () => {
     expect(mocks.eq).toHaveBeenCalledWith('stickers', 'scope', 'server')
     expect(mocks.eq).toHaveBeenCalledWith('stickers', 'server_id', SERVER_ID)
     expect(mocks.or).toHaveBeenCalledWith('stickers', 'removed_at.is.null,discord_sticker_id.not.is.null')
-    expect(mocks.order.mock.calls.map((c) => c[1])).toEqual(['created_at', 'id'])
-    expect(mocks.range).toHaveBeenCalledWith('stickers', 0, 4999)
+    expect(mocks.order.mock.calls.map((c) => c[1])).toEqual(['id', 'id'])
+    expect(mocks.limit).toHaveBeenCalledWith('stickers', 1000)
+    expect(mocks.gt).toHaveBeenCalledWith('stickers', 'id', 's2')
     expect(mocks.rpc).toHaveBeenCalledWith('sticker_limit', { p_scope: 'server' })
     expect(res.body).toEqual({
       limit: 15,
       stickers: [
-        { id: 's1', name: 'a', description: 'da', url: 'u1', discord_sticker_id: '1', removed: false },
         { id: 's2', name: 'b', description: 'db', url: 'u2', discord_sticker_id: '2', removed: true },
+        { id: 's1', name: 'a', description: 'da', url: 'u1', discord_sticker_id: '1', removed: false },
       ],
     })
   })
@@ -152,19 +170,45 @@ describe('POST /servers/:serverId/stickers/discord', () => {
   })
 
   it('downloads only after invalid sticker file and passes the file fields', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({ data: null, error: NO_FILE_ERROR })
-      .mockResolvedValueOnce({ data: [row('created')], error: null })
+    importAnswers([{ data: null, error: NO_FILE_ERROR }, { data: [row('created')], error: null }])
     const res = await post({ ...BODY, format_type: 4 })
     expect(res.status).toBe(201)
     expect(mocks.store).toHaveBeenCalledWith(SERVER_ID, '111', 4)
     expect(mocks.rpc.mock.calls[0][0]).toBe('bridge_import_server_sticker')
-    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({
+    expect(importCalls()[0][1]).toMatchObject({
       p_bot_id: BOT_ID, p_server_id: SERVER_ID, p_discord_sticker_id: '111', p_name: 'wave', p_description: 'A wave', p_update: false,
     })
-    expect(mocks.rpc.mock.calls[1][1]).toMatchObject({
+    expect(importCalls()[1][1]).toMatchObject({
       p_path: FILE.path, p_url: FILE.url, p_width: 100, p_height: 90, p_duration_ms: null,
     })
+  })
+
+  it('answers 409 STICKER_LIMIT for a new sticker of a full server without fetching the file', async () => {
+    routeTables({
+      discord_bridges: { data: { id: 'b1' }, error: null },
+      stickers: { data: null, error: null, count: 15 },
+    })
+    importAnswers([{ data: null, error: NO_FILE_ERROR }], 15)
+    const res = await post(BODY)
+    expect(res.status).toBe(409)
+    expect(res.body.code).toBe('STICKER_LIMIT')
+    expect(mocks.eq).toHaveBeenCalledWith('stickers', 'server_id', SERVER_ID)
+    expect(mocks.store).not.toHaveBeenCalled()
+    expect(importCalls()).toHaveLength(1)
+  })
+
+  it('fetches the file when the server has room, or the count cannot be read', async () => {
+    for (const count of [14, undefined]) {
+      mocks.store.mockClear()
+      routeTables({
+        discord_bridges: { data: { id: 'b1' }, error: null },
+        bot_audit_log: { data: null, error: null },
+        stickers: { data: null, error: null, count },
+      })
+      importAnswers([{ data: null, error: NO_FILE_ERROR }, { data: [row('created')], error: null }], 15)
+      expect((await post(BODY)).status).toBe(201)
+      expect(mocks.store).toHaveBeenCalledTimes(1)
+    }
   })
 
   it('passes p_update when update is set', async () => {
@@ -208,7 +252,7 @@ describe('POST /servers/:serverId/stickers/discord', () => {
     expect(res.status).toBe(422)
     expect(res.body.code).toBe('STICKER_FILE')
     expect(res.body.reason).toBe('lottie')
-    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(importCalls()).toHaveLength(1)
   })
 
   it('reports a failed download as 502', async () => {
@@ -218,9 +262,7 @@ describe('POST /servers/:serverId/stickers/discord', () => {
   })
 
   it('removes the stored file when the second call fails', async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({ data: null, error: NO_FILE_ERROR })
-      .mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'STICKER_LIMIT: 15' } })
+    importAnswers([{ data: null, error: NO_FILE_ERROR }, { data: null, error: { code: '23514', message: 'STICKER_LIMIT: 15' } }])
     expect((await post(BODY)).status).toBe(409)
     expect(mocks.removeStored).toHaveBeenCalledWith(FILE.path)
   })
@@ -228,9 +270,7 @@ describe('POST /servers/:serverId/stickers/discord', () => {
   it('removes the stored file when the second call answers existing or updated, keeps it on created', async () => {
     for (const [status, removed] of [['existing', true], ['updated', true], ['created', false]] as const) {
       mocks.removeStored.mockClear()
-      mocks.rpc
-        .mockResolvedValueOnce({ data: null, error: NO_FILE_ERROR })
-        .mockResolvedValueOnce({ data: [row(status)], error: null })
+      importAnswers([{ data: null, error: NO_FILE_ERROR }, { data: [row(status)], error: null }])
       expect((await post(BODY)).status).toBe(status === 'created' ? 201 : 200)
       if (removed) expect(mocks.removeStored).toHaveBeenCalledWith(FILE.path)
       else expect(mocks.removeStored).not.toHaveBeenCalled()
@@ -241,17 +281,50 @@ describe('POST /servers/:serverId/stickers/discord', () => {
 describe('DELETE /servers/:serverId/stickers/:stickerId', () => {
   const del = (id = STICKER_ID) => supertest(app()).delete(`${base}/${id}`)
 
+  const retired = (evict: (ids: string[] | null) => Result) =>
+    mocks.rpc.mockImplementation(async (name: string, args: any) =>
+      name === 'bridge_retire_server_sticker' ? { data: 'removed', error: null } : evict(args.p_ids))
+  const evictCalls = () => mocks.rpc.mock.calls.filter((c) => c[0] === 'bridge_evict_retired_stickers').map((c) => c[1].p_ids)
+
   it('answers 204 and calls bridge_retire_server_sticker', async () => {
-    mocks.rpc.mockResolvedValue({ data: 'removed', error: null })
+    retired(() => ({ data: [], error: null }))
     expect((await del()).status).toBe(204)
     expect(mocks.rpc).toHaveBeenCalledWith('bridge_retire_server_sticker', {
       p_bot_id: BOT_ID, p_server_id: SERVER_ID, p_sticker_id: STICKER_ID,
     })
+    expect(evictCalls()).toEqual([null])
+    expect(mocks.removeObjects).not.toHaveBeenCalled()
   })
 
-  it('answers 204 for an already retired sticker', async () => {
+  it('answers 403 STICKER_NOT_LINKED for a sticker the bridge did not import', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null, error: { code: '42501', message: 'STICKER_NOT_LINKED: the bridge retires only stickers it imported' },
+    })
+    const res = await del()
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('STICKER_NOT_LINKED')
+  })
+
+  it('removes the files of the retired stickers past the kept count, then deletes those rows', async () => {
+    const past = [{ id: 'old1', path: `server/${SERVER_ID}/a.png` }, { id: 'old2', path: `server/${SERVER_ID}/b.gif` }]
+    mocks.removeObjects.mockResolvedValue({ data: [], error: null })
+    retired((ids) => ({ data: ids === null ? past : [], error: null }))
+    expect((await del()).status).toBe(204)
+    expect(mocks.removeObjects).toHaveBeenCalledWith([`server/${SERVER_ID}/a.png`, `server/${SERVER_ID}/b.gif`])
+    expect(evictCalls()).toEqual([null, ['old1', 'old2']])
+  })
+
+  it('leaves the rows when their files could not be removed', async () => {
+    mocks.removeObjects.mockResolvedValue({ data: null, error: { message: 'storage down' } })
+    retired((ids) => ({ data: ids === null ? [{ id: 'old1', path: 'p' }] : [], error: null }))
+    expect((await del()).status).toBe(204)
+    expect(evictCalls()).toEqual([null])
+  })
+
+  it('answers 204 for an already retired sticker and evicts nothing', async () => {
     mocks.rpc.mockResolvedValue({ data: 'existing', error: null })
     expect((await del()).status).toBe(204)
+    expect(evictCalls()).toEqual([])
   })
 
   it('answers 404 on P0002 whatever the message', async () => {

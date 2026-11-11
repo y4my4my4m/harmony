@@ -143,6 +143,8 @@ bot_permission_mask	invoker	bigint	-	client	called by bot_command_upsert_row, bo
 bot_permission_names	invoker	jsonb	-	client	called by bot_command_json
 bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
+bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sound	definer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -428,6 +430,7 @@ drive_unshare	definer	boolean	authenticated+service_role	client	rpc in src/servi
 drive_used_bytes	definer	bigint	service_role	client, policy, trigger	called by admin_drive_usage, drive_can_upload, drive_keep_files, +2
 due_outgoing_webhook_deliveries	definer	SETOF uuid	service_role	client	rpc in federation-backend/src/queue/BullMQManager.ts
 effective_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
+emoji_is_bridge_import	invoker	boolean	service_role	client	called by bridge_evict_removed_emojis, bridge_remove_server_emoji
 emoji_kind	definer	text	service_role	client	called by admin_list_emojis
 emoji_name_taken	definer	boolean	service_role	client	called by rename_emoji, restore_emoji
 emoji_object_path	definer	text	service_role	client	called by admin_list_emojis, admin_purge_emoji, rehost_emoji
@@ -629,6 +632,7 @@ guard_server_federation_instance_closed	definer	trigger	service_role	trigger	tri
 guard_server_role_hierarchy	invoker	trigger	service_role	trigger	trigger public.server_roles BEFORE INSERT/DELETE/UPDATE (a_server_roles_hierarchy_guard)
 guard_server_settings_default_role	invoker	trigger	service_role	trigger	trigger public.server_settings BEFORE INSERT/UPDATE (a_server_settings_default_role_guard)
 guard_server_sound_client_write	definer	trigger	service_role	trigger	trigger public.server_sounds BEFORE INSERT/UPDATE (guard_server_sound_client_write)
+guard_server_sound_discord_link	definer	trigger	service_role	trigger	trigger public.server_sounds BEFORE INSERT (guard_server_sound_discord_link)
 guard_server_suspension_write	invoker	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_suspension_guard)
 guard_system_message_removal	invoker	trigger	service_role	trigger	trigger public.messages BEFORE DELETE/UPDATE (a_messages_system_row_guard)
 guard_thread_client_write	invoker	trigger	service_role	trigger	trigger public.threads BEFORE INSERT/UPDATE (a_threads_client_write_guard)

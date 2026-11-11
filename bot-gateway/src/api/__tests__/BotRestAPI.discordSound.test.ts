@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   store: vi.fn(),
   remove: vi.fn(),
+  insert: vi.fn(),
 }))
 
 vi.mock('../../config/supabase.js', () => ({
@@ -39,14 +40,19 @@ vi.mock('../../utils/discordSoundImport.js', async (importOriginal) => ({
 
 import { BotRestAPI } from '../BotRestAPI.js'
 
-type Result = { data: unknown; error: unknown }
+type Result = { data: unknown; error: unknown; count?: number }
 
 function routeTables(tables: Record<string, Result>) {
   mocks.from.mockImplementation((table: string) => {
     const result = tables[table] ?? { data: null, error: null }
     const builder: any = new Proxy(
       { single: async () => result, maybeSingle: async () => result, then: (resolve: any) => resolve(result) },
-      { get: (target, prop) => (prop in target ? (target as any)[prop] : () => builder) },
+      {
+        get: (target, prop) => {
+          if (prop in target) return (target as any)[prop]
+          return (...a: unknown[]) => { if (prop === 'insert') mocks.insert(table, ...a); return builder }
+        },
+      },
     )
     return builder
   })
@@ -68,6 +74,7 @@ beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.store.mockReset()
   mocks.remove.mockReset()
+  mocks.insert.mockReset()
   mocks.store.mockResolvedValue({ storagePath: `${SERVER_ID}/x.mp3`, durationMs: 1200 })
   mocks.remove.mockResolvedValue(undefined)
   bridged()
@@ -108,6 +115,14 @@ describe('POST /servers/:serverId/sounds/discord', () => {
     expect(mocks.store).not.toHaveBeenCalled()
   })
 
+  it('counts name and emoji length in characters, not UTF-16 units', async () => {
+    mocks.rpc.mockResolvedValue({ data: [row('existing')], error: null })
+    // 32 and 16 characters of two UTF-16 units each.
+    expect((await post({ ...body, name: '𝒜'.repeat(32), emoji: '😀'.repeat(16) })).status).toBe(200)
+    expect((await post({ ...body, name: '𝒜'.repeat(33) })).status).toBe(400)
+    expect((await post({ ...body, emoji: '😀'.repeat(17) })).status).toBe(400)
+  })
+
   it('answers an existing sound without downloading', async () => {
     mocks.rpc.mockResolvedValue({ data: [row('existing')], error: null })
     const res = await post(body)
@@ -126,6 +141,42 @@ describe('POST /servers/:serverId/sounds/discord', () => {
     expect(res.status).toBe(201)
     expect(mocks.store).toHaveBeenCalledWith(SERVER_ID, '111222333')
     expect(mocks.rpc.mock.calls[1][1]).toMatchObject({ p_storage_path: `${SERVER_ID}/x.mp3`, p_duration_ms: 1200 })
+  })
+
+  it('answers 409 SOUND_LIMIT for a new sound of a full server without fetching the clip', async () => {
+    routeTables({ discord_bridges: { data: { id: 'b1' }, error: null }, server_sounds: { data: null, error: null, count: 48 } })
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid sound file' } })
+    const res = await post(body)
+    expect(res.status).toBe(409)
+    expect(res.body.code).toBe('SOUND_LIMIT')
+    expect(mocks.store).not.toHaveBeenCalled()
+    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it('fetches the clip when the server has room, or the count cannot be read', async () => {
+    for (const count of [47, undefined]) {
+      mocks.store.mockClear()
+      routeTables({
+        discord_bridges: { data: { id: 'b1' }, error: null },
+        bot_audit_log: { data: null, error: null },
+        server_sounds: { data: null, error: null, count },
+      })
+      mocks.rpc
+        .mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid sound file' } })
+        .mockResolvedValueOnce({ data: [row('created')], error: null })
+      expect((await post(body)).status).toBe(201)
+      expect(mocks.store).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('updates a linked sound of a full server: the cap is asked for a new sound only', async () => {
+    routeTables({
+      discord_bridges: { data: { id: 'b1' }, error: null },
+      bot_audit_log: { data: null, error: null },
+      server_sounds: { data: null, error: null, count: 48 },
+    })
+    mocks.rpc.mockResolvedValueOnce({ data: [row('updated')], error: null })
+    expect((await post({ ...body, update: true })).status).toBe(200)
   })
 
   it('removes the stored clip when the import RPC fails', async () => {
@@ -175,5 +226,28 @@ describe('DELETE /servers/:serverId/sounds/:soundId', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null })
     expect((await del()).status).toBe(404)
     expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('answers 403 SOUND_NOT_LINKED for a sound the bridge did not import, and removes no file', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null, error: { code: '42501', message: 'SOUND_NOT_LINKED: the bridge deletes only sounds it imported' },
+    })
+    const res = await del()
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('SOUND_NOT_LINKED')
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+})
+
+describe('bot audit log', () => {
+  it('logs sound_imported, sound_updated and sound_deleted under the server', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [row('created')], error: null })
+    await post(body)
+    mocks.rpc.mockResolvedValueOnce({ data: [row('updated')], error: null })
+    await post({ ...body, update: true })
+    mocks.rpc.mockResolvedValueOnce({ data: `${SERVER_ID}/x.mp3`, error: null })
+    await supertest(app()).delete(`/api/v1/servers/${SERVER_ID}/sounds/${SOUND_ID}`)
+    const logged = mocks.insert.mock.calls.filter((c) => c[0] === 'bot_audit_log').map((c) => [c[1].action_type, c[1].server_id])
+    expect(logged).toEqual([['sound_imported', SERVER_ID], ['sound_updated', SERVER_ID], ['sound_deleted', SERVER_ID]])
   })
 })

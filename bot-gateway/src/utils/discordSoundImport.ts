@@ -3,6 +3,8 @@ import { parseBuffer } from 'music-metadata'
 import { supabase } from '../config/supabase.js'
 
 export const SOUND_BUCKET = 'soundboard'
+/** Sounds per server; enforce_server_sound_limit raises SOUNDBOARD_FULL at this count. */
+export const MAX_SERVER_SOUNDS = 48
 /** Discord caps soundboard clips at 512 KB. */
 export const MAX_DISCORD_SOUND_BYTES = 524288
 export const MAX_SOUND_DURATION_MS = 5200

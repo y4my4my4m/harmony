@@ -143,6 +143,8 @@ bot_permission_mask	p_names jsonb	bigint	invoker	public, pg_temp		unreferenced
 bot_permission_names	p_mask bigint	jsonb	invoker	public, pg_temp		unreferenced
 bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	integer	definer	public, pg_temp	service_role	client
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
+bridge_evict_removed_emojis	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
+bridge_evict_retired_stickers	p_bot_id uuid, p_server_id uuid, p_ids uuid[]	TABLE(id uuid, path text)	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text, p_update boolean	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_import_server_sound	p_bot_id uuid, p_server_id uuid, p_discord_sound_id text, p_name text, p_emoji text, p_emoji_id uuid, p_volume numeric, p_update boolean, p_storage_path text, p_duration_ms integer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	definer	public, pg_temp	service_role	client
 bridge_import_server_sticker	p_bot_id uuid, p_server_id uuid, p_discord_sticker_id text, p_name text, p_description text, p_update boolean, p_path text, p_url text, p_width integer, p_height integer, p_duration_ms integer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	definer	public, pg_temp	service_role	client
@@ -428,6 +430,7 @@ drive_unshare	p_share uuid	boolean	definer	public, pg_temp	authenticated+service
 drive_used_bytes	p_profile uuid	bigint	definer	public, pg_temp	service_role	unreferenced
 due_outgoing_webhook_deliveries	p_limit integer	SETOF uuid	definer	public, pg_temp	service_role	client
 effective_channel_encryption	p_channel_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
+emoji_is_bridge_import	p_row emojis	boolean	invoker	public, pg_temp	service_role	unreferenced
 emoji_kind	p_emoji emojis	text	definer	public, pg_temp	service_role	unreferenced
 emoji_name_taken	p_emoji emojis, p_name text	boolean	definer	public, pg_temp	service_role	unreferenced
 emoji_object_path	p_url text	text	definer	public, pg_temp	service_role	unreferenced
@@ -629,6 +632,7 @@ guard_server_federation_instance_closed		trigger	definer	public, pg_temp	service
 guard_server_role_hierarchy		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_settings_default_role		trigger	invoker	public, pg_temp	service_role	trigger
 guard_server_sound_client_write		trigger	definer	public, pg_temp	service_role	trigger
+guard_server_sound_discord_link		trigger	definer	public, pg_temp	service_role	trigger
 guard_server_suspension_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_system_message_removal		trigger	invoker	public, pg_temp	service_role	trigger
 guard_thread_client_write		trigger	invoker	public, pg_temp	service_role	trigger

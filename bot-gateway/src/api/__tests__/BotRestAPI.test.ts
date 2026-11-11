@@ -193,6 +193,7 @@ describe('route table', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.id).toBe(BOT_ID)
+    expect(res.body.capabilities).toEqual(['bridge_sound_sync', 'bridge_emoji_sync', 'bridge_sticker_sync'])
   })
 
   it('GET /users/:id answers 404 for an unknown profile', async () => {

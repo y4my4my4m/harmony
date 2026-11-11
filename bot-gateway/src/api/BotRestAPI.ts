@@ -26,9 +26,11 @@ import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
-import { DISCORD_STICKER_ID, StickerFileError, removeStoredSticker, storeDiscordSticker } from '../utils/discordStickerImport.js'
-import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
-import { DISCORD_SOUND_ID, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
+import { DISCORD_STICKER_ID, STICKER_BUCKET, StickerFileError, removeStoredSticker, storeDiscordSticker } from '../utils/discordStickerImport.js'
+import { DISCORD_EMOJI_ID, EMOJI_BUCKET, EMOJI_NAME, discordEmojiStoragePath, isBridgeImportedEmoji, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { DISCORD_SOUND_ID, MAX_SERVER_SOUNDS, storeDiscordSound, removeStoredSound } from '../utils/discordSoundImport.js'
+import { LIST_MAX_ROWS, LIST_PAGE, selectAllById } from '../utils/pagedSelect.js'
+import { GATEWAY_CAPABILITIES } from '../capabilities.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { MAX_COMMANDS, validateCommand, validateCommands } from '../commands/validate.js'
 
@@ -2463,7 +2465,7 @@ export class BotRestAPI {
         return res.status(500).json({ error: error.message })
       }
       
-      res.json(this.formatBot(bot))
+      res.json({ ...this.formatBot(bot), capabilities: GATEWAY_CAPABILITIES })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
@@ -2989,8 +2991,46 @@ export class BotRestAPI {
     }
     if (error.code === '23505') return res.status(409).json({ error: error.message, code: 'EMOJI_NAME_TAKEN' })
     if (error.code === 'P0002') return res.status(404).json({ error: error.message })
+    const refused = this.refusalCode(error, ['EMOJI_NOT_LINKED', 'EMOJI_REMOVED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })
+  }
+
+  /** The CODE of a 42501 raised as 'CODE: text', when it is one of `codes`. */
+  private refusalCode(error: { code?: string; message: string }, codes: string[]): string | null {
+    if (error.code !== '42501') return null
+    return codes.find((code) => error.message?.startsWith(`${code}:`)) ?? null
+  }
+
+  /**
+   * Deletes what the bot's removals left past the kept count: the RPC lists the rows, their
+   * files go first, then the RPC deletes the rows. A failed file removal leaves its rows for
+   * the next call.
+   */
+  private async evictBridgeRemoved(
+    rpc: 'bridge_evict_removed_emojis' | 'bridge_evict_retired_stickers',
+    bucket: string,
+    botId: string,
+    serverId: string,
+  ): Promise<void> {
+    try {
+      const { data, error } = await supabase.rpc(rpc, { p_bot_id: botId, p_server_id: serverId, p_ids: null })
+      if (error) return console.warn(`${rpc} list failed: ${error.message}`)
+      const past = (Array.isArray(data) ? data : []) as Array<{ id: string; path: string | null }>
+      if (past.length === 0) return
+      const paths = past.map((row) => row.path).filter((path): path is string => !!path)
+      if (paths.length > 0) {
+        const { error: removeError } = await supabase.storage.from(bucket).remove(paths)
+        if (removeError) return console.warn(`${rpc} file removal failed: ${removeError.message}`)
+      }
+      const { error: deleteError } = await supabase.rpc(rpc, {
+        p_bot_id: botId, p_server_id: serverId, p_ids: past.map((row) => row.id),
+      })
+      if (deleteError) console.warn(`${rpc} delete failed: ${deleteError.message}`)
+    } catch (error) {
+      console.warn(`${rpc} failed:`, error)
+    }
   }
 
   private async listDiscordEmojis(req: BotRequest, res: Response) {
@@ -2998,20 +3038,29 @@ export class BotRestAPI {
       const serverId = req.params.serverId
       if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
       if (!(await this.requireSoundBridge(req, res, serverId))) return
-      const { data, error } = await supabase
-        .from('emojis')
-        .select('id, name, url, discord_emoji_id, deleted_at')
-        .eq('server_id', serverId)
-        .or('deleted_at.is.null,discord_emoji_id.not.is.null')
-        .order('id')
-        .range(0, 4999)
-      if (error) return res.status(500).json({ error: error.message })
+      const listed = await selectAllById<any>((afterId) => {
+        const query = supabase
+          .from('emojis')
+          .select('id, name, url, discord_emoji_id, deleted_at, bridge_removed_at')
+          .eq('server_id', serverId)
+          .or('deleted_at.is.null,discord_emoji_id.not.is.null')
+        return (afterId ? query.gt('id', afterId) : query).order('id').limit(LIST_PAGE)
+      })
+      if (listed.error) return res.status(500).json({ error: listed.error.message })
+      // A partial list would have the bridge plan against emoji it cannot see.
+      if (listed.truncated) return res.status(500).json({ error: `more than ${LIST_MAX_ROWS} emoji rows`, code: 'LIST_TOO_LARGE' })
       const { data: limit, error: limitError } = await supabase.rpc('server_emoji_limit')
       if (limitError) return res.status(500).json({ error: limitError.message })
       if (limit == null) return res.status(500).json({ error: 'emoji limit unavailable' })
-      const emojis = (data ?? []).map((e: any) => ({
-        id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
-      }))
+      // imported: the bridge may remove it. restorable: removed by the bridge, so it may restore it.
+      const emojis = listed.rows.map((e: any) => {
+        const imported = isBridgeImportedEmoji(serverId, e)
+        return {
+          id: e.id, name: e.name, url: e.url, discord_emoji_id: e.discord_emoji_id, removed: e.deleted_at != null,
+          imported,
+          restorable: imported && e.deleted_at != null && e.bridge_removed_at === e.deleted_at,
+        }
+      })
       res.json({ limit, emojis })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
@@ -3033,6 +3082,7 @@ export class BotRestAPI {
       if (error) return this.emojiError(res, error)
       if (data === 'removed') {
         await this.logBotAction(botId, 'emoji_removed', { emojiId, serverId }, { serverId })
+        await this.evictBridgeRemoved('bridge_evict_removed_emojis', EMOJI_BUCKET, botId, serverId)
       }
       res.status(204).end()
     } catch (error: any) {
@@ -3077,9 +3127,18 @@ export class BotRestAPI {
         const url = await storeDiscordEmojiImage(serverId, discordEmojiId, animated === true)
         ;({ data, error } = await call(url))
         if (error) {
-          await supabase.storage.from(EMOJI_BUCKET)
-            .remove([discordEmojiStoragePath(serverId, discordEmojiId, animated === true)])
-            .catch((e: unknown) => console.error('Emoji image cleanup failed:', e))
+          // Every import of this Discord emoji stores to the same path: a row may hold the image.
+          const { data: holder, error: holderError } = await supabase
+            .from('emojis')
+            .select('id')
+            .eq('server_id', serverId)
+            .eq('discord_emoji_id', discordEmojiId)
+            .maybeSingle()
+          if (!holder && !holderError) {
+            await supabase.storage.from(EMOJI_BUCKET)
+              .remove([discordEmojiStoragePath(serverId, discordEmojiId, animated === true)])
+              .catch((e: unknown) => console.error('Emoji image cleanup failed:', e))
+          }
         }
       }
       if (error) return this.emojiError(res, error)
@@ -3105,6 +3164,8 @@ export class BotRestAPI {
       return res.status(409).json({ error: error.message, code: 'STICKER_NAME_TAKEN' })
     }
     if (error.code === 'P0002') return res.status(404).json({ error: error.message })
+    const refused = this.refusalCode(error, ['STICKER_NOT_LINKED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })
   }
@@ -3114,20 +3175,24 @@ export class BotRestAPI {
       const serverId = req.params.serverId
       if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
       if (!(await this.requireSoundBridge(req, res, serverId))) return
-      const { data, error } = await supabase
-        .from('stickers')
-        .select('id, name, description, url, discord_sticker_id, removed_at')
-        .eq('scope', 'server')
-        .eq('server_id', serverId)
-        .or('removed_at.is.null,discord_sticker_id.not.is.null')
-        .order('created_at')
-        .order('id')
-        .range(0, 4999)
-      if (error) return res.status(500).json({ error: error.message })
+      const listed = await selectAllById<any>((afterId) => {
+        const query = supabase
+          .from('stickers')
+          .select('id, name, description, url, discord_sticker_id, removed_at, created_at')
+          .eq('scope', 'server')
+          .eq('server_id', serverId)
+          .or('removed_at.is.null,discord_sticker_id.not.is.null')
+        return (afterId ? query.gt('id', afterId) : query).order('id').limit(LIST_PAGE)
+      })
+      if (listed.error) return res.status(500).json({ error: listed.error.message })
+      if (listed.truncated) return res.status(500).json({ error: `more than ${LIST_MAX_ROWS} sticker rows`, code: 'LIST_TOO_LARGE' })
       const { data: limit, error: limitError } = await supabase.rpc('sticker_limit', { p_scope: 'server' })
       if (limitError) return res.status(500).json({ error: limitError.message })
       if (limit == null) return res.status(500).json({ error: 'sticker limit unavailable' })
-      const stickers = (data ?? []).map((s: any) => ({
+      // Read by id keyset; answered oldest first.
+      listed.rows.sort((a: any, b: any) =>
+        a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      const stickers = listed.rows.map((s: any) => ({
         id: s.id, name: s.name, description: s.description, url: s.url,
         discord_sticker_id: s.discord_sticker_id, removed: s.removed_at != null,
       }))
@@ -3152,6 +3217,7 @@ export class BotRestAPI {
       if (error) return this.stickerError(res, error)
       if (data === 'removed') {
         await this.logBotAction(botId, 'sticker_removed', { stickerId, serverId }, { serverId })
+        await this.evictBridgeRemoved('bridge_evict_retired_stickers', STICKER_BUCKET, botId, serverId)
       }
       res.status(204).end()
     } catch (error: any) {
@@ -3193,6 +3259,17 @@ export class BotRestAPI {
       // Without a file the RPC answers existing or linked rows and refuses a new one.
       let { data, error } = await call(null)
       if (error && error.message === 'invalid sticker file') {
+        // A new sticker: the cap answers before the file is fetched. enforce_sticker_limit decides at the insert.
+        const { data: cap } = await supabase.rpc('sticker_limit', { p_scope: 'server' })
+        const { count: held } = await supabase
+          .from('stickers')
+          .select('id', { count: 'exact', head: true })
+          .eq('scope', 'server')
+          .eq('server_id', serverId)
+          .is('removed_at', null)
+        if (typeof cap === 'number' && typeof held === 'number' && held >= cap) {
+          return res.status(409).json({ error: `STICKER_LIMIT: at most ${cap} server stickers`, code: 'STICKER_LIMIT' })
+        }
         let stored
         try {
           stored = await storeDiscordSticker(serverId, discordStickerId, formatType)
@@ -3238,6 +3315,8 @@ export class BotRestAPI {
     if (error.message?.startsWith('SOUNDBOARD_FULL')) {
       return res.status(409).json({ error: error.message, code: 'SOUND_LIMIT' })
     }
+    const refused = this.refusalCode(error, ['SOUND_NOT_LINKED'])
+    if (refused) return res.status(403).json({ error: error.message, code: refused })
     const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
     return res.status(status).json({ error: error.message })
   }
@@ -3267,12 +3346,15 @@ export class BotRestAPI {
       if (typeof b.discord_sound_id !== 'string' || !DISCORD_SOUND_ID.test(b.discord_sound_id)) {
         return res.status(400).json({ error: 'discord_sound_id must be a Discord snowflake' })
       }
+      // Lengths in code points, as char_length in bridge_import_server_sound counts them.
       const name = typeof b.name === 'string' ? b.name.trim() : ''
-      if (name.length < 1 || name.length > 32) return res.status(400).json({ error: 'name must be 1-32 characters' })
+      const nameLength = [...name].length
+      if (nameLength < 1 || nameLength > 32) return res.status(400).json({ error: 'name must be 1-32 characters' })
       let emoji: string | null = null
       if (b.emoji !== null && b.emoji !== undefined) {
         const trimmed = typeof b.emoji === 'string' ? b.emoji.trim() : ''
-        if (trimmed.length < 1 || trimmed.length > 16) return res.status(400).json({ error: 'emoji must be 1-16 characters or null' })
+        const emojiLength = [...trimmed].length
+        if (emojiLength < 1 || emojiLength > 16) return res.status(400).json({ error: 'emoji must be 1-16 characters or null' })
         emoji = trimmed
       }
       const emojiId = b.emoji_id ?? null
@@ -3306,6 +3388,16 @@ export class BotRestAPI {
       let storedPath: string | null = null
       let { data, error } = await call(null, null)
       if (error && error.message === 'invalid sound file') {
+        // A new sound: the cap answers before the clip is fetched. enforce_server_sound_limit decides at the insert.
+        const { count: held } = await supabase
+          .from('server_sounds')
+          .select('id', { count: 'exact', head: true })
+          .eq('server_id', serverId)
+        if (typeof held === 'number' && held >= MAX_SERVER_SOUNDS) {
+          return res.status(409).json({
+            error: `SOUNDBOARD_FULL: a server holds at most ${MAX_SERVER_SOUNDS} sounds`, code: 'SOUND_LIMIT',
+          })
+        }
         const stored = await storeDiscordSound(serverId, b.discord_sound_id)
         storedPath = stored.storagePath
         ;({ data, error } = await call(stored.storagePath, stored.durationMs))
@@ -3320,9 +3412,9 @@ export class BotRestAPI {
       // A concurrent import won the race; the clip we stored is an orphan.
       if (storedPath && row.status !== 'created') await removeStoredSound(storedPath)
       if (row.status === 'created') {
-        await this.logBotAction(botId, 'sound_imported', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id })
+        await this.logBotAction(botId, 'sound_imported', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id }, { serverId })
       } else if (row.status === 'updated') {
-        await this.logBotAction(botId, 'sound_updated', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id })
+        await this.logBotAction(botId, 'sound_updated', { soundId: row.id, serverId, discordSoundId: b.discord_sound_id }, { serverId })
       }
       res.status(row.status === 'created' ? 201 : 200).json(row)
     } catch (error: any) {
@@ -3346,7 +3438,7 @@ export class BotRestAPI {
       if (error) return this.soundError(res, error)
       if (!data) return res.status(404).json({ error: 'Sound not found in this server' })
       await removeStoredSound(data as string)
-      await this.logBotAction(botId, 'sound_deleted', { soundId, serverId })
+      await this.logBotAction(botId, 'sound_deleted', { soundId, serverId }, { serverId })
       res.status(204).end()
     } catch (error: any) {
       res.status(500).json({ error: error.message })
