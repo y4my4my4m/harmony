@@ -1,3 +1,6 @@
+import { readdir, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { WebSocketGateway } from '../gateway/WebSocketGateway.js'
 import { GoneError, isDiscordLinkExpired, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
 import { isAllowedSourceUrl, toMirroredPart, type BridgeAttachmentMode } from '../utils/mirrorExternalMedia.js'
@@ -12,7 +15,9 @@ const CONFLICT_RETRY_SECONDS = 60
 
 export interface MirrorWorkerDeps {
   rpc(name: string, args: object): Promise<any>
-  readMessage(id: string): Promise<{ id: string; content: any[]; channel_id: string; bot_id: string } | null>
+  readMessage(
+    id: string,
+  ): Promise<{ id: string; content: any[]; channel_id: string; bot_id: string; is_deleted?: boolean | null } | null>
   mode(): Promise<BridgeAttachmentMode>
   ceiling(): Promise<number>
   mirror: typeof mirrorFileToStorage
@@ -47,6 +52,40 @@ function isCandidate(part: any): boolean {
 }
 
 /**
+ * Removes mirror-* temp dirs older than `olderThanMs`: leftovers of a gateway that was killed
+ * mid-download. Best effort; returns how many were removed.
+ */
+export async function sweepMirrorTemp(
+  dir: string,
+  olderThanMs: number,
+  now: number,
+  log: Pick<Console, 'info' | 'warn'>,
+): Promise<number> {
+  let removed = 0
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch (error: any) {
+    log.warn('Mirror temp sweep could not read', dir, error?.message || error)
+    return 0
+  }
+  for (const name of names) {
+    if (!name.startsWith('mirror-')) continue
+    const path = join(dir, name)
+    try {
+      const info = await stat(path)
+      if (!info.isDirectory() || now - info.mtimeMs <= olderThanMs) continue
+      await rm(path, { recursive: true, force: true })
+      removed++
+    } catch (error: any) {
+      log.warn('Mirror temp sweep could not remove', path, error?.message || error)
+    }
+  }
+  if (removed > 0) log.info(`Mirror temp sweep removed ${removed} stale download folder(s) from ${dir}`)
+  return removed
+}
+
+/**
  * Stores Discord attachments into Harmony storage in the background (mirror mode): messages
  * queued by the bridge or found by the backfill walk. One message per tick; the Discord link
  * stays on a part until its file is stored, so a failure never loses anything.
@@ -63,6 +102,12 @@ export class MirrorWorker {
     this.stopped = false
     const concurrency = Math.max(1, Number(process.env.BRIDGE_MIRROR_CONCURRENCY) || 1)
     const pollMs = Math.max(1, Number(process.env.BRIDGE_MIRROR_POLL_MS) || 15000)
+    void sweepMirrorTemp(
+      process.env.BRIDGE_MIRROR_TMPDIR || tmpdir(),
+      LEASE_SECONDS * 1000,
+      this.deps.now(),
+      this.deps.log,
+    ).catch(() => {})
     const ready = this.deps
       .mode()
       .then((mode) => (mode === 'mirror' ? this.deps.rpc('bridge_mirror_restart_walk', {}) : undefined))
@@ -125,11 +170,16 @@ export class MirrorWorker {
     const ceiling = await deps.ceiling()
     const observed = await deps.rpc('bridge_mirror_observe', { p_mode: mode, p_ceiling: ceiling })
     if (mode !== 'mirror') return 'idle'
-    if (!observed?.walk_done) await deps.rpc('bridge_mirror_backfill', { p_limit: BACKFILL_BATCH })
+    // While the walk runs, never wait the idle poll between batches, even when nothing was claimed.
+    let walked = false
+    if (!observed?.walk_done) {
+      await deps.rpc('bridge_mirror_backfill', { p_limit: BACKFILL_BATCH })
+      walked = true
+    }
 
     const claimed = await deps.rpc('bridge_mirror_claim', { p_lease_seconds: LEASE_SECONDS })
     const row = Array.isArray(claimed) ? claimed[0] : claimed
-    if (!row) return 'idle'
+    if (!row) return walked ? 'worked' : 'idle'
 
     const messageId: string = row.message_id
     const attempts: number = row.attempts ?? 0
@@ -161,7 +211,7 @@ export class MirrorWorker {
   ): Promise<void> {
     const { deps } = this
     const message = await deps.readMessage(messageId)
-    if (!message || !Array.isArray(message.content)) {
+    if (!message || message.is_deleted === true || !Array.isArray(message.content)) {
       await this.finish(messageId, 'done', attempts)
       return
     }
@@ -212,8 +262,14 @@ export class MirrorWorker {
     }
 
     if (uploaded.length > 0 && !(await this.write(messageId, content, uploaded))) {
-      // Lost the compare-and-swap twice: the files are stored, so retry soon without re-uploading blindly.
-      await this.finish(messageId, 'queued', attempts, { retry: CONFLICT_RETRY_SECONDS })
+      // Lost the compare-and-swap twice: the message is being edited. The stored files stay
+      // orphaned and the next try downloads again, so this counts as an attempt and is bounded.
+      const next = attempts + 1
+      if (next >= MAX_ATTEMPTS) {
+        await this.finish(messageId, 'failed', next, { error: 'message kept changing' })
+      } else {
+        await this.finish(messageId, 'queued', next, { retry: CONFLICT_RETRY_SECONDS })
+      }
       return
     }
 

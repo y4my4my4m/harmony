@@ -427,6 +427,9 @@ export class BotRestAPI {
       }
 
       // Silent rewrites refresh links; they never replace a part already copied into storage.
+      // A bridge bot that sets its own `path` on a part bypasses this guard and the mirror
+      // worker's candidate check (parts with a path are skipped). That is the same trust level
+      // as the existing `path` pass-through for bot content; the guard targets honest refreshes.
       const nextParts = await resolveMentionParts(botContentParts(content), message.channel_id, botId)
       const currentParts: any[] = Array.isArray(message.content) ? message.content : []
       const losesMirroredPart = currentParts.some((part, i) =>

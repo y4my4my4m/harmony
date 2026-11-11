@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MirrorWorker, type MirrorWorkerDeps } from '../mirrorWorker.js'
+import { mkdir, mkdtemp, readdir, rm, utimes } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { MirrorWorker, sweepMirrorTemp, type MirrorWorkerDeps } from '../mirrorWorker.js'
 vi.mock('../../config/supabase.js', () => ({ supabase: {}, config: {} }))
 import { GoneError, TooLargeError } from '../../utils/mirrorFile.js'
 
@@ -149,7 +152,37 @@ describe('MirrorWorker.tick', () => {
   it('queues for 60 s when the swap loses twice', async () => {
     const t = setup({ updateResults: [false, false] })
     await t.worker.tick()
-    expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 60 })
+    expect(t.finish()[0]).toMatchObject({ p_state: 'queued', p_retry_seconds: 60, p_attempts: 1 })
+  })
+
+  it('fails with "message kept changing" when the swap loses on the last attempt', async () => {
+    const t = setup({ updateResults: [false, false], attempts: 4 })
+    await t.worker.tick()
+    expect(t.finish()[0]).toMatchObject({ p_state: 'failed', p_attempts: 5 })
+    expect(t.finish()[0].p_error).toContain('message kept changing')
+  })
+
+  it('leaves a deleted message untouched and finishes done', async () => {
+    const t = setup({ message: { id: 'm1', content: [{ type: 'file', url: fresh() }], channel_id: 'c1', bot_id: 'b1', is_deleted: true } })
+    expect(await t.worker.tick()).toBe('worked')
+    expect(t.mirror).not.toHaveBeenCalled()
+    expect(t.calls.map((c) => c[0])).not.toContain('update_message_content_silent')
+    expect(t.finish()[0]).toMatchObject({ p_state: 'done' })
+  })
+
+  it('downloads a link without ex directly instead of asking for a refresh', async () => {
+    const t = setup({ content: [{ type: 'file', url: 'https://cdn.discordapp.com/attachments/1/2/a.png' }] })
+    await t.worker.tick()
+    expect(t.gateway.sendToBot).not.toHaveBeenCalled()
+    expect(t.mirror).toHaveBeenCalledTimes(1)
+    expect(t.finish()[0].p_state).toBe('done')
+  })
+
+  it('does not throttle the walk: worked while walk_done is false, idle once it is true', async () => {
+    const walking = setup({ walkDone: false, claimed: false })
+    expect(await walking.worker.tick()).toBe('worked')
+    const done = setup({ walkDone: true, claimed: false })
+    expect(await done.worker.tick()).toBe('idle')
   })
 
   it('returns worked without writing when the message is gone', async () => {
@@ -189,5 +222,27 @@ describe('MirrorWorker.tick', () => {
     const b = setup({ walkDone: true })
     await b.worker.tick()
     expect(b.calls.map((c) => c[0])).not.toContain('bridge_mirror_backfill')
+  })
+})
+
+describe('sweepMirrorTemp', () => {
+  it('removes only old mirror-* directories', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sweep-test-'))
+    try {
+      await mkdir(join(dir, 'mirror-old'))
+      await mkdir(join(dir, 'mirror-new'))
+      await mkdir(join(dir, 'other-old'))
+      const old = new Date(NOW - 3_600_000)
+      await utimes(join(dir, 'mirror-old'), old, old)
+      await utimes(join(dir, 'other-old'), old, old)
+      await utimes(join(dir, 'mirror-new'), new Date(NOW - 1000), new Date(NOW - 1000))
+      const info = vi.fn()
+      expect(await sweepMirrorTemp(dir, 1_800_000, NOW, { info, warn() {} })).toBe(1)
+      expect((await readdir(dir)).sort()).toEqual(['mirror-new', 'other-old'])
+      expect(info).toHaveBeenCalled()
+      expect(await sweepMirrorTemp(join(dir, 'missing'), 1, NOW, { info, warn() {} })).toBe(0)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

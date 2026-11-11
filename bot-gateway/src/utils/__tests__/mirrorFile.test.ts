@@ -86,7 +86,11 @@ describe('discord link expiry', () => {
     const at = (ms: number) => `https://cdn.discordapp.com/a/b.png?ex=${Math.floor((now + ms) / 1000).toString(16)}`
     expect(isDiscordLinkExpired(at(9 * 60_000), now)).toBe(true)
     expect(isDiscordLinkExpired(at(11 * 60_000), now)).toBe(false)
-    expect(isDiscordLinkExpired('https://cdn.discordapp.com/a/b.png', now)).toBe(true)
+    expect(isDiscordLinkExpired(at(-60_000), now)).toBe(true)
+  })
+
+  it('does not treat a link without ex as expired', () => {
+    expect(isDiscordLinkExpired('https://cdn.discordapp.com/a/b.png')).toBe(false)
   })
 })
 
@@ -159,6 +163,44 @@ describe('mirrorFileToStorage', () => {
     })
     await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }))
       .rejects.toThrow('Storage upload failed: boom')
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('maps a storage 413 to TooLargeError with the file size', async () => {
+    mocks.upload.mockImplementation(async (_p: string, body: Readable) => {
+      body.destroy()
+      return { data: null, error: { message: 'The object exceeded the maximum allowed size', statusCode: '413' } }
+    })
+    const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }).catch((e) => e)
+    expect(err).toBeInstanceOf(TooLargeError)
+    expect(err.bytes).toBe(100)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('maps an HTML error body from the proxy to TooLargeError, also when upload throws', async () => {
+    mocks.upload.mockImplementation(async (_p: string, body: Readable) => {
+      body.destroy()
+      return { data: null, error: { message: `Unexpected token '<', "<html><h"... is not valid JSON` } }
+    })
+    const html = () => serve(new Uint8Array(100), { 'content-type': 'video/mp4' })
+    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: html() })).rejects.toBeInstanceOf(TooLargeError)
+
+    mocks.upload.mockImplementation(async () => { throw Object.assign(new Error('Request Entity Too Large'), { status: 413 }) })
+    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: html() })).rejects.toBeInstanceOf(TooLargeError)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('refuses a download that redirected off Discord and cancels the body', async () => {
+    const cancel = vi.fn(async () => {})
+    const body = new ReadableStream<Uint8Array>({ pull(c) { c.enqueue(new Uint8Array(4)) }, cancel })
+    const fetchImpl = vi.fn(async () => {
+      const response = new Response(body, { status: 200, headers: { 'content-type': 'video/mp4' } })
+      Object.defineProperty(response, 'url', { value: 'https://evil.example/x.mp4' })
+      return response
+    })
+    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl })).rejects.toThrow(/redirected off Discord/)
+    expect(cancel).toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
     expect(await readdir(tmp)).toEqual([])
   })
 

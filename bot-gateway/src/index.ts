@@ -75,7 +75,7 @@ const mirrorWorker = new MirrorWorker({
   readMessage: async (id) => {
     const { data, error } = await supabase
       .from('messages')
-      .select('id, channel_id, bot_id, content')
+      .select('id, channel_id, bot_id, content, is_deleted')
       .eq('id', id)
       .maybeSingle()
     if (error) throw new Error(`message read failed: ${error.message}`)
@@ -324,7 +324,7 @@ app.post('/attachments/refresh', async (req, res): Promise<void> => {
 
   const { data: message } = await supabase
     .from('messages')
-    .select('id, channel_id, bot_id, content')
+    .select('id, channel_id, bot_id, content, is_deleted')
     .eq('id', messageId)
     .maybeSingle()
 
@@ -400,11 +400,12 @@ async function shutdown() {
   
   bridgeConfigWatcher.stop()
   interactionPoller.stop()
-  await mirrorWorker.stop()
-
   // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
   await gateway.shutdown()
-  
+
+  // A download in flight must not hold up the exit; the lease returns its row to the queue.
+  await Promise.race([mirrorWorker.stop(), new Promise((resolve) => setTimeout(resolve, 3000))])
+
   await eventDispatcher.shutdown()
   
   server.close(() => {

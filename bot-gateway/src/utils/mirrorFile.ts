@@ -48,10 +48,20 @@ export function discordLinkExpiresAt(url: string): Date | null {
   return new Date(parseInt(ex, 16) * 1000)
 }
 
-/** No `ex`, already past, or under 10 minutes left. */
+/**
+ * Already past, or under 10 minutes left. A link without `ex` (unsigned CDN links) is not
+ * expired: it is downloaded as is, and a 403, 404 or 410 there means it is gone.
+ */
 export function isDiscordLinkExpired(url: string, now = Date.now()): boolean {
   const expires = discordLinkExpiresAt(url)
-  return !expires || expires.getTime() - now < MIN_LINK_LIFE_MS
+  return expires !== null && expires.getTime() - now < MIN_LINK_LIFE_MS
+}
+
+/** Storage (or the proxy in front of it) refusing a body for its size: 413, or an HTML/JSON error saying so. */
+function isStorageSizeRefusal(error: any): boolean {
+  const status = Number(error?.status ?? error?.statusCode ?? error?.originalError?.status)
+  if (status === 413) return true
+  return /too large|exceed|payload|Unexpected token '</i.test(String(error?.message ?? ''))
 }
 
 export interface MirrorFileOptions {
@@ -114,8 +124,19 @@ export async function mirrorFileToStorage(
     throw new TooLargeError(declared)
   }
   if (!response.body) throw new Error('Download had no body')
+  // A redirect may only lead to another Discord host.
+  if (response.url && !isAllowedSourceUrl(response.url)) {
+    await response.body.cancel().catch(() => {})
+    throw new Error('Download redirected off Discord')
+  }
 
-  const dir = await mkdtemp(join(opts.tmpDir ?? process.env.BRIDGE_MIRROR_TMPDIR ?? tmpdir(), 'mirror-'))
+  let dir: string
+  try {
+    dir = await mkdtemp(join(opts.tmpDir ?? (process.env.BRIDGE_MIRROR_TMPDIR || tmpdir()), 'mirror-'))
+  } catch (error) {
+    await response.body.cancel().catch(() => {})
+    throw error
+  }
   try {
     const file = join(dir, 'download')
     await pipeline(Readable.fromWeb(response.body as any), byteLimit(opts.ceiling), createWriteStream(file))
@@ -143,14 +164,24 @@ export async function mirrorFileToStorage(
 
     const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
     const body = createReadStream(file)
-    const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(storagePath, body, {
-      contentType,
-      upsert: false,
-      cacheControl: '31536000',
-      duplex: 'half',
-    })
-    body.destroy()
-    if (error) throw new Error(`Storage upload failed: ${error.message}`)
+    let uploadError: any = null
+    try {
+      const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(storagePath, body, {
+        contentType,
+        upsert: false,
+        cacheControl: '31536000',
+        duplex: 'half',
+      })
+      uploadError = error
+    } catch (error) {
+      uploadError = error
+    } finally {
+      body.destroy()
+    }
+    if (uploadError) {
+      if (isStorageSizeRefusal(uploadError)) throw new TooLargeError(size)
+      throw new Error(`Storage upload failed: ${uploadError.message}`)
+    }
 
     const signed = await signMessageMediaPaths([storagePath])
     return { path: storagePath, url: signed.get(storagePath) ?? referenceUrl(storagePath), contentType, bytes: size }
