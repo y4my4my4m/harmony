@@ -283,6 +283,8 @@ docker compose up -d
 | `HARMONY_SMTP_SENDER` | From address, default `noreply@DOMAIN` |
 | `HARMONY_VERSION` | Image tag. Default: `X.Y.Z` when the checkout sits on tag `vX.Y.Z`, otherwise `edge` |
 | `HARMONY_BUILD` | `1` builds Harmony's images from the checkout; `0` returns to published images |
+| `HARMONY_REGISTRY` | Where Harmony's images come from. Default `ghcr.io/y4my4my4m`; a fork that publishes its own (see [Forks](update-backup.md#forks)): `ghcr.io/<owner>`, lower case |
+| `DISCORD_BRIDGE_REGISTRY` | The same for the Discord bridge image |
 | `HARMONY_HTTP_PORT`, `HARMONY_HTTPS_PORT` | `[address:]port` Caddy publishes for 80 and 443 |
 | `SUPABASE_REF` | Commit, tag or branch of the upstream Supabase stack, used by `--refresh-supabase` |
 
@@ -389,8 +391,10 @@ the sign-in service. A Supabase stack without it needs the
 | `REGISTRATION` | `open` | `open`, `invite` or `closed`. `harmony registration` without an argument applies it |
 | `COMPOSE_PROFILES` | from `ENABLE_*` | Read by Docker Compose: the optional services (`voice`, `bots`, `discord`, `logs`, `studio`) `docker compose up -d` starts |
 | `COMPOSE_FILE` | unset | `docker-compose.yml:docker-compose.build.yml` after `HARMONY_BUILD=1`: images are built from the checkout |
-| `HARMONY_VERSION` | `edge` | Tag of the `ghcr.io/y4my4my4m/harmony-*` images. Rewritten by every `configure.sh` run; `harmony update --version` changes it |
+| `HARMONY_VERSION` | `edge` | Tag of the `harmony-*` images (from `HARMONY_REGISTRY`). Rewritten by every `configure.sh` run; `harmony update --version` changes it |
 | `DISCORD_BRIDGE_VERSION` | `2` | Tag of the Discord bridge image, versioned separately from Harmony |
+| `HARMONY_REGISTRY` | unset (`ghcr.io/y4my4my4m`) | Registry path of the `harmony-*` images. Written only when it differs from the default; `HARMONY_REGISTRY=ghcr.io/y4my4my4m bash configure.sh --non-interactive` removes it |
+| `DISCORD_BRIDGE_REGISTRY` | unset (`ghcr.io/y4my4my4m`) | Registry path of the Discord bridge image |
 | `HARMONY_HTTP_PORT` | `80` | `[address:]port` Caddy publishes for port 80 |
 | `HARMONY_HTTPS_PORT` | `443` | `[address:]port` Caddy publishes for 443/tcp and 443/udp |
 | `HARMONY_KEEP_UPDATE_BACKUPS` | `5` | Update backups `harmony update` keeps of each kind; `0` keeps all ([Delete old backups](/self-host/update-backup#delete-old-backups)) |
