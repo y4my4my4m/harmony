@@ -188,6 +188,7 @@ A Harmony message longer than 2000 characters, Discord's limit, is posted as sev
 Thread notes:
 
 - Threads cross the bridge on Harmony 1.7.5 or later with bridge 2.4.0 or later. The Discord bot needs **Create Public Threads** and **Send Messages in Threads**.
+- Discord's private threads never cross the bridge, live or imported (bridge 2.6.0 or later): Harmony has no private threads yet, so everyone in the channel could read them.
 - Threads that existed before the bridge are picked up when someone next writes in them, or all at once when you [import the channel's history](#import-history) (bridge 2.6.0 or later).
 - On Harmony 1.7.6 or later, the "started a thread" notice names the Discord member who started the thread.
 
@@ -229,7 +230,7 @@ Only pairs that bring Discord messages to Harmony can import: the direction is *
 ### What is imported
 
 - Messages from the channel's newest back to its first, with their original dates, their Discord authors' names and pictures, files, embeds, stickers, mentions, emoji and replies. A message edited on Discord reads as edited.
-- Threads: active threads, archived public threads, and archived private threads when the bot holds **Manage Threads**. Each becomes a Harmony thread dated from the Discord thread.
+- Threads: active threads and archived public threads. Each becomes a Harmony thread dated from the Discord thread. Discord's private threads are left out: Harmony has no private threads yet, so everyone in the channel could read them. The bridge page reports how many were left out.
 - Pins: Discord's pinned messages are pinned in Harmony, up to Harmony's limit of 50 per channel; the rest are skipped.
 - Replies: a reply links to the message it answers once that message is in Harmony. A reply whose original is gone from Discord stays as a plain reply.
 

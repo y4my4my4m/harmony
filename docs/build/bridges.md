@@ -403,7 +403,7 @@ Mirroring attachments makes a batch slow; use a generous HTTP timeout.
 
 ### Threads
 
-After the channel's messages, list the Discord threads (active; archived public; archived private when the bot has Manage Threads) and create each one:
+After the channel's messages, list the Discord threads (active and archived public; skip Discord's private threads, since every Harmony thread is visible to the whole channel) and create each one:
 
 ```json
 {

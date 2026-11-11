@@ -225,6 +225,6 @@ Some bridge features need a Harmony release with the matching gateway routes and
 | 2.3.0 | 1.6.25 | `/bridge import-emojis` |
 | 2.4.0 | 1.7.5 | Threads cross the bridge; the bot needs **Create Public Threads** and **Send Messages in Threads** |
 | 2.4.1 | 1.7.6 | The "started a thread" notice names the Discord member who started the thread |
-| 2.6.0 | 1.9.7 | `/bridge import-history` and the **Import history** buttons; the bot needs **Read Message History**, and **Manage Threads** for archived private threads |
+| 2.6.0 | 1.9.7 | `/bridge import-history` and the **Import history** buttons; the bot needs **Read Message History**. Discord's private threads no longer cross the bridge, live or imported |
 
 When a release needs a new Discord permission, communities whose bot was added earlier have to add it again: **Add to Discord again** for the instance bot, **Invite the bot to your Discord server** for their own bot. Communities that run the bridge themselves update their own container; the bridge page shows each bridge's **Bridge version**.
