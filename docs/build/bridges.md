@@ -11,7 +11,7 @@ The official bridge is [harmony-discord-bridge](https://github.com/y4my4my4m/har
 
 ## Scope
 
-The existing Bridge v2 setup API and Discord mapping routes remain Discord-specific. A Discord bridge is a bot of type Bridge, tied to one server through a bridge record that holds its configuration and channel pairs. Relayed-author metadata now also supports Matrix; the experimental Matrix relay in `matrix-bridge/` uses manager-registered channel bindings rather than a Discord bridge record.
+The existing Bridge v2 setup API and Discord mapping routes remain Discord-specific. A Discord bridge is a bot of type Bridge, tied to one server through a bridge record that holds its configuration and channel pairs. Relayed-author metadata now also supports Matrix; the experimental [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) runs as a separate service and uses manager-registered channel bindings rather than a Discord bridge record. Its [README](https://github.com/y4my4my4m/harmony-matrix-bridge#readme) covers service configuration and deployment; Harmony's API contracts are documented below.
 
 A bridge to another platform can run as an ordinary bot, with the [gateway](/build/gateway) and the [REST API](/build/rest). Its relayed messages then appear under the bot's own name: the server drops `discord_user` and `bridge_source` metadata from a bot whose bridge does not relay the channel.
 

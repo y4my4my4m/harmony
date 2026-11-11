@@ -11,11 +11,11 @@ This is a **plaintext bridge**, not an encrypted participant. Text, mentions, im
 
 ## Initial operator setup
 
-The bridge currently runs as a separate service. A Harmony manager installs a dedicated scoped read/send bot and registers its channel bindings with `configure_matrix_bridge`. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
+The bridge runs as the separate [harmony-matrix-bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) service; its runtime is not bundled with Harmony. A Harmony manager installs a dedicated scoped read/send bot and registers its channel bindings with `configure_matrix_bridge`. A Matrix homeserver operator installs the generated application-service registration, including the exclusive ghost-user namespace. The bridge account must be in each Matrix room and able to invite users for ghost mode.
 
 The service's configuration holds the initial one-to-one room/channel pairs, directions and explicit user allowlists. These remain additional restrictions: member opt-out does not grant access to an unallowlisted account. Existing configurations without a sender mode retain shared-relay behavior; the example configuration explicitly selects ghosts for new installations.
 
-The repository's `matrix-bridge/README.md` documents configuration, registration, containers and verification. Do not put either platform's credentials in messages, screenshots or public avatar links. Installing the application service is not a Discord-style OAuth authorization and cannot be completed by a room moderator without the appropriate homeserver operator.
+The standalone service's [README](https://github.com/y4my4my4m/harmony-matrix-bridge#readme) documents configuration, registration, containers and verification. This Harmony guide covers operator responsibilities and member-facing settings. Do not put either platform's credentials in messages, screenshots or public avatar links. Installing the application service is not a Discord-style OAuth authorization and cannot be completed by a room moderator without the appropriate homeserver operator.
 
 ## Choose how Harmony authors appear in Matrix
 

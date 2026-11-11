@@ -8,20 +8,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
-- **Matrix images and files both ways:** attachments are copied into destination-owned
-  storage, including captions, file-only messages and multiple Harmony files. Authenticated,
-  bounded transfers respect current consent, plaintext state and private storage policy;
+- **Matrix attachment API support:** authenticated byte endpoints let the separately deployed
+  [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) copy attachments into
+  destination-owned storage, including captions, file-only messages and multiple Harmony files.
+  Bounded transfers respect current consent, plaintext state and private storage policy;
   unsupported/failed copies show a notice. Matrix replies to individual file events retain
   native parent context. Audio/video are files without transcoding; encrypted rooms/media
   remain blocked and tracked as follow-up work.
-- **Matrix-to-Harmony replies:** ordinary Matrix Reply messages are no longer
-  silently skipped. Known, readable parents retain native Harmony reply context;
-  unknown/private parents retain the new text alone. Legacy quoted fallbacks are
-  removed, while edits and Matrix threads remain unsupported.
-- **Experimental Matrix text relay** in `matrix-bridge/`: a self-run application
-  service with explicit test-user allowlists, durable queues and plaintext-only
-  policy checks. Includes a permission-checked bot API endpoint for channel
-  encryption state. Matrix authors now appear under their room name/avatar with a
+- **Matrix-to-Harmony reply integration:** the bridge can supply native Harmony reply
+  context for known, readable parents; unknown/private parents retain the new text alone.
+  The separate service removes legacy quoted fallbacks; edits and Matrix threads remain unsupported.
+- **Experimental Matrix integration** with the standalone application service above;
+  its runtime is not bundled with Harmony. Includes a permission-checked bot API endpoint
+  for channel encryption state. Matrix authors now appear under their room name/avatar with a
   Matrix badge in Harmony, using generalized, permission-checked bridge metadata.
   Members can opt out through the server's Bridge privacy menu; gateway events and
   history respect it, including public slash-command bot replies; queued Matrix sends
