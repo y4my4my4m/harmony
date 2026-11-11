@@ -72,6 +72,18 @@ A recovery code turns two-factor off in one step: the code is spent, and your au
 
 Harmony also sends you a security notice for a new sign-in, for two-factor turned on or off, for a recovery code used or replaced, and for a password change.
 
+## Who can start a conversation
+
+**User settings** → **Privacy** → **Direct messages** sets who can start a conversation with you:
+
+| Choice | Who |
+|---|---|
+| **Everyone** | Anyone, on this instance or another. The default |
+| **Server members and people I follow** | People who share a server with you, and people you follow |
+| **Only people I follow** | People you follow |
+
+Conversations you already have keep working, whichever you choose. Someone refused on this instance is told you limit who can reach you. Someone on another instance is not told: their message is not delivered. Instance admins and moderators can always start a conversation with you.
+
 ## End-to-end encryption
 
 End-to-end encryption keeps message text readable only on the devices of the people in the channel or conversation. The server stores ciphertext it cannot read.
@@ -152,6 +164,7 @@ Some features do not work in encrypted channels and conversations: polls, webhoo
 ### What you see in an encrypted channel
 
 - A lock next to the channel name; hovering it reads "End-to-end encrypted" (or "Voice and video are end-to-end encrypted" for encrypted calls).
+- In a server hosted on another instance, the same lock, reading that the channel is encrypted on its home instance. Encrypted messages do not leave that instance, so the message box is replaced by a note saying you cannot read or send them here.
 - A status line under the message box: "End-to-end encrypted" when you can read and send. "This channel is end-to-end encrypted. Unlock encryption to read and send messages." with **Unlock** when your device has not unlocked your keys yet. "This channel is end-to-end encrypted. Set up encryption to read and send messages." with **Set up now** when you have no keys.
 - Messages your device cannot read yet show as scrambled characters; click one to retry ("Click to decrypt").
 - A message encrypted with a key your account no longer has stays scrambled, with a lock, and cannot be recovered.

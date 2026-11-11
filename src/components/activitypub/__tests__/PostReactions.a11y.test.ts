@@ -15,6 +15,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => ({ info: vi.fn(), error: vi.fn(), success: vi.fn() }) }))
+vi.mock('@/services/AutoModService', () => ({ notifyModerationRejection: () => false }))
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profileId: 'me' }) }))
 vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => ({ playAudio: vi.fn() }) }))
 vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { maxPostReactionsPerUser: 5 } }) }))

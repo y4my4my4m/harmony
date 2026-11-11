@@ -34,7 +34,7 @@ vi.mock('../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: vi.fn(() => false) },
 }))
 vi.mock('../activitypub/DeliveryQueue.js', () => ({
-  DeliveryQueue: { enqueue: vi.fn(), sendToInbox: vi.fn(), deliverOnce: vi.fn() },
+  DeliveryQueue: { enqueue: vi.fn(), sendToInbox: vi.fn(), deliverOnce: vi.fn(), deliverAsInstanceActor: vi.fn() },
 }))
 
 type Row = Record<string, any>
@@ -43,6 +43,8 @@ let broadcasts: Array<{ channel: string; msg: any; private?: boolean }> = []
 let granted: Record<string, Set<string>> = {}
 // Channels channel_is_restricted reports; undefined fails the lookup.
 let restrictedChannels: Set<string> | undefined = new Set()
+// Channels channel_voice_encrypted reports; undefined fails the lookup.
+let voiceEncryptedChannels: Set<string> | undefined = new Set()
 let nextId = 1
 
 const read = (row: Row, col: string) => {
@@ -60,6 +62,11 @@ function fakeSupabase() {
       if (fn === 'channel_is_restricted') {
         return Promise.resolve(restrictedChannels
           ? { data: restrictedChannels.has(args.p_channel_id), error: null }
+          : { data: null, error: { message: 'lookup failed' } })
+      }
+      if (fn === 'channel_voice_encrypted') {
+        return Promise.resolve(voiceEncryptedChannels
+          ? { data: voiceEncryptedChannels.has(args.p_channel_id), error: null }
           : { data: null, error: { message: 'lookup failed' } })
       }
       return Promise.resolve({
@@ -194,6 +201,8 @@ beforeEach(() => {
   restrictedChannels = new Set()
   vi.mocked(DeliveryQueue.enqueue).mockReset()
   vi.mocked(DeliveryQueue.deliverOnce).mockReset().mockResolvedValue({ delivered: true, retry: false })
+  vi.mocked(DeliveryQueue.deliverAsInstanceActor).mockReset().mockResolvedValue({ delivered: true, retry: false })
+  voiceEncryptedChannels = new Set()
   tables = {
     profiles: [
       { id: 'alice-id', username: 'alice', is_local: true, auth_user_id: 'alice-auth', federated_id: LOCAL_ALICE, updated_at: FRESH },
@@ -600,6 +609,189 @@ describe('VoiceChannelJoin on a local server', () => {
     restrictedChannels = undefined
     await join()
     expect(broadcasts.map((b) => b.channel)).toEqual([`voice-channel:${V}`])
+  })
+
+  describe('refused', () => {
+    const refusals = () => vi.mocked(DeliveryQueue.deliverAsInstanceActor).mock.calls as any[][]
+
+    it('answers with a VoiceChannelJoinReject from the instance actor, naming the join', async () => {
+      const id = `${MALLORY}/a/refused`
+      await voice({
+        type: 'harmony:VoiceChannelJoin', id, actor: MALLORY,
+        object: { type: 'harmony:VoiceChannel', id: `https://harmony.test/servers/${S}/channels/${V}`, name: 'staff-voice' },
+        published: FRESH,
+      })
+      expect(refusals()).toHaveLength(1)
+      const [reject, inbox] = refusals()[0]
+      expect(reject).toMatchObject({
+        type: 'harmony:VoiceChannelJoinReject',
+        actor: 'https://harmony.test/users/instance.actor',
+        to: [MALLORY],
+        object: id,
+        reason: 'Not authorized for this room',
+      })
+      expect(reject.id).toMatch(/^https:\/\/harmony\.test\/users\/instance\.actor\/activities\//)
+      expect(inbox).toBe('https://evil.test/inbox')
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+    })
+
+    it('tells a member of an encrypted voice channel why, and mints no token', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      voiceEncryptedChannels = new Set([V])
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual([
+        'This channel is end-to-end encrypted on its home instance, so accounts from other instances cannot join its calls.',
+      ])
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+      expect(tables.voice_channel_participants).toEqual([])
+    })
+
+    it('refuses when the channel\'s encryption cannot be read, naming no check', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      voiceEncryptedChannels = undefined
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(['Not authorized for this room'])
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+    })
+
+    it('tells someone otherwise refused nothing of the channel\'s encryption', async () => {
+      voiceEncryptedChannels = new Set([V])
+      tables.user_servers[0].status = 'pending'
+      await join()
+      tables.user_servers[0].status = 'accepted'
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(Array(2).fill('Not authorized for this room'))
+    })
+
+    it('tells a banned, timed-out or pending member the same thing', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      tables.server_bans.push({ id: 'ban-1', server_id: S, user_id: 'mallory-id' })
+      await join()
+      tables.server_bans = []
+      tables.server_member_timeouts.push({ user_id: 'mallory-id', server_id: S, until: LATER })
+      await join()
+      tables.server_member_timeouts = []
+      tables.user_servers[0].status = 'pending'
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(Array(3).fill('Not authorized for this room'))
+    })
+
+    it('answers a suspended account', async () => {
+      tables.profiles[1].is_suspended = true
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+      await join()
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(['Not authorized for this room'])
+    })
+
+    it('answers an unknown channel at /inbox on the actor\'s host', async () => {
+      await voice({
+        type: 'harmony:VoiceChannelJoin', id: `${MALLORY}/a/${nextId++}`, actor: MALLORY,
+        object: { type: 'harmony:VoiceChannel', id: `https://harmony.test/servers/${S}/channels/00000000-0000-0000-0000-000000000000`, name: 'gone' },
+        published: FRESH,
+      })
+      expect(refusals()).toHaveLength(1)
+      expect(refusals()[0][0].reason).toBe('Channel not found')
+      expect(refusals()[0][1]).toBe('https://evil.test/inbox')
+    })
+
+    it('answers a server with federated voice off with that reason', async () => {
+      const config = (await import('../config/index.js')).default as any
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      config.ALLOW_FEDERATED_VOICE = false
+      try {
+        await join()
+      } finally {
+        config.ALLOW_FEDERATED_VOICE = true
+      }
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(['Federated voice is not enabled on this instance'])
+      expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
+    })
+
+    it('keeps the cause of a token failure in this instance\'s log', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+      const failing = vi.spyOn(livekitService, 'generateFederatedToken').mockRejectedValueOnce(new Error('livekit secret missing'))
+      try {
+        await join()
+      } finally {
+        failing.mockRestore()
+      }
+      expect(refusals().map(([reject]) => reject.reason)).toEqual(['Voice is not available on this server'])
+    })
+
+    it('answers to a stored inbox on the actor\'s host, never another host', async () => {
+      Object.assign(tables.profiles[1], { shared_inbox_url: 'https://elsewhere.test/inbox', inbox_url: 'https://evil.test/users/mallory/inbox' })
+      await join()
+      expect(refusals()[0][1]).toBe('https://evil.test/users/mallory/inbox')
+    })
+
+    it('sends no refusal for a presence re-announcement', async () => {
+      await voice({
+        type: 'harmony:VoiceChannelJoin', id: `${MALLORY}/a/${nextId++}`, actor: MALLORY, 'harmony:refresh': true,
+        object: { type: 'harmony:VoiceChannel', id: `https://harmony.test/servers/${S}/channels/${V}`, name: 'staff-voice' },
+        published: FRESH,
+      })
+      expect(refusals()).toHaveLength(0)
+    })
+
+    it('sends no refusal for an admitted member', async () => {
+      grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+      await join()
+      expect(refusals()).toHaveLength(0)
+      expect(DeliveryQueue.deliverOnce).toHaveBeenCalledTimes(1)
+    })
+
+    it('survives a refusal that cannot be delivered', async () => {
+      vi.mocked(DeliveryQueue.deliverAsInstanceActor).mockRejectedValueOnce(new Error('no route'))
+      await expect(join()).resolves.toBeUndefined()
+      vi.mocked(DeliveryQueue.deliverAsInstanceActor).mockResolvedValueOnce({ delivered: false, retry: false })
+      await expect(join()).resolves.toBeUndefined()
+    })
+  })
+})
+
+describe('Federated tokens for a voice channel', () => {
+  beforeEach(() => {
+    tables.user_servers.push({ server_id: S, user_id: 'mallory-id', status: 'accepted' })
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
+  })
+
+  it('are granted while the channel\'s voice is not encrypted', async () => {
+    const token = await livekitService.generateFederatedToken({ actorId: MALLORY, roomName: `channel-${V}`, roomType: 'voice_channel' })
+    expect(jwtPayload(token).video).toMatchObject({ room: `channel-${V}`, canPublish: true })
+  })
+
+  it('are refused once it is', async () => {
+    voiceEncryptedChannels = new Set([V])
+    await expect(livekitService.generateFederatedToken({ actorId: MALLORY, roomName: `channel-${V}`, roomType: 'voice_channel' }))
+      .rejects.toThrow('permission denied')
+  })
+})
+
+describe('VoiceChannelJoinReject from a remote host', () => {
+  const reject = (actor: string, object: string) => ({
+    type: 'harmony:VoiceChannelJoinReject', id: `${actor}/a/${nextId++}`, actor,
+    to: [LOCAL_ALICE], object, reason: 'Not authorized for this room', published: FRESH,
+  })
+  const rejections = () => broadcasts.filter((b) => b.msg?.type === 'federated_voice:rejected')
+
+  it('reaches the user whose join went to the signer\'s host', async () => {
+    const joinId = mintVoiceJoinId(LOCAL_ALICE, 'alice-id', 'remote.test')
+    await voice(reject('https://remote.test/users/instance.actor', joinId))
+    expect(rejections()).toEqual([{
+      channel: 'user:alice-id',
+      msg: expect.objectContaining({ originalJoinId: joinId, serverHost: 'remote.test', reason: 'Not authorized for this room' }),
+    }])
+  })
+
+  it('is ignored from any other host', async () => {
+    const joinId = mintVoiceJoinId(LOCAL_ALICE, 'alice-id', 'remote.test')
+    await voice(reject('https://evil.test/users/instance.actor', joinId))
+    expect(rejections()).toHaveLength(0)
+  })
+
+  it('is ignored for a join this instance did not mint', async () => {
+    await voice(reject('https://remote.test/users/instance.actor', `${LOCAL_ALICE}/activities/voice-join/forged.1.AAAA`))
+    expect(rejections()).toHaveLength(0)
   })
 })
 

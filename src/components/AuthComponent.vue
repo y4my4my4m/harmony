@@ -390,6 +390,7 @@ import type { Provider } from '@supabase/supabase-js'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
+import { signupRefusalKey } from '@/utils/signupLimits'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { parseCustomOAuthProviders, type CustomOAuthProvider } from '@/utils/customOAuthProviders'
@@ -648,7 +649,8 @@ const handleSubmit = async () => {
     }
   } catch (error: any) {
     debug.error('Auth error:', error)
-    formError.value = authErrorMessage(error, t('auth.callback.failed'))
+    const refusal = signupRefusalKey(error)
+    formError.value = refusal ? t(refusal) : authErrorMessage(error, t('auth.callback.failed'))
   } finally {
     isLoading.value = false
   }

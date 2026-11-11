@@ -317,13 +317,14 @@ export async function messagePollById(supabase: any, pollId: string): Promise<Me
 }
 
 /**
- * The message poll an ActivityPub id names here: this instance's /messages/<uuid> for a message
- * stored under no other id, else a poll stored with that ap_id.
+ * The message poll an ActivityPub id names here: this instance's /messages/<uuid>, exactly as
+ * this instance writes it, for a message stored under no other id, else a poll stored with that
+ * ap_id.
  */
 export async function messagePollByObjectId(supabase: any, objectId: unknown): Promise<MessagePollRef | null> {
   if (typeof objectId !== 'string' || !/^https?:\/\//i.test(objectId)) return null;
   const domain = config.INSTANCE_DOMAIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const own = new RegExp(`^https://${domain}/messages/(${UUID})$`, 'i').exec(objectId)?.[1];
+  const own = new RegExp(`^https://${domain}/messages/(${UUID})$`).exec(objectId)?.[1];
   if (own) {
     const { data } = await supabase.from('message_polls').select(POLL_REF_COLUMNS).eq('message_id', own).maybeSingle();
     const ref = data ? refFromRow(data) : null;

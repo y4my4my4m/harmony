@@ -44,6 +44,31 @@
           </label>
           <p class="setting-hint">{{ $t('admin.antiSpam.newAccounts.staffExempt') }}</p>
 
+          <template v-if="limitsSupported">
+          <h3 class="group-title">{{ $t('admin.antiSpam.accounts.title') }}</h3>
+          <p class="setting-hint">{{ $t('admin.antiSpam.accounts.hint') }}</p>
+          <div class="settings-grid">
+            <label v-for="field in ACCOUNT_LIMITS" :key="field.key" class="setting">
+              <span class="setting-label">{{ $t(field.label) }}</span>
+              <input v-model.number="draft[field.key]" type="number" min="0" :data-testid="`antispam-${field.key}`" class="cyber-input" />
+              <span v-if="field.hint" class="setting-hint">{{ $t(field.hint) }}</span>
+            </label>
+          </div>
+
+          <h3 class="group-title">{{ $t('admin.antiSpam.bots.title') }}</h3>
+          <p class="setting-hint">{{ $t('admin.antiSpam.bots.hint') }}</p>
+          <div class="settings-grid">
+            <label class="setting">
+              <span class="setting-label">{{ $t('admin.antiSpam.bots.requestsPerMinute') }}</span>
+              <input v-model.number="draft.bot_requests_per_minute" type="number" min="0" data-testid="antispam-bot_requests_per_minute" class="cyber-input" />
+            </label>
+            <label class="setting">
+              <span class="setting-label">{{ $t('admin.antiSpam.bots.bridgeRequestsPerMinute') }}</span>
+              <input v-model.number="draft.bridge_requests_per_minute" type="number" min="0" data-testid="antispam-bridge_requests_per_minute" class="cyber-input" />
+            </label>
+          </div>
+          </template>
+
           <h3 class="group-title">{{ $t('admin.antiSpam.federation.title') }}</h3>
           <div class="settings-grid">
             <label class="setting">
@@ -126,6 +151,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasCapability } from '@/services/instanceCapabilities'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -147,6 +173,20 @@ const { t } = useI18n()
 const toast = useToast()
 const profileStore = useProfileStore()
 const isAdmin = computed(() => profileStore.profile?.is_admin === true)
+
+const limitsSupported = hasCapability('instance-limits')
+
+// Numeric limits for every local account; 0 turns one off.
+const ACCOUNT_LIMITS = [
+  { key: 'account_messages_per_minute', label: 'admin.antiSpam.accounts.messagesPerMinute', hint: '' },
+  { key: 'account_posts_per_hour', label: 'admin.antiSpam.accounts.postsPerHour', hint: 'admin.antiSpam.accounts.postsPerHourHint' },
+  { key: 'account_reactions_per_minute', label: 'admin.antiSpam.accounts.reactionsPerMinute', hint: '' },
+  { key: 'account_follows_per_hour', label: 'admin.antiSpam.accounts.followsPerHour', hint: '' },
+  { key: 'account_joins_per_hour', label: 'admin.antiSpam.accounts.joinsPerHour', hint: '' },
+  { key: 'account_servers_per_hour', label: 'admin.antiSpam.accounts.serversPerHour', hint: '' },
+  { key: 'account_stranger_dms_per_hour', label: 'admin.antiSpam.accounts.strangerDmsPerHour', hint: 'admin.antiSpam.accounts.strangerDmsHint' },
+  { key: 'new_account_stranger_dms_per_hour', label: 'admin.antiSpam.accounts.newStrangerDmsPerHour', hint: 'admin.antiSpam.accounts.newStrangerDmsHint' },
+] as const
 
 const saved = ref<InstanceAntiSpamSettings | null>(null)
 const draft = ref<InstanceAntiSpamSettings | null>(null)

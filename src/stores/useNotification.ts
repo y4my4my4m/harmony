@@ -976,11 +976,12 @@ export const useNotificationStore = defineStore('notification', {
      * Local mirror of mark_notifications_read_by_context: the same predicate over
      * the loaded rows.
      */
-    applyContextRead(contextType: 'channel' | 'conversation' | 'post', contextId: string) {
+    applyContextRead(contextType: 'channel' | 'conversation' | 'post' | 'thread', contextId: string) {
       const matches = (n: Notification): boolean => {
         const d: any = n.data || {}
         if (contextType === 'channel') return d.channel_id === contextId || d.location?.channel_id === contextId
         if (contextType === 'conversation') return d.conversation_id === contextId || d.conversation?.id === contextId
+        if (contextType === 'thread') return d.thread_id === contextId || d.thread?.id === contextId
         return d.post_id === contextId || d.post?.id === contextId
       }
       const ids: string[] = []

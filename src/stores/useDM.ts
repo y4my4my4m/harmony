@@ -22,7 +22,7 @@ import { inSendOrder, sendKeyForConversation, takeSendTurn, type SendTurn } from
 import { findStalledRowMessage, insertWithDeadline, isSendUnresolved, resendRow, type StalledSendHandlers } from '@/stores/shared/stalledSends'
 import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit'
 import { forgetConversationEncryption } from '@/services/conversationEncryption'
-import { isModerationRejectionCode } from '@/services/AutoModService'
+import { isModerationRejectionCode, moderationRejectionFromError, notifyModerationRejection } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
 import { useProfileStore } from '@/stores/useProfile'
@@ -1943,6 +1943,7 @@ export const useDMStore = defineStore('dm', () => {
 
       if (error) {
         debug.error('Error creating/finding conversation:', error)
+        notifyModerationRejection(error)
         return null
       }
 
@@ -3154,6 +3155,8 @@ export const useDMStore = defineStore('dm', () => {
         p_is_private: options.isPrivate ?? true
       })
 
+      if (moderationRejectionFromError(createError)) throw createError
+
       if (createError || !conversationId) {
         debug.error('Failed to create conversation:', createError)
         return null
@@ -3171,6 +3174,7 @@ export const useDMStore = defineStore('dm', () => {
       
     } catch (error) {
       debug.error('Failed to create group conversation:', error)
+      if (moderationRejectionFromError(error)) throw error
       return null
     }
   }
@@ -3250,6 +3254,7 @@ export const useDMStore = defineStore('dm', () => {
 
           if (addError) {
             debug.error('Failed to add participant:', addError)
+            if (moderationRejectionFromError(addError)) throw addError
             return false
           }
         }
@@ -3265,6 +3270,7 @@ export const useDMStore = defineStore('dm', () => {
       
     } catch (error) {
       debug.error('Failed to add users to conversation:', error)
+      if (moderationRejectionFromError(error)) throw error
       return false
     }
   }

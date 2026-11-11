@@ -120,6 +120,8 @@ import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { useAnnouncer } from '@/composables/useAnnouncer'
+import { signupRefusalKey } from '@/utils/signupLimits'
+import { decodeCallbackError } from '@/utils/authErrorMessage'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -405,7 +407,9 @@ onMounted(async () => {
     // /auth/callback branch.
     authStore._pendingMFAVerification = false
     status.value = 'error'
-    errorMessage.value = error.message || t('auth.callback.failed')
+    const message = decodeCallbackError(error.message ?? '')
+    const refusal = signupRefusalKey({ message })
+    errorMessage.value = refusal ? t(refusal) : message || t('auth.callback.failed')
   }
 })
 

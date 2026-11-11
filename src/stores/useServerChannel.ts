@@ -621,7 +621,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     isPrivateChannel(channelId: string): boolean {
-      return this.privateChannels[channelId] === true;
+      return this.privateChannels[channelId] === true
+        || this.channels.some(c => c.id === channelId && c.host_flags?.private === true);
     },
 
     /** Rereads which of the categories have a template denying VIEW_CHANNEL to @everyone. */
@@ -646,7 +647,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     isPrivateCategory(categoryId: string): boolean {
-      return this.privateCategories[categoryId] === true;
+      return this.privateCategories[categoryId] === true
+        || this.categories.some(c => c.id === categoryId && c.host_flags?.private === true);
     },
 
     /** No channel of the category is open to @everyone: members without Manage Channels do not see it. */

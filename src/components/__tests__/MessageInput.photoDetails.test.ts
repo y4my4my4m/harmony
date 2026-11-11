@@ -36,11 +36,13 @@ vi.mock('@/composables/useAutoSuggest', async () => {
       suggestions: vueRef([]),
       headerText: vueRef(''),
       activeCommand: vueRef(null),
+      activeBotCommand: vueRef(null),
       handleInput: vi.fn(),
       handleKeyDown: vi.fn(() => false),
       selectSuggestion: vi.fn(),
       closeSuggestions: vi.fn(),
       dismissActiveCommand: vi.fn(),
+      dismissBotCommand: vi.fn(),
     }),
   }
 })

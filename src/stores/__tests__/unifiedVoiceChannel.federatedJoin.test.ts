@@ -76,6 +76,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   for (const k of Object.keys(handlers)) delete handlers[k]
   webrtc.joinWithToken.mockClear()
+  serverUsers.joinVoiceChannel.mockClear()
+  serverUsers.leaveVoiceChannel.mockClear()
   vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => {
     releaseJoin = () => resolve(new Response(JSON.stringify({ success: true, joinId: JOIN, serverHost: HOST }), { status: 200 }))
   })))
@@ -125,5 +127,44 @@ describe('joinFederatedVoiceChannel', () => {
     broadcast('federated_voice:rejected', { originalJoinId: 'https://evil.test/x', serverHost: HOST, reason: 'nope' })
     await broadcast('federated_voice:token', legit)
     await expect(joined).resolves.toBe(true)
+  })
+
+  it('rejects with the host\'s reason and takes itself off the roster', async () => {
+    const s = store()
+    const joined = s.joinFederatedVoiceChannel('chan', 'server', 'me')
+    await flush()
+    releaseJoin()
+    await flush()
+    await flush()
+    expect(serverUsers.joinVoiceChannel).toHaveBeenCalledWith('server', 'chan', 'me', false)
+
+    broadcast('federated_voice:rejected', { originalJoinId: JOIN, serverHost: HOST, reason: 'Not authorized for this room' })
+    await expect(joined).rejects.toThrow('Not authorized for this room')
+    expect(serverUsers.leaveVoiceChannel).toHaveBeenCalledWith('server', 'chan', 'me', false)
+    expect(s.pendingFederatedJoin).toBeNull()
+    expect(webrtc.joinWithToken).not.toHaveBeenCalled()
+  })
+
+  it('takes a rejection that arrives before the join id is known', async () => {
+    const s = store()
+    const joined = s.joinFederatedVoiceChannel('chan', 'server', 'me')
+    await flush()
+
+    broadcast('federated_voice:rejected', { originalJoinId: JOIN, serverHost: HOST, reason: 'Voice is not available on this server' })
+    releaseJoin()
+    await expect(joined).rejects.toThrow('Voice is not available on this server')
+    expect(serverUsers.leaveVoiceChannel).toHaveBeenCalledWith('server', 'chan', 'me', false)
+  })
+
+  it('gives a rejection without a reason its own text', async () => {
+    const s = store()
+    const joined = s.joinFederatedVoiceChannel('chan', 'server', 'me')
+    await flush()
+    releaseJoin()
+    await flush()
+    await flush()
+
+    broadcast('federated_voice:rejected', { originalJoinId: JOIN, serverHost: HOST })
+    await expect(joined).rejects.toThrow('Voice join rejected by remote server')
   })
 })

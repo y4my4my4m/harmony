@@ -53,7 +53,7 @@ export function serverFlagReportId(flagId: unknown, baseUrl: string): string | n
   return m ? m[1].toLowerCase() : null;
 }
 
-export const REPORT_REASONS = ['spam', 'harassment', 'illegal_content', 'impersonation', 'nsfw', 'other'] as const;
+export const REPORT_REASONS = ['spam', 'harassment', 'illegal_content', 'impersonation', 'nsfw', 'username_hoarding', 'other'] as const;
 
 export interface ServerFlagActivity {
   '@context': [string, typeof HARMONY_CONTEXT];

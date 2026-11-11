@@ -1547,87 +1547,7 @@ export class ActivityPubService {
         } as FederatedUser;
       }
       
-      const actorResponse = await fetch(actorId, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-          'User-Agent': 'Harmony/1.0 (+https://har.mony.lol)'
-        }
-      });
-      
-      if (!actorResponse.ok) {
-        debug.error(`Failed to fetch actor: ${actorResponse.status}`);
-        return null;
-      }
-      
-      const actor = await actorResponse.json();
-      
-      const actorUrl = new URL(actorId);
-      const domain = actorUrl.hostname;
-      const pathParts = actorUrl.pathname.split('/');
-      const username = actor.preferredUsername || pathParts[pathParts.length - 1];
-      
-      const { data: profileId, error: createError } = await supabase
-        .rpc('create_federated_profile', {
-          p_username: username,
-          p_display_name: actor.name || username,
-          p_domain: domain,
-          p_avatar_url: actor.icon?.url || null,
-          p_banner_url: actor.image?.url || null,
-          p_bio: actor.summary || null,
-          p_federated_id: actor.id,
-          p_inbox_url: actor.inbox || null,
-          p_outbox_url: actor.outbox || null,
-          p_followers_url: actor.followers || null,
-          p_following_url: actor.following || null,
-          p_public_key: actor.publicKey?.publicKeyPem || null
-        });
-      
-      if (createError) {
-        debug.error('Failed to create federated profile:', createError);
-        return null;
-      }
-      
-      const { data: newProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', profileId)
-        .single();
-      
-      if (fetchError || !newProfile) {
-        debug.error('Failed to fetch created profile:', fetchError);
-        return null;
-      }
-      
-      debug.log(`Successfully created federated profile for ${actorId}`);
-      
-      return {
-        id: newProfile.id,
-        username: newProfile.username,
-        display_name: newProfile.display_name,
-        domain: newProfile.domain,
-        avatar_url: newProfile.avatar_url,
-        banner_url: newProfile.banner_url,
-        handle: newProfile.domain === runtimeConfig.domain as string
-          ? `@${newProfile.username}`
-          : `@${newProfile.username}@${newProfile.domain}`,
-        is_local: newProfile.is_local,
-        bio: newProfile.bio,
-        verified: false,
-        followers_count: 0,
-        following_count: 0,
-        posts_count: 0,
-        created_at: newProfile.created_at,
-        updated_at: newProfile.updated_at,
-        federated_id: newProfile.federated_id,
-        public_key: newProfile.public_key,
-        inbox_url: newProfile.inbox_url,
-        outbox_url: newProfile.outbox_url,
-        followers_url: newProfile.followers_url,
-        following_url: newProfile.following_url,
-        featured_url: newProfile.featured_url,
-        last_synced_at: newProfile.last_synced_at
-      } as FederatedUser;
-      
+      return await this.lookupUserByUrl(actorId);
     } catch (error) {
       debug.error(`Failed to fetch remote actor ${actorId}:`, error);
       return null;
@@ -2132,6 +2052,21 @@ export class ActivityPubService {
     });
   }
 
+  /** Asks the backend to read the quoted post of a stored remote quote again; null on failure. */
+  async resolveQuotedPost(postId: string): Promise<QuoteResolution | null> {
+    try {
+      const response = await fetch(`${await this.getFederationApiUrl()}/resolve-quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId }),
+      });
+      return response.ok ? await response.json() : null;
+    } catch (error) {
+      debug.warn('Quoted post retry failed:', error);
+      return null;
+    }
+  }
+
   /** Progress of the reply crawl of a remote post. */
   async getRemoteRepliesStatus(postApId: string): Promise<RemoteRepliesResult> {
     return this.remoteRepliesRequest(`/fetch-replies/status?post_ap_id=${encodeURIComponent(postApId)}`, {
@@ -2222,6 +2157,14 @@ export interface RemoteRepliesCrawl {
   truncated: boolean;
   /** The walk reached the collection's end. */
   complete: boolean;
+}
+
+/** Answer of /resolve-quote. */
+export interface QuoteResolution {
+  status: 'resolved' | 'withheld' | 'unavailable' | 'none' | 'recent'
+  reblog?: TimelinePost['reblog']
+  reblog_author?: TimelinePost['reblog_author']
+  metadata?: TimelinePost['metadata']
 }
 
 /**

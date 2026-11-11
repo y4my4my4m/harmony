@@ -93,7 +93,10 @@ export function relayRefusal(server: RelayServer, announce: any, ownHost: string
     case 'Create':
     case 'Update': {
       if (!object || typeof object !== 'object' || object.type !== 'Note') return `${inner.type} of no Note`;
-      if (object['harmony:serverId'] !== server.id) return 'Note names another server';
+      // The Note names the server by its id on the Group's host, which a copy's id can differ from.
+      if (object['harmony:serverId'] !== (group.match(/\/servers\/([a-f0-9-]{36})$/i)?.[1] ?? server.id)) {
+        return 'Note names another server';
+      }
       if (inner.type === 'Create'
           && (typeof object.context !== 'string' || !object.context.startsWith(`${group}/channels/`))) {
         return 'Note is not in a channel of the Group';
@@ -122,7 +125,8 @@ export function relayTarget(inner: any): string | null {
 
 /**
  * The channel message `ref` names, when it is in a channel of `serverId`: by ap_id, else by
- * id for this instance's own /messages/<uuid> URL.
+ * id for this instance's own /messages/<uuid> URL, exactly as this instance writes it. A case
+ * variant is another string to the host and the same row here.
  */
 export async function messageInServer(
   supabase: Supabase,
@@ -137,7 +141,7 @@ export async function messageInServer(
     .maybeSingle();
   let message = byApId;
   if (!message) {
-    const own = new RegExp(`^https://${ownHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/messages/([0-9a-f-]{36})$`, 'i');
+    const own = new RegExp(`^https://${ownHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/messages/([0-9a-f-]{36})$`);
     const uuid = own.exec(ref)?.[1];
     if (uuid) {
       const { data: byId } = await supabase

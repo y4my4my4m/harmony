@@ -434,6 +434,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.log('Already connected to this voice channel');
           return true;
         }
+
+        // The home instance refuses this account; the call in progress stays up.
+        if (serverId !== 'dm' && !opts.local
+            && serverChannelStore.channels.find((c: any) => c.id === channelId)?.host_flags?.voice === true) {
+          const { i18n } = await import('@/i18n');
+          this.joinError = String(i18n.global.t('channelEncryption.home.voice'));
+          return false;
+        }
         
         // Must run BEFORE isConnecting and the abort controller are set;
         // otherwise leaveVoiceChannel takes its cancel-ongoing-connection path.
@@ -857,7 +865,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           }
           this.pendingFederatedJoin = null;
           this.cleanupFederatedSubscription();
-          
+          if (abortSignal) {
+            abortSignal.removeEventListener('abort', abortHandler);
+          }
+          serverUsersStore.leaveVoiceChannel(serverId, channelId, userId, false);
+
           reject(new Error(rejectPayload?.reason || 'Voice join rejected by remote server'));
         };
 

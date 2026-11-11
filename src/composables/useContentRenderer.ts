@@ -8,6 +8,7 @@
  * - Rendering modes: inline, display, edit
  */
 
+import { unescapeMarkup } from '@/utils/markupEscapes';
 import { computed, type Ref } from 'vue';
 import { isMatrixMention } from '@/utils/matrixMentions';
 import type { MessagePart } from '@/types';
@@ -346,7 +347,7 @@ export function useContentRenderer(
     const renderPart = (part: MessagePart): string => {
       switch (part.type) {
         case 'text': {
-          let text = escapeHtml(part.text || '');
+          let text = escapeHtml(unescapeMarkup(part.text || ''));
 
           // For the twemoji pack: Replace unicode emojis with SVG images
           // For native pack: Leave unicode as-is (browser renders them)

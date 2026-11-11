@@ -77,6 +77,38 @@
         </p>
       </section>
 
+      <section v-if="widgetSnippets" class="widgets" data-testid="invite-widgets">
+        <button
+          type="button"
+          class="text-btn"
+          :aria-expanded="showWidgets"
+          :aria-controls="widgetsId"
+          data-testid="invite-widgets-toggle"
+          @click="showWidgets = !showWidgets"
+        >
+          <Icon name="link" :size="14" />
+          {{ t('invite.modal.widgets.toggle') }}
+        </button>
+        <div v-if="showWidgets" :id="widgetsId" class="widget-list">
+          <p class="settings-hint">{{ t('invite.modal.widgets.hint') }}</p>
+          <p v-if="current?.expires_at || current?.max_uses" class="widget-warning" data-testid="invite-widgets-expiring">
+            {{ t('invite.modal.widgets.expiring') }}
+          </p>
+          <div v-for="widget in widgetRows" :key="widget.id" class="widget-row" :data-testid="`invite-widget-${widget.id}`">
+            <span class="field-label">{{ t(`invite.modal.widgets.${widget.id}`) }}</span>
+            <img v-if="widget.preview" class="widget-preview" :src="widget.preview" alt="" height="28" />
+            <div class="link-row">
+              <input class="link-input" readonly :value="widget.snippet" :aria-label="t(`invite.modal.widgets.${widget.id}`)" @focus="($event.target as HTMLInputElement).select()" />
+              <button type="button" class="copy-btn" :class="{ copied: copiedWidget === widget.id }" @click="copyWidget(widget.id, widget.snippet)">
+                <Icon :name="copiedWidget === widget.id ? 'check' : 'copy'" :size="16" />
+                {{ copiedWidget === widget.id ? t('invite.modal.copied') : t('invite.modal.copy') }}
+              </button>
+            </div>
+          </div>
+          <span class="sr-only" aria-live="polite">{{ copiedWidget ? t('invite.modal.copied') : '' }}</span>
+        </div>
+      </section>
+
       <section v-if="editing && canCreate" :id="settingsId" class="settings">
         <div class="settings-grid">
           <label class="setting">
@@ -142,6 +174,8 @@ import { useVisualTheme } from '@/composables/useVisualTheme'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { getInstanceDomain } from '@/services/instanceConfig'
+import { hasCapability } from '@/services/instanceCapabilities'
+import { inviteWidgetSnippets } from '@/utils/inviteWidgets'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import InviteIcon from '@/components/icons/ServerInviteIcon.vue'
@@ -209,6 +243,43 @@ const federationNote = computed(() => {
 })
 
 const uid = Math.random().toString(36).slice(2, 8)
+const widgetsId = `invite-widgets-${uid}`
+const showWidgets = ref(false)
+const copiedWidget = ref<string | null>(null)
+let copiedWidgetTimer: ReturnType<typeof setTimeout> | null = null
+
+// The host answers an invite preview only for a server it hosts.
+const widgetSnippets = computed(() => {
+  if (!hasCapability('invite-widgets') || !currentUrl.value) return null
+  const server = serverChannelStore.servers.find((s) => s.id === (props.serverId || props.serverData?.id))
+  if (server?.is_local_server === false) return null
+  return inviteWidgetSnippets(currentUrl.value, serverName.value, locale.value)
+})
+
+const widgetRows = computed(() => {
+  const s = widgetSnippets.value
+  if (!s) return []
+  return [
+    { id: 'badge', snippet: s.badgeHtml, preview: s.urls.badge },
+    { id: 'markdown', snippet: s.badgeMarkdown, preview: null },
+    { id: 'join', snippet: s.joinHtml, preview: s.urls.join },
+    { id: 'icon', snippet: s.iconHtml, preview: s.urls.icon },
+    { id: 'card', snippet: s.cardHtml, preview: null },
+  ]
+})
+
+async function copyWidget(id: string, snippet: string) {
+  try {
+    await navigator.clipboard.writeText(snippet)
+    copiedWidget.value = id
+    if (copiedWidgetTimer) clearTimeout(copiedWidgetTimer)
+    copiedWidgetTimer = setTimeout(() => { copiedWidget.value = null }, 2000)
+  } catch (err) {
+    debug.warn('Copying the widget snippet failed:', err)
+    toast.error(t('invite.modal.copyFailed'))
+  }
+}
+
 const inputId = `invite-link-${uid}`
 const settingsId = `invite-settings-${uid}`
 const editing = ref(false)
@@ -328,6 +399,7 @@ watch(() => props.show, (visible) => {
 
 onBeforeUnmount(() => {
   if (copiedTimer) clearTimeout(copiedTimer)
+  if (copiedWidgetTimer) clearTimeout(copiedWidgetTimer)
 })
 </script>
 
@@ -562,6 +634,41 @@ onBeforeUnmount(() => {
 .setting-select:focus {
   outline: none;
   border-color: var(--border-focus);
+}
+
+.widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.widget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.widget-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.widget-row .link-row {
+  width: 100%;
+}
+
+.widget-preview {
+  display: block;
+  height: 28px;
+  max-width: 100%;
+}
+
+.widget-warning {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--status-warning, #f0b232);
 }
 
 .settings-hint {

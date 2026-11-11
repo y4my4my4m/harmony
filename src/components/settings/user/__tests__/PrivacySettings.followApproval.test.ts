@@ -4,11 +4,12 @@
  * switch applies on change; the section has no Save or Reset.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 const setStrip = vi.hoisted(() => vi.fn())
+const capability = vi.hoisted(() => vi.fn(() => true))
 const outsideLinks = vi.hoisted(() => ({
   askEveryLink: false,
   signedIn: true,
@@ -29,6 +30,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   useI18n: () => ({ t: (key: string) => key }),
 }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
+vi.mock('@/services/instanceCapabilities', () => ({ hasCapability: capability }))
 vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({ loadBlockingData: vi.fn() }) }))
 vi.mock('@/stores/outsideLinkSettings', async () => {
   const { reactive } = await import('vue')
@@ -59,7 +61,7 @@ vi.mock('@/components/icons/Shield.vue', () => stub('ShieldIcon'))
 import { supabase } from '@/supabase'
 import PrivacySettings from '../PrivacySettings.vue'
 
-let stored: { manually_approves_followers: boolean }
+let stored: { manually_approves_followers: boolean; dm_policy?: string }
 let updates: Array<{ patch: Record<string, unknown>; id: unknown }>
 let failUpdate = false
 
@@ -144,6 +146,57 @@ describe('PrivacySettings follow approval', () => {
     expect(toggle(wrapper).attributes('aria-checked')).toBe('false')
     expect(toast.error).toHaveBeenCalledWith('activitypub.followApprovalFailed')
     expect(toast.success).not.toHaveBeenCalled()
+  })
+})
+
+describe('PrivacySettings who can start a conversation', () => {
+  afterEach(() => {
+    capability.mockReturnValue(true)
+  })
+
+  it('offers the setting and stores a change', async () => {
+    Object.assign(stored, { dm_policy: 'known' })
+    const wrapper = mountSettings()
+    await flushPromises()
+
+    const select = wrapper.get('[data-testid="dm-policy-select"]')
+    expect((select.element as HTMLSelectElement).value).toBe('known')
+    await select.setValue('following')
+    await flushPromises()
+
+    expect(updates).toEqual([{ patch: { dm_policy: 'following' }, id: 'me' }])
+    expect(toast.success).toHaveBeenCalled()
+  })
+
+  it('restores the choice when the write fails', async () => {
+    Object.assign(stored, { dm_policy: 'known' })
+    const wrapper = mountSettings()
+    await flushPromises()
+    failUpdate = true
+
+    const select = wrapper.get('[data-testid="dm-policy-select"]')
+    await select.setValue('following')
+    await flushPromises()
+
+    expect((select.element as HTMLSelectElement).value).toBe('known')
+    expect(toast.error).toHaveBeenCalled()
+  })
+
+  it('an instance without the capability hides it and never reads the column', async () => {
+    capability.mockReturnValue(false)
+    const columns: string[] = []
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      const chain = query(table)
+      const select = chain.select
+      chain.select = (cols: string) => { columns.push(cols); return select() }
+      return chain
+    })
+    const wrapper = mountSettings()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="dm-policy-select"]').exists()).toBe(false)
+    expect(columns.join(' ')).not.toContain('dm_policy')
+    expect(columns).toContain('manually_approves_followers')
   })
 })
 

@@ -102,7 +102,7 @@ describe('reconciled user-left', () => {
     await flush()
 
     expect(db.writes.map((w) => [w.op, w.row?.user_id, w.row?.channel_id])).toEqual([['upsert', 'me', C]])
-    expect(sent()).toEqual(['user-joined:me'])
+    expect(sent()).toEqual([])
     expect(store.getUsersInVoiceChannel(C)).toEqual(['me', 'bob'])
   })
 
@@ -165,7 +165,7 @@ describe('own row writes', () => {
         headers: { apikey: 'anon-key', Authorization: 'Bearer access-token' },
       },
     )
-    expect(sent()).toEqual(['user-left:me'])
+    expect(sent()).toEqual([])
   })
 
   it('does nothing on unload for a DM call or without a session', () => {

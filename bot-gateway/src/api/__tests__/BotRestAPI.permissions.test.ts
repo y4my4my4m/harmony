@@ -586,7 +586,20 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true }, user_id: null }])
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true }, user_id: null, bot_id: BOT_ID }])
+  })
+
+  it('retains interaction invoker attribution and backing bot after the callback row is gone', async () => {
+    seedWithBotMessages(install())
+    const metadata = { interaction: { id: 'invocation', name: 'weather', user_id: OWNER_ID } }
+    db.rows('messages').find((m) => m.id === BOT_PUBLIC_MESSAGE)!.metadata = metadata
+    const deleted: any[] = []
+    const res = await supertest(appWith({ messageHardDeleted: async (m) => { deleted.push(m) } }))
+      .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
+    expect(res.status).toBe(204)
+    expect(db.rows('messages').some(m => m.id === BOT_PUBLIC_MESSAGE)).toBe(false)
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null,
+      user_id: null, bot_id: BOT_ID, metadata }])
   })
 
   it('reports the thread of a deleted thread message', async () => {
@@ -597,7 +610,7 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true }, user_id: null }])
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true }, user_id: null, bot_id: BOT_ID }])
   })
 
   it('reports nothing for a refused delete or an already soft-deleted row', async () => {
@@ -611,5 +624,29 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
     expect(refused.status).toBe(403)
     expect(soft.status).toBe(204)
     expect(deleted).toEqual([])
+  })
+})
+
+// bot_audit_log.server_id and channel_id are indexed for per-server reads.
+describe('audit rows name their server and channel', () => {
+  const audit = (action: string) => db.rows('bot_audit_log').find((r) => r.action_type === action)
+
+  it('fills both for a message sent, edited and deleted in a channel', async () => {
+    seedWithBotMessages(install())
+    expect((await supertest(app()).post(`/api/v1/channels/${PUBLIC_CHANNEL}/messages`).send({ content: 'hi' })).status).toBe(201)
+    expect((await supertest(app()).patch(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`).send({ content: 'edited' })).status).toBe(200)
+    expect((await supertest(app()).delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)).status).toBe(204)
+    for (const action of ['message_sent', 'message_edited', 'message_deleted']) {
+      expect(audit(action)).toMatchObject({ bot_id: BOT_ID, server_id: SERVER_ID, channel_id: PUBLIC_CHANNEL })
+    }
+  })
+
+  it('fills the server, and no channel, for a role created', async () => {
+    seed(install({ manage_roles: true }))
+    const res = await supertest(app())
+      .post(`/api/v1/servers/${SERVER_ID}/roles`)
+      .send({ name: 'Helpers', position: 0, permissions: '0' })
+    expect(res.status).toBeLessThan(300)
+    expect(audit('role_created')).toMatchObject({ server_id: SERVER_ID, channel_id: null })
   })
 })

@@ -2,7 +2,7 @@
  * Where this tab is looking and whether its device is in use, for notification suppression.
  *
  * The report goes to device_view_contexts through sync_view_context_from_presence:
- * send_notification skips a channel or DM a device is viewing, and, under "Only when I'm away"
+ * send_notification skips a channel, DM or full-page thread a device is viewing, and, under "Only when I'm away"
  * (on by default), push is held from every device while any device is in use
  * (heldWhileDeviceInUse in federation-backend/src/services/pushPolicy.ts). A row counts for
  * 150 s after its last write; the tab rewrites it every 60 s unless it reports 'away'.
@@ -34,7 +34,7 @@ import { getClientDeviceId } from '@/utils/clientDeviceId'
 import { isMobileDevice, isTauri } from '@/utils/platform'
 import { useNotificationStore } from '@/stores/useNotification'
 
-export type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
+export type ViewType = 'server_channel' | 'dm' | 'thread' | 'activitypub_home' | 'settings' | 'home'
 
 /** viewing: the tab reports its view. */
 type DevicePresence = 'viewing' | 'background' | 'away'
@@ -44,6 +44,7 @@ interface SyncedView {
   serverId?: string
   channelId?: string
   conversationId?: string
+  threadId?: string
 }
 
 const HEARTBEAT_MS = 60_000
@@ -66,12 +67,15 @@ let detachListeners: (() => void) | null = null
 let released = false
 // Desktop app: the notification plugin's grant as last read, on attach and on every visibility change.
 let nativePermission = false
+// The instance's sync_view_context_from_presence has no p_thread_id (before 20261110800001).
+let threadViewUnsupported = false
 
 /** The view this tab reports. */
 export function getCurrentViewContext() {
   return viewContextTracker.getCurrentContext()
 }
 
+// p_thread_id is sent only with a thread: an instance before 20261110800001 refuses the argument.
 function rpcArgs(view: SyncedView) {
   return {
     p_view_type: view.viewType,
@@ -79,7 +83,13 @@ function rpcArgs(view: SyncedView) {
     p_channel_id: view.channelId || null,
     p_conversation_id: view.conversationId || null,
     p_device_id: getClientDeviceId(),
+    ...(view.threadId ? { p_thread_id: view.threadId } : {}),
   }
+}
+
+// An older instance stores a thread shown full page as 'home'.
+function supported(view: SyncedView): SyncedView {
+  return view.threadId && threadViewUnsupported ? { viewType: 'home', serverId: view.serverId } : view
 }
 
 // Signed out, nothing is sent: the RPC refuses anon. BaseLayout mounts on the initial
@@ -89,8 +99,17 @@ function syncView(view: SyncedView): Promise<void> {
   return supabase.auth.getSession().then(async ({ data: { session } }) => {
     if (!session) return
     if (released && view.viewType !== 'away') return
-    const { error } = await supabase.rpc('sync_view_context_from_presence', rpcArgs(view))
-    if (error) debug.warn('Failed to sync view context to DB:', error)
+    const sent = supported(view)
+    const { error } = await supabase.rpc('sync_view_context_from_presence', rpcArgs(sent))
+    if (!error) return
+    // PGRST202: no function takes these arguments.
+    if (sent.threadId && error.code === 'PGRST202') {
+      threadViewUnsupported = true
+      const { error: retried } = await supabase.rpc('sync_view_context_from_presence', rpcArgs(supported(view)))
+      if (retried) debug.warn('Failed to sync view context to DB:', retried)
+      return
+    }
+    debug.warn('Failed to sync view context to DB:', error)
   }).catch((error) => debug.warn('Failed to sync view context to DB:', error))
 }
 
@@ -193,7 +212,7 @@ function setPresence(next: DevicePresence, viaKeepalive = false): void {
   else void syncView(report(next))
   // Notifications that arrived while not viewing were kept unread; the view is seen again.
   if (next === 'viewing' && was !== 'viewing'
-    && (lastView.viewType === 'server_channel' || lastView.viewType === 'dm')) {
+    && (lastView.viewType === 'server_channel' || lastView.viewType === 'dm' || lastView.viewType === 'thread')) {
     void viewContextTracker.clearExistingNotificationsForContext()
   }
 }
@@ -279,7 +298,7 @@ export async function updateViewContext(
       thread_id: threadId
     })
 
-    lastView = { viewType, serverId, channelId, conversationId }
+    lastView = { viewType, serverId, channelId, conversationId, threadId }
     released = false
     attachListeners()
     // Navigation is input; a tab that shows a new view is not idle.
@@ -337,6 +356,7 @@ export async function cleanupViewContext(): Promise<void> {
   presence = 'viewing'
   pageGone = false
   released = false
+  threadViewUnsupported = false
   viewContextTracker.reset()
 
   await sessionHeartbeat.stop()
@@ -347,10 +367,10 @@ export interface RouteViewContext {
   serverId?: string
   channelId?: string
   conversationId?: string
-  /** A thread shown full page; the database knows the view as 'home'. */
+  /** A thread shown full page. */
   threadId?: string
   /** Context whose existing notifications are read on entry. */
-  clear?: { channelId?: string; serverId?: string; conversationId?: string; postId?: string }
+  clear?: { channelId?: string; serverId?: string; conversationId?: string; postId?: string; threadId?: string }
 }
 
 const SETTINGS_ROUTES = new Set(['UserSettings', 'ServerSettings', 'AdminPanel'])
@@ -365,8 +385,8 @@ function param(route: RouteLike, key: string): string | undefined {
 }
 
 /**
- * The view a route shows. Only a channel or a DM is a viewed context to the
- * database; every other route reports where the tab is, so the previous one lapses.
+ * The view a route shows. A channel, a DM or a thread shown full page is a viewed context to
+ * the database; every other route reports where the tab is, so the previous one lapses.
  */
 export function viewContextForRoute(route: RouteLike): RouteViewContext {
   const name = typeof route.name === 'string' ? route.name : ''
@@ -380,7 +400,7 @@ export function viewContextForRoute(route: RouteLike): RouteViewContext {
   }
   const threadId = param(route, 'threadId')
   if (name === 'ThreadView' && threadId) {
-    return { viewType: 'home', threadId }
+    return { viewType: 'thread', serverId, threadId, clear: { threadId } }
   }
   if (name === 'DMConversation' && conversationId) {
     return { viewType: 'dm', conversationId, clear: { conversationId } }

@@ -235,13 +235,14 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     toggleReaction: async (messageId: string, emojiId: string, _userId?: string, emojiData?: Emoji) => {
       const result = await engine.toggle(messageId, { emojiId, emojiData })
+      const rejection = result.success ? null : moderationRejectionFromError({ message: result.reason })
       // check_message_emoji_reaction_limit refused a 21st emoji.
       if (!result.success && isReactionLimitError(result.reason)) {
         useToast().info(i18n.global.t('emoji.messageReactionLimit', { count: MESSAGE_REACTION_KINDS }))
-      } else if (!result.success && result.reason?.startsWith('MEMBER_TIMED_OUT')) {
+      } else if (rejection) {
         // enforce_reaction_add_permission: the reactor is timed out in the server.
-        const rejection = moderationRejectionFromError({ message: result.reason })
-        if (rejection) useToast().info(rejection.message)
+        // antispam_write_guard: account_reactions_per_minute.
+        useToast().info(rejection.message)
       } else if (!result.success && result.reason?.includes('Missing permission: ADD_REACTIONS')) {
         // enforce_reaction_add_permission: a new emoji without ADD_REACTIONS in the channel.
         useToast().info(i18n.global.t('emoji.reactionNotAllowed'))

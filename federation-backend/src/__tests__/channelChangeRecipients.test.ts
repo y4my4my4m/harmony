@@ -17,7 +17,13 @@ vi.mock('../activitypub/DeliveryQueue.js', () => ({
   DeliveryQueue: { enqueue: vi.fn(async () => undefined) },
 }))
 
+/** channel_host_flags and category_host_flags answers; undefined fails the read. */
+let flagRows: Record<string, unknown>[] | undefined = []
+
 const rpc = vi.fn(async (name: string) => {
+  if (name === 'channel_host_flags' || name === 'category_host_flags') {
+    return flagRows ? { data: flagRows, error: null } : { data: null, error: { message: 'flags down' } }
+  }
   if (name === 'federation_channel_recipients') {
     return { data: [{ instance: 'viewer.test', member_ap_ids: ['https://viewer.test/users/v'], member_count: 1, shared_inbox: null }], error: null }
   }
@@ -64,6 +70,7 @@ const enqueue = vi.mocked(DeliveryQueue.enqueue)
 beforeEach(() => {
   rpc.mockClear()
   enqueue.mockClear()
+  flagRows = []
 })
 
 describe('channel structure fan-out', () => {
@@ -85,7 +92,7 @@ describe('channel structure fan-out', () => {
 
   it('a category reaches only instances whose members view a channel in it', async () => {
     await handleChannelCreated({ id: 'cat1', server_id: 's1', name: 'cat', type: 2 })
-    expect(rpc.mock.calls.map(c => c[0])).toEqual(['federation_category_recipients'])
+    expect(rpc.mock.calls.map(c => c[0])).toEqual(['federation_category_recipients', 'category_host_flags'])
     expect(enqueue.mock.calls.map(c => c[1])).toEqual(['https://viewer.test/inbox'])
   })
 
@@ -104,5 +111,42 @@ describe('channel structure fan-out', () => {
       position: 4,
     })
     expect((enqueue.mock.calls[1][0] as any).object.category).toBe('https://harmony.test/servers/s1/channels/cat1')
+  })
+
+  it.each([
+    ['Add', handleChannelCreated],
+    ['Update', (c: any) => handleChannelUpdated(c, c)],
+  ])('a channel\'s %s carries its flags', async (_label, handler) => {
+    flagRows = [{ channel_id: 'c1', messages: true, voice: true, is_private: true }]
+    await handler({ id: 'c1', server_id: 's1', name: 'secret', type: 1 })
+    expect((enqueue.mock.calls[0][0] as any).object).toMatchObject({
+      'harmony:encryption': { messages: true, voice: true },
+      'harmony:private': true,
+    })
+  })
+
+  it.each([
+    ['Add', handleChannelCreated],
+    ['Update', (c: any) => handleChannelUpdated(c, c)],
+  ])('a plain channel\'s %s has neither key', async (_label, handler) => {
+    flagRows = [{ channel_id: 'c1', messages: false, voice: false, is_private: false }]
+    await handler({ id: 'c1', server_id: 's1', name: 'open', type: 0 })
+    const object = (enqueue.mock.calls[0][0] as any).object
+    expect(object).not.toHaveProperty(['harmony:encryption'])
+    expect(object).not.toHaveProperty(['harmony:private'])
+  })
+
+  it('a category\'s Update carries harmony:private alone', async () => {
+    flagRows = [{ category_id: 'cat1', is_private: true }]
+    await handleChannelUpdated({ id: 'cat1', server_id: 's1', name: 'cat', type: 2 }, {})
+    const object = (enqueue.mock.calls[0][0] as any).object
+    expect(object['harmony:private']).toBe(true)
+    expect(object).not.toHaveProperty(['harmony:encryption'])
+  })
+
+  it('sends nothing when the flags cannot be read: an absent property would clear them on the copy', async () => {
+    flagRows = undefined
+    await handleChannelUpdated({ id: 'c1', server_id: 's1', name: 'secret', type: 0 }, {})
+    expect(enqueue).not.toHaveBeenCalled()
   })
 })

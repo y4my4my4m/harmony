@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const rpc = vi.hoisted(() => vi.fn())
 vi.mock('../config/supabase.js', () => ({ supabase: { rpc } }))
-import { bridgeChannelPlatform, memberRecipients, messageRecipients, visibleMessageIds } from './bridgePrivacy.js'
+import { bridgeChannelPlatform, memberRecipients, messagePrivacySource, messageRecipients, sourceRecipients, visibleMessageIds } from './bridgePrivacy.js'
 beforeEach(() => rpc.mockReset())
 
 describe('bridge privacy RPC boundaries', () => {
@@ -15,6 +15,38 @@ describe('bridge privacy RPC boundaries', () => {
     expect(await memberRecipients(['a'], 'channel', 'user')).toEqual([])
     expect(rpc).toHaveBeenCalledWith('bridge_member_recipients', { p_bot_ids: ['a'], p_channel_id: 'channel', p_user_id: 'user' })
   })
+  it('preserves native and interaction attribution without retaining message content or unrelated metadata', async () => {
+    const source = { user_id: 'native', bot_id: 'bot', content: ['private'], metadata: {
+      secret: 'discard', interaction: { user_id: 'invoker', name: 'weather', options: ['discard'] },
+    } }
+    expect(messagePrivacySource(source)).toEqual({ user_id: 'native', bot_id: 'bot', metadata: { interaction: { user_id: 'invoker' } } })
+    rpc.mockResolvedValue({ data: ['ordinary'], error: null })
+    expect(await sourceRecipients(['bridge', 'ordinary'], 'channel', source)).toEqual(['ordinary'])
+    expect(rpc).toHaveBeenCalledWith('bridge_source_recipients', {
+      p_bot_ids: ['bridge', 'ordinary'], p_channel_id: 'channel', p_source: messagePrivacySource(source),
+    })
+  })
+  it.each([null, false, 'invalid', [], {}, { user_id: null }, { user_id: 'not-a-uuid' }])('never erases a malformed interaction claim %j', interaction => {
+    const snapshot = messagePrivacySource({ user_id: null, bot_id: 'bot', metadata: { interaction } })!
+    expect(snapshot.metadata).toHaveProperty('interaction')
+    expect(messagePrivacySource(snapshot)).toEqual(snapshot)
+  })
+  it('distinguishes unavailable source from an ordinary bot without an interaction', () => {
+    expect(messagePrivacySource(null)).toBeNull()
+    expect(messagePrivacySource({ metadata: {} })).toBeNull()
+    expect(messagePrivacySource({ user_id: null, bot_id: 'bot', metadata: {} })).toEqual({ user_id: null, bot_id: 'bot', metadata: {} })
+  })
+  it.each([
+    { user_id: null, metadata: {} }, { user_id: null, bot_id: 'bot' },
+    { user_id: null, bot_id: 'bot', metadata: ['interaction'] },
+    { user_id: null, bot_id: 'bot', metadata: 'interaction' },
+  ])('does not turn partial or malformed source attribution into an anonymous bot row %j', source => {
+    expect(messagePrivacySource(source)).toBeNull()
+  })
+  it.each([null, true, ['unrequested'], [1]])('fails closed on malformed source recipients %j', async data => {
+    rpc.mockResolvedValue({ data, error: null })
+    await expect(sourceRecipients(['bridge'], 'channel', null)).rejects.toThrow('Bridge privacy status unavailable')
+  })
   it.each([null, true, ['unrequested'], [1]])('fails closed on malformed message visibility %j', async data => {
     rpc.mockResolvedValue({ data, error: null })
     await expect(visibleMessageIds('b', ['m'])).rejects.toThrow('Bridge privacy status unavailable')
@@ -26,6 +58,7 @@ describe('bridge privacy RPC boundaries', () => {
   it('does not query the DB for an empty result set', async () => {
     expect(await visibleMessageIds('b', [])).toEqual(new Set())
     expect(await messageRecipients([], 'm')).toEqual([])
+    expect(await sourceRecipients([], 'c', null)).toEqual([])
     expect(rpc).not.toHaveBeenCalled()
   })
   it.each(['matrix', 'discord', null])('recognizes registration %s', async data => {

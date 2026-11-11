@@ -77,10 +77,14 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: "10000"
       GOTRUE_RATE_LIMIT_EMAIL_SENT: "10000"
       GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: "10000"
+      # As in self-host/supabase-overrides.yml. See gateway.conf for the header.
+      GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_URI: pg-functions://postgres/public/before_user_created_hook
       GOTRUE_LOG_LEVEL: info
 
   rest:
-    image: ${E2E_POSTGREST_IMAGE:-postgrest/postgrest:v13.0.7}
+    image: ${E2E_POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
     depends_on:
       db:
         condition: service_healthy
@@ -98,7 +102,7 @@ services:
   # migrations bring the storage schema forward on start; stack.sh starts it before the
   # schema build so the ALTERs in scripts/test-db/supabase-compat.sql find the columns.
   storage:
-    image: ${E2E_STORAGE_IMAGE:-supabase/storage-api:v1.89.12}
+    image: ${E2E_STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     depends_on:
       db:
         condition: service_healthy
@@ -121,7 +125,7 @@ services:
       - storage-data:/var/lib/storage
 
   imgproxy:
-    image: ${E2E_IMGPROXY_IMAGE:-darthsim/imgproxy:v4.0.21}
+    image: ${E2E_IMGPROXY_IMAGE:-darthsim/imgproxy:v4.0.22}
     environment:
       IMGPROXY_BIND: ":5001"
       IMGPROXY_LOCAL_FILESYSTEM_ROOT: /

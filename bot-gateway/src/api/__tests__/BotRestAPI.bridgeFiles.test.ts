@@ -43,6 +43,8 @@ beforeEach(() => {
   })
   mocks.from.mockImplementation(table => db.from(table))
   mocks.rpc.mockImplementation(async (fn, args) => {
+    if (fn === 'bot_interaction_ack') return { data: { id: '00000000-0000-0000-0000-00000000001a', channel_id: CHANNEL, thread_id: null, user_id: USER, command_name: 'file' }, error: null }
+    if (fn === 'bot_interaction_record') return { data: null, error: null }
     if (fn === 'bridge_channel_platform') return { data: platform, error: null }
     if (fn === 'matrix_bridge_room') return { data: room, error: null }
     if (fn === 'channel_messages_encrypted') return { data: encrypted, error: null }
@@ -95,6 +97,28 @@ describe('Matrix bridge file transfer boundary', () => {
     expect(sent.status).toBe(201)
     expect(db.rows('messages').at(-1)!.content[0]).toEqual(part)
     expect(fetcher.mock.calls.every(([url]) => new URL(url).hostname === 'storage.harmony.test')).toBe(true)
+  })
+  it.each([false, true])('uses canonical Matrix attachments for public interaction replies (encrypted=%s)', async blocked => {
+    const part = (await upload()).body
+    encrypted = blocked
+    const response = await supertest(app()).post('/api/v1/interactions/00000000-0000-0000-0000-00000000001a/callback')
+      .set('Authorization', 'Bearer test').send({ type: 4, data: { content: [part], metadata: { bridge_author: { platform: 'discord', id: 'forged' } } } })
+    expect(response.status).toBe(blocked ? 403 : 204)
+    const writes = db.writesTo('messages', 'insert')
+    expect(writes).toHaveLength(blocked ? 0 : 1)
+    if (!blocked) {
+      expect(writes[0].rows[0].content).toEqual([part])
+      expect(writes[0].rows[0].metadata).toEqual({ bot: true, created_via: 'bot_api', interaction: {
+        id: '00000000-0000-0000-0000-00000000001a', name: 'file', user_id: USER,
+      } })
+    }
+    expect(mocks.rpc).toHaveBeenCalledWith('bot_interaction_record', expect.objectContaining({ p_error: blocked ? 'failed' : null }))
+  })
+  it('fails closed when the durable attachment platform lookup is unavailable', async () => {
+    const part = (await upload()).body
+    db.rows('bots').splice(0)
+    expect((await post([part])).status).toBe(503)
+    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
   })
   it('supports zero-byte ordinary files and audio/video as files, not inline media', async () => {
     const empty = await upload(Buffer.alloc(0), 'empty.bin', 'application/octet-stream')

@@ -125,7 +125,7 @@ describe('configure.sh and the built-in providers', () => {
     const sb = join(root, 'self-host', 'supabase')
     mkdirSync(sb, { recursive: true })
     mkdirSync(join(root, 'bin'))
-    for (const f of ['configure.sh', 'linking.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
+    for (const f of ['configure.sh', 'linking.sh', 'modes.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
     writeFileSync(join(root, 'bin', 'docker'), '#!/usr/bin/env bash\n[ "$*" != "compose version --short" ] || echo 2.30.0\n')
     chmodSync(join(root, 'bin', 'docker'), 0o755)
     writeFileSync(join(sb, 'docker-compose.yml'), 'services:\n  auth:\n    image: supabase/gotrue:v2.196.0\n')
@@ -270,7 +270,7 @@ describe('harmony auth and account linking', () => {
     mkdirSync(state)
     mkdirSync(join(root, 'bin'))
     mkdirSync(join(root, 'self-host', 'supabase'), { recursive: true })
-    for (const f of ['admin.sh', 'lib.sh', 'linking.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
+    for (const f of ['admin.sh', 'lib.sh', 'linking.sh', 'modes.sh']) copyFileSync(join(SELF_HOST, f), join(root, 'self-host', f))
     writeFileSync(join(root, 'bin', 'docker'), FAKE_DOCKER)
     chmodSync(join(root, 'bin', 'docker'), 0o755)
     sbEnv = join(root, 'self-host', 'supabase', '.env')
@@ -512,7 +512,7 @@ check_auth_linking`)
 })
 
 describe('the shell scripts parse', () => {
-  it.each(['admin.sh', 'lib.sh', 'linking.sh', 'configure.sh', 'doctor.sh', 'update.sh', 'harmony'])('%s', (f) => {
+  it.each(['admin.sh', 'lib.sh', 'linking.sh', 'modes.sh', 'configure.sh', 'doctor.sh', 'update.sh', 'harmony'])('%s', (f) => {
     expect(() => execFileSync('bash', ['-n', join(SELF_HOST, f)])).not.toThrow()
   })
 })

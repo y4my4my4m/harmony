@@ -79,6 +79,14 @@ export function addDraftAttachments(key: string, files: readonly FilePreviewData
   if (files.length > 0) setDraftAttachments(key, [...draftAttachments(key), ...files])
 }
 
+/** Appends the attachments of draft `from` to draft `to`; running uploads keep running. */
+export function moveDraftAttachments(from: string, to: string): void {
+  const files = draftAttachments(from)
+  if (from === to || files.length === 0) return
+  lists.delete(scoped(from))
+  addDraftAttachments(to, files)
+}
+
 /** Scoped key of the draft holding `file`; null once it is sent, removed or discarded. */
 function holderOf(file: FilePreviewData): string | null {
   const raw = toRaw(file)

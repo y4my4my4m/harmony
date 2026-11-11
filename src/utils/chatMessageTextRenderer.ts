@@ -14,6 +14,9 @@
  *      private-use unicode placeholder. They re-appear later as
  *      `<CodeBlock>` components - none of their inner text is rendered as
  *      HTML.
+ *  1a. Hide backslash-escaped characters behind private-use masks
+ *      (`markupEscapes`): no later step reads them as markup. Step 6 restores
+ *      them, HTML-escaped.
  *  1b. Optionally replace standalone text emoticons with unicode emoji
  *      (`convertEmoticons`). Output is unicode text, escaped in step 2.
  *   2. **HTML-escape the entire remaining string.** Every character that
@@ -49,6 +52,7 @@ import { escapeHtml, sanitizeMessageHtml } from './sanitize';
 import { renderTextWithBlockquotes } from './chatBlockquotes';
 import { convertEmoticons } from './emoticons';
 import { emojiSequenceRegex } from './unicodeEmoji';
+import { maskEscapes, maskInlineMarkers, restoreMasked } from './markupEscapes';
 
 export interface CodeBlock {
   id: string;
@@ -111,6 +115,9 @@ export function renderChatMessageText(
     return blockId;
   });
 
+  // 1a. Backslash escapes.
+  rendered = maskEscapes(rendered);
+
   // 1b. Emoticons, on raw text: `<3` must precede escaping. Placeholders hold
   //     no emoticon characters; inline code is skipped by convertEmoticons.
   if (options.convertEmoticons) rendered = convertEmoticons(rendered);
@@ -136,7 +143,7 @@ export function renderChatMessageText(
   }
 
   // 4. Markdown inline formatting.
-  rendered = rendered.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
+  rendered = rendered.replace(/`([^`]+)`/g, (_, code: string) => `<code class="md-code">${maskInlineMarkers(code)}</code>`);
   rendered = rendered.replace(/\*\*(.*?)\*\*/g, '<strong class="md-bold">$1</strong>');
   rendered = rendered.replace(/__(.*?)__/g, '<u class="md-underline">$1</u>');
   rendered = rendered.replace(/(?<![\w/:])_([^_]+)_(?![\w])/g, '<em class="md-italic">$1</em>');
@@ -159,6 +166,7 @@ export function renderChatMessageText(
 
   // 6. Defense-in-depth: strip anything not on the message allowlist.
   rendered = sanitizeMessageHtml(rendered);
+  rendered = restoreMasked(rendered, escapeHtml);
 
   return { renderedText: rendered, codeBlocks };
 }

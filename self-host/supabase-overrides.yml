@@ -21,15 +21,23 @@ services:
   # can hand them each other's freed addresses; Kong then answers 502 for that
   # service, sign-in included, until the entry expires: 6 min 42 s measured
   # after auth moved from .17 to .20. KONG_DNS_VALID_TTL bounds the cache.
-  # 2.8.5, the last 2.8 release, in place of the stack's 2.8.1: same declarative
-  # config format, Alpine 3.18 base in place of 3.16.
+  # 3.9.4 in place of the stack's 2.8.1: kong:2.8.4 and 2.8.5 publish amd64 only.
+  # The image has no /home/kong; Docker creates it as root for the temp.yml mount,
+  # so the stack's ~/kong.yml cannot be written. The rendered config goes in Kong's
+  # prefix, as in upstream's later stack. Kong 3's default access log appends
+  # kong_request_id, which vector.yml's combined parser drops: no edge logs in Studio.
+  # KONG_DNS_NOT_FOUND_TTL: a service just started, such as Studio, answers within 1 s.
   kong:
-    image: kong:2.8.5
+    image: kong:3.9.4
     ports: !reset []
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
       KONG_DNS_VALID_TTL: 5
+      KONG_DNS_NOT_FOUND_TTL: 1
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout combined
+    entrypoint: bash -c 'eval "echo \"$$(cat /home/kong/temp.yml)\"" > /usr/local/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
 
   # Supabase's log collection, Logflare (analytics) and vector, runs only under
   # the `logs` profile (ENABLE_ANALYTICS in .env, `harmony analytics on|off`).
@@ -38,11 +46,19 @@ services:
   # Upstream services wait for it; required: false starts them without it.
   # Without it, Studio's Logs pages are empty and `harmony logs` (Docker's own
   # logs) still shows every service.
+  # Logflare 1.50.15 and vector 0.53.0, upstream's releases. Logflare 1.52 and later break
+  # Studio's log queries on the Postgres backend (logflare#4158). Vector 0.53 refuses the
+  # stack's vector.yml.
   analytics:
+    image: supabase/logflare:1.50.15
     ports: !reset []
     profiles: [logs]
   vector:
+    image: timberio/vector:0.53.0-alpine
     profiles: [logs]
+    volumes: !override
+      - ../vector.yml:/etc/vector/vector.yml:ro,z
+      - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
   db:
     # Parallel VACUUM, CREATE INDEX and hash joins allocate shared memory in
     # /dev/shm, which Docker caps at 64 MB per container. A parallel VACUUM of a
@@ -56,7 +72,12 @@ services:
   # the stack's 2025.06.30 / v0.91.0 (trivy HIGH+CRITICAL: Studio 1221 -> 275, meta 144 -> 82).
   # Studio from 2026 reads the database's address itself and listens on HOSTNAME;
   # meta keeps the stack's supabase_admin connection.
+  # Both run only under the `studio` profile (ENABLE_STUDIO in .env, `harmony studio on|off`).
+  # Kong serves Studio at the root of DB_DOMAIN behind basic-auth, with one shared password and no
+  # rate-limiting plugin, and Studio's SQL editor reaches the whole database. No other service
+  # depends on either; Kong answers 503 on their routes while they are absent.
   studio:
+    profiles: [studio]
     image: supabase/studio:2026.11.02-sha-a05e7ec
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -69,6 +90,7 @@ services:
       PGRST_DB_MAX_ROWS: ${PGRST_DB_MAX_ROWS:-1000}
       PGRST_DB_EXTRA_SEARCH_PATH: ${PGRST_DB_EXTRA_SEARCH_PATH:-public}
   meta:
+    profiles: [studio]
     image: supabase/postgres-meta:v0.100.0
     depends_on:
       analytics: { condition: service_healthy, required: false }
@@ -83,19 +105,41 @@ services:
   # the sixth and every later call within 50 s). Typing indicators track twice per
   # burst, on and off after 3 s idle (TypingIndicatorService), so up to 20 calls in 30 s
   # from one context.
+  # Realtime sleeps CHANNEL_ERROR_BACKOFF_MS, default 5000, on every refused join while the
+  # socket process waits for the reply: joins, leaves, heartbeats and delivery on that socket
+  # queue behind it (measured on v2.148.3 and v2.153.6: delivery gap 5 s per refusal; 100 ms: 0.13 s).
+  # A client past max_channels_per_client rejoins faster than the queue drains and misses
+  # heartbeats.
+  # TENANT_MAX_*: the stack's SEED_SELF_HOST deletes and re-creates the tenant row from these on
+  # every start, so SQL on _realtime.tenants lasts until the next start. All count the whole
+  # instance. Measured on v2.153.6 at the defaults 200 / 100 / 100:
+  # CONCURRENT_USERS, sockets holding a channel: past it HTTP 429 after 2 s and no live delivery.
+  # 9000 stays under the stack's RLIMIT_NOFILE 10000. Memory: about 0.5 MB per socket at 7 topics.
+  # JOINS_PER_SECOND, 60 s average on 5 s ticks: past it joins are refused, the socket is dropped
+  # and handshakes get 429. After a restart 1000 clients at 7 topics: 0 of 1000 rejoined in 240 s.
+  # EVENTS_PER_SECOND, 60 s average of realtime.send rows, client sends and deliveries, 1 + subscribers
+  # per message: past it every realtime.send is dropped for up to 60 s and channels close on their
+  # next delivery. Editing a server writes one row per member.
   realtime:
-    image: ${REALTIME_IMAGE:-supabase/realtime:v2.148.3}
+    image: ${REALTIME_IMAGE:-supabase/realtime:v2.153.6}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
       METRICS_JWT_SECRET: ${JWT_SECRET}
       CLIENT_PRESENCE_MAX_CALLS: "60"
       CLIENT_PRESENCE_WINDOW_MS: "30000"
+      CHANNEL_ERROR_BACKOFF_MS: "100"
+      TENANT_MAX_CONCURRENT_USERS: "9000"
+      TENANT_MAX_JOINS_PER_SECOND: "100000"
+      TENANT_MAX_EVENTS_PER_SECOND: "1000000"
 
   # PostgREST copies its app settings into every request transaction; with this
   # one, any SQL run through the API can read the JWT secret as
   # current_setting('app.settings.jwt_secret'). No function reads it.
+  # POSTGREST_IMAGE: set by configure.sh only for a JWT secret under 32 characters,
+  # which PostgREST 13 and later refuse at startup.
   rest:
+    image: ${POSTGREST_IMAGE:-postgrest/postgrest:v14.18}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
@@ -106,20 +150,20 @@ services:
   # recreates storage and writes the same number into
   # instance_config.upload_ceiling_bytes, above which no upload limit goes.
   storage:
-    image: ${STORAGE_IMAGE:-supabase/storage-api:v1.89.12}
+    image: ${STORAGE_IMAGE:-supabase/storage-api:v1.90.0}
     environment:
       FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
 
   # Animated emoji and large images: frames count toward the source resolution
-  # limit (megapixels). v4.0.21, upstream's release with storage-api v1.89.12, in place
-  # of the stack's v3.8.0: it decodes every uploaded image. v4 drops the
+  # limit (megapixels). v4.0.22 in place of the stack's v3.8.0: it decodes every
+  # uploaded image. v4 drops the
   # IMGPROXY_ENABLE_WEBP_DETECTION name the stack sets; IMGPROXY_AUTO_WEBP carries its value.
   # From v3.12 a source outside IMGPROXY_PREFERRED_FORMATS (default jpeg,png,gif) is
   # re-encoded when the request names no format and the client does not take WebP:
   # WebP became JPEG (alpha lost) and animated WebP became GIF. webp and avif in the
   # list keep them, as v3.8 did.
   imgproxy:
-    image: darthsim/imgproxy:v4.0.21
+    image: darthsim/imgproxy:v4.0.22
     environment:
       IMGPROXY_AUTO_WEBP: ${IMGPROXY_ENABLE_WEBP_DETECTION:-true}
       IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif
@@ -154,11 +198,30 @@ services:
   # password is submitted. GoTrue's own link is a GET of /auth/v1/verify, which
   # spends the token for the first fetcher, mail scanners included.
   # MAILER_TEMPLATES_INVITE / MAILER_TEMPLATES_RECOVERY in supabase/.env replace them.
+  #
+  # Client address: with GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED GoTrue's per-IP limiters and
+  # hook metadata read Sb-Forwarded-For, which Caddy overwrites on DB_DOMAIN. Kong forwards
+  # it unchanged, replaces X-Real-IP with its peer and appends to X-Forwarded-For, whose first
+  # value (what GoTrue otherwise reads) a client chooses. The header turns on GoTrue's per-IP limits
+  # on sign-in, /verify, /recover, /otp and MFA; without it they do not run, which is what a
+  # request of the instance's own services, a private client and a token refresh get.
+  # GOTRUE_RATE_LIMIT_HEADER is unset: it applies only without the header. Limits per address are
+  # GoTrue's defaults; RATE_LIMIT_OTP also sets recover, resend, magic link, OTP and PUT /user.
+  # RATE_LIMIT_EMAIL_SENT: one budget per hour for all mail of the instance (mail.go sendEmail, when
+  # autoconfirm is off), default 30, so one burst blocks other people's confirmations and resets. 28
+  # sign-ups in one hour were measured on prod.
+  # Hook: public.before_user_created_hook (20261109100001), which refuses sign-ups by the limits
+  # in Admin, Invites. update.sh migrates before it recreates this service; a missing
+  # function fails every sign-up.
   auth:
     image: ${GOTRUE_IMAGE:-supabase/gotrue:v2.197.0}
     depends_on:
       analytics: { condition: service_healthy, required: false }
     environment:
+      GOTRUE_SECURITY_SB_FORWARDED_FOR_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true"
+      GOTRUE_HOOK_BEFORE_USER_CREATED_URI: pg-functions://postgres/public/before_user_created_hook
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${RATE_LIMIT_EMAIL_SENT:-100}
       GOTRUE_CUSTOM_OAUTH_ENABLED: "true"
       GOTRUE_CUSTOM_OAUTH_EXTERNAL_URL: ${API_EXTERNAL_URL}/auth/v1
       GOTRUE_EXPERIMENTAL_PROVIDER_LINKING_DOMAINS: ${PROVIDER_LINKING_DOMAINS:-}

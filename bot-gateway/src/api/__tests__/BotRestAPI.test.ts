@@ -429,6 +429,7 @@ describe('POST /channels/:id/messages file parts', () => {
   it('stores audio and Discord sticker parts as sent, without a bot-supplied path', async () => {
     const inserts = captureInserts('messages', {
       ...OPEN_CHANNEL_FIXTURES,
+      bots: { data: { id: BOT_ID, bridge_platform: null }, error: null },
       channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
       instance_config: { data: { config_value: '"link"' }, error: null },
       bot_audit_log: { data: null, error: null },
@@ -594,6 +595,15 @@ describe('server routes', () => {
       expect(calls).toContainEqual(['gt', ['user_id', ALICE]])
       expect(calls).toContainEqual(['limit', [2]])
       expect(JSON.stringify(calls)).not.toContain('joined_at')
+    })
+
+    it('reads at most 1000 members a page and defaults a malformed limit to 100', async () => {
+      const calls = recordCalls('user_servers', { ...INSTALLED, user_servers: { data: [], error: null } })
+      const app = makeApp()
+      await supertest(app).get(`/api/v1/servers/${SERVER_ID}/members?limit=5000`)
+      await supertest(app).get(`/api/v1/servers/${SERVER_ID}/members?limit=ten`)
+
+      expect(calls.filter(([method]) => method === 'limit')).toEqual([['limit', [1000]], ['limit', [100]]])
     })
 
     it('orders by user id without a cursor', async () => {

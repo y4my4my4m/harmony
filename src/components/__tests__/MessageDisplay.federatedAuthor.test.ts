@@ -27,8 +27,7 @@ function loose<T extends object>(fields: T): T {
   })
 }
 
-// Answers the bot lookup of a bot row; an unanswered lookup re-renders the row without end.
-// Every other call resolves to no data.
+// Answers the bot lookup of a bot row. Every other call resolves to no data.
 vi.mock('@/supabase', () => {
   const bots: Record<string, object> = { 'bot-1': { id: 'bot-1', username: 'botty', display_name: 'Botty', avatar_url: '' } }
   const empty = (): unknown => new Proxy(function () {}, {
@@ -39,7 +38,7 @@ vi.mock('@/supabase', () => {
   })
   const botQuery = {
     select: () => botQuery,
-    eq: (_column: string, id: string) => ({ single: async () => ({ data: bots[id] ?? null, error: null }) }),
+    eq: (_column: string, id: string) => ({ maybeSingle: async () => ({ data: bots[id] ?? null, error: null }) }),
   }
   return { supabase: new Proxy({}, { get: (_t, key) => key === 'from' ? (table: string) => (table === 'bots' ? botQuery : empty()) : empty() }) }
 })

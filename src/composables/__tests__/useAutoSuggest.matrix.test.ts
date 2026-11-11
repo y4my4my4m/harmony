@@ -18,7 +18,12 @@ vi.mock('@/composables/useChannelMessagePermissions', () => ({ useChannelMessage
 vi.mock('@/composables/useServerPermissions', () => ({ useServerPermissions: () => ({ hasCurrentUserPermission: () => false, Permission: {}, isCurrentUserServerOwner: () => false }) }))
 vi.mock('@/composables/useEmojiLoader', () => ({ ensureEmojiDataLoaded: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/services/unifiedEmojiService', () => ({ useUnifiedEmoji: () => ({ isLoaded: ref(true), isNativePack: ref(true), getSvgUrl: () => null, searchEmojis: () => [] }) }))
-vi.mock('@/services/instanceConfig', () => ({ apiUrl: (path: string) => path }))
+vi.mock('@/services/instanceConfig', () => ({
+  apiUrl: (path: string) => path,
+  getStoredInstance: () => null,
+  isTauriRuntime: () => false,
+  refreshStoredInstance: async () => null,
+}))
 vi.mock('@/services/bridgedChannelUsersService', async original => ({ ...await original<typeof import('@/services/bridgedChannelUsersService')>(), fetchBridgedChannelUsers: fetchUsers }))
 vi.mock('@/supabase', () => ({ supabase: { from: () => {
   const q: any = { select: () => q, eq: () => q, then: (resolve: any) => resolve({ data: [{ bot: { bot_type: 'bridge' } }], error: null }) }; return q

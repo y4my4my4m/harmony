@@ -132,6 +132,22 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, p
                     WHERE c.id = p_channel_id AND us.user_id = p_user_id AND us.status = 'accepted' AND NOT us.bridge_opt_out);
 $$;
 
+-- Trusted interaction replies speak for their native invoker, not for their bot.
+-- Pure extraction only: membership and consent are always queried by the recipient filters.
+-- CASE protects the UUID cast even if SQL predicates are reordered by the planner.
+CREATE FUNCTION public.bridge_native_source_user_id(p_user_id uuid, p_bot_id uuid, p_metadata jsonb)
+RETURNS uuid LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS $$
+    SELECT CASE
+      WHEN p_user_id IS NOT NULL THEN p_user_id
+      WHEN p_bot_id IS NOT NULL
+       AND jsonb_typeof(p_metadata->'interaction') = 'object'
+       AND jsonb_typeof(p_metadata #> '{interaction,user_id}') = 'string'
+       AND (p_metadata #>> '{interaction,user_id}') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN (p_metadata #>> '{interaction,user_id}')::uuid
+    END;
+$$;
+REVOKE ALL ON FUNCTION public.bridge_native_source_user_id(uuid,uuid,jsonb) FROM PUBLIC, anon, authenticated, service_role;
+
 -- Return only IDs; these are additional consent filters, not substitutes for channel permissions.
 -- Preserve input order, deduplicate, ignore missing bots/messages. Ordinary bots are unaffected.
 CREATE FUNCTION public.bridge_visible_message_ids(p_bot_id uuid, p_message_ids uuid[])
@@ -140,9 +156,11 @@ RETURNS uuid[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg
       SELECT m.id, min(input.position) AS first_position
         FROM unnest(p_message_ids) WITH ORDINALITY input(id, position)
         JOIN public.messages m ON m.id = input.id JOIN public.bots b ON b.id = p_bot_id
-       WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL) OR m.user_id IS NULL
+       WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL)
+          OR (m.user_id IS NULL AND (m.bot_id IS NULL OR NOT (COALESCE(m.metadata, '{}'::jsonb) ? 'interaction')))
           OR public.can_bridge_member_messages(b.id, COALESCE(m.channel_id,
-                (SELECT t.channel_id FROM public.threads t WHERE t.id = m.thread_id)), m.user_id)
+                (SELECT t.channel_id FROM public.threads t WHERE t.id = m.thread_id)),
+                public.bridge_native_source_user_id(m.user_id, m.bot_id, m.metadata))
        GROUP BY m.id
     ) visible;
 $$;
@@ -153,9 +171,11 @@ RETURNS uuid[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg
       SELECT b.id, min(input.position) AS first_position
         FROM unnest(p_bot_ids) WITH ORDINALITY input(id, position)
         JOIN public.bots b ON b.id = input.id JOIN public.messages m ON m.id = p_message_id
-       WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL) OR m.user_id IS NULL
+       WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL)
+          OR (m.user_id IS NULL AND (m.bot_id IS NULL OR NOT (COALESCE(m.metadata, '{}'::jsonb) ? 'interaction')))
           OR public.can_bridge_member_messages(b.id, COALESCE(m.channel_id,
-                (SELECT t.channel_id FROM public.threads t WHERE t.id = m.thread_id)), m.user_id)
+                (SELECT t.channel_id FROM public.threads t WHERE t.id = m.thread_id)),
+                public.bridge_native_source_user_id(m.user_id, m.bot_id, m.metadata))
        GROUP BY b.id
     ) visible;
 $$;
@@ -169,6 +189,39 @@ RETURNS uuid[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg
         JOIN public.bots b ON b.id = input.id
        WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL) OR p_user_id IS NULL
           OR public.can_bridge_member_messages(b.id, p_channel_id, p_user_id)
+       GROUP BY b.id
+    ) visible;
+$$;
+
+-- A complete bounded source survives parent deletion. Missing/unavailable source is not
+-- equivalent to a known system/bot row with no native author. Only ordinary bots bypass it.
+CREATE FUNCTION public.bridge_source_recipients(p_bot_ids uuid[], p_channel_id uuid, p_source jsonb)
+RETURNS uuid[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH source AS (
+      SELECT jsonb_typeof(p_source) = 'object'
+         AND p_source ?& ARRAY['user_id', 'bot_id', 'metadata']
+         AND (jsonb_typeof(p_source->'user_id') = 'null' OR
+              (jsonb_typeof(p_source->'user_id') = 'string' AND p_source->>'user_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+         AND (jsonb_typeof(p_source->'bot_id') = 'null' OR
+              (jsonb_typeof(p_source->'bot_id') = 'string' AND p_source->>'bot_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+         AND jsonb_typeof(p_source->'metadata') IN ('null', 'object') AS valid,
+         CASE WHEN jsonb_typeof(p_source->'user_id') = 'string'
+                   AND p_source->>'user_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              THEN (p_source->>'user_id')::uuid END AS user_id,
+         CASE WHEN jsonb_typeof(p_source->'bot_id') = 'string'
+                   AND p_source->>'bot_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+              THEN (p_source->>'bot_id')::uuid END AS bot_id,
+         p_source->'metadata' AS metadata
+    )
+    SELECT COALESCE(array_agg(id ORDER BY first_position), '{}'::uuid[]) FROM (
+      SELECT b.id, min(input.position) AS first_position
+        FROM unnest(p_bot_ids) WITH ORDINALITY input(id, position)
+        JOIN public.bots b ON b.id = input.id CROSS JOIN source s
+       WHERE (b.bot_type <> 'bridge' AND b.bridge_platform IS NULL)
+          OR (s.valid AND (
+               (s.user_id IS NULL AND (s.bot_id IS NULL OR NOT (COALESCE(s.metadata, '{}'::jsonb) ? 'interaction')))
+               OR public.can_bridge_member_messages(b.id, p_channel_id,
+                    public.bridge_native_source_user_id(s.user_id, s.bot_id, s.metadata))))
        GROUP BY b.id
     ) visible;
 $$;
@@ -228,7 +281,8 @@ BEGIN
     FOREACH fn IN ARRAY ARRAY[
       'public.bridge_channel_platform(uuid,uuid)', 'public.can_bridge_member_messages(uuid,uuid,uuid)',
       'public.bridge_visible_message_ids(uuid,uuid[])', 'public.bridge_message_recipients(uuid[],uuid)',
-      'public.bridge_member_recipients(uuid[],uuid,uuid)']::regprocedure[] LOOP
+      'public.bridge_member_recipients(uuid[],uuid,uuid)',
+      'public.bridge_source_recipients(uuid[],uuid,jsonb)']::regprocedure[] LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role', fn);
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
     END LOOP;

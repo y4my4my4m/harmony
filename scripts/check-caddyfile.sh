@@ -24,7 +24,7 @@ err() { printf '\033[31mFAIL\033[0m %s\n' "$*" >&2; }
 
 remove_containers() {
   docker rm -f "$PREFIX" "$PREFIX-stub" >/dev/null 2>&1 || true
-  docker network rm "$PREFIX-net" >/dev/null 2>&1 || true
+  docker network rm "$PREFIX-net" "$PREFIX-cf" "$PREFIX-public" "$PREFIX-front" >/dev/null 2>&1 || true
 }
 cleanup() { remove_containers; rm -rf "$WORK"; }
 trap cleanup EXIT
@@ -47,6 +47,10 @@ server {
 }
 server {
     listen 8000;
+    location ~ ^/auth/v1/(__headers|token)$ {
+        default_type text/plain;
+        return 200 "sbff=[$http_sb_forwarded_for]\n";
+    }
     location / {
         default_type text/plain;
         return 200 "kong $request_method $request_uri\n";
@@ -69,7 +73,7 @@ docker run -d --name "$PREFIX-stub" --network "$PREFIX-net" \
 docker run -d --name "$PREFIX" --network "$PREFIX-net" --add-host "$DOMAIN:127.0.0.1" \
   --add-host "db.$DOMAIN:127.0.0.1" \
   -e DOMAIN="$DOMAIN" -e DB_DOMAIN="db.$DOMAIN" -e LIVEKIT_DOMAIN="live.$DOMAIN" \
-  -e CADDY_TLS=internal -e ENABLE_VOICE=false \
+  -e CADDY_TLS=internal -e ENABLE_VOICE=false -e CADDY_TRUSTED_PROXIES=192.0.2.128/25 \
   -v "$ROOT/self-host/Caddyfile:/etc/caddy/Caddyfile:ro" "$IMAGE" >/dev/null
 
 # caddy adapt parses without provisioning: a validate beside the running server races it for
@@ -90,6 +94,22 @@ expect() {
     printf 'ok   %-28.28s %s -> %s\n' "$1" "$2" "$got"
   else
     err "Accept $1 $2: expected '$3', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# expect_frame_header <path> <present|absent>: X-Frame-Options on the response.
+expect_frame_header() {
+  local headers='' state=absent
+  for _ in $(seq 1 20); do
+    headers="$(docker exec "$PREFIX" wget -S -q -O /dev/null --no-check-certificate "https://$DOMAIN$1" 2>&1)" && [ -n "$headers" ] && break
+    sleep 0.5
+  done
+  printf '%s' "$headers" | grep -qi 'x-frame-options' && state=present
+  if [ "$state" = "$2" ]; then
+    printf 'ok   X-Frame-Options %-12.12s %s\n' "$2" "$1"
+  else
+    err "$1: X-Frame-Options expected $2, was $state"
     FAILED=$((FAILED + 1))
   fi
 }
@@ -251,6 +271,58 @@ expect_db -- '/rest/v1/profiles?select=id' 'kong GET /rest/v1/profiles?select=id
 expect_db --post-data x -- $OBJ "kong POST $OBJ"
 expect_db -- /storage/v1/object/public/message_media/c/a.png "kong GET /storage/v1/object/public/message_media/c/a.png"
 expect_db -- /storage/v1/render/image/public/message_media/c/a.png "kong GET /storage/v1/render/image/public/message_media/c/a.png"
+
+# Sb-Forwarded-For at Kong, by the network a client connects from. Throwaway networks; a peer in
+# 173.245.48.0/24 stands in for a Cloudflare edge and one in 192.0.2.128/25 for a proxy named by
+# CADDY_TRUSTED_PROXIES. Every client sends a forged Sb-Forwarded-For.
+# expect_client <network> <subnet> <client address> <expected body> [wget args]
+expect_client() {
+  local net="$PREFIX-$1" subnet="$2" client="$3" want="$4" got='' ip
+  shift 4
+  docker network inspect "$net" >/dev/null 2>&1 || docker network create --subnet "$subnet" "$net" >/dev/null
+  docker network connect "$net" "$PREFIX"
+  ip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$net\").IPAddress}}" "$PREFIX")"
+  for _ in $(seq 1 10); do
+    got="$(docker run --rm --network "$net" --ip "$client" --add-host "db.$DOMAIN:$ip" "$STUB_IMAGE" \
+      wget -q -O - --no-check-certificate --header 'Sb-Forwarded-For: 198.51.100.1' "$@" \
+      "https://db.$DOMAIN${PROBE_PATH:-/auth/v1/__headers}" 2>/dev/null | head -1)" && [ -n "$got" ] && break
+    sleep 0.5
+  done
+  if [ "$got" = "$want" ]; then
+    printf 'ok   %-28.28s %s\n' "$subnet" "$got"
+  else
+    err "client on $subnet: expected '$want', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+  docker network disconnect "$net" "$PREFIX"
+}
+expect_client cf 173.245.48.0/24 173.245.48.50 'sbff=[203.0.113.9]' --header 'X-Forwarded-For: 198.51.100.2, 203.0.113.9'
+expect_client public 192.0.2.0/25 192.0.2.50 'sbff=[192.0.2.50]' --header 'X-Forwarded-For: 203.0.113.9'
+expect_client front 192.0.2.128/25 192.0.2.150 'sbff=[203.0.113.9]' --header 'X-Forwarded-For: 198.51.100.2, 203.0.113.9'
+# A token refresh carries no address; every other query, and a password sign-in, does.
+PROBE_PATH='/auth/v1/token?grant_type=refresh_token' expect_client public 192.0.2.0/25 192.0.2.50 'sbff=[]'
+PROBE_PATH='/auth/v1/token?grant_type=password' expect_client public 192.0.2.0/25 192.0.2.50 'sbff=[192.0.2.50]'
+PROBE_PATH='/auth/v1/token?grant_type=refresh_token&grant_type=password' expect_client public 192.0.2.0/25 192.0.2.50 'sbff=[192.0.2.50]'
+PROBE_PATH='/auth/v1/token?GRANT_TYPE=refresh_token' expect_client public 192.0.2.0/25 192.0.2.50 'sbff=[192.0.2.50]'
+# A private peer is a proxy on this host or LAN: it names the client, or is the client itself.
+expect_private() {
+  local want="$1" got
+  shift
+  got="$(docker exec "$PREFIX" wget -q -O - --no-check-certificate --header 'Sb-Forwarded-For: 198.51.100.1' "$@" \
+    "https://db.$DOMAIN/auth/v1/__headers" 2>/dev/null | head -1)"
+  if [ "$got" = "$want" ]; then
+    printf 'ok   %-28.28s %s\n' 'private peer' "$got"
+  else
+    err "private peer: expected '$want', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+expect_private 'sbff=[203.0.113.9]' --header 'X-Forwarded-For: 198.51.100.2, 203.0.113.9'
+expect_private 'sbff=[]'
+
+# Invite widgets are framed by other sites; their page carries frame-ancestors instead.
+expect_frame_header /api/federation/widget/invite/ABCD1234 absent
+expect_frame_header /api/federation/instance-info present
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
 log "self-host/Caddyfile routes the ActivityPub-only paths to the federation backend"

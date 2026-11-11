@@ -24,6 +24,36 @@ export async function memberRecipients(botIds: string[], channelId: string, user
   return botIds.filter(id => allowed.has(id))
 }
 
+export interface MessagePrivacySource {
+  user_id?: string | null
+  bot_id?: string | null
+  metadata?: unknown
+}
+
+/** Retain attribution, not message content or unrelated metadata, across hard deletes. */
+export function messagePrivacySource(source: MessagePrivacySource | null | undefined): MessagePrivacySource | null {
+  if (!source || source.user_id === undefined || source.bot_id === undefined || source.metadata === undefined) return null
+  const metadata = source.metadata
+  if (metadata != null && (typeof metadata !== 'object' || Array.isArray(metadata))) return null
+  const hasInteraction = !!metadata && Object.hasOwn(metadata, 'interaction')
+  const interaction = hasInteraction ? (metadata as Record<string, unknown>).interaction : undefined
+  return {
+    user_id: source.user_id ?? null,
+    bot_id: source.bot_id ?? null,
+    metadata: hasInteraction ? {
+      interaction: interaction && typeof interaction === 'object' && !Array.isArray(interaction)
+        ? { user_id: (interaction as Record<string, unknown>).user_id ?? null } : null,
+    } : {},
+  }
+}
+
+export async function sourceRecipients(botIds: string[], channelId: string, source: MessagePrivacySource | null | undefined): Promise<string[]> {
+  const allowed = await allowedIds('bridge_source_recipients', {
+    p_bot_ids: botIds, p_channel_id: channelId, p_source: messagePrivacySource(source),
+  }, botIds)
+  return botIds.filter(id => allowed.has(id))
+}
+
 export async function bridgeChannelPlatform(botId: string, channelId: string): Promise<'matrix' | 'discord' | null> {
   const { data, error } = await supabase.rpc('bridge_channel_platform', { p_bot_id: botId, p_channel_id: channelId })
   if (error || (data !== null && data !== 'matrix' && data !== 'discord')) throw new Error('Bridge registration unavailable')

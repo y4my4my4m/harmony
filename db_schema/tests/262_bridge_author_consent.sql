@@ -106,6 +106,44 @@ INSERT INTO public.messages(id,channel_id,user_id,content) VALUES
 INSERT INTO public.messages(id,channel_id,bot_id,content) VALUES
  (pg_temp.bid('bot-message'),pg_temp.bid('channel'),pg_temp.bid('plain'),'[{"type":"text","text":"ordinary bot"}]');
 
+-- Public callbacks retain the native invoker's current consent despite user_id being NULL.
+INSERT INTO public.messages(id,channel_id,bot_id,content,metadata) VALUES
+ (pg_temp.bid('interaction-reply'),pg_temp.bid('channel'),pg_temp.bid('plain'),'[{"type":"text","text":"weather callback"}]',
+  jsonb_build_object('interaction',jsonb_build_object('id',pg_temp.bid('interaction'),'name','weather','user_id','22222222-0000-0000-0000-000000000002')));
+INSERT INTO public.messages(id,channel_id,user_id,content,metadata) VALUES
+ (pg_temp.bid('native-precedence'),pg_temp.bid('channel'),'11111111-0000-0000-0000-000000000001','[{"type":"text","text":"native source wins"}]',
+  '{"interaction":{"user_id":"22222222-0000-0000-0000-000000000002"}}');
+CREATE TEMP TABLE interaction_cases(k text PRIMARY KEY,metadata jsonb);
+GRANT SELECT ON interaction_cases TO service_role;
+INSERT INTO interaction_cases VALUES
+ ('missing-user','{"interaction":{"name":"weather"}}'),
+ ('null-user','{"interaction":{"user_id":null}}'),
+ ('bad-user','{"interaction":{"user_id":"not-a-uuid"}}'),
+ ('numeric-user','{"interaction":{"user_id":42}}'),
+ ('object-user','{"interaction":{"user_id":{}}}'),
+ ('array-user','{"interaction":{"user_id":[]}}'),
+ ('null-interaction','{"interaction":null}'),
+ ('array-interaction','{"interaction":[]}'),
+ ('string-interaction','{"interaction":"not-an-object"}'),
+ ('unknown-invoker','{"interaction":{"user_id":"ffffffff-ffff-ffff-ffff-ffffffffffff"}}');
+INSERT INTO public.messages(id,channel_id,bot_id,content,metadata)
+ SELECT pg_temp.bid('interaction-'||k),pg_temp.bid('channel'),pg_temp.bid('plain'),'[{"type":"text","text":"invalid callback"}]',metadata FROM interaction_cases;
+CREATE FUNCTION pg_temp.bridge_source(message_id uuid) RETURNS jsonb LANGUAGE sql AS $$
+ SELECT jsonb_build_object('user_id',m.user_id,'bot_id',m.bot_id,'metadata',m.metadata) FROM public.messages m WHERE m.id=message_id;
+$$;
+CREATE TEMP TABLE callback_snapshot AS SELECT pg_temp.bridge_source(pg_temp.bid('interaction-reply')) AS source;
+GRANT SELECT ON callback_snapshot TO service_role;
+SET LOCAL ROLE service_role;
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('interaction-reply')]),ARRAY[pg_temp.bid('interaction-reply')],'consenting invoker callback is initially visible in history');
+SELECT is(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('interaction-reply')),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'consenting invoker callback initially reaches ordinary and bridge live recipients');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'consenting callback snapshot supports reaction/delete delivery');
+SELECT ok(NOT has_function_privilege('authenticated','public.bridge_native_source_user_id(uuid,uuid,jsonb)','EXECUTE')
+ AND NOT has_function_privilege('service_role','public.bridge_native_source_user_id(uuid,uuid,jsonb)','EXECUTE'),'source extraction is private, not a public RPC');
+SELECT ok(NOT has_function_privilege('authenticated','public.bridge_source_recipients(uuid[],uuid,jsonb)','EXECUTE')
+ AND NOT has_function_privilege('anon','public.bridge_source_recipients(uuid[],uuid,jsonb)','EXECUTE')
+ AND has_function_privilege('service_role','public.bridge_source_recipients(uuid[],uuid,jsonb)','EXECUTE'),'source snapshot filtering is service only');
+RESET ROLE;
+
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('server'),true),true,'member opts out');
 SELECT is(public.get_server_bridge_opt_out(pg_temp.bid('server')),true,'preference persisted');
@@ -132,16 +170,48 @@ SELECT is(public.bridge_member_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bi
 SELECT is(public.bridge_member_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('missing'),pg_temp.bid('legacy'),pg_temp.bid('matrix')],pg_temp.bid('channel'),NULL),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'null system/bot source unchanged, unknown bots ignored and duplicate IDs collapsed');
 SELECT is(public.bridge_member_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain')],pg_temp.bid('channel'),'33333333-0000-0000-0000-000000000003'),ARRAY[pg_temp.bid('plain')],'snapshot recipients fail closed on missing native membership');
 SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('bot-message'),pg_temp.bid('bot-message')]),ARRAY[pg_temp.bid('bot-message')],'non-native rows unaffected and deduplicated');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('interaction-reply')]),'{}'::uuid[],'opt-out after initial visibility hides public callback history');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('legacy'),ARRAY[pg_temp.bid('interaction-reply')]),'{}'::uuid[],'Discord callback history also honors native invoker opt-out');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('plain'),ARRAY[pg_temp.bid('interaction-reply')]),ARRAY[pg_temp.bid('interaction-reply')],'ordinary bot callback access remains unchanged');
+SELECT is(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('interaction-reply')),ARRAY[pg_temp.bid('plain')],'current invoker opt-out hides callback create/update from bridges');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('plain')],'previously retained reaction/delete snapshot rechecks current invoker opt-out');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('native-precedence')]),ARRAY[pg_temp.bid('native-precedence')],'native user_id takes precedence over opted-out metadata claim in history');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),pg_temp.bridge_source(pg_temp.bid('native-precedence'))),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'native user_id takes precedence in source snapshots');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),pg_temp.bridge_source(pg_temp.bid('bot-message'))),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'known bot with absent interaction retains prior visibility');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),'{"user_id":null,"bot_id":null,"metadata":{}}'),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'complete known system row is not an unavailable source');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY(SELECT pg_temp.bid('interaction-'||k) FROM interaction_cases ORDER BY k)),'{}'::uuid[],'all malformed or missing invokers are denied without UUID casts in history');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('plain'),ARRAY(SELECT pg_temp.bid('interaction-'||k) FROM interaction_cases ORDER BY k)),ARRAY(SELECT pg_temp.bid('interaction-'||k) FROM interaction_cases ORDER BY k),'malformed callback metadata does not change ordinary bot visibility');
+SELECT ok(bool_and(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('interaction-'||k))=ARRAY[pg_temp.bid('plain')]),'all malformed/missing invokers fail closed for live bridge recipients') FROM interaction_cases;
+SELECT ok(bool_and(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),pg_temp.bridge_source(pg_temp.bid('interaction-'||k)))=ARRAY[pg_temp.bid('plain')]),'all malformed/missing invokers fail closed in reaction/delete snapshots') FROM interaction_cases;
+SELECT ok(bool_and(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy'),pg_temp.bid('missing')],pg_temp.bid('channel'),source)=ARRAY[pg_temp.bid('plain')]),'unavailable/incomplete/malformed snapshots deny bridges, retain ordinary bots, and never cast invalid UUIDs')
+ FROM (VALUES(NULL::jsonb),('null'::jsonb),('{}'::jsonb),('[]'::jsonb),
+ ('{"user_id":null,"bot_id":null}'::jsonb),
+ ('{"user_id":"not-uuid","bot_id":null,"metadata":{}}'::jsonb),
+ ('{"user_id":null,"bot_id":"not-uuid","metadata":{}}'::jsonb),
+ ('{"user_id":null,"bot_id":null,"metadata":[]}'::jsonb)) invalid(source);
 RESET ROLE;
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('server'),false),false,'member opts back in');
 SELECT tests.clear_authentication();
 SELECT is(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('legacy')],pg_temp.bid('bob-message')),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('legacy')],'opt-in takes effect immediately in recipient batch');
 SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('bob-message')]),ARRAY[pg_temp.bid('bob-message')],'ID filter agrees with batch');
+SELECT is(public.bridge_visible_message_ids(pg_temp.bid('matrix'),ARRAY[pg_temp.bid('interaction-reply')]),ARRAY[pg_temp.bid('interaction-reply')],'callback history becomes visible immediately after invoker opt-in');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'retained callback snapshot becomes allowed immediately after invoker opt-in');
 SELECT is(public.bridge_member_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),'22222222-0000-0000-0000-000000000002'),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'snapshot recipients include opted-in member for normal and bridge bots');
 UPDATE public.user_servers SET status='pending' WHERE user_id='22222222-0000-0000-0000-000000000002' AND server_id=pg_temp.bid('server');
 SELECT is(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain')],pg_temp.bid('bob-message')),ARRAY[pg_temp.bid('plain')],'pending native member fails closed for bridges');
+SELECT is(public.bridge_message_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain')],pg_temp.bid('interaction-reply')),ARRAY[pg_temp.bid('plain')],'pending callback invoker fails closed despite bot authorship');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('plain')],'callback source snapshot rechecks current accepted membership');
 UPDATE public.user_servers SET status='accepted' WHERE user_id='22222222-0000-0000-0000-000000000002' AND server_id=pg_temp.bid('server');
+DELETE FROM public.messages WHERE id=pg_temp.bid('interaction-reply');
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],'reaction/delete snapshot remains usable after parent callback is deleted');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('server'),true),true,'deleted callback invoker opts out after snapshot capture');
+SELECT tests.clear_authentication();
+SELECT is(public.bridge_source_recipients(ARRAY[pg_temp.bid('matrix'),pg_temp.bid('plain'),pg_temp.bid('legacy')],pg_temp.bid('channel'),(SELECT source FROM callback_snapshot)),ARRAY[pg_temp.bid('plain')],'deleted-parent snapshot rechecks current opt-out without querying the deleted message');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('server'),false),false,'restore consent after deleted-parent regression');
+SELECT tests.clear_authentication();
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('other'),true),true,'owner may opt out in Discord v2 server');

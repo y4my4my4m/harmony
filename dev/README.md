@@ -138,7 +138,7 @@ LIVEKIT_API_SECRET=secret
 LIVEKIT_URL=ws://harmony-livekit:7880
 LIVEKIT_PUBLIC_URL=wss://live.mony.local
 WEBRTC_MODE=hybrid
-ALLOW_FEDERATED_VOICE=false
+ALLOW_FEDERATED_VOICE=true
 ```
 
 ## Troubleshooting

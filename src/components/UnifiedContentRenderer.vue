@@ -208,6 +208,7 @@
 </template>
 
 <script setup lang="ts">
+import { unescapeMarkup } from '@/utils/markupEscapes';
 import { computed, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { MessagePart } from '@/types';
@@ -541,7 +542,7 @@ const renderTextWithMarkdown = (text: string | undefined): string => {
   // Escape the raw user text before any other transform. Every transform below
   // operates on already-escaped text and splices in trusted tags only, so
   // user-supplied HTML (e.g. `<style>`, `<img onerror=...>`) cannot survive.
-  let rendered = escapeHtml(text);
+  let rendered = escapeHtml(unescapeMarkup(text));
 
   // Splice in emoji <img>/<span> markup from trusted sources.
   if (!isNativePack.value && emojiServiceLoaded.value) {

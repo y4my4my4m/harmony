@@ -44,7 +44,7 @@ export async function verifiedSigner(req: Request): Promise<string | null> {
   // host within the Date window; Mastodon's signed GETs always cover it. An
   // RFC 9421 signature (Signature-Input) must cover @method and the target,
   // which verifySignature enforces.
-  if (typeof req.headers['signature-input'] !== 'string') {
+  if (!req.headers['signature-input']) {
     const covered = /headers="([^"]*)"/i.exec(signature)?.[1].toLowerCase().split(/\s+/) ?? [];
     if (!covered.includes('(request-target)')) return null;
   }

@@ -63,6 +63,8 @@ Open the server menu (click the server name at the top of the channel list) and 
 | **Private channel** | "Only the roles you choose, the owner and administrators can see it." Tick the roles under **Who can see it**. |
 | **End-to-end encryption** | Shown when the server's encryption mode allows it. On and locked when the server requires encryption. |
 
+Who is in a private voice channel updates as it happens for up to 60 such channels of a server. Past 60, the others update every 30 seconds.
+
 ### Edit a channel
 
 Right-click the channel and select **Edit channel**.
@@ -101,6 +103,12 @@ Invites are links of the form `https://<instance>/invite/<code>`. Creating them 
 Open the server menu and select **Get invite link**, or right-click a text channel or the server's icon and select **Invite people**. "Anyone with the link can join this server." If you have no active link, one is created. Use **Copy** or **Share**.
 
 A server invite does not make an account. Someone without one signs up first; on an instance where sign-up is invite only, an instance admin invites them under **Instance admin** → **Invites** ([Invite someone](/self-host/install#invite-someone)).
+
+### Add an invite to your website
+
+In the invite dialog select **Add to your website**. It gives a badge, a Markdown badge for READMEs and forums, a join button, a small icon and a card in a frame. Copy one and paste it into your page. Each shows the server's name and its member or online count, which anyone holding the link can see, and links to this invite.
+
+Use a link set to never expire with no use limit. When a link stops working, the widget says so and names no server.
 
 ### Link settings
 

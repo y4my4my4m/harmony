@@ -62,13 +62,18 @@
 // (cases/federationSwitches.ts).
 // A sticker leaves as a rawContent part beside its image and a described Document, arrives on a
 // copy as the peer's sticker, and crosses in DMs by harmony:sticker (cases/stickers.ts).
+// A remote stranger's DM stops at the recipient's setting (cases/dmPolicy.ts).
 // A chat poll is held by the server's host or the DM's author; copies take its counts, and votes
 // are Mastodon's vote Notes, each way (cases/polls.ts).
 // A server's pins, roles, members' roles and channel order, and the instance staff role on an
 // actor, reach the member instance's copy, each way (cases/copyDisplay.ts).
+// A channel's encryption and privacy reach the copy each way, and a host refuses another instance's
+// join to an encrypted voice channel (cases/channelHostFlags.ts).
 // A member's activities reach the other member instances as the Group's
 // Announce, with a third instance each way (cases/groupRelay.ts), and threads
 // are dereferenced under their channel's read rules (cases/threadRoutes.ts).
+// What a signed activity may name against what it acts on, hosting and reading (cases/inboundAuthority.ts).
+// What a client or anonymous caller may name, under RLS and through the routes (cases/clientAuthority.ts).
 // A thread emptied by a deletion goes with its last message here and leaves as the Group's
 // Delete; a copy's thread waits for its Group's Delete (cases/emptyThread.ts).
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
@@ -127,6 +132,7 @@ import { caseEmptyThread } from './cases/emptyThread.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
 import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
+import { caseAccountMoveImport } from './cases/accountMoveImport.ts'
 import { caseMemberRemoval } from './cases/memberRemoval.ts'
 import { caseSystemEvents } from './cases/systemEvents.ts'
 import { caseGroupAuthored } from './cases/groupAuthored.ts'
@@ -136,11 +142,17 @@ import { caseServerReports } from './cases/serverReports.ts'
 import { caseHostStaff } from './cases/hostStaff.ts'
 import { caseInstanceServerTools } from './cases/instanceServerTools.ts'
 import { caseCopyDisplay } from './cases/copyDisplay.ts'
+import { caseChannelHostFlags } from './cases/channelHostFlags.ts'
 import { caseStickers } from './cases/stickers.ts'
 import { caseDiscovery } from './cases/discovery.ts'
 import { caseRemoteInviteCard } from './cases/remoteInviteCard.ts'
 import { caseSocial } from './cases/social.ts'
 import { casePolls } from './cases/polls.ts'
+import { caseDmPolicy } from './cases/dmPolicy.ts'
+import { caseInboundAuthority } from './cases/inboundAuthority.ts'
+import { caseClientAuthority } from './cases/clientAuthority.ts'
+import { caseClaimedFields } from './cases/claimedFields.ts'
+import { caseRoomBoundaries } from './cases/roomBoundaries.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2016,6 +2028,32 @@ async function caseRemoteVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: str
     { who: 'the peer\'s member', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
     'the peer\'s voice channel',
   )
+
+  // A refusal comes from the host's instance actor, not a member of the server.
+  const hostActor = { key: peer.instanceKey.privateKey, actor: peer.instanceActorUrl }
+  const refuse = (object: unknown) => peerSends(peer, `${localUrl}/inbox`, {
+    type: 'harmony:VoiceChannelJoinReject',
+    id: `${peer.instanceActorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.instanceActorUrl,
+    to: [LOCAL_BOB],
+    object,
+    reason: 'Not authorized for this room',
+  }, hostActor)
+  const refusedAs = async (id: unknown) =>
+    (await userEvents(db, BOB, 'federated_voice:rejected')).filter((r) => r.originalJoinId === id)
+
+  eq((await refuse(forged)).status, 202, 'a refusal of a join fx_bob never sent is acknowledged (202)')
+  eq((await refusedAs(forged)).length, 0, 'and delivers nothing')
+
+  const second = await postJson(`${localUrl}/api/federation/voice/join`, asBob, { channelId: REMOTE_VOICE, serverId: REMOTE_REF })
+  eq(second.status, 200, 'fx_bob asks to join again')
+  eq((await refuse(second.json?.joinId)).status, 202, 'the host\'s refusal, signed by its instance actor, is acknowledged (202)')
+  const refusals = await refusedAs(second.json?.joinId)
+  assert(
+    refusals.length === 1 && refusals[0].serverHost === second.json?.serverHost && refusals[0].reason === 'Not authorized for this room',
+    'the refusal reaches fx_bob on his private user channel, naming his join, the host and the reason',
+    JSON.stringify(refusals),
+  )
 }
 
 async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
@@ -2034,21 +2072,52 @@ async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: str
   }
   const answers = (before: number) =>
     deliveries(peer, before, '/inbox').filter((d) => d.body?.type === 'harmony:VoiceChannelJoinAccept')
+  // Any inbox of the peer: the answer goes to whichever the actor's document names.
+  const refusals = (before: number) =>
+    peer.captured.slice(before)
+      .map((c) => ({ req: c, body: JSON.parse(c.raw.toString('utf-8')) }))
+      .filter((d) => d.body?.type === 'harmony:VoiceChannelJoinReject')
+  const refusedBy = async (what: string, joinId: string, before: number, to: string) => {
+    const got = refusals(before)
+    eq(got.length, 1, `${what} is refused once`)
+    eq(got[0]?.body?.object, joinId, 'naming the join')
+    eq(got[0]?.body?.actor, `https://${INSTANCE_DOMAIN}/users/instance.actor`, 'from the instance actor')
+    assert(JSON.stringify(got[0]?.body?.to) === JSON.stringify([to]), 'addressed to the joining account', JSON.stringify(got[0]?.body?.to))
+    eq(got[0]?.body?.reason, 'Not authorized for this room', 'with a reason that names no check')
+    const params = parseSignatureHeader(got[0]?.req.headers.signature ?? '')
+    eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/instance.actor#main-key`, 'signed by the instance actor')
+    const actorDoc = await getJson(`${localUrl}/users/instance.actor`)
+    const signingString = [
+      `(request-target): post ${got[0]?.req.url}`,
+      `host: ${got[0]?.req.headers.host}`,
+      `date: ${got[0]?.req.headers.date}`,
+      `digest: ${got[0]?.req.headers.digest}`,
+    ].join('\n')
+    assert(
+      !!actorDoc?.publicKey?.publicKeyPem && !!params.signature &&
+        crypto.createVerify('SHA256').update(signingString).verify(actorDoc.publicKey.publicKeyPem, params.signature, 'base64'),
+      'the signature verifies against the key the instance actor publishes',
+    )
+  }
 
   let before = peer.captured.length
-  eq((await join(PRIV_VOICE_HIDDEN)).status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
+  const hidden = await join(PRIV_VOICE_HIDDEN)
+  eq(hidden.status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
   eq(answers(before).length, 0, 'and answered with no token')
+  await refusedBy('it', hidden.id, before, peer.actorUrl)
 
   before = peer.captured.length
-  eq((await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })).status, 202,
-    'a non-member\'s join is acknowledged (202)')
+  const stranger = await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })
+  eq(stranger.status, 202, 'a non-member\'s join is acknowledged (202)')
   eq(answers(before).length, 0, 'and answered with no token')
+  await refusedBy('it', stranger.id, before, peer.strangerUrl)
 
   before = peer.captured.length
   const member = await join(PRIV_VOICE)
   eq(member.status, 202, 'the member\'s join is acknowledged (202)')
   const got = answers(before)
   eq(got.length, 1, 'the member\'s join is answered once, at its instance\'s shared inbox')
+  eq(refusals(before).length, 0, 'and not refused')
   const accept = got[0]
   eq(accept?.body?.actor, LOCAL_ALICE, 'the answer is the server owner\'s')
   eq(accept?.body?.object, member.id, 'naming the join')
@@ -2828,7 +2897,7 @@ async function main() {
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
     await caseQuoteNotifications({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
-    // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
+    // These deliveries spend the peer's inbox budget.
     await caseVoiceModerationFederation({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
       livekit: { url: env.HMFED_LIVEKIT_URL, key: env.HMFED_LIVEKIT_KEY, secret: env.HMFED_LIVEKIT_SECRET, join: (t) => lk.join(t) },
@@ -2871,6 +2940,8 @@ async function main() {
       db, peer, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, assert, eq,
       ids: { alice: ALICE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
     })
+    await caseDmPolicy({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq })
+
     await caseStickers({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, get, signedHeaders, signedGetHeaders,
       handleNewDM: backend.handleNewDM, assert, eq,
@@ -2917,6 +2988,16 @@ async function main() {
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, post, get, signedHeaders,
       verifySignature: backend.verifySignature, assert, eq, fail,
       ids: { alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
+    await caseAccountMoveImport({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, post, get, signedHeaders,
+      verifySignature: backend.verifySignature, assert, eq, fail,
+      ids: { carol: CAROL, carolAuth: CAROL_AUTH, bob: BOB },
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
       asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
@@ -2974,6 +3055,11 @@ async function main() {
         remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
       },
     })
+    await caseChannelHostFlags({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, signedGetHeaders,
+      assert, eq,
+      ids: { bob: BOB, remote: REMOTE, hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL },
+    })
     await caseDiscovery({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, get, signedGetHeaders, assert, eq,
       aliceAuth: ALICE_AUTH,
@@ -3019,6 +3105,53 @@ async function main() {
         auth: { autoRefreshToken: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
       }),
+    })
+    await caseInboundAuthority({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      userEvents: async (client, profileId) => ((await client.rpc('hmfed_broadcasts', { p_topic: `user:${profileId}` })).data ?? []) as any[],
+      ids: {
+        alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseRoomBoundaries({
+      db, peer, localUrl, get, signedGetHeaders, assert, eq,
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, hostedSecret: PRIV_SECRET, dm: CONVERSATION,
+        remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseClaimedFields({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: { bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL },
+    })
+    await caseClientAuthority({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, get, signedHeaders, assert, eq,
+      anon: createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } }),
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, carolAuth: CAROL_AUTH, remote: REMOTE,
+        hostedServer: PRIV_SERVER, remoteRef: REMOTE_REF,
+      },
     })
     // Last: closing the instance removes memberships the cases above set up.
     await caseFederationSwitches({

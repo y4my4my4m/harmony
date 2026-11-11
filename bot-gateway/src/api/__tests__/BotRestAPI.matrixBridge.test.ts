@@ -78,6 +78,14 @@ describe('generalized author authorization', () => {
     const r = await supertest(app()).post(base + '/messages').send({ content: 'Hello', metadata: { discord_user: { id: '123', username: 'fake' }, bridge_source: 'discord' } })
     expect(r.status).toBe(201); expect(r.body.metadata).not.toHaveProperty('discord_user')
   })
+  it('does not cache Matrix registration across writes on the same API instance', async () => {
+    const api = app()
+    const send = () => supertest(api).post(base + '/messages').send({ content: 'Hello', metadata: { bridge_author: author } })
+    expect((await send()).status).toBe(201)
+    platform = null
+    expect((await send()).status).toBe(403)
+    expect(db.writesTo('messages', 'insert')).toHaveLength(1)
+  })
   it('checks registration again on an author metadata edit', async () => {
     db.rows('messages')[0].bot_id = BOT; platform = null
     const r = await supertest(app()).patch('/api/v1/messages/' + MESSAGE + '/metadata').send({ metadata: { bridge_author: author } })
@@ -111,6 +119,12 @@ describe('bridge privacy REST boundaries', () => {
     expect((await supertest(app()).get(base + '/bridge-platform')).body).toEqual({ platform: 'matrix' })
     consent = false
     expect((await supertest(app()).get(base + '/bridge-consent/' + USER)).body).toEqual({ relay_allowed: false })
+  })
+  it('does not cache consent across requests on the same API instance', async () => {
+    const api = app()
+    expect((await supertest(api).get(base + '/bridge-consent/' + USER)).body).toEqual({ relay_allowed: true })
+    consent = false
+    expect((await supertest(api).get(base + '/bridge-consent/' + USER)).body).toEqual({ relay_allowed: false })
   })
   it('fails closed for unavailable or malformed consent and registration', async () => {
     consent = null

@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+const toastError = vi.hoisted(() => vi.fn())
+vi.mock('vue-toastification', () => ({ useToast: () => ({ error: toastError }) }))
+
 import {
   cleanDbMessage,
   describeBlockNotice,
   isModerationRejectionCode,
   moderationRejectionFromError,
+  notifyModerationRejection,
 } from '@/services/AutoModService'
 
 describe('moderationRejectionFromError', () => {
@@ -41,6 +46,28 @@ describe('moderationRejectionFromError', () => {
   it('ignores unrelated errors', () => {
     expect(moderationRejectionFromError({ message: 'new row violates row-level security policy' })).toBeNull()
     expect(moderationRejectionFromError(null)).toBeNull()
+  })
+})
+
+describe('instance limit refusals', () => {
+  it('reads each code from a database error, with its number', () => {
+    expect(moderationRejectionFromError({ message: 'SERVER_LIMIT_REACHED:100' })?.code).toBe('SERVER_LIMIT_REACHED')
+    expect(moderationRejectionFromError({ message: 'BOT_LIMIT_REACHED:25' })?.code).toBe('BOT_LIMIT_REACHED')
+    expect(moderationRejectionFromError({ message: 'DM_NOT_ALLOWED' })?.code).toBe('DM_NOT_ALLOWED')
+  })
+
+  it('reads a code a wrapper kept inside its own message', () => {
+    expect(moderationRejectionFromError(new Error('Server creation failed: SERVER_LIMIT_REACHED:2'))?.code)
+      .toBe('SERVER_LIMIT_REACHED')
+  })
+
+  it('shows a refusal once and reports any other error as not one', () => {
+    toastError.mockClear()
+    expect(notifyModerationRejection({ message: 'ANTISPAM_RATE_LIMITED:12' })).toBe(true)
+    expect(toastError).toHaveBeenCalledTimes(1)
+    expect(notifyModerationRejection({ message: 'something else' })).toBe(false)
+    expect(notifyModerationRejection(null)).toBe(false)
+    expect(toastError).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -299,6 +299,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
     greentextEnabled: true,
     convertSentEmoticons: true,
     renderEmoticonsAsEmoji: true,
+    animateEmoji: true,
     inviteBannerBackground: true,
     bridgeSourceBadge: 'icon',
     videoPlayer: 'harmony',
@@ -1006,6 +1007,11 @@ export function emoticonPreferences(): { convertSent: boolean; renderReceived: b
     convertSent: settings.value.convertSentEmoticons !== false,
     renderReceived: settings.value.renderEmoticonsAsEmoji !== false,
   }
+}
+
+/** Custom emoji animate: the setting on, and Reduce motion off. */
+export function emojiAnimationEnabled(): boolean {
+  return settings.value.animateEmoji !== false && !settings.value.reduceMotion
 }
 
 export function useVisualTheme() {

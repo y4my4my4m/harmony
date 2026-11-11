@@ -16,6 +16,10 @@ const PUBLIC = `${AS}#Public`
 const QUOTED_PUBLIC = 'fed00177-0000-0000-0000-000000000001'
 const QUOTED_DIRECT = 'fed00177-0000-0000-0000-000000000002'
 const PEER_POST = 'fed00177-0000-0000-0000-000000000003'
+const LATE_DOWN = 'fed00177-0000-0000-0000-000000000004'
+const LATE_FOUND = 'fed00177-0000-0000-0000-000000000005'
+const LATE_DIRECT = 'fed00177-0000-0000-0000-000000000006'
+const LATE_BACKFILL = 'fed00177-0000-0000-0000-000000000007'
 
 export interface QuotesContext {
   db: SupabaseClient
@@ -25,6 +29,7 @@ export interface QuotesContext {
     personalInbox: string
     key: { privateKey: string }
     captured: Array<{ method: string; url: string; raw: Buffer }>
+    extraGet?: (req: { url?: string }, res: { writeHead: (status: number, headers?: Record<string, string>) => unknown; end: (body?: string) => unknown }) => boolean
   }
   localUrl: string
   instanceDomain: string
@@ -71,8 +76,14 @@ export async function caseQuotes(ctx: QuotesContext): Promise<void> {
     const body = JSON.stringify(activity)
     const target = `${localUrl}/inbox`
     const before = peer.captured.length
-    const res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
-    eq(res.status < 300, true, `the QuoteRequest for ${postId === QUOTED_PUBLIC ? 'the public' : 'the direct'} post is taken`)
+    // The inbox admits 60 deliveries a minute from one signing host, and earlier cases spend the
+    // peer's share: a 429 is sent again once the window turns, for at most 75 s.
+    let res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    for (let attempt = 0; res.status === 429 && attempt < 15; attempt++) {
+      await new Promise((r) => setTimeout(r, 5_000))
+      res = await ctx.post(target, ctx.signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    }
+    assert(res.status < 300, `the QuoteRequest for ${postId === QUOTED_PUBLIC ? 'the public' : 'the direct'} post is taken`, `status ${res.status}`)
     let answer: any = null
     for (let i = 0; i < 50 && !answer; i++) {
       const got = peer.captured.slice(before).find((c) => c.method === 'POST' && c.url === peerInboxPath)
@@ -113,6 +124,92 @@ export async function caseQuotes(ctx: QuotesContext): Promise<void> {
   const replies = await fetch(`${localUrl}/posts/${QUOTED_PUBLIC}/replies?page=1`, { headers: AP_ACCEPT }).then((r) => r.json())
   eq(JSON.stringify(replies.orderedItems), JSON.stringify([`${peer.actorUrl}/statuses/177`]),
     'the replies page lists the peer reply by its id')
+
+  console.log('\nquotes -> a quote whose post was unread on arrival is read again on request')
+  const lateNote = (slug: string) => `${peer.actorUrl}/statuses/late-${slug}`
+  const notePath = (slug: string) => new URL(lateNote(slug)).pathname
+  const lateRows = [[LATE_DOWN, 'down'], [LATE_FOUND, 'found'], [LATE_DIRECT, 'direct'], [LATE_BACKFILL, 'backfill']] as const
+  await db.from('posts').delete().in('id', lateRows.map(([id]) => id))
+  await db.from('posts').delete().in('ap_id', lateRows.map(([, slug]) => lateNote(slug)))
+  const lateSeed = await db.from('posts').insert(lateRows.map(([id, slug]) => ({
+    id,
+    author_id: ids.remote,
+    visibility: 'public',
+    is_local: false,
+    ap_id: `${peer.actorUrl}/statuses/quoting-${slug}`,
+    content: [{ type: 'text', text: `quoting ${slug}` }],
+    // The outbox backfill names the target quote_url.
+    metadata: slug === 'backfill' ? { is_quote: true, quote_url: lateNote(slug) } : { is_quote: true, quote_ap_url: lateNote(slug) },
+  })))
+  assert(!lateSeed.error, 'seed the quotes awaiting their post', lateSeed.error?.message)
+
+  const lateDoc = (slug: string, to: string[]) => JSON.stringify({
+    '@context': AS,
+    id: lateNote(slug),
+    type: 'Note',
+    attributedTo: peer.actorUrl,
+    to,
+    published: new Date().toISOString(),
+    content: `<p>the quoted ${slug}</p>`,
+  })
+  const previousGet = peer.extraGet
+  peer.extraGet = (req, res) => {
+    if (req.url === notePath('down')) {
+      res.writeHead(503)
+      res.end()
+      return true
+    }
+    if (req.url === notePath('found') || req.url === notePath('backfill')) {
+      res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+      res.end(lateDoc(req.url === notePath('found') ? 'found' : 'backfill', [PUBLIC]))
+      return true
+    }
+    if (req.url === notePath('direct')) {
+      res.writeHead(200, { 'Content-Type': 'application/activity+json' })
+      res.end(lateDoc('direct', [`${peer.actorUrl}/followers`]))
+      return true
+    }
+    return previousGet?.(req, res) ?? false
+  }
+  const retry = async (postId: unknown) => {
+    const res = await fetch(`${localUrl}/resolve-quote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ post_id: postId }),
+    })
+    return { status: res.status, body: await res.json() }
+  }
+  const rowOf = async (id: string) =>
+    (await db.from('posts').select('reblog, reblog_author, metadata').eq('id', id).single()).data as any
+
+  try {
+    eq((await retry('not-a-uuid')).status, 400, 'a malformed id is refused')
+    eq((await retry(QUOTED_PUBLIC)).body.status, 'none', 'a local post has no quote to read again')
+
+    eq((await retry(LATE_DOWN)).body.status, 'unavailable', 'an origin still failing answers unavailable')
+    eq((await rowOf(LATE_DOWN)).reblog, null, 'and the post stays awaiting its quote')
+    eq((await retry(LATE_DOWN)).body.status, 'recent', 'a second try inside the cooldown reads nothing')
+
+    const found = await retry(LATE_FOUND)
+    eq(found.body.status, 'resolved', 'a readable post resolves')
+    const foundRow = await rowOf(LATE_FOUND)
+    eq(foundRow.reblog?.content?.[0]?.text, 'the quoted found', 'the row holds the quoted content')
+    eq(foundRow.reblog_author?.id, ids.remote, 'and its author')
+    eq(foundRow.metadata?.reblog_of, foundRow.reblog?.id, 'and points at the stored post')
+    eq(found.body.reblog?.id, foundRow.reblog?.id, 'the answer carries the same snapshot')
+
+    eq((await retry(LATE_BACKFILL)).body.status, 'resolved', 'a backfilled quote resolves too')
+    eq((await rowOf(LATE_BACKFILL)).reblog?.content?.[0]?.text, 'the quoted backfill', 'with its quoted content')
+
+    eq((await retry(LATE_DIRECT)).body.status, 'withheld', 'a post that is not public is withheld')
+    const directRow = await rowOf(LATE_DIRECT)
+    eq(directRow.reblog, null, 'its content is not copied')
+    eq(directRow.metadata?.quote_ap_url, undefined, 'and the post stops being a quote')
+  } finally {
+    peer.extraGet = previousGet
+    await db.from('posts').delete().in('id', lateRows.map(([id]) => id))
+    await db.from('posts').delete().in('ap_id', lateRows.map(([, slug]) => lateNote(slug)))
+  }
 
   await db.from('posts').delete().in('id', [QUOTED_PUBLIC, QUOTED_DIRECT, PEER_POST])
 }

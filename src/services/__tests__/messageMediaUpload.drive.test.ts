@@ -16,11 +16,13 @@ vi.mock('@/utils/uploadValidation', () => ({
 }))
 const findDriveFilesByHash = vi.fn()
 const isDriveHashBlocked = vi.fn()
+const driveRefusesUploads = vi.fn()
 const driveAvailable = vi.fn(async () => true)
 vi.mock('@/services/drive/driveService', () => ({
   driveAvailable: () => driveAvailable(),
   findDriveFilesByHash: (...args: unknown[]) => findDriveFilesByHash(...args),
   isDriveHashBlocked: (...args: unknown[]) => isDriveHashBlocked(...args),
+  driveRefusesUploads: () => driveRefusesUploads(),
   sha256OfBlob: async () => 'ab'.repeat(32),
 }))
 
@@ -53,6 +55,8 @@ beforeEach(() => {
   FakeXHR.last = null
   findDriveFilesByHash.mockReset()
   isDriveHashBlocked.mockReset()
+  driveRefusesUploads.mockReset()
+  driveRefusesUploads.mockResolvedValue(false)
   driveAvailable.mockClear()
   validateImageUpload.mockClear()
   getBucketLimits.mockClear()
@@ -112,6 +116,19 @@ describe('Drive uploads', () => {
     xhr.onload!()
     await expect(upload.result).rejects.toThrow('drive.errors.blocked')
     expect(isDriveHashBlocked).toHaveBeenCalledWith('ab'.repeat(32))
+  })
+
+  it('says storage is full when Drive refuses uploads', async () => {
+    findDriveFilesByHash.mockResolvedValue([])
+    isDriveHashBlocked.mockResolvedValue(false)
+    driveRefusesUploads.mockResolvedValue(true)
+    const upload = startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }))
+    await flushPromises()
+    const xhr = FakeXHR.last!
+    xhr.status = 400
+    xhr.responseText = JSON.stringify({ statusCode: '403', message: 'new row violates row-level security policy' })
+    xhr.onload!()
+    await expect(upload.result).rejects.toThrow('drive.errors.full')
   })
 
   it('keeps the storage refusal for bytes nobody blocked', async () => {

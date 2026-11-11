@@ -55,6 +55,17 @@ describe('Matrix mention identity and source token', () => {
       expect(parts.filter(part => part.type === 'mention'), value).toEqual([])
     }
   })
+  it.each([1, 3])('keeps a Matrix token escaped by %i backslashes as text without native resolution', async count => {
+    const value = '\\'.repeat(count) + token
+    from.mockClear()
+    expect(await resolveMentionsUserData(value)).toEqual({})
+    expect(from).not.toHaveBeenCalled()
+    expect(await parseContentToMessageParts(value)).toEqual([{ type: 'text', text: value }])
+  })
+  it('keeps an unescaped Matrix mention after a literal backslash pair', async () => {
+    const parts = await parseContentToMessageParts('\\\\' + token)
+    expect(parts.filter(part => part.type === 'mention')).toEqual([{ ...mention, displayName: 'sam' }])
+  })
   it('round-trips edits while displaying the full MXID in previews', () => {
     expect(messagePartsToRawText([mention])).toBe(token)
     expect(messagePartsToMarkdown([mention])).toBe(token)

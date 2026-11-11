@@ -20,7 +20,7 @@
           </svg>
           {{ thread?.member_count }}
         </span>
-        <button class="options-btn" @click="showOptions = !showOptions" title="Thread options">
+        <button class="options-btn" @click.stop="showOptions = !showOptions" title="Thread options">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="5" r="2"/>
             <circle cx="12" cy="12" r="2"/>
@@ -32,6 +32,21 @@
 
     <!-- Options Dropdown -->
     <div v-if="showOptions" class="options-dropdown" v-click-outside="() => showOptions = false">
+      <button @click="goToStart" class="option-item" data-testid="thread-go-to-start">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+        {{ $t('chatNav.thread.goToStart') }}
+      </button>
+      <button v-if="canShowInChannel" @click="showInChannel" class="option-item" data-testid="thread-show-in-channel">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        {{ $t('chatNav.thread.showInChannel') }}
+      </button>
+
+      <div class="options-divider"></div>
+
       <button v-if="!isMember" @click="joinThread" class="option-item">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -123,59 +138,11 @@
       </button>
     </div>
 
-    <!-- Parent Message (Starter Message) -->
-    <div class="parent-message-section" v-if="thread?.parent_message && !isThreadNoticeParent(thread.parent_message)">
-      <div class="section-label">Original message</div>
-      <div class="parent-message" :id="`message-${thread.parent_message.id}`">
-        <Avatar 
-          :src="getForeignAuthor(thread.parent_message)?.avatar_url || getAvatarUrl(getHarmonyProfileUserId(thread.parent_message)).value"
-          :alt="getForeignAuthor(thread.parent_message)?.name || getDisplayName(getHarmonyProfileUserId(thread.parent_message)).value"
-          size="md"
-          :interactive="!getForeignAuthor(thread.parent_message)"
-        />
-        <div class="message-content">
-          <div class="message-header">
-            <span class="username" :style="{ color: getColor(thread.parent_message.user_id).value }">
-              <template v-if="getForeignAuthor(thread.parent_message)">{{ getForeignAuthor(thread.parent_message)?.name }}</template>
-              <DisplayName v-else :userId="thread.parent_message.user_id" />
-              <BridgeSourceBadge v-if="getBridgeSource(thread.parent_message)" :source="getBridgeSource(thread.parent_message)!" />
-              <FederatedUserBadge :user-id="getHarmonyProfileUserId(thread.parent_message)" />
-            </span>
-            <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
-          </div>
-          <div class="message-body">
-            <UnifiedMessageContent
-              :content="thread.parent_message.content"
-              :message-id="thread.parent_message.id"
-              :media-hidden="mediaHidden"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
     <div class="messages-section" ref="messagesContainer">
-      <div v-if="loading" class="loading-state">
-        <LoadingSpinner :size="32" />
-        <span>Loading messages...</span>
-      </div>
-
-      <button v-if="hasMore && !loading" class="load-more-btn" @click="loadMore">
-        Load older messages
-      </button>
-
-      <EmptyState
-        v-if="!loading && messages.length === 0"
-        icon="message-circle"
-        :title="$t('empty.threadMessages.title')"
-        :description="$t('empty.threadMessages.description')"
-      />
-
       <!-- Use the same MessageDisplay component as the main chat -->
       <MessageDisplay
         ref="threadMessageDisplayRef"
-        v-if="messages.length > 0"
         :messages="messages"
         :current-user-id="currentUserId"
         :channel-id="thread?.channel_id"
@@ -186,7 +153,62 @@
         @send-reaction="handleSendReaction"
         @toggle-emoji-list="handleToggleEmojiList"
         @replying-to="handleReplyingTo"
-      />
+      >
+        <template #list-start>
+            <div
+                    v-if="thread?.parent_message && !isThreadNoticeParent(thread.parent_message)"
+                    :id="`message-${thread.parent_message.id}`"
+                    ref="parentMessageEl"
+                    class="parent-message"
+                    tabindex="-1"
+                    data-testid="thread-parent-message"
+                  >
+              <Avatar
+                :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAvatarUrl(getHarmonyProfileUserId(thread.parent_message)).value"
+                :alt="parentForeignAuthor ? parentForeignAuthor.name : getDisplayName(getHarmonyProfileUserId(thread.parent_message)).value"
+                size="md"
+                :interactive="!parentForeignAuthor"
+              />
+              <div class="message-content">
+                <div class="message-header">
+                  <span v-if="parentForeignAuthor" class="username">
+                    {{ parentForeignAuthor.name }}
+                    <BridgeSourceBadge v-if="getBridgeSource(thread.parent_message)" :source="getBridgeSource(thread.parent_message)!" />
+                  </span>
+                  <span v-else class="username" :style="{ color: getColor(getHarmonyProfileUserId(thread.parent_message)).value }">
+                    <DisplayName :userId="getHarmonyProfileUserId(thread.parent_message)" />
+                    <FederatedUserBadge :user-id="getHarmonyProfileUserId(thread.parent_message)" />
+                  </span>
+                  <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
+                </div>
+                <div class="message-body">
+                  <UnifiedMessageContent
+                    :content="thread.parent_message.content"
+                    :message-id="thread.parent_message.id"
+                    :media-hidden="mediaHidden"
+                  />
+                </div>
+              </div>
+            </div>
+
+          <div class="thread-divider">
+            <div class="divider-line"></div>
+            <span class="reply-count">{{ $t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
+            <div class="divider-line"></div>
+          </div>
+
+          <button v-if="hasMore && !loading" class="load-more-btn" @click="loadMore">
+            Load older messages
+          </button>
+
+          <EmptyState
+            v-if="!loading && messages.length === 0"
+            icon="message-circle"
+            :title="$t('empty.threadMessages.title')"
+            :description="$t('empty.threadMessages.description')"
+          />
+        </template>
+      </MessageDisplay>
     </div>
 
     <!-- Message Input - Reuse MessageInput component (DRY) -->
@@ -199,6 +221,7 @@
       :thread-id="props.threadId"
       :thread-channel-id="thread?.channel_id"
       :media-room="threadMediaRoom"
+      :draft-key="threadDraftKey"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
       @update:reply-message-id="handleCancelReply"
@@ -257,7 +280,6 @@ import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
 import { getHarmonyProfileUserId, getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
@@ -288,6 +310,7 @@ import { insertMessageSorted } from '@/stores/shared/messageCacheUtils'
 import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
+import { useThreadDraft } from '@/composables/useThreadDraft'
 
 // Props
 interface Props {
@@ -354,6 +377,7 @@ const composerElement = computed(() => messageInputRef.value?.composerRef || nul
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+const parentForeignAuthor = computed(() => getForeignAuthor(thread.value?.parent_message))
 // A deleted thread returns the view to its channel; one opened from a link or notice after its
 // deletion says so.
 const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {
@@ -370,7 +394,10 @@ const hasMore = ref(false)
 const isMember = ref(true)
 const isMuted = ref(false)
 const showOptions = ref(false)
-const messageText = ref('')
+const { text: messageText, key: threadDraftKey } = useThreadDraft(() => ({
+  threadId: props.threadId,
+  parentMessageId: thread.value?.parent_message_id,
+}))
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 const reactionsSubscription = ref<(() => void) | null>(null)
@@ -478,6 +505,31 @@ const goBack = () => {
   } else {
     router.back()
   }
+}
+
+const parentMessageEl = ref<HTMLElement | null>(null)
+
+const goToStart = () => {
+  showOptions.value = false
+  threadMessageDisplayRef.value?.scrollToStart()
+  const parent = parentMessageEl.value
+  if (!parent) return
+  parent.focus({ preventScroll: true })
+  parent.classList.add('highlighted')
+  setTimeout(() => parent.classList.remove('highlighted'), 1500)
+}
+
+const canShowInChannel = computed(() => {
+  const parent = thread.value?.parent_message
+  return !!parent && !isThreadNoticeParent(parent) && !!thread.value?.channel_id
+})
+
+const showInChannel = () => {
+  const messageId = thread.value?.parent_message?.id
+  const channelId = thread.value?.channel_id
+  if (!messageId || !channelId) return
+  showOptions.value = false
+  void router.push({ name: 'ChatChannel', params: { serverId: props.serverId, channelId }, query: { messageId } })
 }
 
 const goToChannel = () => {
@@ -688,14 +740,18 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
       if (sendResult.status === 'ok' && sendResult.result) {
         const newMessage = sendResult.result
-        addSentReply(newMessage)
         threadService.addMessageToCache(targetThreadId, newMessage)
-        messageText.value = ''
-        replyingToMessageId.value = ''
-        replyingToUserName.value = ''
-        replyingToUserId.value = ''
-        await nextTick()
-        scrollToBottom()
+        // The view is reused across threads: the list, draft and reply target on screen are
+        // another thread's when the user switched during the send.
+        if (thread.value?.id === targetThreadId) {
+          addSentReply(newMessage)
+          messageText.value = ''
+          replyingToMessageId.value = ''
+          replyingToUserName.value = ''
+          replyingToUserId.value = ''
+          await nextTick()
+          scrollToBottom()
+        }
       } else if (sendResult.status === 'error') {
         debug.error('Failed to send thread message:', sendResult.error)
       }
@@ -1285,19 +1341,23 @@ onUnmounted(() => {
 }
 
 /* Parent Message Section */
-.parent-message-section {
-  padding: 16px 20px;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--border-color);
+.thread-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 20px 8px;
 }
 
-.section-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-  letter-spacing: 0.02em;
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.reply-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .parent-message.highlighted {
@@ -1309,6 +1369,9 @@ onUnmounted(() => {
 .parent-message {
   display: flex;
   gap: 16px;
+  padding: 16px 20px 8px;
+  outline: none;
+  transition: background-color 0.3s ease;
 }
 
 .parent-message .message-content {
@@ -1340,12 +1403,12 @@ onUnmounted(() => {
 }
 
 /* Messages Section */
+/* MessageDisplay is the scroller. */
 .messages-section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  padding: 16px 20px;
+  overflow: hidden;
   min-height: 0;
 }
 

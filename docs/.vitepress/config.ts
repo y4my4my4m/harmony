@@ -57,6 +57,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Webhooks', link: '/run/webhooks' },
         { text: 'Discord bridge', link: '/run/discord-bridge' },
         { text: 'Matrix bridge', link: '/run/matrix-bridge' },
+        { text: 'Reviewing signups', link: '/run/signup-review' },
         { text: 'Instance funding', link: '/run/funding' },
       ],
     },
@@ -80,6 +81,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Push notifications', link: '/self-host/push' },
         { text: 'Discord bridges', link: '/self-host/discord-bridges' },
         { text: 'Stickers', link: '/self-host/stickers' },
+        { text: 'Sign-up limits', link: '/self-host/signup-limits' },
       ],
     },
     {
@@ -98,6 +100,7 @@ const sidebar: DefaultTheme.Sidebar = {
       items: [
         { text: 'Overview', link: '/build/' },
         { text: 'Bot quickstart', link: '/build/bot-quickstart' },
+        { text: 'Slash commands', link: '/build/commands' },
       ],
     },
     {

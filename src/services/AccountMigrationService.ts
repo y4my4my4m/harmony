@@ -7,6 +7,9 @@
  * 20261010900001_account_migration.sql). begin_account_move re-authenticates as
  * delete_my_account does; for 2FA accounts call verifyMfaCode() first, which refreshes the
  * session's step-up time.
+ *
+ * Following import runs in a worker through the RPCs of 20261109700001_following_import.sql.
+ * POST /account/profile/copy copies the profile of an account that moved here.
  */
 
 import { supabase } from '@/supabase'
@@ -14,6 +17,7 @@ import { apiUrl } from '@/services/instanceConfig'
 import { debug } from '@/utils/debug'
 import { accountDeletionService } from '@/services/AccountDeletionService'
 import { accountRefsForUris, resolveMoveTarget, type AccountRef } from '@/utils/movedAccount'
+import type { FollowingImportSource } from '@/utils/followingImportFile'
 
 export interface MigrationAccount {
   id: string
@@ -26,6 +30,43 @@ export interface MigrationAccount {
   locked: boolean
 }
 
+/** Fields the old account's profile can give; avatar and banner are stored again under this account. */
+export type ProfileCopyField = 'display_name' | 'bio' | 'avatar' | 'banner' | 'profile_fields'
+
+export interface ProfileValues {
+  display_name: string | null
+  bio: string | null
+  avatar_url: string | null
+  banner_url: string | null
+  profile_fields: Array<{ name: string; value: string }>
+}
+
+/** An account whose move to this one both sides confirm. */
+export interface MovedOrigin extends ProfileValues {
+  id: string
+  handle: string
+}
+
+export interface FollowingImport {
+  id: string
+  source: FollowingImportSource
+  total: number
+  created_at: string
+  finished_at: string | null
+  cancelled: boolean
+  /** Seconds until the follow limit lets it continue; null when it is not waiting on that. */
+  retry_after: number | null
+  counts: {
+    followed: number
+    requested: number
+    already_following: number
+    already_requested: number
+    failed: number
+    cancelled: number
+  }
+  failures: Array<{ handle: string; reason: string }>
+}
+
 export interface MigrationState {
   profileId: string
   /** This account's actor URI, as the other account lists it. */
@@ -36,6 +77,9 @@ export interface MigrationState {
   movedTo: AccountRef | null
   movedAt: string | null
   ownedServers: string[]
+  /** This account's own profile, as a copy would replace it. */
+  profile: ProfileValues
+  movedFrom: MovedOrigin[]
 }
 
 export interface MovePreview {
@@ -84,7 +128,7 @@ class AccountMigrationService {
 
     const { data: me, error } = await supabase
       .from('profiles')
-      .select('id, username, domain, federated_id, also_known_as, moved_to_id, moved_to_uri, moved_at')
+      .select('id, username, domain, federated_id, also_known_as, moved_to_id, moved_to_uri, moved_at, display_name, bio, avatar_url, banner_url, profile_fields')
       .eq('auth_user_id', uid)
       .maybeSingle()
     if (error || !me) {
@@ -92,11 +136,24 @@ class AccountMigrationService {
       return null
     }
 
-    const [aliases, movedTo, owned] = await Promise.all([
-      accountRefsForUris(Array.isArray(me.also_known_as) ? me.also_known_as : []),
+    const aliasUris: string[] = Array.isArray(me.also_known_as) ? me.also_known_as : []
+    const [aliases, movedTo, owned, movedHere] = await Promise.all([
+      accountRefsForUris(aliasUris),
       resolveMoveTarget(me.moved_to_id, me.moved_to_uri),
       supabase.from('servers').select('name').eq('owner', me.id),
+      supabase
+        .from('profiles')
+        .select('id, username, domain, federated_id, moved_at, display_name, bio, avatar_url, banner_url, profile_fields')
+        .eq('moved_to_id', me.id)
+        .order('moved_at', { ascending: false }),
     ])
+    const profileValues = (row: any): ProfileValues => ({
+      display_name: row.display_name ?? null,
+      bio: row.bio ?? null,
+      avatar_url: row.avatar_url ?? null,
+      banner_url: row.banner_url ?? null,
+      profile_fields: Array.isArray(row.profile_fields) ? row.profile_fields : [],
+    })
 
     return {
       profileId: me.id,
@@ -106,6 +163,10 @@ class AccountMigrationService {
       movedTo,
       movedAt: me.moved_at ?? null,
       ownedServers: ((owned.data ?? []) as Array<{ name: string }>).map((s) => s.name),
+      profile: profileValues(me),
+      movedFrom: (movedHere.data ?? [])
+        .filter((row: any) => aliasUris.includes(row.federated_id || `https://${row.domain}/users/${row.username}`))
+        .map((row: any) => ({ ...profileValues(row), id: row.id, handle: `@${row.username}@${row.domain}` })),
     }
   }
 
@@ -139,6 +200,47 @@ class AccountMigrationService {
 
   cancelRedirect(): Promise<MigrationResult<Record<string, never>>> {
     return call('POST', '/move/cancel')
+  }
+
+  /** Queues a follow of each handle. Errors as start_following_import returns them. */
+  async startFollowingImport(handles: string[], source: FollowingImportSource): Promise<MigrationResult<{ total: number }>> {
+    const { data, error } = await supabase.rpc('start_following_import', { p_handles: handles, p_source: source })
+    if (error) {
+      debug.error('start_following_import failed:', error)
+      const retryAfter = Number(/retry_after=(\d+)/.exec(error.details ?? '')?.[1]) || undefined
+      return { ok: false, error: error.code === 'PT429' ? error.message : 'generic', retryAfter }
+    }
+    if (data?.error) return { ok: false, error: data.error }
+    return { ok: true, total: data?.total ?? handles.length }
+  }
+
+  /** The account's latest import; null when it has none or the read failed. */
+  async getFollowingImport(): Promise<FollowingImport | null> {
+    const { data, error } = await supabase.rpc('get_my_following_import')
+    if (error) {
+      debug.error('get_my_following_import failed:', error)
+      return null
+    }
+    return (data as FollowingImport | null) ?? null
+  }
+
+  async cancelFollowingImport(): Promise<MigrationResult<Record<string, never>>> {
+    const { data, error } = await supabase.rpc('cancel_my_following_import')
+    if (error) {
+      debug.error('cancel_my_following_import failed:', error)
+      return { ok: false, error: 'generic' }
+    }
+    if (data?.error) return { ok: false, error: data.error }
+    return { ok: true } as MigrationResult<Record<string, never>>
+  }
+
+  /** `update` holds the stored values; `failed` the images that could not be read. */
+  copyProfile(originId: string, fields: ProfileCopyField[]): Promise<MigrationResult<{
+    copied: ProfileCopyField[]
+    failed: ProfileCopyField[]
+    update: Partial<ProfileValues>
+  }>> {
+    return call('POST', '/profile/copy', { origin_id: originId, fields })
   }
 
   isMfaEnabled(): Promise<boolean> {

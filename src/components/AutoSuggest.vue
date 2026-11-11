@@ -25,14 +25,23 @@
       :aria-selected="index === props.selectedIndex"
       class="suggest-item"
       :class="{ 'selected': index === props.selectedIndex }"
+      :data-testid="suggestion.isBotCommand ? 'bot-command-suggestion' : undefined"
+      :data-command-name="suggestion.isBotCommand ? suggestion.name : undefined"
+      :data-bot-id="suggestion.isBotCommand ? suggestion.botId : undefined"
       @click="selectSuggestion(suggestion)"
       @mouseenter="emit('update:selectedIndex', index)"
     >
       <slot :suggestion="suggestion" :selected="index === props.selectedIndex">
         <!-- Default fallback rendering -->
         <div class="suggest-item-default">
+          <Avatar
+            v-if="suggestion.isBotCommand"
+            :src="suggestion.avatar"
+            class="suggest-icon suggest-avatar bot-command-avatar"
+            size="xs"
+          />
           <!-- Command icon -->
-          <div v-if="suggestion.isCommand" class="suggest-icon command-icon">
+          <div v-else-if="suggestion.isCommand" class="suggest-icon command-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
             </svg>
@@ -76,6 +85,7 @@
                       class="suggest-param-tag"
                     >{{ param.name }}</span>
                   </span>
+                  <span v-if="suggestion.isBotCommand" class="suggest-command-bot">{{ suggestion.botName }}</span>
                 </div>
                 <span v-if="suggestion.description" class="suggest-command-description">
                   {{ suggestion.description }}
@@ -199,6 +209,10 @@ const { t } = useI18n();
 const optionLabel = (suggestion: SuggestionItem): string | undefined => {
   const name = (suggestion.display_name || suggestion.name || suggestion.username || '').replace(/^@/, '');
   if (suggestion.isRole) return t('mentionLabels.roleOption', { name });
+  // A bot command and a built-in of the same name read apart by the bot.
+  if (suggestion.isBotCommand) {
+    return [suggestion.display_name, suggestion.botName, suggestion.description].filter(Boolean).join(', ');
+  }
   if (suggestion.isCommand || suggestion.emoji || suggestion.isChannel || !suggestion.username) return undefined;
   const handle = suggestion.display_text || `@${suggestion.username}`;
   return t('mentionLabels.memberOption', { name: name || suggestion.username, handle });
@@ -411,6 +425,35 @@ watch(() => props.selectedIndex, (newIndex) => {
   align-items: center;
   gap: 6px;
   flex-wrap: nowrap;
+}
+
+/* A bot command's name runs to the bot tag; long paths ("/bridge clone-server") truncate. */
+.suggest-item:has(.suggest-command-bot) .command-name {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggest-command-bot {
+  margin-left: auto;
+  flex-shrink: 0;
+  max-width: 45%;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggest-item.selected .suggest-command-bot {
+  color: color-mix(in srgb, var(--text-on-primary) 85%, transparent);
+}
+
+.bot-command-avatar {
+  border-radius: 50%;
 }
 
 .suggest-command-description {

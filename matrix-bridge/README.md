@@ -123,6 +123,12 @@ loss/retry behavior for superficial parity. This table records gaps, not a claim
 - A reachable callback address from the homeserver to the relay. The relay needs
   outbound access to that homeserver and the Harmony gateway.
 
+**Pre-merge test deployments:** the three bridge migrations were renumbered from
+`20261109100001`–`20261109100003` to `20261111100001`–`20261111100003` to follow upstream
+without version collisions. If you applied the old versions, do not blindly replay the
+renamed files: reconcile the existing bridge objects, migration history and intervening
+upstream migrations first. No automatic upgrade or database reset is performed.
+
 The Matrix bridge reserves a dedicated AS sender such as `@harmony_relay:example.org`
 and a dedicated ghost namespace. It never impersonates existing Matrix users. In
 `relay` mode Harmony messages arrive through the AS sender with the Harmony author's

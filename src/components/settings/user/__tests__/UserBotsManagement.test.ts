@@ -12,10 +12,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { supabase } from '@/supabase'
 import UserBotsManagement from '../UserBotsManagement.vue'
 
-const { toast, confirmMock } = vi.hoisted(() => ({
+const { toast, confirmMock, notifyRejection } = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   confirmMock: vi.fn(),
+  notifyRejection: vi.fn(() => false),
 }))
+
+vi.mock('@/services/AutoModService', () => ({ notifyModerationRejection: notifyRejection }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -210,5 +213,20 @@ describe('UserBotsManagement token handling', () => {
     ]])
     expect(supabase.from).not.toHaveBeenCalledWith('bot_tokens', expect.anything())
     expect(wrapper.find('.token-value').text()).toBe(NEW_TOKEN)
+  })
+
+  it('a refused bot shows the refusal, not the generic failure', async () => {
+    rpcResults.create_bot = { data: null, error: { message: 'BOT_LIMIT_REACHED:25' } }
+    notifyRejection.mockReturnValueOnce(true)
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    await wrapper.findAll('button').find(b => b.text().includes('bots.newBot'))!.trigger('click')
+    await wrapper.find('#bot-create-username').setValue('new-bot')
+    await wrapper.findAll('button').find(b => b.text() === 'bots.create.submit')!.trigger('click')
+    await flushPromises()
+
+    expect(notifyRejection).toHaveBeenCalledWith(rpcResults.create_bot.error)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

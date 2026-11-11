@@ -461,6 +461,7 @@ import { markMaskedAnchors } from '@/utils/outsideLinks'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
+import { moderationRejectionFromError } from '@/services/AutoModService'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
@@ -1192,7 +1193,9 @@ const handleFollowToggle = async () => {
     }
   } catch (error) {
     debug.error('Failed to toggle follow:', error)
-    toast.error(t(wasFollowing ? 'activitypub.unfollowFailed' : 'activitypub.followFailed'))
+    if (!moderationRejectionFromError(error)) {
+      toast.error(t(wasFollowing ? 'activitypub.unfollowFailed' : 'activitypub.followFailed'))
+    }
   } finally {
     optimisticFollowing.value = null
     followBusy.value = false

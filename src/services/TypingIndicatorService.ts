@@ -7,6 +7,7 @@
 
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { isChannelRefusal } from '@/utils/realtimeRefusal'
 import { useAuthStore } from '@/stores/auth'
 import { userDataService } from '@/services/userDataService'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -22,6 +23,8 @@ export type TypingContext =
   | { type: 'channel'; channelId: string }
   | { type: 'thread'; threadId: string }
   | { type: 'conversation'; conversationId: string }
+
+class TypingChannelRefused extends Error {}
 
 class TypingIndicatorService {
   /** Supabase Realtime channel per context key (e.g. typing:channel:uuid) */
@@ -219,7 +222,13 @@ class TypingIndicatorService {
             debug.log('TypingIndicatorService: Subscribed to', channelName, 'attempt', attempt)
             return true
           }
-        } catch {
+        } catch (error) {
+          // No retry succeeds until membership or policy changes, and each refusal holds the socket
+          // for Realtime's CHANNEL_ERROR_BACKOFF_MS.
+          if (error instanceof TypingChannelRefused) {
+            debug.warn('TypingIndicatorService: Refused', channelName)
+            return false
+          }
           debug.warn(`TypingIndicatorService: Subscription attempt ${attempt}/${MAX_RETRIES} failed`, channelName)
         }
         if (attempt < MAX_RETRIES) {
@@ -271,8 +280,14 @@ class TypingIndicatorService {
         }
       }, timeoutMs)
 
-      ch.subscribe(status => {
-        if (resolved) return
+      ch.subscribe((status, err) => {
+        if (resolved) {
+          // realtime-js rejoins after a socket drop, and rejoins a refused topic until it is removed.
+          if (status === 'CHANNEL_ERROR' && isChannelRefusal(err) && this.channelsByKey.get(contextKey) === ch) {
+            void this.teardownContextKey(contextKey)
+          }
+          return
+        }
 
         if (status === 'SUBSCRIBED') {
           resolved = true
@@ -286,7 +301,9 @@ class TypingIndicatorService {
           clearTimeout(timeout)
           debug.error('TypingIndicatorService: Channel error for', channelName, status)
           supabase.removeChannel(ch).catch(() => {})
-          reject(new Error(`Channel subscription failed: ${status}`))
+          reject(status === 'CHANNEL_ERROR' && isChannelRefusal(err)
+            ? new TypingChannelRefused(channelName)
+            : new Error(`Channel subscription failed: ${status}`))
         }
       })
     })

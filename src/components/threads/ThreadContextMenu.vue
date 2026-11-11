@@ -8,7 +8,16 @@
     class="context-menu"
     @close="emit('close')"
   >
-    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="leaveThread">
+    <button v-if="thread.is_member === false" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="joinThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="8.5" cy="7" r="4"/>
+        <line x1="20" y1="8" x2="20" y2="14"/>
+        <line x1="23" y1="11" x2="17" y2="11"/>
+      </svg>
+      <span>{{ t('chatNav.thread.join') }}</span>
+    </button>
+    <button v-else type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="leaveThread">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
         <polyline points="16 17 21 12 16 7"/>
@@ -114,6 +123,7 @@ const props = withDefaults(defineProps<Props>(), { serverId: undefined, trigger:
 const emit = defineEmits<{
   close: []
   leave: []
+  join: []
   edit: [thread: ThreadWithDetails]
   'open-split-view': [thread: ThreadWithDetails]
   'close-thread': [thread: ThreadWithDetails]
@@ -136,6 +146,10 @@ const withThread = (fn: (thread: ThreadWithDetails) => void) => () => {
 
 const leaveThread = () => {
   emit('leave')
+  emit('close')
+}
+const joinThread = () => {
+  emit('join')
   emit('close')
 }
 const editThread = withThread((thread) => emit('edit', thread))

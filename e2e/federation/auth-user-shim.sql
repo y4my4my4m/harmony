@@ -22,9 +22,11 @@ $$;
 REVOKE ALL ON FUNCTION public.hmfed_auth_user() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.hmfed_auth_user() TO authenticated;
 
--- Auth users behind roundtrip.ts's local profiles (ALICE_AUTH, BOB_AUTH, CAROL_AUTH).
+-- Auth users behind roundtrip.ts's local profiles (ALICE_AUTH, BOB_AUTH, CAROL_AUTH) and the recipient
+-- of cases/dmPolicy.ts.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('fed0a000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fx_alice@hmfed.test'),
   ('fed0a000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fx_bob@hmfed.test'),
-  ('fed0a000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fx_carol@hmfed.test')
+  ('fed0a000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fx_carol@hmfed.test'),
+  ('fed0a000-0000-0000-0000-000000000247', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fx_dmpolicy@test.local')
 ON CONFLICT (id) DO NOTHING;

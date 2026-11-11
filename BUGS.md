@@ -210,7 +210,7 @@ Also fixed (same pass):
 
 ### Bot
 
-- **M37.** Bot rate-limit fails open on RPC error (race fixed via atomic RPC)
+- **M37.** Bot rate-limit fails open on RPC error (race fixed via atomic RPC) *(fixed November 2026: an RPC error, throw or unexpected answer counts each bucket, and the bot's requests together up to 3000 a minute, in the gateway process)*
 - **M38-M49.** Unused rate-limit dep; unenforced WS-per-bot cap; bridge 429 handling; unbounded message-id Maps; gateway/bridge hygiene; reactions bridged as bot, not user *(several unverified)*
 
 ### Frontend / Vue

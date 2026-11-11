@@ -9,7 +9,7 @@
  *   label  = alnum [ *( alnum / "-" ) alnum ]
  *
  * Left boundary: start of text, or a character other than a letter, digit,
- * "_", "@" or "/". `bob@example.com` and `@@bob` are not handles.
+ * "_", "@", "/" or "\\". `bob@example.com`, `@@bob` and `\\@bob` are not handles.
  * Right boundary: end of text, or a character other than a letter, digit,
  * "_", "-" or "@", and not "." followed by a letter or digit. Trailing
  * ".", ",", "!", "?", ")", ":" end the handle; `@bob.example.com` is not a
@@ -19,7 +19,7 @@
 const LABEL = '[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?';
 
 export const HANDLE_PATTERN =
-  '(?<![\\p{L}\\p{N}_@/])@([A-Za-z0-9_-]+)' +
+  '(?<![\\p{L}\\p{N}_@/\\\\])@([A-Za-z0-9_-]+)' +
   `(?:@(${LABEL}(?:\\.${LABEL})*))?` +
   '(?![\\p{L}\\p{N}_@-]|\\.[\\p{L}\\p{N}_-])';
 

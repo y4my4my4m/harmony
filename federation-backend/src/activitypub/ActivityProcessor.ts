@@ -6,8 +6,9 @@ import { isPollVoteNote, preparePoll, receivePollState, receivePollVote, storeIn
 import { actorHostname } from '../utils/mentionParts.js';
 import { inboundRawContent, urlFormEmojis } from '../utils/inboundContent.js';
 import { withInboundSticker } from '../utils/stickers.js';
-import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext, noteAudience } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, ownNoteUrl, noteContext, noteAudience } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
+import { copyOfGroup } from './copyOfGroup.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
@@ -21,13 +22,13 @@ import { isJoinInFlight } from './joinsInFlight.js';
 import { membershipOutlivesRemove, removalReason, removedByStaff } from './memberRemoval.js';
 import { isServerBlockedHere } from './instanceServerBlocks.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
-import { storedPostVisibility } from './postAccess.js';
+import { actorHostReadsPost, storedPostVisibility } from './postAccess.js';
 import { inboundEmojiOrigin, ownEmojiId } from '../utils/emojiOrigin.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri, resolveOutcome, serverFlagReportId } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
-import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
+import { answersQuoteRequest, localPostIdFromUri, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import { HARMONY_SYSTEM, noteContentText, parseHarmonySystem, systemActorUrls, systemMetadata } from './systemNotes.js';
 import { HARMONY_AUTHOR, parseGroupAuthor, remoteAuthorMetadata } from './groupAuthor.js';
@@ -40,6 +41,7 @@ import {
   parseMemberRolesObject,
   pinsTargetChannel,
 } from './copyMirror.js';
+import { hostFlagsOf } from './channelFlags.js';
 import { CopyMirrorService } from '../services/CopyMirrorService.js';
 import {
   authorizeChannelWrite,
@@ -558,6 +560,18 @@ export class ActivityProcessor {
         return;
       }
 
+      // The named user's key signs the Group's reads below.
+      const { data: membership } = await supabase
+        .from('user_servers')
+        .select('status')
+        .eq('server_id', server.id)
+        .eq('user_id', userProfile.id)
+        .maybeSingle();
+      if (membership?.status !== 'pending' && membership?.status !== 'accepted') {
+        logDenied('Accept(Join)', serverApId, `${userActorUrl} has not asked to join ${server.id}`);
+        return;
+      }
+
       const { error } = await supabase
         .from('user_servers')
         .update({ status: 'accepted' })
@@ -790,7 +804,7 @@ export class ActivityProcessor {
 
       // Group invite notification, sent when a remote user is added to a group.
       if (object.metadata?.type === 'group_invite') {
-        await this.handleGroupInvite(object, author.id);
+        await this.handleGroupInvite(object, author.id, activity, options);
         return;
       }
 
@@ -820,10 +834,15 @@ export class ActivityProcessor {
         let parentPostId: string | null = null;
         let conversationRootId: string | null = null;
 
+        let replyRefused = false;
         if (object.inReplyTo) {
           const replyResult = await this.resolveReplyChain(object.inReplyTo);
-          parentPostId = replyResult.parentPostId;
-          conversationRootId = replyResult.conversationRootId;
+          if (await this.actorReachesPost(replyResult.parentPostId, normalizeActor(activity.actor))) {
+            parentPostId = replyResult.parentPostId;
+            conversationRootId = replyResult.conversationRootId;
+          } else {
+            replyRefused = true;
+          }
         }
 
         let quotedPostData: any = null;
@@ -840,7 +859,7 @@ export class ActivityProcessor {
         }
 
         const metadata: any = {};
-        if (object.inReplyTo) {
+        if (object.inReplyTo && !replyRefused) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
         }
         const context = noteContext(object);
@@ -863,7 +882,7 @@ export class ActivityProcessor {
           ap_id: object.id,
           ...(object.type !== 'Note' ? { ap_type: object.type } : {}),
           ...(language ? { language } : {}),
-          url: noteUrl(object),
+          url: ownNoteUrl(object),
           author_id: author.id,
           content,
           visibility,
@@ -879,25 +898,7 @@ export class ActivityProcessor {
         };
 
         if (quotedPostData) {
-          postData.reblog = {
-            id: quotedPostData.id,
-            content: quotedPostData.content,
-            created_at: quotedPostData.created_at,
-            visibility: quotedPostData.visibility,
-            media_attachments: quotedPostData.media_attachments || [],
-            is_sensitive: quotedPostData.is_sensitive === true,
-            content_warning: quotedPostData.content_warning || null,
-          };
-          
-          const { data: quotedAuthor } = await supabase
-            .from('profiles')
-            .select('id, username, display_name, avatar_url, domain, is_local')
-            .eq('id', quotedPostData.author_id)
-            .single();
-          
-          if (quotedAuthor) {
-            postData.reblog_author = quotedAuthor;
-          }
+          Object.assign(postData, await this.quoteSnapshot(quotedPostData));
         }
 
         // Deduplicate: a post may arrive multiple times (direct + follower delivery)
@@ -926,13 +927,13 @@ export class ActivityProcessor {
 
           if (insertedPost) {
             // Re-link orphan replies that arrived before this parent and were
-            // stamped with metadata.in_reply_to_ap_url = object.id. `object.url`
-            // is passed too so orphans stamped with the alternate URL form match.
+            // stamped with metadata.in_reply_to_ap_url = object.id. The url on the id's
+            // host is passed too so orphans stamped with the alternate URL form match.
             await this.relinkPendingChildren(
               object.id,
               insertedPost.id,
               (insertedPost as any).conversation_root_id ?? null,
-              object.url || null,
+              ownNoteUrl(object),
             );
 
             const { enrichPostLinkPreviews } = await import('../listeners/DatabaseListener.js');
@@ -957,6 +958,69 @@ export class ActivityProcessor {
   /**
    * Resolve a quoted post, fetching from the origin instance if not stored locally.
    */
+  /** `reblog` and `reblog_author` columns of a post quoting `quoted`. */
+  private static async quoteSnapshot(quoted: any): Promise<{ reblog: Record<string, unknown>; reblog_author?: unknown }> {
+    const { data: author } = await getSupabaseClient()
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local')
+      .eq('id', quoted.author_id)
+      .single();
+    return {
+      reblog: {
+        id: quoted.id,
+        content: quoted.content,
+        created_at: quoted.created_at,
+        visibility: quoted.visibility,
+        media_attachments: quoted.media_attachments || [],
+        is_sensitive: quoted.is_sensitive === true,
+        content_warning: quoted.content_warning || null,
+      },
+      ...(author ? { reblog_author: author } : {}),
+    };
+  }
+
+  /**
+   * Read of the quoted post of a stored remote quote. A delivered Note reads it on arrival, and
+   * that read can fail. storeRemotePost (boosts, searches, reply crawls) and the outbox backfill
+   * (metadata.quote_url) never read it. Applies the rules of processCreate.
+   *
+   * 'none': not a remote quote awaiting its post. 'unavailable': still unreadable.
+   * 'withheld': the quoted post is deleted or not public; the post stops being a quote.
+   */
+  public static async resolveStoredQuote(postId: string): Promise<
+    | { status: 'none' | 'unavailable' | 'withheld' }
+    | { status: 'resolved'; reblog: unknown; reblog_author?: unknown; metadata: unknown }
+  > {
+    const supabase = getSupabaseClient();
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, is_local, is_deleted, reblog, metadata')
+      .eq('id', postId)
+      .maybeSingle();
+    const quoteUrl = post?.metadata?.quote_ap_url ?? post?.metadata?.quote_url;
+    if (!post || post.is_local || post.is_deleted || post.reblog || typeof quoteUrl !== 'string') {
+      return { status: 'none' };
+    }
+
+    const quoted = await this.resolveQuotedPost(quoteUrl);
+    if (!quoted) return { status: 'unavailable' };
+
+    if (quoted.is_deleted === true || !isBoostableVisibility(quoted.visibility)) {
+      const { is_quote: _quote, quote_ap_url: _url, quote_url: _backfillUrl, ...metadata } = post.metadata;
+      await supabase.from('posts').update({ metadata }).eq('id', postId);
+      return { status: 'withheld' };
+    }
+
+    const snapshot = await this.quoteSnapshot(quoted);
+    const metadata = { ...post.metadata, reblog_of: quoted.id };
+    const { error } = await supabase.from('posts').update({ ...snapshot, metadata }).eq('id', postId);
+    if (error) {
+      logger.warn(`Storing the quoted post of ${postId} failed: ${error.message}`);
+      return { status: 'unavailable' };
+    }
+    return { status: 'resolved', ...snapshot, metadata };
+  }
+
   private static async resolveQuotedPost(quoteUrl: string): Promise<any | null> {
     const supabase = getSupabaseClient();
 
@@ -1004,6 +1068,24 @@ export class ActivityProcessor {
   /**
    * Walk a reply chain: fetch missing parent posts and locate the conversation root.
    */
+  /**
+   * False for a followers-only or direct post of this instance the actor's host may not read
+   * (federation_post_access, as a signed GET of it is decided). A remote post's host decides
+   * for itself.
+   */
+  private static async actorReachesPost(postId: string | null, actorUrl: string): Promise<boolean> {
+    if (!postId) return true;
+    const { data: post } = await getSupabaseClient()
+      .from('posts')
+      .select('id, visibility, is_local')
+      .eq('id', postId)
+      .maybeSingle();
+    if (!post || post.is_local !== true) return true;
+    const reaches = await actorHostReadsPost(post, actorUrl);
+    if (!reaches) logDenied('post interaction', actorUrl, `${post.visibility} post ${post.id} is not readable from its host`);
+    return reaches;
+  }
+
   private static async resolveReplyChain(inReplyToRef: string, depth = 0): Promise<{
     parentPostId: string | null;
     conversationRootId: string | null;
@@ -1039,17 +1121,15 @@ export class ActivityProcessor {
 
       parentPost = postByApId;
 
-      // Try extracting UUID from URL
-      if (!parentPost && inReplyToRef.includes('/posts/')) {
-        const uuidMatch = inReplyToRef.match(/\/posts\/([a-f0-9-]{36})/);
-        if (uuidMatch) {
-          const { data: postById } = await supabase
-            .from('posts')
-            .select('id, in_reply_to, conversation_root_id')
-            .eq('id', uuidMatch[1])
-            .maybeSingle();
-          parentPost = postById;
-        }
+      // This instance's own post URL. The same path on another host names another post.
+      const ownPostId = parentPost ? null : localPostIdFromUri(inReplyToRef);
+      if (ownPostId) {
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id, in_reply_to, conversation_root_id')
+          .eq('id', ownPostId)
+          .maybeSingle();
+        parentPost = postById;
       }
 
       // Fetch from remote if not found locally. Forward depth so the inner
@@ -1271,7 +1351,7 @@ export class ActivityProcessor {
       }
 
       // Deduplicate by the canonical AP id; it may differ from the fetched URL.
-      const apUrl = noteUrl(remoteObject) || apId;
+      const apUrl = ownNoteUrl(remoteObject) || apId;
       if (apId !== checkedUrl || apUrl !== checkedUrl) {
         const { data: existingByApId } = await supabase
           .from('posts')
@@ -1324,17 +1404,22 @@ export class ActivityProcessor {
       // recursive walk stops at MAX_DEPTH overall, not per frame.
       let resolvedInReplyTo: string | null = null;
       let conversationRootId: string | null = null;
+      let replyRefused = false;
       if (remoteObject.inReplyTo) {
         const replyResult = await this.resolveReplyChain(remoteObject.inReplyTo, depth);
-        resolvedInReplyTo = replyResult.parentPostId;
-        conversationRootId = replyResult.conversationRootId;
+        if (await this.actorReachesPost(replyResult.parentPostId, authorUrl)) {
+          resolvedInReplyTo = replyResult.parentPostId;
+          conversationRootId = replyResult.conversationRootId;
+        } else {
+          replyRefused = true;
+        }
       }
 
       // The parent AP url is always stamped in metadata, even when resolution
       // failed (parent server unreachable). The client-side ancestor walker
       // retries from this hint.
       const metadata: Record<string, any> = isQuestion ? { ...questionPollMetadata(remoteObject) } : {};
-      if (remoteObject.inReplyTo) {
+      if (remoteObject.inReplyTo && !replyRefused) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
       const context = noteContext(remoteObject);
@@ -1557,12 +1642,7 @@ export class ActivityProcessor {
         return;
       }
       
-      const { data: existingServer } = await supabase
-        .from('servers')
-        .select('id, ap_id, federation_metadata')
-        .eq('id', serverIdMatch[1])
-        .eq('is_local_server', false)
-        .maybeSingle();
+      const existingServer = await copyOfGroup(supabase, object.id, 'id, ap_id, federation_metadata');
       
       if (!existingServer) {
         logger.warn(`Remote server not found for Update: ${object.id}`);
@@ -1849,7 +1929,7 @@ export class ActivityProcessor {
   private static async processGroupMessageDelete(actorUrl: string, objectUrl: string): Promise<boolean> {
     const prefix = `https://${config.INSTANCE_DOMAIN}/messages/`;
     const localId = objectUrl.startsWith(prefix) ? objectUrl.slice(prefix.length) : null;
-    if (!localId || !/^[0-9a-f-]{36}$/i.test(localId)) return false;
+    if (!localId || !/^[0-9a-f-]{36}$/.test(localId)) return false;
 
     const supabase = getSupabaseClient();
     const { data: message } = await supabase
@@ -1935,19 +2015,18 @@ export class ActivityProcessor {
       
       post = postByApId;
       
-      // Method 2: UUID extracted from the URL.
-      if (!post && objectUrl.includes('/posts/')) {
-        const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
-        if (uuidMatch) {
-          const postId = uuidMatch[1];
-          const { data: postById } = await supabase
-            .from('posts')
-            .select('id')
-            .eq('id', postId)
-            .maybeSingle();
-          post = postById;
-        }
+      // Method 2: this instance's own post URL. The same path on another host names another post.
+      const ownPostId = post ? null : localPostIdFromUri(objectUrl);
+      if (ownPostId) {
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('id', ownPostId)
+          .maybeSingle();
+        post = postById;
       }
+
+      if (post && !(await this.actorReachesPost(post.id, actorUrl))) return;
     }
 
     if (message) {
@@ -2136,6 +2215,13 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     logger.info(`Processing Announce: ${actorUrl} reblogged ${objectUrl}`);
+
+    // posts.ap_id takes this id. Another host's id would squat that host's post: its real
+    // Create is later dropped as a duplicate.
+    if (!sameOrigin(activity.id, actorUrl)) {
+      logDenied('Announce', actorUrl, `${activity.id} is not on the actor's host`);
+      return;
+    }
 
     await this.ensureRemoteUser(actorUrl);
 
@@ -2833,19 +2919,7 @@ export class ActivityProcessor {
    * actor on another host naming the same UUID resolves to nothing.
    */
   private static async resolveRemoteServer(serverUrl: string): Promise<any | null> {
-    const supabase = getSupabaseClient();
-    const serverIdMatch = serverUrl?.match(/\/servers\/([a-f0-9-]{36})$/i);
-    if (!serverIdMatch) return null;
-
-    const { data: server } = await supabase
-      .from('servers')
-      .select('id, federation_enabled, ap_id, federation_metadata')
-      .eq('id', serverIdMatch[1])
-      .eq('is_local_server', false)
-      .maybeSingle();
-
-    if (!server?.ap_id || !SignatureService.verifyActorMatch(serverUrl, server.ap_id)) return null;
-    return server;
+    return copyOfGroup(getSupabaseClient(), serverUrl, 'id, federation_enabled, ap_id, federation_metadata');
   }
 
   /**
@@ -2886,6 +2960,7 @@ export class ActivityProcessor {
         server_id: serverId,
         name: object.name,
         order: parseChannelPosition(object) ?? 0,
+        host_flags: hostFlagsOf(object),
       };
       if (entityUuid) catData.id = entityUuid;
 
@@ -2932,6 +3007,7 @@ export class ActivityProcessor {
         ap_id: object.id,
         is_remote: true,
         category: categoryId,
+        host_flags: hostFlagsOf(object),
       };
       if (entityUuid) insertData.id = entityUuid;
 
@@ -2980,6 +3056,7 @@ export class ActivityProcessor {
           .update({
             name: object.name,
             order: parseChannelPosition(object),
+            host_flags: hostFlagsOf(object),
           })
           .eq('id', entityUuid);
         logger.info(`Updated remote category: ${object.name}`);
@@ -2989,6 +3066,7 @@ export class ActivityProcessor {
           server_id: server.id,
           name: object.name,
           order: parseChannelPosition(object) ?? 0,
+          host_flags: hostFlagsOf(object),
         });
         if (error) {
           logger.error(`Failed to auto-create category ${object.name}:`, error);
@@ -3026,6 +3104,7 @@ export class ActivityProcessor {
             description: object.description,
             order: parseChannelPosition(object),
             category: categoryId,
+            host_flags: hostFlagsOf(object),
           })
           .eq('id', channel.id);
         logger.info(`Updated remote channel: ${object.name}`);
@@ -3040,6 +3119,7 @@ export class ActivityProcessor {
           ap_id: object.id,
           is_remote: true,
           category: categoryId,
+          host_flags: hostFlagsOf(object),
         };
         if (entityUuid) insertData.id = entityUuid;
 
@@ -3593,15 +3673,21 @@ export class ActivityProcessor {
     const cleanName = origin.name;
     const emojiDomain = origin.domain ?? new URL(emojiUrl).hostname;
 
-    try {
-      await supabase.rpc('upsert_remote_emoji', {
-        p_shortcode: cleanName,
-        p_origin_domain: emojiDomain,
-        p_full_code: `:${cleanName}@${emojiDomain}:`,
-        p_url: emojiUrl,
-      });
-    } catch (cacheError) {
-      logger.debug(`Could not cache emoji: ${cacheError}`);
+    // A row of this cache says what `name` is on `origin_domain`: only that instance's actors
+    // write it. A relayed `name@other` names an origin the sender cannot speak for. A
+    // qualified name may omit the port its actor URL carries.
+    const hostname = (host: string | null) => host?.toLowerCase().replace(/:\d+$/, '') ?? null;
+    if (hostname(emojiDomain) === hostname(urlHost(actorUrl))) {
+      try {
+        await supabase.rpc('upsert_remote_emoji', {
+          p_shortcode: cleanName,
+          p_origin_domain: emojiDomain,
+          p_full_code: `:${cleanName}@${emojiDomain}:`,
+          p_url: emojiUrl,
+        });
+      } catch (cacheError) {
+        logger.debug(`Could not cache emoji: ${cacheError}`);
+      }
     }
 
     const { data: existing } = await supabase
@@ -3975,7 +4061,9 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
     
-    const serverId = object['harmony:serverId'];
+    // A relaying Group's copy decides: its id here can differ from the id on the Group's host.
+    const relayCopy = relay ? await copyOfGroup(supabase, relay.groupUrl) : null;
+    const serverId = relayCopy?.id ?? object['harmony:serverId'];
     const channelName = object['harmony:channelName'];
     
     // Extract channel ID from context URL (format: https://domain/servers/{serverId}/channels/{channelId})
@@ -4357,6 +4445,12 @@ export class ActivityProcessor {
     }
 
     if (inner.type === 'Delete') {
+      // The host checked the row it holds under this id, which need not be this one. A
+      // moderator's delete of another member's message arrives as the Group's own Delete.
+      if (target.user_id !== profile.id) {
+        logDenied('Group relay', group, `${actorUrl} does not own ${targetUrl}`);
+        return;
+      }
       const { error } = await supabase.from('messages').update({ is_deleted: true }).eq('id', target.id);
       if (error) logger.error(`Failed to delete message ${target.id} relayed by ${group}:`, error);
       else logger.info(`Deleted message ${target.id}, relayed by ${group}`);
@@ -4385,7 +4479,8 @@ export class ActivityProcessor {
   private static async processChannelMessageUpdate(activity: any, object: any, relay?: { groupUrl: string }): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
-    const serverId = object['harmony:serverId'];
+    const relayCopy = relay ? await copyOfGroup(supabase, relay.groupUrl) : null;
+    const serverId = relayCopy?.id ?? object['harmony:serverId'];
     if (typeof object.id !== 'string' || typeof serverId !== 'string') return;
 
     const message = await messageInServer(supabase, serverId, object.id, config.INSTANCE_DOMAIN);
@@ -4468,7 +4563,7 @@ export class ActivityProcessor {
     } else if (typeof object.content === 'string') {
       content = noteToContent(object);
     } else if (Array.isArray(object.content)) {
-      content = object.content;
+      content = inboundRawContent(object.content, actorHostname(actorUrl));
     } else {
       content = [{ type: 'text', text: String(object.content || '') }];
     }
@@ -4501,6 +4596,46 @@ export class ActivityProcessor {
     return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
   }
 
+  /** Recipients whose profiles.dm_policy admits the sender. A failed check delivers as before. */
+  private static async dmRecipientsAllowing(senderId: string, recipientIds: string[]): Promise<string[]> {
+    const { data, error } = await getSupabaseClient()
+      .rpc('dm_recipients_allowing', { p_sender: senderId, p_recipients: recipientIds });
+    if (error || !Array.isArray(data)) {
+      logger.warn(`dm_recipients_allowing failed: ${error?.message ?? 'no result'}`);
+      return recipientIds;
+    }
+    return data;
+  }
+
+  /** Checked before the conversation exists: a held or rejected DM or invite leaves nothing behind. */
+  private static async dmStoppedAsSpam(
+    object: any,
+    authorId: string,
+    recipientIds: string[],
+    activity: any,
+    options: { skipSpamGuard?: boolean },
+  ): Promise<boolean> {
+    if (options.skipSpamGuard) return false;
+    const { data: localRecipients } = await getSupabaseClient()
+      .from('profiles')
+      .select('id')
+      .in('id', recipientIds)
+      .eq('is_local', true);
+    const verdict = await evaluateInboundCreate({
+      activity: activity ?? { id: object.id, type: 'Create', actor: object.attributedTo, object },
+      object,
+      authorId,
+      authorUri: normalizeActor(activity?.actor ?? object.attributedTo),
+      kind: 'federation_dm',
+      targetIds: (localRecipients ?? []).map((r: any) => r.id).filter((id: string) => id !== authorId),
+    });
+    if (verdict.action === 'hold' || verdict.action === 'reject') {
+      logger.info(`DM ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
+      return true;
+    }
+    return false;
+  }
+
   private static async handleDirectMessage(
     object: any,
     authorId: string,
@@ -4528,29 +4663,17 @@ export class ActivityProcessor {
       return;
     }
 
-    // Checked before the conversation exists: a held or rejected DM leaves nothing behind.
-    if (!options.skipSpamGuard) {
-      const { data: localRecipients } = await supabase
-        .from('profiles')
-        .select('id')
-        .in('id', recipientIds)
-        .eq('is_local', true);
-      const verdict = await evaluateInboundCreate({
-        activity: activity ?? { id: object.id, type: 'Create', actor: object.attributedTo, object },
-        object,
-        authorId,
-        authorUri: typeof object.attributedTo === 'string' ? object.attributedTo : normalizeActor(activity?.actor),
-        kind: 'federation_dm',
-        targetIds: (localRecipients ?? []).map((r: any) => r.id).filter((id: string) => id !== authorId),
-      });
-      if (verdict.action === 'hold' || verdict.action === 'reject') {
-        logger.info(`DM ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
-        return;
-      }
-    }
+    if (await this.dmStoppedAsSpam(object, authorId, recipientIds, activity, options)) return;
 
     // Group vs 1:1 is decided by sender metadata or recipient count.
     const isGroup = object['harmony:conversationType'] === 'group' || recipientIds.length > 1;
+
+    const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
+    if (allowedIds.length === 0) {
+      logDenied('DM', normalizeActor(activity?.actor ?? object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      return;
+    }
+
     let conversationId: string | null = null;
 
     if (isGroup) {
@@ -4558,7 +4681,7 @@ export class ActivityProcessor {
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_federated_group_conversation', {
           p_actor_id: authorId,
-          p_local_recipient_ids: recipientIds,
+          p_local_recipient_ids: allowedIds,
           p_remote_conversation_id: remoteConvId
         });
       if (convError || !convId) {
@@ -4576,7 +4699,7 @@ export class ActivityProcessor {
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_dm_conversation', {
           p_user1_id: authorId,
-          p_user2_id: recipientIds[0]
+          p_user2_id: allowedIds[0]
         });
       if (convError || !convId) {
         logger.error(`Failed to get/create DM conversation:`, convError);
@@ -4601,7 +4724,7 @@ export class ActivityProcessor {
 
     const metadata: Record<string, any> = {
       ap_id: object.id,
-      from_domain: new URL(object.attributedTo || object.actor).hostname,
+      from_domain: new URL(normalizeActor(activity?.actor ?? object.attributedTo ?? object.actor)).hostname,
       original_url: object.url || object.id,
       published: object.published,
       federated: true,
@@ -4646,7 +4769,12 @@ export class ActivityProcessor {
   /**
    * Group invite: creates the conversation and notifies local recipients.
    */
-  private static async handleGroupInvite(object: any, authorId: string): Promise<void> {
+  private static async handleGroupInvite(
+    object: any,
+    authorId: string,
+    activity: any,
+    options: { skipSpamGuard?: boolean },
+  ): Promise<void> {
     const supabase = getSupabaseClient();
 
     const to: unknown[] = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
@@ -4663,19 +4791,32 @@ export class ActivityProcessor {
       return;
     }
 
+    if (await this.dmStoppedAsSpam(object, authorId, recipientIds, activity, options)) return;
+
+    const allowedIds = await this.dmRecipientsAllowing(authorId, recipientIds);
+    if (allowedIds.length === 0) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `refused by the setting of every recipient of ${object.id}`);
+      return;
+    }
+
     const remoteConversationId = object.metadata?.conversation_id || null;
 
     const { data: conversationId, error: convError } = await supabase.rpc(
       'get_or_create_federated_group_conversation',
       {
         p_actor_id: authorId,
-        p_local_recipient_ids: recipientIds,
+        p_local_recipient_ids: allowedIds,
         p_remote_conversation_id: remoteConversationId,
       }
     );
 
     if (convError || !conversationId) {
       logger.error('Failed to get/create group for invite:', convError);
+      return;
+    }
+    // A conversation found by remote id takes no invite from outside it.
+    if (!(await actorInConversation(supabase, conversationId, authorId))) {
+      logDenied('group invite', normalizeActor(object.attributedTo), `not a participant of ${conversationId}`);
       return;
     }
 
@@ -4687,7 +4828,7 @@ export class ActivityProcessor {
 
     const conversationName = object.metadata?.conversation_name || 'a group conversation';
 
-    for (const userId of recipientIds) {
+    for (const userId of allowedIds) {
       const { error: notifError } = await supabase.rpc('send_notification_to_user', {
         p_notification_type: 'dm',
         p_to_user_id: userId,
@@ -4711,7 +4852,7 @@ export class ActivityProcessor {
       });
       if (notifError) logger.warn('Failed to create invite notification:', notifError);
     }
-    logger.info(`Group invite processed: conversation ${conversationId}, ${recipientIds.length} recipient(s)`);
+    logger.info(`Group invite processed: conversation ${conversationId}, ${allowedIds.length} recipient(s)`);
   }
 
   /**

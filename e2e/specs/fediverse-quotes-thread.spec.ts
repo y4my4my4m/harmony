@@ -113,6 +113,48 @@ test('a remote reply that quotes a post reads as the reply with the quote under 
   await expect(unfetched.getByRole('link', { name: 'View quoted post' })).toHaveAttribute('href', MISSING)
 })
 
+test('a quote whose post was unread on arrival shows it once a second read finds it', async ({ page }) => {
+  test.setTimeout(180_000)
+  const [retryId] = await insertPosts([{
+    author_id: remote.id,
+    visibility: 'public',
+    is_local: false,
+    ap_id: `https://${domain}/users/${remote.username}/statuses/retry-${marker}`,
+    created_at: at(50),
+    in_reply_to: rootId,
+    conversation_root_id: rootId,
+    content: [{ type: 'text', text: `quote read again ${marker}` }],
+    metadata: { is_quote: true, quote_ap_url: `${MISSING}/retry` },
+  }])
+  const requests: unknown[] = []
+  await page.route('**/api/federation/resolve-quote', async (route) => {
+    const body = route.request().postDataJSON() as { post_id?: string }
+    requests.push(body.post_id)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body.post_id === retryId
+        ? {
+            status: 'resolved',
+            reblog: { id: crypto.randomUUID(), content: [{ type: 'text', text: `found on the second read ${marker}` }], created_at: at(9000), visibility: 'public' },
+            reblog_author: { id: crypto.randomUUID(), username: 'ariadne', display_name: 'Ariadne', domain: 'holos.e2e.test', is_local: false },
+            metadata: { is_quote: true, quote_ap_url: `${MISSING}/retry`, reblog_of: crypto.randomUUID() },
+          }
+        : { status: 'unavailable' }),
+    })
+  })
+  await signIn(page, reader)
+  await page.goto(`/social/post/${rootId}`)
+  const quoting = page.locator('article').filter({ hasText: `quote read again ${marker}` })
+  await expect(quoting.locator('.quoted-post')).toContainText(`found on the second read ${marker}`, { timeout: 90_000 })
+  await expect(quoting.getByRole('link', { name: 'View quoted post' })).toHaveCount(0)
+  expect(requests).toContain(retryId)
+  expect(requests.filter((id) => id === retryId)).toHaveLength(1)
+
+  const unfetched = page.locator('article').filter({ hasText: `quote of a post never fetched ${marker}` })
+  await expect(unfetched.getByRole('link', { name: 'View quoted post' })).toBeVisible()
+})
+
 test('replying to a remote post that names the reader leaves the reader out', async ({ page }) => {
   test.setTimeout(180_000)
   await signIn(page, reader)

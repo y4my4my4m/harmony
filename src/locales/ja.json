@@ -70,6 +70,13 @@
     "learnMore": "詳細を見る"
   },
   "auth": {
+    "signupRefused": {
+      "ipCap": "このネットワークから本日作成されたアカウントが多すぎます。明日もう一度お試しいただくか、このインスタンスの管理者に招待を依頼してください。",
+      "domainCap": "このメールドメインで本日作成されたアカウントが多すぎます。明日もう一度お試しいただくか、このインスタンスの管理者に招待を依頼してください。",
+      "mailboxCap": "このメールボックスは、このインスタンスのアカウント数の上限に達しています。",
+      "blockedDomain": "このメールプロバイダーはこのインスタンスの登録に使用できません。別のアドレスを使用してください。",
+      "blockedNetwork": "このネットワークからの新規登録は、このインスタンスでは利用できません。このインスタンスの管理者に招待を依頼してください。"
+    },
     "login": "ログイン",
     "register": "登録",
     "logout": "ログアウト",
@@ -1683,6 +1690,8 @@
       "mirrorLinkHost": "{site} の投稿のミラー",
       "renderEmoticonsAsEmoji": "他の人の顔文字を絵文字で表示",
       "renderEmoticonsAsEmojiDesc": "メッセージ内の :) :D <3 などを絵文字として表示します。元のテキストは変更されません。",
+      "animateEmoji": "カスタム絵文字をアニメーション",
+      "animateEmojiDesc": "オフにすると、アニメーション絵文字は最初のフレームで表示されます。変わるのは自分の表示だけです。",
       "inviteBannerBg": "招待ダイアログのサーバーバナー",
       "inviteBannerBgDesc": "サーバーにバナーがある場合、招待ダイアログの背後にぼかして暗くしたバナーを表示します。",
       "quickReact": "クイックリアクション",
@@ -2366,6 +2375,15 @@
       "changesReset": "プロフィールの変更をリセットしました",
       "handleCopied": "ハンドルをコピーしました",
       "copyFailed": "コピーできませんでした"
+    },
+    "dmPolicy": {
+      "title": "ダイレクトメッセージ",
+      "label": "あなたと会話を始められる人",
+      "description": "既存の会話は引き続き利用できます。インスタンスのスタッフはいつでも連絡できます。他のインスタンスの人がこの設定で拒否されても、通知はされません。",
+      "everyone": "全員",
+      "known": "サーバーのメンバーとフォロー中の人",
+      "following": "フォロー中の人のみ",
+      "failed": "設定を保存できませんでした"
     }
   },
   "navigation": {
@@ -2958,7 +2976,8 @@
       "illegal_content": "違法なコンテンツ",
       "impersonation": "なりすまし",
       "nsfw": "不適切/NSFW なコンテンツ",
-      "other": "その他"
+      "other": "その他",
+      "username_hoarding": "ユーザー名の買い占めやアカウントの売買"
     },
     "reportSource": {
       "fromInstance": "{domain} から",
@@ -3580,6 +3599,16 @@
       },
       "newLink": "新しいリンクを作成",
       "newLinkHint": "この設定でリンクを作成します。既存のリンクは期限切れになるか取り消すまで引き続き使用できます。",
+      "widgets": {
+        "toggle": "自分のサイトに追加",
+        "hint": "いずれかをサイトに貼り付けてください。サーバー名とメンバー数を表示し、この招待にリンクします。誰でも見ることができます。",
+        "expiring": "このリンクには有効期限または使用回数の上限があり、切れるとウィジェットは動作しなくなります。サイトには無期限のリンクを作成してください。",
+        "badge": "バッジ",
+        "markdown": "Markdown用バッジ(README、フォーラム)",
+        "join": "参加ボタン",
+        "icon": "小さいアイコン",
+        "card": "カード(iframe)"
+      },
       "creating": "作成中…",
       "created": "新しい招待リンクを作成しました",
       "createFailed": "招待リンクを作成できませんでした",
@@ -3972,6 +4001,62 @@
         "label": "ロールの管理",
         "description": "インストールしたユーザーの最上位ロールより下のロールを、自身が持つ権限の範囲で作成・編集・削除します。"
       }
+    },
+    "commands": {
+      "header": "コマンド",
+      "bar": {
+        "label": "{command} のオプション",
+        "close": "コマンドを閉じる (Esc)",
+        "send": "コマンドを送信",
+        "required": "必須",
+        "choose": "選択…",
+        "chooseChannel": "チャンネルを選択…",
+        "chooseRole": "ロールを選択…",
+        "searchMembers": "メンバーを検索…",
+        "true": "はい",
+        "false": "いいえ"
+      },
+      "validation": {
+        "required": "入力してください。",
+        "integer": "整数を入力してください。",
+        "number": "数値を入力してください。",
+        "min": "{min} 以上にしてください。",
+        "max": "{max} 以下にしてください。",
+        "minLength": "{min} 文字以上で入力してください。",
+        "maxLength": "{max} 文字以内で入力してください。",
+        "choice": "選択肢から選んでください。",
+        "pick": "リストから選んでください。"
+      },
+      "errors": {
+        "unavailable": "このコマンドはここでは使えません。",
+        "forbidden": "ここでこのコマンドを使う権限がありません。",
+        "timedOut": "このサーバーではタイムアウト中です。",
+        "threadLocked": "このスレッドはロックされています。",
+        "slowmode": "低速モード中です。{seconds} 秒後にもう一度お試しください。",
+        "slowmodeNoTime": "低速モード中です。少し待ってからもう一度お試しください。",
+        "rateLimited": "コマンドの使用回数が多すぎます。{seconds} 秒後にもう一度お試しください。",
+        "rateLimitedNoTime": "コマンドの使用回数が多すぎます。少し待ってからもう一度お試しください。",
+        "invalidOption": "{name} の値は受け付けられませんでした。",
+        "invalidOptions": "コマンドのオプションが受け付けられませんでした。",
+        "failed": "コマンドを送信できませんでした。"
+      },
+      "notice": {
+        "used": "{command} を使用しました",
+        "thinking": "{bot} が考え中…",
+        "noResponse": "{bot} から応答がありませんでした。",
+        "offline": "{bot} はオフラインです。",
+        "cannotPost": "{bot} はこのチャンネルに投稿できません。",
+        "blocked": "{bot} の返信は AutoMod によってブロックされました。",
+        "threadLocked": "スレッドがロックされているため、{bot} は返信できません。",
+        "failed": "{bot} は返信できませんでした。",
+        "private": "あなただけに表示されています",
+        "dismiss": "閉じる",
+        "someBot": "ボット"
+      }
+    },
+    "interactions": {
+      "used": "さんが {command} を使用しました",
+      "someoneUsed": "誰かが {command} を使用しました"
     }
   },
   "webhooks": {
@@ -4047,6 +4132,10 @@
     "lock": {
       "messages": "エンドツーエンド暗号化",
       "voice": "音声とビデオはエンドツーエンドで暗号化されています"
+    },
+    "home": {
+      "voice": "このチャンネルはホームインスタンスでエンドツーエンド暗号化されているため、他のインスタンスのアカウントは通話に参加できません。",
+      "messages": "このチャンネルはホームインスタンスでエンドツーエンド暗号化されているため、他のインスタンスのアカウントはメッセージの閲覧や送信ができません。"
     },
     "status": {
       "active": "エンドツーエンド暗号化",
@@ -4512,9 +4601,12 @@
     },
     "timedOut": "このサーバーでは {time} までタイムアウト中のため、メッセージの送信、リアクション、スレッドの作成ができません。",
     "antispam": {
-      "rateLimited": "新しいアカウントは一度に少数のメッセージしか送信できません。{seconds} 秒後にもう一度お試しください。",
+      "rateLimited": "操作が速すぎます。{seconds} 秒後にもう一度お試しください。",
       "linksBlocked": "新しいアカウントはまだリンクを投稿できません。",
-      "strangerMentions": "新しいアカウントがメンションできるのは、自分をフォローしていない人のうち最大 {count} 人までです。"
+      "strangerMentions": "新しいアカウントがメンションできるのは、自分をフォローしていない人のうち最大 {count} 人までです。",
+      "serverLimit": "このインスタンスでは、1つのアカウントが所有できるサーバーは最大 {count} 個です。",
+      "botLimit": "このインスタンスでは、1つのアカウントが所有できるボットは最大 {count} 個です。",
+      "dmNotAllowed": "この方は、面識のある人からの新しい会話のみ受け付けています。"
     },
     "alert": {
       "raid": "レイドの可能性：{seconds} 秒以内に {joins} 人のメンバーが参加しました。",
@@ -5103,7 +5195,7 @@
       "enterPhrase": "リカバリーフレーズを入力",
       "scanHint": "新しいデバイスの QR コードにカメラを向けてください。",
       "scanPasteLabel": "または新しいデバイスからコピーしたコードを貼り付け",
-      "showInstead": "新しいデバイスにカメラがありますか？代わりにそのデバイスでスキャンするコードを表示",
+      "showInstead": "代わりにスキャンまたはコピーできるコードを表示",
       "showLead": "新しいデバイスで {another}、次に {scanInstead} を選択し、カメラをここに向けるか、下のコードをコピーしてそちらに貼り付けてください。あなたのアカウントにサインインしている人がこのコードをスキャンまたは貼り付けると鍵を受け取れるため、他人に見せないでください。",
       "showLeadAnother": "別のデバイス",
       "showLeadScanInstead": "代わりにそのデバイスのコードをスキャンまたは貼り付け",
@@ -5326,6 +5418,12 @@
       "federationCloseConfirm": "連合を閉じる",
       "configLoadFailed": "現在の設定を読み込めませんでした。保存する前に再読み込みしてください。",
       "webrtcLoadFailed": "音声設定を読み込めなかったため、ここでは変更できません。ページを再読み込みしてもう一度お試しください。",
+      "federatedCallsLabel": "他のインスタンスとの通話",
+      "federatedCallsOn": "オン。他のインスタンスのユーザーは、ここのボイスチャンネルや通話に参加できます。",
+      "federatedCallsOff": "オフ。他のインスタンスのユーザーの参加は拒否され、その旨が伝えられます。",
+      "federatedCallsNoLivekit": "オフ。このインスタンスには LiveKit サーバーがありません。",
+      "federatedCallsUnread": "現在の状態を読み込めませんでした。ページを再読み込みしてもう一度お試しください。",
+      "federatedCallsHint": "連合バックエンドの環境変数 ALLOW_FEDERATED_VOICE で決まります。",
       "customOAuthTitle": "独自のサインインプロバイダー",
       "customOAuthHint": "このインスタンスが信頼する OpenID Connect または OAuth 2.0 プロバイダー（Authentik、Keycloak、Better Auth など）。サインインページでは上のボタンの後に表示されます。クライアントシークレットはサーバーに置かれるため、追加と削除はサーバー側で行います。",
       "customOAuthEmpty": "まだありません。",
@@ -5377,7 +5475,7 @@
     },
     "antiSpam": {
       "title": "スパム対策",
-      "hint": "インスタンス全体の制限です。サーバー所有者はサーバー設定で独自の AutoMod を設定しますが、これらの制限はその上に、すべてのサーバー、DM、投稿に適用されます。ここでの制限は、変更するまですべてオフまたは緩い設定です。",
+      "hint": "インスタンス全体の制限です。サーバー所有者はサーバー設定で独自の AutoMod を設定しますが、これらの制限はその上に、すべてのサーバー、DM、投稿に適用されます。",
       "loadingSettings": "設定を読み込み中...",
       "saved": "スパム対策の設定を保存しました",
       "newAccounts": {
@@ -5390,6 +5488,27 @@
         "strangerMentionsHint": "見知らぬ人とは、ローカルかリモートかを問わず、投稿者をフォローしていない人のことです。",
         "blockLinks": "新しいアカウントはリンクを投稿できない",
         "staffExempt": "インスタンスの管理者とモデレーターは制限されません。"
+      },
+      "accounts": {
+        "title": "すべてのローカルアカウント",
+        "hint": "通常の利用をはるかに上回る上限です。超えると、期間が過ぎるまで書き込みが拒否されます。0 = 無制限。インスタンス管理者、モデレーター、ユーザー画面で除外したアカウントには適用されません。",
+        "messagesPerMinute": "1分あたりのメッセージ数",
+        "postsPerHour": "1時間あたりの投稿数",
+        "postsPerHourHint": "ブーストは数えません。",
+        "reactionsPerMinute": "1分あたりのリアクションとお気に入りの数",
+        "followsPerHour": "1時間あたりのフォロー数",
+        "joinsPerHour": "1時間あたりのサーバー参加数",
+        "serversPerHour": "1時間あたりのサーバー作成数",
+        "strangerDmsPerHour": "1時間あたりの知らない人との新しい会話数",
+        "strangerDmsHint": "知らない人とは、そのアカウントをフォローしておらず、共通のサーバーも会話もない人です。",
+        "newStrangerDmsPerHour": "新しいアカウントの場合",
+        "newStrangerDmsHint": "新しいアカウントとサーバーを共有しているだけの人も数えます。公開サーバーに参加すれば全メンバーに連絡できるためです。"
+      },
+      "bots": {
+        "title": "ボット",
+        "hint": "ボット1体の全ルート合計の1分あたりのリクエスト数で、ルートごとの制限に加えて適用されます。所有者が除外されているボットには適用されません。0 = 無制限。",
+        "requestsPerMinute": "ボットごとの1分あたりのリクエスト数",
+        "bridgeRequestsPerMinute": "連携済みDiscordブリッジごとの1分あたりのリクエスト数"
       },
       "federation": {
         "title": "連合のメンションスパム",
@@ -5444,6 +5563,13 @@
         "loadQueue": "レビューキューを読み込めませんでした",
         "review": "レビューに失敗しました"
       }
+    },
+    "limitExempt": {
+      "add": "{name} をインスタンスの制限から除外",
+      "remove": "{name} にインスタンスの制限を適用",
+      "added": "{name} はインスタンスの制限から除外されました",
+      "removed": "{name} に再びインスタンスの制限が適用されます",
+      "failed": "除外設定を変更できませんでした"
     },
     "instanceEmojis": {
       "tab": "絵文字",
@@ -6352,6 +6478,12 @@
       "deleteCategory": "カテゴリーを削除"
     },
     "thread": {
+      "left": "{thread} から退出しました",
+      "joined": "{thread} に参加しました",
+      "leaveFailed": "スレッドから退出できませんでした",
+      "joinFailed": "スレッドに参加できませんでした",
+      "goToStart": "最初のメッセージへ移動",
+      "showInChannel": "チャンネルで表示",
       "leave": "スレッドから退出",
       "join": "スレッドに参加",
       "edit": "スレッドを編集",
@@ -6586,7 +6718,7 @@
       "staysKeys": "エンドツーエンド暗号化の鍵",
       "staysBots": "所有しているボット",
       "staysServers": "所有しているサーバー",
-      "staysFollowing": "フォローしているアカウント",
+      "staysFollowing": "フォロー中のアカウント。データをダウンロードして、新しいアカウントでリストをインポートしてください。",
       "ownedServersWarning": "あなたは {servers} を所有しています。所有権は引っ越しません。新しいアカウントに所有させる場合は先に譲渡してください。",
       "cooldown": "引っ越し後、次の引っ越しは30日後から可能です。",
       "exportFirst": "先にデータをダウンロード",
@@ -6598,7 +6730,10 @@
       "noPassword": "このアカウントにはパスワードがありません。引っ越しには直近10分以内のサインインが必要です。",
       "confirm": "アカウントを引っ越す",
       "moving": "引っ越し中…",
-      "success": "このアカウントは {handle} を指すようになりました。フォロワーを移行しています。"
+      "success": "このアカウントは {handle} を指すようになりました。フォロワーを移行しています。",
+      "staysInteractions": "いいね、ブースト、ブックマーク",
+      "staysProfile": "表示名、自己紹介、アバター、バナー、プロフィール項目。Harmony の新しいアカウントは引っ越し後にコピーできます。",
+      "staysBlocks": "ブロックまたはミュートしたアカウント"
     },
     "moved": {
       "title": "このアカウントは引っ越しました",
@@ -6629,7 +6764,14 @@
       "move_cooldown": "前回の引っ越しから30日経っていません。{count}日後にもう一度お試しください。",
       "too_many_attempts": "試行回数が多すぎます。{count}分後にもう一度お試しください。",
       "wrong_password": "パスワードが正しくありません。",
-      "generic": "問題が発生しました。もう一度お試しください。"
+      "generic": "問題が発生しました。もう一度お試しください。",
+      "import_running": "インポートはすでに実行中です。",
+      "too_many_accounts": "1つのファイルに含められるアカウントは最大20,000件です。",
+      "no_accounts": "このファイルにはアカウントがありません。",
+      "account_moved": "このアカウントは引っ越し済みです。新しいアカウントでインポートしてください。",
+      "import_rate_limited": "今日はインポートが多すぎます。{count}時間後にもう一度お試しください。",
+      "not_verified": "この引っ越しを確認できませんでした。",
+      "nothing_to_copy": "コピーするものはありませんでした。"
     },
     "profile": {
       "moved": "{name} は {target} に引っ越しました",
@@ -6644,6 +6786,72 @@
       "short": "アカウントの引っ越し",
       "someone": "あるアカウント",
       "newAccount": "新しいアカウント"
+    },
+    "import": {
+      "title": "フォロー中のアカウントをインポート",
+      "description": "古いアカウントのリストにあるアカウントをフォローします。Mastodon では「インポートとエクスポート」でフォローを CSV としてエクスポートしてください。Harmony ではデータのダウンロードで得た ZIP を使ってください。投稿といいねはインポートされません。",
+      "choose": "ファイルを選択",
+      "found": "このファイルに{count}件のアカウントが見つかりました。",
+      "foundHint": "承認制のアカウントと他のサーバーのアカウントにはフォローリクエストが送られます。あなたをブロックしている、またはあなたがブロックしているアカウントはスキップされます。",
+      "start": "インポートを開始",
+      "starting": "開始しています…",
+      "running": "インポート中: {total}件中{done}件完了",
+      "waiting": "1時間あたりのフォロー上限を待っています。約{count}分後に再開します。",
+      "finished": "インポートが完了しました",
+      "stopped": "インポートを停止しました。すでに行ったフォローはそのままです。",
+      "cancel": "インポートを停止",
+      "counts": {
+        "followed": "フォローした",
+        "requested": "リクエストを送信した",
+        "already": "フォロー済みまたはリクエスト済み",
+        "failed": "フォローできなかった",
+        "cancelled": "未処理"
+      },
+      "failures": "{count}件のアカウントをフォローできませんでした",
+      "moreFailures": "ほか{count}件。",
+      "reasons": {
+        "invalid_handle": "アカウントのアドレスではありません",
+        "not_found": "アカウントが見つかりません",
+        "instance_blocked": "このサーバーはそのサーバーと連合していません",
+        "federation_off": "このサーバーでは連合がオフです",
+        "unreachable": "サーバーから応答がありません",
+        "unavailable": "アカウントは削除または停止されています",
+        "self": "あなた自身のアカウントです",
+        "moved": "アカウントは引っ越し済みです",
+        "blocked": "ブロックされている、またはブロックしています",
+        "declined": "以前フォローリクエストを断られています"
+      },
+      "fileErrors": {
+        "file_too_large": "ファイルが大きすぎます。",
+        "unrecognized_file": "このファイルはフォローリストではありません。Mastodon の following_accounts.csv または Harmony のデータダウンロードの ZIP を使ってください。",
+        "wrong_list": "ブロックやミュートなど、別のリストのようです。フォロー中のアカウントのリストを使ってください。",
+        "no_accounts": "このファイルにはアカウントがありません。"
+      }
+    },
+    "copy": {
+      "title": "古いプロフィールをコピー",
+      "description": "{handle} はこのアカウントに引っ越しました。そのプロフィール情報をここにコピーできます。確認するまで何も変わりません。",
+      "origin": "古いアカウント",
+      "fields": {
+        "display_name": "表示名",
+        "bio": "自己紹介",
+        "avatar": "アバター",
+        "banner": "バナー",
+        "profile_fields": "プロフィール項目"
+      },
+      "same": "すでに同じです",
+      "adds": "このプロフィールに追加されます",
+      "replaces": "このプロフィールの内容を置き換えます",
+      "nothing": "古いアカウントにコピーできるプロフィール情報はありません。",
+      "review": "選択した項目をコピー",
+      "confirmTitle": "{handle} からコピーしますか？",
+      "confirmAdds": "{field}をこのプロフィールに追加します。",
+      "confirmReplaces": "{field}でこのプロフィールの現在の内容を置き換えます。",
+      "confirmWarning": "このプロフィールの現在の内容は上書きされ、元に戻せません。",
+      "confirm": "このプロフィールにコピー",
+      "copying": "コピーしています…",
+      "done": "プロフィール情報をコピーしました",
+      "partial": "コピーしました。ただし {fields} は古いサーバーから読み取れませんでした。"
     }
   },
   "polls": {
@@ -7144,6 +7352,7 @@
     "quotaUser": "アカウントごとのストレージ",
     "quotaModerator": "インスタンスモデレーターごとのストレージ",
     "quotaAdmin": "インスタンス管理者ごとのストレージ",
+    "instanceLimit": "インスタンス全体の保存ファイル（0 = 無制限）",
     "ephemeralDays": "一時ファイルの保存期間",
     "days": "日",
     "ephemeralDaily": "Drive がいっぱいのときの 1 日あたりの一時アップロード数",
@@ -7302,7 +7511,8 @@
     "errors": {
       "load": "Drive を読み込めませんでした",
       "temporary": "変更を保存できませんでした：{reason}",
-      "blocked": "このファイルはインスタンスのモデレーターによって削除されました。"
+      "blocked": "このファイルはインスタンスのモデレーターによって削除されました。",
+      "full": "ストレージがいっぱいのため、このアップロードは拒否されました。Driveの空き容量を増やすか、インスタンス管理者にお問い合わせください。"
     },
     "details": {
       "label": "ファイルの詳細",
@@ -7919,6 +8129,45 @@
       "paused": "一時停止中"
     }
   },
+  "adminSignupLimits": {
+    "title": "登録の制限",
+    "intro": "アカウントの大量作成にかかるコストを高めます。2つ目のアカウントやテスト用アカウントを持つ人がこの制限に達することはほとんどありません。招待とこのインスタンス独自のIDプロバイダーには制限がありません。Google、GitHub、Twitch での登録はネットワークの制限にのみ数えられます。",
+    "hookNote": "認証サービスが登録フックを実行すると適用されます。harmony doctor で確認できます。プライベートネットワーク内のクライアントには制限がありません。",
+    "enabled": "登録の制限を適用する",
+    "ipCap": "24時間あたりのネットワークごとのアカウント数",
+    "ipCapHint": "ネットワークは IPv4 アドレス 1 つ、または IPv6 の /56 です。0 は制限なしです。",
+    "mailboxCap": "30日間のメールボックスごとのアカウント数",
+    "mailboxCapHint": "me+test{'@'}example.org は me{'@'}example.org として数えられ、Gmail ではドットが無視されます。0 は制限なしです。",
+    "domainCap": "24時間あたりのメールドメインごとのアカウント数",
+    "domainCapHint": "1 つのドメインで多数のメールボックスを使う大量作成を検出します。Gmail などの大手プロバイダーは数えません。0 は制限なしです。",
+    "enforceCaps": "ネットワークとドメインの上限を超えるアカウントを拒否する",
+    "enforceCapsHint": "オフ:該当アカウントは許可され、下に集計されます。キャンパスやオフィスでは1つのアドレスやメールドメインを共有することがあります。受信箱の上限とドメイン・メールサーバーのリストは常に拒否します。",
+    "blockDisposable": "使い捨てメールアドレスを拒否する",
+    "blockDisposableHint": "使い捨てメールのドメインと、その裏のメールサーバーの組み込みリストです。",
+    "blockedDomains": "追加で拒否するメールドメイン",
+    "blockedDomainsHint": "1 行に 1 ドメインずつ入力します。サブドメインも拒否されます。",
+    "blockedMailHosts": "拒否するメールサーバーの追加",
+    "blockedMailHostsHint": "1行に1ホスト。メールサーバーがこのホストまたはその配下にあるメールドメインを拒否します。erinn.biz は recv1.erinn.biz も含みます。google.com、outlook.com、cloudflare.net などの共用サービスは指定しないでください。利用者全員が拒否されます。",
+    "blockedNetworks": "拒否するアドレスと範囲",
+    "blockedNetworksHint": "1行に1つ。例:203.0.113.7、2001:db8:1:2::/64。そこからの新規アカウントだけを拒否します。既にアカウントを持つ人は引き続きサインインできます。1つのアドレスをキャンパス、オフィス、携帯キャリア全体で共有していることがあるため、範囲は確信がある場合だけブロックしてください。",
+    "trustedDomains": "制限しないメールドメイン",
+    "trustedDomainsHint": "1行に1ドメイン。誤って拒否された、または一斉に参加するキャンパスや企業向けです。サブドメインも含みます。ドメインの上限、使い捨てリスト、メールサーバーのリストを適用しません。拒否リストのドメインは拒否されたままで、受信箱の上限は適用されます。",
+    "save": "制限を保存",
+    "saved": "登録の制限を保存しました",
+    "saveFailed": "登録の制限を保存できませんでした。",
+    "loadFailed": "登録の制限を読み込めませんでした。",
+    "invalidCap": "0 から 1000 までの整数を入力してください。",
+    "invalidDomain": "{domain} はドメイン名ではありません。",
+    "invalidNetwork": "{network} はアドレスまたは使用できる範囲ではありません。範囲は IPv4 で /8 以下の広さ、IPv6 で /16 以下の広さにしてください。",
+    "wouldRefuseTitle": "上限を超えたが許可された登録（過去7日間）",
+    "refusalsTitle": "過去7日間に拒否された登録",
+    "refusalIpCap": "ネットワークの制限",
+    "refusalDomainCap": "ドメインの制限",
+    "refusalMailboxCap": "メールボックスの制限",
+    "refusalBlockedDomain": "拒否されたメールドメイン",
+    "refusalMailHost": "メールサーバー",
+    "refusalBlockedNetwork": "拒否したアドレス"
+  },
   "adminInvites": {
     "tab": "招待",
     "title": "ユーザーを招待",
@@ -8175,6 +8424,127 @@
       "members": "{count} メンバー",
       "here": "オンラインでチャンネルを見られるメンバー",
       "unknown": "このサーバーの役割ではありません"
+    }
+  },
+  "adminSignups": {
+    "tab": "新規登録",
+    "title": "最近の新規登録",
+    "intro": "このインスタンスで作成されたアカウントを新しい順に、メールドメインとアクティビティとともに表示します。メールアドレスと IP アドレスは表示されません。グループは確認のきっかけであり、証拠ではありません。登録が多い日や共通のプロバイダーでも同じように見えることがあります。",
+    "limitsLink": "登録の制限は「招待」タブにあります。",
+    "windowLabel": "期間",
+    "window": "{count} 日間",
+    "searchLabel": "新規登録を検索",
+    "searchHint": "ユーザー名、名前、メールドメイン",
+    "loadError": "読み込めませんでした。",
+    "previous": "前へ",
+    "next": "次へ",
+    "filters": {
+      "label": "状態",
+      "all": "すべて",
+      "active": "有効",
+      "suspended": "停止中"
+    },
+    "daily": {
+      "title": "日別 (UTC)",
+      "day": "日付",
+      "signups": "登録数",
+      "domains": "メールドメイン数",
+      "topDomain": "最多ドメイン",
+      "peakHour": "最多の時間帯",
+      "suspended": "停止中",
+      "refused": "拒否",
+      "wouldRefuse": "上限超過（許可）"
+    },
+    "groups": {
+      "title": "グループ",
+      "empty": "この期間に {count} 件以上のグループはありません。",
+      "kindDomain": "メールドメイン",
+      "kindServer": "登録から 1 時間以内に参加",
+      "size": "{count} アカウント",
+      "priorDomain": "このドメインの以前のアカウント {count} 件",
+      "priorServer": "この期間より前からのメンバー {count} 人",
+      "suspended": "{count} 件停止中",
+      "span": "{from} から {to}",
+      "show": "表示",
+      "showLabel": "グループ {label} を表示",
+      "select": "すべて選択",
+      "selectLabel": "すべて選択: グループ {label}",
+      "filterActive": "グループ {label} を表示中",
+      "clear": "すべて表示",
+      "mailHost": "メールサーバー:{hosts}"
+    },
+    "rows": {
+      "title": "{count} アカウント",
+      "empty": "この期間の新規登録はありません。",
+      "emptySearch": "一致する新規登録はありません。",
+      "selectAccount": "{name} を選択",
+      "staff": "スタッフ",
+      "suspended": "停止中",
+      "unconfirmed": "メール未確認",
+      "noEmail": "メールなし",
+      "signedUp": "登録 {time}",
+      "posts": "投稿 {count} 件",
+      "messages": "メッセージ {count} 件",
+      "servers": "{count} サーバーに参加",
+      "owns": "{count} サーバーを所有",
+      "firstServer": "{minutes} 分後に {server} に参加"
+    },
+    "selection": {
+      "count": "{count} 件選択中",
+      "limit": "一度に操作できるのは {count} アカウントまでです。",
+      "suspend": "停止…",
+      "unsuspend": "停止を解除…",
+      "clear": "選択を解除",
+      "delete": "削除…"
+    },
+    "dialog": {
+      "suspendTitle": "{count} アカウントを停止",
+      "unsuspendTitle": "{count} アカウントの停止を解除",
+      "affectedSuspend": "停止されるアカウント",
+      "affectedUnsuspend": "停止が解除されるアカウント",
+      "activity": "投稿 {posts} 件、メッセージ {messages} 件",
+      "nothing": "選択したアカウントにはこの操作を行えません。",
+      "skippedTitle": "対象外",
+      "skip": {
+        "self": "自分のアカウント",
+        "staff": "インスタンスのスタッフ",
+        "remote": "他のインスタンスのアカウント",
+        "no_sign_in": "サインイン情報なし",
+        "deleted": "スタッフにより削除済み",
+        "already_suspended": "すでに停止中",
+        "not_suspended": "停止されていません",
+        "not_found": "アカウントが見つかりません",
+        "owns_server": "他のメンバーがいるサーバーを所有しています"
+      },
+      "ownedTitle": "所有サーバーは開いたままです",
+      "ownedHint": "メンバーはこれらのサーバーを引き続き利用できます。閉じるには「サーバー」タブを使ってください。",
+      "ownedMembers": "メンバー {count} 人",
+      "consequences": {
+        "signedOut": "今すぐサインアウトされます。再度サインインしてもアプリがサインアウトさせます。",
+        "follows": "ローカルアカウントとのフォロー {count} 件が削除されます。停止を解除しても元に戻りません。",
+        "timelines": "投稿はここのタイムラインと公開ページから消えます。メッセージはチャンネルに残ります。",
+        "federation": "他のインスタンスには何も送信されません。すでに受信された内容とリモートのフォロワーはそのまま残ります。",
+        "unsuspend": "再度サインインできるようになります。停止で削除されたフォローは元に戻りません。",
+        "deleteSignIn": "サインインできなくなります。この操作は取り消せません。",
+        "deleteNames": "ユーザー名は解放され、誰でも登録できるようになります。",
+        "deleteContent": "プロフィールは Deleted User になります。メッセージと投稿はその名前で残ります。",
+        "deleteFederation": "フォローしているインスタンスには、アカウントがなくなったことが通知されます。"
+      },
+      "reason": "理由 (必須)",
+      "reasonHint": "同じ理由が各アカウントについてアクティビティログに記録されます。",
+      "confirmSuspend": "{count} アカウントを停止",
+      "confirmUnsuspend": "{count} アカウントの停止を解除",
+      "failed": "失敗しました: {error}",
+      "deleteTitle": "{count}件のアカウントを削除",
+      "affectedDelete": "削除されるアカウント",
+      "confirmDelete": "{count}件のアカウントを削除",
+      "ownedDeleteTitle": "他のメンバーがいない所有サーバーは削除されます",
+      "deleteUnderstand": "この操作は取り消せないことを理解しました"
+    },
+    "done": {
+      "suspended": "{count} アカウントを停止しました",
+      "unsuspended": "{count} アカウントの停止を解除しました",
+      "deleted": "{count}件のアカウントを削除しました"
     }
   }
 }

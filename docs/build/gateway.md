@@ -119,8 +119,9 @@ To recover messages missed while disconnected, read the channels you care about 
 - **No server ID.** Message and reaction payloads carry `channel_id` and no server ID. [`GET /servers/{server.id}/channels`](/build/rest#list-channels) maps channels to servers. [Member events](#member-events) carry `server_id`.
 - **Without a connection.** An [outgoing webhook](/build/outgoing-webhooks) receives the same events by HTTPS POST, connected or not.
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
+- **Interactions.** `INTERACTION_CREATE` goes only to the bot whose command was run, on every open connection, without the `read_messages` check: running the command is the member addressing that bot. The gateway reads new interactions every 250 milliseconds. One that cannot reach an open connection fails at once; one older than its 5-second answer window when the gateway reads it is dropped. Outgoing webhooks do not receive it.
 
-Bridge bots additionally respect each native member's **Bridge privacy** setting for message create/update/delete and reaction events. Preferences are checked at delivery without a consent cache; unavailable privacy state discloses no event. Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
+Bridge bots additionally respect each native member's **Bridge privacy** setting for message create/update/delete and reaction events. Public slash-command bot replies use the invoking member's consent, including their update/delete/reaction events. Preferences are checked at delivery without a consent cache; unavailable privacy state discloses no event. Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
 
 ## Events
 
@@ -139,6 +140,7 @@ Bridge bots additionally respect each native member's **Bridge privacy** setting
 | [`SERVER_BAN_REMOVE`](#member-events) | A ban is lifted. | Bots installed with `read_messages` |
 | [`REFRESH_ATTACHMENTS`](#refresh-attachments) | A member asks for expired Discord attachment links of a bridged message to be renewed. | The bot that wrote the message |
 | [`BRIDGE_CONFIG_UPDATE`](#bridge-config-update) | A Discord bridge's configuration changes. | The bridge's bot |
+| [`INTERACTION_CREATE`](#interaction-create) | A member runs one of the bot's [slash commands](/build/commands). | The bot whose command it is |
 
 ### READY
 
@@ -308,6 +310,30 @@ Field names in this event are camelCase. `content` is the message's stored parts
 Sent to the bot of a Discord bridge: once on each new connection, at the gateway's first configuration check after identify, and again whenever the bridge's configuration changes (mode, guild, settings, or a channel pair added, removed or redirected). The gateway checks every 5 seconds unless the instance sets `BRIDGE_CONFIG_POLL_MS` (1 to 60 seconds). Status reports do not trigger it.
 
 `d` is the same object [`GET /bridge/v2/config`](/build/bridges#get-config) returns, except that `base_url` is `null` when the instance has no configured public URL.
+
+### INTERACTION_CREATE
+
+Sent when a member runs one of the bot's [slash commands](/build/commands). The bot answers through [Respond](/build/commands#respond) within 5 seconds.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Interaction ID, used in the response routes. |
+| `type` | integer | `2`, a command. |
+| `server_id` | UUID | |
+| `channel_id` | UUID | A thread's parent channel when run in a thread. |
+| `thread_id` | UUID or `null` | Thread the command was run in. A public answer goes there. |
+| `user` | object | The member: `id`, `username`, `display_name`, `avatar` (absolute URL, omitted when unset), `bot` (`false`). |
+| `member` | object | `nickname` in this server or `null`, `roles` (role UUIDs), `permissions` (the permission names the member holds in the channel). |
+| `data.id` | UUID or `null` | Command ID; `null` when the command was deleted after the member ran it. |
+| `data.name` | string | Command name. |
+| `data.type` | integer | `1`, a slash command. |
+| `data.options` | array | `{ name, type, value }` per option given, or one subcommand (type 1) or group (type 2) entry holding its own `options`. Absent options are left out. |
+| `data.resolved` | object | Present when an option names users, channels or roles: `users` and `members` keyed by profile UUID, `channels` keyed by channel UUID (`id`, `name`, `type`, `parent_id`; only `id` and `type` for a channel the bot cannot view), `roles` keyed by role UUID (`id`, `name`, `color`, `position`). |
+| `created_at` | ISO 8601 | When the member ran the command. |
+| `respond_by` | ISO 8601 | Deadline of the callback, 5 seconds after `created_at`. |
+| `expires_at` | ISO 8601 | Deadline of edits and follow-ups, 15 minutes after `created_at`. |
+
+See [Receive an interaction](/build/commands#receive-an-interaction) for an example.
 
 ## Bridge opcodes
 

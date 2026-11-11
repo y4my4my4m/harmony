@@ -568,6 +568,24 @@ describe('connections per bot', () => {
   })
 })
 
+describe('sendToBot', () => {
+  it('writes every open connection of the bot and answers how many', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    const frames = [nextEvent(first.ws), nextEvent(second.ws)]
+
+    expect(gateway.sendToBot(BOT_ID, { op: 0, t: 'INTERACTION_CREATE', d: { id: 'i1' } })).toBe(2)
+    for (const { frame } of await Promise.all(frames)) expect(frame).toEqual({ op: 0, t: 'INTERACTION_CREATE', d: { id: 'i1' } })
+    expect(gateway.sendToBot('00000000-0000-0000-0000-0000000000b9', { op: 0, t: 'X', d: {} })).toBe(0)
+
+    first.ws.close()
+    second.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(0))
+    expect(gateway.sendToBot(BOT_ID, { op: 0, t: 'X', d: {} })).toBe(0)
+  })
+})
+
 describe('identify deadline', () => {
   const DEADLINE_MS = 100
 
@@ -914,7 +932,7 @@ describe('bridge data registration (op 6)', () => {
     expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
   })
 
-  it.each([undefined, 'discord'])('never lets a durable Matrix bot downgrade to the legacy path (%s)', async platform => {
+  it.each([undefined, 'discord', 0, null, false])('never lets a durable Matrix bot downgrade to the legacy path (%s)', async platform => {
     seed({}, 'matrix')
     mocks.rpc.mockResolvedValue({ data: null, error: null })
     await (gateway as any).handleBridgeDataRegistration(conn, { platform, channels: [{ harmonyChannelId: GENERAL, members: [
@@ -922,6 +940,18 @@ describe('bridge data registration (op 6)', () => {
     ] }] })
     expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
     expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([])
+  })
+
+  it.each([0, null, false])('rejects a malformed legacy platform rather than coercing it (%s)', async platform => {
+    seed()
+    await (gateway as any).handleBridgeDataRegistration(conn, { platform, channels: [{ harmonyChannelId: GENERAL, members: [MEMBER] }] })
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+
+  it('rejects an unknown durable platform rather than treating it as legacy Discord', async () => {
+    seed({}, 'unknown')
+    await register()
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
   })
 
   it('keeps separate snapshots for Discord and Matrix bots sharing a channel', async () => {

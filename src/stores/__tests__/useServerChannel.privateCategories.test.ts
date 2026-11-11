@@ -88,6 +88,18 @@ describe('useServerChannelStore private categories', () => {
     expect(store.isPrivateCategory('cat-open')).toBe(false)
   })
 
+  it('marks a copy\'s channels and categories its host calls private', () => {
+    const store = useServerChannelStore()
+    store.channels = [channel({ id: 'ch-1', host_flags: { private: true } }), channel({ id: 'ch-2', host_flags: { messages: true } }), channel({ id: 'ch-3' })] as any
+    store.categories = [category({ id: 'cat-1', host_flags: { private: true } }), category({ id: 'cat-2', host_flags: {} })] as any
+
+    expect(store.isPrivateChannel('ch-1')).toBe(true)
+    expect(store.isPrivateChannel('ch-2')).toBe(false)
+    expect(store.isPrivateChannel('ch-3')).toBe(false)
+    expect(store.isPrivateCategory('cat-1')).toBe(true)
+    expect(store.isPrivateCategory('cat-2')).toBe(false)
+  })
+
   it('a category is hidden from members when empty or holding only private channels', () => {
     const store = useServerChannelStore()
     store.categoryChannels = { 'cat-staff': [channel() as any], 'cat-mixed': [channel({ id: 'ch-2' }) as any, channel({ id: 'ch-3' }) as any] }

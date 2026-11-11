@@ -70,6 +70,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { isReactionLimitError } from '@/utils/reactionLimits';
 import { useI18n } from 'vue-i18n';
 import { useToast } from 'vue-toastification';
+import { notifyModerationRejection } from '@/services/AutoModService';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
@@ -179,7 +180,7 @@ const holdsReaction = (emoji: { id?: string; native?: string; name?: string; url
 
 /** Reports a refused toggle; true when it was the per-person limit. */
 const reportRefusal = (reason: string | undefined): boolean => {
-  if (!isReactionLimitError(reason)) return false;
+  if (!isReactionLimitError(reason)) return notifyModerationRejection({ message: reason });
   toast.info(t('activitypub.reactionLimitReached', { count: instanceSettings.settings.maxPostReactionsPerUser }));
   return true;
 };

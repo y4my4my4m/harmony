@@ -197,7 +197,7 @@ The app explains these problem codes, using the `params` shown:
 | `harmony_auth_failed` | The bridge can no longer sign in to Harmony. | |
 | `harmony_channel_missing` | A paired Harmony channel no longer exists. | |
 | `harmony_channel_encrypted` | A channel is end-to-end encrypted. | `harmony_channel_id` |
-| `rate_limited` | Discord is slowing the bridge down. | |
+| `rate_limited` | Discord or this instance is slowing the bridge down. | |
 | `discord_unreachable` | The bridge can't reach Discord. | |
 | `harmony_unreachable` | The bridge can't reach the instance. | |
 
@@ -321,7 +321,7 @@ See the [Matrix bridge operator/member guide](/run/matrix-bridge).
 
 Each accepted member can open **Server menu → Bridge privacy** to stop their messages being relayed from that server. The authenticated RPCs are `get_server_bridge_opt_out(p_server_id)` and `set_server_bridge_opt_out(p_server_id, p_opt_out)`; neither accepts another member's ID. Managers cannot use these calls to change somebody else's preference. Existing members default to bridging allowed, preserving existing installations.
 
-For bridge bots, the gateway filters message history, individual/Discord-ID lookups, message events and native-member reaction events using the current preference. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries, and before exposing fresh ghost profiles or membership.
+For bridge bots, the gateway filters message history, individual/Discord-ID lookups, message events and native-member reaction events using the current preference. Public slash-command bot replies and follow-ups also inherit the invoking member's consent from server-owned `metadata.interaction.user_id`; a null message `user_id` does not bypass opt-out. Ordinary bots and independent server webhooks are not covered: this is a bridge preference, not a way to hide messages from every integration. Privacy lookups fail closed. The Matrix worker additionally rechecks consent before each queued Harmony-to-Matrix send, including retries, and before exposing fresh ghost profiles or membership.
 
 Opt-out does **not** erase remote copies or guarantee remote cleanup. It also stops subsequent delete/update/reaction events by that member reaching bridge bots. External bridge programs may already hold previously disclosed payloads; they must recheck the consent endpoint before draining their own queues. A remote check and send are not atomic, so an already in-flight send can still finish.
 

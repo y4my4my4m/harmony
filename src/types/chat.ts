@@ -63,6 +63,13 @@ export interface ServerFolder {
   servers?: Server[];
 }
 
+/** A copy's channel or category as its home instance describes it; a key is absent when false. */
+export interface ChannelHostFlags {
+  messages?: boolean;
+  voice?: boolean;
+  private?: boolean;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -79,6 +86,7 @@ export interface Channel {
   ap_id?: string;
   is_remote?: boolean;
   federation_status?: string;
+  host_flags?: ChannelHostFlags;
 }
 
 
@@ -88,6 +96,7 @@ export interface Category {
   order: number;
   server_id: string;
   expanded: boolean;
+  host_flags?: ChannelHostFlags;
 }
 /**
  * Profile field (ActivityPub PropertyValue attachment).
@@ -600,6 +609,15 @@ export interface MessageRemoteAuthor {
   avatar_url: string | null;
 }
 
+/** metadata.interaction: the slash command a bot reply answers. Set by the bot gateway only. */
+export interface MessageInteraction {
+  id: string;
+  /** Full command path: "weather", "bridge clone-server". */
+  name: string;
+  user_id: string;
+  followup?: boolean;
+}
+
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | StickerContent | SystemContent | PollContent;
 
 export interface BridgeAuthor {
@@ -711,6 +729,7 @@ export interface Message {
     webhook?: MessageWebhookAuthor;
     remote_author?: MessageRemoteAuthor;
     bridge_author?: BridgeAuthor;
+    interaction?: MessageInteraction;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
   failed?: boolean; // local state: true when message failed to send after retries

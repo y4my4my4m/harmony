@@ -38,6 +38,7 @@ harmony auth linking PROVIDER (--separate-accounts | --link-existing-accounts [-
 harmony config
 harmony config --upload-ceiling [SIZE]
 harmony analytics [on | off [--delete-logs]]
+harmony studio [on | off]
 harmony version
 harmony help
 ```
@@ -91,6 +92,11 @@ line with the space freed. `HARMONY_ANALYTICS=y harmony update`, or
 `harmony analytics on` afterwards, keeps it on. `ENABLE_ANALYTICS=true` stays
 on.
 
+An instance whose `.env` has no `ENABLE_STUDIO` ran Supabase Studio without
+choosing it. The update writes `ENABLE_STUDIO=false`, removes `studio` and `meta`
+and prints one line. `HARMONY_STUDIO=y harmony update`, or `harmony studio on`
+afterwards, keeps it on. Nothing in the database changes.
+
 | Option | Effect |
 |---|---|
 | `--version V`, `--version=V` | Target version. `X.Y.Z` means tag `vX.Y.Z`; `edge` means the `master` branch; any other value is a tag, branch or commit name |
@@ -101,7 +107,8 @@ and a checkout on a branch fast-forwards to its upstream.
 | Environment variable | Effect |
 |---|---|
 | `HARMONY_REMOTE` | Git remote to fetch, default `origin` |
-| `HARMONY_SKIP_BACKUP=1` | No backup before migrating |
+| `HARMONY_SKIP_BACKUP=1` | No backup before migrating, and no old update backup deleted |
+| `HARMONY_KEEP_UPDATE_BACKUPS=N` | Update backups kept of each kind, default 5; `0` keeps all. Also read from `.env` |
 | `HARMONY_BUILD=1` or `0` | Switch to building Harmony's images from the checkout, or back to published images |
 | `HARMONY_VERSION` | Image tag for this run, instead of the one derived from the checkout |
 
@@ -148,6 +155,7 @@ certificates, Federation, Services, Security, Versions.
 | `compose` | The Docker Compose version | FAIL when missing or older than 2.24.4 | Upgrade the `docker-compose-plugin` package, or re-run `https://get.docker.com` |
 | `memory` | RAM, available memory and swap | WARN under 1900 MB of RAM; with no swap and under 3900 MB; with under 256 MB available | A larger server or a 2 GB swap file; `docker stats` names the service using the memory |
 | `disk` | Free space where `self-host/` lives, and in Docker's data directory when that is another filesystem | FAIL under 1 GB free; WARN under 5 GB or over 90% used | Delete old backups in `self-host/backups`; `docker image prune` removes unused images |
+| `files` | The files the containers read are readable to every user: the files git tracks in the checkout and their directories, and `self-host/supabase/` less its data, its `.env` files, `test.http` and `docker-compose.override.yml` | FAIL when one in `supabase/` is not (`supabase-db` and `kong` run as their own users), or one anywhere with `HARMONY_BUILD=1`; WARN otherwise. Names the first | `bash configure.sh --non-interactive` in `self-host/` (keeps every answer; `harmony update` runs it). See [A restrictive umask](/self-host/troubleshooting#umask) |
 | `backup` | The newest backup in `self-host/backups` | WARN when there is none, or when it is more than 7 days old | `harmony backup`, then copy it off the server; [schedule it](/self-host/update-backup#schedule-backups) |
 
 ### Containers
@@ -163,7 +171,9 @@ certificates, Federation, Services, Security, Versions.
 | Check | Tests | Result | Fix |
 |---|---|---|---|
 | `database` | Postgres answers | FAIL; the other database checks are skipped | `harmony logs db` |
+| `db init` | `authenticator` has a password, which Supabase's `supabase/volumes/db/roles.sql` sets when Postgres creates the database | FAIL when it has none: the init scripts did not run, and auth, rest, Realtime and storage cannot sign in | A new database, on an install that holds no data yet: see [A restrictive umask](/self-host/troubleshooting#umask) |
 | `migrations` | Every file in `db_schema/migrations/` is recorded in `supabase_migrations.schema_migrations` | FAIL when some are not applied; WARN when the database has migrations the checkout lacks (the code is older than the database) | `bash bootstrap.sh --migrations-only` (`harmony update` runs it); for the WARN, `harmony update` |
+| `activity purge` | The `purge-automod` pg_cron job exists; [instance limits](/self-host/configuration#instance-limits) count rows it trims | WARN when absent | Schedule `public.automod_purge()` every 10 minutes |
 | `realtime-policies` | `realtime.messages` exists and has the receive, send and session AAL policies | FAIL when one is missing: every private Realtime channel (presence, calls, user events) is refused. FAIL when the table is missing: Realtime never created its schema | Run migration `20261025100001` again; it creates only the missing policies. In `self-host/`: `docker compose exec -T db psql -U supabase_admin -h 127.0.0.1 -d postgres -v ON_ERROR_STOP=1 < ../db_schema/migrations/20261025100001_realtime_policy_converge.sql`. `harmony update` does not: the ledger records it as applied. With the table missing, `harmony logs realtime` first |
 | `security-notices` | The new-sign-in and second-factor triggers exist on `auth.sessions` and `auth.mfa_factors` | FAIL when one is missing: no security notice for a new sign-in or a changed second factor | Run `db_schema/migrations/20261025100003_auth_triggers_converge.sql` as printed (safe to re-run; `harmony update` runs it once) |
 | `storage-policies` | The message media, soundboard, personal emoji and Drive policies on `storage.objects` and `storage.buckets`, the `message_media` and `soundboard` buckets and the Drive triggers on `storage.objects` exist | FAIL when one is missing: the uploads and reads that depend on it fail; a missing `storage_objects_session_aal` lets a session short of its second factor reach storage. FAIL when `storage.objects` or `storage.buckets` is missing | Run `db_schema/migrations/20261025100004_storage_converge.sql` as printed: it creates what is missing, replaces a superseded policy definition and keeps a bucket's configured limits. `harmony update` runs it once. With a table missing, `harmony logs storage` first |
@@ -175,6 +185,7 @@ certificates, Federation, Services, Security, Versions.
 | `stored logs` | Size of `_supabase._analytics`, where log collection keeps its logs | WARN above 1 GB | `harmony analytics off --delete-logs`; `harmony analytics on` afterwards collects again, from empty |
 | `logflare slot` | Write-ahead log a `cainophile_…` replication slot (Logflare's) holds back | WARN above 1 GB; Postgres keeps up to 4 GB (`max_slot_wal_keep_size`) | Same |
 | `log collection` | `analytics` or `vector` runs while `COMPOSE_PROFILES` lacks `logs` | WARN: it keeps filling the database | `harmony analytics off --delete-logs` |
+| `studio` | Supabase Studio is on, or `studio` or `meta` runs while `COMPOSE_PROFILES` lacks `studio` | WARN: it is public behind one password that reaches the whole database | `harmony studio off` |
 
 ### DNS
 
@@ -225,6 +236,7 @@ server's own port only.
 | `email` | always | `SMTP_HOST` in `supabase/.env` is set and accepts a TCP connection on `SMTP_PORT` (default 587) | WARN with no SMTP server: `harmony config`. WARN when unreachable: check the host and port; many VPS providers block outgoing 25 and 587 until asked |
 | `auth` | always | `https://db.DOMAIN/auth/v1/health` answers 200 | FAIL: `harmony logs auth`; `harmony logs kong` |
 | `auth linking` | always | `PROVIDER_LINKING_DOMAINS` in `supabase/.env` is comma-separated `provider=domain` pairs, the auth service runs with it, and while `ENABLE_EMAIL_AUTOCONFIRM=true` no provider joins accounts by address: neither one of your own on the sign-in page nor a built-in one the auth service has on (`GOTRUE_EXTERNAL_<ID>_ENABLED`, with a button or without) | FAIL when it does not parse (the auth service does not start): correct it, then `docker compose up -d auth`. WARN when the service runs an older value: `docker compose up -d auth`. WARN for a provider joining by address: `harmony auth linking ID --separate-accounts` for a built-in one, `harmony auth add-provider ID --separate-accounts` for your own |
+| `signup limits` | always | The auth service runs the sign-up hook with `Sb-Forwarded-For` on, and `public.before_user_created_hook` exists | WARN when the service lacks them: `docker compose up -d auth`. FAIL without the function, as every sign-up then fails, and WARN while the migration has not run and sign-ups work without limits: `bash bootstrap.sh --migrations-only`. OK says whether the network and domain caps observe or refuse, or that an admin turned the limits off |
 | `realtime` | always | A WebSocket upgrade at `wss://db.DOMAIN/realtime/v1/websocket` answers 101, on the server and, without internal TLS, through the public name | FAIL with the status on the server: 503, Realtime is down (`harmony logs realtime`); 401, `SUPABASE_ANON_KEY` differs from Kong's. FAIL through the public name only: with no answer, DNS, the firewall (80/443) or NAT, as for the federation checks; with another status, a proxy in front must pass WebSocket upgrades |
 | `bot-gateway` | bots on | `/bot-gateway/health` reports `"status": "ok"` through the public URL | FAIL: `harmony logs bot-gateway` |
 | `discord` | Discord bridge hosting on | `BRIDGE_HOST_SECRET` is at least 32 characters and equal in `bot-gateway.env` and `discord-bridge.env`; `discord-bridge-host` runs | FAIL: `bash configure.sh --non-interactive`, then `docker compose up -d`; `harmony logs discord-bridge-host` |
@@ -249,6 +261,7 @@ Postgres, and for the exposure itself.
 | `extensions` | No untrusted procedural language, and none of `dblink`, `adminpack`, `file_fdw`, `plpython3u`, `plperlu`, `pltclu` | WARN, listing them | Unless you need them: `DROP EXTENSION NAME` |
 | `jwt secret` | `app.settings.jwt_secret` is not a database default, and PostgREST does not set it per request | WARN for either | Database default: `bash bootstrap.sh --migrations-only`. PostgREST: `harmony update` (`supabase-overrides.yml` removes it) |
 | `secrets` | `POSTGRES_PASSWORD`, `JWT_SECRET` and `DASHBOARD_PASSWORD` in `supabase/.env` are set and differ from Supabase's example values | FAIL, naming them | [Change them](/self-host/troubleshooting#change-supabase-s-example-secrets) |
+| `jwt secret length` | `JWT_SECRET` has at least 32 characters | WARN | [Change it](/self-host/troubleshooting). Below 32, PostgREST stays on `v12.2.12` |
 | `published` | No container of this stack publishes 5432, 6543, 54322, 8000, 8443, 4000 or 6379 beyond 127.0.0.1 | FAIL, naming them | Remove those `ports:` entries from the compose files, then `docker compose up -d` |
 | `other containers` | The same ports, for containers outside this stack | WARN, naming them | Bind them to 127.0.0.1 or stop them: Docker-published ports bypass `ufw` |
 | `reachable` | Those ports are closed on the server's public IPv4 and IPv6 address, tried from the server | WARN when the public address is unknown; FAIL, naming each open port and its owner | Unpublish or stop them, and block them at the provider's firewall |
@@ -601,6 +614,23 @@ it for `configure.sh`. On an instance that never answered it, `harmony config`,
 `harmony install` and `harmony update` default it to `n` and delete the
 stored logs.
 
+## harmony studio
+
+```text
+harmony studio [on | off]
+```
+
+Turns Supabase Studio, the database browser, on or off: sets `ENABLE_STUDIO` and
+the `studio` profile in `.env`, then starts `studio` and `meta`, or stops and
+removes them. Without an argument it prints whether it runs. It is off on a new
+instance, and an update turns it off on an instance that never chose it.
+
+While it runs, Studio is public at `https://DB_DOMAIN`, with one shared password
+(`DASHBOARD_PASSWORD`) and no limit on guesses, and that password reaches the whole
+database. Turn it on when you need it and off afterwards. Harmony does not use
+Studio or `meta`: the app, the federation backend and every `harmony` command
+work without them.
+
 ## harmony version
 
 ```text
@@ -706,6 +736,8 @@ at once.
 |---|---|
 | `HARMONY_REF` | Target tag, branch or commit (`harmony update --version` sets it) |
 | `HARMONY_REMOTE` | Git remote, default `origin` |
-| `HARMONY_SKIP_BACKUP=1` | No backup before migrating |
+| `HARMONY_SKIP_BACKUP=1` | No backup before migrating, and no old update backup deleted |
+| `HARMONY_KEEP_UPDATE_BACKUPS=N` | Update backups kept of each kind, default 5; `0` keeps all. Also read from `.env` |
 
-Nothing in it deletes volumes, data directories or backups.
+Nothing in it deletes volumes, data directories or any backup other than its
+own past the number kept.

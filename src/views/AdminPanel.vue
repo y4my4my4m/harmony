@@ -138,8 +138,13 @@
       <UserManagement />
     </div>
 
+    <div v-else-if="activeAdminTab === 'signups'" class="admin-grid single">
+      <RecentSignups />
+    </div>
+
     <div v-else-if="activeAdminTab === 'invites'" class="admin-grid single">
       <InstanceInvites />
+      <SignupLimits v-if="hasCapability('signup-limits')" />
     </div>
 
     <div v-else-if="activeAdminTab === 'retention'" class="admin-grid single">
@@ -226,7 +231,9 @@ const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/ad
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const RemoteServersAdmin = defineAsyncComponent(() => import('@/components/admin/RemoteServersAdmin.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
+const RecentSignups = defineAsyncComponent(() => import('@/components/admin/RecentSignups.vue'))
 const InstanceInvites = defineAsyncComponent(() => import('@/components/admin/InstanceInvites.vue'))
+const SignupLimits = defineAsyncComponent(() => import('@/components/admin/SignupLimits.vue'))
 const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const HostedServersAdmin = defineAsyncComponent(() => import('@/components/admin/HostedServersAdmin.vue'))
@@ -253,6 +260,7 @@ const adminTabs = [
   { key: 'overview', label: 'Overview', icon: 'dashboard' },
   { key: 'federation', label: 'Federation', icon: 'federation' },
   { key: 'users', label: 'Users', icon: 'users' },
+  { key: 'signups', label: t('adminSignups.tab'), icon: 'user-plus' },
   { key: 'invites', label: t('adminInvites.tab'), icon: 'user-plus' },
   { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
@@ -271,19 +279,25 @@ type AdminTabKey = typeof adminTabs[number]['key']
 
 const profileStore = useProfileStore()
 const isAdmin = computed(() => profileStore.profile?.is_admin === true)
-// Instance moderators: reports, account actions, servers hosted here, the anti-spam queue,
-// outgoing webhooks (switching one off), federation read-only.
-const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'servers', 'antispam', 'webhooks']
+// Instance moderators: reports, account actions, signup review, servers hosted here, the anti-spam
+// queue, outgoing webhooks (switching one off), federation read-only.
+const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'signups', 'reports', 'servers', 'antispam', 'webhooks']
 const visibleTabs = computed(() =>
   (isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
     .filter(tab => tab.key !== 'webhooks' || hasCapability('outgoing-webhooks'))
     .filter(tab => tab.key !== 'stickers' || hasCapability('custom-stickers'))
-    .filter(tab => tab.key !== 'invites' || hasCapability('instance-invites')))
+    .filter(tab => tab.key !== 'invites' || hasCapability('instance-invites'))
+    .filter(tab => tab.key !== 'signups' || hasCapability('signup-review')))
 
 const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
 const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))
 watch(activeAdminTab, (tab) => {
   router.replace({ query: { ...route.query, tab: tab === 'overview' ? undefined : tab } }).catch(() => {})
+})
+// A link to another tab changes the query alone.
+watch(() => route.query.tab, (tab) => {
+  const next = visibleTabs.value.find(t => t.key === tab)?.key
+  if (next) activeAdminTab.value = next
 })
 
 // Instance staff only; the overview's data is admin-only.

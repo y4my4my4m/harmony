@@ -53,6 +53,7 @@ import directoryRouter from './routes/directory.js';
 import remoteInviteRouter from './routes/remoteInvite.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
 import invitePageRouter from './routes/invitePage.js';
+import inviteWidgetRouter from './routes/inviteWidget.js';
 import driveLinkPageRouter from './routes/driveLinkPage.js';
 import publicPagesRouter from './publicPages/routes.js';
 import pushRelayRouter from './routes/pushRelay.js';
@@ -171,6 +172,7 @@ export function createApp(): Application {
   // for the post paths first; actorRouter below answers it for /@<name>.
   app.use('/', publicPagesRouter);
   app.use('/', invitePageRouter);
+  app.use('/', inviteWidgetRouter);
   app.use('/', driveLinkPageRouter);
   // serverDiscoveryRouter and serverDirectoryRouter before groupRouter: /servers/discover and
   // /servers/directory must not collide with groupRouter's /servers/:serverId

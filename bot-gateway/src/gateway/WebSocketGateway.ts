@@ -529,7 +529,8 @@ export class WebSocketGateway {
 
   // EVENT BROADCASTING
   
-  sendToBot(botId: string, event: any) {
+  /** Sends the event to every open connection of the bot here; returns the number of sockets written. */
+  sendToBot(botId: string, event: any): number {
     let sent = 0
     
     for (const [ws, conn] of this.connections) {
@@ -542,6 +543,7 @@ export class WebSocketGateway {
     if (sent > 0) {
       console.log(`Sent event to bot ${botId} (${sent} connections)`)
     }
+    return sent
   }
   
   sendToMultipleBots(botIds: string[], event: any) {
@@ -628,7 +630,7 @@ export class WebSocketGateway {
     }
     const botId = botConnection.botId
     const { data: bot, error: botError } = await supabase.from('bots').select('bridge_platform').eq('id', botId).maybeSingle()
-    if (botError || !bot) return
+    if (botError || !bot || ![null, undefined, 'discord', 'matrix'].includes(bot.bridge_platform)) return
     const matrix = bot.bridge_platform === 'matrix'
     // The caller cannot downgrade a Matrix bot into the unvalidated legacy member path.
     if ((data.platform === 'matrix') !== matrix || (data.platform !== undefined && !['matrix', 'discord'].includes(data.platform))) return

@@ -1,4 +1,5 @@
 import { parseMarkdownWithMarkers, type MarkdownToken } from './markdownParser';
+import { unescapeMarkup } from './markupEscapes';
 import { highlightSyntax } from './syntaxHighlighter';
 import { getEmojiUrl } from './emojiUtils';
 import { sanitizeMessageHtml } from './sanitize';
@@ -54,7 +55,7 @@ function renderTokenToHTML(token: MarkdownToken, options: RenderOptions): string
 
   switch (token.type) {
     case 'text':
-      return escapeHtml(token.content).replace(/\n/g, '<br>');
+      return escapeHtml(unescapeMarkup(token.content)).replace(/\n/g, '<br>');
 
     case 'bold': {
       const inner = token.children

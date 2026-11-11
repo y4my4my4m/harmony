@@ -28,6 +28,22 @@ describe('supabase-overrides.yml realtime', () => {
     expect((calls * 30_000) / windowMs).toBeGreaterThanOrEqual(2 * typingPer30s)
   })
 
+  // join_error/1 sleeps this long on every refused join while the socket process waits for the reply.
+  it('does not hold a socket for seconds on a refused join', () => {
+    const backoff = Number(env.CHANNEL_ERROR_BACKOFF_MS)
+    expect(backoff).toBeGreaterThan(0)
+    expect(backoff).toBeLessThanOrEqual(250)
+  })
+
+  // Seeded into the instance's only tenant row on every start. Past a limit Realtime refuses sockets,
+  // drops sockets on join, or drops every realtime.send for up to 60 s. Defaults: 200, 100, 100.
+  it('keeps the tenant limits above what an instance reaches', () => {
+    expect(Number(env.TENANT_MAX_CONCURRENT_USERS)).toBeGreaterThanOrEqual(1000)
+    expect(Number(env.TENANT_MAX_CONCURRENT_USERS)).toBeLessThan(10_000) // upstream stack's RLIMIT_NOFILE
+    expect(Number(env.TENANT_MAX_JOINS_PER_SECOND)).toBeGreaterThanOrEqual(10_000)
+    expect(Number(env.TENANT_MAX_EVENTS_PER_SECOND)).toBeGreaterThanOrEqual(100_000)
+  })
+
   it('sets the metrics secret v2.148 needs to boot', () => {
     expect(env.METRICS_JWT_SECRET).toBe('${JWT_SECRET}')
   })

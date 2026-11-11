@@ -73,13 +73,13 @@ lists the options of `configure.sh` and `bootstrap.sh`;
 |---|---|
 | `db` | `shm_size: 1g`. Docker gives a container 64 MB of `/dev/shm`; parallel VACUUM, index builds and hash joins on a large table need more and otherwise fail with "could not resize shared memory segment". Starts without `vector` |
 | `functions`, `supavisor` | Moved to a profile nothing enables: defined, never started. The federation backend replaces Edge Functions; Supavisor would publish Postgres on the host |
-| `kong` | Image `kong:2.8.5`, the last 2.8 release, in place of the stack's `2.8.1`. No host ports; Caddy reaches Kong as `supabase-kong:8000`. `KONG_DNS_VALID_TTL: 5`: Kong looks up a service's address again after 5 seconds instead of the 600 seconds Docker's DNS answers carry, so a service an update recreates on another address answers within seconds rather than with 502 for up to 10 minutes |
-| `analytics`, `vector` | Profile `logs`, started only with [log collection](/self-host/#log-collection) on; `analytics` publishes no host port. `kong`, `auth`, `rest`, `realtime`, `meta` and `studio` start without them (`required: false`) |
-| `storage` | Image `STORAGE_IMAGE` (at least `supabase/storage-api:v1.89.12`); `FILE_SIZE_LIMIT` from `supabase/.env` |
-| `realtime` | Image `REALTIME_IMAGE` (at least `supabase/realtime:v2.148.3`); `METRICS_JWT_SECRET: ${JWT_SECRET}`, without which v2.148 does not start; `CLIENT_PRESENCE_MAX_CALLS: 60` per 30 s, so typing indicators keep reaching the chat (default 5) |
-| `rest` | `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
-| `imgproxy` | Image `darthsim/imgproxy:v4.0.21` in place of the stack's `v3.8.0`. `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images; `IMGPROXY_AUTO_WEBP` from `IMGPROXY_ENABLE_WEBP_DETECTION`, a name v4 no longer reads; `IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif`, so WebP and AVIF stay WebP and AVIF for clients that do not ask for WebP |
-| `studio`, `meta` | Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
+| `kong` | Image `kong:3.9.4` in place of the stack's `2.8.1`, with the rendered config in `/usr/local/kong/kong.yml`, because the image has no writable `/home/kong`. `KONG_PROXY_ACCESS_LOG` in the `combined` format, which log collection parses. No host ports; Caddy reaches Kong as `supabase-kong:8000`. `KONG_DNS_VALID_TTL: 5`: Kong looks up a service's address again after 5 seconds instead of the 600 seconds Docker's DNS answers carry, so a service an update recreates on another address answers within seconds rather than with 502 for up to 10 minutes |
+| `analytics`, `vector` | Images `supabase/logflare:1.50.15` and `timberio/vector:0.53.0-alpine` in place of the stack's `1.14.2` and `0.28.1-alpine`, with `self-host/vector.yml` in place of the stack's config, which that Vector refuses. Profile `logs`, started only with [log collection](/self-host/#log-collection) on; `analytics` publishes no host port. `kong`, `auth`, `rest`, `realtime`, `meta` and `studio` start without them (`required: false`) |
+| `storage` | Image `STORAGE_IMAGE` (at least `supabase/storage-api:v1.90.0`); `FILE_SIZE_LIMIT` from `supabase/.env` |
+| `realtime` | Image `REALTIME_IMAGE` (at least `supabase/realtime:v2.153.6`); `METRICS_JWT_SECRET: ${JWT_SECRET}`, without which v2.148 does not start; `CLIENT_PRESENCE_MAX_CALLS: 60` per 30 s, so typing indicators keep reaching the chat (default 5); `CHANNEL_ERROR_BACKOFF_MS: 100`, so a refused channel join does not stop a connection's messages for 5 seconds (the default); `TENANT_MAX_CONCURRENT_USERS: 9000`, `TENANT_MAX_JOINS_PER_SECOND: 100000` and `TENANT_MAX_EVENTS_PER_SECOND: 1000000`, so one busy minute or a restart does not stop live updates for the whole instance (defaults 200, 100, 100) |
+| `rest` | Image `POSTGREST_IMAGE` (default `postgrest/postgrest:v14.18`) in place of the stack's `v12.2.12`. `PGRST_APP_SETTINGS_JWT_SECRET` removed, so SQL run through the API cannot read the JWT secret |
+| `imgproxy` | Image `darthsim/imgproxy:v4.0.22` in place of the stack's `v3.8.0`. `IMGPROXY_MAX_SRC_RESOLUTION: 50` and `IMGPROXY_MAX_ANIMATION_FRAMES: 120`, for animated emoji and large images; `IMGPROXY_AUTO_WEBP` from `IMGPROXY_ENABLE_WEBP_DETECTION`, a name v4 no longer reads; `IMGPROXY_PREFERRED_FORMATS: jpeg,png,gif,webp,avif`, so WebP and AVIF stay WebP and AVIF for clients that do not ask for WebP |
+| `studio`, `meta` | Profile `studio`, started only with `harmony studio on`. Images `supabase/studio:2026.11.02-sha-a05e7ec` and `supabase/postgres-meta:v0.100.0` in place of the stack's 2025 releases. Studio gets the database's host, port and name and listens on all addresses (`HOSTNAME: 0.0.0.0`) |
 | `auth` | Image `GOTRUE_IMAGE` (at least `supabase/gotrue:v2.197.0`); Google, GitHub and Twitch sign-in and your own providers' linking (`PROVIDER_LINKING_DOMAINS`) from `supabase/.env`; see [OAuth sign-in](/self-host/oauth) |
 
 ### Networks and volumes
@@ -146,10 +146,12 @@ Then choose one of:
   talks to Caddy over HTTPS, with Caddy on its own certificate authority
   (`HARMONY_TLS=internal`).
 
-Caddy sets `X-Real-IP` to the address of the peer that connected to it, and
-the federation backend keys its rate limits on that header. Behind another
-proxy every request carries that proxy's address, so the per-client limits
-count all clients together.
+Caddy sets `X-Real-IP` and `Sb-Forwarded-For` to the client's address: the
+federation backend keys its rate limits on the first, the auth service its
+per-IP limits and [sign-up limits](/self-host/signup-limits) on the second. A
+proxy on a private address that appends to `X-Forwarded-For` needs nothing more.
+A proxy with a public address goes in `CADDY_TRUSTED_PROXIES` in `.env` for
+Caddy to see past it.
 
 `harmony doctor` reaches Caddy through `HARMONY_HTTPS_PORT` for its local
 checks.
@@ -161,8 +163,9 @@ checks.
   against the server's own address.
 - Afterwards Cloudflare's proxy can front the domain and `db.` with SSL/TLS
   mode **Full (strict)**. Leave `live.` DNS only.
-- Behind the proxy, `X-Real-IP` carries Cloudflare's addresses, so the
-  federation backend's rate limits see those instead of your users'.
+- Caddy trusts Cloudflare's published ranges, so `X-Real-IP` and
+  `Sb-Forwarded-For` carry your users' addresses. The ranges are in
+  `self-host/Caddyfile`.
 
 Storage serves public objects at
 `/storage/v1/object/public/BUCKET/PATH` and resized images at
@@ -251,6 +254,9 @@ location /api/federation/ {
 - Proxy everything to Kong (`supabase-kong:8000` on the Compose network,
   port 8000 on the host in the upstream stack), with WebSocket upgrades:
   Supabase Realtime runs over a WebSocket at `/realtime/v1/websocket`.
+- Overwrite `Sb-Forwarded-For` with the client's address. The auth service's
+  per-IP limits and [sign-up limits](/self-host/signup-limits#client-address) read it,
+  and a client's own value passes Kong unchanged.
 - Refuse `/auth/v1/logout` unless the query is exactly `scope=local`.
   GoTrue's logout accepts a token without the second factor, and its default
   global scope ends every session of the account, so a password alone could
@@ -425,7 +431,8 @@ UPDATE public.instance_config
 
 The first local profile created on the instance becomes its admin
 (`promote_first_user_to_admin`). Keep sign-up disabled (`DISABLE_SIGNUP=true`
-in Supabase's `.env`), add your account in Supabase Studio with its address
+in Supabase's `.env`), add your account in Supabase Studio (`harmony studio on`,
+then `harmony studio off` when done) with its address
 confirmed, sign in to Harmony and choose a username. Then open sign-up if you
 want it, and set `instance_config.open_registration` to match.
 

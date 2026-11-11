@@ -118,7 +118,7 @@ Screen readers in browse mode take single letters for navigation. **Toggle mute*
 
 ## Reduce motion
 
-**Reduce motion** stops animations and transitions across the app, including spinners, dialog animations and the animated backgrounds of skins. Harmony also follows the operating system's reduced motion preference when the setting is off.
+**Reduce motion** stops animations and transitions across the app, including spinners, dialog animations and the animated backgrounds of skins, and shows the first frame of animated custom emoji. Harmony also follows the operating system's reduced motion preference when the setting is off.
 
 ## Zoom and text size
 

@@ -219,6 +219,7 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useToast } from 'vue-toastification';
+import { moderationRejectionFromError } from '@/services/AutoModService';
 import { debug } from '@/utils/debug';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -451,10 +452,11 @@ const createServer = async () => {
     usePublicServersStore().markStale();
   } catch (error) {
     debug.error('Server creation error:', error);
-    const rejection = template.value ? templateRejection(error) : null;
-    errorMessage.value = rejection
+    const limit = moderationRejectionFromError(error);
+    const rejection = template.value && !limit ? templateRejection(error) : null;
+    errorMessage.value = limit?.message ?? (rejection
       ? t('serverTemplate.errors.rejected', { detail: rejection })
-      : t('server.errors.createFailed');
+      : t('server.errors.createFailed'));
     isCreating.value = false;
     return;
   }

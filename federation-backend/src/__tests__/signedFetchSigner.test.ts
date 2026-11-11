@@ -89,12 +89,25 @@ describe('signedApFetch signAs', () => {
     expect(keyWrites).toEqual([])
   })
 
-  it('signs each redirect hop as the named user', async () => {
+  it('signs a redirect hop on the same host as the named user', async () => {
     await SignatureService.signedApFetch('https://remote.test/servers/1', { signAs: 'bob' })
     const redirectHeaders = (vi.mocked(safeFetch).mock.calls[0][1] as any).redirectHeaders
-    const hop = await redirectHeaders('https://other.test/servers/1')
-    expect(hop.Host).toBe('other.test')
+    const hop = await redirectHeaders('https://remote.test/servers/2')
+    expect(hop.Host).toBe('remote.test')
     expect(hop.Signature).toContain('keyId="https://harmony.test/users/bob#main-key"')
+  })
+
+  it('refuses a redirect hop to another host rather than sign it as the named user', async () => {
+    await SignatureService.signedApFetch('https://remote.test/servers/1', { signAs: 'bob' })
+    const redirectHeaders = (vi.mocked(safeFetch).mock.calls[0][1] as any).redirectHeaders
+    await expect(redirectHeaders('https://other.test/servers/1')).rejects.toThrow(/refused/)
+  })
+
+  it('signs a redirect hop to another host as the instance actor when no user is named', async () => {
+    await SignatureService.signedApFetch('https://remote.test/servers/1')
+    const redirectHeaders = (vi.mocked(safeFetch).mock.calls[0][1] as any).redirectHeaders
+    const hop = await redirectHeaders('https://other.test/servers/1')
+    expect(hop.Signature).toContain('keyId="https://harmony.test/users/instance.actor#main-key"')
   })
 
   it('refuses a remote profile, sending nothing and generating no key for it', async () => {
