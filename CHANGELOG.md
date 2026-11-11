@@ -52,7 +52,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   soundboard (`/bridge sync-sounds` in harmony-discord-bridge) through three
   bot-gateway endpoints for the server's bridge bot: `GET
   /servers/{id}/sounds`, `POST /servers/{id}/sounds/discord` and `DELETE
-  /servers/{id}/sounds/{soundId}`.
+  /servers/{id}/sounds/{soundId}`. The bridge deletes only sounds it imported:
+  a sound a member uploaded answers `403` `SOUND_NOT_LINKED`.
 - **Discord bridge sticker sync.** The same bridge bot can sync a server's
   stickers through `GET /servers/{id}/stickers/discord` (the sticker limit and
   the Discord-linked stickers, removed ones included), `POST
@@ -60,12 +61,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Discord's CDN; Lottie stickers are refused with `422` `STICKER_FILE`) and
   `DELETE /servers/{id}/stickers/{stickerId}`, which retires the sticker: it
   leaves the picker and the list and no new message can use it, while old
-  messages keep showing it. A message that names a removed or unknown sticker
-  now answers `422` `STICKER_REFUSED`.
+  messages keep showing it. The bridge retires only stickers it imported
+  (`403` `STICKER_NOT_LINKED` for a member's), and a server keeps the 60 retired
+  last. A message that names a removed or unknown sticker now answers `422`
+  `STICKER_REFUSED`.
 - **Discord bridge emoji sync.** The same bridge bot can sync a server's emoji
   through `GET /servers/{id}/emojis/discord` (the server's emoji limit and its
   Discord-linked emoji, removed ones included), an `update` flag on `POST
   /servers/{id}/emojis/discord`, and `DELETE /servers/{id}/emojis/{emojiId}`.
+  The bridge removes only emoji it imported (`403` `EMOJI_NOT_LINKED` for a
+  member's, also one linked by name) and restores only emoji it removed (`403`
+  `EMOJI_REMOVED` for one a person removed); a server keeps the 500 it removed
+  last.
+- **Bot API: gateway capabilities.** `READY` and `GET /users/@me` carry
+  `capabilities`, the features this gateway has (`bridge_sound_sync`,
+  `bridge_emoji_sync`, `bridge_sticker_sync`), so a bot can tell an older
+  gateway without calling a route that answers `404`.
 - **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
   installs an instance on a blank Linux server: it checks the host (offering
   Docker and a swap file), asks a few questions, checks DNS, starts the

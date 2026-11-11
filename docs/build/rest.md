@@ -637,7 +637,7 @@ Returns the server's emoji: `id`, `name`, `url`, `server_id`, `discord_emoji_id`
 
 `GET /servers/{server.id}/emojis/discord`
 
-Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds the active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean). `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds every active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean), `imported` (boolean: the bridge imported it, so it may [remove](#remove-a-server-emoji) it; `false` for a member's emoji, also one linked by name) and `restorable` (boolean: the bridge removed it, so `update` may restore it). The list is never partial: past 10,000 rows the answer is `500` with `"code": "LIST_TOO_LARGE"`. `403` `Bot is not the Discord bridge of this server`.
 
 ### Import a Discord emoji
 
@@ -659,13 +659,13 @@ Only the bot of the server's Discord bridge.
 | `updated` | `200` | The emoji was imported before and `update` changed its name or restored it. |
 | `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB), removed its metadata and created a server emoji. |
 
-The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" }`. Importing the same Discord emoji again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "EMOJI_LIMIT"` when the server is at its emoji limit, or `"code": "EMOJI_NAME_TAKEN"` when another emoji already has the name; `502` when the image cannot be downloaded or stored.
+The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" }`. Importing the same Discord emoji again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_REMOVED"` when `update` would restore or rename an emoji a person removed; `409` with `"code": "EMOJI_LIMIT"` when the server is at its emoji limit, or `"code": "EMOJI_NAME_TAKEN"` when another emoji already has the name; `502` when the image cannot be downloaded or stored.
 
 ### Remove a server emoji
 
 `DELETE /servers/{server.id}/emojis/{emoji.id}`
 
-Only the bot of the server's Discord bridge. Removes the emoji and answers `204`, also when it was already removed. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge, and only an emoji it imported. Removes the emoji and answers `204`, also when it was already removed. A removed emoji keeps showing in old messages; the server keeps the 500 the bridge removed last and deletes older ones with their images. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`, or with `"code": "EMOJI_NOT_LINKED"` for an emoji a member uploaded, also one linked to a Discord emoji by name.
 
 ### List Discord-linked stickers
 
@@ -699,7 +699,7 @@ The response is `{ "status", "id", "name", "description", "url", "discord_sticke
 
 `DELETE /servers/{server.id}/stickers/{sticker.id}`
 
-Only the bot of the server's Discord bridge. Retires the sticker and answers `204`, also when it was already retired. A retired sticker leaves the sticker picker and the server's list and cannot be put in a new message; messages that already hold it keep showing it. `404` when the sticker is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge, and only a sticker it imported. Retires the sticker and answers `204`, also when it was already retired. A retired sticker leaves the sticker picker and the server's list and cannot be put in a new message; messages that already hold it keep showing it. The server keeps the 60 stickers retired last and deletes older ones with their files. `404` when the sticker is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`, or with `"code": "STICKER_NOT_LINKED"` for a sticker a member uploaded.
 
 ### List server sounds
 
@@ -734,7 +734,7 @@ The response is `{ "status", "id", "name", "emoji", "emoji_id", "volume", "disco
 
 `DELETE /servers/{server.id}/sounds/{sound.id}`
 
-Only the bot of the server's Discord bridge. Deletes the sound and its stored clip and answers `204`. `404` when the sound is not one of this server's; `403` `Bot is not the Discord bridge of this server`.
+Only the bot of the server's Discord bridge, and only a sound it imported. Deletes the sound and its stored clip and answers `204`. `404` when the sound is not one of this server's; `403` `Bot is not the Discord bridge of this server`, or with `"code": "SOUND_NOT_LINKED"` for a sound a member uploaded.
 
 ## Users
 
