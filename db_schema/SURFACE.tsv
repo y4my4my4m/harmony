@@ -141,7 +141,7 @@ bot_rate_limit_take	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seco
 bridge_delete_server_sound	p_bot_id uuid, p_server_id uuid, p_sound_id uuid	text	definer	public, pg_temp	service_role	client
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text, p_update boolean	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_import_server_sound	p_bot_id uuid, p_server_id uuid, p_discord_sound_id text, p_name text, p_emoji text, p_emoji_id uuid, p_volume numeric, p_update boolean, p_storage_path text, p_duration_ms integer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	definer	public, pg_temp	service_role	client
-bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	unreferenced
+bridge_remove_server_emoji	p_bot_id uuid, p_server_id uuid, p_emoji_id uuid	text	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -931,7 +931,7 @@ server_audit_timeouts		trigger	definer	public, pg_temp	service_role	trigger
 server_audit_user_roles		trigger	definer	public, pg_temp	service_role	trigger
 server_audit_value	p_value jsonb	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_audit_write	p_server_id uuid, p_action text, p_target_type text, p_target_id text, p_target_name text, p_changes jsonb, p_details jsonb, p_reason text, p_actor_id uuid, p_source text	uuid	definer	public, pg_temp	service_role	unreferenced
-server_emoji_limit		integer	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
+server_emoji_limit		integer	invoker	public, pg_temp	anon+authenticated+service_role	client
 server_has_remote_members	p_server_id uuid	boolean	invoker	public, extensions, pg_temp	service_role	unreferenced
 server_host_domain	p_server servers	text	invoker	public, pg_temp	service_role	unreferenced
 server_newcomer_alerts_state	p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced

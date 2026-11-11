@@ -99,7 +99,9 @@ Access levels: **Token** needs any valid bot token. **Installed** needs an activ
 | `GET` | [`/emojis`](#list-emojis) | Token | List the instance's emoji, or look one up |
 | `POST` | [`/emojis`](#create-emoji) | Token | Record an emoji of another instance |
 | `GET` | [`/servers/{server.id}/emojis`](#list-server-emojis) | Installed | List a server's emoji with their Discord links |
+| `GET` | [`/servers/{server.id}/emojis/discord`](#list-discord-linked-emojis) | The server's Discord bridge bot | List the emoji limit and Discord-linked emoji |
 | `POST` | [`/servers/{server.id}/emojis/discord`](#import-a-discord-emoji) | The server's Discord bridge bot | Import a Discord emoji as a server emoji |
+| `DELETE` | [`/servers/{server.id}/emojis/{emoji.id}`](#remove-a-server-emoji) | The server's Discord bridge bot | Remove a server emoji |
 | `GET` | [`/servers/{server.id}/sounds`](#list-server-sounds) | The server's Discord bridge bot | List a server's soundboard sounds |
 | `POST` | [`/servers/{server.id}/sounds/discord`](#import-a-discord-sound) | The server's Discord bridge bot | Import a Discord soundboard sound |
 | `DELETE` | [`/servers/{server.id}/sounds/{sound.id}`](#delete-a-server-sound) | The server's Discord bridge bot | Delete a server sound |
@@ -627,6 +629,12 @@ Records an emoji of another instance (`scope` `instance`, no server, the given `
 
 Returns the server's emoji: `id`, `name`, `url`, `server_id`, `discord_emoji_id`. `discord_emoji_id` is the Discord emoji a bridge imported the row from, or `null`.
 
+### List Discord-linked emojis
+
+`GET /servers/{server.id}/emojis/discord`
+
+Only the bot of the server's Discord bridge. Returns `{ "limit", "emojis" }`. `limit` is the server's emoji limit. `emojis` holds the active emoji plus removed emoji that still carry a Discord link: `id`, `name`, `url`, `discord_emoji_id`, `removed` (boolean). `403` `Bot is not the Discord bridge of this server`.
+
 ### Import a Discord emoji
 
 `POST /servers/{server.id}/emojis/discord`
@@ -638,14 +646,22 @@ Only the bot of the server's Discord bridge.
 | `discord_emoji_id` | string | Required. Discord emoji ID. |
 | `name` | string | Required. 1 to 32 of `A`–`Z`, `a`–`z`, `0`–`9`, `_`. |
 | `animated` | boolean | Fetch the animated (`.gif`) image. |
+| `update` | boolean | Overwrite the name of an already imported emoji, and restore it if it was removed. Default `false`. |
 
 | Outcome | Status | Meaning |
 |---|---|---|
 | `existing` | `200` | The Discord emoji was already imported into this server. |
 | `linked` | `200` | A server emoji with the same name (ignoring case) and no Discord link now carries this Discord ID. |
+| `updated` | `200` | The emoji was imported before and `update` changed its name or restored it. |
 | `created` | `201` | The gateway downloaded the image from Discord's CDN (at most 512 KiB), removed its metadata and created a server emoji. |
 
-The response is `{ "status", "id", "name", "url", "discord_emoji_id" }`. Importing the same Discord emoji again never creates a second row. `403` `Bot is not the Discord bridge of this server`; `502` when the image cannot be downloaded or stored.
+The response is `{ "status", "id", "name", "url", "discord_emoji_id", "removed" }`. Importing the same Discord emoji again never creates a second row. `400` for an invalid field; `403` `Bot is not the Discord bridge of this server`; `409` with `"code": "EMOJI_LIMIT"` when the server is at its emoji limit, or `"code": "EMOJI_NAME_TAKEN"` when another emoji already has the name; `502` when the image cannot be downloaded or stored.
+
+### Remove a server emoji
+
+`DELETE /servers/{server.id}/emojis/{emoji.id}`
+
+Only the bot of the server's Discord bridge. Removes the emoji and answers `204`, also when it was already removed. `404` when the emoji is not one of this server's; `400` when an ID is not a UUID; `403` `Bot is not the Discord bridge of this server`.
 
 ### List server sounds
 
