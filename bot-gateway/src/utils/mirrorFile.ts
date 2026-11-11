@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { supabase } from '../config/supabase.js'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { supabaseServiceKey, supabaseUrl } from '../config/supabase.js'
 import { MESSAGE_MEDIA_BUCKET, signMessageMediaPaths } from './messageMedia.js'
 import { extensionFrom, isAllowedSourceUrl, isAnimatedPng, referenceUrl } from './mirrorExternalMedia.js'
 import { stripMediaFileInPlace } from './stripMediaFile.js'
@@ -57,11 +59,75 @@ export function isDiscordLinkExpired(url: string, now = Date.now()): boolean {
   return expires !== null && expires.getTime() - now < MIN_LINK_LIFE_MS
 }
 
-/** Storage (or the proxy in front of it) refusing a body for its size: 413, or an HTML/JSON error saying so. */
-function isStorageSizeRefusal(error: any): boolean {
-  const status = Number(error?.status ?? error?.statusCode ?? error?.originalError?.status)
+/**
+ * Storage (or the proxy in front of it) refusing a body for its size: 413, or a JSON error
+ * saying so. An HTML page only counts on a 413; a 502 or 504 page is a plain failure.
+ */
+function isStorageSizeRefusal(status: number, text: string): boolean {
   if (status === 413) return true
-  return /too large|exceed|payload|Unexpected token '</i.test(String(error?.message ?? ''))
+  if (/^\s*</.test(text)) return false
+  return /too large|exceed|payload/i.test(text)
+}
+
+/** No request or response data for this long aborts a storage upload. */
+const UPLOAD_IDLE_MS = 120_000
+
+/**
+ * POSTs a file to Storage's object endpoint over node:http(s), streaming it from disk with a
+ * Content-Length. fetch (undici) reads a stream body ahead of the socket and keeps it in memory,
+ * so a large file would raise RSS by about its size; this keeps memory flat.
+ */
+export async function uploadFileToStorage(
+  filePath: string,
+  objectPath: string,
+  opts: { contentType: string; cacheControl: string; size: number },
+): Promise<void> {
+  const url = new URL(`${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${MESSAGE_MEDIA_BUCKET}/${objectPath}`)
+  const send = url.protocol === 'https:' ? httpsRequest : httpRequest
+  const source = createReadStream(filePath)
+  let req: ReturnType<typeof send> | undefined
+  let status = 0
+  try {
+    const text = await new Promise<string>((resolve, reject) => {
+      req = send(url, {
+        method: 'POST',
+        timeout: UPLOAD_IDLE_MS,
+        headers: {
+          authorization: `Bearer ${supabaseServiceKey}`,
+          apikey: supabaseServiceKey,
+          'x-upsert': 'false',
+          'content-type': opts.contentType,
+          'cache-control': `max-age=${opts.cacheControl}`,
+          'content-length': String(opts.size),
+        },
+      })
+      req.on('timeout', () => req!.destroy(new Error('upload timed out')))
+      req.on('response', (res) => {
+        status = res.statusCode ?? 0
+        const chunks: Buffer[] = []
+        let length = 0
+        res.on('data', (chunk: Buffer) => {
+          if (length < 4096) chunks.push(chunk)
+          length += chunk.length
+        })
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8').slice(0, 4096)))
+        res.on('error', reject)
+      })
+      req.on('error', reject)
+      pipeline(source, req).catch(reject)
+    })
+    if (status >= 200 && status < 300) return
+    if (isStorageSizeRefusal(status, text)) throw new TooLargeError(opts.size)
+    throw new Error(`Storage upload failed: ${status} ${text.slice(0, 200)}`)
+  } catch (error) {
+    if (error instanceof TooLargeError) throw error
+    if (status === 413) throw new TooLargeError(opts.size)
+    if (status) throw error
+    throw new Error(`Storage upload failed: ${(error as Error).message}`)
+  } finally {
+    source.destroy()
+    req?.destroy()
+  }
 }
 
 export interface MirrorFileOptions {
@@ -163,25 +229,7 @@ export async function mirrorFileToStorage(
     const extension = animatedPng ? 'apng' : declaredExtension
 
     const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
-    const body = createReadStream(file)
-    let uploadError: any = null
-    try {
-      const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(storagePath, body, {
-        contentType,
-        upsert: false,
-        cacheControl: '31536000',
-        duplex: 'half',
-      })
-      uploadError = error
-    } catch (error) {
-      uploadError = error
-    } finally {
-      body.destroy()
-    }
-    if (uploadError) {
-      if (isStorageSizeRefusal(uploadError)) throw new TooLargeError(size)
-      throw new Error(`Storage upload failed: ${uploadError.message}`)
-    }
+    await uploadFileToStorage(file, storagePath, { contentType, cacheControl: '31536000', size })
 
     const signed = await signMessageMediaPaths([storagePath])
     return { path: storagePath, url: signed.get(storagePath) ?? referenceUrl(storagePath), contentType, bytes: size }

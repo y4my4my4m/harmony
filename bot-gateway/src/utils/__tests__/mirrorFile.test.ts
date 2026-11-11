@@ -1,24 +1,22 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { Readable } from 'node:stream'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  upload: vi.fn(),
-  bucket: vi.fn(),
   sign: vi.fn(),
+  url: { value: 'http://127.0.0.1:1' },
 }))
 
 vi.mock('../../config/supabase.js', () => ({
-  supabase: {
-    storage: {
-      from: (bucket: string) => {
-        mocks.bucket(bucket)
-        return { upload: mocks.upload }
-      },
-    },
+  get supabaseUrl() {
+    return mocks.url.value
   },
+  supabaseServiceKey: 'service-key',
+  supabase: {},
   config: {},
 }))
 
@@ -54,13 +52,43 @@ const APNG = png([['IHDR', 13], ['acTL', 8], ['fcTL', 26], ['IDAT', 10], ['IEND'
 
 let tmp: string
 
+interface Recorded {
+  method?: string
+  url?: string
+  headers: Record<string, string | string[] | undefined>
+  bytes: number
+}
+const uploads: Recorded[] = []
+let reply: { status: number; body: string; headers?: Record<string, string>; reset?: boolean } = { status: 200, body: '{}' }
+let server: Server
+
+beforeAll(async () => {
+  server = createServer((req, res) => {
+    const rec: Recorded = { method: req.method, url: req.url, headers: req.headers, bytes: 0 }
+    uploads.push(rec)
+    req.on('data', (chunk: Buffer) => { rec.bytes += chunk.length })
+    req.on('error', () => {})
+    req.on('end', () => {
+      if (reply.reset) return void req.socket.destroy()
+      res.writeHead(reply.status, { 'content-type': 'application/json', ...reply.headers })
+      res.end(reply.body)
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  mocks.url.value = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+})
+
+afterAll(async () => {
+  server.closeAllConnections()
+  await new Promise((resolve) => server.close(resolve))
+})
+
 beforeEach(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'mirror-test-'))
-  mocks.upload.mockReset()
-  mocks.bucket.mockReset()
   mocks.sign.mockReset()
   mocks.sign.mockImplementation(async (paths: string[]) => new Map(paths.map((p) => [p, `https://signed.test/${p}`])))
-  process.env.SUPABASE_URL = 'http://kong:8000'
+  uploads.length = 0
+  reply = { status: 200, body: '{}' }
 })
 
 afterEach(async () => {
@@ -108,7 +136,7 @@ describe('mirrorFileToStorage', () => {
     const err = await mirrorFileToStorage(URL_OK, { ...base, ceiling: 10, tmpDir: tmp, fetchImpl }).catch((e) => e)
     expect(err).toBeInstanceOf(TooLargeError)
     expect(err.bytes).toBe(20)
-    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(uploads).toHaveLength(0)
     expect(await readdir(tmp)).toEqual([])
   })
 
@@ -117,7 +145,7 @@ describe('mirrorFileToStorage', () => {
     const fetchImpl = serve(body, { 'content-type': 'video/mp4' })
     const err = await mirrorFileToStorage(URL_OK, { ...base, ceiling: 10, tmpDir: tmp, fetchImpl }).catch((e) => e)
     expect(err).toBeInstanceOf(TooLargeError)
-    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(uploads).toHaveLength(0)
     expect(await readdir(tmp)).toEqual([])
   })
 
@@ -133,60 +161,64 @@ describe('mirrorFileToStorage', () => {
     expect(await readdir(tmp)).toEqual([])
   })
 
-  it('uploads a 3 MB video as a stream and leaves no temp files', async () => {
-    let seen: unknown
-    let received = 0
-    mocks.upload.mockImplementation(async (_path: string, body: unknown) => {
-      seen = body
-      for await (const chunk of body as AsyncIterable<Buffer>) received += chunk.length
-      return { data: {}, error: null }
-    })
+  it('uploads a 3 MB video over http with the storage headers and leaves no temp files', async () => {
     const fetchImpl = serve(new Uint8Array(3 * MB), { 'content-type': 'video/mp4' })
 
     const out = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl })
 
-    const [path, , options] = mocks.upload.mock.calls[0]
-    expect(mocks.bucket).toHaveBeenCalledWith('message_media')
-    expect(path).toMatch(new RegExp(`^c/${CHANNEL.toLowerCase()}/bridge/${BOT}/[0-9a-f-]{36}\\.mp4$`))
-    expect(options).toEqual({ contentType: 'video/mp4', upsert: false, cacheControl: '31536000', duplex: 'half' })
-    expect(Buffer.isBuffer(seen)).toBe(false)
-    expect(typeof (seen as Readable).pipe).toBe('function')
-    expect(received).toBe(3 * MB)
+    expect(uploads).toHaveLength(1)
+    const [rec] = uploads
+    expect(rec.method).toBe('POST')
+    expect(rec.url).toMatch(new RegExp(`^/storage/v1/object/message_media/c/${CHANNEL.toLowerCase()}/bridge/${BOT}/[0-9a-f-]{36}\\.mp4$`))
+    expect(rec.headers).toMatchObject({
+      authorization: 'Bearer service-key',
+      apikey: 'service-key',
+      'x-upsert': 'false',
+      'content-type': 'video/mp4',
+      'cache-control': 'max-age=31536000',
+      'content-length': String(3 * MB),
+    })
+    expect(rec.bytes).toBe(3 * MB)
+    const path = rec.url!.replace('/storage/v1/object/message_media/', '')
     expect(out).toEqual({ path, url: `https://signed.test/${path}`, contentType: 'video/mp4', bytes: 3 * MB })
     expect(await readdir(tmp)).toEqual([])
   })
 
-  it('removes the temp file when the upload fails', async () => {
-    mocks.upload.mockImplementation(async (_path: string, body: Readable) => {
-      body.destroy()
-      return { data: null, error: { message: 'boom' } }
-    })
-    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }))
-      .rejects.toThrow('Storage upload failed: boom')
+  it('removes the temp file when the upload fails with a 500', async () => {
+    reply = { status: 500, body: '{"message":"boom"}' }
+    const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }).catch((e) => e)
+    expect(err).not.toBeInstanceOf(TooLargeError)
+    expect(err.message).toMatch(/^Storage upload failed: 500 .*boom/)
     expect(await readdir(tmp)).toEqual([])
   })
 
   it('maps a storage 413 to TooLargeError with the file size', async () => {
-    mocks.upload.mockImplementation(async (_p: string, body: Readable) => {
-      body.destroy()
-      return { data: null, error: { message: 'The object exceeded the maximum allowed size', statusCode: '413' } }
-    })
+    reply = { status: 413, body: '{"message":"The object exceeded the maximum allowed size"}' }
     const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }).catch((e) => e)
     expect(err).toBeInstanceOf(TooLargeError)
     expect(err.bytes).toBe(100)
     expect(await readdir(tmp)).toEqual([])
   })
 
-  it('maps an HTML error body from the proxy to TooLargeError, also when upload throws', async () => {
-    mocks.upload.mockImplementation(async (_p: string, body: Readable) => {
-      body.destroy()
-      return { data: null, error: { message: `Unexpected token '<', "<html><h"... is not valid JSON` } }
-    })
-    const html = () => serve(new Uint8Array(100), { 'content-type': 'video/mp4' })
-    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: html() })).rejects.toBeInstanceOf(TooLargeError)
+  it('maps an HTML 413 from the proxy to TooLargeError but an HTML 502 to a plain Error', async () => {
+    const run = () => mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }).catch((e) => e)
+    reply = { status: 413, body: '<html><h1>413 Request Entity Too Large</h1></html>', headers: { 'content-type': 'text/html' } }
+    expect(await run()).toBeInstanceOf(TooLargeError)
 
-    mocks.upload.mockImplementation(async () => { throw Object.assign(new Error('Request Entity Too Large'), { status: 413 }) })
-    await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: html() })).rejects.toBeInstanceOf(TooLargeError)
+    reply = { status: 502, body: '<html><h1>502 Bad Gateway: payload exceeded</h1></html>', headers: { 'content-type': 'text/html' } }
+    const err = await run()
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(TooLargeError)
+    expect(err.message).toMatch(/^Storage upload failed: 502 /)
+    expect(await readdir(tmp)).toEqual([])
+  })
+
+  it('maps a connection reset without a response to a plain Error', async () => {
+    reply = { status: 200, body: '', reset: true }
+    const err = await mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl: serve(new Uint8Array(100), { 'content-type': 'video/mp4' }) }).catch((e) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(TooLargeError)
+    expect(err.message).toMatch(/^Storage upload failed: /)
     expect(await readdir(tmp)).toEqual([])
   })
 
@@ -200,18 +232,17 @@ describe('mirrorFileToStorage', () => {
     })
     await expect(mirrorFileToStorage(URL_OK, { ...base, tmpDir: tmp, fetchImpl })).rejects.toThrow(/redirected off Discord/)
     expect(cancel).toHaveBeenCalled()
-    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(uploads).toHaveLength(0)
     expect(await readdir(tmp)).toEqual([])
   })
 
   it('stores an animated PNG as .apng', async () => {
-    mocks.upload.mockImplementation(async (_p: string, body: Readable) => { body.resume(); return { data: {}, error: null } })
     const out = await mirrorFileToStorage('https://media.discordapp.net/stickers/1.png', {
       ...base, tmpDir: tmp, fetchImpl: serve(APNG, { 'content-type': 'image/png' }),
     })
     expect(out.contentType).toBe('image/apng')
     expect(out.path).toMatch(/\.apng$/)
-    expect(mocks.upload.mock.calls[0][2]).toMatchObject({ contentType: 'image/apng' })
+    expect(uploads[0].headers['content-type']).toBe('image/apng')
   })
 
   it('rejects a disallowed host before fetching', async () => {
