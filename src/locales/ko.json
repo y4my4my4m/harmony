@@ -5903,6 +5903,19 @@
       "apply": "Discord 권한 적용",
       "applyAll": "모두 적용"
     },
+    "overrides": {
+      "title": "멤버별 채널 재정의",
+      "intro": "Discord는 채널에서 특정 멤버에게만 권한을 허용하거나 거부할 수 있습니다. 연결된 멤버는 짝지어진 Harmony 채널에서 이를 받습니다. Harmony에서 관리자가 만든 재정의는 절대 바뀌지 않습니다.",
+      "member": "Discord 멤버 {id}",
+      "allows": "허용: {list}",
+      "denies": "거부: {list}",
+      "nothing": "없음",
+      "linked": "{'@'}{username}에 연결됨",
+      "notLinked": "아직 연결되지 않음",
+      "unpaired": "채널이 짝지어지지 않음",
+      "showAll": "{count}개 모두 보기",
+      "showFewer": "간단히 보기"
+    },
     "errors": {
       "needManageRoles": "권한을 적용하려면 역할 관리 권한이 필요합니다",
       "cannotGrant": "{permission} 권한이 없으므로 부여할 수 없습니다",
@@ -5928,8 +5941,7 @@
         "roles": "Discord에서 역할을 가져오세요."
       },
       "warnings": {
-        "unpaired": "Discord 채널 {count}개가 Harmony 채널과 짝지어지지 않았습니다.",
-        "overrides": "Discord 채널 {count}개에 개별 멤버용 권한 재정의가 있습니다. 이는 이전되지 않습니다."
+        "unpaired": "Discord 채널 {count}개가 Harmony 채널과 짝지어지지 않았습니다."
       }
     },
     "open": {

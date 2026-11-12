@@ -5903,6 +5903,19 @@
       "apply": "Discordの権限を適用",
       "applyAll": "すべて適用"
     },
+    "overrides": {
+      "title": "メンバー別のチャンネル上書き",
+      "intro": "Discordでは、チャンネルごとに個別のメンバーへ権限を許可または拒否できます。連携したメンバーは、対応するHarmonyのチャンネルでこれらを受け取ります。Harmonyで管理者が作成した上書きが置き換えられることはありません。",
+      "member": "Discordメンバー {id}",
+      "allows": "許可: {list}",
+      "denies": "拒否: {list}",
+      "nothing": "なし",
+      "linked": "{'@'}{username} と連携済み",
+      "notLinked": "未連携",
+      "unpaired": "チャンネル未対応",
+      "showAll": "すべて表示({count})",
+      "showFewer": "表示を減らす"
+    },
     "errors": {
       "needManageRoles": "権限を適用するには「ロールの管理」権限が必要です",
       "cannotGrant": "{permission}はあなた自身が持っていないため付与できません",
@@ -5928,8 +5941,7 @@
         "roles": "Discordからロールを取得してください。"
       },
       "warnings": {
-        "unpaired": "Discordのチャンネル{count}件がHarmonyのチャンネルとペアになっていません。",
-        "overrides": "Discordのチャンネル{count}件に、個別メンバー向けの権限上書きがあります。これらは移行されません。"
+        "unpaired": "Discordのチャンネル{count}件がHarmonyのチャンネルとペアになっていません。"
       }
     },
     "open": {

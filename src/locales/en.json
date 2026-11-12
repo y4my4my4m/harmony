@@ -5899,6 +5899,19 @@
       "apply": "Apply Discord permissions",
       "applyAll": "Apply all"
     },
+    "overrides": {
+      "title": "Member channel overrides",
+      "intro": "Discord can allow or deny permissions on a channel for a single member. When a linked member signs in, they get these on the paired Harmony channel. Overrides an admin made on Harmony are never replaced.",
+      "member": "Discord member {id}",
+      "allows": "Allows: {list}",
+      "denies": "Denies: {list}",
+      "nothing": "nothing",
+      "linked": "Linked to {'@'}{username}",
+      "notLinked": "Not linked yet",
+      "unpaired": "Channel not paired",
+      "showAll": "Show all {count}",
+      "showFewer": "Show fewer"
+    },
     "errors": {
       "needManageRoles": "You need the Manage Roles permission to apply permissions",
       "cannotGrant": "You can't grant {permission} because you don't have it",
@@ -5924,8 +5937,7 @@
         "roles": "Fetch your roles from Discord."
       },
       "warnings": {
-        "unpaired": "{count} Discord channel isn't paired with a Harmony channel. | {count} Discord channels aren't paired with Harmony channels.",
-        "overrides": "{count} Discord channel has permission overrides for single members. They aren't migrated. | {count} Discord channels have permission overrides for single members. They aren't migrated."
+        "unpaired": "{count} Discord channel isn't paired with a Harmony channel. | {count} Discord channels aren't paired with Harmony channels."
       }
     },
     "open": {

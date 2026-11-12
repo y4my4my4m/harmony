@@ -5903,6 +5903,19 @@
       "apply": "Aplicar permisos de Discord",
       "applyAll": "Aplicar todos"
     },
+    "overrides": {
+      "title": "Anulaciones de canal por miembro",
+      "intro": "Discord puede permitir o denegar permisos en un canal para un solo miembro. Cuando un miembro vinculado entra, los recibe en el canal de Harmony emparejado. Las anulaciones que un administrador creó en Harmony nunca se reemplazan.",
+      "member": "Miembro de Discord {id}",
+      "allows": "Permite: {list}",
+      "denies": "Deniega: {list}",
+      "nothing": "nada",
+      "linked": "Vinculado a {'@'}{username}",
+      "notLinked": "Aún no vinculado",
+      "unpaired": "Canal sin emparejar",
+      "showAll": "Mostrar los {count}",
+      "showFewer": "Mostrar menos"
+    },
     "errors": {
       "needManageRoles": "Necesitas el permiso Gestionar roles para aplicar permisos",
       "cannotGrant": "No puedes conceder {permission} porque no lo tienes",
@@ -5928,8 +5941,7 @@
         "roles": "Obtén tus roles de Discord."
       },
       "warnings": {
-        "unpaired": "{count} canal de Discord no está emparejado con un canal de Harmony. | {count} canales de Discord no están emparejados con canales de Harmony.",
-        "overrides": "{count} canal de Discord tiene excepciones de permisos para miembros concretos. No se migran. | {count} canales de Discord tienen excepciones de permisos para miembros concretos. No se migran."
+        "unpaired": "{count} canal de Discord no está emparejado con un canal de Harmony. | {count} canales de Discord no están emparejados con canales de Harmony."
       }
     },
     "open": {

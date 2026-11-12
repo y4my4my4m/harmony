@@ -5903,6 +5903,19 @@
       "apply": "Appliquer les permissions Discord",
       "applyAll": "Tout appliquer"
     },
+    "overrides": {
+      "title": "Surcharges de salon par membre",
+      "intro": "Discord peut autoriser ou refuser des permissions dans un salon pour un seul membre. Quand un membre lié se connecte, il les reçoit dans le salon Harmony associé. Les surcharges créées par un admin sur Harmony ne sont jamais remplacées.",
+      "member": "Membre Discord {id}",
+      "allows": "Autorise : {list}",
+      "denies": "Refuse : {list}",
+      "nothing": "rien",
+      "linked": "Lié à {'@'}{username}",
+      "notLinked": "Pas encore lié",
+      "unpaired": "Salon non associé",
+      "showAll": "Tout afficher ({count})",
+      "showFewer": "Afficher moins"
+    },
     "errors": {
       "needManageRoles": "Vous avez besoin de la permission Gérer les rôles pour appliquer des permissions",
       "cannotGrant": "Vous ne pouvez pas accorder {permission}, car vous ne l'avez pas",
@@ -5928,8 +5941,7 @@
         "roles": "Récupérez vos rôles depuis Discord."
       },
       "warnings": {
-        "unpaired": "{count} salon Discord n'est pas jumelé à un salon Harmony. | {count} salons Discord ne sont pas jumelés à des salons Harmony.",
-        "overrides": "{count} salon Discord a des permissions spécifiques à certains membres. Elles ne sont pas migrées. | {count} salons Discord ont des permissions spécifiques à certains membres. Elles ne sont pas migrées."
+        "unpaired": "{count} salon Discord n'est pas jumelé à un salon Harmony. | {count} salons Discord ne sont pas jumelés à des salons Harmony."
       }
     },
     "open": {

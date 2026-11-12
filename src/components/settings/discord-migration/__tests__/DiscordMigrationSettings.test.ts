@@ -467,3 +467,55 @@ describe('Discord server ID prefill', () => {
     expect(w.find('[data-testid="guild-from-bridge"]').exists()).toBe(false)
   })
 })
+describe('member channel overrides', () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    discord_channel_id: '801',
+    channel_name: 'general',
+    discord_user_id: '601',
+    allow: ['VIEW_CHANNEL', 'SEND_MESSAGES'],
+    deny: ['ATTACH_FILES'],
+    status: 'linked',
+    username: 'bob',
+    ...over,
+  })
+
+  it('lists each override with its permissions and who it reaches', async () => {
+    const w = await mountPanel(
+      config({
+        member_overrides: [
+          row(),
+          row({ discord_channel_id: '802', channel_name: 'staff', discord_user_id: '602', allow: [], deny: ['VIEW_CHANNEL'], status: 'not_linked', username: null }),
+          row({ discord_channel_id: '803', channel_name: 'lounge', status: 'unpaired', username: null }),
+        ],
+      } as never),
+    )
+    const rows = w.findAll('[data-testid="override-row"]')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].text()).toContain('#general')
+    expect(rows[0].text()).toContain('Discord member 601')
+    expect(rows[0].text()).toContain('Allows: View Channel, Send Messages')
+    expect(rows[0].text()).toContain('Denies: Attach Files')
+    expect(rows[0].text()).toContain('Linked to @bob')
+    expect(rows[1].text()).toContain('Allows: nothing')
+    expect(rows[1].text()).toContain('Not linked yet')
+    expect(rows[2].text()).toContain('Channel not paired')
+    expect(w.find('[data-testid="overrides-toggle"]').exists()).toBe(false)
+    expect(missingKeys).toEqual([])
+  })
+
+  it('collapses a long list until asked to show all', async () => {
+    const many = Array.from({ length: 8 }, (_, i) => row({ discord_user_id: String(700 + i) }))
+    const w = await mountPanel(config({ member_overrides: many } as never))
+    expect(w.findAll('[data-testid="override-row"]')).toHaveLength(5)
+    await w.find('[data-testid="overrides-toggle"]').trigger('click')
+    expect(w.findAll('[data-testid="override-row"]')).toHaveLength(8)
+  })
+
+  it('shows nothing without overrides and keeps the unpaired channel warning', async () => {
+    const w = await mountPanel(
+      config({ readiness_warnings: { unpaired_channels: ['random'], member_overrides: 2 }, member_overrides: [] } as never),
+    )
+    expect(w.find('[data-testid="dm-overrides"]').exists()).toBe(false)
+    expect(w.findAll('[data-testid="warning"]')).toHaveLength(1)
+  })
+})

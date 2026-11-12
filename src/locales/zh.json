@@ -5903,6 +5903,19 @@
       "apply": "应用 Discord 权限",
       "applyAll": "全部应用"
     },
+    "overrides": {
+      "title": "成员频道权限覆盖",
+      "intro": "Discord 可以在某个频道中为单个成员允许或拒绝权限。已关联的成员会在配对的 Harmony 频道中获得这些权限。管理员在 Harmony 上创建的覆盖不会被替换。",
+      "member": "Discord 成员 {id}",
+      "allows": "允许:{list}",
+      "denies": "拒绝:{list}",
+      "nothing": "无",
+      "linked": "已关联到 {'@'}{username}",
+      "notLinked": "尚未关联",
+      "unpaired": "频道未配对",
+      "showAll": "显示全部 {count} 项",
+      "showFewer": "收起"
+    },
     "errors": {
       "needManageRoles": "你需要“管理角色”权限才能应用权限",
       "cannotGrant": "你自己没有 {permission},因此无法授予",
@@ -5928,8 +5941,7 @@
         "roles": "请从 Discord 获取角色。"
       },
       "warnings": {
-        "unpaired": "有 {count} 个 Discord 频道未与 Harmony 频道配对。",
-        "overrides": "有 {count} 个 Discord 频道对个别成员设置了权限覆盖。这些覆盖不会被迁移。"
+        "unpaired": "有 {count} 个 Discord 频道未与 Harmony 频道配对。"
       }
     },
     "open": {

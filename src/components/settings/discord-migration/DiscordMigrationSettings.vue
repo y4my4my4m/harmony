@@ -200,6 +200,26 @@
         </ul>
       </section>
 
+      <!-- 7. Member channel overrides -->
+      <section v-if="memberOverrides.length" class="db-card" data-testid="dm-overrides">
+        <h3 class="db-card-sub">{{ t('discordMigration.overrides.title') }}</h3>
+        <p class="db-muted">{{ t('discordMigration.overrides.intro') }}</p>
+        <ul class="dm-gaps">
+          <li v-for="o in shownOverrides" :key="`${o.discord_channel_id}:${o.discord_user_id}`" class="dm-override" data-testid="override-row">
+            <span class="db-ui">#{{ o.channel_name || o.discord_channel_id }}</span>
+            <span class="db-muted">{{ t('discordMigration.overrides.member', { id: o.discord_user_id }) }}</span>
+            <span class="db-muted">{{ t('discordMigration.overrides.allows', { list: permissionList(o.allow) }) }}</span>
+            <span class="db-muted">{{ t('discordMigration.overrides.denies', { list: permissionList(o.deny) }) }}</span>
+            <span class="dm-override-status" :data-status="o.status" data-testid="override-status">{{ overrideStatus(o) }}</span>
+          </li>
+        </ul>
+        <div v-if="memberOverrides.length > OVERRIDES_COLLAPSED" class="db-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-testid="overrides-toggle" @click="showAllOverrides = !showAllOverrides">
+            {{ showAllOverrides ? t('discordMigration.overrides.showFewer') : t('discordMigration.overrides.showAll', { count: memberOverrides.length }) }}
+          </button>
+        </div>
+      </section>
+
       <!-- 8. Readiness and open -->
       <section v-if="config.state !== 'open' && config.state !== 'finished'" class="db-card" data-testid="dm-ready">
         <h3 class="db-card-sub">{{ t('discordMigration.ready.title') }}</h3>
@@ -360,6 +380,7 @@ import {
   type MigrationConfig,
   type MigrationError,
   type MigrationMember,
+  type MemberOverride,
   type PermissionGap,
   type RoleMapRow,
 } from './migrationApi'
@@ -480,6 +501,16 @@ function permissionLabel(name: string): string {
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
+}
+
+function permissionList(names: string[]): string {
+  return names.length ? names.map(permissionLabel).join(', ') : t('discordMigration.overrides.nothing')
+}
+
+function overrideStatus(o: MemberOverride): string {
+  if (o.status === 'unpaired') return t('discordMigration.overrides.unpaired')
+  if (o.status === 'linked') return t('discordMigration.overrides.linked', { username: o.username ?? '' })
+  return t('discordMigration.overrides.notLinked')
 }
 
 function missingText(gap: PermissionGap): string {
@@ -788,13 +819,18 @@ const blockers = computed(() => {
   return list
 })
 
+const OVERRIDES_COLLAPSED = 5
+const showAllOverrides = ref(false)
+const memberOverrides = computed(() => config.value?.member_overrides ?? [])
+const shownOverrides = computed(() =>
+  showAllOverrides.value ? memberOverrides.value : memberOverrides.value.slice(0, OVERRIDES_COLLAPSED),
+)
+
 const warnings = computed(() => {
   const w = config.value?.readiness_warnings
   const list: string[] = []
   const unpaired = w?.unpaired_channels?.length ?? 0
   if (unpaired > 0) list.push(t('discordMigration.ready.warnings.unpaired', { count: unpaired }, unpaired))
-  const overrides = w?.member_overrides ?? 0
-  if (overrides > 0) list.push(t('discordMigration.ready.warnings.overrides', { count: overrides }, overrides))
   return list
 })
 
@@ -1054,6 +1090,23 @@ onMounted(load)
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+}
+
+.dm-override {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.dm-override-status[data-status='linked'] {
+  color: var(--success);
+}
+
+.dm-override-status[data-status='not_linked'],
+.dm-override-status[data-status='unpaired'] {
+  color: var(--warning);
 }
 
 .dm-gap-text {

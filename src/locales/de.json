@@ -5903,6 +5903,19 @@
       "apply": "Discord-Berechtigungen anwenden",
       "applyAll": "Alle anwenden"
     },
+    "overrides": {
+      "title": "Kanalüberschreibungen für Mitglieder",
+      "intro": "Discord kann Berechtigungen in einem Kanal für einzelne Mitglieder erlauben oder verweigern. Verknüpfte Mitglieder erhalten diese im zugeordneten Harmony-Kanal. Überschreibungen, die ein Admin in Harmony angelegt hat, werden nie ersetzt.",
+      "member": "Discord-Mitglied {id}",
+      "allows": "Erlaubt: {list}",
+      "denies": "Verweigert: {list}",
+      "nothing": "nichts",
+      "linked": "Verknüpft mit {'@'}{username}",
+      "notLinked": "Noch nicht verknüpft",
+      "unpaired": "Kanal nicht zugeordnet",
+      "showAll": "Alle {count} anzeigen",
+      "showFewer": "Weniger anzeigen"
+    },
     "errors": {
       "needManageRoles": "Du brauchst die Berechtigung „Rollen verwalten“, um Berechtigungen anzuwenden",
       "cannotGrant": "Du kannst {permission} nicht vergeben, weil du sie selbst nicht hast",
@@ -5928,8 +5941,7 @@
         "roles": "Rollen von Discord abrufen."
       },
       "warnings": {
-        "unpaired": "{count} Discord-Kanal ist keinem Harmony-Kanal zugeordnet. | {count} Discord-Kanäle sind keinem Harmony-Kanal zugeordnet.",
-        "overrides": "{count} Discord-Kanal hat Berechtigungsüberschreibungen für einzelne Mitglieder. Sie werden nicht migriert. | {count} Discord-Kanäle haben Berechtigungsüberschreibungen für einzelne Mitglieder. Sie werden nicht migriert."
+        "unpaired": "{count} Discord-Kanal ist keinem Harmony-Kanal zugeordnet. | {count} Discord-Kanäle sind keinem Harmony-Kanal zugeordnet."
       }
     },
     "open": {
