@@ -19,6 +19,11 @@ INSERT INTO public.discord_bridges (id, server_id, mode, discord_guild_id, creat
 VALUES ('f2470000-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-000000000005', 'self',
         '900000000000000247', '11111111-0000-0000-0000-000000000001');
 
+-- 20261112700001: the instance switch is on and its caps are off; 282 covers both.
+UPDATE public.instance_config SET config_value = '"self_run"'::jsonb WHERE config_key = 'bridge_history_import';
+UPDATE public.instance_config SET config_value = '0'::jsonb
+ WHERE config_key IN ('bridge_import_max_running', 'bridge_import_messages_per_minute');
+
 INSERT INTO public.discord_bridge_channels (bridge_id, harmony_channel_id, discord_channel_id, direction) VALUES
   ('f2470000-0000-0000-0000-0000000000d1', '66666666-0000-0000-0000-000000000006', '2470000000000000001', 'both'),
   ('f2470000-0000-0000-0000-0000000000d1', 'f2470000-0000-0000-0000-000000000002', '2470000000000000002', 'to_harmony'),
@@ -176,7 +181,7 @@ SELECT ok((SELECT state = 'cancelled' AND finished_at IS NOT NULL AND thread_cur
                   '{"state":"cancelled","thread_cursor":null}')),
           'running to cancelled once cancel_requested; finished_at set and a null clears a cursor');
 
-SELECT ok(NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid)', 'EXECUTE')
+SELECT ok(NOT has_function_privilege('authenticated', 'public.discord_bridge_import_start_internal(uuid, text[], text, uuid, jsonb)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_update(uuid, uuid, jsonb)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.discord_bridge_import_cancel_internal(uuid, uuid)', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.discord_bridge_import_start(uuid, uuid[])', 'EXECUTE')

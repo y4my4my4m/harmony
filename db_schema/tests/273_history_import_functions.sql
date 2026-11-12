@@ -35,6 +35,11 @@ INSERT INTO public.discord_bridges (id, server_id, mode, bot_id, discord_guild_i
 VALUES ('f2490000-0000-0000-0000-0000000000d1', '55555555-0000-0000-0000-000000000005', 'self',
         'f2490000-0000-0000-0000-0000000000b1', '900000000000000249', '11111111-0000-0000-0000-000000000001');
 
+-- 20261112700001: the instance switch is on and its caps are off; 282 covers both.
+UPDATE public.instance_config SET config_value = '"self_run"'::jsonb WHERE config_key = 'bridge_history_import';
+UPDATE public.instance_config SET config_value = '0'::jsonb
+ WHERE config_key IN ('bridge_import_max_running', 'bridge_import_messages_per_minute');
+
 INSERT INTO public.discord_bridge_channels (bridge_id, harmony_channel_id, discord_channel_id, direction) VALUES
   ('f2490000-0000-0000-0000-0000000000d1', '66666666-0000-0000-0000-000000000006', '2490000000000000001', 'both'),
   ('f2490000-0000-0000-0000-0000000000d1', 'f2490000-0000-0000-0000-000000000002', '2490000000000000002', 'both'),
@@ -242,10 +247,12 @@ SELECT pg_temp.batch('thr', '1', jsonb_build_array(
 SELECT is((SELECT (message_count, archived, last_message_at = '2020-02-02T10:00:00Z'::timestamptz, last_message_id IS NULL)::text
              FROM public.threads WHERE id = (SELECT id FROM t249 WHERE k = 'a1')),
           '(1,t,t,t)', 'a message in the thread is counted; the thread stays archived and takes its time as last activity, not as last message');
-SELECT throws_ok(format($q$SELECT public.bridge_import_messages('f2490000-0000-0000-0000-0000000000b1', %L, %L::jsonb)$q$,
-                        pg_temp.job('1'), jsonb_build_array(pg_temp.msg('2490000000000010011', '2020-02-02T10:00:00Z',
-                            jsonb_build_object('thread_id', gen_random_uuid())))),
-                 '22023', 'invalid_thread', 'a thread that is not this channel''s is refused');
+-- 20261112700001: refused alone, as a rejection, not as a failed batch.
+SELECT is(public.bridge_import_messages('f2490000-0000-0000-0000-0000000000b1', pg_temp.job('1'),
+              jsonb_build_array(pg_temp.msg('2490000000000010011', '2020-02-02T10:00:00Z',
+                  jsonb_build_object('thread_id', gen_random_uuid())))) -> 'rejected',
+          '[{"reason": "invalid", "discord_message_id": "2490000000000010011"}]'::jsonb,
+          'a thread that is not this channel''s is refused');
 
 -- Quiet: no side effects for a clean channel (C) ----------------------------------------------------------------
 SELECT pg_temp.batch('c1', '3', jsonb_build_array(
