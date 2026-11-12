@@ -5413,7 +5413,7 @@
       "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
     },
     "instance": {
-      "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {done} stockés",
+      "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {size} stockés",
       "mirrorStatusTooLarge": "{count} trop volumineux ({size}) : relevez le plafond d'envoi avec harmony config --upload-ceiling 500M",
       "mirrorStatusFailed": "{count} en échec",
       "mirrorStatusOverQuota": "{count} au-delà de la limite par serveur : relevez Fichiers Discord stockés par serveur",

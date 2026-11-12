@@ -916,7 +916,7 @@ watch(configTab, (tab) => {
 })
 
 // Progress of the queue that stores Discord files, shown while "Mirror to storage" is selected.
-interface MirrorStatus { queued: number; done: number; too_large: number; too_large_bytes: number; failed: number; over_quota?: number }
+interface MirrorStatus { queued: number; too_large: number; too_large_bytes: number; failed: number; over_quota?: number; stored_bytes?: number }
 const mirrorStatus = ref<MirrorStatus | null>(null)
 const MIRROR_STATUS_POLL_MS = 30_000
 let mirrorStatusTimer: ReturnType<typeof setInterval> | null = null
@@ -934,7 +934,7 @@ const formatSizeDecimal = (bytes: number): string => {
 const mirrorStatusText = computed(() => {
   const s = mirrorStatus.value
   if (!s) return ''
-  const parts: string[] = [t('admin.instance.mirrorStatusProgress', { queued: s.queued, done: s.done })]
+  const parts: string[] = [t('admin.instance.mirrorStatusProgress', { queued: s.queued, size: formatSizeDecimal(s.stored_bytes ?? 0) })]
   if (s.too_large > 0) {
     parts.push(t('admin.instance.mirrorStatusTooLarge', { count: s.too_large, size: formatSizeDecimal(s.too_large_bytes) }))
   }

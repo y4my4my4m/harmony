@@ -159,7 +159,7 @@ bridge_import_status	definer	jsonb	authenticated	client	rpc in src/components/se
 bridge_import_thread	definer	uuid	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_mirror_allows	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/mirrorExternalMedia.ts
 bridge_mirror_backfill	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
-bridge_mirror_claim	definer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_claim	definer	TABLE(message_id uuid, attempts integer)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_enqueue	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
 bridge_mirror_finish	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_observe	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts

@@ -64,8 +64,7 @@ SELECT results_eq($$SELECT state, attempts FROM public.bridge_mirror_queue WHERE
 SELECT is((SELECT message_id FROM public.bridge_mirror_claim(60)), '27300000-0000-0000-0000-00000000a002'::uuid,
           'claim returns the due row');
 SELECT is((SELECT count(*)::int FROM public.bridge_mirror_claim(60)), 0, 'a second claim inside the lease returns nothing');
-SELECT is((SELECT bot_id FROM public.bridge_mirror_queue WHERE message_id = '27300000-0000-0000-0000-00000000a002'),
-          '27300000-0000-0000-0000-0000000000b1'::uuid, 'the row carries the bot');
+SELECT hasnt_column('public', 'bridge_mirror_queue', 'bot_id', 'the row carries no copy of the bot');
 SELECT public.bridge_mirror_finish('27300000-0000-0000-0000-00000000a002', 'queued', 1, 0, NULL, 'x');
 SELECT is((SELECT attempts FROM public.bridge_mirror_claim(60)), 1, 'after finish(queued) it is claimable again, with its attempts');
 SELECT public.bridge_mirror_finish('27300000-0000-0000-0000-00000000a002', 'too_large', 2, 0, 150, 'big');
@@ -123,7 +122,7 @@ SELECT is((SELECT cursor_id FROM public.bridge_mirror_state), NULL, 'restart_wal
 
 -- Status ------------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(public.bridge_mirror_status(), '{"queued": 1, "done": 0, "too_large": 1, "too_large_bytes": 300, "failed": 0, "over_quota": 0, "stored_bytes": 0}'::jsonb,
+SELECT is(public.bridge_mirror_status(), '{"queued": 1, "too_large": 1, "too_large_bytes": 300, "failed": 0, "over_quota": 0, "stored_bytes": 0}'::jsonb,
           'an admin reads the counts');
 SELECT tests.clear_authentication();
 

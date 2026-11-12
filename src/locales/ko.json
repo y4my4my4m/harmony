@@ -5413,7 +5413,7 @@
       "reportsFailed": "이 도메인의 신고 처리 방식을 바꾸지 못했습니다"
     },
     "instance": {
-      "mirrorStatusProgress": "Discord 파일 저장 중: {queued}개 대기 중, {done}개 저장됨",
+      "mirrorStatusProgress": "Discord 파일 저장 중: {queued}개 대기 중, {size} 저장됨",
       "mirrorStatusTooLarge": "{count}개가 너무 큽니다 ({size}): harmony config --upload-ceiling 500M 로 업로드 상한을 올리세요",
       "mirrorStatusFailed": "{count}개 실패",
       "mirrorStatusOverQuota": "{count}개가 서버별 한도를 넘었습니다: 서버당 저장하는 Discord 파일 한도를 올리세요",

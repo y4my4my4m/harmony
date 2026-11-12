@@ -1,5 +1,7 @@
 -- 20261112800001_bridge_mirror_quota.sql: the per-server cap on mirrored Discord files, the
--- over_quota queue state and the status keys that report them.
+-- over_quota queue state, the status keys that report them, and a queue without done rows or
+-- copies of the message's bot and channel. 20261112800002_messages_bot_index.sql: the dropped
+-- prefix index.
 --
 --   bot b1    bridge bot of server_1 (in discord_bridges)
 --   server_2  a second server with one channel, c2
@@ -9,7 +11,7 @@
 -- 8 MB in c2. Every other object below sits outside the mirror paths of server_1.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(46);
+SELECT plan(53);
 
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'bridge_mirror_server_limit_mb'),
           '5120'::jsonb, 'the cap defaults to 5120 MB');
@@ -169,8 +171,8 @@ SELECT results_eq($$SELECT message_id, state FROM public.bridge_mirror_queue ORD
 -- Status ------------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.bridge_mirror_status(),
-          '{"queued": 1, "done": 0, "too_large": 0, "too_large_bytes": 0, "failed": 0, "over_quota": 1, "stored_bytes": 11534336}'::jsonb,
-          'an admin reads the earlier keys, the over_quota rows and the bytes stored for every server: 3 MB + 8 MB');
+          '{"queued": 1, "too_large": 0, "too_large_bytes": 0, "failed": 0, "over_quota": 1, "stored_bytes": 11534336}'::jsonb,
+          'an admin reads the counts without done, the over_quota rows and the bytes stored for every server: 3 MB + 8 MB');
 SELECT tests.clear_authentication();
 
 -- A row sent back to the queue -------------------------------------------------------------------
@@ -183,9 +185,27 @@ SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a002', 'queu
 SELECT is((SELECT (state, last_error)::text FROM public.bridge_mirror_queue
             WHERE message_id = '28300000-0000-0000-0000-00000000a002'),
           '(failed,"bridge removed")', 'once its bridge is removed the row ends failed instead of waiting again');
+SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a001', 'too_large', 1, NULL, 9, NULL);
+SELECT is((SELECT (state, largest_bytes)::text FROM public.bridge_mirror_queue
+            WHERE message_id = '28300000-0000-0000-0000-00000000a001'),
+          '(too_large,9)', 'any other outcome is stored as given');
+
+-- Queue shape -------------------------------------------------------------------------------------
+SELECT hasnt_column('public', 'bridge_mirror_queue', 'bot_id', 'the queue holds no copy of the bot');
+SELECT hasnt_column('public', 'bridge_mirror_queue', 'channel_id', 'nor of the channel');
+SELECT throws_ok($$UPDATE public.bridge_mirror_queue SET state = 'done' WHERE message_id = '28300000-0000-0000-0000-00000000a001'$$,
+                 '23514', NULL, 'done is not a stored state');
 SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a001', 'done', 1, NULL, NULL, NULL);
-SELECT is((SELECT state FROM public.bridge_mirror_queue WHERE message_id = '28300000-0000-0000-0000-00000000a001'),
-          'done', 'any other outcome is stored as given');
+SELECT is((SELECT count(*)::int FROM public.bridge_mirror_queue WHERE message_id = '28300000-0000-0000-0000-00000000a001'),
+          0, 'finish(done) deletes the row');
+SELECT is(public.bridge_mirror_enqueue(ARRAY['28300000-0000-0000-0000-00000000a001']::uuid[]), 0,
+          'a message whose bot runs no bridge any more is not queued again');
+
+-- Bot indexes on messages -------------------------------------------------------------------------
+SELECT ok(to_regclass('public.idx_messages_bot_id') IS NULL, 'the prefix index on bot_id is dropped');
+SELECT ok(EXISTS (SELECT 1 FROM pg_index x
+                   WHERE x.indexrelid = to_regclass('public.idx_messages_bot_created_id') AND x.indisvalid),
+          'the keyset index of the backfill walk stays, valid');
 
 SELECT * FROM finish();
 ROLLBACK;

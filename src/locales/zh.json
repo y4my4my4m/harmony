@@ -5413,7 +5413,7 @@
       "reportsFailed": "无法更改此域名举报的处理方式"
     },
     "instance": {
-      "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，{done} 个已保存",
+      "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，已保存 {size}",
       "mirrorStatusTooLarge": "{count} 个文件过大（{size}）：请用 harmony config --upload-ceiling 500M 提高上传上限",
       "mirrorStatusFailed": "{count} 个失败",
       "mirrorStatusOverQuota": "{count} 个超出每服务器上限：请提高“每个服务器存储的 Discord 文件”",

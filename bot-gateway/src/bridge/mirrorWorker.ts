@@ -152,6 +152,7 @@ export class MirrorWorker {
     })
   }
 
+  /** `done` removes the queue row; every other state is stored on it. */
   private async finish(
     messageId: string,
     state: 'queued' | 'done' | 'too_large' | 'failed' | 'over_quota',
@@ -201,7 +202,7 @@ export class MirrorWorker {
     const messageId: string = row.message_id
     const attempts: number = row.attempts ?? 0
     try {
-      await this.process(messageId, row.bot_id, row.channel_id, attempts, ceiling)
+      await this.process(messageId, attempts, ceiling)
     } catch (error: any) {
       deps.log.error(`Mirror of ${messageId} failed:`, error?.message || error)
       await this.finishWithError(messageId, attempts, error)
@@ -219,13 +220,7 @@ export class MirrorWorker {
     }
   }
 
-  private async process(
-    messageId: string,
-    botId: string,
-    channelId: string,
-    attempts: number,
-    ceiling: number,
-  ): Promise<void> {
+  private async process(messageId: string, attempts: number, ceiling: number): Promise<void> {
     const { deps } = this
     const message = await deps.readMessage(messageId)
     if (!message || message.is_deleted === true || !Array.isArray(message.content)) {
@@ -233,6 +228,8 @@ export class MirrorWorker {
       return
     }
     const content = message.content
+    const botId = message.bot_id
+    const channelId = message.channel_id
 
     // Expired or unsigned links first: nothing is downloaded until the bridge has re-signed them.
     if (content.some((part) => isCandidate(part) && needsDiscordResign(part.url, deps.now()))) {

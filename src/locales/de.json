@@ -5413,7 +5413,7 @@
       "reportsFailed": "Die Behandlung der Meldungen dieser Domain konnte nicht geändert werden"
     },
     "instance": {
-      "mirrorStatusProgress": "Discord-Dateien werden gespeichert: {queued} warten, {done} gespeichert",
+      "mirrorStatusProgress": "Discord-Dateien werden gespeichert: {queued} warten, {size} gespeichert",
       "mirrorStatusTooLarge": "{count} zu groß ({size}): Upload-Obergrenze mit harmony config --upload-ceiling 500M anheben",
       "mirrorStatusFailed": "{count} fehlgeschlagen",
       "mirrorStatusOverQuota": "{count} über dem Limit pro Server: „Gespeicherte Discord-Dateien pro Server“ anheben",

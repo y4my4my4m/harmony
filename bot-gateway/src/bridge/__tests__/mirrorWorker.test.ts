@@ -56,7 +56,7 @@ function setup(opts: {
       case 'bridge_mirror_observe': return { walk_done: opts.walkDone ?? true }
       case 'bridge_mirror_backfill': return 3
       case 'bridge_mirror_claim':
-        return opts.claimed === false ? [] : [{ message_id: 'm1', bot_id: 'b1', channel_id: 'c1', attempts: opts.attempts ?? 0 }]
+        return opts.claimed === false ? [] : [{ message_id: 'm1', attempts: opts.attempts ?? 0 }]
       case 'update_message_content_silent':
         if (opts.updateThrows !== undefined) {
           throw Object.assign(new Error('update_message_content_silent failed: boom'), { code: opts.updateThrows })

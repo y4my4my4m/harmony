@@ -5409,7 +5409,7 @@
       "reportsFailed": "Could not change how reports from this domain are handled"
     },
     "instance": {
-      "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {done} stored",
+      "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {size} stored",
       "mirrorStatusTooLarge": "{count} too large ({size}): raise the upload ceiling with harmony config --upload-ceiling 500M",
       "mirrorStatusFailed": "{count} failed",
       "mirrorStatusOverQuota": "{count} over the limit per server: raise Stored Discord files per server",

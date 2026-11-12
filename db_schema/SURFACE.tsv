@@ -159,7 +159,7 @@ bridge_import_status		jsonb	definer	public, pg_temp	authenticated	client
 bridge_import_thread	p_bot_id uuid, p_import_id uuid, p_thread jsonb	uuid	definer	public, pg_temp	service_role	client
 bridge_mirror_allows	p_channel_id uuid, p_bytes bigint	boolean	definer	public, pg_temp	service_role	client
 bridge_mirror_backfill	p_limit integer	integer	definer	public, pg_temp	service_role	client
-bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	definer	public, pg_temp	service_role	client
+bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, attempts integer)	definer	public, pg_temp	service_role	client
 bridge_mirror_enqueue	p_message_ids uuid[]	integer	definer	public, pg_temp	service_role	client
 bridge_mirror_finish	p_message_id uuid, p_state text, p_attempts integer, p_retry_seconds integer, p_largest_bytes bigint, p_error text	void	definer	public, pg_temp	service_role	client
 bridge_mirror_observe	p_mode text, p_ceiling bigint	jsonb	definer	public, pg_temp	service_role	client

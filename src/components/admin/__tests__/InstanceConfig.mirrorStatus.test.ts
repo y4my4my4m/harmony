@@ -51,7 +51,7 @@ vi.mock('@/supabase', () => ({
 const { default: InstanceConfig } = await import('../InstanceConfig.vue')
 
 function status(over: Record<string, number> = {}) {
-  return { queued: 12, done: 300, too_large: 2, too_large_bytes: 1200000000, failed: 1, ...over }
+  return { queued: 12, stored_bytes: 3400000000, too_large: 2, too_large_bytes: 1200000000, failed: 1, ...over }
 }
 
 async function open(mode: string) {
@@ -79,7 +79,7 @@ describe('Discord file storage progress', () => {
     const wrapper = await open('mirror')
     expect(rpc).toHaveBeenCalledWith('bridge_mirror_status')
     const text = wrapper.get('[data-testid="mirror-status"]').text()
-    expect(text).toContain('Storing Discord files: 12 waiting, 300 stored')
+    expect(text).toContain('Storing Discord files: 12 waiting, 3.4 GB stored')
     expect(text).toContain('2 too large (1.2 GB): raise the upload ceiling with harmony config --upload-ceiling 500M')
     expect(text).toContain('1 failed')
   })
