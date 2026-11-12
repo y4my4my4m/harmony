@@ -137,7 +137,7 @@ INSERT INTO out VALUES ('ow2', public.discord_migration_sync_member('f2760000-00
 RESET role;
 SELECT is((SELECT array_agg(sr.name ORDER BY sr.name) FROM public.user_roles ur JOIN public.server_roles sr ON sr.id = ur.role_id AND sr.name LIKE '%276'
             WHERE ur.server_id = 'f2760000-0000-0000-0000-0000000000a1' AND ur.user_id = '11111111-0000-0000-0000-000000000001'),
-  ARRAY['Helper276'], 'owner_untouched: the owner gains nothing and keeps the hand-granted mapped role');
+  ARRAY['Admins276', 'Helper276'], 'owner_untouched: the owner gains the mapped role and keeps the hand-granted one');
 
 -- admin_grant_notifies_owner --------------------------------------------------------------------------
 SET LOCAL role service_role;

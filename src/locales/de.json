@@ -5825,7 +5825,8 @@
         "invalid_ticket": "Diese Anmeldung ist abgelaufen. Starte neu.",
         "network": "Der Server ist nicht erreichbar. Versuche es erneut.",
         "unknown": "Etwas ist schiefgelaufen. Versuche es erneut."
-      }
+      },
+      "ownerRoles": "Dir gehört dieser Server, daher fügt die Synchronisierung dir nur Rollen hinzu. Sie entfernt nie welche."
     },
     "navLabel": "Von Discord umziehen",
     "title": "Von Discord umziehen",

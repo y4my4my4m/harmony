@@ -38,6 +38,8 @@ export interface MigrationPreview {
 export interface ClaimResult {
   serverId: string
   rolesGranted: string[]
+  /** The claimer owns the server: roles are only ever added to them. */
+  isOwner: boolean
 }
 
 export interface MigrationLink {
@@ -95,8 +97,8 @@ export async function createAccount(input: {
 export async function claim(ticket: string): Promise<ClaimResult> {
   const { data, error } = await supabase.rpc('discord_migration_claim', { p_ticket: ticket })
   if (error) throw new DiscordMigrationError(rpcCode(error))
-  const row = (data ?? {}) as { server_id?: string; roles_granted?: string[] }
-  return { serverId: String(row.server_id ?? ''), rolesGranted: row.roles_granted ?? [] }
+  const row = (data ?? {}) as { server_id?: string; roles_granted?: string[]; is_owner?: boolean }
+  return { serverId: String(row.server_id ?? ''), rolesGranted: row.roles_granted ?? [], isOwner: row.is_owner === true }
 }
 
 // -------------------------------------------------------------------------------------------

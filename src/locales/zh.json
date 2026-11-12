@@ -5825,7 +5825,8 @@
         "invalid_ticket": "此次登录已过期，请重新开始。",
         "network": "无法连接服务器，请重试。",
         "unknown": "出了点问题，请重试。"
-      }
+      },
+      "ownerRoles": "你是此服务器的所有者,同步只会为你添加角色,绝不会移除。"
     },
     "navLabel": "从 Discord 迁移",
     "title": "从 Discord 迁移",

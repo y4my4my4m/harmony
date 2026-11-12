@@ -5825,7 +5825,8 @@
         "invalid_ticket": "Este inicio de sesión caducó. Empieza de nuevo.",
         "network": "No se pudo contactar con el servidor. Inténtalo de nuevo.",
         "unknown": "Algo salió mal. Inténtalo de nuevo."
-      }
+      },
+      "ownerRoles": "Eres el propietario de este servidor, así que la sincronización solo te añade roles. Nunca te los quita."
     },
     "navLabel": "Migrar desde Discord",
     "title": "Migrar desde Discord",

@@ -150,6 +150,22 @@ describe('MigrateFromDiscordView', () => {
     expect(wrapper.find('[data-testid="sync-avatar"]').exists()).toBe(true)
   })
 
+  it('tells the server owner that roles are only added', async () => {
+    h.auth.isLoggedIn = true
+    h.profile.profile = { username: 'alice', is_local: true }
+    h.svc.claim.mockResolvedValue({ serverId: 'srv', rolesGranted: ['Mod'], isOwner: true })
+    const wrapper = await open({ ticket: 'tkt' })
+    expect(wrapper.get('[data-testid="migrate-owner-roles"]').text()).toContain('discordMigration.migrate.ownerRoles')
+  })
+
+  it('says nothing about owner roles to other members', async () => {
+    h.auth.isLoggedIn = true
+    h.profile.profile = { username: 'bob', is_local: true }
+    h.svc.claim.mockResolvedValue({ serverId: 'srv', rolesGranted: ['Mod'], isOwner: false })
+    const wrapper = await open({ ticket: 'tkt' })
+    expect(wrapper.find('[data-testid="migrate-owner-roles"]').exists()).toBe(false)
+  })
+
   it('asks the gateway for a fresh sync after a successful claim, whatever the toggles', async () => {
     h.auth.isLoggedIn = true
     h.profile.profile = { username: 'alice', is_local: true }

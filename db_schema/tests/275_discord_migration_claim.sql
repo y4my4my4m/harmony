@@ -10,7 +10,7 @@
 --              map D1 -> Mod, D2 -> Adm
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(87);
+SELECT plan(88);
 
 CREATE TEMP TABLE out (k text PRIMARY KEY, v jsonb) ON COMMIT DROP;
 GRANT ALL ON out TO PUBLIC;
@@ -198,9 +198,10 @@ SET LOCAL role service_role;
 INSERT INTO out VALUES ('ap3', public.discord_migration_apply_roles('f2750000-0000-0000-0000-0000000000a2',
   '11111111-0000-0000-0000-000000000001', ARRAY['700000000000000001', '700000000000000002']));
 RESET role;
-SELECT is((SELECT v FROM out WHERE k = 'ap3'), '{"added":[],"removed":[]}'::jsonb, 'apply_roles returns nothing for the owner');
+SELECT is((SELECT jsonb_array_length(v -> 'added') FROM out WHERE k = 'ap3'), 2, 'apply_roles adds the owner''s mapped roles');
+SELECT is((SELECT v -> 'removed' FROM out WHERE k = 'ap3'), '[]'::jsonb, 'and removes nothing');
 SELECT is((SELECT count(*)::int FROM public.user_roles ur JOIN public.server_roles sr ON sr.id = ur.role_id WHERE sr.name LIKE '%275' AND ur.user_id = '11111111-0000-0000-0000-000000000001'
-              AND ur.server_id = 'f2750000-0000-0000-0000-0000000000a2'), 0, 'and changes nothing');
+              AND ur.server_id = 'f2750000-0000-0000-0000-0000000000a2'), 2, 'the owner holds both');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT throws_ok($q$SELECT public.discord_migration_apply_roles('f2750000-0000-0000-0000-0000000000a2', '22222222-0000-0000-0000-000000000002', '{}')$q$,
   '42501', NULL, 'a client cannot apply roles');

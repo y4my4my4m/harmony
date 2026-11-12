@@ -63,6 +63,7 @@
               </ul>
             </template>
             <p v-else class="mg-muted">{{ t('discordMigration.migrate.noRoles') }}</p>
+            <p v-if="isOwner" class="mg-muted" data-testid="migrate-owner-roles">{{ t('discordMigration.migrate.ownerRoles') }}</p>
           </div>
           <h2 class="mg-sub">{{ t('discordMigration.sync.title') }}</h2>
           <DiscordSyncFields v-model="syncFields" :server-id="claimedServerId" />
@@ -187,6 +188,7 @@ const state = ref<ViewState>('loading')
 const server = ref<MigrationPreview | null>(null)
 const errorCode = ref('')
 const rolesGranted = ref<string[]>([])
+const isOwner = ref(false)
 const claimedServerId = ref<string | null>(null)
 const syncFields = ref<SyncField[]>([])
 
@@ -246,6 +248,7 @@ async function runClaim() {
   try {
     const result = await claim(ticket)
     rolesGranted.value = result.rolesGranted
+    isOwner.value = result.isOwner
     claimedServerId.value = result.serverId || null
     if (result.serverId) {
       // The roles on the ticket may be old: have the gateway read Discord now (best effort).
@@ -269,6 +272,7 @@ async function showAlreadyLinked(): Promise<boolean> {
   const link = await myLink(serverId).catch(() => null)
   if (link?.status !== 'active') return false
   rolesGranted.value = []
+  isOwner.value = false
   claimedServerId.value = serverId
   syncFields.value = link.syncFields
   state.value = 'done'
@@ -315,6 +319,7 @@ async function init() {
   errorCode.value = ''
   formError.value = ''
   rolesGranted.value = []
+  isOwner.value = false
   claimedServerId.value = null
   if (errorParam) {
     server.value = await preview(token).catch(() => null)

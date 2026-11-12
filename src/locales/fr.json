@@ -5825,7 +5825,8 @@
         "invalid_ticket": "Cette connexion a expiré. Recommencez.",
         "network": "Impossible de joindre le serveur. Réessayez.",
         "unknown": "Une erreur s’est produite. Réessayez."
-      }
+      },
+      "ownerRoles": "Vous êtes propriétaire de ce serveur : la synchronisation ne fait qu'ajouter des rôles et n'en retire jamais."
     },
     "navLabel": "Migrer depuis Discord",
     "title": "Migrer depuis Discord",

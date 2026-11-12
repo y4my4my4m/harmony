@@ -5821,7 +5821,8 @@
         "invalid_ticket": "This sign-in expired. Start again.",
         "network": "Couldn't reach the server. Try again.",
         "unknown": "Something went wrong. Try again."
-      }
+      },
+      "ownerRoles": "You own this server, so the sync only ever adds roles to you. It never removes them."
     },
     "navLabel": "Migrate from Discord",
     "title": "Migrate from Discord",
