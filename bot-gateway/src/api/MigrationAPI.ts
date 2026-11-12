@@ -260,8 +260,8 @@ export class MigrationAPI {
       p_overrides: buildMemberOverridesSnapshot(channels.value, names as string[]),
     })
     if (overrides.error) {
-      console.error('discord_migration_store_member_overrides failed:', overrides.error.code, overrides.error.message)
-      return res.status(500).json({ ok: false, error: 'store_failed' })
+      // The snapshot is a courtesy on top of the roles: keep the old one and finish the refresh.
+      console.warn('discord_migration_store_member_overrides failed:', overrides.error.code, overrides.error.message)
     }
 
     const warnings = await this.readinessWarnings(serverId, channels.value)

@@ -220,16 +220,19 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
 /**
  * Discord ids of the server's members who linked a Harmony account through Migrate from Discord and
  * are accepted members of the server. Those people are listed as Harmony members, so the clients
- * leave their Discord entry out. Ids only; a failed lookup answers none.
+ * leave their Discord entry out. Ids only, and only those in the list being served; a failed lookup answers none.
  */
-async function linkedDiscordIds(serverId: string): Promise<string[]> {
+async function linkedDiscordIds(serverId: string, listed: Array<{ id: string }>): Promise<string[]> {
   const { data: links, error } = await supabase
     .from('discord_migration_links')
     .select('user_id, discord_user_id')
     .eq('server_id', serverId)
     .eq('status', 'active')
   if (error || !links?.length) return []
-  const rows = links as Array<{ user_id: string; discord_user_id: string }>
+  const present = new Set(listed.map((u) => u.id))
+  // Only ids this response lists: nothing else about the links leaves the server.
+  const rows = (links as Array<{ user_id: string; discord_user_id: string }>).filter((l) => present.has(l.discord_user_id))
+  if (rows.length === 0) return []
   const { data: members, error: membersError } = await supabase
     .from('user_servers')
     .select('user_id')
@@ -278,7 +281,7 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     channel_id: channelId,
     has_bridge: hasBridge,
     users: bridgedUsers,
-    linked_discord_ids: hasBridge ? await linkedDiscordIds(channel.server_id) : [],
+    linked_discord_ids: hasBridge ? await linkedDiscordIds(channel.server_id, bridgedUsers) : [],
   })
 })
 
@@ -319,7 +322,7 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
     server_id: serverId,
     has_bridge: hasBridge,
     users: bridgedUsers,
-    linked_discord_ids: hasBridge ? await linkedDiscordIds(serverId) : [],
+    linked_discord_ids: hasBridge ? await linkedDiscordIds(serverId, bridgedUsers) : [],
   })
 })
 

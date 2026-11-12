@@ -449,6 +449,15 @@ describe('POST /bridge/v2/migrate/:serverId/refresh', () => {
     ])
   })
 
+  it('finishes the refresh when the member overwrite snapshot cannot be stored', async () => {
+    rpcHandlers.discord_migration_store_member_overrides = () => ({ data: null, error: { code: 'XX000', message: 'boom' } })
+    const res = await post()
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true, roles: 2, canBan: true })
+    expect(rpcCalls('discord_migration_store_warnings')).toHaveLength(1)
+    expect(logged.some((line) => line.includes('discord_migration_store_member_overrides failed'))).toBe(true)
+  })
+
   it('answers credentials_missing when the credentials cannot be resolved', async () => {
     rpcHandlers.discord_migration_credentials = () => ({ data: null, error: { message: 'MIGRATION_CREDENTIALS_MISSING' } })
     const res = await post()

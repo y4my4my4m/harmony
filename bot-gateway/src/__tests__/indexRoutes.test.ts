@@ -91,9 +91,9 @@ function connect(botId: string, username: string) {
   })
 }
 
-function bridgeMembers(channelId: string, username: string) {
+function bridgeMembers(channelId: string, username: string, ...extraIds: string[]) {
   const byChannel = (gateway as any).bridgedUsersByChannel as Map<string, any[]>
-  byChannel.set(channelId, [{ id: username, username, displayName: username, source: 'discord' }])
+  byChannel.set(channelId, [username, ...extraIds].map((id) => ({ id, username: id, displayName: id, source: 'discord' })))
 }
 
 describe('GET /status', () => {
@@ -133,15 +133,21 @@ describe('GET /bridged-users', () => {
 
 describe('linked Discord ids in the bridged user lists', () => {
   it('names the Discord accounts whose owner is a member and linked, ids only', async () => {
-    bridgeMembers(GENERAL, 'discord_member')
+    bridgeMembers(GENERAL, 'discord_member', '601', '602', '603', '700')
     const res = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
     expect(res.body.linked_discord_ids).toEqual(['601'])
   })
 
   it('does the same on the server list', async () => {
-    bridgeMembers(GENERAL, 'discord_member')
+    bridgeMembers(GENERAL, 'discord_member', '601', '602')
     const res = await supertest(app).get(`/bridged-users/server/${SERVER_ID}`).set('Authorization', 'Bearer auth-member')
     expect(res.body.linked_discord_ids).toEqual(['601'])
+  })
+
+  it('leaves out a linked id the served list does not contain', async () => {
+    bridgeMembers(GENERAL, 'discord_member', '700')
+    const res = await supertest(app).get(`/bridged-users/${GENERAL}`).set('Authorization', 'Bearer auth-member')
+    expect(res.body.linked_discord_ids).toEqual([])
   })
 
   it('sends none for a channel without a bridge', async () => {
