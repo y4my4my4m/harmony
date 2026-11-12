@@ -9,7 +9,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(47);
+SELECT plan(49);
 
 UPDATE public.servers SET is_local_server = true, federation_enabled = true
  WHERE id = '55555555-0000-0000-0000-000000000005';
@@ -106,9 +106,16 @@ SELECT is(public.bridge_privacy_status('55555555-0000-0000-0000-000000000005', '
           'false', 'nobody is opted out at first');
 CREATE TEMP TABLE v281 AS
 SELECT public.bridge_privacy_optout_ids('55555555-0000-0000-0000-000000000005', 'discord') ->> 'version' AS v0;
+UPDATE public.discord_bridges SET updated_at = '2020-01-01T00:00:00Z' WHERE id = 'f2810000-0000-0000-0000-0000000000d1';
 SELECT is(public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009001', true)
               - 'since',
           '{"opted_out": true, "source": "self"}'::jsonb, 'opting out answers the new status');
+SELECT ok((SELECT updated_at > '2020-01-01T00:00:00Z' FROM public.discord_bridges WHERE id = 'f2810000-0000-0000-0000-0000000000d1'),
+          'the bridge row moves, so the gateway pushes the new list version');
+UPDATE public.discord_bridges SET updated_at = '2020-01-01T00:00:00Z' WHERE id = 'f2810000-0000-0000-0000-0000000000d1';
+SELECT public.bridge_privacy_set_optout('55555555-0000-0000-0000-000000000005', 'discord', '2810000000000009001', true);
+SELECT ok((SELECT updated_at = '2020-01-01T00:00:00Z' FROM public.discord_bridges WHERE id = 'f2810000-0000-0000-0000-0000000000d1'),
+          'opting out twice changes nothing');
 SELECT is(public.bridge_privacy_optout_ids('55555555-0000-0000-0000-000000000005', 'discord') -> 'remote_user_ids',
           '["2810000000000009001"]'::jsonb, 'the list holds the id');
 SELECT isnt(public.bridge_privacy_optout_ids('55555555-0000-0000-0000-000000000005', 'discord') ->> 'version',

@@ -39,6 +39,9 @@
 -- Instance admins:
 --   bridge_privacy_purge_instance(platform)                             every server
 --
+-- A change of a server's opt-outs moves discord_bridges.updated_at of its bridge: the gateway then
+-- pushes BRIDGE_CONFIG_UPDATE, which carries the list's version (bridge_privacy_changed).
+--
 -- Errors: unsupported_platform 0A000, invalid_remote_user 22023, 42501 for a caller without the right.
 
 BEGIN;
@@ -109,6 +112,17 @@ BEGIN
     END IF;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.bridge_privacy_changed(p_server_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+    UPDATE public.discord_bridges SET updated_at = now() WHERE server_id = p_server_id;
+$$;
+
+REVOKE ALL ON FUNCTION public.bridge_privacy_changed(uuid) FROM PUBLIC, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- Guard
@@ -307,6 +321,9 @@ BEGIN
          WHERE o.server_id = p_server_id AND o.platform = p_platform
            AND o.remote_user_id = p_remote_user_id AND o.source = 'self';
     END IF;
+    IF FOUND THEN
+        PERFORM public.bridge_privacy_changed(p_server_id);
+    END IF;
     RETURN public.bridge_privacy_status(p_server_id, p_platform, p_remote_user_id);
 END;
 $$;
@@ -344,6 +361,9 @@ BEGIN
     INSERT INTO public.bridge_remote_optouts (server_id, platform, remote_user_id, source)
     VALUES (p_server_id, p_platform, p_remote_user_id, 'self')
     ON CONFLICT (server_id, platform, remote_user_id) DO NOTHING;
+    IF FOUND THEN
+        PERFORM public.bridge_privacy_changed(p_server_id);
+    END IF;
     RETURN jsonb_build_object('opted_out', true)
            || public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, p_limit);
 END;
@@ -378,6 +398,9 @@ BEGIN
             CASE WHEN public.can_manage_discord_bridge(p_server_id) THEN 'manager' ELSE 'admin' END,
             public.get_current_profile_id())
     ON CONFLICT (server_id, platform, remote_user_id) DO NOTHING;
+    IF FOUND THEN
+        PERFORM public.bridge_privacy_changed(p_server_id);
+    END IF;
     RETURN public.bridge_privacy_erase_core(p_server_id, p_platform, p_remote_user_id, 200);
 END;
 $$;
@@ -401,6 +424,9 @@ BEGIN
      WHERE o.server_id = p_server_id AND o.platform = p_platform
        AND o.remote_user_id = p_remote_user_id AND o.source <> 'self';
     GET DIAGNOSTICS v_count = ROW_COUNT;
+    IF v_count > 0 THEN
+        PERFORM public.bridge_privacy_changed(p_server_id);
+    END IF;
     RETURN v_count > 0;
 END;
 $$;
