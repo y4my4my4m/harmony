@@ -207,14 +207,17 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
     }
     // The Discord member who ran the command; the function keeps id and username.
     const requester = isObject(body.requested_by) ? body.requested_by : null
+    // Built outside the call: tests/db/gatewayRpcContract.test.ts reads the argument names from
+    // the call's object literal up to its first closing brace.
+    const requestedByRemote = requester
+      ? { id: requester.id, username: typeof requester.username === 'string' ? requester.username : null }
+      : null
     const { data, error } = await supabase.rpc('discord_bridge_import_start_internal', {
       p_bridge_id: bridgeId(req),
       p_discord_channel_ids: ids ?? null,
       p_via: 'discord',
       p_requested_by: null,
-      p_requested_by_remote: requester
-        ? { id: requester.id, username: typeof requester.username === 'string' ? requester.username : null }
-        : null,
+      p_requested_by_remote: requestedByRemote,
     })
     if (sendRpcError(res, error, 'discord_bridge_import_start_internal', 'generic')) return
     res.status(201).json({ imports: data ?? [] })
