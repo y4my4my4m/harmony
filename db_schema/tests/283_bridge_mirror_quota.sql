@@ -9,7 +9,7 @@
 -- 8 MB in c2. Every other object below sits outside the mirror paths of server_1.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(43);
+SELECT plan(46);
 
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'bridge_mirror_server_limit_mb'),
           '5120'::jsonb, 'the cap defaults to 5120 MB');
@@ -172,6 +172,20 @@ SELECT is(public.bridge_mirror_status(),
           '{"queued": 1, "done": 0, "too_large": 0, "too_large_bytes": 0, "failed": 0, "over_quota": 1, "stored_bytes": 11534336}'::jsonb,
           'an admin reads the earlier keys, the over_quota rows and the bytes stored for every server: 3 MB + 8 MB');
 SELECT tests.clear_authentication();
+
+-- A row sent back to the queue -------------------------------------------------------------------
+SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a002', 'queued', 0, 900, NULL, NULL);
+SELECT is((SELECT (state, next_attempt_at > now() + interval '14 minutes')::text FROM public.bridge_mirror_queue
+            WHERE message_id = '28300000-0000-0000-0000-00000000a002'),
+          '(queued,t)', 'the row of a bridge that exists waits its 15 minutes');
+DELETE FROM public.discord_bridges WHERE bot_id = '28300000-0000-0000-0000-0000000000b1';
+SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a002', 'queued', 0, 900, NULL, NULL);
+SELECT is((SELECT (state, last_error)::text FROM public.bridge_mirror_queue
+            WHERE message_id = '28300000-0000-0000-0000-00000000a002'),
+          '(failed,"bridge removed")', 'once its bridge is removed the row ends failed instead of waiting again');
+SELECT public.bridge_mirror_finish('28300000-0000-0000-0000-00000000a001', 'done', 1, NULL, NULL, NULL);
+SELECT is((SELECT state FROM public.bridge_mirror_queue WHERE message_id = '28300000-0000-0000-0000-00000000a001'),
+          'done', 'any other outcome is stored as given');
 
 SELECT * FROM finish();
 ROLLBACK;

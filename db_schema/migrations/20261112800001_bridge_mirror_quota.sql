@@ -21,6 +21,11 @@
 --   bridge_mirror_observe(mode, ceiling)  of 20261112200001, redefined: a raised or removed cap
 --                                         requeues the over_quota rows; the state row is written
 --                                         only when mode, ceiling or cap differ from the last seen
+--   bridge_mirror_finish(...)             of 20261112200001, redefined: a row sent back to the queue
+--                                         whose bot runs no bridge any more ends failed, error
+--                                         'bridge removed'. The worker requeues a row whose links
+--                                         need the bridge every 15 minutes without counting an
+--                                         attempt; without a bridge that never ends.
 --   bridge_mirror_status()                of 20261112200001, redefined: gains over_quota (rows) and
 --                                         stored_bytes (mirrored files of every server).
 --                                         authenticated, 42501 unless an instance admin.
@@ -166,6 +171,41 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.bridge_mirror_finish(
+    p_message_id uuid,
+    p_state text,
+    p_attempts integer,
+    p_retry_seconds integer,
+    p_largest_bytes bigint,
+    p_error text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_orphan boolean;
+BEGIN
+    v_orphan := p_state = 'queued' AND NOT EXISTS (
+        SELECT 1
+          FROM public.bridge_mirror_queue q
+          JOIN public.discord_bridges b ON b.bot_id = q.bot_id
+         WHERE q.message_id = p_message_id);
+
+    UPDATE public.bridge_mirror_queue q
+       SET state = CASE WHEN v_orphan THEN 'failed' ELSE p_state END,
+           attempts = p_attempts,
+           next_attempt_at = CASE WHEN p_state = 'queued' AND NOT v_orphan
+                                  THEN now() + make_interval(secs => GREATEST(COALESCE(p_retry_seconds, 0), 0))
+                                  ELSE q.next_attempt_at END,
+           largest_bytes = p_largest_bytes,
+           last_error = CASE WHEN v_orphan THEN 'bridge removed' ELSE p_error END,
+           updated_at = now()
+     WHERE q.message_id = p_message_id;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.bridge_mirror_status()
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -199,6 +239,7 @@ BEGIN
         'public.bridge_mirror_server_bytes(uuid)',
         'public.bridge_mirror_allows(uuid, bigint)',
         'public.bridge_mirror_observe(text, bigint)',
+        'public.bridge_mirror_finish(uuid, text, integer, integer, bigint, text)',
         'public.bridge_mirror_status()'
     ] LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
