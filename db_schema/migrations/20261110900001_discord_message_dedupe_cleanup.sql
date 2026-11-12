@@ -4,7 +4,7 @@
 -- (channel_id, metadata->>'discord_message_id') held by more than one live row, the oldest
 -- (created_at, then id) stays and the others get is_deleted = true. The update runs under
 -- harmony.silent_content_update, so no edit badge appears. A federated delete of a duplicate
--- bridged row is acceptable.
+-- bridged row is acceptable. A removed row carries metadata.bridge_duplicate.
 
 BEGIN;
 
@@ -13,7 +13,8 @@ SET LOCAL lock_timeout = '3s';
 SELECT set_config('harmony.silent_content_update', 'true', true);
 
 UPDATE public.messages m
-   SET is_deleted = true
+   SET is_deleted = true,
+       metadata = m.metadata || '{"bridge_duplicate": true}'::jsonb
   FROM (
       SELECT id,
              row_number() OVER (
