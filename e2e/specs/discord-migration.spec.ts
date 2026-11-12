@@ -3,7 +3,7 @@
 // The server owner opens Server Settings > Migrate from Discord, picks "My own Discord
 // application", saves the credentials and the Discord server, fetches the roles, accepts the
 // role that matches by name, maps the other by hand, applies its missing Kick Members
-// permission and opens the migration. A new visitor follows the link: the stub's Discord consent
+// permission, confirms the redirect address was added and opens the migration. A new visitor follows the link: the stub's Discord consent
 // -> the account form -> NewProfile -> the server, holding both mapped roles. The stub then drops
 // one role from that member; the owner presses "Sync now" and the role is gone.
 //
@@ -167,6 +167,12 @@ test('an owner opens the migration, a Discord member joins with their roles, and
   await panel.locator(`[data-testid="apply-${ROLE_HELPER}"]`).click()
   await expect(panel.locator('[data-testid="dm-gaps"]')).toHaveCount(0, { timeout: 15000 })
 
+  // Every Discord application has to accept the return address; Open waits for the owner to say it does.
+  const redirect = panel.locator('[data-testid="dm-redirect"]')
+  await expect(redirect).toBeVisible()
+  await expect(redirect).toContainText('/bot-gateway/bridge/v2/migrate/callback')
+  await expect(panel.locator('[data-testid="open-migration"]')).toBeDisabled()
+  await panel.locator('[data-testid="redirect-added"]').check()
   await expect(panel.locator('[data-testid="open-migration"]')).toBeEnabled({ timeout: 15000 })
   await panel.locator('[data-testid="open-migration"]').click()
   await expect(panel.locator('[data-testid="dm-open"]')).toBeVisible({ timeout: 15000 })

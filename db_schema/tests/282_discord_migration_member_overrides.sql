@@ -1,5 +1,5 @@
 -- "Migrate from Discord": Discord member channel overrides carried to linked members,
--- 20261112600002_discord_migration_member_overrides.sql.
+-- 20261112800002_discord_migration_member_overrides.sql.
 --
 --   alice   owner of the server (Discord account 600000000000000003)
 --   bob     accepted member, linked to Discord 600000000000000001

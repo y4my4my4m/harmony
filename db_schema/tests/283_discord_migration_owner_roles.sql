@@ -1,5 +1,5 @@
 -- "Migrate from Discord": the server owner gets mapped roles, add-only,
--- 20261112600003_discord_migration_owner_roles.sql.
+-- 20261112800003_discord_migration_owner_roles.sql.
 --
 --   alice  owner of the server (Discord 600000000000000001); claims, then syncs
 --   bob    accepted member (Discord 600000000000000002); his roles follow Discord both ways

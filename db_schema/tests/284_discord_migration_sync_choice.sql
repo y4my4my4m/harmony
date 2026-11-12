@@ -1,4 +1,4 @@
--- "Migrate from Discord": whether a member made a sync choice, 20261112600004_discord_migration_sync_choice.sql.
+-- "Migrate from Discord": whether a member made a sync choice, 20261112800004_discord_migration_sync_choice.sql.
 --
 --   bob  linked on s1 with no choice yet
 BEGIN;

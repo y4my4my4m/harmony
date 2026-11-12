@@ -1,5 +1,5 @@
 -- "Migrate from Discord": member channel override follow-ups,
--- 20261112600005_discord_migration_override_followups.sql.
+-- 20261112800005_discord_migration_override_followups.sql.
 --
 --   bob  accepted member linked to Discord 600000000000000001; the snapshot gives him an overwrite on
 --        general (e1), staff (e2) and lounge (e3), all paired with Discord channels
