@@ -1,7 +1,7 @@
 -- 20261112800001_bridge_mirror_quota.sql: the per-server cap on mirrored Discord files, the
 -- over_quota queue state, the status keys that report them, and a queue without done rows or
--- copies of the message's bot and channel. 20261112800002_messages_bot_index.sql: the dropped
--- prefix index.
+-- copies of the message's bot and channel. 20261112800002_messages_bot_index.sql: one bot index
+-- on messages.
 --
 --   bot b1    bridge bot of server_1 (in discord_bridges)
 --   server_2  a second server with one channel, c2
@@ -11,7 +11,7 @@
 -- 8 MB in c2. Every other object below sits outside the mirror paths of server_1.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(53);
+SELECT plan(54);
 
 SELECT is((SELECT config_value FROM public.instance_config WHERE config_key = 'bridge_mirror_server_limit_mb'),
           '5120'::jsonb, 'the cap defaults to 5120 MB');
@@ -202,10 +202,15 @@ SELECT is(public.bridge_mirror_enqueue(ARRAY['28300000-0000-0000-0000-00000000a0
           'a message whose bot runs no bridge any more is not queued again');
 
 -- Bot indexes on messages -------------------------------------------------------------------------
+SELECT is((SELECT array_agg(c.relname::text ORDER BY c.relname)
+             FROM pg_index x
+             JOIN pg_class c ON c.oid = x.indexrelid
+             JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = x.indkey[0]
+            WHERE x.indrelid = 'public.messages'::regclass AND a.attname = 'bot_id' AND x.indisvalid),
+          ARRAY['idx_messages_bot_channel'],
+          'idx_messages_bot_channel is the one valid index of messages led by bot_id');
 SELECT ok(to_regclass('public.idx_messages_bot_id') IS NULL, 'the prefix index on bot_id is dropped');
-SELECT ok(EXISTS (SELECT 1 FROM pg_index x
-                   WHERE x.indexrelid = to_regclass('public.idx_messages_bot_created_id') AND x.indisvalid),
-          'the keyset index of the backfill walk stays, valid');
+SELECT ok(to_regclass('public.idx_messages_bot_created_id') IS NULL, 'no (bot_id, created_at, id) index');
 
 SELECT * FROM finish();
 ROLLBACK;
