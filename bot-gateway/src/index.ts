@@ -12,9 +12,10 @@ import { BotRestAPI } from './api/BotRestAPI.js'
 import { BridgeV2API, MIN_HOST_SECRET_LENGTH } from './api/BridgeV2API.js'
 import { BridgeConfigWatcher } from './gateway/BridgeConfigWatcher.js'
 import { TTLCache } from './utils/TTLCache.js'
-import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
+import { getBridgeAttachmentMode, getUploadCeilingBytes, hasDiscordCdnFilePart, readBridgeAttachmentMode } from './utils/mirrorExternalMedia.js'
 import { mirrorFileToStorage } from './utils/mirrorFile.js'
 import { MirrorWorker } from './bridge/mirrorWorker.js'
+import { removeUnreferencedMirrors } from './bridge/mirrorEnqueue.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
 
 const app = express()
@@ -69,7 +70,7 @@ bridgeConfigWatcher.start()
 const mirrorWorker = new MirrorWorker({
   rpc: async (name, args) => {
     const { data, error } = await supabase.rpc(name, args)
-    if (error) throw new Error(`${name} failed: ${error.message}`)
+    if (error) throw Object.assign(new Error(`${name} failed: ${error.message}`), { code: error.code })
     return data
   },
   readMessage: async (id) => {
@@ -81,9 +82,10 @@ const mirrorWorker = new MirrorWorker({
     if (error) throw new Error(`message read failed: ${error.message}`)
     return data
   },
-  mode: getBridgeAttachmentMode,
+  mode: readBridgeAttachmentMode,
   ceiling: getUploadCeilingBytes,
   mirror: mirrorFileToStorage,
+  discard: removeUnreferencedMirrors,
   gateway,
   now: () => Date.now(),
   log: console,

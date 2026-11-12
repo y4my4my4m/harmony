@@ -123,7 +123,7 @@ SELECT is((SELECT cursor_id FROM public.bridge_mirror_state), NULL, 'restart_wal
 
 -- Status ------------------------------------------------------------------------------------------
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT is(public.bridge_mirror_status(), '{"queued": 1, "done": 0, "too_large": 1, "too_large_bytes": 300, "failed": 0}'::jsonb,
+SELECT is(public.bridge_mirror_status(), '{"queued": 1, "done": 0, "too_large": 1, "too_large_bytes": 300, "failed": 0, "over_quota": 0, "stored_bytes": 0}'::jsonb,
           'an admin reads the counts');
 SELECT tests.clear_authentication();
 

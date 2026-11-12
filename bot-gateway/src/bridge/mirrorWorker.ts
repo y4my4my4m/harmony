@@ -2,8 +2,9 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { WebSocketGateway } from '../gateway/WebSocketGateway.js'
-import { GoneError, needsDiscordResign, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
+import { GoneError, needsDiscordResign, OverQuotaError, TooLargeError, type mirrorFileToStorage } from '../utils/mirrorFile.js'
 import { isAllowedSourceUrl, toMirroredPart, type BridgeAttachmentMode } from '../utils/mirrorExternalMedia.js'
+import { isDatabaseRefusal } from './mirrorEnqueue.js'
 
 const LEASE_SECONDS = 1800
 const BACKFILL_BATCH = 500
@@ -14,13 +15,17 @@ const OFFLINE_RETRY_SECONDS = 900
 const CONFLICT_RETRY_SECONDS = 60
 
 export interface MirrorWorkerDeps {
+  /** Rejects with the PostgREST error's `code` on the Error it throws. */
   rpc(name: string, args: object): Promise<any>
   readMessage(
     id: string,
   ): Promise<{ id: string; content: any[]; channel_id: string; bot_id: string; is_deleted?: boolean | null } | null>
+  /** Rejects when the mode cannot be read: a failed read is no change of mode. */
   mode(): Promise<BridgeAttachmentMode>
   ceiling(): Promise<number>
   mirror: typeof mirrorFileToStorage
+  /** Removes from storage the objects among `paths` that no message references. */
+  discard(paths: string[]): Promise<unknown>
   gateway: Pick<WebSocketGateway, 'isBotConnected' | 'sendToBot'>
   now(): number
   log: Pick<Console, 'info' | 'warn' | 'error'>
@@ -88,18 +93,22 @@ export async function sweepMirrorTemp(
 /**
  * Stores Discord attachments into Harmony storage in the background (mirror mode): messages
  * queued by the bridge or found by the backfill walk. One message per tick; the Discord link
- * stays on a part until its file is stored, so a failure never loses anything.
+ * stays on a part until its file is stored, so a failure never loses anything. Outside mirror
+ * mode a tick reads the mode and nothing else.
  */
 export class MirrorWorker {
   private stopped = true
   private loops: Promise<void>[] = []
   private wakers = new Set<() => void>()
+  /** The last tick ran in mirror mode. False at start: the first mirror tick restarts the walk. */
+  private mirroring = false
 
   constructor(private deps: MirrorWorkerDeps) {}
 
   start(): void {
     if (!this.stopped) return
     this.stopped = false
+    this.mirroring = false
     const concurrency = Math.max(1, Number(process.env.BRIDGE_MIRROR_CONCURRENCY) || 1)
     const pollMs = Math.max(1, Number(process.env.BRIDGE_MIRROR_POLL_MS) || 15000)
     void sweepMirrorTemp(
@@ -108,11 +117,7 @@ export class MirrorWorker {
       this.deps.now(),
       this.deps.log,
     ).catch(() => {})
-    const ready = this.deps
-      .mode()
-      .then((mode) => (mode === 'mirror' ? this.deps.rpc('bridge_mirror_restart_walk', {}) : undefined))
-      .catch((error) => this.deps.log.error('Mirror walk restart failed:', error?.message || error))
-    for (let i = 0; i < concurrency; i++) this.loops.push(this.loop(ready, pollMs))
+    for (let i = 0; i < concurrency; i++) this.loops.push(this.loop(pollMs))
   }
 
   async stop(): Promise<void> {
@@ -123,8 +128,7 @@ export class MirrorWorker {
     await Promise.all(loops)
   }
 
-  private async loop(ready: Promise<unknown>, pollMs: number): Promise<void> {
-    await ready
+  private async loop(pollMs: number): Promise<void> {
     while (!this.stopped) {
       let result: 'idle' | 'worked' = 'idle'
       try {
@@ -150,7 +154,7 @@ export class MirrorWorker {
 
   private async finish(
     messageId: string,
-    state: 'queued' | 'done' | 'too_large' | 'failed',
+    state: 'queued' | 'done' | 'too_large' | 'failed' | 'over_quota',
     attempts: number,
     extra: { retry?: number; largest?: number; error?: string } = {},
   ): Promise<void> {
@@ -167,9 +171,22 @@ export class MirrorWorker {
   async tick(): Promise<'idle' | 'worked'> {
     const { deps } = this
     const mode = await deps.mode()
+    if (mode !== 'mirror') {
+      this.mirroring = false
+      return 'idle'
+    }
+    if (!this.mirroring) {
+      // Entering mirror mode, gateway start included, restarts the backfill walk.
+      this.mirroring = true
+      try {
+        await deps.rpc('bridge_mirror_restart_walk', {})
+      } catch (error) {
+        this.mirroring = false
+        throw error
+      }
+    }
     const ceiling = await deps.ceiling()
     const observed = await deps.rpc('bridge_mirror_observe', { p_mode: mode, p_ceiling: ceiling })
-    if (mode !== 'mirror') return 'idle'
     // While the walk runs, never wait the idle poll between batches, even when nothing was claimed.
     let walked = false
     if (!observed?.walk_done) {
@@ -240,6 +257,7 @@ export class MirrorWorker {
     const uploaded: Uploaded[] = []
     let largest = 0
     let gone = false
+    let overQuota = false
     let failure: any = null
     for (let index = 0; index < content.length; index++) {
       const part = content[index]
@@ -256,59 +274,87 @@ export class MirrorWorker {
         uploaded.push({ index, baseUrl: baseUrl(part.url), mirrored })
       } catch (error: any) {
         if (error instanceof TooLargeError) largest = Math.max(largest, error.bytes)
+        else if (error instanceof OverQuotaError) overQuota = true
         else if (error instanceof GoneError) gone = true
         else failure = error
       }
     }
 
-    if (uploaded.length > 0 && !(await this.write(messageId, content, uploaded))) {
-      // Lost the compare-and-swap twice: the message is being edited. The stored files stay
-      // orphaned and the next try downloads again, so this counts as an attempt and is bounded.
-      const next = attempts + 1
-      if (next >= MAX_ATTEMPTS) {
-        await this.finish(messageId, 'failed', next, { error: 'message kept changing' })
-      } else {
-        await this.finish(messageId, 'queued', next, { retry: CONFLICT_RETRY_SECONDS })
+    if (uploaded.length > 0) {
+      let kept: Uploaded[] | null
+      try {
+        kept = await this.write(messageId, content, uploaded)
+      } catch (error) {
+        // A refused write stored no path. Any other failure may precede its commit: the files
+        // stay, and the message_media sweep takes them after a day if no message holds them.
+        if (isDatabaseRefusal(error)) await this.discard(uploaded)
+        throw error
       }
-      return
+      await this.discard(uploaded.filter((u) => !kept?.includes(u)))
+      if (kept === null) {
+        // Lost the compare-and-swap twice: the message is being edited. The next try downloads
+        // again, so this counts as an attempt and is bounded.
+        const next = attempts + 1
+        if (next >= MAX_ATTEMPTS) {
+          await this.finish(messageId, 'failed', next, { error: 'message kept changing' })
+        } else {
+          await this.finish(messageId, 'queued', next, { retry: CONFLICT_RETRY_SECONDS })
+        }
+        return
+      }
     }
 
     if (gone) await this.finish(messageId, 'failed', attempts, { error: 'gone from Discord' })
     else if (failure) await this.finishWithError(messageId, attempts, failure)
+    else if (overQuota) await this.finish(messageId, 'over_quota', attempts, { error: 'over the server limit' })
     else if (largest > 0) await this.finish(messageId, 'too_large', attempts, { largest })
     else await this.finish(messageId, 'done', attempts)
   }
 
-  /** One compare-and-swap write; on a lost swap, re-applies the stored paths to the fresh content once. */
-  private async write(messageId: string, read: any[], uploaded: Uploaded[]): Promise<boolean> {
+  /** Removes the stored files of `uploads` that no message references. Best effort. */
+  private async discard(uploads: Uploaded[]): Promise<void> {
+    if (uploads.length === 0) return
+    try {
+      await this.deps.discard(uploads.map((u) => u.mirrored.path))
+    } catch (error: any) {
+      this.deps.log.warn('Mirror cleanup failed:', error?.message || error)
+    }
+  }
+
+  /**
+   * One compare-and-swap write; on a lost swap, re-applies the stored paths to the fresh content
+   * once. Returns the uploads a live message holds afterwards: none when the message is gone or
+   * deleted, fewer when an edit dropped their parts. Null when both swaps lost.
+   */
+  private async write(messageId: string, read: any[], uploaded: Uploaded[]): Promise<Uploaded[] | null> {
     const { deps } = this
     const next = read.map((part, index) => {
       const hit = uploaded.find((u) => u.index === index)
       return hit ? toMirroredPart(part, hit.mirrored) : part
     })
-    if (await deps.rpc('update_message_content_silent', { p_message_id: messageId, p_old_content: read, p_content: next })) {
-      return true
-    }
-
-    const fresh = await deps.readMessage(messageId)
-    if (!fresh || !Array.isArray(fresh.content)) return true
-    let changed = false
-    const used = new Set<Uploaded>()
-    const reapplied = fresh.content.map((part) => {
-      if (!isCandidate(part)) return part
-      const hit = uploaded.find((u) => !used.has(u) && u.baseUrl === baseUrl(part.url))
-      if (!hit) return part
-      used.add(hit)
-      changed = true
-      return toMirroredPart(part, hit.mirrored)
-    })
-    if (!changed) return true
-    return Boolean(
-      await deps.rpc('update_message_content_silent', {
+    let kept = uploaded
+    if (!(await deps.rpc('update_message_content_silent', { p_message_id: messageId, p_old_content: read, p_content: next }))) {
+      const fresh = await deps.readMessage(messageId)
+      if (!fresh || fresh.is_deleted === true || !Array.isArray(fresh.content)) return []
+      const used = new Set<Uploaded>()
+      const reapplied = fresh.content.map((part) => {
+        if (!isCandidate(part)) return part
+        const hit = uploaded.find((u) => !used.has(u) && u.baseUrl === baseUrl(part.url))
+        if (!hit) return part
+        used.add(hit)
+        return toMirroredPart(part, hit.mirrored)
+      })
+      if (used.size === 0) return []
+      const swapped = await deps.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: fresh.content,
         p_content: reapplied,
-      }),
-    )
+      })
+      if (!swapped) return null
+      kept = [...used]
+    }
+    // The swap compares content alone: a message deleted while its files downloaded takes the paths.
+    const after = await deps.readMessage(messageId)
+    return !after || after.is_deleted === true ? [] : kept
   }
 }

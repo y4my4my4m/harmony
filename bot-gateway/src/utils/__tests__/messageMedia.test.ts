@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   bucket: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
   url: { value: 'http://127.0.0.1:1' },
 }))
 
@@ -20,6 +21,7 @@ vi.mock('../../config/supabase.js', () => ({
   supabaseServiceKey: 'service-key',
   supabase: {
     from: mocks.from,
+    rpc: mocks.rpc,
     storage: {
       from: (bucket: string) => {
         mocks.bucket(bucket)
@@ -54,6 +56,9 @@ beforeEach(() => {
   mocks.upload.mockReset()
   mocks.bucket.mockReset()
   mocks.from.mockReset()
+  // bridge_mirror_allows: the server cap has room.
+  mocks.rpc.mockReset()
+  mocks.rpc.mockResolvedValue({ data: true, error: null })
   mocks.createSignedUrls.mockImplementation(async (paths: string[]) => ({
     data: paths.map((path) => ({ path, signedUrl: `http://kong:8000/storage/v1/object/sign/message_media/${path}?token=t`, error: null })),
     error: null,
@@ -299,7 +304,7 @@ describe('bridge mirror', () => {
 
   it('mirrors a small file inline and does not defer', async () => {
     mirrorMode()
-    serve(new Uint8Array([1, 2, 3]), 'image/png')
+    serve(STATIC_PNG, 'image/png')
     const result = await applyBridgeAttachmentPolicy(
       [{ type: 'file', fileType: 'image', url: 'https://cdn.discordapp.com/attachments/1/2/s.png', fileSize: 1024 * 1024 }], BOT, CHANNEL)
 
@@ -317,7 +322,7 @@ describe('bridge mirror', () => {
 
   it('copies a Discord attachment into the channel room and names it by path', async () => {
     mirrorMode()
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(STATIC_PNG, {
       status: 200, headers: { 'content-type': 'image/png' },
     })))
 

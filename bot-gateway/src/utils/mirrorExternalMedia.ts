@@ -4,13 +4,27 @@ import { mirrorFileToStorage } from './mirrorFile.js'
 
 const ALLOWED_HOST_SUFFIXES = ['discordapp.com', 'discordapp.net']
 
+/** An http(s) URL on discordapp.com, discordapp.net or a subdomain of either. */
 export function isAllowedSourceUrl(url: string): boolean {
   try {
-    const host = new URL(url).hostname.toLowerCase()
+    const { protocol, hostname } = new URL(url)
+    if (protocol !== 'https:' && protocol !== 'http:') return false
+    const host = hostname.toLowerCase()
     return ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`))
   } catch {
     return false
   }
+}
+
+/**
+ * bridge_mirror_allows: the server of `channelId` holds `bytes` more of mirrored files within
+ * instance_config.bridge_mirror_server_limit_mb. Throws when the answer cannot be read, so a
+ * failed read stores nothing.
+ */
+export async function mirrorAllows(channelId: string, bytes: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('bridge_mirror_allows', { p_channel_id: channelId, p_bytes: bytes })
+  if (error) throw new Error(`bridge_mirror_allows failed: ${error.message}`)
+  return data === true
 }
 
 /** A message content array has at least one Discord-CDN file part (refresh candidate). */
@@ -126,9 +140,11 @@ function inlineMaxBytes(): number {
  * Apply the instance-wide bridge attachment policy to a message's content parts.
  * In `mirror` mode, Discord CDN file parts are copied into the channel's room of
  * message_media and carry its path, up to the inline limit. A part that is too large for the
- * request, or whose mirror fails, keeps its Discord URL and sets `deferred` so the caller
- * queues the message for the background worker. Any other mode leaves parts untouched.
- * Resolved server-side so bridge bots never need to know the instance policy.
+ * request, that the server's cap refuses, or whose mirror fails, keeps its Discord URL and sets
+ * `deferred` so the caller queues the message for the background worker. Any other mode leaves
+ * parts untouched. Resolved server-side so bridge bots never need to know the instance policy.
+ * A caller that then does not store the message passes the parts to discardMirroredParts
+ * (bridge/mirrorEnqueue.ts).
  */
 export async function applyBridgeAttachmentPolicy(
   parts: any[],
@@ -164,7 +180,8 @@ export async function applyBridgeAttachmentPolicy(
       // A mirrored attachment is a file part: only file parts carry a path.
       out.push(toMirroredPart(part, mirrored))
     } catch (error: any) {
-      // TooLargeError included: the worker tracks it, and a raised ceiling picks it up.
+      // TooLargeError and OverQuotaError included: the worker records them, and a raised
+      // ceiling or cap requeues the message.
       console.error(`Mirror deferred, keeping Discord URL: ${error?.message || error}`)
       deferred = true
       out.push(part)
@@ -175,20 +192,33 @@ export async function applyBridgeAttachmentPolicy(
 
 export type BridgeAttachmentMode = 'link' | 'refresh' | 'mirror'
 
-export async function getBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
+/** instance_config.bridge_attachment_mode; `link` when unset or unknown. `failed`: the error of a read that failed. */
+async function readMode(): Promise<{ mode: BridgeAttachmentMode; failed?: string }> {
   const { data, error } = await supabase
     .from('instance_config')
     .select('config_value')
     .eq('config_key', 'bridge_attachment_mode')
     .maybeSingle()
 
-  if (error || !data?.config_value) return 'link'
+  if (error) return { mode: 'link', failed: error.message }
+  if (!data?.config_value) return { mode: 'link' }
 
   let raw = data.config_value
   if (typeof raw === 'string') {
     try { raw = JSON.parse(raw) } catch { /* plain string */ }
   }
   const mode = String(raw).replace(/^"|"$/g, '')
-  if (mode === 'refresh' || mode === 'mirror') return mode
-  return 'link'
+  return { mode: mode === 'refresh' || mode === 'mirror' ? mode : 'link' }
+}
+
+/** A failed read answers `link`. */
+export async function getBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
+  return (await readMode()).mode
+}
+
+/** A failed read throws. */
+export async function readBridgeAttachmentMode(): Promise<BridgeAttachmentMode> {
+  const { mode, failed } = await readMode()
+  if (failed !== undefined) throw new Error(`bridge_attachment_mode read failed: ${failed}`)
+  return mode
 }
