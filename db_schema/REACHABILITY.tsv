@@ -87,15 +87,15 @@ automod_canonical_actions	invoker	jsonb	service_role	client, trigger	called by a
 automod_canonical_config	invoker	jsonb	service_role	client, trigger	called by automod_install_preset, upsert_server_automod_rule
 automod_check_message	definer	boolean	authenticated+service_role	trigger	called by automod_message_guard
 automod_compile_rule	invoker	jsonb	service_role	client, trigger	called by automod_recompile_server, upsert_server_automod_rule
-automod_foreign_invite	definer	text	service_role	trigger	called by automod_check_message
+automod_foreign_invite	definer	text	service_role	client, trigger	called by automod_check_message, bridge_import_automod_hit
 automod_install_preset	definer	void	service_role	client, trigger	called by automod_server_created, enable_server_automod_preset
 automod_int	invoker	integer	service_role	client, trigger	called by automod_canonical_actions, automod_canonical_config, update_instance_antispam_settings, +1
 automod_keyword_regex	invoker	text	service_role	client, trigger	called by automod_compile_rule
-automod_link_hosts	invoker	text[]	service_role	trigger	called by antispam_check_local_author, automod_check_message
+automod_link_hosts	invoker	text[]	service_role	client, trigger	called by antispam_check_local_author, automod_check_message, bridge_import_automod_hit
 automod_member_joined	definer	trigger	service_role	trigger	trigger public.user_servers AFTER INSERT (trg_automod_member_joined)
 automod_message_guard	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (trg_moderate_message)
 automod_message_text	invoker	text	service_role	trigger	called by automod_record_match
-automod_normalize	invoker	text	service_role	client, trigger	called by automod_check_message, automod_keyword_regex
+automod_normalize	invoker	text	service_role	client, trigger	called by automod_check_message, automod_keyword_regex, bridge_import_automod_hit
 automod_post_alert	definer	void	service_role	trigger	called by automod_member_joined, automod_record_match
 automod_preset_terms	invoker	text[]	service_role	client, trigger	called by automod_compile_rule
 automod_purge	definer	void	service_role	cron	cron */10 * * * * (purge-automod)
@@ -145,7 +145,9 @@ bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/a
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
 bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
-bridge_import_guard	definer	discord_bridge_imports	service_role	client	called by bridge_import_link_replies, bridge_import_messages, bridge_import_thread
+bridge_import_admit	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_import_automod_hit	definer	text	-	client	called by bridge_import_messages
+bridge_import_guard	definer	discord_bridge_imports	service_role	client	called by bridge_import_admit, bridge_import_link_replies, bridge_import_messages, +1
 bridge_import_link_replies	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_link_replies_core	definer	integer	-	client	called by bridge_import_link_replies, bridge_import_messages
 bridge_import_messages	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
@@ -153,14 +155,29 @@ bridge_import_present_ids	definer	text[]	service_role	client	rpc in bot-gateway/
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sound	definer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_import_status	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_import_thread	definer	uuid	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_mirror_allows	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/mirrorExternalMedia.ts
 bridge_mirror_backfill	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_claim	definer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_enqueue	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
 bridge_mirror_finish	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_observe	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_restart_walk	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
-bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/InstanceConfig.vue
+bridge_mirror_server_bytes	definer	bigint	service_role	client	called by bridge_mirror_allows, bridge_mirror_status
+bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/InstanceConfig.vue, src/components/settings/discord-bridge/bridgeApi.ts
+bridge_platform_author_key	invoker	text	service_role	client	called by bridge_privacy_check_subject
+bridge_privacy_changed	definer	void	-	client	called by bridge_privacy_erase, bridge_privacy_remove_remote_user, bridge_privacy_restore_remote_user, +1
+bridge_privacy_check_subject	invoker	void	service_role	client	called by bridge_privacy_erase, bridge_privacy_erase_core, bridge_privacy_remove_remote_user, +2
+bridge_privacy_erase	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
+bridge_privacy_erase_core	definer	jsonb	-	client	called by bridge_privacy_erase, bridge_privacy_purge_instance, bridge_privacy_purge_server, +1
+bridge_privacy_optout_ids	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts, bot-gateway/src/bridge/bridgePrivacy.ts
+bridge_privacy_purge_instance	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+bridge_privacy_purge_server	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+bridge_privacy_remove_remote_user	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+bridge_privacy_restore_remote_user	definer	boolean	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+bridge_privacy_set_optout	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
+bridge_privacy_status	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
@@ -208,7 +225,7 @@ can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+s
 can_current_user_moderate_report	definer	boolean	service_role	client, policy	called by get_reports_with_details, message_media_reported, moderate_report
 can_current_user_moderate_server_reports	definer	boolean	authenticated+service_role	client, policy	called by can_current_user_moderate_report, get_reports_with_details
 can_manage_channel_webhooks	definer	boolean	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +1
-can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridge_imports SELECT on discord_bridge_imports_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
+can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.bridge_remote_optouts SELECT on bridge_remote_optouts_select_manager, public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridge_imports SELECT on discord_bridge_imports_select_manager, +1
 can_manage_emoji	definer	boolean	service_role	client	called by remove_emoji, rename_emoji, restore_emoji
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_manage_outgoing_webhooks	definer	boolean	service_role	client	called by create_outgoing_webhook, list_outgoing_webhooks, lock_managed_outgoing_webhook
@@ -349,6 +366,7 @@ discord_bridge_guild_channels	invoker	SETOF jsonb	-	client	called by discord_bri
 discord_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, discord_token text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.instance.test.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, +4
 discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_import_block	definer	text	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts
 discord_bridge_import_cancel	definer	SETOF discord_bridge_imports	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_import_cancel_internal	definer	SETOF discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 discord_bridge_import_start	definer	SETOF discord_bridge_imports	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
@@ -624,6 +642,7 @@ get_user_push_subscriptions	definer	TABLE(subscription_id uuid, endpoint text, p
 get_voice_activity	definer	jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
 get_voice_channel_participants	definer	TABLE(user_id uuid, username text, display_name text, avatar_url text, is_federated boolean, federated_domain text, joined_at timestamp with time zone, is_muted boolean, is_deafened boolean, is_video_enabled boolean, is_screen_sharing boolean)	service_role	service key	nothing references it
 guard_bot_permission_grants	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/UPDATE (a_bot_server_permissions_grant_guard)
+guard_bridge_author_optout	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_bridge_optout_guard)
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
@@ -694,7 +713,7 @@ index_message_row	definer	void	service_role	trigger	called by index_message
 initialize_user_encryption	definer	jsonb	anon+authenticated+service_role	http anon	nothing references it
 insert_ap_activity_outbound	definer	uuid	service_role	service key	nothing references it
 instance_config_flag	invoker	boolean	service_role	client, trigger	called by get_public_federation_settings, instance_federation_switches, webhook_settings
-instance_count_cap	invoker	integer	service_role	client, trigger	called by create_bot, enforce_max_servers_per_user
+instance_count_cap	invoker	integer	service_role	client, trigger	called by bridge_import_admit, bridge_mirror_allows, bridge_mirror_observe, +3
 instance_emoji_import_name	invoker	text	service_role	client	called by admin_list_remote_emojis, admin_preview_emoji_imports, import_remote_emoji
 instance_emoji_name_held	definer	boolean	service_role	client	called by admin_list_remote_emojis, admin_preview_emoji_imports, import_remote_emoji
 instance_emoji_object_ok	definer	integer	service_role	client	called by import_remote_emoji, rehost_emoji
@@ -714,7 +733,7 @@ is_active_instance_staff	definer	boolean	service_role	client	called by admin_get
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	client, policy	policy public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
-is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +50
+is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +51
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.drive_blocked_hashes SELECT on drive_blocked_hashes_select_staff, public.drive_pending_blocks SELECT on drive_pending_blocks_select_staff, public.instance_server_blocks SELECT on instance_server_blocks_select_staff, +5
 is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
@@ -759,7 +778,7 @@ member_voice_channel	definer	uuid	service_role	client	called by move_voice_membe
 merge_own_message_echoes	invoker	integer	-	nothing	nothing references it
 message_custom_emoji_keys	invoker	text[]	service_role	trigger	called by enforce_message_content_permissions
 message_file_names	invoker	text	service_role	trigger	called by index_message_row
-message_media_deletable	definer	SETOF text	service_role	client	rpc in federation-backend/src/queue/handlers/messageMediaCleanupHandler.ts
+message_media_deletable	definer	SETOF text	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts, federation-backend/src/queue/handlers/messageMediaCleanupHandler.ts
 message_media_in_room	definer	boolean	authenticated+service_role	policy	policy storage.objects INSERT on Room members can upload message media
 message_media_named_for	definer	boolean	service_role	client, policy	called by drive_file_readable, message_media_readable
 message_media_readable	definer	boolean	authenticated+service_role	policy	policy storage.objects SELECT on Room members can read message media
