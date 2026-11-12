@@ -90,6 +90,14 @@ describe('Discord file storage progress', () => {
     expect(wrapper.get('[data-testid="mirror-status"]').text()).toContain('Every Discord file is stored')
   })
 
+  it('names the files held back by the limit per server, and does not call everything stored then', async () => {
+    rpc.mockResolvedValue({ data: { ...status({ queued: 0, too_large: 0, too_large_bytes: 0, failed: 0 }), over_quota: 4 }, error: null })
+    const wrapper = await open('mirror')
+    const text = wrapper.get('[data-testid="mirror-status"]').text()
+    expect(text).toContain('4 over the limit per server: raise Stored Discord files per server')
+    expect(text).not.toContain('Every Discord file is stored')
+  })
+
   it('does not call the status RPC in link mode', async () => {
     const wrapper = await open('link')
     expect(rpc).not.toHaveBeenCalled()

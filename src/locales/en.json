@@ -5412,6 +5412,7 @@
       "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {done} stored",
       "mirrorStatusTooLarge": "{count} too large ({size}): raise the upload ceiling with harmony config --upload-ceiling 500M",
       "mirrorStatusFailed": "{count} failed",
+      "mirrorStatusOverQuota": "{count} over the limit per server: raise Stored Discord files per server",
       "mirrorStatusAllStored": "Every Discord file is stored",
       "maxPostReactions": "Max reactions per person on a post",
       "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other instances past the limit are dropped. Chat messages hold at most 20 different emoji.",

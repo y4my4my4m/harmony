@@ -5416,6 +5416,7 @@
       "mirrorStatusProgress": "Discord 파일 저장 중: {queued}개 대기 중, {done}개 저장됨",
       "mirrorStatusTooLarge": "{count}개가 너무 큽니다 ({size}): harmony config --upload-ceiling 500M 로 업로드 상한을 올리세요",
       "mirrorStatusFailed": "{count}개 실패",
+      "mirrorStatusOverQuota": "{count}개가 서버별 한도를 넘었습니다: 서버당 저장하는 Discord 파일 한도를 올리세요",
       "mirrorStatusAllStored": "모든 Discord 파일이 저장되었습니다",
       "maxPostReactions": "게시물당 1인 최대 반응 수",
       "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 인스턴스에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",

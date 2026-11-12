@@ -28,7 +28,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
   instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
   time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
-  **Config** shows how many files are waiting, stored, too large or failed.
+  **Config** shows how many files are waiting, stored, too large or failed. One server stores up to
+  5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
+  for no limit); past it, further files keep their Discord links until the limit is raised.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within

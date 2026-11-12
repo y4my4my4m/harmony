@@ -5416,6 +5416,7 @@
       "mirrorStatusProgress": "Discord-Dateien werden gespeichert: {queued} warten, {done} gespeichert",
       "mirrorStatusTooLarge": "{count} zu groß ({size}): Upload-Obergrenze mit harmony config --upload-ceiling 500M anheben",
       "mirrorStatusFailed": "{count} fehlgeschlagen",
+      "mirrorStatusOverQuota": "{count} über dem Limit pro Server: „Gespeicherte Discord-Dateien pro Server“ anheben",
       "mirrorStatusAllStored": "Jede Discord-Datei ist gespeichert",
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
       "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Instanzen über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",

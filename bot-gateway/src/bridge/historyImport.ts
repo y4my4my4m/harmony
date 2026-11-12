@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase.js'
 import type { BotRequest } from '../auth/BotAuthMiddleware.js'
 import { prepareBotMessageContent } from '../api/messageContent.js'
 import { importBlock, type BridgeRow } from './bridgeConfig.js'
-import { enqueueMirror } from './mirrorEnqueue.js'
+import { discardMirroredParts, enqueueMirror } from './mirrorEnqueue.js'
 
 /**
  * Bridge v2 history import endpoints, mounted under /bridge/v2/imports behind the bridgeBot
@@ -347,7 +347,11 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       p_import_id: req.params.id,
       p_messages: messages,
     })
+    // Files mirrored into the parts of a message that is then not stored are removed.
+    const mirrored = (keep: (id: string) => boolean) =>
+      items.flatMap((item, i) => (keep(item.discord_message_id) ? [] : ((prepared[i]?.parts ?? []) as unknown[])))
     if (error) {
+      await discardMirroredParts(mirrored(() => false), error)
       const message = error.message ?? ''
       if (message === 'invalid_message' || message === 'invalid_thread') {
         return res.status(400).json({ code: 'invalid_batch', detail: message, discord_message_id: error.details ?? null })
@@ -361,12 +365,17 @@ export function createHistoryImportRouter(guard: RequestHandler[] = []): Router 
       rejected?: Array<{ discord_message_id: string; reason: string }>
       not_running?: boolean
     } | null
-    if (!result || result.not_running === true) return notRunning(res)
+    if (!result || result.not_running === true) {
+      await discardMirroredParts(mirrored(() => false))
+      return notRunning(res)
+    }
     // Only messages that were inserted and still carry Discord links go to the mirror queue.
     const toQueue = ((result.inserted ?? []) as Array<{ id?: string; discord_message_id?: string }>)
       .filter((row) => typeof row?.id === 'string' && row.discord_message_id !== undefined && deferredIds.has(row.discord_message_id))
       .map((row) => row.id as string)
     await enqueueMirror(toQueue)
+    const stored = new Set(((result.inserted ?? []) as Array<{ discord_message_id?: string }>).map((row) => row?.discord_message_id))
+    await discardMirroredParts(mirrored((id) => stored.has(id)))
     // rejected (a message that broke a check) is also in skipped, so a bridge that predates the
     // field still sees every id answered.
     answer({

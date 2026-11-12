@@ -327,6 +327,39 @@ describe('Bridge v2 import endpoints', () => {
       expect(mocks.applyPolicy).not.toHaveBeenCalled()
     })
 
+    it('removes the files mirrored for a message the batch did not store, and keeps the stored one\'s', async () => {
+      const mirrorPath = (name: string) => `c/${GENERAL}/bridge/${BOT_ID}/${name}.png`
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({
+        parts: parts.map((p) => (p.type === 'file' ? { ...p, url: 'https://harmony.test/m', path: mirrorPath(p.name) } : p)),
+        deferred: false,
+      }))
+      rpcHandlers.bridge_import_messages = () => ({
+        data: { inserted: [{ discord_message_id: M1, id: 'row-1' }], skipped: [M2], rejected: [{ discord_message_id: M2, reason: 'opted_out' }] },
+        error: null,
+      })
+      rpcHandlers.message_media_deletable = () => ({ data: [], error: null })
+      const file = (name: string) => ({ type: 'file', url: CDN, name })
+      const res = await post([
+        message({ content: [file('kept')] }),
+        message({ discord_message_id: M2, content: [file('dropped')] }),
+      ])
+      expect(res.status).toBe(200)
+      expect(rpcCalls('message_media_deletable').map((c) => c.p_paths)).toEqual([[mirrorPath('dropped')]])
+    })
+
+    it('removes every mirrored file when the insert function fails', async () => {
+      const mirrorPath = `c/${GENERAL}/bridge/${BOT_ID}/a.png`
+      mocks.applyPolicy.mockImplementation(async (parts: any[]) => ({
+        parts: parts.map((p) => (p.type === 'file' ? { ...p, url: 'https://harmony.test/m', path: mirrorPath } : p)),
+        deferred: false,
+      }))
+      rpcHandlers.bridge_import_messages = () => rpcError('import_not_running', '55000', 'failed')
+      rpcHandlers.message_media_deletable = () => ({ data: [], error: null })
+      const res = await post([message({ content: [{ type: 'file', url: CDN, name: 'a' }] })])
+      expect(res.status).toBe(409)
+      expect(rpcCalls('message_media_deletable').map((c) => c.p_paths)).toEqual([[mirrorPath]])
+    })
+
     it('writes user and role mentions as text', async () => {
       rpcHandlers.bridge_import_messages = () => ({ data: { inserted: [], skipped: [], rejected: [] }, error: null })
       await post([message({ content: [

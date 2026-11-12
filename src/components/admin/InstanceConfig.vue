@@ -916,7 +916,7 @@ watch(configTab, (tab) => {
 })
 
 // Progress of the queue that stores Discord files, shown while "Mirror to storage" is selected.
-interface MirrorStatus { queued: number; done: number; too_large: number; too_large_bytes: number; failed: number }
+interface MirrorStatus { queued: number; done: number; too_large: number; too_large_bytes: number; failed: number; over_quota?: number }
 const mirrorStatus = ref<MirrorStatus | null>(null)
 const MIRROR_STATUS_POLL_MS = 30_000
 let mirrorStatusTimer: ReturnType<typeof setInterval> | null = null
@@ -939,7 +939,10 @@ const mirrorStatusText = computed(() => {
     parts.push(t('admin.instance.mirrorStatusTooLarge', { count: s.too_large, size: formatSizeDecimal(s.too_large_bytes) }))
   }
   if (s.failed > 0) parts.push(t('admin.instance.mirrorStatusFailed', { count: s.failed }))
-  if (s.queued === 0 && s.too_large === 0 && s.failed === 0) return t('admin.instance.mirrorStatusAllStored')
+  // Absent on a database before 20261112800001.
+  const overQuota = s.over_quota ?? 0
+  if (overQuota > 0) parts.push(t('admin.instance.mirrorStatusOverQuota', { count: overQuota }))
+  if (s.queued === 0 && s.too_large === 0 && s.failed === 0 && overQuota === 0) return t('admin.instance.mirrorStatusAllStored')
   return parts.join('. ')
 })
 

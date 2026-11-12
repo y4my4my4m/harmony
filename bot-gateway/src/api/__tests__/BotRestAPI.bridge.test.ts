@@ -22,7 +22,7 @@ const HARMONY_MESSAGE = '00000000-0000-0000-0000-0000000000f1'
 const UNPAIRED_MESSAGE = '00000000-0000-0000-0000-0000000000f2'
 const EMOJI_ID = '00000000-0000-0000-0000-0000000000aa'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), policy: vi.fn(), enqueue: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), policy: vi.fn(), enqueue: vi.fn(), discard: vi.fn() }))
 
 vi.mock('../../config/supabase.js', () => ({
   supabase: { rpc: mocks.rpc, from: mocks.from },
@@ -33,7 +33,7 @@ vi.mock('../../utils/mirrorExternalMedia.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/mirrorExternalMedia.js')>()),
   applyBridgeAttachmentPolicy: mocks.policy,
 }))
-vi.mock('../../bridge/mirrorEnqueue.js', () => ({ enqueueMirror: mocks.enqueue }))
+vi.mock('../../bridge/mirrorEnqueue.js', () => ({ enqueueMirror: mocks.enqueue, discardMirroredParts: mocks.discard }))
 
 vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botAuthMiddleware: (req: any, _res: any, next: any) => {
@@ -454,6 +454,20 @@ describe('sendMessage and a Discord message id already bridged', () => {
     const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
       .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
     expect(res.status).toBe(500)
+  })
+
+  it('hands the parts of a message that was not stored to the mirror cleanup, with the refusal', async () => {
+    seed()
+    mocks.discard.mockClear()
+    db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: BOT_ID,
+      content: [{ type: 'text', text: 'first' }], metadata: { discord_message_id: '77', bot: true }, is_deleted: false,
+    })
+    refuseInsert(DUPLICATE_ERROR)
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(mocks.discard).toHaveBeenCalledTimes(1)
+    expect(mocks.discard).toHaveBeenCalledWith([{ type: 'text', text: 'again' }], DUPLICATE_ERROR)
   })
 
   it('answers 409 without the row when another bot holds the Discord message id', async () => {

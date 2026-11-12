@@ -1,4 +1,4 @@
-import { enqueueMirror } from '../bridge/mirrorEnqueue.js'
+import { discardMirroredParts, enqueueMirror } from '../bridge/mirrorEnqueue.js'
 import { Router, Request, Response } from 'express'
 import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware, botRateLimit } from '../auth/BotAuthMiddleware.js'
@@ -743,6 +743,9 @@ export class BotRestAPI {
       })
       .select(messageSelect)
 
+    // No row: the files this request mirrored into its parts have nothing to reference them.
+    if (error || !rows?.[0]) await discardMirroredParts(messageContent, error)
+
     // The unique index allows one live row per Discord message per channel. A live relay
     // racing a history import (or a retry) loses here; answer with the row that won.
     const discordMessageId = (messageMetadata as Record<string, unknown>).discord_message_id
@@ -1086,6 +1089,8 @@ export class BotRestAPI {
         user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
         bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
       `)
+
+    if (error || !updatedRows?.[0]) await discardMirroredParts(messageContent, error)
 
     if (error) {
       const blocked = moderationErrorResponse(error)

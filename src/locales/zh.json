@@ -5416,6 +5416,7 @@
       "mirrorStatusProgress": "正在保存 Discord 文件：{queued} 个等待中，{done} 个已保存",
       "mirrorStatusTooLarge": "{count} 个文件过大（{size}）：请用 harmony config --upload-ceiling 500M 提高上传上限",
       "mirrorStatusFailed": "{count} 个失败",
+      "mirrorStatusOverQuota": "{count} 个超出每服务器上限：请提高“每个服务器存储的 Discord 文件”",
       "mirrorStatusAllStored": "所有 Discord 文件均已保存",
       "maxPostReactions": "每人对一条帖子的最大反应数",
       "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他实例的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",

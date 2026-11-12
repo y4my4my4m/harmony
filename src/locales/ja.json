@@ -5416,6 +5416,7 @@
       "mirrorStatusProgress": "Discord のファイルを保存中: {queued} 件待機中、{done} 件保存済み",
       "mirrorStatusTooLarge": "{count} 件が大きすぎます ({size}): harmony config --upload-ceiling 500M でアップロード上限を引き上げてください",
       "mirrorStatusFailed": "{count} 件失敗",
+      "mirrorStatusOverQuota": "{count} 件がサーバーごとの上限を超えています: 「サーバーごとに保存する Discord ファイル」を引き上げてください",
       "mirrorStatusAllStored": "すべての Discord ファイルが保存されています",
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
       "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のインスタンスから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
