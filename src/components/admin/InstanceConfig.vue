@@ -83,6 +83,9 @@
         <span class="setting-hint" v-if="config.chat.bridgeAttachmentMode === 'mirror'">
           Warning: every bridged attachment is copied into <code>message_media</code>. Busy bridged channels can consume significant storage.
         </span>
+        <span v-if="config.chat.bridgeAttachmentMode === 'mirror' && mirrorStatusText" class="setting-hint" data-testid="mirror-status" role="status">
+          {{ mirrorStatusText }}
+        </span>
         <span class="setting-hint" v-else-if="config.chat.bridgeAttachmentMode === 'refresh'">
           Requires a connected bridge + bot-gateway. Expired attachment URLs are re-signed on demand when a user views them (no disk use, no “edited” badge).
         </span>
@@ -911,6 +914,61 @@ const loadFederatedCalls = async () => {
 watch(configTab, (tab) => {
   if (tab === 'webrtc') void loadFederatedCalls()
 })
+
+// Progress of the queue that stores Discord files, shown while "Mirror to storage" is selected.
+interface MirrorStatus { queued: number; done: number; too_large: number; too_large_bytes: number; failed: number }
+const mirrorStatus = ref<MirrorStatus | null>(null)
+const MIRROR_STATUS_POLL_MS = 30_000
+let mirrorStatusTimer: ReturnType<typeof setInterval> | null = null
+
+// Decimal units, as Discord and the upload ceiling are stated.
+const formatSizeDecimal = (bytes: number): string => {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit++ }
+  const rounded = value < 10 && unit > 0 ? value.toFixed(1).replace(/\.0$/, '') : String(Math.round(value))
+  return `${rounded} ${units[unit]}`
+}
+
+const mirrorStatusText = computed(() => {
+  const s = mirrorStatus.value
+  if (!s) return ''
+  const parts: string[] = [t('admin.instance.mirrorStatusProgress', { queued: s.queued, done: s.done })]
+  if (s.too_large > 0) {
+    parts.push(t('admin.instance.mirrorStatusTooLarge', { count: s.too_large, size: formatSizeDecimal(s.too_large_bytes) }))
+  }
+  if (s.failed > 0) parts.push(t('admin.instance.mirrorStatusFailed', { count: s.failed }))
+  if (s.queued === 0 && s.too_large === 0 && s.failed === 0) return t('admin.instance.mirrorStatusAllStored')
+  return parts.join('. ')
+})
+
+const loadMirrorStatus = async () => {
+  try {
+    const { data, error } = await supabase.rpc('bridge_mirror_status')
+    mirrorStatus.value = error || !data ? null : (data as MirrorStatus)
+  } catch (error) {
+    debug.error('Failed to load mirror status:', error)
+    mirrorStatus.value = null
+  }
+}
+
+const stopMirrorStatusPolling = () => {
+  if (mirrorStatusTimer) clearInterval(mirrorStatusTimer)
+  mirrorStatusTimer = null
+}
+
+watch(
+  () => configTab.value === 'general' && config.value.chat.bridgeAttachmentMode === 'mirror',
+  (showing) => {
+    stopMirrorStatusPolling()
+    if (!showing) { mirrorStatus.value = null; return }
+    void loadMirrorStatus()
+    mirrorStatusTimer = setInterval(() => void loadMirrorStatus(), MIRROR_STATUS_POLL_MS)
+  },
+  { immediate: true },
+)
+onUnmounted(stopMirrorStatusPolling)
 
 const limitsSupported = hasCapability('instance-limits')
 

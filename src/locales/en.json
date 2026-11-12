@@ -5409,6 +5409,10 @@
       "reportsFailed": "Could not change how reports from this domain are handled"
     },
     "instance": {
+      "mirrorStatusProgress": "Storing Discord files: {queued} waiting, {done} stored",
+      "mirrorStatusTooLarge": "{count} too large ({size}): raise the upload ceiling with harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} failed",
+      "mirrorStatusAllStored": "Every Discord file is stored",
       "maxPostReactions": "Max reactions per person on a post",
       "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other instances past the limit are dropped. Chat messages hold at most 20 different emoji.",
       "maxPersonalEmojis": "Personal emojis per user",
@@ -6125,6 +6129,7 @@
       "unknown": "Not reported yet",
       "showSetup": "Show setup steps",
       "problemsTitle": "{count} problem to fix | {count} problems to fix",
+      "noticesTitle": "{count} note | {count} notes",
       "pairsTitle": "Paired channels",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6236,6 +6241,17 @@
         "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin.",
         "fixInstance": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
       },
+      "message_content_needed_for_import": {
+        "title": "A history import is waiting for the Message Content Intent.",
+        "fixSelf": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. Then restart the bridge with the command below; the import starts by itself.",
+        "fixHosted": "Discord sends empty messages while it's off. In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on Message Content Intent and click Save Changes. The import starts by itself once the bridge reconnects.",
+        "fixInstance": "This instance's bot doesn't have the Message Content Intent, so it can't import history. Ask the instance's admin."
+      },
+      "private_threads_skipped": {
+        "title": "The import left out the private threads of {channel}.",
+        "titleCount": "The import left out {count} private thread of {channel}. | The import left out {count} private threads of {channel}.",
+        "fix": "Nothing to fix. Harmony has no private threads yet, and everyone in the channel would see them, so they stay on Discord."
+      },
       "unknown": {
         "title": "The bridge reported a problem ({code}).",
         "fixSelf": "The bridge's log has the details:",
@@ -6302,7 +6318,11 @@
       "bridgeExists": "This server already has a Discord bridge set up another way. Disconnect it first to use this instance's bot.",
       "instanceFull": "This instance's bot is already in as many Discord servers as it allows. Ask the instance's admin, or use a Discord bot of your own instead.",
       "instanceOff": "This instance doesn't offer its Discord bot at the moment. Use a Discord bot of your own instead.",
-      "link": "Couldn't start linking with Discord. Try again."
+      "link": "Couldn't start linking with Discord. Try again.",
+      "import": "Couldn't start the import.",
+      "cancelImport": "Couldn't cancel the import.",
+      "pairNotImportable": "This pair can't import history. Only unencrypted channels in pairs that bring Discord messages to Harmony can.",
+      "importChanged": "The import changed in the meantime. It has been refreshed; try again."
     },
     "time": {
       "secondsAgo": "just now | {count} second ago | {count} seconds ago",
@@ -6411,6 +6431,49 @@
       "settingsSaved": "Discord bot settings saved",
       "saveFailed": "Couldn't save the Discord bot settings",
       "redirectLabel": "Redirect address"
+    },
+    "import": {
+      "button": "Import history",
+      "buttonLabel": "Import history for #{channel}",
+      "importAll": "Import all",
+      "importAllAgain": "Import all again",
+      "importAllAgainConfirm": "Import history again for {count} channel? It re-reads its Discord history from the start; messages already here are skipped. | Import history again for all {count} channels? Each re-reads its Discord history from the start; messages already here are skipped.",
+      "importAllAgainYes": "Import again",
+      "cancelAll": "Cancel all",
+      "cancel": "Cancel",
+      "cancelLabel": "Cancel the import for #{channel}",
+      "cancelling": "Cancelling…",
+      "waiting": "Waiting",
+      "running": "Importing… {percent}%",
+      "runningUnknown": "Importing…",
+      "threadsRunning": "Importing threads…",
+      "repliesRunning": "Linking replies…",
+      "progressLabel": "Import progress for #{channel}",
+      "backTo": "Back to {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Threads {done} of {total}",
+      "done": "Imported {count} message | Imported {count} messages",
+      "doneNothingNew": "Up to date: no new messages",
+      "failed": "Import stopped: {reason}",
+      "failedUnknown": "Import stopped",
+      "cancelled": "Cancelled",
+      "paused": "Paused: waiting for the bridge",
+      "retry": "Try again",
+      "retryLabel": "Try the import again for #{channel}",
+      "resume": "Resume",
+      "resumeLabel": "Resume the import for #{channel}",
+      "again": "Import again",
+      "againLabel": "Import history again for #{channel}",
+      "reasons": {
+        "pair_removed": "the channel pair was removed",
+        "channel_encrypted": "the channel is now encrypted"
+      },
+      "ineligible": {
+        "direction": "Only pairs that bring Discord messages to Harmony can import history",
+        "encrypted": "Encrypted channels can't import history"
+      },
+      "needsUpdate": "Update the bridge to 2.6.0 or later to import history",
+      "mirrorNote": "Imported files are copied into this instance's storage."
     }
   },
   "imageEditor": {

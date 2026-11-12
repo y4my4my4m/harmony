@@ -5413,6 +5413,10 @@
       "reportsFailed": "Impossible de modifier le traitement des signalements de ce domaine"
     },
     "instance": {
+      "mirrorStatusProgress": "Stockage des fichiers Discord : {queued} en attente, {done} stockés",
+      "mirrorStatusTooLarge": "{count} trop volumineux ({size}) : relevez le plafond d'envoi avec harmony config --upload-ceiling 500M",
+      "mirrorStatusFailed": "{count} en échec",
+      "mirrorStatusAllStored": "Tous les fichiers Discord sont stockés",
       "maxPostReactions": "Réactions max. par personne sur une publication",
       "maxPostReactionsHint": "Nombre d'émojis différents avec lesquels une personne peut réagir à une publication (1-100). Par défaut : 10. Les réactions provenant d'autres instances au-delà de la limite sont ignorées. Les messages de chat contiennent au plus 20 émojis différents.",
       "maxPersonalEmojis": "Emojis personnels par utilisateur",
@@ -6129,6 +6133,7 @@
       "unknown": "Pas encore signalé",
       "showSetup": "Afficher les étapes de configuration",
       "problemsTitle": "{count} problème à corriger | {count} problèmes à corriger",
+      "noticesTitle": "{count} remarque | {count} remarques",
       "pairsTitle": "Canaux reliés",
       "settingsTitle": "Options",
       "maintainTitle": "Maintenance",
@@ -6240,6 +6245,17 @@
         "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance.",
         "fixInstance": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
       },
+      "message_content_needed_for_import": {
+        "title": "Une importation de l'historique attend le Message Content Intent.",
+        "fixSelf": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. Redémarrez ensuite la passerelle avec la commande ci-dessous ; l'importation démarre d'elle-même.",
+        "fixHosted": "Tant qu'il est désactivé, Discord renvoie des messages vides. Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez Message Content Intent et cliquez sur Save Changes. L'importation démarre d'elle-même dès que la passerelle se reconnecte.",
+        "fixInstance": "Le bot de cette instance n'a pas le Message Content Intent et ne peut donc pas importer l'historique. Demandez à l'administration de l'instance."
+      },
+      "private_threads_skipped": {
+        "title": "L'importation a laissé de côté les fils privés de {channel}.",
+        "titleCount": "L'importation a laissé de côté {count} fil privé de {channel}. | L'importation a laissé de côté {count} fils privés de {channel}.",
+        "fix": "Rien à corriger. Harmony n'a pas encore de fils privés et tout le salon pourrait les lire, ils restent donc sur Discord."
+      },
       "unknown": {
         "title": "La passerelle a signalé un problème ({code}).",
         "fixSelf": "Le journal de la passerelle donne les détails :",
@@ -6306,7 +6322,11 @@
       "bridgeExists": "Ce serveur a déjà une passerelle Discord configurée autrement. Déconnectez-la d'abord pour utiliser le bot de cette instance.",
       "instanceFull": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord.",
       "instanceOff": "Cette instance ne propose pas son bot Discord pour le moment. Utilisez plutôt votre propre bot Discord.",
-      "link": "Impossible de lancer la liaison avec Discord. Réessayez."
+      "link": "Impossible de lancer la liaison avec Discord. Réessayez.",
+      "import": "Impossible de démarrer l'importation.",
+      "cancelImport": "Impossible d'annuler l'importation.",
+      "pairNotImportable": "Cette paire ne peut pas importer d'historique. Seuls les salons non chiffrés dans des paires qui amènent les messages Discord vers Harmony le peuvent.",
+      "importChanged": "L'importation a changé entre-temps et a été actualisée. Réessaie."
     },
     "time": {
       "secondsAgo": "à l'instant | il y a {count} seconde | il y a {count} secondes",
@@ -6415,6 +6435,49 @@
       "settingsSaved": "Réglages du bot Discord enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages du bot Discord",
       "redirectLabel": "Adresse de redirection"
+    },
+    "import": {
+      "button": "Importer l'historique",
+      "buttonLabel": "Importer l'historique de #{channel}",
+      "importAll": "Tout importer",
+      "importAllAgain": "Tout réimporter",
+      "importAllAgainConfirm": "Réimporter l'historique de {count} salon ? Son historique Discord est relu depuis le début ; les messages déjà présents sont ignorés. | Réimporter l'historique des {count} salons ? Chaque historique Discord est relu depuis le début ; les messages déjà présents sont ignorés.",
+      "importAllAgainYes": "Réimporter",
+      "cancelAll": "Tout annuler",
+      "cancel": "Annuler",
+      "cancelLabel": "Annuler l'importation de #{channel}",
+      "cancelling": "Annulation…",
+      "waiting": "En attente",
+      "running": "Importation… {percent} %",
+      "runningUnknown": "Importation…",
+      "threadsRunning": "Importation des fils…",
+      "repliesRunning": "Liaison des réponses…",
+      "progressLabel": "Progression de l'importation de #{channel}",
+      "backTo": "Jusqu'à {date}",
+      "messages": "{count} message | {count} messages",
+      "threads": "Fils {done} sur {total}",
+      "done": "{count} message importé | {count} messages importés",
+      "doneNothingNew": "À jour : aucun nouveau message",
+      "failed": "Importation arrêtée : {reason}",
+      "failedUnknown": "Importation arrêtée",
+      "cancelled": "Annulée",
+      "paused": "En pause : en attente du pont",
+      "retry": "Réessayer",
+      "retryLabel": "Réessayer l'importation de #{channel}",
+      "resume": "Reprendre",
+      "resumeLabel": "Reprendre l'importation de #{channel}",
+      "again": "Importer à nouveau",
+      "againLabel": "Importer à nouveau l'historique de #{channel}",
+      "reasons": {
+        "pair_removed": "la paire de salons a été retirée",
+        "channel_encrypted": "le salon est désormais chiffré"
+      },
+      "ineligible": {
+        "direction": "Seules les paires qui amènent les messages Discord vers Harmony peuvent importer l'historique",
+        "encrypted": "Les salons chiffrés ne peuvent pas importer d'historique"
+      },
+      "needsUpdate": "Mets le pont à jour vers la version 2.6.0 ou plus récente pour importer l'historique",
+      "mirrorNote": "Les fichiers importés sont copiés dans le stockage de cette instance."
     }
   },
   "imageEditor": {

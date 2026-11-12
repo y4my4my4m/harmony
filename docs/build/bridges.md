@@ -38,6 +38,13 @@ Base URL: `https://<instance>/bot-gateway/bridge/v2`.
 | `POST` | [`/status`](#post-status) | Bridge bot token | Report health and the Discord side's channels |
 | `POST` | [`/pairs`](#post-pairs) | Bridge bot token | Pair a Discord channel with a Harmony channel from the Discord side |
 | `DELETE` | [`/pairs/{discord channel id}`](#delete-pairs) | Bridge bot token | Remove a pair from the Discord side |
+| `GET` | [`/imports`](#history-import) | Bridge bot token | List the bridge's history import jobs |
+| `POST` | [`/imports`](#history-import) | Bridge bot token | Queue import jobs for pairs |
+| `PATCH` | [`/imports/{id}`](#history-import) | Bridge bot token | Report a job's state and progress |
+| `POST` | [`/imports/{id}/cancel`](#history-import) | Bridge bot token | Cancel a job |
+| `POST` | [`/imports/{id}/messages`](#history-import) | Bridge bot token | Insert a batch of old messages |
+| `POST` | [`/imports/{id}/threads`](#history-import) | Bridge bot token | Create an old thread |
+| `POST` | [`/imports/{id}/replies/link`](#history-import) | Bridge bot token | Link imported replies to their originals |
 | `GET` | [`/hosted`](#get-hosted) | `X-Bridge-Host-Secret` header | List hosted bridges with their tokens |
 | `GET` | [`/hosted/instance`](#get-hosted-instance) | `X-Bridge-Host-Secret` header | The instance's Discord bot and the bridges it runs |
 | `GET` | [`/discord/authorize`](#discord-authorize-and-callback) | None (browser) | Redirect to Discord's consent screen for the instance bot |
@@ -200,6 +207,8 @@ The app explains these problem codes, using the `params` shown:
 | `rate_limited` | Discord or this instance is slowing the bridge down. | |
 | `discord_unreachable` | The bridge can't reach Discord. | |
 | `harmony_unreachable` | The bridge can't reach the instance. | |
+| `message_content_needed_for_import` | A history import is waiting for the Message Content Intent. | |
+| `private_threads_skipped` | A notice: the import left out a channel's private threads. It doesn't count as a problem to fix, and the bridge stays "online". | `discord_channel_id`, optional `count` |
 
 Any other code shows as "The bridge reported a problem" with the code. The app derives `intent_missing`, `no_guild` and `bot_not_in_guild` from the status on its own as well.
 
@@ -319,9 +328,100 @@ Discord CDN attachment URLs expire. The instance administrator chooses how Harmo
 |---|---|
 | `link` (default) | URLs are stored as the bridge sends them. |
 | `refresh` | When a member views a bridged message whose Discord links have expired, the gateway sends the authoring bot [`REFRESH_ATTACHMENTS`](/build/gateway#refresh-attachments). The bridge renews the URLs with Discord and writes the parts back with [`PATCH /messages/{message.id}/content-silent`](/build/rest#patch-content-silently). |
-| `mirror` | `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` in created or edited messages are copied into the instance's storage, up to 50 MB each, and become `file` parts there. Photos and videos are stored without their location, camera and other metadata ([Photo and video metadata](/build/rest#photo-and-video-metadata)). A failed copy keeps the Discord URL. |
+| `mirror` | `file` and `url` parts pointing at `discordapp.com` or `discordapp.net` in created or edited messages are copied into the instance's storage, up to the instance's upload ceiling each, and become `file` parts there. Photos and videos are stored without their location, camera and other metadata ([Photo and video metadata](/build/rest#photo-and-video-metadata)). A failed copy keeps the Discord URL. |
 
 The gateway applies `mirror` on its own, so a bridge sends Discord URLs in every mode. Only `refresh` needs the bridge's help: it must answer `REFRESH_ATTACHMENTS`.
+
+## History import
+
+A bridge copies Discord messages as they arrive. History import copies a paired channel's older Discord messages into its Harmony channel, with their original dates. The bridge (2.6.0 and later) reads Discord and posts batches to the routes below; the gateway checks the bridge, the pair and the job on every call. A message imported this way notifies no one, changes no unread count, and is not federated or sent to bots, outgoing webhooks or other clients' realtime feeds; AutoMod and slowmode skip it. Its row carries `metadata.history_import: true` and `metadata.created_via: "history_import"`. The server drops `history_import` and `discord_reply_to` from the `metadata` a bot supplies on an ordinary send or a metadata merge, and refuses them (and any `created_via` other than the app's own) in a member's message.
+
+All routes are under `/bridge/v2/imports`, take `Authorization: Bot <bridge bot token>`, and answer `404` `{ "code": "import_not_found" }` for a job that is not this bridge's, or an `id` that is not a UUID.
+
+### Jobs
+
+One job covers one pair. A pair is importable when its direction is `both` or `to_harmony` and its Harmony channel is not encrypted. The app's settings create jobs too, so the bridge lists jobs and works the ones it finds.
+
+States: `queued`, `running`, `paused`, `done`, `failed`, `cancelled`. Phases: `messages`, `threads`, `replies`.
+
+```json
+{
+  "id": "…", "harmony_channel_id": "…", "discord_channel_id": "1400000000000000100",
+  "state": "running", "phase": "messages", "cancel_requested": false,
+  "start_discord_message_id": "…", "start_at": "2023-06-01T00:00:00Z",
+  "reached_discord_message_id": "…", "reached_at": "2023-03-02T09:14:00Z",
+  "channel_created_at": "2023-01-01T00:00:00Z",
+  "threads_total": null, "threads_done": 0, "thread_cursor": null,
+  "imported_count": 1200, "skipped_count": 3, "pins_skipped": 0,
+  "error": null, "requested_via": "harmony",
+  "created_at": "…", "updated_at": "…", "finished_at": null
+}
+```
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /imports` | none | `200` `{ "imports": [job] }`: this bridge's jobs in every state, oldest first |
+| `POST /imports` | `{ "discord_channel_ids": ["…"] }`; omit it to queue every importable pair; `[]` queues nothing | `201` `{ "imports": [job] }`, requested via `discord` |
+| `PATCH /imports/{id}` | Any of `state`, `phase`, `start_discord_message_id`, `start_at`, `reached_discord_message_id`, `reached_at`, `channel_created_at`, `threads_total`, `threads_done`, `thread_cursor`, `error` | `200` `{ "import": job }` |
+| `POST /imports/{id}/cancel` | none | `200` `{ "imports": [job] }` |
+| `POST /imports/{id}/messages` | `{ "messages": [message] }`, 1 to 100 | `200` `{ "inserted": [{ "discord_message_id", "id" }], "skipped": ["…"], "rejected": [{ "discord_message_id", "reason" }] }` |
+| `POST /imports/{id}/threads` | A thread, below | `200` `{ "thread_id": "…" }` |
+| `POST /imports/{id}/replies/link` | none | `200` `{ "linked": 12 }` |
+
+| Status and code | Cause |
+|---|---|
+| `400` `pair_not_importable` (with `discord_channel_id`) | `POST /imports` named a channel that is unpaired, one-way to Discord, or encrypted |
+| `400` `invalid_request` | Malformed `discord_channel_ids` |
+| `400` `invalid_patch` | A `PATCH` body that is not an object, or has a value out of range |
+| `400` `invalid_batch` | A malformed message, or a batch outside 1 to 100 messages; a bad message also carries `detail` and its `discord_message_id` |
+| `400` `invalid_thread` | A thread body that is not an object or has bad values |
+| `409` `invalid_transition` | `PATCH` asked for a state change the job's state does not allow |
+| `409` `import_not_running` | The job is not `running`. A job whose pair was removed or whose channel became encrypted is set to `failed` with `error` `pair_removed` or `channel_encrypted`; stop it and do not retry |
+| `500` | `{ "error": "Import request failed" }` |
+
+`PATCH` moves a job from `queued` to `running`, from `running` to `paused`, `done` or `failed` (with `error`), and from `paused` back to `running`. It moves a job to `cancelled` only after `cancel_requested` is true: poll `GET /imports` for that flag, and stop when it is set. A person restarting a `failed`, `cancelled` or `paused` job in the app sets it back to `queued` with its cursors kept.
+
+Report `reached_discord_message_id` and `reached_at` after each committed batch, and `phase`, `threads_total` and `threads_done` as the job moves on; the app draws its progress from `start_at`, `reached_at` and `channel_created_at`. Resume a job found `running` or `queued` after a restart from its stored `reached_discord_message_id`.
+
+### Messages
+
+Walk the Discord channel from its newest message back to its first, skipping messages by bots and system messages as the live relay does. Send up to 100 messages per call, each built like a live relayed message:
+
+| Field | Type | Description |
+|---|---|---|
+| `discord_message_id` | string | Required. Digits. The dedupe key. |
+| `created_at` | ISO 8601 | Required. The Discord timestamp. |
+| `edited_at` | ISO 8601 | Optional. The message then reads as edited. |
+| `content` | array | Required. Harmony content parts, as for an ordinary send. |
+| `discord_user` | object | The `metadata.discord_user` a relayed message carries. |
+| `reply_to_discord_message_id` | string or null | The replied-to Discord message; linked at once if it is in the channel, otherwise by `replies/link`. |
+| `thread_id` | UUID or null | The Harmony thread from `POST threads`. |
+| `pinned` | boolean | Pin the message, up to 50 per channel; the rest increment `pins_skipped`. |
+
+Content runs through the same pipeline as an ordinary send: mention resolution and the instance's [attachment policy](#attachments).
+
+`inserted` lists the new rows. `skipped` lists every other ID of the batch: IDs already in the channel (live relayed, or imported before) and IDs dropped because their content came out empty. Sending a batch again is harmless: it answers all `skipped`. `rejected` (present when the batch reached the database) lists messages that broke a check and were not inserted, with `reason` `too_long` (over the instance's message length limit, 2000 characters by default while Discord allows 4000) or `check_violation`; the rest of the batch is unaffected, and each rejected ID is also in `skipped`, so a bridge that ignores `rejected` still sees every ID answered. The job does not fail for them; the bridge may log them or re-send a shortened message under a new batch. A live message and a batch that carry the same `discord_message_id` leave one row. `imported_count` counts only inserted rows, so do not read `skipped` as imported.
+
+Mirroring attachments makes a batch slow; use a generous HTTP timeout.
+
+### Threads
+
+After the channel's messages, list the Discord threads (active and archived public; skip Discord's private threads, since every Harmony thread is visible to the whole channel) and create each one:
+
+```json
+{
+  "discord_thread_id": "1400000000000000300", "name": "Weekend",
+  "created_at": "2023-02-01T12:00:00Z",
+  "starter_discord_message_id": "…", "discord_user": { "id": "…", "username": "dana" },
+  "archived": true, "locked": false
+}
+```
+
+The call is idempotent per `discord_thread_id`. A starter that is not in Harmony makes a standalone thread. Send the thread's messages with the returned `thread_id` in each message.
+
+### Replies
+
+Messages arrive newest first, so a reply often precedes its target. After the thread phase, set `phase` to `replies` and call `POST /imports/{id}/replies/link` once: it links every imported reply whose target is now in the channel. A target that never arrives stays an unresolved reply.
 
 ## Legacy pairing codes
 

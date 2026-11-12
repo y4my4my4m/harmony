@@ -145,9 +145,22 @@ bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/a
 bridge_delete_server_sound	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_evict_removed_emojis	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordEmoji.test.ts
 bridge_evict_retired_stickers	definer	TABLE(id uuid, path text)	service_role	client	named in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/api/__tests__/BotRestAPI.discordSticker.test.ts
+bridge_import_guard	definer	discord_bridge_imports	service_role	client	called by bridge_import_link_replies, bridge_import_messages, bridge_import_thread
+bridge_import_link_replies	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_import_link_replies_core	definer	integer	-	client	called by bridge_import_link_replies, bridge_import_messages
+bridge_import_messages	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_import_present_ids	definer	text[]	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sound	definer	TABLE(status text, id uuid, name text, emoji text, emoji_id uuid, volume numeric, discord_sound_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_import_thread	definer	uuid	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_mirror_backfill	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_claim	definer	TABLE(message_id uuid, bot_id uuid, channel_id uuid, attempts integer)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_enqueue	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorEnqueue.ts
+bridge_mirror_finish	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_observe	definer	jsonb	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_restart_walk	definer	void	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
+bridge_mirror_status	definer	jsonb	authenticated+service_role	client	rpc in src/components/admin/InstanceConfig.vue
 bridge_remove_server_emoji	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_retire_server_sticker	definer	text	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
@@ -195,7 +208,7 @@ can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+s
 can_current_user_moderate_report	definer	boolean	service_role	client, policy	called by get_reports_with_details, message_media_reported, moderate_report
 can_current_user_moderate_server_reports	definer	boolean	authenticated+service_role	client, policy	called by can_current_user_moderate_report, get_reports_with_details
 can_manage_channel_webhooks	definer	boolean	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +1
-can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
+can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridge_imports SELECT on discord_bridge_imports_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
 can_manage_emoji	definer	boolean	service_role	client	called by remove_emoji, rename_emoji, restore_emoji
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_manage_outgoing_webhooks	definer	boolean	service_role	client	called by create_outgoing_webhook, list_outgoing_webhooks, lock_managed_outgoing_webhook
@@ -226,7 +239,7 @@ channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_
 channel_voice_encrypted	definer	boolean	service_role	client	rpc in federation-backend/src/services/voiceAccess.ts
 channel_webhook_json	invoker	jsonb	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +2
 check_and_increment_bot_rate_limit	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
-check_bot_permission	invoker	boolean	anon+authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/gateway/EventDispatcher.ts
+check_bot_permission	invoker	boolean	anon+authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/messageContent.ts, bot-gateway/src/gateway/EventDispatcher.ts
 check_category_limit	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories BEFORE INSERT (enforce_category_limit)
 check_channel_limit	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channels BEFORE INSERT (enforce_channel_limit)
 check_content_emoji_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_content_emoji_parts), public.posts BEFORE INSERT/UPDATE (a_posts_content_emoji_parts)
@@ -331,11 +344,16 @@ discord_bridge_channels_touch	definer	trigger	-	trigger	trigger public.discord_b
 discord_bridge_create	definer	uuid	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_delete	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_encrypted_channel_ids	definer	SETOF uuid	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts
-discord_bridge_for_manager	definer	discord_bridges	-	client	called by discord_bridge_delete, discord_bridge_pair, discord_bridge_set_guild, +4
+discord_bridge_for_manager	definer	discord_bridges	-	client	called by discord_bridge_delete, discord_bridge_import_cancel, discord_bridge_import_start, +6
 discord_bridge_guild_channels	invoker	SETOF jsonb	-	client	called by discord_bridge_pair_internal, discord_bridge_report_status, discord_bridge_set_guild
 discord_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, discord_token text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.instance.test.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, +4
 discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_import_cancel	definer	SETOF discord_bridge_imports	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_import_cancel_internal	definer	SETOF discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+discord_bridge_import_start	definer	SETOF discord_bridge_imports	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_import_start_internal	definer	SETOF discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+discord_bridge_import_update	definer	discord_bridge_imports	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
 discord_bridge_instance_bot_clear	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_instance_bot_configured	definer	boolean	-	client	called by discord_bridge_instance_bot_secrets, discord_bridge_instance_bot_status, discord_bridge_instance_hosted, +2
 discord_bridge_instance_bot_enabled	definer	boolean	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeInstance.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
@@ -702,6 +720,7 @@ is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption, enforce_conversation_message_encryption
 is_federation_enabled_for_user	invoker	boolean	anon+authenticated+service_role	client	rpc in src/services/federation/FederationDecisionService.ts
 is_heart_reaction	invoker	boolean	anon+authenticated+service_role	client, trigger	called by add_post_emoji_reaction, fold_heart_reaction, remove_post_emoji_reaction
+is_history_import	invoker	boolean	service_role	client, trigger	called by broadcast_message_event, broadcast_thread_change, enforce_channel_slowmode, +17
 is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	called by is_encrypted_channel_content
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update, public.room_epoch_state SELECT on room_epoch_state_select; rpc in src/services/encryption/MegolmKeyBackupService.ts
@@ -1104,7 +1123,7 @@ update_group_name	definer	jsonb	authenticated+service_role	client	rpc in src/com
 update_hashtag_trending_scores	definer	integer	anon+authenticated+service_role	client, cron	cron 0 * * * * (update-hashtag-scores); rpc in src/services/TrendingService.ts
 update_instance_antispam_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 update_megolm_backup_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.megolm_key_backups BEFORE UPDATE (update_megolm_backup_timestamp)
-update_message_content_silent	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+update_message_content_silent	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/bridge/mirrorWorker.ts
 update_message_embeds	definer	void	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts
 update_outgoing_webhook	definer	jsonb	authenticated+service_role	client	named in src/components/__tests__/OutgoingWebhooksPanel.test.ts, src/services/outgoingWebhookService.ts
 update_post_embeds	definer	void	service_role	client	rpc in federation-backend/src/listeners/DatabaseListener.ts
@@ -1122,7 +1141,7 @@ update_status_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	
 update_sticker	definer	stickers	authenticated+service_role	client	rpc in src/services/stickerService.ts
 update_threads_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.threads BEFORE UPDATE (trigger_threads_updated_at)
 update_trending_posts	definer	void	anon+authenticated+service_role	client, cron	cron */15 * * * * (update-trending-posts); rpc in src/services/TrendingService.ts
-upload_ceiling_bytes	definer	bigint	service_role	client, trigger	called by admin_get_upload_limit, admin_set_upload_limit, admin_set_upload_limits, +2
+upload_ceiling_bytes	definer	bigint	service_role	client, trigger	named in bot-gateway/src/utils/mirrorExternalMedia.ts
 upload_limit_bytes	definer	bigint	service_role	client, trigger	called by admin_get_upload_limit, get_my_upload_limit, storage_upload_limit
 upload_tier	definer	text	service_role	client, trigger	called by admin_get_upload_limit, upload_limit_bytes
 upload_tier_limit_bytes	definer	bigint	service_role	client, trigger	called by admin_get_upload_limit, upload_limit_bytes

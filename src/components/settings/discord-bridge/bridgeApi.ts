@@ -3,6 +3,7 @@
  * holding MANAGE_SERVER; every write goes through a discord_bridge_* RPC.
  */
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 import type {
   BridgeMode,
   BridgePairRow,
@@ -265,6 +266,89 @@ export async function fetchBridgeForBot(botId: string): Promise<BridgeOwnerServe
   const row = data as { server_id: string; servers?: { name?: string | null } | { name?: string | null }[] | null }
   const server = Array.isArray(row.servers) ? row.servers[0] : row.servers
   return { serverId: row.server_id, serverName: server?.name ?? null }
+}
+
+// ---------------------------------------------------------------------------
+// History import
+// ---------------------------------------------------------------------------
+
+export type ImportState = 'queued' | 'running' | 'paused' | 'done' | 'failed' | 'cancelled'
+export type ImportPhase = 'messages' | 'threads' | 'replies'
+
+export interface ImportJob {
+  id: string
+  harmony_channel_id: string
+  discord_channel_id: string
+  state: ImportState
+  phase: ImportPhase
+  cancel_requested: boolean
+  start_discord_message_id: string | null
+  start_at: string | null
+  reached_discord_message_id: string | null
+  reached_at: string | null
+  channel_created_at: string | null
+  threads_total: number | null
+  threads_done: number
+  thread_cursor: Record<string, unknown> | null
+  imported_count: number
+  skipped_count: number
+  pins_skipped: number
+  error: string | null
+  requested_via: 'harmony' | 'discord'
+  created_at: string
+  updated_at: string
+  finished_at: string | null
+}
+
+const IMPORT_COLUMNS =
+  'id, harmony_channel_id, discord_channel_id, state, phase, cancel_requested, start_discord_message_id, start_at, reached_discord_message_id, reached_at, channel_created_at, threads_total, threads_done, thread_cursor, imported_count, skipped_count, pins_skipped, error, requested_via, created_at, updated_at, finished_at'
+
+export async function fetchImports(bridgeId: string): Promise<ImportJob[]> {
+  const { data, error } = await supabase
+    .from('discord_bridge_imports')
+    .select(IMPORT_COLUMNS)
+    .eq('bridge_id', bridgeId)
+    .order('created_at', { ascending: true })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/** harmonyChannelIds null queues every importable pair; an empty list queues nothing. */
+export async function startImports(bridgeId: string, harmonyChannelIds: string[] | null): Promise<ImportJob[]> {
+  const { data, error } = await supabase.rpc('discord_bridge_import_start', {
+    p_bridge_id: bridgeId,
+    p_harmony_channel_ids: harmonyChannelIds,
+  })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/** importId null cancels every job of the bridge. */
+export async function cancelImports(bridgeId: string, importId: string | null): Promise<ImportJob[]> {
+  const { data, error } = await supabase.rpc('discord_bridge_import_cancel', {
+    p_bridge_id: bridgeId,
+    p_import_id: importId,
+  })
+  raise(error)
+  return (data as ImportJob[] | null) ?? []
+}
+
+/**
+ * bridge_attachment_mode, a public instance_config key (public_instance_config_keys()), so any
+ * signed-in manager reads it. Null when unset or unreadable.
+ */
+export async function fetchBridgeAttachmentMode(): Promise<'link' | 'refresh' | 'mirror' | null> {
+  const { data, error } = await supabase
+    .from('instance_config')
+    .select('config_value')
+    .eq('config_key', 'bridge_attachment_mode')
+    .maybeSingle()
+  if (error) {
+    debug.error('bridge_attachment_mode read failed:', error)
+    return null
+  }
+  const value = (data as { config_value?: unknown } | null)?.config_value
+  return value === 'link' || value === 'refresh' || value === 'mirror' ? value : null
 }
 
 // ---------------------------------------------------------------------------
