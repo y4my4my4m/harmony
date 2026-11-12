@@ -834,6 +834,8 @@ function writeTick(key: string, on: boolean) {
 }
 const redirectAdded = ref(readTick(redirectKey.value))
 watch(redirectAdded, (v) => writeTick(redirectKey.value, v))
+// Another server in the same panel has its own tick.
+watch(redirectKey, (key) => { redirectAdded.value = readTick(key) })
 
 const blockers = computed(() => {
   const r = config.value?.readiness

@@ -204,6 +204,8 @@ const isOwner = ref(false)
 const claimedServerId = ref<string | null>(null)
 const syncFields = ref<SyncField[]>([...ALL_SYNC_FIELDS])
 const syncing = ref(false)
+// The member already chose their fields (earlier, or through an already-linked account): no nudge on Continue.
+const hasChosen = ref(false)
 const synced = ref(false)
 const syncError = ref('')
 
@@ -260,7 +262,7 @@ async function runSync() {
 }
 
 async function continueToServer() {
-  if (!synced.value) {
+  if (!synced.value && !hasChosen.value) {
     const ok = await confirm({
       title: t('discordMigration.migrate.skipSyncTitle'),
       message: t('discordMigration.migrate.skipSyncMessage'),
@@ -300,6 +302,7 @@ async function runClaim() {
       void requestMySync(result.serverId)
       const link = await myLink(result.serverId).catch(() => null)
       syncFields.value = initialSyncFields(link)
+      hasChosen.value = link?.syncChosen === true
     }
     state.value = 'done'
   } catch (err) {
@@ -320,6 +323,7 @@ async function showAlreadyLinked(): Promise<boolean> {
   isOwner.value = false
   claimedServerId.value = serverId
   syncFields.value = initialSyncFields(link)
+  hasChosen.value = true
   state.value = 'done'
   return true
 }

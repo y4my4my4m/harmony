@@ -455,6 +455,30 @@ describe('MigrateFromDiscordView sync choice', () => {
     expect(h.router.push).not.toHaveBeenCalled()
   })
 
+  it('does not ask a member who already chose their fields', async () => {
+    const w = await claimed({ status: 'active', syncFields: [], syncChosen: true, discordJoinedAt: null })
+    await w.get('[data-testid="migrate-continue"]').trigger('click')
+    await flushPromises()
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.router.push).toHaveBeenCalledWith({ name: 'Chat' })
+  })
+
+  it('does not ask a member whose account was already linked', async () => {
+    h.auth.isLoggedIn = true
+    h.profile.profile = { username: 'alice', is_local: true }
+    h.svc.claim.mockRejectedValue(new h.DiscordMigrationError('ticket_expired'))
+    h.svc.myLink.mockResolvedValue({ status: 'active', syncFields: [], syncChosen: false, discordJoinedAt: null })
+    h.profileId.mockResolvedValue('prof-1')
+    h.serverStore.fetchServersForUser.mockReset()
+    h.serverStore.fetchServersForUser.mockResolvedValue(undefined)
+    h.router.push.mockReset()
+    const w = await open({ ticket: 'tkt' })
+    await w.get('[data-testid="migrate-continue"]').trigger('click')
+    await flushPromises()
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.router.push).toHaveBeenCalledWith({ name: 'Chat' })
+  })
+
   it('continues to the server once the member confirms', async () => {
     const w = await claimed()
     await w.get('[data-testid="migrate-continue"]').trigger('click')

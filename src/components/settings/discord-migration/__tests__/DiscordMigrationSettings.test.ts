@@ -534,6 +534,21 @@ describe('redirect address checklist', () => {
     expect(missingKeys).toEqual([])
   })
 
+  it('follows the server when the panel switches to another one', async () => {
+    localStorage.setItem(`harmony:discord-migration-redirect:${SERVER}`, '1')
+    const w = await mountPanel(config({ readiness: READY }))
+    expect((w.find('[data-testid="redirect-added"]').element as HTMLInputElement).checked).toBe(true)
+    await w.setProps({ serverId: 'other-server' })
+    await flushPromises()
+    expect((w.find('[data-testid="redirect-added"]').element as HTMLInputElement).checked).toBe(false)
+    expect(localStorage.getItem(`harmony:discord-migration-redirect:${SERVER}`)).toBe('1')
+    await w.find('[data-testid="redirect-added"]').setValue(true)
+    expect(localStorage.getItem('harmony:discord-migration-redirect:other-server')).toBe('1')
+    await w.setProps({ serverId: SERVER })
+    await flushPromises()
+    expect((w.find('[data-testid="redirect-added"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
   it('remembers the tick for this server in this browser', async () => {
     const first = await mountPanel(config({ readiness: READY }))
     await first.find('[data-testid="redirect-added"]').setValue(true)
