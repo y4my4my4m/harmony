@@ -8,6 +8,7 @@ import { ref } from 'vue'
 import { THROTTLE_MS, WRITE_DELAY_MS, announcerRegions, resetAnnouncer, setVerboseAnnouncements } from '@/composables/useAnnouncer'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => (key === 'message.typing.single' ? ' is typing...' : key) }) }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({ getUserDisplayName: (id: string) => ref(id === 'u1' ? 'Alice' : id) }),
 }))

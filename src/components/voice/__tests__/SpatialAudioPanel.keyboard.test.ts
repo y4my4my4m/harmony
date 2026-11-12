@@ -23,6 +23,7 @@ vi.mock('@/stores/unifiedVoiceChannel', () => ({
   }),
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({
     getUserProfile: (id: string) => ({ value: { display_name: id === 'me' ? 'Me' : 'Bob' } }),

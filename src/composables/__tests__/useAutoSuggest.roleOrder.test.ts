@@ -25,7 +25,7 @@ const members = ['everyone', 'here', 'crew'].map((username) => ({
 }))
 
 vi.mock('@/services/userDataService', () => ({
-  userDataService: { getUsersInContext: () => members, getAllUsers: () => members },
+  userDataService: { getUsersInContext: () => members, getAllUsers: () => members, getMemberServerFields: (_s: string, u: string) => (u === 'user-crew' ? { nickname: 'Skipper', avatar_url: 'srv.png' } : null) },
 }))
 
 vi.mock('@/services/activityPubService', () => ({
@@ -90,13 +90,13 @@ import { useAutoSuggest } from '../useAutoSuggest'
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
-async function suggestionsFor(typed: string): Promise<any[]> {
+async function suggestionsFor(typed: string, extra: Record<string, unknown> = {}): Promise<any[]> {
   const text = ref('')
   const auto = useAutoSuggest(
     ref(null) as Ref<any>,
     () => text.value,
     (next: string) => { text.value = next },
-    { mode: 'chat' },
+    { mode: 'chat', ...extra },
   )
   auto.handleInput(typed, typed.length)
   await flush()
@@ -126,6 +126,19 @@ describe('useAutoSuggest order of roles and people', () => {
     const items = await suggestionsFor('@crew')
     expect(ids(items)).toEqual(['role:role-crew', 'user-crew'])
     expect(items[1].display_text).toBe('@crew')
+  })
+
+  it('shows server nicknames in a server context and account names in a conversation', async () => {
+    const inServer = await suggestionsFor('@skip')
+    expect(inServer.map(s => s.display_name)).toEqual(['Skipper'])
+    expect(inServer[0].profileServerId).toBe('server-1')
+    // The store can still hold the last server while a DM is open: the composer says it is a DM.
+    const inDm = await suggestionsFor('@crew', { profileServerId: () => null })
+    const crew = inDm.find(s => s.id === 'user-crew')
+    expect(crew.display_name).toBe('crew')
+    expect(crew.avatar).toBeNull()
+    expect(crew.profileServerId).toBeNull()
+    expect(await suggestionsFor('@skip', { profileServerId: () => null })).toEqual([])
   })
 
   it('offers the person alone where the role is not offered', async () => {

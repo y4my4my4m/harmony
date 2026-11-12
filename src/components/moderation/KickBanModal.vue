@@ -81,6 +81,7 @@
             <div class="user-info">
               <span class="user-display-name">{{ targetDisplayName }}</span>
               <span class="user-username">@{{ targetUser.username }}</span>
+              <span v-if="targetNickname" class="user-username" data-testid="target-nickname">({{ targetNickname }})</span>
             </div>
             <button
               v-if="needsMemberSelect"
@@ -150,6 +151,7 @@ import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
 import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/common/Avatar.vue'
+import { getMemberServerProfile } from '@/composables/useMemberProfile'
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
 import { useAnnouncer } from '@/composables/useAnnouncer'
@@ -210,6 +212,9 @@ const targetUser = computed<MemberInfo | null>(() => {
   return selectedMember.value;
 })
 
+const targetNickname = computed(() =>
+  targetUser.value ? getMemberServerProfile(targetUser.value.id, props.serverId).value?.nickname?.trim() || '' : ''
+)
 const targetDisplayName = computed(() => targetUser.value?.display_name || targetUser.value?.username || '')
 
 const currentUserId = computed(() => authStore.session?.user?.id || '')

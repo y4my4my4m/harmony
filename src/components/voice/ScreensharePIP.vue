@@ -13,7 +13,7 @@
       <header class="pip-bar" @pointerdown="onBarPointerDown">
         <span class="pip-live">{{ t('voice.live') }}</span>
         <span class="pip-title">
-          <DisplayName :user-id="pipParticipant!.userId" :fallback="participantName" :truncate="true" />
+          <DisplayName :user-id="pipParticipant!.userId" :server-id="profileServerId" :fallback="participantName" :truncate="true" />
         </span>
         <TileVolumeControl
           v-if="!isSelf"
@@ -90,7 +90,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import TileVolumeControl from './TileVolumeControl.vue';
@@ -111,7 +112,7 @@ import { callPopoutActive } from './callPopout';
 
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
-const { getUserDisplayName } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 
 // Header bar height, px; it sits above the video and does not scale.
 const BAR_HEIGHT = 40;
@@ -140,7 +141,7 @@ const isSelf = computed(() => voiceStore.pipUserId === voiceStore.localState.use
 
 const participantName = computed(() => {
   if (!pipParticipant.value) return t('voice.live');
-  return getUserDisplayName(pipParticipant.value.userId).value || 'User';
+  return getMemberDisplayName(pipParticipant.value.userId, profileServerId.value).value || 'User';
 });
 
 // 'fixed' is the fallback when the browser refuses native Picture-in-Picture.

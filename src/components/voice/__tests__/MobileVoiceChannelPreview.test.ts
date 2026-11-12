@@ -6,6 +6,7 @@ import { resetLayersForTests } from '@/utils/a11y/layers'
 // buttons, a pressed join-muted toggle, focus on Join, and Escape closing.
 
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserAvatarUrl: () => ({ value: '' }) }) }))
 vi.mock('@/components/common/Avatar.vue', () => stub('Avatar'))
 vi.mock('@/components/common/EmptyState.vue', () => stub('EmptyState'))

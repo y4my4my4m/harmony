@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "Utiliser des sons externes",
           "description": "Jouer des sons d'autres serveurs dont ils sont membres"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "Changer de pseudo",
+          "description": "Définir son propre pseudo et profil de serveur sur ce serveur"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "Gérer les pseudos",
+          "description": "Modifier ou réinitialiser les pseudos et profils de serveur des membres de rang inférieur"
         }
       },
       "everyoneMembersNote": "Le rôle {'@'}everyone s'applique automatiquement à chaque membre de ce serveur. Il n'y a pas de liste à gérer.",
@@ -3023,6 +3031,20 @@
       "moderators": "Modérateurs de {server}",
       "outcomeBy": "Modérateurs de {server} : {outcome}",
       "reviewedTitle": "Les modérateurs de {server} ont examiné ton signalement"
+    },
+    "serverProfile": {
+      "nicknameTitle": "Changer le pseudo",
+      "nicknameLabel": "Pseudo de {name}",
+      "nicknamePlaceholder": "Aucun pseudo",
+      "nicknameHint": "Laissez vide pour supprimer le pseudo. Ne s’applique que sur ce serveur.",
+      "nicknameDone": "{name} s’appelle désormais {nickname}.",
+      "nicknameCleared": "Pseudo de {name} supprimé.",
+      "resetTitle": "Réinitialiser le profil de serveur",
+      "resetMessage": "Effacer l’avatar, la bannière, la bio et les pronoms de serveur de {name} ? Le pseudo est conservé.",
+      "resetConfirm": "Réinitialiser",
+      "resetDone": "Profil de serveur de {name} réinitialisé.",
+      "failed": "Impossible de mettre à jour {name}.",
+      "noPermission": "Vous n’avez pas la permission de modifier {name}."
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor} a levé la mise en sourdine du son serveur de {target}",
       "member_voice_move": "{actor} a déplacé {target} vers un autre salon vocal",
       "member_voice_disconnect": "{actor} a déconnecté {target} du vocal",
+      "member_nickname_update": "{actor} a changé le pseudo de {target}",
+      "member_profile_reset": "{actor} a réinitialisé le profil serveur de {target}",
       "message_delete": "{actor} a supprimé un message de {target} dans {channel} | {actor} a supprimé {count} messages de {target} dans {channel}",
       "server_update": "{actor} a modifié le serveur",
       "settings_update": "{actor} a modifié les paramètres du serveur",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} a supprimé le sticker {target}"
     },
     "fields": {
+      "nickname": "Pseudo",
       "name": "Nom",
       "description": "Description",
       "category": "Catégorie",
@@ -6497,7 +6522,9 @@
       "kick": "Expulser {name}",
       "ban": "Bannir {name}",
       "copyId": "Copier l'identifiant de l'utilisateur",
-      "fallbackName": "Utilisateur"
+      "fallbackName": "Utilisateur",
+      "moderateNickname": "Changer le pseudo de {name}",
+      "resetServerProfile": "Réinitialiser le profil de serveur de {name}"
     },
     "rail": {
       "folder": "dossier",
@@ -6913,6 +6940,32 @@
       "invalid": "Le modèle n'est pas valide : {detail}",
       "rejected": "Le serveur a refusé ce modèle : {detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "Profils de serveur",
+    "title": "Profils de serveur",
+    "description": "Définis un pseudo, un avatar, une bannière, une bio et des pronoms différents pour chaque serveur. Les champs vides utilisent les valeurs de ton compte.",
+    "noServers": "Tu n'as encore rejoint aucun serveur.",
+    "server": "Serveur",
+    "remoteUnavailable": "hébergé sur une autre instance",
+    "locked": "Tu n'as pas l'autorisation de modifier ton profil sur ce serveur.",
+    "nickname": "Pseudo",
+    "pronouns": "Pronoms",
+    "pronounsPlaceholder": "ex. elle/iel",
+    "bio": "À propos de moi",
+    "bioPlaceholder": "Parle de toi à ce serveur",
+    "avatar": "Avatar",
+    "banner": "Bannière",
+    "reset": "Réinitialiser",
+    "resetField": "Réinitialiser {field}",
+    "save": "Enregistrer les modifications",
+    "saved": "Profil de serveur enregistré.",
+    "saveFailed": "Impossible d'enregistrer ton profil de serveur.",
+    "uploadFailed": "Impossible d'envoyer l'image.",
+    "preview": "Aperçu",
+    "menuEntry": "Modifier le profil de serveur",
+    "accountPronouns": "Pronoms",
+    "accountPronounsHint": "Affichés sous ton nom sur ton profil. 40 caractères maximum."
   },
   "notificationSettings": {
     "menuEntry": "Paramètres de notification",

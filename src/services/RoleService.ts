@@ -43,6 +43,8 @@ export enum Permission {
   MOVE_MEMBERS = 'MOVE_MEMBERS',
   USE_SOUNDBOARD = 'USE_SOUNDBOARD',
   USE_EXTERNAL_SOUNDS = 'USE_EXTERNAL_SOUNDS',
+  CHANGE_NICKNAME = 'CHANGE_NICKNAME',
+  MANAGE_NICKNAMES = 'MANAGE_NICKNAMES',
 }
 
 // Permission categories for UI grouping
@@ -66,6 +68,8 @@ export const PERMISSION_CATEGORIES = {
       Permission.KICK_MEMBERS,
       Permission.BAN_MEMBERS,
       Permission.TIMEOUT_MEMBERS,
+      Permission.CHANGE_NICKNAME,
+      Permission.MANAGE_NICKNAMES,
     ],
   },
   text: {
@@ -147,6 +151,10 @@ export const PERMISSION_BITS: Record<Permission, number> = {
   [Permission.MOVE_MEMBERS]: 29,
   [Permission.USE_SOUNDBOARD]: 30,
   [Permission.USE_EXTERNAL_SOUNDS]: 31,
+
+  // Membership Permissions (bits 32-33)
+  [Permission.CHANGE_NICKNAME]: 32,
+  [Permission.MANAGE_NICKNAMES]: 33,
 }
 
 /**
@@ -213,6 +221,8 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MOVE_MEMBERS]: 'Allows members to move members ranked below them between voice channels, and to disconnect them.',
   [Permission.USE_SOUNDBOARD]: 'Allows members to play soundboard sounds in voice channels.',
   [Permission.USE_EXTERNAL_SOUNDS]: 'Allows members to play sounds from other servers they belong to.',
+  [Permission.CHANGE_NICKNAME]: 'Allows members to set their own nickname and server profile in this server.',
+  [Permission.MANAGE_NICKNAMES]: 'Allows members to change or reset the nicknames and server profiles of members ranked below them.',
 }
 
 // Role Types

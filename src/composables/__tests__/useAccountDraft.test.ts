@@ -13,7 +13,7 @@ import {
 } from '@/composables/useAccountDraft'
 
 const snapshot = (values: Partial<AccountSnapshot['values']> = {}, fields: AccountSnapshot['fields'] = []): AccountSnapshot => ({
-  values: { display_name: 'Sam', bio: '', color: '', ...values },
+  values: { display_name: 'Sam', bio: '', color: '', pronouns: '', ...values },
   fields,
 })
 
@@ -46,6 +46,7 @@ describe('mergeStored', () => {
       display_name: 'Typed',
       bio: 'bio from elsewhere',
       color: '#112233',
+      pronouns: '',
     })
   })
 

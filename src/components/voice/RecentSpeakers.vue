@@ -28,7 +28,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import { useUserData } from '@/composables/useUserData';
+import { getMemberAvatarUrl, getMemberDisplayName } from '@/composables/useMemberProfile';
+import { useVoiceProfileServerId } from '@/composables/useVoiceProfileServerId';
 import Avatar from '@/components/common/Avatar.vue';
 import { useT } from '@/composables/useT';
 import { participantLabel, useHeldIds } from './participantLabel';
@@ -42,7 +43,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const voiceStore = useUnifiedVoiceChannelStore();
-const { getUser } = useUserData();
+const profileServerId = useVoiceProfileServerId();
 const { t } = useT();
 const speakingIds = useHeldIds(() => voiceStore.activelySpeakingUserIds);
 
@@ -55,13 +56,11 @@ const isSpeaking = (userId: string) => {
 };
 
 const getSpeakerAvatar = (userId: string) => {
-  const profile = getUser(userId)?.value;
-  return profile?.avatarUrl || '/default_avatar.webp';
+  return getMemberAvatarUrl(userId, profileServerId.value).value || '/default_avatar.webp';
 };
 
 const getSpeakerName = (userId: string) => {
-  const profile = getUser(userId)?.value;
-  return profile?.displayName || profile?.username || 'User';
+  return getMemberDisplayName(userId, profileServerId.value).value || 'User';
 };
 
 const speakerLabel = (userId: string) =>

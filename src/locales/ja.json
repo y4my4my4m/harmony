@@ -688,6 +688,14 @@
         "USE_EXTERNAL_SOUNDS": {
           "label": "外部のサウンドを使用",
           "description": "所属する他のサーバーのサウンドを再生します"
+        },
+        "CHANGE_NICKNAME": {
+          "label": "ニックネームの変更",
+          "description": "このサーバーでの自分のニックネームとサーバープロフィールを設定します"
+        },
+        "MANAGE_NICKNAMES": {
+          "label": "ニックネームの管理",
+          "description": "自分より下位のメンバーのニックネームとサーバープロフィールを変更またはリセットします"
         }
       },
       "everyoneMembersNote": "{'@'}everyone ロールはこのサーバーのすべてのメンバーに自動的に適用されます。管理するメンバー一覧はありません。",
@@ -3023,6 +3031,20 @@
       "moderators": "{server} のモデレーター",
       "outcomeBy": "{server} のモデレーター：{outcome}",
       "reviewedTitle": "{server} のモデレーターがあなたの通報を確認しました"
+    },
+    "serverProfile": {
+      "nicknameTitle": "ニックネームを変更",
+      "nicknameLabel": "{name}のニックネーム",
+      "nicknamePlaceholder": "ニックネームなし",
+      "nicknameHint": "空欄にするとニックネームを削除します。このサーバーでのみ有効です。",
+      "nicknameDone": "{name}のニックネームを{nickname}にしました。",
+      "nicknameCleared": "{name}のニックネームを削除しました。",
+      "resetTitle": "サーバープロフィールをリセット",
+      "resetMessage": "{name}のサーバーアバター、バナー、自己紹介、代名詞を消去しますか？ニックネームは残ります。",
+      "resetConfirm": "リセット",
+      "resetDone": "{name}のサーバープロフィールをリセットしました。",
+      "failed": "{name}を更新できませんでした。",
+      "noPermission": "{name}を変更する権限がありません。"
     }
   },
   "files": {
@@ -4660,6 +4682,8 @@
       "member_voice_undeafen": "{actor}が{target}のサーバースピーカーミュートを解除しました",
       "member_voice_move": "{actor}が{target}を別のボイスチャンネルに移動しました",
       "member_voice_disconnect": "{actor}が{target}をボイスから切断しました",
+      "member_nickname_update": "{actor}が{target}のニックネームを変更しました",
+      "member_profile_reset": "{actor}が{target}のサーバープロフィールをリセットしました",
       "message_delete": "{actor}が{channel}で{target}のメッセージを{count}件削除しました",
       "server_update": "{actor}がサーバーを編集しました",
       "settings_update": "{actor}がサーバー設定を変更しました",
@@ -4682,6 +4706,7 @@
       "sticker_delete": "{actor} がスタンプ {target} を削除しました"
     },
     "fields": {
+      "nickname": "ニックネーム",
       "name": "名前",
       "description": "説明",
       "category": "カテゴリー",
@@ -6497,7 +6522,9 @@
       "kick": "{name} をキック",
       "ban": "{name} をBAN",
       "copyId": "ユーザー ID をコピー",
-      "fallbackName": "ユーザー"
+      "fallbackName": "ユーザー",
+      "moderateNickname": "{name}のニックネームを変更",
+      "resetServerProfile": "{name}のサーバープロフィールをリセット"
     },
     "rail": {
       "folder": "フォルダー",
@@ -6913,6 +6940,32 @@
       "invalid": "テンプレートが無効です：{detail}",
       "rejected": "サーバーがこのテンプレートを拒否しました：{detail}"
     }
+  },
+  "serverProfile": {
+    "tabLabel": "サーバープロフィール",
+    "title": "サーバープロフィール",
+    "description": "サーバーごとに別のニックネーム、アバター、バナー、自己紹介、代名詞を設定できます。空欄のフィールドにはアカウントの値が使われます。",
+    "noServers": "まだサーバーに参加していません。",
+    "server": "サーバー",
+    "remoteUnavailable": "別のインスタンスでホスト中",
+    "locked": "このサーバーでプロフィールを変更する権限がありません。",
+    "nickname": "ニックネーム",
+    "pronouns": "代名詞",
+    "pronounsPlaceholder": "例: she/her",
+    "bio": "自己紹介",
+    "bioPlaceholder": "このサーバーに自己紹介を書きましょう",
+    "avatar": "アバター",
+    "banner": "バナー",
+    "reset": "リセット",
+    "resetField": "{field}をリセット",
+    "save": "変更を保存",
+    "saved": "サーバープロフィールを保存しました。",
+    "saveFailed": "サーバープロフィールを保存できませんでした。",
+    "uploadFailed": "画像をアップロードできませんでした。",
+    "preview": "プレビュー",
+    "menuEntry": "サーバープロフィールを編集",
+    "accountPronouns": "代名詞",
+    "accountPronounsHint": "プロフィールの名前の下に表示されます。40文字まで。"
   },
   "notificationSettings": {
     "menuEntry": "通知設定",

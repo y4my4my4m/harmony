@@ -216,6 +216,8 @@ export interface UserData {
   avatarUrl?: string
   bannerUrl?: string
   bio?: string
+  /** profiles.pronouns */
+  pronouns?: string
   color?: string
   domain?: string
   createdAt: string // When the user account was created

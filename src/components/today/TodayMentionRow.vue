@@ -9,6 +9,7 @@
             :display-name="authorName"
             :bridge-source="bridgeSource"
             :color="authorColor"
+            :server-id="mention.server?.id"
             truncate
           />
         </RouterLink>
@@ -18,6 +19,7 @@
           :display-name="authorName"
           :bridge-source="bridgeSource"
           :color="authorColor"
+          :server-id="mention.server?.id"
           truncate
         />
         <span class="today-row-kind" :class="mention.kind">{{ kindLabel }}</span>

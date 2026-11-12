@@ -69,6 +69,7 @@ vi.mock('@/composables/useUserData', async () => {
       getUserAvatarUrl: none,
       getUserColor: none,
       getUserBannerUrl: none,
+      getUserPronouns: none,
       getUserCustomStatus: none,
       subscribeToProfilePresence: vi.fn(async () => 'ctx'),
       unsubscribeFromProfilePresence: vi.fn(async () => {}),

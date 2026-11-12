@@ -35,6 +35,9 @@
     <button type="button" role="menuitem" class="rail-menu-item" data-action="notification-settings" @click="act({ type: 'notification-settings' })">
       {{ t('notificationSettings.menuEntry') }}
     </button>
+    <button v-if="server.is_local_server !== false" type="button" role="menuitem" class="rail-menu-item" data-action="edit-server-profile" @click="act({ type: 'edit-server-profile' })">
+      {{ t('serverProfile.menuEntry') }}
+    </button>
 
     <div class="rail-menu-divider" role="separator"></div>
 
@@ -108,6 +111,7 @@ export type ServerMenuAction =
   | { type: 'invite' }
   | { type: 'mute'; until: Date | null | false }
   | { type: 'notification-settings' }
+  | { type: 'edit-server-profile' }
   | { type: 'settings' }
   | { type: 'create-channel' }
   | { type: 'create-category' }

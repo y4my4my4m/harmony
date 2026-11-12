@@ -15,6 +15,7 @@
           :display-name="displayName"
           :bridge-source="bridgeSource"
           :color="usernameColor"
+          :server-id="serverId"
           truncate
         />
         <span v-if="message.bot_id && !isBridged" class="search-result-bot">{{ t('messageSearch.bot') }}</span>
@@ -31,6 +32,7 @@
           class="search-result-content"
           :content="message.content"
           :message-id="message.id"
+          :server-id="message.conversation_id ? null : serverId"
           :embed-payloads="message.metadata?.embeds"
           :metadata="message.metadata"
           :encrypted="message.encrypted || false"

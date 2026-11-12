@@ -30,7 +30,7 @@
               <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
                 <!-- For reactions, show emoji inline in title -->
                 <template v-if="toast.type === 'activitypub_reaction'">
-                  <span v-if="toast.actorUserId"><DisplayName :user-id="toast.actorUserId" :truncate="true" /></span>
+                  <span v-if="toast.actorUserId"><DisplayName :user-id="toast.actorUserId" :server-id="toast.actorServerId" :truncate="true" /></span>
                   <span v-else>{{ toast.title.split('reacted')[0] }}</span>reacted
                   <img 
                     v-if="toast.emojiUrl"
@@ -50,7 +50,7 @@
                 </template>
                 <template v-else>
                   <template v-if="toast.actorUserId && toast.titleSuffix">
-                    <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
+                    <DisplayName :user-id="toast.actorUserId" :server-id="toast.actorServerId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
                   </template>
                   <template v-else>{{ toast.title }}</template>
                   <img 
@@ -69,7 +69,7 @@
                 </template>
               </template>
               <template v-else-if="toast.actorUserId && toast.titleSuffix">
-                <DisplayName :user-id="toast.actorUserId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
+                <DisplayName :user-id="toast.actorUserId" :server-id="toast.actorServerId" :truncate="true" /><span>{{ toast.titleSuffix }}</span>
               </template>
               <template v-else>
                 {{ toast.title }}

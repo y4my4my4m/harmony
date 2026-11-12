@@ -121,11 +121,11 @@ describe('parseServerTemplate', () => {
     expect(errorOf(doc).detail).toBe('channels[2] has more than one override for role "r1"')
   })
 
-  it('refuses masks outside bits 0 to 31', () => {
-    for (const permissions of ['4294967296', '-1', '1.5', 'abc', 2 ** 40]) {
+  it('refuses masks outside bits 0 to 33', () => {
+    for (const permissions of ['17179869184', '-1', '1.5', 'abc', 2 ** 40]) {
       const doc = exported()
       doc.roles![1].permissions = permissions
-      expect(errorOf(doc).detail).toBe('roles[1].permissions is a permission mask of bits 0 to 31')
+      expect(errorOf(doc).detail).toBe('roles[1].permissions is a permission mask of bits 0 to 33')
     }
   })
 
@@ -138,6 +138,12 @@ describe('parseServerTemplate', () => {
   it('accepts USE_EXTERNAL_SOUNDS, bit 31', () => {
     const doc = exported()
     doc.roles![1].permissions = '3221225472'
+    expect(parse(doc).ok).toBe(true)
+  })
+
+  it('accepts CHANGE_NICKNAME and MANAGE_NICKNAMES, bits 32 and 33', () => {
+    const doc = exported()
+    doc.roles![1].permissions = '12884901888'
     expect(parse(doc).ok).toBe(true)
   })
 

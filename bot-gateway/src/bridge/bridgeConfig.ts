@@ -71,6 +71,8 @@ export interface BridgeConfig {
   base_url: string | null
   pairs: BridgePair[]
   harmony_channels: HarmonyChannel[]
+  // permission_bit_names(): the name at index i is role-permission bit i.
+  permission_bits: string[]
 }
 
 /** The bridge the bot drives; null when it drives none; 'error' when the lookup failed. */
@@ -93,7 +95,7 @@ export async function loadBridgeForBot(botId: string): Promise<BridgeRow | null 
  * state. Null when a lookup fails: an unknown encryption state is not reported as plaintext.
  */
 export async function buildBridgeConfig(bridge: BridgeRow, baseUrl: string | null): Promise<BridgeConfig | null> {
-  const [pairsResult, channelsResult, categoriesResult, encryptedResult] = await Promise.all([
+  const [pairsResult, channelsResult, categoriesResult, encryptedResult, bitNamesResult] = await Promise.all([
     supabase
       .from('discord_bridge_channels')
       .select('harmony_channel_id, discord_channel_id, discord_channel_name, direction')
@@ -101,12 +103,14 @@ export async function buildBridgeConfig(bridge: BridgeRow, baseUrl: string | nul
     supabase.from('channels').select('*').eq('server_id', bridge.server_id),
     supabase.from('channel_categories').select('id, name').eq('server_id', bridge.server_id),
     supabase.rpc('discord_bridge_encrypted_channel_ids', { p_bridge_id: bridge.id }),
+    supabase.rpc('permission_bit_names'),
   ])
   for (const [what, result] of [
     ['discord_bridge_channels', pairsResult],
     ['channels', channelsResult],
     ['channel_categories', categoriesResult],
     ['discord_bridge_encrypted_channel_ids', encryptedResult],
+    ['permission_bit_names', bitNamesResult],
   ] as const) {
     if (result.error || !Array.isArray(result.data)) {
       console.error(`bridge ${bridge.id} config: ${what} lookup failed:`, result.error?.message)
@@ -162,6 +166,7 @@ export async function buildBridgeConfig(bridge: BridgeRow, baseUrl: string | nul
     base_url: baseUrl,
     pairs,
     harmony_channels: harmonyChannels,
+    permission_bits: (bitNamesResult.data as unknown[]).map(String),
   }
 }
 

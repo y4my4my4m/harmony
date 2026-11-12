@@ -13,6 +13,8 @@ export interface ProfileData {
   avatar_url?: string
   banner_url?: string
   bio?: string
+  /** Up to 40 characters; a DB trigger trims it and stores blank as NULL. */
+  pronouns?: string | null
   color?: string
   /**
    * Custom profile fields (name/value link rows). Persisted to the
@@ -433,6 +435,36 @@ export class ProfileService {
         success: false,
         error: error.message || 'Failed to upload banner'
       }
+    }
+  }
+
+  /** Uploads a per-server avatar under `<profileId>/servers/<serverId>/`. `url` is the stored value. */
+  async uploadServerAvatar(serverId: string, file: File): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      const profileId = await authContextService.getCurrentProfileId()
+      if (!profileId) return { success: false, error: 'Not signed in' }
+      const { uploadImageObject } = await import('@/utils/fileUpload')
+      const result = await uploadImageObject(file, 'avatar', 'avatars', `${profileId}/servers/${serverId}`, 'avatar')
+      return { success: result.success, url: result.url, error: result.error }
+    } catch (error: any) {
+      debug.error('Failed to upload server avatar:', error)
+      return { success: false, error: error.message || 'Failed to upload avatar' }
+    }
+  }
+
+  /** Uploads a per-server banner under `<profileId>/servers/<serverId>/`. `url` is the object path. */
+  async uploadServerBanner(serverId: string, file: File): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      const profileId = await authContextService.getCurrentProfileId()
+      if (!profileId) return { success: false, error: 'Not signed in' }
+      const { uploadImageObject } = await import('@/utils/fileUpload')
+      const result = await uploadImageObject(file, 'profile_banner', 'banners', `${profileId}/servers/${serverId}`, 'banner')
+      return result.success && result.path
+        ? { success: true, url: result.path }
+        : { success: false, error: result.error }
+    } catch (error: any) {
+      debug.error('Failed to upload server banner:', error)
+      return { success: false, error: error.message || 'Failed to upload banner' }
     }
   }
 }

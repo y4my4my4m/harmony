@@ -13,6 +13,7 @@ export interface AccountValues {
   display_name: string
   bio: string
   color: string
+  pronouns: string
 }
 
 export interface EditableField {
@@ -25,7 +26,7 @@ export interface AccountSnapshot {
   fields: EditableField[]
 }
 
-const VALUE_KEYS = ['display_name', 'bio', 'color'] as const
+const VALUE_KEYS = ['display_name', 'bio', 'color', 'pronouns'] as const
 
 function copy(snapshot: AccountSnapshot): AccountSnapshot {
   return {
@@ -60,7 +61,7 @@ export function mergeStored(draft: AccountSnapshot, previous: AccountSnapshot, n
 
 const owner = ref<string | null>(null)
 const stored = ref<AccountSnapshot | null>(null)
-const values = ref<AccountValues>({ display_name: '', bio: '', color: '' })
+const values = ref<AccountValues>({ display_name: '', bio: '', color: '', pronouns: '' })
 const fields = ref<EditableField[]>([])
 
 const dirty = computed(() => accountDirty({ values: values.value, fields: fields.value }, stored.value))
@@ -126,6 +127,6 @@ export function discardAccountDraft(): void {
 export function resetAccountDraft(): void {
   owner.value = null
   stored.value = null
-  values.value = { display_name: '', bio: '', color: '' }
+  values.value = { display_name: '', bio: '', color: '', pronouns: '' }
   fields.value = []
 }

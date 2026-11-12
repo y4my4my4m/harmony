@@ -622,6 +622,7 @@ guard_thread_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_device_client_write		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_role_hierarchy		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_server_client_write		trigger	invoker	public, pg_temp	service_role	trigger
+guard_user_server_profile_columns		trigger	invoker	public, pg_temp	service_role	trigger
 guard_user_server_welcome_columns		trigger	invoker	public, pg_temp	service_role	trigger
 handle_channel_message_notifications		trigger	definer	public, pg_temp	service_role	trigger
 handle_conversation_participant_added		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -735,6 +736,7 @@ message_upload_paths	p_content jsonb, p_media_paths text[]	text[]	invoker	public
 mfa_enabled_for	p_auth_user_id uuid	boolean	definer	pg_catalog, public, pg_temp	service_role	unreferenced
 migrate_account_followers	p_migration_id uuid, p_limit integer	integer	definer	pg_catalog, public, pg_temp	service_role	client
 moderate_report	p_report_id uuid, p_action text, p_note text, p_reason text, p_show_resolver boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
+moderate_server_profile	p_server_id uuid, p_user_id uuid, p_nickname text, p_set_nickname boolean, p_reset_profile boolean	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 moderate_user	p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text	boolean	definer	public, pg_temp	authenticated+service_role	client
 move_voice_member	p_server_id uuid, p_user_id uuid, p_channel_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 my_voice_state	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -768,7 +770,7 @@ outgoing_webhook_probes		SETOF uuid	definer	public, pg_temp	service_role	client
 outgoing_webhook_routes		TABLE(bot_id uuid, server_id uuid, events text[])	definer	public, pg_temp	service_role	client
 outgoing_webhook_valid_url	p_url text	boolean	invoker	public, pg_temp	service_role	unreferenced
 outgoing_webhooks_purge_secret		trigger	definer	public, pg_temp	service_role	trigger
-permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	unreferenced
+permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	client
 personal_emoji_limit		integer	invoker	public, pg_temp	authenticated+service_role	client
 pin_membership_join_time		trigger	invoker	public, pg_temp	service_role	trigger
 pin_message	p_message_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
@@ -888,6 +890,7 @@ sanitize_channel_text		trigger	invoker	public, extensions, pg_temp	anon+authenti
 sanitize_entity_name		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_member_nickname		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_post_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+sanitize_profile_pronouns		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_profile_string	p_input text, p_max integer, p_allow_newlines boolean	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 sanitize_profile_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 sanitize_report_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -941,6 +944,7 @@ server_template_int	p_value jsonb, p_path text, p_default integer, p_min integer
 server_template_json	p_value jsonb, p_path text, p_type text, p_max integer	jsonb	invoker	public, pg_temp	service_role	unreferenced
 server_template_ref	p_value jsonb, p_path text	text	invoker	public, pg_temp	service_role	unreferenced
 server_template_text	p_value jsonb, p_path text, p_max integer, p_required boolean	text	invoker	public, pg_temp	service_role	unreferenced
+service_set_member_server_profile	p_server_id uuid, p_user_id uuid, p_fields jsonb	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
 session_meets_aal		boolean	definer	pg_catalog, public, pg_temp	anon+authenticated+service_role	policy
 session_step_up_fresh	p_method text, p_max_age interval	boolean	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
 set_bot_allowed_channels	p_server_id uuid, p_bot_id uuid, p_channel_ids uuid[]	uuid[]	definer	public, pg_temp	authenticated+service_role	client
@@ -956,6 +960,7 @@ set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+s
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 set_message_embeds_suppressed	p_message_id uuid, p_suppressed boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_my_account_aliases	p_uris text[]	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
+set_my_server_profile	p_server_id uuid, p_fields jsonb	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client

@@ -31,6 +31,7 @@ vi.mock('@/stores/spatialAudio', () => ({ useSpatialAudioStore: () => ({ isPanel
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
 vi.mock('@/composables/useKonamiCode', () => ({ useKonamiCode: () => ({ reset: vi.fn() }) }))
 vi.mock('@/services/EasterEggService', () => ({ easterEggService: { initialize: vi.fn(), subscribe: vi.fn(), cleanup: vi.fn(), activate: vi.fn(), deactivate: vi.fn() } }))
+vi.mock('@/composables/useMemberProfile', () => import('@/composables/__tests__/accountOnlyMemberProfile'))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserAvatarUrl: () => ({ value: '' }), getUserDisplayName: () => ({ value: '' }) }) }))
 vi.mock('@/services/DMCallSignaling', () => ({ dmCallSignaling: { callStateVersion: { value: 0 }, getActiveCall: () => null } }))
 vi.mock('@/composables/useCallSwitch', () => ({ dmConversationIdFromChannel: () => null }))

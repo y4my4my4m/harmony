@@ -1199,7 +1199,7 @@ export const useNotificationStore = defineStore('notification', {
       const actorInfo = NotificationFormatter.getActorInfo(notification)
       this.showToast(
         notification.type,
-        formatted.title,
+        NotificationFormatter.withServerNickname(notification, formatted).title,
         formatted.message,
         4000,
         NotificationFormatter.getAvatarUrl(notification),
@@ -1207,7 +1207,8 @@ export const useNotificationStore = defineStore('notification', {
         emojiName,
         actorInfo?.actorUserId,
         actorInfo?.titleSuffix,
-        notification.id
+        notification.id,
+        actorInfo?.serverId
       )
     },
 
@@ -1239,13 +1240,16 @@ export const useNotificationStore = defineStore('notification', {
         if (!formatted) {
           formatted = NotificationFormatter.formatNotification(notification)
         }
+        // Server messages name the sender as the server's members see them.
+        formatted = NotificationFormatter.withServerNickname(notification, formatted)
 
         // Tauri clients have no service worker; use the OS notification plugin.
         if (isTauriRuntime()) {
           const data: any = notification.data || {}
           const actor = data.actor || data.reactor || data.sender || {}
           const sender =
-            actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
+            NotificationFormatter.getServerActorProfile(notification)?.nickname
+            || actor.display_name || actor.username || data.sender_display_name || data.display_name || formatted.title
           const serverName = data.server_name || data.location?.server_name || ''
           const channelName = data.channel_name || data.location?.channel_name || ''
           const conversationTitle = serverName
@@ -1405,7 +1409,8 @@ export const useNotificationStore = defineStore('notification', {
       emojiName?: string,
       actorUserId?: string,
       titleSuffix?: string,
-      notificationId?: string
+      notificationId?: string,
+      actorServerId?: string | null
     ) {
       if (this.isSilenced() && type !== 'server_update') return
 
@@ -1419,6 +1424,7 @@ export const useNotificationStore = defineStore('notification', {
         emojiName,
         actorUserId,
         titleSuffix,
+        actorServerId,
         duration,
         timestamp: new Date(),
         notificationId
