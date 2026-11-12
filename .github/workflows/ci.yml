@@ -221,18 +221,20 @@ jobs:
   # journeys run the federation backend's HTTP app (e2e/specs/backend.ts); the bot
   # gateway journeys run bot-gateway (e2e/specs/botGateway.ts).
   # ----------------------------------------------------------------
-  # Five shards on their own runners and stacks: 239 journeys on one worker took 31-33 min of
+  # Eight shards on their own runners and stacks: 239 journeys on one worker took 31-33 min of
   # a 40 min limit on 2026-10-20; with 1.9.1 a half (227 tests) ran past 30 min; with 1.9.3
-  # (about 650) the second of three shards ran past 30 min on 2026-11-05. Each shard runs about
-  # a fifth, whole serial groups together.
+  # (about 650) the second of three shards ran past 30 min on 2026-11-05; with 1.9.7 (819) the
+  # second of five ran 24 min after 2-4 min of setup, and a 3 min stall carried it past 30 min
+  # on 2026-11-12. That run's timings put the longest of eight at 15 min. Each shard runs about
+  # an eighth, whole serial groups together. strategy.job-total is the length of the matrix.
   e2e-journeys:
-    name: E2E Journeys (${{ matrix.shard }}/5)
+    name: E2E Journeys (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       # Ports as in e2e-stack.
       - name: Reserve the stack ports
@@ -261,7 +263,7 @@ jobs:
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
-      - run: npx playwright test --project=journeys --shard=${{ matrix.shard }}/5
+      - run: npx playwright test --project=journeys --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           CI: true
 
