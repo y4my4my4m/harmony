@@ -5,8 +5,8 @@
 
       <template v-else>
         <header v-if="server" class="mg-server">
-          <img v-if="server.iconUrl" :src="server.iconUrl" alt="" class="mg-icon" />
-          <span v-else class="mg-icon mg-icon-fallback" aria-hidden="true">{{ server.serverName.slice(0, 1).toUpperCase() }}</span>
+          <!-- servers.icon is a storage path (<serverId>/icon-<ts>.gif), resolved like everywhere else. -->
+          <img :src="serverIcon" alt="" class="mg-icon" data-testid="migrate-server-icon" />
           <h1 class="mg-title">{{ server.serverName }}</h1>
         </header>
         <h1 v-else class="mg-title">{{ t('discordMigration.migrate.title') }}</h1>
@@ -166,6 +166,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { getServerIconUrl } from '@/utils/serverUtils'
 import { normalizeUsernameInput } from '@/utils/usernameRules'
 
 type ViewState = 'loading' | 'landing' | 'error' | 'claiming' | 'done' | 'form' | 'confirm-email' | 'federated' | 'login-failed'
@@ -214,6 +215,7 @@ const formError = ref('')
 const submitting = ref(false)
 
 const signedIn = computed(() => authStore.isLoggedIn)
+const serverIcon = computed(() => getServerIconUrl(server.value?.iconUrl, 96, server.value?.serverName))
 const myUsername = computed(() => profileStore.profile?.username ?? '')
 const isFederatedSession = computed(() => signedIn.value && profileStore.profile?.is_local === false)
 const canRestart = computed(() => RESTARTABLE.has(errorCode.value))

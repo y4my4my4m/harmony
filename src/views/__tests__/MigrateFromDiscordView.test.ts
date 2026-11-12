@@ -370,6 +370,27 @@ describe('MigrateFromDiscordView', () => {
   })
 })
 
+describe('MigrateFromDiscordView server icon', () => {
+  it('resolves the stored icon path to a public URL instead of using it as the image source', async () => {
+    h.svc.preview.mockResolvedValue({ serverId: 'srv', serverName: 'Lobby', iconUrl: 'srv/icon-1700000000.gif' })
+    const w = await open()
+    const src = w.get('[data-testid="migrate-server-icon"]').attributes('src') ?? ''
+    expect(src).not.toBe('srv/icon-1700000000.gif')
+    expect(src).toContain('/storage/v1/')
+  })
+
+  it('shows the server monogram when there is no icon', async () => {
+    const w = await open()
+    expect(w.get('[data-testid="migrate-server-icon"]').attributes('src')).toBeTruthy()
+  })
+
+  it('keeps an absolute icon URL as it is', async () => {
+    h.svc.preview.mockResolvedValue({ serverId: 'srv', serverName: 'Lobby', iconUrl: 'https://cdn.example/icon.png' })
+    const w = await open()
+    expect(w.get('[data-testid="migrate-server-icon"]').attributes('src')).toBe('https://cdn.example/icon.png')
+  })
+})
+
 describe('MigrateFromDiscordView sync choice', () => {
   const claimed = async (link: unknown = null) => {
     h.auth.isLoggedIn = true
