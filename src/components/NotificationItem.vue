@@ -34,6 +34,7 @@
               class="actor"
             />
             <span v-else class="actor">{{ actorName }}</span>
+            <BridgeSourceBadge v-if="bridgeAuthor" :source="bridgeAuthor.platform" />
             <template v-if="isReaction">
               <span class="action"> reacted </span>
               <img
@@ -89,6 +90,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { isMatrixMention } from '@/utils/matrixMentions'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
@@ -100,6 +102,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 
 const props = defineProps<{
   notification: Notification
@@ -135,17 +138,11 @@ const actor = computed(() => {
   return d.sender || d.actor || d.reactor || d.follower || d.author || d.user || d.inviter || null
 })
 
-const actorName = computed(() => {
-  const a = actor.value
-  return a?.display_name || a?.username || d('sender_display_name') || d('sender_username') || 'Someone'
-})
-
-function d(key: string): string | undefined {
-  const v = data.value[key]
-  return typeof v === 'string' ? v : undefined
-}
+const bridgeAuthor = computed(() => NotificationFormatter.getBridgeAuthor(props.notification))
+const actorName = computed(() => NotificationFormatter.getActorDisplayNameFallback(props.notification))
 
 const actorUserId = computed(() => {
+  if (bridgeAuthor.value) return null
   const id = data.value.from_user_id ?? actor.value?.user_id ?? actor.value?.id
   return typeof id === 'string' ? id : null
 })
@@ -185,7 +182,7 @@ function partsText(content: any): string | null {
   const text = content
     .map((part: any) => {
       if (part.type === 'text') return part.text
-      if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+      if (part.type === 'mention') return isMatrixMention(part) ? part.userId : `@${part.username}${part.domain ? '@' + part.domain : ''}`
       if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
       if (part.type === 'hashtag') return `#${part.name}`
       if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''

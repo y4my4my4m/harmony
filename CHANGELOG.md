@@ -8,6 +8,28 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Added
+- **Matrix attachment API support:** authenticated byte endpoints let the separately deployed
+  [Matrix bridge](https://github.com/y4my4my4m/harmony-matrix-bridge) copy attachments into
+  destination-owned storage, including captions, file-only messages and multiple Harmony files.
+  Bounded transfers respect current consent, plaintext state and private storage policy;
+  unsupported/failed copies show a notice. Matrix replies to individual file events retain
+  native parent context. Audio/video are files without transcoding; encrypted rooms/media
+  remain blocked and tracked as follow-up work.
+- **Matrix-to-Harmony reply integration:** the bridge can supply native Harmony reply
+  context for known, readable parents; unknown/private parents retain the new text alone.
+  The separate service removes legacy quoted fallbacks; edits and Matrix threads remain unsupported.
+- **Experimental Matrix integration** with the standalone application service above;
+  its runtime is not bundled with Harmony. Includes a permission-checked bot API endpoint
+  for channel encryption state. Matrix authors now appear under their room name/avatar with a
+  Matrix badge in Harmony, using generalized, permission-checked bridge metadata.
+  Members can opt out through the server's Bridge privacy menu; gateway events and
+  history respect it, including public slash-command bot replies; queued Matrix sends
+  recheck it. Existing Discord author
+  metadata remains supported. Optional Matrix ghost users now mirror eligible
+  Harmony names/avatars into real room members; managers choose ghosts or a shared
+  attributed relay under Server settings → Matrix Bridge. Member synchronization
+  enables native mention pickers and explicit mention translation in both directions.
+  Full in-client installation/pairing and encrypted participant support remain future work.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
   the `/` list in server channels and threads, fill in typed options (text, numbers, true or false,
   choices, members, channels, roles) and the bot receives `INTERACTION_CREATE`. It answers within

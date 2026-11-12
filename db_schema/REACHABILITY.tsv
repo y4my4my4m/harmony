@@ -138,7 +138,13 @@ bot_is_integration	definer	boolean	authenticated+service_role	policy, trigger	po
 bot_permission_mask	invoker	bigint	-	client	called by bot_command_upsert_row, bot_commands_replace, bot_install_mask
 bot_permission_names	invoker	jsonb	-	client	called by bot_command_json
 bot_rate_limit_take	definer	integer	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
+bridge_channel_platform	definer	text	service_role	client, trigger	rpc in bot-gateway/src/bridge/bridgePrivacy.ts
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
+bridge_member_recipients	definer	uuid[]	service_role	client	named in bot-gateway/src/bridge/bridgePrivacy.test.ts, bot-gateway/src/bridge/bridgePrivacy.ts, bot-gateway/src/gateway/__tests__/EventDispatcher.test.ts, +1
+bridge_message_recipients	definer	uuid[]	service_role	client	named in bot-gateway/src/bridge/bridgePrivacy.test.ts, bot-gateway/src/bridge/bridgePrivacy.ts, bot-gateway/src/gateway/__tests__/EventDispatcher.test.ts
+bridge_native_source_user_id	invoker	uuid	-	client	called by bridge_message_recipients, bridge_source_recipients, bridge_visible_message_ids
+bridge_source_recipients	definer	uuid[]	service_role	client	named in bot-gateway/src/bridge/bridgePrivacy.test.ts, bot-gateway/src/bridge/bridgePrivacy.ts, bot-gateway/src/gateway/__tests__/EventDispatcher.test.ts
+bridge_visible_message_ids	definer	uuid[]	service_role	client	named in bot-gateway/src/api/__tests__/BotRestAPI.bridge.test.ts, bot-gateway/src/api/__tests__/BotRestAPI.bridgeFiles.test.ts, bot-gateway/src/api/__tests__/BotRestAPI.matrixBridge.test.ts, +4
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -180,11 +186,12 @@ bump_room_epoch	definer	integer	service_role	client, trigger	called by bump_serv
 bump_server_channel_epochs	definer	void	service_role	trigger	called by trg_server_epoch_bump
 caller_outranks_all	invoker	boolean	authenticated+service_role	client, trigger	called by add_bot_to_server, assert_category_template_writable, assert_grantable_bot_flags, +5
 caller_reads_member_standing	definer	boolean	service_role	client, policy, trigger	called by get_user_highest_role_position, get_user_permissions
+can_bridge_member_messages	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+service_role	policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 can_current_user_moderate_report	definer	boolean	service_role	client, policy	called by get_reports_with_details, message_media_reported, moderate_report
 can_current_user_moderate_server_reports	definer	boolean	authenticated+service_role	client, policy	called by can_current_user_moderate_report, get_reports_with_details
 can_manage_channel_webhooks	definer	boolean	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +1
-can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
+can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.bridge_channels SELECT on bridge_channels_manager, public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
 can_manage_emoji	definer	boolean	service_role	client	called by remove_emoji, rename_emoji, restore_emoji
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_manage_outgoing_webhooks	definer	boolean	service_role	client	called by create_outgoing_webhook, list_outgoing_webhooks, lock_managed_outgoing_webhook
@@ -207,7 +214,7 @@ channel_host_flags	definer	TABLE(channel_id uuid, messages boolean, voice boolea
 channel_inherits_category_permissions	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (a_channels_inherit_category_permissions)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
 channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
-channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	rpc in federation-backend/src/activitypub/ServerInboxHandler.ts
+channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts, federation-backend/src/activitypub/ServerInboxHandler.ts
 channel_mute_active	invoker	boolean	service_role	trigger	called by broadcast_unread_count_event, handle_new_message_unread, sync_unread_mute
 channel_name_normalized	invoker	text	authenticated+service_role	client, trigger	called by apply_channel_name_rule, create_channel, create_server_from_template
 channel_permissions_synced	invoker	boolean	authenticated+service_role	client	rpc in src/services/categoryPermissions.ts
@@ -250,6 +257,7 @@ clear_orphaned_public_keys	definer	integer	service_role	service key	nothing refe
 close_following_import	invoker	void	service_role	client	called by cancel_my_following_import, claim_following_import_batch
 complete_ap_activity	definer	void	service_role	client	rpc in federation-backend/src/activitypub/GroupService.ts, federation-backend/src/activitypub/InboxHandler.ts
 compute_supporter_tier_for_amount	invoker	uuid	anon+authenticated+service_role	client	called by recompute_supporter_tier
+configure_matrix_bridge	definer	boolean	authenticated	http authenticated	nothing references it
 consume_device_sync_bundle	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 consume_invite	definer	text	service_role	client	rpc in federation-backend/src/activitypub/ServerInboxHandler.ts, federation-backend/src/services/ServerDiscoveryService.ts
 content_has_system_part	invoker	boolean	service_role	trigger	called by refuse_client_system_parts
@@ -372,7 +380,7 @@ drive_ephemeral_recent_bytes	definer	bigint	service_role	client, policy	called b
 drive_expire_due	definer	integer	service_role	client	named in federation-backend/src/__tests__/driveHandler.test.ts, federation-backend/src/queue/handlers/driveHandler.ts
 drive_file_card	definer	jsonb	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
 drive_file_json	definer	jsonb	service_role	client	called by drive_find_by_hash, drive_list_files, drive_rename_file
-drive_file_owned_by	definer	boolean	authenticated+service_role	trigger	called by guard_message_media_paths
+drive_file_owned_by	definer	boolean	authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts
 drive_file_readable	definer	boolean	service_role	client	called by drive_file_card, drive_share_gap
 drive_file_shared_with	definer	boolean	service_role	client, policy	called by drive_context_tree, drive_file_readable, drive_list_files, +1
 drive_file_status	definer	TABLE(path text, state text, gone_reason text, expires_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/drive/driveService.ts
@@ -556,7 +564,10 @@ get_server_automod	definer	jsonb	authenticated+service_role	client	rpc in src/se
 get_server_automod_events	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 get_server_bans	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 get_server_bots	definer	TABLE(id uuid, username text, display_name text, avatar_url text, bot_type text, status text, custom_status text, activity_type text, activity_name text, last_heartbeat_at timestamp with time zone)	authenticated+service_role	client	rpc in src/services/serverBotsService.ts
+get_server_bridge_opt_out	definer	boolean	authenticated	http authenticated	nothing references it
+get_server_bridge_privacy	definer	jsonb	authenticated	client	rpc in src/stores/useBridgePrivacy.ts
 get_server_encryption_stats	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/ServerEncryptionSettings.vue
+get_server_matrix_bridges	definer	TABLE(bot_id uuid, channel_id uuid, channel_name text, room_id text, sender_mode text)	authenticated	client	rpc in src/components/settings/MatrixBridgeSettings.vue
 get_server_member_counts	definer	TABLE(server_id uuid, member_count bigint)	anon+authenticated+service_role	client	rpc in src/components/InviteModal.vue, src/services/AdminService.ts, src/services/serverMembershipService.ts
 get_server_member_timeouts	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], member_ap_ids text[], member_count integer)	service_role	client	rpc in federation-backend/src/listeners/ServerMembershipHandler.ts, federation-backend/src/utils/federationUtils.ts
@@ -591,6 +602,8 @@ get_user_push_subscriptions	definer	TABLE(subscription_id uuid, endpoint text, p
 get_voice_activity	definer	jsonb	authenticated+service_role	client	rpc in src/services/activities/activityService.ts
 get_voice_channel_participants	definer	TABLE(user_id uuid, username text, display_name text, avatar_url text, is_federated boolean, federated_domain text, joined_at timestamp with time zone, is_muted boolean, is_deafened boolean, is_video_enabled boolean, is_screen_sharing boolean)	service_role	service key	nothing references it
 guard_bot_permission_grants	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/UPDATE (a_bot_server_permissions_grant_guard)
+guard_bridge_author	invoker	trigger	-	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_bridge_author_guard), public.reactions BEFORE INSERT/UPDATE (a_bridge_author_guard)
+guard_bridge_preferences	invoker	trigger	-	trigger	trigger public.bots BEFORE INSERT/UPDATE (a_bridge_platform_guard), public.user_servers BEFORE INSERT/UPDATE (a_bridge_preference_guard)
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE INSERT/UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_conversation_participant_client_write	invoker	trigger	service_role	trigger	trigger public.conversation_participants BEFORE UPDATE (a_conversation_participants_client_write_guard)
@@ -601,6 +614,7 @@ guard_integration_bot_client_write	invoker	trigger	service_role	trigger	trigger 
 guard_integration_install_client_write	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/DELETE/UPDATE (a_bot_server_permissions_integration_guard)
 guard_invite_client_write	invoker	trigger	service_role	trigger	trigger public.invites BEFORE INSERT/UPDATE (a_invites_client_write_guard)
 guard_local_username	definer	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (guard_local_username)
+guard_matrix_bridge_preference	invoker	trigger	-	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_matrix_bridge_preference_guard)
 guard_megolm_key_request	definer	trigger	service_role	trigger	trigger public.megolm_key_requests BEFORE UPDATE (a_guard_megolm_key_request)
 guard_message_client_write	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_client_write_guard)
 guard_message_media_paths	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_media_path_guard)
@@ -715,6 +729,9 @@ mark_conversation_as_read	definer	void	authenticated+service_role	client	rpc in 
 mark_notifications_read_by_context	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ViewContextTracker.ts
 mark_server_as_read	definer	void	authenticated+service_role	client	rpc in src/services/TodayDigestService.ts, src/services/readState.ts
 mark_server_welcome_seen	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
+matrix_bridge_bind_room	definer	jsonb	service_role	client	named in bot-gateway/src/api/__tests__/BotRestAPI.matrixBridge.test.ts, bot-gateway/src/bridge/matrixRooms.ts
+matrix_bridge_channel_members	definer	TABLE(id uuid, username text, display_name text, avatar_url text, nickname text, domain text, is_local boolean)	service_role	client	rpc in bot-gateway/src/bridge/matrixRooms.ts
+matrix_bridge_room	definer	jsonb	service_role	client	named in bot-gateway/src/api/__tests__/BotRestAPI.bridgeFiles.test.ts, bot-gateway/src/api/__tests__/BotRestAPI.matrixBridge.test.ts, bot-gateway/src/bridge/matrixRooms.ts
 megolm_key_scope_allowed	definer	text	service_role	client, trigger	called by broadcast_key_request_event, fulfill_megolm_key_request, get_relayable_key_requests, +2
 megolm_session_began_before	definer	boolean	service_role	client, trigger	called by megolm_key_scope_allowed
 member_voice_channel	definer	uuid	service_role	client	called by move_voice_member, my_voice_state, set_server_voice_state
@@ -953,9 +970,12 @@ set_domain_moderation	definer	void	authenticated+service_role	client	rpc in src/
 set_domain_reject_reports	definer	void	authenticated+service_role	client	rpc in src/services/AdminService.ts
 set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts
 set_kofi_webhook_token	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
+set_matrix_bridge_sender_mode	definer	jsonb	authenticated	client	rpc in src/components/settings/MatrixBridgeSettings.vue
 set_member_instance	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers BEFORE INSERT (auto_set_member_instance)
 set_message_embeds_suppressed	definer	boolean	authenticated+service_role	client	rpc in src/services/messageEmbeds.ts
 set_my_account_aliases	definer	jsonb	authenticated+service_role	client	rpc in federation-backend/src/routes/accountMigration.ts
+set_server_bridge_opt_out	definer	boolean	authenticated	http authenticated	nothing references it
+set_server_bridge_platform_opt_out	definer	boolean	authenticated	client	rpc in src/stores/useBridgePrivacy.ts
 set_server_featured	definer	void	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
 set_server_member_timeout	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts

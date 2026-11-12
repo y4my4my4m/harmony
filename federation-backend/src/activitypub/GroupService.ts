@@ -341,7 +341,7 @@ async function pinSummaries(
       const { data, error } = await supabase
         .from('messages')
         .select(`id, channel_id, pinned_at, is_system, bot_id,
-          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user,
+          system_type:metadata->>type, webhook:metadata->webhook, discord_user:metadata->discord_user, bridge_author:metadata->bridge_author,
           author:profiles!messages_user_id_fkey(username),
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)`)
         .in('channel_id', chunk)
@@ -356,7 +356,7 @@ async function pinSummaries(
         return null;
       }
       for (const row of (data || []) as any[]) {
-        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user };
+        const metadata = { type: row.system_type, webhook: row.webhook, discord_user: row.discord_user, bridge_author: row.bridge_author };
         rowsOf.get(row.channel_id)?.push({ ...row, metadata });
       }
       if ((data || []).length < READ_PAGE) break;

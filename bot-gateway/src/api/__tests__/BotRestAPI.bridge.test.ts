@@ -87,7 +87,8 @@ const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
-  mocks.rpc.mockImplementation(async (fn: string) => {
+  mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'bridge_visible_message_ids') return { data: args.p_message_ids, error: null }
     if (fn === 'update_message_content_silent') return { data: true, error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
@@ -162,6 +163,16 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony' })
   })
 
+  it('does not disclose private metadata through a mapping write after member opt-out', async () => {
+    seed()
+    db.rows('messages')[0].metadata.private_note = 'private member data'
+    mocks.rpc.mockResolvedValue({ data: [], error: null })
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(404)
+    expect(JSON.stringify(res.body)).not.toContain('private member data')
+    expect(db.writesTo('messages', 'update')).toHaveLength(0)
+  })
+
   it('refuses a channel the bridge does not pair', async () => {
     seed()
     const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
@@ -184,6 +195,15 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     seed({ v2: true, v1: true })
     const v2 = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
     expect(v2.status).toBe(403)
+  })
+
+  it.each(['server-owner', 'pairing-creator'])('accepts a legacy bridge owned by the %s even with another installer', async kind => {
+    seed({ v2: false, v1: true, installedBy: '00000000-0000-0000-0000-0000000000ee' })
+    const creator = '00000000-0000-0000-0000-0000000000af'
+    db.rows('discord_bridge_pairings')[0].created_by = creator
+    db.rows('bots')[0].owner_id = kind === 'server-owner' ? OWNER_ID : creator
+    const res = await supertest(app()).patch(`/api/v1/messages/${UNPAIRED_MESSAGE}/metadata`).send({ metadata: MAPPING })
+    expect(res.status).toBe(200)
   })
 
   it('takes no v1 pairing for a bridge bot neither the server owner nor the pairing creator brought', async () => {
@@ -337,6 +357,27 @@ describe('relayed authors and server-only content', () => {
       .send({ content: [{ type: 'text', text: 'hi' }], metadata: { ...AUTHOR, discord_message_id: '7' } })
     expect(res.status).toBe(201)
     expect(inserted().metadata).toEqual({ ...AUTHOR, discord_message_id: '7', bot: true, created_via: 'bot_api' })
+  })
+
+  it('retains the upstream Discord pairing TTL but expires it after sixty seconds', async () => {
+    seed()
+    const api = app()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    const send = () => supertest(api).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
+    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+    db.rows('discord_bridge_channels').splice(0)
+    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+    now.mockReturnValue(1_060_000)
+    expect((await send()).body.metadata).not.toHaveProperty('discord_user')
+  })
+
+  it('never lets cached Discord authorization override the durable Matrix platform', async () => {
+    seed()
+    const api = app()
+    const send = () => supertest(api).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: 'hi', metadata: AUTHOR })
+    expect((await send()).body.metadata.discord_user).toEqual(AUTHOR.discord_user)
+    db.rows('bots')[0].bridge_platform = 'matrix'
+    expect((await send()).body.metadata).not.toHaveProperty('discord_user')
   })
 
   it('drops it in a channel the bridge does not pair, and from a bot that is no bridge bot', async () => {

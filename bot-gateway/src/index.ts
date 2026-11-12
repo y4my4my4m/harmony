@@ -213,14 +213,10 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
     return
   }
 
-  const bridgedUsers = gateway.getBridgedUsers(channelId)
-  const hasBridge = gateway.hasChannelBridge(channelId)
-
-  res.json({
-    channel_id: channelId,
-    has_bridge: hasBridge,
-    users: bridgedUsers
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers([channelId])
+    res.json({ channel_id: channelId, has_bridge: bridgedUsers.length > 0, users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
@@ -253,14 +249,10 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
   const allIds = (channels ?? []).map((c: { id: string }) => c.id)
   const viewable = await Promise.all(allIds.map((id) => canViewChannel(callerProfileId, serverId, id)))
   const channelIds = allIds.filter((_id, i) => viewable[i])
-  const bridgedUsers = gateway.getBridgedUsersForServer(channelIds)
-  const hasBridge = gateway.hasBridgedUsersForServer(channelIds)
-
-  res.json({
-    server_id: serverId,
-    has_bridge: hasBridge,
-    users: bridgedUsers,
-  })
+  try {
+    const bridgedUsers = await gateway.getAuthorizedBridgedUsers(channelIds)
+    res.json({ server_id: serverId, has_bridge: bridgedUsers.length > 0, users: bridgedUsers })
+  } catch { res.status(503).json({ error: 'Bridge membership unavailable' }) }
 })
 
 // On-demand attachment refresh, active when bridge_attachment_mode = 'refresh'.

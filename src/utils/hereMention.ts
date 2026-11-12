@@ -4,6 +4,7 @@
  * `@role:UUID` for a role.
  */
 import type { MessagePart, RoleMentionContent } from '@/types'
+import { isMatrixMention } from '@/utils/matrixMentions'
 
 export const HERE_ROLE_ID = 'here'
 export const HERE_MENTION_TOKEN = `@role:${HERE_ROLE_ID}`
@@ -37,7 +38,7 @@ export function mentionsViewer(content: readonly MessagePart[] | null | undefine
   for (const part of content as any[]) {
     if (!part || typeof part !== 'object') continue
     if (part.type === 'mention') {
-      if (viewer.profileId && part.userId === viewer.profileId) return true
+      if (!isMatrixMention(part) && viewer.profileId && part.userId === viewer.profileId) return true
     } else if (part.type === 'role_mention') {
       if (part.roleId === HERE_ROLE_ID) return true
       if (typeof part.roleId === 'string' && viewer.roleIds.has(part.roleId)) return true

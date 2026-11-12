@@ -5,6 +5,7 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
+import { isMatrixMention } from '@/utils/matrixMentions'
 import { maskSpoilers } from '@/utils/spoiler'
 import { pollPreview } from '@/utils/messagePoll'
 import type { Notification } from '@/types'
@@ -15,6 +16,7 @@ import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
 import { getInstanceDomain } from '@/services/instanceConfig'
 import { urlPartPlainText } from '@/utils/maskedLinks'
+import { getBridgedAuthor } from '@/utils/messageAuthor'
 
 export interface NotificationMessage {
   title: string
@@ -38,7 +40,9 @@ function getActorFromData(data: Record<string, any>) {
 
 function getActorDisplayName(data: Record<string, any>): string {
   const actor = getActorFromData(data)
+  const bridged = getBridgedAuthor(data.message) || getBridgedAuthor(actor) || getBridgedAuthor(data)
   return (
+    bridged?.display_name || bridged?.username ||
     actor?.display_name ||
     actor?.username ||
     data.sender_display_name ||
@@ -66,7 +70,7 @@ function extractContentText(content: any): string | null {
     const text = content
       .map((part: any) => {
         if (part.type === 'text') return part.text
-        if (part.type === 'mention') return `@${part.username || ''}`
+        if (part.type === 'mention') return isMatrixMention(part) ? part.userId : `@${part.username || ''}`
         if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji || ''}:`
         if (part.type === 'hashtag') return `#${part.name || ''}`
         if (part.type === 'url') return part.url ? urlPartPlainText(part) : ''
@@ -659,7 +663,15 @@ export class NotificationFormatter {
   /**
    * Web handle from notification payload (set by DB via notification_actor_json).
    */
+  static getBridgeAuthor(notification: Notification) {
+    const data = notification.data || {}
+    return getBridgedAuthor(data.message) || getBridgedAuthor(getActorFromData(data)) || getBridgedAuthor({ metadata: data.metadata })
+  }
+
   static getActorHandle(notification: Notification): string | null {
+    const bridged = this.getBridgeAuthor(notification)
+    if (bridged?.platform === 'matrix') return bridged.id
+    if (bridged) return bridged.username.startsWith('@') ? bridged.username : `@${bridged.username}`
     const actor = getActorFromData(notification.data || {})
     if (!actor?.handle) return null
     const h = String(actor.handle)
@@ -676,6 +688,7 @@ export class NotificationFormatter {
    */
   static getActorInfo(notification: Notification): { actorUserId: string; titleSuffix: string } | null {
     const data = notification.data || {}
+    if (this.getBridgeAuthor(notification)) return null
 
     let actorUserId: string | null = null
     let actorDisplayName: string | null = null
@@ -715,6 +728,8 @@ export class NotificationFormatter {
    * Handles both structured format (sender object) and legacy format
    */
   static getUsername(notification: Notification): string {
+    const bridged = this.getBridgeAuthor(notification)
+    if (bridged) return bridged.display_name || bridged.username
     const data = notification.data
     
     // For ActivityPub notifications, prioritize the handle (includes domain)
@@ -784,6 +799,8 @@ export class NotificationFormatter {
    * Handles both structured format (sender object) and legacy format
    */
   static getAvatarUrl(notification: Notification): string {
+    const bridged = this.getBridgeAuthor(notification)
+    if (bridged) return utilGetAvatarUrl(bridged.avatar_url) || '/default_avatar.webp'
     const data = notification.data
     
     // Prioritize structured sender object

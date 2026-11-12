@@ -4,7 +4,7 @@
  * message the bridge relayed out.
  */
 import { describe, it, expect } from 'vitest'
-import { getBridgeSource, getForeignAuthor, getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor'
+import { getBridgedAuthor, getBridgeSource, getForeignAuthor, getHarmonyProfileUserId, getRemoteAuthor, getWebhookAuthor, isBotAuthorMessage, isBridgedAuthorMessage, messageAuthorKey } from '@/utils/messageAuthor'
 import type { Message } from '@/types'
 
 const message = (metadata: Record<string, unknown> | undefined, extra: Partial<Message> = {}) =>
@@ -26,6 +26,27 @@ describe('isBridgedAuthorMessage', () => {
 
   it('is false for a plain Harmony message', () => {
     expect(isBridgedAuthorMessage(message(undefined))).toBe(false)
+  })
+})
+
+describe('generic bridge authors', () => {
+  it.each(['matrix', 'discord'] as const)('normalizes %s authors ahead of legacy Discord metadata', platform => {
+    const author = { platform, id: '@sam:example.org', username: 'sam', display_name: 'Sam', avatar_url: 'https://cdn.test/s.png' }
+    const posted = message({ bridge_author: author, discord_user: { id: 'old', username: 'old' }, bridge_source: 'discord' }, { bot_id: 'bridge' })
+    expect(getBridgedAuthor(posted)).toEqual(author)
+    expect(getBridgeSource(posted)).toBe(platform)
+    expect(isBridgedAuthorMessage(posted)).toBe(true)
+    expect(getHarmonyProfileUserId(posted)).toBe('')
+    expect(getForeignAuthor(posted)).toEqual({ name: 'Sam', avatar_url: author.avatar_url })
+    expect(messageAuthorKey(posted)).toBe(`${platform}:${author.id}`)
+    expect(messageAuthorKey(posted)).not.toBe(messageAuthorKey(message({ bridge_author: { ...author, id: 'someone-else' } }, { bot_id: 'bridge' })))
+  })
+
+  it('rejects malformed generic authors and preserves legacy fallback', () => {
+    for (const author of [null, {}, { platform: 'other', id: 'a', username: 'a' }, { platform: 'matrix', id: '', username: 'a' }]) {
+      expect(getBridgedAuthor(message({ bridge_author: author }))).toBeNull()
+      expect(getBridgedAuthor(message({ bridge_author: author, discord_user: { id: '1', username: 'legacy' } }))?.platform).toBe('discord')
+    }
   })
 })
 

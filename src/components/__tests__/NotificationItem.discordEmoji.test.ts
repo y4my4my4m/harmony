@@ -26,6 +26,20 @@ function row(emojiName: string) {
 }
 
 describe('NotificationItem reaction emoji', () => {
+  it('names and badges a Matrix reactor without resolving the relay as a person', () => {
+    const wrapper = mount(NotificationItem, {
+      global: { plugins: [i18n], stubs: { BridgeSourceBadge: { props: ['source'], template: '<span data-testid="source">{{ source }}</span>' } } },
+      props: { now: new Date(), notification: { id: 'matrix', type: 'reaction', is_read: false, created_at: new Date().toISOString(), data: {
+        reactor: { id: 'relay', display_name: 'Relay Bot', metadata: { bridge_author: { platform: 'matrix', id: '@sam:example.org', username: 'sam', display_name: 'Sam' } } },
+        reaction: { emoji_name: '🔥' },
+      } } as any },
+    })
+    expect(wrapper.get('.actor').text()).toBe('Sam')
+    expect(wrapper.get('[data-testid="source"]').text()).toBe('matrix')
+    expect(wrapper.text()).not.toContain('Relay Bot')
+    wrapper.unmount()
+  })
+
   it('renders a bridged Discord emoji from the CDN', () => {
     const img = row('discord:Vibing_Cat:896231014437896192').find('img.inline-emoji')
     expect(img.attributes('src')).toBe('https://cdn.discordapp.com/emojis/896231014437896192.png')

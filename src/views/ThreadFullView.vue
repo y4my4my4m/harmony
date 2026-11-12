@@ -163,16 +163,20 @@
                     tabindex="-1"
                     data-testid="thread-parent-message"
                   >
-              <Avatar 
-                :src="getAvatarUrl(thread.parent_message.user_id).value" 
-                :alt="getDisplayName(thread.parent_message.user_id).value"
+              <Avatar
+                :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAvatarUrl(getHarmonyProfileUserId(thread.parent_message)).value"
+                :alt="parentForeignAuthor ? parentForeignAuthor.name : getDisplayName(getHarmonyProfileUserId(thread.parent_message)).value"
                 size="md"
-                :interactive="true"
+                :interactive="!parentForeignAuthor"
               />
               <div class="message-content">
                 <div class="message-header">
-                  <span class="username" :style="{ color: getColor(thread.parent_message.user_id).value }">
-                    <DisplayName :userId="thread.parent_message.user_id" />
+                  <span v-if="parentForeignAuthor" class="username">
+                    {{ parentForeignAuthor.name }}
+                    <BridgeSourceBadge v-if="getBridgeSource(thread.parent_message)" :source="getBridgeSource(thread.parent_message)!" />
+                  </span>
+                  <span v-else class="username" :style="{ color: getColor(getHarmonyProfileUserId(thread.parent_message)).value }">
+                    <DisplayName :userId="getHarmonyProfileUserId(thread.parent_message)" />
                     <FederatedUserBadge :user-id="getHarmonyProfileUserId(thread.parent_message)" />
                   </span>
                   <span class="timestamp">{{ formatDate(thread.parent_message.created_at) }}</span>
@@ -274,8 +278,8 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
-import { getHarmonyProfileUserId } from '@/utils/messageAuthor'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { getHarmonyProfileUserId, getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
@@ -373,6 +377,7 @@ const composerElement = computed(() => messageInputRef.value?.composerRef || nul
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)
+const parentForeignAuthor = computed(() => getForeignAuthor(thread.value?.parent_message))
 // A deleted thread returns the view to its channel; one opened from a link or notice after its
 // deletion says so.
 const { checkMissing: checkThreadMissing } = useOpenThreadGone(thread, (how) => {

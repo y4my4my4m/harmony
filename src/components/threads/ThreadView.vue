@@ -217,8 +217,8 @@
                   data-testid="thread-parent-message"
                 >
                   <div class="message-avatar">
-                    <Avatar 
-                      :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
+                    <Avatar
+                      :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)"
                       :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
                       size="sm"
                       :interactive="!parentForeignAuthor"
@@ -226,7 +226,7 @@
                   </div>
                   <div class="message-main">
                     <div class="message-meta">
-                      <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                      <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}<BridgeSourceBadge v-if="getBridgeSource(displayParentMessage)" :source="getBridgeSource(displayParentMessage)!" /></span>
                       <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                         <DisplayName :userId="displayParentMessage.user_id" />
                         <FederatedUserBadge :user-id="displayParentMessage.user_id" />
@@ -249,7 +249,7 @@
                   <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
                   <div class="divider-line"></div>
                 </div>
-          
+
                 <!-- Draft mode hint -->
                 <div class="draft-hint" v-if="isDraftMode">
                   <div class="divider-line"></div>
@@ -339,7 +339,6 @@ import { format } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import FederatedUserBadge from '@/components/messages/FederatedUserBadge.vue'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
@@ -383,7 +382,8 @@ import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useOpenThreadGone } from '@/composables/useOpenThreadGone'
 import { useThreadDraft } from '@/composables/useThreadDraft'
-import { getForeignAuthor } from '@/utils/messageAuthor'
+import { getForeignAuthor, getBridgeSource } from '@/utils/messageAuthor'
+import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
 import { usePortalTarget } from '@/composables/usePortalTarget'

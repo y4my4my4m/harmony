@@ -61,6 +61,8 @@ import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
 import { createImeKeyFilter, historyShortcut, isImeKeyEvent } from '@/utils/editorShortcuts';
 import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
+import { parseMatrixMentionToken } from '@/utils/matrixMentions';
+import { isEscapedAt } from '@/utils/markupEscapes';
 import { editorSpaces, linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { linkPasteText } from '@/utils/maskedLinks';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
@@ -336,7 +338,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // @username@domain    remote user
   // @username           local user
   const mentionRegex = new RegExp(
-    `((?<!\\\\)@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
+    `((?<!\\\\)@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})|(<@matrix:[^<>\\s]*>?)`,
     'gu',
   );
   
@@ -353,7 +355,20 @@ const processMentionsInText = (text: string): DocumentFragment => {
       fragment.appendChild(emojiText(editorSpaces(textBefore)));
     }
     
-    if (match[1]) {
+    if (match[6]) {
+      const matrix = !isEscapedAt(text, matchStart) && parseMatrixMentionToken(match[6]);
+      if (matrix) {
+        const span = document.createElement('span');
+        span.className = 'editor-mention';
+        span.contentEditable = 'false';
+        span.setAttribute('data-display-text', match[0]);
+        span.textContent = matrix.id;
+        span.title = `Matrix: ${matrix.id}`;
+        fragment.appendChild(span);
+      } else {
+        fragment.appendChild(document.createTextNode(match[0]));
+      }
+    } else if (match[1]) {
       // Displays @RoleName; @role:UUID is retained for extraction.
       const roleId = match[2];
       const cached = getCachedRoleDisplay(roleId);

@@ -146,6 +146,44 @@ afterEach(() => {
 })
 
 describe('UserProfileModal profile field links', () => {
+  it('renders Matrix identities in the shared card without native actions or profile requests', async () => {
+    const wrapper = mount(UserProfileModal, {
+      props: { show: true, user: { id: 'matrix:@sam:example.org', matrix_id: '@sam:example.org', bridge_source: 'matrix', username: 'sam', display_name: 'Sam' } as any },
+      global: { directives: { 'click-outside': {} } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('@sam:example.org')
+    expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe('matrix')
+    expect(wrapper.get('.display-name').text()).toBe('Sam')
+    expect(wrapper.get('.display-name').attributes('style')).toContain('var(--text-primary)')
+    expect(wrapper.get('.profile-actions a').attributes()).toMatchObject({ href: 'https://matrix.to/#/%40sam%3Aexample.org', target: '_blank', rel: 'noopener noreferrer' })
+    expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
+    expect(wrapper.find('.banner-actions .action-button').exists()).toBe(false)
+    expect(wrapper.find('.activities-section').exists()).toBe(false)
+    expect(supabase.from).not.toHaveBeenCalled()
+    expect(relationships).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('does not make unsafe Matrix identities into external links or HTML', async () => {
+    const wrapper = open({ id: 'matrix:javascript:alert(1)', bridge_source: 'matrix', matrix_id: 'javascript:alert(1)', display_name: '<script>Sam</script>' })
+    await flushPromises()
+    expect(wrapper.get('.display-name').text()).toBe('<script>Sam</script>')
+    expect(wrapper.find('.display-name script').exists()).toBe(false)
+    expect(wrapper.find('.profile-actions a').exists()).toBe(false)
+    expect(supabase.from).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('keeps the existing Discord card and its copy-ID action', async () => {
+    const wrapper = open({ id: 'discord:123', discord_id: '123', bridge_source: 'discord', username: 'sam', display_name: 'Discord Sam' })
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe('discord')
+    expect(wrapper.get('.display-name').text()).toBe('Discord Sam')
+    expect(wrapper.get('.profile-actions').text()).toContain('Copy Discord ID')
+    expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
+    expect(supabase.from).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
   it('marks a label and a deceptive URL as masked, not the URL itself', async () => {
     const wrapper = open()
     await flushPromises()

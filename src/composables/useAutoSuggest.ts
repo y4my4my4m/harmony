@@ -17,12 +17,14 @@ import { supabase } from '@/supabase';
 import {
   clearBridgedUsersCache,
   fetchBridgedChannelUsers,
+  bridgedUserKey,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
+import { matrixMentionToken, parseMatrixId } from '@/utils/matrixMentions';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
@@ -478,7 +480,7 @@ export function useAutoSuggest(
       
       // NOTE: the bridge bot check runs in handleInput on '@'; this list stays empty until then.
       for (const bridgedUser of bridgedUsers.value) {
-        const bridgedKey = `discord:${bridgedUser.id}`;
+        const bridgedKey = bridgedUserKey(bridgedUser);
         if (seenUsers.has(bridgedKey)) {
           continue;
         }
@@ -487,26 +489,27 @@ export function useAutoSuggest(
         const displayName = normalizeSearchText(bridgedUser.displayName || '');
         const usernameStr = normalizeSearchText(bridgedUser.username || '');
         
-        if (displayName.includes(query) || usernameStr.includes(query)) {
-          // Discord mentions store `@d!ID:username`: the id drives translation, the username display.
-          const displayText = `@${bridgedUser.username}`;
-          const mentionText = `@d!${bridgedUser.id}:${bridgedUser.username}`;
+        if (displayName.includes(query) || usernameStr.includes(query) || bridgedUser.id.toLowerCase().includes(query)) {
+          const matrix = bridgedUser.source === 'matrix' ? parseMatrixId(bridgedUser.id) : null;
+          const mentionText = bridgedUser.source === 'matrix' ? matrixMentionToken(bridgedUser.id) : `@d!${bridgedUser.id}:${bridgedUser.username}`;
+          if (!mentionText) continue;
+          const displayText = matrix?.id || `@${bridgedUser.username}`;
           
           suggestions.push({
-            id: bridgedUser.id,
+            id: bridgedKey,
             display_name: bridgedUser.displayName,
             username: bridgedUser.username,
             avatar: bridgedUser.avatarUrl,
             display_text: displayText, // @username
             mention_text: mentionText, // @d!ID:username
             isBridged: true,
-            bridgeSource: 'discord',
+            bridgeSource: bridgedUser.source || 'discord',
             user: {
               id: bridgedUser.id,
               username: bridgedUser.username,
               displayName: bridgedUser.displayName,
               avatarUrl: bridgedUser.avatarUrl,
-              domain: 'discord.com',
+              domain: matrix?.domain || 'discord.com',
               isLocal: false
             }
           });
@@ -808,10 +811,12 @@ export function useAutoSuggest(
 
     try {
       const result = await fetchBridgedChannelUsers(channelId);
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = result.users;
       bridgedUsersChannelId.value = channelId;
       bridgedUsersLoaded.value = true;
     } catch {
+      if (channelId !== serverChannelStore.currentChannelId) return;
       bridgedUsers.value = [];
       bridgedUsersLoaded.value = true;
     }

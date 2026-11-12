@@ -65,6 +65,10 @@ export class FakeQuery implements PromiseLike<FakeResult> {
     return this
   }
 
+  returns<_T>(): this {
+    return this
+  }
+
   insert(values: Row | Row[]): this {
     this.op = 'insert'
     this.payload = values

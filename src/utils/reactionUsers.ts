@@ -1,6 +1,7 @@
 import type { ReactionActor, ReactionGroup } from '@/types'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import { formatHandle } from '@/utils/handles'
+import { getBridgedAuthor } from '@/utils/messageAuthor'
 
 /** metadata.discord_user of a reaction bridged from Discord. */
 export type DiscordReactionUser = NonNullable<NonNullable<ReactionActor['metadata']>['discord_user']>
@@ -11,14 +12,14 @@ export interface ReactionUser {
   key: string
   /** Profile id, bot id, or Discord user snowflake, per `kind`. */
   id: string
-  kind: 'user' | 'bot' | 'discord'
+  kind: 'user' | 'bot' | 'discord' | 'matrix'
   displayName: string
   /** `@username`, or `@username@domain` for a remote user. */
   handle: string | null
   avatarUrl: string
   userColor: string
   isBridged: boolean
-  bridgeSource?: 'discord'
+  bridgeSource?: 'discord' | 'matrix'
   discordUser?: DiscordReactionUser
 }
 
@@ -60,7 +61,7 @@ export function reactionGroupContent(group: Pick<ReactionGroup, 'emoji'>): strin
 export function reactionProfileIds(actors: ReactionActor[] | undefined): string[] {
   const ids = new Set<string>()
   for (const actor of actors ?? []) {
-    if (actor.user_id && !actor.metadata?.discord_user) ids.add(actor.user_id)
+    if (actor.user_id && !getBridgedAuthor(actor)) ids.add(actor.user_id)
   }
   return [...ids]
 }
@@ -75,19 +76,19 @@ export function formatUserHandle(
 }
 
 export function toReactionUser(actor: ReactionActor, resolvers: ReactionUserResolvers): ReactionUser {
-  const discordUser = actor.metadata?.discord_user
-  if (discordUser) {
+  const bridged = getBridgedAuthor(actor)
+  if (bridged) {
     return {
-      key: `discord:${discordUser.id}`,
-      id: discordUser.id,
-      kind: 'discord',
-      displayName: discordUser.display_name || discordUser.username || 'Discord User',
-      handle: discordUser.username ? `@${discordUser.username}` : null,
-      avatarUrl: discordUser.avatar_url || '',
+      key: `${bridged.platform}:${bridged.id}`,
+      id: bridged.id,
+      kind: bridged.platform,
+      displayName: bridged.display_name || bridged.username || (bridged.platform === 'matrix' ? 'Matrix User' : 'Discord User'),
+      handle: bridged.platform === 'matrix' ? bridged.id : bridged.username ? `${bridged.username.startsWith('@') ? '' : '@'}${bridged.username}` : null,
+      avatarUrl: bridged.avatar_url || '',
       userColor: BOT_NAME_COLOR,
       isBridged: true,
-      bridgeSource: 'discord',
-      discordUser,
+      bridgeSource: bridged.platform,
+      discordUser: bridged.platform === 'discord' ? bridged : undefined,
     }
   }
 

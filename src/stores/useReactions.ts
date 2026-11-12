@@ -12,6 +12,7 @@ import { moderationRejectionFromError } from '@/services/AutoModService'
 import { i18n } from '@/i18n'
 import { useToast } from 'vue-toastification'
 import { reactionGroupContent, reactionGroupKey } from '@/utils/reactionUsers'
+import { getBridgedAuthor } from '@/utils/messageAuthor'
 
 interface MessageReactionInput {
   emojiId: string
@@ -26,11 +27,15 @@ type ActorInput = Pick<ReactionActor, 'bot_id' | 'username' | 'display_name' | '
 const isUuid = (str: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
+const bridgedKey = (actor: ActorInput): string => {
+  const author = getBridgedAuthor(actor)
+  return author ? `${author.platform}:${author.id}` : ''
+}
 const actorKey = (actor: ActorInput): string =>
-  actor.metadata?.discord_user?.id || actor.id || actor.bot_id || ''
+  bridgedKey(actor) || actor.id || actor.bot_id || ''
 
 const reactionKey = (r: ReactionActor): string =>
-  r.metadata?.discord_user?.id || r.user_id || r.bot_id || r.reaction_id || ''
+  bridgedKey(r) || r.user_id || r.bot_id || r.reaction_id || ''
 
 // A pill fetched from the server carries a non-uuid content in emoji_id (a Discord
 // identifier with an image); one built from realtime carries it in emoji.content.
@@ -176,9 +181,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       const emojiId: string | undefined = payload?.emoji_id || payload?.custom_emoji_content
       if (!emojiId || !(payload?.user_id || payload?.bot_id)) return null
       const operation = (payload?.op === 'DELETE' || payload?.type === 'reaction:delete') ? 'remove' : 'add'
-      const isCurrentUser = !!payload.user_id && payload.user_id === (useProfileStore().profileId || '')
       const metadata = payload.metadata ?? undefined
-      const discordUserId = metadata?.discord_user?.id as string | undefined
+      const bridged = getBridgedAuthor({ metadata })
+      const isCurrentUser = !bridged && !!payload.user_id && payload.user_id === (useProfileStore().profileId || '')
       // Custom (server) emoji carry name/url in the payload so a brand-new chip
       // renders even when this client hasn't cached the emoji. A row without an emoji_id
       // takes its image from metadata.remote_emoji_url, Discord's CDN only.
@@ -204,7 +209,7 @@ export const useReactionsStore = defineStore('reactions', () => {
         operation,
         isCurrentUser,
         emojiData,
-        discordUserId ? payload.reaction_id : undefined,
+        bridged ? payload.reaction_id : undefined,
       )
     },
     matchesEmoji: (group, emoji) => matchesEmoji(group, emoji.emojiId),

@@ -10,6 +10,7 @@
 
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
+import { isMatrixMention } from '../utils/mentionParts.js';
 import { logger } from '../utils/logger.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
@@ -46,7 +47,7 @@ export function remoteMentionHandles(content: unknown): MentionHandle[] {
   const localHost = String(config.INSTANCE_DOMAIN || '').toLowerCase();
   const out = new Map<string, MentionHandle>();
   for (const part of content) {
-    if (part?.type !== 'mention' || part.isLocal || part.isBridged) continue;
+    if (part?.type !== 'mention' || part.isLocal || part.isBridged || isMatrixMention(part)) continue;
     if (typeof part.username !== 'string' || typeof part.domain !== 'string') continue;
     const username = part.username.replace(/^@+/, '');
     const domain = part.domain.toLowerCase();

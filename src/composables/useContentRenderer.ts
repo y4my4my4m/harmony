@@ -10,6 +10,7 @@
 
 import { unescapeMarkup } from '@/utils/markupEscapes';
 import { computed, type Ref } from 'vue';
+import { isMatrixMention } from '@/utils/matrixMentions';
 import type { MessagePart } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
@@ -172,6 +173,7 @@ export function useContentRenderer(
 
   const formatMentionDisplay = (mention: MessagePart): string => {
     if (mention.type !== 'mention') return '';
+    if (isMatrixMention(mention)) return mention.userId;
     
     // Use stored mention format if available (legacy support) - normalize to avoid @@.
     // The `mention` field is a legacy property not declared on MentionContent;
@@ -395,7 +397,7 @@ export function useContentRenderer(
           const mentionHandle = part.domain
             ? `@${part.username || ''}@${part.domain}`
             : `@${part.username || ''}`;
-          const dataAttrs = renderOptions.enableClickHandlers 
+          const dataAttrs = renderOptions.enableClickHandlers && !isMatrixMention(part)
             ? `data-user-id="${escapeHtml(String(part.userId || ''))}" data-handle="${escapeHtml(mentionHandle)}"` 
             : '';
           return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;

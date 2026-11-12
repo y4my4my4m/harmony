@@ -121,6 +121,8 @@ To recover messages missed while disconnected, read the channels you care about 
 - **No thread events.** Messages posted in a thread arrive as `MESSAGE_CREATE` with `thread_id` set; there is no separate thread event.
 - **Interactions.** `INTERACTION_CREATE` goes only to the bot whose command was run, on every open connection, without the `read_messages` check: running the command is the member addressing that bot. The gateway reads new interactions every 250 milliseconds. One that cannot reach an open connection fails at once; one older than its 5-second answer window when the gateway reads it is dropped. Outgoing webhooks do not receive it.
 
+Bridge bots additionally respect each native member's **Bridge privacy** setting for message create/update/delete and reaction events. Public slash-command bot replies use the invoking member's consent, including their update/delete/reaction events. Preferences are checked at delivery without a consent cache; unavailable privacy state discloses no event. Ordinary bots and independent server webhooks are unaffected. This does not revoke previously delivered payloads or erase remote copies; queued bridge programs must also [recheck current consent](/build/rest#bridge-registration-and-consent).
+
 ## Events
 
 | Event | Sent when | Receivers |
@@ -379,9 +381,11 @@ Registers the remote platform's members for the channels a bridge relays. The ap
 | `createdAt` | string or `null` | Optional. ISO 8601. |
 | `presenceStatus` | string | Optional. `online`, `away`, `busy` or `offline`. |
 | `customStatus` | object or `null` | Optional. `{ "text", "emoji" }`. |
-| `source` | string | `discord`. |
+| `source` | string | `discord`, or `matrix` in an explicitly Matrix registration. |
 
-The gateway stores member objects as sent.
+Discord registrations retain their existing member fields. A durably Matrix-marked bot cannot omit or downgrade its platform to enter the legacy path. Matrix registrations set `d.platform` to `"matrix"` and supply per-channel members with `id` (full MXID), `username`, `displayName`, `avatarUrl` (empty or `null` when absent), and `source: "matrix"`. A current registered Matrix binding is required for every channel. Matrix identities are validated and bounded to 1,000 per list, with usernames/display names at most 100 characters and HTTP(S) avatar URLs at most 2048. Native role, Discord role, presence and arbitrary fields are not accepted as Matrix identity claims. A legacy/ordinary registration cannot inject Matrix members.
+
+A single bot must publish its **whole channel snapshot** on each op 6, not one channel per frame: later frames replace earlier ones. Snapshots from different bots/platforms sharing a channel remain separate; one disconnect does not erase the other's members. Matrix bindings are rechecked before returning cached Matrix members to the frontend. Discord's op 7 presence protocol remains Discord-specific.
 
 ### Bridge presence update (op 7)
 

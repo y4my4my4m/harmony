@@ -33,6 +33,7 @@ import {
   TOO_MANY_CONNECTIONS_CLOSE,
   WebSocketGateway,
   parsePresenceDeltas,
+  matrixMembers,
   sessionRevocationReason,
 } from '../WebSocketGateway.js'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
@@ -883,8 +884,9 @@ describe('bridge data registration (op 6)', () => {
   const MEMBER = { id: '80351110224678912', username: 'alice', displayName: 'Alice', avatarUrl: '', source: 'discord' }
   const conn = { botId: BOT_ID, username: 'bridge', scopes: [], lastHeartbeat: 0, sessionId: 's', tokenHash: 'h' }
 
-  function seed(install: Record<string, unknown> = {}) {
+  function seed(install: Record<string, unknown> = {}, bridgePlatform: string | null = null) {
     const db = new FakeDb({
+      bots: [{ id: BOT_ID, bridge_platform: bridgePlatform }],
       channels: [
         { id: GENERAL, server_id: SERVER_ID },
         { id: MODS_ONLY, server_id: SERVER_ID },
@@ -899,6 +901,7 @@ describe('bridge data registration (op 6)', () => {
       ],
     })
     mocks.from.mockImplementation((table: string) => db.from(table))
+    return db
   }
 
   const register = () =>
@@ -906,6 +909,76 @@ describe('bridge data registration (op 6)', () => {
       channels: [{ harmonyChannelId: GENERAL }, { harmonyChannelId: MODS_ONLY }, { harmonyChannelId: ELSEWHERE }],
       members: [MEMBER],
     })
+
+  const MATRIX_MEMBER = { id: '@sam:example.org', username: 'sam', displayName: 'Sam', avatarUrl: '', source: 'matrix' }
+  const registerMatrix = (connection = conn, members = [MATRIX_MEMBER]) =>
+    (gateway as any).handleBridgeDataRegistration(connection, { platform: 'matrix', channels: [{ harmonyChannelId: GENERAL, members }] })
+
+  it('accepts bounded Matrix identities only from a currently registered Matrix pair', async () => {
+    seed({}, 'matrix'); mocks.rpc.mockResolvedValue({ data: 'matrix', error: null })
+    await registerMatrix()
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([MATRIX_MEMBER])
+    expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([MATRIX_MEMBER])
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([])
+  })
+
+  it('cannot inject Matrix members through an ordinary legacy registration', async () => {
+    seed()
+    await (gateway as any).handleBridgeDataRegistration(conn, { channels: [{ harmonyChannelId: GENERAL, members: [MATRIX_MEMBER] }] })
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await registerMatrix()
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+
+  it.each([undefined, 'discord', 0, null, false])('never lets a durable Matrix bot downgrade to the legacy path (%s)', async platform => {
+    seed({}, 'matrix')
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await (gateway as any).handleBridgeDataRegistration(conn, { platform, channels: [{ harmonyChannelId: GENERAL, members: [
+      { id: GENERAL, username: 'fake-native', source: 'discord', harmonyRoleIds: ['admin'] },
+    ] }] })
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+    expect(await gateway.getAuthorizedBridgedUsers([GENERAL])).toEqual([])
+  })
+
+  it.each([0, null, false])('rejects a malformed legacy platform rather than coercing it (%s)', async platform => {
+    seed()
+    await (gateway as any).handleBridgeDataRegistration(conn, { platform, channels: [{ harmonyChannelId: GENERAL, members: [MEMBER] }] })
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+
+  it('rejects an unknown durable platform rather than treating it as legacy Discord', async () => {
+    seed({}, 'unknown')
+    await register()
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+
+  it('keeps separate snapshots for Discord and Matrix bots sharing a channel', async () => {
+    const db = seed()
+    await register()
+    const other = { ...conn, botId: '00000000-0000-0000-0000-0000000000b2' }
+    db.rows('bot_server_permissions').push({ bot_id: other.botId, server_id: SERVER_ID, is_active: true, read_messages: true })
+    db.rows('bots').push({ id: other.botId, bridge_platform: 'matrix' })
+    mocks.rpc.mockResolvedValue({ data: 'matrix', error: null })
+    await registerMatrix(other)
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([MEMBER, MATRIX_MEMBER])
+    ;(gateway as any).cleanupBotBridgeData(other.botId)
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([MEMBER])
+  })
+
+  it('fails a frontend read closed when the Matrix registration lookup fails', async () => {
+    seed({}, 'matrix'); mocks.rpc.mockResolvedValue({ data: 'matrix', error: null }); await registerMatrix()
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'offline' } })
+    await expect(gateway.getAuthorizedBridgedUsers([GENERAL])).rejects.toThrow('Bridge registration unavailable')
+  })
+
+  it('sanitizes Matrix member data without native roles, forged IDs, URLs or credentials', () => {
+    expect(matrixMembers([{ ...MATRIX_MEMBER, harmonyRoleIds: ['admin'], roles: [{ id: 'root' }], token: 'secret' }])).toEqual([MATRIX_MEMBER])
+    expect(matrixMembers([{ ...MATRIX_MEMBER, id: GENERAL }, { ...MATRIX_MEMBER, avatarUrl: 'https://token:secret@evil.example/a' }, { ...MATRIX_MEMBER, username: '' }])).toEqual([])
+    expect(matrixMembers([{ ...MATRIX_MEMBER, avatarUrl: null }])).toEqual([MATRIX_MEMBER])
+    expect(matrixMembers(Array(1001).fill(MATRIX_MEMBER))).toEqual([])
+  })
 
   it('keeps channels the bot sees and drops hidden ones and other servers', async () => {
     seed()
@@ -964,6 +1037,7 @@ describe('bridge data registration (op 6) across servers', () => {
 
   beforeEach(() => {
     db = new FakeDb({
+      bots: [{ id: BOT_ID, bridge_platform: null }],
       channels: [
         { id: CHANNEL_A, server_id: SERVER_A },
         { id: CHANNEL_A2, server_id: SERVER_A },
@@ -1059,6 +1133,7 @@ describe('bridge presence deltas (op 7)', () => {
 
   beforeEach(() => {
     const db = new FakeDb({
+      bots: [{ id: BOT_ID, bridge_platform: null }, { id: OTHER_BOT, bridge_platform: null }],
       channels: [
         { id: CHANNEL_A, server_id: SERVER_A },
         { id: CHANNEL_A2, server_id: SERVER_A },

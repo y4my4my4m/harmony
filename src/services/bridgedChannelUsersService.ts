@@ -2,8 +2,14 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { UserStatus, type User } from '@/types'
 import { apiUrl } from '@/services/instanceConfig'
+import { parseMatrixId } from '@/utils/matrixMentions'
 
 export const BRIDGED_DISCORD_USER_ID_PREFIX = 'discord:'
+export const BRIDGED_MATRIX_USER_ID_PREFIX = 'matrix:'
+export type BridgeMemberSource = 'discord' | 'matrix'
+export function bridgedUserKey(user: Pick<BridgedChannelUser, 'id' | 'source'>): string {
+  return `${user.source || 'discord'}:${user.id}`
+}
 
 export interface BridgedDiscordRole {
   id: string
@@ -31,7 +37,7 @@ export interface BridgedChannelUser {
   createdAt?: string | null
   presenceStatus?: 'online' | 'away' | 'busy' | 'offline'
   customStatus?: BridgedCustomStatus | null
-  source: 'discord'
+  source: BridgeMemberSource
 }
 
 interface CachedBridgedUsers {
@@ -47,8 +53,8 @@ const cache = new Map<string, CachedBridgedUsers>()
 const serverCache = new Map<string, CachedBridgedUsers>()
 const pending = new Map<string, Promise<CachedBridgedUsers>>()
 const serverPending = new Map<string, Promise<CachedBridgedUsers>>()
-/** Latest bridged user payload by Discord snowflake (any channel/server fetch). */
-const usersByDiscordId = new Map<string, BridgedChannelUser>()
+/** Latest payload by platform-qualified external id (any channel/server fetch). */
+const usersByKey = new Map<string, BridgedChannelUser>()
 
 function isCacheValid(entry: CachedBridgedUsers | undefined): boolean {
   if (!entry) return false
@@ -74,7 +80,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 function indexBridgedUsers(users: BridgedChannelUser[]): void {
   for (const user of users) {
-    usersByDiscordId.set(user.id, user)
+    usersByKey.set(bridgedUserKey(user), user)
   }
 }
 
@@ -87,16 +93,17 @@ export function clearBridgedUsersCache(channelId?: string): void {
     serverCache.clear()
     pending.clear()
     serverPending.clear()
-    usersByDiscordId.clear()
+    usersByKey.clear()
   }
 }
 
 /** Look up a bridged user from the in-memory cache (no network). */
 export function findBridgedUserInCache(
   _channelId: string | null | undefined,
-  discordUserId: string,
+  externalUserId: string,
+  source: BridgeMemberSource = 'discord',
 ): BridgedChannelUser | null {
-  return usersByDiscordId.get(discordUserId) ?? null
+  return usersByKey.get(`${source}:${externalUserId}`) ?? null
 }
 
 export function resolveBridgedUserColor(
@@ -106,6 +113,10 @@ export function resolveBridgedUserColor(
   if (harmonyRoleColor) return harmonyRoleColor
   const coloredRole = user.roles?.find(r => r.color)
   return coloredRole?.color ?? undefined
+}
+
+export function isBridgedMatrixProfileUser(user: { id?: string; bridge_source?: string } | null | undefined): boolean {
+  return user?.bridge_source === 'matrix' || !!user?.id?.startsWith(BRIDGED_MATRIX_USER_ID_PREFIX) || !!parseMatrixId(user?.id)
 }
 
 export function isBridgedDiscordProfileUser(
@@ -126,7 +137,7 @@ export function bridgedUserToProfileUser(bridged: BridgedChannelUser): User {
   }
 
   return {
-    id: `${BRIDGED_DISCORD_USER_ID_PREFIX}${bridged.id}`,
+    id: bridgedUserKey(bridged),
     username: bridged.username,
     display_name: bridged.displayName,
     avatar_url: bridged.avatarUrl,
@@ -135,8 +146,9 @@ export function bridgedUserToProfileUser(bridged: BridgedChannelUser): User {
     color: resolveBridgedUserColor(bridged),
     status,
     created_at: bridged.createdAt ?? undefined,
-    bridge_source: 'discord',
-    discord_id: bridged.id,
+    bridge_source: bridged.source || 'discord',
+    matrix_id: bridged.source === 'matrix' ? bridged.id : undefined,
+    discord_id: bridged.source === 'matrix' ? undefined : bridged.id,
     discord_joined_at: bridged.joinedAt ?? null,
     discord_custom_status: bridged.customStatus ?? null,
     roles: (bridged.roles ?? []).map(r => ({
@@ -163,6 +175,18 @@ export function discordMetadataToBridgedUser(meta: {
     avatarUrl: meta.avatar_url || '',
     source: 'discord',
   }
+}
+
+function normalizeUsers(data: { has_bridge?: boolean; users?: unknown[] }): BridgedChannelUser[] {
+  if (!data.has_bridge || !Array.isArray(data.users)) return []
+  return data.users.flatMap(value => {
+    if (!value || typeof value !== 'object') return []
+    const user = value as BridgedChannelUser
+    const source = user.source || 'discord' // Legacy endpoints omitted source.
+    if ((source !== 'discord' && source !== 'matrix') || typeof user.id !== 'string' || typeof user.username !== 'string') return []
+    if (source === 'matrix' && !parseMatrixId(user.id)) return []
+    return [{ ...user, source, displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || '' }]
+  })
 }
 
 export async function fetchBridgedChannelUsers(
@@ -198,9 +222,7 @@ export async function fetchBridgedChannelUsers(
       }
 
       const data = await response.json()
-      const users = data.has_bridge && Array.isArray(data.users)
-        ? data.users as BridgedChannelUser[]
-        : []
+      const users = normalizeUsers(data)
       const entry: CachedBridgedUsers = {
         users,
         hasBridge: !!data.has_bridge,
@@ -257,9 +279,7 @@ export async function fetchBridgedServerUsers(
       }
 
       const data = await response.json()
-      const users = data.has_bridge && Array.isArray(data.users)
-        ? data.users as BridgedChannelUser[]
-        : []
+      const users = normalizeUsers(data)
       const entry: CachedBridgedUsers = {
         users,
         hasBridge: !!data.has_bridge,
