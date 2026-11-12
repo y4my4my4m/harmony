@@ -394,12 +394,16 @@ discord_migration_members	definer	jsonb	authenticated	client	named in src/compon
 discord_migration_my_link	definer	jsonb	authenticated	client	rpc in src/services/discordMigrationService.ts
 discord_migration_my_pending_claims	definer	jsonb	authenticated	client	rpc in src/services/discordMigrationService.ts
 discord_migration_note_kick	definer	trigger	-	trigger	trigger public.server_membership_events AFTER INSERT (z_membership_events_discord_migration)
+discord_migration_override_deleted	definer	trigger	-	trigger	trigger public.channel_permission_overrides BEFORE DELETE (a_channel_overrides_discord_migration)
 discord_migration_pause	definer	void	service_role	client	rpc in bot-gateway/src/migration/MigrationSyncRunner.ts
 discord_migration_permission_gaps	definer	jsonb	authenticated	client	called by discord_migration_apply_permissions, discord_migration_get
 discord_migration_preview	definer	jsonb	anon+authenticated	client	rpc in src/services/discordMigrationService.ts
 discord_migration_readiness	definer	jsonb	authenticated	client	called by discord_migration_get, discord_migration_save_role_map, discord_migration_set_state
 discord_migration_record_sync	definer	void	service_role	client	rpc in bot-gateway/src/migration/MigrationSyncRunner.ts
 discord_migration_regenerate_token	definer	text	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
+discord_migration_release_member_overrides	definer	integer	-	client, trigger	called by discord_migration_apply_member_overrides, discord_migration_release_on_link, discord_migration_release_on_membership
+discord_migration_release_on_link	definer	trigger	-	trigger	trigger public.discord_migration_links AFTER DELETE/UPDATE (z_discord_migration_links_overrides)
+discord_migration_release_on_membership	definer	trigger	-	trigger	trigger public.user_servers AFTER DELETE/UPDATE (z_user_servers_discord_migration_overrides)
 discord_migration_request_sync	definer	void	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_save	definer	jsonb	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_save_role_map	definer	jsonb	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
@@ -989,7 +993,7 @@ server_audit_stickers	definer	trigger	service_role	trigger	trigger public.sticke
 server_audit_timeouts	definer	trigger	service_role	trigger	trigger public.server_member_timeouts AFTER INSERT/DELETE/UPDATE (z_server_member_timeouts_audit)
 server_audit_user_roles	definer	trigger	service_role	trigger	trigger public.user_roles AFTER INSERT/DELETE (z_user_roles_audit)
 server_audit_value	invoker	jsonb	service_role	trigger	called by server_audit_diff
-server_audit_write	definer	uuid	service_role	client, trigger	called by discord_migration_apply_removals, discord_migration_apply_roles, discord_migration_pause, +23
+server_audit_write	definer	uuid	service_role	client, trigger	called by discord_migration_apply_removals, discord_migration_apply_roles, discord_migration_pause, +24
 server_emoji_limit	invoker	integer	anon+authenticated+service_role	client	called by create_server_emoji, restore_emoji
 server_has_remote_members	invoker	boolean	service_role	service key	nothing references it
 server_host_domain	invoker	text	service_role	client	called by apply_server_report_resolution, create_report, get_reports_with_details
