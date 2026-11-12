@@ -156,6 +156,7 @@ describe('UserProfileModal profile field links', () => {
     expect(wrapper.findComponent({ name: 'BaseModal' }).exists()).toBe(true)
     expect(wrapper.getComponent({ name: 'BridgeSourceBadge' }).attributes('source')).toBe('matrix')
     expect(wrapper.get('.display-name').text()).toBe('Sam')
+    expect(wrapper.get('.display-name').attributes('style')).toContain('var(--text-primary)')
     expect(wrapper.get('.profile-actions a').attributes()).toMatchObject({ href: 'https://matrix.to/#/%40sam%3Aexample.org', target: '_blank', rel: 'noopener noreferrer' })
     expect(wrapper.find('[data-testid="profile-modal-follow-btn"]').exists()).toBe(false)
     expect(wrapper.find('.banner-actions .action-button').exists()).toBe(false)

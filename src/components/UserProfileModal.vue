@@ -969,7 +969,7 @@ const avatarUrl = computed(() => {
 const userColor = computed(() => {
   if (!props.user) return '#ffffff'
   if (isBridged.value) {
-    return props.user.color || '#ffffff'
+    return props.user.color || (matrixProfile.value ? DEFAULT_USER_COLOR : '#ffffff')
   }
   return getUserColor(props.user.id).value || '#ffffff'
 })
