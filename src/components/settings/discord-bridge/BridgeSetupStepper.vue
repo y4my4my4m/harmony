@@ -77,7 +77,15 @@
           @go="(step) => goTo(step === 'connect' ? 'link' : step, true)"
           @changed="emit('changed')"
         />
-        <BridgeChannelPairs :bridge="bridge" :pairs="pairs" :harmony-channels="harmonyChannels" @changed="emit('changed')" />
+        <BridgeChannelPairs
+          :bridge="bridge"
+          :pairs="pairs"
+          :harmony-channels="harmonyChannels"
+          :imports="imports"
+          :encrypted-channel-ids="encryptedChannelIds"
+          :attachment-mode="attachmentMode"
+          @changed="emit('changed')"
+        />
       </template>
 
       <template v-else-if="current === 'options'">
@@ -137,6 +145,7 @@ import BridgeConnectHosted from './BridgeConnectHosted.vue'
 import BridgeChecklist from './BridgeChecklist.vue'
 import BridgeGuildPicker from './BridgeGuildPicker.vue'
 import BridgeChannelPairs from './BridgeChannelPairs.vue'
+import type { ImportJob } from './bridgeApi'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeInstanceLink from './BridgeInstanceLink.vue'
 import BridgeProblemList from './BridgeProblemList.vue'
@@ -145,6 +154,9 @@ const props = defineProps<{
   bridge: DiscordBridgeRow
   pairs: BridgePairRow[]
   harmonyChannels: HarmonyChannelOption[]
+  imports?: ImportJob[]
+  encryptedChannelIds?: string[]
+  attachmentMode?: string | null
   now: number
   harmonyUrl: string
   serverName: string

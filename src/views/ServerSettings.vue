@@ -160,6 +160,12 @@
             :server-id="serverId"
           />
 
+          <ServerThreadSidebar
+            v-if="activeSection === 'overview' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            :is-local-server="server.is_local_server !== false"
+          />
+
           <ServerSystemMessages
             v-if="activeSection === 'overview' && permissions.canEditBasicInfo"
             :server-id="serverId"
@@ -329,6 +335,7 @@ import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
+import ServerThreadSidebar from '@/components/settings/server/ServerThreadSidebar.vue'
 import ServerSystemMessages from '@/components/settings/server/ServerSystemMessages.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'

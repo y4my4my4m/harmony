@@ -120,6 +120,12 @@ const CASES: [string, Record<string, string>, BridgeMode, string, string][] = [
   ['harmony_unreachable', {}, 'self', "The bridge can't reach this Harmony instance.", 'can open https://harmony.example'],
   ['harmony_unreachable', {}, 'hosted', "The bridge can't reach this Harmony instance.", "instance's side"],
   ['bridge_offline', {}, 'hosted', 'The bridge is offline.', "isn't running your bridge right now"],
+  ['message_content_needed_for_import', {}, 'self', 'A history import is waiting for the Message Content Intent.', 'docker restart harmony-discord-bridge'],
+  ['message_content_needed_for_import', {}, 'hosted', 'A history import is waiting for the Message Content Intent.', 'once the bridge reconnects'],
+  ['message_content_needed_for_import', {}, 'instance', 'A history import is waiting for the Message Content Intent.', "Ask the instance's admin"],
+  ['private_threads_skipped', { discord_channel_id: '11', count: '3' }, 'self', 'The import left out 3 private threads of #general.', 'Nothing to fix'],
+  ['private_threads_skipped', { discord_channel_id: '11', count: '1' }, 'hosted', 'The import left out 1 private thread of #general.', 'stay on Discord'],
+  ['private_threads_skipped', { discord_channel_id: '11' }, 'self', 'The import left out the private threads of #general.', 'stay on Discord'],
   ['brand_new_code', {}, 'self', 'The bridge reported a problem (brand_new_code).', 'docker logs'],
   ['brand_new_code', {}, 'hosted', 'The bridge reported a problem (brand_new_code).', 'contact the instance'],
 ]
@@ -183,5 +189,17 @@ describe('BridgeProblemList', () => {
     const items = w.findAll('.problem')
     expect(items[0].classes()).toContain('problem--warn')
     expect(items[1].classes()).toContain('problem--error')
+  })
+
+  it('shows left-out private threads as a notice, not an error', () => {
+    const w = mountProblems([{ code: 'private_threads_skipped', params: { discord_channel_id: '11', count: '2' } }], healthyBridge())
+    expect(w.find('.problem').classes()).toContain('problem--info')
+    expect(w.find('[data-code="private_threads_skipped"] pre').exists()).toBe(false)
+  })
+
+  it('links the Developer Portal for a history import waiting on Message Content', () => {
+    const w = mountProblems([{ code: 'message_content_needed_for_import', params: {} }], healthyBridge())
+    expect(w.find('a[href="https://discord.com/developers/applications"]').exists()).toBe(true)
+    expect(w.find('.problem').classes()).toContain('problem--error')
   })
 })

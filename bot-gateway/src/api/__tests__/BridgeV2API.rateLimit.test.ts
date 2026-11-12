@@ -111,7 +111,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-type Call = { at: number; method: 'get' | 'post' | 'delete'; path: string; body?: unknown }
+type Call = { at: number; method: 'get' | 'post' | 'patch' | 'delete'; path: string; body?: unknown }
 
 function every(periodMs: number, untilMs: number, call: Omit<Call, 'at'>, offsetMs = 0): Call[] {
   const calls: Call[] = []
@@ -181,6 +181,39 @@ describe('bridge traffic against the per-bot, per-route rate limit', () => {
       '/bridge/v2/pairs/:discordChannelId': 20,
     })
     for (const peak of table.peak.values()) expect(peak).toBeLessThan(MAX_REQUESTS / 2)
+  })
+
+  // A history import at full speed: per Discord page (every second) the bridge re-reads its
+  // jobs, posts the batch and records progress. Each import route has its own bucket.
+  it('a bridge importing one page a second stays under the limit on every import route', async () => {
+    const JOB = '00000000-0000-0000-0000-0000000000e1'
+    const db = new FakeDb({
+      discord_bridges: [{
+        id: BRIDGE_ID, server_id: SERVER_ID, bot_id: BOT_ID, mode: 'self', discord_guild_id: '100000000000000001',
+        settings: {}, updated_at: '2026-10-07T10:00:00.000Z',
+      }],
+      discord_bridge_imports: [{ id: JOB, bridge_id: BRIDGE_ID, harmony_channel_id: '00000000-0000-0000-0000-0000000000c1', state: 'running' }],
+      messages: [],
+    })
+    mocks.from.mockImplementation((t: string) => db.from(t))
+    const base = mocks.rpc.getMockImplementation()!
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      if (fn === 'bridge_import_present_ids') return { data: [], error: null }
+      if (fn === 'bridge_import_messages') return { data: { inserted: [], skipped: [] }, error: null }
+      if (fn === 'discord_bridge_import_update') return { data: { id: JOB, state: 'running' }, error: null }
+      return base(fn, args)
+    })
+    const batch = { messages: [{ discord_message_id: '1400000000000000001', created_at: '2023-01-01T00:00:00Z', content: [{ type: 'text', text: 'hi' }], discord_user: { id: '1400000000000000101', username: 'alice' } }] }
+
+    const statuses = await replay([
+      ...every(1_000, TEN_MINUTES, { method: 'get', path: '/bridge/v2/imports' }),
+      ...every(1_000, TEN_MINUTES, { method: 'post', path: `/bridge/v2/imports/${JOB}/messages`, body: batch }, 300),
+      ...every(1_000, TEN_MINUTES, { method: 'patch' as any, path: `/bridge/v2/imports/${JOB}`, body: { reached_discord_message_id: '1400000000000000001' } }, 600),
+    ])
+
+    expect(statuses).not.toContain(429)
+    expect([...table.peak.keys()].sort()).toEqual(['/bridge/v2/imports/', '/bridge/v2/imports/:id', '/bridge/v2/imports/:id/messages'])
+    for (const peak of table.peak.values()) expect(peak).toBeLessThan(MAX_REQUESTS)
   })
 
   it('answers 429 once a route exceeds the limit, without affecting the other routes', async () => {

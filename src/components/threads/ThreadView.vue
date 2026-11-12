@@ -443,6 +443,20 @@ const canManageThread = computed(() => canManageChannels.value)
 const profileStore = useProfileStore()
 const currentUserId = computed(() => profileStore.profileId)
 
+// The sidebar lists the open thread even when it is not joined (joined-only mode).
+watch(
+  () => (props.isVisible ? (props.threadId || props.initialThread?.id || null) : null),
+  (id, previous) => {
+    if (id && !isOptimisticThreadId(id)) threadsStore.panelThreadId = id
+    else if (threadsStore.panelThreadId === previous) threadsStore.panelThreadId = null
+  },
+  { immediate: true },
+)
+onUnmounted(() => {
+  const id = props.threadId || props.initialThread?.id
+  if (id && threadsStore.panelThreadId === id) threadsStore.panelThreadId = null
+})
+
 /** Thread id for composer + typing presence (includes draft threads before DB row exists) */
 const effectiveThreadIdForTyping = computed(() => {
   if (props.threadId) return props.threadId
