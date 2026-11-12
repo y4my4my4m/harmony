@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "Discord-Zugangsdaten hinzufügen.",
         "guild": "Discord-Server-ID eingeben.",
-        "roles": "Rollen von Discord abrufen."
+        "roles": "Rollen von Discord abrufen.",
+        "redirect": "Redirect-URL in der Discord-Anwendung eintragen"
       },
       "warnings": {
         "unpaired": "{count} Discord-Kanal ist keinem Harmony-Kanal zugeordnet. | {count} Discord-Kanäle sind keinem Harmony-Kanal zugeordnet."
+      },
+      "redirect": {
+        "intro": "Trage diese Redirect-URL in den OAuth2-Einstellungen der Discord-Anwendung ein, sonst zeigt Discord „Invalid OAuth2 redirect_uri“. Sie gilt für jede Zugangsdatenquelle, auch für den Bot dieser Instanz.",
+        "added": "Ich habe sie eingetragen"
       }
     },
     "open": {

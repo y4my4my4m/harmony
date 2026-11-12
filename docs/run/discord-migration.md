@@ -36,7 +36,7 @@ Members sign in to Discord through your Discord application, so the application 
 https://<your instance>/bot-gateway/bridge/v2/migrate/callback
 ```
 
-It is the same address for every server on the instance and has to match exactly. The migration asks Discord for the `identify` scope only: a member's Discord username and profile, never their email or servers.
+It is the same address for every server on the instance and has to match exactly. This holds for every source, including this instance's own Discord bot: that application needs this redirect in addition to the `…/bridge/v2/discord/callback` one it already has for the bridge. Without it Discord answers "Invalid OAuth2 redirect_uri" when a member signs in. The page repeats the address next to **Open migration**, and Open stays disabled until you tick **I added it**. The migration asks Discord for the `identify` scope only: a member's Discord username and profile, never their email or servers.
 
 Secrets are stored encrypted and are never shown again; leave a field empty to keep the saved value.
 

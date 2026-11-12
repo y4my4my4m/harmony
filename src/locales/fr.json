@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "Ajoutez les identifiants Discord.",
         "guild": "Saisissez l'ID du serveur Discord.",
-        "roles": "Récupérez vos rôles depuis Discord."
+        "roles": "Récupérez vos rôles depuis Discord.",
+        "redirect": "Ajoutez l'URL de redirection à l'application Discord"
       },
       "warnings": {
         "unpaired": "{count} salon Discord n'est pas jumelé à un salon Harmony. | {count} salons Discord ne sont pas jumelés à des salons Harmony."
+      },
+      "redirect": {
+        "intro": "Ajoutez cette URL de redirection aux paramètres OAuth2 de l'application Discord, sinon Discord affiche « Invalid OAuth2 redirect_uri ». Elle est la même pour toute source d'identifiants, y compris le bot de cette instance.",
+        "added": "Je l'ai ajoutée"
       }
     },
     "open": {

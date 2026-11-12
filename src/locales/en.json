@@ -5934,10 +5934,15 @@
       "blockers": {
         "credentials": "Add the Discord credentials.",
         "guild": "Enter the Discord server ID.",
-        "roles": "Fetch your roles from Discord."
+        "roles": "Fetch your roles from Discord.",
+        "redirect": "Add the redirect URL to the Discord application"
       },
       "warnings": {
         "unpaired": "{count} Discord channel isn't paired with a Harmony channel. | {count} Discord channels aren't paired with Harmony channels."
+      },
+      "redirect": {
+        "intro": "Add this redirect URL to the Discord application's OAuth2 settings, or Discord shows \"Invalid OAuth2 redirect_uri\". It is the same for every credential source, including this instance's bot.",
+        "added": "I added it"
       }
     },
     "open": {

@@ -114,6 +114,7 @@ async function mountPanel(cfg: MigrationConfig) {
 }
 
 beforeEach(() => {
+  localStorage.clear()
   vi.clearAllMocks()
   missingKeys.length = 0
   rolesMock.mockResolvedValue(HARMONY_ROLES)
@@ -134,8 +135,10 @@ describe('role map', () => {
     expect(missingKeys).toEqual([])
   })
 
-  it('enables Open migration once the server says the migration is ready', async () => {
+  it('enables Open migration once the server says the migration is ready and the redirect is ticked', async () => {
     const w = await mountPanel(config({ readiness: { ready: true, unmapped_roles: [], has_credentials: true, has_guild: true, roles_fetched: true } }))
+    expect(w.find('[data-testid="open-migration"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="redirect-added"]').setValue(true)
     expect(w.find('[data-testid="open-migration"]').attributes('disabled')).toBeUndefined()
     await w.find('[data-testid="open-migration"]').trigger('click')
     await flushPromises()
@@ -517,5 +520,27 @@ describe('member channel overrides', () => {
     )
     expect(w.find('[data-testid="dm-overrides"]').exists()).toBe(false)
     expect(w.findAll('[data-testid="warning"]')).toHaveLength(1)
+  })
+})
+describe('redirect address checklist', () => {
+  const READY = { ready: true, unmapped_roles: [], has_credentials: true, has_guild: true, roles_fetched: true }
+
+  it.each(['instance_bot', 'bridge', 'own'] as const)('shows the redirect address and blocks Open for the %s source', async (credential_source) => {
+    const w = await mountPanel(config({ credential_source, readiness: READY }))
+    const block = w.find('[data-testid="dm-redirect"]')
+    expect(block.exists()).toBe(true)
+    expect(block.text()).toContain('/bot-gateway/bridge/v2/migrate/callback')
+    expect(w.find('[data-testid="open-migration"]').attributes('disabled')).toBeDefined()
+    expect(missingKeys).toEqual([])
+  })
+
+  it('remembers the tick for this server in this browser', async () => {
+    const first = await mountPanel(config({ readiness: READY }))
+    await first.find('[data-testid="redirect-added"]').setValue(true)
+    expect(localStorage.getItem(`harmony:discord-migration-redirect:${SERVER}`)).toBe('1')
+    const second = await mountPanel(config({ readiness: READY }))
+    expect((second.find('[data-testid="redirect-added"]').element as HTMLInputElement).checked).toBe(true)
+    await second.find('[data-testid="redirect-added"]').setValue(false)
+    expect(localStorage.getItem(`harmony:discord-migration-redirect:${SERVER}`)).toBeNull()
   })
 })

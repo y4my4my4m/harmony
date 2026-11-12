@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "Añade las credenciales de Discord.",
         "guild": "Introduce el ID del servidor de Discord.",
-        "roles": "Obtén tus roles de Discord."
+        "roles": "Obtén tus roles de Discord.",
+        "redirect": "Añade la URL de redirección a la aplicación de Discord"
       },
       "warnings": {
         "unpaired": "{count} canal de Discord no está emparejado con un canal de Harmony. | {count} canales de Discord no están emparejados con canales de Harmony."
+      },
+      "redirect": {
+        "intro": "Añade esta URL de redirección a los ajustes OAuth2 de la aplicación de Discord, o Discord mostrará «Invalid OAuth2 redirect_uri». Es la misma para cualquier origen de credenciales, incluido el bot de esta instancia.",
+        "added": "Ya la añadí"
       }
     },
     "open": {

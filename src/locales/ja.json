@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "Discordの認証情報を追加してください。",
         "guild": "DiscordサーバーIDを入力してください。",
-        "roles": "Discordからロールを取得してください。"
+        "roles": "Discordからロールを取得してください。",
+        "redirect": "DiscordアプリケーションにリダイレクトURLを追加する"
       },
       "warnings": {
         "unpaired": "Discordのチャンネル{count}件がHarmonyのチャンネルとペアになっていません。"
+      },
+      "redirect": {
+        "intro": "このリダイレクトURLをDiscordアプリケーションのOAuth2設定に追加してください。追加しないと、Discordに「Invalid OAuth2 redirect_uri」と表示されます。認証情報の取得元にかかわらず同じで、このインスタンスのボットも含みます。",
+        "added": "追加しました"
       }
     },
     "open": {

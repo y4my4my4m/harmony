@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "Discord 자격 증명을 추가하세요.",
         "guild": "Discord 서버 ID를 입력하세요.",
-        "roles": "Discord에서 역할을 가져오세요."
+        "roles": "Discord에서 역할을 가져오세요.",
+        "redirect": "Discord 애플리케이션에 리디렉션 URL 추가"
       },
       "warnings": {
         "unpaired": "Discord 채널 {count}개가 Harmony 채널과 짝지어지지 않았습니다."
+      },
+      "redirect": {
+        "intro": "이 리디렉션 URL을 Discord 애플리케이션의 OAuth2 설정에 추가하세요. 추가하지 않으면 Discord에 \"Invalid OAuth2 redirect_uri\"가 표시됩니다. 자격 증명 출처와 관계없이 같으며, 이 인스턴스의 봇도 포함됩니다.",
+        "added": "추가했습니다"
       }
     },
     "open": {

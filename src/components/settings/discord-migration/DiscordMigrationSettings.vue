@@ -223,6 +223,14 @@
       <!-- 8. Readiness and open -->
       <section v-if="config.state !== 'open' && config.state !== 'finished'" class="db-card" data-testid="dm-ready">
         <h3 class="db-card-sub">{{ t('discordMigration.ready.title') }}</h3>
+        <div class="dm-redirect" data-testid="dm-redirect">
+          <p class="db-muted">{{ t('discordMigration.ready.redirect.intro') }}</p>
+          <BridgeCopyBlock :text="redirectUri" :label="t('discordMigration.source.own.redirectLabel')" />
+          <label class="dm-radio">
+            <input v-model="redirectAdded" type="checkbox" data-testid="redirect-added" />
+            <span>{{ t('discordMigration.ready.redirect.added') }}</span>
+          </label>
+        </div>
         <ul v-if="blockers.length" class="db-steps" data-testid="blockers">
           <li v-for="blocker in blockers" :key="blocker">{{ blocker }}</li>
         </ul>
@@ -234,7 +242,7 @@
           <button
             type="button"
             class="btn btn-primary"
-            :disabled="busy !== '' || !config.readiness.ready"
+            :disabled="busy !== '' || !config.readiness.ready || !redirectAdded"
             data-testid="open-migration"
             @click="openMigration"
           >
@@ -349,7 +357,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -806,10 +814,32 @@ async function applyAll() {
 
 // ------------------------------------------------------------------ readiness and lifecycle
 
+// Whether the owner ticked "I added the redirect address". Kept in this browser, per server: the
+// database has no column for it, and it only gates the Open button.
+const redirectKey = computed(() => `harmony:discord-migration-redirect:${props.serverId}`)
+function readTick(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+function writeTick(key: string, on: boolean) {
+  try {
+    if (on) localStorage.setItem(key, '1')
+    else localStorage.removeItem(key)
+  } catch {
+    // Storage may be unavailable; the tick then lasts for this visit only.
+  }
+}
+const redirectAdded = ref(readTick(redirectKey.value))
+watch(redirectAdded, (v) => writeTick(redirectKey.value, v))
+
 const blockers = computed(() => {
   const r = config.value?.readiness
   if (!r) return []
   const list: string[] = []
+  if (!redirectAdded.value) list.push(t('discordMigration.ready.blockers.redirect'))
   if (!r.has_credentials) list.push(t('discordMigration.ready.blockers.credentials'))
   if (!r.has_guild) list.push(t('discordMigration.ready.blockers.guild'))
   if (!r.roles_fetched) list.push(t('discordMigration.ready.blockers.roles'))
@@ -1090,6 +1120,13 @@ onMounted(load)
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
+}
+
+.dm-redirect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .dm-override {

@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Upgrade notes
+- **Migrate from Discord needs a second redirect on the instance bot.** If servers migrate with this
+  instance's Discord bot, add `https://<domain>/bot-gateway/bridge/v2/migrate/callback` to that
+  application's OAuth2 redirects, next to the existing `…/bridge/v2/discord/callback`. Owners now tick
+  "I added it" before **Open migration** is enabled.
+
 ### Added
 - **Migrate from Discord.** Owners and members with Manage Server can bring a Discord community over
   from **Server settings** → **Migrate from Discord**. Match each Discord role to a Harmony role, then

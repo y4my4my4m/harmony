@@ -5938,10 +5938,15 @@
       "blockers": {
         "credentials": "请添加 Discord 凭据。",
         "guild": "请输入 Discord 服务器 ID。",
-        "roles": "请从 Discord 获取角色。"
+        "roles": "请从 Discord 获取角色。",
+        "redirect": "把重定向 URL 添加到 Discord 应用程序"
       },
       "warnings": {
         "unpaired": "有 {count} 个 Discord 频道未与 Harmony 频道配对。"
+      },
+      "redirect": {
+        "intro": "请把此重定向 URL 添加到 Discord 应用程序的 OAuth2 设置中,否则 Discord 会显示“Invalid OAuth2 redirect_uri”。无论凭据来源如何都相同,包括本实例的机器人。",
+        "added": "我已添加"
       }
     },
     "open": {
