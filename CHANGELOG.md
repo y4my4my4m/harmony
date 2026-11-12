@@ -28,7 +28,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   stores the Discord files of messages already in Harmony, and files over 50 MB: the cap is the
   instance's upload ceiling (`harmony config --upload-ceiling`). Large files are downloaded one at a
   time through a temporary file. Expired links are refreshed through the bridge. **Instance admin** →
-  **Config** shows how many files are waiting, stored, too large or failed. One server stores up to
+  **Config** shows how many files are waiting, too large or failed, and the size stored. One server stores up to
   5120 MB of them (**Stored Discord files per server (MB)** under **Discord history import**, `0`
   for no limit); past it, further files keep their Discord links until the limit is raised.
 - **Slash commands for bots.** Bots register commands with `PUT /commands`; members pick them from
@@ -165,6 +165,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **Discord bridge: finding a message by its Discord id reads an index.** The bridge asks for the
+  Harmony message behind a Discord message on replies, edits, deletes and reactions it has no record
+  of (`GET /channels/{id}/messages/lookup`), and the gateway does on a message relayed twice. Both
+  read every message of the channel, and every message of the instance when the id was not there.
 - **Pinned messages show bridged, webhook and bot authors.** Pins of messages from the Discord
   bridge, webhooks and bots listed "Unknown"; they now show the same name and avatar as in chat.
 - **`@` before a name no one has is plain text.** `@5:32`, `@asdfgh` or any `@name` that is no

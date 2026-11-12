@@ -752,18 +752,13 @@ export class BotRestAPI {
     if (error?.code === '23505'
       && error.message?.includes('messages_channel_discord_message_id_unique')
       && typeof discordMessageId === 'string') {
-      const { data: existing, error: lookupError } = await supabase
-        .from('messages')
-        .select(messageSelect)
-        .eq('channel_id', channelId)
-        .eq('bot_id', botId)
-        .eq('metadata->>discord_message_id', discordMessageId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
+      const held = await this.messageIdByDiscordId(channelId, discordMessageId)
+      if (held.error) return { ok: false, status: 500, body: { error: held.error }, failure: 'failed' }
+      const { data: existing, error: lookupError } = held.id === null
+        ? { data: null, error: null }
+        : await supabase.from('messages').select(messageSelect).eq('id', held.id).eq('bot_id', botId).maybeSingle()
       if (lookupError) return { ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' }
-      if (existing) return { ok: true, message: existing, duplicate: true }
+      if (existing && existing.is_deleted !== true) return { ok: true, message: existing, duplicate: true }
       // The row that holds the id is another bot's: not this bot's to read back.
       return { ok: false, status: 409, body: { error: 'That Discord message id is taken in this channel', code: 'DISCORD_MESSAGE_ID_TAKEN' }, failure: 'failed' }
     }
@@ -833,6 +828,20 @@ export class BotRestAPI {
     })
   }
   
+  /**
+   * The id of the live message of a channel that holds a Discord message id; null when none does.
+   * bridge_message_by_discord_id reads messages_channel_discord_message_id_unique. A select
+   * filtered on metadata->>discord_message_id cannot: it reads every message of the channel.
+   */
+  private async messageIdByDiscordId(channelId: string, discordMessageId: string): Promise<{ id: string | null; error?: string }> {
+    const { data, error } = await supabase.rpc('bridge_message_by_discord_id', {
+      p_channel_id: channelId,
+      p_discord_message_id: discordMessageId,
+    })
+    if (error) return { id: null, error: error.message }
+    return { id: typeof data === 'string' ? data : null }
+  }
+
   private async lookupMessageByDiscordId(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
@@ -848,6 +857,14 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: read_messages' })
       }
 
+      const held = await this.messageIdByDiscordId(channelId, discordMessageId)
+      if (held.error) {
+        return res.status(500).json({ error: held.error })
+      }
+      if (held.id === null) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+
       const { data: message, error } = await supabase
         .from('messages')
         .select(`
@@ -855,17 +872,13 @@ export class BotRestAPI {
           user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
-        .eq('channel_id', channelId)
-        .eq('metadata->>discord_message_id', discordMessageId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('id', held.id)
         .maybeSingle()
 
       if (error) {
         return res.status(500).json({ error: error.message })
       }
-      if (!message || !(await this.withinHistory(botId, channelId, message.created_at))) {
+      if (!message || message.is_deleted === true || !(await this.withinHistory(botId, channelId, message.created_at))) {
         return res.status(404).json({ error: 'Message not found' })
       }
 

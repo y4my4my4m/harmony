@@ -90,14 +90,20 @@ function app() {
 
 const metadataOf = (id: string) => db.rows('messages').find((m) => m.id === id)?.metadata
 
+// bridge_message_by_discord_id over the fake table.
+const messageByDiscordId = (args: { p_channel_id: string; p_discord_message_id: string }) =>
+  db.rows('messages').find((m) => m.channel_id === args.p_channel_id
+    && m.metadata?.discord_message_id === args.p_discord_message_id && m.is_deleted !== true)?.id ?? null
+
 beforeEach(() => {
   mocks.rpc.mockReset()
   mocks.from.mockReset()
   mocks.policy.mockReset()
   mocks.policy.mockImplementation(async (parts: unknown[]) => ({ parts, deferred: false }))
   mocks.enqueue.mockReset()
-  mocks.rpc.mockImplementation(async (fn: string) => {
+  mocks.rpc.mockImplementation(async (fn: string, args: any) => {
     if (fn === 'update_message_content_silent') return { data: true, error: null }
+    if (fn === 'bridge_message_by_discord_id') return { data: messageByDiscordId(args), error: null }
     throw new Error(`test called unmocked rpc: ${fn}`)
   })
   vi.spyOn(console, 'error').mockImplementation(() => {})

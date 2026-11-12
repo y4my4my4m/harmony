@@ -13,7 +13,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(59);
+SELECT plan(60);
 
 UPDATE public.servers SET is_local_server = true, federation_enabled = true
  WHERE id = '55555555-0000-0000-0000-000000000005';
@@ -294,6 +294,53 @@ SELECT is((SELECT array_agg(message_id ORDER BY message_id) FROM public.search_m
           (SELECT array_agg(id ORDER BY id) FROM k248 WHERE k IN ('qmention', 'qplain')),
           'quiet: the imported messages are found by search');
 SELECT tests.clear_authentication();
+
+-- Triggers of the tables an import writes ---------------------------------------------------------
+-- A trigger on messages or threads consults the flag, or is named below and runs for every
+-- imported row: a check on the row, or a count, index or cleanup kept for imported rows too.
+SELECT is_empty($q$
+    SELECT c.relname || '.' || t.tgname
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_proc p ON p.oid = t.tgfoid
+     WHERE t.tgrelid IN ('public.messages'::regclass, 'public.threads'::regclass)
+       AND NOT t.tgisinternal
+       AND p.prosrc !~ 'is_history_import\(\)|harmony\.history_import'
+       AND c.relname || '.' || t.tgname <> ALL (ARRAY[
+           'messages.a_messages_attach_files',
+           'messages.a_messages_bridge_optout_guard',
+           'messages.a_messages_client_write_guard',
+           'messages.a_messages_content_emoji_parts',
+           'messages.a_messages_content_permissions',
+           'messages.a_messages_deleted_recipient_guard',
+           'messages.a_messages_dm_block_guard',
+           'messages.a_messages_media_path_guard',
+           'messages.a_messages_poll_guard',
+           'messages.a_messages_reply_scope',
+           'messages.a_messages_room_guard',
+           'messages.a_messages_rules_acceptance',
+           'messages.a_messages_server_suspension_guard',
+           'messages.a_messages_system_part_guard',
+           'messages.a_messages_system_row_guard',
+           'messages.check_message_sticker_parts',
+           'messages.smart_route_channel_message',
+           'messages.trg_enforce_channel_encryption',
+           'messages.trg_enforce_conversation_encryption',
+           'messages.trg_enforce_message_length',
+           'messages.trg_profile_message_counter_del',
+           'messages.trg_profile_message_counter_ins',
+           'messages.trg_role_mention_permission',
+           'messages.trigger_index_message',
+           'messages.trigger_remove_message_index',
+           'messages.trigger_thread_message_delete',
+           'messages.trigger_unpin_on_delete',
+           'messages.z_messages_drive_name',
+           'messages.z_messages_empty_thread_delete',
+           'messages.z_messages_media_cleanup',
+           'messages.z_messages_moderator_delete_audit',
+           'threads.a_threads_client_write_guard',
+           'threads.sanitize_thread_name_trigger'])
+$q$, 'every trigger on messages and threads consults the import flag or is listed as running during an import');
 
 SELECT * FROM finish();
 ROLLBACK;

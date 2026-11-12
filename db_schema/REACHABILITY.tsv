@@ -157,6 +157,7 @@ bridge_import_server_sound	definer	TABLE(status text, id uuid, name text, emoji 
 bridge_import_server_sticker	definer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_import_status	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 bridge_import_thread	definer	uuid	service_role	client	rpc in bot-gateway/src/bridge/historyImport.ts
+bridge_message_by_discord_id	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 bridge_mirror_allows	definer	boolean	service_role	client	rpc in bot-gateway/src/utils/mirrorExternalMedia.ts
 bridge_mirror_backfill	definer	integer	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts
 bridge_mirror_claim	definer	TABLE(message_id uuid, attempts integer)	service_role	client	rpc in bot-gateway/src/bridge/mirrorWorker.ts

@@ -228,7 +228,7 @@ Discord's file links expire. **User settings** → **Instance admin** → **Conf
 
 ### Mirror to storage
 
-Turning **Mirror to storage** on also covers messages bridged earlier. Only messages posted by bridge bots are covered, not messages from people on Harmony. The gateway works through their Discord files in the background and stores them, so nothing has to be re-imported. Under the setting, **Storing Discord files** counts what is waiting, stored, too large and failed.
+Turning **Mirror to storage** on also covers messages bridged earlier. Only messages posted by bridge bots are covered, not messages from people on Harmony. The gateway works through their Discord files in the background and stores them, so nothing has to be re-imported. Under the setting, **Storing Discord files** shows how many files are waiting, too large or failed, and the size of what is stored.
 
 - **Size cap.** Files up to the upload ceiling are stored (Discord allows up to 500 MB). Raise the ceiling with `harmony config --upload-ceiling 500M`; files that were too large are then stored without further action. The ceiling must match storage's `FILE_SIZE_LIMIT`, which `harmony config --upload-ceiling` sets together with it; a file storage refuses is counted as too large.
 - **Large files.** Files over `BRIDGE_MIRROR_INLINE_MAX_BYTES` (default 25 MB) go through a queue and are stored one at a time (`BRIDGE_MIRROR_CONCURRENCY`, default 1), so a burst of big files does not slow the bridge.

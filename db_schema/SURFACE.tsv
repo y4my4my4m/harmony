@@ -157,6 +157,7 @@ bridge_import_server_sound	p_bot_id uuid, p_server_id uuid, p_discord_sound_id t
 bridge_import_server_sticker	p_bot_id uuid, p_server_id uuid, p_discord_sticker_id text, p_name text, p_description text, p_update boolean, p_path text, p_url text, p_width integer, p_height integer, p_duration_ms integer	TABLE(status text, id uuid, name text, description text, url text, discord_sticker_id text, removed boolean)	definer	public, pg_temp	service_role	client
 bridge_import_status		jsonb	definer	public, pg_temp	authenticated	client
 bridge_import_thread	p_bot_id uuid, p_import_id uuid, p_thread jsonb	uuid	definer	public, pg_temp	service_role	client
+bridge_message_by_discord_id	p_channel_id uuid, p_discord_message_id text	uuid	definer	public, pg_temp	service_role	client
 bridge_mirror_allows	p_channel_id uuid, p_bytes bigint	boolean	definer	public, pg_temp	service_role	client
 bridge_mirror_backfill	p_limit integer	integer	definer	public, pg_temp	service_role	client
 bridge_mirror_claim	p_lease_seconds integer	TABLE(message_id uuid, attempts integer)	definer	public, pg_temp	service_role	client
