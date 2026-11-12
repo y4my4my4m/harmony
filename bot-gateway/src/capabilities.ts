@@ -6,4 +6,6 @@ export const GATEWAY_CAPABILITIES = [
   'bridge_sound_sync',
   'bridge_emoji_sync',
   'bridge_sticker_sync',
+  'bridge_history_import',
+  'bridge_privacy',
 ] as const

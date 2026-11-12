@@ -1118,8 +1118,53 @@ describe('imported history', () => {
     expect(enqueued).toEqual([])
   })
 
+  it('does not dispatch MESSAGE_DELETE or MESSAGE_UPDATE for the tombstone of an erased relayed author', async () => {
+    routes = [{ bot_id: null, server_id: SERVER_ID, events: ['MESSAGE_DELETE', 'MESSAGE_UPDATE'] }]
+    await (dispatcher as any).webhooks.refresh()
+    const dispatchSpy = vi.spyOn(dispatcher as any, 'dispatch')
+
+    await (dispatcher as any).handleMessageDelete({
+      old: { id: 'm1', channel_id: GENERAL, thread_id: null, metadata: { bridge_erased: true, bot: true } },
+    })
+    await (dispatcher as any).handleMessageUpdate({
+      new: { ...message(GENERAL, ''), metadata: { bridge_erased: true, bot: true } },
+      old: { id: 'x' },
+    })
+
+    expect(dispatchSpy).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
+    expect(enqueued).toEqual([])
+  })
+
+  it('still dispatches MESSAGE_DELETE for a row without the marker', async () => {
+    await (dispatcher as any).handleMessageDelete({
+      old: { id: 'm2', channel_id: GENERAL, thread_id: null, metadata: { bot: true } },
+    })
+    expect(recipients('MESSAGE_DELETE', GENERAL)).toEqual([OPEN_BOT])
+  })
+
   it('still dispatches a row whose metadata has no history_import', async () => {
     await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'live'), metadata: { history_import: false } } })
     expect(recipients('MESSAGE_CREATE', GENERAL)).toEqual([OPEN_BOT])
+  })
+})
+
+describe('message poll cursor', () => {
+  it('does not pass the clock behind a row stamped in the future', async () => {
+    const start = new Date(Date.now() - 60_000)
+    ;(dispatcher as any).lastProcessedTimestamp = start
+    const ahead = new Date(Date.now() + 3_600_000).toISOString()
+    db.rows('messages').push({ ...message(GENERAL, 'from the future'), id: 'future', created_at: ahead, updated_at: ahead })
+
+    await (dispatcher as any).pollMessages()
+    expect((dispatcher as any).lastProcessedTimestamp.getTime()).toBe(start.getTime())
+
+    const now = new Date(Date.now() - 1_000).toISOString()
+    db.rows('messages').push({ ...message(GENERAL, 'live'), id: 'live', created_at: now, updated_at: now })
+    sent.length = 0
+    await (dispatcher as any).pollMessages()
+
+    expect(sent.filter((s) => s.event.t === 'MESSAGE_CREATE').map((s) => s.event.d.id)).toEqual(['live'])
+    expect((dispatcher as any).lastProcessedTimestamp.toISOString()).toBe(now)
   })
 })

@@ -71,6 +71,32 @@ export interface BridgeConfig {
   base_url: string | null
   pairs: BridgePair[]
   harmony_channels: HarmonyChannel[]
+  // discord_bridge_import_block(): import runs only for a self-run bridge with the instance switch on.
+  history_import: HistoryImportState
+  // Changes with every opt-out and opt-in of the server (bridge_privacy_optout_ids().version).
+  privacy_version: string | null
+}
+
+export type ImportBlock = 'instance_off' | 'bridge_mode'
+
+export interface HistoryImportState {
+  enabled: boolean
+  reason: ImportBlock | null
+}
+
+/** Platform of discord_bridges rows in bridge_remote_optouts. */
+export const DISCORD_PLATFORM = 'discord'
+
+/**
+ * Why the bridge may not import history, null when it may; 'error' when the lookup failed.
+ */
+export async function importBlock(bridgeId: string): Promise<ImportBlock | null | 'error'> {
+  const { data, error } = await supabase.rpc('discord_bridge_import_block', { p_bridge_id: bridgeId })
+  if (error) {
+    console.error(`discord_bridge_import_block for bridge ${bridgeId} failed:`, error.message)
+    return 'error'
+  }
+  return data === 'instance_off' || data === 'bridge_mode' ? data : null
 }
 
 /** The bridge the bot drives; null when it drives none; 'error' when the lookup failed. */
@@ -102,6 +128,17 @@ export async function buildBridgeConfig(bridge: BridgeRow, baseUrl: string | nul
     supabase.from('channel_categories').select('id, name').eq('server_id', bridge.server_id),
     supabase.rpc('discord_bridge_encrypted_channel_ids', { p_bridge_id: bridge.id }),
   ])
+  const [block, optouts] = await Promise.all([
+    importBlock(bridge.id),
+    supabase.rpc('bridge_privacy_optout_ids', { p_server_id: bridge.server_id, p_platform: DISCORD_PLATFORM }),
+  ])
+  // An unread switch is a closed one; an unread opt-out list is fetched by the bridge at its next poll.
+  if (block === 'error') return null
+  if (optouts.error) {
+    console.error(`bridge ${bridge.id} config: bridge_privacy_optout_ids lookup failed:`, optouts.error.message)
+    return null
+  }
+  const privacyVersion = (optouts.data as { version?: unknown } | null)?.version
   for (const [what, result] of [
     ['discord_bridge_channels', pairsResult],
     ['channels', channelsResult],
@@ -162,6 +199,8 @@ export async function buildBridgeConfig(bridge: BridgeRow, baseUrl: string | nul
     base_url: baseUrl,
     pairs,
     harmony_channels: harmonyChannels,
+    history_import: { enabled: block === null, reason: block },
+    privacy_version: typeof privacyVersion === 'string' ? privacyVersion : null,
   }
 }
 

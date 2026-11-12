@@ -81,6 +81,9 @@ interface BotMessageInput {
 const MESSAGE_TOO_LONG = /^Message text exceeds the instance limit of \d+ characters/
 // check_message_sticker_parts: a sticker part naming no live sticker, or a sticker pair whose file part differs.
 const STICKER_REFUSED = /^STICKER_(UNKNOWN|FALLBACK)/
+// guard_bridge_author_optout (20261112600001): the relayed author opted out of the server's bridge.
+const BRIDGE_AUTHOR_OPTED_OUT = 'BRIDGE_AUTHOR_OPTED_OUT'
+const OPTED_OUT_BODY = { error: 'The author opted out of this bridge', code: BRIDGE_AUTHOR_OPTED_OUT } as const
 
 /** An interaction as the reply routes need it; bot_interaction_ack answers the same fields. */
 interface InteractionContext {
@@ -750,6 +753,7 @@ export class BotRestAPI {
         .from('messages')
         .select(messageSelect)
         .eq('channel_id', channelId)
+        .eq('bot_id', botId)
         .eq('metadata->>discord_message_id', discordMessageId)
         .eq('is_deleted', false)
         .order('created_at', { ascending: true })
@@ -757,6 +761,8 @@ export class BotRestAPI {
         .maybeSingle()
       if (lookupError) return { ok: false, status: 500, body: { error: lookupError.message }, failure: 'failed' }
       if (existing) return { ok: true, message: existing, duplicate: true }
+      // The row that holds the id is another bot's: not this bot's to read back.
+      return { ok: false, status: 409, body: { error: 'That Discord message id is taken in this channel', code: 'DISCORD_MESSAGE_ID_TAKEN' }, failure: 'failed' }
     }
 
     if (error) {
@@ -765,6 +771,9 @@ export class BotRestAPI {
       if (blocked) {
         const failure = blocked.body.code === 'AUTOMOD_BLOCKED' ? 'automod_blocked' : 'failed'
         return { ok: false, ...blocked, failure }
+      }
+      if (error.message === BRIDGE_AUTHOR_OPTED_OUT) {
+        return { ok: false, status: 403, body: { ...OPTED_OUT_BODY }, failure: 'failed' }
       }
       if (STICKER_REFUSED.test(error.message ?? '')) {
         return { ok: false, status: 422, body: { error: error.message, code: 'STICKER_REFUSED' }, failure: 'failed' }
@@ -1083,6 +1092,9 @@ export class BotRestAPI {
       if (blocked) {
         const failure = blocked.body.code === 'AUTOMOD_BLOCKED' ? 'automod_blocked' : 'failed'
         return { ok: false, ...blocked, failure }
+      }
+      if (error.message === BRIDGE_AUTHOR_OPTED_OUT) {
+        return { ok: false, status: 403, body: { ...OPTED_OUT_BODY }, failure: 'failed' }
       }
       if (STICKER_REFUSED.test(error.message ?? '')) {
         return { ok: false, status: 422, body: { error: error.message, code: 'STICKER_REFUSED' }, failure: 'failed' }

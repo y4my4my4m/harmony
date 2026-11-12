@@ -99,6 +99,12 @@ beforeEach(() => {
         return { data: { bridge_id: BRIDGE_ID, discord_guild_id: '100000000000000001' }, error: null }
       case 'discord_bridge_bot_unpair':
         return { data: true, error: null }
+      case 'discord_bridge_import_block':
+        return { data: null, error: null }
+      case 'bridge_import_admit':
+        return { data: { admitted: true }, error: null }
+      case 'bridge_privacy_optout_ids':
+        return { data: { version: '0:0', remote_user_ids: [] }, error: null }
       default:
         throw new Error(`test called unmocked rpc: ${fn}`)
     }

@@ -84,6 +84,8 @@ beforeEach(() => {
     verify_bot_token: () => ({ data: { valid: true, bot_id: botId, username: 'bridge', scopes: ['bot'] }, error: null }),
     check_and_increment_bot_rate_limit: () => ({ data: false, error: null }),
     bridge_import_present_ids: () => ({ data: [], error: null }),
+    discord_bridge_import_block: () => ({ data: null, error: null }),
+    bridge_import_admit: () => ({ data: { admitted: true }, error: null }),
   }
   mocks.rpc.mockReset()
   mocks.rpc.mockImplementation(async (fn: string, args: any) => {
@@ -117,6 +119,70 @@ describe('Bridge v2 import endpoints', () => {
     expect(res.status).toBe(403)
   })
 
+  it('answers 403 import_disabled on every route while the switch is off or the bridge may not import', async () => {
+    for (const reason of ['instance_off', 'bridge_mode']) {
+      rpcHandlers.discord_bridge_import_block = () => ({ data: reason, error: null })
+      const app = makeApp()
+      const calls = [
+        supertest(app).get('/bridge/v2/imports'),
+        supertest(app).get(`/bridge/v2/imports/${IMPORT_ID}`),
+        supertest(app).post('/bridge/v2/imports').send({}),
+        supertest(app).patch(`/bridge/v2/imports/${IMPORT_ID}`).send({ state: 'running' }),
+        supertest(app).post(`/bridge/v2/imports/${IMPORT_ID}/cancel`),
+        supertest(app).post(`/bridge/v2/imports/${IMPORT_ID}/messages`).send({ messages: [message()] }),
+        supertest(app).post(`/bridge/v2/imports/${IMPORT_ID}/threads`).send({}),
+        supertest(app).post(`/bridge/v2/imports/${IMPORT_ID}/replies/link`),
+      ]
+      for (const call of calls) {
+        const res = await call.set(auth)
+        expect(res.status).toBe(403)
+        expect(res.body).toEqual({ code: 'import_disabled', reason })
+      }
+    }
+    expect(rpcCalls('discord_bridge_import_block')[0]).toEqual({ p_bridge_id: BRIDGE_ID })
+    for (const fn of ['discord_bridge_import_start_internal', 'discord_bridge_import_update', 'bridge_import_messages', 'bridge_import_thread']) {
+      expect(rpcCalls(fn)).toEqual([])
+    }
+  })
+
+  it('answers 503 when the switch cannot be read', async () => {
+    rpcHandlers.discord_bridge_import_block = () => rpcError('boom', 'XX000')
+    expect((await supertest(makeApp()).get('/bridge/v2/imports').set(auth)).status).toBe(503)
+    rpcHandlers.discord_bridge_import_block = () => { throw new Error('network') }
+    expect((await supertest(makeApp()).get('/bridge/v2/imports').set(auth)).status).toBe(503)
+  })
+
+  it('GET /imports/:id returns one job of this bridge; another bridge\'s is 404', async () => {
+    const ok = await supertest(makeApp()).get(`/bridge/v2/imports/${IMPORT_ID}`).set(auth)
+    expect(ok.status).toBe(200)
+    expect(ok.body.import.id).toBe(IMPORT_ID)
+    const other = await supertest(makeApp()).get('/bridge/v2/imports/00000000-0000-0000-0000-0000000000a2').set(auth)
+    expect(other.status).toBe(404)
+    expect(other.body.code).toBe('import_not_found')
+  })
+
+  it('POST /imports passes the Discord member who ran the command', async () => {
+    rpcHandlers.discord_bridge_import_start_internal = () => ({ data: [job({ state: 'queued' })], error: null })
+    await supertest(makeApp()).post('/bridge/v2/imports').set(auth)
+      .send({ requested_by: { id: '400000000000000009', username: 'mod', avatar: 'x' } })
+    expect(rpcCalls('discord_bridge_import_start_internal')[0].p_requested_by_remote)
+      .toEqual({ id: '400000000000000009', username: 'mod' })
+    await supertest(makeApp()).post('/bridge/v2/imports').set(auth).send({})
+    expect(rpcCalls('discord_bridge_import_start_internal')[1].p_requested_by_remote).toBeNull()
+  })
+
+  it('PATCH maps import_busy to 429 with Retry-After and import_disabled to 403', async () => {
+    rpcHandlers.discord_bridge_import_update = () => rpcError('import_busy', '53400', '30')
+    const busy = await supertest(makeApp()).patch(`/bridge/v2/imports/${IMPORT_ID}`).set(auth).send({ state: 'running' })
+    expect(busy.status).toBe(429)
+    expect(busy.headers['retry-after']).toBe('30')
+    expect(busy.body).toEqual({ code: 'import_busy', retry_after: 30 })
+    rpcHandlers.discord_bridge_import_update = () => rpcError('import_disabled', '0A000', 'instance_off')
+    const off = await supertest(makeApp()).patch(`/bridge/v2/imports/${IMPORT_ID}`).set(auth).send({ state: 'running' })
+    expect(off.status).toBe(403)
+    expect(off.body).toEqual({ code: 'import_disabled', reason: 'instance_off' })
+  })
+
   it('GET /imports returns this bridge\'s jobs only', async () => {
     const res = await supertest(makeApp()).get('/bridge/v2/imports').set(auth)
     expect(res.status).toBe(200)
@@ -130,7 +196,7 @@ describe('Bridge v2 import endpoints', () => {
     expect(res.status).toBe(201)
     expect(res.body.imports[0].state).toBe('queued')
     expect(rpcCalls('discord_bridge_import_start_internal')).toEqual([
-      { p_bridge_id: BRIDGE_ID, p_discord_channel_ids: null, p_via: 'discord', p_requested_by: null },
+      { p_bridge_id: BRIDGE_ID, p_discord_channel_ids: null, p_via: 'discord', p_requested_by: null, p_requested_by_remote: null },
     ])
   })
 
@@ -190,16 +256,10 @@ describe('Bridge v2 import endpoints', () => {
     const post = (messages: unknown) =>
       supertest(makeApp()).post(`/bridge/v2/imports/${IMPORT_ID}/messages`).set(auth).send({ messages })
 
-    it('rejects 0 and 101 items and bad field types as invalid_batch', async () => {
+    it('rejects 0 and 101 items and a body that is no list as invalid_batch', async () => {
       for (const body of [
         [],
         Array.from({ length: 101 }, (_, i) => message({ discord_message_id: String(1000 + i) })),
-        [message({ discord_message_id: 'abc' })],
-        [message({ created_at: 'not a date' })],
-        [message({ content: 'text' })],
-        [message({ discord_user: [] })],
-        [message({ thread_id: 'x' })],
-        [message({ pinned: 'yes' })],
         'nope',
       ]) {
         const res = await post(body)
@@ -207,6 +267,80 @@ describe('Bridge v2 import endpoints', () => {
         expect(res.body.code).toBe('invalid_batch')
       }
       expect(mocks.rpc.mock.calls.some(([n]) => n === 'bridge_import_messages')).toBe(false)
+    })
+
+    it('rejects a message with a bad field alone and stores the rest of the batch', async () => {
+      rpcHandlers.bridge_import_messages = (args) => ({
+        data: { inserted: args.p_messages.map((m: any) => ({ discord_message_id: m.discord_message_id, id: 'row' })), skipped: [], rejected: [] },
+        error: null,
+      })
+      const bad = [
+        message({ discord_message_id: '501', created_at: 'not a date' }),
+        message({ discord_message_id: '502', content: 'text' }),
+        message({ discord_message_id: '503', discord_user: [] }),
+        message({ discord_message_id: '504', thread_id: 'x' }),
+        message({ discord_message_id: '505', pinned: 'yes' }),
+      ]
+      const res = await post([...bad, message({ discord_message_id: 'abc' }), message()])
+      expect(res.status).toBe(200)
+      expect(res.body.inserted).toEqual([{ discord_message_id: M1, id: 'row' }])
+      expect(res.body.rejected).toEqual(bad.map((m) => ({ discord_message_id: m.discord_message_id, reason: 'invalid' })))
+      expect(res.body.skipped).toEqual(['501', '502', '503', '504', '505'])
+      expect(rpcCalls('bridge_import_messages')[0].p_messages.map((m: any) => m.discord_message_id)).toEqual([M1])
+    })
+
+    it('rejects a message dated more than a minute ahead as future_date, before preparing it', async () => {
+      const ahead = new Date(Date.now() + 5 * 60_000).toISOString()
+      const res = await post([
+        message({ discord_message_id: '601', created_at: ahead }),
+        message({ discord_message_id: '602', edited_at: ahead }),
+      ])
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({
+        inserted: [],
+        skipped: ['601', '602'],
+        rejected: [
+          { discord_message_id: '601', reason: 'future_date' },
+          { discord_message_id: '602', reason: 'future_date' },
+        ],
+      })
+      expect(mocks.applyPolicy).not.toHaveBeenCalled()
+      expect(rpcCalls('bridge_import_messages')).toEqual([])
+    })
+
+    it('answers 429 import_rate_limited with Retry-After when the minute is full, before preparing anything', async () => {
+      rpcHandlers.bridge_import_admit = () => ({ data: { admitted: false, retry_after: 17 }, error: null })
+      const res = await post([message(), message({ discord_message_id: M2 })])
+      expect(res.status).toBe(429)
+      expect(res.headers['retry-after']).toBe('17')
+      expect(res.body).toEqual({ code: 'import_rate_limited', retry_after: 17 })
+      expect(rpcCalls('bridge_import_admit')).toEqual([{ p_bot_id: BOT_ID, p_import_id: IMPORT_ID, p_count: 2 }])
+      expect(mocks.applyPolicy).not.toHaveBeenCalled()
+      expect(rpcCalls('bridge_import_messages')).toEqual([])
+    })
+
+    it('answers 409 when admission finds the job no longer running', async () => {
+      rpcHandlers.bridge_import_admit = () => ({ data: { admitted: false, not_running: true, state: 'failed', error: 'import_disabled' }, error: null })
+      const res = await post([message()])
+      expect(res.status).toBe(409)
+      expect(res.body.code).toBe('import_not_running')
+      expect(mocks.applyPolicy).not.toHaveBeenCalled()
+    })
+
+    it('writes user and role mentions as text', async () => {
+      rpcHandlers.bridge_import_messages = () => ({ data: { inserted: [], skipped: [], rejected: [] }, error: null })
+      await post([message({ content: [
+        { type: 'mention', userId: 'u1', username: 'alice', displayName: 'Alice A', domain: 'harmony.test', isLocal: true },
+        { type: 'text', text: ' and ' },
+        { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+        { type: 'role_mention', roleId: '00000000-0000-0000-0000-0000000000e1', roleName: '@mods', roleColor: '#fff' },
+      ] })])
+      expect(rpcCalls('bridge_import_messages')[0].p_messages[0].content).toEqual([
+        { type: 'text', text: '@Alice A' },
+        { type: 'text', text: ' and ' },
+        { type: 'text', text: '@here' },
+        { type: 'text', text: '@mods' },
+      ])
     })
 
     it('runs each item through prepareBotMessageContent: mirrored CDN parts, no mass mention', async () => {

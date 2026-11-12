@@ -803,7 +803,10 @@ export class EventDispatcher {
           for (const message of newMessages) {
             await this.handleMessageCreate({ new: message })
             this.processedMessageIds.add(message.id)
-            this.lastProcessedTimestamp = new Date(message.created_at)
+            // The cursor never passes the clock: behind a row stamped in the future, every
+            // message created before that time would go unread.
+            const createdAt = new Date(message.created_at)
+            if (createdAt.getTime() <= Date.now()) this.lastProcessedTimestamp = createdAt
             
             // Bounded to the last 10000 IDs.
             if (this.processedMessageIds.size > 10000) {
@@ -868,6 +871,8 @@ export class EventDispatcher {
     if (message.encrypted) return
     // Imported history is quiet: an edit inside the change feed's overlap window is not an event.
     if (message.metadata?.history_import === true) return
+    // A row erased for its relayed author (bridge_privacy_erase_core) is no event either.
+    if (message.metadata?.bridge_erased === true) return
 
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
@@ -890,6 +895,9 @@ export class EventDispatcher {
 
     // Imported history is quiet; the old row's metadata is passed through for this.
     if (message.metadata?.history_import === true) return
+    // The tombstone of an erased relayed author: a MESSAGE_DELETE would have the bridge delete
+    // the original on Discord.
+    if (message.metadata?.bridge_erased === true) return
 
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) {

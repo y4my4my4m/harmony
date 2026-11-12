@@ -455,6 +455,29 @@ describe('sendMessage and a Discord message id already bridged', () => {
       .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
     expect(res.status).toBe(500)
   })
+
+  it('answers 409 without the row when another bot holds the Discord message id', async () => {
+    seed()
+    db.rows('messages').push({
+      id: EXISTING, channel_id: PAIRED, user_id: null, bot_id: '00000000-0000-0000-0000-0000000000b7',
+      content: [{ type: 'text', text: 'not yours' }], metadata: { discord_message_id: '77', bot: true }, is_deleted: false,
+    })
+    refuseInsert(DUPLICATE_ERROR)
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'again' }], metadata: { discord_message_id: '77' } })
+    expect(res.status).toBe(409)
+    expect(res.body.code).toBe('DISCORD_MESSAGE_ID_TAKEN')
+    expect(JSON.stringify(res.body)).not.toContain('not yours')
+  })
+
+  it('answers 403 BRIDGE_AUTHOR_OPTED_OUT when the relayed author opted out', async () => {
+    seed()
+    refuseInsert({ code: '23514', message: 'BRIDGE_AUTHOR_OPTED_OUT' })
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'hi' }], metadata: { discord_user: { id: '400000000000000001', username: 'dana' }, discord_message_id: '78' } })
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('BRIDGE_AUTHOR_OPTED_OUT')
+  })
 })
 
 describe('PATCH /messages/:id/metadata and a Discord message id already bridged', () => {
