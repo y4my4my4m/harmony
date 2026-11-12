@@ -82,7 +82,10 @@ describe('DiscordBridgeSetup — import mirror note', () => {
     tables({
       discord_bridges: [healthyBridge({ discord_guild_id: '900', bridge_version: '2.6.0' })],
       discord_bridge_channels: [makePair()],
-      instance_config: [{ config_key: 'bridge_attachment_mode', config_value: mode }],
+      instance_config: [
+        { config_key: 'bridge_attachment_mode', config_value: mode },
+        { config_key: 'bridge_history_import', config_value: 'self_run' },
+      ],
     })
 
   it('shows the mirror note to a non-admin manager when attachments are mirrored', async () => {

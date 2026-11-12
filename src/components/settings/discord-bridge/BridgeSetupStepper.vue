@@ -84,6 +84,7 @@
           :imports="imports"
           :encrypted-channel-ids="encryptedChannelIds"
           :attachment-mode="attachmentMode"
+          :import-mode="importMode"
           @changed="emit('changed')"
         />
       </template>
@@ -157,6 +158,7 @@ const props = defineProps<{
   imports?: ImportJob[]
   encryptedChannelIds?: string[]
   attachmentMode?: string | null
+  importMode?: string | null
   now: number
   harmonyUrl: string
   serverName: string

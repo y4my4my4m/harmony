@@ -37,6 +37,21 @@ export function bridgeSupportsImport(version: string | null): boolean {
   return true
 }
 
+/**
+ * Whether the bridge may import at all: only a bridge the server's owner runs (mode self), with
+ * the instance switch on (discord_bridge_import_block), on a release that has the endpoints.
+ */
+export type ImportAvailability = 'ok' | 'bridge_mode' | 'instance_off' | 'needs_update'
+
+export function importAvailability(
+  bridge: { mode: string; bridge_version: string | null },
+  importMode: string | null | undefined,
+): ImportAvailability {
+  if (bridge.mode !== 'self') return 'bridge_mode'
+  if (importMode !== 'self_run') return 'instance_off'
+  return bridgeSupportsImport(bridge.bridge_version) ? 'ok' : 'needs_update'
+}
+
 export type ImportBlock = 'direction' | 'encrypted'
 
 /** Why a pair cannot import, or null when it can: it brings Discord messages in and the channel is not encrypted. */

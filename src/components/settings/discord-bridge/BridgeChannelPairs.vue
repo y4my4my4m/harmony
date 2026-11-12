@@ -37,17 +37,17 @@
             class="btn btn-secondary btn-sm"
             :disabled="busy"
             data-testid="import-all"
-            @click="startImport(importAllIds)"
+            @click="askImport(importAllIds, false)"
           >
             {{ t('discordBridge.import.importAll') }}
           </button>
           <button
-            v-if="importAgainIds.length > 0 && !confirmingImportAgain"
+            v-if="importAgainIds.length > 0 && !pending"
             type="button"
             class="btn btn-secondary btn-sm"
             :disabled="busy"
             data-testid="import-all-again"
-            @click="confirmingImportAgain = true"
+            @click="askImport(importAgainIds, true)"
           >
             {{ t('discordBridge.import.importAllAgain') }}
           </button>
@@ -64,23 +64,46 @@
         </div>
       </div>
       <div
-        v-if="importsSupported && confirmingImportAgain && importAgainIds.length > 0"
+        v-if="importsSupported && pending"
+        ref="consentDialog"
         class="import-again-confirm"
         role="alertdialog"
-        :aria-labelledby="`${uid}-import-again`"
-        data-testid="import-all-again-confirm"
+        :aria-labelledby="`${uid}-import-consent`"
+        :data-testid="pending.again ? 'import-all-again-confirm' : 'import-consent'"
       >
-        <p :id="`${uid}-import-again`" class="db-text">{{ t('discordBridge.import.importAllAgainConfirm', { count: importAgainIds.length }, importAgainIds.length) }}</p>
+        <p :id="`${uid}-import-consent`" class="db-text">
+          {{ pending.again
+            ? t('discordBridge.import.importAllAgainConfirm', { count: pending.ids.length }, pending.ids.length)
+            : t('discordBridge.import.consent.title', { count: pending.ids.length }, pending.ids.length) }}
+        </p>
+        <ul class="import-consent-list">
+          <li>{{ t('discordBridge.import.consent.copies') }}</li>
+          <li>{{ t('discordBridge.import.consent.skips') }}</li>
+          <li>{{ t('discordBridge.import.consent.notice') }}</li>
+        </ul>
+        <label class="import-consent-check">
+          <input v-model="consent" type="checkbox" data-testid="import-consent-check" />
+          <span>{{ t('discordBridge.import.consent.confirm') }}</span>
+        </label>
         <div class="db-actions">
-          <button type="button" class="btn btn-primary btn-sm" :disabled="busy" data-testid="import-all-again-yes" @click="importAllAgain">
-            {{ t('discordBridge.import.importAllAgainYes') }}
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="busy || !consent"
+            :data-testid="pending.again ? 'import-all-again-yes' : 'import-consent-start'"
+            @click="confirmImport"
+          >
+            {{ pending.again ? t('discordBridge.import.importAllAgainYes') : t('discordBridge.import.consent.start') }}
           </button>
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="confirmingImportAgain = false">
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" data-testid="import-consent-cancel" @click="pending = null">
             {{ t('discordBridge.import.cancel') }}
           </button>
         </div>
       </div>
-      <p v-if="!importsSupported" class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
+      <p v-if="availability === 'needs_update'" class="db-muted" data-testid="import-update-bridge">{{ t('discordBridge.import.needsUpdate') }}</p>
+      <p v-else-if="availability !== 'ok'" class="db-muted" data-testid="import-unavailable" :data-reason="availability">
+        {{ t(`discordBridge.import.unavailable.${availability}`) }}
+      </p>
       <ul class="pair-list" :aria-label="t('discordBridge.pairs.listLabel')">
         <li v-for="row in pairRows" :key="row.pair.id" class="pair" data-testid="pair-row" :data-harmony="row.pair.harmony_channel_id">
           <div class="pair-main">
@@ -126,7 +149,7 @@
             :block="row.block"
             :channel-name="row.harmonyName"
             :busy="busy"
-            @start="(id: string) => startImport([id])"
+            @start="(id: string) => askImport([id], false)"
             @cancel="(job: ImportJob) => cancelImport(job.id)"
           />
           <ul v-if="row.issues.length || !row.discord" class="pair-fixes">
@@ -229,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -250,7 +273,7 @@ import {
 } from '@/utils/discordBridgeSetup'
 import { cancelImports, pairChannels, startImports, unpairChannel, type ImportJob } from './bridgeApi'
 import BridgeImportControls from './BridgeImportControls.vue'
-import { bridgeSupportsImport, importBlock, isImportablePair } from './importProgress'
+import { importAvailability, importBlock, isImportablePair } from './importProgress'
 import { bridgeErrorKey } from './bridgeErrors'
 
 const props = defineProps<{
@@ -262,6 +285,8 @@ const props = defineProps<{
   encryptedChannelIds?: string[]
   /** bridge_attachment_mode; null when the caller cannot read it. */
   attachmentMode?: string | null
+  /** bridge_history_import: 'self_run' lets a self-run bridge import; anything else is off. */
+  importMode?: string | null
 }>()
 
 const emit = defineEmits<{ changed: [] }>()
@@ -316,7 +341,8 @@ const selectedIssues = computed<ChannelIssue[]>(() =>
   selectedDiscord.value ? discordChannelIssues(selectedDiscord.value, direction.value) : [],
 )
 
-const importsSupported = computed(() => bridgeSupportsImport(props.bridge.bridge_version))
+const availability = computed(() => importAvailability(props.bridge, props.importMode))
+const importsSupported = computed(() => availability.value === 'ok')
 
 /** The pair's newest job; a restarted job keeps its row, so there is normally one. */
 function jobFor(pair: BridgePairRow): ImportJob | null {
@@ -352,12 +378,25 @@ const importAgainIds = computed(() => {
     .filter((p) => isImportablePair(p, channelFor(p)) && jobFor(p)?.state === 'done')
     .map((p) => p.harmony_channel_id)
 })
-const confirmingImportAgain = ref(false)
+// Every start goes through the consent dialog: `again` adds the question of a second run.
+const pending = ref<{ ids: string[]; again: boolean } | null>(null)
+const consent = ref(false)
+const consentDialog = ref<HTMLElement | null>(null)
 
-async function importAllAgain() {
-  const ids = importAgainIds.value
-  confirmingImportAgain.value = false
-  if (ids.length > 0) await startImport(ids)
+async function askImport(ids: string[], again: boolean) {
+  if (ids.length === 0) return
+  consent.value = false
+  pending.value = { ids, again }
+  await nextTick()
+  consentDialog.value?.scrollIntoView?.({ block: 'nearest' })
+  consentDialog.value?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus()
+}
+
+async function confirmImport() {
+  const ids = pending.value?.ids ?? []
+  if (!consent.value || ids.length === 0) return
+  pending.value = null
+  await startImport(ids)
 }
 
 const pairRows = computed(() =>
@@ -561,6 +600,29 @@ async function pairMatches() {
 
 .import-again-confirm p {
   margin: 0 0 8px;
+}
+
+.import-consent-list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.import-consent-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.import-consent-check input {
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .match-box {

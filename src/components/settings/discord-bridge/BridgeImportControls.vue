@@ -120,8 +120,21 @@ const detailText = computed(() => {
     if (month) parts.push(t('discordBridge.import.backTo', { date: month }))
   }
   parts.push(t('discordBridge.import.messages', { count: job.imported_count }, job.imported_count))
+  parts.push(...leftOut(job))
   return parts.join(' · ')
 })
+
+/** What the run left out for its authors or the server's AutoMod; empty when nothing. */
+function leftOut(job: ImportJob): string[] {
+  const parts: string[] = []
+  if (job.authors_skipped > 0) {
+    parts.push(t('discordBridge.import.authorsSkipped', { count: job.authors_skipped }, job.authors_skipped))
+  }
+  if (job.automod_skipped > 0) {
+    parts.push(t('discordBridge.import.automodSkipped', { count: job.automod_skipped }, job.automod_skipped))
+  }
+  return parts
+}
 
 const endText = computed(() => {
   const job = props.job
@@ -129,8 +142,12 @@ const endText = computed(() => {
   switch (job.state) {
     case 'done':
       // imported_count is what this run added; a re-run over an imported channel adds nothing.
-      if (job.imported_count === 0) return t('discordBridge.import.doneNothingNew')
-      return t('discordBridge.import.done', { count: job.imported_count }, job.imported_count)
+      return [
+        job.imported_count === 0
+          ? t('discordBridge.import.doneNothingNew')
+          : t('discordBridge.import.done', { count: job.imported_count }, job.imported_count),
+        ...leftOut(job),
+      ].join(' · ')
     case 'failed': {
       const code = job.error ?? ''
       const reason = te(`discordBridge.import.reasons.${code}`) ? t(`discordBridge.import.reasons.${code}`) : code

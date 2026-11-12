@@ -6150,7 +6150,8 @@
       },
       "disconnect": "Desconectar puente",
       "disconnected": "Puente desconectado",
-      "finished": "El puente está configurado."
+      "finished": "El puente está configurado.",
+      "disconnectKeeps": "Para borrar también lo que se trajo, usa antes Quitar todos los mensajes del puente en Privacidad del puente."
     },
     "confirm": {
       "disconnect": {
@@ -6326,7 +6327,10 @@
       "import": "No se pudo iniciar la importación.",
       "cancelImport": "No se pudo cancelar la importación.",
       "pairNotImportable": "Este par no puede importar historial. Solo pueden hacerlo los canales sin cifrar en pares que traen mensajes de Discord a Harmony.",
-      "importChanged": "La importación cambió mientras tanto y se actualizó. Inténtalo de nuevo."
+      "importChanged": "La importación cambió mientras tanto y se actualizó. Inténtalo de nuevo.",
+      "importDisabled": "La importación de historial está desactivada para este puente.",
+      "invalidDiscordUser": "Eso no es un ID de usuario de Discord.",
+      "privacy": "La solicitud falló. Inténtalo de nuevo."
     },
     "time": {
       "secondsAgo": "ahora mismo | hace {count} segundo | hace {count} segundos",
@@ -6470,14 +6474,90 @@
       "againLabel": "Importar de nuevo el historial de #{channel}",
       "reasons": {
         "pair_removed": "se quitó el par de canales",
-        "channel_encrypted": "el canal ahora está cifrado"
+        "channel_encrypted": "el canal ahora está cifrado",
+        "import_disabled": "se desactivó la importación de historial",
+        "pair_not_importable": "el par ya no trae mensajes de Discord a Harmony",
+        "discord_approval_required": "el canal de Discord es privado: inicia su importación en Discord con /bridge import-history",
+        "discord_channel_unsupported": "el canal de Discord no es un canal de texto",
+        "discord_access_lost": "el puente ya no puede leer el canal de Discord",
+        "bridge_stalled": "el puente dejó de avanzar"
       },
       "ineligible": {
         "direction": "Solo los pares que traen mensajes de Discord a Harmony pueden importar historial",
         "encrypted": "Los canales cifrados no pueden importar historial"
       },
       "needsUpdate": "Actualiza el puente a la versión 2.6.0 o posterior para importar historial",
-      "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia."
+      "mirrorNote": "Los archivos importados se copian en el almacenamiento de esta instancia.",
+      "consent": {
+        "title": "¿Importar el historial de {count} canal? | ¿Importar el historial de {count} canales?",
+        "copies": "Los mensajes y archivos antiguos se copian a este servidor con los nombres y avatares de Discord de sus autores. Se quedan cuando se quita el puente.",
+        "skips": "Se omiten los mensajes de quienes salieron del servidor de Discord. Cualquier persona en Discord puede excluir los suyos, o borrarlos, con /bridge-privacy.",
+        "notice": "El puente fija un aviso en cada canal de Discord cuando empieza su importación.",
+        "confirm": "Administro este servidor de Discord o actúo con el acuerdo de sus administradores.",
+        "start": "Iniciar importación"
+      },
+      "unavailable": {
+        "instance_off": "La importación de historial está desactivada en esta instancia.",
+        "bridge_mode": "La importación de historial solo está disponible para un puente que ejecutas tú, con tu propia aplicación de Discord."
+      },
+      "authorsSkipped": "{count} omitido (el autor salió o se excluyó) | {count} omitidos (los autores salieron o se excluyeron)",
+      "automodSkipped": "{count} bloqueado por AutoMod | {count} bloqueados por AutoMod"
+    },
+    "privacy": {
+      "title": "Privacidad del puente",
+      "lead": "Los miembros de Discord mantienen sus mensajes fuera de este servidor, o los borran, con /bridge-privacy en Discord. Quita aquí a alguien que no pueda usarlo, por ejemplo después de salir.",
+      "idLabel": "ID de usuario de Discord",
+      "idHelp": "En Discord, activa el modo desarrollador, haz clic derecho en el usuario y elige Copiar ID de usuario.",
+      "idInvalid": "Un ID de usuario de Discord tiene de 5 a 20 dígitos.",
+      "remove": "Quitar de este servidor",
+      "removeConfirm": "¿Borrar todos los mensajes, archivos y reacciones que este puente trajo del usuario de Discord {id} y dejar de traer los suyos? No se puede deshacer.",
+      "removeYes": "Borrar sus mensajes",
+      "removed": "{count} mensaje quitado | {count} mensajes quitados",
+      "progress": "Quitando… {count} mensaje hasta ahora | Quitando… {count} mensajes hasta ahora",
+      "listTitle": "{count} usuario de Discord excluido | {count} usuarios de Discord excluidos",
+      "source": {
+        "self": "Se excluyó en Discord",
+        "manager": "Quitado por un administrador del servidor",
+        "admin": "Quitado por un administrador de la instancia"
+      },
+      "restore": "Restaurar",
+      "restoreLabel": "Volver a traer al usuario de Discord {id}",
+      "purgeLead": "Quita todo lo que el puente de este servidor trajo de Discord: mensajes, archivos y reacciones. Los mensajes escritos en Harmony se quedan.",
+      "purge": "Quitar todos los mensajes del puente",
+      "purgeConfirm": "¿Borrar todos los mensajes, archivos y reacciones traídos de Discord a este servidor? No se puede deshacer.",
+      "purgeYes": "Borrarlos todos",
+      "purged": "{count} mensaje del puente quitado | {count} mensajes del puente quitados"
+    },
+    "importAdmin": {
+      "title": "Importación de historial de Discord",
+      "lead": "Permite que un servidor copie los mensajes antiguos de sus canales de Discord a Harmony, mediante un puente que su propietario ejecuta con su propia aplicación de Discord. Nunca mediante el bot de Discord de esta instancia ni un bot que esta instancia ejecute.",
+      "loadFailed": "No se pudieron cargar los ajustes de importación de historial.",
+      "mode": "Importación de historial",
+      "modeOff": "Desactivada",
+      "modeSelfRun": "Puentes autogestionados",
+      "modeHint": "Desactivada rechaza toda importación, también las que ya están en curso.",
+      "warningTitle": "Antes de activarlo",
+      "warningAuthors": "Quienes escribieron esos mensajes no pidieron la copia. Se omiten los autores que salieron del servidor de Discord, y los miembros excluyen o borran sus mensajes con /bridge-privacy.",
+      "warningRequests": "Las solicitudes de borrado del contenido de esta instancia te llegan a ti. Los administradores de un servidor quitan a un usuario de Discord en Configuración del servidor, Puente de Discord; Quitar todos los mensajes de Discord, abajo, vacía todos los servidores.",
+      "warningQuiet": "Los mensajes importados no envían notificaciones, cuentan como leídos y no se federan. Pasan por las reglas de palabras, invitaciones y enlaces de AutoMod del servidor cuando sus bots no están exentos.",
+      "warningStorage": "Con «Mirror to storage», los archivos importados se copian al almacenamiento de esta instancia, hasta el límite por servidor de abajo.",
+      "maxRunning": "Importaciones simultáneas",
+      "maxRunningHint": "En toda la instancia. Las demás esperan su turno. 0 es sin límite.",
+      "messagesPerMinute": "Mensajes por minuto, por importación",
+      "messagesPerMinuteHint": "El servidor frena una importación a este ritmo, envíe lo que envíe el puente. 0 es sin límite.",
+      "mirrorServerLimitMb": "Archivos de Discord almacenados por servidor (MB)",
+      "mirrorServerLimitMbHint": "Con «Mirror to storage», un servidor que lo supera conserva los enlaces de Discord para los archivos siguientes. 0 es sin límite.",
+      "limitInvalid": "Introduce números enteros, 0 o mayores.",
+      "save": "Guardar límites",
+      "saved": "Ajustes de importación de historial guardados",
+      "saveFailed": "No se pudieron guardar los ajustes de importación de historial.",
+      "totals": "{running} en curso, {queued} en espera, {imported} mensajes importados",
+      "totalsStored": "{size} de archivos de Discord almacenados",
+      "purgeTitle": "Quitar todos los mensajes de Discord",
+      "purgeLead": "Borra todos los mensajes, archivos y reacciones que cualquier puente trajo de Discord, en todos los servidores de esta instancia. Para cuando esta instancia deba dejar de guardar contenido de Discord, por ejemplo si su aplicación de Discord pierde el acceso.",
+      "purge": "Quitar todos los mensajes de Discord",
+      "purgeConfirm": "¿Borrar todo lo traído de Discord en todos los servidores de esta instancia? No se puede deshacer.",
+      "purgeYes": "Borrarlo todo"
     }
   },
   "imageEditor": {

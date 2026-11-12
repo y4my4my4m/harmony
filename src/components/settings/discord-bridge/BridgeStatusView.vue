@@ -62,8 +62,14 @@
         :imports="imports"
         :encrypted-channel-ids="encryptedChannelIds"
         :attachment-mode="attachmentMode"
+        :import-mode="importMode"
         @changed="emit('changed')"
       />
+    </section>
+
+    <section class="db-card" aria-labelledby="bridge-privacy-title">
+      <h3 id="bridge-privacy-title" class="db-card-title">{{ t('discordBridge.privacy.title') }}</h3>
+      <BridgePrivacyPanel :server-id="bridge.server_id" />
     </section>
 
     <section class="db-card" aria-labelledby="bridge-settings-title">
@@ -88,6 +94,7 @@
     <section class="db-card danger" aria-labelledby="bridge-danger-title">
       <h3 id="bridge-danger-title" class="db-card-title">{{ t('discordBridge.status.disconnectTitle') }}</h3>
       <p class="db-muted">{{ t(`discordBridge.status.disconnectBody.${bridge.mode}`) }}</p>
+      <p class="db-muted" data-testid="disconnect-keeps">{{ t('discordBridge.status.disconnectKeeps') }}</p>
       <div class="db-actions">
         <button type="button" class="btn btn-danger" data-testid="disconnect" @click="emit('delete')">
           {{ t('discordBridge.status.disconnect') }}
@@ -117,6 +124,7 @@ import {
 import { formatAgo } from './bridgeTime'
 import BridgeProblemList from './BridgeProblemList.vue'
 import BridgeChannelPairs from './BridgeChannelPairs.vue'
+import BridgePrivacyPanel from './BridgePrivacyPanel.vue'
 import type { ImportJob } from './bridgeApi'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeConnectSelf from './BridgeConnectSelf.vue'
@@ -130,6 +138,7 @@ const props = defineProps<{
   imports?: ImportJob[]
   encryptedChannelIds?: string[]
   attachmentMode?: string | null
+  importMode?: string | null
   now: number
   harmonyUrl: string
 }>()

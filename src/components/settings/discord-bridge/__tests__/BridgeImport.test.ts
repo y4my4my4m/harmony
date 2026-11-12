@@ -45,8 +45,11 @@ function makeJob(overrides: Partial<ImportJob> = {}): ImportJob {
     imported_count: 120,
     skipped_count: 0,
     pins_skipped: 0,
+    authors_skipped: 0,
+    automod_skipped: 0,
     error: null,
     requested_via: 'harmony',
+    requested_by_remote: null,
     created_at: '2026-10-01T00:00:00Z',
     updated_at: '2026-10-01T00:00:00Z',
     finished_at: null,
@@ -57,7 +60,7 @@ function makeJob(overrides: Partial<ImportJob> = {}): ImportJob {
 const BRIDGE = healthyBridge({ bridge_version: '2.6.0', discord_guild_id: GUILD_ID })
 
 function mountPairs(
-  props: Partial<{ pairs: ReturnType<typeof makePair>[]; imports: ImportJob[]; bridge: typeof BRIDGE; encryptedChannelIds: string[]; attachmentMode: string | null }> = {},
+  props: Partial<{ pairs: ReturnType<typeof makePair>[]; imports: ImportJob[]; bridge: typeof BRIDGE; encryptedChannelIds: string[]; attachmentMode: string | null; importMode: string | null }> = {},
 ) {
   return mount(BridgeChannelPairs, {
     props: {
@@ -65,10 +68,17 @@ function mountPairs(
       pairs: [makePair()],
       harmonyChannels: [{ id: 'h-general', name: 'general', categoryName: null }],
       imports: [],
+      importMode: 'self_run',
       ...props,
     },
     global: global(),
   })
+}
+
+/** Ticks the consent box and presses the dialog's start button. */
+async function agree(w: ReturnType<typeof mountPairs>, button = 'import-consent-start') {
+  await w.get('[data-testid="import-consent-check"]').setValue(true)
+  await w.get(`[data-testid="${button}"]`).trigger('click')
 }
 
 describe('importProgress', () => {
@@ -106,14 +116,76 @@ describe('BridgeChannelPairs import controls', () => {
   it('the button starts an import for that channel', async () => {
     const w = mountPairs()
     await w.get('[data-testid="import-start"]').trigger('click')
+    await agree(w)
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
     expect(w.emitted('changed')).toHaveLength(1)
   })
 
+  it('nothing starts before the consent box is ticked, and Cancel closes the dialog', async () => {
+    const w = mountPairs()
+    await w.get('[data-testid="import-start"]').trigger('click')
+    const dialog = w.get('[data-testid="import-consent"]')
+    expect(dialog.attributes('role')).toBe('alertdialog')
+    expect(dialog.text()).toContain('Import the history of 1 channel?')
+    expect(dialog.text()).toContain('/bridge-privacy')
+    expect(dialog.text()).toContain('left the Discord server are skipped')
+    const start = w.get('[data-testid="import-consent-start"]')
+    expect(start.attributes('disabled')).toBeDefined()
+    await start.trigger('click')
+    await flushPromises()
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([])
+
+    await w.get('[data-testid="import-consent-check"]').setValue(true)
+    expect(w.get('[data-testid="import-consent-start"]').attributes('disabled')).toBeUndefined()
+    await w.get('[data-testid="import-consent-cancel"]').trigger('click')
+    expect(w.find('[data-testid="import-consent"]').exists()).toBe(false)
+    expect(rpcCalls('discord_bridge_import_start')).toEqual([])
+
+    // A second ask starts unticked.
+    await w.get('[data-testid="import-start"]').trigger('click')
+    expect((w.get('[data-testid="import-consent-check"]').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('says why import is unavailable: the instance switch is off, or the bridge is not self-run', async () => {
+    for (const importMode of ['off', null, undefined]) {
+      const off = mountPairs({ importMode: importMode as string | null })
+      expect(off.get('[data-testid="import-unavailable"]').text()).toBe('History import is turned off on this instance.')
+      expect(off.find('[data-testid="import-start"]').exists()).toBe(false)
+      expect(off.find('[data-testid="import-toolbar"]').exists()).toBe(false)
+    }
+    for (const mode of ['instance', 'hosted'] as const) {
+      const other = mountPairs({ bridge: healthyBridge({ bridge_version: '2.6.0', discord_guild_id: GUILD_ID, mode }) })
+      expect(other.get('[data-testid="import-unavailable"]').attributes('data-reason')).toBe('bridge_mode')
+      expect(other.get('[data-testid="import-unavailable"]').text()).toContain('a bridge you run yourself')
+      expect(other.find('[data-testid="import-start"]').exists()).toBe(false)
+    }
+    expect(mountPairs().find('[data-testid="import-unavailable"]').exists()).toBe(false)
+  })
+
+  it('shows what a run left out for its authors and for AutoMod', () => {
+    const running = mountPairs({ imports: [makeJob({ authors_skipped: 3, automod_skipped: 1 })] })
+    expect(running.get('[data-testid="import-detail"]').text()).toContain('3 skipped (authors left or opted out)')
+    expect(running.get('[data-testid="import-detail"]').text()).toContain('1 blocked by AutoMod')
+    const done = mountPairs({ imports: [makeJob({ state: 'done', imported_count: 40, authors_skipped: 1 })] })
+    expect(done.get('[data-testid="import-state"]').text()).toBe('Imported 40 messages · 1 skipped (author left or opted out)')
+    const clean = mountPairs({ imports: [makeJob()] })
+    expect(clean.get('[data-testid="import-detail"]').text()).not.toContain('skipped')
+  })
+
+  it('explains a private Discord channel that needs its import started on Discord', () => {
+    const w = mountPairs({ imports: [makeJob({ state: 'failed', error: 'discord_approval_required' })] })
+    expect(w.get('[data-testid="import-state"]').text()).toBe(
+      'Import stopped: the Discord channel is private: start its import on Discord with /bridge import-history',
+    )
+    const off = mountPairs({ imports: [makeJob({ state: 'failed', error: 'import_disabled' })] })
+    expect(off.get('[data-testid="import-state"]').text()).toBe('Import stopped: history import was turned off')
+  })
+
   it('Import all starts the importable pairs that have no job', async () => {
     const w = mountPairs()
     await w.get('[data-testid="import-all"]').trigger('click')
+    await agree(w)
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
   })
@@ -143,6 +215,7 @@ describe('BridgeChannelPairs import controls', () => {
       ],
     })
     await w.get('[data-testid="import-all"]').trigger('click')
+    await agree(w)
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([
       { p_bridge_id: 'b1', p_harmony_channel_ids: ['h-b', 'h-c', 'h-d', 'h-g'] },
@@ -174,7 +247,8 @@ describe('BridgeChannelPairs import controls', () => {
     await w.get('[data-testid="import-all-again"]').trigger('click')
     expect(rpcCalls('discord_bridge_import_start')).toEqual([])
     expect(w.get('[data-testid="import-all-again-confirm"]').text()).toContain('all 2 channels')
-    await w.get('[data-testid="import-all-again-yes"]').trigger('click')
+    expect(w.get('[data-testid="import-all-again-yes"]').attributes('disabled')).toBeDefined()
+    await agree(w, 'import-all-again-yes')
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-a', 'h-b'] }])
     expect(w.find('[data-testid="import-all-again-confirm"]').exists()).toBe(false)
@@ -252,6 +326,7 @@ describe('BridgeChannelPairs import controls', () => {
     const cancelled = mountPairs({ imports: [makeJob({ state: 'cancelled' })] })
     expect(cancelled.get('[data-testid="import-retry"]').text()).toBe('Resume')
     await cancelled.get('[data-testid="import-retry"]').trigger('click')
+    await agree(cancelled)
     await flushPromises()
     expect(rpcCalls('discord_bridge_import_start')).toEqual([{ p_bridge_id: 'b1', p_harmony_channel_ids: ['h-general'] }])
   })
@@ -276,6 +351,7 @@ describe('BridgeChannelPairs import controls', () => {
     })
     const w = mountPairs()
     await w.get('[data-testid="import-start"]').trigger('click')
+    await agree(w)
     await flushPromises()
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("can't import history"))
   })

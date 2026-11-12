@@ -14,6 +14,8 @@ export function bridgeErrorKey(error: unknown, fallback: string): string {
   if (message === 'limit_reached') return 'discordBridge.errors.instanceFull'
   if (message === 'instance_bot_unavailable') return 'discordBridge.errors.instanceOff'
   if (message === 'pair_not_importable') return 'discordBridge.errors.pairNotImportable'
+  if (message === 'import_disabled') return 'discordBridge.errors.importDisabled'
+  if (message === 'invalid_remote_user') return 'discordBridge.errors.invalidDiscordUser'
   if (message === 'invalid_transition' || message === 'import_not_found') return 'discordBridge.errors.importChanged'
   if (code === '42501' || /permission|manage_server|not allowed|forbidden|unauthori[sz]ed/i.test(message)) {
     return 'discordBridge.errors.permission'

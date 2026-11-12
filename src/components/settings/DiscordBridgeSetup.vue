@@ -71,6 +71,7 @@
           :imports="imports"
           :encrypted-channel-ids="encryptedChannelIds"
           :attachment-mode="attachmentMode"
+          :import-mode="importMode"
           :now="now"
           :harmony-url="harmonyUrl"
           @changed="refresh"
@@ -87,6 +88,7 @@
           :imports="imports"
           :encrypted-channel-ids="encryptedChannelIds"
           :attachment-mode="attachmentMode"
+          :import-mode="importMode"
           :now="now"
           :harmony-url="harmonyUrl"
           :server-name="serverName"
@@ -143,6 +145,7 @@ import {
   deleteBridge,
   fetchBridge,
   fetchBridgeAttachmentMode,
+  fetchHistoryImportMode,
   fetchBridgePairs,
   fetchImports,
   fetchHostingEnabled,
@@ -191,6 +194,7 @@ const channels = ref<HarmonyChannelOption[]>([])
 const imports = ref<ImportJob[]>([])
 const encryptedChannelIds = ref<string[]>([])
 const attachmentMode = ref<string | null>(null)
+const importMode = ref<string | null>(null)
 const legacy = ref<LegacyPairing | null>(null)
 const hostingEnabled = ref(false)
 const instanceBotEnabled = ref(false)
@@ -243,18 +247,20 @@ async function load() {
   loading.value = true
   loadError.value = ''
   unavailable.value = false
-  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult, attachmentResult] = await Promise.allSettled([
+  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult, attachmentResult, importResult] = await Promise.allSettled([
     readBridge(),
     fetchServerTextChannels(props.serverId),
     fetchHostingEnabled(),
     fetchLegacyPairing(props.serverId),
     fetchInstanceBotEnabled(),
     fetchBridgeAttachmentMode(),
+    fetchHistoryImportMode(),
   ])
   if (channelResult.status === 'fulfilled') channels.value = channelResult.value
   hostingEnabled.value = hostingResult.status === 'fulfilled' && hostingResult.value
   instanceBotEnabled.value = instanceResult.status === 'fulfilled' && instanceResult.value
   attachmentMode.value = attachmentResult.status === 'fulfilled' ? attachmentResult.value : null
+  importMode.value = importResult.status === 'fulfilled' ? importResult.value : 'off'
   legacy.value = legacyResult.status === 'fulfilled' ? legacyResult.value : null
   if (bridgeResult.status === 'rejected') {
     if (bridgeResult.reason instanceof BridgeUnavailableError) {

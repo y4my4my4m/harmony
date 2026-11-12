@@ -6150,7 +6150,8 @@
       },
       "disconnect": "Bridge trennen",
       "disconnected": "Bridge getrennt",
-      "finished": "Die Bridge ist eingerichtet."
+      "finished": "Die Bridge ist eingerichtet.",
+      "disconnectKeeps": "Um auch das Überbrückte zu löschen, nutze vorher „Alle überbrückten Nachrichten entfernen“ unter Bridge-Datenschutz."
     },
     "confirm": {
       "disconnect": {
@@ -6326,7 +6327,10 @@
       "import": "Der Import konnte nicht gestartet werden.",
       "cancelImport": "Der Import konnte nicht abgebrochen werden.",
       "pairNotImportable": "Dieses Paar kann keinen Verlauf importieren. Nur unverschlüsselte Kanäle in Paaren, die Discord-Nachrichten nach Harmony holen, können es.",
-      "importChanged": "Der Import hat sich inzwischen geändert und wurde aktualisiert. Versuche es erneut."
+      "importChanged": "Der Import hat sich inzwischen geändert und wurde aktualisiert. Versuche es erneut.",
+      "importDisabled": "Der Verlaufsimport ist für diese Bridge ausgeschaltet.",
+      "invalidDiscordUser": "Das ist keine Discord-Benutzer-ID.",
+      "privacy": "Die Anfrage ist fehlgeschlagen. Versuche es erneut."
     },
     "time": {
       "secondsAgo": "gerade eben | vor {count} Sekunde | vor {count} Sekunden",
@@ -6470,14 +6474,90 @@
       "againLabel": "Verlauf für #{channel} erneut importieren",
       "reasons": {
         "pair_removed": "das Kanalpaar wurde entfernt",
-        "channel_encrypted": "der Kanal ist jetzt verschlüsselt"
+        "channel_encrypted": "der Kanal ist jetzt verschlüsselt",
+        "import_disabled": "der Verlaufsimport wurde ausgeschaltet",
+        "pair_not_importable": "das Paar bringt keine Discord-Nachrichten mehr nach Harmony",
+        "discord_approval_required": "der Discord-Kanal ist privat: starte den Import auf Discord mit /bridge import-history",
+        "discord_channel_unsupported": "der Discord-Kanal ist kein Textkanal",
+        "discord_access_lost": "die Bridge kann den Discord-Kanal nicht mehr lesen",
+        "bridge_stalled": "die Bridge kam nicht mehr voran"
       },
       "ineligible": {
         "direction": "Nur Paare, die Discord-Nachrichten nach Harmony holen, können den Verlauf importieren",
         "encrypted": "Verschlüsselte Kanäle können keinen Verlauf importieren"
       },
       "needsUpdate": "Aktualisiere die Bridge auf 2.6.0 oder neuer, um den Verlauf zu importieren",
-      "mirrorNote": "Importierte Dateien werden in den Speicher dieser Instanz kopiert."
+      "mirrorNote": "Importierte Dateien werden in den Speicher dieser Instanz kopiert.",
+      "consent": {
+        "title": "Verlauf von {count} Kanal importieren? | Verlauf von {count} Kanälen importieren?",
+        "copies": "Ältere Nachrichten und Dateien werden mit den Discord-Namen und Avataren ihrer Autoren auf diesen Server kopiert. Sie bleiben, wenn die Bridge entfernt wird.",
+        "skips": "Nachrichten von Personen, die den Discord-Server verlassen haben, werden übersprungen. Jede Person auf Discord kann ihre Nachrichten mit /bridge-privacy ausschließen oder löschen.",
+        "notice": "Die Bridge heftet in jedem Discord-Kanal einen Hinweis an, wenn dessen Import beginnt.",
+        "confirm": "Ich verwalte diesen Discord-Server oder handle mit Zustimmung seiner Verwalter.",
+        "start": "Import starten"
+      },
+      "unavailable": {
+        "instance_off": "Der Verlaufsimport ist auf dieser Instanz ausgeschaltet.",
+        "bridge_mode": "Der Verlaufsimport ist nur für eine Bridge verfügbar, die du selbst mit deiner eigenen Discord-Anwendung betreibst."
+      },
+      "authorsSkipped": "{count} übersprungen (Autor ausgetreten oder abgemeldet) | {count} übersprungen (Autoren ausgetreten oder abgemeldet)",
+      "automodSkipped": "{count} von AutoMod blockiert | {count} von AutoMod blockiert"
+    },
+    "privacy": {
+      "title": "Bridge-Datenschutz",
+      "lead": "Discord-Mitglieder halten ihre Nachrichten mit /bridge-privacy auf Discord aus diesem Server heraus oder löschen sie. Entferne hier jemanden, der den Befehl nicht ausführen kann, etwa nach dem Austritt.",
+      "idLabel": "Discord-Benutzer-ID",
+      "idHelp": "Aktiviere in Discord den Entwicklermodus, klicke dann mit der rechten Maustaste auf die Person und wähle „Benutzer-ID kopieren“.",
+      "idInvalid": "Eine Discord-Benutzer-ID besteht aus 5 bis 20 Ziffern.",
+      "remove": "Von diesem Server entfernen",
+      "removeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die diese Bridge von der Discord-Person {id} gebracht hat, und keine weiteren bringen? Das lässt sich nicht rückgängig machen.",
+      "removeYes": "Nachrichten löschen",
+      "removed": "{count} Nachricht entfernt | {count} Nachrichten entfernt",
+      "progress": "Wird entfernt… bisher {count} Nachricht | Wird entfernt… bisher {count} Nachrichten",
+      "listTitle": "{count} Discord-Person ausgeschlossen | {count} Discord-Personen ausgeschlossen",
+      "source": {
+        "self": "Auf Discord abgemeldet",
+        "manager": "Von einem Verwalter entfernt",
+        "admin": "Von einem Instanz-Admin entfernt"
+      },
+      "restore": "Wieder zulassen",
+      "restoreLabel": "Discord-Person {id} wieder überbrücken",
+      "purgeLead": "Entferne alles, was die Bridge dieses Servers von Discord gebracht hat: Nachrichten, Dateien und Reaktionen. Auf Harmony geschriebene Nachrichten bleiben.",
+      "purge": "Alle überbrückten Nachrichten entfernen",
+      "purgeConfirm": "Alle Nachrichten, Dateien und Reaktionen löschen, die von Discord auf diesen Server gebracht wurden? Das lässt sich nicht rückgängig machen.",
+      "purgeYes": "Alle löschen",
+      "purged": "{count} überbrückte Nachricht entfernt | {count} überbrückte Nachrichten entfernt"
+    },
+    "importAdmin": {
+      "title": "Discord-Verlaufsimport",
+      "lead": "Erlaubt einem Server, die älteren Nachrichten seiner Discord-Kanäle nach Harmony zu kopieren, über eine Bridge, die sein Besitzer mit einer eigenen Discord-Anwendung betreibt. Nie über den Discord-Bot dieser Instanz oder einen Bot, den diese Instanz betreibt.",
+      "loadFailed": "Die Einstellungen für den Verlaufsimport konnten nicht geladen werden.",
+      "mode": "Verlaufsimport",
+      "modeOff": "Aus",
+      "modeSelfRun": "Selbst betriebene Bridges",
+      "modeHint": "Aus lehnt jeden Import ab, auch bereits laufende.",
+      "warningTitle": "Bevor du das einschaltest",
+      "warningAuthors": "Die Verfasser dieser Nachrichten haben um die Kopie nicht gebeten. Autoren, die den Discord-Server verlassen haben, werden übersprungen, und Mitglieder schließen ihre Nachrichten mit /bridge-privacy aus oder löschen sie.",
+      "warningRequests": "Löschanfragen für Inhalte auf dieser Instanz gehen an dich. Server-Verwalter entfernen eine Discord-Person unter Servereinstellungen, Discord-Bridge; „Alle Discord-Nachrichten entfernen“ unten leert jeden Server.",
+      "warningQuiet": "Importierte Nachrichten senden keine Benachrichtigungen, gelten als gelesen und werden nicht föderiert. Sie durchlaufen die Wort-, Einladungs- und Link-Regeln von AutoMod, wenn Bots auf dem Server nicht ausgenommen sind.",
+      "warningStorage": "Mit „Mirror to storage“ werden importierte Dateien in den Speicher dieser Instanz kopiert, bis zum Limit pro Server unten.",
+      "maxRunning": "Gleichzeitig laufende Importe",
+      "maxRunningHint": "Auf der gesamten Instanz. Weitere warten. 0 bedeutet kein Limit.",
+      "messagesPerMinute": "Nachrichten pro Minute, je Import",
+      "messagesPerMinuteHint": "Der Server bremst einen Import auf diese Rate, egal was die Bridge sendet. 0 bedeutet kein Limit.",
+      "mirrorServerLimitMb": "Gespeicherte Discord-Dateien pro Server (MB)",
+      "mirrorServerLimitMbHint": "Mit „Mirror to storage“ behält ein Server über diesem Wert für weitere Dateien die Discord-Links. 0 bedeutet kein Limit.",
+      "limitInvalid": "Gib ganze Zahlen ab 0 ein.",
+      "save": "Limits speichern",
+      "saved": "Einstellungen für den Verlaufsimport gespeichert",
+      "saveFailed": "Die Einstellungen für den Verlaufsimport konnten nicht gespeichert werden.",
+      "totals": "{running} laufen, {queued} warten, {imported} Nachrichten importiert",
+      "totalsStored": "{size} Discord-Dateien gespeichert",
+      "purgeTitle": "Alle Discord-Nachrichten entfernen",
+      "purgeLead": "Löscht alle Nachrichten, Dateien und Reaktionen, die eine Bridge von Discord gebracht hat, auf jedem Server dieser Instanz. Für den Fall, dass diese Instanz keine Discord-Inhalte mehr halten darf, etwa wenn ihre Discord-Anwendung den Zugang verliert.",
+      "purge": "Alle Discord-Nachrichten entfernen",
+      "purgeConfirm": "Alles von Discord Überbrückte auf jedem Server dieser Instanz löschen? Das lässt sich nicht rückgängig machen.",
+      "purgeYes": "Alles löschen"
     }
   },
   "imageEditor": {
