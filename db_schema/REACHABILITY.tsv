@@ -376,6 +376,7 @@ discord_bridges_touch	invoker	trigger	-	trigger	trigger public.discord_bridges B
 discord_migration_admin_bearing	definer	boolean	-	client	called by discord_migration_apply_roles, discord_migration_save_role_map
 discord_migration_admin_impact	definer	jsonb	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_allow_back	definer	void	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
+discord_migration_apply_member_overrides	definer	jsonb	-	client	called by discord_migration_claim, discord_migration_sync_member
 discord_migration_apply_permissions	invoker	jsonb	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_apply_removals	definer	jsonb	service_role	client	rpc in bot-gateway/src/migration/MigrationSyncRunner.ts
 discord_migration_apply_roles	definer	jsonb	service_role	client	called by discord_migration_claim, discord_migration_sync_member
@@ -407,6 +408,7 @@ discord_migration_set_my_sync	definer	void	authenticated	client	rpc in src/servi
 discord_migration_set_own_credentials	definer	void	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_set_state	definer	jsonb	authenticated	client	named in src/components/settings/discord-migration/migrationApi.ts
 discord_migration_store_discord_roles	definer	void	service_role	client	rpc in bot-gateway/src/api/MigrationAPI.ts, bot-gateway/src/migration/MigrationSyncRunner.ts
+discord_migration_store_member_overrides	definer	void	service_role	client	rpc in bot-gateway/src/api/MigrationAPI.ts, bot-gateway/src/migration/MigrationSyncRunner.ts
 discord_migration_store_warnings	definer	void	service_role	client	rpc in bot-gateway/src/api/MigrationAPI.ts
 discord_migration_sync_member	definer	jsonb	service_role	client	rpc in bot-gateway/src/migration/MigrationSyncRunner.ts
 dismiss_server_automod_prompt	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts

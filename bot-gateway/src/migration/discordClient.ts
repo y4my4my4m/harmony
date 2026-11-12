@@ -236,11 +236,26 @@ export function fetchApplication(botToken: string, opts: DiscordClientOptions = 
   return botGetMapped(botToken, '/oauth2/applications/@me', (body) => ({ id: String(body.id) }), opts)
 }
 
+/** A permission overwrite: type 0 is a role, type 1 a member; allow and deny are Discord bitfields (decimal strings). */
+export interface DiscordPermissionOverwrite {
+  id: string
+  type: number
+  allow: string
+  deny: string
+}
+
+export interface DiscordChannel {
+  id: string
+  name: string
+  type: number
+  permission_overwrites: DiscordPermissionOverwrite[]
+}
+
 export function fetchGuildChannels(
   botToken: string,
   guildId: string,
   opts: DiscordClientOptions = {},
-): Promise<DiscordResult<Array<{ id: string; name: string; type: number; permission_overwrites: Array<{ type: number }> }>>> {
+): Promise<DiscordResult<DiscordChannel[]>> {
   return botGetMapped(
     botToken,
     `/guilds/${guildId}/channels`,
@@ -249,7 +264,12 @@ export function fetchGuildChannels(
         id: String(c.id),
         name: String(c.name ?? ''),
         type: Number(c.type ?? 0),
-        permission_overwrites: (c.permission_overwrites ?? []).map((o: any) => ({ type: Number(o.type) })),
+        permission_overwrites: (c.permission_overwrites ?? []).map((o: any) => ({
+          id: String(o.id ?? ''),
+          type: Number(o.type),
+          allow: String(o.allow ?? '0'),
+          deny: String(o.deny ?? '0'),
+        })),
       })),
     opts,
   )

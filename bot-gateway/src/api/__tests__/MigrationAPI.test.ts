@@ -115,6 +115,7 @@ beforeEach(() => {
     discord_migration_bind_claim: () => ({ data: null, error: null }),
     discord_migration_store_discord_roles: () => ({ data: null, error: null }),
     discord_migration_store_warnings: () => ({ data: null, error: null }),
+    discord_migration_store_member_overrides: () => ({ data: null, error: null }),
     permission_bit_names: () => ({ data: BIT_NAMES, error: null }),
   }
   mocks.rpc.mockReset()
@@ -157,8 +158,24 @@ beforeEach(() => {
   d.fetchGuildChannels.mockResolvedValue({
     ok: true,
     value: [
-      { id: 'c1', name: 'general', type: 0, permission_overwrites: [{ type: 0 }, { type: 1 }] },
-      { id: 'c2', name: 'random', type: 0, permission_overwrites: [{ type: 1 }, { type: 1 }] },
+      {
+        id: 'c1',
+        name: 'general',
+        type: 0,
+        permission_overwrites: [
+          { id: '11', type: 0, allow: '0', deny: '0' },
+          { id: '777', type: 1, allow: String((1n << 10n) | (1n << 11n)), deny: String(1n << 3n) },
+        ],
+      },
+      {
+        id: 'c2',
+        name: 'random',
+        type: 0,
+        permission_overwrites: [
+          { id: '888', type: 1, allow: '0', deny: String(1n << 10n) },
+          { id: '999', type: 1, allow: String(1n << 3n), deny: '0' },
+        ],
+      },
       { id: 'c3', name: 'Text Channels', type: 4, permission_overwrites: [] },
       { id: 'c4', name: 'Lounge', type: 2, permission_overwrites: [] },
       { id: 'c5', name: 'news', type: 5, permission_overwrites: [] },
@@ -417,6 +434,16 @@ describe('POST /bridge/v2/migrate/:serverId/refresh', () => {
       },
     ])
     expect(db.rows('discord_migrations').find((m) => m.server_id === SERVER_ID)!.bot_can_ban).toBe(true)
+    // Discord VIEW_CHANNEL at Harmony bit 1 (SEND_MESSAGES is not among this test's bit names); an ADMINISTRATOR-only overwrite carries nothing.
+    expect(rpcCalls('discord_migration_store_member_overrides')).toEqual([
+      {
+        p_server_id: SERVER_ID,
+        p_overrides: [
+          { channel_id: 'c1', channel_name: 'general', user_id: '777', allow: String(1 << 1), deny: '0' },
+          { channel_id: 'c2', channel_name: 'random', user_id: '888', allow: '0', deny: String(1 << 1) },
+        ],
+      },
+    ])
     expect(rpcCalls('discord_migration_store_warnings')).toEqual([
       { p_server_id: SERVER_ID, p_warnings: { unpaired_channels: ['random', 'news'], member_overrides: 3 } },
     ])

@@ -376,6 +376,7 @@ discord_bridges_touch		trigger	invoker	public, pg_temp		trigger
 discord_migration_admin_bearing	p_server_id uuid, p_discord_role_id text, p_harmony_role_id uuid	boolean	definer	public, extensions, pg_temp		unreferenced
 discord_migration_admin_impact	p_server_id uuid, p_discord_role_id text	jsonb	definer	public, extensions, pg_temp	authenticated	client
 discord_migration_allow_back	p_server_id uuid, p_user_id uuid	void	definer	public, extensions, pg_temp	authenticated	client
+discord_migration_apply_member_overrides	p_server_id uuid, p_user_id uuid	jsonb	definer	public, extensions, pg_temp		unreferenced
 discord_migration_apply_permissions	p_server_id uuid, p_discord_role_ids text[], p_confirm_admin boolean	jsonb	invoker	public, extensions, pg_temp	authenticated	client
 discord_migration_apply_removals	p_server_id uuid, p_candidates jsonb	jsonb	definer	public, extensions, pg_temp	service_role	client
 discord_migration_apply_roles	p_server_id uuid, p_user_id uuid, p_discord_role_ids text[]	jsonb	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -407,6 +408,7 @@ discord_migration_set_my_sync	p_server_id uuid, p_fields text[]	void	definer	pub
 discord_migration_set_own_credentials	p_server_id uuid, p_client_id text, p_client_secret text, p_bot_token text	void	definer	public, extensions, pg_temp	authenticated	client
 discord_migration_set_state	p_server_id uuid, p_state text	jsonb	definer	public, extensions, pg_temp	authenticated	client
 discord_migration_store_discord_roles	p_server_id uuid, p_roles jsonb	void	definer	public, extensions, pg_temp	service_role	client
+discord_migration_store_member_overrides	p_server_id uuid, p_overrides jsonb	void	definer	public, extensions, pg_temp	service_role	client
 discord_migration_store_warnings	p_server_id uuid, p_warnings jsonb	void	definer	public, extensions, pg_temp	service_role	client
 discord_migration_sync_member	p_server_id uuid, p_user_id uuid, p_member jsonb	jsonb	definer	public, extensions, pg_temp	service_role	client
 dismiss_server_automod_prompt	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client

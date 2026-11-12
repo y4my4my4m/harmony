@@ -13,10 +13,11 @@ import {
   type DiscordResult,
   fetchBan,
   fetchGuildMember,
+  fetchGuildChannels,
   fetchGuildRoles,
   fetchUser,
 } from './discordClient.js'
-import { buildRolesSnapshot } from './discordPermissions.js'
+import { buildMemberOverridesSnapshot, buildRolesSnapshot } from './discordPermissions.js'
 
 export interface DueMigration {
   server_id: string
@@ -61,6 +62,8 @@ export interface MigrationSyncDeps {
   rpc?: (fn: string, args?: Record<string, unknown>) => PromiseLike<RpcResult>
   discord?: {
     fetchGuildRoles: typeof fetchGuildRoles
+    /** Where the members' channel overwrites come from; without it the snapshot is left as it is. */
+    fetchGuildChannels?: typeof fetchGuildChannels
     fetchGuildMember: typeof fetchGuildMember
     fetchUser: typeof fetchUser
     fetchBan: typeof fetchBan
@@ -122,7 +125,7 @@ export class MigrationSyncRunner {
 
   constructor(deps: MigrationSyncDeps = {}) {
     this.rpc = deps.rpc ?? ((fn, args) => supabase.rpc(fn, args) as unknown as PromiseLike<RpcResult>)
-    this.discord = deps.discord ?? { fetchGuildRoles, fetchGuildMember, fetchUser, fetchBan }
+    this.discord = deps.discord ?? { fetchGuildRoles, fetchGuildChannels, fetchGuildMember, fetchUser, fetchBan }
     this.mirror = deps.mirror ?? defaultMirror
     this.loadMigration = deps.loadMigration ?? defaultLoadMigration
     this.loadLink = deps.loadLink ?? defaultLoadLink
@@ -217,6 +220,9 @@ export class MigrationSyncRunner {
       if (refreshed === 'unavailable') return transient()
       return pauseWith(refreshed)
     }
+
+    // Once per pass, before any member: sync_member applies the snapshot to each linked member.
+    await this.refreshMemberOverrides(serverId, guildId, creds.bot_token)
 
     const candidates: Array<{ user_id: string; kind: 'left' | 'banned' }> = []
     const seen = new Set<string>()
@@ -355,6 +361,36 @@ export class MigrationSyncRunner {
       return 'unavailable'
     }
     return 'ok'
+  }
+
+  /**
+   * Stores the guild's member channel overwrites as Harmony masks. A failure only logs: the previous snapshot
+   * stays, and the pass goes on with roles and profiles.
+   */
+  private async refreshMemberOverrides(serverId: string, guildId: string, botToken: string): Promise<void> {
+    const fetchChannels = this.discord.fetchGuildChannels
+    if (!fetchChannels) return
+    try {
+      const channels = await fetchChannels(botToken, guildId)
+      if (!channels.ok) {
+        console.warn(`migration channel fetch failed: ${channels.reason}`)
+        return
+      }
+      const names = await this.rpc('permission_bit_names')
+      if (names.error || !Array.isArray(names.data)) {
+        console.error('permission_bit_names failed:', names.error?.code, names.error?.message)
+        return
+      }
+      const stored = await this.rpc('discord_migration_store_member_overrides', {
+        p_server_id: serverId,
+        p_overrides: buildMemberOverridesSnapshot(channels.value, names.data as string[]),
+      })
+      if (stored.error) {
+        console.error('discord_migration_store_member_overrides failed:', stored.error.code, stored.error.message)
+      }
+    } catch {
+      console.warn('migration channel fetch failed: malformed_response')
+    }
   }
 
   private async call<T>(fn: () => Promise<DiscordResult<T>>): Promise<T> {

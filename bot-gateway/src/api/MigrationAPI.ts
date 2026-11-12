@@ -12,11 +12,12 @@ import {
   fetchBotPermissionsInGuild,
   fetchCurrentUser,
   fetchGuildChannels,
+  type DiscordChannel,
   fetchGuildMember,
   fetchGuildRoles,
   migrateAuthorizeUrl,
 } from '../migration/discordClient.js'
-import { buildRolesSnapshot } from '../migration/discordPermissions.js'
+import { buildMemberOverridesSnapshot, buildRolesSnapshot } from '../migration/discordPermissions.js'
 
 const LINK_TOKEN = /^[0-9a-f]{48}$/
 const STATE = /^[0-9a-f]{64}$/
@@ -254,6 +255,15 @@ export class MigrationAPI {
       .eq('server_id', serverId)
     if (banError) console.error('bot_can_ban write failed:', banError.code, banError.message)
 
+    const overrides = await supabase.rpc('discord_migration_store_member_overrides', {
+      p_server_id: serverId,
+      p_overrides: buildMemberOverridesSnapshot(channels.value, names as string[]),
+    })
+    if (overrides.error) {
+      console.error('discord_migration_store_member_overrides failed:', overrides.error.code, overrides.error.message)
+      return res.status(500).json({ ok: false, error: 'store_failed' })
+    }
+
     const warnings = await this.readinessWarnings(serverId, channels.value)
     if (warnings === 'error') return res.status(500).json({ ok: false, error: 'lookup_failed' })
     const w = await supabase.rpc('discord_migration_store_warnings', { p_server_id: serverId, p_warnings: warnings })
@@ -267,7 +277,7 @@ export class MigrationAPI {
 
   private async readinessWarnings(
     serverId: string,
-    channels: Array<{ id: string; name: string; type: number; permission_overwrites: Array<{ type: number }> }>,
+    channels: DiscordChannel[],
   ) {
     const { data: bridges, error } = await supabase.from('discord_bridges').select('id').eq('server_id', serverId)
     if (error) {

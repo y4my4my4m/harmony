@@ -175,11 +175,11 @@ describe('fetchApplication / fetchGuildChannels', () => {
     expect(await fetchApplication('B', { fetchImpl })).toEqual({ ok: true, value: { id: '99' } })
     expect(String(fn.mock.calls[0][0])).toMatch(/\/oauth2\/applications\/@me$/)
   })
-  it('maps channels to id, name, type, overwrite types', async () => {
+  it('maps channels to id, name, type and the overwrites with their allow and deny', async () => {
     const { fetchImpl } = stub(json([{ id: 'c1', name: 'general', type: 0, permission_overwrites: [{ id: 'x', type: 0, allow: '1', deny: '0' }] }]))
     expect(await fetchGuildChannels('B', 'G', { fetchImpl })).toEqual({
       ok: true,
-      value: [{ id: 'c1', name: 'general', type: 0, permission_overwrites: [{ type: 0 }] }],
+      value: [{ id: 'c1', name: 'general', type: 0, permission_overwrites: [{ id: 'x', type: 0, allow: '1', deny: '0' }] }],
     })
   })
 })

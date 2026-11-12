@@ -74,6 +74,8 @@ interface Setup {
   realMirror?: boolean
   loadMigrationFails?: boolean
   noMigrationRow?: boolean
+  channels?: ReturnType<typeof ok> | ReturnType<typeof fail>
+  bitNames?: string[]
 }
 
 function build(s: Setup = {}) {
@@ -86,7 +88,7 @@ function build(s: Setup = {}) {
         if (s.credsError) return { data: null, error: { message: s.credsError } }
         return { data: [{ client_id: 'c', client_secret: 's', bot_token: 'tok' }], error: null }
       case 'permission_bit_names':
-        return { data: ['ADMINISTRATOR'], error: null }
+        return { data: s.bitNames ?? ['ADMINISTRATOR'], error: null }
       case 'discord_migration_links_batch': {
         const rows = links.slice(0, args.p_limit)
         return { data: rows, error: null }
@@ -106,6 +108,7 @@ function build(s: Setup = {}) {
     ),
     fetchUser: vi.fn(async () => ok({ id: 'd', username: 'ann', global_name: 'Ann', avatar_url: null, banner_url: 'https://cdn.discordapp.com/bn.png', accent_color: 255 })),
     fetchBan: vi.fn(async () => ok(s.bans ?? false)),
+    ...(s.channels ? { fetchGuildChannels: vi.fn(async () => s.channels) } : {}),
   }
   const mirror = vi.fn(async (_url: string, t: { bucket: string; folder: string; stem: string }) => `${t.folder}/${t.stem}-1.png`)
   const loadMigration = vi.fn(async () => {
@@ -147,6 +150,45 @@ describe('MigrationSyncRunner.syncServer', () => {
     const t = build({ noMigrationRow: true })
     await t.runner.syncServer(due)
     expect(t.of('discord_migration_pause')[0].args).toEqual({ p_server_id: SERVER, p_reason: 'credentials_missing' })
+  })
+
+  it('stores the member channel overwrites with Harmony masks before the members are synced', async () => {
+    const t = build({
+      links: [link(1)],
+      bitNames: ['ADMINISTRATOR', 'VIEW_CHANNEL', 'SEND_MESSAGES'],
+      channels: ok([
+        {
+          id: 'c1',
+          name: 'general',
+          type: 0,
+          permission_overwrites: [
+            { id: 'r1', type: 0, allow: String(1n << 10n), deny: '0' },
+            { id: 'd1', type: 1, allow: String(1n << 10n), deny: String((1n << 11n) | (1n << 3n)) },
+            { id: 'd2', type: 1, allow: String(1n << 3n), deny: '0' },
+          ],
+        },
+      ]),
+    })
+    await t.runner.syncServer(due)
+    expect(t.of('discord_migration_store_member_overrides')).toEqual([
+      {
+        fn: 'discord_migration_store_member_overrides',
+        args: {
+          p_server_id: SERVER,
+          p_overrides: [{ channel_id: 'c1', channel_name: 'general', user_id: 'd1', allow: '2', deny: '4' }],
+        },
+      },
+    ])
+    const order = t.calls.map((c) => c.fn)
+    expect(order.indexOf('discord_migration_store_member_overrides')).toBeLessThan(order.indexOf('discord_migration_links_batch'))
+  })
+
+  it('keeps the old snapshot and still syncs when the channels cannot be fetched', async () => {
+    const t = build({ links: [link(1)], channels: fail(500) })
+    const r = await t.runner.syncServer(due)
+    expect(t.of('discord_migration_store_member_overrides')).toHaveLength(0)
+    expect(t.of('discord_migration_sync_member')).toHaveLength(1)
+    expect(r.paused).toBeUndefined()
   })
 
   it('pauses with credentials_missing', async () => {

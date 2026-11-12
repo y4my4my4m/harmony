@@ -68,3 +68,30 @@ export function toHarmonyMask(discordPermissions: string, bitNames: string[]): s
   }
   return mask.toString()
 }
+
+/**
+ * The member overwrites (type 1) of the guild's channels as discord_migration_store_member_overrides
+ * takes them, with Harmony masks. ADMINISTRATOR is dropped: Discord cannot set it in an overwrite.
+ */
+export function buildMemberOverridesSnapshot(
+  channels: Array<{
+    id: string
+    name: string
+    permission_overwrites: Array<{ id?: string; type: number; allow?: string; deny?: string }>
+  }>,
+  bitNames: string[],
+) {
+  const admin = bitNames.indexOf('ADMINISTRATOR')
+  const strip = (mask: string) => (admin >= 0 ? (BigInt(mask) & ~(1n << BigInt(admin))).toString() : mask)
+  const rows: Array<{ channel_id: string; channel_name: string; user_id: string; allow: string; deny: string }> = []
+  for (const c of channels) {
+    for (const o of c.permission_overwrites) {
+      if (o.type !== 1 || !o.id) continue
+      const allow = strip(toHarmonyMask(o.allow ?? '0', bitNames))
+      const deny = strip(toHarmonyMask(o.deny ?? '0', bitNames))
+      if (allow === '0' && deny === '0') continue
+      rows.push({ channel_id: c.id, channel_name: c.name, user_id: o.id, allow, deny })
+    }
+  }
+  return rows
+}
