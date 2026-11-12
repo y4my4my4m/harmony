@@ -198,6 +198,31 @@ export async function setMySync(serverId: string, fields: SyncField[]): Promise<
   if (error) throw new DiscordMigrationError(rpcCode(error))
   if (fields.length === 0) return
   await requestMySync(serverId)
+  await refreshMyProfiles(serverId)
+}
+
+/**
+ * The gateway writes the copied fields as the service role, so the signed-in client learns nothing from
+ * its own save: load the account profile and this server's member fields again. Never throws; the next
+ * realtime event or page load shows the same data.
+ */
+export async function refreshMyProfiles(serverId: string): Promise<void> {
+  try {
+    const [{ authContextService }, { userDataService }, { loadMyServerProfile }, { useProfileStore }] = await Promise.all([
+      import('@/services/AuthContextService'),
+      import('@/services/userDataService'),
+      import('@/services/serverProfileService'),
+      import('@/stores/useProfile'),
+    ])
+    const profileId = await authContextService.getCurrentProfileId()
+    await Promise.all([
+      userDataService.fetchUserProfile(profileId, true),
+      useProfileStore().fetchProfile(profileId, false),
+      loadMyServerProfile(serverId, profileId),
+    ])
+  } catch {
+    /* a stale name until the next load is the worst case */
+  }
 }
 
 /**
