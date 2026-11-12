@@ -217,6 +217,30 @@ async function canViewChannel(profileId: string, serverId: string, channelId: st
   return !error && data === true
 }
 
+/**
+ * Discord ids of the server's members who linked a Harmony account through Migrate from Discord and
+ * are accepted members of the server. Those people are listed as Harmony members, so the clients
+ * leave their Discord entry out. Ids only; a failed lookup answers none.
+ */
+async function linkedDiscordIds(serverId: string): Promise<string[]> {
+  const { data: links, error } = await supabase
+    .from('discord_migration_links')
+    .select('user_id, discord_user_id')
+    .eq('server_id', serverId)
+    .eq('status', 'active')
+  if (error || !links?.length) return []
+  const rows = links as Array<{ user_id: string; discord_user_id: string }>
+  const { data: members, error: membersError } = await supabase
+    .from('user_servers')
+    .select('user_id')
+    .eq('server_id', serverId)
+    .eq('status', 'accepted')
+    .in('user_id', rows.map((l) => l.user_id))
+  if (membersError) return []
+  const accepted = new Set(((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id))
+  return rows.filter((l) => accepted.has(l.user_id)).map((l) => l.discord_user_id)
+}
+
 // Discord bridge users, consumed by the frontend for mention autosuggest.
 // The caller must view the channel: the list is that channel's Discord members.
 app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
@@ -253,7 +277,8 @@ app.get('/bridged-users/:channelId', async (req, res): Promise<void> => {
   res.json({
     channel_id: channelId,
     has_bridge: hasBridge,
-    users: bridgedUsers
+    users: bridgedUsers,
+    linked_discord_ids: hasBridge ? await linkedDiscordIds(channel.server_id) : [],
   })
 })
 
@@ -294,6 +319,7 @@ app.get('/bridged-users/server/:serverId', async (req, res): Promise<void> => {
     server_id: serverId,
     has_bridge: hasBridge,
     users: bridgedUsers,
+    linked_discord_ids: hasBridge ? await linkedDiscordIds(serverId) : [],
   })
 })
 

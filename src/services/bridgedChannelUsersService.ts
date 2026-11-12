@@ -78,6 +78,18 @@ function indexBridgedUsers(users: BridgedChannelUser[]): void {
   }
 }
 
+/**
+ * A Discord member who linked a Harmony account (Migrate from Discord) is listed as the Harmony
+ * member, so the bridged entry is left out of the lists. The gateway names those Discord ids; every
+ * user still goes into the lookup cache, since old bridged messages resolve their author there.
+ */
+function withoutLinkedMembers(data: { users?: unknown; linked_discord_ids?: unknown }): BridgedChannelUser[] {
+  const all = Array.isArray(data.users) ? (data.users as BridgedChannelUser[]) : []
+  indexBridgedUsers(all)
+  const linked = new Set(Array.isArray(data.linked_discord_ids) ? (data.linked_discord_ids as string[]) : [])
+  return linked.size === 0 ? all : all.filter(user => !linked.has(user.id))
+}
+
 export function clearBridgedUsersCache(channelId?: string): void {
   if (channelId) {
     cache.delete(channelId)
@@ -198,16 +210,13 @@ export async function fetchBridgedChannelUsers(
       }
 
       const data = await response.json()
-      const users = data.has_bridge && Array.isArray(data.users)
-        ? data.users as BridgedChannelUser[]
-        : []
+      const users = data.has_bridge ? withoutLinkedMembers(data) : []
       const entry: CachedBridgedUsers = {
         users,
         hasBridge: !!data.has_bridge,
         timestamp: Date.now(),
       }
       cache.set(channelId, entry)
-      indexBridgedUsers(users)
       pruneCache(cache)
       debug.log(`Loaded ${users.length} bridged users for channel ${channelId}`)
       return entry
@@ -257,16 +266,13 @@ export async function fetchBridgedServerUsers(
       }
 
       const data = await response.json()
-      const users = data.has_bridge && Array.isArray(data.users)
-        ? data.users as BridgedChannelUser[]
-        : []
+      const users = data.has_bridge ? withoutLinkedMembers(data) : []
       const entry: CachedBridgedUsers = {
         users,
         hasBridge: !!data.has_bridge,
         timestamp: Date.now(),
       }
       serverCache.set(serverId, entry)
-      indexBridgedUsers(users)
       pruneCache(serverCache)
       return entry
     } catch (error) {
