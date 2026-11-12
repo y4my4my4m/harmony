@@ -1370,6 +1370,11 @@ class UserDataService extends EventTarget {
   
   /** Fetches from the database when forced, uncached, or stale. */
   async fetchUserProfile(userId: string, forceRefresh: boolean = false): Promise<any | null> {
+    if (forceRefresh) {
+      // loadUsersData skips anyone cached within the TTL: age the entry so the database is read.
+      const cached = this.users.get(userId)
+      if (cached) cached.lastCacheUpdate = new Date(0).toISOString()
+    }
     if (forceRefresh || !this.users.has(userId) || this.isUserDataStale(userId)) {
       await this.loadUsersData([userId])
     }
