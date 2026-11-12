@@ -160,7 +160,14 @@
       <section v-if="discordSyncShown" class="discord-sync" data-testid="discord-sync">
         <h3 class="discord-sync-title">{{ t('discordMigration.sync.title') }}</h3>
         <p class="discord-sync-lead">{{ t('discordMigration.sync.settingsLead') }}</p>
-        <DiscordSyncFields v-model="discordSync" :server-id="selectedServerId" />
+        <DiscordSyncFields v-model="discordSync" :disabled="discordSyncing" />
+        <p v-if="discordSyncError" class="discord-sync-lead" role="alert" data-testid="discord-sync-error">{{ discordSyncError }}</p>
+        <p v-else-if="discordSynced" class="discord-sync-lead" role="status" data-testid="discord-sync-done">{{ t('discordMigration.sync.done') }}</p>
+        <div class="discord-sync-actions">
+          <button type="button" class="btn btn-primary btn-sm" :disabled="discordSyncing" data-testid="discord-sync-save" @click="saveDiscordSync">
+            {{ discordSyncing ? t('discordMigration.sync.syncing') : t('discordMigration.sync.saveAndSync') }}
+          </button>
+        </div>
       </section>
       </template>
     </template>
@@ -179,7 +186,8 @@ import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useUserData } from '@/composables/useUserData'
 import { profileService } from '@/services/ProfileService'
 import { Permission } from '@/services/RoleService'
-import { myLink, type SyncField } from '@/services/discordMigrationService'
+import { initialSyncFields } from '@/components/settings/user/discordSyncFieldList'
+import { myLink, setMySync, type SyncField } from '@/services/discordMigrationService'
 import { loadMyServerProfile, setMyServerProfile, type ServerProfileFields } from '@/services/serverProfileService'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -354,14 +362,36 @@ async function onUpload(key: 'avatar_url' | 'banner_url', event: Event) {
 // "Sync from Discord": only for a server where the member linked a Discord account.
 const discordSync = ref<SyncField[]>([])
 const discordSyncShown = ref(false)
+const discordSyncing = ref(false)
+const discordSynced = ref(false)
+const discordSyncError = ref('')
 watch(selectedServerId, async (serverId) => {
   discordSyncShown.value = false
+  discordSynced.value = false
+  discordSyncError.value = ''
   if (!serverId) return
   const link = await myLink(serverId).catch(() => null)
   if (selectedServerId.value !== serverId) return
-  discordSync.value = link?.syncFields ?? []
+  discordSync.value = initialSyncFields(link)
   discordSyncShown.value = link?.status === 'active'
 }, { immediate: true })
+
+/** Saves the ticked fields and copies them now; nothing is saved by toggling alone. */
+async function saveDiscordSync() {
+  const serverId = selectedServerId.value
+  if (!serverId || discordSyncing.value) return
+  discordSyncing.value = true
+  discordSyncError.value = ''
+  try {
+    await setMySync(serverId, discordSync.value)
+    discordSynced.value = true
+  } catch {
+    discordSynced.value = false
+    discordSyncError.value = t('discordMigration.sync.saveFailed')
+  } finally {
+    discordSyncing.value = false
+  }
+}
 
 const previewUser = computed<User | null>(() => {
   const u = me.value
@@ -435,6 +465,10 @@ const previewProfile = computed(() => ({
 .discord-sync {
   margin-top: 24px;
   max-width: 480px;
+}
+
+.discord-sync-actions {
+  margin-top: 12px;
 }
 
 .discord-sync-title {

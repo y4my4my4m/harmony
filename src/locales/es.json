@@ -5764,7 +5764,7 @@
       "settingsLead": "Mientras la migración esté abierta, los campos marcados se copian de tu perfil de Discord a Harmony.",
       "accountGroup": "El perfil de tu cuenta",
       "serverGroup": "Tu perfil en este servidor",
-      "hint": "Se copia al cambiar un interruptor y después cada pocas horas. Desmarca un campo para dejar de copiarlo; lo ya copiado se queda.",
+      "hint": "Los campos marcados se copian al pulsar Sincronizar y se mantienen al día cada pocas horas mientras la migración esté abierta. Desmarca un campo para dejar de copiarlo; lo ya copiado se queda.",
       "saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
       "fields": {
         "avatar": "Foto de perfil",
@@ -5774,7 +5774,13 @@
         "server_nickname": "Apodo en este servidor",
         "server_avatar": "Foto en este servidor",
         "server_banner": "Banner en este servidor"
-      }
+      },
+      "selectAll": "Seleccionar todo",
+      "clearAll": "Quitar todo",
+      "syncButton": "Sincronizar",
+      "syncing": "Sincronizando…",
+      "saveAndSync": "Guardar y sincronizar",
+      "done": "Sincronizado desde Discord."
     },
     "migrate": {
       "title": "Migrar desde Discord",
@@ -5826,7 +5832,10 @@
         "network": "No se pudo contactar con el servidor. Inténtalo de nuevo.",
         "unknown": "Algo salió mal. Inténtalo de nuevo."
       },
-      "ownerRoles": "Eres el propietario de este servidor, así que la sincronización solo te añade roles. Nunca te los quita."
+      "ownerRoles": "Eres el propietario de este servidor, así que la sincronización solo te añade roles. Nunca te los quita.",
+      "continue": "Continuar",
+      "skipSyncTitle": "¿Continuar sin sincronizar?",
+      "skipSyncMessage": "No has sincronizado nada desde Discord. ¿Continuar de todos modos? Puedes sincronizar más tarde en Ajustes → Perfiles de servidor."
     },
     "navLabel": "Migrar desde Discord",
     "title": "Migrar desde Discord",

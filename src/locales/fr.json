@@ -5764,7 +5764,7 @@
       "settingsLead": "Tant que la migration est ouverte, les champs cochés sont copiés de votre profil Discord vers Harmony.",
       "accountGroup": "Le profil de votre compte",
       "serverGroup": "Votre profil sur ce serveur",
-      "hint": "La copie a lieu quand vous changez une option, puis toutes les quelques heures. Décochez un champ pour arrêter de le copier ; ce qui est déjà copié reste.",
+      "hint": "Les champs cochés sont copiés quand vous appuyez sur Synchroniser, puis tenus à jour toutes les quelques heures tant que la migration est ouverte. Décochez un champ pour arrêter de le copier ; ce qui est déjà copié reste.",
       "saveFailed": "Impossible d’enregistrer. Réessayez.",
       "fields": {
         "avatar": "Photo de profil",
@@ -5774,7 +5774,13 @@
         "server_nickname": "Pseudo sur ce serveur",
         "server_avatar": "Photo sur ce serveur",
         "server_banner": "Bannière sur ce serveur"
-      }
+      },
+      "selectAll": "Tout sélectionner",
+      "clearAll": "Tout désélectionner",
+      "syncButton": "Synchroniser",
+      "syncing": "Synchronisation…",
+      "saveAndSync": "Enregistrer et synchroniser",
+      "done": "Synchronisé depuis Discord."
     },
     "migrate": {
       "title": "Migrer depuis Discord",
@@ -5826,7 +5832,10 @@
         "network": "Impossible de joindre le serveur. Réessayez.",
         "unknown": "Une erreur s’est produite. Réessayez."
       },
-      "ownerRoles": "Vous êtes propriétaire de ce serveur : la synchronisation ne fait qu'ajouter des rôles et n'en retire jamais."
+      "ownerRoles": "Vous êtes propriétaire de ce serveur : la synchronisation ne fait qu'ajouter des rôles et n'en retire jamais.",
+      "continue": "Continuer",
+      "skipSyncTitle": "Continuer sans synchroniser ?",
+      "skipSyncMessage": "Vous n'avez rien synchronisé depuis Discord. Continuer quand même ? Vous pourrez synchroniser plus tard dans Paramètres → Profils de serveur."
     },
     "navLabel": "Migrer depuis Discord",
     "title": "Migrer depuis Discord",

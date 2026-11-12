@@ -5764,7 +5764,7 @@
       "settingsLead": "迁移开放期间，勾选的字段会从你的 Discord 资料复制到 Harmony。",
       "accountGroup": "你的账号资料",
       "serverGroup": "你在此服务器的资料",
-      "hint": "更改开关时会复制一次，之后每隔几小时复制一次。取消勾选即停止复制该字段，已复制的内容会保留。",
+      "hint": "勾选的字段会在你点击“同步”时复制,并在迁移开启期间每隔几小时保持更新。取消勾选即可停止复制;已复制的内容会保留。",
       "saveFailed": "无法保存，请重试。",
       "fields": {
         "avatar": "头像",
@@ -5774,7 +5774,13 @@
         "server_nickname": "在此服务器的昵称",
         "server_avatar": "在此服务器的头像",
         "server_banner": "在此服务器的横幅"
-      }
+      },
+      "selectAll": "全选",
+      "clearAll": "全部清除",
+      "syncButton": "同步",
+      "syncing": "正在同步…",
+      "saveAndSync": "保存并同步",
+      "done": "已从 Discord 同步。"
     },
     "migrate": {
       "title": "从 Discord 迁移",
@@ -5826,7 +5832,10 @@
         "network": "无法连接服务器，请重试。",
         "unknown": "出了点问题，请重试。"
       },
-      "ownerRoles": "你是此服务器的所有者,同步只会为你添加角色,绝不会移除。"
+      "ownerRoles": "你是此服务器的所有者,同步只会为你添加角色,绝不会移除。",
+      "continue": "继续",
+      "skipSyncTitle": "不同步就继续吗?",
+      "skipSyncMessage": "你还没有从 Discord 同步任何内容。仍要继续吗?你可以稍后在“设置”→“服务器资料”中同步。"
     },
     "navLabel": "从 Discord 迁移",
     "title": "从 Discord 迁移",

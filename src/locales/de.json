@@ -5764,7 +5764,7 @@
       "settingsLead": "Solange die Migration offen ist, werden die markierten Felder aus deinem Discord-Profil nach Harmony kopiert.",
       "accountGroup": "Dein Kontoprofil",
       "serverGroup": "Dein Profil auf diesem Server",
-      "hint": "Kopiert wird, wenn du einen Schalter änderst, und danach alle paar Stunden. Entferne das Häkchen, um ein Feld nicht mehr zu kopieren; bereits Kopiertes bleibt.",
+      "hint": "Angehakte Felder werden kopiert, wenn du auf Synchronisieren drückst, und solange die Migration offen ist alle paar Stunden aktualisiert. Entferne den Haken, um ein Feld nicht mehr zu kopieren; bereits Kopiertes bleibt.",
       "saveFailed": "Das konnte nicht gespeichert werden. Versuche es erneut.",
       "fields": {
         "avatar": "Profilbild",
@@ -5774,7 +5774,13 @@
         "server_nickname": "Spitzname auf diesem Server",
         "server_avatar": "Bild auf diesem Server",
         "server_banner": "Banner auf diesem Server"
-      }
+      },
+      "selectAll": "Alle auswählen",
+      "clearAll": "Alle abwählen",
+      "syncButton": "Synchronisieren",
+      "syncing": "Synchronisiere …",
+      "saveAndSync": "Speichern und synchronisieren",
+      "done": "Von Discord synchronisiert."
     },
     "migrate": {
       "title": "Von Discord umziehen",
@@ -5826,7 +5832,10 @@
         "network": "Der Server ist nicht erreichbar. Versuche es erneut.",
         "unknown": "Etwas ist schiefgelaufen. Versuche es erneut."
       },
-      "ownerRoles": "Dir gehört dieser Server, daher fügt die Synchronisierung dir nur Rollen hinzu. Sie entfernt nie welche."
+      "ownerRoles": "Dir gehört dieser Server, daher fügt die Synchronisierung dir nur Rollen hinzu. Sie entfernt nie welche.",
+      "continue": "Weiter",
+      "skipSyncTitle": "Ohne Synchronisierung fortfahren?",
+      "skipSyncMessage": "Du hast noch nichts von Discord synchronisiert. Trotzdem fortfahren? Du kannst später unter Einstellungen → Serverprofile synchronisieren."
     },
     "navLabel": "Von Discord umziehen",
     "title": "Von Discord umziehen",

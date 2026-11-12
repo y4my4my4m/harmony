@@ -1,12 +1,20 @@
 <template>
   <div class="dsf" data-testid="discord-sync-fields">
+    <div class="dsf-bulk">
+      <button type="button" class="dsf-link" :disabled="disabled" data-testid="sync-select-all" @click="selectAll">
+        {{ t('discordMigration.sync.selectAll') }}
+      </button>
+      <button type="button" class="dsf-link" :disabled="disabled" data-testid="sync-clear-all" @click="clearAll">
+        {{ t('discordMigration.sync.clearAll') }}
+      </button>
+    </div>
     <fieldset class="dsf-group">
       <legend class="dsf-legend">{{ t('discordMigration.sync.accountGroup') }}</legend>
-      <label v-for="field in ACCOUNT_FIELDS" :key="field" class="dsf-row">
+      <label v-for="field in ACCOUNT_SYNC_FIELDS" :key="field" class="dsf-row">
         <input
           type="checkbox"
-          :checked="selected.includes(field)"
-          :disabled="saving"
+          :checked="modelValue.includes(field)"
+          :disabled="disabled"
           :data-testid="`sync-${field}`"
           @change="toggle(field, ($event.target as HTMLInputElement).checked)"
         />
@@ -15,11 +23,11 @@
     </fieldset>
     <fieldset class="dsf-group">
       <legend class="dsf-legend">{{ t('discordMigration.sync.serverGroup') }}</legend>
-      <label v-for="field in SERVER_FIELDS" :key="field" class="dsf-row">
+      <label v-for="field in SERVER_SYNC_FIELDS" :key="field" class="dsf-row">
         <input
           type="checkbox"
-          :checked="selected.includes(field)"
-          :disabled="saving"
+          :checked="modelValue.includes(field)"
+          :disabled="disabled"
           :data-testid="`sync-${field}`"
           @change="toggle(field, ($event.target as HTMLInputElement).checked)"
         />
@@ -32,56 +40,34 @@
 
 <script setup lang="ts">
 /**
- * The seven profile fields a Discord link may copy. With a serverId each toggle is saved at once
- * (Settings, the result screen); without one the toggles only report through v-model (the
- * new-account form, whose link does not exist yet).
+ * The seven profile fields a Discord link may copy. The toggles are local: they report through
+ * v-model and nothing is saved until the parent's Sync / Save and sync button runs.
  */
-import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useToast } from 'vue-toastification'
-import { setMySync, type SyncField } from '@/services/discordMigrationService'
+import type { SyncField } from '@/services/discordMigrationService'
+import { ACCOUNT_SYNC_FIELDS, ALL_SYNC_FIELDS, SERVER_SYNC_FIELDS } from './discordSyncFieldList'
 
 const props = defineProps<{
-  serverId: string | null
   modelValue: SyncField[]
+  disabled?: boolean
 }>()
 const emit = defineEmits<{ 'update:modelValue': [fields: SyncField[]] }>()
 
 const { t } = useI18n()
-const toast = useToast()
 
-const ACCOUNT_FIELDS: SyncField[] = ['avatar', 'display_name', 'banner', 'accent_color']
-const SERVER_FIELDS: SyncField[] = ['server_nickname', 'server_avatar', 'server_banner']
-const ALL_FIELDS: SyncField[] = [...ACCOUNT_FIELDS, ...SERVER_FIELDS]
-
-const selected = ref<SyncField[]>([...props.modelValue])
-const saving = ref(false)
-
-watch(() => props.modelValue, (value) => { selected.value = [...value] })
-
-async function toggle(field: SyncField, on: boolean) {
-  const previous = [...selected.value]
-  const next = ALL_FIELDS.filter(f => (f === field ? on : previous.includes(f)))
-  selected.value = next
-  if (!props.serverId) {
-    emit('update:modelValue', next)
-    return
-  }
-  saving.value = true
-  try {
-    await setMySync(props.serverId, next)
-    emit('update:modelValue', next)
-  } catch {
-    selected.value = previous
-    toast.error(t('discordMigration.sync.saveFailed'))
-  } finally {
-    saving.value = false
-  }
+function toggle(field: SyncField, on: boolean) {
+  emit('update:modelValue', ALL_SYNC_FIELDS.filter(f => (f === field ? on : props.modelValue.includes(f))))
 }
+
+const selectAll = () => emit('update:modelValue', [...ALL_SYNC_FIELDS])
+const clearAll = () => emit('update:modelValue', [])
 </script>
 
 <style scoped>
 .dsf { display: flex; flex-direction: column; gap: 12px; }
+.dsf-bulk { display: flex; gap: 16px; }
+.dsf-link { background: none; border: 0; padding: 0; color: var(--accent, var(--text-link, inherit)); cursor: pointer; font-size: 0.8125rem; text-decoration: underline; }
+.dsf-link:disabled { opacity: 0.5; cursor: default; }
 .dsf-group { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .dsf-legend { font-weight: 600; font-size: 0.875rem; color: var(--text-secondary); padding: 0; margin-bottom: 4px; }
 .dsf-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }

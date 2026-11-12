@@ -45,6 +45,8 @@ export interface ClaimResult {
 export interface MigrationLink {
   status: string
   syncFields: SyncField[]
+  /** The member saved a choice (an empty one counts); until then every field is ticked. */
+  syncChosen: boolean
   discordJoinedAt: string | null
 }
 
@@ -178,10 +180,11 @@ export function completePendingClaimsOnce(userId: string): void {
 export async function myLink(serverId: string): Promise<MigrationLink | null> {
   const { data, error } = await supabase.rpc('discord_migration_my_link', { p_server_id: serverId })
   if (error || !data) return null
-  const row = data as { status?: string; sync_fields?: string[]; discord_joined_at?: string | null }
+  const row = data as { status?: string; sync_fields?: string[]; sync_chosen?: boolean; discord_joined_at?: string | null }
   return {
     status: row.status ?? 'active',
     syncFields: (row.sync_fields ?? []).filter((f): f is SyncField => (SYNC_FIELDS as readonly string[]).includes(f)),
+    syncChosen: row.sync_chosen === true,
     discordJoinedAt: row.discord_joined_at ?? null,
   }
 }

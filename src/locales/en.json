@@ -5760,7 +5760,7 @@
       "settingsLead": "While the migration is open, the fields you tick are copied from your Discord profile to Harmony.",
       "accountGroup": "Your account profile",
       "serverGroup": "Your profile in this server",
-      "hint": "Copying runs when you change a toggle and then every few hours. Untick a field to stop copying it; what is already copied stays.",
+      "hint": "Ticked fields are copied when you press Sync, and kept up to date every few hours while the migration is open. Untick a field to stop copying it; what is already copied stays.",
       "saveFailed": "Couldn't save that. Try again.",
       "fields": {
         "avatar": "Profile picture",
@@ -5770,7 +5770,13 @@
         "server_nickname": "Nickname in this server",
         "server_avatar": "Picture in this server",
         "server_banner": "Banner in this server"
-      }
+      },
+      "selectAll": "Select all",
+      "clearAll": "Clear all",
+      "syncButton": "Sync",
+      "syncing": "Syncing…",
+      "saveAndSync": "Save and sync",
+      "done": "Synced from Discord."
     },
     "migrate": {
       "title": "Migrate from Discord",
@@ -5822,7 +5828,10 @@
         "network": "Couldn't reach the server. Try again.",
         "unknown": "Something went wrong. Try again."
       },
-      "ownerRoles": "You own this server, so the sync only ever adds roles to you. It never removes them."
+      "ownerRoles": "You own this server, so the sync only ever adds roles to you. It never removes them.",
+      "continue": "Continue",
+      "skipSyncTitle": "Continue without syncing?",
+      "skipSyncMessage": "You haven't synced anything from Discord. Continue anyway? You can sync later in Settings → Server profiles."
     },
     "navLabel": "Migrate from Discord",
     "title": "Migrate from Discord",
