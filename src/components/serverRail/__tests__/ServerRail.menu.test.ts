@@ -107,7 +107,7 @@ describe('ServerRail context menus', () => {
     await openOn('server', 'a')
     await wrapper.get('[data-action="bridge-privacy"]').trigger('click')
     await flushPromises()
-    expect(rpc).toHaveBeenCalledWith('get_server_bridge_opt_out', { p_server_id: 'a' })
+    expect(rpc).toHaveBeenCalledWith('get_server_bridge_privacy', { p_server_id: 'a' })
   })
 
   it('does not offer local bridge privacy on a federated copy', async () => {

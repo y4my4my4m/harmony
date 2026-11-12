@@ -32,15 +32,15 @@ beforeEach(async () => {
 })
 afterEach(() => wrapper?.unmount())
 describe('Matrix channel members', () => {
-  it('shows an external MXID and neutral presence, opening only the read-only Matrix card', async () => {
+  it('shows an external MXID and neutral presence, opening the shared profile card', async () => {
     const row = wrapper.get('[title="@sam:example.org"]')
     expect(row.text()).toContain('Matrix Sam')
     expect(row.text()).toContain('@sam:example.org')
     expect(row.classes()).not.toContain('offline-user')
     expect(row.getComponent({ name: 'Avatar' }).props('status')).toBeUndefined()
     await row.trigger('click')
-    expect(wrapper.getComponent({ name: 'MatrixBridgedProfile' }).props('user')).toMatchObject({ source: 'matrix', id: '@sam:example.org' })
-    expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(false)
+    expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('user')).toMatchObject({ bridge_source: 'matrix', id: 'matrix:@sam:example.org' })
+    expect(wrapper.getComponent({ name: 'UserProfileModal' }).props('show')).toBe(true)
   })
   it('still opens the legacy Discord card and supports searching a Matrix homeserver', async () => {
     await wrapper.get('[title="Discord: @sam"]').trigger('click')

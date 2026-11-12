@@ -132,6 +132,17 @@ SELECT is((SELECT count(*)::integer FROM public.matrix_bridge_channel_members(pg
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(public.set_server_bridge_opt_out(pg_temp.mid('server'),false),false,'native member opts back in');
 SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_platform_opt_out(pg_temp.mid('server'),'discord',true),true,'member opts out of Discord only');
+SELECT tests.clear_authentication();
+SELECT is((SELECT count(*)::integer FROM public.matrix_bridge_channel_members(pg_temp.mid('matrix'),pg_temp.mid('channel'))),2,'Discord-only opt-out does not hide member from Matrix');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_platform_opt_out(pg_temp.mid('server'),'matrix',true),true,'member opts out of Matrix separately');
+SELECT tests.clear_authentication();
+SELECT is((SELECT count(*)::integer FROM public.matrix_bridge_channel_members(pg_temp.mid('matrix'),pg_temp.mid('channel'))),1,'Matrix-specific opt-out hides ghost profile');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_opt_out(pg_temp.mid('server'),false),false,'reset both platforms');
+SELECT tests.clear_authentication();
 INSERT INTO public.channel_permission_overrides(channel_id,target_type,user_id,allow_permissions,deny_permissions)
  VALUES(pg_temp.mid('channel'),'user','22222222-0000-0000-0000-000000000002',0,2);
 SELECT ok(NOT public.can_view_channel('22222222-0000-0000-0000-000000000002',pg_temp.mid('channel')),'fixture denies VIEW_CHANNEL');

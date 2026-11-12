@@ -1,6 +1,5 @@
 <template>
-  <MatrixBridgedProfile v-if="matrixProfile" :user="show ? matrixProfile : null" @close="$emit('close')" />
-  <BaseModal v-else
+  <BaseModal
     :show="show" 
     @close="$emit('close')"
     :show-header="false"
@@ -20,7 +19,7 @@
         <div class="banner-gradient"></div>
         <div class="banner-actions">
           <button 
-            v-if="!isCurrentUser && !isBridgedDiscord" 
+            v-if="!isCurrentUser && !isBridged"
             @click.stop="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
@@ -87,14 +86,14 @@
                 expandable
                 @error="handleAvatarError"
               />
-              <div class="status-indicator" :class="userStatus"></div>
+              <div v-if="!matrixProfile" class="status-indicator" :class="userStatus"></div>
             </div>
           </div>
           
           <div class="profile-info">
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
-                <template v-if="isBridgedDiscord">{{ displayName }}</template>
+                <template v-if="isBridged">{{ displayName }}</template>
                 <DisplayName v-else :userId="user!.id" :fallback="displayName" :color="userColor" />
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
@@ -103,7 +102,7 @@
               <p class="username">
                 <span data-testid="profile-modal-handle">{{ displayHandle }}</span>
                 <CopyHandleButton :account="handleAccount" />
-                <BridgeSourceBadge v-if="isBridgedDiscord" source="discord" />
+                <BridgeSourceBadge v-if="isBridged" :source="matrixProfile ? 'matrix' : 'discord'" />
                 <span
                   v-if="isLockedAccount"
                   class="locked-badge"
@@ -116,12 +115,12 @@
             </div>
             
             <div
-              v-if="profileStaffBadge && !isBridgedDiscord"
+              v-if="profileStaffBadge && !isBridged"
               class="role-badge"
               :class="profileStaffBadge.kind === 'admin' ? 'instance-admin-badge' : 'instance-mod-badge'"
               data-testid="profile-staff-badge"
             >{{ profileStaffBadgeText }}</div>
-            <SupporterBadge v-if="user?.id && !isBridgedDiscord" :user-id="user.id" />
+            <SupporterBadge v-if="user?.id && !isBridged" :user-id="user.id" />
 
             <div class="user-badges">
               <div class="roles-container">
@@ -143,7 +142,7 @@
         </div>
 
         <MovedAccountNotice
-          v-if="movedTo && !isBridgedDiscord"
+          v-if="movedTo && !isBridged"
           class="moved-notice"
           :name="displayName"
           :target="movedTo"
@@ -151,7 +150,7 @@
         />
 
         <!-- User Stats -->
-        <div class="user-stats">
+        <div v-if="!matrixProfile" class="user-stats">
           <template v-if="isBridgedDiscord">
             <div v-if="bridgedProfile?.discord_joined_at" class="stat-item">
               <span class="stat-value">{{ formatJoinDate(bridgedProfile.discord_joined_at) }}</span>
@@ -263,7 +262,7 @@
         </div>
 
         <!-- User Activities -->
-        <div v-if="!isBridgedDiscord" class="activities-section">
+        <div v-if="!isBridged" class="activities-section">
           <h3 class="section-title">Activity</h3>
           <div class="activity-grid">
             <!-- Chat User Activities -->
@@ -338,7 +337,12 @@
 
         <!-- Action Buttons -->
         <div class="profile-actions">
-          <template v-if="isBridgedDiscord">
+          <template v-if="matrixProfile">
+            <a v-if="matrixUrl" :href="matrixUrl" target="_blank" rel="noopener noreferrer" class="secondary-action-btn single-action-btn">
+              {{ t('matrixBridge.openMatrix') }}
+            </a>
+          </template>
+          <template v-else-if="isBridgedDiscord">
             <button
               type="button"
               class="secondary-action-btn single-action-btn"
@@ -441,7 +445,7 @@
   </BaseModal>
 
   <KickBanModal
-    v-if="user && isInServerContext && !matrixProfile"
+    v-if="user && isInServerContext && !isBridged"
     :show="showKickBanModal"
     :mode="kickBanMode"
     :user="{ id: user.id, username: user.username || '', display_name: (user as any).display_name || user.username || '', avatar_url: (user as any).avatar_url || null }"
@@ -481,7 +485,7 @@ import Icon from './common/Icon.vue'
 import KickBanModal from './moderation/KickBanModal.vue'
 import BridgeSourceBadge from './messages/BridgeSourceBadge.vue'
 import { isBridgedDiscordProfileUser, isBridgedMatrixProfileUser, type BridgedChannelUser } from '@/services/bridgedChannelUsersService'
-import MatrixBridgedProfile from '@/components/MatrixBridgedProfile.vue'
+import { matrixProfileUrl } from '@/utils/matrixMentions'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
@@ -515,7 +519,7 @@ const matrixProfile = computed<BridgedChannelUser | null>(() => {
     displayName: user.display_name || username, avatarUrl: user.avatar_url || '', source: 'matrix' }
 })
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
-const { movedTo, isMoved } = useMovedAccount(() => (props.show && !matrixProfile.value ? props.user as any : null))
+const { movedTo, isMoved } = useMovedAccount(() => (props.show && !isBridgedDiscordProfileUser(props.user) && !matrixProfile.value ? props.user as any : null))
 
 const router = useRouter()
 const route = useRoute()
@@ -791,6 +795,8 @@ function getProfileUrl(user: FederatedUser | User | null): string {
 // userDataService (kept in sync by useUserData), which is reactive and
 // id-correct.
 const isBridgedDiscord = computed(() => isBridgedDiscordProfileUser(props.user))
+const isBridged = computed(() => isBridgedDiscord.value || !!matrixProfile.value)
+const matrixUrl = computed(() => matrixProfileUrl(matrixProfile.value?.id || ''))
 
 const bridgedProfile = computed((): User | null => {
   if (!isBridgedDiscord.value || !props.user) return null
@@ -798,13 +804,13 @@ const bridgedProfile = computed((): User | null => {
 })
 
 const isCurrentUser = computed(() => {
-  if (!props.user?.id || isBridgedDiscord.value) return false
+  if (!props.user?.id || isBridged.value) return false
   return props.user.id === getCurrentUser.value?.id
 })
 
-/** The account the handle names; null for a bridged Discord account or without a username. */
+/** The account the handle names; null for bridged accounts or without a username. */
 const handleAccount = computed((): CopyHandleAccount | null => {
-  if (!props.user || isBridgedDiscord.value) return null
+  if (!props.user || isBridged.value) return null
   const u = props.user as any
   const username = u.username || getUser(props.user.id).value?.username
   if (!username || username === 'Unknown' || username === 'unknown') return null
@@ -814,6 +820,7 @@ const handleAccount = computed((): CopyHandleAccount | null => {
 // The full handle, @user@domain, local accounts included.
 const displayHandle = computed(() => {
   if (!props.user) return '@unknown'
+  if (matrixProfile.value) return matrixProfile.value.id
   if (isBridgedDiscord.value) return `@${(props.user as any).username || 'unknown'}`
   return handleAccount.value ? formatHandle(handleAccount.value, { full: true }) : '@unknown'
 })
@@ -866,7 +873,7 @@ async function refreshRemoteCounts(user: FederatedUser) {
 }
 
 const userStatus = computed(() => {
-  if (!props.user) return 'offline'
+  if (!props.user || matrixProfile.value) return 'offline'
 
   if (isBridgedDiscord.value) {
     switch (props.user.status) {
@@ -932,7 +939,7 @@ const userStatusText = computed(() => {
 
 // Custom status (global, stored on profile)
 const customStatusDisplay = computed(() => {
-  if (!props.user) return ''
+  if (!props.user || matrixProfile.value) return ''
   if (isBridgedDiscord.value) {
     const custom = bridgedProfile.value?.discord_custom_status
     if (!custom) return ''
@@ -945,15 +952,15 @@ const customStatusDisplay = computed(() => {
 
 const displayName = computed(() => {
   if (!props.user) return 'Unknown User'
-  if (isBridgedDiscord.value) {
-    return props.user.display_name || props.user.username || 'Discord User'
+  if (isBridged.value) {
+    return props.user.display_name || props.user.username || (matrixProfile.value ? 'Matrix User' : 'Discord User')
   }
   return getUserDisplayName(props.user.id).value || props.user.display_name || 'Unknown User'
 })
 
 const avatarUrl = computed(() => {
   if (!props.user) return '/default_avatar.webp'
-  if (isBridgedDiscord.value) {
+  if (isBridged.value) {
     return props.user.avatar_url || '/default_avatar.webp'
   }
   return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.webp'
@@ -961,7 +968,7 @@ const avatarUrl = computed(() => {
 
 const userColor = computed(() => {
   if (!props.user) return '#ffffff'
-  if (isBridgedDiscord.value) {
+  if (isBridged.value) {
     return props.user.color || '#ffffff'
   }
   return getUserColor(props.user.id).value || '#ffffff'
@@ -969,7 +976,7 @@ const userColor = computed(() => {
 
 const bannerUrl = computed(() => {
   if (!props.user) return null
-  if (isBridgedDiscord.value) {
+  if (isBridged.value) {
     return props.user.banner_url || null
   }
   return getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
@@ -1411,7 +1418,7 @@ const getUserVerified = (user: any) => {
 }
 
 const getUserRoles = (user: any) => {
-  if (isBridgedDiscordProfileUser(user)) {
+  if (isBridgedDiscordProfileUser(user) || isBridgedMatrixProfileUser(user)) {
     return user?.roles ?? []
   }
   if (!isInServerContext.value) {
@@ -1424,7 +1431,7 @@ const getUserRoles = (user: any) => {
 // instance, named with that instance, everywhere (instanceBadge.ts).
 const profileStaffBadge = computed((): InstanceStaffBadge | null => {
   const user: any = props.user
-  if (!user) return null
+  if (!user || isBridged.value) return null
   const stored: any = user.id ? getUserProfile(user.id).value : null
   return instanceStaffBadge({
     is_admin: user.is_admin || user.isAdmin || user.profile?.is_admin || stored?.is_admin,
@@ -1878,6 +1885,7 @@ onMounted(() => {
 }
 
 .username {
+  overflow-wrap: anywhere;
   font-size: 16px;
   color: var(--text-secondary);
   margin: 0;
@@ -2314,6 +2322,7 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   border: none;
   flex: 1;

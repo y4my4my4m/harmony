@@ -22,6 +22,7 @@ import { useBridgePrivacyStore } from '@/stores/useBridgePrivacy'
 import { useProfileStore } from '@/stores/useProfile'
 
 let wrapper: VueWrapper
+const state = (discord = false, matrix = false) => ({ data: { discord, matrix }, error: null })
 beforeEach(() => {
   setActivePinia(createPinia())
   rpc.mockReset()
@@ -31,46 +32,51 @@ beforeEach(() => {
 afterEach(() => wrapper.unmount())
 
 describe('member bridge privacy', () => {
-  it('loads self state and saves through the self-only RPC, with explicit limited scope', async () => {
-    rpc.mockResolvedValueOnce({ data: false, error: null })
+  it('loads self state and independently saves each platform with explicit limited scope', async () => {
+    rpc.mockResolvedValueOnce(state(false, true))
     const store = useBridgePrivacyStore()
     await store.open('server')
     await flushPromises()
-    expect(rpc).toHaveBeenCalledWith('get_server_bridge_opt_out', { p_server_id: 'server' })
-    expect(wrapper.get('[role="switch"]').attributes('aria-checked')).toBe('false')
+    expect(rpc).toHaveBeenCalledWith('get_server_bridge_privacy', { p_server_id: 'server' })
+    expect(wrapper.findAll('[role="switch"]').map(s => s.attributes('aria-checked'))).toEqual(['false', 'true'])
     expect(wrapper.text()).toContain('future messages')
     expect(wrapper.text()).toContain('does not remove existing remote copies')
     expect(wrapper.text()).toContain('other bots')
     rpc.mockResolvedValueOnce({ data: true, error: null })
-    await wrapper.get('[role="switch"]').trigger('click')
+    await wrapper.findAll('[role="switch"]')[0].trigger('click')
     await flushPromises()
-    expect(rpc).toHaveBeenLastCalledWith('set_server_bridge_opt_out', { p_server_id: 'server', p_opt_out: true })
-    expect(wrapper.get('[role="switch"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.get('[role="switch"]').attributes('aria-labelledby')).toBe('bridge-privacy-label')
+    expect(rpc).toHaveBeenLastCalledWith('set_server_bridge_platform_opt_out', { p_server_id: 'server', p_platform: 'discord', p_opt_out: true })
+    expect(store.optOut).toEqual({ discord: true, matrix: true })
+    expect(wrapper.get('[role="switch"]').attributes('aria-labelledby')).toBe('bridge-privacy-discord-label')
+    rpc.mockResolvedValueOnce({ data: false, error: null })
+    await wrapper.findAll('[role="switch"]')[1].trigger('click')
+    await flushPromises()
+    expect(rpc).toHaveBeenLastCalledWith('set_server_bridge_platform_opt_out', { p_server_id: 'server', p_platform: 'matrix', p_opt_out: false })
+    expect(store.optOut).toEqual({ discord: true, matrix: false })
   })
 
-  it('does not assume bridging is allowed when loading fails or returns an invalid boolean', async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: null })
+  it.each([null, false, { discord: false }, { discord: false, matrix: null }])('does not assume bridging is allowed for invalid state %j', async data => {
+    rpc.mockResolvedValueOnce({ data, error: null })
     await useBridgePrivacyStore().open('server')
     await flushPromises()
     expect(wrapper.find('[role="switch"]').exists()).toBe(false)
     expect(wrapper.get('[role="alert"]').text()).toContain('Could not load')
-    rpc.mockResolvedValueOnce({ data: true, error: null })
+    rpc.mockResolvedValueOnce(state(true))
     await wrapper.get('button.btn').trigger('click')
     await flushPromises()
     expect(wrapper.get('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
   it('keeps the last confirmed choice if saving fails, without exposing exception text', async () => {
-    rpc.mockResolvedValueOnce({ data: true, error: null })
+    rpc.mockResolvedValueOnce(state(true))
     const store = useBridgePrivacyStore()
     await store.open('server')
     rpc.mockRejectedValueOnce(new Error('private credentials'))
-    await store.setOptOut(false)
+    await store.setOptOut('discord', false)
     await flushPromises()
-    expect(store.optOut).toBe(true)
+    expect(store.optOut).toEqual({ discord: true, matrix: false })
     expect(wrapper.get('[role="alert"]').text()).toContain('Could not confirm the change')
-    expect(wrapper.get('[role="switch"]').attributes('aria-disabled')).toBe('true')
+    expect(wrapper.findAll('[role="switch"]').every(s => s.attributes('aria-disabled') === 'true')).toBe(true)
     expect(wrapper.get('button.btn').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('private credentials')
   })
@@ -82,27 +88,27 @@ describe('member bridge privacy', () => {
     const pending = store.open('server')
     useProfileStore().profileId = 'another-member'
     await flushPromises()
-    finish({ data: true, error: null })
+    finish(state(true, true))
     await pending
     expect(store.serverId).toBeNull()
     expect(store.optOut).toBeNull()
   })
 
   it('disables a pending save and ignores late responses after closing/reopening', async () => {
-    rpc.mockResolvedValueOnce({ data: false, error: null })
+    rpc.mockResolvedValueOnce(state())
     const store = useBridgePrivacyStore()
     await store.open('server')
     let finish!: (value: unknown) => void
     rpc.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-    const saving = store.setOptOut(true)
+    const saving = store.setOptOut('matrix', true)
     await flushPromises()
     expect(wrapper.get('[role="switch"]').attributes('aria-disabled')).toBe('true')
     store.close()
-    rpc.mockResolvedValueOnce({ data: false, error: null })
+    rpc.mockResolvedValueOnce(state())
     await store.open('another-server')
     finish({ data: true, error: null })
     await saving
     expect(store.serverId).toBe('another-server')
-    expect(store.optOut).toBe(false)
+    expect(store.optOut).toEqual({ discord: false, matrix: false })
   })
 })

@@ -4,11 +4,14 @@
     <p id="bridge-privacy-description">{{ t('bridgePrivacy.description') }}</p>
     <p id="bridge-privacy-scope" class="privacy-hint">{{ t('bridgePrivacy.scope') }}</p>
     <div v-if="store.loading" role="status" :aria-label="t('bridgePrivacy.loading')"><LoadingSpinner /></div>
-    <div v-else-if="store.optOut !== null" class="privacy-row">
-      <span id="bridge-privacy-label">{{ t('bridgePrivacy.optOut') }}</span>
-      <ToggleSwitch :model-value="store.optOut" :disabled="store.saving || !!store.error" labelledby="bridge-privacy-label"
-        describedby="bridge-privacy-description bridge-privacy-scope" @update:model-value="store.setOptOut" />
-    </div>
+    <template v-else-if="store.optOut !== null">
+      <div v-for="platform in platforms" :key="platform" class="privacy-row">
+        <span :id="`bridge-privacy-${platform}-label`">{{ t('bridgePrivacy.optOut') }} — {{ platform === 'discord' ? 'Discord' : 'Matrix' }}</span>
+        <ToggleSwitch :model-value="store.optOut[platform]" :disabled="store.saving || !!store.error"
+          :labelledby="`bridge-privacy-${platform}-label`" describedby="bridge-privacy-description bridge-privacy-scope"
+          @update:model-value="store.setOptOut(platform, $event)" />
+      </div>
+    </template>
     <p v-if="store.saving" role="status">{{ t('bridgePrivacy.saving') }}</p>
     <p v-if="store.error" role="alert">{{ t(`bridgePrivacy.${store.error}`) }}</p>
     <button v-if="store.error" type="button" class="btn btn-secondary" @click="store.open(store.serverId!)">
@@ -28,6 +31,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 
 const { t } = useI18n()
 const store = useBridgePrivacyStore()
+const platforms = ['discord', 'matrix'] as const
 const servers = useServerChannelStore()
 const serverName = computed(() => servers.servers.find(server => server.id === store.serverId)?.name)
 </script>

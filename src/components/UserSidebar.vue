@@ -299,7 +299,6 @@
     </div>
 
     <!-- User Profile Modal -->
-    <MatrixBridgedProfile :user="selectedMatrixUser" @close="selectedMatrixUser = null" />
     <UserProfileModal 
       :show="showProfileModal" 
       :user="selectedUser" 
@@ -372,7 +371,6 @@ import { useAnnouncer } from '@/composables/useAnnouncer';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
-import MatrixBridgedProfile from '@/components/MatrixBridgedProfile.vue';
 import BridgedSourceIcon from '@/components/messages/BridgedSourceIcon.vue';
 import BotProfileModal from '@/components/BotProfileModal.vue';
 import UserContextMenu from '@/components/UserContextMenu.vue';
@@ -492,8 +490,7 @@ function staffBadgeTitle(badge: InstanceStaffBadge): string {
 
 // Component state
 const selectedUser = ref<User | null>(null);
-const selectedMatrixUser = ref<BridgedChannelUser | null>(null);
-watch(() => serverChannelStore.currentChannelId, () => { selectedMatrixUser.value = null; });
+watch(() => serverChannelStore.currentChannelId, () => { closeProfile(); });
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
@@ -976,10 +973,6 @@ const bridgedDiscordGrouping = computed(() => {
 });
 
 function showBridgedDiscordUserProfile(bridgedUser: BridgedChannelUser) {
-  if (bridgedUser.source === 'matrix') {
-    selectedMatrixUser.value = bridgedUser;
-    return;
-  }
   selectedUser.value = bridgedUserToProfileUser(bridgedUser) as User;
   showProfileModal.value = true;
 }

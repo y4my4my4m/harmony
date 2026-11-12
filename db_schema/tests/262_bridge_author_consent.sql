@@ -265,5 +265,44 @@ SELECT is(public.bridge_channel_platform(pg_temp.bid('matrix'),pg_temp.bid('chan
 SELECT is((SELECT bridge_platform FROM public.bots WHERE id=pg_temp.bid('matrix')),'matrix','protocol marker survives empty binding set');
 SELECT is(public.bridge_channel_platform(pg_temp.bid('legacy'),pg_temp.bid('channel')),'discord','legacy registry unaffected by Matrix unpair');
 
+-- Per-platform preferences cannot re-enable the other bridge or bypass self-only writes.
+SELECT ok(NOT has_function_privilege('anon','public.get_server_bridge_privacy(uuid)','EXECUTE')
+ AND NOT has_function_privilege('service_role','public.set_server_bridge_platform_opt_out(uuid,text,boolean)','EXECUTE')
+ AND has_function_privilege('authenticated','public.get_server_bridge_privacy(uuid)','EXECUTE')
+ AND has_function_privilege('authenticated','public.set_server_bridge_platform_opt_out(uuid,text,boolean)','EXECUTE'),'platform preferences are authenticated only');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT is(public.configure_matrix_bridge(pg_temp.bid('matrix'),pg_temp.bid('server'),ARRAY[pg_temp.bid('channel')]),true,'restore Matrix binding for platform preferences');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_opt_out(pg_temp.bid('server'),false),false,'reset both platforms through legacy client');
+SELECT is(public.get_server_bridge_privacy(pg_temp.bid('server')),'{"discord":false,"matrix":false}'::jsonb,'both platforms initially allowed');
+SELECT throws_ok($$SELECT public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'other',true)$$,'22023',NULL,'invalid platform refused');
+SELECT throws_ok($$SELECT public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),NULL,true)$$,'22023',NULL,'null platform refused');
+SELECT throws_ok($$SELECT public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'matrix',NULL)$$,'22023',NULL,'null opt-out refused');
+SELECT throws_ok($$UPDATE public.user_servers SET matrix_bridge_opt_out=true WHERE server_id=pg_temp.bid('server') AND user_id='22222222-0000-0000-0000-000000000002'$$,'42501',NULL,'direct Matrix preference write refused');
+SELECT is(public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'matrix',true),true,'opt out of Matrix only');
+SELECT is(public.get_server_bridge_privacy(pg_temp.bid('server')),'{"discord":false,"matrix":true}'::jsonb,'Discord remains allowed');
+SELECT is(public.get_server_bridge_opt_out(pg_temp.bid('server')),true,'old client conservatively sees opt-out');
+SELECT tests.clear_authentication();
+SET LOCAL ROLE service_role;
+SELECT ok(NOT public.can_bridge_member_messages(pg_temp.bid('matrix'),pg_temp.bid('channel'),'22222222-0000-0000-0000-000000000002'),'Matrix cannot forward opted-out member');
+SELECT ok(public.can_bridge_member_messages(pg_temp.bid('legacy'),pg_temp.bid('channel'),'22222222-0000-0000-0000-000000000002'),'Discord can still forward member');
+RESET ROLE;
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is(public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'discord',true),true,'opt out of Discord');
+SELECT is(public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'matrix',false),false,'allow Matrix independently');
+SELECT tests.clear_authentication();
+SET LOCAL ROLE service_role;
+SELECT ok(public.can_bridge_member_messages(pg_temp.bid('matrix'),pg_temp.bid('channel'),'22222222-0000-0000-0000-000000000002'),'Matrix may forward again');
+SELECT ok(NOT public.can_bridge_member_messages(pg_temp.bid('legacy'),pg_temp.bid('channel'),'22222222-0000-0000-0000-000000000002'),'Discord may not forward');
+RESET ROLE;
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT throws_ok($$SELECT public.get_server_bridge_privacy(pg_temp.bid('server'))$$,'42501',NULL,'nonmember cannot read platform preferences');
+SELECT throws_ok($$SELECT public.set_server_bridge_platform_opt_out(pg_temp.bid('server'),'matrix',true)$$,'42501',NULL,'nonmember cannot set platform preferences');
+SELECT tests.clear_authentication();
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+SELECT throws_ok($$UPDATE public.user_servers SET matrix_bridge_opt_out=true WHERE server_id=pg_temp.bid('server') AND user_id='22222222-0000-0000-0000-000000000002'$$,'42501',NULL,'manager cannot change another member Matrix preference');
+SELECT tests.clear_authentication();
+
 SELECT * FROM finish();
 ROLLBACK;
