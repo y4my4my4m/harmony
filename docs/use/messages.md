@@ -353,4 +353,8 @@ Two switches in **User settings** → **Appearance** → **Message display** han
 | **Convert emoticons I send** | Replaces emoticons with emoji when you send or edit a message. Code, links and email addresses are left alone. |
 | **Show emoticons others send as emoji** | Displays emoticons in received messages as emoji. The original text is kept. |
 
+The emoticons are the ones Discord converts, to the same emoji: `:)` 🙂, `:D` 😄, `:P` 😛, `;)` 😉, `:(` 😦, `:'(` 😢, `:')` 🥲, `:'D` 😂, `:O` 😮, `:|` 😐, `:*` 😗, `8-)` 😎, `O:)` 😇, `>:(` 😠, `:@` 😡, `]:)` 😈, `,:)` 😅, `;(` 😭, `:s` 😒, `<3` ❤️, `</3` 💔, and their variants with a nose (`:-)`) or `=` for eyes (`=)`). Harmony adds `:p`, `xD` and `:/`. A line that starts with `>:(` is greentext, not an emoticon.
+
+In the `:` suggestions, an emoticon's emoji comes first: `:P` lists 😛 ahead of emoji whose names start with p.
+
 The **Greentext** switch, also on unless you turn it off, is in the same section. So is **Animate custom emoji**: off, animated emoji show their first frame on your screen, which leaves them unchanged for everyone else.

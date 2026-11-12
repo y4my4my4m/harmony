@@ -165,6 +165,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   hold one keep it.
 
 ### Fixed
+- **`:P` suggests 😛.** Beside a custom emoji whose name starts with p, typing `:P` listed that
+  emoji alone and Enter inserted it. The emoticon's own emoji now leads the list; the same for
+  `:D`, `:O`, `:s` and `:p`.
 - **Discord bridge: finding a message by its Discord id reads an index.** The bridge asks for the
   Harmony message behind a Discord message on replies, edits, deletes and reactions it has no record
   of (`GET /channels/{id}/messages/lookup`), and the gateway does on a message relayed twice. Both
@@ -282,6 +285,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   channels of a server live and reads who is in the others every 30 seconds.
 
 ### Changed
+- **Emoticons convert as on Discord.** The set is Discord's: `:')` is 🥲, `:'D` 😂, `8-)` 😎, `O:)` 😇,
+  `>:(` 😠, `]:)` 😈, `,:)` 😅, `;(` 😭, `:*` 😗, `:s` 😒, with the `=` and nose variants of each.
+  `:D` is 😄 and `:(` is 😦, as Discord has them. `:p`, `xD` and `:/` still convert.
+- **Emoji names follow Discord where they differed.** `:sunglasses:` is 😎, `:dog:` 🐶, `:cat:` 🐱,
+  `:kiss:` 💋, `:umbrella:` ☔, `:snowman:` ⛄, `:pencil:` 📝, `:calendar:` 📆, `:satellite:` 📡,
+  `:train:` 🚋, `:post_office:` 🏣, and `:tiger:`, `:horse:`, `:cow:`, `:pig:`, `:camel:`, `:mouse:`,
+  `:rabbit:` and `:whale:` are the animal's face. The emoji that held those names answer to
+  `:dark_sunglasses:`, `:dog2:`, `:cat2:`, `:couplekiss:`, `:umbrella2:`, `:snowman2:`, `:pencil2:`,
+  `:date:`, `:satellite_orbital:`, `:train2:` and the like. A message that holds one of the 19
+  names as typed text shows the other emoji now.
 - **Group conversations take messages from someone you blocked**, collapsed for you as in Discord.
   One member's block used to stop that person writing in the whole group.
 - **Bot API:** importing a Discord emoji through the bridge now respects the server's emoji limit
